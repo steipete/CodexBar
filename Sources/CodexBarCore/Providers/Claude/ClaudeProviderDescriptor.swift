@@ -511,6 +511,7 @@ struct ClaudeOAuthFetchStrategy: ProviderFetchStrategy {
             strategyKind: self.kind,
             claudeOAuthKeychainPersistentRefHash: usage.oauthKeychainPersistentRefHash,
             claudeOAuthHistoryOwnerIdentifier: usage.oauthHistoryOwnerIdentifier,
+            claudeOAuthCredentialOwner: usage.oauthCredentialOwner,
             claudeOAuthKeychainCredentialMismatch: usage.oauthKeychainCredentialMismatch,
             claudeOAuthKeychainCredentialAbsent: usage.oauthKeychainCredentialAbsent,
             claudeOAuthKeychainCredentialUnavailable: usage.oauthKeychainCredentialUnavailable)

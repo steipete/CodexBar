@@ -760,7 +760,8 @@ struct ClaudeActiveAccountIdentityInvalidationTests {
                 dashboard: nil,
                 sourceLabel: sourceLabel,
                 strategyID: "test.cli-success",
-                strategyKind: strategyKind)),
+                strategyKind: strategyKind,
+                claudeOAuthCredentialOwner: strategyKind == .oauth ? .claudeCLI : nil)),
             attempts: [ProviderFetchAttempt(
                 strategyID: "test.cli-success",
                 kind: .cli,
@@ -812,6 +813,38 @@ struct ClaudeActiveAccountIdentityInvalidationTests {
             identity: ProviderIdentitySnapshot(
                 providerID: .claude,
                 accountEmail: "replacement@example.com",
+                accountOrganization: nil,
+                loginMethod: "Max"))
+    }
+
+    private static func secondReplacementSnapshot() -> UsageSnapshot {
+        UsageSnapshot(
+            primary: RateWindow(
+                usedPercent: 40,
+                windowMinutes: 300,
+                resetsAt: nil,
+                resetDescription: nil),
+            secondary: nil,
+            updatedAt: Date(timeIntervalSince1970: 1_800_000_250),
+            identity: ProviderIdentitySnapshot(
+                providerID: .claude,
+                accountEmail: "second-replacement@example.com",
+                accountOrganization: nil,
+                loginMethod: "Max"))
+    }
+
+    private static func postRewriteOAuthSnapshot() -> UsageSnapshot {
+        UsageSnapshot(
+            primary: RateWindow(
+                usedPercent: 50,
+                windowMinutes: 300,
+                resetsAt: nil,
+                resetDescription: nil),
+            secondary: nil,
+            updatedAt: Date(timeIntervalSince1970: 1_800_000_300),
+            identity: ProviderIdentitySnapshot(
+                providerID: .claude,
+                accountEmail: "post-rewrite-oauth@example.com",
                 accountOrganization: nil,
                 loginMethod: "Max"))
     }
@@ -895,7 +928,11 @@ extension ClaudeActiveAccountIdentityInvalidationTests {
 
     @Test
     func `pre fetch account switch rejects stale OAuth and publishes owner CLI replacement`() async throws {
-        try await self.withMissingCredentialsFile { _ in
+        try await self.withMissingCredentialsFile { credentialsURL in
+            try FileManager.default.createDirectory(
+                at: credentialsURL.deletingLastPathComponent(),
+                withIntermediateDirectories: true)
+            try Data("stale-account-a-credentials".utf8).write(to: credentialsURL)
             let staleOAuthSnapshot = Self.freshSnapshot()
             let replacementSnapshot = Self.replacementSnapshot()
             let fixture = try await MainActor.run {
@@ -942,6 +979,48 @@ extension ClaudeActiveAccountIdentityInvalidationTests {
             #expect(result.snapshot?.updatedAt == replacementSnapshot.updatedAt)
             #expect(result.snapshot?.accountEmail(for: .claude) == "replacement@example.com")
             #expect(result.persistedIdentity == UsageStore._activeClaudeAccountIdentityForTesting("account-b"))
+
+            #expect(ClaudeOAuthCredentialsStore.isCurrentCredentialsFileQuarantinedForOAuth())
+
+            let secondReplacementSnapshot = Self.secondReplacementSnapshot()
+            let secondOutcomes = ClaudeReplacementFetchSequence(
+                first: Self.successOutcome(
+                    staleOAuthSnapshot,
+                    sourceLabel: "OAuth",
+                    strategyKind: .oauth),
+                replacement: Self.successOutcome(secondReplacementSnapshot))
+            await secondOutcomes.releaseReplacement()
+            await MainActor.run {
+                fixture.store._test_providerFetchOutcomeOverride = { _ in await secondOutcomes.next() }
+            }
+            await UsageStore.withActiveClaudeAccountUuidForTesting("account-b") {
+                await fixture.store.refreshProvider(.claude)
+            }
+            #expect(await secondOutcomes.replacementStarted())
+            #expect(await MainActor.run {
+                fixture.store.snapshot(for: .claude)?.updatedAt == secondReplacementSnapshot.updatedAt
+            })
+
+            try Data("rewritten-account-b-credentials-with-a-new-fingerprint".utf8).write(to: credentialsURL)
+            let postRewriteOAuthSnapshot = Self.postRewriteOAuthSnapshot()
+            let postRewriteOutcomes = ClaudeReplacementFetchSequence(
+                first: Self.successOutcome(
+                    postRewriteOAuthSnapshot,
+                    sourceLabel: "OAuth",
+                    strategyKind: .oauth),
+                replacement: Self.transientFailureOutcome())
+            await postRewriteOutcomes.releaseReplacement()
+            await MainActor.run {
+                fixture.store._test_providerFetchOutcomeOverride = { _ in await postRewriteOutcomes.next() }
+            }
+            await UsageStore.withActiveClaudeAccountUuidForTesting("account-b") {
+                await fixture.store.refreshProvider(.claude)
+            }
+            #expect(await !postRewriteOutcomes.replacementStarted())
+            #expect(!ClaudeOAuthCredentialsStore.isCurrentCredentialsFileQuarantinedForOAuth())
+            #expect(await MainActor.run {
+                fixture.store.snapshot(for: .claude)?.updatedAt == postRewriteOAuthSnapshot.updatedAt
+            })
         }
     }
 }

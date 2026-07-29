@@ -562,9 +562,20 @@ extension UsageStore {
             Self.claudeCredentialsChanged(
                 beforeFetch: input.beforeFetch,
                 changedDuringFetch: authChangedDuringFetch) || activeAccountReconciliation.changed)
-        let oauthAccountMismatch = Self.isSuccessfulClaudeOAuthOutcome(input.outcome) && (
+        let successfulOAuth = Self.isSuccessfulClaudeOAuthOutcome(input.outcome)
+        let successfulOAuthCredentialOwner = Self.successfulClaudeOAuthCredentialOwner(input.outcome)
+        let activeAccountMismatch = successfulOAuth && (
             activeAccountChangedDuringFetch || activeAccountReconciliation.changedFromPersistedIdentity)
+        let quarantinedCredentialsFile = if successfulOAuthCredentialOwner == .claudeCLI {
+            await Self.isClaudeCredentialsFileQuarantinedForOAuth(environment: input.environment)
+        } else {
+            false
+        }
+        let oauthAccountMismatch = activeAccountMismatch || quarantinedCredentialsFile
         if oauthAccountMismatch {
+            if activeAccountMismatch, successfulOAuthCredentialOwner == .claudeCLI {
+                await Self.quarantineClaudeCredentialsFileForOAuth(environment: input.environment)
+            }
             await Self.invalidateClaudeOAuthCache(environment: input.environment)
             guard self.isCurrentProviderRefreshGeneration(input.provider, generation: input.generation) else {
                 return ClaudeRefreshReconciliation(
@@ -1026,6 +1037,15 @@ extension UsageStore {
         guard case let .success(result) = outcome.result else { return false }
         if case .oauth = result.strategyKind { return true }
         return false
+    }
+
+    private nonisolated static func successfulClaudeOAuthCredentialOwner(
+        _ outcome: ProviderFetchOutcome) -> ClaudeOAuthCredentialOwner?
+    {
+        guard case let .success(result) = outcome.result,
+              result.strategyKind == .oauth
+        else { return nil }
+        return result.claudeOAuthCredentialOwner
     }
 
     private enum ClaudeSourceAuthority: Equatable {

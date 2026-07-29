@@ -248,6 +248,7 @@ extension ClaudeOAuthCredentialsStore {
 
     final class CredentialsFileFingerprintStore: @unchecked Sendable {
         private var fingerprints: [String: CredentialsFileFingerprint] = [:]
+        private var quarantines: [String: CredentialsFileFingerprint] = [:]
         private var legacyFingerprint: CredentialsFileFingerprint?
 
         init(fingerprint: CredentialsFileFingerprint? = nil) {
@@ -285,8 +286,17 @@ extension ClaudeOAuthCredentialsStore {
             self.fingerprints[profileIdentifier] = fingerprint
         }
 
+        func loadQuarantine(profileIdentifier: String) -> CredentialsFileFingerprint? {
+            self.quarantines[profileIdentifier]
+        }
+
+        func saveQuarantine(_ fingerprint: CredentialsFileFingerprint?, profileIdentifier: String) {
+            self.quarantines[profileIdentifier] = fingerprint
+        }
+
         func reset() {
             self.fingerprints.removeAll()
+            self.quarantines.removeAll()
             self.legacyFingerprint = nil
         }
     }

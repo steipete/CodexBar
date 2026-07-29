@@ -15,6 +15,30 @@ extension UsageStore {
         }
     }
 
+    nonisolated static func quarantineClaudeCredentialsFileForOAuth(
+        environment: [String: String]) async
+    {
+        await withTaskGroup(of: Void.self) { group in
+            group.addTask {
+                _ = ClaudeOAuthCredentialsStore.quarantineCurrentCredentialsFileForOAuth(
+                    environment: environment)
+            }
+            await group.waitForAll()
+        }
+    }
+
+    nonisolated static func isClaudeCredentialsFileQuarantinedForOAuth(
+        environment: [String: String]) async -> Bool
+    {
+        await withTaskGroup(of: Bool.self, returning: Bool.self) { group in
+            group.addTask {
+                ClaudeOAuthCredentialsStore.isCurrentCredentialsFileQuarantinedForOAuth(
+                    environment: environment)
+            }
+            return await group.next() ?? false
+        }
+    }
+
     private nonisolated static func claudeAccountIdentity(
         _ uuid: String,
         environment: [String: String]) -> String

@@ -38,6 +38,7 @@ public enum ClaudeOAuthCredentialsStore {
     /// historical default credentials profile and is migrated lazily to that profile.
     private static let legacyFileFingerprintKey = "ClaudeOAuthCredentialsFileFingerprintV2"
     private static let fileFingerprintProfileSeparator = ".profile."
+    private static let credentialsFileQuarantineKeyPrefix = "ClaudeOAuthCredentialsFileQuarantineV1.profile."
     private static let claudeKeychainPromptLock = NSLock()
     private enum PromptAttemptResult {
         case record(ClaudeOAuthCredentialRecord)
@@ -1653,6 +1654,9 @@ public enum ClaudeOAuthCredentialsStore {
     public static func loadFromFile(
         environment: [String: String] = ProcessInfo.processInfo.environment) throws -> Data
     {
+        guard !self.isCurrentCredentialsFileQuarantinedForOAuth(environment: environment) else {
+            throw ClaudeOAuthCredentialsError.notFound
+        }
         let url = self.credentialsFileURL(environment: environment)
         do {
             return try Data(contentsOf: url)
@@ -1675,6 +1679,38 @@ public enum ClaudeOAuthCredentialsStore {
         guard let fingerprint = self.currentFileFingerprint(environment: environment) else { return nil }
         let modifiedAt = fingerprint.modifiedAtMs.map(String.init) ?? "nil"
         return "\(fingerprint.path):\(modifiedAt):\(fingerprint.size)"
+    }
+
+    /// Rejects the selected profile's current credentials file until its fingerprint changes. This prevents an
+    /// account-mismatched OAuth record from re-entering through the file after its memory/Keychain cache is cleared.
+    @discardableResult
+    public static func quarantineCurrentCredentialsFileForOAuth(
+        environment: [String: String] = ProcessInfo.processInfo.environment) -> Bool
+    {
+        let profileIdentifier = self.credentialsProfileIdentifier(environment: environment)
+        guard let fingerprint = self.currentFileFingerprint(environment: environment) else {
+            self.saveQuarantinedCredentialsFileFingerprint(nil, profileIdentifier: profileIdentifier)
+            return false
+        }
+        self.saveQuarantinedCredentialsFileFingerprint(fingerprint, profileIdentifier: profileIdentifier)
+        return true
+    }
+
+    /// Returns true only while the selected profile still exposes the exact file fingerprint that was rejected.
+    /// A rewrite, removal, or profile switch automatically releases the quarantine.
+    public static func isCurrentCredentialsFileQuarantinedForOAuth(
+        environment: [String: String] = ProcessInfo.processInfo.environment) -> Bool
+    {
+        let profileIdentifier = self.credentialsProfileIdentifier(environment: environment)
+        guard let quarantined = self.loadQuarantinedCredentialsFileFingerprint(
+            profileIdentifier: profileIdentifier)
+        else { return false }
+        let current = self.currentFileFingerprint(environment: environment)
+        guard current == quarantined else {
+            self.saveQuarantinedCredentialsFileFingerprint(nil, profileIdentifier: profileIdentifier)
+            return false
+        }
+        return true
     }
 
     public static func authFingerprintToken(
@@ -2961,6 +2997,42 @@ public enum ClaudeOAuthCredentialsStore {
         self.legacyFileFingerprintKey + self.fileFingerprintProfileSeparator + profileIdentifier
     }
 
+    private static func credentialsFileQuarantineKey(profileIdentifier: String) -> String {
+        self.credentialsFileQuarantineKeyPrefix + profileIdentifier
+    }
+
+    private static func loadQuarantinedCredentialsFileFingerprint(
+        profileIdentifier: String) -> CredentialsFileFingerprint?
+    {
+        #if DEBUG
+        if let store = self.taskCredentialsFileFingerprintStoreOverride {
+            return store.loadQuarantine(profileIdentifier: profileIdentifier)
+        }
+        #endif
+        guard let data = UserDefaults.standard.data(
+            forKey: self.credentialsFileQuarantineKey(profileIdentifier: profileIdentifier))
+        else { return nil }
+        return try? JSONDecoder().decode(CredentialsFileFingerprint.self, from: data)
+    }
+
+    private static func saveQuarantinedCredentialsFileFingerprint(
+        _ fingerprint: CredentialsFileFingerprint?,
+        profileIdentifier: String)
+    {
+        #if DEBUG
+        if let store = self.taskCredentialsFileFingerprintStoreOverride {
+            store.saveQuarantine(fingerprint, profileIdentifier: profileIdentifier)
+            return
+        }
+        #endif
+        let key = self.credentialsFileQuarantineKey(profileIdentifier: profileIdentifier)
+        guard let fingerprint, let data = try? JSONEncoder().encode(fingerprint) else {
+            UserDefaults.standard.removeObject(forKey: key)
+            return
+        }
+        UserDefaults.standard.set(data, forKey: key)
+    }
+
     private static func loadFileFingerprint(profileIdentifier: String) -> CredentialsFileFingerprint? {
         #if DEBUG
         if let store = self.taskCredentialsFileFingerprintStoreOverride {
@@ -3042,6 +3114,11 @@ public enum ClaudeOAuthCredentialsStore {
             defaults.removeObject(forKey: self.legacyFileFingerprintKey)
             for key in defaults.dictionaryRepresentation().keys
                 where key.hasPrefix(self.legacyFileFingerprintKey + self.fileFingerprintProfileSeparator)
+            {
+                defaults.removeObject(forKey: key)
+            }
+            for key in defaults.dictionaryRepresentation().keys
+                where key.hasPrefix(self.credentialsFileQuarantineKeyPrefix)
             {
                 defaults.removeObject(forKey: key)
             }

@@ -27,6 +27,8 @@ public struct ClaudeUsageSnapshot: Sendable {
     public let oauthKeychainPersistentRefHash: String?
     /// One-way, high-entropy ownership evidence derived from the exact credential used for this OAuth fetch.
     public let oauthHistoryOwnerIdentifier: String?
+    /// The authority that owned the credential used for this OAuth fetch.
+    public let oauthCredentialOwner: ClaudeOAuthCredentialOwner?
     /// True when a prompt-free comparison proved this credential differs from Claude Code's Keychain entry.
     public let oauthKeychainCredentialMismatch: Bool
     /// True when a prompt-free probe proved Claude Code has no Keychain credential.
@@ -48,6 +50,7 @@ public struct ClaudeUsageSnapshot: Sendable {
         rawText: String?,
         oauthKeychainPersistentRefHash: String? = nil,
         oauthHistoryOwnerIdentifier: String? = nil,
+        oauthCredentialOwner: ClaudeOAuthCredentialOwner? = nil,
         oauthKeychainCredentialMismatch: Bool = false,
         oauthKeychainCredentialAbsent: Bool = false,
         oauthKeychainCredentialUnavailable: Bool = false)
@@ -65,6 +68,7 @@ public struct ClaudeUsageSnapshot: Sendable {
         self.rawText = rawText
         self.oauthKeychainPersistentRefHash = oauthKeychainPersistentRefHash
         self.oauthHistoryOwnerIdentifier = oauthHistoryOwnerIdentifier
+        self.oauthCredentialOwner = oauthCredentialOwner
         self.oauthKeychainCredentialMismatch = oauthKeychainCredentialMismatch
         self.oauthKeychainCredentialAbsent = oauthKeychainCredentialAbsent
         self.oauthKeychainCredentialUnavailable = oauthKeychainCredentialUnavailable
@@ -342,6 +346,7 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
                     credentials: credentials,
                     oauthKeychainPersistentRefHash: keychainMatch.persistentRefHash,
                     oauthHistoryOwnerIdentifier: credentialRecord.historyOwnerIdentifier,
+                    oauthCredentialOwner: credentialRecord.owner,
                     oauthKeychainCredentialMismatch: keychainMatch.isMismatch,
                     oauthKeychainCredentialAbsent: keychainMatch.isAbsent,
                     oauthKeychainCredentialUnavailable: keychainMatch.isUnavailable)
@@ -488,6 +493,7 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
                     credentials: refreshedCredentials,
                     oauthKeychainPersistentRefHash: keychainMatch.persistentRefHash,
                     oauthHistoryOwnerIdentifier: refreshedRecord.historyOwnerIdentifier,
+                    oauthCredentialOwner: refreshedRecord.owner,
                     oauthKeychainCredentialMismatch: keychainMatch.isMismatch,
                     oauthKeychainCredentialAbsent: keychainMatch.isAbsent,
                     oauthKeychainCredentialUnavailable: keychainMatch.isUnavailable)
@@ -1021,6 +1027,7 @@ extension ClaudeUsageFetcher {
         credentials: ClaudeOAuthCredentials,
         oauthKeychainPersistentRefHash: String? = nil,
         oauthHistoryOwnerIdentifier: String? = nil,
+        oauthCredentialOwner: ClaudeOAuthCredentialOwner? = nil,
         oauthKeychainCredentialMismatch: Bool = false,
         oauthKeychainCredentialAbsent: Bool = false,
         oauthKeychainCredentialUnavailable: Bool = false) throws -> ClaudeUsageSnapshot
@@ -1071,6 +1078,7 @@ extension ClaudeUsageFetcher {
                     rawText: nil,
                     oauthKeychainPersistentRefHash: oauthKeychainPersistentRefHash,
                     oauthHistoryOwnerIdentifier: oauthHistoryOwnerIdentifier,
+                    oauthCredentialOwner: oauthCredentialOwner,
                     oauthKeychainCredentialMismatch: oauthKeychainCredentialMismatch,
                     oauthKeychainCredentialAbsent: oauthKeychainCredentialAbsent,
                     oauthKeychainCredentialUnavailable: oauthKeychainCredentialUnavailable)
@@ -1097,6 +1105,7 @@ extension ClaudeUsageFetcher {
             rawText: nil,
             oauthKeychainPersistentRefHash: oauthKeychainPersistentRefHash,
             oauthHistoryOwnerIdentifier: oauthHistoryOwnerIdentifier,
+            oauthCredentialOwner: oauthCredentialOwner,
             oauthKeychainCredentialMismatch: oauthKeychainCredentialMismatch,
             oauthKeychainCredentialAbsent: oauthKeychainCredentialAbsent,
             oauthKeychainCredentialUnavailable: oauthKeychainCredentialUnavailable)
