@@ -51,7 +51,8 @@ struct CodexForkAttributionMigrationTests {
 
     private func markLegacyForkCandidate(
         _ env: CostUsageTestEnvironment,
-        sessionID: String? = nil)
+        sessionID: String? = nil,
+        producerKey: String = "codex:cu:pa15a1040092b4a62")
     {
         var cache = CostUsageCacheIO.load(provider: .codex, cacheRoot: env.cacheRoot)
         let candidatePaths = cache.files.compactMap { path, usage in
@@ -67,7 +68,7 @@ struct CodexForkAttributionMigrationTests {
             provider: .codex,
             cache: cache,
             cacheRoot: env.cacheRoot,
-            producerKey: "codex:cu:pa15a1040092b4a62")
+            producerKey: producerKey)
     }
 
     @Test
@@ -78,10 +79,10 @@ struct CodexForkAttributionMigrationTests {
         try self.writeSession(env, day: day, events: [(day, 408_650_005)], model: "gpt-5.6-sol")
         let options = self.options(env)
         _ = CostUsageScanner.loadDailyReport(provider: .codex, since: day, until: day, now: day, options: options)
-        self.markLegacyForkCandidate(env)
+        self.markLegacyForkCandidate(env, producerKey: "codex:cu:p7378e1f7e954ea1f")
 
         let legacy = CostUsageCacheIO.load(provider: .codex, cacheRoot: env.cacheRoot)
-        #expect(legacy.producerKey == "codex:cu:pa15a1040092b4a62")
+        #expect(legacy.producerKey == "codex:cu:p7378e1f7e954ea1f")
         #expect(legacy.files.values.contains { CostUsageScanner.isLegacyForkAttributionCandidate($0) })
         #expect(legacy.files.values
             .contains { $0.forkBaselineDependencyKey != CostUsageScanner.codexForkDependencyNotRequiredKey })

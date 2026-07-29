@@ -74,6 +74,7 @@ struct CodexWorkspaceUsageSidecar: Sendable {
         scopeSignature: String,
         historyDays: Int,
         rootsFingerprint: [String: Int64]? = nil,
+        cacheProducerKey: String? = nil,
         cache: CostUsageCache? = nil,
         catalog: CodexThreadCatalog? = nil) -> CodexLocalProjectUsageSnapshot?
     {
@@ -124,6 +125,9 @@ struct CodexWorkspaceUsageSidecar: Sendable {
                 from: Data(bytes: rootsBytes, count: rootsLength)),
                 persistedRoots == rootsFingerprint
             else { return nil }
+        }
+        if let cacheProducerKey, Self.columnString(statement, at: 3) != cacheProducerKey {
+            return nil
         }
         if let cache {
             guard Self.columnString(statement, at: 3) == cache.producerKey,

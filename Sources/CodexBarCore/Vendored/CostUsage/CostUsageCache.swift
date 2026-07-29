@@ -1,11 +1,25 @@
 import Foundation
 
 enum CostUsageCacheIO {
-    /// Producer keys from older parser hashes whose caches remain structurally compatible.
+    enum CodexCacheAdmission {
+        case missing
+        case rejected
+        case accepted(CostUsageCache)
+    }
+
+    /// The persisted Codex accounting contract, independent of the raw source fingerprint.
+    /// Bump when cached fields, cumulative-delta semantics, or ownership semantics become incompatible.
+    /// Do not bump for provider additions, logging, UI, or other changes that leave cached accounting intact.
+    static let codexCacheCompatibilityVersion = 1
+
+    /// Pre-marker producer keys whose persisted accounting contract matches version 1.
     /// #2037 invalidated earlier producers because interleave containment changed cumulative
-    /// accounting. This workspace-era predecessor is safe to admit because the scanner selectively
-    /// reparses its parent-dependent forked files via `codexForkAttributionVersion`.
-    private static let compatibleCodexProducerKeys: Set<String> = ["codex:cu:pa15a1040092b4a62"]
+    /// accounting. These two workspace-era predecessors differ only in non-Codex provider dispatch;
+    /// parent-dependent rows are still selectively reparsed via `codexForkAttributionVersion`.
+    private static let bootstrapCodexProducerKeys: Set<String> = [
+        "codex:cu:pa15a1040092b4a62",
+        "codex:cu:p7378e1f7e954ea1f",
+    ]
 
     /// Parsing and attribution changes rotate the Codex parser producer key.
     /// Increment this artifact version only when the stored schema or cache layout becomes incompatible.
@@ -39,15 +53,23 @@ enum CostUsageCacheIO {
         producerKey: String? = nil,
         calendar: Calendar? = nil) -> CostUsageCache
     {
+        if provider == .codex, producerKey == nil {
+            if case let .accepted(cache) = self.codexCacheAdmission(
+                cacheRoot: cacheRoot,
+                calendar: calendar)
+            {
+                return cache
+            }
+            return CostUsageCache()
+        }
+
         let url = self.cacheFileURL(provider: provider, cacheRoot: cacheRoot)
         let expectedProducerKey = producerKey ?? self.currentProducerKey(provider: provider)
-        let compatibleProducerKeys = producerKey == nil && provider == .codex
-            ? self.compatibleCodexProducerKeys
-            : []
         if let decoded = self.loadCache(
             at: url,
             expectedProducerKey: expectedProducerKey,
-            compatibleProducerKeys: compatibleProducerKeys)
+            expectedCodexCompatibilityVersion: nil,
+            bootstrapCodexProducerKeys: [])
         {
             if let calendar, decoded.timeZoneIdentifier != calendar.timeZone.identifier {
                 return CostUsageCache()
@@ -57,19 +79,42 @@ enum CostUsageCacheIO {
         return CostUsageCache()
     }
 
+    static func codexCacheAdmission(
+        cacheRoot: URL? = nil,
+        calendar: Calendar? = nil) -> CodexCacheAdmission
+    {
+        let url = self.cacheFileURL(provider: .codex, cacheRoot: cacheRoot)
+        guard FileManager.default.fileExists(atPath: url.path) else { return .missing }
+        guard let cache = self.loadCache(
+            at: url,
+            expectedProducerKey: self.currentProducerKey(provider: .codex),
+            expectedCodexCompatibilityVersion: self.codexCacheCompatibilityVersion,
+            bootstrapCodexProducerKeys: self.bootstrapCodexProducerKeys)
+        else { return .rejected }
+        if let calendar, cache.timeZoneIdentifier != calendar.timeZone.identifier {
+            return .rejected
+        }
+        return .accepted(cache)
+    }
+
     private static func loadCache(
         at url: URL,
         expectedProducerKey: String?,
-        compatibleProducerKeys: Set<String>) -> CostUsageCache?
+        expectedCodexCompatibilityVersion: Int?,
+        bootstrapCodexProducerKeys: Set<String>) -> CostUsageCache?
     {
         guard let data = try? Data(contentsOf: url) else { return nil }
         guard let decoded = try? JSONDecoder().decode(CostUsageCache.self, from: data)
         else { return nil }
         guard decoded.version == 1 else { return nil }
-        if let expectedProducerKey {
-            guard decoded.producerKey == expectedProducerKey
-                || decoded.producerKey.map(compatibleProducerKeys.contains) == true
-            else { return nil }
+        if let expectedCodexCompatibilityVersion {
+            let compatibleContract = decoded.producerKey != nil
+                && decoded.codexCacheCompatibilityVersion == expectedCodexCompatibilityVersion
+            let compatibleBootstrap = decoded.codexCacheCompatibilityVersion == nil
+                && decoded.producerKey.map(bootstrapCodexProducerKeys.contains) == true
+            guard compatibleContract || compatibleBootstrap else { return nil }
+        } else if let expectedProducerKey {
+            guard decoded.producerKey == expectedProducerKey else { return nil }
         }
         return decoded
     }
@@ -88,6 +133,9 @@ enum CostUsageCacheIO {
         var cache = cache
         cache.producerKey = producerKey ?? self.currentProducerKey(provider: provider)
         cache.timeZoneIdentifier = calendar.timeZone.identifier
+        if provider == .codex, producerKey == nil {
+            cache.codexCacheCompatibilityVersion = self.codexCacheCompatibilityVersion
+        }
 
         let tmp = dir.appendingPathComponent(".tmp-\(UUID().uuidString).json", isDirectory: false)
         let data = (try? JSONEncoder().encode(cache)) ?? Data()
@@ -115,6 +163,8 @@ enum CostUsageCacheIO {
 struct CostUsageCache: Codable {
     var version: Int = 1
     var producerKey: String?
+    /// Persisted accounting contract; nil identifies a pre-marker cache eligible only by bootstrap key.
+    var codexCacheCompatibilityVersion: Int?
     var lastScanUnixMs: Int64 = 0
     var scanSinceKey: String?
     var scanUntilKey: String?

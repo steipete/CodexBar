@@ -666,6 +666,7 @@ struct CodexLocalProjectUsageTests {
             fixture: fixture,
             costNanos: 1)
         CostUsageCacheIO.save(provider: .codex, cache: cache, cacheRoot: env.cacheRoot)
+        cache = CostUsageCacheIO.load(provider: .codex, cacheRoot: env.cacheRoot)
         let snapshot = try CodexLocalProjectUsageIndexer.buildSnapshotFromCostCache(
             now: day,
             historyDays: 1,
@@ -687,6 +688,123 @@ struct CodexLocalProjectUsageTests {
 
         #expect(CodexLocalProjectUsageIndexer.cachedSnapshot(now: day, historyDays: 1, options: .init(
             scannerOptions: options))?.total.totalTokens == 130)
+    }
+
+    @Test
+    func `cached project snapshot rejects unsafe raw cache and scopes legacy candidates`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+
+        let day = Date()
+        let project = env.root.appendingPathComponent("CodexBar", isDirectory: true)
+        try FileManager.default.createDirectory(
+            at: project.appendingPathComponent(".git", isDirectory: true),
+            withIntermediateDirectories: true)
+        let fixture = CodexUsageFixture(
+            filename: "legacy-sidecar.jsonl",
+            sessionID: "legacy-sidecar-session",
+            cwd: project.path,
+            input: 100,
+            cached: 20,
+            output: 30)
+        let options = CostUsageScanner.Options(
+            codexSessionsRoot: env.codexSessionsRoot,
+            cacheRoot: env.cacheRoot)
+        let dayKey = CostUsageScanner.CostUsageDayRange.dayKey(from: day)
+        let safeFileURL = env.codexSessionsRoot.appendingPathComponent(fixture.filename)
+        var safeUsage = self.makeCachedFileUsage(dayKey: dayKey, fixture: fixture, costNanos: 1)
+        safeUsage.codexForkAttributionVersion = CostUsageScanner.codexForkAttributionVersion
+        safeUsage.forkBaselineDependencyKey = CostUsageScanner.codexForkDependencyNotRequiredKey
+
+        var cache = CostUsageCache()
+        cache.producerKey = "codex:cu:p7378e1f7e954ea1f"
+        cache.scanSinceKey = dayKey
+        cache.scanUntilKey = dayKey
+        cache.codexPricingKey = "pricing-a"
+        cache.roots = CostUsageScanner.codexRootsFingerprint(options: options)
+        cache.files[safeFileURL.path] = safeUsage
+        let snapshot = try CodexLocalProjectUsageIndexer.buildSnapshotFromCostCache(
+            now: day,
+            historyDays: 1,
+            since: day,
+            until: day,
+            options: options,
+            cacheOverride: cache)
+        let catalog = CodexThreadCatalogReader.load(options: options)
+        let sidecar = CodexWorkspaceUsageSidecar(cacheRoot: env.cacheRoot)
+        try sidecar.synchronize(
+            snapshot: snapshot,
+            cache: cache,
+            catalog: catalog,
+            rootsFingerprint: CostUsageScanner.codexRootsFingerprint(options: options))
+        #expect(sidecar.loadLatestSnapshot(
+            scopeSignature: snapshot.scopeSignature,
+            historyDays: 1) != nil)
+
+        CostUsageCacheIO.save(
+            provider: .codex,
+            cache: cache,
+            cacheRoot: env.cacheRoot,
+            producerKey: "codex:cu:p7378e1f7e954ea1f")
+        #expect(CodexLocalProjectUsageIndexer.cachedSnapshot(
+            now: day,
+            historyDays: 1,
+            options: .init(scannerOptions: options))?.total.totalTokens == 130)
+
+        var legacyUsage = safeUsage
+        legacyUsage.forkedFromId = "missing-parent"
+        legacyUsage.forkBaselineDependencyKey = "missing-parent|legacy-raw-boundary"
+        legacyUsage.codexForkAttributionVersion = nil
+        let insideLegacyURL = env.codexSessionsRoot.appendingPathComponent("legacy-inside.jsonl")
+        cache.files[insideLegacyURL.path] = legacyUsage
+        CostUsageCacheIO.save(
+            provider: .codex,
+            cache: cache,
+            cacheRoot: env.cacheRoot,
+            producerKey: "codex:cu:p7378e1f7e954ea1f")
+        #expect(CodexLocalProjectUsageIndexer.cachedSnapshot(
+            now: day,
+            historyDays: 1,
+            options: .init(scannerOptions: options)) == nil)
+
+        cache.files.removeValue(forKey: insideLegacyURL.path)
+        let outsideLegacyURL = env.root
+            .appendingPathComponent("other-codex-home/sessions/legacy-outside.jsonl")
+        cache.files[outsideLegacyURL.path] = legacyUsage
+        CostUsageCacheIO.save(
+            provider: .codex,
+            cache: cache,
+            cacheRoot: env.cacheRoot,
+            producerKey: "codex:cu:p7378e1f7e954ea1f")
+        #expect(CodexLocalProjectUsageIndexer.cachedSnapshot(
+            now: day,
+            historyDays: 1,
+            options: .init(scannerOptions: options))?.total.totalTokens == 130)
+
+        let currentProducer = try #require(CostUsageCacheIO.currentProducerKey(provider: .codex))
+        cache.producerKey = currentProducer
+        cache.codexCacheCompatibilityVersion = CostUsageCacheIO.codexCacheCompatibilityVersion + 1
+        CostUsageCacheIO.save(
+            provider: .codex,
+            cache: cache,
+            cacheRoot: env.cacheRoot,
+            producerKey: currentProducer)
+        #expect(CodexLocalProjectUsageIndexer.cachedSnapshot(
+            now: day,
+            historyDays: 1,
+            options: .init(scannerOptions: options)) == nil)
+
+        cache.files.removeValue(forKey: outsideLegacyURL.path)
+        cache.codexCacheCompatibilityVersion = CostUsageCacheIO.codexCacheCompatibilityVersion
+        CostUsageCacheIO.save(
+            provider: .codex,
+            cache: cache,
+            cacheRoot: env.cacheRoot,
+            producerKey: currentProducer)
+        #expect(CodexLocalProjectUsageIndexer.cachedSnapshot(
+            now: day,
+            historyDays: 1,
+            options: .init(scannerOptions: options)) == nil)
     }
 
     @Test

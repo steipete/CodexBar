@@ -21,12 +21,29 @@ enum CodexLocalProjectUsageIndexer {
         _ = now
         let clampedHistoryDays = max(1, min(365, historyDays))
         let stableScopeSignature = self.stableScopeSignature(options: options.scannerOptions)
+        let cacheProducerKey: String?
+        switch CostUsageCacheIO.codexCacheAdmission(cacheRoot: options.scannerOptions.cacheRoot) {
+        case .missing:
+            cacheProducerKey = nil
+        case .rejected:
+            return nil
+        case let .accepted(cache):
+            let roots = CostUsageScanner.codexSessionsRoots(options: options.scannerOptions)
+            let scopedCache = CostUsageScanner.codexCache(cache, scopedTo: roots)
+            guard !scopedCache.files.values.contains(where: CostUsageScanner.isLegacyForkAttributionCandidate) else {
+                // The sidecar snapshot is aggregate-only and cannot quarantine individual legacy rows.
+                // Withhold it until the normal scanner selectively migrates parent-dependent sources.
+                return nil
+            }
+            cacheProducerKey = cache.producerKey
+        }
         let sidecar = CodexWorkspaceUsageSidecar(cacheRoot: options.scannerOptions.cacheRoot)
         let catalogResult = CodexThreadCatalogReader.loadResult(options: options.scannerOptions)
         let sourceStatus = CodexLocalProjectUsageSourceStatus(catalog: catalogResult.completeness)
         if let snapshot = sidecar.loadLatestSnapshot(
             scopeSignature: stableScopeSignature,
             historyDays: clampedHistoryDays,
+            cacheProducerKey: cacheProducerKey,
             catalog: catalogResult.isComplete ? catalogResult.catalog : nil)
         {
             return self.projecting(snapshot, sourceStatus: sourceStatus)

@@ -115,6 +115,7 @@ struct CostUsageCacheTests {
         defer { try? FileManager.default.removeItem(at: root) }
 
         var cache = CostUsageCache()
+        cache.codexCacheCompatibilityVersion = CostUsageCacheIO.codexCacheCompatibilityVersion
         cache.lastScanUnixMs = 123
         cache.days = ["2026-05-18": ["gpt-5.5": [1, 2, 3]]]
 
@@ -139,6 +140,85 @@ struct CostUsageCacheTests {
         #expect(stale.lastScanUnixMs == 0)
         #expect(stale.files.isEmpty)
         #expect(stale.days.isEmpty)
+    }
+
+    @Test
+    func `runtime codex save stamps compatibility contract`() throws {
+        let root = try self.makeTemporaryCacheRoot()
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        var cache = CostUsageCache()
+        cache.lastScanUnixMs = 123
+        CostUsageCacheIO.save(provider: .codex, cache: cache, cacheRoot: root)
+
+        let loaded = CostUsageCacheIO.load(provider: .codex, cacheRoot: root)
+        #expect(loaded.lastScanUnixMs == 123)
+        #expect(loaded.codexCacheCompatibilityVersion == CostUsageCacheIO.codexCacheCompatibilityVersion)
+    }
+
+    @Test
+    func `runtime accepts current contract across producer hash changes`() throws {
+        let root = try self.makeTemporaryCacheRoot()
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        var cache = CostUsageCache()
+        cache.lastScanUnixMs = 123
+        cache.codexCacheCompatibilityVersion = CostUsageCacheIO.codexCacheCompatibilityVersion
+        CostUsageCacheIO.save(
+            provider: .codex,
+            cache: cache,
+            cacheRoot: root,
+            producerKey: "codex:cu:p1111111111111111")
+
+        let loaded = CostUsageCacheIO.load(provider: .codex, cacheRoot: root)
+        #expect(loaded.lastScanUnixMs == 123)
+        #expect(loaded.producerKey == "codex:cu:p1111111111111111")
+    }
+
+    @Test
+    func `runtime accepts only known pre marker bootstrap producers`() throws {
+        let root = try self.makeTemporaryCacheRoot()
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        for producerKey in ["codex:cu:pa15a1040092b4a62", "codex:cu:p7378e1f7e954ea1f"] {
+            var cache = CostUsageCache()
+            cache.lastScanUnixMs = 123
+            CostUsageCacheIO.save(
+                provider: .codex,
+                cache: cache,
+                cacheRoot: root,
+                producerKey: producerKey)
+
+            let loaded = CostUsageCacheIO.load(provider: .codex, cacheRoot: root)
+            #expect(loaded.lastScanUnixMs == 123)
+            #expect(loaded.producerKey == producerKey)
+            #expect(loaded.codexCacheCompatibilityVersion == nil)
+        }
+
+        var unknown = CostUsageCache()
+        unknown.lastScanUnixMs = 321
+        CostUsageCacheIO.save(
+            provider: .codex,
+            cache: unknown,
+            cacheRoot: root,
+            producerKey: "codex:cu:pdeadbeefdeadbeef")
+        let unknownRejected = CostUsageCacheIO.load(provider: .codex, cacheRoot: root)
+        #expect(unknownRejected.lastScanUnixMs == 0)
+
+        var incompatible = CostUsageCache()
+        incompatible.lastScanUnixMs = 456
+        incompatible.codexCacheCompatibilityVersion = CostUsageCacheIO.codexCacheCompatibilityVersion + 1
+        let currentProducer = try #require(CostUsageCacheIO.currentProducerKey(provider: .codex))
+        CostUsageCacheIO.save(
+            provider: .codex,
+            cache: incompatible,
+            cacheRoot: root,
+            producerKey: currentProducer)
+
+        let rejected = CostUsageCacheIO.load(provider: .codex, cacheRoot: root)
+        #expect(rejected.lastScanUnixMs == 0)
+        #expect(rejected.files.isEmpty)
+        #expect(rejected.days.isEmpty)
     }
 
     @Test
