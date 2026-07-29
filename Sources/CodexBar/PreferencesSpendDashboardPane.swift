@@ -147,35 +147,12 @@ struct SpendDashboardPane: View {
     }
 
     private var header: some View {
-        HStack(alignment: .top, spacing: 16) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(L("Usage & Spend"))
-                    .font(.title2.weight(.semibold))
-                Text(L("Local estimated cost history across supported providers."))
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-            }
-            Spacer()
-            Picker(L("Time range"), selection: self.daysBinding) {
-                Text(spendDashboardDayRangeText(7)).tag(7)
-                Text(spendDashboardDayRangeText(30)).tag(30)
-                Text(spendDashboardDayRangeText(365)).tag(365)
-            }
-            .labelsHidden()
-            .pickerStyle(.segmented)
-            .frame(width: 174)
-
-            Button {
-                self.controller.refresh()
-            } label: {
-                if self.controller.isRefreshing {
-                    ProgressView().controlSize(.small)
-                } else {
-                    Label(L("Refresh"), systemImage: "arrow.clockwise")
-                }
-            }
-            .disabled(self.controller.isRefreshing || !self.settings.costUsageEnabled)
-        }
+        SpendDashboardHeader(
+            selectedDays: self.controller.selectedDays,
+            isRefreshing: self.controller.isRefreshing,
+            isCostTrackingEnabled: self.settings.costUsageEnabled,
+            selectDays: { self.daysBinding.wrappedValue = $0 },
+            refresh: { self.controller.refresh() })
     }
 
     @ViewBuilder
@@ -363,38 +340,9 @@ struct SpendDashboardPane: View {
     private var trackedAccess: some View {
         let sources = self.configuration.trackedSources
         if !sources.isEmpty {
-            SpendDashboardPanel {
-                VStack(alignment: .leading, spacing: 14) {
-                    HStack(alignment: .firstTextBaseline) {
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text(L("Tracked access"))
-                                .font(.headline)
-                            Text(self.trackedAccessDescription)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                        Spacer()
-                        Text(codexBarLocalizedInteger(sources.count))
-                            .font(.title3.monospacedDigit().weight(.semibold))
-                            .foregroundStyle(.secondary)
-                            .accessibilityLabel(
-                                "\(codexBarLocalizedInteger(sources.count)) \(L("tracked sources"))")
-                    }
-
-                    LazyVGrid(
-                        columns: [
-                            GridItem(.flexible(), spacing: 10),
-                            GridItem(.flexible(), spacing: 10),
-                        ],
-                        alignment: .leading,
-                        spacing: 10)
-                    {
-                        ForEach(sources) { source in
-                            SpendTrackedSourceRow(source: source)
-                        }
-                    }
-                }
-            }
+            SpendTrackedAccessPanel(
+                sources: sources,
+                description: self.trackedAccessDescription)
         }
     }
 
@@ -467,44 +415,161 @@ struct SpendDashboardPane: View {
     }
 }
 
+struct SpendDashboardHeader: View {
+    let selectedDays: Int
+    let isRefreshing: Bool
+    let isCostTrackingEnabled: Bool
+    let selectDays: (Int) -> Void
+    let refresh: () -> Void
+
+    var body: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(alignment: .top, spacing: 16) {
+                self.title
+                Spacer(minLength: 16)
+                self.controls
+            }
+            VStack(alignment: .leading, spacing: 12) {
+                self.title
+                self.controls
+            }
+        }
+    }
+
+    private var title: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(L("Usage & Spend"))
+                .font(.title2.weight(.semibold))
+            Text(L("Local estimated cost history across supported providers."))
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    private var controls: some View {
+        HStack(spacing: 12) {
+            Picker(L("Time range"), selection: self.daysBinding) {
+                Text(spendDashboardDayRangeText(7)).tag(7)
+                Text(spendDashboardDayRangeText(30)).tag(30)
+                Text(spendDashboardDayRangeText(365)).tag(365)
+            }
+            .labelsHidden()
+            .pickerStyle(.segmented)
+            .frame(width: 174)
+
+            Button(action: self.refresh) {
+                if self.isRefreshing {
+                    ProgressView().controlSize(.small)
+                } else {
+                    Label(L("Refresh"), systemImage: "arrow.clockwise")
+                }
+            }
+            .disabled(self.isRefreshing || !self.isCostTrackingEnabled)
+        }
+    }
+
+    private var daysBinding: Binding<Int> {
+        Binding(get: { self.selectedDays }, set: { self.selectDays($0) })
+    }
+}
+
+struct SpendTrackedAccessPanel: View {
+    let sources: [SpendDashboardTrackedSource]
+    let description: String
+
+    private let columns = [
+        GridItem(.adaptive(minimum: 245, maximum: 420), spacing: 12),
+    ]
+
+    var body: some View {
+        SpendDashboardPanel {
+            VStack(alignment: .leading, spacing: 16) {
+                HStack(alignment: .firstTextBaseline, spacing: 16) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(L("Tracked access"))
+                            .font(.headline)
+                        Text(self.description)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    Spacer(minLength: 12)
+                    HStack(spacing: 6) {
+                        Image(systemName: "key.fill")
+                            .font(.caption)
+                        Text(codexBarLocalizedInteger(self.sources.count))
+                            .font(.subheadline.monospacedDigit().weight(.semibold))
+                    }
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(.quaternary.opacity(0.7), in: Capsule())
+                    .accessibilityLabel(
+                        "\(codexBarLocalizedInteger(self.sources.count)) \(L("tracked sources"))")
+                }
+
+                LazyVGrid(columns: self.columns, alignment: .leading, spacing: 12) {
+                    ForEach(self.sources) { source in
+                        SpendTrackedSourceRow(source: source)
+                    }
+                }
+            }
+        }
+    }
+}
+
 private struct SpendTrackedSourceRow: View {
     let source: SpendDashboardTrackedSource
 
     var body: some View {
-        HStack(spacing: 10) {
-            SpendProviderIcon(provider: self.source.provider)
+        VStack(alignment: .leading, spacing: 9) {
+            HStack(spacing: 10) {
+                SpendProviderIcon(provider: self.source.provider)
 
-            VStack(alignment: .leading, spacing: 2) {
-                Text(self.source.providerName)
-                    .font(.subheadline.weight(.medium))
-                    .lineLimit(1)
-                if let accountName = self.source.accountName {
-                    Text(accountName)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(self.source.providerName)
+                        .font(.subheadline.weight(.medium))
                         .lineLimit(1)
+                    if let accountName = self.source.accountName {
+                        Text(accountName)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
                 }
-                Text(spendDashboardTrackedSourceStatusText(self.source))
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
+                Spacer(minLength: 4)
             }
 
-            Spacer(minLength: 4)
-
-            Circle()
-                .fill(self.source.state == .connected ? Color.green : Color.secondary.opacity(0.45))
-                .frame(width: 7, height: 7)
-                .accessibilityHidden(true)
+            Label(
+                spendDashboardTrackedSourceStatusText(self.source),
+                systemImage: self.statusSymbol)
+                .font(.caption.weight(.medium))
+                .foregroundStyle(self.statusColor)
+                .fixedSize(horizontal: false, vertical: true)
         }
-        .padding(10)
-        .frame(maxWidth: .infinity, minHeight: 58, alignment: .leading)
+        .padding(12)
+        .frame(maxWidth: .infinity, minHeight: 72, alignment: .leading)
         .background(.background.opacity(0.72), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 10, style: .continuous)
                 .strokeBorder(Color(nsColor: .separatorColor).opacity(0.25))
         }
         .accessibilityElement(children: .combine)
+    }
+
+    private var statusSymbol: String {
+        if self.source.contributesCostHistory {
+            return self.source.state == .connected ? "checkmark.circle.fill" : "clock.fill"
+        }
+        return self.source.state == .connected ? "minus.circle.fill" : "circle.dashed"
+    }
+
+    private var statusColor: Color {
+        if self.source.contributesCostHistory {
+            return self.source.state == .connected ? .green : .orange
+        }
+        return .secondary
     }
 }
 
