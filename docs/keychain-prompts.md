@@ -24,6 +24,11 @@ After you acknowledge the Claude OAuth explanation, CodexBar does not repeat tha
 cooldown only applies to CodexBar's explanatory alert: macOS can still show its own Keychain authorization prompt,
 and the Claude **Never prompt** and global **Disable Keychain access** settings remain in effect.
 
+Ad-hoc signatures can change between local rebuilds, so macOS may treat each replacement as a different Keychain
+client even at the same path. Use `Scripts/install_latest_release.sh` when you want the latest official GitHub release
+without a local signing certificate. It verifies and preserves CodexBar's stable Developer ID identity; choosing
+**Always Allow** once for that signed app can then persist across official updates.
+
 ## If the prompt appears after uninstalling CodexBar
 
 Deleting `CodexBar.app` prevents a new process from launching from that bundle, but it does not terminate a process

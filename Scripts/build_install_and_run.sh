@@ -5,6 +5,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 INSTALLED_APP="/Applications/CodexBar.app"
 INSTALLED_EXECUTABLE="${INSTALLED_APP}/Contents/MacOS/CodexBar"
 APP_NAME="CodexBar"
+LAUNCH_ONLY=0
 
 log() { printf '%s\n' "$*"; }
 fail() { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
@@ -18,6 +19,11 @@ canonical_path() {
         fail "macOS realpath utility is unavailable."
     fi
 }
+
+if [[ "${1:-}" == "--launch-installed-only" ]]; then
+    LAUNCH_ONLY=1
+    shift
+fi
 
 if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
     cat <<EOF
@@ -63,7 +69,11 @@ blocked_status_item_log() {
         || true
 }
 
-"${ROOT_DIR}/Scripts/build_and_install.sh" "$@"
+if [[ "$LAUNCH_ONLY" == "0" ]]; then
+    CODEXBAR_VERIFY_LAUNCH=1 "${ROOT_DIR}/Scripts/build_and_install.sh" "$@"
+    exit 0
+fi
+[[ $# -eq 0 ]] || fail "The internal launch-only mode does not accept arguments."
 [[ -x "$INSTALLED_EXECUTABLE" ]] || fail "Installed executable is missing: ${INSTALLED_EXECUTABLE}"
 
 EXPECTED_EXECUTABLE="$(canonical_path "$INSTALLED_EXECUTABLE")"

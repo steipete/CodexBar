@@ -212,6 +212,18 @@ Wondering if CodexBar scans your disk? It doesn’t crawl your filesystem; it re
 - Install/sign in to provider sources you rely on (CLIs, browser cookies, OAuth/device flow, API keys, or local app/config files).
 - Optional: set OpenAI cookies (Automatic or Manual) for Codex dashboard extras.
 
+## Install the latest signed release
+
+To download, verify, install, and launch the latest official GitHub release without a local signing certificate:
+
+```bash
+./Scripts/install_latest_release.sh
+```
+
+The installer requires the official CodexBar bundle identifier, Developer ID team, and notarization before replacing
+`/Applications/CodexBar.app`. Pass `--verify-only` to verify the download without installing it, or `--force` to
+reinstall the current release.
+
 ## Build from source
 Requires macOS 14+ and Swift 6.2+.
 
