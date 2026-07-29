@@ -52,6 +52,10 @@ private let zoomMateCookieImportOrder: BrowserCookieImportOrder =
 /// ZoomMate's own cookie-to-token bootstrap endpoint). Modeled on `T3ChatCookieImporter`.
 public enum ZoomMateCookieImporter {
     private static let cookieClient = BrowserCookieClient()
+    /// SweetCookieKit normalizes Chromium's `.zoom.us` domain cookies to `zoom.us` before
+    /// constructing `HTTPCookie`. Treat that known parent SSO domain as shared; all leaf domains
+    /// remain exact-host only below.
+    private static let sharedParentCookieDomain = "zoom.us"
     /// Includes the parent "zoom.us" domain — ZoomMate's SSO session cookies (`_zm_*`,
     /// `cf_clearance`, etc.) are scoped to the shared parent domain, not the leaf subdomains, and
     /// domain matching here is substring-based (`.contains`), so this one pattern also matches the
@@ -109,15 +113,18 @@ public enum ZoomMateCookieImporter {
     }
 
     /// Whether a browser would attach a cookie scoped to `cookieDomain` to a request to `host`, per
-    /// RFC 6265 domain-matching: a host-only cookie matches its exact host; a
-    /// domain cookie (stored with a leading dot) matches that host and all of its subdomains. This
-    /// keeps parent `.zoom.us` SSO cookies while preventing an `ai.zoom.us` host-only cookie from
-    /// reaching `zoommate.zoom.us` (and vice versa).
+    /// Leaf-host cookies stay exact-host only. SweetCookieKit has already normalized the leading
+    /// dot from Chromium's parent `.zoom.us` SSO cookies, so that one known shared domain must be
+    /// handled before the exact-host check; otherwise every browser-imported parent cookie is
+    /// discarded and no ZoomMate session can be created.
     static func isSendable(cookieDomain: String, toHost host: String) -> Bool {
         let normalizedDomain = cookieDomain.lowercased()
         let normalizedHost = host.lowercased()
         guard ZoomMateCookieHeaders.allowedHosts.contains(normalizedHost), !normalizedDomain.isEmpty else {
             return false
+        }
+        if normalizedDomain == Self.sharedParentCookieDomain {
+            return normalizedHost.hasSuffix("." + normalizedDomain)
         }
         guard normalizedDomain.hasPrefix(".") else { return normalizedHost == normalizedDomain }
         let bareDomain = String(normalizedDomain.dropFirst())

@@ -821,7 +821,7 @@ struct ZoomMateUsageFetcherTests {
 
     #if os(macOS)
     @Test
-    func `automatic import partitions parent and host-only cookies per destination`() throws {
+    func `automatic import keeps normalized parent cookies while partitioning leaf cookies`() throws {
         func cookie(domain: String, name: String) throws -> HTTPCookie {
             try #require(HTTPCookie(properties: [
                 .domain: domain,
@@ -833,8 +833,9 @@ struct ZoomMateUsageFetcherTests {
         }
 
         let headers = try ZoomMateCookieImporter.cookieHeaders(from: [
-            cookie(domain: ".zoom.us", name: "parent"),
-            cookie(domain: "zoom.us", name: "parent-host-only"),
+            // SweetCookieKit constructs HTTPCookie with the normalized `zoom.us` form even when
+            // Chromium stored the parent SSO cookie as `.zoom.us`.
+            cookie(domain: "zoom.us", name: "parent"),
             cookie(domain: "ai.zoom.us", name: "ai-only"),
             cookie(domain: "zoommate.zoom.us", name: "mate-only"),
             cookie(domain: "marketing.zoom.us", name: "marketing-only"),
@@ -850,7 +851,8 @@ struct ZoomMateUsageFetcherTests {
         #expect(!ZoomMateCookieImporter.isSendable(cookieDomain: "ai.zoom.us", toHost: "zoommate.zoom.us"))
         #expect(ZoomMateCookieImporter.isSendable(cookieDomain: ".zoom.us", toHost: "ai.zoom.us"))
         #expect(ZoomMateCookieImporter.isSendable(cookieDomain: ".zoom.us", toHost: "zoommate.zoom.us"))
-        #expect(!ZoomMateCookieImporter.isSendable(cookieDomain: "zoom.us", toHost: "ai.zoom.us"))
+        #expect(ZoomMateCookieImporter.isSendable(cookieDomain: "zoom.us", toHost: "ai.zoom.us"))
+        #expect(ZoomMateCookieImporter.isSendable(cookieDomain: "zoom.us", toHost: "zoommate.zoom.us"))
         #expect(!ZoomMateCookieImporter.isSendable(cookieDomain: "marketing.zoom.us", toHost: "ai.zoom.us"))
         #expect(!ZoomMateCookieImporter.isSendable(cookieDomain: "zoom.us.attacker.com", toHost: "ai.zoom.us"))
         #expect(!ZoomMateCookieImporter.isSendable(cookieDomain: "", toHost: "ai.zoom.us"))
