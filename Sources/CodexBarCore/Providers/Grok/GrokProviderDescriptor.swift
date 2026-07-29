@@ -92,8 +92,8 @@ public enum GrokProviderDescriptor {
 
     private static func primaryLabel(duration seconds: TimeInterval, fromMeasuredDuration: Bool) -> String? {
         guard seconds > 3600 else { return nil }
-        let days = Int((seconds / 86400).rounded(.toNearestOrAwayFromZero))
         if fromMeasuredDuration {
+            let days = Int((seconds / 86400).rounded(.toNearestOrAwayFromZero))
             if (4...12).contains(days) {
                 return "Weekly"
             }
@@ -102,9 +102,11 @@ public enum GrokProviderDescriptor {
             }
             return nil
         }
-        // Reset-distance only: SuperGrok usage is weekly, so any remaining time that still fits a
-        // week-sized horizon is Weekly (including late-cycle 1–3 day remainders).
-        if (1...12).contains(days) {
+        // Reset-distance only: SuperGrok usage is weekly. Compare the remaining interval directly
+        // against a week-sized horizon so late-cycle partial-day remainders (1–12h) stay Weekly
+        // instead of rounding to 0 days and falling back to Credits.
+        let weekSizedHorizonSeconds: TimeInterval = 12 * 86400
+        if seconds <= weekSizedHorizonSeconds {
             return "Weekly"
         }
         return nil

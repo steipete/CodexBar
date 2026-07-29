@@ -53,8 +53,11 @@ struct GrokWebBillingFetcherTests {
             resetsAt: now.addingTimeInterval(86400),
             resetDescription: nil)
 
+        let in6Hours = now.addingTimeInterval(6 * 3600)
+
         #expect(GrokProviderDescriptor.primaryLabel(resetsAt: in2Days, now: now) == "Weekly")
         #expect(GrokProviderDescriptor.primaryLabel(resetsAt: in6Days, now: now) == "Weekly")
+        #expect(GrokProviderDescriptor.primaryLabel(resetsAt: in6Hours, now: now) == "Weekly")
         #expect(GrokProviderDescriptor.primaryLabel(resetsAt: in30Days, now: now) == nil)
         #expect(GrokProviderDescriptor.primaryLabel(resetsAt: in90Days, now: now) == nil)
         #expect(GrokProviderDescriptor.primaryLabel(window: lateWeeklyWindow, now: now) == "Weekly")

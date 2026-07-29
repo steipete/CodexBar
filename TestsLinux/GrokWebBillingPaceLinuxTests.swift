@@ -91,6 +91,20 @@ struct GrokWebBillingPaceLinuxTests {
         #expect(!capability.supportsResetWindowPace(window: window, now: now))
     }
 
+    @Test
+    func `final half-day reset-only window keeps weekly pace`() {
+        let now = Date(timeIntervalSince1970: 0)
+        let window = RateWindow(
+            usedPercent: 88,
+            windowMinutes: nil,
+            resetsAt: now.addingTimeInterval(6 * 3600),
+            resetDescription: nil)
+        let capability = GrokProviderDescriptor.descriptor.pace
+
+        #expect(GrokProviderDescriptor.primaryLabel(window: window, now: now) == "Weekly")
+        #expect(capability.supportsResetWindowPace(window: window, now: now))
+    }
+
     private static func data(hexString: String) -> Data? {
         var data = Data()
         var index = hexString.startIndex
