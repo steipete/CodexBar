@@ -58,6 +58,13 @@ extension UsageStore {
     {
         let snapshot = self.snapshots[provider]
         let storedTokenSnapshot = self.tokenSnapshotForCurrentProviderConfig(for: provider)?.snapshot
+        let claudeQuotaOwnerKey: String? = if provider == .claude,
+                                              let account = self.settings.effectiveSelectedTokenAccount(for: provider)
+        {
+            self.tokenAccountSnapshotCacheKey(provider: provider, account: account)
+        } else {
+            nil
+        }
         let preservedClaudeUsage: PreservedClaudeWidgetUsage? = if provider == .claude,
                                                                    snapshot == nil,
                                                                    !self.widgetUsagePreservationBlockedProviders
@@ -65,7 +72,9 @@ extension UsageStore {
                                                                        self.knownLimitsAvailabilityByProvider[provider]?
                                                                            .isUnavailable != true
         {
-            Self.preservedClaudeWidgetUsage(from: previousEntry)
+            Self.preservedClaudeWidgetUsage(
+                from: previousEntry,
+                expectedQuotaOwnerKey: claudeQuotaOwnerKey)
         } else {
             nil
         }
@@ -109,6 +118,11 @@ extension UsageStore {
         } else {
             nil
         }
+        let quotaOwnerKey: String? = if provider == .claude {
+            snapshot != nil ? claudeQuotaOwnerKey : preservedClaudeUsage?.quotaOwnerKey
+        } else {
+            nil
+        }
 
         return WidgetSnapshot.ProviderEntry(
             provider: provider,
@@ -121,7 +135,8 @@ extension UsageStore {
             codeReviewRemainingPercent: codeReviewRemaining,
             tokenUsage: tokenUsage,
             dailyUsage: dailyUsage,
-            providerCost: providerCost)
+            providerCost: providerCost,
+            quotaOwnerKey: quotaOwnerKey)
     }
 
     private struct PreservedClaudeWidgetUsage {
@@ -130,12 +145,15 @@ extension UsageStore {
         let secondary: RateWindow?
         let tertiary: RateWindow?
         let usageRows: [WidgetSnapshot.WidgetUsageRowSnapshot]?
+        let quotaOwnerKey: String?
     }
 
     private nonisolated static func preservedClaudeWidgetUsage(
-        from entry: WidgetSnapshot.ProviderEntry?) -> PreservedClaudeWidgetUsage?
+        from entry: WidgetSnapshot.ProviderEntry?,
+        expectedQuotaOwnerKey: String?) -> PreservedClaudeWidgetUsage?
     {
         guard let entry, entry.provider == .claude else { return nil }
+        guard entry.quotaOwnerKey == expectedQuotaOwnerKey else { return nil }
 
         let primary = entry.primary?.isSyntheticPlaceholder == true ? nil : entry.primary
         let secondary = entry.secondary?.isSyntheticPlaceholder == true ? nil : entry.secondary
@@ -157,7 +175,8 @@ extension UsageStore {
             primary: primary,
             secondary: secondary,
             tertiary: tertiary,
-            usageRows: usageRows)
+            usageRows: usageRows,
+            quotaOwnerKey: entry.quotaOwnerKey)
     }
 
     nonisolated static func widgetTokenUsageSummary(
