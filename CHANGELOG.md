@@ -20,6 +20,7 @@
 - CLI: `config dump` now redacts stored credentials by default; `--show-secrets` restores raw output (#2410, fixes #2400). Thanks @Yuxin-Qiao!
 
 ### Fixed
+- Local install: require stable signing by default, delegate post-build launches to Finder so macOS Tahoe does not attribute and hide CodexBar's status item under a disabled terminal, and report Control Center blocked-item evidence instead of claiming a clean launch.
 - Keychain: disabling Keychain access no longer breaks Cursor and Claude refresh — cookie caches fall back to memory only, and background Claude checks cannot prompt (#2426, fixes #2408 and #2425). Thanks @gmkbenjamin!
 - Claude: keep the switcher bar on the account Weekly quota instead of exhausted model carve-outs (#2424, fixes #2423). Thanks @gmkbenjamin!
 - Claude: profile-scoped credential caching so multiple Claude profiles cannot reuse each other's cached credentials, with safe legacy migration (#2484, part of #2380). Thanks @ProspectOre!
