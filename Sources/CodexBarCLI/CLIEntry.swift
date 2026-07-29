@@ -23,6 +23,7 @@ enum CodexBarCLI {
         let rawArgv = Array(CommandLine.arguments.dropFirst())
         let argv = Self.effectiveArgv(rawArgv)
         let outputPreferences = CLIOutputPreferences.from(argv: argv)
+        let errorOutputPreferences: CLIOutputPreferences? = argv.first == "dashboard" ? nil : outputPreferences
 
         // Fast path: global help/version before building descriptors.
         if let helpIndex = argv.firstIndex(where: { $0 == "-h" || $0 == "--help" }) {
@@ -47,6 +48,8 @@ enum CodexBarCLI {
                 await self.runSessions(invocation.parsedValues)
             case ["sessions", "focus"]:
                 await self.runSessionsFocus(invocation.parsedValues)
+            case ["dashboard"]:
+                await self.runDashboard(invocation.parsedValues)
             case ["serve"]:
                 await self.runServe(invocation.parsedValues)
             case let path where path.first == "config":
@@ -74,9 +77,13 @@ enum CodexBarCLI {
             }
         } catch let error as CommanderProgramError {
             let exitCode: ExitCode = argv.first == "guard" ? .usage : .failure
-            Self.exit(code: exitCode, message: error.description, output: outputPreferences, kind: .args)
+            Self.exit(code: exitCode, message: error.description, output: errorOutputPreferences, kind: .args)
         } catch {
-            Self.exit(code: .failure, message: error.localizedDescription, output: outputPreferences, kind: .runtime)
+            Self.exit(
+                code: .failure,
+                message: error.localizedDescription,
+                output: errorOutputPreferences,
+                kind: .runtime)
         }
     }
 
@@ -101,7 +108,7 @@ enum CodexBarCLI {
         await self.runCookieRefresh(values)
     }
 
-    private static func commandDescriptors() -> [CommandDescriptor] {
+    static func commandDescriptors() -> [CommandDescriptor] {
         let cardsSignature = CommandSignature.describe(CardsOptions())
         let usageSignature = CommandSignature.describe(UsageOptions())
         let costSignature = CommandSignature.describe(CostOptions())
@@ -162,6 +169,7 @@ enum CodexBarCLI {
                 abstract: "Serve usage, cost, and dashboard JSON over HTTP",
                 discussion: nil,
                 signature: serveSignature),
+            Self.dashboardCommandDescriptor(),
             CommandDescriptor(
                 name: "config",
                 abstract: "Config utilities",
@@ -248,6 +256,14 @@ enum CodexBarCLI {
                 discussion: nil,
                 signature: diagnoseSignature),
         ]
+    }
+
+    private static func dashboardCommandDescriptor() -> CommandDescriptor {
+        CommandDescriptor(
+            name: "dashboard",
+            abstract: "Print a dashboard-v1 snapshot as JSON",
+            discussion: nil,
+            signature: CommandSignature.describe(DashboardOptions()))
     }
 
     private static func cookieCommandDescriptor() -> CommandDescriptor {

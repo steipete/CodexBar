@@ -148,7 +148,7 @@ struct CLIServeCoordinatedResponse: Sendable {
     let isCommitted: Bool
 }
 
-private struct ServeUsageContext: Sendable {
+struct ServeUsageContext: Sendable {
     let config: CodexBarConfig
     let configFingerprint: String
     let refreshInterval: TimeInterval
@@ -156,6 +156,7 @@ private struct ServeUsageContext: Sendable {
     let providerDeadline: ContinuousClock.Instant?
     let providerOperations: CLIServeOperationCoordinator<UsageCommandOutput>
     let includeAllCodexAccounts: Bool
+    let persistCLISessions: Bool
 
     init(
         config: CodexBarConfig,
@@ -164,7 +165,8 @@ private struct ServeUsageContext: Sendable {
         providerTimeout: TimeInterval?,
         providerDeadline: ContinuousClock.Instant?,
         providerOperations: CLIServeOperationCoordinator<UsageCommandOutput>,
-        includeAllCodexAccounts: Bool = true)
+        includeAllCodexAccounts: Bool = true,
+        persistCLISessions: Bool = true)
     {
         self.config = config
         self.configFingerprint = configFingerprint
@@ -173,10 +175,11 @@ private struct ServeUsageContext: Sendable {
         self.providerDeadline = providerDeadline
         self.providerOperations = providerOperations
         self.includeAllCodexAccounts = includeAllCodexAccounts
+        self.persistCLISessions = persistCLISessions
     }
 }
 
-private struct ServeDashboardContext: Sendable {
+struct DashboardSnapshotContext: Sendable {
     let config: CodexBarConfig
     let usage: ServeUsageContext
     let costCollection: ServeCostCollectionContext
@@ -911,7 +914,7 @@ extension CodexBarCLI {
                 cache: runtime.cache,
                 makeResponse: {
                     await Self.serveDashboardSnapshot(
-                        context: ServeDashboardContext(
+                        context: DashboardSnapshotContext(
                             config: snapshot.config,
                             usage: ServeUsageContext(
                                 config: snapshot.config,
@@ -1100,7 +1103,7 @@ extension CodexBarCLI {
             usageCacheKeys: output.payload.map(\.cacheAccountKey))
     }
 
-    private static func serveUsageOutput(
+    static func serveUsageOutput(
         selection: ProviderSelection,
         context: ServeUsageContext) async throws -> UsageCommandOutput
     {
@@ -1127,7 +1130,7 @@ extension CodexBarCLI {
             fetcher: UsageFetcher(),
             claudeFetcher: ClaudeUsageFetcher(browserDetection: browserDetection),
             browserDetection: browserDetection,
-            persistCLISessions: true,
+            persistCLISessions: context.persistCLISessions,
             persistentCLISessionIdleWindow: Self.serveCLISessionIdleWindow(
                 refreshInterval: context.refreshInterval))
 
@@ -1156,52 +1159,23 @@ extension CodexBarCLI {
         "\(configFingerprint):codex-accounts=\(includeAllCodexAccounts ? "all" : "selected")"
     }
 
-    /// Builds the token-gated dashboard snapshot. Reuses the same coordinated
-    /// usage/cost collection as `/usage` and `/cost` — per-provider budgets,
-    /// in-flight dedup, and config fingerprints all apply unchanged — then
-    /// projects the results through `DashboardSnapshotBuilder`.
-    private static func serveDashboardSnapshot(context: ServeDashboardContext) async -> CLILocalHTTPResponse {
-        let selection = Self.providerSelection(
-            rawOverride: nil,
-            enabled: context.config.enabledProviders())
-
-        let usageOutput: UsageCommandOutput
+    /// Adapts the shared dashboard snapshot producer to the authenticated HTTP
+    /// route. Auth, response caching, and `Cache-Control: no-store` remain owned
+    /// by the surrounding serve request path.
+    private static func serveDashboardSnapshot(context: DashboardSnapshotContext) async -> CLILocalHTTPResponse {
+        let result: DashboardSnapshotResult
         do {
-            usageOutput = try await Self.serveUsageOutput(selection: selection, context: context.usage)
+            result = try await DashboardSnapshotProducer.live(context: context).collect(
+                config: context.config,
+                refreshInterval: context.usage.refreshInterval,
+                codexBarVersion: context.codexBarVersion)
         } catch {
             return Self.serveError(status: .internalServerError, message: error.localizedDescription)
         }
 
-        let costProviders = Self.costProviders(from: selection)
-        let fetcher = CostUsageFetcher()
-        let costPayloads = await Self.serveCollectCostPayloads(
-            providers: costProviders,
-            context: context.costCollection)
-        { provider in
-            do {
-                let snapshot = try await fetcher.loadTokenSnapshot(
-                    provider: provider,
-                    forceRefresh: false,
-                    refreshPricingInBackground: Self.serveCostRefreshesPricingInBackground)
-                return Self.makeCostPayload(provider: provider, snapshot: snapshot, error: nil)
-            } catch {
-                return Self.makeCostPayload(provider: provider, snapshot: nil, error: error)
-            }
-        }
-
-        let snapshot = DashboardSnapshotBuilder.makeSnapshot(
-            usagePayloads: usageOutput.payload,
-            costPayloads: costPayloads,
-            config: context.config,
-            identityMode: .redacted,
-            generatedAt: Date(),
-            refreshInterval: context.usage.refreshInterval,
-            codexBarVersion: context.codexBarVersion)
-
-        // Cache-Control: no-store is applied uniformly at the route level.
         return Self.serveJSON(
-            snapshot,
-            usageCacheKeys: usageOutput.payload.map(\.cacheAccountKey))
+            result.payload,
+            usageCacheKeys: result.usageCacheKeys)
     }
 
     /// Per-provider fetch budget for `/usage` and `/cost`. Finite provider work

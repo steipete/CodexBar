@@ -1,23 +1,45 @@
 ---
-summary: "Dashboard snapshot API for codexbar serve: bearer-token auth, plain-HTTP threat model, and the display-oriented payload contract."
+summary: "Dashboard-v1 snapshot contract for one-shot CLI and HTTP clients, including serve auth and transport."
 read_when:
-  - "Building a dashboard client against codexbar serve"
+  - "Building a dashboard or adapter against CodexBar"
+  - "Using codexbar dashboard from scripts"
   - "Configuring --dashboard-token, --host, or --allow-plain-http"
   - "Reviewing the serve auth or transport security model"
 ---
 
-# Dashboard Snapshot API
+# Dashboard v1 Snapshot
 
-`codexbar serve` exposes a versioned, display-oriented snapshot of CodexBar usage data for dashboard clients:
+CodexBar exposes one versioned, display-oriented snapshot contract through two transports:
+
+```bash
+# One JSON document on stdout, then exit
+codexbar dashboard
+```
 
 ```text
+# Long-running HTTP endpoint
 GET /dashboard/v1/snapshot
 Authorization: Bearer YOUR_TOKEN
 ```
 
-The route is gated by a static bearer token and **fails closed**: without a configured token every request answers `401`. The token is only ever read from the `Authorization` header — a query-string parameter named `token` is never accepted. Every response on the dashboard route — including all `401`s and error responses — carries `Cache-Control: no-store`.
+Both transports use the same producer and schema-v1 payload. The one-shot command starts no server and needs no token.
+
+The HTTP route is gated by a static bearer token and **fails closed**: without a configured token every request answers `401`. The token is only ever read from the `Authorization` header — a query-string parameter named `token` is never accepted. Every response on the dashboard route — including all `401`s and error responses — carries `Cache-Control: no-store`.
 
 On the default loopback bind, `/usage` and `/cost` are unchanged and unauthenticated. On a **non-loopback** bind the same token gates **all data routes**: `/usage`, `/cost`, and `/dashboard/v1/snapshot` each require `Authorization: Bearer YOUR_TOKEN`, so account data never leaves the machine unauthenticated. `/health` is always open (it carries only a status and version string, useful for liveness probes).
+
+## One-shot command semantics
+
+- `codexbar dashboard` reads enabled providers from CodexBar config, emits them in stable order, and carries configured
+  ordering through each row's `display.sortKey`.
+- Identity is always redacted. Provider failures stay in their rows without discarding healthy rows.
+- A valid full, partial, empty, or all-error snapshot exits `0`. Command-wide setup or encoding failure writes a
+  diagnostic to stderr and exits non-zero without writing a substitute document to stdout.
+- Stdout contains exactly one JSON document plus a trailing newline. `--pretty` changes formatting only;
+  `--json-output` controls optional logs on stderr.
+- `--timeout <seconds>` accepts `0...86400` and defaults to `30`; `0` disables the command deadline.
+- The one-shot payload reports `host.refreshIntervalSeconds` as `0` because it has no response cache.
+  `staleAfterSeconds` keeps the schema's 180-second minimum.
 
 ## Configuring the token
 
@@ -156,7 +178,7 @@ The snapshot is a stable display contract, not a raw dump of provider internals.
 - `generatedAt`: Snapshot generation timestamp.
 - `staleAfterSeconds`: Client-side staleness hint.
 - `host.codexBarVersion`: CodexBar version when available.
-- `host.refreshIntervalSeconds`: Server response cache interval.
+- `host.refreshIntervalSeconds`: HTTP response cache interval, or `0` for the one-shot command.
 - `providers[].id`: Provider identifier.
 - `providers[].name`: Provider display name.
 - `providers[].enabled`: Whether the provider is enabled in CodexBar config.

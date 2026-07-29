@@ -11,6 +11,77 @@ final class CLIEntryTests: XCTestCase {
         XCTAssertEqual(CodexBarCLI.effectiveArgv(["usage", "--json"]), ["usage", "--json"])
     }
 
+    func test_rootHelpAdvertisesDashboardSnapshotCommand() {
+        let help = CodexBarCLI.rootHelp(version: "0.0.0")
+
+        XCTAssertTrue(help.contains("codexbar dashboard [--pretty] [--timeout <seconds>]"))
+    }
+
+    func test_dashboardCommandIsRegisteredAndParsesOptions() throws {
+        let program = Program(descriptors: CodexBarCLI.commandDescriptors())
+        let invocation = try program.resolve(argv: ["dashboard", "--pretty", "--timeout", "45"])
+
+        XCTAssertEqual(invocation.path, ["dashboard"])
+        XCTAssertTrue(invocation.parsedValues.flags.contains("pretty"))
+        XCTAssertEqual(invocation.parsedValues.options["timeout"], ["45"])
+    }
+
+    func test_dashboardTimeoutIsBoundedAndCanBeDisabled() {
+        XCTAssertEqual(
+            CodexBarCLI.decodeDashboardTimeout(from: ParsedValues(positional: [], options: [:], flags: [])),
+            30)
+        XCTAssertEqual(
+            CodexBarCLI.decodeDashboardTimeout(
+                from: ParsedValues(positional: [], options: ["timeout": ["0"]], flags: [])),
+            0)
+        XCTAssertEqual(
+            CodexBarCLI.decodeDashboardTimeout(
+                from: ParsedValues(positional: [], options: ["timeout": ["86400"]], flags: [])),
+            86400)
+
+        for value in ["-1", "nan", "inf", "86401"] {
+            XCTAssertNil(CodexBarCLI.decodeDashboardTimeout(
+                from: ParsedValues(positional: [], options: ["timeout": [value]], flags: [])))
+        }
+    }
+
+    func test_dashboardCommanderErrorsStayOffStdout() throws {
+        let result = try Self.runCLI(arguments: ["dashboard", "--json"])
+
+        XCTAssertNotEqual(result.status, 0)
+        XCTAssertTrue(result.stdout.isEmpty)
+        XCTAssertFalse(result.stderr.isEmpty)
+    }
+
+    func test_dashboardCommandPrintsOneSnapshotAndExits() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("codexbar-dashboard-command-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        var config = CodexBarConfig.makeDefault()
+        config.providers = config.providers.map { provider in
+            var disabled = provider
+            disabled.enabled = false
+            return disabled
+        }
+        let configURL = root.appendingPathComponent("config.json")
+        try CodexBarConfigStore(fileURL: configURL).save(config)
+
+        let result = try Self.runCLI(
+            arguments: ["dashboard"],
+            environment: [CodexBarConfigStore.pathEnvironmentKey: configURL.path])
+        XCTAssertEqual(result.status, 0)
+        XCTAssertEqual(result.stdout.last, 0x0A)
+
+        let object = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: result.stdout) as? [String: Any])
+        XCTAssertEqual(object["schemaVersion"] as? Int, 1)
+        let providers = try XCTUnwrap(object["providers"] as? [[String: Any]])
+        XCTAssertTrue(providers.isEmpty)
+        let host = try XCTUnwrap(object["host"] as? [String: Any])
+        XCTAssertEqual(host["refreshIntervalSeconds"] as? Int, 0)
+    }
+
     func test_decodesFormatFromOptionsAndFlags() {
         let jsonOption = ParsedValues(positional: [], options: ["format": ["json"]], flags: [])
         XCTAssertEqual(CodexBarCLI._decodeFormatForTesting(from: jsonOption), .json)
@@ -520,5 +591,35 @@ final class CLIEntryTests: XCTestCase {
             .api,
             provider: .factory,
             environment: [:]))
+    }
+
+    private static var cliExecutableURL: URL {
+        URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent(".build/debug/CodexBarCLI")
+    }
+
+    private static func runCLI(
+        arguments: [String],
+        environment: [String: String] = [:]) throws -> (status: Int32, stdout: Data, stderr: Data)
+
+    {
+        let process = Process()
+        process.executableURL = Self.cliExecutableURL
+        process.arguments = arguments
+        process.environment = ProcessInfo.processInfo.environment.merging(environment) { _, override in override }
+
+        let stdout = Pipe()
+        let stderr = Pipe()
+        process.standardOutput = stdout
+        process.standardError = stderr
+        try process.run()
+        process.waitUntilExit()
+        return (
+            process.terminationStatus,
+            stdout.fileHandleForReading.readDataToEndOfFile(),
+            stderr.fileHandleForReading.readDataToEndOfFile())
     }
 }

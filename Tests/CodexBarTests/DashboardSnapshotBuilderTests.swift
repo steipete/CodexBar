@@ -5,6 +5,55 @@ import Testing
 
 struct DashboardSnapshotBuilderTests {
     @Test
+    func `producer keeps stable order redaction and partial errors`() async throws {
+        let generatedAt = Date(timeIntervalSince1970: 1_800_000_000)
+        let healthy = self.identityPayload(email: "user@example.com")
+        let failed = ProviderPayload(
+            provider: .codex,
+            account: nil,
+            version: nil,
+            source: "auto",
+            status: nil,
+            usage: nil,
+            credits: nil,
+            antigravityPlanInfo: nil,
+            openaiDashboard: nil,
+            error: ProviderErrorPayload(code: 1, message: "temporary failure", kind: .provider))
+        let rows: [UsageProvider: ProviderPayload] = [.claude: healthy, .codex: failed]
+        let producer = DashboardSnapshotProducer(
+            collectUsage: { providers in
+                var output = UsageCommandOutput()
+                output.payload = providers.compactMap { rows[$0] }
+                output.exitCode = .failure
+                return output
+            },
+            collectCost: { _ in [] },
+            now: { generatedAt })
+        let config = CodexBarConfig(providers: [
+            ProviderConfig(id: .claude, enabled: true),
+            ProviderConfig(id: .codex, enabled: true),
+        ])
+
+        let result = try await producer.collect(
+            config: config,
+            refreshInterval: 0,
+            codexBarVersion: "9.8.7")
+        let object = try self.jsonObject(result.payload)
+        let providers = try #require(object["providers"] as? [[String: Any]])
+        let error = try #require(providers[0]["error"] as? [String: Any])
+        let identity = try #require(providers[1]["identity"] as? [String: Any])
+        let codexDisplay = try #require(providers[0]["display"] as? [String: Any])
+        let claudeDisplay = try #require(providers[1]["display"] as? [String: Any])
+
+        #expect(providers.compactMap { $0["id"] as? String } == ["codex", "claude"])
+        #expect(identity["accountEmail"] as? String == "redacted@example.com")
+        #expect(error["message"] as? String == "temporary failure")
+        #expect(codexDisplay["sortKey"] as? Int == 10)
+        #expect(claudeDisplay["sortKey"] as? Int == 0)
+        #expect(object["generatedAt"] as? String == "2027-01-15T08:00:00Z")
+    }
+
+    @Test
     func `builds stable display-oriented dashboard snapshot`() throws {
         let generatedAt = Date(timeIntervalSince1970: 1_800_000_000)
         let updatedAt = Date(timeIntervalSince1970: 1_800_000_010)

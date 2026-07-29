@@ -132,6 +132,36 @@ extension CodexBarCLI {
         """
     }
 
+    static func dashboardHelp(version: String) -> String {
+        """
+        CodexBar \(version)
+
+        Usage:
+          codexbar dashboard [--pretty] [--timeout <seconds>]
+                             [--json-output] [--log-level <trace|verbose|debug|info|warning|error|critical>]
+                             [-v|--verbose]
+
+        Description:
+          Print one dashboard-v1 snapshot as JSON, then exit. Honors enabled providers
+          in stable order, always redacts account identity, and keeps provider
+          failures as row-level errors without dropping healthy rows.
+          Stdout contains only the JSON document; diagnostics are written to stderr.
+          --timeout accepts 0...86400 seconds and defaults to 30; 0 disables the deadline.
+
+        Global flags:
+          -h, --help      Show help
+          -V, --version   Show version
+          -v, --verbose   Enable verbose logging
+          --log-level <trace|verbose|debug|info|warning|error|critical>
+          --json-output   Emit machine-readable logs (JSONL) to stderr
+
+        Examples:
+          codexbar dashboard
+          codexbar dashboard --pretty
+          codexbar dashboard --timeout 60
+        """
+    }
+
     static func serveHelp(version: String) -> String {
         """
         CodexBar \(version)
@@ -389,6 +419,7 @@ extension CodexBarCLI {
                        [--days <days>] [--group-by project]
           codexbar sessions [--json] [--pretty]
           codexbar sessions focus <id>
+          codexbar dashboard [--pretty] [--timeout <seconds>]
           codexbar serve [--host <host>] [--port <port>] [--refresh-interval <seconds>]
                        [--request-timeout <seconds>]
                        [--dashboard-token <token>] [--allow-plain-http]
@@ -428,6 +459,7 @@ extension CodexBarCLI {
           codexbar cards --brief
           codexbar cost --provider claude --format json --pretty
           codexbar sessions --json
+          codexbar dashboard --pretty
           codexbar serve --port 8080
           codexbar config validate --format json --pretty
           codexbar config enable --provider grok
