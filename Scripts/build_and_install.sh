@@ -14,6 +14,21 @@ SIGNING_IDENTITY="${APP_IDENTITY:-Developer ID Application: Peter Steinberger (Y
 log() { printf '%s\n' "$*"; }
 fail() { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
 
+signing_team_id() {
+    local identity="$1"
+    local subject
+    subject="$(
+        /usr/bin/security find-certificate -c "$identity" -p 2>/dev/null \
+            | /usr/bin/openssl x509 -noout -subject -nameopt RFC2253 2>/dev/null \
+            || true
+    )"
+    if [[ "$subject" =~ (^|,)OU=([A-Z0-9]{10})(,|$) ]]; then
+        printf '%s\n' "${BASH_REMATCH[2]}"
+    elif [[ "$identity" =~ \(([A-Z0-9]{10})\)$ ]]; then
+        printf '%s\n' "${BASH_REMATCH[1]}"
+    fi
+}
+
 if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
     cat <<EOF
 Usage: $(basename "$0") [release|debug]
@@ -46,8 +61,14 @@ case "$SIGNING_MODE" in
         then
             fail "Required signing identity is unavailable: ${SIGNING_IDENTITY}. Use a stable signing certificate, or run package_app.sh without installing."
         fi
+        RESOLVED_TEAM_ID="$(signing_team_id "$SIGNING_IDENTITY")"
+        [[ -n "$RESOLVED_TEAM_ID" ]] || fail "Could not determine the team ID for signing identity: ${SIGNING_IDENTITY}"
+        if [[ -n "${APP_TEAM_ID:-}" && "$APP_TEAM_ID" != "$RESOLVED_TEAM_ID" ]]; then
+            fail "APP_TEAM_ID=${APP_TEAM_ID} does not match signing identity team ${RESOLVED_TEAM_ID}."
+        fi
         export CODEXBAR_SIGNING="identity"
         export APP_IDENTITY="$SIGNING_IDENTITY"
+        export APP_TEAM_ID="$RESOLVED_TEAM_ID"
         ;;
     adhoc)
         log "WARNING: Installing an ad-hoc signed production bundle can invalidate app-group and Tahoe menu bar state."
