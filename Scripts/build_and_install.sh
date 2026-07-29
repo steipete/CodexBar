@@ -14,6 +14,16 @@ SIGNING_IDENTITY="${APP_IDENTITY:-Developer ID Application: Peter Steinberger (Y
 log() { printf '%s\n' "$*"; }
 fail() { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
 
+canonical_path() {
+    if [[ -x /usr/bin/realpath ]]; then
+        /usr/bin/realpath "$1"
+    elif [[ -x /bin/realpath ]]; then
+        /bin/realpath "$1"
+    else
+        fail "macOS realpath utility is unavailable."
+    fi
+}
+
 signing_team_id() {
     local identity="$1"
     local subject
@@ -103,7 +113,7 @@ run_install_command() {
 verify_expected_signature() {
     local app="$1"
     [[ "$SIGNING_MODE" == "identity" ]] || return 0
-    /usr/bin/codesign -d --verbose=4 "$app" 2>&1 \
+    run_install_command /usr/bin/codesign -d --verbose=4 "$app" 2>&1 \
         | /usr/bin/grep -F "Authority=${SIGNING_IDENTITY}" >/dev/null \
         || fail "Packaged app is not signed by the required identity: ${SIGNING_IDENTITY}"
 }
@@ -115,7 +125,7 @@ process_executable() {
 
 CURRENT_DESTINATION_EXECUTABLE=""
 if [[ -x "$DESTINATION_EXECUTABLE" ]]; then
-    CURRENT_DESTINATION_EXECUTABLE="$(/bin/realpath "$DESTINATION_EXECUTABLE")"
+    CURRENT_DESTINATION_EXECUTABLE="$(canonical_path "$DESTINATION_EXECUTABLE")"
 fi
 
 running_installed_pids() {

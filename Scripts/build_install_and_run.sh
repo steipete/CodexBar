@@ -9,6 +9,16 @@ APP_NAME="CodexBar"
 log() { printf '%s\n' "$*"; }
 fail() { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
 
+canonical_path() {
+    if [[ -x /usr/bin/realpath ]]; then
+        /usr/bin/realpath "$1"
+    elif [[ -x /bin/realpath ]]; then
+        /bin/realpath "$1"
+    else
+        fail "macOS realpath utility is unavailable."
+    fi
+}
+
 if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
     cat <<EOF
 Usage: $(basename "$0") [release|debug]
@@ -56,7 +66,7 @@ blocked_status_item_log() {
 "${ROOT_DIR}/Scripts/build_and_install.sh" "$@"
 [[ -x "$INSTALLED_EXECUTABLE" ]] || fail "Installed executable is missing: ${INSTALLED_EXECUTABLE}"
 
-EXPECTED_EXECUTABLE="$(/bin/realpath "$INSTALLED_EXECUTABLE")"
+EXPECTED_EXECUTABLE="$(canonical_path "$INSTALLED_EXECUTABLE")"
 INSTALLED_BUNDLE_ID="$(
     /usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "${INSTALLED_APP}/Contents/Info.plist" 2>/dev/null || true
 )"
