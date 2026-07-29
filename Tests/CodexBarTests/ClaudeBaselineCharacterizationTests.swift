@@ -459,7 +459,16 @@ struct ClaudeBaselineCharacterizationTests {
             cookieSource: .off,
             manualCookieHeader: nil))
         let stubCLIPath = try self.makeStubClaudeCLI()
-        let env = ["CLAUDE_CLI_PATH": stubCLIPath]
+        let profileRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent("codexbar-claude-background-establishment-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: profileRoot, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: profileRoot) }
+        try Data(#"{"oauthAccount":{"accountUuid":"established-account"}}"#.utf8)
+            .write(to: profileRoot.appendingPathComponent(".config.json"), options: .atomic)
+        let env = [
+            "CLAUDE_CLI_PATH": stubCLIPath,
+            "CLAUDE_CONFIG_DIR": profileRoot.path,
+        ]
         let descriptor = ProviderDescriptorRegistry.descriptor(for: .claude)
         let context = self.makeContext(runtime: .app, sourceMode: .auto, env: env, settings: settings)
         let strategies = await descriptor.fetchPlan.pipeline.resolveStrategies(context)
