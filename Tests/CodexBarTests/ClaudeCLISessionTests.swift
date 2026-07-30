@@ -209,6 +209,7 @@ struct ClaudeCLISessionTests {
         #expect(ClaudeCLISession.launchArguments(sessionID: first) == [
             "--allowed-tools",
             "",
+            "--strict-mcp-config",
             "--session-id",
             first.uuidString.lowercased(),
         ])

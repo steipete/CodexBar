@@ -492,8 +492,9 @@ actor ClaudeCLISession {
 
     static func launchArguments(sessionID: UUID) -> [String] {
         // `/usage` is interactive, while Claude's no-persistence option is print-only. Reusing one explicit ID keeps
-        // repeated probe launches from registering a fresh empty account session every time.
-        ["--allowed-tools", "", "--session-id", sessionID.uuidString.lowercased()]
+        // repeated probe launches from registering a fresh empty account session every time. The probe never uses MCP
+        // tools, so ignore ambient MCP configuration rather than waiting for unrelated user servers to initialize.
+        ["--allowed-tools", "", "--strict-mcp-config", "--session-id", sessionID.uuidString.lowercased()]
     }
 
     static func loadOrCreateProbeSessionID(
