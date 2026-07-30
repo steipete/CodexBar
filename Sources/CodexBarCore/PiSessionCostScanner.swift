@@ -827,7 +827,9 @@ enum PiSessionCostScanner {
             costSampleCount: costUSD == nil ? 0 : 1,
             usageSampleCount: 1)
     }
+}
 
+extension PiSessionCostScanner {
     private static func computedCostUSD(
         provider: UsageProvider,
         modelName: String,

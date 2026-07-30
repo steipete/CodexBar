@@ -370,6 +370,23 @@ public struct CostUsageFetcher: Sendable {
         return options
     }
 
+    private static func resolvedPiScannerOptions(
+        _ override: PiSessionCostScanner.Options?,
+        scannerOptions: CostUsageScanner.Options,
+        forceRefresh: Bool,
+        bypassScannerDebounce: Bool) -> PiSessionCostScanner.Options
+    {
+        var options = override ?? PiSessionCostScanner.Options()
+        if options.cacheRoot == nil {
+            options.cacheRoot = scannerOptions.cacheRoot
+        }
+        options.calendar = scannerOptions.calendar
+        if forceRefresh || bypassScannerDebounce {
+            options.refreshMinIntervalSeconds = 0
+        }
+        return options
+    }
+
     static func loadTokenSnapshot(
         provider: UsageProvider,
         environment: [String: String] = ProcessInfo.processInfo.environment,
@@ -424,18 +441,13 @@ public struct CostUsageFetcher: Sendable {
         Self.configureScannerRefresh(
             &options,
             provider: provider,
-            allowVertexClaudeFallback: allowVertexClaudeFallback,
             forceRefresh: forceRefresh,
             bypassScannerDebounce: bypassScannerDebounce)
-        var resolvedPiOptions = overridePiScannerOptions ?? PiSessionCostScanner.Options()
-        if resolvedPiOptions.cacheRoot == nil {
-            resolvedPiOptions.cacheRoot = options.cacheRoot
-        }
-        resolvedPiOptions.calendar = options.calendar
-        if forceRefresh || bypassScannerDebounce {
-            resolvedPiOptions.refreshMinIntervalSeconds = 0
-        }
-        let piOptions = resolvedPiOptions
+        let piOptions = Self.resolvedPiScannerOptions(
+            overridePiScannerOptions,
+            scannerOptions: options,
+            forceRefresh: forceRefresh,
+            bypassScannerDebounce: bypassScannerDebounce)
 
         let scanOptions = options
         let localScanOptions = LocalTokenScanOptions(
@@ -1137,15 +1149,11 @@ public struct CostUsageFetcher: Sendable {
     private static func configureScannerRefresh(
         _ options: inout CostUsageScanner.Options,
         provider: UsageProvider,
-        allowVertexClaudeFallback: Bool,
         forceRefresh: Bool,
         bypassScannerDebounce: Bool)
     {
-        if provider == .vertexai {
-            options.claudeLogProviderFilter = allowVertexClaudeFallback ? .all : .vertexAIOnly
-        } else if provider == .claude {
-            options.claudeLogProviderFilter = .excludeVertexAI
-        }
+        // `claudeLogProviderFilter` is configured in `resolvedScannerOptions` so it is available
+        // to every caller, not only this path.
         if forceRefresh || bypassScannerDebounce {
             options.refreshMinIntervalSeconds = 0
         }
