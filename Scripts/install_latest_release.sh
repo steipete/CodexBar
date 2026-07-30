@@ -99,8 +99,10 @@ installed_official_version() {
     printf '%s\n' "$signature" | /usr/bin/grep -Fx "Authority=${OFFICIAL_IDENTITY}" >/dev/null || return 1
     printf '%s\n' "$signature" | /usr/bin/grep -Fx "TeamIdentifier=${OFFICIAL_TEAM_ID}" >/dev/null || return 1
     local gatekeeper
-    gatekeeper="$(/usr/sbin/spctl -a -vvv -t execute "$INSTALL_APP" 2>&1 || true)"
-    printf '%s\n' "$gatekeeper" | /usr/bin/grep -F 'source=Notarized Developer ID' >/dev/null || return 1
+    if ! gatekeeper="$(/usr/sbin/spctl -a -vvv -t execute "$INSTALL_APP" 2>&1)"; then
+        return 1
+    fi
+    printf '%s\n' "$gatekeeper" | /usr/bin/grep -Fx 'source=Notarized Developer ID' >/dev/null || return 1
     /usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' \
         "${INSTALL_APP}/Contents/Info.plist" 2>/dev/null
 }
