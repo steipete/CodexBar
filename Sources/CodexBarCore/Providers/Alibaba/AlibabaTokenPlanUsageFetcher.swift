@@ -26,6 +26,17 @@ public enum AlibabaTokenPlanUsageError: LocalizedError, Sendable, Equatable {
     }
 }
 
+extension AlibabaTokenPlanUsageError {
+    fileprivate var canRefreshSECToken: Bool {
+        switch self {
+        case .loginRequired, .invalidCredentials:
+            true
+        case .apiError, .networkError, .parseFailed:
+            false
+        }
+    }
+}
+
 // swiftlint:disable:next type_body_length
 public struct AlibabaTokenPlanUsageFetcher: Sendable {
     private struct PersonalAPIContext: Sendable {
@@ -94,7 +105,8 @@ public struct AlibabaTokenPlanUsageFetcher: Sendable {
         region: AlibabaTokenPlanAPIRegion = .international,
         environment: [String: String] = ProcessInfo.processInfo.environment,
         now: Date = Date(),
-        session overrideSession: URLSession? = nil) async throws -> AlibabaTokenPlanUsageSnapshot
+        session overrideSession: URLSession? = nil,
+        rejectedSECToken: String? = nil) async throws -> AlibabaTokenPlanUsageSnapshot
     {
         guard let normalizedAPIHeader = CookieHeaderNormalizer.normalize(apiCookieHeader),
               let normalizedDashboardHeader = CookieHeaderNormalizer.normalize(dashboardCookieHeader)
@@ -130,29 +142,58 @@ public struct AlibabaTokenPlanUsageFetcher: Sendable {
             }
         }
 
-        if region.usesPersonalTokenPlanAPI {
-            let secToken = await self.resolveSECToken(
-                dashboardCookieHeader: normalizedDashboardHeader,
-                apiCookieHeader: normalizedAPIHeader,
-                region: region,
-                environment: environment,
-                session: dashboardSession)
-            return try await self.fetchPersonalUsage(
-                context: PersonalAPIContext(
-                    apiCookieHeader: normalizedAPIHeader,
-                    secToken: secToken,
-                    region: region,
-                    environment: environment,
-                    session: apiSession),
-                now: now)
-        }
-
+        let cookieSECToken = self.extractCookieValue(name: "sec_token", from: normalizedDashboardHeader) ??
+            self.extractCookieValue(name: "sec_token", from: normalizedAPIHeader)
         let secToken = await self.resolveSECToken(
             dashboardCookieHeader: normalizedDashboardHeader,
             apiCookieHeader: normalizedAPIHeader,
             region: region,
             environment: environment,
-            session: dashboardSession)
+            session: dashboardSession,
+            useCookieToken: rejectedSECToken == nil,
+            rejectedToken: rejectedSECToken)
+        if rejectedSECToken != nil {
+            guard secToken != nil else {
+                throw AlibabaTokenPlanUsageError.loginRequired
+            }
+        }
+        let usedCookieSECToken = cookieSECToken != nil && secToken == cookieSECToken
+
+        func retryAfterRejectedSECToken(
+            _ error: AlibabaTokenPlanUsageError) async throws -> AlibabaTokenPlanUsageSnapshot
+        {
+            guard rejectedSECToken == nil,
+                  usedCookieSECToken,
+                  error.canRefreshSECToken,
+                  let secToken
+            else {
+                throw error
+            }
+            return try await self.fetchUsage(
+                apiCookieHeader: normalizedAPIHeader,
+                dashboardCookieHeader: normalizedDashboardHeader,
+                region: region,
+                environment: environment,
+                now: now,
+                session: overrideSession,
+                rejectedSECToken: secToken)
+        }
+
+        if region.usesPersonalTokenPlanAPI {
+            do {
+                return try await self.fetchPersonalUsage(
+                    context: PersonalAPIContext(
+                        apiCookieHeader: normalizedAPIHeader,
+                        secToken: secToken,
+                        region: region,
+                        environment: environment,
+                        session: apiSession),
+                    now: now)
+            } catch let error as AlibabaTokenPlanUsageError {
+                return try await retryAfterRejectedSECToken(error)
+            }
+        }
+
         Self.log.info(
             "Fetching Alibaba Token Plan usage",
             metadata: [
@@ -164,25 +205,12 @@ public struct AlibabaTokenPlanUsageFetcher: Sendable {
                 "secTokenSource": secToken == nil ? "missing" : "resolved",
             ])
 
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.timeoutInterval = 20
-        request.httpBody = self.subscriptionSummaryRequestBody(region: region, secToken: secToken)
-        request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
-        request.setValue("*/*", forHTTPHeaderField: "Accept")
-        request.setValue(normalizedAPIHeader, forHTTPHeaderField: "Cookie")
-        if let csrf = self.extractCookieValue(name: "login_aliyunid_csrf", from: normalizedAPIHeader) ??
-            self.extractCookieValue(name: "csrf", from: normalizedAPIHeader)
-        {
-            request.setValue(csrf, forHTTPHeaderField: "x-xsrf-token")
-            request.setValue(csrf, forHTTPHeaderField: "x-csrf-token")
-        }
-        request.setValue("XMLHttpRequest", forHTTPHeaderField: "X-Requested-With")
-        request.setValue(Self.browserLikeUserAgent, forHTTPHeaderField: "User-Agent")
-        request.setValue(region.dashboardOriginURLString, forHTTPHeaderField: "Origin")
-        request.setValue(
-            Self.dashboardURL(region: region, environment: environment).absoluteString,
-            forHTTPHeaderField: "Referer")
+        let request = self.teamUsageRequest(
+            url: url,
+            apiCookieHeader: normalizedAPIHeader,
+            secToken: secToken,
+            region: region,
+            environment: environment)
 
         let data: Data
         let response: URLResponse
@@ -226,13 +254,17 @@ public struct AlibabaTokenPlanUsageFetcher: Sendable {
             ])
         guard httpResponse.statusCode == 200 else {
             if httpResponse.statusCode == 401 || httpResponse.statusCode == 403 {
-                throw AlibabaTokenPlanUsageError.loginRequired
+                return try await retryAfterRejectedSECToken(.loginRequired)
             }
             Self.log.error("Alibaba Token Plan returned HTTP \(httpResponse.statusCode)")
             throw AlibabaTokenPlanUsageError.apiError("HTTP \(httpResponse.statusCode)")
         }
 
-        return try self.parseUsageSnapshot(from: data, now: now)
+        do {
+            return try self.parseUsageSnapshot(from: data, now: now)
+        } catch let error as AlibabaTokenPlanUsageError {
+            return try await retryAfterRejectedSECToken(error)
+        }
     }
 
     static func resolveQuotaURL(
@@ -522,16 +554,51 @@ public struct AlibabaTokenPlanUsageFetcher: Sendable {
         return Data((components.percentEncodedQuery ?? "").utf8)
     }
 
+    private static func teamUsageRequest(
+        url: URL,
+        apiCookieHeader: String,
+        secToken: String?,
+        region: AlibabaTokenPlanAPIRegion,
+        environment: [String: String]) -> URLRequest
+    {
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.timeoutInterval = 20
+        request.httpBody = self.subscriptionSummaryRequestBody(region: region, secToken: secToken)
+        request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
+        request.setValue("*/*", forHTTPHeaderField: "Accept")
+        request.setValue(apiCookieHeader, forHTTPHeaderField: "Cookie")
+        if let csrf = self.extractCookieValue(name: "login_aliyunid_csrf", from: apiCookieHeader) ??
+            self.extractCookieValue(name: "csrf", from: apiCookieHeader)
+        {
+            request.setValue(csrf, forHTTPHeaderField: "x-xsrf-token")
+            request.setValue(csrf, forHTTPHeaderField: "x-csrf-token")
+        }
+        request.setValue("XMLHttpRequest", forHTTPHeaderField: "X-Requested-With")
+        request.setValue(Self.browserLikeUserAgent, forHTTPHeaderField: "User-Agent")
+        request.setValue(region.dashboardOriginURLString, forHTTPHeaderField: "Origin")
+        request.setValue(
+            Self.dashboardURL(region: region, environment: environment).absoluteString,
+            forHTTPHeaderField: "Referer")
+        return request
+    }
+
     private static func resolveSECToken(
         dashboardCookieHeader: String,
         apiCookieHeader: String,
         region: AlibabaTokenPlanAPIRegion,
         environment: [String: String],
-        session: URLSession) async -> String?
+        session: URLSession,
+        useCookieToken: Bool = true,
+        rejectedToken: String? = nil) async -> String?
     {
         let cookieSECToken = self.extractCookieValue(name: "sec_token", from: dashboardCookieHeader) ??
             self.extractCookieValue(name: "sec_token", from: apiCookieHeader)
-        if let cookieSECToken, !cookieSECToken.isEmpty {
+        if useCookieToken,
+           let cookieSECToken,
+           !cookieSECToken.isEmpty,
+           cookieSECToken != rejectedToken
+        {
             Self.log.info("Resolved Alibaba Token Plan sec_token from cookies")
             return cookieSECToken
         }
@@ -549,7 +616,8 @@ public struct AlibabaTokenPlanUsageFetcher: Sendable {
            let httpResponse = response as? HTTPURLResponse,
            httpResponse.statusCode == 200,
            let html = String(data: data, encoding: .utf8),
-           let token = self.extractSECToken(from: html)
+           let token = self.extractSECToken(from: html),
+           token != rejectedToken
         {
             Self.log.info(
                 "Resolved Alibaba Token Plan sec_token from dashboard HTML",
@@ -566,7 +634,9 @@ public struct AlibabaTokenPlanUsageFetcher: Sendable {
             environment: environment,
             session: session)
         {
-            return token
+            if token != rejectedToken {
+                return token
+            }
         }
 
         Self.log.info(

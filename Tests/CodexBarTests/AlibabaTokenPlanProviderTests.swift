@@ -694,6 +694,97 @@ struct AlibabaTokenPlanUsageParsingTests {
     }
 
     @Test
+    func `rejected cookie SEC token refreshes once before retry`() async throws {
+        defer {
+            AlibabaTokenPlanStubURLProtocol.handler = nil
+        }
+        let usageBody = try #require(String(data: alibabaTokenPlanFixture("personal_usage"), encoding: .utf8))
+        let tokenError = #"{"code":"PostonlyOrTokenError","successResponse":false}"#
+        let teamSummary =
+            #"{"Success":true,"Data":{"TotalCount":1,"TotalValue":1000,"TotalSurplusValue":900}}"#
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [AlibabaTokenPlanStubURLProtocol.self]
+        let session = URLSession(configuration: configuration)
+
+        for region in [
+            AlibabaTokenPlanAPIRegion.internationalPersonal,
+            .chinaMainlandPersonal,
+            .international,
+            .chinaMainland,
+        ] {
+            let sawStalePost = LockIsolated(false)
+            let sawFreshPost = LockIsolated(false)
+            let sawDashboard = LockIsolated(false)
+            let sawUserInfo = LockIsolated(false)
+            AlibabaTokenPlanStubURLProtocol.handler = { request in
+                guard let url = request.url else { throw URLError(.badURL) }
+                if request.httpMethod == "GET" {
+                    #expect(sawStalePost.value)
+                    #expect(request.value(forHTTPHeaderField: "Cookie") ==
+                        "dashboard_only=dashboard; sec_token=stale-token")
+                    if url.path == "/tool/user/info.json" {
+                        #expect(sawDashboard.value)
+                        #expect(!sawUserInfo.value)
+                        sawUserInfo.setValue(true)
+                        let userInfo = #"{"data":{"secToken":"fresh-token"}}"#
+                        return Self.makeResponse(url: url, body: userInfo, statusCode: 200)
+                    }
+
+                    #expect(!sawDashboard.value)
+                    sawDashboard.setValue(true)
+                    let token = region.usesPersonalTokenPlanAPI ? "fresh-token" : "stale-token"
+                    return Self.makeResponse(
+                        url: url,
+                        body: "<script>sec_token = \"\(token)\";</script>",
+                        statusCode: 200)
+                }
+
+                #expect(request.httpMethod == "POST")
+                let body = Self.requestBodyString(from: request)
+                let token = if body.contains("sec_token=stale-token") {
+                    "stale"
+                } else if body.contains("sec_token=fresh-token") {
+                    "fresh"
+                } else {
+                    "missing"
+                }
+                if token == "stale" {
+                    #expect(!sawStalePost.value)
+                    sawStalePost.setValue(true)
+                    return Self.makeResponse(url: url, body: tokenError, statusCode: 200)
+                }
+                #expect(token == "fresh")
+                sawFreshPost.setValue(true)
+
+                if region.usesPersonalTokenPlanAPI {
+                    let api = URLComponents(url: url, resolvingAgainstBaseURL: false)?
+                        .queryItems?
+                        .first(where: { $0.name == "api" })?
+                        .value
+                    let responseBody = api == "zeldaHttp.apikeyMgr./tokenplan/personal/api/v2/usage"
+                        ? usageBody
+                        : "{}"
+                    return Self.makeResponse(url: url, body: responseBody, statusCode: 200)
+                }
+                return Self.makeResponse(url: url, body: teamSummary, statusCode: 200)
+            }
+
+            let snapshot = try await AlibabaTokenPlanUsageFetcher.fetchUsage(
+                apiCookieHeader: "quota_only=quota",
+                dashboardCookieHeader: "dashboard_only=dashboard; sec_token=stale-token",
+                region: region,
+                environment: [:],
+                session: session)
+
+            #expect(snapshot.planName == (region.usesPersonalTokenPlanAPI ? "Personal" : "TOKEN PLAN"))
+            #expect(sawStalePost.value)
+            #expect(sawFreshPost.value)
+            #expect(sawDashboard.value)
+            #expect(sawUserInfo.value == !region.usesPersonalTokenPlanAPI)
+        }
+    }
+
+    @Test
     func `Personal workspace error does not fall back to Team`() async throws {
         defer {
             AlibabaTokenPlanStubURLProtocol.handler = nil
