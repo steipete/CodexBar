@@ -26,24 +26,9 @@ public enum AlibabaTokenPlanUsageError: LocalizedError, Sendable, Equatable {
     }
 }
 
-extension AlibabaTokenPlanUsageError {
-    fileprivate var isWorkspaceNotAuthorised: Bool {
-        guard case let .apiError(message) = self else { return false }
-        return message.localizedCaseInsensitiveContains("BailianGateway.Workspace.NotAuthorised")
-    }
-}
-
 // swiftlint:disable:next type_body_length
 public struct AlibabaTokenPlanUsageFetcher: Sendable {
     private struct PersonalAPIContext: Sendable {
-        let apiCookieHeader: String
-        let secToken: String?
-        let region: AlibabaTokenPlanAPIRegion
-        let environment: [String: String]
-        let session: URLSession
-    }
-
-    private struct TeamAPIContext: Sendable {
         let apiCookieHeader: String
         let secToken: String?
         let region: AlibabaTokenPlanAPIRegion
@@ -117,6 +102,7 @@ public struct AlibabaTokenPlanUsageFetcher: Sendable {
             throw AlibabaTokenPlanSettingsError.invalidCookie
         }
 
+        let url = self.resolveQuotaURL(region: region, environment: environment)
         let apiRedirectDiagnostics = RedirectDiagnostics(cookieHeader: normalizedAPIHeader)
         let dashboardRedirectDiagnostics: RedirectDiagnostics?
         let apiSession: URLSession
@@ -151,34 +137,14 @@ public struct AlibabaTokenPlanUsageFetcher: Sendable {
                 region: region,
                 environment: environment,
                 session: dashboardSession)
-            do {
-                return try await self.fetchPersonalUsage(
-                    context: PersonalAPIContext(
-                        apiCookieHeader: normalizedAPIHeader,
-                        secToken: secToken,
-                        region: region,
-                        environment: environment,
-                        session: apiSession),
-                    now: now)
-            } catch let error as AlibabaTokenPlanUsageError where error.isWorkspaceNotAuthorised {
-                let fallbackRegion = self.teamFallbackRegion(for: region)
-                Self.log.info(
-                    "Alibaba Token Plan Personal workspace unavailable; using Team summary fallback",
-                    metadata: [
-                        "personalRegion": region.rawValue,
-                        "fallbackRegion": fallbackRegion.rawValue,
-                    ])
-                return try await self.fetchTeamUsage(
-                    context: TeamAPIContext(
-                        apiCookieHeader: normalizedDashboardHeader,
-                        secToken: secToken,
-                        region: fallbackRegion,
-                        environment: environment,
-                        session: dashboardSession),
-                    now: now,
-                    apiRedirectDiagnostics: dashboardRedirectDiagnostics ?? apiRedirectDiagnostics,
-                    dashboardRedirectDiagnostics: nil)
-            }
+            return try await self.fetchPersonalUsage(
+                context: PersonalAPIContext(
+                    apiCookieHeader: normalizedAPIHeader,
+                    secToken: secToken,
+                    region: region,
+                    environment: environment,
+                    session: apiSession),
+                now: now)
         }
 
         let secToken = await self.resolveSECToken(
@@ -187,61 +153,41 @@ public struct AlibabaTokenPlanUsageFetcher: Sendable {
             region: region,
             environment: environment,
             session: dashboardSession)
-        return try await self.fetchTeamUsage(
-            context: TeamAPIContext(
-                apiCookieHeader: normalizedAPIHeader,
-                secToken: secToken,
-                region: region,
-                environment: environment,
-                session: apiSession),
-            now: now,
-            apiRedirectDiagnostics: apiRedirectDiagnostics,
-            dashboardRedirectDiagnostics: dashboardRedirectDiagnostics)
-    }
-
-    private static func fetchTeamUsage(
-        context: TeamAPIContext,
-        now: Date,
-        apiRedirectDiagnostics: RedirectDiagnostics,
-        dashboardRedirectDiagnostics: RedirectDiagnostics?) async throws -> AlibabaTokenPlanUsageSnapshot
-    {
-        let url = self.resolveQuotaURL(region: context.region, environment: context.environment)
         Self.log.info(
             "Fetching Alibaba Token Plan usage",
             metadata: [
                 "apiHost": url.host ?? "unknown",
-                "region": context.region.rawValue,
-                "apiCookieNames": self.cookieNamesDescription(from: context.apiCookieHeader),
-                "hasCSRF": self.hasCSRF(in: context.apiCookieHeader) ? "1" : "0",
-                "secTokenSource": context.secToken == nil ? "missing" : "resolved",
+                "region": region.rawValue,
+                "apiCookieNames": self.cookieNamesDescription(from: normalizedAPIHeader),
+                "dashboardCookieNames": self.cookieNamesDescription(from: normalizedDashboardHeader),
+                "hasCSRF": self.hasCSRF(in: normalizedAPIHeader) ? "1" : "0",
+                "secTokenSource": secToken == nil ? "missing" : "resolved",
             ])
 
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.timeoutInterval = 20
-        request.httpBody = self.subscriptionSummaryRequestBody(
-            region: context.region,
-            secToken: context.secToken)
+        request.httpBody = self.subscriptionSummaryRequestBody(region: region, secToken: secToken)
         request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
         request.setValue("*/*", forHTTPHeaderField: "Accept")
-        request.setValue(context.apiCookieHeader, forHTTPHeaderField: "Cookie")
-        if let csrf = self.extractCookieValue(name: "login_aliyunid_csrf", from: context.apiCookieHeader) ??
-            self.extractCookieValue(name: "csrf", from: context.apiCookieHeader)
+        request.setValue(normalizedAPIHeader, forHTTPHeaderField: "Cookie")
+        if let csrf = self.extractCookieValue(name: "login_aliyunid_csrf", from: normalizedAPIHeader) ??
+            self.extractCookieValue(name: "csrf", from: normalizedAPIHeader)
         {
             request.setValue(csrf, forHTTPHeaderField: "x-xsrf-token")
             request.setValue(csrf, forHTTPHeaderField: "x-csrf-token")
         }
         request.setValue("XMLHttpRequest", forHTTPHeaderField: "X-Requested-With")
         request.setValue(Self.browserLikeUserAgent, forHTTPHeaderField: "User-Agent")
-        request.setValue(context.region.dashboardOriginURLString, forHTTPHeaderField: "Origin")
+        request.setValue(region.dashboardOriginURLString, forHTTPHeaderField: "Origin")
         request.setValue(
-            Self.dashboardURL(region: context.region, environment: context.environment).absoluteString,
+            Self.dashboardURL(region: region, environment: environment).absoluteString,
             forHTTPHeaderField: "Referer")
 
         let data: Data
         let response: URLResponse
         do {
-            (data, response) = try await context.session.data(for: request)
+            (data, response) = try await apiSession.data(for: request)
         } catch {
             Self.log.error(
                 "Alibaba Token Plan request failed",
@@ -393,16 +339,21 @@ public struct AlibabaTokenPlanUsageFetcher: Sendable {
             api: self.personalUsageAPI,
             dataParameters: [:],
             context: context)
-        let subscriptionData = await self.fetchOptionalPersonalAPI(
+        _ = try AlibabaTokenPlanPersonalUsageParser.parse(
+            from: usageData,
+            subscriptionData: nil,
+            quotaConfigData: nil,
+            now: now)
+        async let subscriptionData = self.fetchOptionalPersonalAPI(
             api: self.personalSubscriptionAPI,
             dataParameters: ["commodityCode": context.region.tokenPlanProductCode],
             context: context)
-        let quotaConfigData = await self.fetchOptionalPersonalAPI(
+        async let quotaConfigData = self.fetchOptionalPersonalAPI(
             api: self.personalQuotaConfigAPI,
             dataParameters: [:],
             context: context)
 
-        return try AlibabaTokenPlanPersonalUsageParser.parse(
+        return try await AlibabaTokenPlanPersonalUsageParser.parse(
             from: usageData,
             subscriptionData: subscriptionData,
             quotaConfigData: quotaConfigData,
@@ -509,8 +460,6 @@ public struct AlibabaTokenPlanUsageFetcher: Sendable {
             "protocol": "V2",
             "console": "ONE_CONSOLE",
             "productCode": "p_efm",
-            "switchAgent": 1_233_135,
-            "switchUserType": 3,
             "domain": dashboardURL.host ?? "",
             "consoleSite": context.region.personalConsoleSite,
             "userNickName": "",
@@ -520,7 +469,11 @@ public struct AlibabaTokenPlanUsageFetcher: Sendable {
         if let anonymousID = self.extractCookieValue(name: "cna", from: context.apiCookieHeader), !anonymousID.isEmpty {
             cornerstone["X-Anonymous-Id"] = anonymousID
         }
-        var apiData = dataParameters as [String: Any]
+        var apiData: [String: Any] = if api == self.personalSubscriptionAPI {
+            ["queryInstanceInfoRequest": dataParameters]
+        } else {
+            dataParameters
+        }
         apiData["cornerstoneParam"] = cornerstone
         let params: [String: Any] = [
             "Api": api,
@@ -676,19 +629,6 @@ public struct AlibabaTokenPlanUsageFetcher: Sendable {
         components.host = dashboard.host
         components.port = dashboard.port
         return components.url ?? URL(string: region.dashboardOriginURLString)!
-    }
-
-    private static func teamFallbackRegion(
-        for region: AlibabaTokenPlanAPIRegion) -> AlibabaTokenPlanAPIRegion
-    {
-        switch region {
-        case .internationalPersonal:
-            .international
-        case .chinaMainlandPersonal:
-            .chinaMainland
-        case .international, .chinaMainland:
-            region
-        }
     }
 
     private static func quotaURL(from rawHost: String, region: AlibabaTokenPlanAPIRegion) -> URL? {

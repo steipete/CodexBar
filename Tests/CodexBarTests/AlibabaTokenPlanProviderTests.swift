@@ -600,7 +600,10 @@ struct AlibabaTokenPlanUsageParsingTests {
                 #expect(request.value(forHTTPHeaderField: "Origin") == region.dashboardOriginURLString)
                 let body = Self.requestBodyString(from: request)
                 #expect(body.contains("sec_token=personal-token"))
-                #expect(body.removingPercentEncoding?.contains("cornerstoneParam") == true)
+                let decodedBody = body.removingPercentEncoding ?? body
+                #expect(decodedBody.contains("cornerstoneParam"))
+                #expect(!decodedBody.contains("\"switchAgent\""))
+                #expect(!decodedBody.contains("\"switchUserType\""))
 
                 let api = URLComponents(url: url, resolvingAgainstBaseURL: false)?
                     .queryItems?
@@ -610,7 +613,8 @@ struct AlibabaTokenPlanUsageParsingTests {
                 case "zeldaHttp.apikeyMgr./tokenplan/personal/api/v2/usage":
                     return Self.makeResponse(url: url, body: usageBody, statusCode: 200)
                 case "zeldaHttp.apikeyMgr./tokenplan/personal/api/v2/subscription":
-                    #expect(body.removingPercentEncoding?.contains(region.tokenPlanProductCode) == true)
+                    #expect(decodedBody.contains("\"queryInstanceInfoRequest\""))
+                    #expect(decodedBody.contains(region.tokenPlanProductCode))
                     return Self.makeResponse(url: url, body: subscriptionBody, statusCode: 200)
                 case "zeldaHttp.apikeyMgr./tokenplan/personal/api/v2/quota-config":
                     return Self.makeResponse(url: url, body: quotaBody, statusCode: 200)
@@ -690,7 +694,7 @@ struct AlibabaTokenPlanUsageParsingTests {
     }
 
     @Test
-    func `Personal workspace error falls back to matching Team route`() async throws {
+    func `Personal workspace error does not fall back to Team`() async throws {
         defer {
             AlibabaTokenPlanStubURLProtocol.handler = nil
         }
@@ -707,67 +711,41 @@ struct AlibabaTokenPlanUsageParsingTests {
           "successResponse": true
         }
         """
-        let teamSummary = """
-        {
-          "Success": true,
-          "Data": {
-            "TotalCount": 1,
-            "TotalValue": 1000,
-            "TotalSurplusValue": 900
-          }
-        }
-        """
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [AlibabaTokenPlanStubURLProtocol.self]
         let session = URLSession(configuration: configuration)
 
-        for personalRegion in [AlibabaTokenPlanAPIRegion.internationalPersonal, .chinaMainlandPersonal] {
-            let teamRegion: AlibabaTokenPlanAPIRegion = switch personalRegion {
-            case .internationalPersonal:
-                .international
-            case .chinaMainlandPersonal:
-                .chinaMainland
-            case .international, .chinaMainland:
-                personalRegion
-            }
+        for region in [AlibabaTokenPlanAPIRegion.internationalPersonal, .chinaMainlandPersonal] {
+            let postCount = LockIsolated(0)
             AlibabaTokenPlanStubURLProtocol.handler = { request in
                 guard let url = request.url else { throw URLError(.badURL) }
-                if url.host == personalRegion.dashboardURL.host, request.httpMethod == "GET" {
+                if url.host == region.dashboardURL.host, request.httpMethod == "GET" {
                     #expect(request.value(forHTTPHeaderField: "Cookie") == "dashboard_only=dashboard")
                     return Self.makeResponse(
                         url: url,
-                        body: "<script>sec_token = \"fallback-token\";</script>",
+                        body: "<script>sec_token = \"personal-token\";</script>",
                         statusCode: 200)
                 }
 
-                if url.host == URL(string: personalRegion.quotaBaseURLString)?.host {
-                    #expect(request.httpMethod == "POST")
-                    #expect(request.value(forHTTPHeaderField: "Cookie") == "quota_only=quota")
-                    #expect(Self.requestBodyString(from: request).contains("sec_token=fallback-token"))
-                    return Self.makeResponse(url: url, body: workspaceError, statusCode: 200)
-                }
-
-                #expect(url.host == teamRegion.dashboardURL.host)
+                postCount.setValue(postCount.value + 1)
+                #expect(url.host == URL(string: region.quotaBaseURLString)?.host)
                 #expect(request.httpMethod == "POST")
-                #expect(request.value(forHTTPHeaderField: "Cookie") == "dashboard_only=dashboard")
-                #expect(request.value(forHTTPHeaderField: "Origin") == teamRegion.dashboardOriginURLString)
-                let body = Self.requestBodyString(from: request)
-                #expect(body.contains("GetSubscriptionSummary"))
-                #expect(body.contains(teamRegion.tokenPlanProductCode))
-                #expect(body.contains("sec_token=fallback-token"))
-                #expect(!body.contains("tokenplan%2Fpersonal"))
-                return Self.makeResponse(url: url, body: teamSummary, statusCode: 200)
+                #expect(request.value(forHTTPHeaderField: "Cookie") == "quota_only=quota")
+                #expect(Self.requestBodyString(from: request).contains("sec_token=personal-token"))
+                return Self.makeResponse(url: url, body: workspaceError, statusCode: 200)
             }
 
-            let snapshot = try await AlibabaTokenPlanUsageFetcher.fetchUsage(
-                apiCookieHeader: "quota_only=quota",
-                dashboardCookieHeader: "dashboard_only=dashboard",
-                region: personalRegion,
-                environment: [:],
-                session: session)
-
-            #expect(snapshot.totalQuota == 1000)
-            #expect(snapshot.remainingQuota == 900)
+            await #expect(throws: AlibabaTokenPlanUsageError.apiError(
+                "BailianGateway.Workspace.NotAuthorised"))
+            {
+                try await AlibabaTokenPlanUsageFetcher.fetchUsage(
+                    apiCookieHeader: "quota_only=quota",
+                    dashboardCookieHeader: "dashboard_only=dashboard",
+                    region: region,
+                    environment: [:],
+                    session: session)
+            }
+            #expect(postCount.value == 1)
         }
     }
 
