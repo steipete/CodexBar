@@ -26,7 +26,7 @@ struct ClaudeActiveAccountIdentityInvalidationTests {
                     tokenSnapshot: fixture.store.tokenSnapshot(for: .claude),
                     error: fixture.store.error(for: .claude),
                     persistedIdentity: fixture.settings.userDefaults.string(
-                        forKey: UsageStore.claudeActiveAccountIdentityDefaultsKey))
+                        forKey: UsageStore._claudeActiveAccountIdentityDefaultsKeyForTesting()))
             }
 
             #expect(result.snapshot == nil)
@@ -86,7 +86,7 @@ struct ClaudeActiveAccountIdentityInvalidationTests {
                     snapshot: fixture.store.snapshot(for: .claude),
                     resetSnapshot: fixture.store.lastKnownResetSnapshots[.claude],
                     persistedIdentity: fixture.settings.userDefaults.string(
-                        forKey: UsageStore.claudeActiveAccountIdentityDefaultsKey))
+                        forKey: UsageStore._claudeActiveAccountIdentityDefaultsKeyForTesting()))
             }
 
             #expect(result.snapshot?.updatedAt == freshSnapshot.updatedAt)
@@ -130,7 +130,7 @@ struct ClaudeActiveAccountIdentityInvalidationTests {
                     snapshot: fixture.store.snapshot(for: .claude),
                     resetSnapshot: fixture.store.lastKnownResetSnapshots[.claude],
                     persistedIdentity: fixture.settings.userDefaults.string(
-                        forKey: UsageStore.claudeActiveAccountIdentityDefaultsKey))
+                        forKey: UsageStore._claudeActiveAccountIdentityDefaultsKeyForTesting()))
             }
 
             #expect(result.snapshot?.updatedAt == freshSnapshot.updatedAt)
@@ -158,7 +158,7 @@ struct ClaudeActiveAccountIdentityInvalidationTests {
                 (
                     snapshot: fixture.store.snapshot(for: .claude),
                     persistedIdentity: fixture.settings.userDefaults.string(
-                        forKey: UsageStore.claudeActiveAccountIdentityDefaultsKey))
+                        forKey: UsageStore._claudeActiveAccountIdentityDefaultsKeyForTesting()))
             }
 
             #expect(result.snapshot?.updatedAt == fixture.priorSnapshot.updatedAt)
@@ -186,7 +186,7 @@ struct ClaudeActiveAccountIdentityInvalidationTests {
                 (
                     snapshot: fixture.store.snapshot(for: .claude),
                     persistedIdentity: fixture.settings.userDefaults.string(
-                        forKey: UsageStore.claudeActiveAccountIdentityDefaultsKey))
+                        forKey: UsageStore._claudeActiveAccountIdentityDefaultsKeyForTesting()))
             }
 
             #expect(result.snapshot?.updatedAt == fixture.priorSnapshot.updatedAt)
@@ -216,7 +216,7 @@ struct ClaudeActiveAccountIdentityInvalidationTests {
                     snapshot: fixture.store.snapshot(for: .claude),
                     resetSnapshot: fixture.store.lastKnownResetSnapshots[.claude],
                     persistedIdentity: fixture.settings.userDefaults.string(
-                        forKey: UsageStore.claudeActiveAccountIdentityDefaultsKey))
+                        forKey: UsageStore._claudeActiveAccountIdentityDefaultsKeyForTesting()))
             }
 
             #expect(result.snapshot == nil)
@@ -272,7 +272,7 @@ struct ClaudeActiveAccountIdentityInvalidationTests {
                 (
                     snapshot: fixture.store.snapshot(for: .claude),
                     persistedIdentity: fixture.settings.userDefaults.string(
-                        forKey: UsageStore.claudeActiveAccountIdentityDefaultsKey))
+                        forKey: UsageStore._claudeActiveAccountIdentityDefaultsKeyForTesting()))
             }
             #expect(result.snapshot?.updatedAt == replacementSnapshot.updatedAt)
             #expect(result.snapshot?.accountEmail(for: .claude) == "replacement@example.com")
@@ -316,7 +316,7 @@ struct ClaudeActiveAccountIdentityInvalidationTests {
                 (
                     snapshot: fixture.store.snapshot(for: .claude),
                     persistedIdentity: fixture.settings.userDefaults.string(
-                        forKey: UsageStore.claudeActiveAccountIdentityDefaultsKey))
+                        forKey: UsageStore._claudeActiveAccountIdentityDefaultsKeyForTesting()))
             }
             #expect(result.snapshot == nil)
             #expect(result.persistedIdentity == UsageStore._activeClaudeAccountIdentityForTesting("account-a"))
@@ -392,7 +392,7 @@ struct ClaudeActiveAccountIdentityInvalidationTests {
                 (
                     snapshot: fixture.store.snapshot(for: .claude),
                     persistedIdentity: fixture.settings.userDefaults.string(
-                        forKey: UsageStore.claudeActiveAccountIdentityDefaultsKey))
+                        forKey: UsageStore._claudeActiveAccountIdentityDefaultsKeyForTesting()))
             }
             #expect(result.snapshot?.updatedAt == fixture.priorSnapshot.updatedAt)
             #expect(result.persistedIdentity == UsageStore._activeClaudeAccountIdentityForTesting("account-a"))
@@ -540,7 +540,7 @@ struct ClaudeActiveAccountIdentityInvalidationTests {
                 (
                     cached: fixture.store.accountSnapshots[.claude],
                     persistedIdentity: fixture.settings.userDefaults.string(
-                        forKey: UsageStore.claudeActiveAccountIdentityDefaultsKey))
+                        forKey: UsageStore._claudeActiveAccountIdentityDefaultsKeyForTesting()))
             }
             #expect(result.cached?.count == 1)
             #expect(result.cached?.first?.snapshot?.updatedAt == fixture.priorSnapshot.updatedAt)
@@ -691,7 +691,8 @@ struct ClaudeActiveAccountIdentityInvalidationTests {
     @MainActor
     private func makeFixture(
         source: ClaudeUsageDataSource,
-        outcome: ProviderFetchOutcome) throws -> ClaudeIdentityFixture
+        outcome: ProviderFetchOutcome,
+        environment: [String: String] = [:]) throws -> ClaudeIdentityFixture
     {
         let settings = testSettingsStore(suiteName: "ClaudeActiveAccountIdentityInvalidationTests")
         settings.refreshFrequency = .manual
@@ -706,11 +707,11 @@ struct ClaudeActiveAccountIdentityInvalidationTests {
         }
 
         let store = UsageStore(
-            fetcher: UsageFetcher(environment: [:]),
+            fetcher: UsageFetcher(environment: environment),
             browserDetection: BrowserDetection(cacheTTL: 0),
             settings: settings,
             startupBehavior: .testing,
-            environmentBase: [:])
+            environmentBase: environment)
         store._test_providerFetchOutcomeOverride = { _ in outcome }
 
         let priorSnapshot = Self.priorSnapshot()
@@ -735,7 +736,7 @@ struct ClaudeActiveAccountIdentityInvalidationTests {
     private func persistIdentity(_ uuid: String, in fixture: ClaudeIdentityFixture) {
         fixture.settings.userDefaults.set(
             UsageStore._activeClaudeAccountIdentityForTesting(uuid),
-            forKey: UsageStore.claudeActiveAccountIdentityDefaultsKey)
+            forKey: UsageStore._claudeActiveAccountIdentityDefaultsKeyForTesting())
     }
 
     private static func transientFailureOutcome() -> ProviderFetchOutcome {
@@ -853,7 +854,9 @@ struct ClaudeActiveAccountIdentityInvalidationTests {
         let clock = ContinuousClock()
         let deadline = clock.now.advanced(by: .seconds(5))
         while clock.now < deadline {
-            if await outcomes.replacementStarted() { return true }
+            if await outcomes.replacementStarted() {
+                return true
+            }
             try? await Task.sleep(for: .milliseconds(10))
         }
         return false
@@ -885,6 +888,64 @@ struct ClaudeActiveAccountIdentityInvalidationTests {
 }
 
 extension ClaudeActiveAccountIdentityInvalidationTests {
+    @Test
+    func `selecting another Claude profile does not treat its OAuth account as a switch`() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("claude-active-account-profiles-\(UUID().uuidString)", isDirectory: true)
+        let environmentA = ["CLAUDE_CONFIG_DIR": root.appendingPathComponent("profile-a").path]
+        let environmentB = ["CLAUDE_CONFIG_DIR": root.appendingPathComponent("profile-b").path]
+        let freshSnapshot = Self.freshSnapshot()
+
+        try await ClaudeOAuthCredentialsStore.withIsolatedCredentialsFileTrackingForTesting {
+            try await ClaudeOAuthCredentialsStore.withEnvironmentCredentialsURLForTesting {
+                let fixture = try await MainActor.run {
+                    try self.makeFixture(
+                        source: .oauth,
+                        outcome: Self.successOutcome(
+                            freshSnapshot,
+                            sourceLabel: "OAuth",
+                            strategyKind: .oauth),
+                        environment: environmentB)
+                }
+                let outcomes = ClaudeReplacementFetchSequence(
+                    first: Self.successOutcome(
+                        freshSnapshot,
+                        sourceLabel: "OAuth",
+                        strategyKind: .oauth),
+                    replacement: Self.transientFailureOutcome())
+                await outcomes.releaseReplacement()
+                await MainActor.run {
+                    fixture.settings.userDefaults.set(
+                        UsageStore._activeClaudeAccountIdentityForTesting("account-a", environment: environmentA),
+                        forKey: UsageStore.claudeActiveAccountIdentityDefaultsKey)
+                    fixture.store._test_providerFetchOutcomeOverride = { _ in await outcomes.next() }
+                }
+
+                await UsageStore.withActiveClaudeAccountUuidForTesting("account-b") {
+                    await fixture.store.refreshProvider(.claude)
+                }
+
+                let result = await MainActor.run {
+                    (
+                        snapshot: fixture.store.snapshot(for: .claude),
+                        legacyIdentity: fixture.settings.userDefaults.string(
+                            forKey: UsageStore.claudeActiveAccountIdentityDefaultsKey),
+                        profileBIdentity: fixture.settings.userDefaults.string(
+                            forKey: UsageStore._claudeActiveAccountIdentityDefaultsKeyForTesting(
+                                environment: environmentB)))
+                }
+                #expect(result.snapshot?.updatedAt == freshSnapshot.updatedAt)
+                #expect(await !outcomes.replacementStarted())
+                #expect(result.legacyIdentity == UsageStore._activeClaudeAccountIdentityForTesting(
+                    "account-a",
+                    environment: environmentA))
+                #expect(result.profileBIdentity == UsageStore._activeClaudeAccountIdentityForTesting(
+                    "account-b",
+                    environment: environmentB))
+            }
+        }
+    }
+
     @Test
     func `failed owner CLI recovery does not bless the switched account identity`() async throws {
         try await self.withMissingCredentialsFile { _ in
@@ -918,7 +979,7 @@ extension ClaudeActiveAccountIdentityInvalidationTests {
                     snapshot: fixture.store.snapshot(for: .claude),
                     error: fixture.store.error(for: .claude),
                     persistedIdentity: fixture.settings.userDefaults.string(
-                        forKey: UsageStore.claudeActiveAccountIdentityDefaultsKey))
+                        forKey: UsageStore._claudeActiveAccountIdentityDefaultsKeyForTesting()))
             }
             #expect(result.snapshot == nil)
             #expect(result.error != nil)
@@ -974,7 +1035,7 @@ extension ClaudeActiveAccountIdentityInvalidationTests {
                 (
                     snapshot: fixture.store.snapshot(for: .claude),
                     persistedIdentity: fixture.settings.userDefaults.string(
-                        forKey: UsageStore.claudeActiveAccountIdentityDefaultsKey))
+                        forKey: UsageStore._claudeActiveAccountIdentityDefaultsKeyForTesting()))
             }
             #expect(result.snapshot?.updatedAt == replacementSnapshot.updatedAt)
             #expect(result.snapshot?.accountEmail(for: .claude) == "replacement@example.com")

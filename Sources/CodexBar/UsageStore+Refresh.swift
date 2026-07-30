@@ -2,8 +2,6 @@ import CodexBarCore
 import Foundation
 
 extension UsageStore {
-    nonisolated static let claudeActiveAccountIdentityDefaultsKey = "ClaudeActiveAccountIdentityHashV2"
-
     nonisolated static func codexSessionQuotaOwnerKey(
         for refreshGuard: CodexAccountScopedRefreshGuard?) -> CodexSessionQuotaOwnerKey?
     {
@@ -264,7 +262,9 @@ extension UsageStore {
                 allowDisabled: allowDisabled,
                 generation: generation,
                 retryMode: retryMode)
-            if retryMode == nil { break }
+            if retryMode == nil {
+                break
+            }
         }
     }
 
@@ -557,7 +557,8 @@ extension UsageStore {
         let activeAccountReconciliation = self.reconcileClaudeActiveAccountIdentity(
             beforeFetch: input.beforeFetch?.activeAccountIdentity,
             afterFetch: historyAccountState.activeAccountIdentity,
-            shouldTrack: shouldTrackActiveAccount)
+            shouldTrack: shouldTrackActiveAccount,
+            environment: input.environment)
         let credentialsChanged = shouldTrackActiveAccount && (
             Self.claudeCredentialsChanged(
                 beforeFetch: input.beforeFetch,
@@ -586,7 +587,9 @@ extension UsageStore {
         }
         let ownerCLIRecoverySucceeded = !input.ownerCLIRecoveryPass || Self.isSuccessfulClaudeCLIOutcome(input.outcome)
         if !oauthAccountMismatch, !activeAccountChangedDuringFetch, ownerCLIRecoverySucceeded {
-            self.persistClaudeActiveAccountIdentity(activeAccountReconciliation.newestIdentity)
+            self.persistClaudeActiveAccountIdentity(
+                activeAccountReconciliation.newestIdentity,
+                environment: input.environment)
         }
         let sourceAuthorityChanged = Self.claudeSourceAuthorityChanged(
             priorSourceLabel: input.priorSourceLabel,
@@ -952,21 +955,6 @@ extension UsageStore {
         let wasStable: Bool
     }
 
-    private struct ClaudeActiveAccountIdentityReconciliation {
-        static let unchanged = Self(
-            changedFromPersistedIdentity: false,
-            changedDuringFetch: false,
-            newestIdentity: nil)
-
-        let changedFromPersistedIdentity: Bool
-        let changedDuringFetch: Bool
-        let newestIdentity: String?
-
-        var changed: Bool {
-            self.changedFromPersistedIdentity || self.changedDuringFetch
-        }
-    }
-
     private nonisolated static func claudeCredentialsChanged(
         beforeFetch: ClaudeRefreshAuthState?,
         changedDuringFetch: Bool) -> Bool
@@ -1011,7 +999,9 @@ extension UsageStore {
             // its reset snapshots can be published or backfilled.
             return result.strategyKind == .cli || result.strategyKind == .oauth
         case .failure:
-            if dataSource == .cli { return true }
+            if dataSource == .cli {
+                return true
+            }
             let normalizedPriorSource = priorSourceLabel?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
             return normalizedPriorSource == "claude" || normalizedPriorSource == "cli"
         }
@@ -1029,13 +1019,17 @@ extension UsageStore {
 
     private nonisolated static func isSuccessfulClaudeCLIOutcome(_ outcome: ProviderFetchOutcome) -> Bool {
         guard case let .success(result) = outcome.result else { return false }
-        if case .cli = result.strategyKind { return true }
+        if case .cli = result.strategyKind {
+            return true
+        }
         return false
     }
 
     private nonisolated static func isSuccessfulClaudeOAuthOutcome(_ outcome: ProviderFetchOutcome) -> Bool {
         guard case let .success(result) = outcome.result else { return false }
-        if case .oauth = result.strategyKind { return true }
+        if case .oauth = result.strategyKind {
+            return true
+        }
         return false
     }
 
@@ -1114,36 +1108,6 @@ extension UsageStore {
         }
         guard let currentAuthority else { return false }
         return priorAuthority != currentAuthority
-    }
-
-    /// Compares only hashed identities derived from Claude's plain-text account metadata. A missing identity is
-    /// treated as an unavailable observation, not as an account, so transient file absence cannot retire good data.
-    /// The caller commits the newest nonnil observation only after the fetch result is admitted.
-    private func reconcileClaudeActiveAccountIdentity(
-        beforeFetch: String?,
-        afterFetch: String?,
-        shouldTrack: Bool) -> ClaudeActiveAccountIdentityReconciliation
-    {
-        guard shouldTrack else { return .unchanged }
-        let defaults = self.settings.userDefaults
-        let persistedIdentity = defaults.string(forKey: Self.claudeActiveAccountIdentityDefaultsKey)
-        let observedIdentities = [beforeFetch, afterFetch].compactMap(\.self)
-        guard !observedIdentities.isEmpty else { return .unchanged }
-
-        let changedFromPersistedIdentity = persistedIdentity.map { persisted in
-            observedIdentities.contains { $0 != persisted }
-        } ?? false
-        let changedDuringFetch = beforeFetch != nil && afterFetch != nil && beforeFetch != afterFetch
-
-        return ClaudeActiveAccountIdentityReconciliation(
-            changedFromPersistedIdentity: changedFromPersistedIdentity,
-            changedDuringFetch: changedDuringFetch,
-            newestIdentity: afterFetch ?? beforeFetch)
-    }
-
-    private func persistClaudeActiveAccountIdentity(_ identity: String?) {
-        guard let identity else { return }
-        self.settings.userDefaults.set(identity, forKey: Self.claudeActiveAccountIdentityDefaultsKey)
     }
 
     private nonisolated static func claudeAuthChangedDuringFetch(

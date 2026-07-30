@@ -2,6 +2,24 @@ import CodexBarCore
 import Foundation
 
 extension UsageStore {
+    nonisolated static let claudeActiveAccountIdentityDefaultsKey = "ClaudeActiveAccountIdentityHashV2"
+    private nonisolated static let claudeActiveAccountIdentityProfileKeySeparator = ".profile."
+
+    struct ClaudeActiveAccountIdentityReconciliation {
+        static let unchanged = Self(
+            changedFromPersistedIdentity: false,
+            changedDuringFetch: false,
+            newestIdentity: nil)
+
+        let changedFromPersistedIdentity: Bool
+        let changedDuringFetch: Bool
+        let newestIdentity: String?
+
+        var changed: Bool {
+            self.changedFromPersistedIdentity || self.changedDuringFetch
+        }
+    }
+
     /// The currently-active Claude account UUID, read prompt-free from Claude's owner-selected account config.
     /// Claude Code prefers `<config root>/.config.json`, then its `.claude.json` fallback, and rewrites
     /// `oauthAccount.accountUuid` when the active account changes. Returns nil on absence/corruption.
@@ -39,6 +57,80 @@ extension UsageStore {
         }
     }
 
+    /// Compares only hashed identities derived from Claude's plain-text account metadata. A missing identity is
+    /// treated as an unavailable observation, not as an account, so transient file absence cannot retire good data.
+    /// The caller commits the newest nonnil observation only after the fetch result is admitted.
+    func reconcileClaudeActiveAccountIdentity(
+        beforeFetch: String?,
+        afterFetch: String?,
+        shouldTrack: Bool,
+        environment: [String: String]) -> ClaudeActiveAccountIdentityReconciliation
+    {
+        guard shouldTrack else { return .unchanged }
+        let defaults = self.settings.userDefaults
+        let persistedIdentity = Self.persistedClaudeActiveAccountIdentity(defaults: defaults, environment: environment)
+        let observedIdentities = [beforeFetch, afterFetch].compactMap(\.self)
+        guard !observedIdentities.isEmpty else { return .unchanged }
+
+        let changedFromPersistedIdentity = persistedIdentity.map { persisted in
+            observedIdentities.contains { $0 != persisted }
+        } ?? false
+        let changedDuringFetch = beforeFetch != nil && afterFetch != nil && beforeFetch != afterFetch
+
+        return ClaudeActiveAccountIdentityReconciliation(
+            changedFromPersistedIdentity: changedFromPersistedIdentity,
+            changedDuringFetch: changedDuringFetch,
+            newestIdentity: afterFetch ?? beforeFetch)
+    }
+
+    func persistClaudeActiveAccountIdentity(
+        _ identity: String?,
+        environment: [String: String])
+    {
+        guard let identity else { return }
+        let defaults = self.settings.userDefaults
+        let profileIdentifier = ClaudeOAuthCredentialsStore.credentialsProfileIdentifier(environment: environment)
+        defaults.set(
+            identity,
+            forKey: Self.claudeActiveAccountIdentityDefaultsKey(profileIdentifier: profileIdentifier))
+
+        let defaultProfileIdentifier = ClaudeOAuthCredentialsStore.credentialsProfileIdentifier(
+            environment: ProcessInfo.processInfo.environment)
+        if profileIdentifier == defaultProfileIdentifier {
+            defaults.removeObject(forKey: Self.claudeActiveAccountIdentityDefaultsKey)
+        }
+    }
+
+    nonisolated static func persistedClaudeActiveAccountIdentity(
+        defaults: UserDefaults,
+        environment: [String: String]) -> String?
+    {
+        let profileIdentifier = ClaudeOAuthCredentialsStore.credentialsProfileIdentifier(environment: environment)
+        let scopedKey = self.claudeActiveAccountIdentityDefaultsKey(profileIdentifier: profileIdentifier)
+        if let identity = defaults.string(forKey: scopedKey) {
+            return identity
+        }
+
+        let defaultProfileIdentifier = ClaudeOAuthCredentialsStore.credentialsProfileIdentifier(
+            environment: ProcessInfo.processInfo.environment)
+        guard profileIdentifier == defaultProfileIdentifier,
+              let legacyIdentity = defaults.string(forKey: self.claudeActiveAccountIdentityDefaultsKey)
+        else {
+            return nil
+        }
+        defaults.set(legacyIdentity, forKey: scopedKey)
+        defaults.removeObject(forKey: self.claudeActiveAccountIdentityDefaultsKey)
+        return legacyIdentity
+    }
+
+    private nonisolated static func claudeActiveAccountIdentityDefaultsKey(
+        profileIdentifier: String) -> String
+    {
+        self.claudeActiveAccountIdentityDefaultsKey +
+            self.claudeActiveAccountIdentityProfileKeySeparator +
+            profileIdentifier
+    }
+
     private nonisolated static func claudeAccountIdentity(
         _ uuid: String,
         environment: [String: String]) -> String
@@ -50,6 +142,13 @@ extension UsageStore {
     }
 
     #if DEBUG
+    nonisolated static func _claudeActiveAccountIdentityDefaultsKeyForTesting(
+        environment: [String: String] = [:]) -> String
+    {
+        self.claudeActiveAccountIdentityDefaultsKey(
+            profileIdentifier: ClaudeOAuthCredentialsStore.credentialsProfileIdentifier(environment: environment))
+    }
+
     static func withActiveClaudeAccountUuidForTesting<T>(
         _ uuid: String?,
         _ body: () async throws -> T) async rethrows -> T
