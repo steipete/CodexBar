@@ -633,6 +633,145 @@ struct AlibabaTokenPlanUsageParsingTests {
     }
 
     @Test
+    func `Personal fetch uses cookie SEC token without preflight`() async throws {
+        defer {
+            AlibabaTokenPlanStubURLProtocol.handler = nil
+        }
+        let usageBody = try #require(String(data: alibabaTokenPlanFixture("personal_usage"), encoding: .utf8))
+        let subscriptionBody = try #require(
+            String(data: alibabaTokenPlanFixture("personal_subscription"), encoding: .utf8))
+        let quotaBody = try #require(
+            String(data: alibabaTokenPlanFixture("personal_quota_config"), encoding: .utf8))
+
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [AlibabaTokenPlanStubURLProtocol.self]
+        let session = URLSession(configuration: configuration)
+        for region in [AlibabaTokenPlanAPIRegion.internationalPersonal, .chinaMainlandPersonal] {
+            AlibabaTokenPlanStubURLProtocol.handler = { request in
+                guard let url = request.url else { throw URLError(.badURL) }
+                if request.httpMethod == "GET" {
+                    Issue.record("A cookie sec_token should skip dashboard and user-info preflights")
+                    throw URLError(.unsupportedURL)
+                }
+
+                #expect(url.host == URL(string: region.quotaBaseURLString)?.host)
+                #expect(request.httpMethod == "POST")
+                #expect(request.value(forHTTPHeaderField: "Cookie") == "quota_only=quota")
+                let body = Self.requestBodyString(from: request)
+                #expect(body.contains("sec_token=cookie-token"))
+
+                let api = URLComponents(url: url, resolvingAgainstBaseURL: false)?
+                    .queryItems?
+                    .first(where: { $0.name == "api" })?
+                    .value
+                switch api {
+                case "zeldaHttp.apikeyMgr./tokenplan/personal/api/v2/usage":
+                    return Self.makeResponse(url: url, body: usageBody, statusCode: 200)
+                case "zeldaHttp.apikeyMgr./tokenplan/personal/api/v2/subscription":
+                    return Self.makeResponse(url: url, body: subscriptionBody, statusCode: 200)
+                case "zeldaHttp.apikeyMgr./tokenplan/personal/api/v2/quota-config":
+                    return Self.makeResponse(url: url, body: quotaBody, statusCode: 200)
+                default:
+                    throw URLError(.unsupportedURL)
+                }
+            }
+
+            let snapshot = try await AlibabaTokenPlanUsageFetcher.fetchUsage(
+                apiCookieHeader: "quota_only=quota",
+                dashboardCookieHeader: "dashboard_only=dashboard; sec_token=cookie-token",
+                region: region,
+                environment: [:],
+                session: session)
+
+            #expect(snapshot.planName == "Pro")
+            #expect(snapshot.toUsageSnapshot().primary != nil)
+            #expect(snapshot.toUsageSnapshot().secondary != nil)
+        }
+    }
+
+    @Test
+    func `Personal workspace error falls back to matching Team route`() async throws {
+        defer {
+            AlibabaTokenPlanStubURLProtocol.handler = nil
+        }
+        let workspaceError = """
+        {
+          "code": "200",
+          "data": {
+            "success": false,
+            "httpStatus": 200,
+            "errorCode": "BailianGateway.Workspace.NotAuthorised",
+            "errorMsg": "BailianGateway.Workspace.NotAuthorised"
+          },
+          "httpStatusCode": "200",
+          "successResponse": true
+        }
+        """
+        let teamSummary = """
+        {
+          "Success": true,
+          "Data": {
+            "TotalCount": 1,
+            "TotalValue": 1000,
+            "TotalSurplusValue": 900
+          }
+        }
+        """
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [AlibabaTokenPlanStubURLProtocol.self]
+        let session = URLSession(configuration: configuration)
+
+        for personalRegion in [AlibabaTokenPlanAPIRegion.internationalPersonal, .chinaMainlandPersonal] {
+            let teamRegion: AlibabaTokenPlanAPIRegion = switch personalRegion {
+            case .internationalPersonal:
+                .international
+            case .chinaMainlandPersonal:
+                .chinaMainland
+            case .international, .chinaMainland:
+                personalRegion
+            }
+            AlibabaTokenPlanStubURLProtocol.handler = { request in
+                guard let url = request.url else { throw URLError(.badURL) }
+                if url.host == personalRegion.dashboardURL.host, request.httpMethod == "GET" {
+                    #expect(request.value(forHTTPHeaderField: "Cookie") == "dashboard_only=dashboard")
+                    return Self.makeResponse(
+                        url: url,
+                        body: "<script>sec_token = \"fallback-token\";</script>",
+                        statusCode: 200)
+                }
+
+                if url.host == URL(string: personalRegion.quotaBaseURLString)?.host {
+                    #expect(request.httpMethod == "POST")
+                    #expect(request.value(forHTTPHeaderField: "Cookie") == "quota_only=quota")
+                    #expect(Self.requestBodyString(from: request).contains("sec_token=fallback-token"))
+                    return Self.makeResponse(url: url, body: workspaceError, statusCode: 200)
+                }
+
+                #expect(url.host == teamRegion.dashboardURL.host)
+                #expect(request.httpMethod == "POST")
+                #expect(request.value(forHTTPHeaderField: "Cookie") == "dashboard_only=dashboard")
+                #expect(request.value(forHTTPHeaderField: "Origin") == teamRegion.dashboardOriginURLString)
+                let body = Self.requestBodyString(from: request)
+                #expect(body.contains("GetSubscriptionSummary"))
+                #expect(body.contains(teamRegion.tokenPlanProductCode))
+                #expect(body.contains("sec_token=fallback-token"))
+                #expect(!body.contains("tokenplan%2Fpersonal"))
+                return Self.makeResponse(url: url, body: teamSummary, statusCode: 200)
+            }
+
+            let snapshot = try await AlibabaTokenPlanUsageFetcher.fetchUsage(
+                apiCookieHeader: "quota_only=quota",
+                dashboardCookieHeader: "dashboard_only=dashboard",
+                region: personalRegion,
+                environment: [:],
+                session: session)
+
+            #expect(snapshot.totalQuota == 1000)
+            #expect(snapshot.remainingQuota == 900)
+        }
+    }
+
+    @Test
     func `Team fetch retains subscription summary routes`() async throws {
         defer {
             AlibabaTokenPlanStubURLProtocol.handler = nil
