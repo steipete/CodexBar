@@ -1376,7 +1376,7 @@ public enum ClaudeOAuthCredentialsStore {
                         historyOwnerIdentifier: historyOwnerIdentifier),
                     timestamp: Date(),
                     profileIdentifier: self.profileIdentifier)
-                ClaudeOAuthRefreshFailureGate.recordSuccess()
+                ClaudeOAuthRefreshFailureGate.recordSuccess(environment: self.environment)
 
                 return newCredentials
             }
@@ -1388,8 +1388,8 @@ public enum ClaudeOAuthCredentialsStore {
             existingRateLimitTier: String?,
             existingSubscriptionType: String?) async throws -> ClaudeOAuthCredentials
         {
-            guard ClaudeOAuthRefreshFailureGate.shouldAttempt() else {
-                let status = ClaudeOAuthRefreshFailureGate.currentBlockStatus()
+            guard ClaudeOAuthRefreshFailureGate.shouldAttempt(environment: self.environment) else {
+                let status = ClaudeOAuthRefreshFailureGate.currentBlockStatus(environment: self.environment)
                 let message = switch status {
                 case .terminal:
                     "Claude OAuth refresh blocked until auth changes. \(ClaudeOAuthCredentialsStore.reauthenticateHint)"
@@ -1437,14 +1437,14 @@ public enum ClaudeOAuthCredentialsStore {
 
                     switch disposition {
                     case .terminalInvalidGrant:
-                        ClaudeOAuthRefreshFailureGate.recordTerminalAuthFailure()
+                        ClaudeOAuthRefreshFailureGate.recordTerminalAuthFailure(environment: self.environment)
                         Repository(context: self.context).invalidateCache(environment: self.environment)
                         let message = "HTTP \(response.statusCode) invalid_grant. " +
                             ClaudeOAuthCredentialsStore.reauthenticateHint
                         throw ClaudeOAuthCredentialsError.refreshFailed(
                             message)
                     case .transientBackoff:
-                        ClaudeOAuthRefreshFailureGate.recordTransientFailure()
+                        ClaudeOAuthRefreshFailureGate.recordTransientFailure(environment: self.environment)
                         let suffix = oauthError.map { " (\($0))" } ?? ""
                         throw ClaudeOAuthCredentialsError.refreshFailed("HTTP \(response.statusCode)\(suffix)")
                     }

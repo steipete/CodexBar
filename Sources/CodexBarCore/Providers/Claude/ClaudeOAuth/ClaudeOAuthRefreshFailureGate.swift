@@ -25,7 +25,11 @@ public enum ClaudeOAuthRefreshFailureGate {
         var terminalReason: String?
     }
 
-    private static let lock = OSAllocatedUnfairLock<State>(initialState: State())
+    private struct LockedState {
+        var profiles: [String: State] = [:]
+    }
+
+    private static let lock = OSAllocatedUnfairLock<LockedState>(initialState: LockedState())
     private static let blockedUntilKey = "claudeOAuthRefreshBackoffBlockedUntilV1" // legacy (migration)
     private static let failureCountKey = "claudeOAuthRefreshBackoffFailureCountV1" // legacy + terminal count
     private static let fingerprintKey = "claudeOAuthRefreshBackoffFingerprintV2"
@@ -33,6 +37,7 @@ public enum ClaudeOAuthRefreshFailureGate {
     private static let terminalReasonKey = "claudeOAuthRefreshTerminalReasonV1"
     private static let transientBlockedUntilKey = "claudeOAuthRefreshTransientBlockedUntilV1"
     private static let transientFailureCountKey = "claudeOAuthRefreshTransientFailureCountV1"
+    private static let profileKeySeparator = ".profile."
 
     private static let log = CodexBarLog.logger(LogCategories.claudeUsage)
     private static let minimumCredentialsRecheckInterval: TimeInterval = 15
@@ -53,12 +58,34 @@ public enum ClaudeOAuthRefreshFailureGate {
 
     @TaskLocal private static var taskFingerprintProviderOverrideStore: FingerprintProviderOverrideStore?
 
+    final class EnvironmentFingerprintProviderOverrideStore: @unchecked Sendable {
+        let provider: ([String: String]) -> AuthFingerprint?
+
+        init(provider: @escaping ([String: String]) -> AuthFingerprint?) {
+            self.provider = provider
+        }
+    }
+
+    @TaskLocal private static var taskEnvironmentFingerprintProviderOverrideStore:
+        EnvironmentFingerprintProviderOverrideStore?
+
     static func withFingerprintProviderOverrideForTesting<T>(
         _ override: (() -> AuthFingerprint?)?,
         operation: () throws -> T) rethrows -> T
     {
         try self.$taskFingerprintProviderOverrideStore.withValue(
             override.map(FingerprintProviderOverrideStore.init(provider:)))
+        {
+            try operation()
+        }
+    }
+
+    static func withEnvironmentFingerprintProviderOverrideForTesting<T>(
+        _ override: (([String: String]) -> AuthFingerprint?)?,
+        operation: () throws -> T) rethrows -> T
+    {
+        try self.$taskEnvironmentFingerprintProviderOverrideStore.withValue(
+            override.map(EnvironmentFingerprintProviderOverrideStore.init(provider:)))
         {
             try operation()
         }
@@ -77,57 +104,54 @@ public enum ClaudeOAuthRefreshFailureGate {
     }
 
     public static func resetInMemoryStateForTesting() {
-        self.lock.withLock { state in
-            state.loaded = false
-            state.terminalFailureCount = 0
-            state.transientFailureCount = 0
-            state.isTerminalBlocked = false
-            state.transientBlockedUntil = nil
-            state.fingerprintAtFailure = nil
-            state.lastCredentialsRecheckAt = nil
-            state.terminalReason = nil
+        self.lock.withLock { lockedState in
+            lockedState.profiles.removeAll()
         }
     }
 
     public static func resetForTesting() {
-        self.lock.withLock { state in
-            state.loaded = false
-            state.terminalFailureCount = 0
-            state.transientFailureCount = 0
-            state.isTerminalBlocked = false
-            state.transientBlockedUntil = nil
-            state.fingerprintAtFailure = nil
-            state.lastCredentialsRecheckAt = nil
-            state.terminalReason = nil
-            UserDefaults.standard.removeObject(forKey: self.blockedUntilKey)
-            UserDefaults.standard.removeObject(forKey: self.failureCountKey)
-            UserDefaults.standard.removeObject(forKey: self.fingerprintKey)
-            UserDefaults.standard.removeObject(forKey: self.terminalBlockedKey)
-            UserDefaults.standard.removeObject(forKey: self.terminalReasonKey)
-            UserDefaults.standard.removeObject(forKey: self.transientBlockedUntilKey)
-            UserDefaults.standard.removeObject(forKey: self.transientFailureCountKey)
+        self.lock.withLock { lockedState in
+            lockedState.profiles.removeAll()
+            let defaults = UserDefaults.standard
+            for key in self.persistedKeys {
+                defaults.removeObject(forKey: key)
+            }
+            for key in defaults.dictionaryRepresentation().keys
+                where self.persistedKeys.contains(where: { key.hasPrefix($0 + self.profileKeySeparator) })
+            {
+                defaults.removeObject(forKey: key)
+            }
         }
     }
     #endif
 
-    public static func shouldAttempt(now: Date = Date()) -> Bool {
+    public static func shouldAttempt(
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        now: Date = Date()) -> Bool
+    {
         #if DEBUG
-        if let override = self.shouldAttemptOverride { return override }
+        if let override = self.shouldAttemptOverride {
+            return override
+        }
         #endif
 
-        return self.lock.withLock { state in
-            let didMigrate = self.loadIfNeeded(&state, now: now)
+        return self.withState(environment: environment) { state, profileIdentifier in
+            let didMigrate = self.loadIfNeeded(
+                &state,
+                profileIdentifier: profileIdentifier,
+                environment: environment,
+                now: now)
             if didMigrate {
-                self.persist(state)
+                self.persist(state, profileIdentifier: profileIdentifier)
             }
 
             if state.isTerminalBlocked {
                 guard self.shouldRecheckCredentials(now: now, state: state) else { return false }
 
                 state.lastCredentialsRecheckAt = now
-                if self.hasCredentialsChangedSinceFailure(state) {
+                if self.hasCredentialsChangedSinceFailure(state, environment: environment) {
                     self.resetState(&state)
-                    self.persist(state)
+                    self.persist(state, profileIdentifier: profileIdentifier)
                     return true
                 }
 
@@ -147,15 +171,15 @@ public enum ClaudeOAuthRefreshFailureGate {
                     // fingerprints and so we don't ratchet backoff across unrelated intermittent failures.
                     state.fingerprintAtFailure = nil
                     state.lastCredentialsRecheckAt = nil
-                    self.persist(state)
+                    self.persist(state, profileIdentifier: profileIdentifier)
                     return true
                 }
 
                 if self.shouldRecheckCredentials(now: now, state: state) {
                     state.lastCredentialsRecheckAt = now
-                    if self.hasCredentialsChangedSinceFailure(state) {
+                    if self.hasCredentialsChangedSinceFailure(state, environment: environment) {
                         self.resetState(&state)
-                        self.persist(state)
+                        self.persist(state, profileIdentifier: profileIdentifier)
                         return true
                     }
                 }
@@ -173,9 +197,19 @@ public enum ClaudeOAuthRefreshFailureGate {
         }
     }
 
-    public static func currentBlockStatus(now: Date = Date()) -> BlockStatus? {
-        self.lock.withLock { state in
-            _ = self.loadIfNeeded(&state, now: now)
+    public static func currentBlockStatus(
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        now: Date = Date()) -> BlockStatus?
+    {
+        self.withState(environment: environment) { state, profileIdentifier in
+            if self.loadIfNeeded(
+                &state,
+                profileIdentifier: profileIdentifier,
+                environment: environment,
+                now: now)
+            {
+                self.persist(state, profileIdentifier: profileIdentifier)
+            }
             if state.isTerminalBlocked {
                 return .terminal(reason: state.terminalReason, failures: state.terminalFailureCount)
             }
@@ -186,22 +220,36 @@ public enum ClaudeOAuthRefreshFailureGate {
         }
     }
 
-    public static func recordTerminalAuthFailure(now: Date = Date()) {
-        self.lock.withLock { state in
-            _ = self.loadIfNeeded(&state, now: now)
+    public static func recordTerminalAuthFailure(
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        now: Date = Date())
+    {
+        self.withState(environment: environment) { state, profileIdentifier in
+            _ = self.loadIfNeeded(
+                &state,
+                profileIdentifier: profileIdentifier,
+                environment: environment,
+                now: now)
             state.terminalFailureCount += 1
             state.isTerminalBlocked = true
             state.terminalReason = "invalid_grant"
-            state.fingerprintAtFailure = self.currentFingerprint() ?? self.unknownFingerprint
+            state.fingerprintAtFailure = self.currentFingerprint(environment: environment) ?? self.unknownFingerprint
             state.lastCredentialsRecheckAt = now
             self.clearTransientState(&state)
-            self.persist(state)
+            self.persist(state, profileIdentifier: profileIdentifier)
         }
     }
 
-    public static func recordTransientFailure(now: Date = Date()) {
-        self.lock.withLock { state in
-            _ = self.loadIfNeeded(&state, now: now)
+    public static func recordTransientFailure(
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        now: Date = Date())
+    {
+        self.withState(environment: environment) { state, profileIdentifier in
+            _ = self.loadIfNeeded(
+                &state,
+                profileIdentifier: profileIdentifier,
+                environment: environment,
+                now: now)
 
             // Keep terminal blocking monotonic: once we know auth is rejected (e.g. invalid_grant),
             // do not downgrade it to time-based backoff unless auth changes (fingerprint) or we record success.
@@ -212,22 +260,31 @@ public enum ClaudeOAuthRefreshFailureGate {
             state.transientFailureCount += 1
             let interval = self.transientCooldownInterval(failures: state.transientFailureCount)
             state.transientBlockedUntil = now.addingTimeInterval(interval)
-            state.fingerprintAtFailure = self.currentFingerprint() ?? self.unknownFingerprint
+            state.fingerprintAtFailure = self.currentFingerprint(environment: environment) ?? self.unknownFingerprint
             state.lastCredentialsRecheckAt = now
-            self.persist(state)
+            self.persist(state, profileIdentifier: profileIdentifier)
         }
     }
 
-    public static func recordAuthFailure(now: Date = Date()) {
+    public static func recordAuthFailure(
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        now: Date = Date())
+    {
         // Legacy shim: treat as terminal auth failure.
-        self.recordTerminalAuthFailure(now: now)
+        self.recordTerminalAuthFailure(environment: environment, now: now)
     }
 
-    public static func recordSuccess() {
-        self.lock.withLock { state in
-            _ = self.loadIfNeeded(&state, now: Date())
+    public static func recordSuccess(
+        environment: [String: String] = ProcessInfo.processInfo.environment)
+    {
+        self.withState(environment: environment) { state, profileIdentifier in
+            _ = self.loadIfNeeded(
+                &state,
+                profileIdentifier: profileIdentifier,
+                environment: environment,
+                now: Date())
             self.resetState(&state)
-            self.persist(state)
+            self.persist(state, profileIdentifier: profileIdentifier)
         }
     }
 
@@ -236,57 +293,111 @@ public enum ClaudeOAuthRefreshFailureGate {
         return now.timeIntervalSince(last) >= self.minimumCredentialsRecheckInterval
     }
 
-    private static func hasCredentialsChangedSinceFailure(_ state: State) -> Bool {
-        guard let current = self.currentFingerprint() else { return false }
+    private static func hasCredentialsChangedSinceFailure(
+        _ state: State,
+        environment: [String: String]) -> Bool
+    {
+        guard let current = self.currentFingerprint(environment: environment) else { return false }
         guard let prior = state.fingerprintAtFailure else { return false }
         return current != prior
     }
 
-    private static func currentFingerprint() -> AuthFingerprint? {
+    private static func currentFingerprint(environment: [String: String]) -> AuthFingerprint? {
         #if DEBUG
-        if let override = self.taskFingerprintProviderOverrideStore { return override.provider() }
+        if let override = self.taskEnvironmentFingerprintProviderOverrideStore {
+            return override.provider(environment)
+        }
+        if let override = self.taskFingerprintProviderOverrideStore {
+            return override.provider()
+        }
         #endif
         return AuthFingerprint(
             keychain: ClaudeOAuthCredentialsStore.currentClaudeKeychainFingerprintWithoutPromptForAuthGate(),
-            credentialsFile: ClaudeOAuthCredentialsStore.currentCredentialsFileFingerprintWithoutPromptForAuthGate())
+            credentialsFile: ClaudeOAuthCredentialsStore.currentCredentialsFileFingerprintWithoutPromptForAuthGate(
+                environment: environment))
     }
 
-    private static func loadIfNeeded(_ state: inout State, now: Date) -> Bool {
+    private static var persistedKeys: [String] {
+        [
+            self.blockedUntilKey,
+            self.failureCountKey,
+            self.fingerprintKey,
+            self.terminalBlockedKey,
+            self.terminalReasonKey,
+            self.transientBlockedUntilKey,
+            self.transientFailureCountKey,
+        ]
+    }
+
+    private static func withState<T: Sendable>(
+        environment: [String: String],
+        operation: @Sendable (inout State, String) -> T) -> T
+    {
+        let profileIdentifier = ClaudeOAuthCredentialsStore.credentialsProfileIdentifier(environment: environment)
+        return self.lock.withLock { lockedState in
+            var state = lockedState.profiles[profileIdentifier] ?? State()
+            let result = operation(&state, profileIdentifier)
+            lockedState.profiles[profileIdentifier] = state
+            return result
+        }
+    }
+
+    private static func profileKey(_ base: String, profileIdentifier: String) -> String {
+        base + self.profileKeySeparator + profileIdentifier
+    }
+
+    private static func loadIfNeeded(
+        _ state: inout State,
+        profileIdentifier: String,
+        environment _: [String: String],
+        now: Date) -> Bool
+    {
         state.loaded = true
         var didMutate = false
+        let defaults = UserDefaults.standard
+        let defaultProfileIdentifier = ClaudeOAuthCredentialsStore.credentialsProfileIdentifier(
+            environment: ProcessInfo.processInfo.environment)
+        let scopedKey: (String) -> String = { self.profileKey($0, profileIdentifier: profileIdentifier) }
+        let hasScopedState = self.persistedKeys.contains { defaults.object(forKey: scopedKey($0)) != nil }
+        let hasLegacyState = self.persistedKeys.contains { defaults.object(forKey: $0) != nil }
+        let shouldMigrateLegacy = !hasScopedState && profileIdentifier == defaultProfileIdentifier && hasLegacyState
+        let storageKey: (String) -> String = shouldMigrateLegacy ? { $0 } : scopedKey
 
         // Always refresh persisted fields from UserDefaults, even after first load.
         //
         // This avoids stale state when UserDefaults are modified while the app is running (or during tests),
         // while still keeping ephemeral throttling state (like lastCredentialsRecheckAt) in memory.
-        state.terminalFailureCount = UserDefaults.standard.integer(forKey: self.failureCountKey)
-        state.transientFailureCount = UserDefaults.standard.integer(forKey: self.transientFailureCountKey)
+        state.terminalFailureCount = defaults.integer(forKey: storageKey(self.failureCountKey))
+        state.transientFailureCount = defaults.integer(forKey: storageKey(self.transientFailureCountKey))
+        state.isTerminalBlocked = false
+        state.terminalReason = nil
+        state.transientBlockedUntil = nil
+        state.fingerprintAtFailure = nil
 
-        if let raw = UserDefaults.standard.object(forKey: self.transientBlockedUntilKey) as? Double {
+        if let raw = defaults.object(forKey: storageKey(self.transientBlockedUntilKey)) as? Double {
             state.transientBlockedUntil = Date(timeIntervalSince1970: raw)
         }
 
-        let legacyBlockedUntil = (UserDefaults.standard.object(forKey: self.blockedUntilKey) as? Double)
-            .map { Date(timeIntervalSince1970: $0) }
-        let legacyFailureCount = UserDefaults.standard.integer(forKey: self.failureCountKey)
+        let legacyBlockedUntil = shouldMigrateLegacy
+            ? (defaults.object(forKey: self.blockedUntilKey) as? Double).map { Date(timeIntervalSince1970: $0) }
+            : nil
+        let legacyFailureCount = shouldMigrateLegacy ? defaults.integer(forKey: self.failureCountKey) : 0
 
-        if let data = UserDefaults.standard.data(forKey: self.fingerprintKey) {
+        if let data = defaults.data(forKey: storageKey(self.fingerprintKey)) {
             state.fingerprintAtFailure = (try? JSONDecoder().decode(AuthFingerprint.self, from: data))
-        } else {
-            state.fingerprintAtFailure = nil
         }
 
-        if UserDefaults.standard.object(forKey: self.terminalBlockedKey) != nil {
-            state.isTerminalBlocked = UserDefaults.standard.bool(forKey: self.terminalBlockedKey)
-            state.terminalReason = UserDefaults.standard.string(forKey: self.terminalReasonKey)
+        if defaults.object(forKey: storageKey(self.terminalBlockedKey)) != nil {
+            state.isTerminalBlocked = defaults.bool(forKey: storageKey(self.terminalBlockedKey))
+            state.terminalReason = defaults.string(forKey: storageKey(self.terminalReasonKey))
             if legacyBlockedUntil != nil {
                 didMutate = true
             }
         } else {
             // Migration: legacy keys represented a time-based backoff. Migrate to transient backoff (never terminal)
             // unless we already have new transient keys persisted.
-            if UserDefaults.standard.object(forKey: self.transientFailureCountKey) == nil,
-               UserDefaults.standard.object(forKey: self.transientBlockedUntilKey) == nil,
+            if defaults.object(forKey: storageKey(self.transientFailureCountKey)) == nil,
+               defaults.object(forKey: storageKey(self.transientBlockedUntilKey)) == nil,
                legacyBlockedUntil != nil || legacyFailureCount > 0
             {
                 state.isTerminalBlocked = false
@@ -313,33 +424,47 @@ public enum ClaudeOAuthRefreshFailureGate {
             didMutate = true
         }
 
+        if shouldMigrateLegacy {
+            didMutate = true
+        }
+
         return didMutate
     }
 
-    private static func persist(_ state: State) {
-        UserDefaults.standard.set(state.terminalFailureCount, forKey: self.failureCountKey)
-        UserDefaults.standard.set(state.isTerminalBlocked, forKey: self.terminalBlockedKey)
+    private static func persist(_ state: State, profileIdentifier: String) {
+        let defaults = UserDefaults.standard
+        let key: (String) -> String = { self.profileKey($0, profileIdentifier: profileIdentifier) }
+        defaults.set(state.terminalFailureCount, forKey: key(self.failureCountKey))
+        defaults.set(state.isTerminalBlocked, forKey: key(self.terminalBlockedKey))
         if let reason = state.terminalReason {
-            UserDefaults.standard.set(reason, forKey: self.terminalReasonKey)
+            defaults.set(reason, forKey: key(self.terminalReasonKey))
         } else {
-            UserDefaults.standard.removeObject(forKey: self.terminalReasonKey)
+            defaults.removeObject(forKey: key(self.terminalReasonKey))
         }
 
-        UserDefaults.standard.set(state.transientFailureCount, forKey: self.transientFailureCountKey)
+        defaults.set(state.transientFailureCount, forKey: key(self.transientFailureCountKey))
         if let blockedUntil = state.transientBlockedUntil {
-            UserDefaults.standard.set(blockedUntil.timeIntervalSince1970, forKey: self.transientBlockedUntilKey)
+            defaults.set(blockedUntil.timeIntervalSince1970, forKey: key(self.transientBlockedUntilKey))
         } else {
-            UserDefaults.standard.removeObject(forKey: self.transientBlockedUntilKey)
+            defaults.removeObject(forKey: key(self.transientBlockedUntilKey))
         }
 
-        UserDefaults.standard.removeObject(forKey: self.blockedUntilKey)
+        defaults.removeObject(forKey: key(self.blockedUntilKey))
 
         if let fingerprint = state.fingerprintAtFailure,
            let data = try? JSONEncoder().encode(fingerprint)
         {
-            UserDefaults.standard.set(data, forKey: self.fingerprintKey)
+            defaults.set(data, forKey: key(self.fingerprintKey))
         } else {
-            UserDefaults.standard.removeObject(forKey: self.fingerprintKey)
+            defaults.removeObject(forKey: key(self.fingerprintKey))
+        }
+
+        let defaultProfileIdentifier = ClaudeOAuthCredentialsStore.credentialsProfileIdentifier(
+            environment: ProcessInfo.processInfo.environment)
+        if profileIdentifier == defaultProfileIdentifier {
+            for legacyKey in self.persistedKeys {
+                defaults.removeObject(forKey: legacyKey)
+            }
         }
     }
 
@@ -374,25 +499,45 @@ public enum ClaudeOAuthRefreshFailureGate {
         case transient(until: Date, failures: Int)
     }
 
-    public static func shouldAttempt(now _: Date = Date()) -> Bool {
+    public static func shouldAttempt(
+        environment _: [String: String] = ProcessInfo.processInfo.environment,
+        now _: Date = Date()) -> Bool
+    {
         true
     }
 
-    public static func currentBlockStatus(now _: Date = Date()) -> BlockStatus? {
+    public static func currentBlockStatus(
+        environment _: [String: String] = ProcessInfo.processInfo.environment,
+        now _: Date = Date()) -> BlockStatus?
+    {
         nil
     }
 
-    public static func recordTerminalAuthFailure(now _: Date = Date()) {}
+    public static func recordTerminalAuthFailure(
+        environment _: [String: String] = ProcessInfo.processInfo.environment,
+        now _: Date = Date()) {}
 
-    public static func recordTransientFailure(now _: Date = Date()) {}
+    public static func recordTransientFailure(
+        environment _: [String: String] = ProcessInfo.processInfo.environment,
+        now _: Date = Date()) {}
 
-    public static func recordAuthFailure(now _: Date = Date()) {}
+    public static func recordAuthFailure(
+        environment _: [String: String] = ProcessInfo.processInfo.environment,
+        now _: Date = Date()) {}
 
-    public static func recordSuccess() {}
+    public static func recordSuccess(
+        environment _: [String: String] = ProcessInfo.processInfo.environment) {}
 
     #if DEBUG
     static func withFingerprintProviderOverrideForTesting<T>(
         _ override: (() -> Any?)?,
+        operation: () throws -> T) rethrows -> T
+    {
+        try operation()
+    }
+
+    static func withEnvironmentFingerprintProviderOverrideForTesting<T>(
+        _ override: (([String: String]) -> Any?)?,
         operation: () throws -> T) rethrows -> T
     {
         try operation()
