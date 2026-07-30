@@ -17,6 +17,17 @@ struct CLICostTests {
     }
 
     @Test
+    func `provider native only excludes pi and OMP session mirrors`() throws {
+        let parser = CommandParser(signature: CodexBarCLI._costSignatureForTesting())
+
+        let defaultValues = try parser.parse(arguments: [])
+        #expect(CodexBarCLI.decodeCostIncludePiSessions(from: defaultValues))
+
+        let nativeOnlyValues = try parser.parse(arguments: ["--provider-native-only"])
+        #expect(!CodexBarCLI.decodeCostIncludePiSessions(from: nativeOnlyValues))
+    }
+
+    @Test
     func `renders cost text snapshot`() {
         let snap = CostUsageTokenSnapshot(
             sessionTokens: 1200,
