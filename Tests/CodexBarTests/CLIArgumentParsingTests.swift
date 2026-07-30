@@ -75,6 +75,25 @@ struct CLIArgumentParsingTests {
         #expect(parsed.flags.contains("appAutoVerifier"))
     }
 
+    @Test(arguments: [
+        ["--app-auto-verifier", "--account", "Configured"],
+        ["--app-auto-verifier", "--account-index", "1"],
+        ["--app-auto-verifier", "--all-accounts"],
+    ])
+    func `app auto verifier rejects account overrides`(arguments: [String]) throws {
+        let signature = CodexBarCLI._usageSignatureForTesting()
+        let parser = CommandParser(signature: signature)
+        let parsed = try parser.parse(arguments: arguments)
+        let selection = try CodexBarCLI.decodeTokenAccountSelection(from: parsed)
+
+        #expect(parsed.flags.contains("appAutoVerifier"))
+        #expect(CodexBarCLI.appAutoVerifierArgumentError(
+            enabled: true,
+            providers: [.claude],
+            sourceMode: .auto,
+            tokenSelection: selection) != nil)
+    }
+
     @Test
     func `diagnose accepts json output flag but discards provider logs`() throws {
         let signature = CodexBarCLI._diagnoseSignatureForTesting()

@@ -5,7 +5,7 @@ import Foundation
 struct UsageCommandContext {
     let format: OutputFormat
     let includeCredits: Bool
-    let sourceModeOverride: ProviderSourceMode?
+    var sourceModeOverride: ProviderSourceMode?
     let antigravityPlanDebug: Bool
     let augmentDebug: Bool
     let webDebugDumpHTML: Bool
@@ -83,8 +83,8 @@ extension CodexBarCLI {
                 output: output,
                 kind: .args)
         }
-        let antigravityPlanDebug = values.flags.contains("antigravityPlanDebug")
-        let augmentDebug = values.flags.contains("augmentDebug")
+        let antigravityPlanDebug = values.flags.contains("antigravityPlanDebug"),
+            augmentDebug = values.flags.contains("augmentDebug")
         let appAutoVerifier = values.flags.contains("appAutoVerifier")
         let webDebugDumpHTML = values.flags.contains("webDebugDumpHtml")
         let webTimeout: TimeInterval
@@ -93,20 +93,11 @@ extension CodexBarCLI {
         } catch {
             Self.exit(code: .failure, message: "Error: \(error.localizedDescription)", output: output, kind: .args)
         }
-        let verbose = values.flags.contains("verbose")
-        let noColor = values.flags.contains("noColor")
+        let verbose = values.flags.contains("verbose"), noColor = values.flags.contains("noColor")
         let useColor = Self.shouldUseColor(noColor: noColor, format: format)
         let resetStyle = Self.resetTimeDisplayStyleFromDefaults()
         let weeklyWorkDays = Self.weeklyProgressWorkDaysFromDefaults()
         let providerList = provider.asList
-
-        if appAutoVerifier, providerList != [.claude] || parsedSourceMode != .auto {
-            Self.exit(
-                code: .failure,
-                message: "Error: --app-auto-verifier requires --provider claude --source auto.",
-                output: output,
-                kind: .args)
-        }
 
         let tokenSelection: TokenAccountCLISelection
         do {
@@ -119,6 +110,19 @@ extension CodexBarCLI {
             Self.exit(
                 code: .failure,
                 message: "Error: --all-accounts cannot be combined with --account or --account-index.",
+                output: output,
+                kind: .args)
+        }
+
+        if let message = Self.appAutoVerifierArgumentError(
+            enabled: appAutoVerifier,
+            providers: providerList,
+            sourceMode: parsedSourceMode,
+            tokenSelection: tokenSelection)
+        {
+            Self.exit(
+                code: .failure,
+                message: "Error: \(message)",
                 output: output,
                 kind: .args)
         }
@@ -152,7 +156,8 @@ extension CodexBarCLI {
             tokenContext = try TokenAccountCLIContext(
                 selection: tokenSelection,
                 config: config,
-                verbose: verbose)
+                verbose: verbose,
+                resolutionScope: appAutoVerifier ? .ambientAccount : .configuredAccounts)
         } catch {
             Self.exit(code: .failure, message: "Error: \(error.localizedDescription)", output: output, kind: .config)
         }
@@ -181,6 +186,26 @@ extension CodexBarCLI {
 
         for p in providerList {
             let status = includeStatus ? await Self.fetchStatus(for: p) : nil
+            if appAutoVerifier {
+                // Background app Auto intentionally launches the opaque Claude owner CLI only after a successful
+                // user-initiated fetch has established this process's account-scoped availability marker. Recreate
+                // that real app lifecycle before exercising the background route; discard the foreground payload.
+                var establishmentCommand = command
+                establishmentCommand.sourceModeOverride = .cli
+                let establishment = await ProviderInteractionContext.$current.withValue(.userInitiated) {
+                    await Self.fetchUsageOutputs(
+                        provider: p,
+                        status: status,
+                        tokenContext: tokenContext,
+                        command: establishmentCommand)
+                }
+                if establishment.exitCode != .success {
+                    exitCode = establishment.exitCode
+                    sections.append(contentsOf: establishment.sections)
+                    payload.append(contentsOf: establishment.payload)
+                    continue
+                }
+            }
             // CLI usage should not clear Keychain cooldowns or attempt interactive Keychain prompts.
             let output = await ProviderInteractionContext.$current.withValue(.background) {
                 await Self.fetchUsageOutputs(
@@ -206,6 +231,22 @@ extension CodexBarCLI {
         }
 
         Self.exit(code: exitCode, output: output, kind: exitCode == .success ? .runtime : .provider)
+    }
+
+    static func appAutoVerifierArgumentError(
+        enabled: Bool,
+        providers: [UsageProvider],
+        sourceMode: ProviderSourceMode?,
+        tokenSelection: TokenAccountCLISelection) -> String?
+    {
+        guard enabled else { return nil }
+        guard providers == [.claude], sourceMode == .auto else {
+            return "--app-auto-verifier requires --provider claude --source auto."
+        }
+        guard !tokenSelection.usesOverride else {
+            return "--app-auto-verifier does not accept token-account selection."
+        }
+        return nil
     }
 
     static func fetchUsageOutputs(

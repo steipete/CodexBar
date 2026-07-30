@@ -12,6 +12,11 @@ struct TokenAccountCLISelection {
     }
 }
 
+enum TokenAccountCLIResolutionScope {
+    case configuredAccounts
+    case ambientAccount
+}
+
 enum TokenAccountCLIError: LocalizedError {
     case noAccounts(UsageProvider)
     case accountNotFound(UsageProvider, String)
@@ -40,6 +45,7 @@ struct TokenAccountCLIContext {
         selection: TokenAccountCLISelection,
         config: CodexBarConfig,
         verbose _: Bool,
+        resolutionScope: TokenAccountCLIResolutionScope = .configuredAccounts,
         baseEnvironment: [String: String] = ProcessInfo.processInfo.environment,
         managedCodexAccountStoreURL: URL? = nil) throws
     {
@@ -47,10 +53,15 @@ struct TokenAccountCLIContext {
         self.config = config
         self.baseEnvironment = baseEnvironment
         self.managedCodexAccountStoreURL = managedCodexAccountStoreURL
-        self.accountsByProvider = Dictionary(uniqueKeysWithValues: config.providers.compactMap { provider in
-            guard let accounts = provider.tokenAccounts else { return nil }
-            return (provider.id, accounts)
-        })
+        self.accountsByProvider = switch resolutionScope {
+        case .configuredAccounts:
+            Dictionary(uniqueKeysWithValues: config.providers.compactMap { provider in
+                guard let accounts = provider.tokenAccounts else { return nil }
+                return (provider.id, accounts)
+            })
+        case .ambientAccount:
+            [:]
+        }
     }
 
     func resolvedAccounts(for provider: UsageProvider) throws -> [ProviderTokenAccount] {
