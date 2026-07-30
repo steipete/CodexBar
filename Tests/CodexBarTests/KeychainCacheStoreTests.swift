@@ -168,6 +168,78 @@ struct KeychainCacheStoreTests {
 
     #if os(macOS)
     @Test
+    func `unsafe cache ACL is unusable for credential planning`() {
+        let service = "cache-preflight-\(UUID().uuidString)"
+        let key = KeychainCacheStore.Key(category: "test", identifier: UUID().uuidString)
+        let observed = LockIsolated<(String, String?)?>(nil)
+
+        let result: KeychainCacheStore.LoadResult<TestEntry> = KeychainCacheStore.withServiceOverrideForTesting(
+            service)
+        {
+            KeychainCacheStore.withRealKeychainPathForTesting {
+                KeychainAccessGate.withTaskOverrideForTesting(false) {
+                    KeychainAccessPreflight.withCheckGenericPasswordOverrideForTesting { candidateService, account in
+                        observed.setValue((candidateService, account))
+                        return .interactionRequired
+                    } operation: {
+                        KeychainCacheStore.load(key: key, as: TestEntry.self)
+                    }
+                }
+            }
+        }
+
+        #expect(observed.value?.0 == service)
+        #expect(observed.value?.1 == key.account)
+        switch result {
+        case .missing:
+            break
+        case .found, .invalid, .temporarilyUnavailable:
+            Issue.record("Expected an unsafe cache item to behave as missing")
+        }
+    }
+
+    @Test
+    func `cache secret read stops when attributes preflight finds no item`() {
+        let key = KeychainCacheStore.Key(category: "test", identifier: UUID().uuidString)
+        let preflight: (String, String?) -> KeychainAccessPreflight.Outcome = { _, _ in .notFound }
+        let result: KeychainCacheStore.LoadResult<TestEntry> = KeychainCacheStore.withRealKeychainPathForTesting {
+            KeychainAccessGate.withTaskOverrideForTesting(false) {
+                KeychainAccessPreflight.withCheckGenericPasswordOverrideForTesting(preflight, operation: {
+                    KeychainCacheStore.load(key: key, as: TestEntry.self)
+                })
+            }
+        }
+
+        switch result {
+        case .missing:
+            break
+        case .found, .temporarilyUnavailable, .invalid:
+            Issue.record("Expected a missing preflight item to skip the secret-data query")
+        }
+    }
+
+    @Test
+    func `cache store and clear stop when decrypt ACL requires interaction`() {
+        let key = KeychainCacheStore.Key(category: "test", identifier: UUID().uuidString)
+        let entry = TestEntry(value: "blocked", storedAt: Date(timeIntervalSince1970: 0))
+        let recorder = KeychainCacheStore.OperationRecorder()
+        let preflight: (String, String?) -> KeychainAccessPreflight.Outcome = { _, _ in .interactionRequired }
+
+        KeychainCacheStore.withRealKeychainPathForTesting {
+            KeychainAccessGate.withTaskOverrideForTesting(false) {
+                KeychainCacheStore.withOperationRecorderForTesting(recorder) {
+                    KeychainAccessPreflight.withCheckGenericPasswordOverrideForTesting(preflight) {
+                        #expect(KeychainCacheStore.storeResult(key: key, entry: entry) == false)
+                        #expect(KeychainCacheStore.clearResult(key: key) == .failed)
+                    }
+                }
+            }
+        }
+
+        #expect(recorder.operations == [.store, .clear])
+    }
+
+    @Test
     func `interaction not allowed is treated as temporarily unavailable`() {
         let key = KeychainCacheStore.Key(category: "test", identifier: UUID().uuidString)
         let result: KeychainCacheStore.LoadResult<TestEntry> = KeychainCacheStore.loadResultForKeychainReadFailure(
@@ -325,6 +397,20 @@ struct KeychainCacheStoreTests {
             helper.path,
             executable.path,
         ])
+    }
+
+    @Test
+    func `cache preflight inspects only the invoking executable`() {
+        let root = URL(fileURLWithPath: "/Applications/CodexBar.app")
+        let executable = root.appendingPathComponent("Contents/MacOS/CodexBar")
+        let helper = root.appendingPathComponent("Contents/Helpers/CodexBarCLI")
+
+        let currentPaths = KeychainCacheStore.invokingApplicationPathsForCacheAccess(
+            executableURL: executable,
+            fileExists: { $0 == executable.path })
+
+        #expect(currentPaths == [executable.path])
+        #expect(!currentPaths.contains(helper.path))
     }
     #endif
 }
