@@ -629,8 +629,8 @@ struct CostHistoryChartMenuView: View {
             return [first, last]
         }()
 
-        // Use Codex teal for all cost-history charts so Grok matches the Codex visual language.
-        let barColor = Self.chartBarColor
+        // Grok uses Codex teal; other providers keep their branding colors.
+        let barColor = Self.barColor(for: provider)
         let yAxisTitle = metric == .tokens ? L("Tokens") : L("Cost")
         return Model(
             points: points,
@@ -697,8 +697,12 @@ struct CostHistoryChartMenuView: View {
         }
     }
 
-    private static func barColor(for _: UsageProvider) -> Color {
-        self.chartBarColor
+    private static func barColor(for provider: UsageProvider) -> Color {
+        if provider == .grok {
+            return self.chartBarColor
+        }
+        let color = ProviderDescriptorRegistry.descriptor(for: provider).branding.color
+        return Color(red: color.red, green: color.green, blue: color.blue)
     }
 
     private static func dateFromDayKey(_ key: String) -> Date? {

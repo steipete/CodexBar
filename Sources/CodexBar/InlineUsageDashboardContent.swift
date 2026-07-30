@@ -208,10 +208,9 @@ extension UsageMenuCardView.Model {
     /// Provider branding color for the inline usage bars, matching the provider's switcher tab and
     /// detailed cost-history chart.
     static func inlineDashboardBarColor(for provider: UsageProvider) -> Color {
-        // Cost-history providers (including Grok) share Codex teal so main-menu charts match.
-        if [.codex, .claude, .vertexai, .bedrock, .cursor, .opencodego, .grok, .openai, .mistral, .groq]
-            .contains(provider)
-        {
+        // Grok cost/token history uses Codex teal so it matches Credits/Codex charts without
+        // overriding other providers' established branding colors.
+        if provider == .grok {
             return self.codexStyleChartBarColor
         }
         let color = ProviderDescriptorRegistry.descriptor(for: provider).branding.color
@@ -606,8 +605,10 @@ extension UsageMenuCardView.Model {
             kpis: kpis,
             points: points,
             detailLines: details)
-        // Match Codex cost mini-chart teal so Grok doesn't use brand green.
-        model.barColor = Self.codexStyleChartBarColor
+        // Grok only: Codex teal. Other providers keep branding (set by inlineUsageDashboard).
+        if provider == .grok {
+            model.barColor = Self.codexStyleChartBarColor
+        }
         if !plotTokens {
             model.currencyCode = displayCurrencyCode
         }
