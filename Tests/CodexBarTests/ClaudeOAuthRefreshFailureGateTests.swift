@@ -52,6 +52,34 @@ struct ClaudeOAuthRefreshFailureGateTests {
     }
 
     @Test
+    func `global Keychain changes cannot unblock a selected profile`() {
+        ClaudeOAuthRefreshFailureGate.resetForTesting()
+        defer { ClaudeOAuthRefreshFailureGate.resetForTesting() }
+
+        var fingerprint = ClaudeOAuthRefreshFailureGate.AuthFingerprint(
+            keychain: ClaudeOAuthCredentialsStore.ClaudeKeychainFingerprint(
+                modifiedAt: 1,
+                createdAt: 1,
+                persistentRefHash: "profile-a-global-ref"),
+            credentialsFile: "profile-a-file")
+        ClaudeOAuthRefreshFailureGate.withFingerprintProviderOverrideForTesting {
+            fingerprint
+        } operation: {
+            let start = Date(timeIntervalSince1970: 1500)
+            ClaudeOAuthRefreshFailureGate.recordTerminalAuthFailure(now: start)
+
+            fingerprint = ClaudeOAuthRefreshFailureGate.AuthFingerprint(
+                keychain: ClaudeOAuthCredentialsStore.ClaudeKeychainFingerprint(
+                    modifiedAt: 2,
+                    createdAt: 2,
+                    persistentRefHash: "profile-b-global-ref"),
+                credentialsFile: "profile-a-file")
+
+            #expect(!ClaudeOAuthRefreshFailureGate.shouldAttempt(now: start.addingTimeInterval(20)))
+        }
+    }
+
+    @Test
     func `migrates legacy blocked until in past does not block and clears key`() {
         ClaudeOAuthRefreshFailureGate.resetForTesting()
         defer { ClaudeOAuthRefreshFailureGate.resetForTesting() }
