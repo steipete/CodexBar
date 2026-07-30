@@ -63,14 +63,18 @@ extension UsageStore {
     func reconcileClaudeActiveAccountIdentity(
         beforeFetch: String?,
         afterFetch: String?,
+        observedAccountUuids: [String],
         shouldTrack: Bool,
         environment: [String: String]) -> ClaudeActiveAccountIdentityReconciliation
     {
         guard shouldTrack else { return .unchanged }
-        let defaults = self.settings.userDefaults
-        let persistedIdentity = Self.persistedClaudeActiveAccountIdentity(defaults: defaults, environment: environment)
         let observedIdentities = [beforeFetch, afterFetch].compactMap(\.self)
         guard !observedIdentities.isEmpty else { return .unchanged }
+        let defaults = self.settings.userDefaults
+        let persistedIdentity = Self.persistedClaudeActiveAccountIdentity(
+            defaults: defaults,
+            environment: environment,
+            observedAccountUuids: observedAccountUuids)
 
         let changedFromPersistedIdentity = persistedIdentity.map { persisted in
             observedIdentities.contains { $0 != persisted }
@@ -103,12 +107,18 @@ extension UsageStore {
 
     nonisolated static func persistedClaudeActiveAccountIdentity(
         defaults: UserDefaults,
-        environment: [String: String]) -> String?
+        environment: [String: String],
+        observedAccountUuids: [String]) -> String?
     {
         let profileIdentifier = ClaudeOAuthCredentialsStore.credentialsProfileIdentifier(environment: environment)
         let scopedKey = self.claudeActiveAccountIdentityDefaultsKey(profileIdentifier: profileIdentifier)
         if let identity = defaults.string(forKey: scopedKey) {
-            return identity
+            return self.migrateLegacyClaudeAccountIdentity(
+                identity,
+                observedAccountUuids: observedAccountUuids,
+                scopedKey: scopedKey,
+                defaults: defaults,
+                environment: environment)
         }
 
         let defaultProfileIdentifier = ClaudeOAuthCredentialsStore.credentialsProfileIdentifier(
@@ -118,9 +128,15 @@ extension UsageStore {
         else {
             return nil
         }
-        defaults.set(legacyIdentity, forKey: scopedKey)
+        let migratedIdentity = self.migrateLegacyClaudeAccountIdentity(
+            legacyIdentity,
+            observedAccountUuids: observedAccountUuids,
+            scopedKey: scopedKey,
+            defaults: defaults,
+            environment: environment)
+        defaults.set(migratedIdentity, forKey: scopedKey)
         defaults.removeObject(forKey: self.claudeActiveAccountIdentityDefaultsKey)
-        return legacyIdentity
+        return migratedIdentity
     }
 
     private nonisolated static func claudeActiveAccountIdentityDefaultsKey(
@@ -131,13 +147,58 @@ extension UsageStore {
             profileIdentifier
     }
 
-    private nonisolated static func claudeAccountIdentity(
+    nonisolated static func claudeAccountIdentity(
         _ uuid: String,
         environment: [String: String]) -> String
     {
-        let configPath = ClaudeConfigPaths.accountConfigURL(environment: environment).path
+        let profileIdentifier = ClaudeOAuthCredentialsStore.credentialsProfileIdentifier(environment: environment)
         return self.sha256Hex(
-            "claude:active-account:v2:\(configPath):" +
+            "claude:active-account:v3:\(profileIdentifier):" +
+                uuid.trimmingCharacters(in: .whitespacesAndNewlines).lowercased())
+    }
+
+    private nonisolated static func migrateLegacyClaudeAccountIdentity(
+        _ identity: String,
+        observedAccountUuids: [String],
+        scopedKey: String,
+        defaults: UserDefaults,
+        environment: [String: String]) -> String
+    {
+        for uuid in Set(observedAccountUuids) {
+            guard self.legacyClaudeAccountIdentities(uuid, environment: environment).contains(identity) else {
+                continue
+            }
+            let migratedIdentity = self.claudeAccountIdentity(uuid, environment: environment)
+            defaults.set(migratedIdentity, forKey: scopedKey)
+            return migratedIdentity
+        }
+        return identity
+    }
+
+    private nonisolated static func legacyClaudeAccountIdentities(
+        _ uuid: String,
+        environment: [String: String]) -> Set<String>
+    {
+        let root = ClaudeConfigPaths.configRoot(environment: environment)
+        let fallbackURL = if environment[ClaudeConfigPaths.configDirectoryEnvironmentKey]?.isEmpty == false {
+            root.appendingPathComponent(".claude.json")
+        } else {
+            ClaudeConfigPaths.homeDirectory(environment: environment).appendingPathComponent(".claude.json")
+        }
+        return Set([
+            root.appendingPathComponent(".config.json"),
+            fallbackURL,
+        ].map { url in
+            self.legacyClaudeAccountIdentity(uuid, accountConfigURL: url)
+        })
+    }
+
+    private nonisolated static func legacyClaudeAccountIdentity(
+        _ uuid: String,
+        accountConfigURL: URL) -> String
+    {
+        self.sha256Hex(
+            "claude:active-account:v2:\(accountConfigURL.path):" +
                 uuid.trimmingCharacters(in: .whitespacesAndNewlines).lowercased())
     }
 
@@ -172,6 +233,13 @@ extension UsageStore {
         environment: [String: String] = [:]) -> String
     {
         self.claudeAccountIdentity(uuid, environment: environment)
+    }
+
+    nonisolated static func _legacyClaudeActiveAccountIdentityForTesting(
+        _ uuid: String,
+        accountConfigURL: URL) -> String
+    {
+        self.legacyClaudeAccountIdentity(uuid, accountConfigURL: accountConfigURL)
     }
 
     nonisolated static func _activeClaudeAccountIdentityFromEnvironmentForTesting(

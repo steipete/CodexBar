@@ -557,6 +557,8 @@ extension UsageStore {
         let activeAccountReconciliation = self.reconcileClaudeActiveAccountIdentity(
             beforeFetch: input.beforeFetch?.activeAccountIdentity,
             afterFetch: historyAccountState.activeAccountIdentity,
+            observedAccountUuids: [input.beforeFetch?.activeAccountUuid, historyAccountState.activeAccountUuid]
+                .compactMap(\.self),
             shouldTrack: shouldTrackActiveAccount,
             environment: input.environment)
         let credentialsChanged = shouldTrackActiveAccount && (
@@ -944,6 +946,7 @@ extension UsageStore {
         let credentialsFileChanged: Bool
         let keychainFingerprintChanged: Bool
         let keychainPersistentRefHash: String?
+        let activeAccountUuid: String?
         let activeAccountIdentity: String?
         let accountStateWasStable: Bool
     }
@@ -951,6 +954,7 @@ extension UsageStore {
     private struct ClaudeHistoryAccountState {
         let fingerprintToken: String
         let keychainPersistentRefHash: String?
+        let activeAccountUuid: String?
         let activeAccountIdentity: String?
         let wasStable: Bool
     }
@@ -1129,7 +1133,10 @@ extension UsageStore {
                     : false
                 let fingerprintBefore = ClaudeOAuthCredentialsStore
                     .currentCredentialsFileFingerprintWithoutPromptForAuthGate(environment: environment) ?? "none"
-                let activeAccountIdentity = Self.activeClaudeAccountIdentity(environment: environment)
+                let activeAccountUuid = Self.activeClaudeAccountUuid(environment: environment)
+                let activeAccountIdentity = activeAccountUuid.map {
+                    Self.claudeAccountIdentity($0, environment: environment)
+                }
                 let fingerprintAfter = ClaudeOAuthCredentialsStore
                     .currentCredentialsFileFingerprintWithoutPromptForAuthGate(environment: environment) ?? "none"
                 let accountStateWasStable = fingerprintBefore == fingerprintAfter
@@ -1138,6 +1145,7 @@ extension UsageStore {
                     credentialsFileChanged: credentialsFileChanged,
                     keychainFingerprintChanged: false,
                     keychainPersistentRefHash: nil,
+                    activeAccountUuid: activeAccountUuid,
                     activeAccountIdentity: activeAccountIdentity,
                     accountStateWasStable: accountStateWasStable)
             }
@@ -1152,13 +1160,17 @@ extension UsageStore {
             group.addTask {
                 let fingerprintBefore = ClaudeOAuthCredentialsStore
                     .currentCredentialsFileFingerprintWithoutPromptForAuthGate(environment: environment) ?? "none"
-                let activeAccountIdentity = Self.activeClaudeAccountIdentity(environment: environment)
+                let activeAccountUuid = Self.activeClaudeAccountUuid(environment: environment)
+                let activeAccountIdentity = activeAccountUuid.map {
+                    Self.claudeAccountIdentity($0, environment: environment)
+                }
                 let fingerprintAfter = ClaudeOAuthCredentialsStore
                     .currentCredentialsFileFingerprintWithoutPromptForAuthGate(environment: environment) ?? "none"
                 let wasStable = fingerprintBefore == fingerprintAfter
                 return ClaudeHistoryAccountState(
                     fingerprintToken: fingerprintAfter,
                     keychainPersistentRefHash: nil,
+                    activeAccountUuid: activeAccountUuid,
                     activeAccountIdentity: activeAccountIdentity,
                     wasStable: wasStable)
             }
@@ -1212,6 +1224,7 @@ extension UsageStore {
                 credentialsFileChanged: false,
                 keychainFingerprintChanged: false,
                 keychainPersistentRefHash: beforeFetchPersistentRefHash,
+                activeAccountUuid: nil,
                 activeAccountIdentity: nil,
                 accountStateWasStable: true),
             afterFetchFingerprintToken: afterFetchFingerprintToken,
@@ -1231,11 +1244,13 @@ extension UsageStore {
                 credentialsFileChanged: false,
                 keychainFingerprintChanged: false,
                 keychainPersistentRefHash: "before-ref",
+                activeAccountUuid: nil,
                 activeAccountIdentity: identityBeforeFetch,
                 accountStateWasStable: beforeFetchWasStable),
             afterFetch: ClaudeHistoryAccountState(
                 fingerprintToken: "after",
                 keychainPersistentRefHash: "after-ref",
+                activeAccountUuid: nil,
                 activeAccountIdentity: identityAfterFetch,
                 wasStable: afterFetchWasStable))
     }

@@ -588,24 +588,6 @@ struct ClaudeActiveAccountIdentityInvalidationTests {
     }
 
     @Test
-    func `active account identity follows and scopes Claude config directory`() throws {
-        let root = FileManager.default.temporaryDirectory
-            .appendingPathComponent("claude-config-\(UUID().uuidString)", isDirectory: true)
-        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: root) }
-        try Data(#"{"oauthAccount":{"accountUuid":"config-account"}}"#.utf8)
-            .write(to: root.appendingPathComponent(".config.json"))
-        let environment = ["CLAUDE_CONFIG_DIR": root.path]
-
-        let observed = UsageStore._activeClaudeAccountIdentityFromEnvironmentForTesting(environment)
-
-        #expect(observed == UsageStore._activeClaudeAccountIdentityForTesting(
-            "config-account",
-            environment: environment))
-        #expect(observed != UsageStore._activeClaudeAccountIdentityForTesting("config-account"))
-    }
-
-    @Test
     func `account and credential probes share fetch environment profile roots`() throws {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("claude-profile-roots-\(UUID().uuidString)", isDirectory: true)
@@ -629,23 +611,25 @@ struct ClaudeActiveAccountIdentityInvalidationTests {
             "HOME": home.path,
             "CLAUDE_CONFIG_DIR": alternate.path,
         ]
-        let homeIdentity = UsageStore._activeClaudeAccountIdentityFromEnvironmentForTesting(homeEnvironment)
-        let alternateIdentity = UsageStore._activeClaudeAccountIdentityFromEnvironmentForTesting(alternateEnvironment)
-        let (homeFingerprint, alternateFingerprint) = ClaudeOAuthCredentialsStore
-            .withEnvironmentCredentialsURLForTesting {
-                (
-                    ClaudeOAuthCredentialsStore
-                        .currentCredentialsFileFingerprintWithoutPromptForAuthGate(environment: homeEnvironment),
-                    ClaudeOAuthCredentialsStore
-                        .currentCredentialsFileFingerprintWithoutPromptForAuthGate(environment: alternateEnvironment))
-            }
+        let (homeIdentity, alternateIdentity, homeExpected, alternateExpected, homeFingerprint, alternateFingerprint) =
+            ClaudeOAuthCredentialsStore
+                .withEnvironmentCredentialsURLForTesting {
+                    (
+                        UsageStore._activeClaudeAccountIdentityFromEnvironmentForTesting(homeEnvironment),
+                        UsageStore._activeClaudeAccountIdentityFromEnvironmentForTesting(alternateEnvironment),
+                        UsageStore._activeClaudeAccountIdentityForTesting("home-account", environment: homeEnvironment),
+                        UsageStore._activeClaudeAccountIdentityForTesting(
+                            "alternate-account",
+                            environment: alternateEnvironment),
+                        ClaudeOAuthCredentialsStore
+                            .currentCredentialsFileFingerprintWithoutPromptForAuthGate(environment: homeEnvironment),
+                        ClaudeOAuthCredentialsStore
+                            .currentCredentialsFileFingerprintWithoutPromptForAuthGate(
+                                environment: alternateEnvironment))
+                }
 
-        #expect(homeIdentity == UsageStore._activeClaudeAccountIdentityForTesting(
-            "home-account",
-            environment: homeEnvironment))
-        #expect(alternateIdentity == UsageStore._activeClaudeAccountIdentityForTesting(
-            "alternate-account",
-            environment: alternateEnvironment))
+        #expect(homeIdentity == homeExpected)
+        #expect(alternateIdentity == alternateExpected)
         #expect(homeIdentity != alternateIdentity)
         #expect(homeFingerprint?.contains(home.appendingPathComponent(".claude/.credentials.json").path) == true)
         #expect(alternateFingerprint?.contains(alternate.appendingPathComponent(".credentials.json").path) == true)
@@ -884,6 +868,105 @@ struct ClaudeActiveAccountIdentityInvalidationTests {
             try? await Task.sleep(for: .milliseconds(10))
         }
         return false
+    }
+}
+
+extension ClaudeActiveAccountIdentityInvalidationTests {
+    @Test
+    func `active account identity follows and scopes Claude config directory`() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("claude-config-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        try Data(#"{"oauthAccount":{"accountUuid":"config-account"}}"#.utf8)
+            .write(to: root.appendingPathComponent(".config.json"))
+        let environment = ["CLAUDE_CONFIG_DIR": root.path]
+
+        let (observed, expected, defaultIdentity) = ClaudeOAuthCredentialsStore
+            .withEnvironmentCredentialsURLForTesting {
+                (
+                    UsageStore._activeClaudeAccountIdentityFromEnvironmentForTesting(environment),
+                    UsageStore._activeClaudeAccountIdentityForTesting(
+                        "config-account",
+                        environment: environment),
+                    UsageStore._activeClaudeAccountIdentityForTesting("config-account"))
+            }
+
+        #expect(observed == expected)
+        #expect(observed != defaultIdentity)
+    }
+
+    @Test
+    func `same account identity remains stable when preferred config file appears`() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("claude-config-stability-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let accountData = Data(#"{"oauthAccount":{"accountUuid":"stable-account"}}"#.utf8)
+        try accountData.write(to: root.appendingPathComponent(".claude.json"))
+        let environment = ["CLAUDE_CONFIG_DIR": root.path]
+
+        let (fallbackIdentity, preferredIdentity) = try ClaudeOAuthCredentialsStore
+            .withEnvironmentCredentialsURLForTesting {
+                let fallbackIdentity = UsageStore._activeClaudeAccountIdentityFromEnvironmentForTesting(environment)
+                try accountData.write(to: root.appendingPathComponent(".config.json"))
+                return (
+                    fallbackIdentity,
+                    UsageStore._activeClaudeAccountIdentityFromEnvironmentForTesting(environment))
+            }
+
+        #expect(fallbackIdentity == preferredIdentity)
+    }
+
+    @Test(arguments: [
+        (persistedUuid: "stable-account", preservesCachedState: true),
+        (persistedUuid: "other-account", preservesCachedState: false),
+    ])
+    func `legacy identities migrate only for currently observed account`(
+        persistedUuid: String,
+        preservesCachedState: Bool) async throws
+    {
+        try await self.withMissingCredentialsFile { _ in
+            let root = FileManager.default.temporaryDirectory
+                .appendingPathComponent("claude-config-migration-\(UUID().uuidString)", isDirectory: true)
+            try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+            defer { try? FileManager.default.removeItem(at: root) }
+            let fallbackURL = root.appendingPathComponent(".claude.json")
+            let preferredURL = root.appendingPathComponent(".config.json")
+            let accountData = Data(#"{"oauthAccount":{"accountUuid":"stable-account"}}"#.utf8)
+            try accountData.write(to: fallbackURL)
+            let environment = ["CLAUDE_CONFIG_DIR": root.path]
+            let fixture = try await MainActor.run {
+                try self.makeFixture(
+                    source: .cli,
+                    outcome: Self.transientFailureOutcome(),
+                    environment: environment)
+            }
+            let legacyIdentity = UsageStore._legacyClaudeActiveAccountIdentityForTesting(
+                persistedUuid,
+                accountConfigURL: fallbackURL)
+            await MainActor.run {
+                fixture.settings.userDefaults.set(
+                    legacyIdentity,
+                    forKey: UsageStore._claudeActiveAccountIdentityDefaultsKeyForTesting(environment: environment))
+            }
+            try accountData.write(to: preferredURL)
+
+            await fixture.store.refreshProvider(.claude)
+
+            let result = await MainActor.run {
+                (
+                    snapshot: fixture.store.snapshot(for: .claude),
+                    error: fixture.store.error(for: .claude),
+                    persistedIdentity: fixture.settings.userDefaults.string(
+                        forKey: UsageStore._claudeActiveAccountIdentityDefaultsKeyForTesting(environment: environment)))
+            }
+            #expect((result.snapshot?.updatedAt == fixture.priorSnapshot.updatedAt) == preservesCachedState)
+            #expect((result.error == nil) == preservesCachedState)
+            #expect(result.persistedIdentity == UsageStore._activeClaudeAccountIdentityForTesting(
+                "stable-account",
+                environment: environment))
+        }
     }
 }
 
