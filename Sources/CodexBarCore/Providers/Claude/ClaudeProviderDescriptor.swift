@@ -523,10 +523,14 @@ struct ClaudeOAuthFetchStrategy: ProviderFetchStrategy {
         }
         if context.runtime == .app,
            context.sourceMode == .oauth,
-           let credentialsError = error as? ClaudeOAuthCredentialsError,
-           case .notFound = credentialsError
+           let credentialsError = error as? ClaudeOAuthCredentialsError
         {
-            return true
+            switch credentialsError {
+            case .notFound, .refreshDelegatedToClaudeCLI:
+                return true
+            default:
+                break
+            }
         }
         // In Auto mode, fall back to the next strategy (cli/web) when safe credentials are absent or OAuth fails.
         // Cancellation itself is always terminal.

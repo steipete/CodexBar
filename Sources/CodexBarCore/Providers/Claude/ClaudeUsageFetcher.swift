@@ -502,6 +502,14 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
                     oauthAccessToken: refreshedCredentials.accessToken)
             } catch let error where ClaudeOAuthFetchError.isCancellation(error) {
                 throw error
+            } catch let error as ClaudeOAuthCredentialsError
+                where self.shouldPreserveOwnerCLIHandoff(error)
+            {
+                // Claude still owns the expired credential, and no attributable safe source changed after its
+                // delegated refresh. Preserve the typed handoff so the app's explicit OAuth pipeline can fetch
+                // usage through the credential-owning CLI instead of trapping the user on the stale cache. Keep
+                // background recovery fail-closed so this handoff cannot introduce authentication UI.
+                throw error
             } catch {
                 ClaudeUsageFetcher.log.debug(
                     "Claude OAuth post-delegation retry failed",
@@ -526,6 +534,21 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
                     detail + " Run `claude setup-token` to re-generate credentials, or switch Claude Source to "
                         + "Web/CLI.")
             }
+        }
+
+        private func shouldPreserveOwnerCLIHandoff(_ error: ClaudeOAuthCredentialsError) -> Bool {
+            #if os(macOS)
+            guard case .refreshDelegatedToClaudeCLI = error else { return false }
+            #if DEBUG
+            // The credentials-only test loader cannot provide source/owner provenance. Only the real repository
+            // can prove that this handoff came from an unchanged Claude-owned cache.
+            guard ClaudeUsageFetcher.loadOAuthCredentialsOverride == nil else { return false }
+            #endif
+            return ProviderInteractionContext.current == .userInitiated
+            #else
+            _ = error
+            return false
+            #endif
         }
     }
 

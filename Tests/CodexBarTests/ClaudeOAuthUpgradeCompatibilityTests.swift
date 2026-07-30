@@ -20,6 +20,7 @@ struct ClaudeOAuthUpgradeCompatibilityTests {
         private var oauthTokens: [String] = []
         private var webCalls: [String] = []
         private var foreignKeychainReads: Int = 0
+        private var delegatedRefreshes: Int = 0
 
         func recordOAuthToken(_ token: String) {
             self.lock.withLock { self.oauthTokens.append(token) }
@@ -33,6 +34,10 @@ struct ClaudeOAuthUpgradeCompatibilityTests {
             self.lock.withLock { self.foreignKeychainReads += 1 }
         }
 
+        func recordDelegatedRefresh() {
+            self.lock.withLock { self.delegatedRefreshes += 1 }
+        }
+
         var recordedOAuthTokens: [String] {
             self.lock.withLock { self.oauthTokens }
         }
@@ -43,6 +48,10 @@ struct ClaudeOAuthUpgradeCompatibilityTests {
 
         var recordedForeignKeychainReads: Int {
             self.lock.withLock { self.foreignKeychainReads }
+        }
+
+        var recordedDelegatedRefreshes: Int {
+            self.lock.withLock { self.delegatedRefreshes }
         }
     }
 
@@ -313,6 +322,77 @@ struct ClaudeOAuthUpgradeCompatibilityTests {
         case let .failure(error):
             Issue.record("Expected owner-mediated Claude CLI fetch to succeed, got \(error)")
         }
+        #expect(calls.recordedOAuthTokens.isEmpty)
+        #expect(calls.recordedWebCalls.isEmpty)
+        #expect(calls.recordedForeignKeychainReads == 0)
+        #expect(Self.cliInvocations(at: cli.invocationLog).isEmpty)
+    }
+
+    @Test
+    func `expired Claude owned cache hands explicit OAuth usage to owner CLI`() async throws {
+        let root = try Self.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let cli = try Self.makeFakeClaudeCLI(in: root)
+        let missingCredentials = root.appendingPathComponent("missing-credentials.json")
+        let environment = ["CLAUDE_CLI_PATH": cli.executable.path]
+        let context = try self.makePersistedOAuthContext(
+            suite: "ClaudeOAuthUpgradeCompatibilityTests-expired-owner-cache",
+            environment: environment)
+        let descriptor = ProviderDescriptorRegistry.descriptor(for: .claude)
+        let calls = CallLog()
+        let cliUsage: @Sendable (String, TimeInterval, Bool) async throws -> ClaudeStatusSnapshot = { binary, _, _ in
+            #expect(binary == cli.executable.path)
+            return Self.makeCLIUsageSnapshot()
+        }
+        let delegatedRefresh: @Sendable (
+            Date,
+            TimeInterval,
+            [String: String]) async -> ClaudeOAuthDelegatedRefreshCoordinator.Outcome = { _, _, _ in
+            calls.recordDelegatedRefresh()
+            return .attemptedSucceeded
+        }
+
+        let outcome = try await ProviderInteractionContext.$current.withValue(.userInitiated) {
+            try await ClaudeStatusProbe.$fetchOverride.withValue(cliUsage) {
+                try await ClaudeUsageFetcher.$delegatedRefreshAttemptOverride.withValue(delegatedRefresh) {
+                    try await Self.withIsolatedCredentialState(credentialsURLOverride: missingCredentials) {
+                        let profileIdentifier = ClaudeOAuthCredentialsStore.credentialsProfileIdentifier(
+                            environment: environment)
+                        let cacheKey = KeychainCacheStore.Key.oauth(provider: .claude)
+                        KeychainCacheStore.store(
+                            key: cacheKey,
+                            entry: ClaudeOAuthCredentialsStore.CacheEntry(
+                                data: Self.makeCredentialsData(
+                                    accessToken: "expired-owner-token",
+                                    expiresAt: Date(timeIntervalSinceNow: -3600)),
+                                storedAt: Date(),
+                                owner: .claudeCLI,
+                                profileIdentifier: profileIdentifier))
+                        defer { KeychainCacheStore.clear(key: cacheKey) }
+
+                        return try await Self.withForeignKeychainTripwires(calls: calls) {
+                            await Self.withWebTripwires(calls: calls) {
+                                await descriptor.fetchOutcome(context: context)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        #expect(outcome.attempts.map(\.strategyID) == ["claude.oauth", "claude.cli"])
+        #expect(outcome.attempts.map(\.wasAvailable) == [true, true])
+        #expect(outcome.attempts.first?.errorDescription?.contains("delegated to Claude CLI") == true)
+        switch outcome.result {
+        case let .success(result):
+            #expect(result.strategyID == "claude.cli")
+            #expect(result.sourceLabel == "claude")
+            #expect(result.usage.primary?.usedPercent == 12)
+            #expect(result.usage.secondary?.usedPercent == 40)
+        case let .failure(error):
+            Issue.record("Expected expired Claude-owned cache to route through the owner CLI, got \(error)")
+        }
+        #expect(calls.recordedDelegatedRefreshes == 1)
         #expect(calls.recordedOAuthTokens.isEmpty)
         #expect(calls.recordedWebCalls.isEmpty)
         #expect(calls.recordedForeignKeychainReads == 0)
@@ -1070,8 +1150,11 @@ struct ClaudeOAuthUpgradeCompatibilityTests {
         }
     }
 
-    private nonisolated static func makeCredentialsData(accessToken: String) -> Data {
-        let expiresAt = Int(Date(timeIntervalSinceNow: 3600).timeIntervalSince1970 * 1000)
+    private nonisolated static func makeCredentialsData(
+        accessToken: String,
+        expiresAt: Date = Date(timeIntervalSinceNow: 3600)) -> Data
+    {
+        let expiresAt = Int(expiresAt.timeIntervalSince1970 * 1000)
         return Data("""
         {
           "claudeAiOauth": {
