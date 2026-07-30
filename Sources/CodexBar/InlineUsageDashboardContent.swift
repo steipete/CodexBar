@@ -212,7 +212,7 @@ extension UsageMenuCardView.Model {
         if [.codex, .claude, .vertexai, .bedrock, .cursor, .opencodego, .grok, .openai, .mistral, .groq]
             .contains(provider)
         {
-            return Self.codexStyleChartBarColor
+            return self.codexStyleChartBarColor
         }
         let color = ProviderDescriptorRegistry.descriptor(for: provider).branding.color
         return Color(red: color.red, green: color.green, blue: color.blue)
@@ -530,7 +530,7 @@ extension UsageMenuCardView.Model {
                     UsageFormatter.tokenCountString(cache),
                     UsageFormatter.tokenCountString(output)))
             }
-            let daysWithCost = snapshot.daily.filter { ($0.costUSD ?? 0) > 0 }.count
+            let daysWithCost = snapshot.daily.count(where: { ($0.costUSD ?? 0) > 0 })
             details.append(String(
                 format: L("Cost reported on %d/%d days"),
                 daysWithCost,
@@ -545,7 +545,7 @@ extension UsageMenuCardView.Model {
                 details
                     .append("\(requestHistoryTitle): \(UsageFormatter.tokenCountString(requestCount)) \(L("requests"))")
             }
-            if provider != .codex && provider != .grok {
+            if provider != .codex, provider != .grok {
                 let hintLines = Self.tokenUsageHintLines(provider: provider)
                 if hintLines.isEmpty == false {
                     details.append(contentsOf: hintLines)
@@ -625,7 +625,7 @@ extension UsageMenuCardView.Model {
         if provider == .grok { return true }
         let days = snapshot.daily
         guard !days.isEmpty else { return false }
-        let withCost = days.filter { ($0.costUSD ?? 0) > 0 }.count
+        let withCost = days.count(where: { ($0.costUSD ?? 0) > 0 })
         return withCost == 0
     }
 
@@ -689,12 +689,14 @@ extension UsageMenuCardView.Model {
     {
         if plotTokens {
             let tokens = entry.totalTokens ?? 0
-            let costNote = entry.costUSD.map {
-                " · \(UsageFormatter.convertedCostString(
-                    $0,
+            let costNote: String = {
+                guard let cost = entry.costUSD else { return "" }
+                let formatted = UsageFormatter.convertedCostString(
+                    cost,
                     preferredCurrency: preferredCurrencyCode,
-                    providerCurrency: providerCurrencyCode))"
-            } ?? ""
+                    providerCurrency: providerCurrencyCode)
+                return " · \(formatted)"
+            }()
             return InlineUsageDashboardModel.Point(
                 id: entry.date,
                 label: Self.shortDayLabel(entry.date),
@@ -706,14 +708,15 @@ extension UsageMenuCardView.Model {
             cost,
             preferredCurrency: preferredCurrencyCode,
             providerCurrency: providerCurrencyCode)
+        let costString = UsageFormatter.convertedCostString(
+            cost,
+            preferredCurrency: preferredCurrencyCode,
+            providerCurrency: providerCurrencyCode)
         return InlineUsageDashboardModel.Point(
             id: entry.date,
             label: Self.shortDayLabel(entry.date),
             value: converted.value,
-            accessibilityValue: "\(entry.date): \(UsageFormatter.convertedCostString(
-                cost,
-                preferredCurrency: preferredCurrencyCode,
-                providerCurrency: providerCurrencyCode))")
+            accessibilityValue: "\(entry.date): \(costString)")
     }
 
     private static func dateFromDayKey(_ key: String) -> Date? {

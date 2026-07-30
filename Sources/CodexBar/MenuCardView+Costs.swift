@@ -313,7 +313,7 @@ extension UsageMenuCardView.Model {
             }
             lines.append(String(format: L("Top projects: %@"), parts.joined(separator: " · ")))
         }
-        let daysWithCost = snapshot.daily.filter { ($0.costUSD ?? 0) > 0 }.count
+        let daysWithCost = snapshot.daily.count(where: { ($0.costUSD ?? 0) > 0 })
         if daysWithCost < snapshot.daily.count {
             lines.append(String(
                 format: L("Cost reported on %d/%d days"),

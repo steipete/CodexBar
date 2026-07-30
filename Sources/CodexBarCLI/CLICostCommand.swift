@@ -70,7 +70,9 @@ extension CodexBarCLI {
         var payload: [CostPayload] = []
         var exitCode: ExitCode = .success
 
-        for provider in providers where groupBy != .project || provider == .codex || provider == .grok || format == .json {
+        for provider in providers
+            where groupBy != .project || provider == .codex || provider == .grok || format == .json
+        {
             if let error = Self.cursorCostAvailabilityError(
                 provider,
                 settings: cursorCookieSettings,
@@ -140,7 +142,7 @@ extension CodexBarCLI {
         useColor: Bool) -> String
     {
         let name = ProviderDescriptorRegistry.descriptor(for: provider).metadata.displayName
-        let title: String = switch provider {
+        let title = switch provider {
         case .codex:
             "\(name) API-equivalent estimate (not billed)"
         case .grok:
@@ -211,7 +213,7 @@ extension CodexBarCLI {
             if !snapshot.sessions.isEmpty {
                 extraLines.append("Sessions: \(snapshot.sessions.count)")
             }
-            let daysWithCost = snapshot.daily.filter { ($0.costUSD ?? 0) > 0 }.count
+            let daysWithCost = snapshot.daily.count(where: { ($0.costUSD ?? 0) > 0 })
             extraLines.append("Cost reported on \(daysWithCost)/\(snapshot.daily.count) days")
             extraLines.append("Daily:")
             for entry in snapshot.daily.sorted(by: { $0.date < $1.date }) {

@@ -102,7 +102,7 @@ struct CostHistoryChartMenuView: View {
                             x: .value(L("Day"), point.date, unit: .day),
                             y: .value(model.yAxisTitle, point.chartValue))
                             // Match Codex cost-chart bar width / gap feel.
-                            .foregroundStyle(model.barColor)
+                                .foregroundStyle(model.barColor)
                     }
                     if let peak = Self.peakPoint(model: model) {
                         let capStart = max(peak.chartValue - Self.capHeight(maxValue: model.maxChartValue), 0)
@@ -115,8 +115,8 @@ struct CostHistoryChartMenuView: View {
                 }
                 // Leave headroom above the tallest bar (Codex charts read less cramped at the top).
                 .chartYScale(domain: 0...(model.maxChartValue > 0
-                    ? model.maxChartValue * Self.yAxisHeadroom
-                    : 1))
+                        ? model.maxChartValue * Self.yAxisHeadroom
+                        : 1))
                 .chartYAxis {
                     AxisMarks(
                         position: .leading,
@@ -1071,8 +1071,8 @@ struct CostHistoryChartMenuView: View {
             if value >= 1_000_000 {
                 return String(format: "%.1fM", value / 1_000_000)
             }
-            if value >= 1_000 {
-                return String(format: "%.0fK", value / 1_000)
+            if value >= 1000 {
+                return String(format: "%.0fK", value / 1000)
             }
             return String(format: "%.0f", value)
         }

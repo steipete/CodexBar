@@ -11,7 +11,7 @@ public enum GrokTurnUsageScanner {
         public var sessionsRoot: URL?
         public var environment: [String: String]
         /// Not Sendable; kept only for local filesystem reads (same pattern as other scanners).
-        nonisolated(unsafe) public var fileManager: FileManager
+        public nonisolated(unsafe) var fileManager: FileManager
 
         public init(
             sessionsRoot: URL? = nil,
@@ -22,6 +22,19 @@ public enum GrokTurnUsageScanner {
             self.environment = environment
             self.fileManager = fileManager
         }
+    }
+
+    /// Per-model usage nested under a turn's `modelUsage` map.
+    struct ModelUsage: Sendable, Equatable {
+        let modelName: String
+        /// Uncached input tokens (full input − cache read) for this model.
+        let inputTokens: Int
+        let cacheReadTokens: Int
+        let outputTokens: Int
+        let reasoningTokens: Int
+        let totalTokens: Int
+        let modelCalls: Int
+        let costUSD: Double?
     }
 
     struct TurnRecord: Sendable, Equatable {
@@ -38,7 +51,12 @@ public enum GrokTurnUsageScanner {
         let totalTokens: Int
         let modelCalls: Int
         let costUSD: Double?
-        let models: [String]
+        /// Nested per-model totals from `modelUsage` (empty when the payload only has turn totals).
+        let modelUsages: [ModelUsage]
+
+        var models: [String] {
+            self.modelUsages.map(\.modelName)
+        }
     }
 
     // MARK: - Public
@@ -203,10 +221,7 @@ public enum GrokTurnUsageScanner {
             return Double(ticks) / self.costUsdTicksPerDollar
         }()
 
-        var models: [String] = []
-        if let modelUsage = usage["modelUsage"] as? [String: Any] {
-            models = modelUsage.keys.sorted()
-        }
+        let modelUsages = self.parseModelUsages(from: usage["modelUsage"] as? [String: Any])
 
         let meta = params["_meta"] as? [String: Any] ?? [:]
         let promptID = update["prompt_id"] as? String
@@ -233,7 +248,65 @@ public enum GrokTurnUsageScanner {
             totalTokens: total,
             modelCalls: modelCalls,
             costUSD: costUSD,
-            models: models)
+            modelUsages: modelUsages)
+    }
+
+    /// Parse nested `modelUsage` entries so multi-model turns keep separate token/cost totals.
+    private static func parseModelUsages(from modelUsage: [String: Any]?) -> [ModelUsage] {
+        guard let modelUsage, !modelUsage.isEmpty else { return [] }
+        return modelUsage.keys.sorted().compactMap { name in
+            guard let payload = modelUsage[name] as? [String: Any] else {
+                // Key present without nested fields — treat as a named model with zero usage.
+                return ModelUsage(
+                    modelName: name,
+                    inputTokens: 0,
+                    cacheReadTokens: 0,
+                    outputTokens: 0,
+                    reasoningTokens: 0,
+                    totalTokens: 0,
+                    modelCalls: 0,
+                    costUSD: nil)
+            }
+            let inputFull = self.intValue(payload["inputTokens"]) ?? 0
+            let cacheRead = self.intValue(payload["cachedReadTokens"]) ?? 0
+            let output = self.intValue(payload["outputTokens"]) ?? 0
+            let reasoning = self.intValue(payload["reasoningTokens"]) ?? 0
+            let total = self.intValue(payload["totalTokens"]) ?? (inputFull + output)
+            let calls = self.intValue(payload["modelCalls"]) ?? 1
+            let costUSD: Double? = {
+                guard let ticks = self.intValue(payload["costUsdTicks"]) else { return nil }
+                return Double(ticks) / self.costUsdTicksPerDollar
+            }()
+            return ModelUsage(
+                modelName: name,
+                inputTokens: max(inputFull - cacheRead, 0),
+                cacheReadTokens: cacheRead,
+                outputTokens: output,
+                reasoningTokens: reasoning,
+                totalTokens: total,
+                modelCalls: calls,
+                costUSD: costUSD)
+        }
+    }
+
+    /// Attribute nested model totals when present; otherwise fall back to whole-turn totals.
+    private static func modelContributions(for turn: TurnRecord)
+        -> [(name: String, tokens: Int, cost: Double?, requests: Int)]
+    {
+        if turn.modelUsages.isEmpty {
+            return [(
+                name: "unknown",
+                tokens: turn.totalTokens,
+                cost: turn.costUSD,
+                requests: max(turn.modelCalls, 1))]
+        }
+        return turn.modelUsages.map { usage in
+            (
+                name: usage.modelName,
+                tokens: usage.totalTokens,
+                cost: usage.costUSD,
+                requests: max(usage.modelCalls, 1))
+        }
     }
 
     private static func parseTimestamp(root: [String: Any], meta: [String: Any]) -> Date? {
@@ -313,16 +386,17 @@ public enum GrokTurnUsageScanner {
                 bucket.cost += cost
                 bucket.sawCost = true
             }
-            let primaryModel = turn.models.first ?? "unknown"
-            bucket.models.insert(primaryModel)
-            var m = bucket.modelTotals[primaryModel] ?? (0, 0, false, 0)
-            m.tokens += turn.totalTokens
-            m.requests += max(turn.modelCalls, 1)
-            if let cost = turn.costUSD {
-                m.cost += cost
-                m.sawCost = true
+            for contribution in self.modelContributions(for: turn) {
+                bucket.models.insert(contribution.name)
+                var m = bucket.modelTotals[contribution.name] ?? (0, 0, false, 0)
+                m.tokens += contribution.tokens
+                m.requests += contribution.requests
+                if let cost = contribution.cost {
+                    m.cost += cost
+                    m.sawCost = true
+                }
+                bucket.modelTotals[contribution.name] = m
             }
-            bucket.modelTotals[primaryModel] = m
             days[turn.dayKey] = bucket
         }
 
@@ -387,15 +461,16 @@ public enum GrokTurnUsageScanner {
                 b.cost += cost
                 b.sawCost = true
             }
-            let model = turn.models.first ?? "unknown"
-            var m = b.modelTotals[model] ?? (0, 0, false, 0)
-            m.tokens += turn.totalTokens
-            m.requests += max(turn.modelCalls, 1)
-            if let cost = turn.costUSD {
-                m.cost += cost
-                m.sawCost = true
+            for contribution in self.modelContributions(for: turn) {
+                var m = b.modelTotals[contribution.name] ?? (0, 0, false, 0)
+                m.tokens += contribution.tokens
+                m.requests += contribution.requests
+                if let cost = contribution.cost {
+                    m.cost += cost
+                    m.sawCost = true
+                }
+                b.modelTotals[contribution.name] = m
             }
-            b.modelTotals[model] = m
             sessions[turn.sessionID] = b
         }
 
@@ -443,15 +518,16 @@ public enum GrokTurnUsageScanner {
                 b.sawCost = true
             }
             b.dayTurns.append(turn)
-            let model = turn.models.first ?? "unknown"
-            var m = b.modelTotals[model] ?? (0, 0, false, 0)
-            m.tokens += turn.totalTokens
-            m.requests += max(turn.modelCalls, 1)
-            if let cost = turn.costUSD {
-                m.cost += cost
-                m.sawCost = true
+            for contribution in self.modelContributions(for: turn) {
+                var m = b.modelTotals[contribution.name] ?? (0, 0, false, 0)
+                m.tokens += contribution.tokens
+                m.requests += contribution.requests
+                if let cost = contribution.cost {
+                    m.cost += cost
+                    m.sawCost = true
+                }
+                b.modelTotals[contribution.name] = m
             }
-            b.modelTotals[model] = m
             projects[key] = b
         }
 
