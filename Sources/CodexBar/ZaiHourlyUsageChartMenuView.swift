@@ -4,6 +4,7 @@ import SwiftUI
 @MainActor
 struct ZaiHourlyUsageChartMenuView: View {
     private let modelUsage: ZaiModelUsageData
+    private let dailyModelUsage: ZaiModelUsageData?
     private let width: CGFloat
 
     @State private var selectedRange: RangeOption = .today
@@ -13,6 +14,8 @@ struct ZaiHourlyUsageChartMenuView: View {
     private enum RangeOption: Int, CaseIterable {
         case today = 0
         case last24h = 1
+        case last7d = 2
+        case last30d = 3
     }
 
     private let barHeight: CGFloat = 60
@@ -28,8 +31,9 @@ struct ZaiHourlyUsageChartMenuView: View {
         Color(red: 255 / 255, green: 55 / 255, blue: 95 / 255),
     ]
 
-    init(modelUsage: ZaiModelUsageData, width: CGFloat) {
+    init(modelUsage: ZaiModelUsageData, dailyModelUsage: ZaiModelUsageData?, width: CGFloat) {
         self.modelUsage = modelUsage
+        self.dailyModelUsage = dailyModelUsage
         self.width = width
     }
 
@@ -37,11 +41,15 @@ struct ZaiHourlyUsageChartMenuView: View {
         switch self.selectedRange {
         case .today: .today(referenceDate: Date())
         case .last24h: .last24h
+        case .last7d: .last7d
+        case .last30d: .last30d
         }
     }
 
     private var bars: [ZaiHourlyBar] {
-        ZaiHourlyBars.from(modelData: self.modelUsage, range: self.range)
+        // Daily ranges read the wide-window daily dataset; hourly ranges read the 1-day dataset.
+        let data = self.range.isDaily ? (self.dailyModelUsage ?? self.modelUsage) : self.modelUsage
+        return ZaiHourlyBars.from(modelData: data, range: self.range)
     }
 
     private var modelNames: [String] {
@@ -133,6 +141,8 @@ struct ZaiHourlyUsageChartMenuView: View {
         {
             Text(L("Today")).tag(RangeOption.today.rawValue)
             Text("24h").tag(RangeOption.last24h.rawValue)
+            Text("7d").tag(RangeOption.last7d.rawValue)
+            Text("30d").tag(RangeOption.last30d.rawValue)
         }
         .pickerStyle(.segmented)
         .frame(width: 100)

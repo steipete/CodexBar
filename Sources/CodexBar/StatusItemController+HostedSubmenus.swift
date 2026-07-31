@@ -348,11 +348,19 @@ extension StatusItemController {
     }
 
     private func zaiHourlyUsageRenderSignature(for provider: UsageProvider) -> String {
-        guard let modelUsage = self.store.snapshot(for: provider)?.zaiUsage?.modelUsage else { return "none" }
-        return Self.zaiHourlyUsageRenderSignature(modelUsage: modelUsage, now: Date())
+        guard let zai = self.store.snapshot(for: provider)?.zaiUsage,
+              let modelUsage = zai.modelUsage else { return "none" }
+        return Self.zaiHourlyUsageRenderSignature(
+            modelUsage: modelUsage,
+            dailyModelUsage: zai.dailyModelUsage,
+            now: Date())
     }
 
-    static func zaiHourlyUsageRenderSignature(modelUsage: ZaiModelUsageData, now: Date) -> String {
+    static func zaiHourlyUsageRenderSignature(
+        modelUsage: ZaiModelUsageData,
+        dailyModelUsage: ZaiModelUsageData? = nil,
+        now: Date) -> String
+    {
         let models = modelUsage.modelDataList
             .map { model in
                 let usage = model.tokensUsage
@@ -361,10 +369,11 @@ extension StatusItemController {
                 return "\(model.modelName ?? "")=\(usage)"
             }
             .joined(separator: ";")
-        let ranges: [ZaiHourlyRange] = [.today(referenceDate: now), .last24h]
+        let ranges: [ZaiHourlyRange] = [.today(referenceDate: now), .last24h, .last7d, .last30d]
         let visibleBars = ranges
             .map { range in
-                ZaiHourlyBars.from(modelData: modelUsage, range: range, now: now)
+                let data = range.isDaily ? (dailyModelUsage ?? modelUsage) : modelUsage
+                return ZaiHourlyBars.from(modelData: data, range: range, now: now)
                     .map { bar in
                         let segments = bar.segments
                             .map { "\($0.model)=\($0.tokens)" }
@@ -375,6 +384,7 @@ extension StatusItemController {
             }
         return [
             modelUsage.xTime.joined(separator: ","),
+            dailyModelUsage?.xTime.joined(separator: ",") ?? "",
             models,
             visibleBars.joined(separator: "|"),
         ].joined(separator: "|")
@@ -634,7 +644,10 @@ extension StatusItemController {
             return true
         }
 
-        let chartView = ZaiHourlyUsageChartMenuView(modelUsage: modelUsage, width: width)
+        let chartView = ZaiHourlyUsageChartMenuView(
+            modelUsage: modelUsage,
+            dailyModelUsage: snapshot.zaiUsage?.dailyModelUsage,
+            width: width)
         let hosting = MenuHostingView(rootView: chartView)
         hosting.frame = NSRect(
             origin: .zero,
