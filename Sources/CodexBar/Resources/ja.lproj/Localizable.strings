@@ -613,6 +613,9 @@
 "multi_account_layout_segmented" = "セグメント";
 "multi_account_layout_stacked" = "スタック";
 "overview_tab_providers_title" = "概要タブのプロバイダ";
+"overview_compact_title" = "コンパクトな概要";
+"overview_compact_subtitle" = "プロバイダ名と使用量バーを省スペースのレイアウトで表示します。";
+"overview_compact_no_bars" = "使用量バーはありません";
 "configure" = "設定…";
 "overview_enable_merge_icons_hint" = "概要タブのプロバイダを設定するには「アイコンを統合」を有効にしてください。";
 "overview_no_providers_hint" = "概要に使用できる有効なプロバイダがありません。";

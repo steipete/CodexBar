@@ -624,6 +624,9 @@
 "multi_account_layout_segmented" = "Segmentato";
 "multi_account_layout_stacked" = "Impilato";
 "overview_tab_providers_title" = "Provider della scheda Panoramica";
+"overview_compact_title" = "Panoramica compatta";
+"overview_compact_subtitle" = "Mostra i nomi dei provider e le barre di utilizzo in un layout salvaspazio.";
+"overview_compact_no_bars" = "Nessuna barra di utilizzo";
 "configure" = "Configura…";
 "overview_enable_merge_icons_hint" = "Abilita Unisci icone per configurare i provider della scheda Panoramica.";
 "overview_no_providers_hint" = "Nessun provider attivo disponibile per Panoramica.";

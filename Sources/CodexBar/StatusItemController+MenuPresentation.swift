@@ -142,6 +142,9 @@ struct MenuCardRowPayload {
     let allowsMenuHighlight: Bool
     let containsInteractiveControls: Bool
     let usesGPUSelection: Bool
+    let layoutDirection: LayoutDirection? = nil
+    let accessibilityLabel: String? = nil
+    let accessibilityHelp: String? = nil
     let onClick: (() -> Void)?
 }
 
@@ -210,6 +213,7 @@ final class MenuRowContainerView: NSView, MenuCardHighlighting, MenuCardMeasurin
         self.hosting.wantsLayer = true
         self.hosting.autoresizingMask = [.width, .height]
         self.addSubview(self.hosting)
+        self.applyAccessibilityPayload()
         self.configureSelectionMode(animated: false)
     }
 
@@ -233,6 +237,7 @@ final class MenuRowContainerView: NSView, MenuCardHighlighting, MenuCardMeasurin
             highlightState: self.highlightState,
             refreshMonitor: refreshMonitor,
             interactiveRegionStore: self.interactiveRegionStore)
+        self.applyAccessibilityPayload()
         self.configureSelectionMode(animated: false)
         self.invalidateIntrinsicContentSize()
     }
@@ -491,11 +496,17 @@ final class MenuRowContainerView: NSView, MenuCardHighlighting, MenuCardMeasurin
             showsSubmenuIndicator: payload.showsSubmenuIndicator,
             submenuIndicatorAlignment: payload.submenuIndicatorAlignment,
             submenuIndicatorTopPadding: payload.submenuIndicatorTopPadding,
+            layoutDirection: payload.layoutDirection,
             refreshMonitor: refreshMonitor,
             interactiveRegionStore: interactiveRegionStore)
         {
             payload.content
         }
+    }
+
+    private func applyAccessibilityPayload() {
+        self.setAccessibilityLabel(self.rowPayload.accessibilityLabel)
+        self.setAccessibilityHelp(self.rowPayload.accessibilityHelp)
     }
 
     private func primaryPressDecision(for event: NSEvent) -> Bool? {
@@ -814,15 +825,18 @@ struct MenuCardSectionContainerView<Content: View>: View {
     let showsSubmenuIndicator: Bool
     let submenuIndicatorAlignment: Alignment
     let submenuIndicatorTopPadding: CGFloat
+    let layoutDirectionOverride: LayoutDirection?
     var refreshMonitor: MenuCardRefreshMonitor?
     var interactiveRegionStore: MenuCardInteractiveRegionStore?
     @ViewBuilder let content: () -> Content
+    @Environment(\.layoutDirection) private var inheritedLayoutDirection
 
     init(
         highlightState: MenuCardHighlightState,
         showsSubmenuIndicator: Bool,
         submenuIndicatorAlignment: Alignment,
         submenuIndicatorTopPadding: CGFloat,
+        layoutDirection: LayoutDirection? = nil,
         refreshMonitor: MenuCardRefreshMonitor?,
         interactiveRegionStore: MenuCardInteractiveRegionStore? = nil,
         @ViewBuilder content: @escaping () -> Content)
@@ -831,6 +845,7 @@ struct MenuCardSectionContainerView<Content: View>: View {
         self.showsSubmenuIndicator = showsSubmenuIndicator
         self.submenuIndicatorAlignment = submenuIndicatorAlignment
         self.submenuIndicatorTopPadding = submenuIndicatorTopPadding
+        self.layoutDirectionOverride = layoutDirection
         self.refreshMonitor = refreshMonitor
         self.interactiveRegionStore = interactiveRegionStore
         self.content = content
@@ -855,13 +870,22 @@ struct MenuCardSectionContainerView<Content: View>: View {
             }
             .overlay(alignment: self.submenuIndicatorAlignment) {
                 if self.showsSubmenuIndicator {
-                    Image(systemName: "chevron.right")
+                    Image(systemName: Self.submenuIndicatorSystemName(for: self.effectiveLayoutDirection))
                         .font(.caption2.weight(.semibold))
                         .foregroundStyle(MenuHighlightStyle.secondary(self.highlightState.isHighlighted))
                         .padding(.top, self.submenuIndicatorTopPadding)
                         .padding(.trailing, 10)
                 }
             }
+            .environment(\.layoutDirection, self.effectiveLayoutDirection)
+    }
+
+    private var effectiveLayoutDirection: LayoutDirection {
+        self.layoutDirectionOverride ?? self.inheritedLayoutDirection
+    }
+
+    static func submenuIndicatorSystemName(for layoutDirection: LayoutDirection) -> String {
+        layoutDirection == .rightToLeft ? "chevron.left" : "chevron.right"
     }
 }
 

@@ -624,6 +624,9 @@
 "multi_account_layout_segmented" = "Segmentowy";
 "multi_account_layout_stacked" = "Ułożony";
 "overview_tab_providers_title" = "Dostawcy zakładki Przegląd";
+"overview_compact_title" = "Kompaktowy przegląd";
+"overview_compact_subtitle" = "Pokazuj nazwy dostawców i paski użycia w układzie oszczędzającym miejsce.";
+"overview_compact_no_bars" = "Brak pasków użycia";
 "configure" = "Skonfiguruj…";
 "overview_enable_merge_icons_hint" = "Włącz Scal ikony, aby skonfigurować dostawców zakładki Przegląd.";
 "overview_no_providers_hint" = "Brak włączonych dostawców dla Przeglądu.";

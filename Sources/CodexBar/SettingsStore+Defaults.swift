@@ -748,6 +748,14 @@ extension SettingsStore {
         }
     }
 
+    var mergedOverviewUsesCompactLayout: Bool {
+        get { self.defaultsState.mergedOverviewUsesCompactLayout }
+        set {
+            self.defaultsState.mergedOverviewUsesCompactLayout = newValue
+            self.userDefaults.set(newValue, forKey: "mergedOverviewUsesCompactLayout")
+        }
+    }
+
     var switcherShowsIcons: Bool {
         get { self.defaultsState.switcherShowsIcons }
         set {

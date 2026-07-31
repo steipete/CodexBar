@@ -600,6 +600,9 @@
 "multi_account_layout_segmented" = "Segmentat";
 "multi_account_layout_stacked" = "Apilat";
 "overview_tab_providers_title" = "Proveïdors de la pestanya Resum";
+"overview_compact_title" = "Resum compacte";
+"overview_compact_subtitle" = "Mostra els noms dels proveïdors i les barres d’ús en un disseny que estalvia espai.";
+"overview_compact_no_bars" = "No hi ha barres d’ús";
 "configure" = "Configureu…";
 "overview_enable_merge_icons_hint" = "Activeu Combina les icones per configurar els proveïdors de la pestanya Resum.";
 "overview_no_providers_hint" = "No hi ha proveïdors activats disponibles per al Resum.";

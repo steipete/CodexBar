@@ -614,6 +614,9 @@
 "multi_account_layout_segmented" = "Segmentiert";
 "multi_account_layout_stacked" = "Gestapelt";
 "overview_tab_providers_title" = "Anbieter von Übersichtsregisterkarten";
+"overview_compact_title" = "Kompakte Übersicht";
+"overview_compact_subtitle" = "Zeigt Anbieternamen und Nutzungsbalken in einem platzsparenden Layout.";
+"overview_compact_no_bars" = "Keine Nutzungsbalken";
 "configure" = "Konfigurieren…";
 "overview_enable_merge_icons_hint" = "Aktivieren Sie \"Symbole zusammenführen\", um Anbieter für die Registerkarte \"Übersicht\" zu konfigurieren.";
 "overview_no_providers_hint" = "Für die Übersicht sind keine aktivierten Anbieter verfügbar.";

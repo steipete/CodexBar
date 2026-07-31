@@ -7,7 +7,8 @@ extension StatusItemController {
     func menuCardWidth(
         for providers: [UsageProvider],
         selectedProvider: UsageProvider?,
-        descriptor: MenuDescriptor) -> CGFloat
+        descriptor: MenuDescriptor,
+        usesCompactOverview: Bool = false) -> CGFloat
     {
         let sectionSets: [[MenuDescriptor.Section]] = if self.shouldMergeIcons, providers.count > 1 {
             providers.map { provider in
@@ -21,7 +22,9 @@ extension StatusItemController {
         } else {
             [descriptor.sections]
         }
-        return self.measuredMenuCardWidth(for: sectionSets)
+        let measuredWidth = self.measuredMenuCardWidth(for: sectionSets)
+        guard usesCompactOverview else { return measuredWidth }
+        return max(measuredWidth, CompactOverviewColumnLayout.minimumMenuWidth)
     }
 
     func measuredMenuCardWidth(for sectionSets: [[MenuDescriptor.Section]]) -> CGFloat {

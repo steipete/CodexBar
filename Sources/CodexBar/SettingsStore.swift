@@ -524,6 +524,8 @@ extension SettingsStore {
         }
         let jetbrainsIDEBasePath = userDefaults.string(forKey: "jetbrainsIDEBasePath") ?? ""
         let mergeIcons = userDefaults.object(forKey: "mergeIcons") as? Bool ?? true
+        let mergedOverviewUsesCompactLayout = userDefaults.object(
+            forKey: "mergedOverviewUsesCompactLayout") as? Bool ?? false
         let switcherShowsIcons = userDefaults.object(forKey: "switcherShowsIcons") as? Bool ?? true
         let mergedMenuLastSelectedWasOverview = userDefaults.object(
             forKey: "mergedMenuLastSelectedWasOverview") as? Bool ?? false
@@ -611,6 +613,7 @@ extension SettingsStore {
             providerStorageFootprintsEnabled: providerStorageFootprintsEnabled,
             jetbrainsIDEBasePath: jetbrainsIDEBasePath,
             mergeIcons: mergeIcons,
+            mergedOverviewUsesCompactLayout: mergedOverviewUsesCompactLayout,
             switcherShowsIcons: switcherShowsIcons,
             mergedMenuLastSelectedWasOverview: mergedMenuLastSelectedWasOverview,
             mergedOverviewSelectedProvidersRaw: mergedOverviewSelectedProvidersRaw,

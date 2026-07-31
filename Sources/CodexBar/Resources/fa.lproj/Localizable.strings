@@ -622,6 +622,9 @@
 "multi_account_layout_segmented" = "بخش بندی شده";
 "multi_account_layout_stacked" = "انباشته شده";
 "overview_tab_providers_title" = "ارائه دهندگان تب مرور کلی";
+"overview_compact_title" = "نمای کلی فشرده";
+"overview_compact_subtitle" = "نام ارائه‌دهندگان و نوارهای مصرف را در چیدمانی کم‌جا نشان می‌دهد.";
+"overview_compact_no_bars" = "نوار مصرفی وجود ندارد";
 "configure" = "پیکربندی کن...";
 "overview_enable_merge_icons_hint" = "فعال سازی Merge Icons برای پیکربندی ارائه دهندگان تب نمای کلی.";
 "overview_no_providers_hint" = "هیچ ارائه دهنده فعالی برای مرور کلی در دسترس نیست.";

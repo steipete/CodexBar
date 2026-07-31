@@ -6,6 +6,10 @@ struct MenuPane: View {
     @Bindable var settings: SettingsStore
     @Bindable var store: UsageStore
 
+    static func compactOverviewAvailable(mergeIcons: Bool) -> Bool {
+        mergeIcons
+    }
+
     var body: some View {
         Form {
             Section {
@@ -45,6 +49,13 @@ struct MenuPane: View {
             }
 
             Section {
+                Toggle(isOn: self.$settings.mergedOverviewUsesCompactLayout) {
+                    SettingsRowLabel(
+                        L("overview_compact_title"),
+                        subtitle: L("overview_compact_subtitle"))
+                }
+                .disabled(!Self.compactOverviewAvailable(mergeIcons: self.settings.mergeIcons))
+
                 Toggle(L("show_provider_changelog_links_title"), isOn: self.$settings.providerChangelogLinksEnabled)
 
                 Toggle(isOn: self.$settings.showOptionalCreditsAndExtraUsage) {

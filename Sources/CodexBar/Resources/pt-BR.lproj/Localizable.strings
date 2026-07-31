@@ -613,6 +613,9 @@
 "multi_account_layout_segmented" = "Segmentado";
 "multi_account_layout_stacked" = "Empilhado";
 "overview_tab_providers_title" = "Provedores da aba Visão geral";
+"overview_compact_title" = "Visão geral compacta";
+"overview_compact_subtitle" = "Mostre nomes de provedores e barras de uso em um layout que economiza espaço.";
+"overview_compact_no_bars" = "Sem barras de uso";
 "configure" = "Configurar…";
 "overview_enable_merge_icons_hint" = "Ative Mesclar Ícones para configurar provedores da aba Visão geral.";
 "overview_no_providers_hint" = "Nenhum provedor ativado disponível para Visão geral.";

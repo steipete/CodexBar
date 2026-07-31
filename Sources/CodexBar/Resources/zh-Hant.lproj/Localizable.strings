@@ -615,6 +615,9 @@
 "multi_account_layout_segmented" = "分段";
 "multi_account_layout_stacked" = "堆疊";
 "overview_tab_providers_title" = "概覽標籤提供者";
+"overview_compact_title" = "精簡概覽";
+"overview_compact_subtitle" = "以節省空間的版面顯示提供者名稱和用量列。";
+"overview_compact_no_bars" = "沒有用量列";
 "configure" = "設定…";
 "overview_enable_merge_icons_hint" = "啟用「合併圖示」以設定「概覽」標籤中的提供者。";
 "overview_no_providers_hint" = "「概覽」中沒有可用的已啟用提供者。";

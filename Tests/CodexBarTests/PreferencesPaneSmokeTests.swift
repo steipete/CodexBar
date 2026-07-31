@@ -127,6 +127,26 @@ struct PreferencesPaneSmokeTests {
     }
 
     @Test
+    func `menu pane compact overview toggle follows merge icons without clearing its value`() {
+        let settings = Self.makeSettingsStore(suite: "PreferencesPaneSmokeTests-compact-overview")
+        let store = Self.makeUsageStore(settings: settings)
+        settings.mergedOverviewUsesCompactLayout = true
+
+        #expect(MenuPane.compactOverviewAvailable(mergeIcons: settings.mergeIcons))
+        _ = MenuPane(settings: settings, store: store).body
+
+        settings.mergeIcons = false
+        #expect(!MenuPane.compactOverviewAvailable(mergeIcons: settings.mergeIcons))
+        #expect(settings.mergedOverviewUsesCompactLayout)
+        _ = MenuPane(settings: settings, store: store).body
+
+        settings.mergeIcons = true
+        #expect(MenuPane.compactOverviewAvailable(mergeIcons: settings.mergeIcons))
+        #expect(settings.mergedOverviewUsesCompactLayout)
+        _ = MenuPane(settings: settings, store: store).body
+    }
+
+    @Test
     func `inactive display contrast is available only for icon and percent`() {
         #expect(!MenuBarPane.inactiveDisplayContrastAvailable(for: .critters))
         #expect(!MenuBarPane.inactiveDisplayContrastAvailable(for: .bars))

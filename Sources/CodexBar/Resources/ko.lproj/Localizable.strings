@@ -605,6 +605,9 @@
 "multi_account_layout_segmented" = "분할";
 "multi_account_layout_stacked" = "쌓기";
 "overview_tab_providers_title" = "개요 탭 공급자";
+"overview_compact_title" = "간결한 개요";
+"overview_compact_subtitle" = "공급자 이름과 사용량 막대를 공간 절약형 레이아웃으로 표시합니다.";
+"overview_compact_no_bars" = "사용량 막대 없음";
 "configure" = "구성…";
 "overview_enable_merge_icons_hint" = "개요 탭 공급자를 구성하려면 아이콘 병합을 사용하세요.";
 "overview_no_providers_hint" = "개요에 사용할 수 있는 활성화된 공급자가 없습니다.";

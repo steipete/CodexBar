@@ -110,6 +110,39 @@ struct LocalizationLanguageCatalogTests {
     }
 
     @Test
+    func `compact overview copy is translated in every catalog`() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let resourcesURL = root.appendingPathComponent("Sources/CodexBar/Resources")
+        let catalogs = try FileManager.default.contentsOfDirectory(
+            at: resourcesURL,
+            includingPropertiesForKeys: nil)
+            .filter { $0.pathExtension == "lproj" }
+        let englishValues = [
+            "overview_compact_title": "Compact Overview",
+            "overview_compact_subtitle": "Show provider names and usage bars in a space-saving layout.",
+            "overview_compact_no_bars": "No usage bars",
+        ]
+
+        #expect(catalogs.count == 23)
+        for catalogURL in catalogs {
+            let stringsURL = catalogURL.appendingPathComponent("Localizable.strings")
+            let catalog = try #require(NSDictionary(contentsOf: stringsURL) as? [String: String])
+            for (key, englishValue) in englishValues {
+                let value = try #require(catalog[key]?.trimmingCharacters(in: .whitespacesAndNewlines))
+                #expect(!value.isEmpty, "\(catalogURL.lastPathComponent).\(key)")
+                if catalogURL.lastPathComponent == "en.lproj" {
+                    #expect(value == englishValue, "\(catalogURL.lastPathComponent).\(key)")
+                } else {
+                    #expect(value != englishValue, "Untranslated \(catalogURL.lastPathComponent).\(key)")
+                }
+            }
+        }
+    }
+
+    @Test
     func `language picker labels use stable native names`() {
         let expected: [AppLanguage: String] = [
             .system: "System",

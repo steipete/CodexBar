@@ -616,6 +616,9 @@
 "multi_account_layout_segmented" = "Gesegmenteerd";
 "multi_account_layout_stacked" = "Gestapeld";
 "overview_tab_providers_title" = "Overzicht tabblad aanbieders";
+"overview_compact_title" = "Compact overzicht";
+"overview_compact_subtitle" = "Toon providernamen en gebruiksbalken in een ruimtebesparende indeling.";
+"overview_compact_no_bars" = "Geen gebruiksbalken";
 "configure" = "Configureer…";
 "overview_enable_merge_icons_hint" = "Schakel Pictogrammen samenvoegen in om de providers van tabbladen Overzicht te configureren.";
 "overview_no_providers_hint" = "Er zijn geen ingeschakelde providers beschikbaar voor Overzicht.";

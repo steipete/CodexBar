@@ -622,6 +622,9 @@
 "multi_account_layout_segmented" = "แบ่งกลุ่ม";
 "multi_account_layout_stacked" = "ซ้อนกัน";
 "overview_tab_providers_title" = "ผู้ให้บริการแท็บภาพรวม";
+"overview_compact_title" = "ภาพรวมแบบกะทัดรัด";
+"overview_compact_subtitle" = "แสดงชื่อผู้ให้บริการและแถบการใช้งานในรูปแบบที่ประหยัดพื้นที่";
+"overview_compact_no_bars" = "ไม่มีแถบการใช้งาน";
 "configure" = "กําหนดค่า...";
 "overview_enable_merge_icons_hint" = "เปิดใช้งานไอคอนผสานเพื่อกําหนดค่าผู้ให้บริการแท็บภาพรวม";
 "overview_no_providers_hint" = "ไม่มีผู้ให้บริการที่เปิดใช้งานสําหรับภาพรวม";

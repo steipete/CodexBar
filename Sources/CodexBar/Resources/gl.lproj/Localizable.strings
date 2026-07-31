@@ -595,6 +595,9 @@
 "multi_account_layout_segmented" = "Segmentado";
 "multi_account_layout_stacked" = "Apilado";
 "overview_tab_providers_title" = "Provedores da lapela Resumo";
+"overview_compact_title" = "Resumo compacto";
+"overview_compact_subtitle" = "Mostra os nomes dos provedores e as barras de uso nun deseño que aforra espazo.";
+"overview_compact_no_bars" = "Non hai barras de uso";
 "configure" = "Configurar…";
 "overview_enable_merge_icons_hint" = "Activa Combinar as iconas para configurar os provedores da lapela Resumo.";
 "overview_no_providers_hint" = "Non hai provedores activados dispoñibles para o Resumo.";

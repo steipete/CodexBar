@@ -617,6 +617,9 @@
 "multi_account_layout_segmented" = "Сегментированный";
 "multi_account_layout_stacked" = "Стопкой";
 "overview_tab_providers_title" = "Провайдеры вкладки «Обзор»";
+"overview_compact_title" = "Компактный обзор";
+"overview_compact_subtitle" = "Показывать названия провайдеров и индикаторы использования в компактном виде.";
+"overview_compact_no_bars" = "Нет индикаторов использования";
 "configure" = "Настроить…";
 "overview_enable_merge_icons_hint" = "Включите «Объединять значки», чтобы настроить провайдеров вкладки «Обзор».";
 "overview_no_providers_hint" = "Нет включённых провайдеров для обзора.";

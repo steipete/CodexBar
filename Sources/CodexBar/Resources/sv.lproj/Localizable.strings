@@ -615,6 +615,9 @@
 "multi_account_layout_segmented" = "Segmenterad";
 "multi_account_layout_stacked" = "Staplad";
 "overview_tab_providers_title" = "Leverantörer på översiktsfliken";
+"overview_compact_title" = "Kompakt översikt";
+"overview_compact_subtitle" = "Visa leverantörsnamn och användningsstaplar i en utrymmessnål layout.";
+"overview_compact_no_bars" = "Inga användningsstaplar";
 "configure" = "Konfigurera…";
 "overview_enable_merge_icons_hint" = "Aktivera Slå ihop ikoner för att konfigurera leverantörer på översiktsfliken.";
 "overview_no_providers_hint" = "Inga aktiverade leverantörer är tillgängliga för översikten.";

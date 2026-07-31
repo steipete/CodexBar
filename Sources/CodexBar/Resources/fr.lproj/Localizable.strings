@@ -616,6 +616,9 @@
 "multi_account_layout_segmented" = "Segmenté";
 "multi_account_layout_stacked" = "Empilé";
 "overview_tab_providers_title" = "Fournisseurs d'onglets de présentation";
+"overview_compact_title" = "Vue d’ensemble compacte";
+"overview_compact_subtitle" = "Affichez les noms des fournisseurs et les barres d’utilisation dans une disposition compacte.";
+"overview_compact_no_bars" = "Aucune barre d’utilisation";
 "configure" = "Configurer…";
 "overview_enable_merge_icons_hint" = "Activez Fusionner les icônes pour configurer les fournisseurs d'onglets Présentation.";
 "overview_no_providers_hint" = "Aucun fournisseur activé disponible pour la présentation.";

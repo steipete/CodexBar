@@ -616,6 +616,9 @@
 "multi_account_layout_segmented" = "Сегментований";
 "multi_account_layout_stacked" = "складені";
 "overview_tab_providers_title" = "Постачальники вкладок огляду";
+"overview_compact_title" = "Компактний огляд";
+"overview_compact_subtitle" = "Показувати назви постачальників і смуги використання в компактному компонуванні.";
+"overview_compact_no_bars" = "Немає смуг використання";
 "configure" = "Налаштувати…";
 "overview_enable_merge_icons_hint" = "Увімкніть Merge Icons, щоб налаштувати постачальників вкладок «Огляд».";
 "overview_no_providers_hint" = "Немає активованих постачальників, доступних для огляду.";

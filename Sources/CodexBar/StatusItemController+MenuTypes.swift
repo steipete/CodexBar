@@ -21,15 +21,87 @@ extension ProviderSwitcherSelection {
     }
 }
 
+enum OverviewMenuRowStyle: Equatable {
+    case detailed
+    case compact
+}
+
+enum OverviewMenuRowInteractionPolicy {
+    static func containsInteractiveControls(
+        style: OverviewMenuRowStyle,
+        model: UsageMenuCardView.Model) -> Bool
+    {
+        style == .detailed && (model.subtitleStyle == .error || model.usesLiveSubtitle)
+    }
+}
+
+enum CompactOverviewProjectionResolver {
+    static func resolve(
+        fallbackModel: UsageMenuCardView.Model,
+        layoutModel: UsageMenuCardView.Model?,
+        liveModel: () -> UsageMenuCardView.Model) -> CompactOverviewProjection
+    {
+        if let layoutModel, layoutModel.provider != fallbackModel.provider {
+            return CompactOverviewProjection(model: fallbackModel)
+        }
+        let resolvedLayoutModel = layoutModel ?? fallbackModel
+        let layoutProjection = CompactOverviewProjection(model: resolvedLayoutModel)
+        guard fallbackModel.usesLiveSubtitle else { return layoutProjection }
+
+        let resolvedLiveModel = liveModel()
+        let liveProjection = CompactOverviewProjection(model: resolvedLiveModel)
+        guard resolvedLiveModel.provider == fallbackModel.provider,
+              liveProjection.providerName == layoutProjection.providerName,
+              liveProjection.layoutSignature == layoutProjection.layoutSignature
+        else {
+            return layoutProjection
+        }
+        return liveProjection
+    }
+}
+
 struct OverviewMenuCardRowView: View {
     static let showsSectionDividers = false
 
     let model: UsageMenuCardView.Model
+    let layoutModel: UsageMenuCardView.Model?
     let storageText: String?
     let width: CGFloat
+    let style: OverviewMenuRowStyle
+    let compactColumns: CompactOverviewColumnLayout?
     @Environment(\.menuItemHighlighted) private var isHighlighted
+    @Environment(\.menuCardRefreshMonitor) private var refreshMonitor
+
+    init(
+        model: UsageMenuCardView.Model,
+        layoutModel: UsageMenuCardView.Model? = nil,
+        storageText: String?,
+        width: CGFloat,
+        style: OverviewMenuRowStyle = .detailed,
+        compactColumns: CompactOverviewColumnLayout? = nil)
+    {
+        self.model = model
+        self.layoutModel = layoutModel
+        self.storageText = storageText
+        self.width = width
+        self.style = style
+        self.compactColumns = compactColumns
+    }
 
     var body: some View {
+        switch self.style {
+        case .detailed:
+            self.detailedContent
+        case .compact:
+            if let compactColumns = self.compactColumns {
+                CompactOverviewRowContent(
+                    projection: self.compactProjection,
+                    columns: compactColumns)
+            }
+        }
+    }
+
+    private var detailedContent: some View {
         VStack(alignment: .leading, spacing: 0) {
             UsageMenuCardHeaderSectionView(
                 model: self.model,
@@ -61,6 +133,15 @@ struct OverviewMenuCardRowView: View {
             }
         }
         .frame(width: self.width, alignment: .leading)
+    }
+
+    private var compactProjection: CompactOverviewProjection {
+        CompactOverviewProjectionResolver.resolve(
+            fallbackModel: self.model,
+            layoutModel: self.layoutModel)
+        {
+            self.refreshMonitor?.model(for: self.model.provider, fallback: self.model) ?? self.model
+        }
     }
 
     private var hasUsageBlock: Bool {
