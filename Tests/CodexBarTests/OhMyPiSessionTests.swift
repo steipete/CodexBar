@@ -398,6 +398,116 @@ struct OhMyPiSessionTests {
     }
 
     @Test
+    func `independent OhMyPi budget preserves Codex and Claude metadata`() async throws {
+        let root = try Self.temporaryDirectory(named: "OhMyPiIndependentBudget")
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let home = root.appendingPathComponent("home", isDirectory: true)
+        let agentRoot = home.appendingPathComponent("agent", isDirectory: true)
+        let ohMyPiProject = agentRoot.appendingPathComponent("sessions/omp-project", isDirectory: true)
+        let codexHome = root.appendingPathComponent("codex-home", isDirectory: true)
+        let codexCWD = "/tmp/codex-project"
+        let claudeCWD = "/tmp/claude-project"
+        let claudeProject = home
+            .appendingPathComponent(
+                ".claude/projects/\(ClaudeSessionProjectMapper.escapedCWD(claudeCWD))",
+                isDirectory: true)
+        try FileManager.default.createDirectory(at: ohMyPiProject, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: claudeProject, withIntermediateDirectories: true)
+        for index in 0..<5 {
+            let filler = ohMyPiProject.appendingPathComponent("filler-\(index).jsonl")
+            try Data("{}\n".utf8).write(to: filler)
+        }
+
+        let now = Date(timeIntervalSince1970: 1_900_000_000)
+        let ohMyPiFile = ohMyPiProject.appendingPathComponent("omp-session.jsonl")
+        try Self.writeSessionFile(
+            at: ohMyPiFile,
+            id: "omp-session",
+            cwd: "/tmp/omp-project",
+            modifiedAt: now.addingTimeInterval(-3))
+
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy/MM/dd"
+        let codexDirectory = codexHome
+            .appendingPathComponent("sessions/\(formatter.string(from: now))", isDirectory: true)
+        try FileManager.default.createDirectory(at: codexDirectory, withIntermediateDirectories: true)
+        let codexFile = codexDirectory.appendingPathComponent("rollout-codex.jsonl")
+        let codexMetadata: [String: Any] = [
+            "type": "session_meta",
+            "payload": [
+                "session_id": "codex-session",
+                "cwd": codexCWD,
+                "originator": "codex_exec",
+            ] as [String: Any],
+        ]
+        try Data(Self.jsonLine(codexMetadata).utf8).write(to: codexFile)
+        try FileManager.default.setAttributes(
+            [.modificationDate: now.addingTimeInterval(-5)],
+            ofItemAtPath: codexFile.path)
+
+        let claudeFile = claudeProject.appendingPathComponent("claude-session.jsonl")
+        try Data(Self.jsonLine(["type": "user"]).utf8).write(to: claudeFile)
+        try FileManager.default.setAttributes(
+            [.modificationDate: now.addingTimeInterval(-4)],
+            ofItemAtPath: claudeFile.path)
+
+        let config = SessionScanConfig(
+            maxDirectoryEntryCount: 7,
+            maxDirectoryDepth: 1,
+            directoryScanBudget: 60,
+            adaptiveDirectoryScanBudget: 60)
+        let environment = [
+            "HOME": home.path,
+            "CODEX_HOME": codexHome.path,
+        ]
+        let processEnvironment = [
+            "HOME": home.path,
+            "PI_CODING_AGENT_DIR": agentRoot.path,
+        ]
+        let scanner = LocalAgentSessionScanner(
+            config: config,
+            processOutputProvider: { _ in
+                """
+                10 1 Mon Jul 6 09:00:00 2026 /usr/local/bin/omp --project /tmp/omp-project
+                20 1 Mon Jul 6 09:00:00 2026 /usr/local/bin/codex exec
+                30 1 Mon Jul 6 09:00:00 2026 /usr/local/bin/claude
+                """
+            },
+            cwdProvider: { _, _ in
+                [
+                    10: "/tmp/omp-project",
+                    20: codexCWD,
+                    30: claudeCWD,
+                ]
+            },
+            processEnvironmentProvider: { pids, _ in
+                pids.reduce(into: [Int32: [String: String]]()) { environments, pid in
+                    environments[pid] = processEnvironment
+                }
+            })
+
+        let sessions = await scanner.scan(
+            now: now,
+            environment: environment,
+            includeFileOnlySessions: false)
+
+        let ohMyPiSession = try #require(sessions.first(where: { $0.provider == .ohMyPi }))
+        #expect(ohMyPiSession.id == "omp-session")
+        let codexSession = try #require(sessions.first(where: { $0.provider == .codex }))
+        #expect(codexSession.id == "codex-session")
+        #expect(codexSession.transcriptPath.map {
+            URL(fileURLWithPath: $0).standardizedFileURL.resolvingSymlinksInPath().path
+        } == codexFile.standardizedFileURL.resolvingSymlinksInPath().path)
+        let claudeSession = try #require(sessions.first(where: { $0.provider == .claude }))
+        #expect(claudeSession.id == "claude-session")
+        #expect(claudeSession.transcriptPath.map {
+            URL(fileURLWithPath: $0).standardizedFileURL.resolvingSymlinksInPath().path
+        } == claudeFile.standardizedFileURL.resolvingSymlinksInPath().path)
+    }
+
+    @Test
     func `scanner resolves each live process against its own active profile`() throws {
         let root = try Self.temporaryDirectory(named: "OhMyPiPerProcessProfiles")
         defer { try? FileManager.default.removeItem(at: root) }

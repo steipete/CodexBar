@@ -137,6 +137,13 @@ public struct LocalAgentSessionScanner: Sendable {
                 ? self.config.directoryScanBudget
                 : min(self.config.directoryScanBudget, self.config.adaptiveDirectoryScanBudget),
             didVisitEntry: self.didVisitDirectoryEntry)
+        var ohMyPiDirectoryBudget = DirectoryMetadataScanBudget(
+            maxEntryCount: self.config.maxDirectoryEntryCount,
+            maxDepth: self.config.maxDirectoryDepth,
+            timeLimit: includeFileOnlySessions
+                ? self.config.directoryScanBudget
+                : min(self.config.directoryScanBudget, self.config.adaptiveDirectoryScanBudget),
+            didVisitEntry: self.didVisitDirectoryEntry)
         let ohMyPiSessions = OhMyPiSessionScanner.scan(
             input: OhMyPiSessionScanner.ScanInput(
                 processes: processes,
@@ -146,7 +153,7 @@ public struct LocalAgentSessionScanner: Sendable {
                 now: now,
                 host: host,
                 config: self.config),
-            directoryBudget: &directoryBudget)
+            directoryBudget: &ohMyPiDirectoryBudget)
         let rollouts: [Rollout] = if includeFileOnlySessions || !codexCWDs.isEmpty {
             self.codexRollouts(
                 now: now,
