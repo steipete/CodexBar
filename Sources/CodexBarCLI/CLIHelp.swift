@@ -122,8 +122,8 @@ extension CodexBarCLI {
 
         Description:
           List live local Codex, Claude Code, and OhMyPi agent sessions.
-          --json emits the legacy v1 array and excludes OhMyPi for older clients.
-          --json-v2 emits the full v2 array, including OhMyPi, and implies --json.
+          --json emits the complete current array, including OhMyPi.
+          --json-v2 is an equivalent explicit spelling for the complete array.
           JSON uses stable AgentSession field names and ISO-8601 dates.
           Focus activates the owning terminal or desktop app on macOS.
 

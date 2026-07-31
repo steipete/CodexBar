@@ -15,11 +15,8 @@ extension CodexBarCLI {
     }
 
     static func sessionsJSONProtocolVersion(from values: ParsedValues) -> Int? {
-        if values.flags.contains("jsonV2") {
+        if values.flags.contains("jsonV2") || values.flags.contains("jsonShortcut") {
             return 2
-        }
-        if values.flags.contains("jsonShortcut") {
-            return 1
         }
         return nil
     }
@@ -97,10 +94,10 @@ extension CodexBarCLI {
 }
 
 struct SessionsOptions: CommanderParsable {
-    @Flag(name: .long("json"), help: "Emit legacy v1 JSON (excludes OhMyPi sessions)")
+    @Flag(name: .long("json"), help: "Emit complete JSON, including OhMyPi sessions")
     var jsonShortcut: Bool = false
 
-    @Flag(name: .long("json-v2"), help: "Emit full v2 JSON, including OhMyPi sessions (implies --json)")
+    @Flag(name: .long("json-v2"), help: "Emit complete JSON, including OhMyPi sessions (equivalent to --json)")
     var jsonV2: Bool = false
 
     @Flag(name: .long("pretty"), help: "Pretty-print JSON output")

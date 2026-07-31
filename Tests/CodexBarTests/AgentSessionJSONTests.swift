@@ -53,31 +53,26 @@ struct AgentSessionJSONTests {
     }
 
     @Test
-    func `v2 JSON includes OhMyPi and remains the same array shape`() throws {
+    func `current JSON flags include OhMyPi and preserve the same array shape`() throws {
         let sessions = self.makeProtocolFixture()
-        let v2Sessions = CodexBarCLI.sessionsForJSON(sessions, includeOhMyPi: true)
-        let v2Data = try self.encode(v2Sessions)
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
-        let decoded = try decoder.decode([AgentSession].self, from: v2Data)
-
-        #expect(decoded == sessions)
-        #expect(decoded.contains { $0.provider == .ohMyPi })
-    }
-
-    @Test
-    func `json flags select their protocol versions`() throws {
         let parser = CommandParser(signature: CommandSignature.describe(SessionsOptions()))
-        let legacyParsed = try parser.parse(arguments: ["--json"])
-        #expect(CodexBarCLI.sessionsJSONProtocolVersion(from: legacyParsed) == 1)
 
-        let v2Parsed = try parser.parse(arguments: ["--json-v2"])
-        #expect(v2Parsed.flags.contains("jsonV2"))
-        #expect(CodexBarCLI.sessionsJSONProtocolVersion(from: v2Parsed) == 2)
-        #expect(CodexBarCLI.sessionsForJSON(
-            self.makeProtocolFixture(),
-            includeOhMyPi: CodexBarCLI.sessionsJSONProtocolVersion(from: v2Parsed) == 2)
-            .contains { $0.provider == .ohMyPi })
+        for flag in ["--json", "--json-v2"] {
+            let parsed = try parser.parse(arguments: [flag])
+            let protocolVersion = CodexBarCLI.sessionsJSONProtocolVersion(from: parsed)
+            #expect(protocolVersion == 2)
+
+            let currentSessions = CodexBarCLI.sessionsForJSON(
+                sessions,
+                includeOhMyPi: protocolVersion == 2)
+            let currentData = try self.encode(currentSessions)
+            let decoder = JSONDecoder()
+            decoder.dateDecodingStrategy = .iso8601
+            let decoded = try decoder.decode([AgentSession].self, from: currentData)
+
+            #expect(decoded == sessions)
+            #expect(decoded.contains { $0.provider == .ohMyPi })
+        }
     }
 
     @Test

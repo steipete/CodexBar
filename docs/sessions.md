@@ -27,15 +27,18 @@ codexbar sessions --json-v2
 codexbar sessions focus <session-id>
 ```
 
-`codexbar sessions --json` is the legacy session JSON protocol v1. It keeps the historical top-level
-JSON array and all existing fields, but filters out `oh-my-pi` rows so older clients with a closed
-`codex`/`claude` provider enum can still decode the result. `codexbar sessions --json-v2` opts into
-protocol v2, implies JSON, and emits the complete normalized array including `oh-my-pi`; it does not
-add a top-level envelope. The human-readable table is unchanged and continues to show every provider.
+`codexbar sessions --json` emits the complete current normalized session JSON: a top-level
+JSON array with all existing fields, including `oh-my-pi` rows and ISO-8601 dates.
+`codexbar sessions --json-v2` is an explicit equivalent spelling for this complete local
+JSON output; it does not add a top-level envelope. The human-readable table is unchanged
+and continues to show every provider.
 
-Remote fetches negotiate the same mixed-version contract over non-interactive SSH. For each host, the
-fetcher tries `codexbar sessions --json-v2`, then `codexbar sessions --json`; only if both PATH
-attempts fail does it try the bundled app CLI with `sessions --json-v2`, then `sessions --json`.
-This lets new clients see OhMyPi on new hosts while preserving the v1 fallback for older installs.
+Remote fetches negotiate mixed-version compatibility over non-interactive SSH. For each host,
+the fetcher tries `codexbar sessions --json-v2`, then `codexbar sessions --json`; only if both
+PATH attempts fail does it try the bundled app CLI with `sessions --json-v2`, then `sessions --json`.
+This remote negotiation lets current hosts expose OhMyPi while preserving compatibility with older
+remote installations whose `--json` is the legacy Codex/Claude-only projection. It does not change
+the complete-array semantics of the local `--json`; a current remote CLI may also return the complete
+array for `--json`.
 
 Remote hosts need key-based, non-interactive SSH and either `codexbar` on `PATH` or CodexBar installed in `/Applications`.
