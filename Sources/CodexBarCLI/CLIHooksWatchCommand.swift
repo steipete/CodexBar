@@ -75,19 +75,23 @@ extension CodexBarCLI {
                     verbose: verbose,
                     webTimeout: webTimeout)
 
-                let events = detector.evaluate(observation: observation, config: hooks)
-                for event in events {
-                    Self.reportHookEvent(event, output: output)
+                let dispatches = detector.evaluate(observation: observation, config: hooks)
+                for dispatch in dispatches {
+                    Self.reportHookEvent(dispatch.event, output: output)
+                    // `rules` narrows dispatch to the specific rule(s) whose edge this
+                    // poll observed (currently only set for quota_low); nil means every
+                    // enabled rule for the event, matched the normal way.
+                    let dispatchConfig = dispatch.rules.map { HooksConfig(enabled: true, events: $0) } ?? hooks
                     await HookRunner.dispatch(
-                        event: event,
-                        config: hooks,
+                        event: dispatch.event,
+                        config: dispatchConfig,
                         rateLimiter: rateLimiter)
                 }
             }
 
             if once { break }
             guard !stop.isRequested else { break }
-            try? await Task.sleep(nanoseconds: UInt64(interval * 1_000_000_000))
+            await Self.sleepInterruptibly(interval: interval, stop: stop)
         }
 
         Self.exit(code: .success, output: output, kind: .runtime)
@@ -237,6 +241,25 @@ extension CodexBarCLI {
             return "offline"
         default:
             return "network_error"
+        }
+    }
+
+    // MARK: - Sleep
+
+    /// Poll-period tick used by `sleepInterruptibly` to bound how late a termination
+    /// signal is noticed.
+    static let hooksWatchSleepTickNanoseconds: UInt64 = 200_000_000
+
+    /// Sleeps up to `interval`, checking `stop` every tick instead of once at the
+    /// end. `CLITerminationSignalMonitor` only flips a flag — it does not cancel the
+    /// running task — so a single long `Task.sleep` would leave `hooks watch`
+    /// appearing hung on SIGINT/SIGTERM/SIGHUP until the full interval elapsed.
+    static func sleepInterruptibly(interval: TimeInterval, stop: HooksWatchStopSignal) async {
+        var remainingNanoseconds = UInt64((max(0, interval) * 1_000_000_000).rounded())
+        while remainingNanoseconds > 0, !stop.isRequested {
+            let sleepNanoseconds = min(remainingNanoseconds, Self.hooksWatchSleepTickNanoseconds)
+            try? await Task.sleep(nanoseconds: sleepNanoseconds)
+            remainingNanoseconds -= sleepNanoseconds
         }
     }
 

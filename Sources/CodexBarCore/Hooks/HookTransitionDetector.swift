@@ -95,6 +95,24 @@ public struct HookProviderObservation: Sendable {
     }
 }
 
+/// One event to dispatch, paired with the exact rules that should run for it.
+///
+/// `rules` is nil for every event except `quota_low`: `HookRule.matches` rechecks
+/// `usage >= threshold` against the *current* reading, so dispatching a `quota_low`
+/// event against the full config would re-fire every rule whose threshold sits below
+/// the newly crossed one, not just the rule that actually crossed. Passing the
+/// pre-computed crossed subset (mirroring the app's `HooksConfig(events: crossed)`
+/// pattern) keeps only the rule(s) whose own edge this poll observed.
+public struct HookDispatch: Sendable {
+    public let event: HookEvent
+    public let rules: [HookRule]?
+
+    init(event: HookEvent, rules: [HookRule]? = nil) {
+        self.event = event
+        self.rules = rules
+    }
+}
+
 /// Turns successive provider observations into hook events.
 ///
 /// Platform-neutral and side-effect free: it decides *what fired* and never
@@ -149,30 +167,28 @@ public final class HookTransitionDetector {
     public func evaluate(
         observation: HookProviderObservation,
         config: HooksConfig,
-        now: Date = Date()) -> [HookEvent]
+        now: Date = Date()) -> [HookDispatch]
     {
         guard config.enabled, config.events.count <= HooksConfig.maximumRuleCount else { return [] }
 
-        var events: [HookEvent] = []
-
         if let failure = observation.refreshFailureStatus {
-            events.append(HookEvent(
+            let event = HookEvent(
                 event: .refreshFailed,
                 provider: observation.provider,
                 account: observation.accountDisplayName,
                 status: failure,
-                timestamp: now))
+                timestamp: now)
             // A failed refresh carries no usable quota or status reading, so it must
             // not disturb baselines: the next successful poll compares against the
             // last real sample rather than firing a phantom transition.
-            return events
+            return [HookDispatch(event: event)]
         }
 
-        events.append(contentsOf: self.statusEvents(observation: observation, now: now))
+        var dispatches: [HookDispatch] = self.statusEvents(observation: observation, now: now)
 
         let observedKeys = Set(observation.lanes.map(\.key))
         for lane in observation.lanes {
-            events.append(contentsOf: self.laneEvents(
+            dispatches.append(contentsOf: self.laneEvents(
                 lane: lane,
                 provider: observation.provider,
                 config: config,
@@ -180,12 +196,12 @@ public final class HookTransitionDetector {
         }
         self.pruneLanes(provider: observation.provider, keeping: observedKeys)
 
-        return events
+        return dispatches
     }
 
     // MARK: - Provider status
 
-    private func statusEvents(observation: HookProviderObservation, now: Date) -> [HookEvent] {
+    private func statusEvents(observation: HookProviderObservation, now: Date) -> [HookDispatch] {
         guard let isOutage = observation.status.outageState else { return [] }
         let previous = self.providerStatusHadIssue[observation.provider]
         self.providerStatusHadIssue[observation.provider] = isOutage
@@ -194,12 +210,13 @@ public final class HookTransitionDetector {
         guard let previous else { return [] }
         guard previous != isOutage else { return [] }
 
-        return [HookEvent(
+        let event = HookEvent(
             event: isOutage ? .providerUnavailable : .providerRecovered,
             provider: observation.provider,
             account: observation.accountDisplayName,
             status: observation.status.rawValue,
-            timestamp: now)]
+            timestamp: now)
+        return [HookDispatch(event: event)]
     }
 
     // MARK: - Quota lanes
@@ -208,7 +225,7 @@ public final class HookTransitionDetector {
         lane: HookQuotaLaneObservation,
         provider: String,
         config: HooksConfig,
-        now: Date) -> [HookEvent]
+        now: Date) -> [HookDispatch]
     {
         // A lane the provider did not report this poll, or a synthesized stand-in
         // for a lane that does not exist, carries no usage to compare. Forget it so
@@ -226,7 +243,7 @@ public final class HookTransitionDetector {
         // when usage is already high.
         guard let previousSample else { return [] }
 
-        var events: [HookEvent] = []
+        var dispatches: [HookDispatch] = []
 
         let transition = LaneTransition(
             lane: lane,
@@ -239,17 +256,23 @@ public final class HookTransitionDetector {
         if let resetEvent = self.resetEvent(transition) {
             // A reset ends the depleted state; the lane starts over from the new
             // reading, so no depletion edge is reported in the same poll.
-            events.append(resetEvent)
-            return events
+            dispatches.append(HookDispatch(event: resetEvent))
+            return dispatches
         }
 
-        events.append(contentsOf: self.quotaLowEvents(transition, config: config))
+        dispatches.append(contentsOf: self.quotaLowEvents(transition, config: config))
 
-        if previousSample.usage < self.reachedThreshold, current >= self.reachedThreshold {
-            events.append(transition.event(.quotaReached))
+        // Documented as session-only (docs/configuration.md): "the primary session
+        // quota crosses into depletion". The app only ever calls this for the
+        // session window; a weekly lane hitting 100% relies on quota_reset instead.
+        if lane.key.window == .session,
+           previousSample.usage < self.reachedThreshold,
+           current >= self.reachedThreshold
+        {
+            dispatches.append(HookDispatch(event: transition.event(.quotaReached)))
         }
 
-        return events
+        return dispatches
     }
 
     /// One lane's before/after readings for a single poll.
@@ -288,7 +311,7 @@ public final class HookTransitionDetector {
         return transition.event(.quotaReset)
     }
 
-    private func quotaLowEvents(_ transition: LaneTransition, config: HooksConfig) -> [HookEvent] {
+    private func quotaLowEvents(_ transition: LaneTransition, config: HooksConfig) -> [HookDispatch] {
         let rules = config.events.filter { rule in
             rule.enabled
                 && rule.event == .quotaLow
@@ -303,7 +326,11 @@ public final class HookTransitionDetector {
             fallbackThresholds: transition.lane.fallbackThresholds)
         guard !crossed.isEmpty else { return [] }
 
-        return [transition.event(.quotaLow)]
+        // Dispatch only the rules whose own threshold this poll crossed, not every
+        // enabled quota_low rule: HookRunner re-evaluates `matches()` against the
+        // current reading, which would otherwise re-fire a lower threshold's command
+        // on every poll once usage sits above it.
+        return [HookDispatch(event: transition.event(.quotaLow), rules: crossed)]
     }
 
     /// Forgets lanes that disappeared between polls for this provider, so a later

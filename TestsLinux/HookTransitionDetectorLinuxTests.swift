@@ -39,7 +39,7 @@ struct HookTransitionDetectorLinuxTests {
     {
         HookQuotaLaneObservation(
             key: key,
-            label: "Session",
+            label: key.window == .session ? "Session" : "Weekly",
             rateWindow: usedPercent.map {
                 self.rateWindow(usedPercent: $0, resetsAt: resetsAt, isSyntheticPlaceholder: isSyntheticPlaceholder)
             },
@@ -79,10 +79,10 @@ struct HookTransitionDetectorLinuxTests {
     @Test
     func `first sample establishes baseline without firing`() {
         let detector = HookTransitionDetector()
-        let events = detector.evaluate(
+        let dispatches = detector.evaluate(
             observation: Self.observation(lanes: [Self.lane(usedPercent: 95)]),
             config: Self.config())
-        #expect(events.isEmpty)
+        #expect(dispatches.isEmpty)
     }
 
     @Test
@@ -94,13 +94,33 @@ struct HookTransitionDetectorLinuxTests {
         let crossing = detector.evaluate(
             observation: Self.observation(lanes: [Self.lane(usedPercent: 85)]),
             config: cfg)
-        #expect(crossing.map(\.event) == [.quotaLow])
+        #expect(crossing.map(\.event.event) == [.quotaLow])
 
         // Still above the threshold, but no new crossing: must not re-fire.
         let persisting = detector.evaluate(
             observation: Self.observation(lanes: [Self.lane(usedPercent: 90)]),
             config: cfg)
         #expect(persisting.isEmpty)
+    }
+
+    @Test
+    func `quota low dispatches only the rule whose threshold crossed`() {
+        // Regression: two rules at 50% and 80%. Baseline at 60% already sits above
+        // the 50% rule's threshold. When usage later crosses 80%, only the 80% rule
+        // crossed this poll — the 50% rule must not be re-dispatched.
+        let detector = HookTransitionDetector()
+        let cfg = Self.config(rules: [
+            HookRule(id: "low", event: .quotaLow, threshold: 0.5, executable: "/bin/true"),
+            HookRule(id: "high", event: .quotaLow, threshold: 0.8, executable: "/bin/true"),
+        ])
+        _ = detector.evaluate(observation: Self.observation(lanes: [Self.lane(usedPercent: 60)]), config: cfg)
+
+        let dispatches = detector.evaluate(
+            observation: Self.observation(lanes: [Self.lane(usedPercent: 85)]),
+            config: cfg)
+
+        #expect(dispatches.count == 1)
+        #expect(dispatches.first?.rules?.map(\.id) == ["high"])
     }
 
     @Test
@@ -112,12 +132,29 @@ struct HookTransitionDetectorLinuxTests {
         let reached = detector.evaluate(
             observation: Self.observation(lanes: [Self.lane(usedPercent: 100)]),
             config: cfg)
-        #expect(reached.contains { $0.event == .quotaReached })
+        #expect(reached.contains { $0.event.event == .quotaReached })
 
         let stillFull = detector.evaluate(
             observation: Self.observation(lanes: [Self.lane(usedPercent: 100)]),
             config: cfg)
-        #expect(!stillFull.contains { $0.event == .quotaReached })
+        #expect(!stillFull.contains { $0.event.event == .quotaReached })
+    }
+
+    @Test
+    func `quota reached never fires for the weekly lane`() {
+        // Regression: quota_reached is documented as session-only. A weekly lane
+        // reaching 100% must rely on quota_reset, not fire quota_reached too.
+        let detector = HookTransitionDetector()
+        let cfg = Self.config()
+        let weekly = Self.laneKey(window: .weekly)
+        _ = detector.evaluate(
+            observation: Self.observation(lanes: [Self.lane(usedPercent: 90, key: weekly)]),
+            config: cfg)
+
+        let dispatches = detector.evaluate(
+            observation: Self.observation(lanes: [Self.lane(usedPercent: 100, key: weekly)]),
+            config: cfg)
+        #expect(!dispatches.contains { $0.event.event == .quotaReached })
     }
 
     // MARK: - Reset detection
@@ -132,11 +169,11 @@ struct HookTransitionDetectorLinuxTests {
         _ = detector.evaluate(
             observation: Self.observation(lanes: [Self.lane(usedPercent: 100, resetsAt: first)]),
             config: cfg)
-        let events = detector.evaluate(
+        let dispatches = detector.evaluate(
             observation: Self.observation(lanes: [Self.lane(usedPercent: 0, resetsAt: second)]),
             config: cfg)
 
-        #expect(events.map(\.event) == [.quotaReset])
+        #expect(dispatches.map(\.event.event) == [.quotaReset])
     }
 
     @Test
@@ -145,10 +182,10 @@ struct HookTransitionDetectorLinuxTests {
         let cfg = Self.config()
         _ = detector.evaluate(observation: Self.observation(lanes: [Self.lane(usedPercent: 95)]), config: cfg)
 
-        let events = detector.evaluate(
+        let dispatches = detector.evaluate(
             observation: Self.observation(lanes: [Self.lane(usedPercent: 10)]),
             config: cfg)
-        #expect(events.map(\.event) == [.quotaReset])
+        #expect(dispatches.map(\.event.event) == [.quotaReset])
     }
 
     @Test
@@ -157,10 +194,10 @@ struct HookTransitionDetectorLinuxTests {
         let cfg = Self.config()
         _ = detector.evaluate(observation: Self.observation(lanes: [Self.lane(usedPercent: 95)]), config: cfg)
 
-        let events = detector.evaluate(
+        let dispatches = detector.evaluate(
             observation: Self.observation(lanes: [Self.lane(usedPercent: 5)]),
             config: cfg)
-        #expect(!events.contains { $0.event == .quotaReached })
+        #expect(!dispatches.contains { $0.event.event == .quotaReached })
     }
 
     // MARK: - Provider status
@@ -172,7 +209,7 @@ struct HookTransitionDetectorLinuxTests {
         _ = detector.evaluate(observation: Self.observation(lanes: [], status: .none), config: cfg)
 
         let outage = detector.evaluate(observation: Self.observation(lanes: [], status: .major), config: cfg)
-        #expect(outage.map(\.event) == [.providerUnavailable])
+        #expect(outage.map(\.event.event) == [.providerUnavailable])
 
         let persisting = detector.evaluate(
             observation: Self.observation(lanes: [], status: .critical),
@@ -180,7 +217,7 @@ struct HookTransitionDetectorLinuxTests {
         #expect(persisting.isEmpty)
 
         let recovered = detector.evaluate(observation: Self.observation(lanes: [], status: .none), config: cfg)
-        #expect(recovered.map(\.event) == [.providerRecovered])
+        #expect(recovered.map(\.event.event) == [.providerRecovered])
     }
 
     @Test
@@ -198,16 +235,16 @@ struct HookTransitionDetectorLinuxTests {
 
         // The tracked state is still "no outage", so a real outage still fires.
         let outage = detector.evaluate(observation: Self.observation(lanes: [], status: .major), config: cfg)
-        #expect(outage.map(\.event) == [.providerUnavailable])
+        #expect(outage.map(\.event.event) == [.providerUnavailable])
     }
 
     @Test
     func `first definite status does not fire`() {
         let detector = HookTransitionDetector()
-        let events = detector.evaluate(
+        let dispatches = detector.evaluate(
             observation: Self.observation(lanes: [], status: .critical),
             config: Self.config())
-        #expect(events.isEmpty)
+        #expect(dispatches.isEmpty)
     }
 
     // MARK: - Refresh failures
@@ -215,11 +252,11 @@ struct HookTransitionDetectorLinuxTests {
     @Test
     func `refresh failure emits coarse status only`() {
         let detector = HookTransitionDetector()
-        let events = detector.evaluate(
+        let dispatches = detector.evaluate(
             observation: Self.observation(lanes: [], refreshFailureStatus: "timeout"),
             config: Self.config())
-        #expect(events.map(\.event) == [.refreshFailed])
-        #expect(events.first?.status == "timeout")
+        #expect(dispatches.map(\.event.event) == [.refreshFailed])
+        #expect(dispatches.first?.event.status == "timeout")
     }
 
     @Test
@@ -232,10 +269,10 @@ struct HookTransitionDetectorLinuxTests {
             config: cfg)
 
         // Compares against the last real sample (50), so this is a genuine crossing.
-        let events = detector.evaluate(
+        let dispatches = detector.evaluate(
             observation: Self.observation(lanes: [Self.lane(usedPercent: 85)]),
             config: cfg)
-        #expect(events.contains { $0.event == .quotaLow })
+        #expect(dispatches.contains { $0.event.event == .quotaLow })
     }
 
     // MARK: - Configuration and lane lifecycle
@@ -245,10 +282,10 @@ struct HookTransitionDetectorLinuxTests {
         let detector = HookTransitionDetector()
         let cfg = Self.config(enabled: false)
         _ = detector.evaluate(observation: Self.observation(lanes: [Self.lane(usedPercent: 50)]), config: cfg)
-        let events = detector.evaluate(
+        let dispatches = detector.evaluate(
             observation: Self.observation(lanes: [Self.lane(usedPercent: 95)]),
             config: cfg)
-        #expect(events.isEmpty)
+        #expect(dispatches.isEmpty)
     }
 
     @Test
@@ -260,10 +297,10 @@ struct HookTransitionDetectorLinuxTests {
 
         // A rule edit must not fire for a crossing that spans the change.
         detector.resetIfConfigurationChanged(revision: 2)
-        let events = detector.evaluate(
+        let dispatches = detector.evaluate(
             observation: Self.observation(lanes: [Self.lane(usedPercent: 95)]),
             config: cfg)
-        #expect(events.isEmpty)
+        #expect(dispatches.isEmpty)
     }
 
     @Test
@@ -272,12 +309,12 @@ struct HookTransitionDetectorLinuxTests {
         let cfg = Self.config()
         _ = detector.evaluate(observation: Self.observation(lanes: [Self.lane(usedPercent: 50)]), config: cfg)
 
-        let events = detector.evaluate(
+        let dispatches = detector.evaluate(
             observation: Self.observation(lanes: [
                 Self.lane(usedPercent: 100, isSyntheticPlaceholder: true),
             ]),
             config: cfg)
-        #expect(events.isEmpty)
+        #expect(dispatches.isEmpty)
     }
 
     @Test
@@ -289,10 +326,10 @@ struct HookTransitionDetectorLinuxTests {
         _ = detector.evaluate(observation: Self.observation(lanes: []), config: cfg)
 
         // Reappears high: treated as a fresh baseline, so nothing fires.
-        let events = detector.evaluate(
+        let dispatches = detector.evaluate(
             observation: Self.observation(lanes: [Self.lane(usedPercent: 95)]),
             config: cfg)
-        #expect(events.isEmpty)
+        #expect(dispatches.isEmpty)
     }
 
     @Test
@@ -309,7 +346,7 @@ struct HookTransitionDetectorLinuxTests {
             ]),
             config: cfg)
 
-        let events = detector.evaluate(
+        let dispatches = detector.evaluate(
             observation: Self.observation(lanes: [
                 Self.lane(usedPercent: 85, key: first),
                 Self.lane(usedPercent: 55, key: second),
@@ -317,8 +354,8 @@ struct HookTransitionDetectorLinuxTests {
             config: cfg)
 
         // Only the crossing account fires.
-        #expect(events.count == 1)
-        #expect(events.first?.event == .quotaLow)
+        #expect(dispatches.count == 1)
+        #expect(dispatches.first?.event.event == .quotaLow)
     }
 
     @Test
@@ -340,7 +377,7 @@ struct HookTransitionDetectorLinuxTests {
         let above = detector.evaluate(
             observation: Self.observation(lanes: [Self.lane(usedPercent: 95, thresholds: [0.8])]),
             config: cfg)
-        #expect(above.map(\.event) == [.quotaLow])
+        #expect(above.map(\.event.event) == [.quotaLow])
     }
 
     @Test
@@ -350,9 +387,9 @@ struct HookTransitionDetectorLinuxTests {
             HookRule(event: .quotaLow, provider: "claude", executable: "/bin/true"),
         ])
         _ = detector.evaluate(observation: Self.observation(lanes: [Self.lane(usedPercent: 50)]), config: cfg)
-        let events = detector.evaluate(
+        let dispatches = detector.evaluate(
             observation: Self.observation(lanes: [Self.lane(usedPercent: 95)]),
             config: cfg)
-        #expect(events.isEmpty)
+        #expect(dispatches.isEmpty)
     }
 }
