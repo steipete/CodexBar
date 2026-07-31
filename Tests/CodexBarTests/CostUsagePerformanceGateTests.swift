@@ -506,6 +506,132 @@ struct CostUsagePerformanceGateTests {
     }
 
     @Test
+    func `incompatible populated cache stays visible until bounded fork rebuild converges`() async throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+        let day = try env.makeLocalNoon(year: 2026, month: 5, day: 10)
+        let iso = env.isoString(for: day)
+        let forkISO = env.isoString(for: day.addingTimeInterval(2))
+        let model = "openai/gpt-5.2-codex"
+
+        let parentBody = ([
+            #"{"type":"session_meta","timestamp":"\#(iso)","payload":{"session_id":"upgrade-parent"}}"#,
+            #"{"type":"turn_context","timestamp":"\#(iso)","payload":{"model":"\#(model)"}}"#,
+            #"{"type":"event_msg","timestamp":"\#(forkISO)","payload":{"type":"token_count","info":"#
+                + #"{"total_token_usage":{"input_tokens":500,"cached_input_tokens":50,"output_tokens":25},"#
+                + #""model":"\#(model)"}}}"#,
+        ] + Array(repeating: "x", count: 4096)).joined(separator: "\n") + "\n"
+        let parentURL = try env.writeCodexSessionFile(
+            day: day,
+            filename: "upgrade-parent.jsonl",
+            contents: parentBody)
+        let childBody = [
+            #"{"type":"session_meta","timestamp":"\#(forkISO)","payload":{"session_id":"upgrade-child","#
+                + #""forked_from_id":"upgrade-parent"}}"#,
+            #"{"type":"turn_context","timestamp":"\#(forkISO)","payload":{"model":"\#(model)"}}"#,
+            #"{"type":"event_msg","timestamp":"\#(forkISO)","payload":{"type":"token_count","info":"#
+                + #"{"total_token_usage":{"input_tokens":600,"cached_input_tokens":60,"output_tokens":30},"#
+                + #""model":"\#(model)"}}}"#,
+        ].joined(separator: "\n") + "\n"
+        let childURL = try env.writeCodexSessionFile(
+            day: day,
+            filename: "upgrade-child.jsonl",
+            contents: childBody)
+        try FileManager.default.setAttributes(
+            [.modificationDate: day],
+            ofItemAtPath: parentURL.path)
+        try FileManager.default.setAttributes(
+            [.modificationDate: day.addingTimeInterval(120)],
+            ofItemAtPath: childURL.path)
+
+        var baselineOptions = CostUsageScanner.Options(
+            codexSessionsRoot: env.codexSessionsRoot,
+            claudeProjectsRoots: nil,
+            cacheRoot: env.root.appendingPathComponent("upgrade-baseline-cache"),
+            codexTraceDatabaseURL: env.root.appendingPathComponent("missing.sqlite"),
+            maxCodexSessionFileBytes: 0,
+            maxCodexScanBytesPerRefresh: 0)
+        baselineOptions.refreshMinIntervalSeconds = 0
+        let baseline = CostUsageScanner.loadDailyReport(
+            provider: .codex,
+            since: day,
+            until: day,
+            now: day,
+            options: baselineOptions)
+
+        var options = CostUsageScanner.Options(
+            codexSessionsRoot: env.codexSessionsRoot,
+            claudeProjectsRoots: nil,
+            cacheRoot: env.cacheRoot,
+            codexTraceDatabaseURL: env.root.appendingPathComponent("missing.sqlite"),
+            maxCodexSessionFileBytes: 1024,
+            maxCodexScanBytesPerRefresh: 1024,
+            preferNewestCodexSessionsFirst: true)
+        options.refreshMinIntervalSeconds = 0
+        let range = CostUsageScanner.CostUsageDayRange(
+            since: day,
+            until: day,
+            calendar: options.calendar)
+        let priorScanAt = day.addingTimeInterval(-3600)
+        var priorCache = CostUsageCache()
+        priorCache.lastScanUnixMs = Int64(priorScanAt.timeIntervalSince1970 * 1000)
+        priorCache.scanSinceKey = range.scanSinceKey
+        priorCache.scanUntilKey = range.scanUntilKey
+        priorCache.timeZoneIdentifier = options.calendar.timeZone.identifier
+        priorCache.roots = CostUsageScanner.codexRootsFingerprint(options: options)
+        priorCache.days = [
+            range.sinceKey: [CostUsagePricing.normalizeCodexModel(model): [777, 0, 0]],
+        ]
+        CostUsageCacheIO.save(
+            provider: .codex,
+            cache: priorCache,
+            cacheRoot: env.cacheRoot,
+            producerKey: "codex:cu:pupgrade-fixture")
+
+        let priorReport = CostUsageScanner.buildCodexReportFromCache(
+            cache: priorCache,
+            range: range)
+        var report = CostUsageScanner.loadDailyReport(
+            provider: .codex,
+            since: day,
+            until: day,
+            now: day,
+            options: options)
+        let fetcher = CostUsageFetcher(scannerOptions: options)
+        var status = await fetcher.codexScanCatchUpStatus()
+
+        #expect(status.pending)
+        #expect(status.staleSnapshotUpdatedAt == priorScanAt)
+        #expect(report.data == priorReport.data)
+        #expect(report.summary == priorReport.summary)
+        #expect(CostUsageCacheIO.load(
+            provider: .codex,
+            cacheRoot: env.cacheRoot).codexPreviousReport != nil)
+
+        for pass in 1...16 where status.pending {
+            report = CostUsageScanner.loadDailyReport(
+                provider: .codex,
+                since: day,
+                until: day,
+                now: day.addingTimeInterval(TimeInterval(pass)),
+                options: options)
+            status = await fetcher.codexScanCatchUpStatus()
+            if status.pending {
+                #expect(report.data == priorReport.data)
+                #expect(report.summary == priorReport.summary)
+                #expect(status.staleSnapshotUpdatedAt == priorScanAt)
+            }
+        }
+
+        let completedCache = CostUsageCacheIO.load(provider: .codex, cacheRoot: env.cacheRoot)
+        #expect(!status.pending)
+        #expect(status.staleSnapshotUpdatedAt == nil)
+        #expect(completedCache.codexPreviousReport == nil)
+        #expect(report.data == baseline.data)
+        #expect(report.summary == baseline.summary)
+    }
+
+    @Test
     func `single oversized jsonl record resumes without stalling`() throws {
         let env = try CostUsageTestEnvironment()
         defer { env.cleanup() }

@@ -167,6 +167,17 @@ struct SpendDashboardPane: View {
                             .controlSize(.small)
                     }
 
+                    if let staleSnapshotUpdatedAt = activity.staleSnapshotUpdatedAt {
+                        HStack(spacing: 6) {
+                            Label(L("stale data"), systemImage: "clock.badge.exclamationmark")
+                            Text(L(
+                                "Updated relative %@",
+                                staleSnapshotUpdatedAt.relativeDescription()))
+                        }
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(.orange)
+                    }
+
                     Text(self.codexCostCatchUpDetail(activity))
                         .font(.caption)
                         .foregroundStyle(.secondary)

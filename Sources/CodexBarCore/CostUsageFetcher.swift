@@ -33,6 +33,7 @@ public struct CostUsageFetcher: Sendable {
     package struct CachedCodexTokenSnapshotResult: Sendable {
         package let snapshot: CostUsageTokenSnapshot
         package let lastRefreshAt: Date?
+        package let staleSnapshotUpdatedAt: Date?
     }
 
     package struct CodexScanCatchUpStatus: Sendable, Equatable {
@@ -42,6 +43,7 @@ public struct CostUsageFetcher: Sendable {
         package let totalBytes: Int64
         package let completedFiles: Int
         package let totalFiles: Int
+        package let staleSnapshotUpdatedAt: Date?
 
         package init(
             pending: Bool,
@@ -49,7 +51,8 @@ public struct CostUsageFetcher: Sendable {
             processedBytes: Int64 = 0,
             totalBytes: Int64 = 0,
             completedFiles: Int = 0,
-            totalFiles: Int = 0)
+            totalFiles: Int = 0,
+            staleSnapshotUpdatedAt: Date? = nil)
         {
             self.pending = pending
             self.progressKey = progressKey
@@ -57,6 +60,7 @@ public struct CostUsageFetcher: Sendable {
             self.totalBytes = max(0, totalBytes)
             self.completedFiles = max(0, completedFiles)
             self.totalFiles = max(0, totalFiles)
+            self.staleSnapshotUpdatedAt = staleSnapshotUpdatedAt
         }
     }
 
@@ -269,11 +273,25 @@ public struct CostUsageFetcher: Sendable {
         options: CostUsageScanner.Options) -> CodexScanCatchUpStatus
     {
         let roots = CostUsageScanner.codexSessionsRoots(options: options)
-        let cache = CostUsageCacheIO.load(
-            provider: .codex,
+        let rootsFingerprint = CostUsageScanner.codexRootsFingerprint(options: options)
+        let loadedCache = CostUsageCacheIO.loadCodexForMigration(
             cacheRoot: options.cacheRoot,
             calendar: options.calendar)
-        guard cache.roots == CostUsageScanner.codexRootsFingerprint(options: options) else {
+        let cache = loadedCache.cache
+        guard cache.roots == rootsFingerprint else {
+            if let incompatibleCache = loadedCache.incompatibleCache,
+               incompatibleCache.roots == rootsFingerprint
+            {
+                let staleSnapshotUpdatedAt: Date? = if incompatibleCache.lastScanUnixMs > 0 {
+                    Date(timeIntervalSince1970: TimeInterval(incompatibleCache.lastScanUnixMs) / 1000)
+                } else {
+                    nil
+                }
+                return CodexScanCatchUpStatus(
+                    pending: true,
+                    progressKey: "producer-upgrade",
+                    staleSnapshotUpdatedAt: staleSnapshotUpdatedAt)
+            }
             return CodexScanCatchUpStatus(pending: false, progressKey: "scope-mismatch")
         }
 
@@ -294,7 +312,8 @@ public struct CostUsageFetcher: Sendable {
             processedBytes: cache.codexScanProcessedBytes ?? 0,
             totalBytes: cache.codexScanTotalBytes ?? 0,
             completedFiles: cache.codexScanCompletedFiles ?? 0,
-            totalFiles: cache.codexScanTotalFiles ?? 0)
+            totalFiles: cache.codexScanTotalFiles ?? 0,
+            staleSnapshotUpdatedAt: pending ? cache.codexPreviousReport?.updatedAt : nil)
     }
 
     private static func resolvedScannerOptions(
@@ -382,82 +401,18 @@ public struct CostUsageFetcher: Sendable {
         }
         let piOptions = resolvedPiOptions
 
-        try Task.checkCancellation()
-        // The corpus scans below are synchronous and can run for minutes on large session
-        // archives. They execute on the dedicated scan queue so they never occupy a cooperative
-        // pool thread; CostUsageScanExecutor bridges this task's cancellation into the
-        // scanner-level checks.
         let scanOptions = options
-        let scanResult = try await CostUsageScanExecutor.run { checkCancellation in
-            var daily = try CostUsageScanner.loadDailyReportCancellable(
-                provider: provider,
-                since: since,
-                until: now,
-                now: now,
-                options: scanOptions,
-                checkCancellation: checkCancellation)
-            try checkCancellation()
-
-            if provider == .vertexai,
-               !allowVertexClaudeFallback,
-               scanOptions.claudeLogProviderFilter == .vertexAIOnly,
-               daily.data.isEmpty
-            {
-                var fallback = scanOptions
-                fallback.claudeLogProviderFilter = .all
-                daily = try CostUsageScanner.loadDailyReportCancellable(
-                    provider: provider,
-                    since: since,
-                    until: now,
-                    now: now,
-                    options: fallback,
-                    checkCancellation: checkCancellation)
-                try checkCancellation()
-            }
-
-            var projects: [CostUsageProjectBreakdown] = []
-            var sessions: [CostUsageSessionBreakdown] = []
-            var piDaily: CostUsageDailyReport?
-            if provider == .codex {
-                let roots = CostUsageScanner.codexSessionsRoots(options: scanOptions)
-                let cache = CostUsageScanner.codexCache(
-                    CostUsageCacheIO.load(provider: .codex, cacheRoot: scanOptions.cacheRoot),
-                    scopedTo: roots)
-                let range = CostUsageScanner.CostUsageDayRange(
-                    since: since, until: now, calendar: scanOptions.calendar)
-                projects = CostUsageScanner.buildCodexProjectBreakdownsFromCache(
-                    cache: cache,
-                    range: range,
-                    modelsDevCacheRoot: scanOptions.cacheRoot)
-                sessions = CostUsageScanner.buildCodexSessionBreakdownsFromCache(
-                    cache: cache,
-                    range: range,
-                    modelsDevCacheRoot: scanOptions.cacheRoot,
-                    sessionRoots: roots)
-            }
-            if includePiSessions, provider == .claude || (provider == .codex && shouldMergePiUsage) {
-                let piReport = try PiSessionCostScanner.loadDailyReportCancellable(
-                    provider: provider,
-                    since: since,
-                    until: now,
-                    now: now,
-                    options: piOptions,
-                    checkCancellation: checkCancellation)
-                try checkCancellation()
-                if provider == .codex {
-                    piDaily = piReport
-                }
-                daily = CostUsageDailyReport.merged([daily, piReport])
-            }
-            if provider == .codex {
-                projects = Self.mergedProjectBreakdowns(
-                    projects + [piDaily.flatMap(Self.unknownProjectBreakdown(from:))].compactMap(\.self))
-                if piDaily?.data.isEmpty == false {
-                    sessions = []
-                }
-            }
-            return (daily: daily, projects: projects, sessions: sessions)
-        }
+        let localScanOptions = LocalTokenScanOptions(
+            allowVertexClaudeFallback: allowVertexClaudeFallback,
+            includePiSessions: includePiSessions,
+            shouldMergePiUsage: shouldMergePiUsage,
+            scanOptions: scanOptions,
+            piOptions: piOptions)
+        let scanResult = try await Self.loadLocalTokenScanResult(
+            provider: provider,
+            since: since,
+            now: now,
+            options: localScanOptions)
 
         if allowPricingRefresh,
            retryUnknownPricing,
@@ -493,7 +448,119 @@ public struct CostUsageFetcher: Sendable {
             historyDays: clampedHistoryDays,
             calendar: scanOptions.calendar,
             projects: scanResult.projects,
-            sessions: scanResult.sessions)
+            sessions: scanResult.sessions,
+            updatedAt: scanResult.staleSnapshotUpdatedAt)
+    }
+
+    private struct LocalTokenScanResult: Sendable {
+        let daily: CostUsageDailyReport
+        let projects: [CostUsageProjectBreakdown]
+        let sessions: [CostUsageSessionBreakdown]
+        let staleSnapshotUpdatedAt: Date?
+    }
+
+    private struct LocalTokenScanOptions: Sendable {
+        let allowVertexClaudeFallback: Bool
+        let includePiSessions: Bool
+        let shouldMergePiUsage: Bool
+        let scanOptions: CostUsageScanner.Options
+        let piOptions: PiSessionCostScanner.Options
+    }
+
+    private static func loadLocalTokenScanResult(
+        provider: UsageProvider,
+        since: Date,
+        now: Date,
+        options: LocalTokenScanOptions) async throws -> LocalTokenScanResult
+    {
+        try Task.checkCancellation()
+        // These synchronous scans can run for minutes on large archives. The dedicated queue keeps
+        // them off the cooperative pool and bridges task cancellation into scanner-level checks.
+        return try await CostUsageScanExecutor.run { checkCancellation in
+            var daily = try CostUsageScanner.loadDailyReportCancellable(
+                provider: provider,
+                since: since,
+                until: now,
+                now: now,
+                options: options.scanOptions,
+                checkCancellation: checkCancellation)
+            try checkCancellation()
+
+            if provider == .vertexai,
+               !options.allowVertexClaudeFallback,
+               options.scanOptions.claudeLogProviderFilter == .vertexAIOnly,
+               daily.data.isEmpty
+            {
+                var fallback = options.scanOptions
+                fallback.claudeLogProviderFilter = .all
+                daily = try CostUsageScanner.loadDailyReportCancellable(
+                    provider: provider,
+                    since: since,
+                    until: now,
+                    now: now,
+                    options: fallback,
+                    checkCancellation: checkCancellation)
+                try checkCancellation()
+            }
+
+            var projects: [CostUsageProjectBreakdown] = []
+            var sessions: [CostUsageSessionBreakdown] = []
+            var piDaily: CostUsageDailyReport?
+            var staleSnapshotUpdatedAt: Date?
+            if provider == .codex {
+                let roots = CostUsageScanner.codexSessionsRoots(options: options.scanOptions)
+                let cache = CostUsageScanner.codexCache(
+                    CostUsageCacheIO.load(provider: .codex, cacheRoot: options.scanOptions.cacheRoot),
+                    scopedTo: roots)
+                let range = CostUsageScanner.CostUsageDayRange(
+                    since: since, until: now, calendar: options.scanOptions.calendar)
+                if let previous = CostUsageScanner.codexPreviousReport(
+                    cache: cache,
+                    range: range,
+                    rootsFingerprint: CostUsageScanner.codexRootsFingerprint(options: options.scanOptions))
+                {
+                    staleSnapshotUpdatedAt = previous.updatedAt
+                } else {
+                    projects = CostUsageScanner.buildCodexProjectBreakdownsFromCache(
+                        cache: cache,
+                        range: range,
+                        modelsDevCacheRoot: options.scanOptions.cacheRoot)
+                    sessions = CostUsageScanner.buildCodexSessionBreakdownsFromCache(
+                        cache: cache,
+                        range: range,
+                        modelsDevCacheRoot: options.scanOptions.cacheRoot,
+                        sessionRoots: roots)
+                }
+            }
+            if options.includePiSessions,
+               provider == .claude || (provider == .codex && options.shouldMergePiUsage)
+            {
+                let piReport = try PiSessionCostScanner.loadDailyReportCancellable(
+                    provider: provider,
+                    since: since,
+                    until: now,
+                    now: now,
+                    options: options.piOptions,
+                    checkCancellation: checkCancellation)
+                try checkCancellation()
+                if provider == .codex {
+                    piDaily = piReport
+                }
+                daily = CostUsageDailyReport.merged([daily, piReport])
+            }
+            if provider == .codex {
+                projects = Self.mergedProjectBreakdowns(
+                    projects + [piDaily.flatMap(Self.unknownProjectBreakdown(from:))].compactMap(\.self))
+                if piDaily?.data.isEmpty == false {
+                    sessions = []
+                }
+            }
+            return LocalTokenScanResult(
+                daily: daily,
+                projects: projects,
+                sessions: sessions,
+                staleSnapshotUpdatedAt: staleSnapshotUpdatedAt)
+        }
     }
 
     private struct PricingRefreshOptions: Sendable {
@@ -624,8 +691,12 @@ public struct CostUsageFetcher: Sendable {
                 until: until,
                 calendar: options.calendar)
             let roots = CostUsageScanner.codexSessionsRoots(options: options)
+            let rootsFingerprint = CostUsageScanner.codexRootsFingerprint(options: options)
+            let loadedCache = CostUsageCacheIO.loadCodexForMigration(
+                cacheRoot: options.cacheRoot,
+                calendar: options.calendar)
             let cache = CostUsageScanner.codexCache(
-                CostUsageCacheIO.load(provider: .codex, cacheRoot: options.cacheRoot),
+                loadedCache.cache,
                 scopedTo: roots)
             var reports: [CostUsageDailyReport] = []
             var projects: [CostUsageProjectBreakdown] = []
@@ -635,11 +706,22 @@ public struct CostUsageFetcher: Sendable {
             var nativeScanAt: Date?
             var scanTimes: [Date] = []
             var piMerged = false
+            var staleSnapshotUpdatedAt: Date?
 
-            if cache.timeZoneIdentifier == range.calendar.timeZone.identifier,
-               !cache.days.isEmpty,
-               cache.roots == CostUsageScanner.codexRootsFingerprint(options: options),
-               !CostUsageScanner.requestedWindowExpandsCache(range: range, cache: cache)
+            if let previous = CostUsageScanner.codexPreviousReport(
+                cache: cache,
+                range: range,
+                rootsFingerprint: rootsFingerprint)
+            {
+                reports.append(previous.report)
+                staleSnapshotUpdatedAt = previous.updatedAt
+                if let updatedAt = previous.updatedAt {
+                    scanTimes.append(updatedAt)
+                }
+            } else if cache.timeZoneIdentifier == range.calendar.timeZone.identifier,
+                      !cache.days.isEmpty,
+                      cache.roots == rootsFingerprint,
+                      !CostUsageScanner.requestedWindowExpandsCache(range: range, cache: cache)
             {
                 let daily = CostUsageScanner.buildCodexReportFromCache(
                     cache: cache,
@@ -662,6 +744,25 @@ public struct CostUsageFetcher: Sendable {
                             cache: cache,
                             range: range,
                             modelsDevCacheRoot: options.cacheRoot))
+                    }
+                }
+            } else if let incompatibleCache = loadedCache.incompatibleCache,
+                      incompatibleCache.timeZoneIdentifier == range.calendar.timeZone.identifier,
+                      !incompatibleCache.days.isEmpty,
+                      incompatibleCache.roots == rootsFingerprint,
+                      !CostUsageScanner.requestedWindowExpandsCache(range: range, cache: incompatibleCache)
+            {
+                let daily = CostUsageScanner.buildCodexReportFromCache(
+                    cache: incompatibleCache,
+                    range: range,
+                    modelsDevCacheRoot: options.cacheRoot)
+                if !daily.data.isEmpty {
+                    reports.append(daily)
+                    if incompatibleCache.lastScanUnixMs > 0 {
+                        let scanAt = Date(
+                            timeIntervalSince1970: TimeInterval(incompatibleCache.lastScanUnixMs) / 1000)
+                        staleSnapshotUpdatedAt = scanAt
+                        scanTimes.append(scanAt)
                     }
                 }
             }
@@ -701,7 +802,8 @@ public struct CostUsageFetcher: Sendable {
                     projects: Self.mergedProjectBreakdowns(projects),
                     sessions: sessions,
                     updatedAt: scanTimes.min()),
-                lastRefreshAt: piMerged ? nil : nativeScanAt)
+                lastRefreshAt: piMerged || staleSnapshotUpdatedAt != nil ? nil : nativeScanAt,
+                staleSnapshotUpdatedAt: staleSnapshotUpdatedAt)
         }
         return cachedSnapshot.flatMap(\.self)
     }

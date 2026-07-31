@@ -89,7 +89,8 @@ extension UsageStore {
                 totalBytes: activity.totalBytes,
                 completedFiles: activity.completedFiles,
                 totalFiles: activity.totalFiles,
-                pauseReason: .user)
+                pauseReason: .user,
+                staleSnapshotUpdatedAt: activity.staleSnapshotUpdatedAt)
         }
         self.codexCostCatchUpTask?.cancel()
         self.codexCostCatchUpTask = nil
@@ -333,7 +334,8 @@ extension UsageStore {
             totalBytes: status.totalBytes,
             completedFiles: status.completedFiles,
             totalFiles: status.totalFiles,
-            pauseReason: pauseReason)
+            pauseReason: pauseReason,
+            staleSnapshotUpdatedAt: status.staleSnapshotUpdatedAt)
     }
 
     private func sleepBetweenCodexCostCatchUpPasses(seconds: TimeInterval) async throws {

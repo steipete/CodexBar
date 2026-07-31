@@ -262,7 +262,10 @@ final class UsageStore {
     @ObservationIgnored var _test_cachedCodexTokenSnapshotLoaderOverride: (@MainActor (
         Date,
         String?,
-        Int) async -> (snapshot: CostUsageTokenSnapshot, lastRefreshAt: Date?)?)?
+        Int) async -> (
+        snapshot: CostUsageTokenSnapshot,
+        lastRefreshAt: Date?,
+        staleSnapshotUpdatedAt: Date?)?)?
     @ObservationIgnored var _test_codexCostCatchUpStatusOverride: (@MainActor (
         String?) async -> CostUsageFetcher.CodexScanCatchUpStatus)?
     @ObservationIgnored var _test_codexCostCatchUpAdvanceOverride: (@MainActor (

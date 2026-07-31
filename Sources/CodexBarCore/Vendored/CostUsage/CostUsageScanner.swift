@@ -3826,11 +3826,74 @@ enum CostUsageScanner {
             shouldRefresh: shouldRefresh)
     }
 
-    private static func loadCodexCache(options: Options, range: CostUsageDayRange) -> CostUsageCache {
-        CostUsageCacheIO.load(
-            provider: .codex,
+    private static func loadCodexCache(
+        options: Options,
+        range: CostUsageDayRange) -> CostUsageCodexCacheLoadResult
+    {
+        CostUsageCacheIO.loadCodexForMigration(
             cacheRoot: options.cacheRoot,
             calendar: range.calendar)
+    }
+
+    private static func codexPreviousReportCandidate(
+        cache: CostUsageCache,
+        incompatibleCache: CostUsageCache?,
+        range: CostUsageDayRange,
+        plan: CodexRefreshPlan,
+        options: Options) -> CostUsageCodexPreviousReport?
+    {
+        let currentScanIsPending = cache.codexScanCatchUpPending == true
+            || cache.files.values.contains { $0.codexScanComplete == false }
+            || cache.files.values.contains { $0.hasBufferedCodexForkRetryLines }
+        if currentScanIsPending,
+           let previous = self.codexPreviousReport(
+               cache: cache,
+               range: range,
+               rootsFingerprint: plan.rootsFingerprint)
+        {
+            return previous
+        }
+
+        let sourceCache: CostUsageCache? = if let incompatibleCache {
+            incompatibleCache
+        } else if !currentScanIsPending,
+                  options.forceRescan,
+                  !cache.days.isEmpty
+        {
+            cache
+        } else {
+            nil
+        }
+        guard let sourceCache,
+              sourceCache.timeZoneIdentifier == range.calendar.timeZone.identifier,
+              sourceCache.roots == plan.rootsFingerprint,
+              !self.requestedWindowExpandsCache(range: range, cache: sourceCache),
+              !sourceCache.days.isEmpty
+        else { return nil }
+
+        let report = self.buildCodexReportFromCache(
+            cache: sourceCache,
+            range: range,
+            modelsDevCatalog: plan.modelsDevCatalog,
+            modelsDevCacheRoot: options.cacheRoot,
+            priorityTurns: plan.priorityTurns)
+        return CostUsageCodexPreviousReport(report: report, cache: sourceCache)
+    }
+
+    static func codexPreviousReport(
+        cache: CostUsageCache,
+        range: CostUsageDayRange,
+        rootsFingerprint: [String: Int64]) -> CostUsageCodexPreviousReport?
+    {
+        guard cache.codexScanCatchUpPending == true,
+              let previous = cache.codexPreviousReport,
+              previous.matches(
+                  scanSinceKey: range.scanSinceKey,
+                  scanUntilKey: range.scanUntilKey,
+                  timeZoneIdentifier: range.calendar.timeZone.identifier,
+                  roots: rootsFingerprint)
+        else { return nil }
+        return previous
     }
 
     private static func saveCodexCache(_ cache: CostUsageCache, options: Options, range: CostUsageDayRange) {
@@ -3848,9 +3911,16 @@ enum CostUsageScanner {
         options: Options,
         checkCancellation: CancellationCheck?) throws -> CostUsageDailyReport
     {
-        var cache = Self.loadCodexCache(options: options, range: range)
+        let loadedCache = Self.loadCodexCache(options: options, range: range)
+        var cache = loadedCache.cache
         let nowMs = Int64(now.timeIntervalSince1970 * 1000)
         let plan = Self.makeCodexRefreshPlan(cache: cache, range: range, now: now, nowMs: nowMs, options: options)
+        let previousReport = Self.codexPreviousReportCandidate(
+            cache: cache,
+            incompatibleCache: loadedCache.incompatibleCache,
+            range: range,
+            plan: plan,
+            options: options)
 
         if plan.shouldRefresh {
             try checkCancellation?()
@@ -4010,12 +4080,14 @@ enum CostUsageScanner {
             cache.codexScanTotalBytes = scanProgress.totalBytes
             cache.codexScanCompletedFiles = scanProgress.completedFiles
             cache.codexScanTotalFiles = scanProgress.totalFiles
-            cache.codexScanCatchUpPending = scanBudget.resumedPartialFileCount > 0
+            let catchUpPending = scanBudget.resumedPartialFileCount > 0
                 || scanBudget.deferredByBudgetFileCount > 0
                 || scanBudget.deferredByTimeBudgetFileCount > 0
                 || scanProgress.completedFiles < scanProgress.totalFiles
                 || cache.files.values.contains { $0.codexScanComplete == false }
                 || cache.files.values.contains { $0.hasBufferedCodexForkRetryLines }
+            cache.codexScanCatchUpPending = catchUpPending
+            cache.codexPreviousReport = catchUpPending ? previousReport : nil
             if plan.hasPriorityMetadata {
                 cache.codexPriorityTurnKeys = Self.mergePriorityTurnKeys(
                     existing: shouldRetainWiderWindow ? cache.codexPriorityTurnKeys : nil,
@@ -4035,6 +4107,13 @@ enum CostUsageScanner {
             Self.saveCodexCache(cache, options: options, range: range)
         }
 
+        if let previous = Self.codexPreviousReport(
+            cache: cache,
+            range: range,
+            rootsFingerprint: plan.rootsFingerprint)
+        {
+            return previous.report
+        }
         return Self.buildCodexReportFromCache(
             cache: cache,
             range: range,

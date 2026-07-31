@@ -49,6 +49,7 @@ struct CodexCostCatchUpActivity: Sendable, Equatable {
     let completedFiles: Int
     let totalFiles: Int
     let pauseReason: CodexCostCatchUpPauseReason?
+    let staleSnapshotUpdatedAt: Date?
 
     var fractionCompleted: Double? {
         guard self.totalBytes > 0 else {
