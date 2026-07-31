@@ -209,6 +209,26 @@ struct AgentSessionMenuDescriptorTests {
     }
 
     @Test
+    func `oh my pi session rows use the dedicated provider glyph`() {
+        let now = Date(timeIntervalSince1970: 1000)
+        let session = AgentSession(
+            id: "omp",
+            provider: .ohMyPi,
+            source: .cli,
+            state: .active,
+            pid: 42,
+            cwd: "/Users/test/alpha",
+            projectName: "alpha",
+            startedAt: nil,
+            lastActivityAt: now,
+            transcriptPath: nil,
+            host: "local-mac")
+
+        let title = Self.actionTitle(for: session, style: .project, now: now)
+        #expect(title.contains("π alpha — oh-my-pi · cli · 0s"))
+    }
+
+    @Test
     func `remote refresh gate retries changed settings and rejects stale result`() throws {
         var gate = AgentSessionRemoteRefreshGate()
         let initialGenerationCandidate = gate.begin()

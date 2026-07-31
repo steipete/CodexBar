@@ -4,6 +4,7 @@ public struct AgentSession: Codable, Equatable, Sendable, Identifiable {
     public enum Provider: String, Codable, Sendable {
         case codex
         case claude
+        case ohMyPi = "oh-my-pi"
     }
 
     public enum Source: String, Codable, Sendable {
@@ -216,6 +217,9 @@ public enum AgentPSOutputParser {
     public static func agentProcesses(from records: [AgentProcessRecord]) -> [AgentProcessRecord] {
         let candidates = records.filter { record in
             let basename = record.executableBasename.lowercased()
+            if self.isOhMyPiExecutable(record.command) {
+                return !self.isObviousOhMyPiHelper(record.command)
+            }
             if basename == "codex" {
                 let arguments = self.arguments(record.command)
                 return self.isCodexAgentExecutable(record.command) &&
@@ -247,6 +251,9 @@ public enum AgentPSOutputParser {
         }
         if basename == "claude" || basename == "disclaimer" {
             return .claude
+        }
+        if self.isOhMyPiExecutable(record.command), !self.isObviousOhMyPiHelper(record.command) {
+            return .ohMyPi
         }
         return nil
     }
@@ -293,6 +300,28 @@ public enum AgentPSOutputParser {
     private static func isClaudeAgentExecutable(_ command: String) -> Bool {
         let lowercased = command.lowercased()
         return !lowercased.contains(".app/") || lowercased.contains("application support/claude/claude-code/claude")
+    }
+
+    private static func isOhMyPiExecutable(_ command: String) -> Bool {
+        let tokens = command.split(whereSeparator: \ .isWhitespace).map(String.init)
+        guard let firstToken = tokens.first else { return false }
+
+        let firstBasename = URL(fileURLWithPath: firstToken).lastPathComponent
+        if firstBasename == "omp" {
+            return true
+        }
+        guard firstBasename == "bun" else { return false }
+        return tokens.dropFirst().contains {
+            URL(fileURLWithPath: $0).lastPathComponent == "omp"
+        }
+    }
+
+    private static func isObviousOhMyPiHelper(_ command: String) -> Bool {
+        let lowercased = command.lowercased()
+        return lowercased.contains("--help") ||
+            lowercased.contains("--version") ||
+            lowercased.contains("--smoke-test") ||
+            lowercased.contains("__omp_worker_")
     }
 }
 

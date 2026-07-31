@@ -37,6 +37,7 @@ public struct LocalAgentSessionScanner: Sendable {
         let codexAppServerPresent: Bool
         let includeFileOnlySessions: Bool
         let threadMetadata: [String: CodexThreadMetadata]
+        let ohMyPiSessions: [AgentSession]
     }
 
     public let config: SessionScanConfig
@@ -105,6 +106,15 @@ public struct LocalAgentSessionScanner: Sendable {
                 ? self.config.directoryScanBudget
                 : min(self.config.directoryScanBudget, self.config.adaptiveDirectoryScanBudget),
             didVisitEntry: self.didVisitDirectoryEntry)
+        let ohMyPiSessions = OhMyPiSessionScanner.scan(
+            input: OhMyPiSessionScanner.ScanInput(
+                processes: processes,
+                cwdByPID: cwdByPID,
+                environment: environment,
+                now: now,
+                host: host,
+                config: self.config),
+            directoryBudget: &directoryBudget)
         let rollouts: [Rollout] = if includeFileOnlySessions || !codexCWDs.isEmpty {
             self.codexRollouts(
                 now: now,
@@ -128,7 +138,8 @@ public struct LocalAgentSessionScanner: Sendable {
                 now: now,
                 codexAppServerPresent: codexAppServerPresent,
                 includeFileOnlySessions: includeFileOnlySessions,
-                threadMetadata: threadMetadata),
+                threadMetadata: threadMetadata,
+                ohMyPiSessions: ohMyPiSessions),
             directoryBudget: &directoryBudget)
     }
 
@@ -255,6 +266,8 @@ public struct LocalAgentSessionScanner: Sendable {
                     lastActivityAt: rollout?.modifiedAt,
                     transcriptPath: rollout?.url.path,
                     host: context.host))
+            case .ohMyPi:
+                continue
             }
         }
 
@@ -276,6 +289,7 @@ public struct LocalAgentSessionScanner: Sendable {
                 appServerPresent: context.codexAppServerPresent)
             sessions.append(session)
         }
+        sessions.append(contentsOf: context.ohMyPiSessions)
 
         var seen = Set<String>()
         return sessions
