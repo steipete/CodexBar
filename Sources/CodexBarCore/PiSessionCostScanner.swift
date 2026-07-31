@@ -872,46 +872,6 @@ enum PiSessionCostScanner {
         }
     }
 
-    private static func modelsDevCostUSD(
-        provider: UsageProvider,
-        model: String,
-        usage: PiPackedUsage,
-        pricingContext: ModelsDevPricingContext?) -> Double?
-    {
-        guard let lookup = CostUsagePricing.modelsDevPricing(
-            provider: provider,
-            model: model,
-            catalog: pricingContext?.catalog,
-            cacheRoot: pricingContext?.cacheRoot)
-        else { return nil }
-
-        let pricing = lookup.pricing
-        let totalInput = max(0, usage.inputTokens + usage.cacheReadTokens + usage.cacheWriteTokens)
-        let cached = min(max(0, usage.cacheReadTokens), totalInput)
-        let remainingAfterCache = totalInput - cached
-        let cacheWrite = min(max(0, usage.cacheWriteTokens), remainingAfterCache)
-        let nonCached = remainingAfterCache - cacheWrite
-        let usesLongContextRates = pricing.thresholdTokens.map { totalInput > $0 } ?? false
-        let inputRate = usesLongContextRates
-            ? pricing.inputCostPerTokenAboveThreshold ?? pricing.inputCostPerToken
-            : pricing.inputCostPerToken
-        let cachedInputRate = usesLongContextRates
-            ? pricing.cacheReadInputCostPerTokenAboveThreshold ?? pricing.cacheReadInputCostPerToken ?? inputRate
-            : pricing.cacheReadInputCostPerToken ?? pricing.inputCostPerToken
-        let cacheWriteRate = usesLongContextRates
-            ? pricing.cacheCreationInputCostPerTokenAboveThreshold ?? pricing
-            .cacheCreationInputCostPerToken ?? inputRate
-            : pricing.cacheCreationInputCostPerToken ?? inputRate
-        let outputRate = usesLongContextRates
-            ? pricing.outputCostPerTokenAboveThreshold ?? pricing.outputCostPerToken
-            : pricing.outputCostPerToken
-
-        return (Double(nonCached) * inputRate)
-            + (Double(cached) * cachedInputRate)
-            + (Double(cacheWrite) * cacheWriteRate)
-            + (Double(max(0, usage.outputTokens)) * outputRate)
-    }
-
     private static func readNonNegativeInt(_ value: Any?) -> Int {
         if let number = value as? NSNumber {
             let numeric = number.doubleValue
@@ -1185,5 +1145,47 @@ extension PiSessionCostScanner {
 
             return lhs.modelName > rhs.modelName
         }
+    }
+}
+
+extension PiSessionCostScanner {
+    private static func modelsDevCostUSD(
+        provider: UsageProvider,
+        model: String,
+        usage: PiPackedUsage,
+        pricingContext: ModelsDevPricingContext?) -> Double?
+    {
+        guard let lookup = CostUsagePricing.modelsDevPricing(
+            provider: provider,
+            model: model,
+            catalog: pricingContext?.catalog,
+            cacheRoot: pricingContext?.cacheRoot)
+        else { return nil }
+
+        let pricing = lookup.pricing
+        let totalInput = max(0, usage.inputTokens + usage.cacheReadTokens + usage.cacheWriteTokens)
+        let cached = min(max(0, usage.cacheReadTokens), totalInput)
+        let remainingAfterCache = totalInput - cached
+        let cacheWrite = min(max(0, usage.cacheWriteTokens), remainingAfterCache)
+        let nonCached = remainingAfterCache - cacheWrite
+        let usesLongContextRates = pricing.thresholdTokens.map { totalInput > $0 } ?? false
+        let inputRate = usesLongContextRates
+            ? pricing.inputCostPerTokenAboveThreshold ?? pricing.inputCostPerToken
+            : pricing.inputCostPerToken
+        let cachedInputRate = usesLongContextRates
+            ? pricing.cacheReadInputCostPerTokenAboveThreshold ?? pricing.cacheReadInputCostPerToken ?? inputRate
+            : pricing.cacheReadInputCostPerToken ?? pricing.inputCostPerToken
+        let cacheWriteRate = usesLongContextRates
+            ? pricing.cacheCreationInputCostPerTokenAboveThreshold ?? pricing
+            .cacheCreationInputCostPerToken ?? inputRate
+            : pricing.cacheCreationInputCostPerToken ?? inputRate
+        let outputRate = usesLongContextRates
+            ? pricing.outputCostPerTokenAboveThreshold ?? pricing.outputCostPerToken
+            : pricing.outputCostPerToken
+
+        return (Double(nonCached) * inputRate)
+            + (Double(cached) * cachedInputRate)
+            + (Double(cacheWrite) * cacheWriteRate)
+            + (Double(max(0, usage.outputTokens)) * outputRate)
     }
 }
