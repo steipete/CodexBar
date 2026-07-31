@@ -28,6 +28,12 @@ struct MenuBarLayoutRenderData: Hashable {
     let session: MenuBarLayoutRenderWindow?
     let weekly: MenuBarLayoutRenderWindow?
     let automatic: MenuBarLayoutRenderWindow?
+    /// Signed pace deltas per window, already formatted (`+11%`, `-8%`, `0%`). Pace needs the store's
+    /// historical dataset and work-day setting, so it is resolved upstream like `runsOut` rather than
+    /// derived from the render windows here.
+    let sessionPace: String?
+    let weeklyPace: String?
+    let automaticPace: String?
     let runsOut: String?
     let costToday: String?
     let cost30d: String?
@@ -249,6 +255,12 @@ final class MenuBarLayoutRenderer {
                 ? L("%@ unavailable", accessibilityPrefix)
                 : L("%@ %@", accessibilityPrefix, value)
             return self.textToken(display, accessibilityText: accessibility, attributes: style.attributes)
+        case let .pace(window):
+            return self.optionalTextToken(
+                Self.pace(window, data: data),
+                unavailableLabel: L("%@ unavailable", Self.paceAccessibilityPrefix(window)),
+                accessibilityPrefix: Self.paceAccessibilityPrefix(window),
+                attributes: style.attributes)
         case .usageBar:
             guard let window = data.automatic else {
                 return self.textToken(
@@ -358,6 +370,26 @@ final class MenuBarLayoutRenderer {
         case .session: data.session
         case .weekly: data.weekly
         case .automatic: data.automatic
+        }
+    }
+
+    private static func pace(
+        _ percentWindow: PercentWindow,
+        data: MenuBarLayoutRenderData)
+        -> String?
+    {
+        switch percentWindow {
+        case .session: data.sessionPace
+        case .weekly: data.weeklyPace
+        case .automatic: data.automaticPace
+        }
+    }
+
+    private static func paceAccessibilityPrefix(_ percentWindow: PercentWindow) -> String {
+        switch percentWindow {
+        case .session: L("menu_bar_layout_token_session_pace")
+        case .weekly: L("menu_bar_layout_token_weekly_pace")
+        case .automatic: L("menu_bar_layout_token_auto_pace")
         }
     }
 

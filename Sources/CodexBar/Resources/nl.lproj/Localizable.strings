@@ -1324,6 +1324,9 @@
 "menu_bar_layout_token_session" = "Sessie %";
 "menu_bar_layout_token_weekly" = "Wekelijks %";
 "menu_bar_layout_token_auto" = "Automatisch %";
+"menu_bar_layout_token_session_pace" = "Sessietempo";
+"menu_bar_layout_token_weekly_pace" = "Weektempo";
+"menu_bar_layout_token_auto_pace" = "Automatisch tempo";
 "menu_bar_layout_token_bar" = "Gebruiksbalk";
 "menu_bar_layout_token_resets_in" = "Reset over";
 "menu_bar_layout_token_reset_at" = "Reset om";

@@ -1328,6 +1328,9 @@
 "menu_bar_layout_token_session" = "الجلسة %";
 "menu_bar_layout_token_weekly" = "الأسبوعي %";
 "menu_bar_layout_token_auto" = "نسبة تلقائية";
+"menu_bar_layout_token_session_pace" = "وتيرة الجلسة";
+"menu_bar_layout_token_weekly_pace" = "الوتيرة الأسبوعية";
+"menu_bar_layout_token_auto_pace" = "الوتيرة التلقائية";
 "menu_bar_layout_token_bar" = "شريط الاستخدام";
 "menu_bar_layout_token_resets_in" = "إعادة الضبط خلال";
 "menu_bar_layout_token_reset_at" = "إعادة الضبط عند";

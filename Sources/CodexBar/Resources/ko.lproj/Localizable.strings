@@ -1292,6 +1292,9 @@
 "menu_bar_layout_token_session" = "세션 %";
 "menu_bar_layout_token_weekly" = "주간 %";
 "menu_bar_layout_token_auto" = "자동 %";
+"menu_bar_layout_token_session_pace" = "세션 속도";
+"menu_bar_layout_token_weekly_pace" = "주간 속도";
+"menu_bar_layout_token_auto_pace" = "자동 속도";
 "menu_bar_layout_token_bar" = "사용량 막대";
 "menu_bar_layout_token_resets_in" = "재설정까지";
 "menu_bar_layout_token_reset_at" = "재설정 시각";

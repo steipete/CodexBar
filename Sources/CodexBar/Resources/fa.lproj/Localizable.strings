@@ -1328,6 +1328,9 @@
 "menu_bar_layout_token_session" = "جلسه %";
 "menu_bar_layout_token_weekly" = "هفتگی %";
 "menu_bar_layout_token_auto" = "درصد خودکار";
+"menu_bar_layout_token_session_pace" = "سرعت جلسه";
+"menu_bar_layout_token_weekly_pace" = "سرعت هفتگی";
+"menu_bar_layout_token_auto_pace" = "سرعت خودکار";
 "menu_bar_layout_token_bar" = "نوار مصرف";
 "menu_bar_layout_token_resets_in" = "بازنشانی در";
 "menu_bar_layout_token_reset_at" = "بازنشانی در ساعت";

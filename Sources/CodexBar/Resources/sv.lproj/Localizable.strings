@@ -1323,6 +1323,9 @@
 "menu_bar_layout_token_session" = "Session %";
 "menu_bar_layout_token_weekly" = "Vecka %";
 "menu_bar_layout_token_auto" = "Automatiskt %";
+"menu_bar_layout_token_session_pace" = "Sessionstakt";
+"menu_bar_layout_token_weekly_pace" = "Veckotakt";
+"menu_bar_layout_token_auto_pace" = "Automatisk takt";
 "menu_bar_layout_token_bar" = "Användningsstapel";
 "menu_bar_layout_token_resets_in" = "Återställs om";
 "menu_bar_layout_token_reset_at" = "Återställs kl.";

@@ -71,6 +71,12 @@ extension StatusItemController {
             session: MenuBarLayoutRenderWindow(windows.session),
             weekly: MenuBarLayoutRenderWindow(windows.weekly),
             automatic: MenuBarLayoutRenderWindow(windows.automatic),
+            sessionPace: self.store.menuBarLayoutPaceText(provider: provider, window: windows.session, now: now),
+            weeklyPace: self.store.menuBarLayoutPaceText(provider: provider, window: windows.weekly, now: now),
+            automaticPace: self.store.menuBarLayoutPaceText(
+                provider: provider,
+                window: windows.automatic,
+                now: now),
             runsOut: runsOut,
             costToday: costStrings.today,
             cost30d: costStrings.last30Days)

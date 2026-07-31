@@ -1324,6 +1324,9 @@
 "menu_bar_layout_token_session" = "Session %";
 "menu_bar_layout_token_weekly" = "Hebdomadaire %";
 "menu_bar_layout_token_auto" = "% auto";
+"menu_bar_layout_token_session_pace" = "Rythme de session";
+"menu_bar_layout_token_weekly_pace" = "Rythme hebdomadaire";
+"menu_bar_layout_token_auto_pace" = "Rythme auto";
 "menu_bar_layout_token_bar" = "Barre d’utilisation";
 "menu_bar_layout_token_resets_in" = "Réinitialisation dans";
 "menu_bar_layout_token_reset_at" = "Réinitialisation à";

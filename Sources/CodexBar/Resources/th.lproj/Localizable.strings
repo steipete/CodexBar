@@ -1328,6 +1328,9 @@
 "menu_bar_layout_token_session" = "เซสชั่น %";
 "menu_bar_layout_token_weekly" = "รายสัปดาห์ %";
 "menu_bar_layout_token_auto" = "% อัตโนมัติ";
+"menu_bar_layout_token_session_pace" = "อัตราเซสชั่น";
+"menu_bar_layout_token_weekly_pace" = "อัตรารายสัปดาห์";
+"menu_bar_layout_token_auto_pace" = "อัตราอัตโนมัติ";
 "menu_bar_layout_token_bar" = "แถบการใช้งาน";
 "menu_bar_layout_token_resets_in" = "รีเซ็ตใน";
 "menu_bar_layout_token_reset_at" = "รีเซ็ตเวลา";
