@@ -248,6 +248,10 @@ struct StepFunUsageFetcherParsingTests {
         let primaryUsed = usage.primary?.usedPercent ?? -1
         #expect(primaryUsed > 3.5 && primaryUsed < 3.7)
 
+        // The monthly credit pool (with a real reset time) carries a monthly windowMinutes so
+        // it feeds the plan-utilization history + pace forecast (parity with Codex/Claude).
+        #expect(usage.primary?.windowMinutes == 30 * 24 * 60)
+
         // No secondary window for credit plans.
         #expect(usage.secondary == nil)
     }
