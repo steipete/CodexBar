@@ -24,7 +24,18 @@ extension UsageStore {
     }
 
     func scheduleTokenRefresh() {
-        guard self.tokenRefreshSequenceTask == nil, !self.hasForcedRefreshEnrichmentInFlight else { return }
+        guard self.hasEligibleTokenCostWork,
+              self.tokenRefreshSequenceTask == nil,
+              !self.hasForcedRefreshEnrichmentInFlight
+        else { return }
+        if Self.shouldDeferConstrainedBackgroundWork(
+            interaction: ProviderInteractionContext.current,
+            enrichmentMode: .automatic,
+            powerState: .current)
+        {
+            self.logConstrainedRefreshDecision(lane: "token-cost", powerState: .current)
+            return
+        }
         if self.startPendingTokenRefreshRetryIfPossible() {
             return
         }
@@ -127,6 +138,14 @@ extension UsageStore {
               self.tokenRefreshSequenceTask == nil,
               self.settings.costUsageEnabled || self.settings.codexLocalSessionCostLedgerEnabled
         else {
+            return false
+        }
+        if Self.shouldDeferConstrainedBackgroundWork(
+            interaction: ProviderInteractionContext.current,
+            enrichmentMode: .automatic,
+            powerState: .current)
+        {
+            self.logConstrainedRefreshDecision(lane: "token-cost", powerState: .current)
             return false
         }
         let providers = self.enabledProvidersForBackgroundWork().filter(self.tokenRefreshRetryProviders.contains)

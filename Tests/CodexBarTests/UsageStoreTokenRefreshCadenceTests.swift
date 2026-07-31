@@ -27,4 +27,18 @@ struct UsageStoreTokenRefreshCadenceTests {
     func `manual refresh disables the automatic token cadence`() {
         #expect(UsageStore.tokenFetchTTL(for: .manual) == nil)
     }
+
+    @Test
+    func `constrained automatic token work defers while forced work bypasses`() {
+        let constrained = RefreshPowerState(lowPowerModeEnabled: true, thermalState: .nominal)
+
+        #expect(UsageStore.shouldDeferConstrainedBackgroundWork(
+            interaction: .background,
+            enrichmentMode: .automatic,
+            powerState: constrained))
+        #expect(!UsageStore.shouldDeferConstrainedBackgroundWork(
+            interaction: .userInitiated,
+            enrichmentMode: .forcedForeground,
+            powerState: constrained))
+    }
 }

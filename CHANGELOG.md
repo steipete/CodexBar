@@ -4,6 +4,7 @@
 
 ### Changed
 - About: link the Website entry to codex.bar.
+- Automatic refreshes now use a 30-minute safety cadence during Low Power Mode or serious/critical thermal pressure, defer status and token-cost background lanes, and skip automatic OpenAI Web refreshes; ambiguous legacy OpenAI Web configurations now default off.
 
 ## 0.46.0 — 2026-07-29
 

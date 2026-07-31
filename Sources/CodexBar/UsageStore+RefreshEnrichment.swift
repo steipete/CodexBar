@@ -298,7 +298,9 @@ extension UsageStore {
                 self.settings.codexCookieSource.isEnabled,
             batterySaverEnabled: self.settings.openAIWebBatterySaverEnabled,
             force: force,
-            refreshPhase: refreshPhase)
+            refreshPhase: refreshPhase,
+            powerState: .current,
+            interaction: ProviderInteractionContext.current)
         let shouldRefreshOpenAIWeb = Self.shouldRunOpenAIWebRefresh(refreshPolicy)
         self.openAIWebLogger.debug(
             "OpenAI web refresh gate",
@@ -307,9 +309,21 @@ extension UsageStore {
                 "accessEnabled": refreshPolicy.accessEnabled ? "1" : "0",
                 "batterySaverEnabled": refreshPolicy.batterySaverEnabled ? "1" : "0",
                 "force": refreshPolicy.force ? "1" : "0",
+                "lowPowerMode": refreshPolicy.powerState.lowPowerModeEnabled ? "1" : "0",
+                "thermalState": refreshPolicy.powerState.thermalStateLabel,
                 "interaction": ProviderInteractionContext.current == .userInitiated ? "user" : "background",
                 "phase": refreshPhase == .startup ? "startup" : "regular",
             ])
+        if !shouldRefreshOpenAIWeb, !force,
+           Self.shouldDeferConstrainedBackgroundWork(
+               interaction: refreshPolicy.interaction,
+               enrichmentMode: .automatic,
+               powerState: refreshPolicy.powerState)
+        {
+            self.logConstrainedRefreshDecision(
+                lane: "openai-web",
+                powerState: refreshPolicy.powerState)
+        }
         guard shouldRefreshOpenAIWeb, !Task.isCancelled else { return }
 
         let codexDashboardGuard = self.freshCodexOpenAIWebRefreshGuard()

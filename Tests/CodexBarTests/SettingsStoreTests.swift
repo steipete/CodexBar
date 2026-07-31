@@ -1257,7 +1257,7 @@ struct SettingsStoreTests {
     }
 
     @Test
-    func `infers open AI web access enabled for legacy codex config with implicit auto cookies`() throws {
+    func `ambiguous legacy codex config defaults open AI web access to disabled`() throws {
         let suite = "SettingsStoreTests-openai-web-legacy-implicit-auto"
         let defaults = try #require(UserDefaults(suiteName: suite))
         defaults.removePersistentDomain(forName: suite)
@@ -1274,11 +1274,33 @@ struct SettingsStoreTests {
             zaiTokenStore: NoopZaiTokenStore(),
             syntheticTokenStore: NoopSyntheticTokenStore())
 
-        #expect(store.openAIWebAccessEnabled == true)
-        #expect(defaults.bool(forKey: "openAIWebAccessEnabled") == true)
+        #expect(store.openAIWebAccessEnabled == false)
+        #expect(defaults.bool(forKey: "openAIWebAccessEnabled") == false)
         #expect(store.openAIWebBatterySaverEnabled == false)
         #expect(defaults.bool(forKey: "openAIWebBatterySaverEnabled") == false)
         #expect(store.codexCookieSource == .auto)
+    }
+
+    @Test
+    func `stored codex cookie header remains an explicit Open AI web signal`() throws {
+        let suite = "SettingsStoreTests-openai-web-cookie-header"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        defaults.removeObject(forKey: "openAIWebAccessEnabled")
+        defaults.set(false, forKey: "debugDisableKeychainAccess")
+        let configStore = testConfigStore(suiteName: suite)
+        try configStore.save(CodexBarConfig(providers: [
+            ProviderConfig(id: .codex, cookieHeader: "session=fixture"),
+        ]))
+
+        let store = SettingsStore(
+            userDefaults: defaults,
+            configStore: configStore,
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+
+        #expect(store.openAIWebAccessEnabled == true)
+        #expect(defaults.bool(forKey: "openAIWebAccessEnabled") == true)
     }
 
     @Test

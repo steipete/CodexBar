@@ -364,9 +364,7 @@ final class SettingsStore {
         let resolvedOpenAIWebAccessEnabled = if hasStoredOpenAIWebAccessPreference {
             self.defaultsState.openAIWebAccessEnabled
         } else {
-            Self.inferredInitialOpenAIWebAccessEnabled(
-                config: config,
-                hadExistingConfig: hadExistingConfig)
+            Self.inferredInitialOpenAIWebAccessEnabled(config: config)
         }
         if Self.isRunningTests {
             self.openAIWebAccessEnabled = resolvedOpenAIWebAccessEnabled
@@ -398,8 +396,7 @@ extension SettingsStore {
     }
 
     private static func inferredInitialOpenAIWebAccessEnabled(
-        config: CodexBarConfig,
-        hadExistingConfig: Bool) -> Bool
+        config: CodexBarConfig) -> Bool
     {
         guard let codex = config.providerConfig(for: .codex) else { return false }
         if let cookieSource = codex.cookieSource {
@@ -408,7 +405,7 @@ extension SettingsStore {
         if codex.sanitizedCookieHeader != nil {
             return true
         }
-        return hadExistingConfig
+        return false
     }
 
     // swiftlint:disable:next function_body_length

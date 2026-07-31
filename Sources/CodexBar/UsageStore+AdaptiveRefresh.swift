@@ -1,9 +1,54 @@
+import CodexBarCore
 import Foundation
+
+struct RefreshPowerState: Sendable, Equatable {
+    let lowPowerModeEnabled: Bool
+    let thermalState: ProcessInfo.ThermalState
+
+    static let nominal = Self(lowPowerModeEnabled: false, thermalState: .nominal)
+
+    static var current: Self {
+        Self(
+            lowPowerModeEnabled: ProcessInfo.processInfo.isLowPowerModeEnabled,
+            thermalState: ProcessInfo.processInfo.thermalState)
+    }
+
+    var isConstrained: Bool {
+        self.lowPowerModeEnabled || self.thermalState == .serious || self.thermalState == .critical
+    }
+
+    var thermalStateLabel: String {
+        switch self.thermalState {
+        case .nominal: "nominal"
+        case .fair: "fair"
+        case .serious: "serious"
+        case .critical: "critical"
+        @unknown default: "unknown"
+        }
+    }
+}
 
 /// Wiring around `AdaptiveRefreshPolicy` for `UsageStore.startTimer()`: gathering live signals,
 /// logging the resulting decision, and applying the DEBUG-only sleep-duration override used by
 /// tests. Split out of UsageStore.swift to keep that file's class body under the lint line limit.
 extension UsageStore {
+    nonisolated static let constrainedRefreshInterval: Duration = .seconds(30 * 60)
+
+    nonisolated static func constrainedFixedRefreshInterval(
+        _ interval: Duration,
+        powerState: RefreshPowerState) -> Duration
+    {
+        powerState.isConstrained ? max(interval, self.constrainedRefreshInterval) : interval
+    }
+
+    nonisolated static func shouldDeferConstrainedBackgroundWork(
+        interaction: ProviderInteraction,
+        enrichmentMode: RefreshEnrichmentMode,
+        powerState: RefreshPowerState) -> Bool
+    {
+        interaction == .background && enrichmentMode == .automatic && powerState.isConstrained
+    }
+
     func effectiveTimerSleepDuration(_ computed: Duration) -> Duration {
         #if DEBUG
         self.refreshTimerSleepOverrideForTesting ?? computed
@@ -81,11 +126,25 @@ extension UsageStore {
         sleep: @escaping @Sendable (Duration) async throws -> Void = { duration in
             try await Task.sleep(for: duration)
         },
+        powerState: @escaping @Sendable () -> RefreshPowerState = { .current },
+        decision: @escaping @Sendable (RefreshPowerState, Duration) async -> Void = { _, _ in },
         refresh: @escaping @Sendable () async -> Void) async
     {
         precondition(interval > .zero)
-        var scheduledAt = await now() + interval
+        var scheduledInterval = Self.constrainedFixedRefreshInterval(interval, powerState: powerState())
+        var scheduledAt = await now() + scheduledInterval
         while !Task.isCancelled {
+            let currentPowerState = powerState()
+            let effectiveInterval = Self.constrainedFixedRefreshInterval(
+                interval,
+                powerState: currentPowerState)
+            if effectiveInterval != scheduledInterval {
+                let current = await now()
+                scheduledAt = current + effectiveInterval
+                scheduledInterval = effectiveInterval
+            }
+            await decision(currentPowerState, scheduledInterval)
+
             let current = await now()
             let computedSleep = current >= scheduledAt ? .zero : scheduledAt - current
             do {
@@ -94,19 +153,50 @@ extension UsageStore {
                 return
             }
             guard !Task.isCancelled else { return }
+
+            let tickInterval = Self.constrainedFixedRefreshInterval(interval, powerState: powerState())
+            if sleepOverride == nil, tickInterval != scheduledInterval {
+                scheduledAt = await now() + tickInterval
+                scheduledInterval = tickInterval
+                await decision(powerState(), scheduledInterval)
+                continue
+            }
+
             await refresh()
+            let nextPowerState = powerState()
+            let nextInterval = Self.constrainedFixedRefreshInterval(
+                interval,
+                powerState: nextPowerState)
+            let completedAt = await now()
             scheduledAt = await self.nextFixedTimerScheduledAt(
                 previousScheduledAt: scheduledAt,
-                completedAt: now(),
-                interval: interval)
+                completedAt: completedAt,
+                interval: nextInterval)
+            scheduledInterval = nextInterval
         }
     }
 
-    func logAdaptiveRefreshDecision(_ decision: AdaptiveRefreshPolicy.Decision) {
-        // Reason and delay only; never provider/account/email/path/credential/response data.
+    func logAdaptiveRefreshDecision(
+        _ decision: AdaptiveRefreshPolicy.Decision,
+        powerState: RefreshPowerState)
+    {
+        // Never provider/account/email/path/credential/response data.
         // No "adaptive refresh: " prefix — the adaptiveRefresh log category already identifies the source.
         self.adaptiveRefreshLogger.debug(
-            "reason=\(decision.reason.rawValue) delay=\(decision.delay.components.seconds)s")
+            "reason=\(decision.reason.rawValue) delay=\(decision.delay.components.seconds)s " +
+                "lowPower=\(powerState.lowPowerModeEnabled ? 1 : 0) thermal=\(powerState.thermalStateLabel)")
+    }
+
+    func logConstrainedRefreshDecision(
+        lane: String,
+        powerState: RefreshPowerState,
+        cadence: Duration = Self.constrainedRefreshInterval,
+        decision: String = "defer")
+    {
+        guard powerState.isConstrained else { return }
+        self.adaptiveRefreshLogger.debug(
+            "decision=\(decision) lane=\(lane) lowPower=\(powerState.lowPowerModeEnabled ? 1 : 0) " +
+                "thermal=\(powerState.thermalStateLabel) cadence=\(cadence.components.seconds)s")
     }
 
     /// Computes this tick's adaptive sleep duration (and logs the decision) while briefly holding a
@@ -115,16 +205,17 @@ extension UsageStore {
     static func nextAdaptiveTimerSleepDuration(for store: UsageStore?) async -> Duration? {
         guard let store else { return nil }
         let now = Date()
+        let powerState = RefreshPowerState.current
         let decision = Self.adaptiveRefreshDecision(
             now: now,
             lastMenuOpenAt: store.lastMenuOpenAt,
             lastCodingActivityAt: store.settings.adaptiveActivityScanningEnabled
                 ? store.lastCodingActivityAt
                 : nil,
-            lowPowerModeEnabled: ProcessInfo.processInfo.isLowPowerModeEnabled,
-            thermalState: ProcessInfo.processInfo.thermalState)
+            lowPowerModeEnabled: powerState.lowPowerModeEnabled,
+            thermalState: powerState.thermalState)
         store.adaptiveRefreshScheduledAt = now.addingTimeInterval(TimeInterval(decision.delay.components.seconds))
-        store.logAdaptiveRefreshDecision(decision)
+        store.logAdaptiveRefreshDecision(decision, powerState: powerState)
         return store.effectiveTimerSleepDuration(decision.delay)
     }
 

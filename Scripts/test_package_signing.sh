@@ -16,6 +16,7 @@ functions = []
 for name in (
     'resolve_package_signing_mode',
     'verify_no_quarantine_attribute',
+    'verify_no_dart_flutter_artifacts',
     'verify_packaged_app_integrity',
 ):
     start = script.index(f'{name}() {{')

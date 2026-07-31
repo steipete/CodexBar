@@ -24,6 +24,54 @@ struct AdaptiveRefreshTimerTests {
     }
 
     @Test
+    func `fixed cadence clamps to thirty minutes only while constrained`() {
+        let oneMinute = Duration.seconds(60)
+
+        #expect(UsageStore.constrainedFixedRefreshInterval(oneMinute, powerState: .nominal) == oneMinute)
+        #expect(UsageStore.constrainedFixedRefreshInterval(
+            oneMinute,
+            powerState: RefreshPowerState(lowPowerModeEnabled: true, thermalState: .nominal)) ==
+            .seconds(30 * 60))
+        #expect(UsageStore.constrainedFixedRefreshInterval(
+            oneMinute,
+            powerState: RefreshPowerState(lowPowerModeEnabled: false, thermalState: .serious)) ==
+            .seconds(30 * 60))
+        #expect(UsageStore.constrainedFixedRefreshInterval(
+            oneMinute,
+            powerState: RefreshPowerState(lowPowerModeEnabled: false, thermalState: .critical)) ==
+            .seconds(30 * 60))
+        #expect(UsageStore.constrainedFixedRefreshInterval(
+            oneMinute,
+            powerState: RefreshPowerState(lowPowerModeEnabled: false, thermalState: .fair)) == oneMinute)
+        #expect(UsageStore.constrainedFixedRefreshInterval(
+            .seconds(30 * 60),
+            powerState: RefreshPowerState(lowPowerModeEnabled: true, thermalState: .critical)) ==
+            .seconds(30 * 60))
+    }
+
+    @Test
+    func `background lanes defer only for automatic constrained work`() {
+        let constrained = RefreshPowerState(lowPowerModeEnabled: true, thermalState: .nominal)
+
+        #expect(UsageStore.shouldDeferConstrainedBackgroundWork(
+            interaction: .background,
+            enrichmentMode: .automatic,
+            powerState: constrained))
+        #expect(!UsageStore.shouldDeferConstrainedBackgroundWork(
+            interaction: .userInitiated,
+            enrichmentMode: .automatic,
+            powerState: constrained))
+        #expect(!UsageStore.shouldDeferConstrainedBackgroundWork(
+            interaction: .background,
+            enrichmentMode: .forcedForeground,
+            powerState: constrained))
+        #expect(!UsageStore.shouldDeferConstrainedBackgroundWork(
+            interaction: .background,
+            enrichmentMode: .automatic,
+            powerState: .nominal))
+    }
+
+    @Test
     func `menu-open signal changes the next adaptive decision`() {
         let now = Date(timeIntervalSinceReferenceDate: 900_000_000)
 

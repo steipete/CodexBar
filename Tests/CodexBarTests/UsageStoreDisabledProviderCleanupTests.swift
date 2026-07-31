@@ -6,6 +6,21 @@ import Testing
 @MainActor
 struct UsageStoreDisabledProviderCleanupTests {
     @Test
+    func `token timer stops when no eligible cost work is enabled`() throws {
+        let settings = Self.makeSettingsStore(suite: "UsageStoreDisabledProviderCleanupTests-token-timer")
+        try Self.setOnlyProvider(.amp, enabled: false, settings: settings)
+        settings.costUsageEnabled = true
+        settings.refreshFrequency = .fiveMinutes
+        let store = Self.makeUsageStore(settings: settings)
+        store.startTokenTimer()
+        defer { store.tokenTimerTask?.cancel() }
+
+        #expect(store.hasEligibleTokenCostWork == false)
+        #expect(store.tokenFetchTTL == nil)
+        #expect(store.tokenTimerTask == nil)
+    }
+
+    @Test
     func `disabled cleanup rejects stale provider publication after re-enable`() async throws {
         let settings = Self.makeSettingsStore(suite: "UsageStoreDisabledProviderCleanupTests-provider-race")
         settings.refreshFrequency = .manual

@@ -26,12 +26,50 @@ struct OpenAIWebRefreshGateTests {
     }
 
     @Test
+    func `Low Power Mode skips constrained background OpenAI web refreshes`() {
+        let shouldRun = UsageStore.shouldRunOpenAIWebRefresh(.init(
+            accessEnabled: true,
+            batterySaverEnabled: false,
+            force: false,
+            refreshPhase: .regular,
+            powerState: RefreshPowerState(lowPowerModeEnabled: true, thermalState: .nominal)))
+
+        #expect(shouldRun == false)
+    }
+
+    @Test
+    func `Serious thermal pressure skips constrained background OpenAI web refreshes`() {
+        let shouldRun = UsageStore.shouldRunOpenAIWebRefresh(.init(
+            accessEnabled: true,
+            batterySaverEnabled: false,
+            force: false,
+            refreshPhase: .regular,
+            powerState: RefreshPowerState(lowPowerModeEnabled: false, thermalState: .serious)))
+
+        #expect(shouldRun == false)
+    }
+
+    @Test
+    func `User initiated constrained OpenAI web refreshes remain allowed`() {
+        let shouldRun = UsageStore.shouldRunOpenAIWebRefresh(.init(
+            accessEnabled: true,
+            batterySaverEnabled: false,
+            force: false,
+            refreshPhase: .regular,
+            powerState: RefreshPowerState(lowPowerModeEnabled: true, thermalState: .critical),
+            interaction: .userInitiated))
+
+        #expect(shouldRun == true)
+    }
+
+    @Test
     func `Manual refresh still forces OpenAI web refreshes with battery saver enabled`() {
         let shouldRun = UsageStore.shouldRunOpenAIWebRefresh(.init(
             accessEnabled: true,
             batterySaverEnabled: true,
             force: true,
-            refreshPhase: .regular))
+            refreshPhase: .regular,
+            powerState: RefreshPowerState(lowPowerModeEnabled: true, thermalState: .critical)))
 
         #expect(shouldRun == true)
     }

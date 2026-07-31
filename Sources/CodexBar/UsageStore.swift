@@ -379,7 +379,15 @@ final class UsageStore {
     static let minimumTokenFetchTTL: TimeInterval = 5 * 60
 
     var tokenFetchTTL: TimeInterval? {
-        Self.tokenFetchTTL(for: self.settings.refreshFrequency)
+        guard self.hasEligibleTokenCostWork else { return nil }
+        return Self.tokenFetchTTL(for: self.settings.refreshFrequency)
+    }
+
+    var hasEligibleTokenCostWork: Bool {
+        self.enabledProvidersForBackgroundWork().contains { provider in
+            self.settings.isCostUsageEffectivelyEnabled(for: provider) &&
+                !Self.tokenCostRequiresProviderSnapshot(provider)
+        }
     }
 
     static func tokenFetchTTL(for frequency: RefreshFrequency) -> TimeInterval? {
@@ -673,6 +681,11 @@ final class UsageStore {
         let refreshProviders = self.enabledProvidersForBackgroundWork()
         let availableRefreshProviders = Set(self.enabledProviders())
         let refreshStartedAt = Date()
+        let refreshPowerState = RefreshPowerState.current
+        let constrainedBackgroundPass = Self.shouldDeferConstrainedBackgroundWork(
+            interaction: ProviderInteractionContext.current,
+            enrichmentMode: enrichmentMode,
+            powerState: refreshPowerState)
 
         let completedRefresh = await ProviderRefreshContext.$current.withValue(refreshPhase) {
             self.isRefreshing = true
@@ -688,6 +701,15 @@ final class UsageStore {
                 availableProviders: availableRefreshProviders)
             self.scheduleStorageFootprintRefresh(for: displayEnabledProviders)
 
+            if constrainedBackgroundPass,
+               self.statusChecksEnabled,
+               refreshProviders.contains(where: { availableRefreshProviders.contains($0) })
+            {
+                self.logConstrainedRefreshDecision(
+                    lane: "provider-status",
+                    powerState: refreshPowerState)
+            }
+
             await withTaskGroup(of: Void.self) { group in
                 for provider in refreshProviders {
                     group.addTask {
@@ -696,7 +718,7 @@ final class UsageStore {
                             coalesceIfRefreshing: coalesceProviderRefreshesOverride ??
                                 (ProviderInteractionContext.current == .background))
                     }
-                    if availableRefreshProviders.contains(provider) {
+                    if availableRefreshProviders.contains(provider), !constrainedBackgroundPass {
                         group.addTask { await self.refreshProviderStatus(provider) }
                     }
                 }
@@ -836,6 +858,14 @@ final class UsageStore {
             await Self.runFixedRefreshTimer(
                 interval: .seconds(wait),
                 sleepOverride: fixedTimerSleepOverride,
+                powerState: { .current },
+                decision: { [weak self] powerState, cadence in
+                    await self?.logConstrainedRefreshDecision(
+                        lane: "provider-poll",
+                        powerState: powerState,
+                        cadence: cadence,
+                        decision: "constrained")
+                },
                 refresh: { [weak self] in
                     await self?.refresh(enrichmentMode: .automatic)
                 })
@@ -1382,6 +1412,16 @@ extension UsageStore {
 
         guard self.isEnabled(provider) else {
             self.resetTokenUsageState(for: provider)
+            return
+        }
+
+        if !force,
+           Self.shouldDeferConstrainedBackgroundWork(
+               interaction: ProviderInteractionContext.current,
+               enrichmentMode: .automatic,
+               powerState: .current)
+        {
+            self.logConstrainedRefreshDecision(lane: "token-cost", powerState: .current)
             return
         }
 

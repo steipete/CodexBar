@@ -23,10 +23,54 @@ verify_no_quarantine_attribute() {
   fi
 }
 
+verify_no_dart_flutter_artifacts() {
+  local bundle="$1"
+  local artifact
+  local lower
+  local resolved
+  local bundleRoot
+
+  bundleRoot="$(python3 - "$bundle" <<'PY'
+import os
+import sys
+
+print(os.path.realpath(sys.argv[1]))
+PY
+)"
+
+  while IFS= read -r -d '' artifact; do
+    lower="$(printf '%s' "$artifact" | tr '[:upper:]' '[:lower:]')"
+    case "$lower" in
+      */dart*|*/flutter*)
+        echo "ERROR: Packaged app contains a Dart/Flutter artifact: ${artifact}" >&2
+        return 1
+        ;;
+    esac
+
+    if [[ -L "$artifact" ]]; then
+      resolved="$(python3 - "$artifact" <<'PY'
+import os
+import sys
+
+print(os.path.realpath(sys.argv[1]))
+PY
+)"
+      case "$resolved" in
+        "$bundleRoot"/*) ;;
+        *)
+          echo "ERROR: Packaged app contains an external linked artifact: ${artifact}" >&2
+          return 1
+          ;;
+      esac
+    fi
+  done < <(find "$bundle/Contents" -print0)
+}
+
 verify_packaged_app_integrity() {
   local bundle="$1"
   local sparkle="$bundle/Contents/Frameworks/Sparkle.framework"
 
+  verify_no_dart_flutter_artifacts "$bundle" || return 1
   verify_no_quarantine_attribute "$bundle" || return 1
   codesign --verify --deep --strict --verbose=2 "$sparkle" || return 1
   codesign --verify --deep --strict --verbose=2 "$bundle" || return 1

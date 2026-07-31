@@ -16,6 +16,24 @@ struct OpenAIWebRefreshPolicyContext {
     let batterySaverEnabled: Bool
     let force: Bool
     let refreshPhase: ProviderRefreshPhase
+    let powerState: RefreshPowerState
+    let interaction: ProviderInteraction
+
+    init(
+        accessEnabled: Bool,
+        batterySaverEnabled: Bool,
+        force: Bool,
+        refreshPhase: ProviderRefreshPhase,
+        powerState: RefreshPowerState = .nominal,
+        interaction: ProviderInteraction = .background)
+    {
+        self.accessEnabled = accessEnabled
+        self.batterySaverEnabled = batterySaverEnabled
+        self.force = force
+        self.refreshPhase = refreshPhase
+        self.powerState = powerState
+        self.interaction = interaction
+    }
 }
 
 // MARK: - OpenAI web lifecycle
@@ -75,6 +93,15 @@ extension UsageStore {
               self.settings.openAIWebAccessEnabled,
               self.settings.codexCookieSource.isEnabled
         else { return }
+        let powerState = RefreshPowerState.current
+        if Self.shouldDeferConstrainedBackgroundWork(
+            interaction: ProviderInteractionContext.current,
+            enrichmentMode: .automatic,
+            powerState: powerState)
+        {
+            self.logConstrainedRefreshDecision(lane: "openai-web", powerState: powerState)
+            return
+        }
         let now = Date()
         let refreshInterval = self.openAIWebRefreshIntervalSeconds()
         let dashboard = self.openAIDashboard ?? self.lastOpenAIDashboardSnapshot
@@ -407,6 +434,16 @@ extension UsageStore {
         allowCodexUsageBackfill: Bool = true) async
     {
         self.syncOpenAIWebState()
+        let powerState = RefreshPowerState.current
+        if !force,
+           Self.shouldDeferConstrainedBackgroundWork(
+               interaction: ProviderInteractionContext.current,
+               enrichmentMode: .automatic,
+               powerState: powerState)
+        {
+            self.logConstrainedRefreshDecision(lane: "openai-web", powerState: powerState)
+            return
+        }
         guard self.isEnabled(.codex),
               self.settings.openAIWebAccessEnabled,
               self.settings.codexCookieSource.isEnabled
@@ -1436,6 +1473,9 @@ extension UsageStore {
     nonisolated static func shouldRunOpenAIWebRefresh(_ context: OpenAIWebRefreshPolicyContext) -> Bool {
         guard context.accessEnabled else { return false }
         guard context.force || context.refreshPhase != .startup else { return false }
+        guard context.force || !context.powerState.isConstrained || context.interaction == .userInitiated else {
+            return false
+        }
         return context.force || !context.batterySaverEnabled
     }
 
