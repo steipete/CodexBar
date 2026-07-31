@@ -5,11 +5,27 @@ import Foundation
 extension CodexBarCLI {
     static func runSessions(_ values: ParsedValues) async {
         let sessions = await LocalAgentSessionScanner().scan()
-        if values.flags.contains("jsonShortcut") {
-            Self.printJSON(sessions, pretty: values.flags.contains("pretty"))
+        if let jsonVersion = Self.sessionsJSONProtocolVersion(from: values) {
+            Self.printJSON(
+                Self.sessionsForJSON(sessions, includeOhMyPi: jsonVersion == 2),
+                pretty: values.flags.contains("pretty"))
         } else {
             print(Self.renderSessionsTable(sessions))
         }
+    }
+
+    static func sessionsJSONProtocolVersion(from values: ParsedValues) -> Int? {
+        if values.flags.contains("jsonV2") {
+            return 2
+        }
+        if values.flags.contains("jsonShortcut") {
+            return 1
+        }
+        return nil
+    }
+
+    static func sessionsForJSON(_ sessions: [AgentSession], includeOhMyPi: Bool) -> [AgentSession] {
+        includeOhMyPi ? sessions : sessions.filter { $0.provider != .ohMyPi }
     }
 
     static func runSessionsFocus(_ values: ParsedValues) async {
@@ -81,8 +97,11 @@ extension CodexBarCLI {
 }
 
 struct SessionsOptions: CommanderParsable {
-    @Flag(name: .long("json"), help: "Emit JSON")
+    @Flag(name: .long("json"), help: "Emit legacy v1 JSON (excludes OhMyPi sessions)")
     var jsonShortcut: Bool = false
+
+    @Flag(name: .long("json-v2"), help: "Emit full v2 JSON, including OhMyPi sessions (implies --json)")
+    var jsonV2: Bool = false
 
     @Flag(name: .long("pretty"), help: "Pretty-print JSON output")
     var pretty: Bool = false

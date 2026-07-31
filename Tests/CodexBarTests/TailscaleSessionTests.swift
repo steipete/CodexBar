@@ -132,4 +132,12 @@ struct TailscaleSessionTests {
 
         #expect(hosts == ["user@clawmac", "linuxbox"])
     }
+
+    @Test
+    func `remote session command negotiates v2 then v1 for PATH and bundled CLIs`() {
+        #expect(RemoteSessionFetcher.remoteSessionsCommand() ==
+            "codexbar sessions --json-v2 || codexbar sessions --json || " +
+            "'/Applications/CodexBar.app/Contents/Helpers/CodexBarCLI' sessions --json-v2 || " +
+            "'/Applications/CodexBar.app/Contents/Helpers/CodexBarCLI' sessions --json")
+    }
 }

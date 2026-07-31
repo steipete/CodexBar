@@ -23,9 +23,19 @@ The CLI exposes the same scanner:
 ```console
 codexbar sessions
 codexbar sessions --json
+codexbar sessions --json-v2
 codexbar sessions focus <session-id>
 ```
 
-The JSON array uses the stable `AgentSession` fields and ISO-8601 dates. Its normalized provider values include `codex`, `claude`, and `oh-my-pi` for OhMyPi. The CLI commands and existing focus mapping are unchanged.
+`codexbar sessions --json` is the legacy session JSON protocol v1. It keeps the historical top-level
+JSON array and all existing fields, but filters out `oh-my-pi` rows so older clients with a closed
+`codex`/`claude` provider enum can still decode the result. `codexbar sessions --json-v2` opts into
+protocol v2, implies JSON, and emits the complete normalized array including `oh-my-pi`; it does not
+add a top-level envelope. The human-readable table is unchanged and continues to show every provider.
+
+Remote fetches negotiate the same mixed-version contract over non-interactive SSH. For each host, the
+fetcher tries `codexbar sessions --json-v2`, then `codexbar sessions --json`; only if both PATH
+attempts fail does it try the bundled app CLI with `sessions --json-v2`, then `sessions --json`.
+This lets new clients see OhMyPi on new hosts while preserving the v1 fallback for older installs.
 
 Remote hosts need key-based, non-interactive SSH and either `codexbar` on `PATH` or CodexBar installed in `/Applications`.

@@ -186,8 +186,7 @@ public struct RemoteSessionFetcher: Sendable {
         else {
             return RemoteSessionHostResult(host: host, sessions: [], error: "ssh not found")
         }
-        let command = "codexbar sessions --json || " +
-            "\(Self.shellQuote(Self.bundledCLIFallback)) sessions --json"
+        let command = Self.remoteSessionsCommand()
         do {
             let result = try await SubprocessRunner.run(
                 binary: ssh,
@@ -210,6 +209,18 @@ public struct RemoteSessionFetcher: Sendable {
         } catch {
             return RemoteSessionHostResult(host: host, sessions: [], error: error.localizedDescription)
         }
+    }
+
+    /// Tries the v2 session JSON protocol first, then the legacy v1 form, for both PATH and the
+    /// bundled app CLI. Each fallback is reached only when the preceding command exits non-zero.
+    package static func remoteSessionsCommand() -> String {
+        let bundledCLI = Self.shellQuote(Self.bundledCLIFallback)
+        return [
+            "codexbar sessions --json-v2",
+            "codexbar sessions --json",
+            "\(bundledCLI) sessions --json-v2",
+            "\(bundledCLI) sessions --json",
+        ].joined(separator: " || ")
     }
 
     /// Ordered candidate paths for the `tailscale` CLI, most-preferred first.

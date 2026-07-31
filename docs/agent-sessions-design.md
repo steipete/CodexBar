@@ -4,7 +4,7 @@ Track live Codex, Claude Code, and OhMyPi agent sessions — local Mac first, ot
 
 ## Why in CodexBar
 
-CodexBar already parses local agent metadata and ships a bundled CLI on macOS + Linux. Sessions reuse both: the local scanner feeds the menu UI, and the same scanner exposed as `codexbar sessions --json` is what remote Macs run over SSH. No daemon, no new app.
+CodexBar already parses local agent metadata and ships a bundled CLI on macOS + Linux. Sessions reuse both: the local scanner feeds the menu UI, and the same scanner exposed as `codexbar sessions --json` (legacy v1) or `codexbar sessions --json-v2` (full v2) is what remote Macs run over SSH. No daemon, no new app.
 
 ## Data model (CodexBarCore)
 
@@ -56,16 +56,17 @@ The scanner is `Sendable`; ps/lsof parsing and session-header parsing are dedica
 
 ## CLI (CodexBarCLI)
 
-- `codexbar sessions` — table; `--json` — `[AgentSession]` (stable field names above; ISO-8601 dates).
+- `codexbar sessions` — table with all providers; human-readable output is unchanged.
+- `codexbar sessions --json` — legacy session JSON protocol v1, a top-level `[AgentSession]` array with stable field names and ISO-8601 dates, excluding `oh-my-pi` rows so pre-v2 clients with closed `codex`/`claude` provider enums remain decodable.
+- `codexbar sessions --json-v2` — protocol v2, the same top-level array including `oh-my-pi`; the flag implies JSON and does not add an envelope.
 - `codexbar sessions focus <id>` — macOS only: focus the session's terminal window (see Focus). Exit 1 if id unknown, 2 if focus failed.
 - Follows existing `CLI*Command.swift` conventions. Works on Linux for listing (ps/proc paths guarded), focus is Darwin-only.
 
 ## Remote hosts (CodexBarCore + app)
 
 `RemoteSessionFetcher`:
-
 - Host list = manual entries (settings, SSH destinations like `steipete@clawmac`) ∪ automatic Tailscale discovery (no-op when tailscale is absent): run `tailscale status --json` (PATH, then `/Applications/Tailscale.app/Contents/MacOS/Tailscale`), take online peers with `"OS": "macOS"|"linux"`, use the first `DNSName` label as host. Local host excluded.
-- Fetch per host (parallel, 5 s budget): `ssh -o BatchMode=yes -o ConnectTimeout=3 <host> sh -lc 'codexbar sessions --json'` with fallback to the bundled app CLI path (resolve the canonical bundled location from `Scripts/package_app.sh` and hardcode it as fallback: `… || <bundled-path> sessions --json`). Host errors are non-fatal: host shown as unreachable, others still render.
+- Fetch per host (parallel, 5 s budget): `ssh -o BatchMode=yes -o ConnectTimeout=3 <host> sh -lc 'codexbar sessions --json-v2 || codexbar sessions --json || <bundled-path> sessions --json-v2 || <bundled-path> sessions --json'`. The PATH CLI is tried with v2 first and then v1; the bundled app CLI uses the same order. A v1 fallback preserves compatibility with older hosts, while new hosts expose OhMyPi through v2. Host errors are non-fatal: host shown as unreachable, others still render.
 - Remote focus: fire-and-forget `ssh <host> sh -lc 'codexbar sessions focus <id>'`.
 - Refresh: local scan every 30 s while the status item exists, remote every 60 s and immediately on menu open; both are skipped when Agent Sessions is off. Reuse existing refresh loop plumbing rather than new timers if it fits.
 
@@ -102,7 +103,8 @@ Fixture-driven, no live processes, no Keychain/AX:
 - Codex rollout first-line parse → AgentSession, file-only window cutoff.
 - OhMyPi per-process environment/profile resolution (including same-cwd isolation), inaccessible-environment safe fallback/PID-only behavior, process-start freshness (including equal mtime), deterministic one-URL allocation, bounded metadata parsing, and independent-budget preservation of Codex/Claude metadata.
 - Tailscale status JSON → host list (fixture; offline/iOS peers excluded).
-- Sessions JSON round-trip (including normalized `oh-my-pi` provider value).
+- Remote session command builder verifies v2-before-v1 ordering for both the PATH and bundled CLI candidates.
+- Sessions JSON compatibility: v1 round-trip excludes `oh-my-pi` and decodes with a legacy `codex`/`claude` provider enum; v2 preserves the top-level array and includes `oh-my-pi`; human-readable output still shows all providers.
 - Menu section descriptor: provider glyphs, counts, grouping, unreachable-host rendering, focus action mapping, and settings privacy cases.
 
 ## Non-goals (prototype)
@@ -111,4 +113,4 @@ Claude.ai chat sessions; Codex cloud tasks; historical session browsing/analytic
 
 ## Verification targets
 
-Focused parser/metadata fixtures should cover the behavior above. The CLI should produce plausible `codexbar sessions --json` output on a host where the relevant live processes are present; no claim is made that a stale session file or breadcrumb is live.
+Focused parser/metadata fixtures should cover the behavior above. The CLI should produce plausible `codexbar sessions --json` (v1) and `codexbar sessions --json-v2` (v2) output on a host where the relevant live processes are present; no claim is made that a stale session file or breadcrumb is live.
