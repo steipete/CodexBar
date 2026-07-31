@@ -27,6 +27,23 @@ func spendDashboardCoverageText(covered: Int, requested: Int) -> String {
     "\(L("Coverage")): \(codexBarLocalizedInteger(covered)) / \(codexBarLocalizedInteger(requested))"
 }
 
+func codexCostCatchUpProgressText(_ activity: CodexCostCatchUpActivity) -> String {
+    if activity.totalBytes > 0 {
+        let processed = ByteCountFormatter.string(
+            fromByteCount: activity.processedBytes,
+            countStyle: .file)
+        let total = ByteCountFormatter.string(
+            fromByteCount: activity.totalBytes,
+            countStyle: .file)
+        return "\(processed) / \(total)"
+    }
+    if activity.totalFiles > 0 {
+        return "\(codexBarLocalizedInteger(activity.completedFiles)) / "
+            + codexBarLocalizedInteger(activity.totalFiles)
+    }
+    return L("Loading…")
+}
+
 enum SpendDashboardModelHistoryPresentation: Equatable {
     case unavailable
     case empty
@@ -61,6 +78,7 @@ struct SpendDashboardPane: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
                 self.header
+                self.codexCostCatchUpPanel
                 self.content
                 self.provenance
                 self.shareAction
@@ -121,6 +139,102 @@ struct SpendDashboardPane: View {
                 }
             }
             .disabled(self.controller.isRefreshing || !self.settings.costUsageEnabled)
+        }
+    }
+
+    @ViewBuilder
+    private var codexCostCatchUpPanel: some View {
+        if let activity = self.store.codexCostCatchUpActivity,
+           activity.phase != .complete
+        {
+            SpendDashboardPanel {
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack(spacing: 8) {
+                        Label(
+                            self.codexCostCatchUpTitle(activity),
+                            systemImage: activity.phase == .paused ? "pause.circle" : "externaldrive")
+                            .font(.headline)
+                        Spacer()
+                        Text(codexCostCatchUpProgressText(activity))
+                            .font(.caption.monospacedDigit())
+                            .foregroundStyle(.secondary)
+                    }
+
+                    if let progress = activity.fractionCompleted {
+                        ProgressView(value: progress)
+                    } else if activity.phase == .indexing {
+                        ProgressView()
+                            .controlSize(.small)
+                    }
+
+                    Text(self.codexCostCatchUpDetail(activity))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
+                    HStack {
+                        if activity.pauseReason == .user
+                            || activity.pauseReason == .noProgress
+                            || self.codexCostCatchUpHasError(activity)
+                        {
+                            Button(L("Refresh")) {
+                                self.store.returnCodexCostCatchUpToBackground()
+                            }
+                        } else if activity.mode == .automatic {
+                            Button(L("Finish now")) {
+                                self.store.startAcceleratedCodexCostCatchUp()
+                            }
+                        } else {
+                            Button(L("Continue in background")) {
+                                self.store.returnCodexCostCatchUpToBackground()
+                            }
+                        }
+
+                        if activity.pauseReason != .user,
+                           activity.pauseReason != .noProgress,
+                           !self.codexCostCatchUpHasError(activity)
+                        {
+                            Button(L("Cancel")) {
+                                self.store.stopCodexCostCatchUp()
+                            }
+                        }
+                    }
+                    .controlSize(.small)
+                }
+            }
+        }
+    }
+
+    private func codexCostCatchUpHasError(_ activity: CodexCostCatchUpActivity) -> Bool {
+        if case .error = activity.pauseReason {
+            return true
+        }
+        return false
+    }
+
+    private func codexCostCatchUpTitle(_ activity: CodexCostCatchUpActivity) -> String {
+        let prefix = L("Local estimated history")
+        switch activity.phase {
+        case .indexing:
+            return "\(prefix) · \(L("Refreshing"))"
+        case .paused:
+            return "\(prefix) · \(L("Inactive"))"
+        case .complete:
+            return "\(prefix) · \(L("Done"))"
+        }
+    }
+
+    private func codexCostCatchUpDetail(_ activity: CodexCostCatchUpActivity) -> String {
+        switch activity.pauseReason {
+        case .lowPower:
+            L("Battery Saver")
+        case .thermal, .user:
+            L("Inactive")
+        case .noProgress:
+            L("Error")
+        case let .error(message):
+            L("cost_status_error", L("Cost"), message)
+        case nil:
+            L("Estimated from local Codex logs for the selected account.")
         }
     }
 
