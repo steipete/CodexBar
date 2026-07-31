@@ -390,7 +390,7 @@ struct CostUsagePerformanceGateTests {
     }
 
     @Test
-    func `oversized codex progress restarts when the target size changes`() throws {
+    func `oversized codex progress survives an append while catch-up is in progress`() throws {
         let env = try CostUsageTestEnvironment()
         defer { env.cleanup() }
         let day = try env.makeLocalNoon(year: 2026, month: 5, day: 10)
@@ -433,13 +433,76 @@ struct CostUsagePerformanceGateTests {
             until: day,
             now: day,
             options: options)
-        let restarted = try #require(CostUsageCacheIO.load(
+        let resumed = try #require(CostUsageCacheIO.load(
             provider: .codex,
             cacheRoot: env.cacheRoot).files.values.first)
-        #expect(restarted.parsedBytes == slice)
-        #expect(restarted.codexScanTargetSize == changedMetadata.size)
-        #expect(restarted.codexScanFileId == changedMetadata.fileId)
-        #expect(restarted.codexScanComplete == false)
+        #expect((resumed.parsedBytes ?? 0) > (first.parsedBytes ?? 0))
+        #expect(resumed.parsedBytes == min(changedMetadata.size, (first.parsedBytes ?? 0) + slice))
+        #expect(resumed.codexScanTargetSize == changedMetadata.size)
+        #expect(resumed.codexScanFileId == changedMetadata.fileId)
+        #expect(resumed.codexScanComplete == false)
+    }
+
+    @Test
+    func `catch-up API continuously advances bounded slices to the exact full result`() async throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+        let day = try env.makeLocalNoon(year: 2026, month: 5, day: 10)
+        let files = try Self.writeSyntheticCodexCorpus(env: env, day: day, files: 1, turnsPerFile: 8)
+        let fileURL = try #require(files.first)
+        let metadata = CostUsageScanner.codexFileMetadata(fileURL: fileURL)
+        let slice = max(1, metadata.size / 4)
+
+        var baselineOptions = CostUsageScanner.Options(
+            codexSessionsRoot: env.codexSessionsRoot,
+            claudeProjectsRoots: nil,
+            cacheRoot: env.root.appendingPathComponent("baseline-cache"),
+            codexTraceDatabaseURL: env.root.appendingPathComponent("missing.sqlite"),
+            maxCodexSessionFileBytes: 0,
+            maxCodexScanBytesPerRefresh: 0)
+        baselineOptions.refreshMinIntervalSeconds = 0
+        let baseline = CostUsageScanner.loadDailyReport(
+            provider: .codex,
+            since: day,
+            until: day,
+            now: day,
+            options: baselineOptions)
+
+        var options = CostUsageScanner.Options(
+            codexSessionsRoot: env.codexSessionsRoot,
+            claudeProjectsRoots: nil,
+            cacheRoot: env.cacheRoot,
+            codexTraceDatabaseURL: env.root.appendingPathComponent("missing.sqlite"),
+            maxCodexSessionFileBytes: slice,
+            maxCodexScanBytesPerRefresh: slice)
+        options.refreshMinIntervalSeconds = 0
+        _ = CostUsageScanner.loadDailyReport(
+            provider: .codex,
+            since: day,
+            until: day,
+            now: day,
+            options: options)
+
+        let fetcher = CostUsageFetcher(scannerOptions: options)
+        var status = await fetcher.codexScanCatchUpStatus()
+        #expect(status.pending)
+        var progressKeys = [status.progressKey]
+        for _ in 0..<12 where status.pending {
+            status = try await fetcher.advanceCodexScanCatchUp(now: day, historyDays: 1)
+            progressKeys.append(status.progressKey)
+        }
+
+        let completedCache = CostUsageCacheIO.load(provider: .codex, cacheRoot: env.cacheRoot)
+        let completedUsage = try #require(completedCache.files.values.first)
+        let completedReport = CostUsageScanner.buildCodexReportFromCache(
+            cache: completedCache,
+            range: CostUsageScanner.CostUsageDayRange(since: day, until: day))
+        #expect(!status.pending)
+        #expect(completedUsage.codexScanComplete == true)
+        #expect(completedUsage.parsedBytes == metadata.size)
+        #expect(zip(progressKeys, progressKeys.dropFirst()).allSatisfy(!=))
+        #expect(completedReport.summary?.totalTokens == baseline.summary?.totalTokens)
+        #expect(completedReport.data.map(\.totalTokens) == baseline.data.map(\.totalTokens))
     }
 
     @Test
@@ -533,6 +596,90 @@ struct CostUsagePerformanceGateTests {
     }
 
     @Test
+    func `codex scan budget yields after its wall clock deadline`() {
+        let clock = TestMonotonicClock()
+        let budget = CostUsageScanner.CodexScanBudget(
+            maxFileBytes: 100,
+            maxBytesPerRefresh: 150,
+            maxDuration: 2,
+            now: { clock.now() })
+        guard case let .allow(first) = budget.admit(workBytes: 100) else {
+            Issue.record("expected work before the deadline to be admitted")
+            return
+        }
+        budget.consume(workBytes: first)
+
+        clock.advance(by: .seconds(3))
+        #expect(budget.shouldYield(additionalBytes: 0))
+        #expect(budget.deferredByTimeBudgetFileCount == 1)
+        #expect(budget.shouldYield(additionalBytes: 0))
+        #expect(budget.deferredByTimeBudgetFileCount == 1)
+    }
+}
+
+private final class TestMonotonicClock: @unchecked Sendable {
+    private let lock = NSLock()
+    private let origin = ContinuousClock.now
+    private var offset = Duration.zero
+
+    func now() -> ContinuousClock.Instant {
+        self.lock.withLock {
+            self.origin.advanced(by: self.offset)
+        }
+    }
+
+    func advance(by duration: Duration) {
+        self.lock.withLock {
+            self.offset += duration
+        }
+    }
+}
+
+extension CostUsagePerformanceGateTests {
+    @Test
+    func `sparse token checkpoints preserve the exact accumulator state`() {
+        let mebibyte: Int64 = 1024 * 1024
+        let events = [
+            CostUsageCodexTokenSnapshot(
+                timestamp: "2026-05-10T12:00:00Z",
+                last: .init(input: 100, cached: 10, output: 5),
+                total: .init(input: 100, cached: 10, output: 5),
+                endOffset: 1 * mebibyte),
+            CostUsageCodexTokenSnapshot(
+                timestamp: "2026-05-10T12:01:00Z",
+                last: .init(input: 100, cached: 10, output: 5),
+                total: .init(input: 200, cached: 20, output: 10),
+                endOffset: 5 * mebibyte),
+            CostUsageCodexTokenSnapshot(
+                timestamp: "2026-05-10T12:02:00Z",
+                last: .init(input: 10, cached: 1, output: 1),
+                total: .init(input: 150, cached: 15, output: 8),
+                endOffset: 6 * mebibyte),
+            CostUsageCodexTokenSnapshot(
+                timestamp: "2026-05-10T12:03:00Z",
+                last: .init(input: 70, cached: 7, output: 2),
+                total: .init(input: 220, cached: 22, output: 12),
+                endOffset: 10 * mebibyte),
+            CostUsageCodexTokenSnapshot(
+                timestamp: "2026-05-10T12:04:00Z",
+                last: .init(input: 10, cached: 1, output: 1),
+                total: .init(input: 230, cached: 23, output: 13),
+                endOffset: 10 * mebibyte + 1),
+        ]
+
+        let checkpoints = CostUsageScanner.codexTokenCheckpoints(for: events)
+        #expect(checkpoints.map(\.eventIndex) == [1, 3, 4])
+
+        for checkpoint in checkpoints {
+            var accumulator = CostUsageScanner.CodexSnapshotAccumulator()
+            for event in events[...checkpoint.eventIndex] {
+                _ = accumulator.apply(last: event.last, total: event.total)
+            }
+            #expect(checkpoint.state == accumulator.state)
+        }
+    }
+
+    @Test
     func `per refresh byte budget defers later dirty files`() throws {
         let env = try CostUsageTestEnvironment()
         defer { env.cleanup() }
@@ -609,27 +756,32 @@ struct CostUsagePerformanceGateTests {
     }
 
     @Test
-    func `oversized parent baseline reads defer for small fork children`() throws {
+    func `oversized parent baseline resolves from its same refresh partial snapshot`() throws {
         let env = try CostUsageTestEnvironment()
         defer { env.cleanup() }
         let day = try env.makeLocalNoon(year: 2026, month: 5, day: 10)
         let iso = env.isoString(for: day)
+        let parentTotalISO = env.isoString(for: day.addingTimeInterval(1))
+        let forkISO = env.isoString(for: day.addingTimeInterval(2))
 
         // Parent is intentionally larger than the per-file budget.
         let parentBody = ([
             #"{"type":"session_meta","timestamp":"\#(iso)","payload":{"session_id":"parent-giant"}}"#,
             #"{"type":"turn_context","timestamp":"\#(iso)","payload":{"model":"openai/gpt-5.2-codex"}}"#,
-            #"{"type":"event_msg","timestamp":"\#(iso)","payload":{"type":"token_count","info":"#
+            #"{"type":"event_msg","timestamp":"\#(parentTotalISO)","payload":{"type":"token_count","info":"#
                 + #"{"total_token_usage":{"input_tokens":500,"cached_input_tokens":50,"output_tokens":25},"#
+                + #""model":"openai/gpt-5.2-codex"}}}"#,
+            #"{"type":"event_msg","timestamp":"\#(forkISO)","payload":{"type":"token_count","info":"#
+                + #"{"last_token_usage":{"input_tokens":20,"cached_input_tokens":5,"output_tokens":3},"#
                 + #""model":"openai/gpt-5.2-codex"}}}"#,
         ] + Array(repeating: "x", count: 4096)).joined(separator: "\n") + "\n"
         _ = try env.writeCodexSessionFile(day: day, filename: "parent-giant.jsonl", contents: parentBody)
 
         let childBody = [
-            #"{"type":"session_meta","timestamp":"\#(iso)","payload":{"session_id":"child-small","#
+            #"{"type":"session_meta","timestamp":"\#(forkISO)","payload":{"session_id":"child-small","#
                 + #""forked_from_id":"parent-giant"}}"#,
-            #"{"type":"turn_context","timestamp":"\#(iso)","payload":{"model":"openai/gpt-5.2-codex"}}"#,
-            #"{"type":"event_msg","timestamp":"\#(iso)","payload":{"type":"token_count","info":"#
+            #"{"type":"turn_context","timestamp":"\#(forkISO)","payload":{"model":"openai/gpt-5.2-codex"}}"#,
+            #"{"type":"event_msg","timestamp":"\#(forkISO)","payload":{"type":"token_count","info":"#
                 + #"{"total_token_usage":{"input_tokens":600,"cached_input_tokens":60,"output_tokens":30},"#
                 + #""model":"openai/gpt-5.2-codex"}}}"#,
         ].joined(separator: "\n") + "\n"
@@ -645,19 +797,215 @@ struct CostUsagePerformanceGateTests {
         options.refreshMinIntervalSeconds = 0
 
         let started = Date()
-        let report = CostUsageScanner.loadDailyReport(
+        _ = CostUsageScanner.loadDailyReport(
             provider: .codex,
             since: day,
             until: day,
             now: day,
             options: options)
         let elapsed = Date().timeIntervalSince(started)
-        let cache = CostUsageCacheIO.load(provider: .codex, cacheRoot: env.cacheRoot)
+        let firstCache = CostUsageCacheIO.load(provider: .codex, cacheRoot: env.cacheRoot)
+        let firstParent = try #require(firstCache.files.values.first { $0.sessionId == "parent-giant" })
+        let firstChild = try #require(firstCache.files.values.first { $0.sessionId == "child-small" })
+        let firstChildDay = try #require(
+            firstChild.days[CostUsageScanner.CostUsageDayRange.dayKey(from: day)])
+        let firstChildTokens = try #require(
+            firstChildDay[CostUsagePricing.normalizeCodexModel("openai/gpt-5.2-codex")])
 
         #expect(elapsed < 2.0)
-        #expect(cache.files.keys.contains { URL(fileURLWithPath: $0).lastPathComponent == childURL.lastPathComponent })
-        // Child still contributes local tokens while the parent baseline is unresolved.
-        #expect((report.summary?.totalTokens ?? 0) > 0)
+        #expect(firstCache.files.keys.contains {
+            URL(fileURLWithPath: $0).lastPathComponent == childURL.lastPathComponent
+        })
+        #expect(firstChildTokens == [80, 5, 2])
+        #expect(firstChild.forkBaselineDependencyKey != nil)
+        #expect(firstChild.codexBufferedSubagentLines == nil)
+        #expect(firstParent.codexScanComplete == false)
+        #expect(firstParent.codexTokenSnapshots?.count == 2)
+        #expect(firstParent.codexTokenSnapshots?.last?.last == .init(input: 20, cached: 5, output: 3))
+        #expect(firstParent.codexTokenCheckpoints?.isEmpty == false)
+        #expect(firstParent.codexTokenIndexAnchor != nil)
+
+        _ = CostUsageScanner.loadDailyReport(
+            provider: .codex,
+            since: day,
+            until: day,
+            now: day.addingTimeInterval(1),
+            options: options)
+        let secondCache = CostUsageCacheIO.load(provider: .codex, cacheRoot: env.cacheRoot)
+        let parent = try #require(secondCache.files.values.first { $0.sessionId == "parent-giant" })
+        let child = try #require(secondCache.files.values.first { $0.sessionId == "child-small" })
+        let childDay = try #require(child.days[CostUsageScanner.CostUsageDayRange.dayKey(from: day)])
+        let childTokens = try #require(
+            childDay[CostUsagePricing.normalizeCodexModel("openai/gpt-5.2-codex")])
+
+        #expect(parent.codexScanComplete == false)
+        #expect(parent.codexTokenSnapshots?.count == 2)
+        #expect(childTokens == [80, 5, 2])
+        #expect(child.forkBaselineDependencyKey != nil)
+    }
+
+    @Test
+    func `appended parent resolves from a validated cached prefix without rereading it`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+        let day = try env.makeLocalNoon(year: 2026, month: 5, day: 10)
+        let iso = env.isoString(for: day)
+        let forkISO = env.isoString(for: day.addingTimeInterval(1))
+        let appendedISO = env.isoString(for: day.addingTimeInterval(10))
+
+        let parentBody = [
+            #"{"type":"session_meta","timestamp":"\#(iso)","payload":{"session_id":"parent-append"}}"#,
+            #"{"type":"turn_context","timestamp":"\#(iso)","payload":{"model":"openai/gpt-5.2-codex"}}"#,
+            #"{"type":"event_msg","timestamp":"\#(forkISO)","payload":{"type":"token_count","info":"#
+                + #"{"total_token_usage":{"input_tokens":500,"cached_input_tokens":50,"output_tokens":25},"#
+                + #""model":"openai/gpt-5.2-codex"}}}"#,
+        ].joined(separator: "\n") + "\n"
+        let parentURL = try env.writeCodexSessionFile(
+            day: day,
+            filename: "parent-append.jsonl",
+            contents: parentBody)
+
+        var options = CostUsageScanner.Options(
+            codexSessionsRoot: env.codexSessionsRoot,
+            claudeProjectsRoots: nil,
+            cacheRoot: env.cacheRoot,
+            codexTraceDatabaseURL: env.root.appendingPathComponent("missing.sqlite"),
+            maxCodexSessionFileBytes: 0,
+            maxCodexScanBytesPerRefresh: 0)
+        options.refreshMinIntervalSeconds = 0
+        _ = CostUsageScanner.loadDailyReport(
+            provider: .codex,
+            since: day,
+            until: day,
+            now: day,
+            options: options)
+
+        let indexedCache = CostUsageCacheIO.load(provider: .codex, cacheRoot: env.cacheRoot)
+        let indexedParentEntry = try #require(
+            indexedCache.files.first { $0.value.sessionId == "parent-append" })
+        let parentCachePath = indexedParentEntry.key
+        let indexedParent = indexedParentEntry.value
+        let indexedSize = indexedParent.size
+        #expect(indexedParent.codexScanComplete == true)
+        #expect(indexedParent.codexTokenIndexAnchor?.indexedBytes == indexedSize)
+        #expect(indexedParent.codexTokenCheckpoints?.isEmpty == false)
+
+        let appendedLine = #"{"type":"event_msg","timestamp":"\#(appendedISO)","payload":{"type":"token_count","info":"#
+            + #"{"total_token_usage":{"input_tokens":900,"cached_input_tokens":90,"output_tokens":45},"#
+            + #""model":"openai/gpt-5.2-codex"}}}"# + "\n"
+        let parentHandle = try FileHandle(forWritingTo: parentURL)
+        try parentHandle.seekToEnd()
+        try parentHandle.write(contentsOf: Data(appendedLine.utf8))
+        try parentHandle.close()
+        try FileManager.default.setAttributes(
+            [.modificationDate: day.addingTimeInterval(60)],
+            ofItemAtPath: parentURL.path)
+
+        let childBody = [
+            #"{"type":"session_meta","timestamp":"\#(forkISO)","payload":{"session_id":"child-append","#
+                + #""forked_from_id":"parent-append"}}"#,
+            #"{"type":"turn_context","timestamp":"\#(forkISO)","payload":{"model":"openai/gpt-5.2-codex"}}"#,
+            #"{"type":"event_msg","timestamp":"\#(forkISO)","payload":{"type":"token_count","info":"#
+                + #"{"total_token_usage":{"input_tokens":600,"cached_input_tokens":60,"output_tokens":30},"#
+                + #""model":"openai/gpt-5.2-codex"}}}"#,
+        ].joined(separator: "\n") + "\n"
+        let childURL = try env.writeCodexSessionFile(
+            day: day,
+            filename: "child-append.jsonl",
+            contents: childBody)
+        try FileManager.default.setAttributes(
+            [.modificationDate: day.addingTimeInterval(120)],
+            ofItemAtPath: childURL.path)
+        let childSize = CostUsageScanner.codexFileMetadata(fileURL: childURL).size
+
+        options.maxCodexSessionFileBytes = 64 * 1024 * 1024
+        options.maxCodexScanBytesPerRefresh = childSize
+        options.preferNewestCodexSessionsFirst = true
+        _ = CostUsageScanner.loadDailyReport(
+            provider: .codex,
+            since: day,
+            until: day,
+            now: day.addingTimeInterval(120),
+            options: options)
+
+        let refreshedCache = CostUsageCacheIO.load(provider: .codex, cacheRoot: env.cacheRoot)
+        let deferredParent = try #require(refreshedCache.files[parentCachePath])
+        let child = try #require(
+            refreshedCache.files.values.first { $0.sessionId == "child-append" })
+        let childDay = try #require(child.days[CostUsageScanner.CostUsageDayRange.dayKey(from: day)])
+        let childTokens = try #require(
+            childDay[CostUsagePricing.normalizeCodexModel("openai/gpt-5.2-codex")])
+
+        #expect(childTokens == [100, 10, 5])
+        #expect(child.forkBaselineDependencyKey != nil)
+        #expect(deferredParent.size == indexedSize)
+        #expect(CostUsageScanner.codexFileMetadata(fileURL: parentURL).size > deferredParent.size)
+    }
+
+    @Test
+    func `rewritten parent prefix rejects its cached token index`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+        let day = try env.makeLocalNoon(year: 2026, month: 5, day: 10)
+        let iso = env.isoString(for: day)
+        let forkISO = env.isoString(for: day.addingTimeInterval(1))
+        let originalBody = [
+            #"{"type":"session_meta","timestamp":"\#(iso)","payload":{"session_id":"parent-rewrite"}}"#,
+            #"{"type":"event_msg","timestamp":"\#(forkISO)","payload":{"type":"token_count","info":"#
+                + #"{"total_token_usage":{"input_tokens":500,"cached_input_tokens":50,"output_tokens":25}}}}"#,
+        ].joined(separator: "\n") + "\n"
+        let parentURL = try env.writeCodexSessionFile(
+            day: day,
+            filename: "parent-rewrite.jsonl",
+            contents: originalBody)
+
+        var options = CostUsageScanner.Options(
+            codexSessionsRoot: env.codexSessionsRoot,
+            claudeProjectsRoots: nil,
+            cacheRoot: env.cacheRoot,
+            codexTraceDatabaseURL: env.root.appendingPathComponent("missing.sqlite"),
+            maxCodexSessionFileBytes: 0,
+            maxCodexScanBytesPerRefresh: 0)
+        options.refreshMinIntervalSeconds = 0
+        _ = CostUsageScanner.loadDailyReport(
+            provider: .codex,
+            since: day,
+            until: day,
+            now: day,
+            options: options)
+        let cache = CostUsageCacheIO.load(provider: .codex, cacheRoot: env.cacheRoot)
+        let usage = try #require(cache.files.values.first { $0.sessionId == "parent-rewrite" })
+        let anchor = try #require(usage.codexTokenIndexAnchor)
+
+        let rewrittenBody = originalBody.replacingOccurrences(
+            of: #""input_tokens":500"#,
+            with: #""input_tokens":900"#)
+        #expect(rewrittenBody.utf8.count == originalBody.utf8.count)
+        try rewrittenBody.write(to: parentURL, atomically: false, encoding: .utf8)
+        try FileManager.default.setAttributes(
+            [.modificationDate: day.addingTimeInterval(60)],
+            ofItemAtPath: parentURL.path)
+        let metadata = CostUsageScanner.codexFileMetadata(fileURL: parentURL)
+        #expect(!CostUsageScanner.codexTokenIndexAnchorMatches(
+            anchor,
+            fileURL: parentURL,
+            metadata: metadata))
+
+        let fileIndex = CostUsageScanner.CodexSessionFileIndex(
+            files: [parentURL],
+            roots: [env.codexSessionsRoot])
+        let resolver = CostUsageScanner.CodexInheritedTotalsResolver(
+            fileIndex: fileIndex,
+            checkCancellation: nil,
+            scanBudget: CostUsageScanner.CodexScanBudget(maxFileBytes: 1, maxBytesPerRefresh: 1),
+            cachedFiles: cache.files)
+        guard case .unresolved = try resolver.inheritedTotals(
+            for: "parent-rewrite",
+            atOrBefore: forkISO)
+        else {
+            Issue.record("rewritten prefix must not reuse the cached fork baseline")
+            return
+        }
     }
 
     private static func writeSyntheticCodexCorpus(

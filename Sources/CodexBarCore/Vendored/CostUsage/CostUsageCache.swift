@@ -123,6 +123,12 @@ struct CostUsageCache: Codable {
     var codexProjectMetadataVersion: Int?
     var codexPriorityTurnKeys: [String: String]?
     var codexPriorityTurnIDsByDay: [String: [String]]?
+    /// True when the last bounded scan left readable Codex work for a background catch-up pass.
+    var codexScanCatchUpPending: Bool?
+    var codexScanProcessedBytes: Int64?
+    var codexScanTotalBytes: Int64?
+    var codexScanCompletedFiles: Int?
+    var codexScanTotalFiles: Int?
 
     /// filePath -> file usage
     var files: [String: CostUsageFileUsage] = [:]
@@ -165,14 +171,29 @@ struct CostUsageFileUsage: Codable {
     /// Refreshed by Codex normalization paths, never by sidecar cache validation.
     var codexWorkspaceContentFingerprint: String?
     var codexRows: [CostUsageScanner.CodexUsageRow]?
+    /// Compact token events used to resolve fork baselines without rereading an entire parent rollout.
+    var codexTokenSnapshots: [CostUsageCodexTokenSnapshot]?
+    /// Sparse accumulator states for bounded lookup inside `codexTokenSnapshots`.
+    var codexTokenCheckpoints: [CostUsageCodexTokenCheckpoint]?
+    /// Allows binary-search and early-stop lookup only when event timestamps follow file order.
+    var codexTokenTimestampsMonotonic: Bool?
+    /// Validates that the indexed JSONL prefix was not rewritten before an append.
+    var codexTokenIndexAnchor: CostUsageCodexTokenIndexAnchor?
     var claudeRows: [CostUsageScanner.ClaudeUsageRow]?
-    /// Identity and target size for an in-progress bounded Codex parse.
+    /// Identity and latest observed size for an in-progress bounded Codex parse.
     var codexScanFileId: String?
     var codexScanTargetSize: Int64?
     var codexScanComplete: Bool?
     var codexJSONLResumeState: CostUsageJsonl.ResumeState?
     /// Compact relevant events retained while a subagent rollout awaits full-shape classification.
     var codexBufferedSubagentLines: [CostUsageScanner.CodexBufferedFastLine]?
+    /// Parsed events retained when an ordinary fork is waiting for its parent baseline.
+    var codexBufferedUnresolvedForkLines: [CostUsageScanner.CodexBufferedFastLine]?
+
+    var hasBufferedCodexForkRetryLines: Bool {
+        self.codexBufferedSubagentLines?.isEmpty == false
+            || self.codexBufferedUnresolvedForkLines?.isEmpty == false
+    }
 }
 
 struct CostUsageCodexSessionMetadata: Codable, Equatable {
@@ -233,4 +254,46 @@ struct CostUsageCodexTotals: Codable, Equatable {
         self.output = output
         self.reasoning = reasoning
     }
+}
+
+struct CostUsageCodexTokenSnapshot: Codable, Equatable {
+    var timestamp: String
+    var last: CostUsageCodexTotals?
+    var total: CostUsageCodexTotals?
+    var endOffset: Int64?
+
+    init(
+        timestamp: String,
+        last: CostUsageCodexTotals?,
+        total: CostUsageCodexTotals?,
+        endOffset: Int64? = nil)
+    {
+        self.timestamp = timestamp
+        self.last = last
+        self.total = total
+        self.endOffset = endOffset
+    }
+}
+
+struct CostUsageCodexTokenAccumulatorState: Codable, Equatable {
+    var countedTotals: CostUsageCodexTotals?
+    var rawTotalsBaseline: CostUsageCodexTotals?
+    var sawDivergentTotals: Bool
+    var rawTotalsWatermark: CostUsageCodexTotals?
+    var seenRawTotals: [CostUsageCodexTotals]
+    var sawInterleavedTotals: Bool
+}
+
+struct CostUsageCodexTokenCheckpoint: Codable, Equatable {
+    /// Index of the last token event already folded into `state`.
+    var eventIndex: Int
+    var timestamp: String
+    var endOffset: Int64
+    var state: CostUsageCodexTokenAccumulatorState
+}
+
+struct CostUsageCodexTokenIndexAnchor: Codable, Equatable {
+    var indexedBytes: Int64
+    var windowStart: Int64
+    var sha256: String
 }

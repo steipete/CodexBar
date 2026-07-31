@@ -7,7 +7,7 @@ struct CodexCompactSubagentAccountingTests {
     private typealias Usage = Fixture.Usage
 
     @Test
-    func `parent-confirmed first turn marker drops a compact copied prefix`() throws {
+    func `locally confirmed first turn marker drops a compact copied prefix`() throws {
         let env = try CostUsageTestEnvironment()
         defer { env.cleanup() }
 
@@ -85,11 +85,11 @@ struct CodexCompactSubagentAccountingTests {
             CostUsagePricing.normalizeCodexModel(leafModel),
         ] == [50, 10, 5])
         #expect(child.days.values.allSatisfy { $0[CostUsagePricing.codexUnattributedModel] == nil })
-        #expect(child.forkBaselineDependencyKey?.hasPrefix("file|") == true)
+        #expect(child.forkBaselineDependencyKey == CostUsageScanner.codexForkDependencyNotRequiredKey)
     }
 
     @Test
-    func `parent snapshot change invalidates a cached compact child classification`() throws {
+    func `parent snapshot change keeps a locally confirmed compact child cached`() throws {
         let env = try CostUsageTestEnvironment()
         defer { env.cleanup() }
 
@@ -135,14 +135,14 @@ struct CodexCompactSubagentAccountingTests {
             now: day,
             options: options)
         let beforeDay = try #require(before.data.first)
-        #expect(beforeDay.totalTokens == 2253)
-        #expect(beforeDay.modelBreakdowns?.first {
+        #expect(beforeDay.totalTokens == 1153)
+        #expect(!(beforeDay.modelBreakdowns ?? []).contains {
             $0.modelName == CostUsagePricing.codexUnattributedModel
-        }?.totalTokens == 1100)
+        })
         let beforeCache = CostUsageCacheIO.load(provider: .codex, cacheRoot: env.cacheRoot)
         let beforeChild = try #require(beforeCache.files.values.first { $0.sessionId == "cache-child" })
         let beforeDependency = try #require(beforeChild.forkBaselineDependencyKey)
-        #expect(beforeDependency.hasPrefix("file|"))
+        #expect(beforeDependency == CostUsageScanner.codexForkDependencyNotRequiredKey)
 
         let appendedParentSnapshot = try env.jsonl([
             Fixture.tokenCount(
@@ -167,13 +167,12 @@ struct CodexCompactSubagentAccountingTests {
         })
         let afterCache = CostUsageCacheIO.load(provider: .codex, cacheRoot: env.cacheRoot)
         let afterChild = try #require(afterCache.files.values.first { $0.sessionId == "cache-child" })
-        #expect(afterChild.forkBaselineDependencyKey?.hasPrefix("file|") == true)
-        #expect(afterChild.forkBaselineDependencyKey != beforeDependency)
+        #expect(afterChild.forkBaselineDependencyKey == beforeDependency)
         #expect(afterChild.days.values.allSatisfy { $0[CostUsagePricing.codexUnattributedModel] == nil })
     }
 
     @Test
-    func `unconfirmed compact prefix stays independent and parent-dependent`() throws {
+    func `locally confirmed compact prefix ignores parent resolution`() throws {
         let env = try CostUsageTestEnvironment()
         defer { env.cleanup() }
 
@@ -205,9 +204,9 @@ struct CodexCompactSubagentAccountingTests {
                 range: CostUsageScanner.CostUsageDayRange(since: day, until: day),
                 inheritedTotalsResolver: { _, _ in baseline })
             let dayKey = CostUsageScanner.CostUsageDayRange.dayKey(from: day)
-            #expect(parsed.days[dayKey]?[CostUsagePricing.codexUnattributedModel] == [1000, 900, 100])
+            #expect(parsed.days[dayKey]?[CostUsagePricing.codexUnattributedModel] == nil)
             #expect(parsed.days[dayKey]?[CostUsagePricing.normalizeCodexModel(leafModel)] == [50, 10, 5])
-            #expect(parsed.dependsOnParentTotals)
+            #expect(!parsed.dependsOnParentTotals)
         }
     }
 }

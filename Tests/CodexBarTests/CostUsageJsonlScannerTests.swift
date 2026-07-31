@@ -13,21 +13,25 @@ struct CostUsageJsonlScannerTests {
         let contents = "\(largeLine)\nsmall\n"
         try contents.write(to: fileURL, atomically: true, encoding: .utf8)
 
-        var scanned: [(count: Int, truncated: Bool)] = []
+        var scanned: [(count: Int, truncated: Bool, start: Int64, end: Int64)] = []
         let endOffset = try CostUsageJsonl.scan(
             fileURL: fileURL,
             maxLineBytes: 400_000,
             prefixBytes: 400_000)
         { line in
-            scanned.append((line.bytes.count, line.wasTruncated))
+            scanned.append((line.bytes.count, line.wasTruncated, line.startOffset, line.endOffset))
         }
 
         #expect(endOffset == Int64(Data(contents.utf8).count))
         #expect(scanned.count == 2)
         #expect(scanned[0].count == 300_000)
         #expect(scanned[0].truncated == false)
+        #expect(scanned[0].start == 0)
+        #expect(scanned[0].end == 300_001)
         #expect(scanned[1].count == 5)
         #expect(scanned[1].truncated == false)
+        #expect(scanned[1].start == 300_001)
+        #expect(scanned[1].end == 300_007)
     }
 
     @Test
@@ -554,6 +558,49 @@ struct CostUsageJsonlScannerTests {
         #expect(scanned[0].wasTruncated)
         #expect(scanned[0].bytes.count == 64)
         #expect(endOffset == Int64(Data(record.utf8).count))
+    }
+
+    @Test
+    func `bounded jsonl scanner yields after a chunk and resumes the same record`() throws {
+        let root = try self.makeTemporaryRoot()
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let fileURL = root.appendingPathComponent("time-sliced.jsonl", isDirectory: false)
+        let first = #"{"message":"\#(String(repeating: "x", count: 300_000))"}"#
+        let second = #"{"message":"done"}"#
+        try "\(first)\n\(second)\n".write(to: fileURL, atomically: true, encoding: .utf8)
+
+        var firstPassLines: [CostUsageJsonl.Line] = []
+        let firstProgress = try CostUsageJsonl.scanBounded(
+            fileURL: fileURL,
+            maxLineBytes: 400_000,
+            prefixBytes: 400_000,
+            maxBytesToRead: nil,
+            resumeState: nil,
+            shouldStop: { $0 >= 256 * 1024 },
+            onLine: { line in
+                firstPassLines.append(line)
+            })
+
+        #expect(firstPassLines.isEmpty)
+        #expect(firstProgress.readOffset == 256 * 1024)
+        #expect(firstProgress.committedOffset == 0)
+        let resumeState = try #require(firstProgress.resumeState)
+
+        var resumedLines: [String] = []
+        let completed = try CostUsageJsonl.scanBounded(
+            fileURL: fileURL,
+            maxLineBytes: 400_000,
+            prefixBytes: 400_000,
+            maxBytesToRead: nil,
+            resumeState: resumeState,
+            onLine: { line in
+                resumedLines.append(String(data: line.bytes, encoding: .utf8) ?? "")
+            })
+
+        #expect(resumedLines == [first, second])
+        #expect(completed.resumeState == nil)
+        #expect(completed.committedOffset == Int64(Data("\(first)\n\(second)\n".utf8).count))
     }
 
     private func makeTemporaryRoot() throws -> URL {
