@@ -356,7 +356,8 @@ public struct CostUsageFetcher: Sendable {
     private static func resolvedScannerOptions(
         _ override: CostUsageScanner.Options?,
         provider: UsageProvider,
-        codexHomePath: String?) -> CostUsageScanner.Options
+        codexHomePath: String?,
+        allowVertexClaudeFallback: Bool = false) -> CostUsageScanner.Options
     {
         var options = override ?? CostUsageScanner.Options()
         // Provider-specific by design: Codex managed profiles relocate sessions and archived_sessions roots.
@@ -366,6 +367,11 @@ public struct CostUsageFetcher: Sendable {
         {
             options.codexSessionsRoot = URL(fileURLWithPath: codexHomePath, isDirectory: true)
                 .appendingPathComponent("sessions", isDirectory: true)
+        }
+        if provider == .vertexai {
+            options.claudeLogProviderFilter = allowVertexClaudeFallback ? .all : .vertexAIOnly
+        } else if provider == .claude {
+            options.claudeLogProviderFilter = .excludeVertexAI
         }
         return options
     }
@@ -408,7 +414,8 @@ public struct CostUsageFetcher: Sendable {
         var options = Self.resolvedScannerOptions(
             overrideScannerOptions,
             provider: provider,
-            codexHomePath: codexHomePath)
+            codexHomePath: codexHomePath,
+            allowVertexClaudeFallback: allowVertexClaudeFallback)
         // Rolling window is inclusive, so a 30-day display starts 29 days before `now`.
         let since = options.calendar.date(byAdding: .day, value: -(clampedHistoryDays - 1), to: now) ?? now
         await Self.refreshPricingIfAllowed(
@@ -424,7 +431,6 @@ public struct CostUsageFetcher: Sendable {
         Self.configureScannerRefresh(
             &options,
             provider: provider,
-            allowVertexClaudeFallback: allowVertexClaudeFallback,
             forceRefresh: forceRefresh,
             bypassScannerDebounce: bypassScannerDebounce)
         var resolvedPiOptions = overridePiScannerOptions ?? PiSessionCostScanner.Options()
@@ -1137,15 +1143,11 @@ public struct CostUsageFetcher: Sendable {
     private static func configureScannerRefresh(
         _ options: inout CostUsageScanner.Options,
         provider: UsageProvider,
-        allowVertexClaudeFallback: Bool,
         forceRefresh: Bool,
         bypassScannerDebounce: Bool)
     {
-        if provider == .vertexai {
-            options.claudeLogProviderFilter = allowVertexClaudeFallback ? .all : .vertexAIOnly
-        } else if provider == .claude {
-            options.claudeLogProviderFilter = .excludeVertexAI
-        }
+        // `claudeLogProviderFilter` is configured in `resolvedScannerOptions` so it is available
+        // to every caller, not only this path.
         if forceRefresh || bypassScannerDebounce {
             options.refreshMinIntervalSeconds = 0
         }
