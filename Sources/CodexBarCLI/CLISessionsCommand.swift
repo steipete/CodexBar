@@ -15,14 +15,18 @@ extension CodexBarCLI {
     }
 
     static func sessionsJSONProtocolVersion(from values: ParsedValues) -> Int? {
-        if values.flags.contains("jsonV2") || values.flags.contains("jsonShortcut") {
+        if values.flags.contains("jsonV2") {
             return 2
+        }
+        if values.flags.contains("jsonShortcut") {
+            return 1
         }
         return nil
     }
 
     static func sessionsForJSON(_ sessions: [AgentSession], includeOhMyPi: Bool) -> [AgentSession] {
-        includeOhMyPi ? sessions : sessions.filter { $0.provider != .ohMyPi }
+        guard !includeOhMyPi else { return sessions }
+        return sessions.filter { $0.provider == .codex || $0.provider == .claude }
     }
 
     static func runSessionsFocus(_ values: ParsedValues) async {
@@ -94,10 +98,10 @@ extension CodexBarCLI {
 }
 
 struct SessionsOptions: CommanderParsable {
-    @Flag(name: .long("json"), help: "Emit complete JSON, including OhMyPi sessions")
+    @Flag(name: .long("json"), help: "Emit legacy JSON compatible with older clients")
     var jsonShortcut: Bool = false
 
-    @Flag(name: .long("json-v2"), help: "Emit complete JSON, including OhMyPi sessions (equivalent to --json)")
+    @Flag(name: .long("json-v2"), help: "Emit complete JSON, including OhMyPi sessions")
     var jsonV2: Bool = false
 
     @Flag(name: .long("pretty"), help: "Pretty-print JSON output")

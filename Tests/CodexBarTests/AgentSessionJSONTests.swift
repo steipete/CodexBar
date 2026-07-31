@@ -53,14 +53,18 @@ struct AgentSessionJSONTests {
     }
 
     @Test
-    func `current JSON flags include OhMyPi and preserve the same array shape`() throws {
+    func `versioned JSON flags preserve legacy compatibility and expose OhMyPi only in v2`() throws {
         let sessions = self.makeProtocolFixture()
         let parser = CommandParser(signature: CommandSignature.describe(SessionsOptions()))
+        let expectations = [
+            (flag: "--json", version: 1, includesOhMyPi: false),
+            (flag: "--json-v2", version: 2, includesOhMyPi: true),
+        ]
 
-        for flag in ["--json", "--json-v2"] {
-            let parsed = try parser.parse(arguments: [flag])
+        for expectation in expectations {
+            let parsed = try parser.parse(arguments: [expectation.flag])
             let protocolVersion = CodexBarCLI.sessionsJSONProtocolVersion(from: parsed)
-            #expect(protocolVersion == 2)
+            #expect(protocolVersion == expectation.version)
 
             let currentSessions = CodexBarCLI.sessionsForJSON(
                 sessions,
@@ -70,9 +74,30 @@ struct AgentSessionJSONTests {
             decoder.dateDecodingStrategy = .iso8601
             let decoded = try decoder.decode([AgentSession].self, from: currentData)
 
-            #expect(decoded == sessions)
-            #expect(decoded.contains { $0.provider == .ohMyPi })
+            #expect(decoded == (expectation.includesOhMyPi ? sessions : sessions.filter { $0.provider != .ohMyPi }))
+            #expect(decoded.contains { $0.provider == .ohMyPi } == expectation.includesOhMyPi)
         }
+    }
+
+    @Test
+    func `mixed-version clients decode the repaired protocol in both upgrade directions`() throws {
+        let sessions = self.makeProtocolFixture()
+        let parser = CommandParser(signature: CommandSignature.describe(SessionsOptions()))
+        let newHostLegacyFlag = try parser.parse(arguments: ["--json"])
+        #expect(CodexBarCLI.sessionsJSONProtocolVersion(from: newHostLegacyFlag) == 1)
+
+        // A new host answering an old client keeps OhMyPi out of the legacy payload.
+        let newHostLegacySessions = CodexBarCLI.sessionsForJSON(sessions, includeOhMyPi: false)
+        let newHostLegacyData = try self.encode(newHostLegacySessions)
+        let oldClientSessions = try JSONDecoder().decode([LegacyAgentSession].self, from: newHostLegacyData)
+        #expect(oldClientSessions.map(\.provider) == [.codex, .claude])
+
+        // A new client falling back to an old host can decode that same v1 payload.
+        let oldHostLegacyData = try self.encode(sessions.filter { $0.provider != .ohMyPi })
+        let newClientDecoder = JSONDecoder()
+        newClientDecoder.dateDecodingStrategy = .iso8601
+        let newClientSessions = try newClientDecoder.decode([AgentSession].self, from: oldHostLegacyData)
+        #expect(newClientSessions == newHostLegacySessions)
     }
 
     @Test

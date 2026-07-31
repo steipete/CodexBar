@@ -149,7 +149,7 @@ public struct LocalAgentSessionScanner: Sendable {
                 processes: processes,
                 cwdByPID: cwdByPID,
                 environment: environment,
-                environmentByPID: environmentByPID,
+                environmentByPID: ohMyPiPIDs.isEmpty ? nil : environmentByPID,
                 now: now,
                 host: host,
                 config: self.config),

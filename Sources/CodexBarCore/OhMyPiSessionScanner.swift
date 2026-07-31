@@ -445,24 +445,6 @@ struct OhMyPiSessionScanner: Sendable {
         let now: Date
         let host: String
         let config: SessionScanConfig
-
-        init(
-            processes: [AgentProcessRecord],
-            cwdByPID: [Int32: String],
-            environment: [String: String],
-            environmentByPID: [Int32: [String: String]]? = nil,
-            now: Date,
-            host: String,
-            config: SessionScanConfig)
-        {
-            self.processes = processes
-            self.cwdByPID = cwdByPID
-            self.environment = environment
-            self.environmentByPID = environmentByPID
-            self.now = now
-            self.host = host
-            self.config = config
-        }
     }
 
     static func scan(
