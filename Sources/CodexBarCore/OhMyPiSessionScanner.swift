@@ -109,27 +109,69 @@ struct OhMyPiSessionRootResolver: Sendable {
         environment: [String: String],
         fileManager: FileManager = .default) -> [URL]
     {
+        self.sessionRoots(
+            environment: environment,
+            baseDirectory: self.currentDirectory(fileManager: fileManager),
+            fileManager: fileManager)
+    }
+
+    static func sessionRoots(
+        environment: [String: String],
+        baseDirectory: URL?,
+        fileManager: FileManager = .default) -> [URL]
+    {
         guard let profile = activeProfile(in: environment) else {
             // `nil` is the valid default profile. An invalid profile is
             // represented separately so a malformed environment fails closed.
             guard self.profileValueIsValid(in: environment) else { return [] }
-            return self.defaultProfileRoots(environment: environment, fileManager: fileManager)
+            return self.defaultProfileRoots(
+                environment: environment,
+                baseDirectory: baseDirectory,
+                fileManager: fileManager)
         }
 
         return Self.namedProfileRoots(
             profile: profile,
             environment: environment,
+            baseDirectory: baseDirectory,
+            fileManager: fileManager)
+    }
+
+    static func defaultProfileSessionRoots(
+        environment: [String: String],
+        fileManager: FileManager = .default) -> [URL]
+    {
+        self.defaultProfileSessionRoots(
+            environment: environment,
+            baseDirectory: self.currentDirectory(fileManager: fileManager),
+            fileManager: fileManager)
+    }
+
+    static func defaultProfileSessionRoots(
+        environment: [String: String],
+        baseDirectory: URL?,
+        fileManager: FileManager = .default) -> [URL]
+    {
+        self.defaultProfileRoots(
+            environment: self.sanitizedDefaultEnvironment(environment),
+            baseDirectory: baseDirectory,
             fileManager: fileManager)
     }
 
     private static func defaultProfileRoots(
         environment: [String: String],
+        baseDirectory: URL?,
         fileManager: FileManager) -> [URL]
     {
-        guard let home = homeURL(environment: environment, fileManager: fileManager) else { return [] }
+        guard let home = homeURL(
+            environment: environment,
+            baseDirectory: baseDirectory,
+            fileManager: fileManager)
+        else { return [] }
         guard let configRoot = Self.configRoot(home: home, environment: environment) else { return [] }
         let customAgentRoot = Self.customAgentRoot(
             environment: environment,
+            baseDirectory: baseDirectory,
             fileManager: fileManager)
         let agentRoot: URL
         if let customAgentRoot {
@@ -148,6 +190,7 @@ struct OhMyPiSessionRootResolver: Sendable {
         if customAgentRoot == nil,
            let xdgDataHome = Self.environmentURL(
                environment["XDG_DATA_HOME"],
+               baseDirectory: baseDirectory,
                fileManager: fileManager)
         {
             let xdgSessions = xdgDataHome
@@ -169,9 +212,14 @@ struct OhMyPiSessionRootResolver: Sendable {
     private static func namedProfileRoots(
         profile: String,
         environment: [String: String],
+        baseDirectory: URL?,
         fileManager: FileManager) -> [URL]
     {
-        guard let home = homeURL(environment: environment, fileManager: fileManager) else { return [] }
+        guard let home = homeURL(
+            environment: environment,
+            baseDirectory: baseDirectory,
+            fileManager: fileManager)
+        else { return [] }
         guard let configRoot = Self.configRoot(home: home, environment: environment) else { return [] }
         let profileRoot = configRoot
             .appendingPathComponent("profiles", isDirectory: true)
@@ -185,6 +233,7 @@ struct OhMyPiSessionRootResolver: Sendable {
         #if os(macOS) || os(Linux)
         if let xdgDataHome = Self.environmentURL(
             environment["XDG_DATA_HOME"],
+            baseDirectory: baseDirectory,
             fileManager: fileManager)
         {
             let xdgProfileRoot = xdgDataHome
@@ -280,13 +329,15 @@ struct OhMyPiSessionRootResolver: Sendable {
 
     private static func homeURL(
         environment: [String: String],
+        baseDirectory: URL?,
         fileManager: FileManager) -> URL?
     {
-        if let home = environmentURL(environment["HOME"], fileManager: fileManager) {
-            return home
-        }
-        return Self.canonicalURL(
-            URL(fileURLWithPath: fileManager.homeDirectoryForCurrentUser.path, isDirectory: true))
+        guard let home = environmentURL(
+            environment["HOME"],
+            baseDirectory: baseDirectory,
+            fileManager: fileManager)
+        else { return nil }
+        return home
     }
 
     private static func configRoot(home: URL, environment: [String: String]) -> URL? {
@@ -309,28 +360,45 @@ struct OhMyPiSessionRootResolver: Sendable {
 
     private static func customAgentRoot(
         environment: [String: String],
+        baseDirectory: URL?,
         fileManager: FileManager) -> URL?
     {
         self.environmentURL(
             environment["PI_CODING_AGENT_DIR"],
+            baseDirectory: baseDirectory,
             fileManager: fileManager)
     }
 
     private static func environmentURL(
         _ value: String?,
+        baseDirectory: URL?,
         fileManager: FileManager) -> URL?
     {
         guard let value else { return nil }
         let path = value.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !path.isEmpty else { return nil }
 
-        let url = if path.hasPrefix("/") {
-            URL(fileURLWithPath: path, isDirectory: true)
+        let url: URL
+        if path.hasPrefix("/") {
+            url = URL(fileURLWithPath: path, isDirectory: true)
         } else {
-            URL(fileURLWithPath: fileManager.currentDirectoryPath, isDirectory: true)
-                .appendingPathComponent(path, isDirectory: true)
+            guard let baseDirectory else { return nil }
+            url = baseDirectory.appendingPathComponent(path, isDirectory: true)
         }
         return Self.canonicalURL(url)
+    }
+
+    private static func sanitizedDefaultEnvironment(_ environment: [String: String]) -> [String: String] {
+        // A process with an inaccessible environment must not inherit
+        // process-specific config, custom roots, XDG roots, or profile
+        // selectors from the scanner's ambient environment. HOME is the only
+        // input needed to identify the standard default profile root.
+        guard let home = environment["HOME"] else { return [:] }
+        return ["HOME": home]
+    }
+
+    private static func currentDirectory(fileManager: FileManager) -> URL {
+        URL(fileURLWithPath: fileManager.currentDirectoryPath, isDirectory: true)
     }
 
     private static func sessionRoot(agentRoot: URL, fileManager: FileManager) -> URL? {
@@ -373,9 +441,28 @@ struct OhMyPiSessionScanner: Sendable {
         let processes: [AgentProcessRecord]
         let cwdByPID: [Int32: String]
         let environment: [String: String]
+        let environmentByPID: [Int32: [String: String]]?
         let now: Date
         let host: String
         let config: SessionScanConfig
+
+        init(
+            processes: [AgentProcessRecord],
+            cwdByPID: [Int32: String],
+            environment: [String: String],
+            environmentByPID: [Int32: [String: String]]? = nil,
+            now: Date,
+            host: String,
+            config: SessionScanConfig)
+        {
+            self.processes = processes
+            self.cwdByPID = cwdByPID
+            self.environment = environment
+            self.environmentByPID = environmentByPID
+            self.now = now
+            self.host = host
+            self.config = config
+        }
     }
 
     static func scan(
@@ -384,7 +471,6 @@ struct OhMyPiSessionScanner: Sendable {
     {
         let processes = input.processes
         let cwdByPID = input.cwdByPID
-        let environment = input.environment
         let now = input.now
         let host = input.host
         let config = input.config
@@ -398,29 +484,68 @@ struct OhMyPiSessionScanner: Sendable {
             return []
         }
 
-        let records = Self.records(
-            roots: OhMyPiSessionRootResolver.sessionRoots(environment: environment),
-            now: now,
-            directoryBudget: &directoryBudget)
-        var unusedRecords = records
+        var recordsByRoot: [String: [OhMyPiSessionRecord]] = [:]
+        var usedRecordURLs = Set<String>()
         var sessions: [AgentSession] = []
 
         for process in liveProcesses {
             let processCWD = cwdByPID[process.pid]
-            let processStandardizedCWD = processCWD.map(Self.standardizedPath)
-            let recordIndex = unusedRecords.firstIndex { record in
-                guard let processStandardizedCWD,
-                      let recordCWD = record.cwd,
-                      !recordCWD.isEmpty
-                else { return false }
-                return Self.standardizedPath(recordCWD) == processStandardizedCWD
+            let processStandardizedCWD = processCWD
+                .flatMap { $0.isEmpty ? nil : Self.standardizedPath($0) }
+            let processCWDURL = processCWD
+                .flatMap { $0.isEmpty ? nil : URL(fileURLWithPath: $0, isDirectory: true) }
+
+            var record: OhMyPiSessionRecord?
+            if let processStartedAt = process.startedAt,
+               let processStandardizedCWD,
+               let processCWDURL
+            {
+                let roots: [URL] = if let processEnvironments = input.environmentByPID,
+                                      let processEnvironment = processEnvironments[process.pid],
+                                      !processEnvironment.isEmpty
+                {
+                    OhMyPiSessionRootResolver.sessionRoots(
+                        environment: processEnvironment,
+                        baseDirectory: processCWDURL)
+                } else if input.environmentByPID == nil {
+                    OhMyPiSessionRootResolver.defaultProfileSessionRoots(
+                        environment: input.environment,
+                        baseDirectory: processCWDURL)
+                } else {
+                    []
+                }
+
+                for root in roots {
+                    guard directoryBudget.hasTimeRemaining() else { break }
+                    let canonicalRoot = Self.canonicalURL(root)
+                    let rootKey = canonicalRoot.path
+                    let rootRecords: [OhMyPiSessionRecord]
+                    if let cached = recordsByRoot[rootKey] {
+                        rootRecords = cached
+                    } else {
+                        let discovered = Self.records(
+                            in: canonicalRoot,
+                            now: now,
+                            directoryBudget: &directoryBudget)
+                        recordsByRoot[rootKey] = discovered
+                        rootRecords = discovered
+                    }
+
+                    if let candidate = rootRecords.first(where: { candidate in
+                        guard candidate.modifiedAt >= processStartedAt,
+                              let recordCWD = candidate.cwd,
+                              !recordCWD.isEmpty,
+                              Self.standardizedPath(recordCWD) == processStandardizedCWD
+                        else { return false }
+                        return !usedRecordURLs.contains(Self.canonicalURL(candidate.url).path)
+                    }) {
+                        record = candidate
+                        usedRecordURLs.insert(Self.canonicalURL(candidate.url).path)
+                        break
+                    }
+                }
             }
 
-            let record: OhMyPiSessionRecord? = if let recordIndex {
-                unusedRecords.remove(at: recordIndex)
-            } else {
-                nil
-            }
             let cwd = processCWD ?? record?.cwd
             let id = record?.id ?? "pid:\(process.pid)"
             let startedAt = record?.startedAt ?? process.startedAt
@@ -460,47 +585,45 @@ struct OhMyPiSessionScanner: Sendable {
     }
 
     private static func records(
-        roots: [URL],
+        in root: URL,
         now: Date,
         directoryBudget: inout DirectoryMetadataScanBudget) -> [OhMyPiSessionRecord]
     {
         let fileManager = FileManager.default
         var records: [OhMyPiSessionRecord] = []
-        let canonicalRoots = roots.map(Self.canonicalURL)
+        let canonicalRoot = Self.canonicalURL(root)
 
-        for root in canonicalRoots {
+        guard directoryBudget.hasTimeRemaining() else { return [] }
+        let projectDirectories = directoryBudget
+            .childDirectories(in: canonicalRoot, fileManager: fileManager)
+            .map(Self.canonicalURL)
+            .filter { OhMyPiSessionRootResolver.isWithin(root: canonicalRoot, candidate: $0) }
+            .sorted { $0.path < $1.path }
+
+        for projectDirectory in projectDirectories {
             guard directoryBudget.hasTimeRemaining() else { break }
-            let projectDirectories = directoryBudget
-                .childDirectories(in: root, fileManager: fileManager)
+            let files = directoryBudget
+                .files(in: projectDirectory, fileManager: fileManager)
+                .filter { $0.pathExtension == "jsonl" }
                 .map(Self.canonicalURL)
-                .filter { OhMyPiSessionRootResolver.isWithin(root: root, candidate: $0) }
+                .filter { file in
+                    OhMyPiSessionRootResolver.isWithin(root: canonicalRoot, candidate: file) &&
+                        Self.isDirectFile(in: file, projectDirectory: projectDirectory)
+                }
                 .sorted { $0.path < $1.path }
 
-            for projectDirectory in projectDirectories {
+            for file in files {
                 guard directoryBudget.hasTimeRemaining() else { break }
-                let files = directoryBudget
-                    .files(in: projectDirectory, fileManager: fileManager)
-                    .filter { $0.pathExtension == "jsonl" }
-                    .map(Self.canonicalURL)
-                    .filter { file in
-                        OhMyPiSessionRootResolver.isWithin(root: root, candidate: file) &&
-                            Self.isDirectFile(in: file, projectDirectory: projectDirectory)
-                    }
-                    .sorted { $0.path < $1.path }
-
-                for file in files {
-                    guard directoryBudget.hasTimeRemaining() else { break }
-                    guard let values = try? file.resourceValues(
-                        forKeys: [.contentModificationDateKey, .isRegularFileKey]),
-                        values.isRegularFile == true,
-                        let modifiedAt = values.contentModificationDate,
-                        let record = OhMyPiSessionFileParser.parse(
-                            url: file,
-                            modifiedAt: modifiedAt,
-                            now: now)
-                    else { continue }
-                    records.append(record)
-                }
+                guard let values = try? file.resourceValues(
+                    forKeys: [.contentModificationDateKey, .isRegularFileKey]),
+                    values.isRegularFile == true,
+                    let modifiedAt = values.contentModificationDate,
+                    let record = OhMyPiSessionFileParser.parse(
+                        url: file,
+                        modifiedAt: modifiedAt,
+                        now: now)
+                else { continue }
+                records.append(record)
             }
         }
 
@@ -517,7 +640,7 @@ struct OhMyPiSessionScanner: Sendable {
                 return lhs.url.path < rhs.url.path
             }
             .filter {
-                seenURLs.insert($0.url.path).inserted &&
+                seenURLs.insert(Self.canonicalURL($0.url).path).inserted &&
                     seenIDs.insert($0.id).inserted
             }
     }
