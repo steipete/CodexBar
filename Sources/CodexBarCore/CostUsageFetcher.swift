@@ -28,9 +28,36 @@ public enum CostUsageError: LocalizedError, Sendable {
 
 // swiftlint:disable:next type_body_length
 public struct CostUsageFetcher: Sendable {
+    private static let codexAutomaticScanDurationPerRefresh: TimeInterval = 2
+
     package struct CachedCodexTokenSnapshotResult: Sendable {
         package let snapshot: CostUsageTokenSnapshot
         package let lastRefreshAt: Date?
+    }
+
+    package struct CodexScanCatchUpStatus: Sendable, Equatable {
+        package let pending: Bool
+        package let progressKey: String
+        package let processedBytes: Int64
+        package let totalBytes: Int64
+        package let completedFiles: Int
+        package let totalFiles: Int
+
+        package init(
+            pending: Bool,
+            progressKey: String,
+            processedBytes: Int64 = 0,
+            totalBytes: Int64 = 0,
+            completedFiles: Int = 0,
+            totalFiles: Int = 0)
+        {
+            self.pending = pending
+            self.progressKey = progressKey
+            self.processedBytes = max(0, processedBytes)
+            self.totalBytes = max(0, totalBytes)
+            self.completedFiles = max(0, completedFiles)
+            self.totalFiles = max(0, totalFiles)
+        }
     }
 
     private let scannerOptions: CostUsageScanner.Options?
@@ -194,6 +221,82 @@ public struct CostUsageFetcher: Sendable {
         self.scannerOptions
     }
 
+    package func codexScanCatchUpStatus(
+        codexHomePath: String? = nil) async -> CodexScanCatchUpStatus
+    {
+        let options = Self.resolvedScannerOptions(
+            self.scannerOptionsOverride(),
+            provider: .codex,
+            codexHomePath: codexHomePath)
+        return await (try? CostUsageScanExecutor.run { checkCancellation in
+            try checkCancellation()
+            return Self.codexScanCatchUpStatus(options: options)
+        }) ?? CodexScanCatchUpStatus(pending: false, progressKey: "unavailable")
+    }
+
+    package func advanceCodexScanCatchUp(
+        now: Date = Date(),
+        codexHomePath: String? = nil,
+        historyDays: Int = 30) async throws -> CodexScanCatchUpStatus
+    {
+        var options = Self.resolvedScannerOptions(
+            self.scannerOptionsOverride(),
+            provider: .codex,
+            codexHomePath: codexHomePath)
+        options.forceRescan = false
+        options.refreshMinIntervalSeconds = 0
+        options.maxCodexScanDurationPerRefresh = Self.codexAutomaticScanDurationPerRefresh
+        let clampedHistoryDays = max(1, min(365, historyDays))
+        let since = options.calendar.date(
+            byAdding: .day,
+            value: -(clampedHistoryDays - 1),
+            to: now) ?? now
+        let scanOptions = options
+        return try await CostUsageScanExecutor.run { checkCancellation in
+            _ = try CostUsageScanner.loadDailyReportCancellable(
+                provider: .codex,
+                since: since,
+                until: now,
+                now: now,
+                options: scanOptions,
+                checkCancellation: checkCancellation)
+            try checkCancellation()
+            return Self.codexScanCatchUpStatus(options: scanOptions)
+        }
+    }
+
+    private static func codexScanCatchUpStatus(
+        options: CostUsageScanner.Options) -> CodexScanCatchUpStatus
+    {
+        let roots = CostUsageScanner.codexSessionsRoots(options: options)
+        let cache = CostUsageCacheIO.load(
+            provider: .codex,
+            cacheRoot: options.cacheRoot,
+            calendar: options.calendar)
+        guard cache.roots == CostUsageScanner.codexRootsFingerprint(options: options) else {
+            return CodexScanCatchUpStatus(pending: false, progressKey: "scope-mismatch")
+        }
+
+        let scoped = CostUsageScanner.codexCache(cache, scopedTo: roots)
+        var progressHasher = Hasher()
+        for (path, usage) in scoped.files.sorted(by: { $0.key < $1.key }) {
+            progressHasher.combine(path)
+            progressHasher.combine(usage.codexScanFileId)
+            progressHasher.combine(usage.parsedBytes)
+            progressHasher.combine(usage.size)
+            progressHasher.combine(usage.codexScanComplete)
+        }
+        let hasIncompleteFile = scoped.files.values.contains { $0.codexScanComplete == false }
+        let pending = cache.codexScanCatchUpPending == true || hasIncompleteFile
+        return CodexScanCatchUpStatus(
+            pending: pending,
+            progressKey: "\(scoped.files.count):\(progressHasher.finalize())",
+            processedBytes: cache.codexScanProcessedBytes ?? 0,
+            totalBytes: cache.codexScanTotalBytes ?? 0,
+            completedFiles: cache.codexScanCompletedFiles ?? 0,
+            totalFiles: cache.codexScanTotalFiles ?? 0)
+    }
+
     private static func resolvedScannerOptions(
         _ override: CostUsageScanner.Options?,
         provider: UsageProvider,
@@ -263,14 +366,12 @@ public struct CostUsageFetcher: Sendable {
             cacheRoot: options.cacheRoot,
             client: modelsDevClient)
 
-        if provider == .vertexai {
-            options.claudeLogProviderFilter = allowVertexClaudeFallback ? .all : .vertexAIOnly
-        } else if provider == .claude {
-            options.claudeLogProviderFilter = .excludeVertexAI
-        }
-        if forceRefresh || bypassScannerDebounce {
-            options.refreshMinIntervalSeconds = 0
-        }
+        Self.configureScannerRefresh(
+            &options,
+            provider: provider,
+            allowVertexClaudeFallback: allowVertexClaudeFallback,
+            forceRefresh: forceRefresh,
+            bypassScannerDebounce: bypassScannerDebounce)
         var resolvedPiOptions = overridePiScannerOptions ?? PiSessionCostScanner.Options()
         if resolvedPiOptions.cacheRoot == nil {
             resolvedPiOptions.cacheRoot = options.cacheRoot
@@ -796,6 +897,43 @@ public struct CostUsageFetcher: Sendable {
             projects: projects,
             sessions: sessions,
             updatedAt: updatedAt ?? now)
+    }
+
+    package static func resolvedCodexScanDurationPerRefresh(
+        provider: UsageProvider,
+        bypassScannerDebounce: Bool,
+        configuredDuration: TimeInterval?) -> TimeInterval?
+    {
+        guard provider == .codex,
+              bypassScannerDebounce,
+              configuredDuration == nil
+        else { return configuredDuration }
+
+        // UsageStore refreshes set bypassScannerDebounce. Bound that first app scan too,
+        // so it can publish a partial snapshot and hand remaining work to the persistent
+        // catch-up loop instead of consuming the whole 512 MiB byte budget continuously.
+        return self.codexAutomaticScanDurationPerRefresh
+    }
+
+    private static func configureScannerRefresh(
+        _ options: inout CostUsageScanner.Options,
+        provider: UsageProvider,
+        allowVertexClaudeFallback: Bool,
+        forceRefresh: Bool,
+        bypassScannerDebounce: Bool)
+    {
+        if provider == .vertexai {
+            options.claudeLogProviderFilter = allowVertexClaudeFallback ? .all : .vertexAIOnly
+        } else if provider == .claude {
+            options.claudeLogProviderFilter = .excludeVertexAI
+        }
+        if forceRefresh || bypassScannerDebounce {
+            options.refreshMinIntervalSeconds = 0
+        }
+        options.maxCodexScanDurationPerRefresh = self.resolvedCodexScanDurationPerRefresh(
+            provider: provider,
+            bypassScannerDebounce: bypassScannerDebounce,
+            configuredDuration: options.maxCodexScanDurationPerRefresh)
     }
 
     private static func unknownProjectBreakdown(from daily: CostUsageDailyReport) -> CostUsageProjectBreakdown? {
