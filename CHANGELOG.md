@@ -2,6 +2,11 @@
 
 ## 0.46.1 — Unreleased
 
+### Added
+- CLI: `codexbar hooks watch` polls providers and fires hooks on real quota/status transitions, so hook rules work
+  headless instead of only from the macOS app. Edge-triggered against the previous poll; in-memory baselines;
+  `--interval` (default 300s, minimum 60s), `--provider`, `--once`, and JSON output.
+
 ### Changed
 - About: link the Website entry to codex.bar.
 
