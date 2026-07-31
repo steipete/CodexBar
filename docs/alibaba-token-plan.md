@@ -38,7 +38,8 @@ The Alibaba Token Plan provider tracks Team credits and Personal/Solo rolling-wi
 - Personal/Solo variants fetch `usage`, `subscription`, and `quota-config` from the rolling-window API. International
   uses `bailian-singapore-cs.alibabacloud.com`; mainland uses `bailian-cs.console.aliyun.com`.
 - Browser cookies are rebuilt independently for the dashboard and quota hosts. Personal/Solo requests use the
-  quota-host cookie header and support cookie-only auth without requiring `sec_token`.
+  quota-host cookie header. The dashboard `sec_token` is resolved best-effort and appended when available
+  (some accounts get `BailianGateway.Workspace.NotAuthorised` without it); requests still proceed without it.
 - Config region values are `intl` and `cn` for Team, or `intl-personal` and `cn-personal` for Personal/Solo.
 - Supports `ALIBABA_TOKEN_PLAN_HOST` and `ALIBABA_TOKEN_PLAN_QUOTA_URL` for testing endpoint overrides
 
