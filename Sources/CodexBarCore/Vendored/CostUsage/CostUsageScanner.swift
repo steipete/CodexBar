@@ -2083,6 +2083,7 @@ enum CostUsageScanner {
         scanSinceKey: String,
         scanUntilKey: String,
         modifiedSince: Date,
+        includeLegacyRecursiveScan: Bool = true,
         calendar: Calendar = .current) -> [URL]
     {
         let lookbackSinceKey = self.dayKey(
@@ -2096,6 +2097,11 @@ enum CostUsageScanner {
             scanUntilKey: scanUntilKey,
             calendar: calendar)
         let partitionedModified = self.filterRecentlyModified(files: partitioned, modifiedSince: modifiedSince)
+
+        // The recursive walk visits the entire sessions root, so its cost grows with
+        // the whole corpus rather than with the lookback. It stays cold-cache only;
+        // warm refreshes use the bounded partition lookback above.
+        guard includeLegacyRecursiveScan else { return partitionedModified }
 
         let legacyRecursive = self.listCodexRecentlyModifiedFilesRecursive(root: root, modifiedSince: modifiedSince)
         var seen = Set(partitionedModified.map(\.path))
@@ -4372,12 +4378,22 @@ enum CostUsageScanner {
                     files.append(fileURL)
                 }
 
-                if shouldRunColdCacheLookback, let coldCacheLookbackStart {
+                // The lookback runs on every refresh, not just cold ones: a session
+                // resumed in an older date partition is appended to in place, so the
+                // in-window partition listing never sees it and `cachedCodexSessionFiles`
+                // cannot either until it has been scanned once. Without this, such a
+                // session's usage stays invisible until a forced rescan.
+                //
+                // Only the bounded partition lookback runs when the cache is warm; the
+                // unbounded recursive walk remains cold-cache only so refresh cost does
+                // not scale with the whole corpus.
+                if let coldCacheLookbackStart {
                     let recentlyModifiedFiles = Self.listCodexRecentlyModifiedFiles(
                         root: root,
                         scanSinceKey: range.scanSinceKey,
                         scanUntilKey: range.scanUntilKey,
                         modifiedSince: coldCacheLookbackStart,
+                        includeLegacyRecursiveScan: shouldRunColdCacheLookback,
                         calendar: options.calendar)
                     for fileURL in recentlyModifiedFiles.sorted(by: { $0.path < $1.path })
                         where !seenPaths.contains(fileURL.path)
