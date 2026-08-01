@@ -13,11 +13,11 @@ extension CodexBarCLI {
 
     static func runHooksWatch(_ values: ParsedValues) async {
         let output = CLIOutputPreferences.from(values: values)
-        let config = Self.loadConfig(output: output)
-        let hooks = config.hooks ?? HooksConfig()
 
-        // Arguments are validated before configuration state, so a bad --interval
-        // reports the interval problem rather than being masked by disabled hooks.
+        // Command-only arguments are validated before the config file is read.
+        // `loadConfig` exits on a malformed config, so decoding after it would let a
+        // broken config mask the documented argument errors. These two decoders take
+        // no config for exactly that reason.
         let interval: TimeInterval
         switch Self.decodeHooksWatchInterval(from: values) {
         case let .success(value):
@@ -26,8 +26,19 @@ extension CodexBarCLI {
             Self.exit(code: .failure, message: error.message, output: output, kind: .args)
         }
 
+        let explicitProviders: [UsageProvider]?
+        switch Self.decodeHooksWatchProviderNames(from: values) {
+        case let .success(value):
+            explicitProviders = value
+        case let .failure(error):
+            Self.exit(code: .failure, message: error.message, output: output, kind: .args)
+        }
+
+        let config = Self.loadConfig(output: output)
+        let hooks = config.hooks ?? HooksConfig()
+
         let providers: [UsageProvider]
-        switch Self.decodeHooksWatchProviders(from: values, config: config) {
+        switch Self.hooksWatchProviders(explicit: explicitProviders, config: config) {
         case let .success(value):
             providers = value
         case let .failure(error):
@@ -305,16 +316,16 @@ extension CodexBarCLI {
         return parsed
     }
 
-    static func decodeHooksWatchProviders(
-        from values: ParsedValues,
-        config: CodexBarConfig) -> Result<[UsageProvider], CLIArgumentError>
+    /// Validates explicit `--provider` names without consulting the config.
+    ///
+    /// Returns nil when no `--provider` was given, meaning the caller should fall
+    /// back to the configured enabled providers. Kept config-free so argument errors
+    /// can be reported before the config file is ever read.
+    static func decodeHooksWatchProviderNames(
+        from values: ParsedValues) -> Result<[UsageProvider]?, CLIArgumentError>
     {
-        let enabled = config.enabledProviders()
         guard let raw = values.options["provider"], !raw.isEmpty else {
-            guard !enabled.isEmpty else {
-                return .failure(CLIArgumentError("No providers are enabled."))
-            }
-            return .success(enabled)
+            return .success(nil)
         }
 
         var selected: [UsageProvider] = []
@@ -327,6 +338,19 @@ extension CodexBarCLI {
             }
         }
         return .success(selected)
+    }
+
+    /// Resolves the providers to poll, defaulting to everything enabled in config.
+    static func hooksWatchProviders(
+        explicit: [UsageProvider]?,
+        config: CodexBarConfig) -> Result<[UsageProvider], CLIArgumentError>
+    {
+        if let explicit { return .success(explicit) }
+        let enabled = config.enabledProviders()
+        guard !enabled.isEmpty else {
+            return .failure(CLIArgumentError("No providers are enabled."))
+        }
+        return .success(enabled)
     }
 }
 
