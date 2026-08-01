@@ -188,22 +188,11 @@ enum CodexAccountMenuProjectionRevalidationResult: Equatable {
 @Observable
 final class SettingsStore {
     static let sharedDefaults = AppGroupSupport.sharedDefaults()
-    /// User-configurable cap on how many providers render in the merged-icon
-    /// Overview tab. Used as a default-parameter value elsewhere in this file,
-    /// which Swift requires to be self-independent — hence `static var` (backed
-    /// by UserDefaults.standard, the same store `@AppStorage` targets) instead
-    /// of an instance property on `defaultsState`. Default matches the
-    /// original hardcoded value so existing users see no behavior change
-    /// unless they raise it.
-    static var mergedOverviewProviderLimit: Int {
-        get {
-            let stored = UserDefaults.standard.integer(forKey: "mergedOverviewProviderLimit")
-            return stored > 0 ? stored : 6
-        }
-        set {
-            UserDefaults.standard.set(max(1, newValue), forKey: "mergedOverviewProviderLimit")
-        }
-    }
+    /// Fallback used only by default-parameter expressions below, which Swift requires to be
+    /// self-independent (no access to `self.userDefaults`). Every real call site instead reads
+    /// the persisted, per-store value through the `mergedOverviewProviderLimit` instance accessor
+    /// in SettingsStore+Defaults.swift, so isolated test stores observe and reset it correctly.
+    static let mergedOverviewProviderLimitDefault = 6
     /// Bumped whenever `mergedOverviewProviderLimit` changes through the instance accessor below,
     /// so `menuObservationToken` can pick up the change on an already-open Overview menu — the
     /// static var itself isn't `@Observable`-tracked.

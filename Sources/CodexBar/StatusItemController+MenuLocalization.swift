@@ -33,6 +33,6 @@ extension StatusItemController {
     private func includesOverviewTab(for providers: [UsageProvider]) -> Bool {
         !self.settings.resolvedMergedOverviewProviders(
             activeProviders: providers,
-            maxVisibleProviders: SettingsStore.mergedOverviewProviderLimit).isEmpty
+            maxVisibleProviders: self.settings.mergedOverviewProviderLimit).isEmpty
     }
 }

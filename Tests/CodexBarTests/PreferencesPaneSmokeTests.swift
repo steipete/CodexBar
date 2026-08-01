@@ -118,7 +118,7 @@ struct PreferencesPaneSmokeTests {
 
     @Test
     func `overview provider limit text shows the configured maximum`() {
-        let text = MenuBarPane.overviewProviderLimitText()
+        let text = MenuBarPane.overviewProviderLimitText(limit: SettingsStore.mergedOverviewProviderLimitDefault)
 
         #expect(text.contains("6"))
         #expect(!text.contains("%@"))

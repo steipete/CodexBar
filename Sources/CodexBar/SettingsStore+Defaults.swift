@@ -771,10 +771,10 @@ extension SettingsStore {
         get {
             Self.decodeProviders(
                 self.mergedOverviewSelectedProvidersRaw,
-                maxCount: Self.mergedOverviewProviderLimit)
+                maxCount: self.mergedOverviewProviderLimit)
         }
         set {
-            let normalized = Self.normalizeProviders(newValue, maxCount: Self.mergedOverviewProviderLimit)
+            let normalized = Self.normalizeProviders(newValue, maxCount: self.mergedOverviewProviderLimit)
             self.mergedOverviewSelectedProvidersRaw = normalized.map(\.rawValue)
         }
     }
@@ -814,19 +814,24 @@ extension SettingsStore {
         self.mergedOverviewSelectionEditedActiveProvidersRaw = nil
     }
 
-    /// Instance accessor for `mergedOverviewProviderLimit` — bumps `mergedOverviewProviderLimitRevision`
-    /// so an already-open Overview menu observing this store picks up the change.
+    /// User-configurable cap on how many providers render in the merged-icon Overview tab,
+    /// persisted through this store's own `userDefaults` (not `.standard` directly) so isolated
+    /// test stores can observe and reset it independently. Bumps
+    /// `mergedOverviewProviderLimitRevision` so an already-open Overview menu picks up the change.
     var mergedOverviewProviderLimit: Int {
-        get { Self.mergedOverviewProviderLimit }
+        get {
+            let stored = self.userDefaults.integer(forKey: "mergedOverviewProviderLimit")
+            return stored > 0 ? stored : Self.mergedOverviewProviderLimitDefault
+        }
         set {
-            Self.mergedOverviewProviderLimit = newValue
+            self.userDefaults.set(max(1, newValue), forKey: "mergedOverviewProviderLimit")
             self.mergedOverviewProviderLimitRevision &+= 1
         }
     }
 
     func resolvedMergedOverviewProviders(
         activeProviders: [UsageProvider],
-        maxVisibleProviders: Int = SettingsStore.mergedOverviewProviderLimit) -> [UsageProvider]
+        maxVisibleProviders: Int = SettingsStore.mergedOverviewProviderLimitDefault) -> [UsageProvider]
     {
         guard maxVisibleProviders > 0 else { return [] }
         let normalizedActive = Self.normalizeProviders(activeProviders)
@@ -846,7 +851,7 @@ extension SettingsStore {
     @discardableResult
     func reconcileMergedOverviewSelectedProviders(
         activeProviders: [UsageProvider],
-        maxVisibleProviders: Int = SettingsStore.mergedOverviewProviderLimit) -> [UsageProvider]
+        maxVisibleProviders: Int = SettingsStore.mergedOverviewProviderLimitDefault) -> [UsageProvider]
     {
         guard maxVisibleProviders > 0 else {
             self.clearMergedOverviewSelectionPreference()
@@ -883,7 +888,7 @@ extension SettingsStore {
         provider: UsageProvider,
         isSelected: Bool,
         activeProviders: [UsageProvider],
-        maxVisibleProviders: Int = SettingsStore.mergedOverviewProviderLimit) -> [UsageProvider]
+        maxVisibleProviders: Int = SettingsStore.mergedOverviewProviderLimitDefault) -> [UsageProvider]
     {
         guard maxVisibleProviders > 0 else {
             self.clearMergedOverviewSelectionPreference()

@@ -128,7 +128,7 @@ extension StatusItemController {
         let activeProviders = self.store.enabledProvidersForDisplay()
         return self.settings.resolvedMergedOverviewProviders(
             activeProviders: activeProviders,
-            maxVisibleProviders: SettingsStore.mergedOverviewProviderLimit).contains(.codex)
+            maxVisibleProviders: self.settings.mergedOverviewProviderLimit).contains(.codex)
     }
 
     func observeMenuBarTimeEnvironmentChanges() {

@@ -3,13 +3,11 @@ import SwiftUI
 
 @MainActor
 struct MenuBarPane: View {
-    private static var maxOverviewProviders: Int { SettingsStore.mergedOverviewProviderLimit }
-
     @State private var isOverviewProviderPopoverPresented = false
     @Bindable var settings: SettingsStore
     @Bindable var store: UsageStore
 
-    static func overviewProviderLimitText(limit: Int = Self.maxOverviewProviders) -> String {
+    static func overviewProviderLimitText(limit: Int) -> String {
         L("overview_choose_providers", String(limit))
     }
 
@@ -146,7 +144,7 @@ struct MenuBarPane: View {
 
     private var overviewProviderPopover: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text(Self.overviewProviderLimitText())
+            Text(Self.overviewProviderLimitText(limit: self.settings.mergedOverviewProviderLimit))
                 .font(.headline)
             Text(L("overview_rows_follow_order"))
                 .font(.footnote)
@@ -167,7 +165,7 @@ struct MenuBarPane: View {
                         .toggleStyle(.checkbox)
                         .disabled(
                             !self.overviewSelectedProviders.contains(provider) &&
-                                self.overviewSelectedProviders.count >= Self.maxOverviewProviders)
+                                self.overviewSelectedProviders.count >= self.settings.mergedOverviewProviderLimit)
                     }
                 }
             }
@@ -184,7 +182,7 @@ struct MenuBarPane: View {
     private var overviewSelectedProviders: [UsageProvider] {
         self.settings.resolvedMergedOverviewProviders(
             activeProviders: self.activeProvidersInOrder,
-            maxVisibleProviders: Self.maxOverviewProviders)
+            maxVisibleProviders: self.settings.mergedOverviewProviderLimit)
     }
 
     private var showsOverviewConfigureButton: Bool {
@@ -206,12 +204,12 @@ struct MenuBarPane: View {
             provider: provider,
             isSelected: isSelected,
             activeProviders: self.activeProvidersInOrder,
-            maxVisibleProviders: Self.maxOverviewProviders)
+            maxVisibleProviders: self.settings.mergedOverviewProviderLimit)
     }
 
     private func reconcileOverviewSelection() {
         _ = self.settings.reconcileMergedOverviewSelectedProviders(
             activeProviders: self.activeProvidersInOrder,
-            maxVisibleProviders: Self.maxOverviewProviders)
+            maxVisibleProviders: self.settings.mergedOverviewProviderLimit)
     }
 }

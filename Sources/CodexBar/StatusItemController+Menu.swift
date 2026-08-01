@@ -8,7 +8,6 @@ import SwiftUI
 
 extension StatusItemController {
     static let menuCardBaseWidth: CGFloat = 310
-    private static var maxOverviewProviders: Int { SettingsStore.mergedOverviewProviderLimit }
     static let overviewRowIdentifierPrefix = "overviewRow-"
     static let persistentRefreshMenuItemID = "persistentRefreshAction"
     private static let defaultMenuOpenRefreshDelay: Duration = .seconds(1.2)
@@ -598,7 +597,7 @@ extension StatusItemController {
     private func addOverviewEmptyState(to menu: NSMenu, enabledProviders: [UsageProvider]) {
         let resolvedProviders = self.settings.resolvedMergedOverviewProviders(
             activeProviders: enabledProviders,
-            maxVisibleProviders: Self.maxOverviewProviders)
+            maxVisibleProviders: self.settings.mergedOverviewProviderLimit)
         let message = resolvedProviders.isEmpty
             ? L("No providers selected for Overview.")
             : L("No overview data available.")
@@ -1102,7 +1101,7 @@ extension StatusItemController {
     private func includesOverviewTab(enabledProviders: [UsageProvider]) -> Bool {
         !self.settings.resolvedMergedOverviewProviders(
             activeProviders: enabledProviders,
-            maxVisibleProviders: Self.maxOverviewProviders).isEmpty
+            maxVisibleProviders: self.settings.mergedOverviewProviderLimit).isEmpty
     }
 
     private func resolvedSwitcherSelection(
@@ -1240,7 +1239,7 @@ extension StatusItemController {
         {
             return self.settings.resolvedMergedOverviewProviders(
                 activeProviders: enabledProviders,
-                maxVisibleProviders: Self.maxOverviewProviders)
+                maxVisibleProviders: self.settings.mergedOverviewProviderLimit)
         }
 
         if let provider = self.menuProvider(for: menu)
