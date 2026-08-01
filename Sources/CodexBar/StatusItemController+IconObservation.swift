@@ -50,6 +50,9 @@ extension StatusItemController {
         let layoutAccountSignature = showBrandPercent
             ? self.storedMenuBarLayoutAccountSignature(for: provider, snapshot: snapshot)
             : nil
+        let layoutPaceSignature = showBrandPercent
+            ? self.storedMenuBarLayoutPaceSignature(for: provider, snapshot: snapshot)
+            : nil
 
         return [
             provider.rawValue,
@@ -64,6 +67,7 @@ extension StatusItemController {
             "text=\(displayText ?? "nil")",
             "layoutCost=\(layoutCostSignature ?? "nil")",
             "layoutAccount=\(layoutAccountSignature ?? "nil")",
+            "layoutPace=\(layoutPaceSignature ?? "nil")",
         ].joined(separator: "|")
     }
 
@@ -97,5 +101,38 @@ extension StatusItemController {
             "today=\(showsToday ? costs.today ?? "nil" : "unused")",
             "last30Days=\(showsLast30Days ? costs.last30Days ?? "nil" : "unused")",
         ].joined(separator: ",")
+    }
+
+    /// Pace tokens change with the historical dataset, the work-day setting, and the clock — none of
+    /// which move the percent fields above. Without this contribution a `historicalPaceRevision` bump
+    /// wakes the observer but leaves the signature unchanged, so a custom pace token would keep its
+    /// stale value until an unrelated icon change forces a redraw.
+    private func storedMenuBarLayoutPaceSignature(
+        for provider: UsageProvider,
+        snapshot: UsageSnapshot?)
+        -> String?
+    {
+        let resolution = self.settings.menuBarLayoutResolution(for: provider)
+        guard !resolution.usesLegacyRendering else { return nil }
+
+        let paceWindows = Set(resolution.layout.lines.joined().compactMap { token -> PercentWindow? in
+            guard case let .pace(window) = token else { return nil }
+            return window
+        })
+        guard !paceWindows.isEmpty else { return nil }
+
+        let windows = self.menuBarLayoutWindows(provider: provider, snapshot: snapshot, now: Date())
+        return PercentWindow.allCases
+            .filter(paceWindows.contains)
+            .map { percentWindow in
+                let window: RateWindow? = switch percentWindow {
+                case .session: windows.session
+                case .weekly: windows.weekly
+                case .automatic: windows.automatic
+                }
+                let pace = self.store.menuBarLayoutPaceText(provider: provider, window: window)
+                return "\(percentWindow.rawValue)=\(pace ?? "nil")"
+            }
+            .joined(separator: ",")
     }
 }
