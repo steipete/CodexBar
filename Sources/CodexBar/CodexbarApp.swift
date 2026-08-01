@@ -556,6 +556,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 selection,
                 managedCodexAccountCoordinator,
                 codexAccountPromotionCoordinator)
+            if let statusController = self.statusController as? StatusItemController {
+                MenuSwitchFlickerProbe.startIfRequested(controller: statusController)
+            }
             return
         }
 
