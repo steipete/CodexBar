@@ -69,9 +69,11 @@ struct CodexBarOverviewWidgetView: View {
 
     var body: some View {
         let limit = CodexBarOverviewTimelineProvider.providerLimit(for: self.family)
-        let providers = self.entry.selectedProviders.isEmpty
+        let enabledSet = Set(self.entry.snapshot.enabledProviders)
+        let selectedActive = self.entry.selectedProviders.filter { enabledSet.contains($0) }
+        let providers = selectedActive.isEmpty
             ? self.entry.snapshot.enabledProviders
-            : self.entry.selectedProviders
+            : selectedActive
         let rows = providers
             .compactMap { provider in
                 self.entry.snapshot.entries.first { $0.provider == provider }
