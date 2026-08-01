@@ -181,7 +181,10 @@ struct OverviewProviderSelectionIntent: AppIntent, WidgetConfigurationIntent {
     // WidgetKit "Edit Widget" UI across OS versions — four optional single-select slots use the
     // same primitive as `ProviderSelectionIntent` above, which is proven to work there.
     var selectedProviders: [UsageProvider] {
-        [self.provider1, self.provider2, self.provider3, self.provider4].compactMap { $0?.provider }
+        var seen = Set<UsageProvider>()
+        return [self.provider1, self.provider2, self.provider3, self.provider4]
+            .compactMap { $0?.provider }
+            .filter { seen.insert($0).inserted }
     }
 }
 

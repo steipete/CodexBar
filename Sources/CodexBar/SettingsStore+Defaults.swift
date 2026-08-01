@@ -954,7 +954,11 @@ extension SettingsStore {
             return Array(normalizedActive.prefix(maxVisibleProviders))
         }
         let selectedSet = Set(self.touchBarSelectedProviders)
-        return Array(normalizedActive.filter { selectedSet.contains($0) }.prefix(maxVisibleProviders))
+        let filtered = normalizedActive.filter { selectedSet.contains($0) }
+        guard !filtered.isEmpty else {
+            return Array(normalizedActive.prefix(maxVisibleProviders))
+        }
+        return Array(filtered.prefix(maxVisibleProviders))
     }
 
     @discardableResult

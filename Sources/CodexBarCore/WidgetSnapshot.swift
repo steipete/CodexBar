@@ -229,9 +229,11 @@ public enum WidgetSnapshotStore {
     }
 
     private static func stripFileExtendedAttributes(at url: URL) {
+        #if canImport(Darwin)
         let path = url.path
         removexattr(path, "com.apple.provenance", 0)
         removexattr(path, "com.apple.quarantine", 0)
+        #endif
     }
 
     private static func snapshotURL(bundleID: String?) -> URL {
