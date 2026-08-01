@@ -814,6 +814,16 @@ extension SettingsStore {
         self.mergedOverviewSelectionEditedActiveProvidersRaw = nil
     }
 
+    /// Instance accessor for `mergedOverviewProviderLimit` — bumps `mergedOverviewProviderLimitRevision`
+    /// so an already-open Overview menu observing this store picks up the change.
+    var mergedOverviewProviderLimit: Int {
+        get { Self.mergedOverviewProviderLimit }
+        set {
+            Self.mergedOverviewProviderLimit = newValue
+            self.mergedOverviewProviderLimitRevision &+= 1
+        }
+    }
+
     func resolvedMergedOverviewProviders(
         activeProviders: [UsageProvider],
         maxVisibleProviders: Int = SettingsStore.mergedOverviewProviderLimit) -> [UsageProvider]

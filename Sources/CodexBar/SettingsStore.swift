@@ -204,6 +204,10 @@ final class SettingsStore {
             UserDefaults.standard.set(max(1, newValue), forKey: "mergedOverviewProviderLimit")
         }
     }
+    /// Bumped whenever `mergedOverviewProviderLimit` changes through the instance accessor below,
+    /// so `menuObservationToken` can pick up the change on an already-open Overview menu — the
+    /// static var itself isn't `@Observable`-tracked.
+    var mergedOverviewProviderLimitRevision = 0
     static let productionCodexAccountReconciliationSnapshotCacheInterval: TimeInterval = 2
     static let isRunningTests: Bool = {
         let env = ProcessInfo.processInfo.environment
