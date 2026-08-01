@@ -59,11 +59,11 @@ struct CodexBarOverviewWidgetView: View {
     let entry: CodexBarOverviewEntry
 
     var body: some View {
-        let providers = Array(self.entry.snapshot.enabledProviders
-            .prefix(CodexBarOverviewTimelineProvider.providerLimit(for: self.family)))
-        let rows = providers.compactMap { provider in
-            self.entry.snapshot.entries.first { $0.provider == provider }
-        }
+        let rows = self.entry.snapshot.enabledProviders
+            .compactMap { provider in
+                self.entry.snapshot.entries.first { $0.provider == provider }
+            }
+            .prefix(CodexBarOverviewTimelineProvider.providerLimit(for: self.family))
 
         Group {
             if rows.isEmpty {

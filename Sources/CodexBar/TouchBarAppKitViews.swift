@@ -132,14 +132,23 @@ final class TouchBarRateRowView: NSView {
 
     func apply(label: String, window: RateWindow?, accent: NSColor) {
         self.nameLabel.stringValue = label
-        let remaining = 100 - (window?.usedPercent ?? 100)
+        guard let window else {
+            self.nameLabel.textColor = .secondaryLabelColor
+            self.capsule.fraction = 0
+            self.capsule.fillColor = .tertiaryLabelColor
+            self.percentLabel.stringValue = "—"
+            self.percentLabel.textColor = .secondaryLabelColor
+            self.resetLabel.isHidden = true
+            return
+        }
+        let remaining = 100 - window.usedPercent
         let isCritical = remaining < 10
         self.nameLabel.textColor = isCritical ? .systemRed : .secondaryLabelColor
         self.capsule.fraction = max(0, min(1, remaining / 100))
         self.capsule.fillColor = isCritical ? .systemRed : accent
         self.percentLabel.stringValue = UsageFormatter.percentString(remaining)
         self.percentLabel.textColor = isCritical ? .systemRed : .labelColor
-        if let resetsAt = window?.resetsAt {
+        if let resetsAt = window.resetsAt {
             self.resetLabel.stringValue = "Reset at \(UsageFormatter.resetDescription(from: resetsAt))"
             self.resetLabel.isHidden = false
         } else {
@@ -305,7 +314,15 @@ final class TouchBarProviderGraphView: NSView {
         } else {
             self.resetLabel.stringValue = label
         }
-        let remaining = 100 - (window?.usedPercent ?? 100)
+        guard let window else {
+            self.capsule.fraction = 0
+            self.capsule.fillColor = .tertiaryLabelColor
+            self.percentLabel.stringValue = "—"
+            self.percentLabel.textColor = .secondaryLabelColor
+            self.setAccessibilityLabel("\(descriptor.metadata.displayName) \(label), usage unknown")
+            return
+        }
+        let remaining = 100 - window.usedPercent
         let isCritical = remaining < 10
         self.capsule.fraction = max(0, min(1, remaining / 100))
         self.capsule.fillColor = isCritical ? .systemRed : accent

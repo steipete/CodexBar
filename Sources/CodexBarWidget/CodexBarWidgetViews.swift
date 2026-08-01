@@ -660,9 +660,7 @@ struct WidgetUsageRow: Identifiable, Equatable {
         else {
             return nil
         }
-        // Antigravity's Gemini and Claude/GPT pools each carry their own 5h + weekly
-        // window — show all 4 instead of picking one cadence per pool.
-        return max(limit, 4)
+        return limit
     }
 
     static func rows(
