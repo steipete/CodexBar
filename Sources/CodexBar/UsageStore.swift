@@ -185,6 +185,8 @@ final class UsageStore {
     var tokenErrors: [UsageProvider: String] = [:]
     var tokenRefreshInFlight: Set<UsageProvider> = []
     var codexCostCatchUpActivity: CodexCostCatchUpActivity?
+    var spendDashboardCodexCostCatchUpActivity: CodexCostCatchUpActivity?
+    var spendDashboardCodexCostCatchUpRevision: UInt64 = 0
     var credits: CreditsSnapshot?
     var lastCreditsError: String?
     var openAIDashboard: OpenAIDashboardSnapshot?
@@ -278,6 +280,18 @@ final class UsageStore {
         powerSource: CodexCostCatchUpPowerSource,
         lowPowerModeEnabled: Bool,
         thermalState: ProcessInfo.ThermalState))?
+    @ObservationIgnored var _test_spendDashboardCodexCostCatchUpStatusOverride: (@MainActor (
+        CodexSpendScanRequest) async -> CostUsageFetcher.CodexScanCatchUpStatus)?
+    @ObservationIgnored var _test_spendDashboardCodexCostCatchUpAdvanceOverride: (@MainActor (
+        CodexSpendScanRequest,
+        Date,
+        Int) async throws -> CostUsageFetcher.CodexScanCatchUpStatus)?
+    @ObservationIgnored var _test_spendDashboardCodexCostCatchUpSleepOverride: (@MainActor (
+        TimeInterval) async throws -> Void)?
+    @ObservationIgnored var _test_spendDashboardCodexCostCatchUpResourceStateOverride: (@MainActor () -> (
+        powerSource: CodexCostCatchUpPowerSource,
+        lowPowerModeEnabled: Bool,
+        thermalState: ProcessInfo.ThermalState))?
     @ObservationIgnored var _test_providerStatusFetchOverride: (@MainActor (
         UsageProvider) async throws -> ProviderStatus)?
     @ObservationIgnored var _test_forcedRefreshEnrichmentWaitObserver: (@MainActor () -> Void)?
@@ -331,6 +345,12 @@ final class UsageStore {
     @ObservationIgnored var codexCostCatchUpMode: CodexCostCatchUpMode = .automatic
     @ObservationIgnored var codexCostCatchUpStopRequested = false
     @ObservationIgnored var codexCostCatchUpPassIsRunning = false
+    @ObservationIgnored var spendDashboardCodexCostCatchUpTask: Task<Void, Never>?
+    @ObservationIgnored var spendDashboardCodexCostCatchUpToken: UUID?
+    @ObservationIgnored var spendDashboardCodexCostCatchUpScopeSignature: String?
+    @ObservationIgnored var spendDashboardCodexCostCatchUpMode: CodexCostCatchUpMode = .automatic
+    @ObservationIgnored var spendDashboardCodexCostCatchUpStopRequested = false
+    @ObservationIgnored var spendDashboardCodexCostCatchUpPassIsRunning = false
     @ObservationIgnored var forcedRefreshEnrichmentTask: Task<Void, Never>?
     @ObservationIgnored var forcedRefreshEnrichmentToken: UUID?
     @ObservationIgnored var pendingForcedRefreshEnrichmentTask: Task<Void, Never>?
@@ -1551,6 +1571,7 @@ extension UsageStore {
     private func resetTokenUsageState(for provider: UsageProvider) {
         if provider == .codex {
             self.cancelCodexCostCatchUp()
+            self.cancelSpendDashboardCodexCostCatchUp()
         }
         self.clearTokenSnapshot(for: provider)
         self.tokenErrors[provider] = nil

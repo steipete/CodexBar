@@ -65,6 +65,7 @@ struct SpendDashboardPane: View {
     @Bindable var settings: SettingsStore
     @Bindable var store: UsageStore
     @State private var controller: SpendDashboardController
+    @State private var isVisible = false
 
     init(settings: SettingsStore, store: UsageStore) {
         self.settings = settings
@@ -87,13 +88,26 @@ struct SpendDashboardPane: View {
         }
         .background(FocusResigningBackground())
         .onAppear {
+            self.isVisible = true
             self.controller.refreshDateWindow()
             self.controller.update(configuration: self.configuration)
+            if !self.controller.isRefreshing {
+                self.synchronizeCodexCostCatchUp()
+            }
         }
         .onChange(of: self.configuration) { _, configuration in
             self.controller.update(configuration: configuration)
+            if self.isVisible, !self.controller.isRefreshing {
+                self.synchronizeCodexCostCatchUp()
+            }
+        }
+        .onChange(of: self.controller.isRefreshing) { _, isRefreshing in
+            if self.isVisible, !isRefreshing {
+                self.synchronizeCodexCostCatchUp()
+            }
         }
         .onDisappear {
+            self.isVisible = false
             self.controller.stop()
         }
         .onReceive(NotificationCenter.default.publisher(for: .NSCalendarDayChanged)) { _ in
@@ -144,7 +158,7 @@ struct SpendDashboardPane: View {
 
     @ViewBuilder
     private var codexCostCatchUpPanel: some View {
-        if let activity = self.store.codexCostCatchUpActivity,
+        if let activity = self.store.spendDashboardCodexCostCatchUpActivity,
            activity.phase != .complete
         {
             SpendDashboardPanel {
@@ -188,15 +202,15 @@ struct SpendDashboardPane: View {
                             || self.codexCostCatchUpHasError(activity)
                         {
                             Button(L("Refresh")) {
-                                self.store.returnCodexCostCatchUpToBackground()
+                                self.startCodexCostCatchUp(mode: .automatic)
                             }
                         } else if activity.mode == .automatic {
                             Button(L("Finish now")) {
-                                self.store.startAcceleratedCodexCostCatchUp()
+                                self.startCodexCostCatchUp(mode: .accelerated)
                             }
                         } else {
                             Button(L("Continue in background")) {
-                                self.store.returnCodexCostCatchUpToBackground()
+                                self.startCodexCostCatchUp(mode: .automatic)
                             }
                         }
 
@@ -205,7 +219,7 @@ struct SpendDashboardPane: View {
                            !self.codexCostCatchUpHasError(activity)
                         {
                             Button(L("Cancel")) {
-                                self.store.stopCodexCostCatchUp()
+                                self.store.stopSpendDashboardCodexCostCatchUp()
                             }
                         }
                     }
@@ -220,6 +234,24 @@ struct SpendDashboardPane: View {
             return true
         }
         return false
+    }
+
+    private func synchronizeCodexCostCatchUp() {
+        self.store.synchronizeSpendDashboardCodexCostCatchUp(
+            accounts: self.codexSpendScanRequests)
+    }
+
+    private func startCodexCostCatchUp(mode: CodexCostCatchUpMode) {
+        self.store.startSpendDashboardCodexCostCatchUpIfNeeded(
+            accounts: self.codexSpendScanRequests,
+            mode: mode)
+    }
+
+    private var codexSpendScanRequests: [CodexSpendScanRequest] {
+        guard self.configuration.costUsageEnabled,
+              self.configuration.providerIDs.contains(UsageProvider.codex.rawValue)
+        else { return [] }
+        return SpendDashboardSource.codexRequests(settings: self.settings, store: self.store)
     }
 
     private func codexCostCatchUpTitle(_ activity: CodexCostCatchUpActivity) -> String {
