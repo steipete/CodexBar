@@ -8,7 +8,7 @@ read_when:
 
 # Providers
 
-CodexBar currently registers 66 provider IDs. Some companies expose multiple surfaces, such as Codex vs OpenAI API or
+CodexBar currently registers 67 provider IDs. Some companies expose multiple surfaces, such as Codex vs OpenAI API or
 OpenCode vs OpenCode Go, because the auth source and quota shape differ.
 
 ## Fetch strategies (current)
@@ -96,6 +96,7 @@ scan fails, while provider/account configuration changes replace obsolete result
 | ai& | API key from config/env → 30-day organization spend summed from the request logs API (`api`). |
 | xAI | Management key + team ID from config/env → prepaid balance and 30-day daily spend from the Management API (`api`). |
 | Zed | Zed editor Keychain session → `cloud.zed.dev/client/users/me` for plan and quota data (`local`). |
+| Notion AI | Browser cookies → workspace resolution and the AI usage allowance API (`web`). |
 
 ## Codex
 - App Auto: OAuth API first; falls back to CLI only when OAuth credentials are missing or auth/refresh is invalid.
@@ -602,5 +603,14 @@ provider-specific cookie validation, endpoints, login detection, and error trans
 - Distinct from the Grok provider: Grok tracks consumer Grok/SuperGrok subscription quota via CLI/web session; xAI tracks the developer-platform prepaid billing surface. Credentials and balances are never shared between the two.
 - Prepaid money is not a quota; no session or weekly meters are synthesized.
 - Details: `docs/xai.md`.
+
+## Notion AI
+- Browser cookies (auto-import or manual Cookie header/cURL capture) for `app.notion.com`; the `token_v2` session cookie is required.
+- `POST /api/v3/getSpaces` resolves the account and its workspaces, then `POST /api/v3/getCreditRateLimitStatus` returns the allowance for the selected space.
+- Shows the Rolling 6-hour window and the Monthly billing-period window that Notion renders in Settings > Notion AI > Usage. Usage is scaled against the returned `limit` rather than assumed to be a percentage.
+- Only Business and Enterprise workspaces carry an allowance; anything else answers `not_applicable` and surfaces as a provider error instead of an empty gauge. Multi-workspace accounts default to the first eligible workspace and can pin one with `workspaceID`.
+- Notion credits (Custom Agents, Workers) are a separate meter and are not read.
+- Status: `https://status.notion.so/` (link only).
+- Details: `docs/notion.md`.
 
 See also: `docs/provider.md` for architecture notes.

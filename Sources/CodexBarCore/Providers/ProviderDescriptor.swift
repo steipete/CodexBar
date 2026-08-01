@@ -189,6 +189,7 @@ public enum ProviderDescriptorRegistry {
         .aiand: AiAndProviderDescriptor.descriptor,
         .zoommate: ZoomMateProviderDescriptor.descriptor,
         .xai: XAIProviderDescriptor.descriptor,
+        .notion: NotionProviderDescriptor.descriptor,
     ]
     private static let bootstrap: Void = {
         for provider in UsageProvider.allCases {

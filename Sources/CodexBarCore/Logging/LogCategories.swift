@@ -61,6 +61,7 @@ public enum LogCategories {
     public static let moonshotUsage = "moonshot-usage"
     public static let neuralWattUsage = "neuralwatt-usage"
     public static let notifications = "notifications"
+    public static let notion = "notion"
     public static let openAIWeb = "openai-web"
     public static let openAIWebview = "openai-webview"
     public static let ollama = "ollama"

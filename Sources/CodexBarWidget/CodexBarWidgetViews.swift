@@ -328,6 +328,7 @@ private struct ProviderSwitchChip: View {
         case .amp: "Amp"
         case .t3chat: "T3 Chat"
         case .zoommate: "ZoomMate"
+        case .notion: "Notion AI"
         case .ollama: "Ollama"
         case .synthetic: "Synthetic"
         case .openrouter: "OpenRouter"
@@ -1053,6 +1054,8 @@ enum WidgetColors {
             Color(red: 245 / 255, green: 102 / 255, blue: 71 / 255)
         case .zoommate:
             Color(red: 11 / 255, green: 92 / 255, blue: 255 / 255) // Zoom blue
+        case .notion:
+            Color(red: 55 / 255, green: 53 / 255, blue: 47 / 255) // Notion ink
         case .ollama:
             Color(red: 32 / 255, green: 32 / 255, blue: 32 / 255) // Ollama charcoal
         case .synthetic:

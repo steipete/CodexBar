@@ -1003,6 +1003,7 @@ extension UsageStore {
                 .sub2api: "sub2api debug log not yet implemented",
                 .zenmux: "ZenMux debug log not yet implemented",
                 .aiand: "ai& debug log not yet implemented",
+                .notion: "Notion AI debug log not yet implemented",
             ]
             let buildText = {
                 switch provider {
@@ -1082,7 +1083,7 @@ extension UsageStore {
                      .mimo, .doubao, .sakana, .abacus, .mistral, .deepinfra, .codebuff, .crof, .windsurf,
                      .venice, .manus, .commandcode, .qoder, .stepfun, .bedrock, .grok, .groq, .t3chat, .llmproxy,
                      .litellm, .zed, .deepgram, .poe, .chutes, .neuralwatt, .clawrouter, .longcat, .wayfinder,
-                     .sub2api, .zenmux, .aiand, .zoommate, .xai:
+                     .sub2api, .zenmux, .aiand, .zoommate, .xai, .notion:
                     return unimplementedDebugLogMessages[provider] ?? "Debug log not yet implemented"
                 }
             }

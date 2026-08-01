@@ -79,6 +79,7 @@ enum ProviderImplementationRegistry {
         case .aiand: AiAndProviderImplementation()
         case .zoommate: ZoomMateProviderImplementation()
         case .xai: XAIProviderImplementation()
+        case .notion: NotionProviderImplementation()
         }
     }
 
