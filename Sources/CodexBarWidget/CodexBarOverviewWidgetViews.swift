@@ -45,7 +45,11 @@ struct CodexBarOverviewTimelineProvider: TimelineProvider {
     private static func nextRefresh(snapshot: WidgetSnapshot, now: Date) -> Date {
         let fallback = now.addingTimeInterval(self.maximumInterval)
         let nextReset = snapshot.entries
-            .flatMap { [$0.primary?.resetsAt, $0.secondary?.resetsAt] }
+            .flatMap { entry -> [Date?] in
+                let coreWindows: [Date?] = [entry.primary?.resetsAt, entry.secondary?.resetsAt, entry.tertiary?.resetsAt]
+                let rowWindows: [Date?] = (entry.usageRows ?? []).map { $0.window?.resetsAt }
+                return coreWindows + rowWindows
+            }
             .compactMap(\.self)
             .filter { $0 > now }
             .min()?
