@@ -70,5 +70,6 @@ public enum ProviderManifest {
         AiAndProviderDescriptor.descriptor,
         ZoomMateProviderDescriptor.descriptor,
         XAIProviderDescriptor.descriptor,
+        NotionProviderDescriptor.descriptor,
     ]
 }

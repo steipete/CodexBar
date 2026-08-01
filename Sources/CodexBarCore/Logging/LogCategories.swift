@@ -66,6 +66,7 @@ public enum LogCategories {
     public static let moonshotUsage = Self.provider(.moonshot, scope: "usage")
     public static let neuralWattUsage = Self.provider(.neuralwatt, scope: "usage")
     public static let notifications = "notifications"
+    public static let notion = Self.provider(.notion)
     public static let openAIWeb = Self.provider(.openai, scope: "web")
     public static let openAIWebview = Self.provider(.openai, scope: "webview")
     public static let ollama = Self.provider(.ollama)

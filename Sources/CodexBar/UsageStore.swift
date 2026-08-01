@@ -1010,6 +1010,9 @@ extension UsageStore {
         let ampCookieHeader = self.settings.ampCookieHeader
         let ollamaCookieSource = self.settings.ollamaCookieSource
         let ollamaCookieHeader = self.settings.ollamaCookieHeader
+        let notionCookieSource = self.settings.notionCookieSource
+        let notionCookieHeader = self.settings.notionCookieHeader
+        let notionWorkspaceID = self.settings.notionWorkspaceID
         let processEnvironment = self.environmentBase
         let openAIDebugContext = self.openAIAPIKeyDebugContext(processEnvironment: processEnvironment)
         let azureOpenAIDebugContext = self.azureOpenAIAPIKeyDebugContext(processEnvironment: processEnvironment)
@@ -1070,10 +1073,10 @@ extension UsageStore {
                 switch provider {
                 case .codex:
                     return await codexFetcher.debugRawRateLimits()
-                case .openai:
-                    return Self.apiKeyDebugLine(openAIDebugContext)
-                case .azureopenai:
-                    return Self.apiKeyDebugLine(azureOpenAIDebugContext)
+                // Folded into one case: both read the same helper, and keeping them apart pushed this
+                // switch past the cyclomatic-complexity cap when the Notion case was added.
+                case .openai, .azureopenai:
+                    return Self.apiKeyDebugLine(provider == .openai ? openAIDebugContext : azureOpenAIDebugContext)
                 case .claude:
                     guard let claudeDebugConfiguration else {
                         return "Claude debug log configuration unavailable"
@@ -1123,6 +1126,12 @@ extension UsageStore {
                         browserDetection: browserDetection,
                         ollamaCookieSource: ollamaCookieSource,
                         ollamaCookieHeader: ollamaCookieHeader)
+                case .notion:
+                    return await Self.debugNotionLog(
+                        browserDetection: browserDetection,
+                        notionCookieSource: notionCookieSource,
+                        notionCookieHeader: notionCookieHeader,
+                        notionWorkspaceID: notionWorkspaceID)
                 case .openrouter:
                     return Self.apiKeyDebugLine(openRouterDebugContext)
                 case .elevenlabs:
@@ -1345,6 +1354,23 @@ extension UsageStore {
             return await fetcher.debugRawProbe(
                 cookieHeaderOverride: manualHeader,
                 manualCookieMode: ollamaCookieSource == .manual)
+        }
+    }
+
+    private static func debugNotionLog(
+        browserDetection: BrowserDetection,
+        notionCookieSource: ProviderCookieSource,
+        notionCookieHeader: String,
+        notionWorkspaceID: String) async -> String
+    {
+        await runWithTimeout(seconds: 15) {
+            let fetcher = NotionUsageFetcher(browserDetection: browserDetection)
+            let manualHeader = notionCookieSource == .manual
+                ? CookieHeaderNormalizer.normalize(notionCookieHeader)
+                : nil
+            return await fetcher.debugRawProbe(
+                cookieHeaderOverride: manualHeader,
+                preferredSpaceID: notionWorkspaceID.isEmpty ? nil : notionWorkspaceID)
         }
     }
 

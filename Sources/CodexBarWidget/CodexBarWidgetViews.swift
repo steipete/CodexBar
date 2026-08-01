@@ -992,6 +992,8 @@ enum WidgetColors {
             Color(red: 245 / 255, green: 102 / 255, blue: 71 / 255)
         case .zoommate:
             Color(red: 11 / 255, green: 92 / 255, blue: 255 / 255) // Zoom blue
+        case .notion:
+            Color(red: 51 / 255, green: 126 / 255, blue: 169 / 255) // Notion accent blue
         case .ollama:
             Color(red: 32 / 255, green: 32 / 255, blue: 32 / 255) // Ollama charcoal
         case .synthetic:

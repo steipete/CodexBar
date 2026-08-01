@@ -71,5 +71,6 @@ enum ProviderImplementationManifest {
         { AiAndProviderImplementation() },
         { ZoomMateProviderImplementation() },
         { XAIProviderImplementation() },
+        { NotionProviderImplementation() },
     ]
 }

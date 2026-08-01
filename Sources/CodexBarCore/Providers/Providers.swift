@@ -69,6 +69,7 @@ public enum UsageProvider: String, CaseIterable, Sendable, Codable {
     case aiand
     case zoommate
     case xai
+    case notion
 }
 
 // swiftformat:enable sortDeclarations
