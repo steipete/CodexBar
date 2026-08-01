@@ -6,6 +6,12 @@ import Glibc
 import Musl
 #endif
 
+#if canImport(Darwin)
+typealias PosixSpawnFileActionsHandle = posix_spawn_file_actions_t?
+#else
+typealias PosixSpawnFileActionsHandle = posix_spawn_file_actions_t
+#endif
+
 #if canImport(Glibc)
 @_silgen_name("posix_spawn_file_actions_addchdir_np")
 private func glibc_posix_spawn_file_actions_addchdir_np(
@@ -20,7 +26,7 @@ private func glibc_posix_spawn_file_actions_addclosefrom_np(
 
 enum PosixSpawnFileActionsCompatibility {
     static func addChangeDirectory(
-        _ fileActions: inout posix_spawn_file_actions_t,
+        _ fileActions: inout PosixSpawnFileActionsHandle,
         path: UnsafePointer<CChar>) -> Int32
     {
         #if canImport(Glibc)
@@ -32,7 +38,7 @@ enum PosixSpawnFileActionsCompatibility {
 
     #if canImport(Glibc)
     static func addCloseFrom(
-        _ fileActions: inout posix_spawn_file_actions_t,
+        _ fileActions: inout PosixSpawnFileActionsHandle,
         startingAt minimumFileDescriptor: Int32) -> Int32
     {
         glibc_posix_spawn_file_actions_addclosefrom_np(&fileActions, minimumFileDescriptor)
