@@ -31,6 +31,42 @@ struct LocalizationLanguageCatalogTests {
     ]
 
     @Test
+    func `Codex Workspaces and Models catalogs have complete key and placeholder parity`() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let resourcesURL = root.appendingPathComponent("Sources/CodexBar/Resources")
+        let englishURL = resourcesURL.appendingPathComponent("en.lproj/Localizable.strings")
+        let english = try #require(NSDictionary(contentsOf: englishURL) as? [String: String])
+        let requiredKeys = english.keys.filter {
+            $0.hasPrefix("codex_workspaces_") || $0.hasPrefix("codex_models_")
+        }.sorted()
+
+        #expect(requiredKeys.count(where: { $0.hasPrefix("codex_workspaces_") }) == 72)
+        #expect(requiredKeys.count(where: { $0.hasPrefix("codex_models_") }) == 178)
+
+        for language in AppLanguage.allCases where language != .system {
+            let url = resourcesURL.appendingPathComponent("\(language.rawValue).lproj/Localizable.strings")
+            let catalog = try #require(NSDictionary(contentsOf: url) as? [String: String])
+            let localizedKeys = catalog.keys.filter {
+                $0.hasPrefix("codex_workspaces_") || $0.hasPrefix("codex_models_")
+            }.sorted()
+            #expect(localizedKeys == requiredKeys, "\(language.rawValue) feature-key parity")
+            for key in requiredKeys {
+                let englishValue = try #require(english[key])
+                let value = try #require(catalog[key], "\(language.rawValue).\(key)")
+                #expect(!value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                let valuePlaceholders = try Self.formatPlaceholders(in: value)
+                let englishPlaceholders = try Self.formatPlaceholders(in: englishValue)
+                #expect(
+                    valuePlaceholders == englishPlaceholders,
+                    "\(language.rawValue).\(key)")
+            }
+        }
+    }
+
+    @Test
     func `app language catalog includes Ukrainian`() {
         #expect(AppLanguage.allCases.contains(.ukrainian))
         #expect(AppLanguage.ukrainian.rawValue == "uk")
@@ -524,6 +560,20 @@ struct LocalizationLanguageCatalogTests {
             "byte_unit_gigabyte",
             "byte_unit_kilobyte",
             "byte_unit_megabyte",
+            "codex_models_bullet_value",
+            "codex_models_compact_billions_suffix",
+            "codex_models_compact_millions_suffix",
+            "codex_models_compact_thousands_suffix",
+            "codex_models_cost_status_currency",
+            "codex_models_export_all_filename",
+            "codex_models_export_default_filename",
+            "codex_models_export_selected_filename",
+            "codex_models_export_visible_filename",
+            "codex_models_name_value_accessibility",
+            "codex_models_value_comparison_accessibility",
+            "codex_models_value_detail",
+            "codex_workspaces_bullet_value",
+            "codex_workspaces_daily_callout_accessibility",
             "hooks_executable_placeholder",
             "hooks_provider",
             "hooks_threshold_placeholder",
@@ -669,5 +719,13 @@ struct LocalizationLanguageCatalogTests {
         defaults.removePersistentDomain(forName: suiteName)
         defer { defaults.removePersistentDomain(forName: suiteName) }
         body(defaults, suiteName)
+    }
+
+    private static func formatPlaceholders(in value: String) throws -> [String] {
+        let expression = try NSRegularExpression(pattern: "%(?:\\d+\\$)?[@d]")
+        let range = NSRange(value.startIndex..<value.endIndex, in: value)
+        return expression.matches(in: value, range: range).compactMap { match in
+            Range(match.range, in: value).map { String(value[$0]) }
+        }.sorted()
     }
 }

@@ -46,6 +46,9 @@ extension SettingsStore {
         _ = self.costUsageHistoryDays
         _ = self.costComparisonPeriodsEnabled
         _ = self.costSummaryDisplayStyle
+        _ = self.codexLocalProjectUsageEnabled
+        _ = self.codexLocalProjectUsageShowsEstimatedCost
+        _ = self.codexLocalProjectUsageIncludesCachedInput
         _ = self.appLanguage
         _ = self.hidePersonalInfo
         _ = self.randomBlinkEnabled

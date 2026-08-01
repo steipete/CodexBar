@@ -23,6 +23,9 @@ extension UsageStore {
         _ = self.tokenSnapshots
         _ = self.tokenErrors
         _ = self.tokenRefreshInFlight
+        _ = self.codexLocalProjectUsageSnapshot
+        _ = self.codexLocalProjectUsageError
+        _ = self.codexLocalProjectUsageRefreshInFlight
         _ = self.credits
         _ = self.lastCreditsError
         _ = self.openAIDashboard
@@ -183,6 +186,25 @@ final class UsageStore {
     var tokenSnapshotPublicationRevisions: [UsageProvider: UInt64] = [:]
     var tokenErrors: [UsageProvider: String] = [:]
     var tokenRefreshInFlight: Set<UsageProvider> = []
+    var codexLocalProjectUsageSnapshot: CodexLocalProjectUsageSnapshot?
+    var codexLocalProjectUsageError: String?
+    var codexLocalProjectUsageProgress: CodexLocalProjectUsageIndexProgress?
+    var codexLocalProjectUsageRefreshInFlight = false
+    var codexLocalProjectUsageLoadState: CodexLocalProjectUsageLoadState = .idle
+    var lastCodexLocalProjectUsageAttemptAt: Date?
+    var lastCodexLocalProjectUsageSuccessAt: Date?
+    @ObservationIgnored var lastCodexLocalProjectUsageFailureAt: Date?
+    @ObservationIgnored var codexLocalProjectUsageBackoffUntil: Date?
+    @ObservationIgnored var codexLocalProjectUsageFailureCount = 0
+    @ObservationIgnored var activeForcedCodexLocalProjectUsageRefresh = false
+    @ObservationIgnored var pendingForcedCodexLocalProjectUsageRefresh = false
+    @ObservationIgnored var activeCodexLocalProjectUsageRequestKey: String?
+    @ObservationIgnored var pendingCodexLocalProjectUsageRequestKey: String?
+    @ObservationIgnored var codexLocalProjectUsageRequestGeneration: UInt64 = 0
+    @ObservationIgnored var activeCodexLocalProjectUsageRequestGeneration: UInt64?
+    @ObservationIgnored var codexLocalProjectUsageRefreshTask: Task<Void, Never>?
+    @ObservationIgnored var _test_codexLocalProjectUsageRefreshExecutor:
+        (@Sendable (_ force: Bool, _ requestGeneration: UInt64) async -> Void)?
     var credits: CreditsSnapshot?
     var lastCreditsError: String?
     var openAIDashboard: OpenAIDashboardSnapshot?
@@ -359,6 +381,8 @@ final class UsageStore {
     @ObservationIgnored var lastPermissionPromptNotificationAt: [UsageProvider: Date] = [:]
     @ObservationIgnored var lastTokenFetchAt: [UsageProvider: Date] = [:]
     @ObservationIgnored var lastTokenFetchScope: [UsageProvider: String] = [:]
+    @ObservationIgnored var lastCodexLocalProjectUsageFetchAt: Date?
+    @ObservationIgnored var lastCodexLocalProjectUsageFetchScope: String?
     @ObservationIgnored var planUtilizationHistory: [UsageProvider: PlanUtilizationHistoryBuckets] = [:]
     @ObservationIgnored var sessionEquivalentBurnCache: [UsageProvider: SessionEquivalentBurnCacheEntry] = [:]
     @ObservationIgnored var sessionEquivalentHistoryScanCount: Int = 0
@@ -464,6 +488,7 @@ final class UsageStore {
             loginShellPATH: LoginShellPathCache.shared.current?.joined(separator: ":"))
         guard self.startupBehavior.automaticallyStartsBackgroundWork else { return }
         self.hydrateCachedTokenSnapshots()
+        self.hydrateCachedCodexLocalProjectUsage()
         self.detectVersions()
         self.updateProviderRuntimes()
         Task { @MainActor [weak self] in
@@ -856,6 +881,7 @@ final class UsageStore {
         self.startupConnectivityRetryTask?.cancel()
         self.storageRefreshTask?.cancel()
         self.codexPlanHistoryBackfillTask?.cancel()
+        self.codexLocalProjectUsageRefreshTask?.cancel()
         self.resetBoundaryRefreshTask?.cancel()
         self.planUtilizationHistoryLoadTask?.cancel()
     }

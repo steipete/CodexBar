@@ -148,6 +148,7 @@ extension UsageStore {
             await self.refreshTokenUsage(provider, force: force)
             self.tokenRefreshSequenceProvider = nil
         }
+        self.scheduleCodexLocalProjectUsageRefreshIfNeeded(force: force)
         self.scheduleMemoryPressureRelief()
     }
 

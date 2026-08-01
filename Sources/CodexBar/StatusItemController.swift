@@ -48,7 +48,6 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
     private nonisolated static let debugStatusItemAccessibilityTitle = "CodexBar Debug"
     private nonisolated static let statusItemAccessibilityIdentifierPrefix = "CodexBar.StatusItem"
     private nonisolated static let mergedLegacyDefaultItemIndex = 0
-
     enum StatusItemIdentity {
         case merged
         case provider(UsageProvider)
@@ -142,6 +141,10 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
     let hostedSubviewRenderSignatures = NSMapTable<NSMenu, HostedSubviewRenderSignatureBox>.weakToStrongObjects()
     /// Persistent Refresh rows are weakly tracked so their enabled state can change during menu tracking.
     let persistentRefreshItems = NSHashTable<NSMenuItem>.weakObjects()
+    /// Live Workspaces rows are weakly tracked so indexing progress can update during menu tracking.
+    let codexLocalProjectUsageRows = NSHashTable<NSMenuItem>.weakObjects()
+    /// Widths for optional indexing rows below native Workspaces items.
+    let codexLocalProjectUsageRowWidths = NSMapTable<NSMenuItem, NSNumber>.weakToStrongObjects()
     var menuCardHeightCache: [MenuCardHeightCacheKey: CGFloat] = [:]
     var measuredStandardMenuWidthCache: [String: CGFloat] = [:]
     var lastMenuAdjunctReadinessSignature = ""
@@ -199,6 +202,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
     #if DEBUG
     var onDelayedMenuRefreshAttemptForTesting: (() -> Void)?
     var onDeferredMenuInteractionRefreshForTesting: (() -> Void)?
+    var onObservedStoreMenuChangeForTesting: (() -> Void)?
     var onOpenMenuInvalidationRetryForTesting: (() -> Void)?
     var isReleasedForTesting = false
     var lastLoggedClosedMenuRebuildVersion: Int?
@@ -216,6 +220,8 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
     }
 
     var creditsPurchaseWindow: OpenAICreditsPurchaseWindowController?
+    var codexLocalProjectUsageWindow: CodexLocalProjectUsageWindowController?
+    let codexLocalProjectUsageInspectorSelection = CodexLocalProjectUsageInspectorSelection()
 
     var activeLoginProvider: UsageProvider? {
         didSet {
@@ -250,6 +256,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
     private var lastMergeIcons: Bool
     private var lastSwitcherShowsIcons: Bool
     private var lastObservedUsageBarsShowUsed: Bool
+    private var lastObservedHidePersonalInfo, lastObservedCodexLocalProjectUsageEnabled: Bool
     var lastWidgetDisplaySettingsSignature = ""
     var lastAgentSessionsEnabled: Bool
     var lastAgentSessionsManualHosts: String
@@ -415,6 +422,8 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         self.lastMergeIcons = settings.mergeIcons
         self.lastSwitcherShowsIcons = settings.switcherShowsIcons
         self.lastObservedUsageBarsShowUsed = settings.usageBarsShowUsed
+        self.lastObservedHidePersonalInfo = settings.hidePersonalInfo
+        self.lastObservedCodexLocalProjectUsageEnabled = settings.codexLocalProjectUsageEnabled
         self.lastAgentSessionsEnabled = settings.agentSessionsEnabled
         self.lastAgentSessionsManualHosts = settings.agentSessionsManualHosts
         self.lastAgentSessionsRefreshFrequency = settings.refreshFrequency
@@ -528,8 +537,10 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
     }
 
     func handleObservedStoreMenuChange() {
+        self.notifyObservedStoreMenuChangeForTesting()
         self.observeStoreChanges()
         self.updatePersistentRefreshItemsEnabled()
+        self.updateCodexLocalProjectUsageRows()
         let rootOpenHandledReadiness = self.consumeRootOpenHandledMenuObservationIfNeeded()
         // `refreshOpenMenus` is only consulted when a menu is currently open.
         // Computing the readiness signature serializes every enabled provider's
@@ -688,6 +699,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         let configChanged = self.settings.configRevision != self.lastConfigRevision
         let orderChanged = self.settings.providerOrder != self.lastProviderOrder
         let localizationChanged = self.menuLocalizationSignature() != self.lastMenuLocalizationSignature
+        self.refreshCodexLocalProjectUsageForSettingsChange()
         let shouldRefreshOpenMenus = self.shouldRefreshOpenMenusForProviderSwitcher()
         self.invalidateMenus()
         if orderChanged || configChanged {
@@ -934,6 +946,24 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         self.screenChangeVisibilityTask?.cancel()
         self.pendingScreenChangePreviousCount = nil
         NotificationCenter.default.removeObserver(self)
+    }
+}
+
+extension StatusItemController {
+    private func refreshCodexLocalProjectUsageForSettingsChange() {
+        let previousHidePersonalInfo = self.lastObservedHidePersonalInfo
+        self.lastObservedHidePersonalInfo = self.settings.hidePersonalInfo
+        self.store.refreshCodexLocalProjectUsageProjectionIfNeeded(
+            previousHidePersonalInfo: previousHidePersonalInfo)
+        let previousEnabled = self.lastObservedCodexLocalProjectUsageEnabled
+        self.lastObservedCodexLocalProjectUsageEnabled = self.settings.codexLocalProjectUsageEnabled
+        self.store.refreshCodexLocalProjectUsageAvailabilityIfNeeded(previousEnabled: previousEnabled)
+    }
+
+    private func notifyObservedStoreMenuChangeForTesting() {
+        #if DEBUG
+        self.onObservedStoreMenuChangeForTesting?()
+        #endif
     }
 }
 

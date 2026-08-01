@@ -89,6 +89,11 @@ extension StatusItemController {
             if !self.hydrateHostedSubviewMenuIfNeeded(menu) {
                 self.refreshHostedSubviewMenu(menu)
             }
+            if menu.items.contains(where: {
+                ($0.representedObject as? String) == Self.codexLocalProjectUsageSubmenuID
+            }) {
+                self.store.scheduleCodexLocalProjectUsageRefreshIfNeeded()
+            }
             if self.isMenuRefreshEnabled, self.isOpenAIWebSubviewMenu(menu) {
                 self.deferOpenAIDashboardRefreshUntilMenuCloses(reason: "submenu open")
             }
@@ -771,6 +776,10 @@ extension StatusItemController {
             {
                 menu.addItem(.separator())
             }
+            self.addCodexLocalProjectUsageMenuSection(
+                to: menu,
+                provider: context.currentProvider,
+                width: context.menuWidth)
             if self.shouldMergeIcons, self.store.enabledProvidersForDisplay().count > 1 {
                 // Sized by `applyStableMenuHeightPadding` so provider tabs share one height.
                 menu.addItem(self.makeStableMenuHeightSpacerItem())

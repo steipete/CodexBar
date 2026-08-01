@@ -476,6 +476,8 @@ extension SettingsStore {
         let costSummaryDisplayStyleRaw = Self.loadCostSummaryDisplayStyleRaw(
             userDefaults: userDefaults,
             costUsageEnabled: costUsageEnabled)
+        let projectUsageDefaults = Self.loadCodexLocalProjectUsageDefaults(
+            userDefaults: userDefaults)
         let hidePersonalInfo = userDefaults.object(forKey: "hidePersonalInfo") as? Bool ?? false
         let randomBlinkEnabled = userDefaults.object(forKey: "randomBlinkEnabled") as? Bool ?? false
         let confettiOnReset = Self.loadConfettiOnResetDefaults(userDefaults: userDefaults)
@@ -578,6 +580,9 @@ extension SettingsStore {
             costUsageHistoryDays: costUsageHistoryDays,
             costComparisonPeriodsEnabled: costComparisonPeriodsEnabled,
             costSummaryDisplayStyleRaw: costSummaryDisplayStyleRaw,
+            codexLocalProjectUsageEnabledOverride: projectUsageDefaults.enabledOverride,
+            codexLocalProjectUsageShowsEstimatedCost: projectUsageDefaults.showsEstimatedCost,
+            codexLocalProjectUsageIncludesCachedInput: projectUsageDefaults.includesCachedInput,
             hidePersonalInfo: hidePersonalInfo,
             randomBlinkEnabled: randomBlinkEnabled,
             confettiOnSessionLimitResetsEnabled: confettiOnReset.session,
@@ -687,6 +692,18 @@ extension SettingsStore {
         (
             session: userDefaults.object(forKey: "confettiOnSessionLimitResetsEnabled") as? Bool ?? false,
             weekly: userDefaults.object(forKey: "confettiOnWeeklyLimitResetsEnabled") as? Bool ?? false)
+    }
+
+    private static func loadCodexLocalProjectUsageDefaults(
+        userDefaults: UserDefaults)
+        -> (enabledOverride: Bool?, showsEstimatedCost: Bool, includesCachedInput: Bool)
+    {
+        let enabledOverride = userDefaults.object(forKey: "codexLocalProjectUsageEnabled") as? Bool
+        let showsEstimatedCost = userDefaults.object(
+            forKey: "codexLocalProjectUsageShowsEstimatedCost") as? Bool ?? true
+        let includesCachedInput = userDefaults.object(
+            forKey: "codexLocalProjectUsageIncludesCachedInput") as? Bool ?? true
+        return (enabledOverride, showsEstimatedCost, includesCachedInput)
     }
 
     private static func loadMenuBarMetricPreferences(userDefaults: UserDefaults) -> [String: String] {

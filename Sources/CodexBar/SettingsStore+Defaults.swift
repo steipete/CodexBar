@@ -546,6 +546,47 @@ extension SettingsStore {
         set { self.costSummaryDisplayStyleRaw = newValue.rawValue }
     }
 
+    var codexLocalProjectUsageEnabled: Bool {
+        get { self.defaultsState.codexLocalProjectUsageEnabledOverride ?? self.costUsageEnabled }
+        set {
+            let previousEffectiveValue = self.codexLocalProjectUsageEnabled
+            self.defaultsState.codexLocalProjectUsageEnabledOverride = newValue
+            self.userDefaults.set(newValue, forKey: "codexLocalProjectUsageEnabled")
+            if previousEffectiveValue != self.codexLocalProjectUsageEnabled {
+                self.noteBackgroundWorkSettingsChanged()
+            }
+        }
+    }
+
+    var codexLocalProjectUsageEnabledOverride: Bool? {
+        self.defaultsState.codexLocalProjectUsageEnabledOverride
+    }
+
+    func clearCodexLocalProjectUsageEnabledOverride() {
+        let previousEffectiveValue = self.codexLocalProjectUsageEnabled
+        self.defaultsState.codexLocalProjectUsageEnabledOverride = nil
+        self.userDefaults.removeObject(forKey: "codexLocalProjectUsageEnabled")
+        if previousEffectiveValue != self.codexLocalProjectUsageEnabled {
+            self.noteBackgroundWorkSettingsChanged()
+        }
+    }
+
+    var codexLocalProjectUsageShowsEstimatedCost: Bool {
+        get { self.defaultsState.codexLocalProjectUsageShowsEstimatedCost }
+        set {
+            self.defaultsState.codexLocalProjectUsageShowsEstimatedCost = newValue
+            self.userDefaults.set(newValue, forKey: "codexLocalProjectUsageShowsEstimatedCost")
+        }
+    }
+
+    var codexLocalProjectUsageIncludesCachedInput: Bool {
+        get { self.defaultsState.codexLocalProjectUsageIncludesCachedInput }
+        set {
+            self.defaultsState.codexLocalProjectUsageIncludesCachedInput = newValue
+            self.userDefaults.set(newValue, forKey: "codexLocalProjectUsageIncludesCachedInput")
+        }
+    }
+
     var hidePersonalInfo: Bool {
         get { self.defaultsState.hidePersonalInfo }
         set {

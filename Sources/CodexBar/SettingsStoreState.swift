@@ -47,6 +47,9 @@ struct SettingsDefaultsState {
     var costUsageHistoryDays: Int
     var costComparisonPeriodsEnabled: Bool
     var costSummaryDisplayStyleRaw: String
+    var codexLocalProjectUsageEnabledOverride: Bool?
+    var codexLocalProjectUsageShowsEstimatedCost: Bool
+    var codexLocalProjectUsageIncludesCachedInput: Bool
     var hidePersonalInfo: Bool
     var randomBlinkEnabled: Bool
     var confettiOnSessionLimitResetsEnabled: Bool

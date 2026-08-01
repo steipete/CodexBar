@@ -6,6 +6,7 @@ import SwiftUI
 enum HostedSubviewContentFingerprint: Equatable {
     case text(String)
     case costHistory(CostHistoryChartMenuView.RenderFingerprint)
+    case codexLocalProjectUsage(String)
 }
 
 struct HostedSubviewRenderSignature: Equatable {
@@ -60,6 +61,7 @@ extension StatusItemController {
             Self.storageBreakdownID,
             Self.statusComponentsID,
             Self.zaiHourlyUsageChartID,
+            Self.codexLocalProjectUsageSubmenuID,
         ]
         return menu.items.contains { item in
             guard let id = item.representedObject as? String else { return false }
@@ -96,7 +98,11 @@ extension StatusItemController {
             return false
         }
 
-        let width = requestedWidth ?? self.renderedMenuWidth(for: menu.supermenu ?? menu)
+        let parentWidth = self.renderedMenuWidth(for: menu.supermenu ?? menu)
+        let width = requestedWidth ?? (
+            chartID == Self.codexLocalProjectUsageSubmenuID
+                ? max(parentWidth, CodexLocalProjectUsageSubmenuLayout.menuWidth)
+                : parentWidth)
         let identity = HostedSubviewIdentity(
             chartID: chartID,
             provider: placeholder.toolTip.flatMap(UsageProvider.init(rawValue:)),
@@ -151,6 +157,8 @@ extension StatusItemController {
             } else {
                 false
             }
+        case Self.codexLocalProjectUsageSubmenuID:
+            self.appendCodexLocalProjectUsageSubmenuItem(to: menu, width: width)
         default:
             false
         }
@@ -167,11 +175,14 @@ extension StatusItemController {
     }
 
     func refreshHostedSubviewMenu(_ menu: NSMenu) {
-        let width = self.renderedMenuWidth(for: menu)
         guard let identity = self.hostedSubviewIdentity(for: menu) else {
             self.refreshHostedSubviewHeights(in: menu)
             return
         }
+        let renderedWidth = self.renderedMenuWidth(for: menu)
+        let width = identity.chartID == Self.codexLocalProjectUsageSubmenuID
+            ? max(renderedWidth, CodexLocalProjectUsageSubmenuLayout.menuWidth)
+            : renderedWidth
         let signature = self.hostedSubviewRenderSignature(identity: identity, width: width)
         if self.hostedSubviewRenderSignatures.object(forKey: menu)?.signature == signature {
             if identity.chartID == Self.zaiHourlyUsageChartID {
@@ -219,6 +230,8 @@ extension StatusItemController {
             } else {
                 false
             }
+        case Self.codexLocalProjectUsageSubmenuID:
+            self.appendCodexLocalProjectUsageSubmenuItem(to: menu, width: width)
         default:
             false
         }
@@ -292,6 +305,8 @@ extension StatusItemController {
             .text(identity.provider.map(self.statusComponentsRenderSignature(for:)) ?? "missing-provider")
         case Self.zaiHourlyUsageChartID:
             .text(identity.provider.map(self.zaiHourlyUsageRenderSignature(for:)) ?? "missing-provider")
+        case Self.codexLocalProjectUsageSubmenuID:
+            self.codexLocalProjectUsageRenderFingerprint()
         default:
             .text("unknown")
         }
@@ -307,6 +322,55 @@ extension StatusItemController {
             return .text("none")
         }
         return .costHistory(CostHistoryChartMenuView.renderFingerprint(from: snapshot, provider: provider))
+    }
+
+    private func codexLocalProjectUsageRenderFingerprint() -> HostedSubviewContentFingerprint {
+        let state = switch self.store.codexLocalProjectUsageLoadState {
+        case .idle: "idle"
+        case .hydratingCache: "hydrating"
+        case .indexing: "indexing"
+        case .stale: "stale"
+        case .failed: "failed"
+        }
+        let progress = self.store.codexLocalProjectUsageProgressSubtitle ?? ""
+        let error = self.store.codexLocalProjectUsageError ?? ""
+        guard let snapshot = self.store.codexLocalProjectUsageSnapshot else {
+            return .codexLocalProjectUsage(
+                [
+                    state,
+                    progress,
+                    error,
+                    String(self.settings.codexLocalProjectUsageShowsEstimatedCost),
+                    String(self.settings.codexLocalProjectUsageIncludesCachedInput),
+                ].joined(separator: "|"))
+        }
+        let projects = self.store.codexLocalProjectUsageRankedProjects(snapshot.projects)
+            .map { project in
+                [
+                    project.id,
+                    String(self.store.codexLocalProjectUsageDisplayTotal(project.totals) ?? -1),
+                    String(project.costEstimate.knownUSD.bitPattern),
+                    String(project.sessionCount),
+                ].joined(separator: ":")
+            }
+            .joined(separator: ";")
+        let daily = snapshot.daily
+            .map { point in
+                "\(point.day):\(self.store.codexLocalProjectUsageDailyDisplayTotal(point))"
+            }
+            .joined(separator: ";")
+        return .codexLocalProjectUsage(
+            [
+                state,
+                progress,
+                error,
+                snapshot.updatedAt.timeIntervalSince1970.description,
+                String(snapshot.indexedFileCount),
+                String(self.settings.codexLocalProjectUsageShowsEstimatedCost),
+                String(self.settings.codexLocalProjectUsageIncludesCachedInput),
+                projects,
+                daily,
+            ].joined(separator: "|"))
     }
 
     private func usageHistoryRenderSignature(for provider: UsageProvider) -> String {
@@ -486,6 +550,53 @@ extension StatusItemController {
         chartItem.representedObject = Self.costHistoryChartID
         chartItem.toolTip = provider.rawValue
         submenu.addItem(chartItem)
+        return true
+    }
+
+    @discardableResult
+    func appendCodexLocalProjectUsageSubmenuItem(to submenu: NSMenu, width: CGFloat) -> Bool {
+        guard self.settings.codexLocalProjectUsageEnabled else { return false }
+
+        // Native submenus own pointer tracking. Keep project rows read-only here; selection and
+        // session/model drill-down stay in the persistent window opened by the native action row.
+        if !self.menuCardRenderingEnabledForController {
+            let item = NSMenuItem()
+            item.isEnabled = true
+            item.representedObject = Self.codexLocalProjectUsageSubmenuID
+            submenu.addItem(item)
+        } else {
+            let view = CodexLocalProjectUsageSubmenuView(
+                store: self.store,
+                settings: self.settings,
+                width: width)
+            let hosting = MenuHostingView(rootView: view)
+            hosting.applyMeasuredHeight(
+                width: width,
+                height: self.hostedSubviewFittingHeight(for: hosting, width: width))
+
+            let item = NSMenuItem()
+            item.view = hosting
+            item.isEnabled = true
+            item.representedObject = Self.codexLocalProjectUsageSubmenuID
+            submenu.addItem(item)
+        }
+
+        submenu.addItem(.separator())
+        let openWindowItem = NSMenuItem(
+            title: L("codex_workspaces_open_in_window"),
+            action: #selector(self.openCodexLocalProjectUsageWindowFromMenu(_:)),
+            keyEquivalent: "")
+        openWindowItem.target = self
+        openWindowItem.isEnabled = true
+        openWindowItem.representedObject = "codexLocalProjectUsageOpenWindow"
+        if let image = NSImage(
+            systemSymbolName: "arrow.up.right.square",
+            accessibilityDescription: nil)
+        {
+            image.isTemplate = true
+            openWindowItem.image = image
+        }
+        submenu.addItem(openWindowItem)
         return true
     }
 
