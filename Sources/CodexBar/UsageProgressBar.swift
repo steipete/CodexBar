@@ -14,6 +14,7 @@ struct UsageProgressBar: View {
 
     private static let paceStripeCount = 3
     private static let stripePunchOpacity = 0.9
+    nonisolated static let defaultHeight: CGFloat = 6
 
     private nonisolated static var warningMarkerPunchWidth: CGFloat {
         5
@@ -51,7 +52,7 @@ struct UsageProgressBar: View {
         paceOnTop: Bool = true,
         warningMarkerPercents: [Double] = [],
         workdayMarkerPercents: [Double] = [],
-        height: CGFloat = 6)
+        height: CGFloat = Self.defaultHeight)
     {
         self.percent = percent
         self.tint = tint

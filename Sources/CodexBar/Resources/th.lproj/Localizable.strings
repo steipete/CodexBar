@@ -622,6 +622,12 @@
 "multi_account_layout_segmented" = "แบ่งกลุ่ม";
 "multi_account_layout_stacked" = "ซ้อนกัน";
 "overview_tab_providers_title" = "ผู้ให้บริการแท็บภาพรวม";
+"overview_layout_title" = "เค้าโครงภาพรวม";
+"overview_layout_subtitle" = "เลือกปริมาณข้อมูลที่จะแสดงในภาพรวม";
+"overview_layout_detailed" = "แบบละเอียด";
+"overview_layout_compact" = "ผู้ให้บริการ เมตริก และแถบ";
+"overview_layout_provider_bars" = "ผู้ให้บริการและแถบ";
+"overview_layout_bars_only" = "เฉพาะแถบ";
 "overview_compact_title" = "ภาพรวมแบบกะทัดรัด";
 "overview_compact_subtitle" = "แสดงชื่อผู้ให้บริการและแถบการใช้งานในรูปแบบที่ประหยัดพื้นที่";
 "overview_compact_no_bars" = "ไม่มีแถบการใช้งาน";

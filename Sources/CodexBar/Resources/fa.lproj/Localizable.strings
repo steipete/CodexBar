@@ -622,6 +622,12 @@
 "multi_account_layout_segmented" = "بخش بندی شده";
 "multi_account_layout_stacked" = "انباشته شده";
 "overview_tab_providers_title" = "ارائه دهندگان تب مرور کلی";
+"overview_layout_title" = "چیدمان نمای کلی";
+"overview_layout_subtitle" = "میزان اطلاعات نمایش‌داده‌شده در نمای کلی را انتخاب کنید.";
+"overview_layout_detailed" = "با جزئیات";
+"overview_layout_compact" = "ارائه‌دهندگان، معیارها و نوارها";
+"overview_layout_provider_bars" = "ارائه‌دهندگان و نوارها";
+"overview_layout_bars_only" = "فقط نوارها";
 "overview_compact_title" = "نمای کلی فشرده";
 "overview_compact_subtitle" = "نام ارائه‌دهندگان و نوارهای مصرف را در چیدمانی کم‌جا نشان می‌دهد.";
 "overview_compact_no_bars" = "نوار مصرفی وجود ندارد";

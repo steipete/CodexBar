@@ -605,6 +605,12 @@
 "multi_account_layout_segmented" = "분할";
 "multi_account_layout_stacked" = "쌓기";
 "overview_tab_providers_title" = "개요 탭 공급자";
+"overview_layout_title" = "개요 레이아웃";
+"overview_layout_subtitle" = "개요에 표시할 정보의 양을 선택합니다.";
+"overview_layout_detailed" = "자세히";
+"overview_layout_compact" = "제공자, 지표 및 막대";
+"overview_layout_provider_bars" = "제공자 및 막대";
+"overview_layout_bars_only" = "막대만";
 "overview_compact_title" = "간결한 개요";
 "overview_compact_subtitle" = "공급자 이름과 사용량 막대를 공간 절약형 레이아웃으로 표시합니다.";
 "overview_compact_no_bars" = "사용량 막대 없음";

@@ -817,6 +817,10 @@ extension MenuRowContainerView {
     var hasGPUSelectionLayerForTesting: Bool {
         self.selectionView != nil
     }
+
+    var showsSubmenuIndicatorForTesting: Bool {
+        self.rowPayload.showsSubmenuIndicator
+    }
 }
 #endif
 

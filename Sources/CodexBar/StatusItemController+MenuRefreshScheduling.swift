@@ -122,11 +122,12 @@ extension StatusItemController {
             "claudeSwapRevision=\(self.store.claudeSwapRevision)",
         ]
 
-        if self.shouldMergeIcons,
-           self.settings.mergedMenuLastSelectedWasOverview,
-           self.settings.mergedOverviewUsesCompactLayout
-        {
-            parts.append("compactOverview=\(self.compactOverviewStructuralSignature())")
+        if self.shouldMergeIcons, self.settings.mergedMenuLastSelectedWasOverview {
+            let overviewLayout = self.settings.mergedOverviewLayout
+            parts.append("overviewLayout=\(overviewLayout.rawValue)")
+            if overviewLayout.usesReducedContent {
+                parts.append("compactOverview=\(self.compactOverviewStructuralSignature())")
+            }
         }
 
         for provider in self.store.enabledProvidersForDisplay() {
@@ -150,7 +151,7 @@ extension StatusItemController {
         let providers = self.settings.resolvedMergedOverviewProviders(
             activeProviders: self.store.enabledProvidersForDisplay(),
             maxVisibleProviders: SettingsStore.mergedOverviewProviderLimit)
-        return providers.map { provider in
+        let providerSignature = providers.map { provider in
             guard let model = self.menuCardModel(for: provider) else {
                 return "\(provider.rawValue):missing"
             }
@@ -167,6 +168,7 @@ extension StatusItemController {
                 projection.layoutSignature,
             ].map { "\($0.utf8.count):\($0)" }.joined(separator: "|")
         }.joined(separator: ";")
+        return "layout=\(self.settings.mergedOverviewLayout.rawValue)|\(providerSignature)"
     }
 
     static func dashboardBreakdownReadinessSignature(

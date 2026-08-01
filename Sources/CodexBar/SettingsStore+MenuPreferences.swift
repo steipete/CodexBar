@@ -39,6 +39,30 @@ enum UsageBarsFillOption: String, CaseIterable {
     }
 }
 
+enum MergedOverviewLayout: String, CaseIterable, Identifiable {
+    case detailed
+    case compact
+    case providerBars
+    case barsOnly
+
+    var id: String {
+        self.rawValue
+    }
+
+    var label: String {
+        switch self {
+        case .detailed: L("overview_layout_detailed")
+        case .compact: L("overview_layout_compact")
+        case .providerBars: L("overview_layout_provider_bars")
+        case .barsOnly: L("overview_layout_bars_only")
+        }
+    }
+
+    var usesReducedContent: Bool {
+        self != .detailed
+    }
+}
+
 enum ResetTimesOption: String, CaseIterable {
     case countdown
     case clock

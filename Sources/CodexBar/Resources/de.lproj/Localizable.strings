@@ -614,6 +614,12 @@
 "multi_account_layout_segmented" = "Segmentiert";
 "multi_account_layout_stacked" = "Gestapelt";
 "overview_tab_providers_title" = "Anbieter von Übersichtsregisterkarten";
+"overview_layout_title" = "Übersichtslayout";
+"overview_layout_subtitle" = "Wählen Sie aus, wie viele Informationen die Übersicht anzeigt.";
+"overview_layout_detailed" = "Detailliert";
+"overview_layout_compact" = "Anbieter, Metriken und Balken";
+"overview_layout_provider_bars" = "Anbieter und Balken";
+"overview_layout_bars_only" = "Nur Balken";
 "overview_compact_title" = "Kompakte Übersicht";
 "overview_compact_subtitle" = "Zeigt Anbieternamen und Nutzungsbalken in einem platzsparenden Layout.";
 "overview_compact_no_bars" = "Keine Nutzungsbalken";

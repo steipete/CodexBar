@@ -595,6 +595,12 @@
 "multi_account_layout_segmented" = "Segmentado";
 "multi_account_layout_stacked" = "Apilado";
 "overview_tab_providers_title" = "Provedores da lapela Resumo";
+"overview_layout_title" = "Deseño do Resumo";
+"overview_layout_subtitle" = "Escolle canta información mostra o Resumo.";
+"overview_layout_detailed" = "Detallado";
+"overview_layout_compact" = "Provedores, métricas e barras";
+"overview_layout_provider_bars" = "Provedores e barras";
+"overview_layout_bars_only" = "Só barras";
 "overview_compact_title" = "Resumo compacto";
 "overview_compact_subtitle" = "Mostra os nomes dos provedores e as barras de uso nun deseño que aforra espazo.";
 "overview_compact_no_bars" = "Non hai barras de uso";

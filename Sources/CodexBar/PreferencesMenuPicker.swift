@@ -70,6 +70,7 @@ enum MenuBarSettingsMenuOptions {
 }
 
 enum MenuSettingsMenuOptions {
+    static let mergedOverviewLayouts = MergedOverviewLayout.allCases
     static let weeklyProgressWorkDays: [Int?] = [nil, 4, 5, 7]
     static let multiAccountLayouts = MultiAccountMenuLayout.allCases
     static let usageBarsFill = UsageBarsFillOption.allCases

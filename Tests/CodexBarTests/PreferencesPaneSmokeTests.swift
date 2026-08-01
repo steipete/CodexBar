@@ -127,22 +127,38 @@ struct PreferencesPaneSmokeTests {
     }
 
     @Test
-    func `menu pane compact overview toggle follows merge icons without clearing its value`() {
+    func `menu pane overview layout picker follows merge icons without clearing its value`() {
         let settings = Self.makeSettingsStore(suite: "PreferencesPaneSmokeTests-compact-overview")
         let store = Self.makeUsageStore(settings: settings)
-        settings.mergedOverviewUsesCompactLayout = true
+        let layouts = MenuSettingsMenuOptions.mergedOverviewLayouts
+        #expect(layouts == [.detailed, .compact, .providerBars, .barsOnly])
+        CodexBarLocalizationOverride.$appLanguage.withValue("en") {
+            #expect(layouts.map(\.label) == [
+                "Detailed",
+                "Providers, metrics & bars",
+                "Providers & bars",
+                "Bars only",
+            ])
+        }
+        for layout in layouts {
+            settings.mergedOverviewLayout = layout
+            _ = MenuPane(settings: settings, store: store).body
+            #expect(settings.mergedOverviewLayout == layout)
+        }
+
+        settings.mergedOverviewLayout = .providerBars
 
         #expect(MenuPane.compactOverviewAvailable(mergeIcons: settings.mergeIcons))
         _ = MenuPane(settings: settings, store: store).body
 
         settings.mergeIcons = false
         #expect(!MenuPane.compactOverviewAvailable(mergeIcons: settings.mergeIcons))
-        #expect(settings.mergedOverviewUsesCompactLayout)
+        #expect(settings.mergedOverviewLayout == .providerBars)
         _ = MenuPane(settings: settings, store: store).body
 
         settings.mergeIcons = true
         #expect(MenuPane.compactOverviewAvailable(mergeIcons: settings.mergeIcons))
-        #expect(settings.mergedOverviewUsesCompactLayout)
+        #expect(settings.mergedOverviewLayout == .providerBars)
         _ = MenuPane(settings: settings, store: store).body
     }
 

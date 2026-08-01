@@ -613,6 +613,12 @@
 "multi_account_layout_segmented" = "セグメント";
 "multi_account_layout_stacked" = "スタック";
 "overview_tab_providers_title" = "概要タブのプロバイダ";
+"overview_layout_title" = "概要のレイアウト";
+"overview_layout_subtitle" = "概要に表示する情報量を選択します。";
+"overview_layout_detailed" = "詳細";
+"overview_layout_compact" = "プロバイダー、指標、バー";
+"overview_layout_provider_bars" = "プロバイダーとバー";
+"overview_layout_bars_only" = "バーのみ";
 "overview_compact_title" = "コンパクトな概要";
 "overview_compact_subtitle" = "プロバイダ名と使用量バーを省スペースのレイアウトで表示します。";
 "overview_compact_no_bars" = "使用量バーはありません";

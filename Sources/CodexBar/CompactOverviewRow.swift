@@ -1,4 +1,3 @@
-import AppKit
 import CodexBarCore
 import SwiftUI
 
@@ -80,7 +79,7 @@ struct CompactOverviewProjection {
             guard metric.statusText == nil else { return nil }
             return Lane(
                 id: metric.id,
-                title: metric.title,
+                title: UsageMenuCardView.popupMetricTitle(provider: model.provider, metric: metric),
                 percent: metric.percent,
                 percentStyle: metric.percentStyle,
                 tint: model.progressColor,
@@ -101,13 +100,6 @@ struct CompactOverviewProjection {
         self.layoutSignature = Self.makeLayoutSignature(lanes: self.lanes, fallback: self.fallback)
     }
 
-    var metricTitlesForColumnMeasurement: [String] {
-        if self.lanes.isEmpty {
-            return self.fallback?.metricTitle.map { [$0] } ?? []
-        }
-        return self.lanes.map(\.title)
-    }
-
     private static func makeFallback(
         model: UsageMenuCardView.Model,
         loadingText: String,
@@ -122,7 +114,10 @@ struct CompactOverviewProjection {
                 .trimmingCharacters(in: .whitespacesAndNewlines),
                 !statusText.isEmpty
             else { continue }
-            return .status(metricID: metric.id, title: metric.title, text: statusText)
+            return .status(
+                metricID: metric.id,
+                title: UsageMenuCardView.popupMetricTitle(provider: model.provider, metric: metric),
+                text: statusText)
         }
         return .generic(text: noBarsText)
     }
@@ -141,168 +136,103 @@ struct CompactOverviewProjection {
         return Self.joinSignature(["drawable:count=\(lanes.count)"] + fields)
     }
 
+    func heightFingerprint(section: String, layoutSignature: String) -> String {
+        Self.joinSignature([
+            "section=\(section)",
+            "projection=\(self.layoutSignature)",
+            "layout=\(layoutSignature)",
+        ])
+    }
+
     private static func joinSignature(_ fields: [String]) -> String {
         fields.map { "\($0.utf8.count):\($0)" }.joined(separator: "|")
     }
 }
 
-struct CompactOverviewTextWidthMeasurer {
-    enum Role: Hashable {
-        case provider
-        case metric
-    }
-
-    let fontSignature: String
-    private let measure: (String, Role) -> CGFloat
-
-    init(fontSignature: String, measure: @escaping (String, Role) -> CGFloat) {
-        self.fontSignature = fontSignature
-        self.measure = measure
-    }
-
-    func width(of text: String, role: Role) -> CGFloat {
-        max(0, self.measure(text, role))
-    }
-
-    static func appKit() -> Self {
-        let bodyFont = NSFont.preferredFont(forTextStyle: .body)
-        let fonts: [Role: NSFont] = [
-            .provider: NSFont.systemFont(ofSize: bodyFont.pointSize, weight: .semibold),
-            .metric: bodyFont,
-        ]
-        let signature = [Role.provider, .metric]
-            .compactMap { role -> String? in
-                guard let font = fonts[role] else { return nil }
-                return "\(font.fontName):\(font.pointSize)"
-            }
-            .joined(separator: "|")
-        return Self(fontSignature: signature) { text, role in
-            guard let font = fonts[role] else { return 0 }
-            return ceil((text as NSString).size(withAttributes: [.font: font]).width)
-        }
-    }
-}
-
-enum CompactOverviewColumnLayoutError: Error, Equatable {
-    case menuWidthBelowMinimum(CGFloat)
-}
-
-struct CompactOverviewColumnLayout {
-    struct AllocationInput {
-        let menuWidth: CGFloat
-        let idealMetricWidth: CGFloat
-        let fontSignature: String
-        let layoutDirection: LayoutDirection
-    }
-
+struct CompactOverviewLayout {
     static let minimumMenuWidth: CGFloat = 310
     static let horizontalPadding: CGFloat = UsageMenuCardLayout.horizontalPadding
-    static let columnSpacing: CGFloat = 12
-    static let metricWidthCap: CGFloat = 112
-    static let minimumBarWidth: CGFloat = 146
-    static let chevronGutterWidth: CGFloat = 12
-    static let rowVerticalPadding: CGFloat = 4
-    static let providerContentSpacing: CGFloat = 4
-    static let laneSpacing: CGFloat = 3
-    static let barHeight: CGFloat = 8
+    static let chevronGutterWidth: CGFloat = 20
+    static let barHeight = UsageProgressBar.defaultHeight
+    static let labeledHeaderVerticalPadding: CGFloat = UsageMenuCardLayout.headerOnlyVerticalPadding
+    static let labeledUsageTopPadding: CGFloat = UsageMenuCardLayout.usageSectionTopPadding
+    static let labeledBottomPadding: CGFloat = UsageMenuCardLayout.sectionBottomPadding
+    static let labeledMetricSpacing: CGFloat = UsageMenuCardLayout.metricSpacing
+    static let labeledMetricContentSpacing: CGFloat = 6
+    static let providerBarsLaneSpacing: CGFloat = UsageMenuCardLayout.metricSpacing
+    static let barsOnlyLaneSpacing: CGFloat = UsageMenuCardLayout.metricSpacing
+    static let barsOnlyInterProviderSpacing: CGFloat = 18
+    static let barsOnlySectionOuterSpacing: CGFloat = UsageMenuCardLayout.metricSpacing
+    static var barsOnlyVerticalPadding: CGFloat {
+        (self.barsOnlyInterProviderSpacing - MenuCardItemSizing.measuredHeightPadding) / 2
+    }
+
+    static var barsOnlySectionSpacerHeight: CGFloat {
+        self.barsOnlySectionOuterSpacing
+            - MenuCardItemSizing.measuredHeightPadding / 2
+            - self.barsOnlyVerticalPadding
+    }
 
     let menuWidth: CGFloat
-    let metricWidth: CGFloat
-    let barWidth: CGFloat
     let layoutDirection: LayoutDirection
     let signature: String
 
     var contentWidth: CGFloat {
-        self.metricWidth
-            + Self.columnSpacing
-            + self.barWidth
+        self.menuWidth - Self.horizontalPadding * 2
     }
 
-    var occupiedWidth: CGFloat {
-        Self.horizontalPadding * 2
-            + self.contentWidth
+    var labeledBarWidth: CGFloat {
+        self.contentWidth
     }
 
     var providerHeaderWidth: CGFloat {
         self.contentWidth - Self.chevronGutterWidth
     }
 
-    static func resolve(
-        menuWidth: CGFloat,
-        projections: [CompactOverviewProjection],
-        layoutDirection: LayoutDirection,
-        textWidthMeasurer: CompactOverviewTextWidthMeasurer) throws -> Self
-    {
-        let idealMetricWidth = projections
-            .flatMap(\.metricTitlesForColumnMeasurement)
-            .map { textWidthMeasurer.width(of: $0, role: .metric) }
-            .max() ?? 0
+    var providerBarsBarWidth: CGFloat {
+        self.contentWidth
+    }
 
-        return try Self.allocate(AllocationInput(
-            menuWidth: menuWidth,
-            idealMetricWidth: idealMetricWidth,
-            fontSignature: textWidthMeasurer.fontSignature,
-            layoutDirection: layoutDirection))
+    var barsOnlyBarWidth: CGFloat {
+        self.contentWidth
     }
 
     static func resolveForMenu(
         menuWidth: CGFloat,
-        projections: [CompactOverviewProjection],
-        layoutDirection: LayoutDirection,
-        textWidthMeasurer: CompactOverviewTextWidthMeasurer) -> Self
+        layoutDirection: LayoutDirection) -> Self
     {
         assert(
             menuWidth >= self.minimumMenuWidth,
             "Compact Overview menu width must be at least \(self.minimumMenuWidth) points")
-        do {
-            return try self.resolve(
-                menuWidth: menuWidth,
-                projections: projections,
-                layoutDirection: layoutDirection,
-                textWidthMeasurer: textWidthMeasurer)
-        } catch {
-            preconditionFailure("Compact Overview failed to resolve a supported menu width: \(error)")
-        }
-    }
-
-    static func allocate(_ input: AllocationInput) throws -> Self {
-        guard input.menuWidth >= self.minimumMenuWidth else {
-            throw CompactOverviewColumnLayoutError.menuWidthBelowMinimum(input.menuWidth)
-        }
-
-        let idealMetricWidth = max(0, input.idealMetricWidth)
-        let metricWidth = min(idealMetricWidth, Self.metricWidthCap)
-        let fixedWidth = Self.horizontalPadding * 2
-            + Self.columnSpacing
-        var barWidth = input.menuWidth - fixedWidth - metricWidth
-
-        let widthExpansion = max(0, Self.minimumBarWidth - barWidth)
-        let resolvedMenuWidth = input.menuWidth + widthExpansion
-        barWidth += widthExpansion
-
-        let direction = switch input.layoutDirection {
+        precondition(menuWidth >= self.minimumMenuWidth)
+        precondition(self.barsOnlyVerticalPadding >= 0)
+        precondition(self.barsOnlySectionSpacerHeight >= 0)
+        let direction = switch layoutDirection {
         case .leftToRight: "ltr"
         case .rightToLeft: "rtl"
         @unknown default: "unknown"
         }
         let signature = Self.signature(fields: [
-            "menu=\(Self.geometryToken(resolvedMenuWidth))",
-            "metric=\(Self.geometryToken(metricWidth))",
-            "bar=\(Self.geometryToken(barWidth))",
-            "spacing=\(Self.geometryToken(Self.columnSpacing))",
+            "menu=\(Self.geometryToken(menuWidth))",
             "gutter=\(Self.geometryToken(Self.chevronGutterWidth))",
             "padding=\(Self.geometryToken(Self.horizontalPadding))",
             "barHeight=\(Self.geometryToken(Self.barHeight))",
-            "providerSpacing=\(Self.geometryToken(Self.providerContentSpacing))",
-            "laneSpacing=\(Self.geometryToken(Self.laneSpacing))",
-            "font=\(input.fontSignature)",
+            "labeledHeaderPadding=\(Self.geometryToken(Self.labeledHeaderVerticalPadding))",
+            "labeledUsageTop=\(Self.geometryToken(Self.labeledUsageTopPadding))",
+            "labeledBottom=\(Self.geometryToken(Self.labeledBottomPadding))",
+            "labeledMetricSpacing=\(Self.geometryToken(Self.labeledMetricSpacing))",
+            "labeledContentSpacing=\(Self.geometryToken(Self.labeledMetricContentSpacing))",
+            "providerBarsSpacing=\(Self.geometryToken(Self.providerBarsLaneSpacing))",
+            "barsOnlyPadding=\(Self.geometryToken(Self.barsOnlyVerticalPadding))",
+            "barsOnlySpacing=\(Self.geometryToken(Self.barsOnlyLaneSpacing))",
+            "barsOnlyInterProvider=\(Self.geometryToken(Self.barsOnlyInterProviderSpacing))",
+            "barsOnlySectionOuter=\(Self.geometryToken(Self.barsOnlySectionOuterSpacing))",
+            "barsOnlySectionSpacer=\(Self.geometryToken(Self.barsOnlySectionSpacerHeight))",
             "direction=\(direction)",
         ])
         return Self(
-            menuWidth: resolvedMenuWidth,
-            metricWidth: metricWidth,
-            barWidth: barWidth,
-            layoutDirection: input.layoutDirection,
+            menuWidth: menuWidth,
+            layoutDirection: layoutDirection,
             signature: signature)
     }
 
@@ -315,69 +245,73 @@ struct CompactOverviewColumnLayout {
     }
 }
 
-struct CompactOverviewRowContent: View {
+struct CompactOverviewLabeledContent: View {
     let projection: CompactOverviewProjection
-    let columns: CompactOverviewColumnLayout
-    @Environment(\.menuItemHighlighted) private var isHighlighted
+    let layout: CompactOverviewLayout
 
     var body: some View {
-        VStack(alignment: .leading, spacing: CompactOverviewColumnLayout.providerContentSpacing) {
-            HStack(spacing: 0) {
-                Text(self.projection.providerName)
-                    .font(.headline)
-                    .foregroundStyle(MenuHighlightStyle.primary(self.isHighlighted))
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-                    .frame(width: self.columns.providerHeaderWidth, alignment: .leading)
-                    .help(self.projection.providerName)
-                    .accessibilityHidden(true)
-
-                Color.clear
-                    .frame(width: CompactOverviewColumnLayout.chevronGutterWidth, height: 0)
-                    .accessibilityHidden(true)
-            }
+        VStack(alignment: .leading, spacing: 0) {
+            CompactOverviewProviderHeader(projection: self.projection, layout: self.layout)
 
             self.content
         }
-        .padding(.horizontal, CompactOverviewColumnLayout.horizontalPadding)
-        .padding(.vertical, CompactOverviewColumnLayout.rowVerticalPadding)
-        .frame(width: self.columns.menuWidth, alignment: .leading)
+        .frame(width: self.layout.menuWidth, alignment: .leading)
         .accessibilityElement(children: .contain)
     }
 
     @ViewBuilder
     private var content: some View {
         if self.projection.lanes.isEmpty, let fallback = self.projection.fallback {
-            CompactOverviewFallbackContent(fallback: fallback, columns: self.columns)
+            CompactOverviewLabeledFallback(fallback: fallback, layout: self.layout)
         } else {
-            VStack(alignment: .leading, spacing: CompactOverviewColumnLayout.laneSpacing) {
+            VStack(alignment: .leading, spacing: CompactOverviewLayout.labeledMetricSpacing) {
                 ForEach(self.projection.lanes) { lane in
-                    CompactOverviewMetricLane(lane: lane, columns: self.columns)
+                    CompactOverviewLabeledMetric(lane: lane, layout: self.layout)
                 }
             }
+            .padding(.horizontal, CompactOverviewLayout.horizontalPadding)
+            .padding(.top, CompactOverviewLayout.labeledUsageTopPadding)
+            .padding(.bottom, CompactOverviewLayout.labeledBottomPadding)
             .accessibilityElement(children: .contain)
         }
     }
 }
 
-private struct CompactOverviewMetricLane: View {
-    let lane: CompactOverviewProjection.Lane
-    let columns: CompactOverviewColumnLayout
-    @Environment(\.menuItemHighlighted) private var isHighlighted
+private struct CompactOverviewProviderHeader: View {
+    let projection: CompactOverviewProjection
+    let layout: CompactOverviewLayout
 
     var body: some View {
-        HStack(alignment: .center, spacing: 0) {
-            Text(self.lane.title)
-                .font(.body)
-                .foregroundStyle(MenuHighlightStyle.primary(self.isHighlighted))
+        HStack(spacing: 0) {
+            Text(self.projection.providerName)
+                .usageMenuCardProviderTitleStyle()
                 .lineLimit(1)
                 .truncationMode(.tail)
-                .frame(width: self.columns.metricWidth, alignment: .leading)
-                .help(self.lane.title)
+                .frame(width: self.layout.providerHeaderWidth, alignment: .leading)
+                .help(self.projection.providerName)
                 .accessibilityHidden(true)
 
             Color.clear
-                .frame(width: CompactOverviewColumnLayout.columnSpacing, height: 0)
+                .frame(width: CompactOverviewLayout.chevronGutterWidth, height: 0)
+                .accessibilityHidden(true)
+        }
+        .padding(.horizontal, CompactOverviewLayout.horizontalPadding)
+        .padding(.vertical, CompactOverviewLayout.labeledHeaderVerticalPadding)
+    }
+}
+
+private struct CompactOverviewLabeledMetric: View {
+    let lane: CompactOverviewProjection.Lane
+    let layout: CompactOverviewLayout
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: CompactOverviewLayout.labeledMetricContentSpacing) {
+            Text(self.lane.title)
+                .usageMenuCardMetricTitleStyle()
+                .lineLimit(1)
+                .truncationMode(.tail)
+                .frame(width: self.layout.contentWidth, alignment: .leading)
+                .help(self.lane.title)
                 .accessibilityHidden(true)
 
             UsageProgressBar(
@@ -388,48 +322,177 @@ private struct CompactOverviewMetricLane: View {
                 paceOnTop: self.lane.paceOnTop,
                 warningMarkerPercents: self.lane.warningMarkerPercents,
                 workdayMarkerPercents: self.lane.workdayMarkerPercents,
-                height: CompactOverviewColumnLayout.barHeight)
-                .frame(width: self.columns.barWidth)
+                height: CompactOverviewLayout.barHeight)
+                .frame(width: self.layout.labeledBarWidth)
         }
         .accessibilityElement(children: .contain)
         .accessibilityLabel(self.lane.title)
     }
 }
 
-private struct CompactOverviewFallbackContent: View {
+struct CompactOverviewProviderBarsContent: View {
+    let projection: CompactOverviewProjection
+    let layout: CompactOverviewLayout
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            CompactOverviewProviderHeader(projection: self.projection, layout: self.layout)
+
+            self.content
+        }
+        .frame(width: self.layout.menuWidth, alignment: .leading)
+        .accessibilityElement(children: .contain)
+    }
+
+    @ViewBuilder
+    private var content: some View {
+        if self.projection.lanes.isEmpty, let fallback = self.projection.fallback {
+            CompactOverviewUnavailableRail(
+                fallback: fallback,
+                barWidth: self.layout.providerBarsBarWidth)
+                .padding(.horizontal, CompactOverviewLayout.horizontalPadding)
+                .padding(.top, CompactOverviewLayout.labeledUsageTopPadding)
+                .padding(.bottom, CompactOverviewLayout.labeledBottomPadding)
+        } else {
+            VStack(alignment: .leading, spacing: CompactOverviewLayout.providerBarsLaneSpacing) {
+                ForEach(self.projection.lanes) { lane in
+                    CompactOverviewBareBarLane(
+                        lane: lane,
+                        barWidth: self.layout.providerBarsBarWidth)
+                }
+            }
+            .padding(.horizontal, CompactOverviewLayout.horizontalPadding)
+            .padding(.top, CompactOverviewLayout.labeledUsageTopPadding)
+            .padding(.bottom, CompactOverviewLayout.labeledBottomPadding)
+            .accessibilityElement(children: .contain)
+        }
+    }
+}
+
+private struct CompactOverviewLabeledFallback: View {
     let fallback: CompactOverviewProjection.Fallback
-    let columns: CompactOverviewColumnLayout
+    let layout: CompactOverviewLayout
     @Environment(\.menuItemHighlighted) private var isHighlighted
 
     var body: some View {
+        Group {
+            switch self.fallback {
+            case let .status(_, title, text):
+                VStack(alignment: .leading, spacing: CompactOverviewLayout.labeledMetricContentSpacing) {
+                    Text(title)
+                        .font(.body)
+                        .fontWeight(.medium)
+                        .foregroundStyle(MenuHighlightStyle.primary(self.isHighlighted))
+                        .lineLimit(1)
+                        .help(title)
+                        .accessibilityHidden(true)
+                    self.fallbackText(text, font: .footnote)
+                }
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(title)
+                .accessibilityValue(text)
+            case let .loading(text), let .generic(text):
+                self.fallbackText(text, font: .body)
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(text)
+            }
+        }
+        .padding(.horizontal, CompactOverviewLayout.horizontalPadding)
+        .padding(.top, CompactOverviewLayout.labeledUsageTopPadding)
+        .padding(.bottom, CompactOverviewLayout.labeledBottomPadding)
+        .frame(width: self.layout.menuWidth, alignment: .leading)
+    }
+
+    private func fallbackText(_ text: String, font: Font) -> some View {
+        Text(text)
+            .font(font)
+            .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
+            .lineLimit(1)
+            .truncationMode(.tail)
+            .frame(width: self.layout.contentWidth, alignment: .leading)
+            .help(text)
+    }
+}
+
+struct CompactOverviewBarsOnlyContent: View {
+    let projection: CompactOverviewProjection
+    let layout: CompactOverviewLayout
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: CompactOverviewLayout.barsOnlyLaneSpacing) {
+            if self.projection.lanes.isEmpty, let fallback = self.projection.fallback {
+                CompactOverviewUnavailableRail(
+                    fallback: fallback,
+                    barWidth: self.layout.barsOnlyBarWidth)
+            } else {
+                ForEach(self.projection.lanes) { lane in
+                    CompactOverviewBareBarLane(
+                        lane: lane,
+                        barWidth: self.layout.barsOnlyBarWidth)
+                }
+            }
+        }
+        .padding(.horizontal, CompactOverviewLayout.horizontalPadding)
+        .padding(.vertical, CompactOverviewLayout.barsOnlyVerticalPadding)
+        .frame(width: self.layout.menuWidth, alignment: .leading)
+        .accessibilityElement(children: .contain)
+    }
+}
+
+private struct CompactOverviewBareBarLane: View {
+    let lane: CompactOverviewProjection.Lane
+    let barWidth: CGFloat
+
+    var body: some View {
+        UsageProgressBar(
+            percent: self.lane.percent,
+            tint: self.lane.tint,
+            accessibilityLabel: self.lane.accessibilityLabel,
+            pacePercent: self.lane.pacePercent,
+            paceOnTop: self.lane.paceOnTop,
+            warningMarkerPercents: self.lane.warningMarkerPercents,
+            workdayMarkerPercents: self.lane.workdayMarkerPercents,
+            height: CompactOverviewLayout.barHeight)
+            .frame(width: self.barWidth)
+            .help(self.lane.title)
+            .accessibilityElement(children: .contain)
+            .accessibilityLabel(self.lane.title)
+    }
+}
+
+private struct CompactOverviewUnavailableRail: View {
+    let fallback: CompactOverviewProjection.Fallback
+    let barWidth: CGFloat
+    @Environment(\.menuItemHighlighted) private var isHighlighted
+
+    var body: some View {
+        self.accessibleRail
+    }
+
+    @ViewBuilder
+    private var accessibleRail: some View {
         switch self.fallback {
         case let .status(_, title, text):
-            HStack(spacing: 0) {
-                self.fallbackText(title, width: self.columns.metricWidth)
-                Color.clear
-                    .frame(width: CompactOverviewColumnLayout.columnSpacing, height: 0)
-                    .accessibilityHidden(true)
-                self.fallbackText(
-                    text,
-                    width: self.columns.barWidth)
-            }
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel(title)
-            .accessibilityValue(text)
+            self.rail
+                .accessibilityLabel(title)
+                .accessibilityValue(text)
         case let .loading(text), let .generic(text):
-            self.fallbackText(text, width: self.columns.contentWidth)
-                .accessibilityElement(children: .ignore)
+            self.rail
                 .accessibilityLabel(text)
         }
     }
 
-    private func fallbackText(_ text: String, width: CGFloat) -> some View {
-        Text(text)
-            .font(.body)
-            .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
-            .lineLimit(1)
-            .truncationMode(.tail)
-            .frame(width: width, alignment: .leading)
-            .help(text)
+    private var rail: some View {
+        Capsule()
+            .fill(MenuHighlightStyle.progressTrack(self.isHighlighted).opacity(0.55))
+            .overlay {
+                Capsule()
+                    .strokeBorder(
+                        MenuHighlightStyle.secondary(self.isHighlighted).opacity(0.55),
+                        style: StrokeStyle(lineWidth: 1, dash: [3, 3]))
+            }
+            .frame(width: self.barWidth, height: CompactOverviewLayout.barHeight)
+            .help(self.fallback.text)
+            .accessibilityElement(children: .ignore)
     }
 }

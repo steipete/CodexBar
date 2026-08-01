@@ -24,6 +24,21 @@ extension ProviderSwitcherSelection {
 enum OverviewMenuRowStyle: Equatable {
     case detailed
     case compact
+    case providerBars
+    case barsOnly
+
+    init(layout: MergedOverviewLayout) {
+        self = switch layout {
+        case .detailed: .detailed
+        case .compact: .compact
+        case .providerBars: .providerBars
+        case .barsOnly: .barsOnly
+        }
+    }
+
+    var usesReducedContent: Bool {
+        self != .detailed
+    }
 }
 
 enum OverviewMenuRowInteractionPolicy {
@@ -61,6 +76,7 @@ enum CompactOverviewProjectionResolver {
 }
 
 struct OverviewMenuCardRowView: View {
+    static let showsHeaderDivider = true
     static let showsSectionDividers = false
 
     let model: UsageMenuCardView.Model
@@ -68,7 +84,7 @@ struct OverviewMenuCardRowView: View {
     let storageText: String?
     let width: CGFloat
     let style: OverviewMenuRowStyle
-    let compactColumns: CompactOverviewColumnLayout?
+    let compactLayout: CompactOverviewLayout?
     @Environment(\.menuItemHighlighted) private var isHighlighted
     @Environment(\.menuCardRefreshMonitor) private var refreshMonitor
 
@@ -78,14 +94,14 @@ struct OverviewMenuCardRowView: View {
         storageText: String?,
         width: CGFloat,
         style: OverviewMenuRowStyle = .detailed,
-        compactColumns: CompactOverviewColumnLayout? = nil)
+        compactLayout: CompactOverviewLayout? = nil)
     {
         self.model = model
         self.layoutModel = layoutModel
         self.storageText = storageText
         self.width = width
         self.style = style
-        self.compactColumns = compactColumns
+        self.compactLayout = compactLayout
     }
 
     var body: some View {
@@ -93,10 +109,22 @@ struct OverviewMenuCardRowView: View {
         case .detailed:
             self.detailedContent
         case .compact:
-            if let compactColumns = self.compactColumns {
-                CompactOverviewRowContent(
+            if let compactLayout = self.compactLayout {
+                CompactOverviewLabeledContent(
                     projection: self.compactProjection,
-                    columns: compactColumns)
+                    layout: compactLayout)
+            }
+        case .providerBars:
+            if let compactLayout = self.compactLayout {
+                CompactOverviewProviderBarsContent(
+                    projection: self.compactProjection,
+                    layout: compactLayout)
+            }
+        case .barsOnly:
+            if let compactLayout = self.compactLayout {
+                CompactOverviewBarsOnlyContent(
+                    projection: self.compactProjection,
+                    layout: compactLayout)
             }
         }
     }
@@ -105,7 +133,7 @@ struct OverviewMenuCardRowView: View {
         VStack(alignment: .leading, spacing: 0) {
             UsageMenuCardHeaderSectionView(
                 model: self.model,
-                showDivider: Self.showsSectionDividers && self.hasUsageBlock,
+                showDivider: Self.showsHeaderDivider && self.hasUsageBlock,
                 width: self.width)
             if self.hasUsageBlock {
                 UsageMenuCardUsageSectionView(

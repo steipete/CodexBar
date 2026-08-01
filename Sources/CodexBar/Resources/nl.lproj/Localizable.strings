@@ -616,6 +616,12 @@
 "multi_account_layout_segmented" = "Gesegmenteerd";
 "multi_account_layout_stacked" = "Gestapeld";
 "overview_tab_providers_title" = "Overzicht tabblad aanbieders";
+"overview_layout_title" = "Overzichtsindeling";
+"overview_layout_subtitle" = "Kies hoeveel informatie het overzicht toont.";
+"overview_layout_detailed" = "Gedetailleerd";
+"overview_layout_compact" = "Providers, metrieken en balken";
+"overview_layout_provider_bars" = "Providers en balken";
+"overview_layout_bars_only" = "Alleen balken";
 "overview_compact_title" = "Compact overzicht";
 "overview_compact_subtitle" = "Toon providernamen en gebruiksbalken in een ruimtebesparende indeling.";
 "overview_compact_no_bars" = "Geen gebruiksbalken";

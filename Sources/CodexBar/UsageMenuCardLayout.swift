@@ -9,6 +9,7 @@ enum UsageMenuCardLayout {
     static let sectionBottomPadding: CGFloat = 6
     static let headerLineSpacing: CGFloat = 4
     static let headerColumnSpacing: CGFloat = 12
+    static let metricSpacing: CGFloat = 12
 
     static var postHeaderDividerContentSpacing: CGFloat {
         // Reproduces Overview's header-bottom + usage-top gap so full cards align.

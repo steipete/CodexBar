@@ -14,17 +14,16 @@ read_when:
   positions.
 - When Overview has selected providers, the switcher includes an Overview tab that renders up to 6 provider rows.
 - Overview row order follows provider order; selecting a row jumps to that provider detail card.
-- Compact Overview is an opt-in presentation for the merged menu. Each actionable provider item has a dedicated
-  provider-name header row, followed by every drawable usage bar in model order; one, two, or many bars produce matching
-  item heights. Providers without a drawable bar show a single loading, status, or “No usage bars” fallback beneath the
-  header instead of a blank item.
-- Compact items share one metric-label/bar layout across the selected providers, using body-sized metric labels and
-  eight-point progress bars. Provider headers sit outside that grid and span the content width. Every item reserves the
-  same trailing chevron gutter in its header, including items without a submenu; metric lanes use the full width below
-  it. Visible numeric percentages are omitted; each progress bar retains its percentage and used-versus-left
-  accessibility semantics. Long labels truncate visually
-  while preserving their full accessibility text. Compact mode keeps the same provider actions, detail submenus,
-  separators, refresh behavior, and native menu scrolling as Detailed Overview.
+- Preferences → Menu → Content → Overview layout controls how much information merged Overview shows:
+  Detailed; Providers, metrics & bars; Providers & bars; or Bars only. Detailed retains the full provider cards.
+- The three reduced layouts preserve every drawable usage metric in model order and use the existing six-point progress
+  bars. Providers, metrics & bars shows provider and metric names; Providers & bars hides metric names; Bars only hides
+  both provider and metric names. Visible numeric percentages are omitted in all three reduced layouts.
+- Reduced layouts retain provider actions, detail submenus, refresh behavior, native menu scrolling, and accessible
+  provider names, metric names, percentages, and used-versus-left semantics. A provider without a drawable metric shows
+  a visible fallback in Providers, metrics & bars or an accessible unavailable rail in the two bar-only presentations.
+  The two provider-labeled layouts keep inter-provider dividers; Bars only uses balanced whitespace between and around
+  provider groups so hover highlighting remains centered.
 - The global open-menu keyboard shortcut toggles the currently tracked menu closed before opening a new one.
 - Display → Menu Bar → Layout provides presets plus a token editor. Tokens can be clicked to append, dragged from the
   palette, reordered between one or two lines, dragged out, or removed with Delete. Layouts can be global or overridden
@@ -99,8 +98,8 @@ window has elapsed.
   reports sizes and cleanup ideas, it does not delete files.
 - Menu Bar → Combined Icon: “Overview tab providers” controls which providers appear in Merge Icons → Overview
   (up to 6).
-- Menu → Content: “Compact Overview” chooses the provider-header-and-bars presentation. It is disabled while Merge
-  Icons is off, retains its stored value, and defaults off so existing Detailed Overview behavior is unchanged.
+- Menu → Content: “Overview layout” offers Detailed, Providers, metrics & bars, Providers & bars, and Bars only. The
+  picker is disabled while Merge Icons is off, retains its stored value, and defaults to Detailed.
 - If no providers are selected for Overview, the Overview tab is hidden.
 - Providers → Claude: “Avoid Keychain prompts” selects the Security.framework reader's `Never prompt` policy.
 - The lower-level “Keychain prompt policy” picker remains visible as the source of truth for Claude OAuth prompts.

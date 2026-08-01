@@ -624,6 +624,12 @@
 "multi_account_layout_segmented" = "Segmentowy";
 "multi_account_layout_stacked" = "Ułożony";
 "overview_tab_providers_title" = "Dostawcy zakładki Przegląd";
+"overview_layout_title" = "Układ Przeglądu";
+"overview_layout_subtitle" = "Wybierz, ile informacji ma wyświetlać Przegląd.";
+"overview_layout_detailed" = "Szczegółowy";
+"overview_layout_compact" = "Dostawcy, metryki i paski";
+"overview_layout_provider_bars" = "Dostawcy i paski";
+"overview_layout_bars_only" = "Tylko paski";
 "overview_compact_title" = "Kompaktowy przegląd";
 "overview_compact_subtitle" = "Pokazuj nazwy dostawców i paski użycia w układzie oszczędzającym miejsce.";
 "overview_compact_no_bars" = "Brak pasków użycia";

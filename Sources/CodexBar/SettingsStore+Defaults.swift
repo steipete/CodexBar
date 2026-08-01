@@ -748,11 +748,14 @@ extension SettingsStore {
         }
     }
 
-    var mergedOverviewUsesCompactLayout: Bool {
-        get { self.defaultsState.mergedOverviewUsesCompactLayout }
+    var mergedOverviewLayout: MergedOverviewLayout {
+        get {
+            MergedOverviewLayout(rawValue: self.defaultsState.mergedOverviewLayoutRaw) ?? .detailed
+        }
         set {
-            self.defaultsState.mergedOverviewUsesCompactLayout = newValue
-            self.userDefaults.set(newValue, forKey: "mergedOverviewUsesCompactLayout")
+            self.defaultsState.mergedOverviewLayoutRaw = newValue.rawValue
+            self.userDefaults.set(newValue.rawValue, forKey: "mergedOverviewLayout")
+            self.userDefaults.set(newValue.usesReducedContent, forKey: "mergedOverviewUsesCompactLayout")
         }
     }
 

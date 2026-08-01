@@ -4,6 +4,8 @@ import QuartzCore
 import SwiftUI
 
 extension StatusItemController {
+    static let overviewBarsOnlySpacerIdentifierPrefix = "overviewBarsOnlySpacer-"
+
     @discardableResult
     func addOverviewRows(
         to menu: NSMenu,
@@ -16,7 +18,8 @@ extension StatusItemController {
         let interactionMenu = captureMenu ?? menu
         let overviewProviders = self.settings.reconcileMergedOverviewSelectedProviders(
             activeProviders: enabledProviders)
-        let compactRequested = self.settings.mergedOverviewUsesCompactLayout
+        let overviewLayout = self.settings.mergedOverviewLayout
+        let usesReducedContent = overviewLayout.usesReducedContent
         let rows: [(
             provider: UsageProvider,
             model: UsageMenuCardView.Model,
@@ -25,7 +28,7 @@ extension StatusItemController {
             .compactMap { provider in
                 guard let model = self.menuCardModel(for: provider) else { return nil }
                 guard !model.isOverviewErrorOnly else { return nil }
-                let layoutModel = if compactRequested, model.usesLiveSubtitle {
+                let layoutModel = if usesReducedContent, model.usesLiveSubtitle {
                     self.menuCardRefreshMonitor.model(for: provider, fallback: model)
                 } else {
                     model
@@ -34,26 +37,27 @@ extension StatusItemController {
                     provider: provider,
                     model: model,
                     layoutModel: layoutModel,
-                    projection: compactRequested ? CompactOverviewProjection(model: layoutModel) : nil)
+                    projection: usesReducedContent ? CompactOverviewProjection(model: layoutModel) : nil)
             }
         guard !rows.isEmpty else { return false }
 
-        let compactColumns: CompactOverviewColumnLayout? = if compactRequested {
-            CompactOverviewColumnLayout.resolveForMenu(
+        let compactLayout: CompactOverviewLayout? = if usesReducedContent {
+            CompactOverviewLayout.resolveForMenu(
                 menuWidth: menuWidth,
-                projections: rows.compactMap(\.projection),
                 layoutDirection: codexBarUsesRightToLeftLayout()
                     ? .rightToLeft
-                    : .leftToRight,
-                textWidthMeasurer: .appKit())
+                    : .leftToRight)
         } else {
             nil
         }
-        let rowStyle: OverviewMenuRowStyle = compactRequested ? .compact : .detailed
+        let rowStyle = OverviewMenuRowStyle(layout: overviewLayout)
 
         let t0 = CACurrentMediaTime()
         defer { self.logChartRenderDurationIfSlow("addOverviewRows(\(rows.count))", startedAt: t0) }
 
+        if rowStyle == .barsOnly {
+            menu.addItem(self.makeBarsOnlySectionSpacer(width: menuWidth, edge: "leading"))
+        }
         for (index, row) in rows.enumerated() {
             let identifier = "\(Self.overviewRowIdentifierPrefix)\(row.provider.rawValue)"
             let storageText = rowStyle == .detailed
@@ -69,14 +73,20 @@ extension StatusItemController {
                     section: "overviewDetailed",
                     additional: [UsageMenuCardView.Model.heightFingerprintField("storage", storageText)])
             case .compact:
-                row.layoutModel.heightFingerprint(
+                row.projection?.heightFingerprint(
                     section: "overviewCompact",
-                    additional: [
-                        "projection=\(row.projection?.layoutSignature ?? "missing")",
-                        "columns=\(compactColumns?.signature ?? "missing")",
-                    ])
+                    layoutSignature: compactLayout?.signature ?? "missing") ?? "overviewCompact:missing"
+            case .providerBars:
+                row.projection?.heightFingerprint(
+                    section: "overviewProviderBars",
+                    layoutSignature: compactLayout?.signature ?? "missing") ?? "overviewProviderBars:missing"
+            case .barsOnly:
+                row.projection?.heightFingerprint(
+                    section: "overviewBarsOnly",
+                    layoutSignature: compactLayout?.signature ?? "missing")
+                    ?? "overviewBarsOnly:missing"
             }
-            let accessibilityLabel = rowStyle == .compact
+            let accessibilityLabel = rowStyle.usesReducedContent
                 ? row.projection?.providerName ?? row.layoutModel.providerName
                 : row.model.providerName
             let item = self.makeMenuCardItem(
@@ -86,19 +96,22 @@ extension StatusItemController {
                     storageText: storageText,
                     width: menuWidth,
                     style: rowStyle,
-                    compactColumns: compactColumns),
+                    compactLayout: compactLayout),
                 id: identifier,
                 width: menuWidth,
                 heightCacheScope: row.provider.rawValue,
                 heightCacheFingerprint: heightFingerprint,
                 submenu: submenu,
+                showsSubmenuIndicator: rowStyle != .barsOnly,
+                submenuIndicatorAlignment: rowStyle == .barsOnly ? .trailing : .topTrailing,
+                submenuIndicatorTopPadding: rowStyle == .barsOnly ? 0 : 8,
                 containsInteractiveControls: OverviewMenuRowInteractionPolicy.containsInteractiveControls(
                     style: rowStyle,
                     model: row.model),
                 usesGPUSelection: true,
-                layoutDirection: rowStyle == .compact ? compactColumns?.layoutDirection : nil,
+                layoutDirection: rowStyle.usesReducedContent ? compactLayout?.layoutDirection : nil,
                 accessibilityLabel: accessibilityLabel,
-                accessibilityHelp: rowStyle == .compact ? L("Show details") : nil,
+                accessibilityHelp: rowStyle.usesReducedContent ? L("Show details") : nil,
                 onClick: { [weak self, weak interactionMenu] in
                     guard let self, let interactionMenu else { return }
                     self.selectOverviewProvider(row.provider, menu: interactionMenu)
@@ -109,10 +122,29 @@ extension StatusItemController {
                 item.action = #selector(self.selectOverviewProvider(_:))
             }
             menu.addItem(item)
-            if index < rows.count - 1 {
+            if rowStyle != .barsOnly, index < rows.count - 1 {
                 menu.addItem(.separator())
             }
         }
+        if rowStyle == .barsOnly {
+            menu.addItem(self.makeBarsOnlySectionSpacer(width: menuWidth, edge: "trailing"))
+        }
         return true
+    }
+
+    private func makeBarsOnlySectionSpacer(width: CGFloat, edge: String) -> NSMenuItem {
+        let view = NSView(frame: NSRect(
+            x: 0,
+            y: 0,
+            width: width,
+            height: CompactOverviewLayout.barsOnlySectionSpacerHeight))
+        view.autoresizingMask = [.width]
+        view.setAccessibilityElement(false)
+
+        let item = NSMenuItem()
+        item.view = view
+        item.isEnabled = false
+        item.representedObject = "\(Self.overviewBarsOnlySpacerIdentifierPrefix)\(edge)"
+        return item
     }
 }

@@ -110,7 +110,7 @@ struct LocalizationLanguageCatalogTests {
     }
 
     @Test
-    func `compact overview copy is translated in every catalog`() throws {
+    func `overview layout copy is translated in every catalog`() throws {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
             .deletingLastPathComponent()
@@ -121,6 +121,12 @@ struct LocalizationLanguageCatalogTests {
             includingPropertiesForKeys: nil)
             .filter { $0.pathExtension == "lproj" }
         let englishValues = [
+            "overview_layout_title": "Overview layout",
+            "overview_layout_subtitle": "Choose how much information Overview shows.",
+            "overview_layout_detailed": "Detailed",
+            "overview_layout_compact": "Providers, metrics & bars",
+            "overview_layout_provider_bars": "Providers & bars",
+            "overview_layout_bars_only": "Bars only",
             "overview_compact_title": "Compact Overview",
             "overview_compact_subtitle": "Show provider names and usage bars in a space-saving layout.",
             "overview_compact_no_bars": "No usage bars",

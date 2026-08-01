@@ -270,7 +270,7 @@ extension StatusItemController {
             for: enabledProviders,
             selectedProvider: selectedProvider,
             descriptor: descriptor,
-            usesCompactOverview: isOverviewSelected && self.settings.mergedOverviewUsesCompactLayout)
+            overviewLayout: isOverviewSelected ? self.settings.mergedOverviewLayout : .detailed)
 
         let hasTokenSwitcher = menu.items.contains { $0.view is TokenAccountSwitcherView }
         let hasCodexSwitcher = menu.items.contains { $0.view is CodexAccountSwitcherView }

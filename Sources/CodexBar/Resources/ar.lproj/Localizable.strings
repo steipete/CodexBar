@@ -622,6 +622,12 @@
 "multi_account_layout_segmented" = "مقسم";
 "multi_account_layout_stacked" = "مكدس";
 "overview_tab_providers_title" = "نظرة عامة على مزودي تبويب";
+"overview_layout_title" = "تخطيط النظرة العامة";
+"overview_layout_subtitle" = "اختر مقدار المعلومات التي تعرضها النظرة العامة.";
+"overview_layout_detailed" = "مفصل";
+"overview_layout_compact" = "المزوّدون والمقاييس والأشرطة";
+"overview_layout_provider_bars" = "المزوّدون والأشرطة";
+"overview_layout_bars_only" = "الأشرطة فقط";
 "overview_compact_title" = "نظرة عامة مدمجة";
 "overview_compact_subtitle" = "اعرض أسماء المزوّدين وأشرطة الاستخدام بتنسيق موفّر للمساحة.";
 "overview_compact_no_bars" = "لا توجد أشرطة استخدام";

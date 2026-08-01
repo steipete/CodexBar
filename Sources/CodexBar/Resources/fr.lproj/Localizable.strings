@@ -616,6 +616,12 @@
 "multi_account_layout_segmented" = "Segmenté";
 "multi_account_layout_stacked" = "Empilé";
 "overview_tab_providers_title" = "Fournisseurs d'onglets de présentation";
+"overview_layout_title" = "Disposition de la vue d’ensemble";
+"overview_layout_subtitle" = "Choisissez la quantité d’informations affichée dans la vue d’ensemble.";
+"overview_layout_detailed" = "Détaillée";
+"overview_layout_compact" = "Fournisseurs, métriques et barres";
+"overview_layout_provider_bars" = "Fournisseurs et barres";
+"overview_layout_bars_only" = "Barres uniquement";
 "overview_compact_title" = "Vue d’ensemble compacte";
 "overview_compact_subtitle" = "Affichez les noms des fournisseurs et les barres d’utilisation dans une disposition compacte.";
 "overview_compact_no_bars" = "Aucune barre d’utilisation";

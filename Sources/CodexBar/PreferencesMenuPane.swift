@@ -49,12 +49,18 @@ struct MenuPane: View {
             }
 
             Section {
-                Toggle(isOn: self.$settings.mergedOverviewUsesCompactLayout) {
-                    SettingsRowLabel(
-                        L("overview_compact_title"),
-                        subtitle: L("overview_compact_subtitle"))
-                }
-                .disabled(!Self.compactOverviewAvailable(mergeIcons: self.settings.mergeIcons))
+                SettingsMenuPicker(
+                    selection: self.$settings.mergedOverviewLayout,
+                    options: MenuSettingsMenuOptions.mergedOverviewLayouts,
+                    label: {
+                        SettingsRowLabel(
+                            L("overview_layout_title"),
+                            subtitle: L("overview_layout_subtitle"))
+                    },
+                    optionLabel: { layout in
+                        Text(layout.label)
+                    })
+                    .disabled(!Self.compactOverviewAvailable(mergeIcons: self.settings.mergeIcons))
 
                 Toggle(L("show_provider_changelog_links_title"), isOn: self.$settings.providerChangelogLinksEnabled)
 

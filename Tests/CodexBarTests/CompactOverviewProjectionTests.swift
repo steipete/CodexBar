@@ -46,6 +46,19 @@ struct CompactOverviewProjectionTests {
     }
 
     @Test
+    func `projection uses the same provider specific metric titles as detailed cards`() {
+        let drawable = CompactOverviewProjection(model: Self.model(
+            provider: .openrouter,
+            metrics: [Self.metric(id: "primary", title: "Credits")]))
+        let status = CompactOverviewProjection(model: Self.model(
+            provider: .openrouter,
+            metrics: [Self.metric(id: "primary", title: "Credits", statusText: "Unavailable")]))
+
+        #expect(drawable.lanes.first?.title == L("API key limit"))
+        #expect(status.fallback?.metricTitle == L("API key limit"))
+    }
+
+    @Test
     func `loading status and generic fallback precedence is deterministic`() {
         let statusMetrics = [
             Self.metric(id: "empty", title: "Empty", statusText: " \n "),
@@ -188,103 +201,66 @@ struct CompactOverviewProjectionTests {
     }
 
     @Test
-    func `allocator gives the 310 point budget to a wide bar and full provider header`() throws {
-        let minimum = try CompactOverviewColumnLayout.allocate(.init(
+    func `layout gives every reduced mode stable full width geometry`() {
+        let minimum = CompactOverviewLayout.resolveForMenu(
             menuWidth: 310,
-            idealMetricWidth: 112,
-            fontSignature: "fixture-font",
-            layoutDirection: .leftToRight))
-        let wider = try CompactOverviewColumnLayout.allocate(.init(
+            layoutDirection: .leftToRight)
+        let wider = CompactOverviewLayout.resolveForMenu(
             menuWidth: 360,
-            idealMetricWidth: 112,
-            fontSignature: "fixture-font",
-            layoutDirection: .leftToRight))
+            layoutDirection: .leftToRight)
 
-        #expect(minimum.menuWidth == 310)
-        #expect(minimum.metricWidth == 112)
-        #expect(minimum.barWidth == 146)
-        #expect(minimum.barWidth == CompactOverviewColumnLayout.minimumBarWidth)
+        #expect(minimum.menuWidth == CompactOverviewLayout.minimumMenuWidth)
         #expect(minimum.contentWidth == 270)
-        #expect(minimum.providerHeaderWidth == 258)
-        #expect(minimum.occupiedWidth == 310)
-        #expect(wider.metricWidth == minimum.metricWidth)
-        #expect(wider.barWidth == minimum.barWidth + 50)
-        #expect(wider.occupiedWidth == 360)
-        #expect(CompactOverviewColumnLayout.barHeight == 8)
-        #expect(CompactOverviewColumnLayout.providerContentSpacing == 4)
-        #expect(CompactOverviewColumnLayout.laneSpacing == 3)
+        #expect(minimum.labeledBarWidth == minimum.contentWidth)
+        #expect(minimum.providerHeaderWidth + CompactOverviewLayout.chevronGutterWidth == minimum.contentWidth)
+        #expect(minimum.providerBarsBarWidth == minimum.contentWidth)
+        #expect(minimum.barsOnlyBarWidth == minimum.contentWidth)
+        #expect(minimum.labeledBarWidth == minimum.providerBarsBarWidth)
+        #expect(minimum.labeledBarWidth == minimum.barsOnlyBarWidth)
+        #expect(wider.contentWidth == minimum.contentWidth + 50)
+        #expect(wider.labeledBarWidth == minimum.labeledBarWidth + 50)
+        #expect(wider.providerBarsBarWidth == minimum.providerBarsBarWidth + 50)
+        #expect(wider.barsOnlyBarWidth == minimum.barsOnlyBarWidth + 50)
+        #expect(CompactOverviewLayout.barHeight == UsageProgressBar.defaultHeight)
+        #expect(CompactOverviewLayout.providerBarsLaneSpacing == 12)
+        #expect(CompactOverviewLayout.barsOnlyLaneSpacing == 12)
+        #expect(CompactOverviewLayout.barsOnlyInterProviderSpacing == 18)
+        #expect(CompactOverviewLayout.barsOnlySectionOuterSpacing == 12)
+        #expect(CompactOverviewLayout.barsOnlyVerticalPadding == 5.5)
+        #expect(CompactOverviewLayout.barsOnlySectionSpacerHeight == 3)
+        let interProviderSpacing = MenuCardItemSizing.measuredHeightPadding
+            + CompactOverviewLayout.barsOnlyVerticalPadding * 2
+        #expect(interProviderSpacing == CompactOverviewLayout.barsOnlyInterProviderSpacing)
+        let sectionOuterSpacing = MenuCardItemSizing.measuredHeightPadding / 2
+            + CompactOverviewLayout.barsOnlyVerticalPadding
+            + CompactOverviewLayout.barsOnlySectionSpacerHeight
+        #expect(sectionOuterSpacing == CompactOverviewLayout.barsOnlySectionOuterSpacing)
+        #expect(CompactOverviewLayout.labeledMetricSpacing == CompactOverviewLayout.barsOnlyLaneSpacing)
+        #expect(minimum.signature.contains("barsOnlySectionSpacer"))
     }
 
     @Test
-    func `allocator rejects unsupported width caps long labels and reclaims short label space`() throws {
-        do {
-            _ = try CompactOverviewColumnLayout.allocate(.init(
-                menuWidth: 309,
-                idealMetricWidth: 112,
-                fontSignature: "fixture-font",
-                layoutDirection: .leftToRight))
-            Issue.record("Expected minimum-width rejection")
-        } catch let error as CompactOverviewColumnLayoutError {
-            #expect(error == .menuWidthBelowMinimum(309))
-        }
-
-        let capped = try CompactOverviewColumnLayout.allocate(.init(
+    func `layout signature tracks width and direction without provider text`() {
+        let leftToRight = CompactOverviewLayout.resolveForMenu(
             menuWidth: 310,
-            idealMetricWidth: 500,
-            fontSignature: "fixture-font",
-            layoutDirection: .leftToRight))
-        #expect(capped.metricWidth == 112)
-        #expect(capped.barWidth == 146)
-
-        let short = try CompactOverviewColumnLayout.allocate(.init(
+            layoutDirection: .leftToRight)
+        let same = CompactOverviewLayout.resolveForMenu(
             menuWidth: 310,
-            idealMetricWidth: 48,
-            fontSignature: "fixture-font",
-            layoutDirection: .leftToRight))
-        #expect(short.metricWidth == 48)
-        #expect(short.barWidth == 210)
-        #expect(short.occupiedWidth == 310)
-    }
-
-    @Test
-    func `resolver measures only selected metric titles without caching source text`() throws {
-        var measured: [(String, CompactOverviewTextWidthMeasurer.Role)] = []
-        let measurer = CompactOverviewTextWidthMeasurer(fontSignature: "fixture-font") { text, role in
-            measured.append((text, role))
-            return switch role {
-            case .provider: 80
-            case .metric: 140
-            }
-        }
-        let statusProjection = Self.projection(
-            providerName: "Private Status Provider",
-            metrics: [Self.metric(
-                id: "balance",
-                title: "Balance Title",
-                statusText: "Private status value")])
-        let laneProjection = Self.projection(
-            providerName: "Private Bar Provider",
-            metrics: [Self.metric(id: "session", title: "Session Title")])
-        let layout = try CompactOverviewColumnLayout.resolve(
+            layoutDirection: .leftToRight)
+        let wider = CompactOverviewLayout.resolveForMenu(
+            menuWidth: 360,
+            layoutDirection: .leftToRight)
+        let rightToLeft = CompactOverviewLayout.resolveForMenu(
             menuWidth: 310,
-            projections: [statusProjection, laneProjection],
-            layoutDirection: .rightToLeft,
-            textWidthMeasurer: measurer)
-        let measuredTexts = measured.map(\.0)
+            layoutDirection: .rightToLeft)
 
-        #expect(!measuredTexts.contains("Private Status Provider"))
-        #expect(!measuredTexts.contains("Private Bar Provider"))
-        #expect(measuredTexts.contains("Balance Title"))
-        #expect(measuredTexts.contains("Session Title"))
-        #expect(!measuredTexts.contains("Private status value"))
-        #expect(measured.allSatisfy { $0.1 == .metric })
-        #expect(layout.metricWidth == 112)
-        #expect(layout.barWidth == 146)
-        for rawValue in ["Private Status Provider", "Balance Title", "Private Bar Provider", "Session Title"] {
-            #expect(!layout.signature.contains(rawValue))
-        }
-        #expect(layout.signature.contains("direction=rtl"))
-        #expect(layout.layoutDirection == .rightToLeft)
+        #expect(leftToRight.signature == same.signature)
+        #expect(leftToRight.signature != wider.signature)
+        #expect(leftToRight.signature != rightToLeft.signature)
+        #expect(leftToRight.signature.contains("direction=ltr"))
+        #expect(rightToLeft.signature.contains("direction=rtl"))
+        #expect(!leftToRight.signature.contains("Private Provider Name"))
+        #expect(rightToLeft.layoutDirection == .rightToLeft)
     }
 
     @Test
@@ -302,6 +278,16 @@ struct CompactOverviewProjectionTests {
         #expect(!english)
         #expect(arabic)
         #expect(persian)
+        let leftToRight = CompactOverviewLayout.resolveForMenu(
+            menuWidth: 310,
+            layoutDirection: .leftToRight)
+        let rightToLeft = CompactOverviewLayout.resolveForMenu(
+            menuWidth: 310,
+            layoutDirection: .rightToLeft)
+        #expect(leftToRight.contentWidth == rightToLeft.contentWidth)
+        #expect(leftToRight.labeledBarWidth == rightToLeft.labeledBarWidth)
+        #expect(leftToRight.providerBarsBarWidth == rightToLeft.providerBarsBarWidth)
+        #expect(leftToRight.barsOnlyBarWidth == rightToLeft.barsOnlyBarWidth)
         #expect(MenuCardSectionContainerView<EmptyView>.submenuIndicatorSystemName(for: .leftToRight) ==
             "chevron.right")
         #expect(MenuCardSectionContainerView<EmptyView>.submenuIndicatorSystemName(for: .rightToLeft) ==
@@ -386,49 +372,101 @@ struct CompactOverviewProjectionTests {
         #expect(OverviewMenuRowInteractionPolicy.containsInteractiveControls(style: .detailed, model: error))
         #expect(!OverviewMenuRowInteractionPolicy.containsInteractiveControls(style: .compact, model: live))
         #expect(!OverviewMenuRowInteractionPolicy.containsInteractiveControls(style: .compact, model: error))
+        #expect(!OverviewMenuRowInteractionPolicy.containsInteractiveControls(style: .providerBars, model: live))
+        #expect(!OverviewMenuRowInteractionPolicy.containsInteractiveControls(style: .providerBars, model: error))
+        #expect(!OverviewMenuRowInteractionPolicy.containsInteractiveControls(style: .barsOnly, model: live))
+        #expect(!OverviewMenuRowInteractionPolicy.containsInteractiveControls(style: .barsOnly, model: error))
     }
 
     @Test
-    func `hosted row height includes a provider header and follows every lane`() throws {
-        let layout = try CompactOverviewColumnLayout.allocate(.init(
+    func `hosted reduced rows preserve every lane in increasing detail order`() throws {
+        let layout = CompactOverviewLayout.resolveForMenu(
             menuWidth: 310,
-            idealMetricWidth: 112,
-            fontSignature: "fixture-font",
-            layoutDirection: .leftToRight))
-        var heights: [Int: CGFloat] = [:]
-        for count in [0, 1, 2, 3, 6, 12] {
+            layoutDirection: .leftToRight)
+        var labeledHeights: [Int: CGFloat] = [:]
+        var providerBarsHeights: [Int: CGFloat] = [:]
+        var barsOnlyHeights: [Int: CGFloat] = [:]
+        for count in [0, 1, 2, 3, 6] {
             let metrics = (0..<count).map { Self.metric(id: "lane-\($0)", title: "Lane \($0)") }
             let projection = CompactOverviewProjection(
                 model: Self.model(metrics: metrics),
                 noBarsText: "No bars")
-            let host = NSHostingController(rootView: CompactOverviewRowContent(
+            let labeledHost = NSHostingController(rootView: CompactOverviewLabeledContent(
                 projection: projection,
-                columns: layout))
-            heights[count] = host.sizeThatFits(in: CGSize(
+                layout: layout))
+            let providerBarsHost = NSHostingController(rootView: CompactOverviewProviderBarsContent(
+                projection: projection,
+                layout: layout))
+            let barsOnlyHost = NSHostingController(rootView: CompactOverviewBarsOnlyContent(
+                projection: projection,
+                layout: layout))
+            labeledHeights[count] = labeledHost.sizeThatFits(in: CGSize(
+                width: layout.menuWidth,
+                height: 10000)).height
+            providerBarsHeights[count] = providerBarsHost.sizeThatFits(in: CGSize(
+                width: layout.menuWidth,
+                height: 10000)).height
+            barsOnlyHeights[count] = barsOnlyHost.sizeThatFits(in: CGSize(
                 width: layout.menuWidth,
                 height: 10000)).height
         }
 
-        let fallbackHeight = try #require(heights[0])
-        let oneLaneHeight = try #require(heights[1])
-        let twoLaneHeight = try #require(heights[2])
-        let threeLaneHeight = try #require(heights[3])
-        let sixLaneHeight = try #require(heights[6])
-        let twelveLaneHeight = try #require(heights[12])
-        #expect(abs(fallbackHeight - oneLaneHeight) <= 1)
-        #expect(oneLaneHeight >= 40)
-        #expect(oneLaneHeight < twoLaneHeight)
-        #expect(twoLaneHeight < threeLaneHeight)
-        #expect(threeLaneHeight < sixLaneHeight)
-        #expect(sixLaneHeight < twelveLaneHeight)
-        #expect(twoLaneHeight <= 66)
-        #expect(twoLaneHeight + 7 <= 73)
-        #expect(abs((twoLaneHeight - oneLaneHeight) - (threeLaneHeight - twoLaneHeight)) <= 1)
+        let fallbackLabeledHeight = try #require(labeledHeights[0])
+        let fallbackProviderBarsHeight = try #require(providerBarsHeights[0])
+        let fallbackBarsOnlyHeight = try #require(barsOnlyHeights[0])
+        #expect(fallbackLabeledHeight > 0)
+        #expect(fallbackBarsOnlyHeight > 0)
+        #expect(fallbackBarsOnlyHeight < fallbackProviderBarsHeight)
+        #expect(fallbackProviderBarsHeight < fallbackLabeledHeight)
 
-        let canonicalAttachedHeight = 2 * (oneLaneHeight + 7)
-            + 2 * (twoLaneHeight + 7)
-            + 2 * (threeLaneHeight + 7)
-        #expect(canonicalAttachedHeight <= 432)
+        for count in [1, 2, 3, 6] {
+            let labeledHeight = try #require(labeledHeights[count])
+            let providerBarsHeight = try #require(providerBarsHeights[count])
+            let barsOnlyHeight = try #require(barsOnlyHeights[count])
+            #expect(barsOnlyHeight < providerBarsHeight)
+            #expect(providerBarsHeight < labeledHeight)
+        }
+
+        for (count, target) in [(1, 17.0), (2, 35.0), (3, 53.0)] {
+            let barsOnlyHeight = try #require(barsOnlyHeights[count])
+            #expect(abs(barsOnlyHeight - target) <= 1)
+        }
+
+        for pair in zip([1, 2, 3], [2, 3, 6]) {
+            let labeledBefore = try #require(labeledHeights[pair.0])
+            let labeledAfter = try #require(labeledHeights[pair.1])
+            let providerBarsBefore = try #require(providerBarsHeights[pair.0])
+            let providerBarsAfter = try #require(providerBarsHeights[pair.1])
+            let barsOnlyBefore = try #require(barsOnlyHeights[pair.0])
+            let barsOnlyAfter = try #require(barsOnlyHeights[pair.1])
+            #expect(labeledBefore < labeledAfter)
+            #expect(providerBarsBefore < providerBarsAfter)
+            #expect(barsOnlyBefore < barsOnlyAfter)
+            #expect(abs((providerBarsAfter - providerBarsBefore) - CGFloat(pair.1 - pair.0) * 18) <= 1)
+        }
+
+        let oneLaneBarsOnlyHeight = try #require(barsOnlyHeights[1])
+        let oneLaneProviderBarsHeight = try #require(providerBarsHeights[1])
+        #expect(abs(fallbackBarsOnlyHeight - oneLaneBarsOnlyHeight) <= 1)
+        #expect(abs(fallbackProviderBarsHeight - oneLaneProviderBarsHeight) <= 1)
+    }
+
+    @Test
+    func `bars only rows keep symmetric padding independent of section position`() {
+        let layout = CompactOverviewLayout.resolveForMenu(
+            menuWidth: 310,
+            layoutDirection: .leftToRight)
+        let projection = CompactOverviewProjection(model: Self.model(metrics: [
+            Self.metric(id: "lane", title: "Lane"),
+        ]))
+
+        let host = NSHostingController(rootView: CompactOverviewBarsOnlyContent(
+            projection: projection,
+            layout: layout))
+        let height = host.sizeThatFits(in: CGSize(width: layout.menuWidth, height: 10000)).height
+
+        #expect(abs(height - 17) <= 1)
+        #expect(CompactOverviewLayout.barsOnlySectionSpacerHeight == 3)
     }
 
     private static func projection(

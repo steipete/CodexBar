@@ -39,11 +39,11 @@ struct NativeHighlightDeferredMenuRebuild {
 
 @MainActor
 private struct MergedOverviewMenuObservation: Equatable {
-    let usesCompactLayout: Bool
+    let layout: MergedOverviewLayout
     let selectedProviders: [UsageProvider]
 
     init(settings: SettingsStore) {
-        self.usesCompactLayout = settings.mergedOverviewUsesCompactLayout
+        self.layout = settings.mergedOverviewLayout
         self.selectedProviders = settings.mergedOverviewSelectedProviders
     }
 }

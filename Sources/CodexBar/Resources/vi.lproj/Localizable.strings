@@ -612,6 +612,12 @@
 "multi_account_layout_segmented" = "Được phân đoạn";
 "multi_account_layout_stacked" = "Xếp chồng";
 "overview_tab_providers_title" = "Nhà cung cấp tab tổng quan";
+"overview_layout_title" = "Bố cục Tổng quan";
+"overview_layout_subtitle" = "Chọn lượng thông tin hiển thị trong Tổng quan.";
+"overview_layout_detailed" = "Chi tiết";
+"overview_layout_compact" = "Nhà cung cấp, chỉ số và thanh";
+"overview_layout_provider_bars" = "Nhà cung cấp và thanh";
+"overview_layout_bars_only" = "Chỉ thanh";
 "overview_compact_title" = "Tổng quan thu gọn";
 "overview_compact_subtitle" = "Hiển thị tên nhà cung cấp và thanh mức sử dụng trong bố cục tiết kiệm không gian.";
 "overview_compact_no_bars" = "Không có thanh mức sử dụng";
