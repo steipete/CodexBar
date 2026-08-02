@@ -388,6 +388,34 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         self.codexAccountPromotionCoordinator = dependencies.codexAccountPromotionCoordinator
     }
 
+    /// Presents or dismisses the persistent Touch Bar overlay to match the user's setting,
+    /// disabled by default since it replaces whatever contextual Touch Bar the frontmost
+    /// developer tool would otherwise show.
+    private func applyPersistentTouchBarPreference() {
+        guard let store, let settings else { return }
+        if settings.persistentTouchBarEnabled {
+            guard self.persistentTouchBarController == nil else { return }
+            let controller = PersistentUsageTouchBarController(settings: settings, store: store)
+            controller.present()
+            self.persistentTouchBarController = controller
+        } else {
+            self.persistentTouchBarController?.dismiss()
+            self.persistentTouchBarController = nil
+        }
+    }
+
+    private func observeTouchBarPreference() {
+        guard let settings else { return }
+        withObservationTracking {
+            _ = settings.persistentTouchBarEnabled
+        } onChange: { [weak self] in
+            Task { @MainActor in
+                self?.applyPersistentTouchBarPreference()
+                self?.observeTouchBarPreference()
+            }
+        }
+    }
+
     func applicationWillFinishLaunching(_ notification: Notification) {
         self.configureAppIconForMacOSVersion()
     }
@@ -398,11 +426,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         self.installDebugMemoryPressureObserverIfNeeded()
         #endif
         self.ensureStatusController()
-        if let store, let settings {
-            let controller = PersistentUsageTouchBarController(settings: settings, store: store)
-            controller.present()
-            self.persistentTouchBarController = controller
-        }
+        self.applyPersistentTouchBarPreference()
+        self.observeTouchBarPreference()
         Task { @MainActor [weak self] in
             await Task.yield()
             guard let settings = self?.settings else { return }

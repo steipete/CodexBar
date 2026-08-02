@@ -708,6 +708,18 @@ extension SettingsStore {
         }
     }
 
+    var persistentTouchBarEnabled: Bool {
+        get { self.defaultsState.persistentTouchBarEnabled }
+        set {
+            self.defaultsState.persistentTouchBarEnabled = newValue
+            self.userDefaults.set(newValue, forKey: "persistentTouchBarEnabled")
+            CodexBarLog.logger(LogCategories.settings).info(
+                "Persistent Touch Bar overlay updated",
+                metadata: ["enabled": newValue ? "1" : "0"])
+            self.noteBackgroundWorkSettingsChanged()
+        }
+    }
+
     var jetbrainsIDEBasePath: String {
         get { self.defaultsState.jetbrainsIDEBasePath }
         set {

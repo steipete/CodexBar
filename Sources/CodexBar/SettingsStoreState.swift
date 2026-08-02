@@ -60,6 +60,7 @@ struct SettingsDefaultsState {
     var openAIWebAccessEnabled: Bool
     var openAIWebBatterySaverEnabled: Bool
     var providerStorageFootprintsEnabled: Bool
+    var persistentTouchBarEnabled: Bool
     var jetbrainsIDEBasePath: String
     var mergeIcons: Bool
     var switcherShowsIcons: Bool

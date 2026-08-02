@@ -508,6 +508,11 @@ extension SettingsStore {
         if Self.isRunningTests, providerStorageFootprintsDefault == nil {
             userDefaults.set(false, forKey: "providerStorageFootprintsEnabled")
         }
+        let persistentTouchBarDefault = userDefaults.object(forKey: "persistentTouchBarEnabled") as? Bool
+        let persistentTouchBarEnabled = persistentTouchBarDefault ?? false
+        if Self.isRunningTests, persistentTouchBarDefault == nil {
+            userDefaults.set(false, forKey: "persistentTouchBarEnabled")
+        }
         let jetbrainsIDEBasePath = userDefaults.string(forKey: "jetbrainsIDEBasePath") ?? ""
         let mergeIcons = userDefaults.object(forKey: "mergeIcons") as? Bool ?? true
         let switcherShowsIcons = userDefaults.object(forKey: "switcherShowsIcons") as? Bool ?? true
@@ -584,6 +589,7 @@ extension SettingsStore {
             openAIWebAccessEnabled: openAIWebAccessEnabled,
             openAIWebBatterySaverEnabled: openAIWebBatterySaverEnabled,
             providerStorageFootprintsEnabled: providerStorageFootprintsEnabled,
+            persistentTouchBarEnabled: persistentTouchBarEnabled,
             jetbrainsIDEBasePath: jetbrainsIDEBasePath,
             mergeIcons: mergeIcons,
             switcherShowsIcons: switcherShowsIcons,

@@ -50,6 +50,14 @@ struct AdvancedPane: View {
             }
 
             Section {
+                Toggle(isOn: self.$settings.persistentTouchBarEnabled) {
+                    SettingsRowLabel(L("persistent_touch_bar_title"), subtitle: L("persistent_touch_bar_subtitle"))
+                }
+            } header: {
+                Text(L("section_touch_bar"))
+            }
+
+            Section {
                 Toggle(isOn: self.$settings.providerStorageFootprintsEnabled) {
                     SettingsRowLabel(
                         L("show_provider_storage_usage_title"),
