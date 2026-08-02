@@ -1115,6 +1115,60 @@ extension ClaudeActiveAccountIdentityInvalidationTests {
         }
     }
 
+    @Test(arguments: [
+        ClaudeOAuthCredentialOwner.environment,
+        .codexbar,
+    ])
+    func `independent OAuth authority ignores a local account switch during fetch`(
+        owner: ClaudeOAuthCredentialOwner) async throws
+    {
+        try await self.withMissingCredentialsFile { _ in
+            let independentOAuthSnapshot = Self.freshSnapshot()
+            let fixture = try await MainActor.run {
+                try self.makeFixture(
+                    source: .oauth,
+                    outcome: Self.successOutcome(
+                        independentOAuthSnapshot,
+                        sourceLabel: "OAuth",
+                        strategyKind: .oauth,
+                        oauthCredentialOwner: owner))
+            }
+            await self.persistIdentity("account-a", in: fixture)
+            let identities = ClaudeIdentitySequence(["account-a", "account-b"])
+            let outcomes = ClaudeReplacementFetchSequence(
+                first: Self.successOutcome(
+                    independentOAuthSnapshot,
+                    sourceLabel: "OAuth",
+                    strategyKind: .oauth,
+                    oauthCredentialOwner: owner),
+                replacement: Self.transientFailureOutcome())
+            await outcomes.releaseReplacement()
+            await MainActor.run {
+                fixture.store._test_providerFetchOutcomeOverride = { _ in await outcomes.next() }
+            }
+
+            await UsageStore.withActiveClaudeAccountUuidResolverForTesting(
+                { identities.next() },
+                {
+                    await fixture.store.refreshProvider(.claude)
+                })
+
+            let result = await MainActor.run {
+                (
+                    snapshot: fixture.store.snapshot(for: .claude),
+                    tokenSnapshot: fixture.store.tokenSnapshot(for: .claude),
+                    error: fixture.store.error(for: .claude),
+                    persistedIdentity: fixture.settings.userDefaults.string(
+                        forKey: UsageStore._claudeActiveAccountIdentityDefaultsKeyForTesting()))
+            }
+            #expect(result.snapshot?.updatedAt == independentOAuthSnapshot.updatedAt)
+            #expect(result.tokenSnapshot != nil)
+            #expect(result.error == nil)
+            #expect(await !outcomes.replacementStarted())
+            #expect(result.persistedIdentity == UsageStore._activeClaudeAccountIdentityForTesting("account-b"))
+        }
+    }
+
     @Test
     func `pre fetch account switch rejects stale OAuth and publishes owner CLI replacement`() async throws {
         try await self.withMissingCredentialsFile { credentialsURL in
