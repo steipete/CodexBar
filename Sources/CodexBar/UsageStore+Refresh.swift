@@ -567,7 +567,7 @@ extension UsageStore {
                 changedDuringFetch: authChangedDuringFetch) || activeAccountReconciliation.changed)
         let successfulOAuth = Self.isSuccessfulClaudeOAuthOutcome(input.outcome)
         let successfulOAuthCredentialOwner = Self.successfulClaudeOAuthCredentialOwner(input.outcome)
-        let activeAccountMismatch = successfulOAuth && (
+        let activeAccountMismatch = successfulOAuth && successfulOAuthCredentialOwner == .claudeCLI && (
             activeAccountChangedDuringFetch || activeAccountReconciliation.changedFromPersistedIdentity)
         let quarantinedCredentialsFile = if successfulOAuthCredentialOwner == .claudeCLI {
             await Self.isClaudeCredentialsFileQuarantinedForOAuth(environment: input.environment)
