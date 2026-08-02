@@ -124,6 +124,7 @@ final class PersistentUsageTouchBarController: NSObject, NSTouchBarDelegate {
     private func hideFromPhysicalTouchBar() {
         self.revertWorkItem?.cancel()
         self.isShowingOnPhysicalTouchBar = false
+        SystemModalTouchBarRuntime.setCloseBoxVisibleWhenFrontmost(true)
         guard let touchBar else { return }
         SystemModalTouchBarRuntime.dismissSystemModal(touchBar)
         self.touchBar = nil
