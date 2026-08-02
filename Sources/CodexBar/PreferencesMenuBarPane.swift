@@ -76,7 +76,8 @@ struct MenuBarPane: View {
 
                 Stepper(
                     value: self.$settings.mergedOverviewProviderLimit,
-                    in: 1 ... 12) {
+                    in: 1...12)
+                {
                     SettingsRowLabel(
                         "Overview tab limit",
                         subtitle: "How many providers can show at once (default 6).")
