@@ -521,6 +521,7 @@ public struct CostUsageFetcher: Sendable {
                 if let override = options.scanOptions.grokSessionsRoot {
                     grokOptions.sessionsRoot = override
                 }
+                grokOptions.cacheRoot = options.scanOptions.cacheRoot
                 let bundle = try GrokTurnUsageScanner.loadScanBundle(
                     since: since,
                     until: now,

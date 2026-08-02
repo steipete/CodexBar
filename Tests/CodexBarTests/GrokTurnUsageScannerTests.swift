@@ -233,7 +233,12 @@ struct GrokTurnUsageScannerTests {
     func `skips oversized session logs over per-file budget`() throws {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("grok-oversized-\(UUID().uuidString)", isDirectory: true)
-        defer { try? FileManager.default.removeItem(at: root) }
+        let cacheRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent("grok-oversized-cache-\(UUID().uuidString)", isDirectory: true)
+        defer {
+            try? FileManager.default.removeItem(at: root)
+            try? FileManager.default.removeItem(at: cacheRoot)
+        }
 
         let sessionDir = root
             .appendingPathComponent("cwd", isDirectory: true)
@@ -257,6 +262,7 @@ struct GrokTurnUsageScannerTests {
         let budget = GrokTurnUsageScanner.ScanBudget(maxFileBytes: 100, maxBytesPerRefresh: 10_000)
         let options = GrokTurnUsageScanner.Options(
             sessionsRoot: root,
+            cacheRoot: cacheRoot,
             maxSessionFileBytes: 100,
             maxScanBytesPerRefresh: 10_000)
         let turns = try GrokTurnUsageScanner.scanTurns(
@@ -275,7 +281,12 @@ struct GrokTurnUsageScannerTests {
     func `refresh budget prefers newest session and defers older files`() throws {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("grok-budget-\(UUID().uuidString)", isDirectory: true)
-        defer { try? FileManager.default.removeItem(at: root) }
+        let cacheRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent("grok-budget-cache-\(UUID().uuidString)", isDirectory: true)
+        defer {
+            try? FileManager.default.removeItem(at: root)
+            try? FileManager.default.removeItem(at: cacheRoot)
+        }
 
         let now = Date()
         let ts = Int(now.timeIntervalSince1970)
@@ -324,6 +335,7 @@ struct GrokTurnUsageScannerTests {
             maxBytesPerRefresh: sampleSize)
         let options = GrokTurnUsageScanner.Options(
             sessionsRoot: root,
+            cacheRoot: cacheRoot,
             maxSessionFileBytes: sampleSize * 4,
             maxScanBytesPerRefresh: sampleSize,
             preferNewestSessionsFirst: true)
@@ -342,10 +354,101 @@ struct GrokTurnUsageScannerTests {
     }
 
     @Test
+    func `later refresh catches up budget-deferred files via cache`() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("grok-cache-catchup-\(UUID().uuidString)", isDirectory: true)
+        let cacheRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent("grok-cache-root-\(UUID().uuidString)", isDirectory: true)
+        defer {
+            try? FileManager.default.removeItem(at: root)
+            try? FileManager.default.removeItem(at: cacheRoot)
+        }
+
+        let now = Date()
+        let ts = Int(now.timeIntervalSince1970)
+
+        func writeSession(id: String, eventID: String, tokens: Int, modifiedAt: Date) throws -> Int64 {
+            let sessionDir = root
+                .appendingPathComponent("cwd", isDirectory: true)
+                .appendingPathComponent(id, isDirectory: true)
+            try FileManager.default.createDirectory(at: sessionDir, withIntermediateDirectories: true)
+            let line = """
+            {"timestamp":\(ts),"params":{"sessionId":"\(id)","update":{"sessionUpdate":\
+            "turn_completed","prompt_id":"p","usage":{"inputTokens":\(tokens),"cachedReadTokens":0,\
+            "outputTokens":1,"totalTokens":\(tokens + 1),"modelCalls":1,"costUsdTicks":100000000}},\
+            "_meta":{"eventId":"\(eventID)","agentTimestampMs":\(ts)000}}
+            """
+            let url = sessionDir.appendingPathComponent("updates.jsonl")
+            try Data((line + "\n").utf8).write(to: url)
+            try FileManager.default.setAttributes(
+                [.modificationDate: modifiedAt],
+                ofItemAtPath: url.path)
+            return Int64(
+                (try FileManager.default.attributesOfItem(atPath: url.path)[.size] as? NSNumber)?
+                    .int64Value ?? 0)
+        }
+
+        let newSize = try writeSession(
+            id: "new-session",
+            eventID: "e-new",
+            tokens: 50,
+            modifiedAt: now)
+        let oldSize = try writeSession(
+            id: "old-session",
+            eventID: "e-old",
+            tokens: 100,
+            modifiedAt: now.addingTimeInterval(-3_600))
+        #expect(newSize > 0)
+        #expect(oldSize > 0)
+
+        // Budget fits only one file per refresh.
+        let perRefresh = max(newSize, oldSize)
+        let options = GrokTurnUsageScanner.Options(
+            sessionsRoot: root,
+            cacheRoot: cacheRoot,
+            maxSessionFileBytes: perRefresh * 4,
+            maxScanBytesPerRefresh: perRefresh,
+            preferNewestSessionsFirst: true)
+
+        let budget1 = GrokTurnUsageScanner.ScanBudget(
+            maxFileBytes: perRefresh * 4,
+            maxBytesPerRefresh: perRefresh)
+        let first = try GrokTurnUsageScanner.scanTurns(
+            since: now.addingTimeInterval(-86_400),
+            until: now.addingTimeInterval(60),
+            options: options,
+            checkCancellation: nil,
+            budget: budget1)
+        #expect(first.map(\.eventID).sorted() == ["e-new"])
+        #expect(budget1.deferredByBudgetFileCount == 1)
+        #expect(budget1.freshlyScannedFileCount == 1)
+
+        // Second refresh: newest is a cache hit (free), so budget scans the deferred older file.
+        let budget2 = GrokTurnUsageScanner.ScanBudget(
+            maxFileBytes: perRefresh * 4,
+            maxBytesPerRefresh: perRefresh)
+        let second = try GrokTurnUsageScanner.scanTurns(
+            since: now.addingTimeInterval(-86_400),
+            until: now.addingTimeInterval(60),
+            options: options,
+            checkCancellation: nil,
+            budget: budget2)
+        #expect(Set(second.map(\.eventID)) == Set(["e-new", "e-old"]))
+        #expect(budget2.cacheHitFileCount == 1)
+        #expect(budget2.freshlyScannedFileCount == 1)
+        #expect(budget2.deferredByBudgetFileCount == 0)
+    }
+
+    @Test
     func `skips stale session files outside the since window`() throws {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("grok-stale-\(UUID().uuidString)", isDirectory: true)
-        defer { try? FileManager.default.removeItem(at: root) }
+        let cacheRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent("grok-stale-cache-\(UUID().uuidString)", isDirectory: true)
+        defer {
+            try? FileManager.default.removeItem(at: root)
+            try? FileManager.default.removeItem(at: cacheRoot)
+        }
 
         let now = Date()
         let sessionDir = root
@@ -368,7 +471,7 @@ struct GrokTurnUsageScannerTests {
         let budget = GrokTurnUsageScanner.ScanBudget(
             maxFileBytes: 1024 * 1024,
             maxBytesPerRefresh: 1024 * 1024)
-        let options = GrokTurnUsageScanner.Options(sessionsRoot: root)
+        let options = GrokTurnUsageScanner.Options(sessionsRoot: root, cacheRoot: cacheRoot)
         let turns = try GrokTurnUsageScanner.scanTurns(
             since: now.addingTimeInterval(-86_400),
             until: now.addingTimeInterval(60),

@@ -9,6 +9,8 @@ public enum GrokTurnUsageScanner {
 
     public struct Options: Sendable {
         public var sessionsRoot: URL?
+        /// Where per-file parse results are persisted so deferred archives catch up later.
+        public var cacheRoot: URL?
         public var environment: [String: String]
         /// Not Sendable; kept only for local filesystem reads (same pattern as other scanners).
         public nonisolated(unsafe) var fileManager: FileManager
@@ -21,6 +23,7 @@ public enum GrokTurnUsageScanner {
 
         public init(
             sessionsRoot: URL? = nil,
+            cacheRoot: URL? = nil,
             environment: [String: String] = ProcessInfo.processInfo.environment,
             fileManager: FileManager = .default,
             maxSessionFileBytes: Int64 = 256 * 1024 * 1024,
@@ -28,6 +31,7 @@ public enum GrokTurnUsageScanner {
             preferNewestSessionsFirst: Bool = true)
         {
             self.sessionsRoot = sessionsRoot
+            self.cacheRoot = cacheRoot
             self.environment = environment
             self.fileManager = fileManager
             self.maxSessionFileBytes = max(0, maxSessionFileBytes)
@@ -44,10 +48,20 @@ public enum GrokTurnUsageScanner {
         private(set) var skippedOversizedFileCount = 0
         private(set) var deferredByBudgetFileCount = 0
         private(set) var skippedStaleFileCount = 0
+        private(set) var cacheHitFileCount = 0
+        private(set) var freshlyScannedFileCount = 0
 
         init(maxFileBytes: Int64, maxBytesPerRefresh: Int64) {
             self.maxFileBytes = max(0, maxFileBytes)
             self.maxBytesPerRefresh = max(0, maxBytesPerRefresh)
+        }
+
+        func markCacheHit() {
+            self.cacheHitFileCount += 1
+        }
+
+        func markFreshScan() {
+            self.freshlyScannedFileCount += 1
         }
 
         enum Admission {
@@ -93,6 +107,26 @@ public enum GrokTurnUsageScanner {
         let totalTokens: Int
         let modelCalls: Int
         let costUSD: Double?
+
+        init(
+            modelName: String,
+            inputTokens: Int,
+            cacheReadTokens: Int,
+            outputTokens: Int,
+            reasoningTokens: Int,
+            totalTokens: Int,
+            modelCalls: Int,
+            costUSD: Double?)
+        {
+            self.modelName = modelName
+            self.inputTokens = inputTokens
+            self.cacheReadTokens = cacheReadTokens
+            self.outputTokens = outputTokens
+            self.reasoningTokens = reasoningTokens
+            self.totalTokens = totalTokens
+            self.modelCalls = modelCalls
+            self.costUSD = costUSD
+        }
     }
 
     struct TurnRecord: Sendable, Equatable {
@@ -111,6 +145,36 @@ public enum GrokTurnUsageScanner {
         let costUSD: Double?
         /// Nested per-model totals from `modelUsage` (empty when the payload only has turn totals).
         let modelUsages: [ModelUsage]
+
+        init(
+            eventID: String,
+            sessionID: String,
+            dayKey: String,
+            timestamp: Date,
+            cwd: String?,
+            inputTokens: Int,
+            cacheReadTokens: Int,
+            outputTokens: Int,
+            reasoningTokens: Int,
+            totalTokens: Int,
+            modelCalls: Int,
+            costUSD: Double?,
+            modelUsages: [ModelUsage])
+        {
+            self.eventID = eventID
+            self.sessionID = sessionID
+            self.dayKey = dayKey
+            self.timestamp = timestamp
+            self.cwd = cwd
+            self.inputTokens = inputTokens
+            self.cacheReadTokens = cacheReadTokens
+            self.outputTokens = outputTokens
+            self.reasoningTokens = reasoningTokens
+            self.totalTokens = totalTokens
+            self.modelCalls = modelCalls
+            self.costUSD = costUSD
+            self.modelUsages = modelUsages
+        }
 
         var models: [String] {
             self.modelUsages.map(\.modelName)
@@ -243,19 +307,62 @@ public enum GrokTurnUsageScanner {
         let staleCutoff = since
         var byEventID: [String: TurnRecord] = [:]
         var cwdBySession: [String: String] = [:]
+        var cache = GrokTurnUsageCacheIO.load(cacheRoot: options.cacheRoot)
+        var nextCache = GrokTurnUsageCache(version: cache.version)
+        var cacheDirty = false
 
         for file in candidates {
             try checkCancellation?()
             if file.modifiedAt < staleCutoff {
                 activeBudget.markSkippedStale()
+                // Drop stale entries so the cache does not grow without bound.
+                if cache.files[file.url.path] != nil {
+                    cacheDirty = true
+                }
+                continue
+            }
+
+            let mtimeMs = Int64((file.modifiedAt.timeIntervalSince1970 * 1000).rounded())
+            if let cached = cache.files[file.url.path],
+               cached.size == file.size,
+               cached.mtimeUnixMs == mtimeMs
+            {
+                // Unchanged file: reuse parse results without spending refresh budget.
+                activeBudget.markCacheHit()
+                nextCache.files[file.url.path] = cached
+                for turn in cached.turns {
+                    let record = turn.asTurnRecord()
+                    if byEventID[record.eventID] == nil {
+                        byEventID[record.eventID] = record
+                    }
+                }
                 continue
             }
 
             switch activeBudget.admit(fileBytes: file.size) {
             case .skipOversized:
+                // Keep any prior good parse for this path if present (best-effort).
+                if let prior = cache.files[file.url.path] {
+                    nextCache.files[file.url.path] = prior
+                    for turn in prior.turns {
+                        let record = turn.asTurnRecord()
+                        if byEventID[record.eventID] == nil {
+                            byEventID[record.eventID] = record
+                        }
+                    }
+                }
                 continue
             case .deferBudget:
-                // Newest-first: once the soft budget is exhausted, defer the rest.
+                // Persist prior results for deferred files so history is not permanently lost.
+                if let prior = cache.files[file.url.path] {
+                    nextCache.files[file.url.path] = prior
+                    for turn in prior.turns {
+                        let record = turn.asTurnRecord()
+                        if byEventID[record.eventID] == nil {
+                            byEventID[record.eventID] = record
+                        }
+                    }
+                }
                 continue
             case let .allow(allowedBytes):
                 if cwdBySession[file.sessionID] == nil {
@@ -264,6 +371,7 @@ public enum GrokTurnUsageScanner {
                         fileManager: fileManager)
                 }
                 let cwd = cwdBySession[file.sessionID]
+                var scanned: [TurnRecord] = []
                 let readBytes = try self.scanSessionLogFile(
                     url: file.url,
                     sessionID: file.sessionID,
@@ -272,12 +380,26 @@ public enum GrokTurnUsageScanner {
                     until: until,
                     checkCancellation: checkCancellation)
                 { record in
+                    scanned.append(record)
                     if byEventID[record.eventID] == nil {
                         byEventID[record.eventID] = record
                     }
                 }
                 activeBudget.consume(workBytes: readBytes)
+                activeBudget.markFreshScan()
+                nextCache.files[file.url.path] = GrokTurnUsageCachedFile(
+                    mtimeUnixMs: mtimeMs,
+                    size: file.size,
+                    sessionID: file.sessionID,
+                    cwd: cwd,
+                    turns: scanned.map(GrokTurnUsageCachedTurn.init(from:)))
+                cacheDirty = true
             }
+        }
+
+        // Persist parse results / drop deleted paths so later refreshes can catch up.
+        if nextCache != cache || cacheDirty {
+            GrokTurnUsageCacheIO.save(cache: nextCache, cacheRoot: options.cacheRoot)
         }
 
         return byEventID.values.sorted { lhs, rhs in
