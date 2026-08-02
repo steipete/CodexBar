@@ -50,46 +50,8 @@ extension StatusItemController {
             return item
         }
 
-        if usesGPUSelection {
-            // Selection is painted by AppKit/GPU, so the SwiftUI content is pinned to its normal
-            // appearance via a `highlightState` that is never flipped; these rows skip hosting-view
-            // recycling because the recycler is typed to `MenuCardItemHostingView`.
-            let interactiveRegionStore = MenuCardInteractiveRegionStore()
-            let wrapped = MenuCardSectionContainerView(
-                highlightState: MenuCardHighlightState(),
-                showsSubmenuIndicator: submenu != nil,
-                submenuIndicatorAlignment: submenuIndicatorAlignment,
-                submenuIndicatorTopPadding: submenuIndicatorTopPadding,
-                refreshMonitor: self.menuCardRefreshMonitor,
-                interactiveRegionStore: interactiveRegionStore)
-            {
-                view
-            }
-            let gpuHosting = GPUSelectionHostingView(
-                rootView: wrapped,
-                allowsMenuHighlight: allowsMenuHighlight,
-                containsInteractiveControls: containsInteractiveControls,
-                interactiveRegionStore: interactiveRegionStore,
-                onClick: onClick)
-            let gpuHeight = self.cachedMenuCardHeight(
-                for: id,
-                scope: heightCacheScope ?? id,
-                width: width,
-                fingerprint: heightCacheFingerprint)
-            {
-                self.menuCardHeight(for: gpuHosting, width: width)
-            }
-            gpuHosting.frame = NSRect(origin: .zero, size: NSSize(width: width, height: gpuHeight))
-            return self.makeMenuCardNSMenuItem(
-                hosting: gpuHosting,
-                id: id,
-                submenu: submenu,
-                isEnabled: allowsMenuHighlight || containsInteractiveControls)
-        }
-
-        // Content is erased so every standard row shares one hosting type; tab
-        // switches can then replant payloads across hosting views instead of
-        // detaching `item.view` (which flashes placeholder rows mid-tracking).
+        // Content is erased so every row shares one outer AppKit class. Tab switches can replant
+        // standard and GPU-selection payloads in place instead of detaching `item.view`.
         let payload = MenuCardRowPayload(
             content: AnyView(view),
             showsSubmenuIndicator: submenu != nil,
@@ -97,6 +59,7 @@ extension StatusItemController {
             submenuIndicatorTopPadding: submenuIndicatorTopPadding,
             allowsMenuHighlight: allowsMenuHighlight,
             containsInteractiveControls: containsInteractiveControls,
+            usesGPUSelection: usesGPUSelection,
             onClick: onClick)
         let hosting: ErasedMenuCardHostingView
         if let recycled = self.takeRecyclableMenuCardView(
@@ -106,26 +69,9 @@ extension StatusItemController {
             self.replantMenuCardRowPayload(payload, into: recycled)
             hosting = recycled
         } else {
-            let highlightState = MenuCardHighlightState()
-            let interactiveRegionStore = MenuCardInteractiveRegionStore()
-            let wrapped = MenuCardSectionContainerView(
-                highlightState: highlightState,
-                showsSubmenuIndicator: submenu != nil,
-                submenuIndicatorAlignment: submenuIndicatorAlignment,
-                submenuIndicatorTopPadding: submenuIndicatorTopPadding,
-                refreshMonitor: self.menuCardRefreshMonitor,
-                interactiveRegionStore: interactiveRegionStore)
-            {
-                payload.content
-            }
-            hosting = MenuCardItemHostingView(
-                rootView: wrapped,
-                highlightState: highlightState,
-                allowsMenuHighlight: allowsMenuHighlight,
-                containsInteractiveControls: containsInteractiveControls,
-                interactiveRegionStore: interactiveRegionStore,
-                onClick: onClick)
-            hosting.rowPayload = payload
+            hosting = MenuRowContainerView(
+                payload: payload,
+                refreshMonitor: self.menuCardRefreshMonitor)
         }
         let height = self.cachedMenuCardHeight(
             for: id,

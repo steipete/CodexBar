@@ -633,21 +633,32 @@ extension StatusMenuTests {
 
     @Test
     func `recycled card clears button role when click action is removed`() {
-        let highlightState = MenuCardHighlightState()
-        let hosting = MenuCardItemHostingView(
-            rootView: Text("clickable"),
-            highlightState: highlightState,
+        let clickable = MenuCardRowPayload(
+            content: AnyView(Text("clickable")),
+            showsSubmenuIndicator: false,
+            submenuIndicatorAlignment: .trailing,
+            submenuIndicatorTopPadding: 0,
             allowsMenuHighlight: true,
+            containsInteractiveControls: false,
+            usesGPUSelection: false,
             onClick: {})
+        let hosting = MenuRowContainerView(payload: clickable, refreshMonitor: nil)
 
         #expect(hosting.accessibilityRole() == .button)
 
-        hosting.prepareForReuse(
-            rootView: Text("informational"),
-            allowsMenuHighlight: false,
-            onClick: nil)
+        hosting.replant(
+            MenuCardRowPayload(
+                content: AnyView(Text("informational")),
+                showsSubmenuIndicator: false,
+                submenuIndicatorAlignment: .trailing,
+                submenuIndicatorTopPadding: 0,
+                allowsMenuHighlight: false,
+                containsInteractiveControls: false,
+                usesGPUSelection: false,
+                onClick: nil),
+            refreshMonitor: nil)
 
-        #expect(hosting.accessibilityRole() == .group)
+        #expect(hosting.accessibilityRole() != .button)
     }
 
     @Test
@@ -717,6 +728,42 @@ extension StatusMenuTests {
     }
 
     @Test
+    func `gpu and standard rows share the recycling pool`() {
+        StatusItemController.setMenuRefreshEnabledForTesting(false)
+        let previousRendering = StatusItemController.menuCardRenderingEnabled
+        StatusItemController.menuCardRenderingEnabled = true
+        defer { StatusItemController.menuCardRenderingEnabled = previousRendering }
+
+        let settings = self.makeSettings()
+        settings.statusChecksEnabled = false
+        let controller = self.makeRecyclingController(settings: settings)
+        defer { controller.releaseStatusItemsForTesting() }
+
+        let menu = NSMenu()
+        let overview = controller.makeMenuCardItem(
+            Text("Overview"),
+            id: "overview",
+            width: 300,
+            submenu: NSMenu(),
+            usesGPUSelection: true,
+            onClick: {})
+        menu.addItem(overview)
+        guard let overviewContainer = overview.view as? MenuRowContainerView else {
+            Issue.record("expected a shared menu row container")
+            return
+        }
+
+        controller.harvestRecyclableMenuCardViews(in: menu, fromIndex: 0, displacedSelection: nil)
+        defer { controller.clearMenuCardViewRecyclePool() }
+        let provider = controller.makeMenuCardItem(Text("Provider"), id: "provider", width: 300)
+
+        #expect(provider.view === overviewContainer)
+        #expect(!overviewContainer.usesGPUSelectionForTesting)
+        #expect(!overviewContainer.hasGPUSelectionLayerForTesting)
+        #expect(controller.menuCardViewRecyclePool.isEmpty)
+    }
+
+    @Test
     func `gpu selection highlight bypasses swiftui highlight state`() {
         StatusItemController.setMenuRefreshEnabledForTesting(false)
         let previousRendering = StatusItemController.menuCardRenderingEnabled
@@ -738,9 +785,9 @@ extension StatusMenuTests {
             onClick: {})
         menu.addItem(item)
 
-        guard let gpuView = item.view as? GPUSelectionHostingView<Text>
+        guard let gpuView = item.view as? MenuRowContainerView
         else {
-            Issue.record("expected a GPU selection hosting view")
+            Issue.record("expected a shared menu row container")
             return
         }
 
@@ -753,5 +800,54 @@ extension StatusMenuTests {
         controller.menu(menu, willHighlight: nil)
         #expect(!gpuView.isHighlightedForTesting)
         #expect(!gpuView.swiftUIHighlightStateIsHighlightedForTesting)
+    }
+
+    @Test
+    func `overview and provider rows swap payloads without detaching their containers`() {
+        StatusItemController.setMenuRefreshEnabledForTesting(false)
+        let previousRendering = StatusItemController.menuCardRenderingEnabled
+        StatusItemController.menuCardRenderingEnabled = true
+        defer { StatusItemController.menuCardRenderingEnabled = previousRendering }
+
+        let settings = self.makeSettings()
+        settings.statusChecksEnabled = false
+        let controller = self.makeRecyclingController(settings: settings)
+        defer { controller.releaseStatusItemsForTesting() }
+
+        let overviewItem = controller.makeMenuCardItem(
+            Text("Overview"),
+            id: "overview",
+            width: 300,
+            submenu: NSMenu(),
+            usesGPUSelection: true,
+            onClick: {})
+        let providerItem = controller.makeMenuCardItem(
+            Text("Provider"),
+            id: "provider",
+            width: 300,
+            onClick: {})
+        let menu = NSMenu()
+        menu.addItem(overviewItem)
+        guard let attachedContainer = overviewItem.view as? MenuRowContainerView,
+              let cachedContainer = providerItem.view as? MenuRowContainerView
+        else {
+            Issue.record("expected shared menu row containers")
+            return
+        }
+
+        let displaced = controller.replaceMenuContentKeepingRowsVisible(
+            menu,
+            fromIndex: 0,
+            with: [providerItem])
+
+        #expect(menu.items[0] === overviewItem)
+        #expect(menu.items[0].view === attachedContainer)
+        #expect(!attachedContainer.usesGPUSelectionForTesting)
+        #expect(!attachedContainer.hasGPUSelectionLayerForTesting)
+        #expect(displaced.count == 1)
+        #expect(displaced[0] === providerItem)
+        #expect(displaced[0].view === cachedContainer)
+        #expect(cachedContainer.usesGPUSelectionForTesting)
+        #expect(cachedContainer.hasGPUSelectionLayerForTesting)
     }
 }

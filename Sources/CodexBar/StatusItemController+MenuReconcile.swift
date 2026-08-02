@@ -234,15 +234,15 @@ extension StatusItemController {
     }
 
     private func swapMenuItemContents(_ liveItem: NSMenuItem, _ cachedItem: NSMenuItem) {
-        // Flash-free path: when both rows are erased hosting views, exchange
-        // their SwiftUI payloads and keep both `item.view`s in place. Detaching
+        // Flash-free path: when both rows use the shared container, exchange
+        // their payloads and keep both `item.view`s in place. Detaching
         // the live view makes Tahoe's NSMenu paint the row's fallback title
         // ("NSMenuItem") for a few frames — the tab-switch content flash.
         if let liveHosting = liveItem.view as? ErasedMenuCardHostingView,
-           let cachedHosting = cachedItem.view as? ErasedMenuCardHostingView,
-           let livePayload = liveHosting.rowPayload,
-           let cachedPayload = cachedHosting.rowPayload
+           let cachedHosting = cachedItem.view as? ErasedMenuCardHostingView
         {
+            let livePayload = liveHosting.rowPayload
+            let cachedPayload = cachedHosting.rowPayload
             self.replantMenuCardRowPayload(cachedPayload, into: liveHosting)
             self.replantMenuCardRowPayload(livePayload, into: cachedHosting)
             let liveFrame = liveHosting.frame
@@ -263,22 +263,7 @@ extension StatusItemController {
         _ payload: MenuCardRowPayload,
         into hosting: ErasedMenuCardHostingView)
     {
-        let wrapped = MenuCardSectionContainerView(
-            highlightState: hosting.highlightState,
-            showsSubmenuIndicator: payload.showsSubmenuIndicator,
-            submenuIndicatorAlignment: payload.submenuIndicatorAlignment,
-            submenuIndicatorTopPadding: payload.submenuIndicatorTopPadding,
-            refreshMonitor: self.menuCardRefreshMonitor,
-            interactiveRegionStore: hosting.interactiveRegionStore)
-        {
-            payload.content
-        }
-        hosting.prepareForReuse(
-            rootView: wrapped,
-            allowsMenuHighlight: payload.allowsMenuHighlight,
-            containsInteractiveControls: payload.containsInteractiveControls,
-            onClick: payload.onClick)
-        hosting.rowPayload = payload
+        hosting.replant(payload, refreshMonitor: self.menuCardRefreshMonitor)
     }
 
     /// The metadata half of a content swap: everything `updateMenuItemInPlace`
