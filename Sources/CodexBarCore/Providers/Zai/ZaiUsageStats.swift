@@ -84,7 +84,9 @@ extension ZaiLimitEntry {
         if let computed = self.computedUsedPercent {
             return computed
         }
-        return self.percentage
+        // The raw API percentage can fall outside 0...100 (z.ai omits/misreports quota fields);
+        // clamp it like computedUsedPercent and every sibling provider instead of surfacing it raw.
+        return min(100, max(0, self.percentage))
     }
 
     public var windowMinutes: Int? {
@@ -222,9 +224,18 @@ extension ZaiUsageSnapshot {
     }
 
     private static func rateWindow(for limit: ZaiLimitEntry) -> RateWindow {
-        RateWindow(
+        let windowMinutes: Int? = if limit.isMCPMonthlyMarker {
+            ProviderPaceCapability.monthlyWindowSentinelMinutes
+        } else if limit.type == .timeLimit, let minutes = limit.windowMinutes {
+            minutes
+        } else if limit.type == .timeLimit {
+            ProviderPaceCapability.monthlyWindowSentinelMinutes
+        } else {
+            limit.windowMinutes
+        }
+        return RateWindow(
             usedPercent: limit.usedPercent,
-            windowMinutes: limit.type == .tokensLimit ? limit.windowMinutes : nil,
+            windowMinutes: windowMinutes,
             resetsAt: limit.nextResetTime,
             resetDescription: self.resetDescription(for: limit))
     }

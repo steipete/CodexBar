@@ -22,34 +22,118 @@ extension ClaudeOAuthCredentialsStore {
     @TaskLocal static var taskMemoryCacheStoreOverride: MemoryCacheStore?
     @TaskLocal static var taskClaudeKeychainFingerprintStoreOverride: ClaudeKeychainFingerprintStore?
     @TaskLocal static var taskPendingCacheClearStoreOverride: ClaudeOAuthPendingCacheClearStore?
+    @TaskLocal static var taskImplicitPendingCacheClearStoreOverride: ClaudeOAuthPendingCacheClearStore?
+    @TaskLocal static var taskUseEnvironmentCredentialsURLForTesting = false
 
     typealias OAuthCacheOperation = KeychainCacheStore.Operation
     typealias OAuthCacheOperationRecorder = KeychainCacheStore.OperationRecorder
 
     final class PendingCacheClearMemoryStore: ClaudeOAuthPendingCacheClearStore, @unchecked Sendable {
         private let lock = NSLock()
-        private var pending: Bool
+        private var unscopedPending: Bool
+        private var pendingProfileIdentifiers: Set<String> = []
+        private var legacyCleanupProfileIdentifiers: Set<String> = []
+        private var legacyRecheckProfileIdentifiers: Set<String> = []
 
         init(isPending: Bool = false) {
-            self.pending = isPending
+            self.unscopedPending = isPending
         }
 
         var isPending: Bool {
             self.lock.lock()
             defer { self.lock.unlock() }
-            return self.pending
+            return self.unscopedPending ||
+                !self.pendingProfileIdentifiers.isEmpty ||
+                !self.legacyCleanupProfileIdentifiers.isEmpty ||
+                !self.legacyRecheckProfileIdentifiers.isEmpty
         }
 
         func markPending() {
             self.lock.lock()
-            self.pending = true
+            self.unscopedPending = true
             self.lock.unlock()
         }
 
         func withCacheTransaction(_ operation: (inout Bool) -> Void) {
             self.lock.lock()
             defer { self.lock.unlock() }
-            operation(&self.pending)
+            operation(&self.unscopedPending)
+        }
+
+        func isPending(profileIdentifier: String) -> Bool {
+            self.lock.lock()
+            defer { self.lock.unlock() }
+            return self.unscopedPending ||
+                self.pendingProfileIdentifiers.contains(profileIdentifier) ||
+                self.legacyCleanupProfileIdentifiers.contains(profileIdentifier) ||
+                self.legacyRecheckProfileIdentifiers.contains(profileIdentifier)
+        }
+
+        func markPending(profileIdentifier: String) {
+            self.lock.lock()
+            self.pendingProfileIdentifiers.insert(profileIdentifier)
+            self.lock.unlock()
+        }
+
+        func withCacheTransaction(profileIdentifier: String, _ operation: (inout Bool) -> Void) {
+            self.withCacheTransaction(
+                profileIdentifier: profileIdentifier,
+                includingLegacyCleanup: { profilePending, legacyCleanupPending in
+                    var pending = profilePending || legacyCleanupPending
+                    operation(&pending)
+                    if pending {
+                        if !profilePending, !legacyCleanupPending {
+                            profilePending = true
+                        }
+                    } else {
+                        profilePending = false
+                        legacyCleanupPending = false
+                    }
+                })
+        }
+
+        func withCacheTransaction(
+            profileIdentifier: String,
+            includingLegacyCleanup operation: (inout Bool, inout Bool) -> Void)
+        {
+            self.withCacheTransaction(
+                profileIdentifier: profileIdentifier,
+                includingLegacyState: { profilePending, legacyCleanupPending, legacyRecheckPending in
+                    operation(&profilePending, &legacyCleanupPending)
+                    if legacyCleanupPending {
+                        legacyRecheckPending = false
+                    }
+                })
+        }
+
+        func withCacheTransaction(
+            profileIdentifier: String,
+            includingLegacyState operation: (inout Bool, inout Bool, inout Bool) -> Void)
+        {
+            self.lock.lock()
+            defer { self.lock.unlock() }
+            var profilePending = self.unscopedPending ||
+                self.pendingProfileIdentifiers.contains(profileIdentifier)
+            var legacyCleanupPending = self.unscopedPending ||
+                self.legacyCleanupProfileIdentifiers.contains(profileIdentifier)
+            var legacyRecheckPending = self.legacyRecheckProfileIdentifiers.contains(profileIdentifier)
+            operation(&profilePending, &legacyCleanupPending, &legacyRecheckPending)
+            self.unscopedPending = false
+            if profilePending {
+                self.pendingProfileIdentifiers.insert(profileIdentifier)
+            } else {
+                self.pendingProfileIdentifiers.remove(profileIdentifier)
+            }
+            if legacyCleanupPending {
+                self.legacyCleanupProfileIdentifiers.insert(profileIdentifier)
+            } else {
+                self.legacyCleanupProfileIdentifiers.remove(profileIdentifier)
+            }
+            if legacyRecheckPending {
+                self.legacyRecheckProfileIdentifiers.insert(profileIdentifier)
+            } else {
+                self.legacyRecheckProfileIdentifiers.remove(profileIdentifier)
+            }
         }
     }
 
@@ -64,6 +148,7 @@ extension ClaudeOAuthCredentialsStore {
     final class MemoryCacheStore: @unchecked Sendable {
         var record: ClaudeOAuthCredentialRecord?
         var timestamp: Date?
+        var profileIdentifier: String?
     }
 
     static func withClaudeKeychainOverridesForTesting<T>(
@@ -113,7 +198,9 @@ extension ClaudeOAuthCredentialsStore {
         let preAlertStore = ClaudeOAuthKeychainPreAlertGate.StateStore()
         return try ClaudeOAuthKeychainPreAlertGate.withStateStoreOverrideForTesting(preAlertStore) {
             try self.$taskMemoryCacheStoreOverride.withValue(store) {
-                try operation()
+                try self.withAutoIsolatedPendingCacheClearStoreIfNeededForTesting {
+                    try operation()
+                }
             }
         }
     }
@@ -123,24 +210,79 @@ extension ClaudeOAuthCredentialsStore {
         let preAlertStore = ClaudeOAuthKeychainPreAlertGate.StateStore()
         return try await ClaudeOAuthKeychainPreAlertGate.withStateStoreOverrideForTesting(preAlertStore) {
             try await self.$taskMemoryCacheStoreOverride.withValue(store) {
-                try await operation()
+                try await self.withAutoIsolatedPendingCacheClearStoreIfNeededForTesting {
+                    try await operation()
+                }
             }
         }
     }
 
+    private static func withAutoIsolatedPendingCacheClearStoreIfNeededForTesting<T>(
+        operation: () throws -> T) rethrows -> T
+    {
+        if self.taskPendingCacheClearStoreOverride != nil {
+            return try operation()
+        }
+        let pendingStore = PendingCacheClearMemoryStore()
+        return try self.$taskPendingCacheClearStoreOverride.withValue(pendingStore) {
+            try operation()
+        }
+    }
+
+    private static func withAutoIsolatedPendingCacheClearStoreIfNeededForTesting<T>(
+        operation: () async throws -> T) async rethrows -> T
+    {
+        if self.taskPendingCacheClearStoreOverride != nil {
+            return try await operation()
+        }
+        let pendingStore = PendingCacheClearMemoryStore()
+        return try await self.$taskPendingCacheClearStoreOverride.withValue(pendingStore) {
+            try await operation()
+        }
+    }
+
     final class CredentialsFileFingerprintStore: @unchecked Sendable {
-        var fingerprint: CredentialsFileFingerprint?
+        private var fingerprints: [String: CredentialsFileFingerprint] = [:]
+        private var legacyFingerprint: CredentialsFileFingerprint?
 
         init(fingerprint: CredentialsFileFingerprint? = nil) {
-            self.fingerprint = fingerprint
+            self.legacyFingerprint = fingerprint
         }
 
-        func load() -> CredentialsFileFingerprint? {
-            self.fingerprint
+        func load(
+            profileIdentifier: String,
+            historicalProfileIdentifier: String) -> CredentialsFileFingerprint?
+        {
+            if let fingerprint = self.fingerprints[profileIdentifier] {
+                if profileIdentifier == historicalProfileIdentifier {
+                    self.legacyFingerprint = nil
+                }
+                return fingerprint
+            }
+            guard profileIdentifier == historicalProfileIdentifier,
+                  let fingerprint = self.legacyFingerprint
+            else {
+                return nil
+            }
+            self.fingerprints[profileIdentifier] = fingerprint
+            self.legacyFingerprint = nil
+            return fingerprint
         }
 
-        func save(_ fingerprint: CredentialsFileFingerprint?) {
-            self.fingerprint = fingerprint
+        func save(
+            _ fingerprint: CredentialsFileFingerprint?,
+            profileIdentifier: String,
+            historicalProfileIdentifier: String)
+        {
+            if profileIdentifier == historicalProfileIdentifier {
+                self.legacyFingerprint = nil
+            }
+            self.fingerprints[profileIdentifier] = fingerprint
+        }
+
+        func reset() {
+            self.fingerprints.removeAll()
+            self.legacyFingerprint = nil
         }
     }
 
@@ -214,7 +356,7 @@ extension ClaudeOAuthCredentialsStore {
         }
     }
 
-    fileprivate static func withCredentialsFileFingerprintStoreOverrideForTesting<T>(
+    static func withCredentialsFileFingerprintStoreOverrideForTesting<T>(
         _ store: CredentialsFileFingerprintStore?,
         operation: () throws -> T) rethrows -> T
     {
@@ -223,7 +365,7 @@ extension ClaudeOAuthCredentialsStore {
         }
     }
 
-    fileprivate static func withCredentialsFileFingerprintStoreOverrideForTesting<T>(
+    static func withCredentialsFileFingerprintStoreOverrideForTesting<T>(
         _ store: CredentialsFileFingerprintStore?,
         operation: () async throws -> T) async rethrows -> T
     {
@@ -238,6 +380,22 @@ extension ClaudeOAuthCredentialsStore {
         let store = CredentialsFileFingerprintStore()
         return try self.$taskCredentialsFileFingerprintStoreOverride.withValue(store) {
             try operation()
+        }
+    }
+
+    /// Test-only opt-in for fixtures that supply an explicit temporary Claude profile directory.
+    /// Default test execution still resolves the normal credentials path to an isolated nonexistent file.
+    static func withEnvironmentCredentialsURLForTesting<T>(operation: () throws -> T) rethrows -> T {
+        try self.$taskUseEnvironmentCredentialsURLForTesting.withValue(true) {
+            try operation()
+        }
+    }
+
+    static func withEnvironmentCredentialsURLForTesting<T>(
+        operation: () async throws -> T) async rethrows -> T
+    {
+        try await self.$taskUseEnvironmentCredentialsURLForTesting.withValue(true) {
+            try await operation()
         }
     }
 
@@ -256,6 +414,15 @@ extension ClaudeOAuthCredentialsStore {
     {
         try await self.$taskPendingCacheClearStoreOverride.withValue(store) {
             try await operation()
+        }
+    }
+
+    static func withImplicitPendingCacheClearStoreOverrideForTesting<T>(
+        _ store: ClaudeOAuthPendingCacheClearStore?,
+        operation: () throws -> T) rethrows -> T
+    {
+        try self.$taskImplicitPendingCacheClearStoreOverride.withValue(store) {
+            try operation()
         }
     }
 

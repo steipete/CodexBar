@@ -30,7 +30,7 @@ extension CostUsageScanner {
         CostUsageTimestampParser.parseISO(text)
     }
 
-    static func dayKeyFromTimestamp(_ text: String) -> String? {
+    static func dayKeyFromTimestamp(_ text: String, calendar: Calendar = .current) -> String? {
         let bytes = Array(text.utf8)
         guard bytes.count >= 20 else { return nil }
         guard bytes[safe: 4] == 45, bytes[safe: 7] == 45 else { return nil }
@@ -102,16 +102,17 @@ extension CostUsageScanner {
         comps.second = second
 
         guard let date = comps.date else { return nil }
-        let local = Calendar.current.dateComponents([.year, .month, .day], from: date)
+        let local = CostUsageDayRange.localGregorianCalendar(matching: calendar)
+            .dateComponents([.year, .month, .day], from: date)
         guard let localYear = local.year,
               let localMonth = local.month,
               let localDay = local.day else { return nil }
         return String(format: "%04d-%02d-%02d", localYear, localMonth, localDay)
     }
 
-    static func dayKeyFromParsedISO(_ text: String) -> String? {
+    static func dayKeyFromParsedISO(_ text: String, calendar: Calendar = .current) -> String? {
         guard let date = CostUsageTimestampParser.parseISO(text) else { return nil }
-        return CostUsageDayRange.dayKey(from: date)
+        return CostUsageDayRange.dayKey(from: date, calendar: calendar)
     }
 
     private static func parse2(_ bytes: [UInt8], at index: Int) -> Int? {

@@ -664,6 +664,14 @@ extension SettingsStore {
         }
     }
 
+    var claudeDailyRoutinesUsageVisible: Bool {
+        get { self.defaultsState.claudeDailyRoutinesUsageVisible }
+        set {
+            self.defaultsState.claudeDailyRoutinesUsageVisible = newValue
+            self.userDefaults.set(newValue, forKey: "claudeDailyRoutinesUsageVisible")
+        }
+    }
+
     var codexSparkUsageVisible: Bool {
         get { self.defaultsState.codexSparkUsageVisible }
         set {
@@ -985,6 +993,14 @@ extension SettingsStore {
         set {
             self.defaultsState.agentSessionsManualHosts = newValue
             self.userDefaults.set(newValue, forKey: "agentSessionsManualHosts")
+        }
+    }
+
+    var preferredCurrencyCode: String {
+        get { self.defaultsState.preferredCurrencyCode }
+        set {
+            self.defaultsState.preferredCurrencyCode = newValue
+            self.userDefaults.set(newValue, forKey: "preferredCurrencyCode")
         }
     }
 }

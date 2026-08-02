@@ -29,7 +29,11 @@ extension UsageMenuCardView.Model {
         if overagesEnabled,
            let estimatedOverageCostUSD = input.snapshot?.kiroUsage?.estimatedOverageCostUSD
         {
-            notes.append("\(L("Overage cost")): \(UsageFormatter.usdString(estimatedOverageCostUSD))")
+            let costStr = UsageFormatter.convertedCostString(
+                estimatedOverageCostUSD,
+                preferredCurrency: input.preferredCurrencyCode,
+                providerCurrency: "USD")
+            notes.append("\(L("Overage cost")): \(costStr)")
         }
         return notes
     }

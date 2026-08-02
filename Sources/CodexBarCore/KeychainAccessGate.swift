@@ -18,9 +18,15 @@ public enum KeychainAccessGate {
             self.stateLock.withLock { self.isDisabledLocked() }
         }
         set {
-            self.stateLock.withLock {
+            let shouldClearDisabledAccessMemory = self.stateLock.withLock { () -> Bool in
+                let wasExplicitlyDisabled = self.isExplicitlyDisabledLocked()
                 self.overrideValue = newValue
+                let nowExplicitlyDisabled = self.isExplicitlyDisabledLocked()
                 self.updateBrowserCookieMirrorLocked()
+                return wasExplicitlyDisabled != nowExplicitlyDisabled
+            }
+            if shouldClearDisabledAccessMemory {
+                KeychainCacheStore.clearDisabledAccessMemoryStore()
             }
         }
     }
@@ -31,6 +37,23 @@ public enum KeychainAccessGate {
         #if DEBUG
         if Self.forcesDisabledUnderTests { return true }
         #endif
+        if self.processForceDisabledReason != nil { return true }
+        if let overrideValue { return overrideValue }
+        if UserDefaults.standard.bool(forKey: Self.flagKey) { return true }
+        if let shared = AppGroupSupport.sharedDefaults(), shared.bool(forKey: Self.flagKey) { return true }
+        return false
+    }
+
+    /// True when Keychain access was turned off by the user, environment, or an explicit test override.
+    /// Unlike `isDisabled`, this ignores the default test-process Keychain block so production-only
+    /// recovery paths (in-process cookie cache while Keychain is disabled) stay scoped correctly.
+    public static var isExplicitlyDisabled: Bool {
+        self.stateLock.withLock { self.isExplicitlyDisabledLocked() }
+    }
+
+    private static func isExplicitlyDisabledLocked() -> Bool {
+        if let taskOverrideValue { return taskOverrideValue }
+        if self.isDisabledByEnvironment() { return true }
         if self.processForceDisabledReason != nil { return true }
         if let overrideValue { return overrideValue }
         if UserDefaults.standard.bool(forKey: Self.flagKey) { return true }
@@ -51,9 +74,15 @@ public enum KeychainAccessGate {
     }
 
     public static func forceDisabledForProcess(reason: String) {
-        self.stateLock.withLock {
+        let shouldClearDisabledAccessMemory = self.stateLock.withLock { () -> Bool in
+            let wasExplicitlyDisabled = self.isExplicitlyDisabledLocked()
             self.processForceDisabledReason = reason
+            let nowExplicitlyDisabled = self.isExplicitlyDisabledLocked()
             self.updateBrowserCookieMirrorLocked()
+            return wasExplicitlyDisabled != nowExplicitlyDisabled
+        }
+        if shouldClearDisabledAccessMemory {
+            KeychainCacheStore.clearDisabledAccessMemoryStore()
         }
     }
 

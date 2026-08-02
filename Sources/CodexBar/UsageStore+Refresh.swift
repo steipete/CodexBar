@@ -556,6 +556,7 @@ extension UsageStore {
             }
             self.lastKnownResetSnapshots[provider] = backfilled
             self.snapshots[provider] = backfilled
+            self.widgetUsagePreservationBlockedProviders.remove(provider)
             if provider == .deepseek {
                 self.clearDeepSeekProfileTransition()
             }
@@ -969,6 +970,7 @@ extension UsageStore {
     }
 
     private func clearClaudeCredentialDerivedStateForCredentialSwapNow() {
+        self.widgetUsagePreservationBlockedProviders.insert(.claude)
         self.snapshots.removeValue(forKey: .claude)
         self.lastKnownResetSnapshots.removeValue(forKey: .claude)
         self.errors[.claude] = nil
@@ -1049,6 +1051,7 @@ extension UsageStore {
                 self.lastSourceLabels.removeValue(forKey: provider)
                 self.errors[provider] = nil
                 self.knownLimitsAvailabilityByProvider[provider] = .unavailable
+                self.widgetUsagePreservationBlockedProviders.insert(provider)
                 self.failureGates[provider]?.reset()
                 return
             }

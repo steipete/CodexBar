@@ -3,6 +3,17 @@ import CodexBarCore
 import SwiftUI
 
 @MainActor
+enum ProviderSettingsRefreshInteraction {
+    static func perform(operation: () async -> Void) async {
+        await BrowserCookieAccessGate.withExplicitRetry {
+            await ProviderInteractionContext.$current.withValue(.userInitiated) {
+                await operation()
+            }
+        }
+    }
+}
+
+@MainActor
 struct ProvidersPane: View {
     let provider: UsageProvider
     @Bindable var settings: SettingsStore
@@ -139,7 +150,7 @@ struct ProvidersPane: View {
 
     private func triggerRefresh(for provider: UsageProvider) {
         Task { @MainActor in
-            await ProviderInteractionContext.$current.withValue(.userInitiated) {
+            await ProviderSettingsRefreshInteraction.perform {
                 if provider == .codex {
                     await self.store.refreshCodexAccountScopedState(allowDisabled: true)
                 } else {
@@ -539,8 +550,8 @@ struct ProvidersPane: View {
             tokenError = nil
         }
 
-        // Abacus uses primary for monthly credits (no secondary window)
-        let paceWindow = provider == .abacus ? snapshot?.primary : snapshot?.secondary
+        // Abacus and Kimi carry their long-cadence window in primary rather than secondary.
+        let paceWindow = provider == .abacus || provider == .kimi ? snapshot?.primary : snapshot?.secondary
         let weeklyPace = if let codexProjection,
                             let weekly = codexProjection.rateWindow(for: .weekly)
         {
@@ -574,6 +585,7 @@ struct ProvidersPane: View {
             // available cost data in their Usage section.
             tokenCostMenuSectionEnabled: self.settings.isCostUsageEffectivelyEnabled(for: provider),
             showOptionalCreditsAndExtraUsage: self.settings.showOptionalCreditsAndExtraUsage,
+            claudeDailyRoutinesUsageVisible: self.settings.claudeDailyRoutinesUsageVisible,
             codexSparkUsageVisible: self.settings.codexSparkUsageVisible,
             copilotBudgetExtrasEnabled: self.settings.copilotBudgetExtrasEnabled,
             hidePersonalInfo: self.settings.hidePersonalInfo,

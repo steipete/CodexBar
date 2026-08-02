@@ -9,6 +9,7 @@ struct ClaudeEducationAvailabilityTests {
         let browserDetection = BrowserDetection(cacheTTL: 0)
         let strategy = ClaudeCLIFetchStrategy(
             useWebExtras: false,
+            includePrepaidBalance: false,
             manualCookieHeader: "sessionKey=test-session",
             browserDetection: browserDetection,
             hasWebFallback: true)

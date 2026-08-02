@@ -219,12 +219,45 @@ struct UsageStoreCoverageTests {
             provider: .amp)
         let model = ProvidersPane(settings: settings, store: store)._test_menuCardModel(for: .amp)
 
+        #expect(model.metrics.map(\.title) == ["Amp Free"])
+        #expect(model.metrics.allSatisfy { $0.pacePercent == nil })
         #expect(model.creditsText == "Individual credits: $25.64\nWorkspace billing@example.test: $10.22")
         #expect(model.creditsRemaining == nil)
 
         settings.hidePersonalInfo = true
         let redactedModel = ProvidersPane(settings: settings, store: store)._test_menuCardModel(for: .amp)
         #expect(redactedModel.creditsText == "Individual credits: $25.64\nWorkspace: $10.22")
+    }
+
+    @Test
+    func `amp subscription pools use their own labels`() {
+        let settings = Self.makeSettingsStore(suite: "UsageStoreCoverageTests-amp-subscription")
+        let store = Self.makeUsageStore(settings: settings)
+        let now = Date()
+
+        store._setSnapshotForTesting(
+            UsageSnapshot(
+                primary: RateWindow(
+                    usedPercent: 3,
+                    windowMinutes: ProviderPaceCapability.monthlyWindowSentinelMinutes,
+                    resetsAt: now.addingTimeInterval(29 * 24 * 60 * 60),
+                    resetDescription: "renews in 29 days"),
+                secondary: RateWindow(
+                    usedPercent: 0,
+                    windowMinutes: ProviderPaceCapability.monthlyWindowSentinelMinutes,
+                    resetsAt: now.addingTimeInterval(29 * 24 * 60 * 60),
+                    resetDescription: "renews in 29 days"),
+                ampUsage: AmpUsageDetails(
+                    individualCredits: nil,
+                    workspaceBalances: [],
+                    subscriptionPlan: "Megawatt"),
+                updatedAt: now),
+            provider: .amp)
+
+        let model = ProvidersPane(settings: settings, store: store)._test_menuCardModel(for: .amp)
+
+        #expect(model.metrics.map(\.title) == ["Other usage", "Orb usage"])
+        #expect(model.planText == "Megawatt")
     }
 
     @Test

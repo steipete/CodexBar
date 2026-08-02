@@ -283,6 +283,8 @@ extension CodexBarCLI {
             VeniceSettingsReader.apiKey(environment: environment) != nil
         case .warp:
             WarpSettingsReader.apiKey(environment: environment) != nil
+        case .xai:
+            XAISettingsReader.apiKey(environment: environment) != nil
         case .zai:
             ZaiSettingsReader.apiToken(environment: environment) != nil
         default:
@@ -297,6 +299,8 @@ extension CodexBarCLI {
         switch provider {
         case .alibabatokenplan:
             AlibabaTokenPlanSettingsReader.cookieHeader(environment: environment) != nil
+        case .qwencloud:
+            QwenCloudSettingsReader.cookieHeader(environment: environment) != nil
         case .kimi:
             KimiSettingsReader.authToken(environment: environment) != nil
         case .manus:

@@ -565,6 +565,18 @@ extension UsageStore {
                     resetsAt: window.resetsAt))
         }
 
+        func appendGenericSessionEquivalentWindows() {
+            let components = Self.genericSessionEquivalentWindowComponents(snapshot: snapshot)
+            switch Self.genericSessionEquivalentWindowPairResolution(snapshot: snapshot) {
+            case let .resolved(session, weekly, _, _):
+                appendWindow(session, name: .session)
+                appendWindow(weekly, name: .weekly)
+            case .incomplete, .ambiguous:
+                appendWindow(components.session?.window, name: .session)
+                appendWindow(components.weekly?.window, name: .weekly)
+            }
+        }
+
         switch provider {
         case .codex:
             let projection = self.codexConsumerProjection(
@@ -582,6 +594,12 @@ extension UsageStore {
             appendWindow(snapshot.primary, name: .session)
             appendWindow(snapshot.secondary, name: .weekly)
             appendWindow(snapshot.tertiary, name: .monthly)
+        case .mimo, .stepfun:
+            if snapshot.primary?.windowMinutes == ProviderPaceCapability.monthlyWindowSentinelMinutes {
+                appendWindow(snapshot.primary, name: .monthly)
+            } else {
+                appendGenericSessionEquivalentWindows()
+            }
         case .antigravity:
             if forSessionEquivalents {
                 guard let windows = self.sessionEquivalentWindows(provider: provider, snapshot: snapshot) else {
@@ -606,15 +624,7 @@ extension UsageStore {
                 }
             }
         default:
-            let components = Self.genericSessionEquivalentWindowComponents(snapshot: snapshot)
-            switch Self.genericSessionEquivalentWindowPairResolution(snapshot: snapshot) {
-            case let .resolved(session, weekly, _, _):
-                appendWindow(session, name: .session)
-                appendWindow(weekly, name: .weekly)
-            case .incomplete, .ambiguous:
-                appendWindow(components.session?.window, name: .session)
-                appendWindow(components.weekly?.window, name: .weekly)
-            }
+            appendGenericSessionEquivalentWindows()
         }
 
         return samplesByKey.values.sorted { lhs, rhs in

@@ -23,8 +23,8 @@ extension StatusItemController {
         }
     }
 
-    func makeMenuCardItem<CardContent: View>(
-        _ view: CardContent,
+    func makeMenuCardItem(
+        _ view: some View,
         id: String,
         width: CGFloat,
         heightCacheScope: String? = nil,
@@ -39,6 +39,7 @@ extension StatusItemController {
         let allowsMenuHighlight = submenu != nil || onClick != nil
         if !self.menuCardRenderingEnabledForController {
             let item = NSMenuItem()
+            item.title = ""
             item.isEnabled = allowsMenuHighlight
             item.representedObject = id
             item.submenu = submenu
@@ -86,26 +87,23 @@ extension StatusItemController {
                 isEnabled: allowsMenuHighlight || containsInteractiveControls)
         }
 
-        let hosting: MenuCardItemHostingView<MenuCardSectionContainerView<CardContent>>
+        // Content is erased so every standard row shares one hosting type; tab
+        // switches can then replant payloads across hosting views instead of
+        // detaching `item.view` (which flashes placeholder rows mid-tracking).
+        let payload = MenuCardRowPayload(
+            content: AnyView(view),
+            showsSubmenuIndicator: submenu != nil,
+            submenuIndicatorAlignment: submenuIndicatorAlignment,
+            submenuIndicatorTopPadding: submenuIndicatorTopPadding,
+            allowsMenuHighlight: allowsMenuHighlight,
+            containsInteractiveControls: containsInteractiveControls,
+            onClick: onClick)
+        let hosting: ErasedMenuCardHostingView
         if let recycled = self.takeRecyclableMenuCardView(
             for: id,
-            as: MenuCardItemHostingView<MenuCardSectionContainerView<CardContent>>.self)
+            as: ErasedMenuCardHostingView.self)
         {
-            let wrapped = MenuCardSectionContainerView(
-                highlightState: recycled.highlightState,
-                showsSubmenuIndicator: submenu != nil,
-                submenuIndicatorAlignment: submenuIndicatorAlignment,
-                submenuIndicatorTopPadding: submenuIndicatorTopPadding,
-                refreshMonitor: self.menuCardRefreshMonitor,
-                interactiveRegionStore: recycled.interactiveRegionStore)
-            {
-                view
-            }
-            recycled.prepareForReuse(
-                rootView: wrapped,
-                allowsMenuHighlight: allowsMenuHighlight,
-                containsInteractiveControls: containsInteractiveControls,
-                onClick: onClick)
+            self.replantMenuCardRowPayload(payload, into: recycled)
             hosting = recycled
         } else {
             let highlightState = MenuCardHighlightState()
@@ -118,7 +116,7 @@ extension StatusItemController {
                 refreshMonitor: self.menuCardRefreshMonitor,
                 interactiveRegionStore: interactiveRegionStore)
             {
-                view
+                payload.content
             }
             hosting = MenuCardItemHostingView(
                 rootView: wrapped,
@@ -127,6 +125,7 @@ extension StatusItemController {
                 containsInteractiveControls: containsInteractiveControls,
                 interactiveRegionStore: interactiveRegionStore,
                 onClick: onClick)
+            hosting.rowPayload = payload
         }
         let height = self.cachedMenuCardHeight(
             for: id,
@@ -152,6 +151,10 @@ extension StatusItemController {
         isEnabled: Bool) -> NSMenuItem
     {
         let item = NSMenuItem()
+        // NSMenuItem()'s default title is the literal string "NSMenuItem"; Tahoe's
+        // NSMenu paints that fallback title for frames where a row's view is
+        // detached mid-mutation. Keep the fallback render blank instead.
+        item.title = ""
         item.view = hosting
         item.isEnabled = isEnabled
         item.representedObject = id

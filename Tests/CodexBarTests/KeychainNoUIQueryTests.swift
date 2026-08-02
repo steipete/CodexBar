@@ -92,6 +92,16 @@ struct KeychainNoUIQueryTests {
         #expect(KeychainTestSafety.shouldBlockRealKeychainAccess(
             processName: "swiftpm-testing-helper",
             environment: [KeychainTestSafety.allowAccessEnvironmentKey: "1"]) == false)
+
+        #expect(KeychainTestSafety.shouldIsolateUserStateUnderTests(
+            processName: "swiftpm-testing-helper",
+            environment: [:]))
+        #expect(KeychainTestSafety.shouldIsolateUserStateUnderTests(
+            processName: "CodexBar",
+            environment: [KeychainAccessGate.disableAccessEnvironmentKey: "1"]) == false)
+        #expect(KeychainTestSafety.shouldIsolateUserStateUnderTests(
+            processName: "swiftpm-testing-helper",
+            environment: [KeychainTestSafety.allowAccessEnvironmentKey: "1"]) == false)
     }
 }
 #endif

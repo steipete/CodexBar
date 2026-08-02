@@ -488,6 +488,12 @@ extension SettingsStore {
         if Self.isRunningTests, creditsExtrasDefault == nil {
             userDefaults.set(true, forKey: "showOptionalCreditsAndExtraUsage")
         }
+        let claudeDailyRoutinesUsageVisibleDefault = userDefaults.object(
+            forKey: "claudeDailyRoutinesUsageVisible") as? Bool
+        let claudeDailyRoutinesUsageVisible = claudeDailyRoutinesUsageVisibleDefault ?? true
+        if Self.isRunningTests, claudeDailyRoutinesUsageVisibleDefault == nil {
+            userDefaults.set(true, forKey: "claudeDailyRoutinesUsageVisible")
+        }
         let codexSparkUsageVisibleDefault = userDefaults.object(forKey: "codexSparkUsageVisible") as? Bool
         let codexSparkUsageVisible = codexSparkUsageVisibleDefault ?? true
         if Self.isRunningTests, codexSparkUsageVisibleDefault == nil {
@@ -524,6 +530,7 @@ extension SettingsStore {
         let agentSessionLabelStyleRaw = userDefaults.string(forKey: "agentSessionLabelStyle")
             ?? AgentSessionLabelStyle.project.rawValue
         let agentSessionsManualHosts = userDefaults.string(forKey: "agentSessionsManualHosts") ?? ""
+        let preferredCurrencyCode = userDefaults.string(forKey: "preferredCurrencyCode") ?? "USD"
         return SettingsDefaultsState(
             refreshFrequency: refreshFrequency,
             adaptiveActivityScanConsent: adaptiveActivityScanConsent,
@@ -580,6 +587,7 @@ extension SettingsStore {
             claudeOAuthKeychainReadStrategyRaw: claudeOAuthKeychainReadStrategyRaw,
             claudeWebExtrasEnabledRaw: claudeWebExtrasEnabledRaw,
             showOptionalCreditsAndExtraUsage: showOptionalCreditsAndExtraUsage,
+            claudeDailyRoutinesUsageVisible: claudeDailyRoutinesUsageVisible,
             codexSparkUsageVisible: codexSparkUsageVisible,
             openAIWebAccessEnabled: openAIWebAccessEnabled,
             openAIWebBatterySaverEnabled: openAIWebBatterySaverEnabled,
@@ -596,7 +604,8 @@ extension SettingsStore {
             terminalAppRaw: userDefaults.string(forKey: "terminalApp"),
             agentSessionsEnabled: agentSessionsEnabled,
             agentSessionLabelStyleRaw: agentSessionLabelStyleRaw,
-            agentSessionsManualHosts: agentSessionsManualHosts)
+            agentSessionsManualHosts: agentSessionsManualHosts,
+            preferredCurrencyCode: preferredCurrencyCode)
     }
 
     private static func hadPreviousAppLaunch(userDefaults: UserDefaults) -> Bool {

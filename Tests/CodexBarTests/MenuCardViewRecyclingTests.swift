@@ -91,7 +91,7 @@ extension StatusMenuTests {
 
         #expect(item.isEnabled)
         #expect(controller.highlightedMenuItems[ObjectIdentifier(menu)] == nil)
-        guard let hosting = item.view as? MenuCardItemHostingView<MenuCardSectionContainerView<Text>>
+        guard let hosting = item.view as? ErasedMenuCardHostingView
         else {
             Issue.record("expected a card hosting view")
             return
@@ -426,7 +426,7 @@ extension StatusMenuTests {
         let liveItem = controller.makeMenuCardItem(Text("before"), id: "menuCard", width: 300, onClick: {})
         menu.addItem(liveItem)
         controller.menu(menu, willHighlight: liveItem)
-        guard let hosting = liveItem.view as? MenuCardItemHostingView<MenuCardSectionContainerView<Text>>
+        guard let hosting = liveItem.view as? ErasedMenuCardHostingView
         else {
             Issue.record("expected a card hosting view")
             return
@@ -468,7 +468,7 @@ extension StatusMenuTests {
         let liveItem = controller.makeMenuCardItem(Text("before"), id: "menuCard", width: 300, onClick: {})
         menu.addItem(liveItem)
         controller.menu(menu, willHighlight: liveItem)
-        guard let liveView = liveItem.view as? MenuCardItemHostingView<MenuCardSectionContainerView<Text>>
+        guard let liveView = liveItem.view as? ErasedMenuCardHostingView
         else {
             Issue.record("expected a card hosting view")
             return
@@ -484,7 +484,7 @@ extension StatusMenuTests {
         #expect(menu.items[0] === liveItem)
         #expect(!liveItem.isEnabled)
         #expect(controller.highlightedMenuItems[ObjectIdentifier(menu)] == nil)
-        guard let rebuiltView = liveItem.view as? MenuCardItemHostingView<MenuCardSectionContainerView<Text>>
+        guard let rebuiltView = liveItem.view as? ErasedMenuCardHostingView
         else {
             Issue.record("expected the rebuilt card hosting view")
             return
@@ -609,7 +609,7 @@ extension StatusMenuTests {
         let menu = NSMenu()
         let original = controller.makeMenuCardItem(Text("before"), id: "menuCard", width: 300)
         menu.addItem(original)
-        guard let originalView = original.view as? MenuCardItemHostingView<MenuCardSectionContainerView<Text>>
+        guard let originalView = original.view as? ErasedMenuCardHostingView
         else {
             Issue.record("expected a card hosting view")
             return
@@ -620,7 +620,7 @@ extension StatusMenuTests {
         let rebuilt = controller.makeMenuCardItem(Text("after"), id: "menuCard", width: 300)
 
         #expect(rebuilt.view === originalView)
-        guard let rebuiltView = rebuilt.view as? MenuCardItemHostingView<MenuCardSectionContainerView<Text>>
+        guard let rebuiltView = rebuilt.view as? ErasedMenuCardHostingView
         else {
             Issue.record("expected the recycled hosting view")
             return
@@ -667,7 +667,7 @@ extension StatusMenuTests {
         let item = controller.makeMenuCardItem(Text("card"), id: "menuCard", width: 300, onClick: {})
         menu.addItem(item)
         controller.menu(menu, willHighlight: item)
-        guard let hosting = item.view as? MenuCardItemHostingView<MenuCardSectionContainerView<Text>>
+        guard let hosting = item.view as? ErasedMenuCardHostingView
         else {
             Issue.record("expected a card hosting view")
             return
@@ -687,7 +687,7 @@ extension StatusMenuTests {
     }
 
     @Test
-    func `same id with different content type builds a fresh view`() {
+    func `same id with different content type reuses the erased hosting view`() {
         StatusItemController.setMenuRefreshEnabledForTesting(false)
         let previousRendering = StatusItemController.menuCardRenderingEnabled
         StatusItemController.menuCardRenderingEnabled = true
@@ -708,9 +708,11 @@ extension StatusMenuTests {
         defer { controller.clearMenuCardViewRecyclePool() }
         let rebuilt = controller.makeMenuCardItem(Image(systemName: "clock"), id: "menuCard", width: 300)
 
+        // Row content is erased to AnyView, so hosting views recycle across
+        // content types: the SwiftUI payload is replanted in place instead of
+        // detaching `item.view` (the tab-switch placeholder-flash mechanism).
         #expect(rebuilt.view != nil)
-        #expect(rebuilt.view !== originalView)
-        // The incompatible pool entry is consumed rather than left behind.
+        #expect(rebuilt.view === originalView)
         #expect(controller.menuCardViewRecyclePool.isEmpty)
     }
 

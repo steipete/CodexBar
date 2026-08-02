@@ -22,6 +22,8 @@ extension ProviderSwitcherSelection {
 }
 
 struct OverviewMenuCardRowView: View {
+    static let showsSectionDividers = false
+
     let model: UsageMenuCardView.Model
     let storageText: String?
     let width: CGFloat
@@ -31,14 +33,15 @@ struct OverviewMenuCardRowView: View {
         VStack(alignment: .leading, spacing: 0) {
             UsageMenuCardHeaderSectionView(
                 model: self.model,
-                showDivider: self.hasUsageBlock,
+                showDivider: Self.showsSectionDividers && self.hasUsageBlock,
                 width: self.width)
             if self.hasUsageBlock {
                 UsageMenuCardUsageSectionView(
                     model: self.model,
                     showBottomDivider: false,
                     bottomPadding: 6,
-                    width: self.width)
+                    width: self.width,
+                    showsSectionDividers: Self.showsSectionDividers)
             }
             if let storageText {
                 HStack(alignment: .firstTextBaseline, spacing: 4) {

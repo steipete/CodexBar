@@ -548,7 +548,7 @@ extension StatusItemController {
         // Before the first fetch lands the submenu still renders (just the website link below), so
         // every provider with a status feed gets the native submenu rather than a bare link; it
         // re-hydrates with the live component list once data arrives (see makeStatusComponentsSubmenu).
-        let components = self.store.statusComponents(for: provider)
+        let components = Self.filterStatusComponents(self.store.statusComponents(for: provider), for: provider)
         if !components.isEmpty {
             if self.menuCardRenderingEnabledForController {
                 final class HostingRelay {

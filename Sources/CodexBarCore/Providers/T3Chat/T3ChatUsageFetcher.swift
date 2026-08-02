@@ -244,11 +244,11 @@ public struct T3ChatUsageFetcher: Sendable {
 
     static func requestContext(from raw: String?) -> RequestContext? {
         guard let raw = raw?.trimmingCharacters(in: .whitespacesAndNewlines), !raw.isEmpty else { return nil }
-        let headerFields = Self.headerFields(from: raw)
+        let headerFields = CurlCaptureParser.headerFields(from: raw)
         guard let cookieHeader = Self.cookieHeader(from: headerFields) ?? CookieHeaderNormalizer.normalize(raw) else {
             return nil
         }
-        let headers = Self.forwardedHeaders(from: headerFields)
+        let headers = CurlCaptureParser.forwardedHeaders(from: headerFields, allowlist: self.forwardedManualHeaders)
         return RequestContext(cookieHeader: cookieHeader, headers: headers)
     }
 
@@ -268,88 +268,9 @@ public struct T3ChatUsageFetcher: Sendable {
         request.setValue("no-cache", forHTTPHeaderField: "Cache-Control")
     }
 
-    private static func forwardedHeaders(from fields: [String]) -> [String: String] {
-        var headers: [String: String] = [:]
-        for field in fields {
-            guard let colon = field.firstIndex(of: ":") else { continue }
-            let rawName = field[..<colon].trimmingCharacters(in: .whitespacesAndNewlines)
-            let value = field[field.index(after: colon)...].trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !rawName.isEmpty, !value.isEmpty else { continue }
-            guard let canonical = self.forwardedManualHeaders[rawName.lowercased()] else { continue }
-            headers[canonical] = value
-        }
-        return headers
-    }
-
     private static func cookieHeader(from fields: [String]) -> String? {
-        for field in fields {
-            guard let colon = field.firstIndex(of: ":") else { continue }
-            let rawName = field[..<colon].trimmingCharacters(in: .whitespacesAndNewlines)
-            guard rawName.caseInsensitiveCompare("Cookie") == .orderedSame else { continue }
-            let value = field[field.index(after: colon)...].trimmingCharacters(in: .whitespacesAndNewlines)
-            if let normalized = CookieHeaderNormalizer.normalize(String(value)) {
-                return normalized
-            }
-        }
-        return nil
-    }
-
-    private static func headerFields(from raw: String) -> [String] {
-        var fields: [String] = []
-        let pattern =
-            #"(?s)(?:^|\s)(?:-H|--header)(?:\s+|=|(?=['"$]))"# +
-            #"(?:\$'((?:\\.|[^'])*)'|'([^']*)'|"((?:\\.|[^"])*)"|(\S+))"#
-        guard let regex = try? NSRegularExpression(pattern: pattern, options: []) else { return fields }
-        let range = NSRange(raw.startIndex..<raw.endIndex, in: raw)
-        for match in regex.matches(in: raw, options: [], range: range) {
-            if let ansi = self.capture(1, in: match, raw: raw) {
-                fields.append(self.unescapeShellSegment(ansi, ansi: true))
-            } else if let single = self.capture(2, in: match, raw: raw) {
-                fields.append(single)
-            } else if let double = self.capture(3, in: match, raw: raw) {
-                fields.append(self.unescapeShellSegment(double, ansi: false))
-            } else if let bare = self.capture(4, in: match, raw: raw) {
-                fields.append(self.unescapeShellSegment(bare, ansi: false))
-            }
-        }
-        return fields
-    }
-
-    private static func capture(_ index: Int, in match: NSTextCheckingResult, raw: String) -> String? {
-        guard match.numberOfRanges > index,
-              let range = Range(match.range(at: index), in: raw)
-        else {
-            return nil
-        }
-        return String(raw[range])
-    }
-
-    private static func unescapeShellSegment(_ raw: String, ansi: Bool) -> String {
-        var output = ""
-        var index = raw.startIndex
-        while index < raw.endIndex {
-            guard raw[index] == "\\" else {
-                output.append(raw[index])
-                index = raw.index(after: index)
-                continue
-            }
-            let next = raw.index(after: index)
-            guard next < raw.endIndex else { return output }
-            switch raw[next] {
-            case "n" where ansi:
-                output.append("\n")
-            case "r" where ansi:
-                output.append("\r")
-            case "t" where ansi:
-                output.append("\t")
-            case "\n":
-                break
-            default:
-                output.append(raw[next])
-            }
-            index = raw.index(after: next)
-        }
-        return output
+        guard let raw = CurlCaptureParser.headerValue(named: "Cookie", in: fields) else { return nil }
+        return CookieHeaderNormalizer.normalize(raw)
     }
 
     private static func customerDataURL() throws -> URL {

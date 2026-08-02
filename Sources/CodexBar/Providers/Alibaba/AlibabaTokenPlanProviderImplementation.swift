@@ -37,12 +37,15 @@ struct AlibabaTokenPlanProviderImplementation: ProviderImplementation {
             allowsOff: false,
             keychainDisabled: context.settings.debugDisableKeychainAccess)
         let cookieSubtitle: () -> String? = {
-            let host = context.settings.alibabaTokenPlanAPIRegion.dashboardURL.host ?? "the selected console"
+            let region = context.settings.alibabaTokenPlanAPIRegion
+            let host = region.usesPersonalTokenPlanAPI
+                ? URL(string: region.quotaBaseURLString)?.host
+                : region.dashboardURL.host
             return ProviderCookieSourceUI.subtitle(
                 source: context.settings.alibabaTokenPlanCookieSource,
                 keychainDisabled: context.settings.debugDisableKeychainAccess,
                 auto: "Automatic imports browser cookies from Model Studio/Bailian.",
-                manual: "Paste a Cookie header from \(host).",
+                manual: "Paste a Cookie header from \(host ?? "the selected console").",
                 off: "Alibaba Token Plan cookies are disabled.")
         }
 

@@ -410,6 +410,9 @@
 "section_agent_sessions" = "Sesións de axentes";
 "language_title" = "Idioma";
 "language_subtitle" = "Cambia o idioma da interface. Cómpre reiniciar a aplicación para que se aplique por completo.";
+"currency_title" = "Moeda preferida";
+"currency_subtitle" = "Moeda para estimacións de custo e gasto. Usa tipos de cambio actualizados diariamente.";
+"currency_auto" = "Automático (segundo o provedor / USD)";
 "language_system" = "Sistema";
 "language_english" = "Inglés";
 "language_spanish" = "Castelán";
@@ -1229,6 +1232,8 @@
 "≈ %d%% run-out risk" = "≈ %d%% de risco de esgotamento";
 "Show Codex Spark usage" = "Amosar o uso de Codex Spark";
 "Shows Codex Spark quota rows in the menu and provider preview. Requires optional credits and extra usage in Display settings." = "Amosa as filas de cota de Codex Spark no menú e na previsualización do provedor. Require activar «Amosar créditos + uso adicional» nos axustes de Pantalla.";
+"Show Daily Routines usage" = "Amosar o uso de Rutinas diarias";
+"Shows the Daily Routines quota row in the menu and provider preview. Requires optional credits and extra usage in Display settings." = "Amosa a fila de cota de Rutinas diarias no menú e na previsualización do provedor. Require activar «Amosar créditos + uso adicional» nos axustes de Pantalla.";
 "Scroll to see more models" = "Desprázate para ver máis modelos";
 
 /* Shareable usage card */
@@ -1272,6 +1277,9 @@
 "Weekly cannot run out before reset at this pace" = "A cota semanal non pode esgotarse antes do restablecemento a este ritmo";
 "Weekly can run out ≈%d windows early" = "A cota semanal pode esgotarse ≈%d xanelas antes";
 "Estimated: %@" = "Estimación: %@";
+"session_quota_estimate_value_format" = "%1$@ %2$@";
+"session quota" = "cota de sesión";
+"session quotas" = "cotas de sesión";
 "Coding Plan" = "Plan de programación";
 "Agent Plan" = "Plan de axente";
 "Team" = "Equipo";

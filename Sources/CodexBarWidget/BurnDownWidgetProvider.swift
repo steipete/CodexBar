@@ -147,6 +147,7 @@ struct BurnDownState {
 }
 
 enum BurnDownRefreshSchedule {
+    private static let minimumInterval: TimeInterval = 5 * 60
     private static let maximumInterval: TimeInterval = 30 * 60
 
     static func nextRefresh(
@@ -161,7 +162,12 @@ enum BurnDownRefreshSchedule {
             .filter { $0 > now }
             .min()?
             .addingTimeInterval(1)
-        return min(fallback, nextReset ?? fallback)
+        if let nextReset {
+            let target = min(fallback, nextReset)
+            let minimumDate = now.addingTimeInterval(self.minimumInterval)
+            return max(minimumDate, target)
+        }
+        return fallback
     }
 }
 

@@ -130,6 +130,29 @@ struct MenuBarLayoutRendererTests {
     }
 
     @Test
+    func `stacked titles apply a vertical centering offset`() throws {
+        let renderer = MenuBarLayoutRenderer()
+        let stacked = renderer.render(
+            layout: MenuBarLayout(lines: [
+                [.percent(window: .automatic)],
+                [.resetCountdown],
+            ]),
+            data: self.data(),
+            icon: nil,
+            options: self.options())
+        let resetIndex = (stacked.attributedTitle.string as NSString).range(of: "in 2h").location
+        let singleLine = renderer.render(
+            layout: MenuBarLayout(lines: [[.percent(window: .automatic), .resetCountdown]]),
+            data: self.data(),
+            icon: nil,
+            options: self.options())
+
+        #expect(try #require(self.baselineOffset(in: stacked.attributedTitle, at: 0)) == -3)
+        #expect(try #require(self.baselineOffset(in: stacked.attributedTitle, at: resetIndex)) == -3)
+        #expect(self.baselineOffset(in: singleLine.attributedTitle, at: 0) == nil)
+    }
+
+    @Test
     func `two line icon uses compact paragraph metrics`() {
         let renderer = MenuBarLayoutRenderer()
         let icon = NSImage(size: NSSize(width: 16, height: 16))
@@ -302,5 +325,16 @@ struct MenuBarLayoutRendererTests {
             }
         }
         return try totalBrightness / CGFloat(#require(visiblePixelCount > 0 ? visiblePixelCount : nil))
+    }
+
+    private func baselineOffset(in title: NSAttributedString, at index: Int) -> CGFloat? {
+        let value = title.attribute(.baselineOffset, at: index, effectiveRange: nil)
+        if let value = value as? CGFloat {
+            return value
+        }
+        if let value = value as? NSNumber {
+            return CGFloat(truncating: value)
+        }
+        return nil
     }
 }

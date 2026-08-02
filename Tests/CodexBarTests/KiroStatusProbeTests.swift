@@ -915,7 +915,7 @@ extension KiroStatusProbeTests {
                 "signal.signal(signal.SIGHUP, signal.SIG_IGN); "
                 "signal.signal(signal.SIGTERM, signal.SIG_IGN); "
                 "handle=open(sys.argv[1], \\\"w\\\"); handle.write(str(os.getpid())); handle.close(); "
-                "os.write(int(sys.argv[2]), b\\\"1\\\"); os.close(int(sys.argv[2])); time.sleep(30)",
+                "os.write(int(sys.argv[2]), b\\\"1\\\"); os.close(int(sys.argv[2])); time.sleep(60)",
                 os.environ["CODEXBAR_TEST_CHILD_PID_FILE"],
                 str(ready_write),
             ],
@@ -967,7 +967,10 @@ extension KiroStatusProbeTests {
         // Keep the optional context probe parseable so this timing check covers detached-child cleanup.
         #expect(snapshot.planName == "KIRO FREE")
         #expect(snapshot.creditsUsed == 12.50 && snapshot.contextUsage?.totalPercentUsed == 40)
-        #expect(elapsed < 8, "Kiro usage capture should return promptly even with a detached child, took \(elapsed)s")
+        // The detached child sleeps 60s; if the probe waited for it, elapsed would be >= 60. The generous
+        // ceiling only guards against that regression while tolerating heavily loaded CI runners
+        // (observed 12.6s on a shared GitHub macOS runner for what is normally a sub-second fetch).
+        #expect(elapsed < 20, "Kiro usage capture should return promptly even with a detached child, took \(elapsed)s")
         #expect(kill(childPID, 0) == -1)
     }
 

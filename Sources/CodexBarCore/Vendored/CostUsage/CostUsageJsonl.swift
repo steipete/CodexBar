@@ -6,8 +6,23 @@ enum CostUsageJsonl {
         let wasTruncated: Bool
     }
 
-    private struct JSONTailState {
-        private enum ScalarState {
+    struct ResumeState: Codable {
+        let offset: Int64
+        fileprivate let lineStartOffset: Int64
+        fileprivate let prefix: Data
+        fileprivate let lineBytes: Int
+        fileprivate let truncated: Bool
+        fileprivate let jsonTailState: JSONTailState
+    }
+
+    struct ScanProgress {
+        let committedOffset: Int64
+        let readOffset: Int64
+        let resumeState: ResumeState?
+    }
+
+    fileprivate struct JSONTailState: Codable {
+        private enum ScalarState: Codable {
             case notScalar
             case trueLiteral(Int)
             case falseLiteral(Int)
@@ -16,7 +31,7 @@ enum CostUsageJsonl {
             case invalid
         }
 
-        private enum NumberState {
+        private enum NumberState: Codable {
             private enum ByteKind {
                 case zero
                 case digit
@@ -234,6 +249,7 @@ enum CostUsageJsonl {
             offset: offset,
             maxLineBytes: maxLineBytes,
             prefixBytes: prefixBytes,
+            maxBytesToRead: nil,
             checkCancellation: nil,
             onLine: onLine)
     }
@@ -244,25 +260,51 @@ enum CostUsageJsonl {
         offset: Int64 = 0,
         maxLineBytes: Int,
         prefixBytes: Int,
+        maxBytesToRead: Int64? = nil,
         checkCancellation: (() throws -> Void)? = nil,
         onLine: (Line) -> Void) throws
         -> Int64
     {
+        try self.scanBounded(
+            fileURL: fileURL,
+            offset: offset,
+            maxLineBytes: maxLineBytes,
+            prefixBytes: prefixBytes,
+            maxBytesToRead: maxBytesToRead,
+            resumeState: nil,
+            checkCancellation: checkCancellation,
+            onLine: onLine).committedOffset
+    }
+
+    // swiftlint:disable:next function_parameter_count
+    static func scanBounded(
+        fileURL: URL,
+        offset: Int64 = 0,
+        maxLineBytes: Int,
+        prefixBytes: Int,
+        maxBytesToRead: Int64?,
+        resumeState: ResumeState?,
+        checkCancellation: (() throws -> Void)? = nil,
+        onLine: (Line) -> Void) throws -> ScanProgress
+    {
         let handle = try FileHandle(forReadingFrom: fileURL)
         defer { try? handle.close() }
 
-        let startOffset = max(0, offset)
+        let startOffset = resumeState?.offset ?? max(0, offset)
         if startOffset > 0 {
             try handle.seek(toOffset: UInt64(startOffset))
         }
 
-        var current = Data()
+        var current = resumeState?.prefix ?? Data()
         current.reserveCapacity(4 * 1024)
-        var lineBytes = 0
-        var truncated = false
+        var lineBytes = resumeState?.lineBytes ?? 0
+        var truncated = resumeState?.truncated ?? false
         var bytesRead: Int64 = 0
-        var committedOffset = startOffset
-        var jsonTailState = JSONTailState()
+        var lineStartOffset = resumeState?.lineStartOffset ?? startOffset
+        var committedOffset = lineStartOffset
+        var jsonTailState = resumeState?.jsonTailState ?? JSONTailState()
+        let fileSize = (try? FileManager.default.attributesOfItem(atPath: fileURL.path)[.size] as? NSNumber)?
+            .int64Value
 
         func appendSegment(_ bytes: UnsafePointer<UInt8>, count: Int) {
             guard count > 0 else { return }
@@ -288,6 +330,17 @@ enum CostUsageJsonl {
             jsonTailState.reset()
         }
 
+        func currentResumeState() -> ResumeState? {
+            guard lineBytes > 0 else { return nil }
+            return ResumeState(
+                offset: startOffset + bytesRead,
+                lineStartOffset: lineStartOffset,
+                prefix: current,
+                lineBytes: lineBytes,
+                truncated: truncated,
+                jsonTailState: jsonTailState)
+        }
+
         func hasCompleteJSONTail() -> Bool {
             guard jsonTailState.isStructurallyComplete else { return false }
             if truncated {
@@ -301,12 +354,23 @@ enum CostUsageJsonl {
 
         while true {
             try checkCancellation?()
+            let remaining = maxBytesToRead.map { max(0, $0 - bytesRead) }
+            if remaining == 0 {
+                if let fileSize, startOffset + bytesRead >= fileSize, hasCompleteJSONTail() {
+                    flushLine()
+                    committedOffset = startOffset + bytesRead
+                    lineStartOffset = committedOffset
+                }
+                break
+            }
             let reachedEOF = try autoreleasepool {
-                let chunk = try handle.read(upToCount: 256 * 1024) ?? Data()
+                let readCount = min(256 * 1024, Int(remaining ?? Int64(256 * 1024)))
+                let chunk = try handle.read(upToCount: readCount) ?? Data()
                 if chunk.isEmpty {
                     if hasCompleteJSONTail() {
                         flushLine()
                         committedOffset = startOffset + bytesRead
+                        lineStartOffset = committedOffset
                     }
                     return true
                 }
@@ -323,6 +387,7 @@ enum CostUsageJsonl {
                             appendSegment(base.advanced(by: segmentStart), count: index - segmentStart)
                             flushLine()
                             committedOffset = chunkStartOffset + Int64(index + 1)
+                            lineStartOffset = committedOffset
                             segmentStart = index + 1
                         } else {
                             jsonTailState.append(base[index])
@@ -341,6 +406,9 @@ enum CostUsageJsonl {
             try checkCancellation?()
         }
 
-        return committedOffset
+        return ScanProgress(
+            committedOffset: committedOffset,
+            readOffset: startOffset + bytesRead,
+            resumeState: currentResumeState())
     }
 }

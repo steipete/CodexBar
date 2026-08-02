@@ -29,25 +29,83 @@ enum CostUsageScanner {
         var claudeProjectsRoots: [URL]?
         var cacheRoot: URL?
         var codexTraceDatabaseURL: URL?
+        var calendar: Calendar
         var refreshMinIntervalSeconds: TimeInterval = 60
         var claudeLogProviderFilter: ClaudeLogProviderFilter = .all
         /// Force a full rescan, ignoring per-file cache and incremental offsets.
         var forceRescan: Bool = false
+        /// Maximum bounded slice read from one Codex rollout per refresh. Larger files
+        /// resume from cached progress on later refreshes. Default 256 MiB.
+        var maxCodexSessionFileBytes: Int64 = 256 * 1024 * 1024
+        /// Soft budget for newly-read Codex session bytes in one refresh.
+        /// Remaining dirty files are deferred to later refreshes. Default 512 MiB.
+        var maxCodexScanBytesPerRefresh: Int64 = 512 * 1024 * 1024
+        /// Prefer newest session files first so recent usage lands before catch-up work.
+        var preferNewestCodexSessionsFirst: Bool = true
 
         init(
             codexSessionsRoot: URL? = nil,
             claudeProjectsRoots: [URL]? = nil,
             cacheRoot: URL? = nil,
             codexTraceDatabaseURL: URL? = nil,
+            calendar: Calendar = .current,
             claudeLogProviderFilter: ClaudeLogProviderFilter = .all,
-            forceRescan: Bool = false)
+            forceRescan: Bool = false,
+            maxCodexSessionFileBytes: Int64 = 256 * 1024 * 1024,
+            maxCodexScanBytesPerRefresh: Int64 = 512 * 1024 * 1024,
+            preferNewestCodexSessionsFirst: Bool = true)
         {
             self.codexSessionsRoot = codexSessionsRoot
             self.claudeProjectsRoots = claudeProjectsRoots
             self.cacheRoot = cacheRoot
             self.codexTraceDatabaseURL = codexTraceDatabaseURL
+            self.calendar = calendar
             self.claudeLogProviderFilter = claudeLogProviderFilter
             self.forceRescan = forceRescan
+            self.maxCodexSessionFileBytes = max(0, maxCodexSessionFileBytes)
+            self.maxCodexScanBytesPerRefresh = max(0, maxCodexScanBytesPerRefresh)
+            self.preferNewestCodexSessionsFirst = preferNewestCodexSessionsFirst
+        }
+    }
+
+    /// Per-refresh work limiter for Codex cost scans. Prevents multi-GB rollout corpora from
+    /// monopolizing a core for hours while still allowing progressive catch-up.
+    final class CodexScanBudget: @unchecked Sendable {
+        let maxFileBytes: Int64
+        let maxBytesPerRefresh: Int64
+        private(set) var bytesConsumed: Int64 = 0
+        private(set) var resumedPartialFileCount = 0
+        private(set) var deferredByBudgetFileCount = 0
+
+        init(maxFileBytes: Int64, maxBytesPerRefresh: Int64) {
+            self.maxFileBytes = max(0, maxFileBytes)
+            self.maxBytesPerRefresh = max(0, maxBytesPerRefresh)
+        }
+
+        enum Admission {
+            case allow(Int64)
+            case deferBudget
+        }
+
+        func admit(workBytes: Int64) -> Admission {
+            let work = max(0, workBytes)
+            let refreshRemaining = self.maxBytesPerRefresh > 0
+                ? max(0, self.maxBytesPerRefresh - self.bytesConsumed)
+                : Int64.max
+            if work > 0, refreshRemaining == 0 {
+                self.deferredByBudgetFileCount += 1
+                return .deferBudget
+            }
+            let fileAllowance = self.maxFileBytes > 0 ? self.maxFileBytes : Int64.max
+            let allowance = min(work, fileAllowance, refreshRemaining)
+            if allowance < work {
+                self.resumedPartialFileCount += 1
+            }
+            return .allow(allowance)
+        }
+
+        func consume(workBytes: Int64) {
+            self.bytesConsumed += max(0, workBytes)
         }
     }
 
@@ -67,17 +125,59 @@ enum CostUsageScanner {
         let forkedFromId: String?
         let dependsOnParentTotals: Bool
         let projectPath: String?
+        let codexSession: CostUsageCodexSessionMetadata
         let rows: [CodexUsageRow]
+        let jsonlResumeState: CostUsageJsonl.ResumeState?
+        let bufferedSubagentLines: [CodexBufferedFastLine]?
     }
 
     struct CodexUsageRow: Codable, Equatable {
         let day: String
         let model: String
+        let rawModel: String?
         let turnID: String?
         let eventIndex: Int?
+        let timestampUnixMs: Int64?
         let input: Int
         let cached: Int
         let output: Int
+        let reasoning: Int?
+        let knownCostNanos: Int64?
+        let unpricedTokens: Int?
+        let pricingModel: String?
+        let pricingMode: String?
+
+        init(
+            day: String,
+            model: String,
+            rawModel: String? = nil,
+            turnID: String?,
+            eventIndex: Int?,
+            timestampUnixMs: Int64? = nil,
+            input: Int,
+            cached: Int,
+            output: Int,
+            reasoning: Int? = nil,
+            knownCostNanos: Int64? = nil,
+            unpricedTokens: Int? = nil,
+            pricingModel: String? = nil,
+            pricingMode: String? = nil)
+        {
+            self.day = day
+            self.model = model
+            self.rawModel = rawModel
+            self.turnID = turnID
+            self.eventIndex = eventIndex
+            self.timestampUnixMs = timestampUnixMs
+            self.input = input
+            self.cached = cached
+            self.output = output
+            self.reasoning = reasoning.map { min(max(0, $0), max(0, output)) }
+            self.knownCostNanos = knownCostNanos
+            self.unpricedTokens = unpricedTokens
+            self.pricingModel = pricingModel
+            self.pricingMode = pricingMode
+        }
     }
 
     struct CodexScanState {
@@ -138,7 +238,8 @@ enum CostUsageScanner {
         CostUsageCodexTotals(
             input: lhs.input + rhs.input,
             cached: lhs.cached + rhs.cached,
-            output: lhs.output + rhs.output)
+            output: lhs.output + rhs.output,
+            reasoning: self.codexAddOptional(lhs.reasoning, rhs.reasoning))
     }
 
     private static func codexMinTotals(
@@ -148,18 +249,24 @@ enum CostUsageScanner {
         CostUsageCodexTotals(
             input: min(lhs.input, rhs.input),
             cached: min(lhs.cached, rhs.cached),
-            output: min(lhs.output, rhs.output))
+            output: min(lhs.output, rhs.output),
+            reasoning: self.codexMinOptional(lhs.reasoning, rhs.reasoning))
     }
 
     private static func codexTotalDelta(
         from baseline: CostUsageCodexTotals?,
         to current: CostUsageCodexTotals) -> CostUsageCodexTotals
     {
+        let reasoning = Self.codexOptionalDelta(
+            from: baseline?.reasoning,
+            to: current.reasoning,
+            hasBaseline: baseline != nil)
         let baseline = baseline ?? .init(input: 0, cached: 0, output: 0)
         return CostUsageCodexTotals(
             input: max(0, current.input - baseline.input),
             cached: max(0, current.cached - baseline.cached),
-            output: max(0, current.output - baseline.output))
+            output: max(0, current.output - baseline.output),
+            reasoning: reasoning)
     }
 
     private static func codexDivergentTotalDelta(
@@ -180,7 +287,11 @@ enum CostUsageScanner {
         return CostUsageCodexTotals(
             input: delta(raw: rawBaseline.input, counted: countedBaseline.input, current: current.input),
             cached: delta(raw: rawBaseline.cached, counted: countedBaseline.cached, current: current.cached),
-            output: delta(raw: rawBaseline.output, counted: countedBaseline.output, current: current.output))
+            output: delta(raw: rawBaseline.output, counted: countedBaseline.output, current: current.output),
+            reasoning: Self.codexDivergentOptionalDelta(
+                raw: rawBaseline.reasoning,
+                counted: countedBaseline.reasoning,
+                current: current.reasoning))
     }
 
     private static func codexMaxTotals(
@@ -191,7 +302,8 @@ enum CostUsageScanner {
         return CostUsageCodexTotals(
             input: max(lhs.input, rhs.input),
             cached: max(lhs.cached, rhs.cached),
-            output: max(lhs.output, rhs.output))
+            output: max(lhs.output, rhs.output),
+            reasoning: Self.codexMaxOptional(lhs.reasoning, rhs.reasoning))
     }
 
     /// Post-latch totals containment for interleaved cumulative counters (issue #2037 Phase 1).
@@ -218,7 +330,58 @@ enum CostUsageScanner {
         return CostUsageCodexTotals(
             input: component(water: watermark.input, counted: counted.input, current: current.input),
             cached: component(water: watermark.cached, counted: counted.cached, current: current.cached),
-            output: component(water: watermark.output, counted: counted.output, current: current.output))
+            output: component(water: watermark.output, counted: counted.output, current: current.output),
+            reasoning: Self.codexContainedOptionalDelta(
+                water: watermark.reasoning,
+                counted: counted.reasoning,
+                current: current.reasoning))
+    }
+
+    private static func codexAddOptional(_ lhs: Int?, _ rhs: Int?) -> Int? {
+        guard let lhs, let rhs else { return nil }
+        return lhs + rhs
+    }
+
+    private static func codexMinOptional(_ lhs: Int?, _ rhs: Int?) -> Int? {
+        guard let lhs, let rhs else { return nil }
+        return min(lhs, rhs)
+    }
+
+    private static func codexMaxOptional(_ lhs: Int?, _ rhs: Int?) -> Int? {
+        switch (lhs, rhs) {
+        case let (lhs?, rhs?): max(lhs, rhs)
+        case let (lhs?, nil): lhs
+        case let (nil, rhs?): rhs
+        case (nil, nil): nil
+        }
+    }
+
+    private static func codexSubtractOptional(_ value: Int?, _ baseline: Int?) -> Int? {
+        guard let value, let baseline else { return nil }
+        return max(0, value - baseline)
+    }
+
+    private static func codexOptionalDelta(from baseline: Int?, to current: Int?, hasBaseline: Bool) -> Int? {
+        guard let current else { return nil }
+        if !hasBaseline { return current }
+        guard let baseline else { return nil }
+        return max(0, current - baseline)
+    }
+
+    private static func codexDivergentOptionalDelta(raw: Int?, counted: Int?, current: Int?) -> Int? {
+        guard let raw, let counted, let current else { return nil }
+        if current >= raw {
+            return max(0, current - raw)
+        }
+        return max(0, current - counted)
+    }
+
+    private static func codexContainedOptionalDelta(water: Int?, counted: Int?, current: Int?) -> Int? {
+        guard let water, let counted, let current else { return nil }
+        if current >= water {
+            return max(0, current - max(water, counted))
+        }
+        return max(0, current - counted)
     }
 
     /// Post-latch event delta: contained totals growth, optionally capped by `last`.
@@ -264,7 +427,7 @@ enum CostUsageScanner {
         }
 
         func isSeen(_ totals: CostUsageCodexTotals) -> Bool {
-            self.seenRawTotals.contains(totals)
+            self.seenRawTotals.contains { CostUsageScanner.codexTotalsEqual($0, totals) }
         }
 
         /// Latches interleaved mode when any component of an observed cumulative snapshot drops
@@ -284,7 +447,7 @@ enum CostUsageScanner {
         /// value for best-effort re-emission suppression. Call after computing the event's delta.
         mutating func commitObserved(_ totals: CostUsageCodexTotals) {
             self.raiseWatermark(to: totals)
-            if !self.seenRawTotals.contains(totals) {
+            if !self.seenRawTotals.contains(where: { CostUsageScanner.codexTotalsEqual($0, totals) }) {
                 self.seenRawTotals.append(totals)
                 if self.seenRawTotals.count > Self.seenRawTotalsLimit {
                     self.seenRawTotals.removeFirst(self.seenRawTotals.count - Self.seenRawTotalsLimit)
@@ -313,7 +476,12 @@ enum CostUsageScanner {
             last: CostUsageCodexTotals?,
             total: CostUsageCodexTotals?) -> CostUsageCodexTotals
         {
-            let base = self.countedTotals ?? .init(input: 0, cached: 0, output: 0)
+            let hasReasoning = last?.reasoning != nil || total?.reasoning != nil
+            let base = self.countedTotals ?? .init(
+                input: 0,
+                cached: 0,
+                output: 0,
+                reasoning: hasReasoning ? 0 : nil)
             if let total {
                 // Best-effort exact re-emission suppression (precision only; containment is load-bearing).
                 if self.tracker.isSeen(total) {
@@ -408,6 +576,7 @@ enum CostUsageScanner {
         let changedPriorityTurnIDs: Set<String>
         let resources: CodexScanResources
         let checkCancellation: CancellationCheck?
+        let scanBudget: CodexScanBudget?
     }
 
     final class CodexCanonicalProjectPathResolver {
@@ -619,11 +788,17 @@ enum CostUsageScanner {
 
         private let fileIndex: CodexSessionFileIndex
         private let checkCancellation: CancellationCheck?
+        private let scanBudget: CodexScanBudget?
         private var snapshotResolutions: [String: SnapshotResolution] = [:]
 
-        init(fileIndex: CodexSessionFileIndex, checkCancellation: CancellationCheck?) {
+        init(
+            fileIndex: CodexSessionFileIndex,
+            checkCancellation: CancellationCheck?,
+            scanBudget: CodexScanBudget? = nil)
+        {
             self.fileIndex = fileIndex
             self.checkCancellation = checkCancellation
+            self.scanBudget = scanBudget
         }
 
         func inheritedTotals(for sessionId: String, atOrBefore cutoffTimestamp: String) throws -> CodexForkBaseline {
@@ -693,6 +868,43 @@ enum CostUsageScanner {
                 return resolution
             }
 
+            let parentMetadata = CostUsageScanner.codexFileMetadata(fileURL: fileURL)
+            if let budget = self.scanBudget {
+                switch budget.admit(workBytes: parentMetadata.size) {
+                case let .allow(allowance) where allowance >= parentMetadata.size:
+                    break
+                case .allow:
+                    CostUsageScanner.log.warning(
+                        "Deferring oversized Codex parent baseline read while its file scan resumes",
+                        metadata: [
+                            "sessionId": sessionId,
+                            "path": fileURL.path,
+                            "bytes": "\(parentMetadata.size)",
+                            "slice": "\(budget.maxFileBytes)",
+                        ])
+                    let resolution = SnapshotResolution(
+                        dependencyKey: self.dependencyKey(for: sessionId, fileURL: fileURL),
+                        snapshots: nil)
+                    self.snapshotResolutions[sessionId] = resolution
+                    return resolution
+                case .deferBudget:
+                    CostUsageScanner.log.debug(
+                        "Deferring Codex parent session baseline read until a later refresh",
+                        metadata: [
+                            "sessionId": sessionId,
+                            "path": fileURL.path,
+                            "pendingBytes": "\(parentMetadata.size)",
+                            "consumed": "\(budget.bytesConsumed)",
+                            "limit": "\(budget.maxBytesPerRefresh)",
+                        ])
+                    let resolution = SnapshotResolution(
+                        dependencyKey: self.dependencyKey(for: sessionId, fileURL: fileURL),
+                        snapshots: nil)
+                    self.snapshotResolutions[sessionId] = resolution
+                    return resolution
+                }
+            }
+
             for _ in 0..<2 {
                 let dependencyKeyBeforeParse = self.dependencyKey(for: sessionId, fileURL: fileURL)
                 let parsed = try CostUsageScanner.parseCodexTokenSnapshots(
@@ -709,6 +921,7 @@ enum CostUsageScanner {
                         dependencyKey: dependencyKeyAfterParse,
                         snapshots: nil)
                     self.snapshotResolutions[sessionId] = resolution
+                    self.scanBudget?.consume(workBytes: parentMetadata.size)
                     return resolution
                 }
                 if parsedSessionId != sessionId {
@@ -723,12 +936,14 @@ enum CostUsageScanner {
                         dependencyKey: dependencyKeyAfterParse,
                         snapshots: nil)
                     self.snapshotResolutions[sessionId] = resolution
+                    self.scanBudget?.consume(workBytes: parentMetadata.size)
                     return resolution
                 }
                 let resolution = SnapshotResolution(
                     dependencyKey: dependencyKeyAfterParse,
                     snapshots: parsed.snapshots)
                 self.snapshotResolutions[sessionId] = resolution
+                self.scanBudget?.consume(workBytes: parentMetadata.size)
                 return resolution
             }
 
@@ -795,7 +1010,7 @@ enum CostUsageScanner {
         options: Options = Options(),
         checkCancellation: CancellationCheck?) throws -> CostUsageDailyReport
     {
-        let range = CostUsageDayRange(since: since, until: until)
+        let range = CostUsageDayRange(since: since, until: until, calendar: options.calendar)
         let emptyReport = CostUsageDailyReport(data: [], summary: nil)
         try checkCancellation?()
 
@@ -825,12 +1040,12 @@ enum CostUsageScanner {
                 options: filtered,
                 checkCancellation: checkCancellation)
         case .openai, .azureopenai, .clinepass, .zai, .gemini, .antigravity, .cursor, .opencode, .opencodego, .alibaba,
-             .alibabatokenplan, .factory,
+             .alibabatokenplan, .qwencloud, .factory,
              .copilot, .devin, .minimax, .manus, .kilo, .kiro, .kimi, .moonshot, .augment, .jetbrains, .amp,
              .ollama, .t3chat, .synthetic, .openrouter, .elevenlabs, .warp, .perplexity, .mimo, .doubao, .sakana,
              .abacus, .mistral, .deepseek, .deepinfra, .codebuff, .crof, .windsurf, .zed, .venice, .commandcode,
              .qoder, .stepfun, .bedrock, .grok, .groq, .llmproxy, .litellm, .deepgram, .poe, .chutes, .neuralwatt,
-             .clawrouter, .longcat, .sub2api, .wayfinder, .zenmux, .aiand:
+             .clawrouter, .longcat, .sub2api, .wayfinder, .zenmux, .aiand, .zoommate, .xai:
             return emptyReport
         }
     }
@@ -842,21 +1057,25 @@ enum CostUsageScanner {
         let untilKey: String
         let scanSinceKey: String
         let scanUntilKey: String
+        let calendar: Calendar
 
-        init(since: Date, until: Date) {
-            self.sinceKey = Self.dayKey(from: since)
-            self.untilKey = Self.dayKey(from: until)
-            self.scanSinceKey = Self.dayKey(from: Calendar.current.date(byAdding: .day, value: -1, to: since) ?? since)
-            self.scanUntilKey = Self.dayKey(from: Calendar.current.date(byAdding: .day, value: 1, to: until) ?? until)
+        init(since: Date, until: Date, calendar: Calendar = .current) {
+            let calendar = Self.localGregorianCalendar(matching: calendar)
+            self.calendar = calendar
+            self.sinceKey = Self.dayKey(from: since, calendar: calendar)
+            self.untilKey = Self.dayKey(from: until, calendar: calendar)
+            let scanSince = calendar.date(byAdding: .day, value: -1, to: since) ?? since
+            let scanUntil = calendar.date(byAdding: .day, value: 1, to: until) ?? until
+            self.scanSinceKey = Self.dayKey(from: scanSince, calendar: calendar)
+            self.scanUntilKey = Self.dayKey(from: scanUntil, calendar: calendar)
         }
 
-        static func dayKey(from date: Date) -> String {
-            let cal = Calendar.current
-            let comps = cal.dateComponents([.year, .month, .day], from: date)
-            let y = comps.year ?? 1970
-            let m = comps.month ?? 1
-            let d = comps.day ?? 1
-            return String(format: "%04d-%02d-%02d", y, m, d)
+        static func localGregorianCalendar(matching calendar: Calendar = .current) -> Calendar {
+            CostUsageLocalDay.gregorianCalendar(matching: calendar)
+        }
+
+        static func dayKey(from date: Date, calendar: Calendar = .current) -> String {
+            CostUsageLocalDay.key(from: date, calendar: calendar)
         }
 
         static func isInRange(dayKey: String, since: String, until: String) -> Bool {
@@ -904,12 +1123,14 @@ enum CostUsageScanner {
         root: URL,
         scanSinceKey: String,
         scanUntilKey: String,
-        includeRecursive: Bool) -> [URL]
+        includeRecursive: Bool,
+        calendar: Calendar = .current) -> [URL]
     {
         let partitioned = self.listCodexSessionFilesByDatePartition(
             root: root,
             scanSinceKey: scanSinceKey,
-            scanUntilKey: scanUntilKey)
+            scanUntilKey: scanUntilKey,
+            calendar: calendar)
         let flat = self.listCodexSessionFilesFlat(root: root, scanSinceKey: scanSinceKey, scanUntilKey: scanUntilKey)
         let recursive = includeRecursive ? self.listCodexLegacySessionFilesRecursive(root: root) : []
         var seen: Set<String> = []
@@ -995,11 +1216,12 @@ enum CostUsageScanner {
     }
 
     private static func codexPriorityTurnKeys(
-        _ priorityTurns: [String: CodexPriorityTurnMetadata]) -> [String: String]
+        _ priorityTurns: [String: CodexPriorityTurnMetadata],
+        calendar: Calendar) -> [String: String]
     {
         var partsByDay: [String: [String]] = [:]
         for (turnID, turn) in priorityTurns {
-            guard let dayKey = self.codexPriorityDayKey(turn) else { continue }
+            guard let dayKey = self.codexPriorityDayKey(turn, calendar: calendar) else { continue }
             partsByDay[dayKey, default: []].append([
                 turnID,
                 turn.model ?? "",
@@ -1015,22 +1237,30 @@ enum CostUsageScanner {
     }
 
     private static func codexPriorityTurnIDsByDay(
-        _ priorityTurns: [String: CodexPriorityTurnMetadata]) -> [String: [String]]
+        _ priorityTurns: [String: CodexPriorityTurnMetadata],
+        calendar: Calendar) -> [String: [String]]
     {
         var out: [String: Set<String>] = [:]
         for (turnID, turn) in priorityTurns {
-            guard let dayKey = self.codexPriorityDayKey(turn) else { continue }
+            guard let dayKey = self.codexPriorityDayKey(turn, calendar: calendar) else { continue }
             out[dayKey, default: []].insert(turnID)
         }
         return out.mapValues { $0.sorted() }
     }
 
-    private static func codexPriorityDayKey(_ turn: CodexPriorityTurnMetadata) -> String? {
+    private static func codexPriorityDayKey(
+        _ turn: CodexPriorityTurnMetadata,
+        calendar: Calendar) -> String?
+    {
         guard let timestamp = turn.timestamp else { return nil }
         let dayKeyFromEpoch = Int64(timestamp).map {
-            CostUsageDayRange.dayKey(from: Date(timeIntervalSince1970: TimeInterval($0)))
+            CostUsageDayRange.dayKey(
+                from: Date(timeIntervalSince1970: TimeInterval($0)),
+                calendar: calendar)
         }
-        return dayKeyFromEpoch ?? self.dayKeyFromTimestamp(timestamp) ?? self.dayKeyFromParsedISO(timestamp)
+        return dayKeyFromEpoch
+            ?? self.dayKeyFromTimestamp(timestamp, calendar: calendar)
+            ?? self.dayKeyFromParsedISO(timestamp, calendar: calendar)
     }
 
     private static func codexPriorityTurnKeysChanged(
@@ -1038,7 +1268,10 @@ enum CostUsageScanner {
         new: [String: String],
         range: CostUsageDayRange) -> Bool
     {
-        for dayKey in self.dayKeys(sinceKey: range.scanSinceKey, untilKey: range.scanUntilKey)
+        for dayKey in self.dayKeys(
+            sinceKey: range.scanSinceKey,
+            untilKey: range.scanUntilKey,
+            calendar: range.calendar)
             where old?[dayKey] != new[dayKey]
         {
             return true
@@ -1054,7 +1287,11 @@ enum CostUsageScanner {
         range: CostUsageDayRange) -> Set<String>
     {
         var out = Set<String>()
-        for dayKey in self.dayKeys(sinceKey: range.scanSinceKey, untilKey: range.scanUntilKey) {
+        for dayKey in self.dayKeys(
+            sinceKey: range.scanSinceKey,
+            untilKey: range.scanUntilKey,
+            calendar: range.calendar)
+        {
             let oldIDs = Set(old?[dayKey] ?? [])
             let newIDs = Set(new[dayKey] ?? [])
             if oldIDs != newIDs || oldKeys?[dayKey] != newKeys[dayKey] {
@@ -1073,7 +1310,11 @@ enum CostUsageScanner {
         retainedUntilKey: String) -> [String: String]?
     {
         var out = existing ?? [:]
-        for dayKey in self.dayKeys(sinceKey: range.scanSinceKey, untilKey: range.scanUntilKey) {
+        for dayKey in self.dayKeys(
+            sinceKey: range.scanSinceKey,
+            untilKey: range.scanUntilKey,
+            calendar: range.calendar)
+        {
             out[dayKey] = new[dayKey]
         }
         out = out.filter { key, _ in
@@ -1090,7 +1331,11 @@ enum CostUsageScanner {
         retainedUntilKey: String) -> [String: [String]]?
     {
         var out = existing ?? [:]
-        for dayKey in self.dayKeys(sinceKey: range.scanSinceKey, untilKey: range.scanUntilKey) {
+        for dayKey in self.dayKeys(
+            sinceKey: range.scanSinceKey,
+            untilKey: range.scanUntilKey,
+            calendar: range.calendar)
+        {
             out[dayKey] = new[dayKey] ?? []
         }
         out = out.filter { key, _ in
@@ -1107,14 +1352,19 @@ enum CostUsageScanner {
         root: URL,
         scanSinceKey: String,
         scanUntilKey: String,
-        modifiedSince: Date) -> [URL]
+        modifiedSince: Date,
+        calendar: Calendar = .current) -> [URL]
     {
-        let lookbackSinceKey = self.dayKey(scanSinceKey, addingDays: -self.codexActiveSessionLookbackDays)
+        let lookbackSinceKey = self.dayKey(
+            scanSinceKey,
+            addingDays: -self.codexActiveSessionLookbackDays,
+            calendar: calendar)
             ?? scanSinceKey
         let partitioned = self.listCodexSessionFilesByDatePartition(
             root: root,
             scanSinceKey: lookbackSinceKey,
-            scanUntilKey: scanUntilKey)
+            scanUntilKey: scanUntilKey,
+            calendar: calendar)
         let partitionedModified = self.filterRecentlyModified(files: partitioned, modifiedSince: modifiedSince)
 
         let legacyRecursive = self.listCodexRecentlyModifiedFilesRecursive(root: root, modifiedSince: modifiedSince)
@@ -1140,22 +1390,36 @@ enum CostUsageScanner {
         value.count == length && value.allSatisfy(\.isNumber)
     }
 
-    private static func dayKey(_ dayKey: String, addingDays days: Int) -> String? {
-        guard let date = self.parseDayKey(dayKey) else { return nil }
-        guard let shifted = Calendar.current.date(byAdding: .day, value: days, to: date) else { return nil }
-        return CostUsageDayRange.dayKey(from: shifted)
+    private static func dayKey(
+        _ dayKey: String,
+        addingDays days: Int,
+        calendar: Calendar = .current) -> String?
+    {
+        let calendar = CostUsageDayRange.localGregorianCalendar(matching: calendar)
+        guard let date = self.parseDayKey(dayKey, calendar: calendar) else { return nil }
+        guard let shifted = calendar.date(byAdding: .day, value: days, to: date) else { return nil }
+        return CostUsageDayRange.dayKey(from: shifted, calendar: calendar)
     }
 
-    private static func dayKeys(sinceKey: String, untilKey: String) -> [String] {
-        guard let since = self.parseDayKey(sinceKey),
-              self.parseDayKey(untilKey) != nil
+    private static func localStartOfDay(_ dayKey: String, calendar: Calendar) -> Date? {
+        let calendar = CostUsageDayRange.localGregorianCalendar(matching: calendar)
+        return self.parseDayKey(dayKey, calendar: calendar).map { calendar.startOfDay(for: $0) }
+    }
+
+    private static func dayKeys(
+        sinceKey: String,
+        untilKey: String,
+        calendar: Calendar = .current) -> [String]
+    {
+        let calendar = CostUsageDayRange.localGregorianCalendar(matching: calendar)
+        guard let since = self.parseDayKey(sinceKey, calendar: calendar),
+              self.parseDayKey(untilKey, calendar: calendar) != nil
         else { return sinceKey <= untilKey ? [sinceKey] : [] }
 
         var out: [String] = []
         var cursor = since
-        let calendar = Calendar.current
-        while CostUsageDayRange.dayKey(from: cursor) <= untilKey {
-            out.append(CostUsageDayRange.dayKey(from: cursor))
+        while CostUsageDayRange.dayKey(from: cursor, calendar: calendar) <= untilKey {
+            out.append(CostUsageDayRange.dayKey(from: cursor, calendar: calendar))
             guard let next = calendar.date(byAdding: .day, value: 1, to: cursor) else { break }
             if next <= cursor {
                 break
@@ -1198,15 +1462,17 @@ enum CostUsageScanner {
     private static func listCodexSessionFilesByDatePartition(
         root: URL,
         scanSinceKey: String,
-        scanUntilKey: String) -> [URL]
+        scanUntilKey: String,
+        calendar: Calendar = .current) -> [URL]
     {
         guard FileManager.default.fileExists(atPath: root.path) else { return [] }
+        let calendar = CostUsageDayRange.localGregorianCalendar(matching: calendar)
         var out: [URL] = []
-        var date = Self.parseDayKey(scanSinceKey) ?? Date()
-        let untilDate = Self.parseDayKey(scanUntilKey) ?? date
+        var date = Self.parseDayKey(scanSinceKey, calendar: calendar) ?? Date()
+        let untilDate = Self.parseDayKey(scanUntilKey, calendar: calendar) ?? date
 
         while date <= untilDate {
-            let comps = Calendar.current.dateComponents([.year, .month, .day], from: date)
+            let comps = calendar.dateComponents([.year, .month, .day], from: date)
             let y = String(format: "%04d", comps.year ?? 1970)
             let m = String(format: "%02d", comps.month ?? 1)
             let d = String(format: "%02d", comps.day ?? 1)
@@ -1225,7 +1491,7 @@ enum CostUsageScanner {
                 }
             }
 
-            date = Calendar.current.date(byAdding: .day, value: 1, to: date) ?? untilDate.addingTimeInterval(1)
+            date = calendar.date(byAdding: .day, value: 1, to: date) ?? untilDate.addingTimeInterval(1)
         }
 
         return out
@@ -1291,7 +1557,7 @@ enum CostUsageScanner {
         return String(filename[matchRange])
     }
 
-    private struct CodexSessionMetadata {
+    struct CodexSessionMetadata: Codable {
         let sessionId: String?
         let forkedFromId: String?
         let forkTimestamp: String?
@@ -1299,7 +1565,14 @@ enum CostUsageScanner {
         let isSubagentThread: Bool
     }
 
-    private struct CodexTokenCountRecord {
+    struct CodexTurnContextMetadata: Codable {
+        let timestamp: String?
+        let model: String?
+        let cwd: String?
+        let title: String?
+    }
+
+    struct CodexTokenCountRecord: Codable {
         let timestamp: String
         let model: String?
         let turnID: String?
@@ -1307,9 +1580,9 @@ enum CostUsageScanner {
         let total: CostUsageCodexTotals?
     }
 
-    private enum CodexFastLine {
+    enum CodexFastLine: Codable {
         case sessionMeta(CodexSessionMetadata)
-        case turnContext(model: String?)
+        case turnContext(CodexTurnContextMetadata)
         case interAgentCommunication(triggerTurn: Bool)
         case taskStarted(turnID: String?)
         case tokenCount(CodexTokenCountRecord)
@@ -1324,7 +1597,7 @@ enum CostUsageScanner {
         }
     }
 
-    private struct CodexBufferedFastLine {
+    struct CodexBufferedFastLine: Codable {
         let lineIndex: Int
         let line: CodexFastLine
     }
@@ -1340,6 +1613,7 @@ enum CostUsageScanner {
     private static let codexJSONFieldModel = Array("model".utf8)
     private static let codexJSONFieldModelName = Array("model_name".utf8)
     private static let codexJSONFieldOutputTokens = Array("output_tokens".utf8)
+    private static let codexJSONFieldReasoningOutputTokens = Array("reasoning_output_tokens".utf8)
     private static let codexJSONFieldParentSessionId = Array("parent_session_id".utf8)
     private static let codexJSONFieldParentSessionIdCamel = Array("parentSessionId".utf8)
     private static let codexJSONFieldPayload = Array("payload".utf8)
@@ -1348,12 +1622,16 @@ enum CostUsageScanner {
     private static let codexJSONFieldSessionId = Array("session_id".utf8)
     private static let codexJSONFieldSessionIdCamel = Array("sessionId".utf8)
     private static let codexJSONFieldTimestamp = Array("timestamp".utf8)
+    private static let codexJSONFieldTitle = Array("title".utf8)
+    private static let codexJSONFieldName = Array("name".utf8)
     private static let codexJSONFieldTotalTokenUsage = Array("total_token_usage".utf8)
     private static let codexJSONFieldTriggerTurn = Array("trigger_turn".utf8)
     private static let codexJSONFieldTurnId = Array("turn_id".utf8)
     private static let codexJSONFieldTurnIdCamel = Array("turnId".utf8)
     private static let codexJSONFieldType = Array("type".utf8)
     private static let codexJSONFieldCwd = Array("cwd".utf8)
+    private static let codexJSONFieldCurrentWorkingDirectory = Array("current_working_directory".utf8)
+    private static let codexJSONFieldCurrentWorkingDirectoryCamel = Array("currentWorkingDirectory".utf8)
 
     static func codexModelEvidence(_ raw: String?) -> String? {
         guard let trimmed = raw?.trimmingCharacters(in: .whitespacesAndNewlines), !trimmed.isEmpty else { return nil }
@@ -1533,7 +1811,12 @@ enum CostUsageScanner {
             Self
                 .extractJSONByteIntField(Self.codexJSONFieldOutputTokens, from: bytes, in: objectRange, atDepth: 1) ??
                 0)
-        return CostUsageCodexTotals(input: input, cached: cached, output: output)
+        let reasoning = Self.extractJSONByteIntField(
+            Self.codexJSONFieldReasoningOutputTokens,
+            from: bytes,
+            in: objectRange,
+            atDepth: 1).map { min(max(0, $0), output) }
+        return CostUsageCodexTotals(input: input, cached: cached, output: output, reasoning: reasoning)
     }
 
     private static func codexInterAgentCommunication(
@@ -1554,6 +1837,7 @@ enum CostUsageScanner {
         return .interAgentCommunication(triggerTurn: triggerTurn)
     }
 
+    // swiftlint:disable:next function_body_length
     private static func parseCodexFastLine(_ bytes: Data) -> CodexFastLine? {
         bytes.withUnsafeBytes { rawBytes in
             let rawBuffer = rawBytes.bindMemory(to: UInt8.self)
@@ -1593,12 +1877,23 @@ enum CostUsageScanner {
                     } ?? false))
 
             case "turn_context":
+                let timestamp = Self.extractJSONByteStringField(
+                    Self.codexJSONFieldTimestamp,
+                    from: rawBuffer,
+                    in: objectRange,
+                    atDepth: 1)
                 guard let payloadRange = Self.extractJSONByteObjectField(
                     Self.codexJSONFieldPayload,
                     from: rawBuffer,
                     in: objectRange,
                     atDepth: 1)
-                else { return .turnContext(model: nil) }
+                else {
+                    return .turnContext(CodexTurnContextMetadata(
+                        timestamp: timestamp,
+                        model: nil,
+                        cwd: nil,
+                        title: nil))
+                }
                 let infoRange = Self.extractJSONByteObjectField(
                     Self.codexJSONFieldInfo,
                     from: rawBuffer,
@@ -1629,7 +1924,36 @@ enum CostUsageScanner {
                             in: $0,
                             atDepth: 1)
                     })
-                return .turnContext(model: model)
+                let cwd = Self.extractJSONByteStringField(
+                    Self.codexJSONFieldCwd,
+                    from: rawBuffer,
+                    in: payloadRange,
+                    atDepth: 1)
+                    ?? Self.extractJSONByteStringField(
+                        Self.codexJSONFieldCurrentWorkingDirectory,
+                        from: rawBuffer,
+                        in: payloadRange,
+                        atDepth: 1)
+                    ?? Self.extractJSONByteStringField(
+                        Self.codexJSONFieldCurrentWorkingDirectoryCamel,
+                        from: rawBuffer,
+                        in: payloadRange,
+                        atDepth: 1)
+                let title = Self.extractJSONByteStringField(
+                    Self.codexJSONFieldTitle,
+                    from: rawBuffer,
+                    in: payloadRange,
+                    atDepth: 1)
+                    ?? Self.extractJSONByteStringField(
+                        Self.codexJSONFieldName,
+                        from: rawBuffer,
+                        in: payloadRange,
+                        atDepth: 1)
+                return .turnContext(CodexTurnContextMetadata(
+                    timestamp: timestamp,
+                    model: model,
+                    cwd: cwd,
+                    title: title))
 
             case "inter_agent_communication_metadata":
                 // Compact Codex JSONL uses this exact spelling. Whitespace/escaped variants fall
@@ -1941,16 +2265,22 @@ enum CostUsageScanner {
                         }
 
                         let total = (info["total_token_usage"] as? [String: Any]).map {
-                            CostUsageCodexTotals(
+                            let output = toInt($0["output_tokens"])
+                            return CostUsageCodexTotals(
                                 input: toInt($0["input_tokens"]),
                                 cached: toInt($0["cached_input_tokens"] ?? $0["cache_read_input_tokens"]),
-                                output: toInt($0["output_tokens"]))
+                                output: output,
+                                reasoning: ($0["reasoning_output_tokens"] as? NSNumber)
+                                    .map { min(max(0, $0.intValue), max(0, output)) })
                         }
                         let last = (info["last_token_usage"] as? [String: Any]).map {
-                            CostUsageCodexTotals(
+                            let output = max(0, toInt($0["output_tokens"]))
+                            return CostUsageCodexTotals(
                                 input: max(0, toInt($0["input_tokens"])),
                                 cached: max(0, toInt($0["cached_input_tokens"] ?? $0["cache_read_input_tokens"])),
-                                output: max(0, toInt($0["output_tokens"])))
+                                output: output,
+                                reasoning: ($0["reasoning_output_tokens"] as? NSNumber)
+                                    .map { min(max(0, $0.intValue), output) })
                         }
                         appendSnapshot(timestamp: timestamp, last: last, total: total)
                     }
@@ -2010,7 +2340,16 @@ enum CostUsageScanner {
             forkedFromId: nil,
             dependsOnParentTotals: false,
             projectPath: nil,
-            rows: [])
+            codexSession: CostUsageCodexSessionMetadata(
+                sessionId: nil,
+                forkedFromId: nil,
+                cwd: nil,
+                title: nil,
+                startedAtUnixMs: nil,
+                latestActivityUnixMs: nil),
+            rows: [],
+            jsonlResumeState: nil,
+            bufferedSubagentLines: nil)
     }
 
     // swiftlint:disable:next cyclomatic_complexity function_body_length
@@ -2027,6 +2366,9 @@ enum CostUsageScanner {
         initialHasInterleavedTotals: Bool = false,
         initialCodexTurnID: String? = nil,
         initialCodexUsageRowIndex: Int = 0,
+        initialBufferedSubagentLines: [CodexBufferedFastLine]? = nil,
+        initialJSONLResumeState: CostUsageJsonl.ResumeState? = nil,
+        maxBytesToRead: Int64? = nil,
         inheritedTotalsResolver: ((String, String) throws -> CodexForkBaseline)? = nil,
         checkCancellation: CancellationCheck? = nil) throws -> CodexParseResult
     {
@@ -2043,6 +2385,13 @@ enum CostUsageScanner {
         var candidateBoundaryDependsOnParentTotals = false
         var parentConfirmedLocalBoundary = false
         var suppressUnownedCopiedPrefix = false
+        var codexSession = CostUsageCodexSessionMetadata(
+            sessionId: nil,
+            forkedFromId: nil,
+            cwd: nil,
+            title: nil,
+            startedAtUnixMs: nil,
+            latestActivityUnixMs: nil)
         var inheritedTotals: CostUsageCodexTotals?
         var remainingInheritedTotals: CostUsageCodexTotals?
         var forkBaselineResolved = false
@@ -2073,6 +2422,41 @@ enum CostUsageScanner {
             packed[2] = (packed[safe: 2] ?? 0) + output
             dayModels[normModel] = packed
             days[dayKey] = dayModels
+        }
+
+        func sanitizedString(_ value: String?) -> String? {
+            guard let value else { return nil }
+            let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+            return trimmed.isEmpty ? nil : trimmed
+        }
+
+        func unixMilliseconds(from timestamp: String?) -> Int64? {
+            guard let timestamp,
+                  let date = Self.dateFromTimestamp(timestamp)
+            else { return nil }
+            return Int64((date.timeIntervalSince1970 * 1000).rounded())
+        }
+
+        func observeTimestamp(_ timestamp: String?) {
+            guard let unixMs = unixMilliseconds(from: timestamp) else { return }
+            codexSession.startedAtUnixMs = switch codexSession.startedAtUnixMs {
+            case let current?: min(current, unixMs)
+            case nil: unixMs
+            }
+            codexSession.latestActivityUnixMs = switch codexSession.latestActivityUnixMs {
+            case let current?: max(current, unixMs)
+            case nil: unixMs
+            }
+        }
+
+        func observeCwd(_ value: String?) {
+            guard let value = sanitizedString(value) else { return }
+            codexSession.cwd = value
+        }
+
+        func observeTitle(_ value: String?) {
+            guard let value = sanitizedString(value) else { return }
+            codexSession.title = value
         }
 
         func resolveForkBaseline(parentSessionId: String, forkedAt: String) throws {
@@ -2115,11 +2499,16 @@ enum CostUsageScanner {
                 guard CodexSubagentRolloutShape.sameConcreteSessionID(metadata.sessionId, sessionId) else { return }
                 if forkedFromId == nil, let enrichedParentID = metadata.forkedFromId {
                     forkedFromId = enrichedParentID
+                    codexSession.forkedFromId = enrichedParentID
                     forkTimestamp = metadata.forkTimestamp ?? forkTimestamp
                     try configureForkAccountingIfReady()
                 }
                 if projectPath == nil {
                     projectPath = metadata.projectPath
+                }
+                observeTimestamp(metadata.forkTimestamp)
+                if codexSession.cwd == nil {
+                    observeCwd(metadata.projectPath)
                 }
                 return
             }
@@ -2128,13 +2517,19 @@ enum CostUsageScanner {
             forkedFromId = metadata.forkedFromId
             forkTimestamp = metadata.forkTimestamp
             projectPath = metadata.projectPath
+            codexSession.sessionId = metadata.sessionId
+            codexSession.forkedFromId = metadata.forkedFromId
+            observeTimestamp(metadata.forkTimestamp)
+            observeCwd(metadata.projectPath)
             isSubagentThread = metadata.isSubagentThread
             try configureForkAccountingIfReady()
         }
 
         // swiftlint:disable:next function_body_length
         func handleTokenCount(_ record: CodexTokenCountRecord) throws {
-            guard let dayKey = Self.dayKeyFromTimestamp(record.timestamp) ?? Self.dayKeyFromParsedISO(record.timestamp)
+            observeTimestamp(record.timestamp)
+            guard let dayKey = Self.dayKeyFromTimestamp(record.timestamp, calendar: range.calendar)
+                ?? Self.dayKeyFromParsedISO(record.timestamp, calendar: range.calendar)
             else { return }
             guard !suppressUnownedCopiedPrefix else { return }
 
@@ -2147,6 +2542,7 @@ enum CostUsageScanner {
             var deltaInput = 0
             var deltaCached = 0
             var deltaOutput = 0
+            var deltaReasoning: Int?
 
             func adjustedLastDelta(_ rawDelta: CostUsageCodexTotals) -> CostUsageCodexTotals {
                 guard var remaining = remainingInheritedTotals else { return rawDelta }
@@ -2154,11 +2550,13 @@ enum CostUsageScanner {
                 let adjusted = CostUsageCodexTotals(
                     input: max(0, rawDelta.input - remaining.input),
                     cached: max(0, rawDelta.cached - remaining.cached),
-                    output: max(0, rawDelta.output - remaining.output))
+                    output: max(0, rawDelta.output - remaining.output),
+                    reasoning: Self.codexSubtractOptional(rawDelta.reasoning, remaining.reasoning))
 
                 remaining.input = max(0, remaining.input - rawDelta.input)
                 remaining.cached = max(0, remaining.cached - rawDelta.cached)
                 remaining.output = max(0, remaining.output - rawDelta.output)
+                remaining.reasoning = Self.codexSubtractOptional(remaining.reasoning, rawDelta.reasoning)
                 remainingInheritedTotals = if remaining.input == 0, remaining.cached == 0,
                                               remaining.output == 0
                 {
@@ -2177,7 +2575,8 @@ enum CostUsageScanner {
                 return CostUsageCodexTotals(
                     input: max(0, rawTotals.input - inheritedTotals.input),
                     cached: max(0, rawTotals.cached - inheritedTotals.cached),
-                    output: max(0, rawTotals.output - inheritedTotals.output))
+                    output: max(0, rawTotals.output - inheritedTotals.output),
+                    reasoning: Self.codexSubtractOptional(rawTotals.reasoning, inheritedTotals.reasoning))
             }
 
             if let adjustedTotal {
@@ -2216,7 +2615,12 @@ enum CostUsageScanner {
                 deltaInput = delta.input
                 deltaCached = delta.cached
                 deltaOutput = delta.output
-                let prev = previousTotals ?? .init(input: 0, cached: 0, output: 0)
+                deltaReasoning = delta.reasoning
+                let prev = previousTotals ?? .init(
+                    input: 0,
+                    cached: 0,
+                    output: 0,
+                    reasoning: delta.reasoning == nil ? nil : 0)
                 previousTotals = Self.codexAddTotals(prev, delta)
                 rawTotalsBaseline = rawBaseline
                 if !Self.codexTotalsEqual(rawTotalsBaseline, previousTotals) {
@@ -2244,7 +2648,12 @@ enum CostUsageScanner {
                 deltaInput = adjustedDelta.input
                 deltaCached = adjustedDelta.cached
                 deltaOutput = adjustedDelta.output
-                let prev = previousTotals ?? .init(input: 0, cached: 0, output: 0)
+                deltaReasoning = adjustedDelta.reasoning
+                let prev = previousTotals ?? .init(
+                    input: 0,
+                    cached: 0,
+                    output: 0,
+                    reasoning: adjustedDelta.reasoning == nil ? nil : 0)
                 previousTotals = Self.codexAddTotals(prev, adjustedDelta)
                 rawTotalsBaseline = previousTotals
             }
@@ -2271,7 +2680,11 @@ enum CostUsageScanner {
                 let rawDelta = last
                 let hadRemainingInheritedTotals = remainingInheritedTotals != nil
                 var adjustedDelta = adjustedLastDelta(rawDelta)
-                let prev = previousTotals ?? .init(input: 0, cached: 0, output: 0)
+                let prev = previousTotals ?? .init(
+                    input: 0,
+                    cached: 0,
+                    output: 0,
+                    reasoning: adjustedDelta.reasoning == nil ? nil : 0)
 
                 if let currentTotals = adjustedTotal, !hasUnresolvedForkBaseline {
                     if tracker.sawInterleavedTotals {
@@ -2301,6 +2714,7 @@ enum CostUsageScanner {
                     deltaInput = adjustedDelta.input
                     deltaCached = adjustedDelta.cached
                     deltaOutput = adjustedDelta.output
+                    deltaReasoning = adjustedDelta.reasoning
                     previousTotals = countedTotals
                     rawTotalsBaseline = countedTotals
                     tracker.raiseWatermark(to: countedTotals)
@@ -2332,11 +2746,14 @@ enum CostUsageScanner {
                 rows.append(CodexUsageRow(
                     day: dayKey,
                     model: normModel,
+                    rawModel: model,
                     turnID: record.turnID ?? currentTurnID,
                     eventIndex: eventIndex,
+                    timestampUnixMs: unixMilliseconds(from: record.timestamp),
                     input: deltaInput,
                     cached: deltaCached,
-                    output: deltaOutput))
+                    output: deltaOutput,
+                    reasoning: deltaReasoning))
             }
         }
 
@@ -2344,9 +2761,13 @@ enum CostUsageScanner {
             switch fastLine {
             case let .sessionMeta(metadata):
                 try handleSessionMetadata(metadata)
-            case let .turnContext(model):
-                if let model {
-                    currentModel = model
+            case let .turnContext(metadata):
+                observeTimestamp(metadata.timestamp)
+                observeCwd(metadata.cwd)
+                observeTitle(metadata.title)
+                if let model = metadata.model {
+                    // An explicitly blank context clears stale model evidence; an omitted field preserves it.
+                    currentModel = sanitizedString(model)
                 }
             case .interAgentCommunication:
                 break
@@ -2360,12 +2781,17 @@ enum CostUsageScanner {
         let maxLineBytes = 256 * 1024
         let prefixBytes = maxLineBytes
 
-        var pendingSubagentLines: [CodexBufferedFastLine]?
+        var pendingSubagentLines = initialBufferedSubagentLines
 
-        if startOffset == 0,
-           let metadata = try Self.parseCodexSessionMetadata(
-               fileURL: fileURL,
-               checkCancellation: checkCancellation)
+        if let initialBufferedSubagentLines, startOffset > 0 {
+            for buffered in initialBufferedSubagentLines {
+                guard case let .sessionMeta(metadata) = buffered.line else { continue }
+                try handleSessionMetadata(metadata)
+            }
+        } else if startOffset == 0,
+                  let metadata = try Self.parseCodexSessionMetadata(
+                      fileURL: fileURL,
+                      checkCancellation: checkCancellation)
         {
             try handleSessionMetadata(metadata)
             if metadata.isSubagentThread {
@@ -2384,13 +2810,17 @@ enum CostUsageScanner {
         }
 
         var parsedBytes: Int64
-        var physicalLineIndex = 0
+        let targetSize = Self.codexFileMetadata(fileURL: fileURL).size
+        var physicalLineIndex = (initialBufferedSubagentLines?.last?.lineIndex ?? -1) + 1
+        var jsonlResumeState = initialJSONLResumeState
         do {
-            parsedBytes = try CostUsageJsonl.scan(
+            let scanProgress = try CostUsageJsonl.scanBounded(
                 fileURL: fileURL,
                 offset: startOffset,
                 maxLineBytes: maxLineBytes,
                 prefixBytes: prefixBytes,
+                maxBytesToRead: maxBytesToRead,
+                resumeState: initialJSONLResumeState,
                 checkCancellation: checkCancellation,
                 onLine: { line in
                     let lineIndex = physicalLineIndex
@@ -2407,7 +2837,11 @@ enum CostUsageScanner {
                         if truncatedTurnContext.isValid {
                             do {
                                 try routeFastLine(
-                                    .turnContext(model: truncatedTurnContext.model),
+                                    .turnContext(CodexTurnContextMetadata(
+                                        timestamp: nil,
+                                        model: truncatedTurnContext.model,
+                                        cwd: nil,
+                                        title: nil)),
                                     lineIndex: lineIndex)
                             } catch {
                                 deferredError = error
@@ -2500,17 +2934,27 @@ enum CostUsageScanner {
                         }
 
                         if type == "turn_context" {
-                            var model: String?
+                            var metadata = CodexTurnContextMetadata(
+                                timestamp: tsText,
+                                model: nil,
+                                cwd: nil,
+                                title: nil)
                             if let payload = obj["payload"] as? [String: Any] {
                                 let info = payload["info"] as? [String: Any]
-                                model = Self.codexTurnContextModel(
-                                    payloadModel: payload["model"] as? String,
-                                    payloadModelName: payload["model_name"] as? String,
-                                    infoModel: info?["model"] as? String,
-                                    infoModelName: info?["model_name"] as? String)
+                                metadata = CodexTurnContextMetadata(
+                                    timestamp: tsText,
+                                    model: Self.codexTurnContextModel(
+                                        payloadModel: payload["model"] as? String,
+                                        payloadModelName: payload["model_name"] as? String,
+                                        infoModel: info?["model"] as? String,
+                                        infoModelName: info?["model_name"] as? String),
+                                    cwd: payload["cwd"] as? String
+                                        ?? payload["current_working_directory"] as? String
+                                        ?? payload["currentWorkingDirectory"] as? String,
+                                    title: payload["title"] as? String ?? payload["name"] as? String)
                             }
                             do {
-                                try routeFastLine(.turnContext(model: model), lineIndex: lineIndex)
+                                try routeFastLine(.turnContext(metadata), lineIndex: lineIndex)
                             } catch {
                                 deferredError = error
                             }
@@ -2545,10 +2989,13 @@ enum CostUsageScanner {
                         }
 
                         func tokenTotals(_ usage: [String: Any]) -> CostUsageCodexTotals {
-                            CostUsageCodexTotals(
+                            let output = max(0, toInt(usage["output_tokens"]))
+                            return CostUsageCodexTotals(
                                 input: max(0, toInt(usage["input_tokens"])),
                                 cached: max(0, toInt(usage["cached_input_tokens"] ?? usage["cache_read_input_tokens"])),
-                                output: max(0, toInt(usage["output_tokens"])))
+                                output: output,
+                                reasoning: (usage["reasoning_output_tokens"] as? NSNumber)
+                                    .map { min(max(0, $0.intValue), output) })
                         }
 
                         let record = CodexTokenCountRecord(
@@ -2564,11 +3011,13 @@ enum CostUsageScanner {
                         }
                     }
                 })
+            parsedBytes = scanProgress.readOffset
+            jsonlResumeState = scanProgress.resumeState
             if let deferredError {
                 throw deferredError
             }
 
-            if let pendingSubagentLines {
+            if let pendingSubagentLines, parsedBytes >= targetSize, jsonlResumeState == nil {
                 // Same-leaf metadata can fill lineage fields after the opening record. Collect it
                 // before replay so copied-prefix totals never run once on the wrong baseline, and
                 // so an owned-suffix filter cannot discard the only fork identifier.
@@ -2578,10 +3027,15 @@ enum CostUsageScanner {
                     else { continue }
                     if forkedFromId == nil, let enrichedParentID = metadata.forkedFromId {
                         forkedFromId = enrichedParentID
+                        codexSession.forkedFromId = enrichedParentID
                         forkTimestamp = metadata.forkTimestamp ?? forkTimestamp
                     }
                     if projectPath == nil {
                         projectPath = metadata.projectPath
+                    }
+                    observeTimestamp(metadata.forkTimestamp)
+                    if codexSession.cwd == nil {
+                        observeCwd(metadata.projectPath)
                     }
                 }
                 let observations = pendingSubagentLines.compactMap { buffered -> CodexSubagentRolloutShape
@@ -2678,6 +3132,7 @@ enum CostUsageScanner {
                 "Codex cost usage failed while scanning session file",
                 metadata: ["path": fileURL.path, "error": error.localizedDescription])
             parsedBytes = startOffset
+            jsonlResumeState = initialJSONLResumeState
         }
 
         return CodexParseResult(
@@ -2700,7 +3155,10 @@ enum CostUsageScanner {
                 && (candidateBoundaryDependsOnParentTotals
                     || (subagentCounterSemantics != .independent && !usesLocalSubagentBoundary)),
             projectPath: projectPath,
-            rows: rows)
+            codexSession: codexSession,
+            rows: rows,
+            jsonlResumeState: jsonlResumeState,
+            bufferedSubagentLines: parsedBytes < targetSize || jsonlResumeState != nil ? pendingSubagentLines : nil)
     }
 
     private static func codexTurnID(from payload: [String: Any]) -> String? {
@@ -2732,10 +3190,89 @@ enum CostUsageScanner {
         if try Self.keepCachedCodexFileIfFresh(input: input, context: context, cache: &cache, state: &state) {
             return
         }
-        if try Self.appendCodexFileIncrementIfPossible(input: input, context: context, cache: &cache, state: &state) {
+
+        let pendingWorkBytes = Self.pendingCodexScanWorkBytes(metadata: metadata, cached: cached)
+        let allowedWorkBytes: Int64
+        if let budget = context.scanBudget {
+            switch budget.admit(workBytes: pendingWorkBytes) {
+            case let .allow(allowance):
+                allowedWorkBytes = allowance
+            case .deferBudget:
+                Self.log.debug(
+                    "Deferring Codex session cost scan until a later refresh",
+                    metadata: [
+                        "path": metadata.path,
+                        "pendingBytes": "\(pendingWorkBytes)",
+                        "consumed": "\(budget.bytesConsumed)",
+                        "limit": "\(budget.maxBytesPerRefresh)",
+                    ])
+                // Preserve stale cache so later refreshes can resume catch-up.
+                return
+            }
+        } else {
+            allowedWorkBytes = pendingWorkBytes
+        }
+
+        if try Self.appendCodexFileIncrementIfPossible(
+            input: input,
+            context: context,
+            cache: &cache,
+            state: &state,
+            maxBytesToRead: allowedWorkBytes)
+        {
+            context.scanBudget?.consume(workBytes: allowedWorkBytes)
             return
         }
-        try Self.rescanCodexFile(input: input, context: context, cache: &cache, state: &state)
+        let fullRescanWorkBytes = max(0, metadata.size)
+        let fullRescanAllowedBytes: Int64
+        if fullRescanWorkBytes == pendingWorkBytes {
+            fullRescanAllowedBytes = allowedWorkBytes
+        } else if let budget = context.scanBudget {
+            switch budget.admit(workBytes: fullRescanWorkBytes) {
+            case let .allow(allowance):
+                fullRescanAllowedBytes = allowance
+            case .deferBudget:
+                // No work was consumed by the rejected incremental path, so this is only
+                // reachable when the refresh budget has no allowance for the full rescan.
+                return
+            }
+        } else {
+            fullRescanAllowedBytes = fullRescanWorkBytes
+        }
+
+        try Self.rescanCodexFile(
+            input: input,
+            context: context,
+            cache: &cache,
+            state: &state,
+            maxBytesToRead: fullRescanAllowedBytes)
+        context.scanBudget?.consume(workBytes: fullRescanAllowedBytes)
+    }
+
+    static func pendingCodexScanWorkBytes(metadata: CodexFileMetadata, cached: CostUsageFileUsage?) -> Int64 {
+        // Called only after keepCachedCodexFileIfFresh failed. Even when size/mtime still match
+        // (forced full rescan, priority invalidation, fork-dependency drift, etc.), the scanner
+        // will read the whole file — never report zero pending work in that case.
+        guard let cached else { return max(0, metadata.size) }
+        if cached.codexScanComplete == false {
+            if cached.codexScanFileId != nil,
+               cached.codexScanFileId == metadata.fileId,
+               cached.codexScanTargetSize == metadata.size,
+               cached.mtimeUnixMs == metadata.mtimeUnixMs
+            {
+                return max(0, metadata.size - (cached.parsedBytes ?? 0))
+            }
+            return max(0, metadata.size)
+        }
+        let startOffset = cached.parsedBytes ?? cached.size
+        if metadata.size > cached.size,
+           startOffset > 0,
+           startOffset <= metadata.size,
+           cached.forkedFromId == nil
+        {
+            return max(0, metadata.size - startOffset)
+        }
+        return max(0, metadata.size)
     }
 
     private static func makeCodexRefreshPlan(
@@ -2781,8 +3318,8 @@ enum CostUsageScanner {
             databaseURL: options.codexTraceDatabaseURL,
             sinceDayKey: range.scanSinceKey,
             untilDayKey: range.scanUntilKey) : [:]
-        let priorityTurnKeys = Self.codexPriorityTurnKeys(priorityTurns)
-        let priorityTurnIDsByDay = Self.codexPriorityTurnIDsByDay(priorityTurns)
+        let priorityTurnKeys = Self.codexPriorityTurnKeys(priorityTurns, calendar: range.calendar)
+        let priorityTurnIDsByDay = Self.codexPriorityTurnIDsByDay(priorityTurns, calendar: range.calendar)
         let priorityTurnsChanged = shouldInspectPriorityTurns
             && hasPriorityMetadata
             && Self.codexPriorityTurnKeysChanged(
@@ -2833,13 +3370,29 @@ enum CostUsageScanner {
             shouldRefresh: shouldRefresh)
     }
 
+    private static func loadCodexCache(options: Options, range: CostUsageDayRange) -> CostUsageCache {
+        CostUsageCacheIO.load(
+            provider: .codex,
+            cacheRoot: options.cacheRoot,
+            calendar: range.calendar)
+    }
+
+    private static func saveCodexCache(_ cache: CostUsageCache, options: Options, range: CostUsageDayRange) {
+        CostUsageCacheIO.save(
+            provider: .codex,
+            cache: cache,
+            cacheRoot: options.cacheRoot,
+            calendar: range.calendar)
+    }
+
+    // swiftlint:disable:next function_body_length
     private static func loadCodexDaily(
         range: CostUsageDayRange,
         now: Date,
         options: Options,
         checkCancellation: CancellationCheck?) throws -> CostUsageDailyReport
     {
-        var cache = CostUsageCacheIO.load(provider: .codex, cacheRoot: options.cacheRoot)
+        var cache = Self.loadCodexCache(options: options, range: range)
         let nowMs = Int64(now.timeIntervalSince1970 * 1000)
         let plan = Self.makeCodexRefreshPlan(cache: cache, range: range, now: now, nowMs: nowMs, options: options)
 
@@ -2852,8 +3405,7 @@ enum CostUsageScanner {
             let cachedSinceKey = cache.scanSinceKey
             let cachedUntilKey = cache.scanUntilKey
             let shouldRunColdCacheLookback = cache.files.isEmpty || plan.rootsChanged
-            let coldCacheLookbackStart = Self.parseDayKey(range.scanSinceKey)
-                .map { Calendar.current.startOfDay(for: $0) }
+            let coldCacheLookbackStart = Self.localStartOfDay(range.scanSinceKey, calendar: options.calendar)
             var seenPaths: Set<String> = []
             var files: [URL] = []
             for root in plan.roots {
@@ -2861,7 +3413,8 @@ enum CostUsageScanner {
                     root: root,
                     scanSinceKey: range.scanSinceKey,
                     scanUntilKey: range.scanUntilKey,
-                    includeRecursive: options.forceRescan)
+                    includeRecursive: options.forceRescan,
+                    calendar: options.calendar)
                 for fileURL in rootFiles.sorted(by: { $0.path < $1.path }) where !seenPaths.contains(fileURL.path) {
                     seenPaths.insert(fileURL.path)
                     files.append(fileURL)
@@ -2872,7 +3425,8 @@ enum CostUsageScanner {
                         root: root,
                         scanSinceKey: range.scanSinceKey,
                         scanUntilKey: range.scanUntilKey,
-                        modifiedSince: coldCacheLookbackStart)
+                        modifiedSince: coldCacheLookbackStart,
+                        calendar: options.calendar)
                     for fileURL in recentlyModifiedFiles.sorted(by: { $0.path < $1.path })
                         where !seenPaths.contains(fileURL.path)
                     {
@@ -2893,6 +3447,10 @@ enum CostUsageScanner {
                 files.append(fileURL)
             }
 
+            if options.preferNewestCodexSessionsFirst {
+                files = Self.sortedCodexSessionFilesNewestFirst(files)
+            }
+
             let filePathsInScan = Set(files.map(\.path))
             var scanState = CodexScanState()
             let fileIndex = CodexSessionFileIndex(
@@ -2903,9 +3461,13 @@ enum CostUsageScanner {
                     roots: plan.roots,
                     knownExistingPaths: filePathsInScan),
                 checkCancellation: checkCancellation)
+            let scanBudget = CodexScanBudget(
+                maxFileBytes: options.maxCodexSessionFileBytes,
+                maxBytesPerRefresh: options.maxCodexScanBytesPerRefresh)
             let inheritedResolver = CodexInheritedTotalsResolver(
                 fileIndex: fileIndex,
-                checkCancellation: checkCancellation)
+                checkCancellation: checkCancellation,
+                scanBudget: scanBudget)
             let resources = CodexScanResources(
                 fileIndex: fileIndex,
                 inheritedResolver: inheritedResolver,
@@ -2918,13 +3480,25 @@ enum CostUsageScanner {
                 options: options,
                 plan: plan,
                 resources: resources,
-                checkCancellation: checkCancellation)
+                checkCancellation: checkCancellation,
+                scanBudget: scanBudget)
             for fileURL in files {
                 try Self.scanCodexFile(
                     fileURL: fileURL,
                     context: scanContext,
                     cache: &cache,
                     state: &scanState)
+            }
+            if scanBudget.resumedPartialFileCount > 0 || scanBudget.deferredByBudgetFileCount > 0 {
+                Self.log.info(
+                    "Codex cost scan applied work limits",
+                    metadata: [
+                        "partialFiles": "\(scanBudget.resumedPartialFileCount)",
+                        "deferredByBudget": "\(scanBudget.deferredByBudgetFileCount)",
+                        "bytesConsumed": "\(scanBudget.bytesConsumed)",
+                        "maxFileBytes": "\(scanBudget.maxFileBytes)",
+                        "maxBytesPerRefresh": "\(scanBudget.maxBytesPerRefresh)",
+                    ])
             }
             try checkCancellation?()
 
@@ -2988,7 +3562,7 @@ enum CostUsageScanner {
             }
             cache.lastScanUnixMs = nowMs
             try checkCancellation?()
-            CostUsageCacheIO.save(provider: .codex, cache: cache, cacheRoot: options.cacheRoot)
+            Self.saveCodexCache(cache, options: options, range: range)
         }
 
         return Self.buildCodexReportFromCache(
@@ -3004,7 +3578,8 @@ enum CostUsageScanner {
         options: Options,
         plan: CodexRefreshPlan,
         resources: CodexScanResources,
-        checkCancellation: CancellationCheck?) -> CodexFileScanContext
+        checkCancellation: CancellationCheck?,
+        scanBudget: CodexScanBudget? = nil) -> CodexFileScanContext
     {
         CodexFileScanContext(
             range: range,
@@ -3015,7 +3590,22 @@ enum CostUsageScanner {
             requiresTurnIDCache: plan.needsTurnIDCacheMigration,
             changedPriorityTurnIDs: plan.changedPriorityTurnIDs,
             resources: resources,
-            checkCancellation: checkCancellation)
+            checkCancellation: checkCancellation,
+            scanBudget: scanBudget)
+    }
+
+    static func sortedCodexSessionFilesNewestFirst(_ files: [URL]) -> [URL] {
+        files.sorted { lhs, rhs in
+            let left = Self.codexFileMetadata(fileURL: lhs)
+            let right = Self.codexFileMetadata(fileURL: rhs)
+            if left.mtimeUnixMs != right.mtimeUnixMs {
+                return left.mtimeUnixMs > right.mtimeUnixMs
+            }
+            if left.size != right.size {
+                return left.size < right.size
+            }
+            return lhs.path < rhs.path
+        }
     }
 }
 

@@ -415,6 +415,9 @@
 "section_agent_sessions" = "Agent sessions";
 "language_title" = "Language";
 "language_subtitle" = "Change the display language. Requires app restart to take full effect.";
+"currency_title" = "Preferred Currency";
+"currency_subtitle" = "Currency for cost estimates and spend metrics. Uses live exchange rates updated daily.";
+"currency_auto" = "Auto (Follow Provider / USD)";
 "language_system" = "System";
 "language_english" = "English";
 "language_spanish" = "Español";
@@ -1234,6 +1237,8 @@
 "section_links" = "Links";
 "Show Codex Spark usage" = "Show Codex Spark usage";
 "Shows Codex Spark quota rows in the menu and provider preview. Requires optional credits and extra usage in Display settings." = "Shows Codex Spark quota rows in the menu and provider preview. Requires optional credits and extra usage in Display settings.";
+"Show Daily Routines usage" = "Show Daily Routines usage";
+"Shows the Daily Routines quota row in the menu and provider preview. Requires optional credits and extra usage in Display settings." = "Shows the Daily Routines quota row in the menu and provider preview. Requires optional credits and extra usage in Display settings.";
 "Scroll to see more models" = "Scroll to see more models";
 
 /* Shareable usage card */
@@ -1276,7 +1281,10 @@
 "≈%d full 5h windows of weekly left · %d windows until reset" = "≈%d full 5h windows of weekly left · %d windows until reset";
 "Weekly cannot run out before reset at this pace" = "Weekly cannot run out before reset at this pace";
 "Weekly can run out ≈%d windows early" = "Weekly can run out ≈%d windows early";
-"Estimated: %@" = "Estimated: %@";
+"Estimated: %@" = "Est. %@";
+"session_quota_estimate_value_format" = "%1$@ %2$@";
+"session quota" = "session quota";
+"session quotas" = "session quotas";
 "Coding Plan" = "Coding Plan";
 "Agent Plan" = "Agent Plan";
 "Team" = "Team";

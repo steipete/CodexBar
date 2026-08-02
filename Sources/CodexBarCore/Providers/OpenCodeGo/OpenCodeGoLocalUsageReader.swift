@@ -66,21 +66,45 @@ public struct OpenCodeGoLocalUsageReader: Sendable {
     }
 
     private func readRows() throws -> [UsageRow] {
+        do {
+            return try self.readRows(immutable: false)
+        } catch let failure as SQLiteReadFailure {
+            // A clean WAL shutdown can remove both sidecars while leaving the database header in WAL mode.
+            // Immutable mode reads that idle main file without recreating sidecars; active WALs stay on the normal
+            // path.
+            guard failure.code == SQLITE_CANTOPEN, self.walSidecarsAreMissing else {
+                throw OpenCodeGoLocalUsageError.sqliteFailed(failure.message)
+            }
+
+            do {
+                return try self.readRows(immutable: true)
+            } catch let fallbackFailure as SQLiteReadFailure {
+                throw OpenCodeGoLocalUsageError.sqliteFailed(fallbackFailure.message)
+            }
+        }
+    }
+
+    private func readRows(immutable: Bool) throws -> [UsageRow] {
         var db: OpaquePointer?
-        guard sqlite3_open_v2(self.databaseURL.path, &db, SQLITE_OPEN_READONLY, nil) == SQLITE_OK else {
-            let message = db.flatMap { String(cString: sqlite3_errmsg($0)) } ?? "unknown error"
+        let filename = immutable ? "\(self.databaseURL.absoluteURL.absoluteString)?immutable=1" : self.databaseURL.path
+        let flags = immutable ? SQLITE_OPEN_READONLY | SQLITE_OPEN_URI : SQLITE_OPEN_READONLY
+        let openResult = sqlite3_open_v2(filename, &db, flags, nil)
+        guard openResult == SQLITE_OK else {
+            let failure = Self.sqliteFailure(db: db, resultCode: openResult)
             sqlite3_close(db)
-            throw OpenCodeGoLocalUsageError.sqliteFailed(message)
+            throw failure
         }
         defer { sqlite3_close(db) }
         sqlite3_busy_timeout(db, 250)
 
-        let sql = self.hasTable(named: "part", db: db) ? Self.messageAndPartUsageSQL : Self.messageUsageSQL
+        let sql = try self.hasTable(named: "part", db: db)
+            ? Self.messageAndPartUsageSQL
+            : Self.messageUsageSQL
 
         var stmt: OpaquePointer?
-        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {
-            let message = db.flatMap { String(cString: sqlite3_errmsg($0)) } ?? "unknown error"
-            throw OpenCodeGoLocalUsageError.sqliteFailed(message)
+        let prepareResult = sqlite3_prepare_v2(db, sql, -1, &stmt, nil)
+        guard prepareResult == SQLITE_OK else {
+            throw Self.sqliteFailure(db: db, resultCode: prepareResult)
         }
         defer { sqlite3_finalize(stmt) }
 
@@ -91,8 +115,7 @@ public struct OpenCodeGoLocalUsageReader: Sendable {
                 break
             }
             guard step == SQLITE_ROW else {
-                let message = db.flatMap { String(cString: sqlite3_errmsg($0)) } ?? "unknown error"
-                throw OpenCodeGoLocalUsageError.sqliteFailed(message)
+                throw Self.sqliteFailure(db: db, resultCode: step)
             }
 
             let createdMs = sqlite3_column_int64(stmt, 0)
@@ -104,22 +127,38 @@ public struct OpenCodeGoLocalUsageReader: Sendable {
         return rows
     }
 
-    private func hasTable(named name: String, db: OpaquePointer?) -> Bool {
+    private var walSidecarsAreMissing: Bool {
+        !FileManager.default.fileExists(atPath: self.databaseURL.path + "-wal") &&
+            !FileManager.default.fileExists(atPath: self.databaseURL.path + "-shm")
+    }
+
+    private func hasTable(named name: String, db: OpaquePointer?) throws -> Bool {
         var stmt: OpaquePointer?
-        guard sqlite3_prepare_v2(
+        let prepareResult = sqlite3_prepare_v2(
             db,
             "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ? LIMIT 1",
             -1,
             &stmt,
-            nil) == SQLITE_OK
-        else {
-            return false
+            nil)
+        guard prepareResult == SQLITE_OK else {
+            throw Self.sqliteFailure(db: db, resultCode: prepareResult)
         }
         defer { sqlite3_finalize(stmt) }
 
         let transient = unsafeBitCast(-1, to: sqlite3_destructor_type.self)
         sqlite3_bind_text(stmt, 1, name, -1, transient)
-        return sqlite3_step(stmt) == SQLITE_ROW
+        let step = sqlite3_step(stmt)
+        if step == SQLITE_ROW {
+            return true
+        }
+        guard step == SQLITE_DONE else { throw Self.sqliteFailure(db: db, resultCode: step) }
+        return false
+    }
+
+    private static func sqliteFailure(db: OpaquePointer?, resultCode: Int32) -> SQLiteReadFailure {
+        SQLiteReadFailure(
+            code: db.map { sqlite3_errcode($0) } ?? resultCode,
+            message: db.map { String(cString: sqlite3_errmsg($0)) } ?? "unknown error")
     }
 
     private static let messageUsageSQL = """
@@ -175,6 +214,11 @@ public struct OpenCodeGoLocalUsageReader: Sendable {
         let cost: Double
         /// One provider invocation per step-finish part; message-only databases fall back to one.
         let requestCount: Int
+    }
+
+    private struct SQLiteReadFailure: Error {
+        let code: Int32
+        let message: String
     }
 
     private static func hasAuthKey(at url: URL) -> Bool {

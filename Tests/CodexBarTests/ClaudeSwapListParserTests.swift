@@ -144,6 +144,30 @@ struct ClaudeSwapListParserTests {
     }
 
     @Test
+    func `projects relogin required status to recovery guidance`() throws {
+        let json = """
+        {
+          "schemaVersion": 1,
+          "activeAccountNumber": null,
+          "accounts": [
+            {
+              "number": 1,
+              "email": "expired@example.com",
+              "active": false,
+              "usageStatus": "relogin_required",
+              "usage": null
+            }
+          ]
+        }
+        """
+
+        let list = try self.parse(json)
+        let account = try #require(ClaudeSwapAccountProjection.accountSnapshots(from: list).first)
+        #expect(account.error == "Re-login required. Re-authenticate this account in claude-swap.")
+        #expect(account.canActivate == false)
+    }
+
+    @Test
     func `surfaces schema v1 error envelope`() throws {
         let json = """
         {"schemaVersion": 1, "error": {"type": "SwitchError", "message": "boom"}}

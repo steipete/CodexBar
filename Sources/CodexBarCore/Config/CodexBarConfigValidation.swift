@@ -46,6 +46,7 @@ public enum CodexBarConfigValidator {
         .opencodego,
         .devin,
         .deepgram,
+        .xai,
     ]
 
     public static func validate(_ config: CodexBarConfig) -> [CodexBarConfigIssue] {

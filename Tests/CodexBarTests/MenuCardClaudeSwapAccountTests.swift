@@ -9,7 +9,8 @@ import Testing
 struct MenuCardClaudeSwapAccountTests {
     private func makeModel(
         hidePersonalInfo: Bool,
-        planOverride: String? = nil) throws -> UsageMenuCardView.Model
+        planOverride: String? = nil,
+        additionalRateWindows: [NamedRateWindow] = []) throws -> UsageMenuCardView.Model
     {
         let now = Date(timeIntervalSince1970: 1_782_000_000)
         let metadata = try #require(ProviderDefaults.metadata[.claude])
@@ -31,11 +32,14 @@ struct MenuCardClaudeSwapAccountTests {
                     ]),
             ])
         let account = try #require(ClaudeSwapAccountProjection.accountSnapshots(from: list, now: now).first)
+        let baseSnapshot = try #require(account.snapshot)
+        let snapshot = baseSnapshot.with(
+            extraRateWindows: (baseSnapshot.extraRateWindows ?? []) + additionalRateWindows)
 
         return UsageMenuCardView.Model.make(.init(
             provider: .claude,
             metadata: metadata,
-            snapshot: account.snapshot,
+            snapshot: snapshot,
             credits: nil,
             creditsError: nil,
             dashboard: nil,
@@ -73,6 +77,30 @@ struct MenuCardClaudeSwapAccountTests {
         let scoped = try #require(model.metrics.first(where: { $0.id == "claude-weekly-scoped-fable" }))
         #expect(scoped.title == "Fable only")
         #expect(scoped.percent == 80)
+        #expect(scoped.detailLeftText == "6% in reserve")
+        #expect(scoped.pacePercent != nil)
+    }
+
+    @Test
+    func `claude nonweekly extra window does not render pace detail`() throws {
+        let now = Date(timeIntervalSince1970: 1_782_000_000)
+        let model = try self.makeModel(
+            hidePersonalInfo: false,
+            additionalRateWindows: [
+                NamedRateWindow(
+                    id: "claude-nonweekly-extra",
+                    title: "Nonweekly extra",
+                    window: RateWindow(
+                        usedPercent: 80,
+                        windowMinutes: 300,
+                        resetsAt: now.addingTimeInterval(4 * 60 * 60),
+                        resetDescription: nil)),
+            ])
+
+        let extra = try #require(model.metrics.first(where: { $0.id == "claude-nonweekly-extra" }))
+        #expect(extra.detailLeftText == nil)
+        #expect(extra.detailRightText == nil)
+        #expect(extra.pacePercent == nil)
     }
 
     @Test

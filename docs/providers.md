@@ -8,7 +8,7 @@ read_when:
 
 # Providers
 
-CodexBar currently registers 63 provider IDs. Some companies expose multiple surfaces, such as Codex vs OpenAI API or
+CodexBar currently registers 66 provider IDs. Some companies expose multiple surfaces, such as Codex vs OpenAI API or
 OpenCode vs OpenCode Go, because the auth source and quota shape differ.
 
 ## Fetch strategies (current)
@@ -45,6 +45,7 @@ scan fails, while provider/account configuration changes replace obsolete result
 | OpenCode Go | Unscoped Auto: local SQLite usage (`local`) → web dashboard (`web`). Scoped Auto (selected account/manual cookie/workspace): web → local. Explicit Web: web only. |
 | Alibaba Coding Plan | Console RPC via web cookies (auto/manual) with API key fallback (`web`, `api`). |
 | Alibaba Token Plan | Bailian subscription summary API via browser or manual cookies (`web`). |
+| Qwen Cloud | Qwen Cloud 5-hour/weekly Token Plan APIs via browser or manual cookies (`web`). |
 | Droid/Factory | API key (`FACTORY_API_KEY` / config) → web cookies → stored tokens → local storage → WorkOS cookies (`auto`, `api`, `web`). |
 | Devin | Chrome localStorage session or manual Bearer token → daily and weekly quota API (`web`). |
 | z.ai | API token from config/env → quota API (`api`). |
@@ -59,6 +60,7 @@ scan fails, while provider/account configuration changes replace obsolete result
 | JetBrains AI | Local XML quota file (`local`). |
 | Amp | Local `amp usage` CLI, access-token API, then browser-cookie legacy fallback (`cli`, `api`, `web`). |
 | T3 Chat | Web tRPC customer-data endpoint via browser cookies (`web`). |
+| ZoomMate | Chrome cookie auto-import + cookie-to-token minting, or manual cURL capture, for the credits/status API (`web`). |
 | Warp | API token (config/env) → GraphQL request limits (`api`). |
 | ElevenLabs | API key from config/env → subscription usage API (`api`). |
 | Windsurf | Web session bundle from browser localStorage (`web`) → local SQLite cache (`local`). |
@@ -75,7 +77,7 @@ scan fails, while provider/account configuration changes replace obsolete result
 | DeepInfra | API key from env or token accounts → billing checklist + monthly usage endpoints (`api`). |
 | Moonshot | API key from config/env → balance endpoint (`api`). |
 | Codebuff | API token from config/env or `codebuff login` credentials → usage API (`api`). |
-| Crof | API key from config/env → credit balance + requests quota API (`api`). |
+| Crof | API key from config/env → credit balance + optional request quota API (`api`). |
 | Venice | API key from config/env → DIEM/USD balance API (`api`). |
 | Command Code | Web billing API via Command Code session cookies (`web`). |
 | ClinePass | API key from config/env → 5-hour, weekly, and monthly subscription usage limits (`api`). |
@@ -92,6 +94,7 @@ scan fails, while provider/account configuration changes replace obsolete result
 | Neuralwatt | API key from config/env → `/v1/quota` subscription kWh usage and prepaid balance (`api`). |
 | ZenMux | Management API key from config/env → five-hour and seven-day quota windows plus PAYG balance (`api`). |
 | ai& | API key from config/env → 30-day organization spend summed from the request logs API (`api`). |
+| xAI | Management key + team ID from config/env → prepaid balance and 30-day daily spend from the Management API (`api`). |
 | Zed | Zed editor Keychain session → `cloud.zed.dev/client/users/me` for plan and quota data (`local`). |
 
 ## Codex
@@ -218,12 +221,46 @@ scan fails, while provider/account configuration changes replace obsolete result
 - Details: `docs/alibaba-coding-plan.md`.
 
 ## Alibaba Token Plan
-- Web mode posts to the Bailian `GetSubscriptionSummary` endpoint with form-encoded params and optional `sec_token`.
+- Explicit Team variants post to `GetSubscriptionSummary`; explicit Personal/Solo variants fetch the 5-hour and
+  weekly rolling windows plus subscription/quota metadata without probing across plan types.
 - Cookie sources: browser import (`auto`), manual Cookie header, or `ALIBABA_TOKEN_PLAN_COOKIE`.
-- Default quota URL: `https://bailian.console.aliyun.com/data/api.json?action=GetSubscriptionSummary&product=BssOpenAPI-V3`.
+- Region values: `intl` / `cn` for Team and `intl-personal` / `cn-personal` for Personal/Solo.
+- Personal quota hosts: `bailian-singapore-cs.alibabacloud.com` (international) and
+  `bailian-cs.console.aliyun.com` (mainland), with cookies scoped independently from the dashboard host.
 - Host overrides: `ALIBABA_TOKEN_PLAN_HOST` or `ALIBABA_TOKEN_PLAN_QUOTA_URL`.
 - Status: `https://status.aliyun.com` (link only, no auto-polling).
 - Details: `docs/alibaba-token-plan.md`.
+
+### Aliyun OneConsole family
+
+Alibaba Coding Plan, Alibaba Token Plan, and Qwen Cloud all run on the Aliyun OneConsole
+backend. They selectively reuse plumbing under
+`Sources/CodexBarCore/Providers/Shared/AliyunOneConsole/`:
+
+- `AliyunOneConsoleCookieImporter` — browser cookie iteration, Chromium fallback, Keychain preflight.
+  The Alibaba providers and Qwen Cloud supply their own cookie domains and authenticated-session predicate.
+- `OneConsoleCookieHeaders` / `OneConsoleCookieHeaderBuilder` — `apiCookieHeader` / `dashboardCookieHeader`
+  pair with cached-header round-trip, currently used by Alibaba Token Plan and Qwen Cloud.
+- `OneConsoleJSON` — recursive expand-embedded-JSON traversal and scalar coercion (`number`, `int`,
+  `string`, `date`, `percentagePoints`), used by all three providers.
+- `OneConsoleSECTokenResolver` — dashboard HTML → cookie → user-info chain, currently used by Qwen Cloud.
+- `OneConsoleCookieRouting` — Qwen Cloud's provider-local redirect policy. It pins dashboard/API cookies
+  to their matching trusted origin, strips credentials from cross-origin GET/HEAD navigation, and blocks
+  cross-origin redirects that preserve a request body.
+
+Future OneConsole-based providers can adopt the helpers that match their actual protocol while keeping
+provider-specific cookie validation, endpoints, login detection, and error translation at the provider boundary.
+
+## Qwen Cloud
+- Web mode resolves `sec_token` through the dashboard (`home.qwencloud.com`), then posts to the current
+  individual Token Plan usage, subscription, and quota-configuration APIs on `cs-data.qwencloud.com`.
+- Displays 5-hour and weekly consumed percentages, reset times, active tier, and tier-specific credit limits.
+- Cookie sources: Chrome import (`auto`), manual Cookie header, or `QWEN_CLOUD_COOKIE`.
+- Default data gateway:
+  `https://cs-data.qwencloud.com/data/api.json?action=IntlBroadScopeAspnGateway&product=sfm_bailian`.
+- Host overrides: `QWEN_CLOUD_HOST` or `QWEN_CLOUD_QUOTA_URL` (HTTPS URLs or bare hosts normalized to HTTPS).
+- Status: `https://status.alibabacloud.com` (link only, no auto-polling).
+- Details: `docs/qwen-cloud.md`.
 
 ## Droid (Factory)
 - API key from `~/.codexbar/config.json` (`providers[].apiKey`), `FACTORY_API_KEY`, or `~/.factory/.env`.
@@ -306,6 +343,22 @@ scan fails, while provider/account configuration changes replace obsolete result
 - Shows the 4-hour Base bucket and monthly Overage bucket documented in the T3 Chat FAQ.
 - Status: none yet.
 - Details: `docs/t3chat.md`.
+
+## ZoomMate
+- Credits API endpoint (`https://ai.zoom.us/ai-computer/api/v1/credits/status`) authenticated via a
+  bearer token.
+- Auto-imports ZoomMate/Zoom session cookies from Chrome, validates and stores the narrowed cookie
+  header in CodexBar's Keychain cache, and exchanges it for a short-lived bearer token through
+  ZoomMate's own cookie-to-token bootstrap endpoint. The bearer remains in memory only and is reused
+  until it nears expiry. Manual cURL capture is available as an explicit alternative.
+- Shows a single "Credits" window: used/remaining credits against a budget cap, resetting at the
+  billing cycle end, plus an inline Today/30-day credits history chart and pacing verdict (on
+  track/behind/ahead of budget).
+- Status: `https://www.zoomstatus.com/` (Statuspage.io); the component drill-down is filtered to a
+  named allowlist ("Zoom Meetings", "ZoomMate", "My Notes", "Zoom Workflows", "Zoom Developer
+  Platform", "Zoom Support", "Zoom Website") rather than showing Zoom's full ~300-component status
+  page.
+- Details: `docs/zoommate.md`.
 
 ## Ollama
 - Web settings page (`https://ollama.com/settings`) via browser cookies.
@@ -414,9 +467,8 @@ scan fails, while provider/account configuration changes replace obsolete result
 
 ## Crof
 - API key from `~/.codexbar/config.json`, `CROF_API_KEY`, or `CROFAI_API_KEY`.
-- Reads `credits`, `requests_plan`, and `usable_requests` from `GET https://crof.ai/usage_api/`.
-- Shows request quota as the primary usage window and dollar credits as the secondary row.
-- Infers the daily request reset from midnight America/Chicago until the usage API exposes reset metadata.
+- Reads `credits` and optional `requests_plan` / `usable_requests` from `GET https://crof.ai/usage_api/`.
+- Prefers request quota plus a secondary dollar-balance row when quota fields are present; otherwise shows dollar credits as the primary window.
 - Status: none yet.
 - Details: `docs/crof.md`.
 
@@ -445,7 +497,10 @@ scan fails, while provider/account configuration changes replace obsolete result
 - `grok agent stdio` (ACP) JSON-RPC `x.ai/billing` method; requires `grok login` (SuperGrok OAuth/OIDC).
 - Reads cached credentials from `~/.grok/auth.json` for identity (email, team).
 - Falls back to grok.com's billing gRPC-web endpoint via Chrome session cookies when the CLI does not expose billing.
-- CLI/test runs do not import browser cookies unless `CODEXBAR_ALLOW_BROWSER_COOKIE_IMPORT=1` is set.
+- Ordinary CLI/test runs do not import browser cookies unless `CODEXBAR_ALLOW_BROWSER_COOKIE_IMPORT=1` is set;
+  `codexbar cookie refresh --provider grok` opts in for its explicit refresh.
+- Validated sessions are cached in the Keychain cookie cache and reused before any new browser import;
+  the cache is evicted only on authentication failures.
 - Local fallback aggregates `~/.grok/sessions/**/signals.json` token counts when the RPC is unavailable.
 - Status: link only to `https://status.x.ai` (no auto-polling yet).
 - Details: `docs/grok.md`.
@@ -540,5 +595,12 @@ scan fails, while provider/account configuration changes replace obsolete result
 - The live `/analytics/summary` endpoint carries no cost field despite its docs, so the request log is the spend source; a hit page cap is labeled "Last 30 days (partial)" instead of silently truncating.
 - Prepaid credits with no quota windows; no session or weekly meters are synthesized. The credit balance is console-only and not shown.
 - Details: `docs/aiand.md`.
+
+## xAI
+- Management API key + team ID from config or `XAI_MANAGEMENT_API_KEY` / `XAI_TEAM_ID` (created at console.x.ai under Settings > Management Keys; inference API keys are not accepted).
+- Reads the prepaid credit balance from `GET https://management-api.x.ai/v1/billing/teams/{team_id}/prepaid/balance` and daily USD spend for the last 30 days from `POST .../usage`. A hit cardinality cap (`limitReached`) is labeled "Last 30 days (partial)" instead of silently truncating.
+- Distinct from the Grok provider: Grok tracks consumer Grok/SuperGrok subscription quota via CLI/web session; xAI tracks the developer-platform prepaid billing surface. Credentials and balances are never shared between the two.
+- Prepaid money is not a quota; no session or weekly meters are synthesized.
+- Details: `docs/xai.md`.
 
 See also: `docs/provider.md` for architecture notes.

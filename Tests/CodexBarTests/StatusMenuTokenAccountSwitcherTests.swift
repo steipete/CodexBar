@@ -310,9 +310,17 @@ final class StatusMenuTokenAccountSwitcherTests: XCTestCase {
         controller.menuWillOpen(menu)
 
         XCTAssertNil(menu.items.compactMap { $0.view as? TokenAccountSwitcherView }.first)
+        // Stale snapshots stay ignored and the 6-account cap still applies before the
+        // compact plan: capped accounts 0-4 plus the selected account 7. With 8 accounts
+        // the compact layout pins the active card, keeps the best candidate row visible,
+        // and folds the remaining healthy accounts.
         XCTAssertEqual(
-            self.representedIDs(in: menu).filter { $0.hasPrefix("menuCard") },
-            ["menuCard-0", "menuCard-1", "menuCard-2", "menuCard-3", "menuCard-4", "menuCard-5"])
+            self.representedIDs(in: menu).filter { $0.hasPrefix("menuCard") || $0.hasPrefix("tokenAccount") },
+            [
+                "tokenAccountCard-\(accounts[7].id.uuidString)",
+                "tokenAccountCompact-\(accounts[0].id.uuidString)",
+                "tokenAccountCollapsed",
+            ])
     }
 
     func test_multiAccountStackedLayoutRejectsSnapshotsAfterCredentialOrBaseURLChanges() throws {

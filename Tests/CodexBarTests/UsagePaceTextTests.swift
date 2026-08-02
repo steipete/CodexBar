@@ -17,6 +17,10 @@ struct UsagePaceTextTests {
         "Runs out in %@",
         "1.5× headroom",
         "≈ %d%% run-out risk",
+        "%@ left",
+        "session quota",
+        "session quotas",
+        "session_quota_estimate_value_format",
         "≈%d full 5h windows of weekly left · %d windows until reset",
         "Weekly cannot run out before reset at this pace",
         "Weekly can run out ≈%d windows early",
@@ -393,6 +397,29 @@ struct UsagePaceTextTests {
             #expect(
                 Self.placeholderTokens(in: enValue) == Self.placeholderTokens(in: zhValue),
                 "Placeholder mismatch for key '\(key)': en='\(enValue)' zh='\(zhValue)'")
+        }
+    }
+
+    @Test
+    func `session quota estimate template localizes CJK number unit spacing`() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let expectations = [
+            (language: "zh-Hans", unit: "会话额度", expected: "0.3会话额度"),
+            (language: "zh-Hant", unit: "工作階段額度", expected: "0.3工作階段額度"),
+            (language: "ja", unit: "セッション枠", expected: "0.3セッション枠"),
+            (language: "ko", unit: "세션 할당량", expected: "0.3 세션 할당량"),
+        ]
+
+        for expectation in expectations {
+            let url = root.appendingPathComponent(
+                "Sources/CodexBar/Resources/\(expectation.language).lproj/Localizable.strings")
+            let table = try Self.readStringsTable(at: url)
+            let template = try #require(table["session_quota_estimate_value_format"])
+            let arguments: [CVarArg] = ["0.3", expectation.unit]
+            #expect(String(format: template, arguments: arguments) == expectation.expected)
         }
     }
 

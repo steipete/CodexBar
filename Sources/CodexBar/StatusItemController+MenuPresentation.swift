@@ -129,13 +129,34 @@ final class MenuHostingView<Content: View>: NSHostingView<Content> {
     }
 }
 
+/// Row payload remembered by erased hosting views so tab switches can exchange
+/// SwiftUI content between an attached and a cached hosting view without ever
+/// detaching `item.view`. Detaching mid-tracking makes Tahoe's NSMenu paint the
+/// row's fallback title ("NSMenuItem") for a few frames — the tab-switch flash.
 @MainActor
+struct MenuCardRowPayload {
+    let content: AnyView
+    let showsSubmenuIndicator: Bool
+    let submenuIndicatorAlignment: Alignment
+    let submenuIndicatorTopPadding: CGFloat
+    let allowsMenuHighlight: Bool
+    let containsInteractiveControls: Bool
+    let onClick: (() -> Void)?
+}
+
+/// Concrete hosting type shared by every standard (non-GPU) menu card row;
+/// content is erased so any row's payload can be replanted into any other row's
+/// hosting view during tab switches.
+typealias ErasedMenuCardHostingView = MenuCardItemHostingView<MenuCardSectionContainerView<AnyView>>
+
 final class MenuCardItemHostingView<Content: View>: NSHostingView<Content>, MenuCardHighlighting, MenuCardMeasuring {
     let highlightState: MenuCardHighlightState
     private(set) var allowsMenuHighlight: Bool
     private var onClick: (() -> Void)?
     private var containsInteractiveControls: Bool
     let interactiveRegionStore: MenuCardInteractiveRegionStore?
+    /// Set for erased hosting views only; consumed by the flash-free content swap.
+    var rowPayload: MenuCardRowPayload?
     private var isPressed = false
     private var isForwardingHostedControlPress = false
     #if DEBUG

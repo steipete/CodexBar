@@ -21,32 +21,23 @@ enum ClaudeWebExtraRateWindowParser {
         var sourceKeys: [String: String] = [:]
         windows.reserveCapacity(Self.definitions.count)
 
-        for definition in Self.definitions {
-            if let foundWindow = Self.firstUsageWindow(in: json, keys: definition.keys) {
-                let rawWindow = foundWindow.window
-                guard let utilization = Self.percentValue(from: rawWindow["utilization"]) else { continue }
-                let resetsAt = (rawWindow["resets_at"] as? String).flatMap(Self.parseISO8601Date)
-                windows.append(Self.namedWindow(
-                    id: definition.id,
-                    title: definition.title,
-                    usedPercent: utilization,
-                    resetsAt: resetsAt))
-                sourceKeys[definition.id] = foundWindow.sourceKey
-                continue
-            }
-
-            // Some accounts expose the key with null payloads (for example `seven_day_cowork: null`).
-            // Preserve the bar in that case with a 0% window so the product section remains visible.
-            if let key = Self.firstUsageKey(in: json, keys: definition.keys) {
-                windows.append(Self.namedWindow(
-                    id: definition.id,
-                    title: definition.title,
-                    usedPercent: 0,
-                    resetsAt: nil))
-                sourceKeys[definition.id] = key
-            }
-        }
+        // Model-scoped weekly limits come first: they track the model budget users spend
+        // day to day, while Daily Routines stays at 0% for accounts that never use
+        // Routines/Cowork and would otherwise push the meaningful row down the card.
         windows.append(contentsOf: Self.scopedWeeklyLimitWindows(from: json))
+
+        for definition in Self.definitions {
+            guard let foundWindow = Self.firstUsageWindow(in: json, keys: definition.keys) else { continue }
+            let rawWindow = foundWindow.window
+            guard let utilization = Self.percentValue(from: rawWindow["utilization"]) else { continue }
+            let resetsAt = (rawWindow["resets_at"] as? String).flatMap(Self.parseISO8601Date)
+            windows.append(Self.namedWindow(
+                id: definition.id,
+                title: definition.title,
+                usedPercent: utilization,
+                resetsAt: resetsAt))
+            sourceKeys[definition.id] = foundWindow.sourceKey
+        }
         return (windows, sourceKeys)
     }
 
@@ -90,13 +81,6 @@ enum ClaudeWebExtraRateWindowParser {
             if let window = json[key] as? [String: Any] {
                 return (window, key)
             }
-        }
-        return nil
-    }
-
-    private static func firstUsageKey(in json: [String: Any], keys: [String]) -> String? {
-        for key in keys where json.keys.contains(key) {
-            return key
         }
         return nil
     }

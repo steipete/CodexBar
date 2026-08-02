@@ -18,7 +18,7 @@ struct LiteLLMProviderImplementation: ProviderImplementation {
     @MainActor
     func isAvailable(context: ProviderAvailabilityContext) -> Bool {
         ProviderTokenResolver.liteLLMToken(environment: context.environment) != nil &&
-            LiteLLMSettingsReader.baseURL(environment: context.environment) != nil
+            LiteLLMSettingsReader.hasBaseURLOverride(environment: context.environment)
     }
 
     @MainActor

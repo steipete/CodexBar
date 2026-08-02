@@ -27,6 +27,7 @@ public struct WidgetSnapshot: Codable, Sendable {
         public let tokenUsage: TokenUsageSummary?
         public let dailyUsage: [DailyUsagePoint]
         public let providerCost: ProviderCostSnapshot?
+        public let quotaOwnerKey: String?
 
         public init(
             provider: UsageProvider,
@@ -39,7 +40,8 @@ public struct WidgetSnapshot: Codable, Sendable {
             codeReviewRemainingPercent: Double?,
             tokenUsage: TokenUsageSummary?,
             dailyUsage: [DailyUsagePoint],
-            providerCost: ProviderCostSnapshot? = nil)
+            providerCost: ProviderCostSnapshot? = nil,
+            quotaOwnerKey: String? = nil)
         {
             self.provider = provider
             self.updatedAt = updatedAt
@@ -52,6 +54,7 @@ public struct WidgetSnapshot: Codable, Sendable {
             self.tokenUsage = tokenUsage
             self.dailyUsage = dailyUsage
             self.providerCost = providerCost
+            self.quotaOwnerKey = quotaOwnerKey
         }
     }
 

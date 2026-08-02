@@ -248,8 +248,31 @@ struct StepFunUsageFetcherParsingTests {
         let primaryUsed = usage.primary?.usedPercent ?? -1
         #expect(primaryUsed > 3.5 && primaryUsed < 3.7)
 
+        // The monthly credit pool (with a real reset time) carries a monthly windowMinutes so
+        // it feeds the plan-utilization history + pace forecast (parity with Codex/Claude).
+        #expect(usage.primary?.windowMinutes == 30 * 24 * 60)
+
         // No secondary window for credit plans.
         #expect(usage.secondary == nil)
+    }
+
+    @Test
+    func `zero credit reset does not activate monthly pace`() throws {
+        let json = """
+        {
+            "status": 1,
+            "plan_family": 2,
+            "plan_credit_rate_limit": {
+                "subscription_credit_left_rate": 0.5,
+                "subscription_credit_reset_time": "0"
+            }
+        }
+        """
+        let snapshot = try StepFunUsageFetcher._parseSnapshotForTesting(Data(json.utf8))
+        let usage = snapshot.toUsageSnapshot()
+
+        #expect(snapshot.creditResetTime == nil)
+        #expect(usage.primary?.windowMinutes == nil)
     }
 
     @Test
@@ -306,6 +329,96 @@ struct StepFunUsageFetcherParsingTests {
         let usage = snapshot.toUsageSnapshot()
         // 25% used
         #expect(usage.primary?.usedPercent ?? -1 > 24.9 && usage.primary?.usedPercent ?? -1 < 25.1)
+    }
+
+    @Test
+    func `live rolling windows win over a credit-family id`() throws {
+        // Robustness across the 2026-06-18 Coding Plan → Token Plan split: the
+        // grandfathered Coding Plan meters live 5h/weekly windows. A live window must
+        // route to the rolling-window renderer even if the same payload also reports
+        // plan_family=2, so a stale/changed family id can never send a windowed plan
+        // to the credit renderer (which would drop the real windows and show a bogus
+        // credit balance).
+        let json = """
+        {
+            "status": 1,
+            "five_hour_usage_left_rate": 0.8,
+            "five_hour_usage_reset_time": "1746000000",
+            "weekly_usage_left_rate": 0.6,
+            "weekly_usage_reset_time": "1746500000",
+            "plan_family": 2,
+            "plan_credit_rate_limit": { "subscription_credit_left_rate": 1, "credit_buckets": [] }
+        }
+        """
+        let snapshot = try StepFunUsageFetcher._parseSnapshotForTesting(Data(json.utf8))
+
+        #expect(snapshot.isCreditPlan == false)
+        let usage = snapshot.toUsageSnapshot()
+        #expect(usage.primary?.windowMinutes == 300)
+        #expect(usage.secondary?.windowMinutes == 10080)
+    }
+
+    @Test
+    func `falls back to the credit-family id only when the payload is otherwise ambiguous`() throws {
+        // A brand-new plan with neither a live window nor a credit pool yet leaves
+        // plan_family as the only signal: 2 == Token Plan (Credit family), else Coding.
+        let creditFamily = """
+        {"status":1,"five_hour_usage_left_rate":0,"five_hour_usage_reset_time":"0",\
+        "weekly_usage_left_rate":0,"weekly_usage_reset_time":"0","plan_family":2}
+        """
+        let windowFamily = """
+        {"status":1,"five_hour_usage_left_rate":0,"five_hour_usage_reset_time":"0",\
+        "weekly_usage_left_rate":0,"weekly_usage_reset_time":"0","plan_family":1}
+        """
+        #expect(try StepFunUsageFetcher._parseSnapshotForTesting(Data(creditFamily.utf8)).isCreditPlan == true)
+        #expect(try StepFunUsageFetcher._parseSnapshotForTesting(Data(windowFamily.utf8)).isCreditPlan == false)
+    }
+
+    @Test
+    func `classifies exhausted zero-credit pool without a family id`() throws {
+        let json = """
+        {
+            "status": 1,
+            "five_hour_usage_left_rate": 0,
+            "five_hour_usage_reset_time": "0",
+            "weekly_usage_left_rate": 0,
+            "weekly_usage_reset_time": "0",
+            "plan_credit_rate_limit": {
+                "subscription_credit_left_rate": 0,
+                "subscription_credit_reset_time": "1786288293"
+            }
+        }
+        """
+        let snapshot = try StepFunUsageFetcher._parseSnapshotForTesting(Data(json.utf8))
+
+        #expect(snapshot.isCreditPlan == true)
+        #expect(snapshot.creditLeftRate == 0)
+        let usage = snapshot.toUsageSnapshot()
+        #expect(usage.primary?.usedPercent == 100)
+        #expect(usage.secondary == nil)
+    }
+
+    @Test
+    func `classifies zero-credit pool when only top-up field is present`() throws {
+        let json = """
+        {
+            "status": 1,
+            "five_hour_usage_left_rate": 0,
+            "five_hour_usage_reset_time": "0",
+            "weekly_usage_left_rate": 0,
+            "weekly_usage_reset_time": "0",
+            "plan_credit_rate_limit": {
+                "topup_credit_left_rate": 0
+            }
+        }
+        """
+        let snapshot = try StepFunUsageFetcher._parseSnapshotForTesting(Data(json.utf8))
+
+        #expect(snapshot.isCreditPlan == true)
+        #expect(snapshot.creditLeftRate == 0)
+        let usage = snapshot.toUsageSnapshot()
+        #expect(usage.primary?.usedPercent == 100)
+        #expect(usage.secondary == nil)
     }
 
     @Test

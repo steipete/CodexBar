@@ -84,6 +84,19 @@ struct CommandCodeWebFetchStrategy: ProviderFetchStrategy {
             return self.makeResult(usage: snapshot.toUsageSnapshot(), sourceLabel: "manual")
         }
 
+        if let cached = CookieHeaderCache.load(provider: .commandcode) {
+            do {
+                let snapshot = try await self.usageLoader(cached.cookieHeader)
+                return self.makeResult(
+                    usage: snapshot.toUsageSnapshot(),
+                    sourceLabel: cached.sourceLabel)
+            } catch CommandCodeUsageError.invalidCredentials {
+                _ = CookieHeaderCache.clearIfCurrent(provider: .commandcode, expected: cached)
+            } catch {
+                throw error
+            }
+        }
+
         let sessions: [CommandCodeResolvedSession]
         do {
             sessions = try self.sessionLoader()
@@ -101,6 +114,10 @@ struct CommandCodeWebFetchStrategy: ProviderFetchStrategy {
             },
             attempt: { session in
                 let snapshot = try await self.usageLoader(session.cookieHeader)
+                CookieHeaderCache.store(
+                    provider: .commandcode,
+                    cookieHeader: session.cookieHeader,
+                    sourceLabel: session.sourceLabel)
                 return self.makeResult(
                     usage: snapshot.toUsageSnapshot(),
                     sourceLabel: session.sourceLabel)

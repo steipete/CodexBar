@@ -33,24 +33,30 @@ struct CostUsageScannerBreakdownTests {
         timestamp: String,
         model: String,
         total: Usage? = nil,
-        last: Usage? = nil) -> [String: Any]
+        last: Usage? = nil,
+        totalReasoning: Int? = nil,
+        lastReasoning: Int? = nil) -> [String: Any]
     {
         var info: [String: Any] = [
             "model": model,
         ]
         if let total {
-            info["total_token_usage"] = [
+            var usage: [String: Any] = [
                 "input_tokens": total.input,
                 "cached_input_tokens": total.cached,
                 "output_tokens": total.output,
             ]
+            usage["reasoning_output_tokens"] = totalReasoning
+            info["total_token_usage"] = usage
         }
         if let last {
-            info["last_token_usage"] = [
+            var usage: [String: Any] = [
                 "input_tokens": last.input,
                 "cached_input_tokens": last.cached,
                 "output_tokens": last.output,
             ]
+            usage["reasoning_output_tokens"] = lastReasoning
+            info["last_token_usage"] = usage
         }
         return [
             "type": "event_msg",
@@ -1730,6 +1736,32 @@ struct CostUsageScannerBreakdownTests {
     }
 
     @Test
+    func `codex foundation fallback preserves reasoning output tokens`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+        let day = try env.makeLocalNoon(year: 2026, month: 5, day: 18)
+        let timestamp = env.isoString(for: day)
+        // Escaping the root type key bypasses the byte-fast parser. The literal nested marker
+        // keeps the line eligible for the Foundation fallback prefilter.
+        let line = #"{"\u0074ype":"event_msg","marker":{"type":"event_msg"},"timestamp":""#
+            + timestamp
+            + #"","payload":{"type":"token_count","info":{"model":"gpt-5.5","last_token_usage":{"#
+            + #""input_tokens":10,"cached_input_tokens":2,"output_tokens":7,"reasoning_output_tokens":4}}}}"#
+        let fileURL = try env.writeCodexSessionFile(
+            day: day,
+            filename: "foundation-reasoning.jsonl",
+            contents: line)
+
+        let parsed = CostUsageScanner.parseCodexFile(
+            fileURL: fileURL,
+            range: CostUsageScanner.CostUsageDayRange(since: day, until: day))
+
+        #expect(parsed.rows.count == 1)
+        #expect(parsed.rows.first?.output == 7)
+        #expect(parsed.rows.first?.reasoning == 4)
+    }
+
+    @Test
     func `codex foundation fallback all blank context clears stale model`() throws {
         let env = try CostUsageTestEnvironment()
         defer { env.cleanup() }
@@ -1870,7 +1902,7 @@ struct CostUsageScannerBreakdownTests {
         #expect(first.data[0].totalTokens == 132)
 
         let newCacheURL = CostUsageCacheIO.cacheFileURL(provider: .codex, cacheRoot: env.cacheRoot)
-        #expect(newCacheURL.lastPathComponent == "codex-v10.json")
+        #expect(newCacheURL.lastPathComponent == "codex-v11.json")
         #expect(FileManager.default.fileExists(atPath: newCacheURL.path))
         #expect(FileManager.default.fileExists(atPath: oldCacheURL.path))
 
@@ -2211,6 +2243,99 @@ struct CostUsageScannerBreakdownTests {
 
         #expect(packed[safe: 0] == 102_000)
         #expect(parsed.rows.count == 3)
+        #expect(parsed.hasInterleavedTotals)
+    }
+
+    @Test
+    func `codex resolved fork subtracts inherited reasoning baseline`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+
+        let day = try env.makeLocalNoon(year: 2026, month: 6, day: 10)
+        let timestamp = env.isoString(for: day)
+        let model = "openai/gpt-5.5"
+        let fileURL = try env.writeCodexSessionFile(
+            day: day,
+            filename: "resolved-fork-reasoning.jsonl",
+            contents: env.jsonl([
+                [
+                    "type": "session_meta",
+                    "timestamp": timestamp,
+                    "payload": [
+                        "id": "child-session",
+                        "forked_from_id": "parent-session",
+                        "timestamp": timestamp,
+                    ],
+                ],
+                self.codexTurnContext(timestamp: timestamp, model: model),
+                self.codexTokenCount(
+                    timestamp: env.isoString(for: day.addingTimeInterval(1)),
+                    model: model,
+                    total: (input: 110, cached: 0, output: 60),
+                    totalReasoning: 24),
+            ]))
+
+        let parsed = CostUsageScanner.parseCodexFile(
+            fileURL: fileURL,
+            range: CostUsageScanner.CostUsageDayRange(since: day, until: day),
+            inheritedTotalsResolver: { parentSessionID, _ in
+                #expect(parentSessionID == "parent-session")
+                return .resolved(.init(input: 100, cached: 0, output: 50, reasoning: 20))
+            })
+
+        #expect(parsed.rows.count == 1)
+        #expect(parsed.rows.first?.input == 10)
+        #expect(parsed.rows.first?.output == 10)
+        #expect(parsed.rows.first?.reasoning == 4)
+    }
+
+    @Test
+    func `codex interleaved containment carries reasoning without adding it to output`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+
+        let day = try env.makeLocalNoon(year: 2026, month: 6, day: 10)
+        let model = "openai/gpt-5.5"
+        let fileURL = try env.writeCodexSessionFile(
+            day: day,
+            filename: "interleaved-reasoning.jsonl",
+            contents: env.jsonl([
+                self.codexTurnContext(timestamp: env.isoString(for: day), model: model),
+                self.codexTokenCount(
+                    timestamp: env.isoString(for: day.addingTimeInterval(1)),
+                    model: model,
+                    total: (input: 0, cached: 0, output: 100),
+                    totalReasoning: 60),
+                self.codexTokenCount(
+                    timestamp: env.isoString(for: day.addingTimeInterval(2)),
+                    model: model,
+                    total: (input: 0, cached: 0, output: 50),
+                    totalReasoning: 30),
+                self.codexTokenCount(
+                    timestamp: env.isoString(for: day.addingTimeInterval(3)),
+                    model: model,
+                    total: (input: 0, cached: 0, output: 105),
+                    totalReasoning: 63),
+                self.codexTokenCount(
+                    timestamp: env.isoString(for: day.addingTimeInterval(4)),
+                    model: model,
+                    total: (input: 0, cached: 0, output: 55),
+                    totalReasoning: 33),
+                self.codexTokenCount(
+                    timestamp: env.isoString(for: day.addingTimeInterval(5)),
+                    model: model,
+                    total: (input: 0, cached: 0, output: 110),
+                    totalReasoning: 66),
+            ]))
+
+        let parsed = CostUsageScanner.parseCodexFile(
+            fileURL: fileURL,
+            range: CostUsageScanner.CostUsageDayRange(since: day, until: day))
+
+        #expect(parsed.rows.map(\.output) == [100, 5, 5])
+        #expect(parsed.rows.compactMap(\.reasoning) == [60, 3, 3])
+        #expect(parsed.rows.reduce(0) { $0 + $1.output } == 110)
+        #expect(parsed.rows.compactMap(\.reasoning).reduce(0, +) == 66)
         #expect(parsed.hasInterleavedTotals)
     }
 

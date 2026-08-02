@@ -18,7 +18,7 @@ struct LLMProxyProviderImplementation: ProviderImplementation {
     @MainActor
     func isAvailable(context: ProviderAvailabilityContext) -> Bool {
         ProviderTokenResolver.llmProxyToken(environment: context.environment) != nil &&
-            LLMProxySettingsReader.baseURL(environment: context.environment) != nil
+            LLMProxySettingsReader.hasBaseURLOverride(environment: context.environment)
     }
 
     @MainActor

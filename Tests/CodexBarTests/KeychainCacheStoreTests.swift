@@ -218,6 +218,93 @@ struct KeychainCacheStoreTests {
     }
 
     @Test
+    func `disabled keychain access keeps an in process memory cache`() {
+        KeychainCacheStore.resetDisabledAccessMemoryStoreForTesting()
+        defer {
+            KeychainCacheStore.resetDisabledAccessMemoryStoreForTesting()
+            KeychainAccessGate.resetOverrideForTesting()
+        }
+
+        let service = "disabled-memory-\(UUID().uuidString)"
+        let key = KeychainCacheStore.Key(category: "cookie", identifier: "cursor")
+        let entry = TestEntry(value: "WorkosCursorSessionToken=memory", storedAt: Date(timeIntervalSince1970: 3))
+
+        KeychainAccessGate.withTaskOverrideForTesting(true) {
+            KeychainCacheStore.withDisabledAccessMemoryStoreForTesting(true) {
+                KeychainCacheStore.withServiceOverrideForTesting(service) {
+                    #expect(KeychainCacheStore.storeResult(key: key, entry: entry))
+                    switch KeychainCacheStore.load(key: key, as: TestEntry.self) {
+                    case let .found(loaded):
+                        #expect(loaded == entry)
+                    case .missing, .temporarilyUnavailable, .invalid:
+                        #expect(Bool(false), "Expected in-process memory cache entry")
+                    }
+                    #expect(KeychainCacheStore.keys(category: "cookie").contains(key))
+                    #expect(KeychainCacheStore.clearResult(key: key) == .removed)
+                    switch KeychainCacheStore.load(key: key, as: TestEntry.self) {
+                    case .missing:
+                        break
+                    case .found, .temporarilyUnavailable, .invalid:
+                        #expect(Bool(false), "Expected memory cache entry to be cleared")
+                    }
+                }
+            }
+        }
+    }
+
+    @Test
+    func `disabled keychain access does not retain OAuth entries in memory`() {
+        KeychainCacheStore.resetDisabledAccessMemoryStoreForTesting()
+        defer {
+            KeychainCacheStore.resetDisabledAccessMemoryStoreForTesting()
+            KeychainAccessGate.resetOverrideForTesting()
+        }
+
+        let service = "disabled-memory-oauth-\(UUID().uuidString)"
+        let key = KeychainCacheStore.Key.oauth(provider: .claude)
+        let entry = TestEntry(value: "synthetic-oauth-credential", storedAt: Date(timeIntervalSince1970: 4))
+
+        KeychainAccessGate.withTaskOverrideForTesting(true) {
+            KeychainCacheStore.withDisabledAccessMemoryStoreForTesting(true) {
+                KeychainCacheStore.withServiceOverrideForTesting(service) {
+                    #expect(!KeychainCacheStore.storeResult(key: key, entry: entry))
+                    #expect(self.loadedEntry(for: key) == nil)
+                    #expect(KeychainCacheStore.keysResult(category: "oauth") == .failed)
+                }
+            }
+        }
+    }
+
+    @Test
+    func `toggling Keychain access clears the disabled access memory cache`() {
+        KeychainCacheStore.resetDisabledAccessMemoryStoreForTesting()
+        defer {
+            KeychainCacheStore.resetDisabledAccessMemoryStoreForTesting()
+            KeychainAccessGate.resetOverrideForTesting()
+        }
+
+        let service = "disabled-memory-toggle-\(UUID().uuidString)"
+        let key = KeychainCacheStore.Key(category: "cookie", identifier: "cursor")
+        let entry = TestEntry(value: "WorkosCursorSessionToken=stale", storedAt: Date(timeIntervalSince1970: 4))
+
+        KeychainAccessGate.isDisabled = true
+        KeychainCacheStore.withDisabledAccessMemoryStoreForTesting(true) {
+            KeychainCacheStore.withServiceOverrideForTesting(service) {
+                #expect(KeychainCacheStore.storeResult(key: key, entry: entry))
+                #expect(self.loadedEntry(for: key) == entry)
+            }
+        }
+
+        KeychainAccessGate.isDisabled = false
+
+        KeychainCacheStore.withDisabledAccessMemoryStoreForTesting(true) {
+            KeychainCacheStore.withServiceOverrideForTesting(service) {
+                #expect(self.loadedEntry(for: key) == nil)
+            }
+        }
+    }
+
+    @Test
     func `cache ACL trusts bundled app and CLI helper`() {
         let root = URL(fileURLWithPath: "/Applications/CodexBar.app")
         let executable = root.appendingPathComponent("Contents/MacOS/CodexBar")
@@ -238,6 +325,33 @@ struct KeychainCacheStoreTests {
             helper.path,
             executable.path,
         ])
+    }
+
+    @Test
+    func `cache ACL refuses bare dev binaries without an app bundle`() {
+        // Trusting an ephemeral `swift build` binary would freeze a broken ACL
+        // onto the shared item; the packaged app would then prompt on every read.
+        let bundleURL = URL(fileURLWithPath: "/Users/dev/project/.build/debug")
+        let executable = URL(fileURLWithPath: "/Users/dev/project/.build/debug/CodexBarCLI")
+
+        let paths = KeychainCacheStore.trustedApplicationPathsForCacheAccess(
+            bundleURL: bundleURL,
+            executableURL: executable,
+            fileExists: { _ in true })
+
+        #expect(paths.isEmpty)
+    }
+
+    @Test
+    func `blocked keychain access exports suppression for child processes`() {
+        // Under tests access is always blocked; the decision must export the
+        // suppression variable so spawned CLI children inherit it (their process
+        // names match no test pattern).
+        #expect(KeychainTestSafety.shouldBlockRealKeychainAccess())
+
+        let exported = getenv(KeychainTestSafety.suppressAccessEnvironmentKey)
+        #expect(exported != nil)
+        #expect(exported.map { String(cString: $0) } == "1")
     }
     #endif
 }

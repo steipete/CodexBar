@@ -11,13 +11,14 @@ enum ProviderCookieRefreshAction {
     static func descriptor(
         provider: UsageProvider,
         cookieSource: @escaping () -> ProviderCookieSource,
+        additionalVisibility: @escaping () -> Bool = { true },
         context: ProviderSettingsContext) -> ProviderSettingsActionDescriptor
     {
         ProviderSettingsActionDescriptor(
             id: "\(provider.rawValue)-reimport-cookie",
             title: "Refresh",
             style: .bordered,
-            isVisible: { cookieSource() == .auto },
+            isVisible: { cookieSource() == .auto && additionalVisibility() },
             perform: {
                 await self.perform(provider: provider, context: context)
             })

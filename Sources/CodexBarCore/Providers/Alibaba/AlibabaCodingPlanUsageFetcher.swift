@@ -859,30 +859,12 @@ public struct AlibabaCodingPlanUsageFetcher: Sendable {
     }
 
     private static func expandedJSON(_ value: Any) -> Any {
-        if let dict = value as? [String: Any] {
-            var expanded: [String: Any] = [:]
-            expanded.reserveCapacity(dict.count)
-            for (key, nested) in dict {
-                expanded[key] = self.expandedJSON(nested)
-            }
-            return expanded
-        }
-        if let array = value as? [Any] {
-            return array.map { self.expandedJSON($0) }
-        }
-        if let string = value as? String,
-           let data = string.data(using: .utf8),
-           let nested = try? JSONSerialization.jsonObject(with: data, options: []),
-           nested is [String: Any] || nested is [Any]
-        {
-            return self.expandedJSON(nested)
-        }
-        return value
+        OneConsoleJSON.expandEmbeddedJSON(value)
     }
 
     private static func anyInt(for keys: [String], in dict: [String: Any]) -> Int? {
         for key in keys {
-            if let value = self.parseInt(dict[key]) {
+            if let value = OneConsoleJSON.int(dict[key]) {
                 return value
             }
         }
@@ -891,7 +873,7 @@ public struct AlibabaCodingPlanUsageFetcher: Sendable {
 
     private static func anyString(for keys: [String], in dict: [String: Any]) -> String? {
         for key in keys {
-            if let value = self.parseString(dict[key]) {
+            if let value = OneConsoleJSON.string(dict[key]) {
                 return value
             }
         }
@@ -900,7 +882,7 @@ public struct AlibabaCodingPlanUsageFetcher: Sendable {
 
     private static func anyDate(for keys: [String], in dict: [String: Any]) -> Date? {
         for key in keys {
-            if let value = self.parseDate(dict[key]) {
+            if let value = OneConsoleJSON.date(dict[key]) {
                 return value
             }
         }
@@ -950,47 +932,15 @@ public struct AlibabaCodingPlanUsageFetcher: Sendable {
     }
 
     private static func parseDate(_ raw: Any?) -> Date? {
-        if let intValue = self.parseInt(raw) {
-            if intValue > 1_000_000_000_000 {
-                return Date(timeIntervalSince1970: TimeInterval(intValue) / 1000)
-            }
-            if intValue > 1_000_000_000 {
-                return Date(timeIntervalSince1970: TimeInterval(intValue))
-            }
-        }
-        if let string = self.parseString(raw) {
-            let formatter = ISO8601DateFormatter()
-            if let date = formatter.date(from: string) {
-                return date
-            }
-            let dateFormatter = DateFormatter()
-            dateFormatter.locale = Locale(identifier: "en_US_POSIX")
-            for format in ["yyyy-MM-dd HH:mm", "yyyy-MM-dd HH:mm:ss"] {
-                dateFormatter.dateFormat = format
-                if let date = dateFormatter.date(from: string) {
-                    return date
-                }
-            }
-        }
-        return nil
+        OneConsoleJSON.date(raw)
     }
 
     private static func parseInt(_ raw: Any?) -> Int? {
-        if let value = raw as? Int { return value }
-        if let value = raw as? Int64 { return Int(value) }
-        if let value = raw as? Double { return Int(value) }
-        if let value = raw as? NSNumber { return value.intValue }
-        if let value = raw as? String {
-            let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-            return Int(trimmed)
-        }
-        return nil
+        OneConsoleJSON.int(raw)
     }
 
     private static func parseString(_ raw: Any?) -> String? {
-        guard let value = raw as? String else { return nil }
-        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? nil : trimmed
+        OneConsoleJSON.string(raw)
     }
 
     private static func parsePercent(_ raw: Any?) -> Double? {
