@@ -79,8 +79,8 @@ struct MenuBarPane: View {
                     in: 1...12)
                 {
                     SettingsRowLabel(
-                        "Overview tab limit",
-                        subtitle: "How many providers can show at once (default 6).")
+                        L("overview_provider_limit_title"),
+                        subtitle: L("overview_provider_limit_subtitle"))
                     Text("\(self.settings.mergedOverviewProviderLimit)")
                         .foregroundStyle(.secondary)
                 }

@@ -583,6 +583,8 @@
 "show_most_used_provider_subtitle" = "Menu bar auto-shows the provider closest to its rate limit.";
 "display_mode_title" = "Display mode";
 "display_mode_subtitle" = "Choose what to show in the menu bar (Pace shows usage vs. expected).";
+"overview_provider_limit_title" = "Overview tab limit";
+"overview_provider_limit_subtitle" = "How many providers can show at once (default 6).";
 "show_quota_warning_markers_title" = "Show quota warning markers";
 "show_quota_warning_markers_subtitle" = "Draw threshold tick marks on usage bars when quota warnings are configured.";
 "weekly_progress_work_days_title" = "Work days";
