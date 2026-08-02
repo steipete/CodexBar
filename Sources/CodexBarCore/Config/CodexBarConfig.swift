@@ -8,6 +8,7 @@ public struct CodexBarConfig: Codable, Sendable {
     private enum CodingKeys: String, CodingKey {
         case version
         case providers
+        case hooks
     }
 
     private enum ProviderCodingKeys: String, CodingKey {
@@ -46,6 +47,7 @@ public struct CodexBarConfig: Codable, Sendable {
             try providers.append(ProviderConfig(from: providerDecoder))
         }
         self.providers = providers
+        self.hooks = try container.decodeIfPresent(HooksConfig.self, forKey: .hooks)
     }
 
     public static func makeDefault(
@@ -109,6 +111,13 @@ public struct CodexBarConfig: Codable, Sendable {
             version: Self.currentVersion,
             providers: normalized,
             hooks: self.hooks)
+    }
+
+    public func sanitizedForDump(showSecrets: Bool = false) -> CodexBarConfig {
+        guard !showSecrets else { return self }
+        var copy = self
+        copy.providers = copy.providers.map { $0.sanitizedForDump() }
+        return copy
     }
 
     public func orderedProviders() -> [UsageProvider] {
@@ -271,6 +280,23 @@ public struct ProviderConfig: Codable, Sendable, Identifiable {
 
     public var sanitizedDeepSeekProfileScope: String? {
         Self.clean(self.deepseekProfileScope)
+    }
+
+    public func sanitizedForDump() -> ProviderConfig {
+        var copy = self
+        if copy.apiKey != nil {
+            copy.apiKey = "[REDACTED]"
+        }
+        if copy.secretKey != nil {
+            copy.secretKey = "[REDACTED]"
+        }
+        if copy.cookieHeader != nil {
+            copy.cookieHeader = "[REDACTED]"
+        }
+        if let tokenAccounts = copy.tokenAccounts {
+            copy.tokenAccounts = tokenAccounts.sanitizedForDump()
+        }
+        return copy
     }
 
     private static func clean(_ raw: String?) -> String? {

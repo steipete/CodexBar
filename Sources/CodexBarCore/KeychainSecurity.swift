@@ -14,6 +14,14 @@ enum KeychainTestSafety {
         return self.isRunningUnderTests(processName: processName, environment: environment)
     }
 
+    static func shouldIsolateUserStateUnderTests(
+        processName: String = ProcessInfo.processInfo.processName,
+        environment: [String: String] = ProcessInfo.processInfo.environment) -> Bool
+    {
+        guard environment[self.allowAccessEnvironmentKey] != "1" else { return false }
+        return self.isRunningUnderTests(processName: processName, environment: environment)
+    }
+
     static func isRunningUnderTests(
         processName: String,
         environment: [String: String]) -> Bool

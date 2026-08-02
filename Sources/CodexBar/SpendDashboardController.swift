@@ -5,6 +5,7 @@ import Observation
 
 struct SpendDashboardConfiguration: Equatable, Sendable {
     let costUsageEnabled: Bool
+    let preferredCurrencyCode: String
     let providerIDs: [String]
     let codexAccountIdentities: [String]
     let codexAccountDisplayNames: [String: String]
@@ -13,6 +14,7 @@ struct SpendDashboardConfiguration: Equatable, Sendable {
 
     init(
         costUsageEnabled: Bool,
+        preferredCurrencyCode: String = "auto",
         providerIDs: [String],
         codexAccountIdentities: [String],
         codexAccountDisplayNames: [String: String] = [:],
@@ -20,6 +22,7 @@ struct SpendDashboardConfiguration: Equatable, Sendable {
         sourceRevisions: [String] = [])
     {
         self.costUsageEnabled = costUsageEnabled
+        self.preferredCurrencyCode = preferredCurrencyCode
         self.providerIDs = providerIDs
         self.codexAccountIdentities = codexAccountIdentities
         self.codexAccountDisplayNames = codexAccountDisplayNames
@@ -142,6 +145,7 @@ enum SpendDashboardSource {
     {
         SpendDashboardConfiguration(
             costUsageEnabled: settings.costUsageEnabled,
+            preferredCurrencyCode: settings.preferredCurrencyCode,
             providerIDs: providers.map(\.rawValue),
             codexAccountIdentities: codexRequests.map { "\($0.id)|\($0.cacheIdentity)" },
             codexAccountDisplayNames: self.codexDisplayNamesByID(codexRequests),
@@ -964,7 +968,8 @@ final class SpendDashboardController {
         self.model = SpendDashboardModel.build(
             inputs: self.loadedInputs,
             requestedDays: self.selectedDays,
-            now: self.loadedAt)
+            now: self.loadedAt,
+            preferredCurrencyCode: self.configuration?.preferredCurrencyCode ?? "auto")
     }
 
     private func refreshRetainedCodexDisplayNames(_ displayNamesByID: [String: String]) {

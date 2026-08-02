@@ -76,6 +76,7 @@ struct ClaudeSwapAccountProjectionTests {
     func `maps sentinel statuses to per account errors without usage`() throws {
         let rows: [(ClaudeSwapUsageStatus, String)] = [
             (.tokenExpired, "Token expired"),
+            (.reloginRequired, "Re-login required"),
             (.apiKey, "API-key account"),
             (.keychainUnavailable, "Keychain"),
             (.noCredentials, "No stored credentials"),

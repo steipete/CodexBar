@@ -126,12 +126,21 @@ struct GrokWebFetchStrategy: ProviderFetchStrategy {
         sourceLabel: String,
         authenticatedByAuthFile: Bool)
 
+    /// Browser-cookie import must stay limited to surfaces where a person explicitly asked for it:
+    /// the menu-bar app runtime, a `userInitiated` interaction (set only by explicit refresh
+    /// commands and app UI gestures), or the environment override. Scheduled and background work
+    /// must keep the default `.background` context so it can never reach Chromium Keychain prompts.
     static func canImportBrowserCookies(runtime: ProviderRuntime, env: [String: String]) -> Bool {
-        runtime == .app || env["CODEXBAR_ALLOW_BROWSER_COOKIE_IMPORT"] == "1"
+        runtime == .app ||
+            ProviderInteractionContext.current == .userInitiated ||
+            env["CODEXBAR_ALLOW_BROWSER_COOKIE_IMPORT"] == "1"
     }
 
     func isAvailable(_ context: ProviderFetchContext) async -> Bool {
         #if os(macOS)
+        if CookieHeaderCache.load(provider: .grok) != nil {
+            return true
+        }
         if Self.canImportBrowserCookies(runtime: context.runtime, env: context.env),
            GrokCookieImporter.hasSession(browserDetection: context.browserDetection)
         {
@@ -201,13 +210,31 @@ struct GrokWebFetchStrategy: ProviderFetchStrategy {
         let browserCredentials = try? credentialsResult.get()
 
         #if os(macOS)
+        var cacheObservation = CookieHeaderCache.observeForConditionalMutation(provider: .grok)
+        var lastCookieError: Error?
+        if let cached = cacheObservation.entry {
+            do {
+                let snapshot = try await Self.fetchValidCookieHeader(
+                    cached.cookieHeader,
+                    credentials: browserCredentials,
+                    preferTrailingAuthenticationFailure: true)
+                return (snapshot, cached.sourceLabel, false)
+            } catch {
+                guard Self.isCookieAuthenticationFailure(error) else { throw error }
+                if CookieHeaderCache.clearIfCurrent(provider: .grok, expected: cached) {
+                    cacheObservation = cacheObservation.afterOwnedClear()
+                }
+                lastCookieError = error
+            }
+        }
+
         if Self.canImportBrowserCookies(runtime: context.runtime, env: context.env) {
-            var lastCookieError: Error?
             do {
                 let sessions = try GrokCookieImporter.importSessions(browserDetection: context.browserDetection)
                 let (snapshot, sourceLabel) = try await Self.fetchFirstValidCookieSession(
                     sessions,
-                    credentials: browserCredentials)
+                    credentials: browserCredentials,
+                    cacheObservation: cacheObservation)
                 return (snapshot, sourceLabel, false)
             } catch {
                 lastCookieError = error
@@ -242,6 +269,7 @@ struct GrokWebFetchStrategy: ProviderFetchStrategy {
     static func fetchFirstValidCookieSession(
         _ sessions: [GrokCookieImporter.SessionInfo],
         credentials: GrokCredentials? = nil,
+        cacheObservation: CookieHeaderCache.ConditionalMutationObservation? = nil,
         fetch: ((String, GrokCredentials?) async throws -> GrokWebBillingSnapshot)? = nil) async throws
         -> (GrokWebBillingSnapshot, String)
     {
@@ -253,24 +281,82 @@ struct GrokWebFetchStrategy: ProviderFetchStrategy {
         var lastError: Error?
         var teamUsageUnsupportedError: Error?
         for session in sessions {
-            for authCredentials in Self.cookieAuthAttempts(credentials: credentials) {
-                do {
-                    let snapshot = try await fetchSnapshot(session.cookieHeader, authCredentials)
-                    return (snapshot, session.sourceLabel)
-                } catch {
-                    if case GrokWebBillingError.teamUsageUnsupported = error {
-                        teamUsageUnsupportedError = error
-                    }
-                    lastError = error
+            do {
+                let snapshot = try await Self.fetchValidCookieHeader(
+                    session.cookieHeader,
+                    credentials: credentials,
+                    fetch: fetchSnapshot)
+                if let cacheObservation {
+                    CookieHeaderCache.storeIfObservationCurrent(
+                        provider: .grok,
+                        expected: cacheObservation,
+                        cookieHeader: session.cookieHeader,
+                        sourceLabel: session.sourceLabel)
                 }
+                return (snapshot, session.sourceLabel)
+            } catch {
+                if case GrokWebBillingError.teamUsageUnsupported = error {
+                    teamUsageUnsupportedError = error
+                }
+                lastError = error
             }
         }
         throw teamUsageUnsupportedError ?? lastError ?? GrokWebBillingError.missingCredentials
     }
 
+    /// `preferTrailingAuthenticationFailure` lets a cached-cookie caller surface a trailing
+    /// 401/403 over the team classification so stale sessions still trigger cache eviction.
+    /// Non-authentication trailing errors keep `teamUsageUnsupported` so team principals
+    /// degrade to identity-only data instead of failing outright.
+    static func fetchValidCookieHeader(
+        _ cookieHeader: String,
+        credentials: GrokCredentials? = nil,
+        preferTrailingAuthenticationFailure: Bool = false,
+        fetch: ((String, GrokCredentials?) async throws -> GrokWebBillingSnapshot)? = nil) async throws
+        -> GrokWebBillingSnapshot
+    {
+        let fetchSnapshot = fetch ?? { cookieHeader, credentials in
+            try await GrokWebBillingFetcher.fetch(
+                cookieHeader: cookieHeader,
+                credentials: credentials)
+        }
+        var lastError: Error?
+        var teamUsageUnsupportedError: Error?
+        for authCredentials in Self.cookieAuthAttempts(credentials: credentials) {
+            do {
+                return try await fetchSnapshot(cookieHeader, authCredentials)
+            } catch {
+                if case GrokWebBillingError.teamUsageUnsupported = error {
+                    teamUsageUnsupportedError = error
+                }
+                lastError = error
+            }
+        }
+        if let teamUsageUnsupportedError {
+            let trailingAuthenticationFailure = preferTrailingAuthenticationFailure
+                && lastError.map(Self.isCookieAuthenticationFailure) == true
+            if !trailingAuthenticationFailure {
+                throw teamUsageUnsupportedError
+            }
+        }
+        throw lastError ?? GrokWebBillingError.missingCredentials
+    }
+
     static func cookieAuthAttempts(credentials: GrokCredentials?) -> [GrokCredentials?] {
         guard let credentials, !credentials.isExpired else { return [nil] }
         return [credentials, nil]
+    }
+
+    static func isCookieAuthenticationFailure(_ error: Error) -> Bool {
+        guard let error = error as? GrokWebBillingError else { return false }
+        switch error {
+        case let .requestFailed(status, _):
+            return status == 401 || status == 403
+        case let .rpcFailed(status, message):
+            return GrokWebBillingError.isAuthenticationFailure(status: status, message: message)
+        case .missingCredentials, .emptyResponse, .invalidResponse, .teamUsageUnsupported, .parseFailed:
+            return false
+        }
     }
     #endif
 

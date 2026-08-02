@@ -142,6 +142,27 @@ extension StatusItemController {
         return displacedItems
     }
 
+    /// Forces hosted rows to lay out and draw inside the caller's disabled-actions
+    /// transaction. `NSHostingView` commits SwiftUI updates asynchronously by
+    /// default, so a provider-tab switch could paint the previous card content for
+    /// a frame after the item mutation — visible as a brief flicker. Flushing
+    /// synchronously makes the content swap composite atomically with the menu
+    /// update. Views without a window (closed or detached menus) are skipped.
+    func flushHostedMenuRowRendering(in menu: NSMenu) {
+        // Freshly inserted item views may not be parented into the menu window yet
+        // when this runs, so lay out every hosted row unconditionally and then flush
+        // pending drawing once at the window level.
+        var menuWindow: NSWindow?
+        for item in menu.items {
+            guard let view = item.view else { continue }
+            view.layoutSubtreeIfNeeded()
+            if menuWindow == nil {
+                menuWindow = view.window
+            }
+        }
+        menuWindow?.displayIfNeeded()
+    }
+
     private func finishReconciledHighlightTracking(in menu: NSMenu) {
         let menuKey = ObjectIdentifier(menu)
         guard let highlightedItem = self.highlightedMenuItems[menuKey] else { return }

@@ -57,7 +57,7 @@ public enum ClaudeProviderDescriptor {
 
         let planningInput = Self.makePlanningInput(context: context)
         let plan = ClaudeSourcePlanner.resolve(input: planningInput)
-        let manualCookieHeader = Self.manualCookieHeader(from: context)
+        let webEnrichmentAccess = Self.webEnrichmentAccess(context: context)
 
         return plan.orderedSteps.map { step in
             let strategy: any ProviderFetchStrategy = switch step.dataSource {
@@ -70,8 +70,12 @@ public enum ClaudeProviderDescriptor {
             case .cli:
                 ClaudeCLIFetchStrategy(
                     useWebExtras: context.runtime == .app
-                        && planningInput.webExtrasEnabled,
-                    manualCookieHeader: manualCookieHeader,
+                        && planningInput.webExtrasEnabled
+                        && webEnrichmentAccess.isAvailable,
+                    includePrepaidBalance: context.runtime == .app
+                        && context.includeOptionalUsage
+                        && webEnrichmentAccess.isAvailable,
+                    manualCookieHeader: webEnrichmentAccess.manualCookieHeader,
                     browserDetection: context.browserDetection,
                     hasWebFallback: planningInput.hasWebSession)
             case .auto:
@@ -131,6 +135,28 @@ public enum ClaudeProviderDescriptor {
     private static func manualCookieHeader(from context: ProviderFetchContext) -> String? {
         guard context.settings?.claude?.cookieSource == .manual else { return nil }
         return CookieHeaderNormalizer.normalize(context.settings?.claude?.manualCookieHeader)
+    }
+
+    fileprivate struct WebEnrichmentAccess {
+        let isAvailable: Bool
+        let manualCookieHeader: String?
+    }
+
+    fileprivate static func webEnrichmentAccess(context: ProviderFetchContext) -> WebEnrichmentAccess {
+        switch context.settings?.claude?.cookieSource {
+        case .off?:
+            return WebEnrichmentAccess(isAvailable: false, manualCookieHeader: nil)
+        case .manual?:
+            let header = self.manualCookieHeader(from: context)
+            return WebEnrichmentAccess(
+                isAvailable: ClaudeWebAPIFetcher.hasSessionKey(cookieHeader: header),
+                manualCookieHeader: header)
+        case .auto?, nil:
+            let header = CookieHeaderCache.load(provider: .claude)?.cookieHeader
+            return WebEnrichmentAccess(
+                isAvailable: ClaudeWebAPIFetcher.hasSessionKey(cookieHeader: header),
+                manualCookieHeader: header)
+        }
     }
 
     private static func noDataMessage() -> String {
@@ -376,6 +402,13 @@ struct ClaudeOAuthFetchStrategy: ProviderFetchStrategy {
     }
 
     func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
+        let webEnrichmentAccess = ClaudeProviderDescriptor.webEnrichmentAccess(context: context)
+        let useWebExtras = context.runtime == .app &&
+            (context.settings?.claude?.webExtrasEnabled ?? false) &&
+            webEnrichmentAccess.isAvailable
+        let includePrepaidBalance = context.runtime == .app &&
+            context.includeOptionalUsage &&
+            webEnrichmentAccess.isAvailable
         let fetcher = ClaudeUsageFetcher(
             browserDetection: context.browserDetection,
             environment: context.env,
@@ -383,7 +416,11 @@ struct ClaudeOAuthFetchStrategy: ProviderFetchStrategy {
             dataSource: .oauth,
             oauthKeychainPromptCooldownEnabled: context.sourceMode == .auto,
             allowBackgroundDelegatedRefresh: false,
-            useWebExtras: false)
+            useWebExtras: useWebExtras,
+            manualCookieHeader: webEnrichmentAccess.manualCookieHeader,
+            webOrganizationID: context.settings?.claude?.organizationID,
+            webExtrasTimeout: context.webTimeout,
+            includePrepaidBalance: includePrepaidBalance)
         let usage = try await fetcher.loadLatestUsage(model: "sonnet")
         return ProviderFetchResult(
             usage: Self.snapshot(from: usage),
@@ -584,7 +621,8 @@ struct ClaudeWebFetchStrategy: ProviderFetchStrategy {
                 dataSource: .web,
                 useWebExtras: false,
                 manualCookieHeader: Self.manualCookieHeader(from: context),
-                webOrganizationID: context.settings?.claude?.organizationID)
+                webOrganizationID: context.settings?.claude?.organizationID,
+                includePrepaidBalance: context.includeOptionalUsage)
             return try await fetcher.loadLatestUsage(model: "sonnet")
         }
         let race = BoundedTaskJoin(sourceTask: sourceTask)
@@ -637,29 +675,34 @@ struct ClaudeCLIFetchStrategy: ProviderFetchStrategy {
     let id: String = "claude.cli"
     let kind: ProviderFetchKind = .cli
     let useWebExtras: Bool
+    let includePrepaidBalance: Bool
     let manualCookieHeader: String?
     let browserDetection: BrowserDetection
     let hasWebFallback: Bool
 
     func isAvailable(_ context: ProviderFetchContext) async -> Bool {
-        // Claude's "auth status" command is a child process that may invoke /usr/bin/security itself. A no-prompt
-        // policy in CodexBar cannot constrain that child process, so background Auto refresh must not launch it
-        // unless the user explicitly opted into Keychain access for background work.
         let isBackgroundAutoRefresh = context.runtime == .app
             && context.sourceMode == .auto
             && ProviderInteractionContext.current == .background
         if isBackgroundAutoRefresh {
-            guard !KeychainAccessGate.isDisabled,
-                  ClaudeOAuthKeychainPromptPreference.storedMode() == .always
+            // Every Claude child process is opaque to CodexBar's no-UI Keychain controls, including
+            // `claude auth status`. Background Auto therefore reuses only availability established by a
+            // successful user-initiated CLI fetch in this process; it never probes the CLI itself.
+            guard let binary = ClaudeCLIResolver.resolvedBinaryPath(environment: context.env),
+                  ClaudeCLIBackgroundAvailability.isEstablished(binary: binary)
             else {
                 return false
             }
+            // Disable Keychain is a complete opt-out, so no prompt policy applies. With Keychain enabled,
+            // retain the explicit background opt-in introduced with the opaque-child safety gate.
+            return KeychainAccessGate.isExplicitlyDisabled
+                || ClaudeOAuthKeychainPromptPreference.storedMode() == .always
         }
 
-        // The interactive Claude REPL can open browser OAuth when it starts logged out. CLI runtime and the
-        // explicitly opted-in background Auto path establish authentication through the status command first.
-        let requiresAuthPreflight = context.runtime == .cli || isBackgroundAutoRefresh
-        guard requiresAuthPreflight else { return true }
+        // The interactive Claude REPL can open browser OAuth when it starts logged out. CLI-runtime paths
+        // establish authentication through the noninteractive status command first. App user
+        // actions intentionally launch the interactive path directly so the user can complete authentication.
+        guard context.runtime == .cli else { return true }
         guard let binary = ClaudeCLIResolver.resolvedBinaryPath(environment: context.env) else { return false }
         return await ClaudeCLIAuthStatusProbe.isLoggedIn(binary: binary, environment: context.env)
     }
@@ -673,8 +716,25 @@ struct ClaudeCLIFetchStrategy: ProviderFetchStrategy {
             useWebExtras: self.useWebExtras,
             manualCookieHeader: self.manualCookieHeader,
             webOrganizationID: context.settings?.claude?.organizationID,
+            webExtrasTimeout: context.webTimeout,
+            includePrepaidBalance: self.includePrepaidBalance && context.includeOptionalUsage,
             keepCLISessionsAlive: keepAlive)
-        let usage = try await fetcher.loadLatestUsage(model: "sonnet")
+        let binary = ClaudeCLIResolver.resolvedBinaryPath(environment: context.env)
+        let usage: ClaudeUsageSnapshot
+        do {
+            usage = try await fetcher.loadLatestUsage(model: "sonnet")
+        } catch {
+            if let binary {
+                ClaudeCLIBackgroundAvailability.revoke(binary: binary)
+            }
+            throw error
+        }
+        if context.runtime == .app,
+           ProviderInteractionContext.current == .userInitiated,
+           let binary
+        {
+            ClaudeCLIBackgroundAvailability.establish(binary: binary)
+        }
         return self.makeResult(
             usage: ClaudeOAuthFetchStrategy.snapshot(from: usage),
             sourceLabel: "claude")
@@ -688,4 +748,52 @@ struct ClaudeCLIFetchStrategy: ProviderFetchStrategy {
         // Reuse the bounded planning result instead of repeating browser/Keychain work after CLI failure.
         return self.hasWebFallback
     }
+}
+
+enum ClaudeCLIBackgroundAvailability {
+    final class Store: @unchecked Sendable {
+        private let lock = NSLock()
+        private var establishedBinaries: Set<String> = []
+
+        func contains(_ binary: String) -> Bool {
+            self.lock.withLock { self.establishedBinaries.contains(binary) }
+        }
+
+        func insert(_ binary: String) {
+            self.lock.withLock { _ = self.establishedBinaries.insert(binary) }
+        }
+
+        func remove(_ binary: String) {
+            self.lock.withLock { _ = self.establishedBinaries.remove(binary) }
+        }
+    }
+
+    private static let sharedStore = Store()
+    @TaskLocal private static var storeOverrideForTesting: Store?
+
+    private static var store: Store {
+        self.storeOverrideForTesting ?? self.sharedStore
+    }
+
+    static func isEstablished(binary: String) -> Bool {
+        self.store.contains(binary)
+    }
+
+    static func establish(binary: String) {
+        self.store.insert(binary)
+    }
+
+    static func revoke(binary: String) {
+        self.store.remove(binary)
+    }
+
+    #if DEBUG
+    static func withIsolatedStoreForTesting<T>(
+        operation: () async throws -> T) async rethrows -> T
+    {
+        try await self.$storeOverrideForTesting.withValue(Store()) {
+            try await operation()
+        }
+    }
+    #endif
 }

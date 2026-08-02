@@ -1554,6 +1554,7 @@ extension UsageStore {
                     accountDiscriminatorOverride: provider == .claude ? warningAccountDiscriminator : nil)
                 self.lastKnownResetSnapshots[provider] = backfilled
                 self.snapshots[provider] = backfilled
+                self.widgetUsagePreservationBlockedProviders.remove(provider)
                 if provider == .deepseek {
                     self.clearDeepSeekProfileTransition()
                 }

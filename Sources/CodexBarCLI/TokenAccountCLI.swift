@@ -151,6 +151,7 @@ struct TokenAccountCLIContext {
         }
     }
 
+    // swiftlint:disable:next cyclomatic_complexity
     private func makeCookieBackedSnapshot(
         provider: UsageProvider,
         account: ProviderTokenAccount?,
@@ -187,6 +188,8 @@ struct TokenAccountCLIContext {
                     cookieSource: cookieSettings.cookieSource,
                     manualCookieHeader: cookieSettings.manualCookieHeader,
                     apiRegion: self.resolveAlibabaTokenPlanRegion(config)))
+        case .qwencloud:
+            return self.makeSnapshot(qwenCloud: self.makeProviderCookieSettings(cookieSettings))
         case .factory:
             return self.makeSnapshot(factory: self.makeProviderCookieSettings(cookieSettings))
         case .minimax:
@@ -215,6 +218,8 @@ struct TokenAccountCLIContext {
             return self.makeSnapshot(abacus: self.makeProviderCookieSettings(cookieSettings))
         case .mistral:
             return self.makeSnapshot(mistral: self.makeProviderCookieSettings(cookieSettings))
+        case .zoommate:
+            return self.makeSnapshot(zoommate: self.makeProviderCookieSettings(cookieSettings))
         case .stepfun:
             let stepfunSettings = self.cookieSettings(
                 provider: provider,
@@ -240,6 +245,7 @@ struct TokenAccountCLIContext {
         opencodego: ProviderSettingsSnapshot.OpenCodeProviderSettings? = nil,
         alibaba: ProviderSettingsSnapshot.AlibabaCodingPlanProviderSettings? = nil,
         alibabaTokenPlan: ProviderSettingsSnapshot.AlibabaTokenPlanProviderSettings? = nil,
+        qwenCloud: ProviderSettingsSnapshot.QwenCloudProviderSettings? = nil,
         factory: ProviderSettingsSnapshot.FactoryProviderSettings? = nil,
         minimax: ProviderSettingsSnapshot.MiniMaxProviderSettings? = nil,
         manus: ProviderSettingsSnapshot.ManusProviderSettings? = nil,
@@ -258,7 +264,8 @@ struct TokenAccountCLIContext {
         abacus: ProviderSettingsSnapshot.AbacusProviderSettings? = nil,
         mistral: ProviderSettingsSnapshot.MistralProviderSettings? = nil,
         qoder: ProviderSettingsSnapshot.QoderProviderSettings? = nil,
-        stepfun: ProviderSettingsSnapshot.StepFunProviderSettings? = nil) -> ProviderSettingsSnapshot
+        stepfun: ProviderSettingsSnapshot.StepFunProviderSettings? = nil,
+        zoommate: ProviderSettingsSnapshot.ZoomMateProviderSettings? = nil) -> ProviderSettingsSnapshot
     {
         ProviderSettingsSnapshot.make(
             codex: codex,
@@ -268,6 +275,7 @@ struct TokenAccountCLIContext {
             opencodego: opencodego,
             alibaba: alibaba,
             alibabaTokenPlan: alibabaTokenPlan,
+            qwenCloud: qwenCloud,
             factory: factory,
             minimax: minimax,
             manus: manus,
@@ -278,6 +286,7 @@ struct TokenAccountCLIContext {
             augment: augment,
             moonshot: moonshot,
             amp: amp,
+            zoommate: zoommate,
             commandcode: commandcode,
             ollama: ollama,
             jetbrains: jetbrains,

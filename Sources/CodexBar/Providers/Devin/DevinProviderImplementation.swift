@@ -126,7 +126,10 @@ struct DevinProviderImplementation: ProviderImplementation {
               cost.period == "Extra usage balance"
         else { return }
 
-        let balance = UsageFormatter.currencyString(cost.used, currencyCode: cost.currencyCode)
+        let balance = UsageFormatter.convertedCostString(
+            cost.used,
+            preferredCurrency: context.settings.preferredCurrencyCode,
+            providerCurrency: cost.currencyCode)
         entries.append(.text(L("Extra usage balance: %@", balance), .primary))
     }
 }

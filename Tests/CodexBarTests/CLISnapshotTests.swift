@@ -351,6 +351,28 @@ struct CLISnapshotTests {
         let meta = ProviderDescriptorRegistry.descriptor(for: .crof).metadata
         let snap = CrofUsageSnapshot(
             credits: 9.9999,
+            updatedAt: Date(timeIntervalSince1970: 0)).toUsageSnapshot()
+
+        let output = CLIRenderer.renderText(
+            provider: .crof,
+            snapshot: snap,
+            credits: nil,
+            context: RenderContext(
+                header: "Crof",
+                status: nil,
+                useColor: false,
+                resetStyle: .countdown))
+
+        #expect(output.contains("\(meta.sessionLabel): 100% left"))
+        #expect(output.contains("$9.99"))
+        #expect(!output.contains("Resets $9.99"))
+        #expect(!output.contains("requests left"))
+    }
+
+    @Test
+    func `renders crof request quota when returned`() {
+        let snap = CrofUsageSnapshot(
+            credits: 9.9999,
             requestsPlan: 1000,
             usableRequests: 998,
             updatedAt: Date(timeIntervalSince1970: 0)).toUsageSnapshot()
@@ -365,10 +387,10 @@ struct CLISnapshotTests {
                 useColor: false,
                 resetStyle: .countdown))
 
-        #expect(output.contains("\(meta.sessionLabel): 99% left"))
-        #expect(output.contains("\(meta.weeklyLabel): 100% left"))
+        #expect(output.contains("Requests: 99% left"))
+        #expect(output.contains("998 requests left"))
+        #expect(output.contains("Credits: 100% left"))
         #expect(output.contains("$9.99"))
-        #expect(!output.contains("Resets $9.99"))
     }
 
     @Test
@@ -564,6 +586,93 @@ struct CLISnapshotTests {
             now: now)?.secondary)
         #expect(pace.expectedUsedPercent == 60)
         #expect(pace.summary == "On pace | Expected 60% used | Lasts until reset")
+    }
+
+    @Test
+    func `Kimi routes inverted quota windows to CLI pace and JSON metadata`() throws {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let snapshot = UsageSnapshot(
+            primary: .init(
+                usedPercent: 30,
+                windowMinutes: KimiProviderDescriptor.weeklyWindowMinutes,
+                resetsAt: now.addingTimeInterval(4 * 24 * 60 * 60),
+                resetDescription: "weekly"),
+            secondary: .init(
+                usedPercent: 10,
+                windowMinutes: KimiProviderDescriptor.sessionWindowMinutes,
+                resetsAt: now.addingTimeInterval(4 * 60 * 60),
+                resetDescription: "rate limit"),
+            tertiary: nil,
+            updatedAt: now)
+
+        let pace = try #require(CLIRenderer.providerPacePayload(provider: .kimi, snapshot: snapshot, now: now))
+        #expect(pace.primary?.expectedUsedPercent == 43)
+        #expect(pace.primary?.summary == "13% in reserve | Expected 43% used | Lasts until reset")
+        #expect(pace.secondary?.expectedUsedPercent == 20)
+        #expect(pace.secondary?.summary == "10% in reserve | Expected 20% used | Lasts until reset")
+
+        let output = CLIRenderer.renderText(
+            provider: .kimi,
+            snapshot: snapshot,
+            credits: nil,
+            context: RenderContext(
+                header: "Kimi",
+                status: nil,
+                useColor: false,
+                resetStyle: .countdown),
+            now: now)
+        #expect(output.split(separator: "\n").count(where: { $0.contains("Pace:") }) == 2)
+
+        let payload = ProviderPayload(
+            provider: .kimi,
+            account: nil,
+            version: nil,
+            source: "Kimi Code API key",
+            status: nil,
+            usage: snapshot,
+            credits: nil,
+            antigravityPlanInfo: nil,
+            openaiDashboard: nil,
+            error: nil,
+            pace: pace)
+        let data = try JSONEncoder().encode(payload)
+        let root = try #require(try JSONSerialization.jsonObject(with: data) as? [String: Any])
+        let usage = try #require(root["usage"] as? [String: Any])
+        let primary = try #require(usage["primary"] as? [String: Any])
+        let secondary = try #require(usage["secondary"] as? [String: Any])
+        #expect(primary["windowMinutes"] as? Int == KimiProviderDescriptor.weeklyWindowMinutes)
+        #expect(secondary["windowMinutes"] as? Int == KimiProviderDescriptor.sessionWindowMinutes)
+        let encodedPace = try #require(root["pace"] as? [String: Any])
+        #expect(encodedPace["primary"] != nil)
+        #expect(encodedPace["secondary"] != nil)
+    }
+
+    @Test
+    func `Kimi CLI pace rejects missing and unsupported window durations`() {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        for duration: Int? in [nil, 24 * 60, 30 * 24 * 60] {
+            let window = RateWindow(
+                usedPercent: 25,
+                windowMinutes: duration,
+                resetsAt: now.addingTimeInterval(60 * 60),
+                resetDescription: nil)
+            let snapshots = [
+                UsageSnapshot(
+                    primary: window,
+                    secondary: nil,
+                    tertiary: nil,
+                    updatedAt: now),
+                UsageSnapshot(
+                    primary: nil,
+                    secondary: window,
+                    tertiary: nil,
+                    updatedAt: now),
+            ]
+
+            for snapshot in snapshots {
+                #expect(CLIRenderer.providerPacePayload(provider: .kimi, snapshot: snapshot, now: now) == nil)
+            }
+        }
     }
 
     @Test

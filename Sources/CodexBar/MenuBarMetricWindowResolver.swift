@@ -60,6 +60,15 @@ enum MenuBarMetricWindowResolver {
         }
     }
 
+    static func automaticSelectionPrioritizesExhaustedWindow(for provider: UsageProvider) -> Bool {
+        switch provider {
+        case .antigravity, .perplexity, .zai, .copilot, .cursor, .minimax, .claude, .codex:
+            false
+        default:
+            true
+        }
+    }
+
     private static func tertiaryOrder(for provider: UsageProvider) -> [Lane] {
         if provider == .zai {
             return [.tertiary, .primary, .secondary]
@@ -141,10 +150,14 @@ enum MenuBarMetricWindowResolver {
                 secondary: snapshot.tertiary,
                 tertiary: nil) ?? snapshot.secondary
         }
-        if provider == .factory || provider == .kimi {
-            return snapshot.secondary ?? snapshot.primary
-        }
-        if provider == .litellm {
+        if provider == .factory || provider == .kimi || provider == .litellm {
+            if let exhausted = exhaustedWindow(
+                primary: snapshot.primary,
+                secondary: snapshot.secondary,
+                tertiary: nil)
+            {
+                return exhausted
+            }
             return snapshot.secondary ?? snapshot.primary
         }
         if provider == .copilot,
@@ -167,6 +180,14 @@ enum MenuBarMetricWindowResolver {
         }
         if provider == .claude, let spendLimit = Self.claudeSpendLimitWindow(snapshot: snapshot) {
             return spendLimit
+        }
+        if Self.automaticSelectionPrioritizesExhaustedWindow(for: provider),
+           let exhausted = Self.exhaustedWindow(
+               primary: snapshot.primary,
+               secondary: snapshot.secondary,
+               tertiary: snapshot.tertiary)
+        {
+            return exhausted
         }
         return snapshot.primary ?? snapshot.secondary
     }
@@ -340,6 +361,17 @@ enum MenuBarMetricWindowResolver {
         let windows = [primary, secondary, tertiary].compactMap(\.self)
         guard !windows.isEmpty else { return nil }
         return windows.max(by: { $0.usedPercent < $1.usedPercent })
+    }
+
+    private static func exhaustedWindow(
+        primary: RateWindow?,
+        secondary: RateWindow?,
+        tertiary: RateWindow?)
+        -> RateWindow?
+    {
+        [primary, secondary, tertiary]
+            .compactMap(\.self)
+            .first { $0.usedPercent >= 100 }
     }
 
     private static func mostConstrainedCursorWindow(

@@ -102,6 +102,88 @@ struct StatusItemControllerMenuTests {
     }
 
     @Test
+    func `claude switcher ignores exhausted scoped weekly carve outs`() {
+        let session = RateWindow(
+            usedPercent: 77,
+            windowMinutes: 5 * 60,
+            resetsAt: nil,
+            resetDescription: nil)
+        let weekly = RateWindow(
+            usedPercent: 61,
+            windowMinutes: 7 * 24 * 60,
+            resetsAt: nil,
+            resetDescription: nil)
+        let sonnet = RateWindow(
+            usedPercent: 100,
+            windowMinutes: 7 * 24 * 60,
+            resetsAt: nil,
+            resetDescription: nil)
+        let snapshot = self.makeSnapshot(
+            primary: session,
+            secondary: weekly,
+            tertiary: sonnet,
+            extraRateWindows: [
+                NamedRateWindow(
+                    id: "claude-weekly-scoped-fable",
+                    title: "Fable only",
+                    window: RateWindow(
+                        usedPercent: 100,
+                        windowMinutes: 7 * 24 * 60,
+                        resetsAt: nil,
+                        resetDescription: nil)),
+                NamedRateWindow(
+                    id: "claude-routines",
+                    title: "Daily Routines",
+                    window: RateWindow(
+                        usedPercent: 100,
+                        windowMinutes: 7 * 24 * 60,
+                        resetsAt: nil,
+                        resetDescription: nil)),
+            ])
+
+        let percent = StatusItemController.switcherWeeklyMetricPercent(
+            for: .claude,
+            snapshot: snapshot,
+            showUsed: false)
+
+        #expect(percent == 39)
+    }
+
+    @Test
+    func `claude switcher keeps account weekly even when scoped carve out remains`() {
+        let session = RateWindow(
+            usedPercent: 20,
+            windowMinutes: 5 * 60,
+            resetsAt: nil,
+            resetDescription: nil)
+        let weekly = RateWindow(
+            usedPercent: 40,
+            windowMinutes: 7 * 24 * 60,
+            resetsAt: nil,
+            resetDescription: nil)
+        let snapshot = self.makeSnapshot(
+            primary: session,
+            secondary: weekly,
+            extraRateWindows: [
+                NamedRateWindow(
+                    id: "claude-weekly-scoped-fable",
+                    title: "Fable only",
+                    window: RateWindow(
+                        usedPercent: 85,
+                        windowMinutes: 7 * 24 * 60,
+                        resetsAt: nil,
+                        resetDescription: nil)),
+            ])
+
+        let percent = StatusItemController.switcherWeeklyMetricPercent(
+            for: .claude,
+            snapshot: snapshot,
+            showUsed: false)
+
+        #expect(percent == 60)
+    }
+
+    @Test
     func `switcher preserves provider quota when no weekly allowance exists`() {
         let monthly = RateWindow(
             usedPercent: 28,
@@ -249,6 +331,102 @@ struct StatusItemControllerMenuTests {
         parentItem.submenu = NSMenu(title: "Session")
         submenuMenu.addItem(parentItem)
         #expect(ceil(submenuMenu.size.width) < 310)
+    }
+
+    // MARK: - Status component allowlist
+
+    @Test
+    @MainActor
+    func `status component allowlist passes through unfiltered for providers without one`() {
+        let components = [
+            ProviderStatusComponent(id: "1", name: "API", indicator: .none, status: "operational"),
+            ProviderStatusComponent(id: "2", name: "Web App", indicator: .none, status: "operational"),
+        ]
+
+        let filtered = StatusItemController.filterStatusComponents(components, for: .claude)
+
+        #expect(filtered.map(\.name) == ["API", "Web App"])
+    }
+
+    @Test
+    @MainActor
+    func `status component allowlist keeps only named components and groups for zoommate`() {
+        let components = [
+            ProviderStatusComponent(
+                id: "g1",
+                name: "Zoom Meetings",
+                indicator: .none,
+                status: "operational",
+                children: [
+                    ProviderStatusComponent(
+                        id: "c1",
+                        name: "Zoom Whiteboard",
+                        indicator: .none,
+                        status: "operational"),
+                ]),
+            ProviderStatusComponent(id: "2", name: "ZoomMate", indicator: .none, status: "operational"),
+            ProviderStatusComponent(id: "3", name: "My Notes", indicator: .none, status: "operational"),
+            ProviderStatusComponent(
+                id: "g2",
+                name: "Zoom Workflows",
+                indicator: .none,
+                status: "operational",
+                children: [
+                    ProviderStatusComponent(
+                        id: "c2",
+                        name: "Zoom AIC",
+                        indicator: .none,
+                        status: "operational"),
+                ]),
+            ProviderStatusComponent(id: "4", name: "Zoom Phone - US", indicator: .none, status: "operational"),
+            ProviderStatusComponent(id: "5", name: "Zoom Rooms", indicator: .none, status: "operational"),
+        ]
+
+        let filtered = StatusItemController.filterStatusComponents(components, for: .zoommate)
+
+        #expect(filtered.map(\.name) == ["Zoom Meetings", "ZoomMate", "My Notes", "Zoom Workflows"])
+        // Allowlisted groups keep their existing full child list; the allowlist filters at the
+        // top level only, it does not additionally prune group children.
+        #expect(filtered.first { $0.name == "Zoom Meetings" }?.children.map(\.name) == ["Zoom Whiteboard"])
+    }
+
+    @Test
+    @MainActor
+    func `status component allowlist tolerates any subset of named components being absent`() {
+        // Only two of the four allowlisted names are present; the other two are silently omitted
+        // without error, and unrelated components remain excluded as usual.
+        let components = [
+            ProviderStatusComponent(id: "2", name: "ZoomMate", indicator: .none, status: "operational"),
+            ProviderStatusComponent(id: "4", name: "Zoom Phone - US", indicator: .none, status: "operational"),
+            ProviderStatusComponent(id: "3", name: "My Notes", indicator: .minor, status: "degraded_performance"),
+        ]
+
+        let filtered = StatusItemController.filterStatusComponents(components, for: .zoommate)
+
+        #expect(filtered.map(\.name) == ["ZoomMate", "My Notes"])
+    }
+
+    @Test
+    @MainActor
+    func `status component allowlist returns empty list when all named components are absent`() {
+        // Zoom's status page has been fully restructured and none of the four allowlisted names
+        // remain; the filter must degrade to an empty list rather than crash, so the existing
+        // "no components" gate (which shows only the website link) takes over.
+        let components = [
+            ProviderStatusComponent(id: "4", name: "Zoom Phone - US", indicator: .none, status: "operational"),
+            ProviderStatusComponent(id: "5", name: "Zoom Rooms", indicator: .none, status: "operational"),
+        ]
+
+        let filtered = StatusItemController.filterStatusComponents(components, for: .zoommate)
+
+        #expect(filtered.isEmpty)
+    }
+
+    @Test
+    @MainActor
+    func `status component allowlist on an empty component list stays empty`() {
+        let filtered = StatusItemController.filterStatusComponents([], for: .zoommate)
+        #expect(filtered.isEmpty)
     }
 
     @Test

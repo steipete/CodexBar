@@ -413,6 +413,9 @@
 "section_agent_sessions" = "Ajan oturumları";
 "language_title" = "Dil";
 "language_subtitle" = "Görüntüleme dilini değiştirin. Tam olarak geçerli olması için uygulamanın yeniden başlatılması gerekir.";
+"currency_title" = "Tercih edilen para birimi";
+"currency_subtitle" = "Maliyet tahminleri ve harcamalar için para birimi. Günlük güncellenen kurları kullanır.";
+"currency_auto" = "Otomatik (sağlayıcı / USD)";
 "language_system" = "Sistem";
 "language_english" = "English";
 "language_spanish" = "Español";
@@ -1231,6 +1234,8 @@
 "section_links" = "Bağlantılar";
 "Show Codex Spark usage" = "Codex Spark kullanımını göster";
 "Shows Codex Spark quota rows in the menu and provider preview. Requires optional credits and extra usage in Display settings." = "Codex Spark kota satırlarını menüde ve sağlayıcı önizlemesinde gösterir. Görünüm ayarlarında “Krediler + ekstra kullanımı göster” seçeneğinin etkin olmasını gerektirir.";
+"Show Daily Routines usage" = "Günlük Rutinler kullanımını göster";
+"Shows the Daily Routines quota row in the menu and provider preview. Requires optional credits and extra usage in Display settings." = "Günlük Rutinler kota satırını menüde ve sağlayıcı önizlemesinde gösterir. Görünüm ayarlarında “Krediler + ekstra kullanımı göster” seçeneğinin etkin olmasını gerektirir.";
 "Scroll to see more models" = "Daha fazla model görmek için kaydırın";
 
 /* Shareable usage card */
@@ -1274,6 +1279,9 @@
 "Weekly cannot run out before reset at this pace" = "Bu hızda haftalık kota sıfırlamadan önce tükenemez";
 "Weekly can run out ≈%d windows early" = "Haftalık kota ≈%d pencere erken tükenebilir";
 "Estimated: %@" = "Tahmini: %@";
+"session_quota_estimate_value_format" = "%1$@ %2$@";
+"session quota" = "oturum kotası";
+"session quotas" = "oturum kotaları";
 "Coding Plan" = "Kodlama Planı";
 "Agent Plan" = "Ajan Planı";
 "Team" = "Ekip";

@@ -167,7 +167,7 @@ Example:
   - Native conversation rows reuse the corrected cached per-file totals and existing pricing tables. They are hidden
     when pi-compatible usage joins the aggregate because the native-only rows would not reconcile with the merged total.
 - Cache:
-  - Native + merged provider cache: `~/Library/Caches/CodexBar/cost-usage/codex-v10.json`
+  - Native + merged provider cache: `~/Library/Caches/CodexBar/cost-usage/codex-v11.json`
   - pi-compatible session cache: `~/Library/Caches/CodexBar/cost-usage/pi-sessions-v7.json`
 - Window: configurable 1-365 day rolling history, with a 60s minimum refresh interval.
 

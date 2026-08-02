@@ -414,6 +414,9 @@
 "section_agent_sessions" = "Sessions d'agents";
 "language_title" = "Idioma";
 "language_subtitle" = "Canvia l'idioma de la interfície. Cal reiniciar l'app perquè s'apliqui completament.";
+"currency_title" = "Moneda preferida";
+"currency_subtitle" = "Moneda per a estimacions de cost i despeses. Utilitza tipus de canvi actualitzats diàriament.";
+"currency_auto" = "Automàtic (segons el proveïdor / USD)";
 "language_system" = "Sistema";
 "language_english" = "English";
 "language_spanish" = "Español";
@@ -1233,6 +1236,8 @@
 "section_links" = "Enllaços";
 "Show Codex Spark usage" = "Mostreu l'ús de Codex Spark";
 "Shows Codex Spark quota rows in the menu and provider preview. Requires optional credits and extra usage in Display settings." = "Mostreu les files de quota de Codex Spark al menú i a la previsualització del proveïdor. Cal activar «Mostreu crèdits + ús addicional» a la configuració de Pantalla.";
+"Show Daily Routines usage" = "Mostreu l'ús de Rutines diàries";
+"Shows the Daily Routines quota row in the menu and provider preview. Requires optional credits and extra usage in Display settings." = "Mostreu la fila de quota de Rutines diàries al menú i a la previsualització del proveïdor. Cal activar «Mostreu crèdits + ús addicional» a la configuració de Pantalla.";
 "Scroll to see more models" = "Desplaceu-vos per veure més models";
 /* Shareable usage card */
 "Copy Image" = "Copia la imatge";
@@ -1275,6 +1280,9 @@
 "Weekly cannot run out before reset at this pace" = "La quota setmanal no es pot esgotar abans del reinici a aquest ritme";
 "Weekly can run out ≈%d windows early" = "La quota setmanal es pot esgotar ≈%d finestres abans";
 "Estimated: %@" = "Estimació: %@";
+"session_quota_estimate_value_format" = "%1$@ %2$@";
+"session quota" = "quota de sessió";
+"session quotas" = "quotes de sessió";
 "Coding Plan" = "Pla de programació";
 "Agent Plan" = "Pla d'agent";
 "Team" = "Equip";

@@ -133,6 +133,7 @@ public enum ProviderDescriptorRegistry {
         .opencodego: OpenCodeGoProviderDescriptor.descriptor,
         .alibaba: AlibabaCodingPlanProviderDescriptor.descriptor,
         .alibabatokenplan: AlibabaTokenPlanProviderDescriptor.descriptor,
+        .qwencloud: QwenCloudProviderDescriptor.descriptor,
         .factory: FactoryProviderDescriptor.descriptor,
         .gemini: GeminiProviderDescriptor.descriptor,
         .antigravity: AntigravityProviderDescriptor.descriptor,
@@ -186,6 +187,8 @@ public enum ProviderDescriptorRegistry {
         .wayfinder: WayfinderProviderDescriptor.descriptor,
         .zenmux: ZenMuxProviderDescriptor.descriptor,
         .aiand: AiAndProviderDescriptor.descriptor,
+        .zoommate: ZoomMateProviderDescriptor.descriptor,
+        .xai: XAIProviderDescriptor.descriptor,
     ]
     private static let bootstrap: Void = {
         for provider in UsageProvider.allCases {

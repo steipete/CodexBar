@@ -84,7 +84,9 @@ extension ZaiLimitEntry {
         if let computed = self.computedUsedPercent {
             return computed
         }
-        return self.percentage
+        // The raw API percentage can fall outside 0...100 (z.ai omits/misreports quota fields);
+        // clamp it like computedUsedPercent and every sibling provider instead of surfacing it raw.
+        return min(100, max(0, self.percentage))
     }
 
     public var windowMinutes: Int? {

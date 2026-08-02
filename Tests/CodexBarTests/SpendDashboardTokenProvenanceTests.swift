@@ -102,6 +102,7 @@ struct SpendDashboardTokenProvenanceTests {
 
     @Test
     func `cached token account activation does not prove a forced refresh`() async throws {
+        let now = Date(timeIntervalSince1970: 1_784_179_200)
         let (settings, store) = Self.makeStore(provider: .mistral)
         settings.addTokenAccount(provider: .mistral, label: "Fixture", token: "fixture")
         let account = try #require(settings.effectiveSelectedTokenAccount(for: .mistral))
@@ -124,9 +125,16 @@ struct SpendDashboardTokenProvenanceTests {
         store.activateCachedTokenAccountSnapshot(provider: .mistral, accountID: account.id)
         #expect(store.tokenSnapshotPublicationRevision(for: .mistral) == baselineRevision)
         store._test_providerRefreshOverride = { _ in }
-        let controller = SpendDashboardController(requestBuilder: { mode in
-            await SpendDashboardSource.makeRequest(settings: settings, store: store, mode: mode)
-        })
+        let controller = SpendDashboardController(
+            userDefaults: settings.userDefaults,
+            requestBuilder: { mode in
+                await SpendDashboardSource.makeRequest(
+                    settings: settings,
+                    store: store,
+                    mode: mode,
+                    now: now)
+            },
+            nowProvider: { now })
         controller.update(configuration: SpendDashboardSource.configuration(settings: settings, store: store))
         await Self.waitUntil { !controller.isRefreshing }
         #expect(controller.model.groups.first?.totalCost == 3)
@@ -141,6 +149,7 @@ struct SpendDashboardTokenProvenanceTests {
 
     @Test
     func `forced successful empty publication removes prior spend without warning`() async {
+        let now = Date(timeIntervalSince1970: 1_784_203_200)
         let (settings, store) = Self.makeStore(provider: .bedrock)
         var loadCount = 0
         store._test_tokenUsageSnapshotLoaderOverride = { _, _, _, _, _ in
@@ -148,9 +157,16 @@ struct SpendDashboardTokenProvenanceTests {
             return loadCount == 1 ? Self.tokenSnapshot(cost: 4) : Self.emptyTokenSnapshot()
         }
         await store.refreshTokenUsageNow(for: .bedrock, force: true)
-        let controller = SpendDashboardController(requestBuilder: { mode in
-            await SpendDashboardSource.makeRequest(settings: settings, store: store, mode: mode)
-        })
+        let controller = SpendDashboardController(
+            userDefaults: settings.userDefaults,
+            requestBuilder: { mode in
+                await SpendDashboardSource.makeRequest(
+                    settings: settings,
+                    store: store,
+                    mode: mode,
+                    now: now)
+            },
+            nowProvider: { now })
         controller.update(configuration: SpendDashboardSource.configuration(settings: settings, store: store))
         await Self.waitUntil { !controller.isRefreshing }
         #expect(controller.model.groups.first?.totalCost == 4)
@@ -169,6 +185,7 @@ struct SpendDashboardTokenProvenanceTests {
 
     @Test
     func `first open accepts current empty publication without redundant refresh`() async {
+        let now = Date(timeIntervalSince1970: 1_784_179_200)
         let (settings, store) = Self.makeStore(provider: .bedrock)
         var loadCount = 0
         store._test_tokenUsageSnapshotLoaderOverride = { _, _, _, _, _ in
@@ -177,9 +194,16 @@ struct SpendDashboardTokenProvenanceTests {
         }
         await store.refreshTokenUsageNow(for: .bedrock, force: true)
         let publicationRevision = store.tokenSnapshotPublicationRevision(for: .bedrock)
-        let controller = SpendDashboardController(requestBuilder: { mode in
-            await SpendDashboardSource.makeRequest(settings: settings, store: store, mode: mode)
-        })
+        let controller = SpendDashboardController(
+            userDefaults: settings.userDefaults,
+            requestBuilder: { mode in
+                await SpendDashboardSource.makeRequest(
+                    settings: settings,
+                    store: store,
+                    mode: mode,
+                    now: now)
+            },
+            nowProvider: { now })
 
         controller.update(configuration: SpendDashboardSource.configuration(settings: settings, store: store))
         await Self.waitUntil { !controller.isRefreshing }
@@ -314,6 +338,7 @@ struct SpendDashboardTokenProvenanceTests {
             sessionCostUSD: cost,
             last30DaysTokens: 10,
             last30DaysCostUSD: cost,
+            currencyCode: "USD",
             daily: [CostUsageDailyReport.Entry(
                 date: "2026-07-16",
                 inputTokens: 4,

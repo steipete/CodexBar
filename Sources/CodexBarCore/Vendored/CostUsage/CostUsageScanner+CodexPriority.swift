@@ -626,7 +626,8 @@ extension CostUsageScanner {
 
     private static func nextDayKey(after dayKey: String) -> String {
         guard let date = self.localDate(forDayKey: dayKey),
-              let next = Calendar.current.date(byAdding: .day, value: 1, to: date)
+              let next = CostUsageScanner.CostUsageDayRange.localGregorianCalendar()
+                  .date(byAdding: .day, value: 1, to: date)
         else { return dayKey }
         return CostUsageScanner.CostUsageDayRange.dayKey(from: next)
     }
@@ -644,7 +645,7 @@ extension CostUsageScanner {
               let day = Int(parts[2])
         else { return nil }
         var components = DateComponents()
-        components.calendar = Calendar.current
+        components.calendar = CostUsageScanner.CostUsageDayRange.localGregorianCalendar()
         components.year = year
         components.month = month
         components.day = day

@@ -1,0 +1,27 @@
+{
+  "code": "200",
+  "data": {
+    "DataV2": {
+      "data": {
+        "success": true,
+        "data": {
+          "lite": {
+            "five_hour": 700,
+            "weekly": 2500
+          },
+          "standard": {
+            "five_hour": 3000,
+            "weekly": 10000
+          },
+          "pro": {
+            "five_hour": 12000,
+            "weekly": 40000
+          }
+        }
+      },
+      "success": true,
+      "httpStatus": 200
+    }
+  },
+  "successResponse": true
+}

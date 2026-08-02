@@ -138,6 +138,31 @@ public struct OpenCodeGoUsageSnapshot: Sendable {
         return copy
     }
 
+    /// Replaces the locally estimated usage windows with the server-reported (authoritative)
+    /// ones while keeping local-only data such as the daily cost history. The local monthly
+    /// window is anchored at the earliest local row, which can drift far from the real billing
+    /// cycle (wrong percentage and reset countdown), so whenever web usage is available its
+    /// percentages and reset countdowns win. A balance-only web response carries no windows
+    /// and must not clobber the local estimate.
+    public func applyingWebUsage(_ web: OpenCodeGoUsageSnapshot) -> OpenCodeGoUsageSnapshot {
+        guard !web.isBalanceOnly else {
+            return self.withZenBalanceUSD(web.zenBalanceUSD ?? self.zenBalanceUSD)
+        }
+        return OpenCodeGoUsageSnapshot(
+            hasWeeklyUsage: web.hasWeeklyUsage,
+            hasMonthlyUsage: web.hasMonthlyUsage,
+            rollingUsagePercent: web.rollingUsagePercent,
+            weeklyUsagePercent: web.weeklyUsagePercent,
+            monthlyUsagePercent: web.monthlyUsagePercent,
+            rollingResetInSec: web.rollingResetInSec,
+            weeklyResetInSec: web.weeklyResetInSec,
+            monthlyResetInSec: web.monthlyResetInSec,
+            zenBalanceUSD: web.zenBalanceUSD ?? self.zenBalanceUSD,
+            renewsAt: web.renewsAt ?? self.renewsAt,
+            daily: self.daily,
+            updatedAt: self.updatedAt)
+    }
+
     public func withDaily(_ daily: [CostUsageDailyReport.Entry]) -> OpenCodeGoUsageSnapshot {
         var copy = self
         copy.daily = daily

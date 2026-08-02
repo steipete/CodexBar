@@ -134,9 +134,11 @@ public struct KimiUsageFetcher: Sendable {
             subscriptionStats = nil
         }
 
+        let rateLimit = codingUsage.limits?.first
         return KimiUsageSnapshot(
             weekly: codingUsage.detail,
-            rateLimit: codingUsage.limits?.first?.detail,
+            rateLimit: rateLimit?.detail,
+            rateLimitWindow: rateLimit?.window,
             subscriptionBalance: subscriptionStats?.subscriptionBalance,
             subscriptionCodeWeeklyLimit: subscriptionStats?.ratelimitCode7d,
             updatedAt: now)
@@ -179,9 +181,12 @@ public struct KimiUsageFetcher: Sendable {
 
     private static func parseCodeAPIUsage(from data: Data, now: Date) throws -> KimiUsageSnapshot {
         let response = try JSONDecoder().decode(KimiCodeAPIUsageResponse.self, from: data)
+        let rateLimit = response.limits?.first
         return KimiUsageSnapshot(
             weekly: response.usage,
-            rateLimit: response.limits?.first?.detail,
+            rateLimit: rateLimit?.detail,
+            rateLimitWindow: rateLimit?.window,
+            subscriptionBalance: nil,
             updatedAt: now)
     }
 

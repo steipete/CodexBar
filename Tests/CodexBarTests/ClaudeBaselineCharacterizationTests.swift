@@ -196,7 +196,7 @@ struct ClaudeBaselineCharacterizationTests {
     }
 
     @Test
-    func `app background auto does not start logged out Claude CLI`() async throws {
+    func `app background auto does not start Claude CLI before foreground availability`() async throws {
         let settings = ProviderSettingsSnapshot.make(claude: .init(
             usageDataSource: .auto,
             webExtrasEnabled: false,
@@ -207,7 +207,7 @@ struct ClaudeBaselineCharacterizationTests {
         let stubCLIPath = try self.makeStubClaudeCLI(loggedIn: false, invocationLog: invocationLog)
         let env = ["CLAUDE_CLI_PATH": stubCLIPath]
 
-        await ClaudeCLIAuthStatusProbe.withTimeoutOverrideForTesting(20) {
+        await ClaudeCLIBackgroundAvailability.withIsolatedStoreForTesting {
             await self.withBackgroundKeychainAccess {
                 await ClaudeOAuthKeychainPromptPreference.withTaskOverrideForTesting(.always) {
                     await self.withNoOAuthCredentials {
@@ -224,8 +224,7 @@ struct ClaudeBaselineCharacterizationTests {
             }
         }
 
-        let invocations = try String(contentsOf: invocationLog, encoding: .utf8)
-        #expect(invocations == "auth status --json\n")
+        #expect(!FileManager.default.fileExists(atPath: invocationLog.path))
     }
 
     @Test
@@ -266,30 +265,29 @@ struct ClaudeBaselineCharacterizationTests {
             manualCookieHeader: nil))
         let invocationLog = FileManager.default.temporaryDirectory
             .appendingPathComponent("claude-invocations-\(UUID().uuidString).log")
-        let stubCLIPath = try self.makeStubClaudeCLI(invocationLog: invocationLog)
+        let stubCLIPath = try self.makeStubClaudeCLI(loggedIn: false, invocationLog: invocationLog)
         let env = ["CLAUDE_CLI_PATH": stubCLIPath]
+        let descriptor = ProviderDescriptorRegistry.descriptor(for: .claude)
+        let context = self.makeContext(runtime: .app, sourceMode: .auto, env: env, settings: settings)
+        let strategies = await descriptor.fetchPlan.pipeline.resolveStrategies(context)
+        let cli = try #require(strategies.first { $0.id == "claude.cli" })
 
-        await KeychainAccessGate.withTaskOverrideForTesting(true) {
-            await ClaudeOAuthKeychainPromptPreference.withTaskOverrideForTesting(.always) {
-                await self.withNoOAuthCredentials {
-                    let outcome = await self.fetchOutcome(
-                        runtime: .app,
-                        sourceMode: .auto,
-                        env: env,
-                        settings: settings)
-                    #expect(outcome.attempts.map(\.strategyID) == ["claude.oauth", "claude.cli", "claude.web"])
-                    #expect(outcome.attempts.map(\.wasAvailable) == [false, false, false])
+        let cliAvailable = await ClaudeCLIBackgroundAvailability.withIsolatedStoreForTesting {
+            await KeychainAccessGate.withTaskOverrideForTesting(true) {
+                await ClaudeOAuthKeychainPromptPreference.withTaskOverrideForTesting(.always) {
+                    await ProviderInteractionContext.$current.withValue(.background) {
+                        await cli.isAvailable(context)
+                    }
                 }
             }
         }
 
+        #expect(!cliAvailable)
         #expect(!FileManager.default.fileExists(atPath: invocationLog.path))
     }
 
-    @Test(arguments: ["nonzero", "timeout", "malformed"])
-    func `app background auto falls back to web when auth status is unusable`(
-        failureMode: String) async throws
-    {
+    @Test
+    func `app background auto falls back to web without probing Claude CLI`() async throws {
         let settings = ProviderSettingsSnapshot.make(claude: .init(
             usageDataSource: .auto,
             webExtrasEnabled: false,
@@ -297,17 +295,7 @@ struct ClaudeBaselineCharacterizationTests {
             manualCookieHeader: "sessionKey=sk-ant-session-token"))
         let invocationLog = FileManager.default.temporaryDirectory
             .appendingPathComponent("claude-invocations-\(UUID().uuidString).log")
-        let authStatusScript = switch failureMode {
-        case "nonzero":
-            "exit 9"
-        case "timeout":
-            "sleep 6"
-        default:
-            "printf '%s\\n' 'not-json'"
-        }
-        let stubCLIPath = try self.makeStubClaudeCLI(
-            authStatusScript: authStatusScript,
-            invocationLog: invocationLog)
+        let stubCLIPath = try self.makeStubClaudeCLI(invocationLog: invocationLog)
         let env = ["CLAUDE_CLI_PATH": stubCLIPath]
         let usageLoader: ClaudeWebFetchStrategy.UsageLoader = { _ in
             ClaudeUsageSnapshot(
@@ -325,7 +313,7 @@ struct ClaudeBaselineCharacterizationTests {
                 rawText: nil)
         }
 
-        let outcome = await ClaudeCLIAuthStatusProbe.withTimeoutOverrideForTesting(20) {
+        let outcome = await ClaudeCLIBackgroundAvailability.withIsolatedStoreForTesting {
             await self.withBackgroundKeychainAccess {
                 await ClaudeOAuthKeychainPromptPreference.withTaskOverrideForTesting(.always) {
                     await self.withNoOAuthCredentials {
@@ -341,8 +329,7 @@ struct ClaudeBaselineCharacterizationTests {
         #expect(outcome.attempts.map(\.strategyID) == ["claude.oauth", "claude.cli", "claude.web"])
         #expect(outcome.attempts.map(\.wasAvailable) == [false, false, true])
         #expect(result.strategyID == "claude.web")
-        let invocations = try String(contentsOf: invocationLog, encoding: .utf8)
-        #expect(invocations == "auth status --json\n")
+        #expect(!FileManager.default.fileExists(atPath: invocationLog.path))
     }
 
     @Test
@@ -367,6 +354,52 @@ struct ClaudeBaselineCharacterizationTests {
 
         #expect(cliAvailable)
         #expect(!FileManager.default.fileExists(atPath: invocationLog.path))
+    }
+
+    @Test
+    func `successful user initiated CLI fetch establishes background availability`() async throws {
+        let settings = ProviderSettingsSnapshot.make(claude: .init(
+            usageDataSource: .auto,
+            webExtrasEnabled: false,
+            cookieSource: .off,
+            manualCookieHeader: nil))
+        let stubCLIPath = try self.makeStubClaudeCLI()
+        let env = ["CLAUDE_CLI_PATH": stubCLIPath]
+        let descriptor = ProviderDescriptorRegistry.descriptor(for: .claude)
+        let context = self.makeContext(runtime: .app, sourceMode: .auto, env: env, settings: settings)
+        let strategies = await descriptor.fetchPlan.pipeline.resolveStrategies(context)
+        let cli = try #require(strategies.first { $0.id == "claude.cli" })
+        let fetchOverride: @Sendable (String, TimeInterval, Bool) async throws
+            -> ClaudeStatusSnapshot = { binary, _, _ in
+                #expect(binary == stubCLIPath)
+                return ClaudeStatusSnapshot(
+                    sessionPercentLeft: 88,
+                    weeklyPercentLeft: 60,
+                    opusPercentLeft: 95,
+                    accountEmail: "user@example.com",
+                    accountOrganization: "Example Org",
+                    loginMethod: nil,
+                    primaryResetDescription: "Resets 11am",
+                    secondaryResetDescription: "Resets Nov 21",
+                    opusResetDescription: "Resets Nov 21",
+                    rawText: "")
+            }
+
+        try await ClaudeCLIBackgroundAvailability.withIsolatedStoreForTesting {
+            _ = try await ClaudeStatusProbe.$fetchOverride.withValue(fetchOverride) {
+                try await ProviderInteractionContext.$current.withValue(.userInitiated) {
+                    try await cli.fetch(context)
+                }
+            }
+            let available = await KeychainAccessGate.withTaskOverrideForTesting(true) {
+                await ClaudeOAuthKeychainPromptPreference.withTaskOverrideForTesting(.never) {
+                    await ProviderInteractionContext.$current.withValue(.background) {
+                        await cli.isAvailable(context)
+                    }
+                }
+            }
+            #expect(available)
+        }
     }
 
     @Test
@@ -413,41 +446,44 @@ struct ClaudeBaselineCharacterizationTests {
         let stubCLIPath = try self.makeStubClaudeCLI()
         let env = ["CLAUDE_CLI_PATH": stubCLIPath]
 
-        await self.withBackgroundKeychainAccess {
-            await ClaudeOAuthKeychainPromptPreference.withTaskOverrideForTesting(.always) {
-                await self.withNoOAuthCredentials {
-                    let fetchOverride: @Sendable (String, TimeInterval, Bool) async throws
-                        -> ClaudeStatusSnapshot = { binary, _, _ in
-                            #expect(binary == stubCLIPath)
-                            return ClaudeStatusSnapshot(
-                                sessionPercentLeft: 88,
-                                weeklyPercentLeft: 60,
-                                opusPercentLeft: 95,
-                                accountEmail: "user@example.com",
-                                accountOrganization: "Example Org",
-                                loginMethod: nil,
-                                primaryResetDescription: "Resets 11am",
-                                secondaryResetDescription: "Resets Nov 21",
-                                opusResetDescription: "Resets Nov 21",
-                                rawText: "stub")
+        await ClaudeCLIBackgroundAvailability.withIsolatedStoreForTesting {
+            ClaudeCLIBackgroundAvailability.establish(binary: stubCLIPath)
+            await self.withBackgroundKeychainAccess {
+                await ClaudeOAuthKeychainPromptPreference.withTaskOverrideForTesting(.always) {
+                    await self.withNoOAuthCredentials {
+                        let fetchOverride: @Sendable (String, TimeInterval, Bool) async throws
+                            -> ClaudeStatusSnapshot = { binary, _, _ in
+                                #expect(binary == stubCLIPath)
+                                return ClaudeStatusSnapshot(
+                                    sessionPercentLeft: 88,
+                                    weeklyPercentLeft: 60,
+                                    opusPercentLeft: 95,
+                                    accountEmail: "user@example.com",
+                                    accountOrganization: "Example Org",
+                                    loginMethod: nil,
+                                    primaryResetDescription: "Resets 11am",
+                                    secondaryResetDescription: "Resets Nov 21",
+                                    opusResetDescription: "Resets Nov 21",
+                                    rawText: "stub")
+                            }
+                        let outcome = await ClaudeStatusProbe.$fetchOverride.withValue(fetchOverride) {
+                            await self.fetchOutcome(runtime: .app, sourceMode: .auto, env: env, settings: settings)
                         }
-                    let outcome = await ClaudeStatusProbe.$fetchOverride.withValue(fetchOverride) {
-                        await self.fetchOutcome(runtime: .app, sourceMode: .auto, env: env, settings: settings)
-                    }
 
-                    #expect(outcome.attempts.map(\.strategyID) == ["claude.oauth", "claude.cli"])
-                    #expect(outcome.attempts.map(\.wasAvailable) == [false, true])
+                        #expect(outcome.attempts.map(\.strategyID) == ["claude.oauth", "claude.cli"])
+                        #expect(outcome.attempts.map(\.wasAvailable) == [false, true])
 
-                    switch outcome.result {
-                    case let .success(result):
-                        #expect(result.strategyID == "claude.cli")
-                        #expect(result.sourceLabel == "claude")
-                        #expect(result.usage.primary?.usedPercent == 12)
-                        #expect(result.usage.secondary?.usedPercent == 40)
-                        #expect(result.usage.tertiary?.usedPercent == 5)
-                        #expect(result.usage.identity?.accountEmail == "user@example.com")
-                    case let .failure(error):
-                        Issue.record("Unexpected failure: \(error)")
+                        switch outcome.result {
+                        case let .success(result):
+                            #expect(result.strategyID == "claude.cli")
+                            #expect(result.sourceLabel == "claude")
+                            #expect(result.usage.primary?.usedPercent == 12)
+                            #expect(result.usage.secondary?.usedPercent == 40)
+                            #expect(result.usage.tertiary?.usedPercent == 5)
+                            #expect(result.usage.identity?.accountEmail == "user@example.com")
+                        case let .failure(error):
+                            Issue.record("Unexpected failure: \(error)")
+                        }
                     }
                 }
             }

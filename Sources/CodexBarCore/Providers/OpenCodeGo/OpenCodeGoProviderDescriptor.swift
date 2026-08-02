@@ -84,39 +84,86 @@ struct OpenCodeGoLocalUsageFetchStrategy: ProviderFetchStrategy {
     let id: String = "opencodego.local"
     let kind: ProviderFetchKind = .localProbe
 
+    typealias LocalSnapshotLoader = @Sendable (ProviderFetchContext) throws -> OpenCodeGoUsageSnapshot
+    typealias WebUsageOverlayFetcher = @Sendable (ProviderFetchContext, String) async throws
+        -> OpenCodeGoUsageSnapshot?
+
+    private let localSnapshotLoader: LocalSnapshotLoader
+    private let webUsageOverlayFetcher: WebUsageOverlayFetcher
+
+    private struct OverlayCookie {
+        let header: String
+        let cachedEntry: CookieHeaderCache.Entry?
+    }
+
+    init(
+        localSnapshotLoader: @escaping LocalSnapshotLoader = { context in
+            try OpenCodeGoLocalUsageReader().fetch(historyDays: context.costUsageHistoryDays)
+        },
+        webUsageOverlayFetcher: @escaping WebUsageOverlayFetcher = Self.liveWebUsageOverlay)
+    {
+        self.localSnapshotLoader = localSnapshotLoader
+        self.webUsageOverlayFetcher = webUsageOverlayFetcher
+    }
+
     func isAvailable(_: ProviderFetchContext) async -> Bool {
         true
     }
 
     func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
-        let snapshot = try await self.snapshot(context: context)
+        let (snapshot, overlaid) = try await self.snapshot(context: context)
         return self.makeResult(
             usage: snapshot.toUsageSnapshot(),
-            sourceLabel: "local")
+            sourceLabel: overlaid ? "local+web" : "local")
     }
 
     func shouldFallback(on error: Error, context _: ProviderFetchContext) -> Bool {
         error is OpenCodeGoLocalUsageError
     }
 
-    private func snapshot(context: ProviderFetchContext) async throws -> OpenCodeGoUsageSnapshot {
-        let snapshot = try OpenCodeGoLocalUsageReader().fetch(historyDays: context.costUsageHistoryDays)
-        guard context.includeOptionalUsage,
-              context.settings?.opencodego?.cookieSource != .off
+    private func snapshot(context: ProviderFetchContext) async throws -> (OpenCodeGoUsageSnapshot, Bool) {
+        let snapshot = try self.localSnapshotLoader(context)
+        guard context.settings?.opencodego?.cookieSource != .off,
+              let cookie = Self.cachedOrManualCookie(context: context)
         else {
-            return snapshot
+            return (snapshot, false)
         }
 
-        guard let cookieHeader = Self.cachedOrManualCookieHeader(context: context) else {
-            return snapshot
+        // The server knows the real billing-cycle anchors; the local monthly window is only an
+        // estimate anchored at the earliest local row. Overlay the authoritative web windows
+        // whenever a session cookie is already available (never a fresh browser import here).
+        // URLSession reports task cancellation as URLError.cancelled, so normalize it here to
+        // keep a cancelled refresh from completing with a successful local-only result.
+        let webSnapshot: OpenCodeGoUsageSnapshot?
+        do {
+            webSnapshot = try await self.webUsageOverlayFetcher(context, cookie.header)
+        } catch OpenCodeGoUsageError.invalidCredentials {
+            #if os(macOS)
+            if let cached = cookie.cachedEntry {
+                _ = CookieHeaderCache.clearIfCurrent(provider: .opencodego, expected: cached)
+            }
+            #endif
+            return (snapshot, false)
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch let error as URLError where error.code == .cancelled {
+            throw CancellationError()
+        } catch {
+            return (snapshot, false)
+        }
+        if let webSnapshot {
+            return (snapshot.applyingWebUsage(webSnapshot), true)
         }
 
+        guard context.includeOptionalUsage else {
+            return (snapshot, false)
+        }
         let workspaceOverride = context.settings?.opencodego?.workspaceID
             ?? context.env["CODEXBAR_OPENCODEGO_WORKSPACE_ID"]
         let zenBalanceTask = Task<Double?, Error> {
             do {
                 return try await OpenCodeGoUsageFetcher.fetchOptionalZenBalance(
-                    cookieHeader: cookieHeader,
+                    cookieHeader: cookie.header,
                     timeout: context.webTimeout,
                     workspaceIDOverride: workspaceOverride)
             } catch is CancellationError {
@@ -126,17 +173,49 @@ struct OpenCodeGoLocalUsageFetchStrategy: ProviderFetchStrategy {
             }
         }
         let zenBalance = try await OpenCodeGoUsageFetcher.completedOptionalZenBalance(from: zenBalanceTask)
-        return snapshot.withZenBalanceUSD(zenBalance)
+        return (snapshot.withZenBalanceUSD(zenBalance), false)
     }
 
-    private static func cachedOrManualCookieHeader(context: ProviderFetchContext) -> String? {
+    static func liveWebUsageOverlay(
+        context: ProviderFetchContext,
+        cookieHeader: String) async throws -> OpenCodeGoUsageSnapshot?
+    {
+        let workspaceOverride = context.settings?.opencodego?.workspaceID
+            ?? context.env["CODEXBAR_OPENCODEGO_WORKSPACE_ID"]
+        do {
+            return try await OpenCodeGoUsageFetcher.fetchUsage(
+                cookieHeader: cookieHeader,
+                timeout: context.webTimeout,
+                workspaceIDOverride: workspaceOverride,
+                includeZenBalance: context.includeOptionalUsage)
+        } catch OpenCodeGoUsageError.invalidCredentials {
+            throw OpenCodeGoUsageError.invalidCredentials
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch let error as URLError where error.code == .cancelled {
+            throw CancellationError()
+        } catch {
+            if Task.isCancelled {
+                throw CancellationError()
+            }
+            return nil
+        }
+    }
+
+    private static func cachedOrManualCookie(context: ProviderFetchContext) -> OverlayCookie? {
         if let settings = context.settings?.opencodego, settings.cookieSource == .manual {
-            return OpenCodeWebCookieSupport.requestCookieHeader(from: settings.manualCookieHeader)
+            guard let header = OpenCodeWebCookieSupport.requestCookieHeader(from: settings.manualCookieHeader) else {
+                return nil
+            }
+            return OverlayCookie(header: header, cachedEntry: nil)
         }
 
         #if os(macOS)
-        guard let cached = CookieHeaderCache.load(provider: .opencodego) else { return nil }
-        return OpenCodeWebCookieSupport.requestCookieHeader(from: cached.cookieHeader)
+        let observation = CookieHeaderCache.observeForConditionalMutation(provider: .opencodego)
+        guard let cached = observation.entry,
+              let header = OpenCodeWebCookieSupport.requestCookieHeader(from: cached.cookieHeader)
+        else { return nil }
+        return OverlayCookie(header: header, cachedEntry: cached)
         #else
         return nil
         #endif

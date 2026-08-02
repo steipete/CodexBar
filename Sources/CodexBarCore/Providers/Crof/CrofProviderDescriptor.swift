@@ -9,7 +9,7 @@ public enum CrofProviderDescriptor {
             metadata: ProviderMetadata(
                 id: .crof,
                 displayName: "Crof",
-                sessionLabel: "Requests",
+                sessionLabel: "Credits",
                 weeklyLabel: "Credits",
                 opusLabel: nil,
                 supportsOpus: false,
@@ -47,5 +47,9 @@ public enum CrofProviderDescriptor {
                 name: "crof",
                 aliases: ["crofai"],
                 versionDetector: nil))
+    }
+
+    public static func primaryLabel(snapshot: UsageSnapshot) -> String {
+        snapshot.secondary == nil ? "Credits" : "Requests"
     }
 }

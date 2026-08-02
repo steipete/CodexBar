@@ -6,9 +6,13 @@ import Testing
 @Suite(.serialized)
 struct ClaudeOAuthCredentialsStoreNeverPromptCacheTests {
     private struct TestState {
-        let cacheKey = KeychainCacheStore.Key.oauth(provider: .claude)
         let pendingStore: ClaudeOAuthCredentialsStore.PendingCacheClearMemoryStore
         let recorder: ClaudeOAuthCredentialsStore.OAuthCacheOperationRecorder
+
+        var cacheKey: KeychainCacheStore.Key {
+            ClaudeOAuthCredentialsStore.cacheKeyForTesting(
+                profileIdentifier: ClaudeOAuthCredentialsStore.credentialsProfileIdentifier(environment: [:]))
+        }
     }
 
     private func makeCredentialsData(accessToken: String, expiresAt: Date, refreshToken: String? = nil) -> Data {
@@ -259,7 +263,7 @@ struct ClaudeOAuthCredentialsStoreNeverPromptCacheTests {
 
                 #expect(credentials.accessToken == "file-token-new")
                 #expect(!state.pendingStore.isPending)
-                #expect(state.recorder.operations == [.clear, .load, .store])
+                #expect(state.recorder.operations == [.clear, .load, .load, .store])
                 let cachedToken = try self.cachedToken(state)
                 #expect(cachedToken == "file-token-new")
             }
@@ -295,7 +299,7 @@ struct ClaudeOAuthCredentialsStoreNeverPromptCacheTests {
                 }
 
                 #expect(!state.pendingStore.isPending)
-                #expect(state.recorder.operations == [.clear, .load])
+                #expect(state.recorder.operations == [.clear, .load, .load])
                 let cachedToken = try self.cachedToken(state)
                 #expect(cachedToken == nil)
             }
@@ -335,7 +339,16 @@ struct ClaudeOAuthCredentialsStoreNeverPromptCacheTests {
                 }
                 #expect(second.accessToken == "file-token-new")
                 #expect(!state.pendingStore.isPending)
-                #expect(state.recorder.operations == [.clear, .clear, .load, .store])
+                #expect(state.recorder.operations == [
+                    .clear,
+                    .load,
+                    .clear,
+                    .clear,
+                    .load,
+                    .load,
+                    .load,
+                    .store,
+                ])
                 let refreshedToken = try self.cachedToken(state)
                 #expect(refreshedToken == "file-token-new")
             }
@@ -411,7 +424,7 @@ struct ClaudeOAuthCredentialsStoreNeverPromptCacheTests {
 
                 #expect(synced)
                 #expect(state.pendingStore.isPending)
-                #expect(state.recorder.operations == [.clear, .store])
+                #expect(state.recorder.operations == [.clear])
                 let cachedToken = try self.cachedToken(state)
                 #expect(cachedToken == "cached-token")
             }
@@ -673,7 +686,7 @@ struct ClaudeOAuthCredentialsStoreNeverPromptCacheTests {
                 }
 
                 #expect(!state.pendingStore.isPending)
-                #expect(state.recorder.operations == [.clear, .load])
+                #expect(state.recorder.operations == [.clear, .load, .load])
                 let clearedToken = try self.cachedToken(state)
                 #expect(clearedToken == nil)
 

@@ -62,11 +62,7 @@ extension StatusItemController {
             .flatMap { UsagePaceText.weeklyDetail(provider: provider, pace: $0, now: now).rightLabel }
         let costStrings = self.menuBarLayoutCostStrings(provider: provider, now: now)
         let providerName = L(self.store.metadata(for: provider).displayName)
-        let rawAccountLabel = snapshot?.accountEmail(for: provider)?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        let accountLabel = self.settings.hidePersonalInfo || rawAccountLabel?.isEmpty != false
-            ? nil
-            : rawAccountLabel
+        let accountLabel = self.menuBarLayoutAccountLabel(provider: provider, snapshot: snapshot)
 
         return MenuBarLayoutRenderData(
             iconKey: "\(provider.rawValue):\(warningFlash ? "warning" : "normal")",
@@ -80,18 +76,34 @@ extension StatusItemController {
             cost30d: costStrings.last30Days)
     }
 
+    func menuBarLayoutAccountLabel(provider: UsageProvider, snapshot: UsageSnapshot?) -> String? {
+        let rawAccountLabel = snapshot?.accountEmail(for: provider)?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return self.settings.hidePersonalInfo || rawAccountLabel?.isEmpty != false
+            ? nil
+            : rawAccountLabel
+    }
+
     func menuBarLayoutCostStrings(
         provider: UsageProvider,
         now: Date = .init())
         -> (today: String?, last30Days: String?)
     {
         let snapshot = self.store.tokenSnapshotForCurrentProviderConfig(for: provider)?.snapshot
-        let currencyCode = snapshot?.currencyCode ?? "USD"
+        let sourceCurrencyCode = snapshot?.currencyCode ?? "USD"
+        let preferredCurrencyCode = self.settings.preferredCurrencyCode
+
         let today = MenuBarLayoutCostResolver.todayCostUSD(snapshot: snapshot, now: now).map {
-            UsageFormatter.currencyString($0, currencyCode: currencyCode)
+            UsageFormatter.convertedCostString(
+                $0,
+                preferredCurrency: preferredCurrencyCode,
+                providerCurrency: sourceCurrencyCode)
         }
         let last30Days = snapshot?.last30DaysCostUSD.map {
-            UsageFormatter.currencyString($0, currencyCode: currencyCode)
+            UsageFormatter.convertedCostString(
+                $0,
+                preferredCurrency: preferredCurrencyCode,
+                providerCurrency: sourceCurrencyCode)
         }
         return (today, last30Days)
     }

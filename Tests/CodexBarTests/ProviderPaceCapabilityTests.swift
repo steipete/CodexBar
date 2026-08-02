@@ -7,7 +7,7 @@ struct ProviderPaceCapabilityTests {
     private static let monthlyWindowSentinelMinutes = 30 * 24 * 60
 
     @Test
-    func `descriptor pace capabilities preserve the legacy provider mapping`() {
+    func `descriptor pace capabilities match the supported provider mapping`() {
         let now = Date(timeIntervalSince1970: 1_750_000_000)
         let fixtures: [RateWindow] = [
             Self.window(minutes: nil, resetsAt: nil),
@@ -30,12 +30,12 @@ struct ProviderPaceCapabilityTests {
             let capability = ProviderDescriptorRegistry.descriptor(for: provider).pace
             for window in fixtures {
                 let actualResetWindowPace = capability.supportsResetWindowPace(window: window, now: now)
-                let legacyResetWindowPace = Self.legacySupportsResetWindowPace(
+                let expectedResetWindowPace = Self.expectedSupportsResetWindowPace(
                     provider: provider,
                     window: window,
                     now: now)
                 #expect(
-                    actualResetWindowPace == legacyResetWindowPace,
+                    actualResetWindowPace == expectedResetWindowPace,
                     "Reset-window pace changed for \(provider.rawValue), window=\(String(describing: window)).")
 
                 let actualMonthlyInference = capability.usesInferredMonthlyDuration(window: window)
@@ -49,6 +49,23 @@ struct ProviderPaceCapabilityTests {
         }
     }
 
+    @Test
+    func `amp monthly pace is limited to subscription windows`() {
+        let now = Date(timeIntervalSince1970: 1_750_000_000)
+        let capability = AmpProviderDescriptor.descriptor.pace
+        let freeTier = Self.window(
+            minutes: 24 * 60,
+            resetsAt: now.addingTimeInterval(12 * 60 * 60))
+        let subscription = Self.window(
+            minutes: Self.monthlyWindowSentinelMinutes,
+            resetsAt: now.addingTimeInterval(20 * 24 * 60 * 60))
+
+        #expect(!capability.supportsResetWindowPace(window: freeTier, now: now))
+        #expect(!capability.usesInferredMonthlyDuration(window: freeTier))
+        #expect(capability.supportsResetWindowPace(window: subscription, now: now))
+        #expect(capability.usesInferredMonthlyDuration(window: subscription))
+    }
+
     private static func window(minutes: Int?, resetsAt: Date?) -> RateWindow {
         RateWindow(
             usedPercent: 50,
@@ -57,8 +74,8 @@ struct ProviderPaceCapabilityTests {
             resetDescription: nil)
     }
 
-    /// Snapshot of the switches removed from UsageMenuCardView.Model.
-    private static func legacySupportsResetWindowPace(
+    /// Expected provider-specific reset-window behavior, including newly declared capabilities.
+    private static func expectedSupportsResetWindowPace(
         provider: UsageProvider,
         window: RateWindow,
         now: Date) -> Bool
@@ -77,7 +94,9 @@ struct ProviderPaceCapabilityTests {
             return windowMinutes > 0
                 && timeUntilReset > 0
                 && timeUntilReset <= TimeInterval(windowMinutes) * 60
-        case .alibaba, .alibabatokenplan, .doubao, .opencodego:
+        case .kimi:
+            return window.windowMinutes == self.weeklyWindowMinutes
+        case .alibaba, .alibabatokenplan, .amp, .doubao, .opencodego:
             return window.windowMinutes == self.monthlyWindowSentinelMinutes
         default:
             return false
@@ -91,7 +110,7 @@ struct ProviderPaceCapabilityTests {
         switch provider {
         case .copilot:
             window.windowMinutes == nil
-        case .alibaba, .alibabatokenplan, .doubao, .opencodego:
+        case .alibaba, .alibabatokenplan, .amp, .doubao, .opencodego:
             window.windowMinutes == self.monthlyWindowSentinelMinutes
         default:
             false

@@ -9,6 +9,180 @@ extension UsageMenuCardView.Model {
         let paceOnTop: Bool
     }
 
+    struct PrimaryMetricPresentation {
+        var statusText: String?
+        var resetText: String?
+        var detailText: String?
+        var detailLeft: String?
+        var detailRight: String?
+        var pacePercent: Double?
+        var paceOnTop = true
+    }
+
+    static func applyPrimaryQuotaPresentation(
+        _ presentation: inout PrimaryMetricPresentation,
+        input: Input,
+        primary: RateWindow,
+        openRouterQuotaDetail: String?)
+    {
+        if input.provider == .openrouter, let openRouterQuotaDetail {
+            presentation.resetText = openRouterQuotaDetail
+        }
+        if [.copilot, .zenmux].contains(input.provider),
+           let detail = Self.trimmedResetDescription(primary)
+        {
+            presentation.detailLeft = detail
+        }
+        guard input.provider == .crof,
+              let detail = Self.trimmedResetDescription(primary)
+        else { return }
+        if input.snapshot?.secondary != nil {
+            presentation.detailRight = detail
+        } else {
+            presentation.detailText = detail
+        }
+    }
+
+    static func applyPrimaryBalancePresentation(
+        _ presentation: inout PrimaryMetricPresentation,
+        input: Input,
+        primary: RateWindow)
+    {
+        if [.warp, .kilo, .mimo, .deepseek, .deepinfra, .qoder, .mistral, .neuralwatt, .litellm, .chutes]
+            .contains(input.provider),
+            let detail = nonEmptyResetDescription(primary)
+        {
+            presentation.detailText = detail
+        }
+        if let balance = Self.poeBalanceDetailText(input: input) {
+            presentation.detailText = balance
+        }
+        if input.provider == .kiro,
+           let kiroUsage = input.snapshot?.kiroUsage,
+           kiroUsage.creditsTotal > 0
+        {
+            let remaining = UsageFormatter.kiroCreditNumber(kiroUsage.creditsRemaining)
+            let total = UsageFormatter.kiroCreditNumber(kiroUsage.creditsTotal)
+            presentation.detailLeft = String(format: L("%@ of %@ credits left"), remaining, total)
+        }
+        if input.provider == .alibaba || input.provider == .alibabatokenplan || input.provider == .manus,
+           let detail = Self.nonEmptyResetDescription(primary)
+        {
+            presentation.detailText = detail
+            if input.provider == .manus {
+                presentation.resetText = nil
+            }
+        }
+    }
+
+    static func applyPrimaryResetPresentation(
+        _ presentation: inout PrimaryMetricPresentation,
+        input: Input,
+        primary: RateWindow)
+    {
+        if input.provider == .sub2api {
+            presentation.resetText = primary.resetDescription
+        }
+        if [.warp, .kilo, .mimo, .deepseek, .deepinfra, .qoder, .mistral, .neuralwatt, .litellm, .zenmux, .chutes]
+            .contains(input.provider),
+            primary.resetsAt == nil
+        {
+            presentation.resetText = nil
+        }
+        if input.provider == .crof, input.snapshot?.secondary == nil {
+            presentation.resetText = nil
+        }
+    }
+
+    static func applyPrimaryPacePresentation(
+        _ presentation: inout PrimaryMetricPresentation,
+        input: Input,
+        primary: RateWindow)
+    {
+        if let paceDetail = sessionPaceDetail(
+            provider: input.provider,
+            window: primary,
+            now: input.now,
+            showUsed: input.usageBarsShowUsed)
+        {
+            self.apply(paceDetail, to: &presentation)
+        }
+        if input.provider == .abacus {
+            if let detail = Self.nonEmptyResetDescription(primary) {
+                presentation.detailText = detail
+            }
+            if primary.resetsAt == nil {
+                presentation.resetText = nil
+            }
+            if let pace = input.weeklyPace,
+               let paceDetail = Self.weeklyPaceDetail(
+                   provider: input.provider,
+                   window: primary,
+                   now: input.now,
+                   pace: pace,
+                   showUsed: input.usageBarsShowUsed)
+            {
+                Self.apply(paceDetail, to: &presentation)
+            }
+        } else if let paceDetail = Self.resetWindowPaceDetail(
+            window: primary,
+            input: input,
+            pace: input.provider == .kimi ? input.weeklyPace : nil)
+        {
+            Self.apply(paceDetail, to: &presentation)
+        }
+    }
+
+    static func applyPrimaryFinalOverrides(
+        _ presentation: inout PrimaryMetricPresentation,
+        input: Input,
+        primary: RateWindow)
+    {
+        // Legacy request-based Cursor plans surface the raw used/limit quota on its own line.
+        if input.provider == .cursor, let requests = input.snapshot?.cursorRequests {
+            presentation.detailText = String(
+                format: L("Request quota: %@ / %@"),
+                "\(requests.used)",
+                "\(requests.limit)")
+        }
+        if input.provider == .synthetic,
+           let regen = Self.syntheticRollingRegenDetail(
+               window: primary,
+               now: input.now,
+               showUsed: input.usageBarsShowUsed)
+        {
+            presentation.resetText = regen.resetText
+            Self.apply(regen.pace, to: &presentation)
+        }
+        let usesBalanceStatusText = input.provider == .deepseek || input.provider == .deepinfra ||
+            (input.provider == .crof && input.snapshot?.secondary == nil)
+        if usesBalanceStatusText {
+            presentation.statusText = presentation.detailText
+            presentation.detailText = nil
+        }
+    }
+
+    private static func apply(_ paceDetail: PaceDetail, to presentation: inout PrimaryMetricPresentation) {
+        presentation.detailLeft = paceDetail.leftLabel
+        presentation.detailRight = paceDetail.rightLabel
+        presentation.pacePercent = paceDetail.pacePercent
+        presentation.paceOnTop = paceDetail.paceOnTop
+    }
+
+    private static func nonEmptyResetDescription(_ window: RateWindow) -> String? {
+        guard let detail = window.resetDescription,
+              !detail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        else { return nil }
+        return detail
+    }
+
+    private static func trimmedResetDescription(_ window: RateWindow) -> String? {
+        guard let detail = window.resetDescription?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !detail.isEmpty
+        else { return nil }
+        return detail
+    }
+
     static func redactedMetricDetail(_ detail: String?, provider: UsageProvider, metricID: String) -> String? {
         guard let detail else { return nil }
         guard provider == .litellm,
@@ -120,6 +294,16 @@ extension UsageMenuCardView.Model {
             self.inlineUsageDashboard != nil ||
             self.codexResetCredits != nil ||
             self.placeholder != nil
+    }
+
+    var creditsOnlyInlineUsageDashboard: Bool {
+        self.creditsText != nil &&
+            self.inlineUsageDashboard != nil &&
+            self.metrics.isEmpty &&
+            self.usageNotes.isEmpty &&
+            self.openAIAPIUsage == nil &&
+            self.codexResetCredits == nil &&
+            self.placeholder == nil
     }
 
     var usesStackedDetailLayout: Bool {
@@ -280,18 +464,31 @@ extension UsageMenuCardView.Model {
         // Legacy request-based Cursor plans track a request quota, not the token-based "Total" pool.
         let primaryLabel = if input.provider == .cursor, snapshot.cursorRequests != nil {
             "Requests"
+        } else if input.provider == .crof {
+            CrofProviderDescriptor.primaryLabel(snapshot: snapshot)
         } else if input.provider == .grok {
             GrokProviderDescriptor.primaryLabel(window: snapshot.primary, now: input.now) ?? input.metadata.sessionLabel
         } else if input.provider == .doubao {
             DoubaoProviderDescriptor.primaryLabel(window: snapshot.primary) ?? input.metadata.sessionLabel
         } else if input.provider == .sub2api {
             Sub2APIProviderDescriptor.primaryLabel(details: snapshot.sub2APIUsage) ?? input.metadata.sessionLabel
+        } else if input.provider == .amp {
+            AmpProviderDescriptor.primaryLabel(details: snapshot.ampUsage) ?? input.metadata.sessionLabel
+        } else if input.provider == .alibabatokenplan {
+            AlibabaTokenPlanProviderDescriptor.primaryLabel(window: snapshot.primary) ?? input.metadata.sessionLabel
         } else {
             input.metadata.sessionLabel
         }
+        let secondaryLabel = if input.provider == .amp {
+            AmpProviderDescriptor.secondaryLabel(details: snapshot.ampUsage) ?? input.metadata.weeklyLabel
+        } else if input.provider == .alibabatokenplan {
+            AlibabaTokenPlanProviderDescriptor.secondaryLabel(window: snapshot.secondary) ?? input.metadata.weeklyLabel
+        } else {
+            input.metadata.weeklyLabel
+        }
         return (
             L(primaryLabel),
-            L(input.metadata.weeklyLabel),
+            L(secondaryLabel),
             input.metadata.opusLabel.map(L) ?? L("Sonnet"),
             input.metadata.supportsOpus)
     }
@@ -618,10 +815,15 @@ extension UsageMenuCardView.Model {
         if input.provider == .copilot, !input.copilotBudgetExtrasEnabled {
             return []
         }
-        let visibleRateWindows = if input.provider == .codex, !input.codexSparkUsageVisible {
+        var visibleRateWindows = if input.provider == .codex, !input.codexSparkUsageVisible {
             extraRateWindows.filter { !Self.isCodexSparkRateWindow($0) }
         } else {
             extraRateWindows
+        }
+        if input.provider == .claude,
+           !input.showOptionalCreditsAndExtraUsage || !input.claudeDailyRoutinesUsageVisible
+        {
+            visibleRateWindows.removeAll(where: Self.isClaudeDailyRoutinesRateWindow)
         }
         return visibleRateWindows.map { namedWindow in
             let paceDetail = Self.extraRateWindowPaceDetail(
@@ -675,6 +877,10 @@ extension UsageMenuCardView.Model {
     private static func isCodexSparkRateWindow(_ namedWindow: NamedRateWindow) -> Bool {
         namedWindow.id == CodexAdditionalRateLimitMapper.sparkWindowID ||
             namedWindow.id == CodexAdditionalRateLimitMapper.sparkWeeklyWindowID
+    }
+
+    private static func isClaudeDailyRoutinesRateWindow(_ namedWindow: NamedRateWindow) -> Bool {
+        namedWindow.id == "claude-routines"
     }
 
     private static let antigravityQuotaSummaryWindowIDPrefix = "antigravity-quota-summary-"
@@ -731,7 +937,8 @@ extension UsageMenuCardView.Model {
         window: RateWindow,
         input: Input) -> PaceDetail?
     {
-        guard provider == .codex || provider == .antigravity else { return nil }
+        if provider == .claude, window.windowMinutes != 10080 { return nil }
+        guard provider == .codex || provider == .claude || provider == .antigravity else { return nil }
         switch window.windowMinutes {
         case 300:
             return self.sessionPaceDetail(
@@ -838,7 +1045,11 @@ extension UsageMenuCardView.Model {
         return nil
     }
 
-    static func openRouterQuotaDetail(provider: UsageProvider, snapshot: UsageSnapshot) -> String? {
+    static func openRouterQuotaDetail(
+        provider: UsageProvider,
+        snapshot: UsageSnapshot,
+        preferredCurrencyCode: String = "auto") -> String?
+    {
         guard provider == .openrouter,
               let usage = snapshot.openRouterUsage,
               usage.hasValidKeyQuota,
@@ -848,8 +1059,10 @@ extension UsageMenuCardView.Model {
             return nil
         }
 
-        let remaining = UsageFormatter.usdString(keyRemaining)
-        let limit = UsageFormatter.usdString(keyLimit)
+        let remaining = UsageFormatter.convertedCostString(
+            keyRemaining, preferredCurrency: preferredCurrencyCode, providerCurrency: "USD")
+        let limit = UsageFormatter.convertedCostString(
+            keyLimit, preferredCurrency: preferredCurrencyCode, providerCurrency: "USD")
         return String(format: L("%@/%@ left"), remaining, limit)
     }
 

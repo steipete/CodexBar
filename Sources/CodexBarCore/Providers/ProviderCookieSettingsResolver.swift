@@ -19,7 +19,7 @@ public enum ProviderCookieSettingsResolver {
         return ProviderSettingsSnapshot.CookieProviderSettings(
             cookieSource: support.requiresManualCookieSource ? .manual : configuredSource,
             manualCookieHeader: TokenAccountSupportCatalog.normalizedCookieHeader(
-                selectedAccount.token,
-                support: support))
+                for: provider,
+                token: selectedAccount.token))
     }
 }

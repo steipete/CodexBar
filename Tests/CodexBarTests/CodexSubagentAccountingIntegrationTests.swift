@@ -507,7 +507,7 @@ struct CodexSubagentAccountingIntegrationTests {
     }
 
     @Test
-    func `appended ancestor metadata reclassifies the complete subagent rollout`() throws {
+    func `bounded append fallback reclassifies the complete subagent rollout`() throws {
         let env = try CostUsageTestEnvironment()
         defer { env.cleanup() }
 
@@ -535,7 +535,9 @@ struct CodexSubagentAccountingIntegrationTests {
         var options = CostUsageScanner.Options(
             codexSessionsRoot: env.codexSessionsRoot,
             claudeProjectsRoots: nil,
-            cacheRoot: env.cacheRoot)
+            cacheRoot: env.cacheRoot,
+            maxCodexSessionFileBytes: 4096,
+            maxCodexScanBytesPerRefresh: 4096)
         options.refreshMinIntervalSeconds = 0
         let first = CostUsageScanner.loadDailyReport(
             provider: .codex,
@@ -579,6 +581,7 @@ struct CodexSubagentAccountingIntegrationTests {
         #expect(usage.sessionId == "growing-child")
         #expect(usage.forkedFromId == "growing-parent")
         #expect(usage.forkBaselineDependencyKey == CostUsageScanner.codexForkDependencyNotRequiredKey)
+        #expect(usage.codexScanComplete == true)
     }
 
     private func turnContext(timestamp: String, model: String) -> [String: Any] {

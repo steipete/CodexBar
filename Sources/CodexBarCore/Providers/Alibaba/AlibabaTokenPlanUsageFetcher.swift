@@ -28,9 +28,20 @@ public enum AlibabaTokenPlanUsageError: LocalizedError, Sendable, Equatable {
 
 // swiftlint:disable:next type_body_length
 public struct AlibabaTokenPlanUsageFetcher: Sendable {
+    private struct PersonalAPIContext: Sendable {
+        let apiCookieHeader: String
+        let region: AlibabaTokenPlanAPIRegion
+        let environment: [String: String]
+        let session: URLSession
+    }
+
     private static let log = CodexBarLog.logger("alibaba-token-plan")
     private static let bssServiceCode = "BssOpenAPI-V3"
     private static let subscriptionSummaryAction = "GetSubscriptionSummary"
+    private static let personalConsoleProduct = "sfm_bailian"
+    private static let personalUsageAPI = "zeldaHttp.apikeyMgr./tokenplan/personal/api/v2/usage"
+    private static let personalSubscriptionAPI = "zeldaHttp.apikeyMgr./tokenplan/personal/api/v2/subscription"
+    private static let personalQuotaConfigAPI = "zeldaHttp.apikeyMgr./tokenplan/personal/api/v2/quota-config"
     private static let browserLikeUserAgent =
         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) " +
         "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36"
@@ -117,6 +128,16 @@ public struct AlibabaTokenPlanUsageFetcher: Sendable {
                 dashboardSession.invalidateAndCancel()
             }
         }
+
+        if region.usesPersonalTokenPlanAPI {
+            return try await self.fetchPersonalUsage(
+                apiCookieHeader: normalizedAPIHeader,
+                region: region,
+                environment: environment,
+                now: now,
+                session: apiSession)
+        }
+
         let secToken = await self.resolveSECToken(
             dashboardCookieHeader: normalizedDashboardHeader,
             apiCookieHeader: normalizedAPIHeader,
@@ -213,7 +234,7 @@ public struct AlibabaTokenPlanUsageFetcher: Sendable {
             return override
         }
         if let host = AlibabaTokenPlanSettingsReader.hostOverride(environment: environment),
-           let hostURL = self.quotaURL(from: host)
+           let hostURL = self.quotaURL(from: host, region: region)
         {
             return hostURL
         }
@@ -225,13 +246,22 @@ public struct AlibabaTokenPlanUsageFetcher: Sendable {
     }
 
     static func defaultQuotaURL(region: AlibabaTokenPlanAPIRegion) -> URL {
-        var components = URLComponents(string: region.gatewayBaseURLString)!
+        var components = URLComponents(string: region.quotaBaseURLString)!
         components.path = "/data/api.json"
-        components.queryItems = [
-            URLQueryItem(name: "action", value: Self.subscriptionSummaryAction),
-            URLQueryItem(name: "product", value: Self.bssServiceCode),
-            URLQueryItem(name: "_tag", value: ""),
-        ]
+        components.queryItems = if region.usesPersonalTokenPlanAPI {
+            [
+                URLQueryItem(name: "action", value: region.personalAPIAction),
+                URLQueryItem(name: "product", value: Self.personalConsoleProduct),
+                URLQueryItem(name: "api", value: Self.personalUsageAPI),
+                URLQueryItem(name: "_v", value: "undefined"),
+            ]
+        } else {
+            [
+                URLQueryItem(name: "action", value: Self.subscriptionSummaryAction),
+                URLQueryItem(name: "product", value: Self.bssServiceCode),
+                URLQueryItem(name: "_tag", value: ""),
+            ]
+        }
         return components.url!
     }
 
@@ -278,6 +308,186 @@ public struct AlibabaTokenPlanUsageFetcher: Sendable {
             remainingQuota: remaining,
             resetsAt: resetsAt,
             updatedAt: now)
+    }
+
+    private static func fetchPersonalUsage(
+        apiCookieHeader: String,
+        region: AlibabaTokenPlanAPIRegion,
+        environment: [String: String],
+        now: Date,
+        session: URLSession) async throws -> AlibabaTokenPlanUsageSnapshot
+    {
+        let context = PersonalAPIContext(
+            apiCookieHeader: apiCookieHeader,
+            region: region,
+            environment: environment,
+            session: session)
+        self.log.info(
+            "Fetching Alibaba Token Plan Personal usage",
+            metadata: [
+                "apiHost": self.resolveQuotaURL(region: region, environment: environment).host ?? "unknown",
+                "region": region.rawValue,
+                "apiCookieNames": self.cookieNamesDescription(from: apiCookieHeader),
+                "hasCSRF": self.hasCSRF(in: apiCookieHeader) ? "1" : "0",
+                "secTokenSource": "not-required",
+            ])
+
+        let usageData = try await self.fetchPersonalAPI(
+            api: self.personalUsageAPI,
+            dataParameters: [:],
+            context: context)
+        let subscriptionData = await self.fetchOptionalPersonalAPI(
+            api: self.personalSubscriptionAPI,
+            dataParameters: ["commodityCode": region.tokenPlanProductCode],
+            context: context)
+        let quotaConfigData = await self.fetchOptionalPersonalAPI(
+            api: self.personalQuotaConfigAPI,
+            dataParameters: [:],
+            context: context)
+
+        return try AlibabaTokenPlanPersonalUsageParser.parse(
+            from: usageData,
+            subscriptionData: subscriptionData,
+            quotaConfigData: quotaConfigData,
+            now: now)
+    }
+
+    private static func fetchOptionalPersonalAPI(
+        api: String,
+        dataParameters: [String: String],
+        context: PersonalAPIContext) async -> Data?
+    {
+        do {
+            return try await self.fetchPersonalAPI(
+                api: api,
+                dataParameters: dataParameters,
+                context: context)
+        } catch {
+            self.log.warning(
+                "Optional Alibaba Token Plan Personal metadata fetch failed",
+                metadata: ["api": api, "error": error.localizedDescription])
+            return nil
+        }
+    }
+
+    private static func fetchPersonalAPI(
+        api: String,
+        dataParameters: [String: String],
+        context: PersonalAPIContext) async throws -> Data
+    {
+        let url = self.personalAPIURL(api: api, region: context.region, environment: context.environment)
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.timeoutInterval = 20
+        request.httpBody = try self.personalAPIRequestBody(
+            api: api,
+            dataParameters: dataParameters,
+            apiCookieHeader: context.apiCookieHeader,
+            region: context.region,
+            environment: context.environment)
+        request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
+        request.setValue("application/json, text/plain, */*", forHTTPHeaderField: "Accept")
+        request.setValue(context.apiCookieHeader, forHTTPHeaderField: "Cookie")
+        request.setValue("XMLHttpRequest", forHTTPHeaderField: "X-Requested-With")
+        request.setValue(Self.browserLikeUserAgent, forHTTPHeaderField: "User-Agent")
+        request.setValue(context.region.dashboardOriginURLString, forHTTPHeaderField: "Origin")
+        request.setValue(
+            self.dashboardURL(region: context.region, environment: context.environment).absoluteString,
+            forHTTPHeaderField: "Referer")
+        if let csrf = self.extractCookieValue(name: "login_aliyunid_csrf", from: context.apiCookieHeader) ??
+            self.extractCookieValue(name: "csrf", from: context.apiCookieHeader)
+        {
+            request.setValue(csrf, forHTTPHeaderField: "x-xsrf-token")
+            request.setValue(csrf, forHTTPHeaderField: "x-csrf-token")
+        }
+
+        let data: Data
+        let response: URLResponse
+        do {
+            (data, response) = try await context.session.data(for: request)
+        } catch {
+            throw AlibabaTokenPlanUsageError.networkError(error.localizedDescription)
+        }
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw AlibabaTokenPlanUsageError.networkError("Invalid response")
+        }
+        Self.log.info(
+            "Alibaba Token Plan Personal HTTP response",
+            metadata: [
+                "api": api,
+                "status": "\(httpResponse.statusCode)",
+                "bodyBytes": "\(data.count)",
+                "contentType": httpResponse.value(forHTTPHeaderField: "Content-Type") ?? "none",
+            ])
+        guard httpResponse.statusCode == 200 else {
+            if httpResponse.statusCode == 401 || httpResponse.statusCode == 403 {
+                throw AlibabaTokenPlanUsageError.loginRequired
+            }
+            throw AlibabaTokenPlanUsageError.apiError("HTTP \(httpResponse.statusCode)")
+        }
+        return data
+    }
+
+    private static func personalAPIURL(
+        api: String,
+        region: AlibabaTokenPlanAPIRegion,
+        environment: [String: String]) -> URL
+    {
+        let usageURL = self.resolveQuotaURL(region: region, environment: environment)
+        var components = URLComponents(url: usageURL, resolvingAgainstBaseURL: false)!
+        var queryItems = components.queryItems ?? []
+        queryItems.removeAll { $0.name == "api" }
+        queryItems.append(URLQueryItem(name: "api", value: api))
+        components.queryItems = queryItems
+        return components.url ?? usageURL
+    }
+
+    private static func personalAPIRequestBody(
+        api: String,
+        dataParameters: [String: String],
+        apiCookieHeader: String,
+        region: AlibabaTokenPlanAPIRegion,
+        environment: [String: String]) throws -> Data
+    {
+        let dashboardURL = self.dashboardURL(region: region, environment: environment)
+        var cornerstone: [String: Any] = [
+            "feTraceId": UUID().uuidString.lowercased(),
+            "feURL": dashboardURL.absoluteString,
+            "protocol": "V2",
+            "console": "ONE_CONSOLE",
+            "productCode": "p_efm",
+            "switchAgent": 1_233_135,
+            "switchUserType": 3,
+            "domain": dashboardURL.host ?? "",
+            "consoleSite": region.personalConsoleSite,
+            "userNickName": "",
+            "userPrincipalName": "",
+            "xsp_lang": "en-US",
+        ]
+        if let anonymousID = self.extractCookieValue(name: "cna", from: apiCookieHeader), !anonymousID.isEmpty {
+            cornerstone["X-Anonymous-Id"] = anonymousID
+        }
+        var apiData = dataParameters as [String: Any]
+        apiData["cornerstoneParam"] = cornerstone
+        let params: [String: Any] = [
+            "Api": api,
+            "V": "1.0",
+            "Data": apiData,
+        ]
+        let paramsData = try JSONSerialization.data(withJSONObject: params)
+        guard let paramsJSON = String(data: paramsData, encoding: .utf8) else {
+            throw AlibabaTokenPlanUsageError.parseFailed("Could not encode request parameters")
+        }
+
+        var body = URLComponents()
+        body.queryItems = [
+            URLQueryItem(name: "product", value: self.personalConsoleProduct),
+            URLQueryItem(name: "action", value: region.personalAPIAction),
+            URLQueryItem(name: "region", value: region.currentRegionID),
+            URLQueryItem(name: "language", value: "en-US"),
+            URLQueryItem(name: "params", value: paramsJSON),
+        ]
+        return Data((body.percentEncodedQuery ?? "").utf8)
     }
 
     private static func subscriptionSummaryRequestBody(region: AlibabaTokenPlanAPIRegion, secToken: String?) -> Data {
@@ -411,13 +621,13 @@ public struct AlibabaTokenPlanUsageFetcher: Sendable {
         return components.url ?? URL(string: region.dashboardOriginURLString)!
     }
 
-    private static func quotaURL(from rawHost: String) -> URL? {
+    private static func quotaURL(from rawHost: String, region: AlibabaTokenPlanAPIRegion) -> URL? {
         let cleaned = AlibabaTokenPlanSettingsReader.cleaned(rawHost)
         guard let cleaned else { return nil }
         guard let base = ProviderEndpointOverrideValidator.normalizedHTTPSURL(from: cleaned) else { return nil }
         var components = URLComponents(url: base, resolvingAgainstBaseURL: false)
         let defaultComponents = URLComponents(
-            url: Self.defaultQuotaURL(region: .international),
+            url: Self.defaultQuotaURL(region: region),
             resolvingAgainstBaseURL: false)
         components?.path = "/data/api.json"
         components?.queryItems = defaultComponents?.queryItems
@@ -485,15 +695,17 @@ public struct AlibabaTokenPlanUsageFetcher: Sendable {
         return sourceHost == targetHost
     }
 
-    private static func throwIfErrorPayload(_ dictionary: [String: Any]) throws {
+    static func throwIfErrorPayload(_ dictionary: [String: Any]) throws {
         if self.parseBool(dictionary["successResponse"]) == false {
             if let statusCode = self.findFirstInt(forKeys: ["statusCode", "status_code", "code"], in: dictionary),
                statusCode == 401 || statusCode == 403
             {
                 throw AlibabaTokenPlanUsageError.invalidCredentials
             }
-            let code = self.findFirstString(forKeys: ["code", "status", "statusCode"], in: dictionary)
-            let message = self.findFirstString(forKeys: ["message", "msg", "statusMessage"], in: dictionary) ??
+            let code = self.findFirstString(forKeys: ["errorCode", "code", "status", "statusCode"], in: dictionary)
+            let message = self.findFirstString(
+                forKeys: ["errorMsg", "message", "msg", "statusMessage"],
+                in: dictionary) ??
                 code ??
                 "request was not successful"
             if self.isLoginOrTokenError(code: code, message: message) {
@@ -503,9 +715,10 @@ public struct AlibabaTokenPlanUsageFetcher: Sendable {
         }
 
         if self.findBoolValues(forKeys: ["Success", "success"], in: dictionary).contains(false) {
-            let code = self.findFirstString(forKeys: ["Code", "code"], in: dictionary)
-            let message = self.findFirstString(forKeys: ["Message", "message", "msg", "Code", "code"], in: dictionary)
-                ?? "request was not successful"
+            let code = self.findFirstString(forKeys: ["errorCode", "Code", "code"], in: dictionary)
+            let message = self.findFirstString(
+                forKeys: ["errorMsg", "Message", "message", "msg", "Code", "code"],
+                in: dictionary) ?? "request was not successful"
             if self.isLoginOrTokenError(code: code, message: message) {
                 throw AlibabaTokenPlanUsageError.loginRequired
             }
@@ -526,8 +739,12 @@ public struct AlibabaTokenPlanUsageFetcher: Sendable {
             throw AlibabaTokenPlanUsageError.apiError(message)
         }
 
-        let codeText = self.findFirstString(forKeys: ["code", "status", "statusCode"], in: dictionary)?.lowercased()
-        let messageText = self.findFirstString(forKeys: ["message", "msg", "statusMessage"], in: dictionary)?
+        let codeText = self.findFirstString(
+            forKeys: ["errorCode", "code", "status", "statusCode"],
+            in: dictionary)?.lowercased()
+        let messageText = self.findFirstString(
+            forKeys: ["errorMsg", "message", "msg", "statusMessage"],
+            in: dictionary)?
             .lowercased()
         if self.isLoginOrTokenError(code: codeText, message: messageText) {
             throw AlibabaTokenPlanUsageError.loginRequired
@@ -554,6 +771,8 @@ public struct AlibabaTokenPlanUsageFetcher: Sendable {
         "package_name",
         "commodityName",
         "commodity_name",
+        "specType",
+        "SpecType",
         "instanceName",
         "instance_name",
         "displayName",
@@ -592,6 +811,8 @@ public struct AlibabaTokenPlanUsageFetcher: Sendable {
         "amount",
         "totalValue",
         "TotalValue",
+        "cycleTotalValue",
+        "CycleTotalValue",
     ]
     private static let remainingQuotaKeys = [
         "remainingQuota",
@@ -607,6 +828,8 @@ public struct AlibabaTokenPlanUsageFetcher: Sendable {
         "TotalSurplusValue",
         "surplusValue",
         "SurplusValue",
+        "cycleSurplusValue",
+        "CycleSurplusValue",
     ]
     private static let subscriptionCountKeys = [
         "totalCount",
@@ -625,21 +848,34 @@ public struct AlibabaTokenPlanUsageFetcher: Sendable {
         "endTime",
         "validEndTime",
         "instanceEndTime",
+        "EndTime",
+        "cycleEndTime",
+        "CycleEndTime",
         "nearestExpireDate",
         "NearestExpireDate",
     ]
 
     private static func findSubscriptionSummary(in payload: [String: Any]) -> [String: Any]? {
+        let quotaKeys = Self.usedQuotaKeys + Self.totalQuotaKeys + Self.remainingQuotaKeys
         if let data = self.findFirstDictionary(
             forKeys: ["Data", "data", "successResponse", "success_response"],
             in: payload),
             self.containsSubscriptionSummaryFields(data)
         {
+            // Some consoles (e.g. Qwen Cloud) wrap the quota values inside a nested
+            // `EquityList` entry while the outer dictionary only carries `TotalCount`.
+            // Prefer a nested dictionary that actually contains quota numbers so the
+            // used/total/remaining fields are read from the right level.
+            if quotaKeys.contains(where: { data[$0] != nil }) {
+                return data
+            }
+            if let nested = self.findFirstDictionary(matchingAnyKey: quotaKeys, in: data) {
+                return nested
+            }
             return data
         }
         return self.findFirstDictionary(
-            matchingAnyKey: Self.usedQuotaKeys + Self.totalQuotaKeys + Self.remainingQuotaKeys +
-                Self.subscriptionCountKeys,
+            matchingAnyKey: quotaKeys + Self.subscriptionCountKeys,
             in: payload)
     }
 
@@ -804,30 +1040,12 @@ public struct AlibabaTokenPlanUsageFetcher: Sendable {
     }
 
     private static func expandedJSON(_ value: Any) -> Any {
-        if let dict = value as? [String: Any] {
-            var expanded: [String: Any] = [:]
-            expanded.reserveCapacity(dict.count)
-            for (key, nested) in dict {
-                expanded[key] = self.expandedJSON(nested)
-            }
-            return expanded
-        }
-        if let array = value as? [Any] {
-            return array.map { self.expandedJSON($0) }
-        }
-        if let string = value as? String,
-           let data = string.data(using: .utf8),
-           let nested = try? JSONSerialization.jsonObject(with: data, options: []),
-           nested is [String: Any] || nested is [Any]
-        {
-            return self.expandedJSON(nested)
-        }
-        return value
+        OneConsoleJSON.expandEmbeddedJSON(value)
     }
 
     private static func anyString(for keys: [String], in dict: [String: Any]) -> String? {
         for key in keys {
-            if let value = self.parseString(dict[key]) {
+            if let value = OneConsoleJSON.string(dict[key]) {
                 return value
             }
         }
@@ -845,7 +1063,7 @@ public struct AlibabaTokenPlanUsageFetcher: Sendable {
 
     private static func anyDate(for keys: [String], in dict: [String: Any]) -> Date? {
         for key in keys {
-            if let value = self.parseDate(dict[key]) {
+            if let value = OneConsoleJSON.date(dict[key]) {
                 return value
             }
         }
@@ -862,20 +1080,23 @@ public struct AlibabaTokenPlanUsageFetcher: Sendable {
     }
 
     private static func parseInt(_ raw: Any?) -> Int? {
-        if let value = raw as? Int { return value }
-        if let value = raw as? Int64 { return Int(value) }
-        if let value = raw as? Double { return Int(value) }
-        if let value = raw as? NSNumber { return value.intValue }
-        if let value = self.parseString(raw) { return Int(value) }
-        return nil
+        OneConsoleJSON.int(raw)
     }
 
     private static func parseDouble(_ raw: Any?) -> Double? {
-        if let value = raw as? Double { return value }
-        if let value = raw as? Int { return Double(value) }
-        if let value = raw as? Int64 { return Double(value) }
-        if let value = raw as? NSNumber { return value.doubleValue }
-        if let value = self.parseString(raw) {
+        if let value = raw as? Double {
+            return value
+        }
+        if let value = raw as? Int {
+            return Double(value)
+        }
+        if let value = raw as? Int64 {
+            return Double(value)
+        }
+        if let value = raw as? NSNumber {
+            return value.doubleValue
+        }
+        if let value = OneConsoleJSON.string(raw) {
             let cleaned = value.replacingOccurrences(of: ",", with: "")
             return Double(cleaned)
         }
@@ -883,9 +1104,7 @@ public struct AlibabaTokenPlanUsageFetcher: Sendable {
     }
 
     private static func parseString(_ raw: Any?) -> String? {
-        guard let value = raw as? String else { return nil }
-        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? nil : trimmed
+        OneConsoleJSON.string(raw)
     }
 
     private static func parseDate(_ raw: Any?) -> Date? {
@@ -915,8 +1134,12 @@ public struct AlibabaTokenPlanUsageFetcher: Sendable {
     }
 
     private static func parseBool(_ raw: Any?) -> Bool? {
-        if let value = raw as? Bool { return value }
-        if let number = raw as? NSNumber { return number.boolValue }
+        if let value = raw as? Bool {
+            return value
+        }
+        if let number = raw as? NSNumber {
+            return number.boolValue
+        }
         guard let string = self.parseString(raw)?.lowercased() else { return nil }
         switch string {
         case "true", "1", "yes", "active", "valid", "normal":
@@ -987,11 +1210,5 @@ public struct AlibabaTokenPlanUsageFetcher: Sendable {
         }
         let value = text[valueRange].trimmingCharacters(in: .whitespacesAndNewlines)
         return value.isEmpty ? nil : String(value)
-    }
-}
-
-extension [String] {
-    fileprivate func uniquedSorted() -> [String] {
-        Array(Set(self)).sorted()
     }
 }
