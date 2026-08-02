@@ -1325,3 +1325,5 @@
 "Cost today unavailable" = "今日费用: 不可用";
 "30-day cost unavailable" = "30 天费用: 不可用";
 "Resets" = "重置";
+"Finish now" = "立即完成";
+"Continue in background" = "转为后台运行";

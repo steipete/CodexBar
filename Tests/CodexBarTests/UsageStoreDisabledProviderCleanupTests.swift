@@ -381,7 +381,8 @@ struct UsageStoreDisabledProviderCleanupTests {
             await gate.suspend()
             return (
                 snapshot: Self.tokenSnapshot(tokens: 710, historyDays: historyDays, updatedAt: now),
-                lastRefreshAt: now)
+                lastRefreshAt: now,
+                staleSnapshotUpdatedAt: nil)
         }
 
         store.hydrateCachedTokenSnapshots()
