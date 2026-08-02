@@ -44,6 +44,7 @@ struct ProviderIconResourcesTests {
             "zenmux",
             "aiand",
             "zoommate",
+            "hyper",
             "xai",
         ]
         for slug in slugs {

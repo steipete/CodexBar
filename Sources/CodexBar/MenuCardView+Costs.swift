@@ -127,7 +127,9 @@ extension UsageMenuCardView.Model {
         preferredCurrencyCode: String = "auto") -> String?
     {
         guard metadata.supportsCredits else { return nil }
-        if metadata.id == .codex, credits == nil, error == nil { return nil }
+        if metadata.id == .codex, credits == nil, error == nil {
+            return nil
+        }
         if metadata.id == .amp,
            let ampUsage = snapshot?.ampUsage,
            let ampCredits = self.ampCreditsLine(ampUsage, preferredCurrencyCode: preferredCurrencyCode)
@@ -338,13 +340,19 @@ extension UsageMenuCardView.Model {
             return (entry, dayKey)
         }
         .max { lhs, rhs in
-            if lhs.dayKey != rhs.dayKey { return lhs.dayKey < rhs.dayKey }
+            if lhs.dayKey != rhs.dayKey {
+                return lhs.dayKey < rhs.dayKey
+            }
             let lCost = lhs.entry.costUSD ?? -1
             let rCost = rhs.entry.costUSD ?? -1
-            if lCost != rCost { return lCost < rCost }
+            if lCost != rCost {
+                return lCost < rCost
+            }
             let lTokens = lhs.entry.totalTokens ?? -1
             let rTokens = rhs.entry.totalTokens ?? -1
-            if lTokens != rTokens { return lTokens < rTokens }
+            if lTokens != rTokens {
+                return lTokens < rTokens
+            }
             return lhs.entry.date < rhs.entry.date
         }?.entry
     }
@@ -396,14 +404,66 @@ extension UsageMenuCardView.Model {
     private static func daysInBedrockBillingMonth(_ month: Int, year: Int) -> Int {
         switch month {
         case 2:
-            if year.isMultiple(of: 400) { return 29 }
-            if year.isMultiple(of: 100) { return 28 }
+            if year.isMultiple(of: 400) {
+                return 29
+            }
+            if year.isMultiple(of: 100) {
+                return 28
+            }
             return year.isMultiple(of: 4) ? 29 : 28
         case 4, 6, 9, 11:
             return 30
         default:
             return 31
         }
+    }
+
+    /// Providers whose cost snapshot is a plain prepaid balance with no limit or period to chart.
+    private static func balanceOnlyCostSection(
+        provider: UsageProvider,
+        cost: ProviderCostSnapshot,
+        formatCost: (Double) -> String) -> ProviderCostSection?
+    {
+        func balanceSection(title: String, balance: String) -> ProviderCostSection {
+            ProviderCostSection(
+                title: title,
+                percentUsed: nil,
+                spendLine: "\(L("Balance")): \(balance)",
+                percentLine: nil)
+        }
+
+        if provider == .factory || provider == .devin, cost.period == "Extra usage balance" {
+            return balanceSection(title: L("Extra usage"), balance: formatCost(cost.used))
+        }
+
+        if provider == .opencodego, cost.period == "Zen balance" {
+            return balanceSection(title: L("Zen balance"), balance: formatCost(cost.used))
+        }
+
+        if provider == .minimax, cost.period == "MiniMax points balance" {
+            return balanceSection(title: L("Credits"), balance: String(format: "%.0f", cost.used))
+        }
+
+        if provider == .hyper,
+           cost.period == "Hypercredits balance",
+           let value = cost.balance
+        {
+            let balance = value.rounded() == value
+                ? String(format: "%.0f", value)
+                : String(format: "%.2f", value)
+            return balanceSection(title: "Hypercredits", balance: "\(balance) HC")
+        }
+
+        if provider == .xai, cost.period == "Prepaid credits" {
+            let balance = UsageFormatter.currencyString(cost.used, currencyCode: cost.currencyCode)
+            return balanceSection(title: L("Credits"), balance: balance)
+        }
+
+        if provider == .zenmux || provider == .neuralwatt {
+            return balanceSection(title: L("metric_mistral_payg"), balance: formatCost(cost.used))
+        }
+
+        return nil
     }
 
     static func providerCostSection(
@@ -426,49 +486,12 @@ extension UsageMenuCardView.Model {
                 providerCurrency: providerCurrency ?? cost.currencyCode)
         }
 
-        if provider == .factory || provider == .devin, cost.period == "Extra usage balance" {
-            let balance = formatCost(cost.used)
-            return ProviderCostSection(
-                title: L("Extra usage"),
-                percentUsed: nil,
-                spendLine: "\(L("Balance")): \(balance)",
-                percentLine: nil)
-        }
-
-        if provider == .opencodego, cost.period == "Zen balance" {
-            let balance = formatCost(cost.used)
-            return ProviderCostSection(
-                title: L("Zen balance"),
-                percentUsed: nil,
-                spendLine: "\(L("Balance")): \(balance)",
-                percentLine: nil)
-        }
-
-        if provider == .minimax, cost.period == "MiniMax points balance" {
-            let balance = String(format: "%.0f", cost.used)
-            return ProviderCostSection(
-                title: L("Credits"),
-                percentUsed: nil,
-                spendLine: "\(L("Balance")): \(balance)",
-                percentLine: nil)
-        }
-
-        if provider == .xai, cost.period == "Prepaid credits" {
-            let balance = UsageFormatter.currencyString(cost.used, currencyCode: cost.currencyCode)
-            return ProviderCostSection(
-                title: L("Credits"),
-                percentUsed: nil,
-                spendLine: "\(L("Balance")): \(balance)",
-                percentLine: nil)
-        }
-
-        if provider == .zenmux || provider == .neuralwatt {
-            let balance = formatCost(cost.used)
-            return ProviderCostSection(
-                title: L("metric_mistral_payg"),
-                percentUsed: nil,
-                spendLine: "\(L("Balance")): \(balance)",
-                percentLine: nil)
+        if let section = Self.balanceOnlyCostSection(
+            provider: provider,
+            cost: cost,
+            formatCost: { formatCost($0) })
+        {
+            return section
         }
 
         if provider == .claude {

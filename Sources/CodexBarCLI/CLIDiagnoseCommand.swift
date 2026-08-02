@@ -261,6 +261,8 @@ extension CodexBarCLI {
         switch provider {
         case .kimi:
             KimiSettingsReader.apiKey(environment: environment) != nil
+        case .hyper:
+            HyperSettingsReader.apiKey(environment: environment) != nil
         case .llmproxy:
             LLMProxySettingsReader.apiKey(environment: environment) != nil
         case .clawrouter:

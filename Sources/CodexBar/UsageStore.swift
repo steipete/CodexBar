@@ -985,6 +985,7 @@ extension UsageStore {
                 .sakana: "Sakana AI debug log not yet implemented",
                 .venice: "Venice debug log not yet implemented",
                 .deepinfra: "DeepInfra debug log not yet implemented",
+                .hyper: "Charm Hyper debug log not yet implemented",
                 .commandcode: "Command Code debug log not yet implemented",
                 .qoder: "Qoder debug log not yet implemented",
                 .stepfun: "StepFun debug log not yet implemented",
@@ -1079,7 +1080,7 @@ extension UsageStore {
                         hasTokenAccount: deepSeekHasTokenAccount)
                 case .clinepass, .gemini, .antigravity, .opencode, .opencodego, .alibabatokenplan, .qwencloud, .factory,
                      .copilot, .devin, .vertexai, .kilo, .kiro, .kimi, .moonshot, .jetbrains, .perplexity,
-                     .mimo, .doubao, .sakana, .abacus, .mistral, .deepinfra, .codebuff, .crof, .windsurf,
+                     .mimo, .doubao, .sakana, .abacus, .mistral, .deepinfra, .hyper, .codebuff, .crof, .windsurf,
                      .venice, .manus, .commandcode, .qoder, .stepfun, .bedrock, .grok, .groq, .t3chat, .llmproxy,
                      .litellm, .zed, .deepgram, .poe, .chutes, .neuralwatt, .clawrouter, .longcat, .wayfinder,
                      .sub2api, .zenmux, .aiand, .zoommate, .xai:

@@ -188,7 +188,7 @@ public enum ProviderConfigEnvironment {
         case .llmproxy:
             LLMProxySettingsReader.apiKeyEnvironmentKey
         case .chutes, .poe, .litellm, .clawrouter, .factory, .sub2api, .neuralwatt, .zenmux, .deepinfra, .aiand,
-             .xai:
+             .hyper, .xai:
             self.additionalAPIKeyEnvironmentKey(for: provider)
         default:
             nil
@@ -215,6 +215,8 @@ public enum ProviderConfigEnvironment {
             ZenMuxSettingsReader.managementAPIKeyEnvironmentKey
         case .deepinfra:
             DeepInfraSettingsReader.apiKeyEnvironmentKey
+        case .hyper:
+            HyperSettingsReader.apiKeyEnvironmentKey
         case .aiand:
             AiAndSettingsReader.apiKeyEnvironmentKey
         case .xai:

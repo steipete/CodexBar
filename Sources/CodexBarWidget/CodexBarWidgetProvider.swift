@@ -115,6 +115,7 @@ enum ProviderChoice: String, AppEnum {
         case .mistral: self = .mistral
         case .deepseek: return nil // DeepSeek not yet supported in widgets
         case .deepinfra: return nil // DeepInfra not yet supported in widgets
+        case .hyper: return nil // Charm Hyper not yet supported in widgets
         case .codebuff: return nil // Codebuff not yet supported in widgets
         case .crof: return nil // Crof not yet supported in widgets
         case .venice: return nil // Venice not yet supported in widgets
