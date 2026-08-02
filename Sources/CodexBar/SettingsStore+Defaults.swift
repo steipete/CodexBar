@@ -820,6 +820,11 @@ extension SettingsStore {
     /// `mergedOverviewProviderLimitRevision` so an already-open Overview menu picks up the change.
     var mergedOverviewProviderLimit: Int {
         get {
+            // `userDefaults` is `@ObservationIgnored`, so reading it directly registers no
+            // dependency — SwiftUI would never re-render a Stepper/Text bound to this property.
+            // Reading the tracked revision counter first gives the getter an observable
+            // dependency, matching the technique already used in menuObservationToken.
+            _ = self.mergedOverviewProviderLimitRevision
             let stored = self.userDefaults.integer(forKey: "mergedOverviewProviderLimit")
             return stored > 0 ? stored : Self.mergedOverviewProviderLimitDefault
         }

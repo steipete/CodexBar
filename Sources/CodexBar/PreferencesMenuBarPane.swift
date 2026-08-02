@@ -74,15 +74,22 @@ struct MenuBarPane: View {
                 self.overviewProviderRow
                     .disabled(!self.settings.mergeIcons)
 
-                Stepper(
-                    value: self.$settings.mergedOverviewProviderLimit,
-                    in: 1...12)
-                {
+                LabeledContent {
+                    HStack(spacing: 4) {
+                        Text("\(self.settings.mergedOverviewProviderLimit)")
+                            .foregroundStyle(.secondary)
+                        Stepper(
+                            value: self.$settings.mergedOverviewProviderLimit,
+                            in: 1...12)
+                        {
+                            EmptyView()
+                        }
+                        .labelsHidden()
+                    }
+                } label: {
                     SettingsRowLabel(
                         L("overview_provider_limit_title"),
                         subtitle: L("overview_provider_limit_subtitle"))
-                    Text("\(self.settings.mergedOverviewProviderLimit)")
-                        .foregroundStyle(.secondary)
                 }
                 .disabled(!self.settings.mergeIcons)
             } header: {
