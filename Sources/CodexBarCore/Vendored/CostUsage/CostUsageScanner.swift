@@ -18,6 +18,25 @@ enum CostUsageScanner {
     /// this value records that lineage exists but this rollout owns its counter or suffix.
     static let codexForkDependencyNotRequiredKey = "mode:lineage-only:v1"
 
+    final class CodexSessionHeadParseObserverStore: @unchecked Sendable {
+        let observer: () -> Void
+
+        init(observer: @escaping () -> Void) {
+            self.observer = observer
+        }
+    }
+
+    @TaskLocal private static var codexSessionHeadParseObserverStore: CodexSessionHeadParseObserverStore?
+
+    static func withCodexSessionHeadParseObserverForTesting<T>(
+        _ observer: @escaping () -> Void,
+        operation: () throws -> T) rethrows -> T
+    {
+        try self.$codexSessionHeadParseObserverStore.withValue(.init(observer: observer)) {
+            try operation()
+        }
+    }
+
     enum ClaudeLogProviderFilter {
         case all
         case vertexAIOnly
@@ -82,6 +101,7 @@ enum CostUsageScanner {
         private(set) var resumedPartialFileCount = 0
         private(set) var deferredByBudgetFileCount = 0
         private(set) var deferredByTimeBudgetFileCount = 0
+        private var bytesReserved: Int64 = 0
         private let deadline: ContinuousClock.Instant?
         private let now: @Sendable () -> ContinuousClock.Instant
         private var recordedTimeDeferral = false
@@ -118,7 +138,7 @@ enum CostUsageScanner {
                 return .deferBudget
             }
             let refreshRemaining = self.maxBytesPerRefresh > 0
-                ? max(0, self.maxBytesPerRefresh - self.bytesConsumed)
+                ? max(0, self.maxBytesPerRefresh - self.bytesConsumed - self.bytesReserved)
                 : Int64.max
             if work > 0, refreshRemaining == 0 {
                 self.deferredByBudgetFileCount += 1
@@ -129,16 +149,30 @@ enum CostUsageScanner {
             if allowance < work {
                 self.resumedPartialFileCount += 1
             }
+            self.bytesReserved += allowance
             return .allow(allowance)
         }
 
         func consume(workBytes: Int64) {
-            self.bytesConsumed += max(0, workBytes)
+            let work = max(0, workBytes)
+            self.bytesReserved = max(0, self.bytesReserved - work)
+            self.bytesConsumed += work
+        }
+
+        func release(workBytes: Int64) {
+            self.bytesReserved = max(0, self.bytesReserved - max(0, workBytes))
+        }
+
+        func complete(admittedWorkBytes: Int64, actualWorkBytes: Int64) {
+            let admitted = max(0, admittedWorkBytes)
+            let actual = min(admitted, max(0, actualWorkBytes))
+            self.consume(workBytes: actual)
+            self.release(workBytes: admitted - actual)
         }
 
         func shouldYield(additionalBytes: Int64) -> Bool {
             guard let deadline else { return false }
-            guard self.bytesConsumed + max(0, additionalBytes) > 0 else { return false }
+            guard self.bytesConsumed + self.bytesReserved + max(0, additionalBytes) > 0 else { return false }
             guard self.now() >= deadline else { return false }
             if !self.recordedTimeDeferral {
                 self.recordedTimeDeferral = true
@@ -404,7 +438,9 @@ enum CostUsageScanner {
 
     private static func codexOptionalDelta(from baseline: Int?, to current: Int?, hasBaseline: Bool) -> Int? {
         guard let current else { return nil }
-        if !hasBaseline { return current }
+        if !hasBaseline {
+            return current
+        }
         guard let baseline else { return nil }
         return max(0, current - baseline)
     }
@@ -799,93 +835,465 @@ enum CostUsageScanner {
     }
 
     final class CodexSessionFileIndex {
+        enum Lookup {
+            case found(URL)
+            case missing(dependencyKey: String)
+            case deferred
+        }
+
+        private enum InventoryValidation {
+            case current
+            case changed
+            case deferred
+        }
+
         private let files: [URL]
-        private let filePaths: Set<String>
         private let roots: [URL]
         private let checkCancellation: CancellationCheck?
-        private var nextUnindexedFile = 0
-        private var didIndexRoots = false
-        private var fileURLBySessionId: [String: URL] = [:]
-        private var missingSessionIds: Set<String> = []
+        private let scanBudget: CodexScanBudget?
+        private let headParseObserver: (() -> Void)?
+        private var discovery: CostUsageCodexSessionDiscovery
 
         init(
             files: [URL],
             roots: [URL],
             cachedSessionFiles: [String: URL] = [:],
+            cachedDiscovery: CostUsageCodexSessionDiscovery? = nil,
+            scanBudget: CodexScanBudget? = nil,
+            headParseObserver: (() -> Void)? = nil,
             checkCancellation: CancellationCheck? = nil)
         {
             self.files = files
-            self.filePaths = Set(files.map(\.path))
             self.roots = roots
-            self.fileURLBySessionId = cachedSessionFiles
             self.checkCancellation = checkCancellation
+            self.scanBudget = scanBudget
+            self.headParseObserver = headParseObserver
+            let rootPaths = roots.map(\.standardizedFileURL.path).sorted()
+            if var cachedDiscovery, cachedDiscovery.roots == rootPaths {
+                for (sessionId, fileURL) in cachedSessionFiles {
+                    cachedDiscovery.filePathBySessionId[sessionId] = fileURL.standardizedFileURL.path
+                }
+                self.discovery = cachedDiscovery
+                if !cachedDiscovery.isComplete {
+                    self.enqueueCurrentFiles()
+                }
+            } else {
+                self.discovery = Self.makeFreshDiscovery(
+                    roots: roots,
+                    files: files,
+                    cachedSessionFiles: cachedSessionFiles,
+                    retaining: nil)
+            }
+        }
+
+        var persistedState: CostUsageCodexSessionDiscovery {
+            self.discovery
+        }
+
+        var hasPendingDiscovery: Bool {
+            !self.discovery.isComplete
+                && (!self.discovery.pendingSessionIds.isEmpty || self.discovery.headScan != nil)
         }
 
         func remember(fileURL: URL, sessionId: String?) {
             guard let sessionId, !sessionId.isEmpty else { return }
-            self.fileURLBySessionId[sessionId] = fileURL
+            let path = fileURL.standardizedFileURL.path
+            self.discovery.filePathBySessionId[sessionId] = path
+            self.discovery.missingSessionIds.removeAll { $0 == sessionId }
+            self.discovery.pendingSessionIds.removeAll { $0 == sessionId }
+            self.discovery.fileStamps[path] = Self.fileStamp(fileURL: fileURL)
         }
 
-        func fileURL(for sessionId: String) throws -> URL? {
-            if let cached = self.fileURLBySessionId[sessionId] {
-                return cached
+        func lookup(sessionId: String) throws -> Lookup {
+            if let cached = self.cachedFileURL(for: sessionId) {
+                return .found(cached)
             }
-            if self.missingSessionIds.contains(sessionId) {
+
+            if self.discovery.isComplete {
+                switch try self.validateInventory() {
+                case .current:
+                    if self.discovery.missingSessionIds.contains(sessionId),
+                       let generation = self.discovery.generation
+                    {
+                        return .missing(dependencyKey: Self.missingDependencyKey(
+                            sessionId: sessionId,
+                            generation: generation))
+                    }
+                case .changed:
+                    self.discovery = Self.makeFreshDiscovery(
+                        roots: self.roots,
+                        files: self.files,
+                        cachedSessionFiles: self.cachedSessionFiles(),
+                        retaining: self.discovery)
+                case .deferred:
+                    return .deferred
+                }
+            }
+
+            if !self.discovery.pendingSessionIds.contains(sessionId) {
+                self.discovery.pendingSessionIds.append(sessionId)
+            }
+            return try self.resumeDiscovery(requestedSessionId: sessionId)
+        }
+
+        private func cachedFileURL(for sessionId: String) -> URL? {
+            guard let path = self.discovery.filePathBySessionId[sessionId] else { return nil }
+            guard FileManager.default.fileExists(atPath: path) else {
+                self.discovery.filePathBySessionId.removeValue(forKey: sessionId)
                 return nil
             }
+            return URL(fileURLWithPath: path)
+        }
 
-            while self.nextUnindexedFile < self.files.count {
+        private func cachedSessionFiles() -> [String: URL] {
+            self.discovery.filePathBySessionId.reduce(into: [:]) { result, entry in
+                guard FileManager.default.fileExists(atPath: entry.value) else { return }
+                result[entry.key] = URL(fileURLWithPath: entry.value)
+            }
+        }
+
+        private func resumeDiscovery(requestedSessionId: String) throws -> Lookup {
+            while true {
                 try self.checkCancellation?()
-                let fileURL = self.files[self.nextUnindexedFile]
-                self.nextUnindexedFile += 1
-                guard let indexedSessionId = try CostUsageScanner.parseCodexSessionIdentifier(
-                    fileURL: fileURL,
-                    checkCancellation: self.checkCancellation)
-                else {
+                if let cached = self.cachedFileURL(for: requestedSessionId) {
+                    return .found(cached)
+                }
+
+                if self.discovery.nextFileIndex < self.discovery.filePaths.count {
+                    guard try self.scanNextFileHead() else { return .deferred }
                     continue
                 }
-                self.fileURLBySessionId[indexedSessionId] = fileURL
-                if indexedSessionId == sessionId {
-                    return fileURL
-                }
-            }
 
-            if !self.didIndexRoots {
-                try self.indexRoots()
-                if let indexed = self.fileURLBySessionId[sessionId] {
-                    return indexed
+                if self.discovery.nextDirectoryIndex < self.discovery.directoryPaths.count {
+                    guard try self.enumerateNextDirectory() else { return .deferred }
+                    continue
                 }
-            }
 
-            self.missingSessionIds.insert(sessionId)
-            return nil
+                self.finishDiscovery()
+                if let cached = self.cachedFileURL(for: requestedSessionId) {
+                    return .found(cached)
+                }
+                let generation = self.discovery.generation ?? "unknown"
+                return .missing(dependencyKey: Self.missingDependencyKey(
+                    sessionId: requestedSessionId,
+                    generation: generation))
+            }
         }
 
-        private func indexRoots() throws {
-            self.didIndexRoots = true
-            guard !self.roots.isEmpty else { return }
-            for root in self.roots {
+        private func scanNextFileHead() throws -> Bool {
+            let path = self.discovery.filePaths[self.discovery.nextFileIndex]
+            let fileURL = URL(fileURLWithPath: path)
+            let metadata = CostUsageScanner.codexFileMetadata(fileURL: fileURL)
+            guard metadata.fileId != nil else {
+                self.advancePastHead(path: path, stamp: nil)
+                return true
+            }
+
+            var head = self.discovery.headScan
+            if head?.path != path {
+                head = CostUsageCodexSessionDiscovery.HeadScan(path: path, offset: 0, resumeState: nil)
+            }
+            let startOffset = head?.resumeState?.offset ?? head?.offset ?? 0
+            let remainingBytes = max(0, metadata.size - startOffset)
+            let admittedBytes: Int64
+            if let scanBudget = self.scanBudget {
+                switch scanBudget.admit(workBytes: remainingBytes) {
+                case let .allow(allowance): admittedBytes = allowance
+                case .deferBudget: return false
+                }
+            } else {
+                admittedBytes = remainingBytes
+            }
+
+            self.headParseObserver?()
+            let result = try CostUsageScanner.scanCodexSessionIdentifier(
+                fileURL: fileURL,
+                offset: head?.offset ?? 0,
+                maxBytesToRead: admittedBytes,
+                resumeState: head?.resumeState,
+                checkCancellation: self.checkCancellation)
+            self.scanBudget?.complete(
+                admittedWorkBytes: admittedBytes,
+                actualWorkBytes: result.bytesRead)
+
+            if let sessionId = result.sessionId, !sessionId.isEmpty {
+                self.discovery.filePathBySessionId[sessionId] = path
+                self.advancePastHead(path: path, stamp: Self.fileStamp(metadata: metadata))
+                return true
+            }
+            if result.isComplete {
+                self.advancePastHead(path: path, stamp: Self.fileStamp(metadata: metadata))
+                return true
+            }
+
+            self.discovery.headScan = CostUsageCodexSessionDiscovery.HeadScan(
+                path: path,
+                offset: result.committedOffset,
+                resumeState: result.resumeState)
+            return false
+        }
+
+        private func advancePastHead(
+            path: String,
+            stamp: CostUsageCodexSessionDiscovery.FileStamp?)
+        {
+            if let stamp {
+                self.discovery.fileStamps[path] = stamp
+            } else {
+                self.discovery.fileStamps.removeValue(forKey: path)
+                self.discovery.filePathBySessionId = self.discovery.filePathBySessionId.filter { $0.value != path }
+            }
+            self.discovery.headScan = nil
+            self.discovery.nextFileIndex += 1
+        }
+
+        private func enumerateNextDirectory() throws -> Bool {
+            let admittedWork: Int64
+            if let scanBudget = self.scanBudget {
+                switch scanBudget.admit(workBytes: 1) {
+                case let .allow(allowance): admittedWork = allowance
+                case .deferBudget: return false
+                }
+            } else {
+                admittedWork = 1
+            }
+            defer {
+                self.scanBudget?.complete(admittedWorkBytes: admittedWork, actualWorkBytes: admittedWork)
+            }
+
+            try self.checkCancellation?()
+            let path = self.discovery.directoryPaths[self.discovery.nextDirectoryIndex]
+            let directoryURL = URL(fileURLWithPath: path, isDirectory: true)
+            let items = (try? FileManager.default.contentsOfDirectory(
+                at: directoryURL,
+                includingPropertiesForKeys: [.isDirectoryKey, .isRegularFileKey],
+                options: [.skipsHiddenFiles, .skipsPackageDescendants])) ?? []
+            var jsonlFileCount = 0
+            for item in items {
                 try self.checkCancellation?()
-                guard let enumerator = FileManager.default.enumerator(
-                    at: root,
-                    includingPropertiesForKeys: [.isRegularFileKey],
-                    options: [.skipsHiddenFiles, .skipsPackageDescendants])
-                else { continue }
-
-                while let fileURL = enumerator.nextObject() as? URL {
-                    try self.checkCancellation?()
-                    guard fileURL.pathExtension.lowercased() == "jsonl" else { continue }
-                    guard !self.filePaths.contains(fileURL.path) else { continue }
-                    guard let indexedSessionId = try CostUsageScanner.parseCodexSessionIdentifier(
-                        fileURL: fileURL,
-                        checkCancellation: self.checkCancellation)
-                    else {
-                        continue
-                    }
-                    self.fileURLBySessionId[indexedSessionId] = fileURL
+                let values = try? item.resourceValues(forKeys: [.isDirectoryKey, .isRegularFileKey])
+                if values?.isDirectory == true {
+                    self.enqueueDirectory(item)
+                } else if item.pathExtension.lowercased() == "jsonl" {
+                    jsonlFileCount += 1
+                    self.enqueueFile(item)
                 }
             }
+            let metadata = CostUsageScanner.codexFileMetadata(fileURL: directoryURL)
+            self.discovery.directoryStamps[path] = .init(
+                mtimeUnixMs: metadata.mtimeUnixMs,
+                jsonlFileCount: jsonlFileCount)
+            self.discovery.nextDirectoryIndex += 1
+            return !self.scanBudgetExhausted()
         }
+
+        private func enqueueCurrentFiles() {
+            for fileURL in self.files {
+                self.enqueueFile(fileURL)
+            }
+        }
+
+        private func enqueueFile(_ fileURL: URL) {
+            let path = fileURL.standardizedFileURL.path
+            guard !self.discovery.filePaths.contains(path) else { return }
+            self.discovery.filePaths.append(path)
+        }
+
+        private func enqueueDirectory(_ directoryURL: URL) {
+            let path = directoryURL.standardizedFileURL.path
+            guard !self.discovery.directoryPaths.contains(path) else { return }
+            self.discovery.directoryPaths.append(path)
+        }
+
+        private func finishDiscovery() {
+            let generation = Self.discoveryGeneration(
+                roots: self.discovery.roots,
+                directoryStamps: self.discovery.directoryStamps)
+            self.discovery.generation = generation
+            for sessionId in self.discovery.pendingSessionIds
+                where self.discovery.filePathBySessionId[sessionId] == nil
+            {
+                if !self.discovery.missingSessionIds.contains(sessionId) {
+                    self.discovery.missingSessionIds.append(sessionId)
+                }
+            }
+            self.discovery.missingSessionIds.sort()
+            self.discovery.pendingSessionIds.removeAll()
+            self.discovery.directoryPaths = self.discovery.directoryStamps.keys.sorted()
+            self.discovery.nextDirectoryIndex = self.discovery.directoryPaths.count
+            self.discovery.validationDirectoryIndex = 0
+            self.discovery.isComplete = true
+        }
+
+        private func validateInventory() throws -> InventoryValidation {
+            while self.discovery.validationDirectoryIndex < self.discovery.directoryPaths.count {
+                let admittedWork: Int64
+                if let scanBudget = self.scanBudget {
+                    switch scanBudget.admit(workBytes: 1) {
+                    case let .allow(allowance): admittedWork = allowance
+                    case .deferBudget: return .deferred
+                    }
+                } else {
+                    admittedWork = 1
+                }
+
+                try self.checkCancellation?()
+                let path = self.discovery.directoryPaths[self.discovery.validationDirectoryIndex]
+                let currentMtime = Self.directoryModificationTime(atPath: path)
+                self.scanBudget?.complete(admittedWorkBytes: admittedWork, actualWorkBytes: admittedWork)
+                guard currentMtime == self.discovery.directoryStamps[path]?.mtimeUnixMs else {
+                    self.discovery.validationDirectoryIndex = 0
+                    return .changed
+                }
+                self.discovery.validationDirectoryIndex += 1
+                if self.scanBudgetExhausted() {
+                    return .deferred
+                }
+            }
+            self.discovery.validationDirectoryIndex = 0
+            return .current
+        }
+
+        private func scanBudgetExhausted() -> Bool {
+            guard let scanBudget = self.scanBudget else { return false }
+            switch scanBudget.admit(workBytes: 1) {
+            case let .allow(allowance):
+                scanBudget.release(workBytes: allowance)
+                return false
+            case .deferBudget:
+                return true
+            }
+        }
+
+        private static func makeFreshDiscovery(
+            roots: [URL],
+            files: [URL],
+            cachedSessionFiles: [String: URL],
+            retaining previous: CostUsageCodexSessionDiscovery?) -> CostUsageCodexSessionDiscovery
+        {
+            let rootPaths = roots.map(\.standardizedFileURL.path).sorted()
+            var retainedStamps: [String: CostUsageCodexSessionDiscovery.FileStamp] = [:]
+            if let previous {
+                for (path, stamp) in previous.fileStamps {
+                    let current = Self.fileStamp(fileURL: URL(fileURLWithPath: path))
+                    if current == stamp {
+                        retainedStamps[path] = stamp
+                    }
+                }
+            }
+            for fileURL in cachedSessionFiles.values {
+                let path = fileURL.standardizedFileURL.path
+                if let stamp = Self.fileStamp(fileURL: fileURL) {
+                    retainedStamps[path] = stamp
+                }
+            }
+
+            let retainedPaths = retainedStamps.keys.sorted()
+            var sessionFiles = previous?.filePathBySessionId.filter {
+                retainedStamps[$0.value] != nil
+            } ?? [:]
+            for (sessionId, fileURL) in cachedSessionFiles {
+                sessionFiles[sessionId] = fileURL.standardizedFileURL.path
+            }
+            var filePaths = retainedPaths
+            var knownPaths = Set(filePaths)
+            for fileURL in files {
+                let path = fileURL.standardizedFileURL.path
+                if knownPaths.insert(path).inserted {
+                    filePaths.append(path)
+                }
+            }
+            return CostUsageCodexSessionDiscovery(
+                roots: rootPaths,
+                generation: nil,
+                directoryStamps: [:],
+                directoryPaths: rootPaths,
+                nextDirectoryIndex: 0,
+                filePaths: filePaths,
+                nextFileIndex: retainedPaths.count,
+                fileStamps: retainedStamps,
+                headScan: nil,
+                filePathBySessionId: sessionFiles,
+                missingSessionIds: [],
+                pendingSessionIds: [],
+                validationDirectoryIndex: 0,
+                isComplete: false)
+        }
+
+        private static func directoryModificationTime(atPath path: String) -> Int64? {
+            let url = URL(fileURLWithPath: path, isDirectory: true)
+            let metadata = CostUsageScanner.codexFileMetadata(fileURL: url)
+            guard metadata.fileId != nil else { return nil }
+            return metadata.mtimeUnixMs
+        }
+
+        private static func fileStamp(
+            fileURL: URL) -> CostUsageCodexSessionDiscovery.FileStamp?
+        {
+            self.fileStamp(metadata: CostUsageScanner.codexFileMetadata(fileURL: fileURL))
+        }
+
+        private static func fileStamp(
+            metadata: CodexFileMetadata) -> CostUsageCodexSessionDiscovery.FileStamp?
+        {
+            guard metadata.fileId != nil else { return nil }
+            return .init(mtimeUnixMs: metadata.mtimeUnixMs, size: metadata.size, fileId: metadata.fileId)
+        }
+
+        private static func discoveryGeneration(
+            roots: [String],
+            directoryStamps: [String: CostUsageCodexSessionDiscovery.DirectoryStamp]) -> String
+        {
+            let directories = directoryStamps.map { path, stamp in
+                "\(path)|\(stamp.mtimeUnixMs)|\(stamp.jsonlFileCount)"
+            }.sorted()
+            return CostUsageScanner.sha256Hex(Data((roots + directories).joined(separator: "\n").utf8))
+        }
+
+        private static func missingDependencyKey(sessionId: String, generation: String) -> String {
+            "missing|\(sessionId)|discovery|\(generation)"
+        }
+    }
+
+    private struct CodexSessionIdentifierScanResult {
+        let sessionId: String?
+        let bytesRead: Int64
+        let committedOffset: Int64
+        let resumeState: CostUsageJsonl.ResumeState?
+        let isComplete: Bool
+    }
+
+    private static func scanCodexSessionIdentifier(
+        fileURL: URL,
+        offset: Int64,
+        maxBytesToRead: Int64,
+        resumeState: CostUsageJsonl.ResumeState?,
+        checkCancellation: CancellationCheck?) throws -> CodexSessionIdentifierScanResult
+    {
+        var sessionId: String?
+        let scanStart = resumeState?.offset ?? max(0, offset)
+        let progress = try CostUsageJsonl.scanBounded(
+            fileURL: fileURL,
+            offset: offset,
+            maxLineBytes: Self.codexSessionMetadataMaxLineBytes,
+            prefixBytes: Self.codexSessionMetadataMaxLineBytes,
+            maxBytesToRead: maxBytesToRead,
+            resumeState: resumeState,
+            shouldStop: { _ in sessionId != nil },
+            checkCancellation: checkCancellation,
+            onLine: { line in
+                guard !line.wasTruncated else { return }
+                if case let .sessionMeta(metadata) = Self.parseCodexFastLine(line.bytes) {
+                    sessionId = metadata.sessionId
+                }
+            })
+        let size = Self.codexFileMetadata(fileURL: fileURL).size
+        return CodexSessionIdentifierScanResult(
+            sessionId: sessionId,
+            bytesRead: max(0, progress.readOffset - scanStart),
+            committedOffset: progress.committedOffset,
+            resumeState: progress.resumeState,
+            isComplete: sessionId != nil || progress.readOffset >= size)
     }
 
     final class CodexInheritedTotalsResolver {
@@ -1060,11 +1468,15 @@ enum CostUsageScanner {
             return inherited
         }
 
-        func currentDependencyKey(for sessionId: String) throws -> String {
-            guard let fileURL = try self.fileIndex.fileURL(for: sessionId) else {
-                return "missing:\(sessionId)"
+        func currentDependencyKey(for sessionId: String) throws -> String? {
+            switch try self.fileIndex.lookup(sessionId: sessionId) {
+            case let .found(fileURL):
+                self.dependencyKey(for: sessionId, fileURL: fileURL)
+            case let .missing(dependencyKey):
+                dependencyKey
+            case .deferred:
+                nil
             }
-            return self.dependencyKey(for: sessionId, fileURL: fileURL)
         }
 
         func dependencyKeyUsed(for sessionId: String) -> String? {
@@ -1094,12 +1506,25 @@ enum CostUsageScanner {
                 return cached
             }
             try self.checkCancellation?()
-            guard let fileURL = try self.fileIndex.fileURL(for: sessionId) else {
+            let lookup = try self.fileIndex.lookup(sessionId: sessionId)
+            let fileURL: URL
+            switch lookup {
+            case let .found(foundURL):
+                fileURL = foundURL
+            case let .missing(dependencyKey):
                 CostUsageScanner.log.warning(
                     "Codex cost usage parent session file not found",
                     metadata: ["sessionId": sessionId])
                 let resolution = SnapshotResolution(
-                    dependencyKey: "missing:\(sessionId)",
+                    dependencyKey: dependencyKey,
+                    snapshots: nil,
+                    isComplete: false)
+                self.snapshotResolutions[sessionId] = resolution
+                self.resolvedDependencyKeys[sessionId] = dependencyKey
+                return resolution
+            case .deferred:
+                let resolution = SnapshotResolution(
+                    dependencyKey: nil,
                     snapshots: nil,
                     isComplete: false)
                 self.snapshotResolutions[sessionId] = resolution
@@ -3668,6 +4093,7 @@ enum CostUsageScanner {
         if fullRescanWorkBytes == pendingWorkBytes {
             fullRescanAllowedBytes = allowedWorkBytes
         } else if let budget = context.scanBudget {
+            budget.release(workBytes: allowedWorkBytes)
             switch budget.admit(workBytes: fullRescanWorkBytes) {
             case let .allow(allowance):
                 fullRescanAllowedBytes = allowance
@@ -3978,6 +4404,10 @@ enum CostUsageScanner {
             }
 
             var filePathsInScan = Set(files.map(\.path))
+            let scanBudget = CodexScanBudget(
+                maxFileBytes: options.maxCodexSessionFileBytes,
+                maxBytesPerRefresh: options.maxCodexScanBytesPerRefresh,
+                maxDuration: options.maxCodexScanDurationPerRefresh)
             let fileIndex = CodexSessionFileIndex(
                 files: files,
                 roots: plan.roots,
@@ -3985,11 +4415,10 @@ enum CostUsageScanner {
                     cache: cache,
                     roots: plan.roots,
                     knownExistingPaths: filePathsInScan),
+                cachedDiscovery: plan.rootsChanged ? nil : cache.codexSessionDiscovery,
+                scanBudget: scanBudget,
+                headParseObserver: self.codexSessionHeadParseObserverStore?.observer,
                 checkCancellation: checkCancellation)
-            let scanBudget = CodexScanBudget(
-                maxFileBytes: options.maxCodexSessionFileBytes,
-                maxBytesPerRefresh: options.maxCodexScanBytesPerRefresh,
-                maxDuration: options.maxCodexScanDurationPerRefresh)
             let inheritedResolver = CodexInheritedTotalsResolver(
                 fileIndex: fileIndex,
                 checkCancellation: checkCancellation,
@@ -4080,12 +4509,14 @@ enum CostUsageScanner {
             cache.codexScanTotalBytes = scanProgress.totalBytes
             cache.codexScanCompletedFiles = scanProgress.completedFiles
             cache.codexScanTotalFiles = scanProgress.totalFiles
+            cache.codexSessionDiscovery = fileIndex.persistedState
             let catchUpPending = scanBudget.resumedPartialFileCount > 0
                 || scanBudget.deferredByBudgetFileCount > 0
                 || scanBudget.deferredByTimeBudgetFileCount > 0
                 || scanProgress.completedFiles < scanProgress.totalFiles
                 || cache.files.values.contains { $0.codexScanComplete == false }
                 || cache.files.values.contains { $0.hasBufferedCodexForkRetryLines }
+                || fileIndex.hasPendingDiscovery
             cache.codexScanCatchUpPending = catchUpPending
             cache.codexPreviousReport = catchUpPending ? previousReport : nil
             if plan.hasPriorityMetadata {
@@ -4265,9 +4696,12 @@ enum CostUsageScanner {
     }
 
     static func sortedCodexSessionFilesNewestFirst(_ files: [URL]) -> [URL] {
-        files.sorted { lhs, rhs in
-            let left = Self.codexFileMetadata(fileURL: lhs)
-            let right = Self.codexFileMetadata(fileURL: rhs)
+        let metadata = files.reduce(into: [String: CodexFileMetadata]()) { result, fileURL in
+            result[fileURL.path] = Self.codexFileMetadata(fileURL: fileURL)
+        }
+        return files.sorted { lhs, rhs in
+            let left = metadata[lhs.path] ?? Self.codexFileMetadata(fileURL: lhs)
+            let right = metadata[rhs.path] ?? Self.codexFileMetadata(fileURL: rhs)
             if left.mtimeUnixMs != right.mtimeUnixMs {
                 return left.mtimeUnixMs > right.mtimeUnixMs
             }

@@ -171,6 +171,8 @@ struct CostUsageCache: Codable {
     var codexScanTotalFiles: Int?
     /// Last user-visible report retained only while an incompatible or forced rebuild catches up.
     var codexPreviousReport: CostUsageCodexPreviousReport?
+    /// Persistent session-id discovery and generation-scoped negative lookups for fork parents.
+    var codexSessionDiscovery: CostUsageCodexSessionDiscovery?
 
     /// filePath -> file usage
     var files: [String: CostUsageFileUsage] = [:]
@@ -180,6 +182,40 @@ struct CostUsageCache: Codable {
 
     /// rootPath -> mtime (for Claude roots)
     var roots: [String: Int64]?
+}
+
+struct CostUsageCodexSessionDiscovery: Codable {
+    struct DirectoryStamp: Codable, Equatable {
+        var mtimeUnixMs: Int64
+        var jsonlFileCount: Int
+    }
+
+    struct FileStamp: Codable, Equatable {
+        var mtimeUnixMs: Int64
+        var size: Int64
+        var fileId: String?
+    }
+
+    struct HeadScan: Codable {
+        var path: String
+        var offset: Int64
+        var resumeState: CostUsageJsonl.ResumeState?
+    }
+
+    var roots: [String]
+    var generation: String?
+    var directoryStamps: [String: DirectoryStamp]
+    var directoryPaths: [String]
+    var nextDirectoryIndex: Int
+    var filePaths: [String]
+    var nextFileIndex: Int
+    var fileStamps: [String: FileStamp]
+    var headScan: HeadScan?
+    var filePathBySessionId: [String: String]
+    var missingSessionIds: [String]
+    var pendingSessionIds: [String]
+    var validationDirectoryIndex: Int
+    var isComplete: Bool
 }
 
 struct CostUsageCodexPreviousReport: Codable, Equatable {

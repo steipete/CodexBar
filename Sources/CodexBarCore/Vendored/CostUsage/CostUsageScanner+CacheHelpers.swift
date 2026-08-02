@@ -995,8 +995,9 @@ extension CostUsageScanner {
         if let parentSessionId = cached.forkedFromId {
             guard let cachedDependencyKey = cached.forkBaselineDependencyKey else { return false }
             if cachedDependencyKey != Self.codexForkDependencyNotRequiredKey {
-                let currentDependencyKey = try context.resources.inheritedResolver
+                guard let currentDependencyKey = try context.resources.inheritedResolver
                     .currentDependencyKey(for: parentSessionId)
+                else { return false }
                 guard cachedDependencyKey == currentDependencyKey else { return false }
             }
         }

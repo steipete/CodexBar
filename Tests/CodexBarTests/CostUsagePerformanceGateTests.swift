@@ -763,6 +763,214 @@ private final class TestMonotonicClock: @unchecked Sendable {
 
 extension CostUsagePerformanceGateTests {
     @Test
+    func `missing parent head discovery resumes inside the scan budget`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+        let day = try env.makeLocalNoon(year: 2026, month: 5, day: 10)
+        let iso = env.isoString(for: day)
+        let body = #"{"type":"session_meta","timestamp":"\#(iso)","payload":{"session_id":"known-session","cwd":"#
+            + String(repeating: "x", count: 512)
+            + #""}}"#
+            + "\n"
+        let fileURL = try env.writeCodexSessionFile(day: day, filename: "budgeted-head.jsonl", contents: body)
+
+        var discovery: CostUsageCodexSessionDiscovery?
+        var offsets: [Int64] = []
+        var resolvedMissing = false
+        for _ in 0..<32 {
+            let budget = CostUsageScanner.CodexScanBudget(maxFileBytes: 32, maxBytesPerRefresh: 32)
+            let index = CostUsageScanner.CodexSessionFileIndex(
+                files: [fileURL],
+                roots: [env.codexSessionsRoot],
+                cachedDiscovery: discovery,
+                scanBudget: budget)
+            switch try index.lookup(sessionId: "absent-session") {
+            case .found:
+                Issue.record("unexpected parent resolution")
+            case .missing:
+                resolvedMissing = true
+            case .deferred:
+                break
+            }
+            discovery = index.persistedState
+            if let offset = discovery?.headScan?.resumeState?.offset ?? discovery?.headScan?.offset {
+                offsets.append(offset)
+            }
+            if resolvedMissing {
+                break
+            }
+        }
+
+        #expect(offsets.count >= 2)
+        #expect(offsets[1] > offsets[0])
+        #expect(resolvedMissing)
+        #expect(discovery?.missingSessionIds.contains("absent-session") == true)
+    }
+
+    @Test
+    func `missing fork parent stays idle then publishes buffered usage once when created`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+        let day = try env.makeLocalNoon(year: 2026, month: 5, day: 10)
+        let iso = env.isoString(for: day)
+        let forkISO = env.isoString(for: day.addingTimeInterval(1))
+        _ = try Self.writeSyntheticCodexCorpus(
+            env: env,
+            day: day,
+            files: 250,
+            turnsPerFile: 0)
+
+        let childBody = [
+            #"{"type":"session_meta","timestamp":"\#(forkISO)","payload":{"session_id":"missing-child","#
+                + #""forked_from_id":"late-parent"}}"#,
+            #"{"type":"turn_context","timestamp":"\#(forkISO)","payload":{"model":"openai/gpt-5.2-codex"}}"#,
+            #"{"type":"event_msg","timestamp":"\#(forkISO)","payload":{"type":"token_count","info":"#
+                + #"{"total_token_usage":{"input_tokens":150,"cached_input_tokens":15,"output_tokens":8},"#
+                + #""model":"openai/gpt-5.2-codex"}}}"#,
+        ].joined(separator: "\n") + "\n"
+        let childURL = try env.writeCodexSessionFile(
+            day: day,
+            filename: "missing-child.jsonl",
+            contents: childBody)
+        try FileManager.default.setAttributes(
+            [.modificationDate: day.addingTimeInterval(600)],
+            ofItemAtPath: childURL.path)
+
+        var options = CostUsageScanner.Options(
+            codexSessionsRoot: env.codexSessionsRoot,
+            claudeProjectsRoots: nil,
+            cacheRoot: env.cacheRoot,
+            codexTraceDatabaseURL: env.root.appendingPathComponent("missing.sqlite"))
+        options.refreshMinIntervalSeconds = 0
+
+        let coldCounter = HeadParseCounter()
+        _ = CostUsageScanner.withCodexSessionHeadParseObserverForTesting {
+            coldCounter.increment()
+        } operation: {
+            CostUsageScanner.loadDailyReport(
+                provider: .codex,
+                since: day,
+                until: day,
+                now: day,
+                options: options)
+        }
+        let coldCache = CostUsageCacheIO.load(provider: .codex, cacheRoot: env.cacheRoot)
+        let coldChild = try #require(coldCache.files.values.first { $0.sessionId == "missing-child" })
+        let coldDiscovery = try #require(coldCache.codexSessionDiscovery)
+        #expect(coldCounter.value >= 250)
+        #expect(coldChild.days.isEmpty)
+        #expect(coldChild.forkBaselineDependencyKey?.contains("missing|late-parent|discovery|") == true)
+        #expect(coldDiscovery.missingSessionIds.contains("late-parent"))
+
+        let warmCounter = HeadParseCounter()
+        _ = CostUsageScanner.withCodexSessionHeadParseObserverForTesting {
+            warmCounter.increment()
+        } operation: {
+            CostUsageScanner.loadDailyReport(
+                provider: .codex,
+                since: day,
+                until: day,
+                now: day.addingTimeInterval(1),
+                options: options)
+        }
+        #expect(warmCounter.value == 0)
+
+        let parentBody = [
+            #"{"type":"session_meta","timestamp":"\#(iso)","payload":{"session_id":"late-parent"}}"#,
+            #"{"type":"turn_context","timestamp":"\#(iso)","payload":{"model":"openai/gpt-5.2-codex"}}"#,
+            #"{"type":"event_msg","timestamp":"\#(iso)","payload":{"type":"token_count","info":"#
+                + #"{"total_token_usage":{"input_tokens":100,"cached_input_tokens":10,"output_tokens":5},"#
+                + #""model":"openai/gpt-5.2-codex"}}}"#,
+        ].joined(separator: "\n") + "\n"
+        _ = try env.writeCodexSessionFile(day: day, filename: "late-parent.jsonl", contents: parentBody)
+
+        let resolved = CostUsageScanner.loadDailyReport(
+            provider: .codex,
+            since: day,
+            until: day,
+            now: day.addingTimeInterval(2),
+            options: options)
+        let resolvedCache = CostUsageCacheIO.load(provider: .codex, cacheRoot: env.cacheRoot)
+        let resolvedChild = try #require(resolvedCache.files.values.first { $0.sessionId == "missing-child" })
+        #expect(!resolvedChild.days.isEmpty)
+        #expect(resolvedChild.forkBaselineDependencyKey?.hasPrefix("file|late-parent|") == true)
+
+        let stable = CostUsageScanner.loadDailyReport(
+            provider: .codex,
+            since: day,
+            until: day,
+            now: day.addingTimeInterval(3),
+            options: options)
+        let stableCache = CostUsageCacheIO.load(provider: .codex, cacheRoot: env.cacheRoot)
+        let stableChild = try #require(stableCache.files.values.first { $0.sessionId == "missing-child" })
+        #expect(stableChild.days == resolvedChild.days)
+        #expect(stable.summary?.totalTokens == resolved.summary?.totalTokens)
+    }
+
+    @Test
+    func `partition inventory change rotates negative lookup generation`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+        let day = try env.makeLocalNoon(year: 2026, month: 5, day: 10)
+        let forkISO = env.isoString(for: day.addingTimeInterval(1))
+        _ = try Self.writeSyntheticCodexCorpus(env: env, day: day, files: 20, turnsPerFile: 0)
+        let childBody = [
+            #"{"type":"session_meta","timestamp":"\#(forkISO)","payload":{"session_id":"inventory-child","#
+                + #""forked_from_id":"inventory-missing"}}"#,
+            #"{"type":"event_msg","timestamp":"\#(forkISO)","payload":{"type":"token_count","info":"#
+                + #"{"total_token_usage":{"input_tokens":10,"cached_input_tokens":1,"output_tokens":1}}}"#,
+        ].joined(separator: "\n") + "\n"
+        let childURL = try env.writeCodexSessionFile(
+            day: day,
+            filename: "inventory-child.jsonl",
+            contents: childBody)
+        try FileManager.default.setAttributes(
+            [.modificationDate: day.addingTimeInterval(600)],
+            ofItemAtPath: childURL.path)
+
+        var options = CostUsageScanner.Options(
+            codexSessionsRoot: env.codexSessionsRoot,
+            claudeProjectsRoots: nil,
+            cacheRoot: env.cacheRoot,
+            codexTraceDatabaseURL: env.root.appendingPathComponent("missing.sqlite"))
+        options.refreshMinIntervalSeconds = 0
+        _ = CostUsageScanner.loadDailyReport(
+            provider: .codex,
+            since: day,
+            until: day,
+            now: day,
+            options: options)
+        let firstCache = CostUsageCacheIO.load(provider: .codex, cacheRoot: env.cacheRoot)
+        let firstGeneration = try #require(firstCache.codexSessionDiscovery?.generation)
+        #expect(firstCache.codexSessionDiscovery?.missingSessionIds.contains("inventory-missing") == true)
+
+        let newFile = try env.writeCodexSessionFile(
+            day: day,
+            filename: "inventory-new.jsonl",
+            contents: #"{"type":"session_meta","timestamp":"\#(forkISO)","payload":{"session_id":"new-session"}}"#
+                + "\n")
+        try FileManager.default.setAttributes(
+            [.modificationDate: day.addingTimeInterval(300)],
+            ofItemAtPath: newFile.path)
+        let counter = HeadParseCounter()
+        _ = CostUsageScanner.withCodexSessionHeadParseObserverForTesting {
+            counter.increment()
+        } operation: {
+            CostUsageScanner.loadDailyReport(
+                provider: .codex,
+                since: day,
+                until: day,
+                now: day.addingTimeInterval(1),
+                options: options)
+        }
+        let changedCache = CostUsageCacheIO.load(provider: .codex, cacheRoot: env.cacheRoot)
+        let changedGeneration = try #require(changedCache.codexSessionDiscovery?.generation)
+        #expect(changedGeneration != firstGeneration)
+        #expect(changedCache.codexSessionDiscovery?.missingSessionIds.contains("inventory-missing") == true)
+        #expect(counter.value <= 1)
+    }
+
+    @Test
     func `sparse token checkpoints preserve the exact accumulator state`() {
         let mebibyte: Int64 = 1024 * 1024
         let events = [
@@ -1151,12 +1359,17 @@ extension CostUsagePerformanceGateTests {
                 #"{"type":"session_meta","timestamp":"\#(baseISO)","payload":{"session_id":"perf-\#(fileIndex)"}}"#)
             lines.append(
                 #"{"type":"turn_context","timestamp":"\#(baseISO)","payload":{"model":"\#(model)"}}"#)
-            for turn in 1...turnsPerFile {
-                let inputTokens = turn * inputTokensPerTurn
-                lines.append(
-                    #"{"type":"event_msg","timestamp":"\#(baseISO)","payload":{"type":"token_count","info":"#
-                        + #"{"total_token_usage":{"input_tokens":\#(inputTokens),"cached_input_tokens":\#(turn * 20),"#
-                        + #""output_tokens":\#(turn * 10)},"model":"\#(model)"}}}"#)
+            if turnsPerFile > 0 {
+                for turn in 1...turnsPerFile {
+                    let inputTokens = turn * inputTokensPerTurn
+                    let cachedTokens = turn * 20
+                    let outputTokens = turn * 10
+                    lines.append(
+                        #"{"type":"event_msg","timestamp":"\#(baseISO)","payload":{"type":"token_count","info":"#
+                            + #"{"total_token_usage":{"input_tokens":\#(inputTokens),"#
+                            + #""cached_input_tokens":\#(cachedTokens),"output_tokens":\#(outputTokens)},"#
+                            + #""model":"\#(model)"}}}"#)
+                }
             }
             let fileURL = try env.writeCodexSessionFile(
                 day: day,
@@ -1187,6 +1400,19 @@ extension CostUsagePerformanceGateTests {
         guard sqlite3_step(statement) == SQLITE_DONE else {
             throw CocoaError(.fileWriteUnknown)
         }
+    }
+}
+
+private final class HeadParseCounter: @unchecked Sendable {
+    private let lock = NSLock()
+    private var count = 0
+
+    var value: Int {
+        self.lock.withLock { self.count }
+    }
+
+    func increment() {
+        self.lock.withLock { self.count += 1 }
     }
 }
 #endif

@@ -5,6 +5,9 @@
 ### Changed
 - About: link the Website entry to codex.bar.
 
+### Fixed
+- Codex: persist and budget fork-parent discovery so missing parents quiesce between inventory changes instead of sweeping every rollout on each refresh (#2525, #2538). Thanks @xx205, and @Helmi and @kiranmagic7 for the investigation!
+
 ## 0.46.0 — 2026-07-29
 
 ### Added
