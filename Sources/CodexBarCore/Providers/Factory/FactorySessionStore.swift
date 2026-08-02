@@ -131,7 +131,10 @@ public actor FactorySessionStore {
             try? FileManager.default.removeItem(at: self.fileURL)
             return
         }
-        try? data.write(to: self.fileURL)
+        // The payload holds the Factory bearer/refresh tokens and session cookies. Write it owner-only
+        // (0600) with the permission established before any bytes land, matching the codex/kimi/
+        // antigravity credential stores; a plain Data.write leaves it world-readable (0644).
+        try? CredentialFileWriter.writePrivate(data, to: self.fileURL)
     }
 
     private func loadFromDisk() {
@@ -172,6 +175,8 @@ public actor FactorySessionStore {
     private func loadFromDiskIfNeeded() {
         guard !self.didLoadFromDisk else { return }
         self.didLoadFromDisk = true
+        // Remediate a session file created 0644 by an earlier build before reading it.
+        CredentialFileWriter.repairPermissions(at: self.fileURL)
         self.loadFromDisk()
     }
 }

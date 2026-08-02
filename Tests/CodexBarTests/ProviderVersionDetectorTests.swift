@@ -119,11 +119,11 @@ final class ProviderVersionDetectorTests: XCTestCase {
             state.increment()
         }
 
-        let first = ProviderVersionDetector.claudeVersion()
+        let first = Self.userInitiatedClaudeVersion()
         XCTAssertEqual(first, "claude-code 2.1.70")
         XCTAssertEqual(state.callCount, 1)
 
-        let second = ProviderVersionDetector.claudeVersion()
+        let second = Self.userInitiatedClaudeVersion()
         XCTAssertEqual(second, "claude-code 2.1.70")
         XCTAssertEqual(state.callCount, 1)
     }
@@ -143,10 +143,10 @@ final class ProviderVersionDetectorTests: XCTestCase {
             state.increment()
         }
 
-        let cold = ProviderVersionDetector.claudeVersion()
-        let warm = ProviderVersionDetector.claudeVersion()
+        let cold = Self.userInitiatedClaudeVersion()
+        let warm = Self.userInitiatedClaudeVersion()
         size = 6000
-        let afterFingerprintChange = ProviderVersionDetector.claudeVersion()
+        let afterFingerprintChange = Self.userInitiatedClaudeVersion()
 
         print(
             "ProviderVersionDetector proof: cold=\(cold ?? "nil") "
@@ -159,6 +159,103 @@ final class ProviderVersionDetectorTests: XCTestCase {
         XCTAssertEqual(state.callCount, 2)
     }
 
+    func test_claudeVersion_backgroundColdDetectionSkipsChildAndUsesFallback() async {
+        let state = MockDetectorState()
+        self.configureClaudeVersionHooks(state: state)
+
+        let userAgent = await ClaudeCLIBackgroundAvailability.withIsolatedStoreForTesting {
+            KeychainAccessGate.withTaskOverrideForTesting(false) {
+                ClaudeOAuthKeychainPromptPreference.withTaskOverrideForTesting(.onlyOnUserAction) {
+                    ProviderInteractionContext.$current.withValue(.background) {
+                        ClaudeOAuthUsageFetcher._userAgentForTesting(
+                            detectClaudeVersion: true,
+                            versionDetector: { ProviderVersionDetector.claudeVersion(environment: [:]) })
+                    }
+                }
+            }
+        }
+
+        XCTAssertEqual(userAgent, "claude-code/2.1.0")
+        XCTAssertEqual(state.callCount, 0)
+    }
+
+    func test_claudeVersion_disabledKeychainWithoutMarkerStillSkipsChild() async throws {
+        let state = MockDetectorState()
+        self.configureClaudeVersionHooks(state: state)
+        let profile = try self.makeClaudeProfile(accountID: "account-a")
+        defer { try? FileManager.default.removeItem(at: profile.root) }
+
+        let version = await ClaudeCLIBackgroundAvailability.withIsolatedStoreForTesting {
+            KeychainAccessGate.withTaskOverrideForTesting(true) {
+                ClaudeOAuthKeychainPromptPreference.withTaskOverrideForTesting(.always) {
+                    ProviderInteractionContext.$current.withValue(.background) {
+                        ProviderVersionDetector.claudeVersion(environment: profile.environment)
+                    }
+                }
+            }
+        }
+
+        XCTAssertNil(version)
+        XCTAssertEqual(state.callCount, 0)
+    }
+
+    func test_claudeVersion_userInitiatedColdDetectionRunsChild() async {
+        let state = MockDetectorState()
+        self.configureClaudeVersionHooks(state: state)
+
+        let version = await ClaudeCLIBackgroundAvailability.withIsolatedStoreForTesting {
+            ProviderInteractionContext.$current.withValue(.userInitiated) {
+                ProviderVersionDetector.claudeVersion(environment: [:])
+            }
+        }
+
+        XCTAssertEqual(version, "claude-code 2.1.70")
+        XCTAssertEqual(state.callCount, 1)
+    }
+
+    func test_claudeVersion_establishedBackgroundWithPromptOptInRunsChild() async throws {
+        let state = MockDetectorState()
+        self.configureClaudeVersionHooks(state: state)
+        let profile = try self.makeClaudeProfile(accountID: "account-a")
+        defer { try? FileManager.default.removeItem(at: profile.root) }
+
+        let version = await ClaudeCLIBackgroundAvailability.withIsolatedStoreForTesting {
+            ClaudeCLIBackgroundAvailability.establish(binary: "/mock/bin/claude", environment: profile.environment)
+            return KeychainAccessGate.withTaskOverrideForTesting(false) {
+                ClaudeOAuthKeychainPromptPreference.withTaskOverrideForTesting(.always) {
+                    ProviderInteractionContext.$current.withValue(.background) {
+                        ProviderVersionDetector.claudeVersion(environment: profile.environment)
+                    }
+                }
+            }
+        }
+
+        XCTAssertEqual(version, "claude-code 2.1.70")
+        XCTAssertEqual(state.callCount, 1)
+    }
+
+    func test_claudeVersion_cachedValueRemainsAvailableInUnconsentedBackground() async {
+        let state = MockDetectorState()
+        self.configureClaudeVersionHooks(state: state)
+
+        let cold = ProviderInteractionContext.$current.withValue(.userInitiated) {
+            ProviderVersionDetector.claudeVersion(environment: [:])
+        }
+        let cached = await ClaudeCLIBackgroundAvailability.withIsolatedStoreForTesting {
+            KeychainAccessGate.withTaskOverrideForTesting(false) {
+                ClaudeOAuthKeychainPromptPreference.withTaskOverrideForTesting(.never) {
+                    ProviderInteractionContext.$current.withValue(.background) {
+                        ProviderVersionDetector.claudeVersion(environment: [:])
+                    }
+                }
+            }
+        }
+
+        XCTAssertEqual(cold, "claude-code 2.1.70")
+        XCTAssertEqual(cached, "claude-code 2.1.70")
+        XCTAssertEqual(state.callCount, 1)
+    }
+
     func test_claudeVersion_realExecutableProof() throws {
         guard ProcessInfo.processInfo.environment["LIVE_CLAUDE_TTY"] == "1" else {
             throw XCTSkip("Set LIVE_CLAUDE_TTY=1 to probe the installed Claude executable")
@@ -168,8 +265,8 @@ final class ProviderVersionDetectorTests: XCTestCase {
         }
 
         let direct = try XCTUnwrap(ProviderVersionDetector.run(path: path, args: ["--version"]))
-        let cold = try XCTUnwrap(ProviderVersionDetector.claudeVersion())
-        let warm = try XCTUnwrap(ProviderVersionDetector.claudeVersion())
+        let cold = try XCTUnwrap(Self.userInitiatedClaudeVersion())
+        let warm = try XCTUnwrap(Self.userInitiatedClaudeVersion())
 
         print(
             "Claude real executable proof: path=\(URL(fileURLWithPath: path).lastPathComponent) "
@@ -198,7 +295,7 @@ final class ProviderVersionDetectorTests: XCTestCase {
 
         for _ in 0..<totalThreads {
             DispatchQueue.global().async {
-                let res = ProviderVersionDetector.claudeVersion()
+                let res = Self.userInitiatedClaudeVersion()
                 XCTAssertEqual(res, "claude-code 2.1.70")
                 semaphore.signal()
             }
@@ -227,14 +324,14 @@ final class ProviderVersionDetectorTests: XCTestCase {
             state.increment()
         }
 
-        XCTAssertEqual(ProviderVersionDetector.claudeVersion(), "claude-code 2.1.70")
+        XCTAssertEqual(Self.userInitiatedClaudeVersion(), "claude-code 2.1.70")
         XCTAssertEqual(state.callCount, 1)
 
-        XCTAssertEqual(ProviderVersionDetector.claudeVersion(), "claude-code 2.1.70")
+        XCTAssertEqual(Self.userInitiatedClaudeVersion(), "claude-code 2.1.70")
         XCTAssertEqual(state.callCount, 1)
 
         modDate = Date(timeIntervalSince1970: 2000)
-        XCTAssertEqual(ProviderVersionDetector.claudeVersion(), "claude-code 2.1.70")
+        XCTAssertEqual(Self.userInitiatedClaudeVersion(), "claude-code 2.1.70")
         XCTAssertEqual(state.callCount, 2)
     }
 
@@ -255,19 +352,19 @@ final class ProviderVersionDetectorTests: XCTestCase {
             state.increment()
         }
 
-        XCTAssertEqual(ProviderVersionDetector.claudeVersion(), "claude-code 2.1.70")
+        XCTAssertEqual(Self.userInitiatedClaudeVersion(), "claude-code 2.1.70")
         XCTAssertEqual(state.callCount, 1)
 
         size = 6000
-        XCTAssertEqual(ProviderVersionDetector.claudeVersion(), "claude-code 2.1.70")
+        XCTAssertEqual(Self.userInitiatedClaudeVersion(), "claude-code 2.1.70")
         XCTAssertEqual(state.callCount, 2)
 
         inode = 100
-        XCTAssertEqual(ProviderVersionDetector.claudeVersion(), "claude-code 2.1.70")
+        XCTAssertEqual(Self.userInitiatedClaudeVersion(), "claude-code 2.1.70")
         XCTAssertEqual(state.callCount, 3)
 
         path = "/mock/bin/claude2"
-        XCTAssertEqual(ProviderVersionDetector.claudeVersion(), "claude-code 2.1.70")
+        XCTAssertEqual(Self.userInitiatedClaudeVersion(), "claude-code 2.1.70")
         XCTAssertEqual(state.callCount, 4)
     }
 
@@ -286,18 +383,18 @@ final class ProviderVersionDetectorTests: XCTestCase {
             state.increment()
         }
 
-        XCTAssertNil(ProviderVersionDetector.claudeVersion())
+        XCTAssertNil(Self.userInitiatedClaudeVersion())
         XCTAssertEqual(state.callCount, 1)
 
-        XCTAssertNil(ProviderVersionDetector.claudeVersion())
+        XCTAssertNil(Self.userInitiatedClaudeVersion())
         XCTAssertEqual(state.callCount, 2)
 
         state.setResult(text: "claude-code 2.1.70")
 
-        XCTAssertEqual(ProviderVersionDetector.claudeVersion(), "claude-code 2.1.70")
+        XCTAssertEqual(Self.userInitiatedClaudeVersion(), "claude-code 2.1.70")
         XCTAssertEqual(state.callCount, 3)
 
-        XCTAssertEqual(ProviderVersionDetector.claudeVersion(), "claude-code 2.1.70")
+        XCTAssertEqual(Self.userInitiatedClaudeVersion(), "claude-code 2.1.70")
         XCTAssertEqual(state.callCount, 3)
     }
 
@@ -316,10 +413,10 @@ final class ProviderVersionDetectorTests: XCTestCase {
             state.increment()
         }
 
-        XCTAssertNil(ProviderVersionDetector.claudeVersion())
+        XCTAssertNil(Self.userInitiatedClaudeVersion())
         XCTAssertEqual(state.callCount, 1)
 
-        XCTAssertNil(ProviderVersionDetector.claudeVersion())
+        XCTAssertNil(Self.userInitiatedClaudeVersion())
         XCTAssertEqual(state.callCount, 2)
     }
 
@@ -338,13 +435,13 @@ final class ProviderVersionDetectorTests: XCTestCase {
         }
         ProviderVersionDetector.runClaudeVersionHook = { _ in state.increment() }
 
-        XCTAssertNil(ProviderVersionDetector.claudeVersion())
+        XCTAssertNil(Self.userInitiatedClaudeVersion())
         XCTAssertEqual(state.callCount, 1)
 
         state.setResult(text: "claude-code 2.1.70")
-        XCTAssertEqual(ProviderVersionDetector.claudeVersion(), "claude-code 2.1.70")
+        XCTAssertEqual(Self.userInitiatedClaudeVersion(), "claude-code 2.1.70")
         XCTAssertEqual(state.callCount, 2)
-        XCTAssertEqual(ProviderVersionDetector.claudeVersion(), "claude-code 2.1.70")
+        XCTAssertEqual(Self.userInitiatedClaudeVersion(), "claude-code 2.1.70")
         XCTAssertEqual(state.callCount, 2)
     }
 
@@ -361,11 +458,11 @@ final class ProviderVersionDetectorTests: XCTestCase {
         }
         ProviderVersionDetector.runClaudeVersionHook = { _ in state.increment() }
 
-        XCTAssertNil(ProviderVersionDetector.claudeVersion())
+        XCTAssertNil(Self.userInitiatedClaudeVersion())
         XCTAssertEqual(state.callCount, 1)
 
         state.setResult(text: "claude-code 2.1.70")
-        XCTAssertEqual(ProviderVersionDetector.claudeVersion(), "claude-code 2.1.70")
+        XCTAssertEqual(Self.userInitiatedClaudeVersion(), "claude-code 2.1.70")
         XCTAssertEqual(state.callCount, 2)
     }
 
@@ -383,16 +480,16 @@ final class ProviderVersionDetectorTests: XCTestCase {
         }
         ProviderVersionDetector.runClaudeVersionHook = { _ in state.increment() }
 
-        XCTAssertEqual(ProviderVersionDetector.claudeVersion(), "claude-code 2.1.70")
+        XCTAssertEqual(Self.userInitiatedClaudeVersion(), "claude-code 2.1.70")
         XCTAssertEqual(state.callCount, 1)
 
         state.setResult(text: "claude-code 2.1.71")
         now.addTimeInterval(ProviderVersionDetector.claudeVersionCacheTTL - 1)
-        XCTAssertEqual(ProviderVersionDetector.claudeVersion(), "claude-code 2.1.70")
+        XCTAssertEqual(Self.userInitiatedClaudeVersion(), "claude-code 2.1.70")
         XCTAssertEqual(state.callCount, 1)
 
         now.addTimeInterval(2)
-        XCTAssertEqual(ProviderVersionDetector.claudeVersion(), "claude-code 2.1.71")
+        XCTAssertEqual(Self.userInitiatedClaudeVersion(), "claude-code 2.1.71")
         XCTAssertEqual(state.callCount, 2)
     }
 
@@ -410,12 +507,12 @@ final class ProviderVersionDetectorTests: XCTestCase {
         }
         ProviderVersionDetector.runClaudeVersionHook = { _ in state.increment() }
 
-        XCTAssertEqual(ProviderVersionDetector.claudeVersion(), "claude-code 2.1.70")
+        XCTAssertEqual(Self.userInitiatedClaudeVersion(), "claude-code 2.1.70")
         XCTAssertEqual(state.callCount, 1)
 
         state.setResult(text: "claude-code 2.1.71")
         now.addTimeInterval(-1)
-        XCTAssertEqual(ProviderVersionDetector.claudeVersion(), "claude-code 2.1.71")
+        XCTAssertEqual(Self.userInitiatedClaudeVersion(), "claude-code 2.1.71")
         XCTAssertEqual(state.callCount, 2)
     }
 
@@ -434,9 +531,40 @@ final class ProviderVersionDetectorTests: XCTestCase {
         }
 
         for _ in 0..<1000 {
-            _ = ProviderVersionDetector.claudeVersion()
+            _ = Self.userInitiatedClaudeVersion()
         }
 
         XCTAssertEqual(state.callCount, 1)
+    }
+
+    private func configureClaudeVersionHooks(state: MockDetectorState) {
+        ProviderVersionDetector.whichHook = { _ in "/mock/bin/claude" }
+        ProviderVersionDetector.attributesHook = { _ in
+            [
+                .modificationDate: Date(timeIntervalSince1970: 1000),
+                .size: NSNumber(value: 5000),
+                .systemFileNumber: NSNumber(value: 99),
+            ]
+        }
+        ProviderVersionDetector.runClaudeVersionHook = { _ in state.increment() }
+    }
+
+    private static func userInitiatedClaudeVersion() -> String? {
+        ProviderInteractionContext.$current.withValue(.userInitiated) {
+            ProviderVersionDetector.claudeVersion()
+        }
+    }
+
+    private func makeClaudeProfile(accountID: String) throws -> (
+        root: URL,
+        environment: [String: String])
+    {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("codexbar-version-profile-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        let configURL = root.appendingPathComponent(".config.json")
+        try Data(#"{"oauthAccount":{"accountUuid":"\#(accountID)"}}"#.utf8)
+            .write(to: configURL, options: .atomic)
+        return (root: root, environment: ["CLAUDE_CONFIG_DIR": root.path])
     }
 }

@@ -158,4 +158,41 @@ struct CostUsageScannerClaudeDesktopTests {
         #expect(report.data[0].outputTokens == 4)
         #expect(report.data[0].totalTokens == 28)
     }
+
+    @Test
+    func `Claude config root is one relative literal and always owns a projects child`() {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("CostUsageScanner-ClaudePaths-\(UUID().uuidString)", isDirectory: true)
+        let workingDirectory = root.appendingPathComponent("probe", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let literal = " first, second "
+        let roots = CostUsageScanner.defaultClaudeProjectsRoots(
+            options: CostUsageScanner.Options(cacheRoot: root.appendingPathComponent("cache")),
+            environment: [ClaudeConfigPaths.configDirectoryEnvironmentKey: literal],
+            homeDirectory: root.appendingPathComponent("home"),
+            workingDirectory: workingDirectory)
+        #expect(roots == [workingDirectory
+                .appendingPathComponent(literal, isDirectory: true)
+                .appendingPathComponent("projects", isDirectory: true)
+                .standardizedFileURL])
+
+        let projectsNamedRoot = CostUsageScanner.defaultClaudeProjectsRoots(
+            options: CostUsageScanner.Options(cacheRoot: root.appendingPathComponent("cache")),
+            environment: [ClaudeConfigPaths.configDirectoryEnvironmentKey: "projects"],
+            homeDirectory: root.appendingPathComponent("home"),
+            workingDirectory: workingDirectory)
+        #expect(projectsNamedRoot == [workingDirectory
+                .appendingPathComponent("projects/projects", isDirectory: true)
+                .standardizedFileURL])
+
+        let relativeHomeRoots = CostUsageScanner.defaultClaudeProjectsRoots(
+            options: CostUsageScanner.Options(cacheRoot: root.appendingPathComponent("cache")),
+            environment: ["HOME": "relative-home", ClaudeConfigPaths.configDirectoryEnvironmentKey: ""],
+            homeDirectory: root.appendingPathComponent("ignored-home"),
+            workingDirectory: workingDirectory)
+        #expect(relativeHomeRoots.contains(workingDirectory
+                .appendingPathComponent("relative-home/.claude/projects", isDirectory: true)
+                .standardizedFileURL))
+    }
 }

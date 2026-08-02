@@ -139,15 +139,23 @@ public enum ProviderVersionDetector {
         return trimmed.isEmpty ? nil : trimmed
     }
 
-    public static func claudeVersion() -> String? {
+    public static func claudeVersion(
+        environment: [String: String] = ProcessInfo.processInfo.environment) -> String?
+    {
         #if DEBUG
-        let pathOpt = self.whichHook != nil ? self.whichHook!("claude") : TTYCommandRunner.which("claude")
+        let pathOpt = self.whichHook != nil
+            ? self.whichHook!("claude")
+            : ClaudeCLIResolver.resolvedBinaryPath(environment: environment)
         #else
-        let pathOpt = TTYCommandRunner.which("claude")
+        let pathOpt = ClaudeCLIResolver.resolvedBinaryPath(environment: environment)
         #endif
         guard let path = pathOpt else { return nil }
 
         guard let fingerprint = getClaudeFingerprint(forPath: path) else {
+            guard ClaudeCLIBackgroundAvailability.allowsOpaqueChildExecution(
+                binary: path,
+                environment: environment)
+            else { return nil }
             return self.runClaudeVersionCommand(path: path)
         }
         self.lock.lock()
@@ -171,6 +179,14 @@ public enum ProviderVersionDetector {
             let result = pending.result
             self.lock.unlock()
             return result
+        }
+
+        guard ClaudeCLIBackgroundAvailability.allowsOpaqueChildExecution(
+            binary: path,
+            environment: environment)
+        else {
+            self.lock.unlock()
+            return nil
         }
 
         let pending = PendingDetection()

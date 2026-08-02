@@ -98,6 +98,7 @@ struct ProviderPayload: Encodable {
 struct ProviderPacePayload: Encodable {
     let primary: PacePayload?
     let secondary: PacePayload?
+    let tertiary: PacePayload?
 }
 
 struct PacePayload: Encodable {

@@ -3,6 +3,7 @@ import Testing
 @testable import CodexBar
 @testable import CodexBarCore
 
+@Suite(.serialized)
 struct CommandCodeProviderTests {
     private final class CookieAttemptRecorder: @unchecked Sendable {
         private let lock = NSLock()
@@ -40,47 +41,100 @@ struct CommandCodeProviderTests {
 
     @Test
     func `automatic cookie fetch retries Vivaldi after stale earlier browser session`() async throws {
-        let recorder = CookieAttemptRecorder()
-        let strategy = CommandCodeWebFetchStrategy(
-            usageLoader: { cookieHeader in
-                recorder.append(cookieHeader)
-                guard cookieHeader == "session=vivaldi" else {
-                    throw CommandCodeUsageError.invalidCredentials
-                }
-                return Self.snapshot()
-            },
-            sessionLoader: {
-                [
-                    CommandCodeResolvedSession(cookieHeader: "session=stale", sourceLabel: "Chrome Default"),
-                    CommandCodeResolvedSession(cookieHeader: "session=vivaldi", sourceLabel: "Vivaldi Default"),
-                ]
-            })
+        let service = "com.steipete.codexbar.tests.commandcode-retry.\(UUID().uuidString)"
+        try await KeychainCacheStore.withServiceOverrideForTesting(service) {
+            try await KeychainCacheStore.withImplicitTestStoreForTesting {
+                let recorder = CookieAttemptRecorder()
+                let strategy = CommandCodeWebFetchStrategy(
+                    usageLoader: { cookieHeader in
+                        recorder.append(cookieHeader)
+                        guard cookieHeader == "session=vivaldi" else {
+                            throw CommandCodeUsageError.invalidCredentials
+                        }
+                        return Self.snapshot()
+                    },
+                    sessionLoader: {
+                        [
+                            CommandCodeResolvedSession(cookieHeader: "session=stale", sourceLabel: "Chrome Default"),
+                            CommandCodeResolvedSession(
+                                cookieHeader: "session=vivaldi",
+                                sourceLabel: "Vivaldi Default"),
+                        ]
+                    })
 
-        let result = try await strategy.fetch(self.makeContext(cookieSource: .auto))
+                let result = try await strategy.fetch(self.makeContext(cookieSource: .auto))
 
-        #expect(recorder.snapshot() == ["session=stale", "session=vivaldi"])
-        #expect(result.sourceLabel == "Vivaldi Default")
+                #expect(recorder.snapshot() == ["session=stale", "session=vivaldi"])
+                #expect(result.sourceLabel == "Vivaldi Default")
+            }
+        }
     }
 
     @Test
     func `automatic cookie fetch does not hide non-auth failure with later session`() async {
-        let recorder = CookieAttemptRecorder()
-        let strategy = CommandCodeWebFetchStrategy(
-            usageLoader: { cookieHeader in
-                recorder.append(cookieHeader)
-                throw CommandCodeUsageError.networkError("offline")
-            },
-            sessionLoader: {
-                [
-                    CommandCodeResolvedSession(cookieHeader: "session=first", sourceLabel: "Chrome Default"),
-                    CommandCodeResolvedSession(cookieHeader: "session=vivaldi", sourceLabel: "Vivaldi Default"),
-                ]
-            })
+        let service = "com.steipete.codexbar.tests.commandcode-failure.\(UUID().uuidString)"
+        await KeychainCacheStore.withServiceOverrideForTesting(service) {
+            await KeychainCacheStore.withImplicitTestStoreForTesting {
+                let recorder = CookieAttemptRecorder()
+                let strategy = CommandCodeWebFetchStrategy(
+                    usageLoader: { cookieHeader in
+                        recorder.append(cookieHeader)
+                        throw CommandCodeUsageError.networkError("offline")
+                    },
+                    sessionLoader: {
+                        [
+                            CommandCodeResolvedSession(cookieHeader: "session=first", sourceLabel: "Chrome Default"),
+                            CommandCodeResolvedSession(
+                                cookieHeader: "session=vivaldi",
+                                sourceLabel: "Vivaldi Default"),
+                        ]
+                    })
 
-        await #expect(throws: CommandCodeUsageError.networkError("offline")) {
-            try await strategy.fetch(self.makeContext(cookieSource: .auto))
+                await #expect(throws: CommandCodeUsageError.networkError("offline")) {
+                    try await strategy.fetch(self.makeContext(cookieSource: .auto))
+                }
+                #expect(recorder.snapshot() == ["session=first"])
+            }
         }
-        #expect(recorder.snapshot() == ["session=first"])
+    }
+
+    @Test
+    func `validated browser session persists for subsequent automatic fetch`() async throws {
+        let provider = UsageProvider.commandcode
+        let service = "com.steipete.codexbar.tests.commandcode-cache.\(UUID().uuidString)"
+        let recorder = CookieAttemptRecorder()
+        let browserLoadRecorder = CookieAttemptRecorder()
+
+        try await KeychainCacheStore.withServiceOverrideForTesting(service) {
+            try await KeychainCacheStore.withImplicitTestStoreForTesting {
+                let gate = try #require(CookieHeaderCache.beginRefreshReadSuppression(provider: provider))
+                defer { CookieHeaderCache.endRefreshReadSuppression(gate) }
+                let strategy = CommandCodeWebFetchStrategy(
+                    usageLoader: { cookieHeader in
+                        recorder.append(cookieHeader)
+                        return Self.snapshot()
+                    },
+                    sessionLoader: {
+                        browserLoadRecorder.append("load")
+                        return [CommandCodeResolvedSession(
+                            cookieHeader: "session=validated",
+                            sourceLabel: "Chrome Default")]
+                    })
+
+                _ = try await strategy.fetch(self.makeContext(cookieSource: .auto))
+                #expect(CookieHeaderCache.load(provider: provider)?.cookieHeader == "session=validated")
+                #expect(CookieHeaderCache.commitRefreshReadSuppression(gate) == CookieRefreshCommitSummary(
+                    stagedCount: 1,
+                    committedCount: 1,
+                    failedCount: 0))
+
+                _ = try await strategy.fetch(self.makeContext(cookieSource: .auto))
+
+                #expect(browserLoadRecorder.snapshot() == ["load"])
+                #expect(recorder.snapshot() == ["session=validated", "session=validated"])
+                #expect(CookieHeaderCache.load(provider: provider)?.sourceLabel == "Chrome Default")
+            }
+        }
     }
 
     @MainActor

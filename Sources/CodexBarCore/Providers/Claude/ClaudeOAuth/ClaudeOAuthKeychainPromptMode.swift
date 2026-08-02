@@ -157,6 +157,7 @@ public enum ClaudeOAuthKeychainPromptPreference {
 
     public static func withTaskOverrideForTesting<T>(
         _ mode: ClaudeOAuthKeychainPromptMode?,
+        isolation _: isolated (any Actor)? = #isolation,
         operation: () async throws -> T) async rethrows -> T
     {
         try await self.$taskOverride.withValue(mode) {

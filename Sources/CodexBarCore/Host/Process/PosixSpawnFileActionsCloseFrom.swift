@@ -44,7 +44,7 @@ enum PosixSpawnFileActionsCloseFrom {
         startingAt minimumFileDescriptor: Int32) throws
     {
         #if canImport(Glibc)
-        try self.check(posix_spawn_file_actions_addclosefrom_np(&fileActions, minimumFileDescriptor))
+        try self.check(PosixSpawnFileActionsCompatibility.addCloseFrom(&fileActions, startingAt: minimumFileDescriptor))
         #else
         for descriptor in try self.descriptorsToClose(startingAt: minimumFileDescriptor) {
             try self.check(posix_spawn_file_actions_addclose(&fileActions, descriptor))

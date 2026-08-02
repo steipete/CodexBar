@@ -920,6 +920,24 @@ extension GrokWebBillingFetcherTests {
         #expect(usage.loginMethod(for: .grok) == "SuperGrok")
     }
 
+    @Test
+    func `usage snapshot does not classify a monthly reset near its end as weekly`() {
+        // A monthly quota with six days left must not be reported as a weekly window.
+        let snapshot = GrokUsageSnapshot(
+            billing: nil,
+            webBilling: GrokWebBillingSnapshot(
+                usedPercent: 12,
+                resetsAt: Date(timeIntervalSince1970: 1_799_000_000 + 6 * 86400)),
+            credentials: Self.credentials,
+            localSummary: nil,
+            cliVersion: nil,
+            updatedAt: Date(timeIntervalSince1970: 1_799_000_000))
+
+        let usage = snapshot.toUsageSnapshot()
+
+        #expect(usage.primary?.windowMinutes == nil)
+    }
+
     private static let credentials = GrokCredentials(
         accessToken: "token-123",
         refreshToken: "refresh-123",

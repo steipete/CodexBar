@@ -134,7 +134,14 @@ The accepted multi-account design in
   active state, usage status, email (display only), the 5-hour/7-day windows, and optional display-only model-scoped
   weekly windows from `usage.scoped`.
 - Display: when claude-swap reports more than one account, the Claude menu and `codexbar cards` show one card per
-  account (active account first, then numeric slot) instead of ambient/token-account Claude cards. To use this
+  account (active account first, then numeric slot) instead of ambient/token-account Claude cards. With four or more
+  accounts the app menu switches to a compact layout (`AccountMenuLayoutPlanner`): the active account keeps its full
+  card, inactive accounts become one-line rows sorted by remaining headroom (most constrained first, red/amber below
+  50%/10% left, a star on the healthiest activatable account), and healthy rows fold behind a "N more accounts ready"
+  summary row. Clicking a compact row expands that account's full card for the current menu session; the summary row
+  reveals the hidden rows. `codexbar cards` keeps the full per-account output. The same compact layout applies to
+  every stacked multi-account list (token accounts on any provider, and flat Codex account lists; workspace-grouped
+  Codex lists keep their sectioned stacked layout). To use this
   presentation with one account, enable “Show account card when only one account is available” or set
   `claudeSwapShowSingleAccount: true` on the Claude provider in the resolved config file (normally
   `~/.config/codexbar/config.json`; legacy installs may use `~/.codexbar/config.json`). The option defaults off,
