@@ -59,9 +59,15 @@ extension MiMoUsageSnapshot {
             let usedText = Self.fullCountString(self.tokenUsed)
             let limitText = Self.fullCountString(self.tokenLimit)
             let resetDesc = "\(usedText) / \(limitText) Credits"
+            // Populate windowMinutes so the plan-utilization history + pace forecast engine
+            // (which requires a windowed RateWindow) treats the monthly plan quota like the
+            // Codex/Claude windows. Only when there's a real period end to reset against.
+            let windowMinutes = self.planPeriodEnd == nil
+                ? nil
+                : ProviderPaceCapability.monthlyWindowSentinelMinutes
             return RateWindow(
                 usedPercent: usedPercent,
-                windowMinutes: nil,
+                windowMinutes: windowMinutes,
                 resetsAt: self.planPeriodEnd,
                 resetDescription: resetDesc)
         }()

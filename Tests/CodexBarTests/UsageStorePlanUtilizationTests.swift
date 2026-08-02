@@ -840,6 +840,66 @@ struct UsageStorePlanUtilizationTests {
 
     @MainActor
     @Test
+    func `record plan history stores mimo monthly series`() async {
+        let store = Self.makeStore()
+        store.settings.historicalTrackingEnabled = true
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(
+                usedPercent: 34,
+                windowMinutes: ProviderPaceCapability.monthlyWindowSentinelMinutes,
+                resetsAt: now.addingTimeInterval(20 * 24 * 60 * 60),
+                resetDescription: nil),
+            secondary: nil,
+            updatedAt: now)
+
+        await store.recordPlanUtilizationHistorySample(provider: .mimo, snapshot: snapshot, now: now)
+
+        let histories = store.planUtilizationHistory(for: .mimo)
+        #expect(findSeries(histories, name: .monthly, windowMinutes: 43200)?.entries.last?.usedPercent == 34)
+    }
+
+    @MainActor
+    @Test
+    func `record plan history stores stepfun monthly series`() async {
+        let store = Self.makeStore()
+        store.settings.historicalTrackingEnabled = true
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(
+                usedPercent: 58,
+                windowMinutes: ProviderPaceCapability.monthlyWindowSentinelMinutes,
+                resetsAt: now.addingTimeInterval(20 * 24 * 60 * 60),
+                resetDescription: nil),
+            secondary: nil,
+            updatedAt: now)
+
+        await store.recordPlanUtilizationHistorySample(provider: .stepfun, snapshot: snapshot, now: now)
+
+        let histories = store.planUtilizationHistory(for: .stepfun)
+        #expect(findSeries(histories, name: .monthly, windowMinutes: 43200)?.entries.last?.usedPercent == 58)
+    }
+
+    @MainActor
+    @Test
+    func `stepfun rolling windows keep their session and weekly history lanes`() async {
+        let store = Self.makeStore()
+        store.settings.historicalTrackingEnabled = true
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(usedPercent: 25, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+            secondary: RateWindow(usedPercent: 40, windowMinutes: 10080, resetsAt: nil, resetDescription: nil),
+            updatedAt: now)
+
+        await store.recordPlanUtilizationHistorySample(provider: .stepfun, snapshot: snapshot, now: now)
+
+        let histories = store.planUtilizationHistory(for: .stepfun)
+        #expect(findSeries(histories, name: .session, windowMinutes: 300)?.entries.last?.usedPercent == 25)
+        #expect(findSeries(histories, name: .weekly, windowMinutes: 10080)?.entries.last?.usedPercent == 40)
+    }
+
+    @MainActor
+    @Test
     func `generic provider weekly lane is persisted to provider history json`() async throws {
         let store = Self.makeStore()
         store.settings.historicalTrackingEnabled = true

@@ -195,6 +195,55 @@ struct ZaiUsageSnapshotTests {
 
         #expect(usage.primary?.usedPercent == 25)
     }
+
+    @Test
+    func `time limit with explicit duration preserves windowMinutes instead of monthly sentinel`() {
+        let reset = Date(timeIntervalSince1970: 123)
+        let timeLimit = ZaiLimitEntry(
+            type: .timeLimit,
+            unit: .hours,
+            number: 5,
+            usage: 100,
+            currentValue: 20,
+            remaining: 80,
+            percentage: 25,
+            usageDetails: [],
+            nextResetTime: reset)
+        let snapshot = ZaiUsageSnapshot(
+            tokenLimit: nil,
+            timeLimit: timeLimit,
+            planName: nil,
+            updatedAt: reset)
+
+        let usage = snapshot.toUsageSnapshot()
+
+        #expect(usage.primary?.windowMinutes == 300)
+        #expect(usage.primary?.resetDescription == "5 hours window")
+    }
+
+    @Test
+    func `time limit without explicit duration falls back to monthly sentinel`() {
+        let reset = Date(timeIntervalSince1970: 123)
+        let timeLimit = ZaiLimitEntry(
+            type: .timeLimit,
+            unit: .days,
+            number: 0,
+            usage: 100,
+            currentValue: 20,
+            remaining: 80,
+            percentage: 25,
+            usageDetails: [],
+            nextResetTime: reset)
+        let snapshot = ZaiUsageSnapshot(
+            tokenLimit: nil,
+            timeLimit: timeLimit,
+            planName: nil,
+            updatedAt: reset)
+
+        let usage = snapshot.toUsageSnapshot()
+
+        #expect(usage.primary?.windowMinutes == ProviderPaceCapability.monthlyWindowSentinelMinutes)
+    }
 }
 
 struct ZaiUsageParsingTests {
@@ -253,7 +302,7 @@ struct ZaiUsageParsingTests {
         #expect(snapshot.tokenLimit?.percentage == 34.0)
 
         let usage = snapshot.toUsageSnapshot()
-        #expect(usage.secondary?.windowMinutes == nil)
+        #expect(usage.secondary?.windowMinutes == ProviderPaceCapability.monthlyWindowSentinelMinutes)
         #expect(usage.secondary?.resetDescription == "Monthly")
     }
 
@@ -292,7 +341,7 @@ struct ZaiUsageParsingTests {
         let usage = snapshot.toUsageSnapshot()
 
         #expect(snapshot.timeLimit?.windowDescription == "1 minute")
-        #expect(usage.secondary?.windowMinutes == nil)
+        #expect(usage.secondary?.windowMinutes == ProviderPaceCapability.monthlyWindowSentinelMinutes)
         #expect(usage.secondary?.resetDescription == "Monthly")
     }
 

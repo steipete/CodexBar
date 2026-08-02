@@ -248,8 +248,31 @@ struct StepFunUsageFetcherParsingTests {
         let primaryUsed = usage.primary?.usedPercent ?? -1
         #expect(primaryUsed > 3.5 && primaryUsed < 3.7)
 
+        // The monthly credit pool (with a real reset time) carries a monthly windowMinutes so
+        // it feeds the plan-utilization history + pace forecast (parity with Codex/Claude).
+        #expect(usage.primary?.windowMinutes == 30 * 24 * 60)
+
         // No secondary window for credit plans.
         #expect(usage.secondary == nil)
+    }
+
+    @Test
+    func `zero credit reset does not activate monthly pace`() throws {
+        let json = """
+        {
+            "status": 1,
+            "plan_family": 2,
+            "plan_credit_rate_limit": {
+                "subscription_credit_left_rate": 0.5,
+                "subscription_credit_reset_time": "0"
+            }
+        }
+        """
+        let snapshot = try StepFunUsageFetcher._parseSnapshotForTesting(Data(json.utf8))
+        let usage = snapshot.toUsageSnapshot()
+
+        #expect(snapshot.creditResetTime == nil)
+        #expect(usage.primary?.windowMinutes == nil)
     }
 
     @Test

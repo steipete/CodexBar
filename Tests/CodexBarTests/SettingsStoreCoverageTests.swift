@@ -328,7 +328,7 @@ struct SettingsStoreCoverageTests {
 
         let snapshot = settings.claudeSettingsSnapshot(tokenOverride: nil)
 
-        #expect(snapshot.usageDataSource == .auto)
+        #expect(snapshot.usageDataSource == .oauth)
         #expect(snapshot.cookieSource == .off)
         #expect(snapshot.manualCookieHeader?.isEmpty == true)
     }
@@ -340,7 +340,7 @@ struct SettingsStoreCoverageTests {
 
         let snapshot = settings.claudeSettingsSnapshot(tokenOverride: nil)
 
-        #expect(snapshot.usageDataSource == .auto)
+        #expect(snapshot.usageDataSource == .web)
         #expect(snapshot.cookieSource == .manual)
         #expect(snapshot.manualCookieHeader == "sessionKey=sk-ant-session-token")
     }

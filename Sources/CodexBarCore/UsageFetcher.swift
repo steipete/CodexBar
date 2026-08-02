@@ -300,6 +300,12 @@ public struct UsageSnapshot: Codable, Sendable {
         self.replacing(codexResetCredits: .value(resetCredits))
     }
 
+    public func withSubscriptionMetadata(expiresAt: Date?, renewsAt: Date?) -> UsageSnapshot {
+        self.replacing(
+            subscriptionExpiresAt: .value(expiresAt),
+            subscriptionRenewsAt: .value(renewsAt))
+    }
+
     public func with(primary: RateWindow?, secondary: RateWindow?) -> UsageSnapshot {
         self.replacing(
             primary: .value(primary),
@@ -545,6 +551,8 @@ public struct UsageSnapshot: Codable, Sendable {
         deepseekDetailedUsageState: Replacement<DeepSeekDetailedUsageState> = .unchanged,
         deepseekPlatformProfiles: Replacement<[DeepSeekPlatformProfile]> = .unchanged,
         codexResetCredits: Replacement<CodexRateLimitResetCreditsSnapshot?> = .unchanged,
+        subscriptionExpiresAt: Replacement<Date?> = .unchanged,
+        subscriptionRenewsAt: Replacement<Date?> = .unchanged,
         identity: Replacement<ProviderIdentitySnapshot?> = .unchanged,
         dataConfidence: Replacement<UsageDataConfidence> = .unchanged) -> UsageSnapshot
     {
@@ -581,8 +589,8 @@ public struct UsageSnapshot: Codable, Sendable {
             commandCodeSubscriptionEnrichmentUnavailable: self.commandCodeSubscriptionEnrichmentUnavailable,
             commandCodeHasSubscriptionPlan: self.commandCodeHasSubscriptionPlan,
             commandCodeMonthlyGrantDepleted: self.commandCodeMonthlyGrantDepleted,
-            subscriptionExpiresAt: self.subscriptionExpiresAt,
-            subscriptionRenewsAt: self.subscriptionRenewsAt,
+            subscriptionExpiresAt: subscriptionExpiresAt.resolving(self.subscriptionExpiresAt),
+            subscriptionRenewsAt: subscriptionRenewsAt.resolving(self.subscriptionRenewsAt),
             updatedAt: self.updatedAt,
             identity: identity.resolving(self.identity),
             dataConfidence: dataConfidence.resolving(self.dataConfidence))

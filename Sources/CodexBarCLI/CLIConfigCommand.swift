@@ -119,6 +119,14 @@ extension CodexBarCLI {
         Self.exit(code: .success, output: output, kind: .config)
     }
 
+    static func unsupportedAPIKeyErrorMessage(for provider: UsageProvider, rawProvider: String) -> String {
+        if provider == .codex {
+            "\(rawProvider) does not support config API keys. For OpenAI Platform API keys, use '--provider openai'."
+        } else {
+            "\(rawProvider) does not support config API keys."
+        }
+    }
+
     static func runConfigSetAPIKey(_ values: ParsedValues) {
         let output = CLIOutputPreferences.from(values: values)
 
@@ -134,7 +142,7 @@ extension CodexBarCLI {
         guard ProviderConfigEnvironment.supportsAPIKeyOverride(for: provider) else {
             Self.exit(
                 code: .failure,
-                message: "\(rawProvider) does not support config API keys.",
+                message: Self.unsupportedAPIKeyErrorMessage(for: provider, rawProvider: rawProvider),
                 output: output,
                 kind: .args)
         }

@@ -28,6 +28,28 @@ extension UsageStore {
             return transition.snapshot
         }
         if let snapshot = self.snapshots[provider] {
+            if provider == .codex {
+                if self.openAIDashboardAttachmentAuthorized,
+                   let dashboard = self.openAIDashboard,
+                   dashboard.subscriptionRenewsAt != nil || dashboard.subscriptionExpiresAt != nil
+                {
+                    return snapshot.withSubscriptionMetadata(
+                        expiresAt: dashboard.subscriptionExpiresAt,
+                        renewsAt: dashboard.subscriptionRenewsAt)
+                }
+
+                if let cache = OpenAIDashboardCacheStore.load(),
+                   cache.snapshot.subscriptionRenewsAt != nil || cache.snapshot.subscriptionExpiresAt != nil,
+                   let cacheEmail = CodexIdentityResolver.normalizeEmail(cache.accountEmail),
+                   let accountEmail = CodexIdentityResolver.normalizeEmail(
+                       snapshot.accountEmail(for: .codex) ?? self.accountInfo(for: .codex).email),
+                   cacheEmail == accountEmail
+                {
+                    return snapshot.withSubscriptionMetadata(
+                        expiresAt: cache.snapshot.subscriptionExpiresAt,
+                        renewsAt: cache.snapshot.subscriptionRenewsAt)
+                }
+            }
             return snapshot
         }
         guard provider == .deepseek, self.refreshingProviders.contains(provider) else { return nil }

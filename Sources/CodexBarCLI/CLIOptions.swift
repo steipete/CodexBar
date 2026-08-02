@@ -63,6 +63,11 @@ struct UsageOptions: CommanderParsable {
     @Option(name: .long("source"), help: Self.sourceHelp)
     var source: String?
 
+    @Flag(
+        name: .long("app-auto-verifier"),
+        help: "Exercise the app's Claude Auto route (verification only; requires --provider claude --source auto)")
+    var appAutoVerifier: Bool = false
+
     @Option(name: .long("web-timeout"), help: "Web fetch timeout (seconds; source=auto or web)")
     var webTimeout: Double?
 

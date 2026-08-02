@@ -184,6 +184,10 @@ final class CLIEntryTests: XCTestCase {
             executableURL.path,
         ]
         process.currentDirectoryURL = currentDirectoryURL
+        // Spawned CLI binaries match no test-process name pattern; make the
+        // keychain suppression explicit instead of relying on env inheritance.
+        process.environment = ProcessInfo.processInfo.environment.merging(
+            ["CODEXBAR_SUPPRESS_TEST_KEYCHAIN_ACCESS": "1"]) { _, new in new }
 
         let stdout = Pipe()
         let stderr = Pipe()

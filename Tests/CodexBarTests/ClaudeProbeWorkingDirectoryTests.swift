@@ -139,6 +139,43 @@ struct ClaudeProbeWorkingDirectoryTests {
         #expect(!FileManager.default.fileExists(atPath: probeSession.path))
     }
 
+    @Test
+    func `cleanup resolves one literal relative profile root like Claude`() throws {
+        let probeDirectory = try Self.makeTemporaryDirectory()
+        let homeDirectory = try Self.makeTemporaryDirectory()
+        defer {
+            try? FileManager.default.removeItem(at: probeDirectory)
+            try? FileManager.default.removeItem(at: homeDirectory)
+        }
+
+        let relativeProfile = "profiles/team,a"
+        let selectedRoot = probeDirectory.appendingPathComponent(relativeProfile, isDirectory: true)
+        let defaultRoot = homeDirectory.appendingPathComponent(".claude", isDirectory: true)
+        let projectDirectoryName = ClaudeProbeSessionArtifactCleaner.claudeProjectDirectoryName(
+            for: probeDirectory)
+        let selectedProject = selectedRoot
+            .appendingPathComponent("projects", isDirectory: true)
+            .appendingPathComponent(projectDirectoryName, isDirectory: true)
+        let defaultProject = defaultRoot
+            .appendingPathComponent("projects", isDirectory: true)
+            .appendingPathComponent(projectDirectoryName, isDirectory: true)
+        try FileManager.default.createDirectory(at: selectedProject, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: defaultProject, withIntermediateDirectories: true)
+
+        let selectedTranscript = selectedProject.appendingPathComponent("selected.jsonl")
+        let defaultTranscript = defaultProject.appendingPathComponent("default.jsonl")
+        try Data("{}\n".utf8).write(to: selectedTranscript)
+        try Data("{}\n".utf8).write(to: defaultTranscript)
+
+        let removed = ClaudeProbeSessionArtifactCleaner.cleanupProbeSessionArtifacts(
+            probeDirectory: probeDirectory,
+            environment: ["CLAUDE_CONFIG_DIR": relativeProfile, "HOME": homeDirectory.path])
+
+        #expect(removed.map(\.lastPathComponent) == ["selected.jsonl"])
+        #expect(!FileManager.default.fileExists(atPath: selectedTranscript.path))
+        #expect(FileManager.default.fileExists(atPath: defaultTranscript.path))
+    }
+
     private static func makeTemporaryDirectory() throws -> URL {
         let directory = FileManager.default.temporaryDirectory
             .appendingPathComponent("codexbar-claude-probe-\(UUID().uuidString)", isDirectory: true)

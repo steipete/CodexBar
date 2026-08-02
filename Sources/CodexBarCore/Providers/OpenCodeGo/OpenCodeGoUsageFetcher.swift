@@ -26,6 +26,7 @@ public enum OpenCodeGoUsageError: LocalizedError {
 public struct OpenCodeGoUsageFetcher: Sendable {
     private static let log = CodexBarLog.logger(LogCategories.opencodeGoUsage)
     private static let baseURL = URL(string: "https://opencode.ai")!
+    private static let authURL = URL(string: "https://opencode.ai/auth")!
     private static let serverURL = URL(string: "https://opencode.ai/_server")!
     private static let workspacesServerID = "def39973159c7f0483d8793a822b8dbb10d067e12c65455fcb4608459ba0234f"
     private static let billingServerID = "c83b78a614689c38ebee981f9b39a8b377716db85c1fd7dbab604adc02d3313d"
@@ -263,7 +264,7 @@ public struct OpenCodeGoUsageFetcher: Sendable {
         guard let workspaceID = self.normalizeWorkspaceID(raw),
               let url = URL(string: "\(self.baseURL.absoluteString)/workspace/\(workspaceID)/go")
         else {
-            return self.baseURL
+            return self.authURL
         }
         return url
     }

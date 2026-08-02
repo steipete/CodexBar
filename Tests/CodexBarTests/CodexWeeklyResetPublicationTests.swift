@@ -326,7 +326,7 @@ extension CodexAccountScopedRefreshTests {
         defer { settings._test_liveSystemCodexAccount = nil }
 
         let now = Date()
-        let priorBoundary = now.addingTimeInterval(2 * 24 * 60 * 60)
+        let priorBoundary = now.addingTimeInterval(-50)
         let nextBoundary = priorBoundary.addingTimeInterval(7 * 24 * 60 * 60)
         let prior = self.codexWeeklySnapshot(
             email: email,
@@ -366,6 +366,67 @@ extension CodexAccountScopedRefreshTests {
         #expect(store.lastKnownResetSnapshots[.codex]?.updatedAt == confirmedLow.updatedAt)
         #expect(recorder.count == 1)
         #expect(recorder.usedPercents == [0.7])
+    }
+
+    @Test
+    func `matching weekly lows before the prior reset remain private`() async throws {
+        let suite = "CodexWeeklyResetPublicationTests-early-rolling-boundary"
+        let email = "early-rolling-boundary@example.com"
+        let settings = self.makeSettingsStore(suite: suite)
+        settings.refreshFrequency = .manual
+        settings.codexCookieSource = .off
+        settings._test_liveSystemCodexAccount = self.liveAccount(
+            email: email,
+            identity: .providerAccount(id: "acct-early-rolling-boundary"))
+        defer { settings._test_liveSystemCodexAccount = nil }
+
+        let formatter = ISO8601DateFormatter()
+        let previousCapturedAt = try #require(formatter.date(from: "2026-07-28T03:09:20Z"))
+        let previousReset = try #require(formatter.date(from: "2026-08-02T10:17:56Z"))
+        let initialCapturedAt = try #require(formatter.date(from: "2026-07-28T03:59:23Z"))
+        let initialReset = try #require(formatter.date(from: "2026-08-04T03:59:21Z"))
+        let prior = self.codexWeeklySnapshot(
+            email: email,
+            weeklyUsedPercent: 100,
+            weeklyReset: previousReset,
+            updatedAt: previousCapturedAt)
+        let initialLow = self.codexWeeklySnapshot(
+            email: email,
+            weeklyUsedPercent: 0,
+            weeklyReset: initialReset,
+            updatedAt: initialCapturedAt)
+        let confirmedLow = self.codexWeeklySnapshot(
+            email: email,
+            weeklyUsedPercent: 0,
+            weeklyReset: initialReset.addingTimeInterval(30),
+            updatedAt: initialCapturedAt.addingTimeInterval(30))
+        let loader = SequencedCodexSnapshotLoader(steps: [
+            .success(initialLow),
+            .success(confirmedLow),
+        ])
+        let store = self.makeCodexWeeklyPublicationStore(settings: settings, suite: suite)
+        let priorRevision = await self.seedCodexWeeklyPublicationState(
+            store: store,
+            settings: settings,
+            snapshot: prior)
+        self.installContextualCodexProvider(on: store) { _ in try await loader.load() }
+        let recorder = CodexWeeklyPublicationEventRecorder(email: email)
+        defer { recorder.invalidate() }
+
+        await store.refreshProvider(.codex, allowDisabled: true)
+
+        #expect(await loader.callCount == 2)
+        #expect(store.snapshots[.codex]?.updatedAt == prior.updatedAt)
+        #expect(store.snapshots[.codex]?.secondary?.usedPercent == 100)
+        #expect(store.lastKnownResetSnapshots[.codex]?.updatedAt == prior.updatedAt)
+        #expect(store.lastKnownResetSnapshots[.codex]?.secondary?.usedPercent == 100)
+        #expect(store.errors[.codex] == "prior error")
+        #expect(store.lastSourceLabels[.codex] == "prior-source")
+        #expect(store.lastFetchAttempts[.codex]?.count == 1)
+        #expect(store.lastFetchAttempts[.codex]?.first?.strategyID == "prior-strategy")
+        #expect(store.lastFetchAttempts[.codex]?.first?.errorDescription == "prior diagnostic")
+        #expect(store.planUtilizationHistoryRevision == priorRevision)
+        #expect(recorder.usedPercents.isEmpty)
     }
 
     @Test(arguments: CodexRejectedConfirmationCase.allCases)
@@ -457,7 +518,7 @@ extension CodexAccountScopedRefreshTests {
         defer { settings._test_liveSystemCodexAccount = nil }
 
         let now = Date()
-        let priorBoundary = now.addingTimeInterval(2 * 24 * 60 * 60)
+        let priorBoundary = now.addingTimeInterval(-50)
         let nextBoundary = priorBoundary.addingTimeInterval(7 * 24 * 60 * 60)
         let prior = self.codexWeeklySnapshot(
             email: email,
