@@ -1819,7 +1819,7 @@ enum CostUsageScanner {
             root: root,
             scanSinceKey: scanSinceKey,
             scanUntilKey: scanUntilKey,
-            calendar: calendar)
+            calendar: calendar).files
         let flat = self.listCodexSessionFilesFlat(root: root, scanSinceKey: scanSinceKey, scanUntilKey: scanUntilKey)
         let recursive = includeRecursive ? self.listCodexLegacySessionFilesRecursive(root: root) : []
         var seen: Set<String> = []
@@ -2081,9 +2081,9 @@ enum CostUsageScanner {
     private static func listCodexRecentlyModifiedFiles(
         root: URL,
         scanSinceKey: String,
-        scanUntilKey: String,
         modifiedSince: Date,
-        includeLegacyRecursiveScan: Bool = true,
+        includeLegacyRecursiveScan: Bool,
+        scanBudget: CodexScanBudget,
         calendar: Calendar = .current) -> [URL]
     {
         let lookbackSinceKey = self.dayKey(
@@ -2091,17 +2091,22 @@ enum CostUsageScanner {
             addingDays: -self.codexActiveSessionLookbackDays,
             calendar: calendar)
             ?? scanSinceKey
+        let lookbackUntilKey = self.dayKey(scanSinceKey, addingDays: -1, calendar: calendar)
+            ?? lookbackSinceKey
         let partitioned = self.listCodexSessionFilesByDatePartition(
             root: root,
             scanSinceKey: lookbackSinceKey,
-            scanUntilKey: scanUntilKey,
-            calendar: calendar)
-        let partitionedModified = self.filterRecentlyModified(files: partitioned, modifiedSince: modifiedSince)
+            scanUntilKey: lookbackUntilKey,
+            calendar: calendar,
+            scanBudget: scanBudget)
+        let partitionedModified = self.filterRecentlyModified(
+            files: partitioned.files,
+            modifiedSince: modifiedSince)
 
         // The recursive walk visits the entire sessions root, so its cost grows with
         // the whole corpus rather than with the lookback. It stays cold-cache only;
         // warm refreshes use the bounded partition lookback above.
-        guard includeLegacyRecursiveScan else { return partitionedModified }
+        guard includeLegacyRecursiveScan, partitioned.isComplete else { return partitionedModified }
 
         let legacyRecursive = self.listCodexRecentlyModifiedFilesRecursive(root: root, modifiedSince: modifiedSince)
         var seen = Set(partitionedModified.map(\.path))
@@ -2195,19 +2200,38 @@ enum CostUsageScanner {
         }
     }
 
+    private struct CodexDatePartitionListing {
+        let files: [URL]
+        let isComplete: Bool
+    }
+
     private static func listCodexSessionFilesByDatePartition(
         root: URL,
         scanSinceKey: String,
         scanUntilKey: String,
-        calendar: Calendar = .current) -> [URL]
+        calendar: Calendar = .current,
+        scanBudget: CodexScanBudget? = nil) -> CodexDatePartitionListing
     {
-        guard FileManager.default.fileExists(atPath: root.path) else { return [] }
+        guard FileManager.default.fileExists(atPath: root.path) else {
+            return CodexDatePartitionListing(files: [], isComplete: true)
+        }
         let calendar = CostUsageDayRange.localGregorianCalendar(matching: calendar)
         var out: [URL] = []
         var date = Self.parseDayKey(scanSinceKey, calendar: calendar) ?? Date()
         let untilDate = Self.parseDayKey(scanUntilKey, calendar: calendar) ?? date
 
         while date <= untilDate {
+            let admittedWork: Int64
+            if let scanBudget {
+                switch scanBudget.admit(workBytes: 1) {
+                case let .allow(allowance): admittedWork = allowance
+                case .deferBudget:
+                    return CodexDatePartitionListing(files: out, isComplete: false)
+                }
+            } else {
+                admittedWork = 0
+            }
+
             let comps = calendar.dateComponents([.year, .month, .day], from: date)
             let y = String(format: "%04d", comps.year ?? 1970)
             let m = String(format: "%02d", comps.month ?? 1)
@@ -2226,11 +2250,12 @@ enum CostUsageScanner {
                     out.append(item)
                 }
             }
+            scanBudget?.complete(admittedWorkBytes: admittedWork, actualWorkBytes: admittedWork)
 
             date = calendar.date(byAdding: .day, value: 1, to: date) ?? untilDate.addingTimeInterval(1)
         }
 
-        return out
+        return CodexDatePartitionListing(files: out, isComplete: true)
     }
 
     private static func listCodexSessionFilesFlat(root: URL, scanSinceKey: String, scanUntilKey: String) -> [URL] {
@@ -4364,6 +4389,10 @@ enum CostUsageScanner {
             let cachedUntilKey = cache.scanUntilKey
             let shouldRunColdCacheLookback = cache.files.isEmpty || plan.rootsChanged
             let coldCacheLookbackStart = Self.localStartOfDay(range.scanSinceKey, calendar: options.calendar)
+            let scanBudget = CodexScanBudget(
+                maxFileBytes: options.maxCodexSessionFileBytes,
+                maxBytesPerRefresh: options.maxCodexScanBytesPerRefresh,
+                maxDuration: options.maxCodexScanDurationPerRefresh)
             var seenPaths: Set<String> = []
             var files: [URL] = []
             for root in plan.roots {
@@ -4391,9 +4420,9 @@ enum CostUsageScanner {
                     let recentlyModifiedFiles = Self.listCodexRecentlyModifiedFiles(
                         root: root,
                         scanSinceKey: range.scanSinceKey,
-                        scanUntilKey: range.scanUntilKey,
                         modifiedSince: coldCacheLookbackStart,
                         includeLegacyRecursiveScan: shouldRunColdCacheLookback,
+                        scanBudget: scanBudget,
                         calendar: options.calendar)
                     for fileURL in recentlyModifiedFiles.sorted(by: { $0.path < $1.path })
                         where !seenPaths.contains(fileURL.path)
@@ -4420,10 +4449,6 @@ enum CostUsageScanner {
             }
 
             var filePathsInScan = Set(files.map(\.path))
-            let scanBudget = CodexScanBudget(
-                maxFileBytes: options.maxCodexSessionFileBytes,
-                maxBytesPerRefresh: options.maxCodexScanBytesPerRefresh,
-                maxDuration: options.maxCodexScanDurationPerRefresh)
             let fileIndex = CodexSessionFileIndex(
                 files: files,
                 roots: plan.roots,

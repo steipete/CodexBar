@@ -186,4 +186,75 @@ struct CodexWarmCacheResumeLinuxTests {
             never re-scanned
             """)
     }
+
+    @Test
+    func `older partition discovery shares the bounded scan budget`() throws {
+        let env = try Environment()
+        defer { env.cleanup() }
+
+        let today = try env.localNoon(year: 2026, month: 7, day: 20)
+        let oldDay = try env.localNoon(year: 2026, month: 7, day: 1)
+        let windowStart = try env.localNoon(year: 2026, month: 7, day: 15)
+        try env.writeSession(
+            day: today,
+            filename: "rollout-recent.jsonl",
+            contents: env.jsonl([
+                Self.turnContext(iso: env.isoString(for: today)),
+                Self.tokenCount(iso: env.isoString(for: today), input: 100, cached: 0, output: 10),
+            ]))
+        let oldFile = try env.writeSession(
+            day: oldDay,
+            filename: "rollout-resumed.jsonl",
+            contents: env.jsonl([
+                Self.turnContext(iso: env.isoString(for: oldDay)),
+                Self.tokenCount(iso: env.isoString(for: oldDay), input: 50, cached: 0, output: 5),
+            ]))
+
+        var options = CostUsageScanner.Options(
+            codexSessionsRoot: env.codexSessionsRoot,
+            claudeProjectsRoots: nil,
+            cacheRoot: env.cacheRoot)
+        options.refreshMinIntervalSeconds = 0
+        let warmup = CostUsageScanner.loadDailyReport(
+            provider: .codex,
+            since: windowStart,
+            until: today,
+            now: today,
+            options: options)
+
+        let resumeISO = env.isoString(for: today.addingTimeInterval(60))
+        try env.jsonl([
+            Self.turnContext(iso: env.isoString(for: oldDay)),
+            Self.tokenCount(iso: env.isoString(for: oldDay), input: 50, cached: 0, output: 5),
+            Self.turnContext(iso: resumeISO),
+            Self.tokenCount(iso: resumeISO, input: 4000, cached: 0, output: 400),
+        ]).write(to: oldFile, atomically: true, encoding: .utf8)
+
+        options.maxCodexScanBytesPerRefresh = Int64(CostUsageScanner.codexActiveSessionLookbackDays)
+        let budgeted = CostUsageScanner.loadDailyReport(
+            provider: .codex,
+            since: windowStart,
+            until: today,
+            now: today.addingTimeInterval(120),
+            options: options)
+        #expect(Self.totalTokens(budgeted) == Self.totalTokens(warmup))
+        #expect(CostUsageCacheIO.load(provider: .codex, cacheRoot: env.cacheRoot).codexScanCatchUpPending == true)
+
+        options.maxCodexScanBytesPerRefresh = 512 * 1024 * 1024
+        let caughtUp = CostUsageScanner.loadDailyReport(
+            provider: .codex,
+            since: windowStart,
+            until: today,
+            now: today.addingTimeInterval(180),
+            options: options)
+        var forcedOptions = options
+        forcedOptions.forceRescan = true
+        let forced = CostUsageScanner.loadDailyReport(
+            provider: .codex,
+            since: windowStart,
+            until: today,
+            now: today.addingTimeInterval(240),
+            options: forcedOptions)
+        #expect(Self.totalTokens(caughtUp) == Self.totalTokens(forced))
+    }
 }

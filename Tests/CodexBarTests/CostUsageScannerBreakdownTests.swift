@@ -1203,6 +1203,9 @@ struct CostUsageScannerBreakdownTests {
             now: day,
             options: options)
         #expect(wide.summary?.totalTokens == 30)
+        try FileManager.default.setAttributes(
+            [.modificationDate: olderDay],
+            ofItemAtPath: olderFile.path)
 
         var cache = CostUsageCacheIO.load(provider: .codex, cacheRoot: env.cacheRoot)
         cache.codexProjectMetadataVersion = nil
