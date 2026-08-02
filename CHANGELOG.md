@@ -5,6 +5,9 @@
 ### Changed
 - About: link the Website entry to codex.bar.
 
+### Fixed
+- MiMo/StepFun: feed monthly token-plan windows into usage history, pace, and forecasts (#2526, part of #2431). Thanks @LeoLin990405!
+
 ## 0.46.0 — 2026-07-29
 
 ### Added

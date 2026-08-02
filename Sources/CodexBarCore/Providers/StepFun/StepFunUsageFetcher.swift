@@ -734,7 +734,7 @@ public struct StepFunUsageFetcher: Sendable {
 
         let creditLeftRate = decoded.planCreditRateLimit?.totalCreditLeftRate
         let creditResetTime = decoded.planCreditRateLimit?.subscriptionCreditResetTime
-            .map { Date(timeIntervalSince1970: TimeInterval($0.value)) }
+            .flatMap { $0.value > 0 ? Date(timeIntervalSince1970: TimeInterval($0.value)) : nil }
 
         return StepFunUsageSnapshot(
             fiveHourUsageLeftRate: fiveHourRate,
