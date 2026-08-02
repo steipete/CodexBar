@@ -1353,3 +1353,5 @@
 "Cost today unavailable" = "ค่าใช้จ่ายวันนี้: ไม่พร้อมใช้งาน";
 "30-day cost unavailable" = "ค่าใช้จ่าย 30 วัน: ไม่พร้อมใช้งาน";
 "Resets" = "การรีเซ็ต";
+"Finish now" = "เสร็จสิ้นตอนนี้";
+"Continue in background" = "ทำต่อในเบื้องหลัง";

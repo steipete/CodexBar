@@ -125,7 +125,7 @@ struct Issue2037ScannerIntegrationTests {
     }
 
     @Test
-    func `missing parent equal counter siblings fail open`() throws {
+    func `missing parent equal counter siblings fail closed`() throws {
         let env = try CostUsageTestEnvironment()
         defer { env.cleanup() }
 
@@ -174,8 +174,9 @@ struct Issue2037ScannerIntegrationTests {
             partial + (row.inputTokens ?? 0) + (row.cacheReadTokens ?? 0) + (row.outputTokens ?? 0)
         }
 
-        // Each unresolved child skips its first cumulative snapshot, then independently bills
-        // five input tokens. Equal token vectors are not sufficient cross-file identity.
-        #expect(scannedUnits == 10)
+        // Neither child has a trustworthy inherited baseline. Equal token vectors are not
+        // sufficient cross-file identity, so both children stay uncounted until the parent
+        // snapshot is available from its file or the persistent token index.
+        #expect(scannedUnits == 0)
     }
 }

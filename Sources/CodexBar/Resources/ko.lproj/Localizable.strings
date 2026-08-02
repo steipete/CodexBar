@@ -1317,3 +1317,5 @@
 "Cost today unavailable" = "오늘 비용: 사용할 수 없음";
 "30-day cost unavailable" = "30일 비용: 사용할 수 없음";
 "Resets" = "재설정";
+"Finish now" = "지금 완료";
+"Continue in background" = "백그라운드에서 계속";
