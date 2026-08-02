@@ -6,9 +6,13 @@ import Testing
 @MainActor
 struct CursorProviderImplementationTests {
     @Test
-    func `on demand usage respects optional usage setting`() throws {
+    func `menu descriptor shows on demand usage only when optional usage is enabled`() throws {
         let snapshot = UsageSnapshot(
-            primary: nil,
+            primary: RateWindow(
+                usedPercent: 25,
+                windowMinutes: 30 * 24 * 60,
+                resetsAt: nil,
+                resetDescription: nil),
             secondary: nil,
             providerCost: ProviderCostSnapshot(
                 used: 12,
@@ -18,30 +22,18 @@ struct CursorProviderImplementationTests {
                 updatedAt: Date(timeIntervalSince1970: 0)),
             updatedAt: Date(timeIntervalSince1970: 0))
 
-        var hiddenEntries: [ProviderMenuEntry] = []
-        let hiddenContext = try Self.context(snapshot: snapshot, showOptionalUsage: false)
-        CursorProviderImplementation().appendUsageMenuEntries(
-            context: hiddenContext,
-            entries: &hiddenEntries)
-        #expect(hiddenEntries.isEmpty)
+        let hiddenLines = try Self.menuLines(snapshot: snapshot, showOptionalUsage: false)
+        #expect(!hiddenLines.contains("On-demand: $12.00 / $60.00"))
+        #expect(hiddenLines.contains(where: { $0.hasPrefix("Total:") }))
 
-        var visibleEntries: [ProviderMenuEntry] = []
-        let visibleContext = try Self.context(snapshot: snapshot, showOptionalUsage: true)
-        CursorProviderImplementation().appendUsageMenuEntries(
-            context: visibleContext,
-            entries: &visibleEntries)
-
-        guard case let .text(title, style) = try #require(visibleEntries.first) else {
-            Issue.record("Expected Cursor on-demand usage menu text")
-            return
-        }
-        #expect(title == "On-demand: $12.00 / $60.00")
-        #expect(style == .primary)
+        let visibleLines = try Self.menuLines(snapshot: snapshot, showOptionalUsage: true)
+        #expect(visibleLines.contains("On-demand: $12.00 / $60.00"))
+        #expect(visibleLines.contains(where: { $0.hasPrefix("Total:") }))
     }
 
-    private static func context(
+    private static func menuLines(
         snapshot: UsageSnapshot,
-        showOptionalUsage: Bool) throws -> ProviderMenuUsageContext
+        showOptionalUsage: Bool) throws -> [String]
     {
         let suite = "CursorProviderImplementationTests-\(UUID().uuidString)"
         let defaults = try #require(UserDefaults(suiteName: suite))
@@ -70,12 +62,20 @@ struct CursorProviderImplementationTests {
             settings: settings,
             startupBehavior: .testing,
             environmentBase: [:])
+        store._setSnapshotForTesting(snapshot, provider: .cursor)
 
-        return ProviderMenuUsageContext(
+        let descriptor = MenuDescriptor.build(
             provider: .cursor,
             store: store,
             settings: settings,
-            metadata: CursorProviderDescriptor.descriptor.metadata,
-            snapshot: snapshot)
+            account: AccountInfo(email: nil, plan: nil),
+            updateReady: false,
+            includeContextualActions: false)
+        return descriptor.sections
+            .flatMap(\.entries)
+            .compactMap { entry -> String? in
+                guard case let .text(text, _) = entry else { return nil }
+                return text
+            }
     }
 }
