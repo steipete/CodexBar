@@ -298,13 +298,19 @@ struct ClaudeProviderImplementation: ProviderImplementation {
            context.settings.showOptionalCreditsAndExtraUsage,
            cost.currencyCode != "Quota"
         {
+            func formatCost(_ value: Double) -> String {
+                UsageFormatter.convertedCostString(
+                    value,
+                    preferredCurrency: context.settings.preferredCurrencyCode,
+                    providerCurrency: cost.currencyCode)
+            }
             if cost.limit > 0 {
-                let used = UsageFormatter.currencyString(cost.used, currencyCode: cost.currencyCode)
-                let limit = UsageFormatter.currencyString(cost.limit, currencyCode: cost.currencyCode)
+                let used = formatCost(cost.used)
+                let limit = formatCost(cost.limit)
                 entries.append(.text(String(format: L("extra_usage_format"), used, limit), .primary))
             }
             if let balance = cost.balance {
-                let value = UsageFormatter.currencyString(balance, currencyCode: cost.currencyCode)
+                let value = formatCost(balance)
                 let label = cost.limit > 0 ? L("Balance") : L("Credits")
                 entries.append(.text("\(label): \(value)", .primary))
             }
@@ -321,6 +327,7 @@ struct ClaudeProviderImplementation: ProviderImplementation {
         if self.shouldOpenTerminalForOAuthError(store: context.store) {
             return ("Open Terminal", .openTerminal(command: "claude"))
         }
+        guard !context.hasAccount else { return nil }
         return (L("Sign in with Claude Code..."), .switchAccount(.claude))
     }
 

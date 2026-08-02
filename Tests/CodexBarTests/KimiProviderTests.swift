@@ -1023,7 +1023,7 @@ struct KimiUsageSnapshotConversionTests {
         #expect(monthly.id == "kimi-monthly")
         #expect(monthly.title == "Monthly")
         #expect(monthly.window.usedPercent == 100)
-        #expect(monthly.window.windowMinutes == nil)
+        #expect(monthly.window.windowMinutes == ProviderPaceCapability.monthlyWindowSentinelMinutes)
         #expect(monthly.window.resetsAt == Self.date("2026-07-23T00:00:00Z"))
     }
 

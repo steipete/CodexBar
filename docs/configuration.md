@@ -183,6 +183,7 @@ printf '%s' "$LITELLM_API_KEY" | codexbar config set-api-key --provider litellm 
 printf '%s' "$CLAWROUTER_API_KEY" | codexbar config set-api-key --provider clawrouter --stdin
 printf '%s' "$SUB2API_API_KEY" | codexbar config set-api-key --provider sub2api --stdin
 printf '%s' "$AIAND_API_KEY" | codexbar config set-api-key --provider aiand --stdin
+printf '%s' "$XAI_MANAGEMENT_API_KEY" | codexbar config set-api-key --provider xai --stdin
 ```
 
 OpenAI API project scoping uses `workspaceID` in config. This maps to `OPENAI_PROJECT_ID` for Admin API usage and is
@@ -269,7 +270,7 @@ z.ai team accounts also use `usageScope`, `organizationId`, and `workspaceID`; s
 
 ## Provider IDs
 Current IDs (see `Sources/CodexBarCore/Providers/Providers.swift`):
-`codex`, `openai`, `azureopenai`, `claude`, `clinepass`, `cursor`, `opencode`, `opencodego`, `alibaba`, `alibabatokenplan`, `qwencloud`, `factory`, `gemini`, `antigravity`, `copilot`, `devin`, `zai`, `minimax`, `manus`, `kimi`, `kilo`, `kiro`, `vertexai`, `augment`, `jetbrains`, `moonshot`, `amp`, `t3chat`, `ollama`, `synthetic`, `warp`, `openrouter`, `elevenlabs`, `windsurf`, `zed`, `perplexity`, `mimo`, `doubao`, `sakana`, `abacus`, `mistral`, `deepseek`, `deepinfra`, `codebuff`, `crof`, `venice`, `commandcode`, `qoder`, `stepfun`, `bedrock`, `grok`, `groq`, `llmproxy`, `litellm`, `deepgram`, `poe`, `chutes`, `neuralwatt`, `clawrouter`, `longcat`, `sub2api`, `wayfinder`, `zenmux`, `aiand`, `zoommate`.
+`codex`, `openai`, `azureopenai`, `claude`, `clinepass`, `cursor`, `opencode`, `opencodego`, `alibaba`, `alibabatokenplan`, `qwencloud`, `factory`, `gemini`, `antigravity`, `copilot`, `devin`, `zai`, `minimax`, `manus`, `kimi`, `kilo`, `kiro`, `vertexai`, `augment`, `jetbrains`, `moonshot`, `amp`, `t3chat`, `ollama`, `synthetic`, `warp`, `openrouter`, `elevenlabs`, `windsurf`, `zed`, `perplexity`, `mimo`, `doubao`, `sakana`, `abacus`, `mistral`, `deepseek`, `deepinfra`, `codebuff`, `crof`, `venice`, `commandcode`, `qoder`, `stepfun`, `bedrock`, `grok`, `groq`, `llmproxy`, `litellm`, `deepgram`, `poe`, `chutes`, `neuralwatt`, `clawrouter`, `longcat`, `sub2api`, `wayfinder`, `zenmux`, `aiand`, `zoommate`, `xai`.
 
 ## Ordering
 The order of `providers` controls display/order in the app and CLI. Reorder the array to change ordering.

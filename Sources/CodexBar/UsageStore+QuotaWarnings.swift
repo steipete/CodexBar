@@ -74,8 +74,13 @@ extension UsageStore {
             primaryWindow = Self.antigravityWindow(snapshot: snapshot, windowMinutes: 5 * 60)
             secondaryWindow = Self.antigravityWindow(snapshot: snapshot, windowMinutes: 7 * 24 * 60)
         } else {
-            primaryWindow = provider == .mimo || provider == .qoder ? nil : snapshot.primary
-            secondaryWindow = provider == .mimo || provider == .qoder ? nil : snapshot.secondary
+            // Crof credits-only accounts publish a duration-less balance as `primary`; a drained
+            // prepaid balance is not a quota threshold crossing, so it must not raise warnings.
+            // Crof accounts that do expose request quotas (secondary present) keep normal warnings.
+            let isBalanceOnlyCrof = provider == .crof && snapshot.secondary == nil
+            let suppressWindows = provider == .mimo || provider == .qoder || isBalanceOnlyCrof
+            primaryWindow = suppressWindows ? nil : snapshot.primary
+            secondaryWindow = suppressWindows ? nil : snapshot.secondary
         }
         let primaryWindowDisplayLabel = provider == .amp
             ? AmpProviderDescriptor.primaryLabel(details: snapshot.ampUsage)

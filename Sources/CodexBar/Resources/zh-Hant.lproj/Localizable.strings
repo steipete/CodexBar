@@ -436,6 +436,9 @@
 "section_agent_sessions" = "Agent 工作階段";
 "language_title" = "語言";
 "language_subtitle" = "更改顯示語言。需要重新啟動 App 才會完全生效。";
+"currency_title" = "偏好貨幣";
+"currency_subtitle" = "用於費用估算與支出指標的貨幣。使用每日更新的即時匯率。";
+"currency_auto" = "自動（依供應商 / USD）";
 "language_system" = "依照系統";
 "language_english" = "English";
 "language_spanish" = "Español";

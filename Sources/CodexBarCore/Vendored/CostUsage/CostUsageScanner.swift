@@ -29,6 +29,7 @@ enum CostUsageScanner {
         var claudeProjectsRoots: [URL]?
         var cacheRoot: URL?
         var codexTraceDatabaseURL: URL?
+        var calendar: Calendar
         var refreshMinIntervalSeconds: TimeInterval = 60
         var claudeLogProviderFilter: ClaudeLogProviderFilter = .all
         /// Force a full rescan, ignoring per-file cache and incremental offsets.
@@ -47,6 +48,7 @@ enum CostUsageScanner {
             claudeProjectsRoots: [URL]? = nil,
             cacheRoot: URL? = nil,
             codexTraceDatabaseURL: URL? = nil,
+            calendar: Calendar = .current,
             claudeLogProviderFilter: ClaudeLogProviderFilter = .all,
             forceRescan: Bool = false,
             maxCodexSessionFileBytes: Int64 = 256 * 1024 * 1024,
@@ -57,6 +59,7 @@ enum CostUsageScanner {
             self.claudeProjectsRoots = claudeProjectsRoots
             self.cacheRoot = cacheRoot
             self.codexTraceDatabaseURL = codexTraceDatabaseURL
+            self.calendar = calendar
             self.claudeLogProviderFilter = claudeLogProviderFilter
             self.forceRescan = forceRescan
             self.maxCodexSessionFileBytes = max(0, maxCodexSessionFileBytes)
@@ -1007,7 +1010,7 @@ enum CostUsageScanner {
         options: Options = Options(),
         checkCancellation: CancellationCheck?) throws -> CostUsageDailyReport
     {
-        let range = CostUsageDayRange(since: since, until: until)
+        let range = CostUsageDayRange(since: since, until: until, calendar: options.calendar)
         let emptyReport = CostUsageDailyReport(data: [], summary: nil)
         try checkCancellation?()
 
@@ -1042,7 +1045,7 @@ enum CostUsageScanner {
              .ollama, .t3chat, .synthetic, .openrouter, .elevenlabs, .warp, .perplexity, .mimo, .doubao, .sakana,
              .abacus, .mistral, .deepseek, .deepinfra, .codebuff, .crof, .windsurf, .zed, .venice, .commandcode,
              .qoder, .stepfun, .bedrock, .grok, .groq, .llmproxy, .litellm, .deepgram, .poe, .chutes, .neuralwatt,
-             .clawrouter, .longcat, .sub2api, .wayfinder, .zenmux, .aiand, .zoommate:
+             .clawrouter, .longcat, .sub2api, .wayfinder, .zenmux, .aiand, .zoommate, .xai:
             return emptyReport
         }
     }
@@ -1054,21 +1057,25 @@ enum CostUsageScanner {
         let untilKey: String
         let scanSinceKey: String
         let scanUntilKey: String
+        let calendar: Calendar
 
-        init(since: Date, until: Date) {
-            self.sinceKey = Self.dayKey(from: since)
-            self.untilKey = Self.dayKey(from: until)
-            self.scanSinceKey = Self.dayKey(from: Calendar.current.date(byAdding: .day, value: -1, to: since) ?? since)
-            self.scanUntilKey = Self.dayKey(from: Calendar.current.date(byAdding: .day, value: 1, to: until) ?? until)
+        init(since: Date, until: Date, calendar: Calendar = .current) {
+            let calendar = Self.localGregorianCalendar(matching: calendar)
+            self.calendar = calendar
+            self.sinceKey = Self.dayKey(from: since, calendar: calendar)
+            self.untilKey = Self.dayKey(from: until, calendar: calendar)
+            let scanSince = calendar.date(byAdding: .day, value: -1, to: since) ?? since
+            let scanUntil = calendar.date(byAdding: .day, value: 1, to: until) ?? until
+            self.scanSinceKey = Self.dayKey(from: scanSince, calendar: calendar)
+            self.scanUntilKey = Self.dayKey(from: scanUntil, calendar: calendar)
         }
 
-        static func dayKey(from date: Date) -> String {
-            let cal = Calendar.current
-            let comps = cal.dateComponents([.year, .month, .day], from: date)
-            let y = comps.year ?? 1970
-            let m = comps.month ?? 1
-            let d = comps.day ?? 1
-            return String(format: "%04d-%02d-%02d", y, m, d)
+        static func localGregorianCalendar(matching calendar: Calendar = .current) -> Calendar {
+            CostUsageLocalDay.gregorianCalendar(matching: calendar)
+        }
+
+        static func dayKey(from date: Date, calendar: Calendar = .current) -> String {
+            CostUsageLocalDay.key(from: date, calendar: calendar)
         }
 
         static func isInRange(dayKey: String, since: String, until: String) -> Bool {
@@ -1116,12 +1123,14 @@ enum CostUsageScanner {
         root: URL,
         scanSinceKey: String,
         scanUntilKey: String,
-        includeRecursive: Bool) -> [URL]
+        includeRecursive: Bool,
+        calendar: Calendar = .current) -> [URL]
     {
         let partitioned = self.listCodexSessionFilesByDatePartition(
             root: root,
             scanSinceKey: scanSinceKey,
-            scanUntilKey: scanUntilKey)
+            scanUntilKey: scanUntilKey,
+            calendar: calendar)
         let flat = self.listCodexSessionFilesFlat(root: root, scanSinceKey: scanSinceKey, scanUntilKey: scanUntilKey)
         let recursive = includeRecursive ? self.listCodexLegacySessionFilesRecursive(root: root) : []
         var seen: Set<String> = []
@@ -1207,11 +1216,12 @@ enum CostUsageScanner {
     }
 
     private static func codexPriorityTurnKeys(
-        _ priorityTurns: [String: CodexPriorityTurnMetadata]) -> [String: String]
+        _ priorityTurns: [String: CodexPriorityTurnMetadata],
+        calendar: Calendar) -> [String: String]
     {
         var partsByDay: [String: [String]] = [:]
         for (turnID, turn) in priorityTurns {
-            guard let dayKey = self.codexPriorityDayKey(turn) else { continue }
+            guard let dayKey = self.codexPriorityDayKey(turn, calendar: calendar) else { continue }
             partsByDay[dayKey, default: []].append([
                 turnID,
                 turn.model ?? "",
@@ -1227,22 +1237,30 @@ enum CostUsageScanner {
     }
 
     private static func codexPriorityTurnIDsByDay(
-        _ priorityTurns: [String: CodexPriorityTurnMetadata]) -> [String: [String]]
+        _ priorityTurns: [String: CodexPriorityTurnMetadata],
+        calendar: Calendar) -> [String: [String]]
     {
         var out: [String: Set<String>] = [:]
         for (turnID, turn) in priorityTurns {
-            guard let dayKey = self.codexPriorityDayKey(turn) else { continue }
+            guard let dayKey = self.codexPriorityDayKey(turn, calendar: calendar) else { continue }
             out[dayKey, default: []].insert(turnID)
         }
         return out.mapValues { $0.sorted() }
     }
 
-    private static func codexPriorityDayKey(_ turn: CodexPriorityTurnMetadata) -> String? {
+    private static func codexPriorityDayKey(
+        _ turn: CodexPriorityTurnMetadata,
+        calendar: Calendar) -> String?
+    {
         guard let timestamp = turn.timestamp else { return nil }
         let dayKeyFromEpoch = Int64(timestamp).map {
-            CostUsageDayRange.dayKey(from: Date(timeIntervalSince1970: TimeInterval($0)))
+            CostUsageDayRange.dayKey(
+                from: Date(timeIntervalSince1970: TimeInterval($0)),
+                calendar: calendar)
         }
-        return dayKeyFromEpoch ?? self.dayKeyFromTimestamp(timestamp) ?? self.dayKeyFromParsedISO(timestamp)
+        return dayKeyFromEpoch
+            ?? self.dayKeyFromTimestamp(timestamp, calendar: calendar)
+            ?? self.dayKeyFromParsedISO(timestamp, calendar: calendar)
     }
 
     private static func codexPriorityTurnKeysChanged(
@@ -1250,7 +1268,10 @@ enum CostUsageScanner {
         new: [String: String],
         range: CostUsageDayRange) -> Bool
     {
-        for dayKey in self.dayKeys(sinceKey: range.scanSinceKey, untilKey: range.scanUntilKey)
+        for dayKey in self.dayKeys(
+            sinceKey: range.scanSinceKey,
+            untilKey: range.scanUntilKey,
+            calendar: range.calendar)
             where old?[dayKey] != new[dayKey]
         {
             return true
@@ -1266,7 +1287,11 @@ enum CostUsageScanner {
         range: CostUsageDayRange) -> Set<String>
     {
         var out = Set<String>()
-        for dayKey in self.dayKeys(sinceKey: range.scanSinceKey, untilKey: range.scanUntilKey) {
+        for dayKey in self.dayKeys(
+            sinceKey: range.scanSinceKey,
+            untilKey: range.scanUntilKey,
+            calendar: range.calendar)
+        {
             let oldIDs = Set(old?[dayKey] ?? [])
             let newIDs = Set(new[dayKey] ?? [])
             if oldIDs != newIDs || oldKeys?[dayKey] != newKeys[dayKey] {
@@ -1285,7 +1310,11 @@ enum CostUsageScanner {
         retainedUntilKey: String) -> [String: String]?
     {
         var out = existing ?? [:]
-        for dayKey in self.dayKeys(sinceKey: range.scanSinceKey, untilKey: range.scanUntilKey) {
+        for dayKey in self.dayKeys(
+            sinceKey: range.scanSinceKey,
+            untilKey: range.scanUntilKey,
+            calendar: range.calendar)
+        {
             out[dayKey] = new[dayKey]
         }
         out = out.filter { key, _ in
@@ -1302,7 +1331,11 @@ enum CostUsageScanner {
         retainedUntilKey: String) -> [String: [String]]?
     {
         var out = existing ?? [:]
-        for dayKey in self.dayKeys(sinceKey: range.scanSinceKey, untilKey: range.scanUntilKey) {
+        for dayKey in self.dayKeys(
+            sinceKey: range.scanSinceKey,
+            untilKey: range.scanUntilKey,
+            calendar: range.calendar)
+        {
             out[dayKey] = new[dayKey] ?? []
         }
         out = out.filter { key, _ in
@@ -1319,14 +1352,19 @@ enum CostUsageScanner {
         root: URL,
         scanSinceKey: String,
         scanUntilKey: String,
-        modifiedSince: Date) -> [URL]
+        modifiedSince: Date,
+        calendar: Calendar = .current) -> [URL]
     {
-        let lookbackSinceKey = self.dayKey(scanSinceKey, addingDays: -self.codexActiveSessionLookbackDays)
+        let lookbackSinceKey = self.dayKey(
+            scanSinceKey,
+            addingDays: -self.codexActiveSessionLookbackDays,
+            calendar: calendar)
             ?? scanSinceKey
         let partitioned = self.listCodexSessionFilesByDatePartition(
             root: root,
             scanSinceKey: lookbackSinceKey,
-            scanUntilKey: scanUntilKey)
+            scanUntilKey: scanUntilKey,
+            calendar: calendar)
         let partitionedModified = self.filterRecentlyModified(files: partitioned, modifiedSince: modifiedSince)
 
         let legacyRecursive = self.listCodexRecentlyModifiedFilesRecursive(root: root, modifiedSince: modifiedSince)
@@ -1352,22 +1390,36 @@ enum CostUsageScanner {
         value.count == length && value.allSatisfy(\.isNumber)
     }
 
-    private static func dayKey(_ dayKey: String, addingDays days: Int) -> String? {
-        guard let date = self.parseDayKey(dayKey) else { return nil }
-        guard let shifted = Calendar.current.date(byAdding: .day, value: days, to: date) else { return nil }
-        return CostUsageDayRange.dayKey(from: shifted)
+    private static func dayKey(
+        _ dayKey: String,
+        addingDays days: Int,
+        calendar: Calendar = .current) -> String?
+    {
+        let calendar = CostUsageDayRange.localGregorianCalendar(matching: calendar)
+        guard let date = self.parseDayKey(dayKey, calendar: calendar) else { return nil }
+        guard let shifted = calendar.date(byAdding: .day, value: days, to: date) else { return nil }
+        return CostUsageDayRange.dayKey(from: shifted, calendar: calendar)
     }
 
-    private static func dayKeys(sinceKey: String, untilKey: String) -> [String] {
-        guard let since = self.parseDayKey(sinceKey),
-              self.parseDayKey(untilKey) != nil
+    private static func localStartOfDay(_ dayKey: String, calendar: Calendar) -> Date? {
+        let calendar = CostUsageDayRange.localGregorianCalendar(matching: calendar)
+        return self.parseDayKey(dayKey, calendar: calendar).map { calendar.startOfDay(for: $0) }
+    }
+
+    private static func dayKeys(
+        sinceKey: String,
+        untilKey: String,
+        calendar: Calendar = .current) -> [String]
+    {
+        let calendar = CostUsageDayRange.localGregorianCalendar(matching: calendar)
+        guard let since = self.parseDayKey(sinceKey, calendar: calendar),
+              self.parseDayKey(untilKey, calendar: calendar) != nil
         else { return sinceKey <= untilKey ? [sinceKey] : [] }
 
         var out: [String] = []
         var cursor = since
-        let calendar = Calendar.current
-        while CostUsageDayRange.dayKey(from: cursor) <= untilKey {
-            out.append(CostUsageDayRange.dayKey(from: cursor))
+        while CostUsageDayRange.dayKey(from: cursor, calendar: calendar) <= untilKey {
+            out.append(CostUsageDayRange.dayKey(from: cursor, calendar: calendar))
             guard let next = calendar.date(byAdding: .day, value: 1, to: cursor) else { break }
             if next <= cursor {
                 break
@@ -1410,15 +1462,17 @@ enum CostUsageScanner {
     private static func listCodexSessionFilesByDatePartition(
         root: URL,
         scanSinceKey: String,
-        scanUntilKey: String) -> [URL]
+        scanUntilKey: String,
+        calendar: Calendar = .current) -> [URL]
     {
         guard FileManager.default.fileExists(atPath: root.path) else { return [] }
+        let calendar = CostUsageDayRange.localGregorianCalendar(matching: calendar)
         var out: [URL] = []
-        var date = Self.parseDayKey(scanSinceKey) ?? Date()
-        let untilDate = Self.parseDayKey(scanUntilKey) ?? date
+        var date = Self.parseDayKey(scanSinceKey, calendar: calendar) ?? Date()
+        let untilDate = Self.parseDayKey(scanUntilKey, calendar: calendar) ?? date
 
         while date <= untilDate {
-            let comps = Calendar.current.dateComponents([.year, .month, .day], from: date)
+            let comps = calendar.dateComponents([.year, .month, .day], from: date)
             let y = String(format: "%04d", comps.year ?? 1970)
             let m = String(format: "%02d", comps.month ?? 1)
             let d = String(format: "%02d", comps.day ?? 1)
@@ -1437,7 +1491,7 @@ enum CostUsageScanner {
                 }
             }
 
-            date = Calendar.current.date(byAdding: .day, value: 1, to: date) ?? untilDate.addingTimeInterval(1)
+            date = calendar.date(byAdding: .day, value: 1, to: date) ?? untilDate.addingTimeInterval(1)
         }
 
         return out
@@ -2474,7 +2528,8 @@ enum CostUsageScanner {
         // swiftlint:disable:next function_body_length
         func handleTokenCount(_ record: CodexTokenCountRecord) throws {
             observeTimestamp(record.timestamp)
-            guard let dayKey = Self.dayKeyFromTimestamp(record.timestamp) ?? Self.dayKeyFromParsedISO(record.timestamp)
+            guard let dayKey = Self.dayKeyFromTimestamp(record.timestamp, calendar: range.calendar)
+                ?? Self.dayKeyFromParsedISO(record.timestamp, calendar: range.calendar)
             else { return }
             guard !suppressUnownedCopiedPrefix else { return }
 
@@ -3263,8 +3318,8 @@ enum CostUsageScanner {
             databaseURL: options.codexTraceDatabaseURL,
             sinceDayKey: range.scanSinceKey,
             untilDayKey: range.scanUntilKey) : [:]
-        let priorityTurnKeys = Self.codexPriorityTurnKeys(priorityTurns)
-        let priorityTurnIDsByDay = Self.codexPriorityTurnIDsByDay(priorityTurns)
+        let priorityTurnKeys = Self.codexPriorityTurnKeys(priorityTurns, calendar: range.calendar)
+        let priorityTurnIDsByDay = Self.codexPriorityTurnIDsByDay(priorityTurns, calendar: range.calendar)
         let priorityTurnsChanged = shouldInspectPriorityTurns
             && hasPriorityMetadata
             && Self.codexPriorityTurnKeysChanged(
@@ -3315,6 +3370,21 @@ enum CostUsageScanner {
             shouldRefresh: shouldRefresh)
     }
 
+    private static func loadCodexCache(options: Options, range: CostUsageDayRange) -> CostUsageCache {
+        CostUsageCacheIO.load(
+            provider: .codex,
+            cacheRoot: options.cacheRoot,
+            calendar: range.calendar)
+    }
+
+    private static func saveCodexCache(_ cache: CostUsageCache, options: Options, range: CostUsageDayRange) {
+        CostUsageCacheIO.save(
+            provider: .codex,
+            cache: cache,
+            cacheRoot: options.cacheRoot,
+            calendar: range.calendar)
+    }
+
     // swiftlint:disable:next function_body_length
     private static func loadCodexDaily(
         range: CostUsageDayRange,
@@ -3322,7 +3392,7 @@ enum CostUsageScanner {
         options: Options,
         checkCancellation: CancellationCheck?) throws -> CostUsageDailyReport
     {
-        var cache = CostUsageCacheIO.load(provider: .codex, cacheRoot: options.cacheRoot)
+        var cache = Self.loadCodexCache(options: options, range: range)
         let nowMs = Int64(now.timeIntervalSince1970 * 1000)
         let plan = Self.makeCodexRefreshPlan(cache: cache, range: range, now: now, nowMs: nowMs, options: options)
 
@@ -3335,8 +3405,7 @@ enum CostUsageScanner {
             let cachedSinceKey = cache.scanSinceKey
             let cachedUntilKey = cache.scanUntilKey
             let shouldRunColdCacheLookback = cache.files.isEmpty || plan.rootsChanged
-            let coldCacheLookbackStart = Self.parseDayKey(range.scanSinceKey)
-                .map { Calendar.current.startOfDay(for: $0) }
+            let coldCacheLookbackStart = Self.localStartOfDay(range.scanSinceKey, calendar: options.calendar)
             var seenPaths: Set<String> = []
             var files: [URL] = []
             for root in plan.roots {
@@ -3344,7 +3413,8 @@ enum CostUsageScanner {
                     root: root,
                     scanSinceKey: range.scanSinceKey,
                     scanUntilKey: range.scanUntilKey,
-                    includeRecursive: options.forceRescan)
+                    includeRecursive: options.forceRescan,
+                    calendar: options.calendar)
                 for fileURL in rootFiles.sorted(by: { $0.path < $1.path }) where !seenPaths.contains(fileURL.path) {
                     seenPaths.insert(fileURL.path)
                     files.append(fileURL)
@@ -3355,7 +3425,8 @@ enum CostUsageScanner {
                         root: root,
                         scanSinceKey: range.scanSinceKey,
                         scanUntilKey: range.scanUntilKey,
-                        modifiedSince: coldCacheLookbackStart)
+                        modifiedSince: coldCacheLookbackStart,
+                        calendar: options.calendar)
                     for fileURL in recentlyModifiedFiles.sorted(by: { $0.path < $1.path })
                         where !seenPaths.contains(fileURL.path)
                     {
@@ -3491,7 +3562,7 @@ enum CostUsageScanner {
             }
             cache.lastScanUnixMs = nowMs
             try checkCancellation?()
-            CostUsageCacheIO.save(provider: .codex, cache: cache, cacheRoot: options.cacheRoot)
+            Self.saveCodexCache(cache, options: options, range: range)
         }
 
         return Self.buildCodexReportFromCache(

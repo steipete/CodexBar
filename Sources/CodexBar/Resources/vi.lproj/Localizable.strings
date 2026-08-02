@@ -428,6 +428,9 @@
 "section_agent_sessions" = "Phiên tác nhân";
 "language_title" = "Ngôn ngữ";
 "language_subtitle" = "Thay đổi ngôn ngữ hiển thị. Yêu cầu khởi động lại ứng dụng để có hiệu lực đầy đủ.";
+"currency_title" = "Tiền tệ ưu tiên";
+"currency_subtitle" = "Tiền tệ dùng cho ước tính chi phí và chi tiêu. Sử dụng tỷ giá được cập nhật hằng ngày.";
+"currency_auto" = "Tự động (theo nhà cung cấp / USD)";
 "language_system" = "Hệ thống";
 "language_english" = "Tiếng Anh";
 "language_spanish" = "Español";

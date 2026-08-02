@@ -116,9 +116,9 @@ struct OllamaStatusFetchStrategy: ProviderFetchStrategy {
             && ProviderTokenResolver.ollamaToken(environment: context.env) != nil
     }
 
-    private static func manualCookieHeader(from context: ProviderFetchContext) -> String? {
+    static func manualCookieHeader(from context: ProviderFetchContext) -> String? {
         guard context.settings?.ollama?.cookieSource == .manual else { return nil }
-        return CookieHeaderNormalizer.normalize(context.settings?.ollama?.manualCookieHeader)
+        return context.settings?.ollama?.manualCookieHeader
     }
 
     static func fetchAutomatic(

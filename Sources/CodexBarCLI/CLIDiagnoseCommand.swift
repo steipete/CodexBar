@@ -283,6 +283,8 @@ extension CodexBarCLI {
             VeniceSettingsReader.apiKey(environment: environment) != nil
         case .warp:
             WarpSettingsReader.apiKey(environment: environment) != nil
+        case .xai:
+            XAISettingsReader.apiKey(environment: environment) != nil
         case .zai:
             ZaiSettingsReader.apiToken(environment: environment) != nil
         default:

@@ -428,6 +428,9 @@
 "section_agent_sessions" = "Agentsessies";
 "language_title" = "Taal";
 "language_subtitle" = "Wijzig de weergavetaal. Vereist een herstart van de app om volledig effect te krijgen.";
+"currency_title" = "Voorkeursvaluta";
+"currency_subtitle" = "Valuta voor kostenramingen en uitgaven. Gebruikt dagelijks bijgewerkte wisselkoersen.";
+"currency_auto" = "Automatisch (provider / USD volgen)";
 "language_system" = "Systeem";
 "language_english" = "Engels";
 "language_spanish" = "Spaans";

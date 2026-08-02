@@ -770,7 +770,7 @@ struct TokenAccountEnvironmentPrecedenceTests {
         let snapshot = try #require(tokenContext.settingsSnapshot(for: .claude, account: account))
         let claudeSettings = try #require(snapshot.claude)
 
-        #expect(claudeSettings.usageDataSource == .auto)
+        #expect(claudeSettings.usageDataSource == .web)
         #expect(claudeSettings.cookieSource == .manual)
         #expect(claudeSettings.manualCookieHeader == "sessionKey=sk-ant-session-token")
     }

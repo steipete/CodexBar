@@ -88,48 +88,13 @@ extension StatusItemController {
 
         let sourceLabel = surface == .liveCard ? self.store.sourceLabel(for: target) : nil
         let kiloAutoMode = target == .kilo && self.settings.kiloUsageDataSource == .auto
-        // Abacus and Kimi carry their long-cadence window in primary rather than secondary.
-        let paceWindow = target == .abacus || target == .kimi ? snapshot?.primary : snapshot?.secondary
-        let sessionEquivalentHistorySelection = self.sessionEquivalentHistorySelection(
-            provider: target,
+        let (weeklyPace, sessionEquivalentForecast) = self.resolvePaceAndForecast(
+            target: target,
             snapshot: snapshot,
+            codexProjection: codexProjection,
             usesOverrideCard: surface == .overrideCard,
-            override: historySelectionOverride)
-        let weeklyPace = if let codexProjection,
-                            let weekly = codexProjection.rateWindow(for: .weekly)
-        {
-            self.store.weeklyPace(provider: target, window: weekly, now: now)
-        } else {
-            paceWindow.flatMap { window in
-                self.store.weeklyPace(provider: target, window: window, now: now)
-            }
-        }
-        let sessionEquivalentForecast: SessionEquivalentForecast? = if let codexProjection,
-                                                                       let session = codexProjection
-                                                                           .rateWindow(for: .session),
-                                                                           let weekly = codexProjection
-                                                                               .rateWindow(for: .weekly)
-        {
-            self.store.sessionEquivalentForecast(
-                provider: target,
-                sessionWindow: session,
-                weeklyWindow: weekly,
-                historySelection: sessionEquivalentHistorySelection,
-                now: now)
-        } else if let snapshot,
-                  let windows = self.store.sessionEquivalentWindows(provider: target, snapshot: snapshot)
-        {
-            self.store.sessionEquivalentForecast(
-                provider: target,
-                sessionWindow: windows.session,
-                weeklyWindow: windows.weekly,
-                weeklyWindowID: windows.weeklyWindowID,
-                historyIdentity: windows.historyIdentity,
-                historySelection: sessionEquivalentHistorySelection,
-                now: now)
-        } else {
-            nil
-        }
+            historySelectionOverride: historySelectionOverride,
+            now: now)
         let fallbackAccount = accountOverride
             ?? (metadata.usesAccountFallback
                 ? self.store.accountInfo(for: target)
@@ -187,8 +152,65 @@ extension StatusItemController {
             ],
             workDaysPerWeek: self.settings.weeklyProgressWorkDays,
             usesLiveSubtitle: surface == .liveCard,
+            preferredCurrencyCode: self.settings.preferredCurrencyCode,
             now: now)
         return UsageMenuCardView.Model.make(input)
+    }
+
+    // swiftlint:disable:next function_parameter_count
+    private func resolvePaceAndForecast(
+        target: UsageProvider,
+        snapshot: UsageSnapshot?,
+        codexProjection: CodexConsumerProjection?,
+        usesOverrideCard: Bool,
+        historySelectionOverride: PlanUtilizationHistorySelection?,
+        now: Date)
+        -> (weeklyPace: UsagePace?, sessionEquivalentForecast: SessionEquivalentForecast?)
+    {
+        let paceWindow = target == .abacus || target == .kimi
+            ? snapshot?.primary : snapshot?.secondary
+        let historySelection = self.sessionEquivalentHistorySelection(
+            provider: target,
+            snapshot: snapshot,
+            usesOverrideCard: usesOverrideCard,
+            override: historySelectionOverride)
+        let weeklyPace = if let codexProjection,
+                            let weekly = codexProjection.rateWindow(for: .weekly)
+        {
+            self.store.weeklyPace(provider: target, window: weekly, now: now)
+        } else {
+            paceWindow.flatMap { window in
+                self.store.weeklyPace(provider: target, window: window, now: now)
+            }
+        }
+        let forecast: SessionEquivalentForecast? = if let codexProjection,
+                                                      let session = codexProjection
+                                                          .rateWindow(for: .session),
+                                                          let weekly = codexProjection
+                                                              .rateWindow(for: .weekly)
+        {
+            self.store.sessionEquivalentForecast(
+                provider: target,
+                sessionWindow: session,
+                weeklyWindow: weekly,
+                historySelection: historySelection,
+                now: now)
+        } else if let snapshot,
+                  let windows = self.store.sessionEquivalentWindows(
+                      provider: target, snapshot: snapshot)
+        {
+            self.store.sessionEquivalentForecast(
+                provider: target,
+                sessionWindow: windows.session,
+                weeklyWindow: windows.weekly,
+                weeklyWindowID: windows.weeklyWindowID,
+                historyIdentity: windows.historyIdentity,
+                historySelection: historySelection,
+                now: now)
+        } else {
+            nil
+        }
+        return (weeklyPace, forecast)
     }
 
     private func sessionEquivalentHistorySelection(

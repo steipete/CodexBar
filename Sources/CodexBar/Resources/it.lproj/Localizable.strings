@@ -415,6 +415,9 @@
 "section_agent_sessions" = "Sessioni degli agenti";
 "language_title" = "Lingua";
 "language_subtitle" = "Cambia la lingua dell'interfaccia. Richiede il riavvio dell'app per applicare completamente la modifica.";
+"currency_title" = "Valuta preferita";
+"currency_subtitle" = "Valuta per stime dei costi e spese. Usa tassi di cambio aggiornati ogni giorno.";
+"currency_auto" = "Automatica (in base al provider / USD)";
 "language_system" = "Sistema";
 "language_english" = "Inglese";
 "language_spanish" = "Spagnolo";

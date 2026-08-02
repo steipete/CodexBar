@@ -415,6 +415,9 @@
 "section_agent_sessions" = "Sesje agentów";
 "language_title" = "Język";
 "language_subtitle" = "Zmień język interfejsu. Aby zmiana zaczęła w pełni obowiązywać, uruchom aplikację ponownie.";
+"currency_title" = "Preferowana waluta";
+"currency_subtitle" = "Waluta szacowanych kosztów i wydatków. Używa kursów aktualizowanych codziennie.";
+"currency_auto" = "Automatycznie (według dostawcy / USD)";
 "language_system" = "System";
 "language_english" = "English";
 "language_spanish" = "Español";

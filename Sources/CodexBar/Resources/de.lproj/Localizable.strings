@@ -426,6 +426,9 @@
 "section_agent_sessions" = "Agenten-Sitzungen";
 "language_title" = "Sprache";
 "language_subtitle" = "Anzeigesprache wechseln. Ein App-Neustart wird empfohlen.";
+"currency_title" = "Bevorzugte Währung";
+"currency_subtitle" = "Währung für Kostenschätzungen und Ausgaben. Verwendet täglich aktualisierte Wechselkurse.";
+"currency_auto" = "Automatisch (Anbieter / USD)";
 "language_system" = "System";
 "language_english" = "Englisch";
 "language_spanish" = "Español";

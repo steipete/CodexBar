@@ -8,7 +8,7 @@ read_when:
 
 # Providers
 
-CodexBar currently registers 65 provider IDs. Some companies expose multiple surfaces, such as Codex vs OpenAI API or
+CodexBar currently registers 66 provider IDs. Some companies expose multiple surfaces, such as Codex vs OpenAI API or
 OpenCode vs OpenCode Go, because the auth source and quota shape differ.
 
 ## Fetch strategies (current)
@@ -77,7 +77,7 @@ scan fails, while provider/account configuration changes replace obsolete result
 | DeepInfra | API key from env or token accounts → billing checklist + monthly usage endpoints (`api`). |
 | Moonshot | API key from config/env → balance endpoint (`api`). |
 | Codebuff | API token from config/env or `codebuff login` credentials → usage API (`api`). |
-| Crof | API key from config/env → credit balance + requests quota API (`api`). |
+| Crof | API key from config/env → credit balance + optional request quota API (`api`). |
 | Venice | API key from config/env → DIEM/USD balance API (`api`). |
 | Command Code | Web billing API via Command Code session cookies (`web`). |
 | ClinePass | API key from config/env → 5-hour, weekly, and monthly subscription usage limits (`api`). |
@@ -94,6 +94,7 @@ scan fails, while provider/account configuration changes replace obsolete result
 | Neuralwatt | API key from config/env → `/v1/quota` subscription kWh usage and prepaid balance (`api`). |
 | ZenMux | Management API key from config/env → five-hour and seven-day quota windows plus PAYG balance (`api`). |
 | ai& | API key from config/env → 30-day organization spend summed from the request logs API (`api`). |
+| xAI | Management key + team ID from config/env → prepaid balance and 30-day daily spend from the Management API (`api`). |
 | Zed | Zed editor Keychain session → `cloud.zed.dev/client/users/me` for plan and quota data (`local`). |
 
 ## Codex
@@ -466,9 +467,8 @@ provider-specific cookie validation, endpoints, login detection, and error trans
 
 ## Crof
 - API key from `~/.codexbar/config.json`, `CROF_API_KEY`, or `CROFAI_API_KEY`.
-- Reads `credits`, `requests_plan`, and `usable_requests` from `GET https://crof.ai/usage_api/`.
-- Shows request quota as the primary usage window and dollar credits as the secondary row.
-- Infers the daily request reset from midnight America/Chicago until the usage API exposes reset metadata.
+- Reads `credits` and optional `requests_plan` / `usable_requests` from `GET https://crof.ai/usage_api/`.
+- Prefers request quota plus a secondary dollar-balance row when quota fields are present; otherwise shows dollar credits as the primary window.
 - Status: none yet.
 - Details: `docs/crof.md`.
 
@@ -595,5 +595,12 @@ provider-specific cookie validation, endpoints, login detection, and error trans
 - The live `/analytics/summary` endpoint carries no cost field despite its docs, so the request log is the spend source; a hit page cap is labeled "Last 30 days (partial)" instead of silently truncating.
 - Prepaid credits with no quota windows; no session or weekly meters are synthesized. The credit balance is console-only and not shown.
 - Details: `docs/aiand.md`.
+
+## xAI
+- Management API key + team ID from config or `XAI_MANAGEMENT_API_KEY` / `XAI_TEAM_ID` (created at console.x.ai under Settings > Management Keys; inference API keys are not accepted).
+- Reads the prepaid credit balance from `GET https://management-api.x.ai/v1/billing/teams/{team_id}/prepaid/balance` and daily USD spend for the last 30 days from `POST .../usage`. A hit cardinality cap (`limitReached`) is labeled "Last 30 days (partial)" instead of silently truncating.
+- Distinct from the Grok provider: Grok tracks consumer Grok/SuperGrok subscription quota via CLI/web session; xAI tracks the developer-platform prepaid billing surface. Credentials and balances are never shared between the two.
+- Prepaid money is not a quota; no session or weekly meters are synthesized.
+- Details: `docs/xai.md`.
 
 See also: `docs/provider.md` for architecture notes.

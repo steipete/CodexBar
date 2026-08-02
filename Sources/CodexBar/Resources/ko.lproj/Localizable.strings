@@ -426,6 +426,9 @@
 "section_agent_sessions" = "에이전트 세션";
 "language_title" = "언어";
 "language_subtitle" = "표시 언어를 변경합니다. 적용하려면 앱을 다시 시작해야 합니다.";
+"currency_title" = "기본 통화";
+"currency_subtitle" = "비용 추정 및 지출 지표에 사용할 통화입니다. 매일 갱신되는 환율을 사용합니다.";
+"currency_auto" = "자동(제공업체 / USD 따름)";
 "language_system" = "시스템";
 "language_english" = "영어";
 "language_spanish" = "스페인어";

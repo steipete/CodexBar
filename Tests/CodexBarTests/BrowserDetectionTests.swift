@@ -270,7 +270,7 @@ struct BrowserDetectionTests {
     }
 
     @Test
-    func `background cookie import skips chromium before keychain preflight`() {
+    func `background chromium refresh proceeds when the no-UI preflight already grants access`() {
         BrowserCookieAccessGate.resetForTesting()
         defer { BrowserCookieAccessGate.resetForTesting() }
 
@@ -282,17 +282,21 @@ struct BrowserDetectionTests {
                 return .allowed
             } operation: {
                 ProviderInteractionContext.$current.withValue(.background) {
-                    #expect(BrowserCookieAccessGate.shouldAttempt(.chrome) == false)
+                    // An already-authorized Safe Storage ACL lets a scheduled refresh read cookies
+                    // without any prompt, so the gate now consults the strictly no-UI preflight instead
+                    // of skipping outright.
+                    #expect(BrowserCookieAccessGate.shouldAttempt(.chrome) == true)
                     #expect(BrowserCookieAccessGate.shouldAttempt(.safari) == true)
                 }
             }
         }
 
-        #expect(preflightCount == 0)
+        // Only the Keychain-backed browser reaches the preflight; Safari short-circuits before it.
+        #expect(preflightCount == 1)
     }
 
     @Test
-    func `background cookie import skips chromium without probing keychain interaction`() {
+    func `background chromium refresh skips when the no-UI preflight requires interaction`() {
         BrowserCookieAccessGate.resetForTesting()
         defer { BrowserCookieAccessGate.resetForTesting() }
 
@@ -304,13 +308,16 @@ struct BrowserDetectionTests {
                 return .interactionRequired
             } operation: {
                 ProviderInteractionContext.$current.withValue(.background) {
+                    // The no-UI preflight never prompts; when it reports interaction is required the
+                    // background refresh still skips, preserving the no-surprise-prompt boundary.
                     #expect(BrowserCookieAccessGate.shouldAttempt(.chrome) == false)
                     #expect(BrowserCookieAccessGate.shouldAttempt(.safari) == true)
                 }
             }
         }
 
-        #expect(preflightCount == 0)
+        // The gate must probe the no-UI preflight to learn that interaction is required.
+        #expect(preflightCount == 1)
     }
 
     @Test

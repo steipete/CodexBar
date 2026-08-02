@@ -75,6 +75,29 @@ public struct ProviderPaceCapability: Sendable {
     public func usesInferredMonthlyDuration(window: RateWindow) -> Bool {
         self.inferredMonthlyDuration.matches(window: window)
     }
+
+    public func resolvedResetWindowForPace(_ window: RateWindow) -> RateWindow {
+        guard self.usesInferredMonthlyDuration(window: window),
+              let resetsAt = window.resetsAt,
+              let minutes = Self.inferredMonthlyWindowMinutes(endingAt: resetsAt)
+        else { return window }
+        return RateWindow(
+            usedPercent: window.usedPercent,
+            windowMinutes: minutes,
+            resetsAt: window.resetsAt,
+            resetDescription: window.resetDescription,
+            nextRegenPercent: window.nextRegenPercent,
+            isSyntheticPlaceholder: window.isSyntheticPlaceholder)
+    }
+
+    private static func inferredMonthlyWindowMinutes(endingAt resetsAt: Date) -> Int? {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0) ?? calendar.timeZone
+        guard let startsAt = calendar.date(byAdding: .month, value: -1, to: resetsAt) else { return nil }
+        let minutes = resetsAt.timeIntervalSince(startsAt) / 60
+        guard minutes.isFinite, minutes > 0 else { return nil }
+        return Int(minutes.rounded())
+    }
 }
 
 public struct ProviderDescriptor: Sendable {
@@ -188,6 +211,7 @@ public enum ProviderDescriptorRegistry {
         .zenmux: ZenMuxProviderDescriptor.descriptor,
         .aiand: AiAndProviderDescriptor.descriptor,
         .zoommate: ZoomMateProviderDescriptor.descriptor,
+        .xai: XAIProviderDescriptor.descriptor,
     ]
     private static let bootstrap: Void = {
         for provider in UsageProvider.allCases {

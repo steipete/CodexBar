@@ -415,6 +415,9 @@
 "section_agent_sessions" = "เซสชันเอเจนต์";
 "language_title" = "ภาษา";
 "language_subtitle" = "เปลี่ยนภาษาที่แสดง ต้องรีสตาร์ทแอปเพื่อให้มีผลเต็มที่";
+"currency_title" = "สกุลเงินที่ต้องการ";
+"currency_subtitle" = "สกุลเงินสำหรับประมาณการต้นทุนและค่าใช้จ่าย ใช้อัตราแลกเปลี่ยนที่อัปเดตทุกวัน";
+"currency_auto" = "อัตโนมัติ (ตามผู้ให้บริการ / USD)";
 "language_system" = "ระบบ";
 "language_english" = "อังกฤษ";
 "language_spanish" = "Español";

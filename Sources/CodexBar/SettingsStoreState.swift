@@ -74,4 +74,5 @@ struct SettingsDefaultsState {
     var agentSessionsEnabled: Bool
     var agentSessionLabelStyleRaw: String
     var agentSessionsManualHosts: String
+    var preferredCurrencyCode: String
 }

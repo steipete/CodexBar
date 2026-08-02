@@ -530,6 +530,7 @@ extension SettingsStore {
         let agentSessionLabelStyleRaw = userDefaults.string(forKey: "agentSessionLabelStyle")
             ?? AgentSessionLabelStyle.project.rawValue
         let agentSessionsManualHosts = userDefaults.string(forKey: "agentSessionsManualHosts") ?? ""
+        let preferredCurrencyCode = userDefaults.string(forKey: "preferredCurrencyCode") ?? "USD"
         return SettingsDefaultsState(
             refreshFrequency: refreshFrequency,
             adaptiveActivityScanConsent: adaptiveActivityScanConsent,
@@ -603,7 +604,8 @@ extension SettingsStore {
             terminalAppRaw: userDefaults.string(forKey: "terminalApp"),
             agentSessionsEnabled: agentSessionsEnabled,
             agentSessionLabelStyleRaw: agentSessionLabelStyleRaw,
-            agentSessionsManualHosts: agentSessionsManualHosts)
+            agentSessionsManualHosts: agentSessionsManualHosts,
+            preferredCurrencyCode: preferredCurrencyCode)
     }
 
     private static func hadPreviousAppLaunch(userDefaults: UserDefaults) -> Bool {

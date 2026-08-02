@@ -428,6 +428,9 @@
 "section_agent_sessions" = "Сеанси агентів";
 "language_title" = "Мова";
 "language_subtitle" = "Змінює мову інтерфейсу. Для повного застосування потрібно перезапустити застосунок.";
+"currency_title" = "Бажана валюта";
+"currency_subtitle" = "Валюта для оцінки вартості та витрат. Використовує курси, що оновлюються щодня.";
+"currency_auto" = "Автоматично (валюта постачальника / USD)";
 "language_system" = "Система";
 "language_english" = "English";
 "language_spanish" = "Español";

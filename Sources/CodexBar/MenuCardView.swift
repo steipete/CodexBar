@@ -605,6 +605,7 @@ struct UsageMenuCardHeaderSectionView: View {
 private struct UsageMenuCardUsageContentView: View {
     let model: UsageMenuCardView.Model
     let showBottomDivider: Bool
+    var showsSectionDividers = true
     @Environment(\.menuItemHighlighted) private var isHighlighted
 
     /// Doubao ships Coding Plan and Agent Plan subscriptions, each with personal
@@ -644,7 +645,7 @@ private struct UsageMenuCardUsageContentView: View {
                     self.groupHeader("Coding Plan")
                     self.metricRows(split.coding)
                 }
-                if !split.coding.isEmpty {
+                if !split.coding.isEmpty, self.showsSectionDividers {
                     Divider()
                 }
                 self.groupHeader("Agent Plan")
@@ -653,7 +654,7 @@ private struct UsageMenuCardUsageContentView: View {
                 self.metricRows(self.model.metrics)
             }
             if let resetCredits = self.model.codexResetCredits {
-                if !self.model.metrics.isEmpty {
+                if !self.model.metrics.isEmpty, self.showsSectionDividers {
                     Divider()
                 }
                 CodexResetCreditsContent(presentation: resetCredits)
@@ -681,11 +682,15 @@ struct UsageMenuCardUsageSectionView: View {
     let showBottomDivider: Bool
     let bottomPadding: CGFloat
     let width: CGFloat
+    var showsSectionDividers = true
     @Environment(\.menuCardRefreshMonitor) private var refreshMonitor
 
     var body: some View {
         let liveModel = self.liveModel
-        UsageMenuCardUsageContentView(model: liveModel, showBottomDivider: self.showBottomDivider)
+        UsageMenuCardUsageContentView(
+            model: liveModel,
+            showBottomDivider: self.showBottomDivider,
+            showsSectionDividers: self.showsSectionDividers)
             .padding(.horizontal, UsageMenuCardLayout.horizontalPadding)
             .padding(.top, UsageMenuCardLayout.usageSectionTopPadding)
             .padding(.bottom, self.bottomPadding)
@@ -890,7 +895,8 @@ extension UsageMenuCardView.Model {
                 metadata: input.metadata,
                 snapshot: input.snapshot,
                 credits: input.credits,
-                error: input.creditsError)
+                error: input.creditsError,
+                preferredCurrencyCode: input.preferredCurrencyCode)
         }
         let creditsText = PersonalInfoRedactor.redactEmails(in: rawCreditsText, isEnabled: input.hidePersonalInfo)
         let creditsProgressPercent = Self.creditsProgressPercent(credits: input.credits)
@@ -906,7 +912,9 @@ extension UsageMenuCardView.Model {
             !input.showOptionalCreditsAndExtraUsage
         let providerCost: ProviderCostSection? = if input.provider == .sakana {
             input.showOptionalCreditsAndExtraUsage
-                ? Self.sakanaPayAsYouGoSection(input.snapshot?.sakanaPayAsYouGo)
+                ? Self.sakanaPayAsYouGoSection(
+                    input.snapshot?.sakanaPayAsYouGo,
+                    preferredCurrencyCode: input.preferredCurrencyCode)
                 : nil
         } else if hidesOptionalProviderCost ||
             (input.provider == .openai && openAIAPIUsage != nil)
@@ -916,7 +924,8 @@ extension UsageMenuCardView.Model {
             Self.providerCostSection(
                 provider: input.provider,
                 cost: input.snapshot?.providerCost,
-                isClaudeAdminAPI: isClaudeAdminAPI)
+                isClaudeAdminAPI: isClaudeAdminAPI,
+                preferredCurrencyCode: input.preferredCurrencyCode)
         }
         let tokenUsageSnapshot = Self.tokenUsageSnapshot(input: input)
         let tokenUsage = Self.tokenUsageSection(
@@ -924,7 +933,8 @@ extension UsageMenuCardView.Model {
             enabled: input.tokenCostMenuSectionEnabled,
             comparisonPeriodsEnabled: input.costComparisonPeriodsEnabled,
             snapshot: tokenUsageSnapshot,
-            error: input.tokenError)
+            error: input.tokenError,
+            preferredCurrencyCode: input.preferredCurrencyCode)
         let subtitle = Self.subtitle(
             snapshot: input.snapshot,
             isRefreshing: input.isRefreshing,
@@ -1167,7 +1177,10 @@ extension UsageMenuCardView.Model {
         let zaiTokenDetail = Self.zaiLimitDetailText(limit: zaiUsage?.tokenLimit)
         let zaiTimeDetail = Self.zaiLimitDetailText(limit: zaiUsage?.timeLimit)
         let zaiSessionDetail = Self.zaiLimitDetailText(limit: zaiUsage?.sessionTokenLimit)
-        let openRouterQuotaDetail = Self.openRouterQuotaDetail(provider: input.provider, snapshot: snapshot)
+        let openRouterQuotaDetail = Self.openRouterQuotaDetail(
+            provider: input.provider,
+            snapshot: snapshot,
+            preferredCurrencyCode: input.preferredCurrencyCode)
         let labels = Self.rateWindowLabels(input: input, snapshot: snapshot)
         if input.provider == .mistral, let credits = snapshot.mistralUsage?.credits {
             metrics.append(Metric(
@@ -1298,148 +1311,31 @@ extension UsageMenuCardView.Model {
         zaiTokenDetail: String?,
         openRouterQuotaDetail: String?) -> Metric
     {
-        var primaryDetailText: String? = input.provider == .zai ? zaiTokenDetail : nil
-        var primaryResetText = Self.resetText(for: primary, style: input.resetTimeDisplayStyle, now: input.now)
-        var primaryDetailLeft: String?
-        var primaryDetailRight: String?
-        if input.provider == .crof,
-           let detail = primary.resetDescription?.trimmingCharacters(in: .whitespacesAndNewlines),
-           !detail.isEmpty
-        {
-            primaryDetailRight = detail
-        }
-        if input.provider == .openrouter,
-           let openRouterQuotaDetail
-        {
-            primaryResetText = openRouterQuotaDetail
-        }
-        if [.copilot, .zenmux].contains(input.provider),
-           let detail = primary.resetDescription?.trimmingCharacters(in: .whitespacesAndNewlines),
-           !detail.isEmpty
-        {
-            primaryDetailLeft = detail
-        }
-        if [.warp, .kilo, .mimo, .deepseek, .deepinfra, .qoder, .mistral, .neuralwatt, .litellm, .chutes]
-            .contains(input.provider),
-            let detail = primary.resetDescription,
-            !detail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        {
-            primaryDetailText = detail
-        }
-        if input.provider == .sub2api {
-            primaryResetText = primary.resetDescription
-        }
-        if let balance = Self.poeBalanceDetailText(input: input) {
-            primaryDetailText = balance
-        }
-        if input.provider == .kiro,
-           let kiroUsage = input.snapshot?.kiroUsage,
-           kiroUsage.creditsTotal > 0
-        {
-            let remaining = UsageFormatter.kiroCreditNumber(kiroUsage.creditsRemaining)
-            let total = UsageFormatter.kiroCreditNumber(kiroUsage.creditsTotal)
-            primaryDetailLeft = String(format: L("%@ of %@ credits left"), remaining, total)
-        }
-        if input.provider == .alibaba || input.provider == .alibabatokenplan || input.provider == .manus,
-           let detail = primary.resetDescription,
-           !detail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        {
-            primaryDetailText = detail
-            if input.provider == .manus {
-                primaryResetText = nil
-            }
-        }
-        if [.warp, .kilo, .mimo, .deepseek, .deepinfra, .qoder, .mistral, .neuralwatt, .litellm, .zenmux, .chutes]
-            .contains(input.provider),
-            primary.resetsAt == nil
-        {
-            primaryResetText = nil
-        }
-        // Abacus: show credits as detail, compute pace on the primary monthly window
-        var primaryPacePercent: Double?
-        var primaryPaceOnTop = true
-        if let paceDetail = Self.sessionPaceDetail(
-            provider: input.provider,
-            window: primary,
-            now: input.now,
-            showUsed: input.usageBarsShowUsed)
-        {
-            primaryDetailLeft = paceDetail.leftLabel
-            primaryDetailRight = paceDetail.rightLabel
-            primaryPacePercent = paceDetail.pacePercent
-            primaryPaceOnTop = paceDetail.paceOnTop
-        }
-        if input.provider == .abacus {
-            if let detail = primary.resetDescription,
-               !detail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            {
-                primaryDetailText = detail
-            }
-            if primary.resetsAt == nil {
-                primaryResetText = nil
-            }
-            if let pace = input.weeklyPace {
-                let paceDetail = Self.weeklyPaceDetail(
-                    provider: input.provider,
-                    window: primary,
-                    now: input.now,
-                    pace: pace,
-                    showUsed: input.usageBarsShowUsed)
-                if let paceDetail {
-                    primaryDetailLeft = paceDetail.leftLabel
-                    primaryDetailRight = paceDetail.rightLabel
-                    primaryPacePercent = paceDetail.pacePercent
-                    primaryPaceOnTop = paceDetail.paceOnTop
-                }
-            }
-        } else if let paceDetail = Self.resetWindowPaceDetail(
-            window: primary,
+        var presentation = PrimaryMetricPresentation(
+            resetText: Self.resetText(for: primary, style: input.resetTimeDisplayStyle, now: input.now),
+            detailText: input.provider == .zai ? zaiTokenDetail : nil)
+        Self.applyPrimaryQuotaPresentation(
+            &presentation,
             input: input,
-            pace: input.provider == .kimi ? input.weeklyPace : nil)
-        {
-            primaryDetailLeft = paceDetail.leftLabel
-            primaryDetailRight = paceDetail.rightLabel
-            primaryPacePercent = paceDetail.pacePercent
-            primaryPaceOnTop = paceDetail.paceOnTop
-        }
-        // Legacy request-based Cursor plans: surface the raw used/limit quota on its own line,
-        // since the percentage bar and pace detail alone never spell out the request cap.
-        if input.provider == .cursor, let requests = input.snapshot?.cursorRequests {
-            primaryDetailText = String(
-                format: L("Request quota: %@ / %@"),
-                "\(requests.used)",
-                "\(requests.limit)")
-        }
-        if input.provider == .synthetic,
-           let regen = Self.syntheticRollingRegenDetail(
-               window: primary,
-               now: input.now,
-               showUsed: input.usageBarsShowUsed)
-        {
-            primaryResetText = regen.resetText
-            primaryDetailLeft = regen.pace.leftLabel
-            primaryDetailRight = regen.pace.rightLabel
-            primaryPacePercent = regen.pace.pacePercent
-            primaryPaceOnTop = regen.pace.paceOnTop
-        }
-        let usesBalanceStatusText = input.provider == .deepseek || input.provider == .deepinfra
-        let primaryStatusText = usesBalanceStatusText ? primaryDetailText : nil
-        if usesBalanceStatusText {
-            primaryDetailText = nil
-        }
+            primary: primary,
+            openRouterQuotaDetail: openRouterQuotaDetail)
+        Self.applyPrimaryBalancePresentation(&presentation, input: input, primary: primary)
+        Self.applyPrimaryResetPresentation(&presentation, input: input, primary: primary)
+        Self.applyPrimaryPacePresentation(&presentation, input: input, primary: primary)
+        Self.applyPrimaryFinalOverrides(&presentation, input: input, primary: primary)
         return Metric(
             id: "primary",
             title: title ?? L(input.metadata.sessionLabel),
             percent: Self.clamped(
                 input.usageBarsShowUsed ? primary.usedPercent : primary.remainingPercent),
             percentStyle: percentStyle,
-            statusText: primaryStatusText,
-            resetText: primaryResetText,
-            detailText: primaryDetailText,
-            detailLeftText: primaryDetailLeft,
-            detailRightText: primaryDetailRight,
-            pacePercent: primaryPacePercent,
-            paceOnTop: primaryPaceOnTop,
+            statusText: presentation.statusText,
+            resetText: presentation.resetText,
+            detailText: presentation.detailText,
+            detailLeftText: presentation.detailLeft,
+            detailRightText: presentation.detailRight,
+            pacePercent: presentation.pacePercent,
+            paceOnTop: presentation.paceOnTop,
             warningMarkerPercents: Self.warningMarkerPercents(
                 thresholds: input.quotaWarningThresholds[.session],
                 showUsed: input.usageBarsShowUsed),

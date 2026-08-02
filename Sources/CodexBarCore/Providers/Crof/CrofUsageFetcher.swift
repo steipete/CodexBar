@@ -5,8 +5,8 @@ import FoundationNetworking
 
 public struct CrofUsageResponse: Decodable, Sendable {
     public let credits: Double
-    public let requestsPlan: Double
-    public let usableRequests: Double
+    public let requestsPlan: Double?
+    public let usableRequests: Double?
 
     enum CodingKeys: String, CodingKey {
         case credits

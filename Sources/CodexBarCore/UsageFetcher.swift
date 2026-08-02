@@ -140,47 +140,6 @@ public struct NamedRateWindow: Codable, Equatable, Sendable {
     }
 }
 
-public struct ProviderIdentitySnapshot: Codable, Sendable {
-    public let providerID: UsageProvider?
-    public let accountEmail: String?
-    public let accountOrganization: String?
-    public let loginMethod: String?
-    public let accountID: String?
-
-    public init(
-        providerID: UsageProvider?,
-        accountEmail: String?,
-        accountOrganization: String?,
-        loginMethod: String?,
-        accountID: String? = nil)
-    {
-        self.providerID = providerID
-        self.accountEmail = accountEmail
-        self.accountOrganization = accountOrganization
-        self.loginMethod = loginMethod
-        self.accountID = accountID
-    }
-
-    public func scoped(to provider: UsageProvider) -> ProviderIdentitySnapshot {
-        if self.providerID == provider {
-            return self
-        }
-        return ProviderIdentitySnapshot(
-            providerID: provider,
-            accountEmail: self.accountEmail,
-            accountOrganization: self.accountOrganization,
-            loginMethod: self.loginMethod,
-            accountID: self.accountID)
-    }
-}
-
-public enum UsageDataConfidence: String, Codable, Equatable, Sendable {
-    case exact
-    case estimated
-    case percentOnly
-    case unknown
-}
-
 public struct UsageSnapshot: Codable, Sendable {
     public let primary: RateWindow?
     public let secondary: RateWindow?
@@ -209,6 +168,7 @@ public struct UsageSnapshot: Codable, Sendable {
     public let mistralUsage: MistralUsageSnapshot?
     public let deepgramUsage: DeepgramUsageSnapshot?
     public let poeUsage: PoeUsageHistorySnapshot?
+    public let xaiUsage: XAIUsageSnapshot?
     public let cursorRequests: CursorRequestUsage?
     /// Live-only marker for optional Command Code subscription lookup failure.
     public let commandCodeSubscriptionEnrichmentUnavailable: Bool
@@ -243,6 +203,7 @@ public struct UsageSnapshot: Codable, Sendable {
         case mistralUsage
         case deepgramUsage
         case poeUsage
+        case xaiUsage
         case subscriptionExpiresAt
         case subscriptionRenewsAt
         case updatedAt
@@ -281,6 +242,7 @@ public struct UsageSnapshot: Codable, Sendable {
         mistralUsage: MistralUsageSnapshot? = nil,
         deepgramUsage: DeepgramUsageSnapshot? = nil,
         poeUsage: PoeUsageHistorySnapshot? = nil,
+        xaiUsage: XAIUsageSnapshot? = nil,
         cursorRequests: CursorRequestUsage? = nil,
         commandCodeSubscriptionEnrichmentUnavailable: Bool = false,
         commandCodeHasSubscriptionPlan: Bool = false,
@@ -318,6 +280,7 @@ public struct UsageSnapshot: Codable, Sendable {
         self.mistralUsage = mistralUsage
         self.deepgramUsage = deepgramUsage
         self.poeUsage = poeUsage
+        self.xaiUsage = xaiUsage
         self.cursorRequests = cursorRequests
         self.commandCodeSubscriptionEnrichmentUnavailable = commandCodeSubscriptionEnrichmentUnavailable
         self.commandCodeHasSubscriptionPlan = commandCodeHasSubscriptionPlan
@@ -380,6 +343,7 @@ public struct UsageSnapshot: Codable, Sendable {
         self.mistralUsage = try container.decodeIfPresent(MistralUsageSnapshot.self, forKey: .mistralUsage)
         self.deepgramUsage = try container.decodeIfPresent(DeepgramUsageSnapshot.self, forKey: .deepgramUsage)
         self.poeUsage = try container.decodeIfPresent(PoeUsageHistorySnapshot.self, forKey: .poeUsage)
+        self.xaiUsage = try container.decodeIfPresent(XAIUsageSnapshot.self, forKey: .xaiUsage)
         self.cursorRequests = nil // Not persisted, fetched fresh each time
         self.commandCodeSubscriptionEnrichmentUnavailable = false // Live-only fetch state
         self.commandCodeHasSubscriptionPlan = false // Live-only fetch state
@@ -433,6 +397,7 @@ public struct UsageSnapshot: Codable, Sendable {
         try container.encodeIfPresent(self.mistralUsage, forKey: .mistralUsage)
         try container.encodeIfPresent(self.deepgramUsage, forKey: .deepgramUsage)
         try container.encodeIfPresent(self.poeUsage, forKey: .poeUsage)
+        try container.encodeIfPresent(self.xaiUsage, forKey: .xaiUsage)
         try container.encodeIfPresent(self.subscriptionExpiresAt, forKey: .subscriptionExpiresAt)
         try container.encodeIfPresent(self.subscriptionRenewsAt, forKey: .subscriptionRenewsAt)
         try container.encode(self.updatedAt, forKey: .updatedAt)
@@ -611,6 +576,7 @@ public struct UsageSnapshot: Codable, Sendable {
             mistralUsage: self.mistralUsage,
             deepgramUsage: self.deepgramUsage,
             poeUsage: self.poeUsage,
+            xaiUsage: self.xaiUsage,
             cursorRequests: self.cursorRequests,
             commandCodeSubscriptionEnrichmentUnavailable: self.commandCodeSubscriptionEnrichmentUnavailable,
             commandCodeHasSubscriptionPlan: self.commandCodeHasSubscriptionPlan,

@@ -105,7 +105,9 @@ jobs:
   swift-test-macos:
     needs: changes
     if: ${{ needs.changes.outputs.macos-tests == 'true' && needs.changes.outputs.macos-tests-deferred != 'true' }}
-    runs-on: macos-15-intel
+    # Apple-Silicon runners: ~2-4x faster Swift builds than the retired-path
+    # Intel pool and much shorter queues (see #2585 for the measurements).
+    runs-on: macos-26
     timeout-minutes: 60
     strategy:
       fail-fast: false
@@ -120,7 +122,7 @@ jobs:
       - name: Select Xcode 26.3 or 26.2
         run: |
           set -euo pipefail
-          # Both versions are part of the official macOS 15 runner image.
+          # Both versions are part of the official macOS 26 runner image.
           for candidate in /Applications/Xcode_26.3.app /Applications/Xcode_26.2.app; do
             if [[ -d "$candidate" ]]; then
               sudo xcode-select -s "${candidate}/Contents/Developer"
@@ -130,6 +132,19 @@ jobs:
           done
           [[ "$(/usr/bin/xcodebuild -version)" == Xcode\ 26.* ]]
           /usr/bin/xcodebuild -version
+
+      - name: Restore SwiftPM build cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            .build
+            ~/Library/Caches/org.swift.swiftpm
+          # Keyed on dependency state: saves once per Package.resolved change,
+          # and partial hits (restore-keys) still carry the dependency builds,
+          # which dominate the cold-build time.
+          key: swiftpm-macos26-arm64-${{ hashFiles('Package.resolved', 'Package.swift') }}
+          restore-keys: |
+            swiftpm-macos26-arm64-
 
       - name: Swift toolchain version
         run: |

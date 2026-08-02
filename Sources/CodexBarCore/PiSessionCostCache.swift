@@ -2,7 +2,7 @@ import Foundation
 
 enum PiSessionCostCacheIO {
     /// Artifact schema version. Pricing changes are tracked separately by `pricingKey`.
-    private static let artifactVersion = 7
+    private static let artifactVersion = 8
 
     private static func defaultCacheRoot() -> URL {
         let root = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first!
@@ -27,11 +27,17 @@ enum PiSessionCostCacheIO {
         return decoded
     }
 
-    static func save(cache: PiSessionCostCache, cacheRoot: URL? = nil) {
+    static func save(
+        cache: PiSessionCostCache,
+        cacheRoot: URL? = nil,
+        calendar: Calendar = .current)
+    {
         let url = self.cacheFileURL(cacheRoot: cacheRoot)
         let dir = url.deletingLastPathComponent()
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
 
+        var cache = cache
+        cache.timeZoneIdentifier = calendar.timeZone.identifier
         let tmp = dir.appendingPathComponent(".tmp-\(UUID().uuidString).json", isDirectory: false)
         let data = (try? JSONEncoder().encode(cache)) ?? Data()
         do {
@@ -52,11 +58,12 @@ struct PiSessionCostCache: Codable {
     var lastScanUnixMs: Int64 = 0
     var scanSinceKey: String?
     var scanUntilKey: String?
+    var timeZoneIdentifier: String?
     var pricingKey: String?
     var daysByProvider: [String: [String: [String: PiPackedUsage]]] = [:]
     var files: [String: PiSessionFileUsage] = [:]
 
-    init(version: Int = 7) {
+    init(version: Int = 8) {
         self.version = version
     }
 }

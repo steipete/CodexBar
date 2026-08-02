@@ -6,7 +6,17 @@ import WidgetKit
 
 extension UsageStore {
     func persistWidgetSnapshot(reason: String) {
-        let snapshot = self.makeWidgetSnapshot()
+        // A fresh process has token-cost data before a user-authorized Claude OAuth refresh can run.
+        // Keep the last queued snapshot in memory so back-to-back writes cannot race the on-disk cache.
+        let previousSnapshot = self.lastQueuedWidgetSnapshot ?? {
+            #if DEBUG
+            // Snapshot-save overrides must stay isolated from a developer's real app-group data.
+            guard self._test_widgetSnapshotSaveOverride == nil else { return nil }
+            #endif
+            return WidgetSnapshotStore.load()
+        }()
+        let snapshot = self.makeWidgetSnapshot(previousSnapshot: previousSnapshot)
+        self.lastQueuedWidgetSnapshot = snapshot
         let previousTask = self.widgetSnapshotPersistTask
         self.widgetSnapshotPersistTask = Task { @MainActor in
             _ = await previousTask?.result
@@ -25,11 +35,14 @@ extension UsageStore {
         }
     }
 
-    private func makeWidgetSnapshot() -> WidgetSnapshot {
+    private func makeWidgetSnapshot(previousSnapshot: WidgetSnapshot?) -> WidgetSnapshot {
         let now = Date()
         let enabledProviders = self.enabledProviders()
         let entries = UsageProvider.allCases.compactMap { provider in
-            self.makeWidgetEntry(for: provider, now: now)
+            self.makeWidgetEntry(
+                for: provider,
+                now: now,
+                previousEntry: previousSnapshot?.entries.first { $0.provider == provider })
         }
         return WidgetSnapshot(
             entries: entries,
@@ -38,10 +51,36 @@ extension UsageStore {
             generatedAt: now)
     }
 
-    private func makeWidgetEntry(for provider: UsageProvider, now: Date) -> WidgetSnapshot.ProviderEntry? {
+    private func makeWidgetEntry(
+        for provider: UsageProvider,
+        now: Date,
+        previousEntry: WidgetSnapshot.ProviderEntry?) -> WidgetSnapshot.ProviderEntry?
+    {
         let snapshot = self.snapshots[provider]
         let storedTokenSnapshot = self.tokenSnapshotForCurrentProviderConfig(for: provider)?.snapshot
-        guard snapshot != nil || (provider == .claude && storedTokenSnapshot != nil) else { return nil }
+        let claudeQuotaOwnerKey: String? = if provider == .claude {
+            self.claudeWidgetQuotaOwnerKey()
+        } else {
+            nil
+        }
+        let preservedClaudeUsage: PreservedClaudeWidgetUsage? = if provider == .claude,
+                                                                   snapshot == nil,
+                                                                   !self.widgetUsagePreservationBlockedProviders
+                                                                       .contains(provider),
+                                                                       self.knownLimitsAvailabilityByProvider[provider]?
+                                                                           .isUnavailable != true
+        {
+            Self.preservedClaudeWidgetUsage(
+                from: previousEntry,
+                expectedQuotaOwnerKey: claudeQuotaOwnerKey)
+        } else {
+            nil
+        }
+        guard snapshot != nil ||
+            (provider == .claude && (storedTokenSnapshot != nil || preservedClaudeUsage != nil))
+        else {
+            return nil
+        }
 
         let tokenSnapshot = storedTokenSnapshot
         let dailyUsage = tokenSnapshot?.daily.map { entry in
@@ -52,7 +91,9 @@ extension UsageStore {
         } ?? []
 
         let tokenUsage = Self.widgetTokenUsageSummary(from: tokenSnapshot, provider: provider)
-        let usageRows = snapshot.map { self.widgetUsageRows(provider: provider, snapshot: $0, now: now) } ?? []
+        let usageRows = snapshot.map {
+            self.widgetUsageRows(provider: provider, snapshot: $0, now: now)
+        } ?? preservedClaudeUsage?.usageRows ?? []
 
         let creditsRemaining: Double?
         let codeReviewRemaining: Double?
@@ -75,19 +116,82 @@ extension UsageStore {
         } else {
             nil
         }
+        let quotaOwnerKey: String? = if provider == .claude {
+            snapshot != nil ? claudeQuotaOwnerKey : preservedClaudeUsage?.quotaOwnerKey
+        } else {
+            nil
+        }
 
         return WidgetSnapshot.ProviderEntry(
             provider: provider,
-            updatedAt: snapshot?.updatedAt ?? tokenSnapshot?.updatedAt ?? now,
-            primary: snapshot?.primary,
-            secondary: snapshot?.secondary,
-            tertiary: snapshot?.tertiary,
+            updatedAt: snapshot?.updatedAt ?? preservedClaudeUsage?.updatedAt ?? tokenSnapshot?.updatedAt ?? now,
+            primary: snapshot?.primary ?? preservedClaudeUsage?.primary,
+            secondary: snapshot?.secondary ?? preservedClaudeUsage?.secondary,
+            tertiary: snapshot?.tertiary ?? preservedClaudeUsage?.tertiary,
             usageRows: usageRows,
             creditsRemaining: creditsRemaining,
             codeReviewRemainingPercent: codeReviewRemaining,
             tokenUsage: tokenUsage,
             dailyUsage: dailyUsage,
-            providerCost: providerCost)
+            providerCost: providerCost,
+            quotaOwnerKey: quotaOwnerKey)
+    }
+
+    private struct PreservedClaudeWidgetUsage {
+        let updatedAt: Date
+        let primary: RateWindow?
+        let secondary: RateWindow?
+        let tertiary: RateWindow?
+        let usageRows: [WidgetSnapshot.WidgetUsageRowSnapshot]?
+        let quotaOwnerKey: String?
+    }
+
+    private func claudeWidgetQuotaOwnerKey() -> String {
+        if let account = self.settings.effectiveSelectedTokenAccount(for: .claude) {
+            return self.tokenAccountSnapshotCacheKey(provider: .claude, account: account)
+        }
+        let environment = ProviderRegistry.makeEnvironment(
+            base: self.environmentBase,
+            provider: .claude,
+            settings: self.settings,
+            tokenOverride: nil)
+        return ClaudeOAuthCredentialsStore.credentialsProfileIdentifier(environment: environment)
+    }
+
+    private nonisolated static func preservedClaudeWidgetUsage(
+        from entry: WidgetSnapshot.ProviderEntry?,
+        expectedQuotaOwnerKey: String?) -> PreservedClaudeWidgetUsage?
+    {
+        guard let entry, entry.provider == .claude else { return nil }
+        guard let expectedQuotaOwnerKey,
+              let quotaOwnerKey = entry.quotaOwnerKey,
+              quotaOwnerKey == expectedQuotaOwnerKey
+        else {
+            return nil
+        }
+
+        let primary = entry.primary?.isSyntheticPlaceholder == true ? nil : entry.primary
+        let secondary = entry.secondary?.isSyntheticPlaceholder == true ? nil : entry.secondary
+        let tertiary = entry.tertiary?.isSyntheticPlaceholder == true ? nil : entry.tertiary
+        let usageRows = entry.usageRows?.filter { row in
+            guard row.window?.isSyntheticPlaceholder != true else { return false }
+            return switch row.id {
+            case "primary": primary != nil
+            case "secondary": secondary != nil
+            case "tertiary": tertiary != nil
+            default: row.percentLeft != nil
+            }
+        }
+        guard primary != nil || secondary != nil || tertiary != nil || usageRows?.isEmpty == false else {
+            return nil
+        }
+        return PreservedClaudeWidgetUsage(
+            updatedAt: entry.updatedAt,
+            primary: primary,
+            secondary: secondary,
+            tertiary: tertiary,
+            usageRows: usageRows,
+            quotaOwnerKey: quotaOwnerKey)
     }
 
     nonisolated static func widgetTokenUsageSummary(
@@ -194,6 +298,9 @@ extension UsageStore {
                let dyn = AmpProviderDescriptor.primaryLabel(details: snapshot.ampUsage)
             {
                 return dyn
+            }
+            if provider == .crof {
+                return CrofProviderDescriptor.primaryLabel(snapshot: snapshot)
             }
             if provider == .alibabatokenplan,
                let dyn = AlibabaTokenPlanProviderDescriptor.primaryLabel(window: snapshot.primary)

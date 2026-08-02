@@ -431,6 +431,9 @@
 "section_agent_sessions" = "Сеансы агентов";
 "language_title" = "Язык";
 "language_subtitle" = "Изменяет язык интерфейса. Для полного применения нужен перезапуск приложения.";
+"currency_title" = "Предпочитаемая валюта";
+"currency_subtitle" = "Валюта для оценки затрат и расходов. Используются курсы, обновляемые ежедневно.";
+"currency_auto" = "Автоматически (валюта провайдера / USD)";
 "language_system" = "Системный";
 "language_english" = "English";
 "language_spanish" = "Español";

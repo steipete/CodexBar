@@ -911,3 +911,92 @@ struct UsageStoreSessionQuotaTransitionTests {
             updatedAt: Date())
     }
 }
+
+@MainActor
+struct CrofQuotaNotificationTests {
+    private func makeSettings(suiteName: String) -> SettingsStore {
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.removePersistentDomain(forName: suiteName)
+        return SettingsStore(
+            userDefaults: defaults,
+            configStore: testConfigStore(suiteName: suiteName),
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+    }
+
+    @Test
+    func `crof credits-only balance depletion and top-up do not emit quota notifications`() {
+        let settings = self.makeSettings(suiteName: "UsageStoreSessionQuotaTransitionTests-crof-balance")
+        settings.refreshFrequency = .manual
+        settings.statusChecksEnabled = false
+        settings.sessionQuotaNotificationsEnabled = true
+        settings.quotaWarningNotificationsEnabled = true
+        settings.quotaWarningThresholds = [50, 20]
+
+        let notifier = UsageStoreSessionQuotaTransitionTests.SessionQuotaNotifierSpy()
+        let store = UsageStore(
+            fetcher: UsageFetcher(),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings,
+            sessionQuotaNotifier: notifier)
+
+        let funded = CrofUsageSnapshot(credits: 9.0441, updatedAt: Date()).toUsageSnapshot()
+        let depleted = CrofUsageSnapshot(credits: 0, updatedAt: Date()).toUsageSnapshot()
+        let toppedUp = CrofUsageSnapshot(credits: 5, updatedAt: Date()).toUsageSnapshot()
+
+        #expect(funded.secondary == nil)
+        #expect(funded.primary?.windowMinutes == nil)
+        #expect(depleted.primary?.usedPercent == 100)
+
+        for snapshot in [funded, depleted, toppedUp] {
+            store.handleSessionQuotaTransition(provider: .crof, snapshot: snapshot)
+            store.handleQuotaWarningTransitions(provider: .crof, snapshot: snapshot)
+        }
+
+        #expect(notifier.posts.isEmpty)
+        #expect(notifier.quotaWarningPosts.isEmpty)
+    }
+
+    @Test
+    func `crof quota-backed session window still emits session quota notifications`() {
+        let settings = self.makeSettings(suiteName: "UsageStoreSessionQuotaTransitionTests-crof-quota")
+        settings.refreshFrequency = .manual
+        settings.statusChecksEnabled = false
+        settings.sessionQuotaNotificationsEnabled = true
+
+        let notifier = UsageStoreSessionQuotaTransitionTests.SessionQuotaNotifierSpy()
+        let store = UsageStore(
+            fetcher: UsageFetcher(),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings,
+            sessionQuotaNotifier: notifier)
+
+        // Quota-backed Crof shape: request-quota primary + credits secondary.
+        let credits = RateWindow(
+            usedPercent: 0,
+            windowMinutes: nil,
+            resetsAt: nil,
+            resetDescription: "$10.00")
+        let baseline = UsageSnapshot(
+            primary: RateWindow(
+                usedPercent: 20,
+                windowMinutes: 5 * 60,
+                resetsAt: nil,
+                resetDescription: "800 requests left"),
+            secondary: credits,
+            updatedAt: Date())
+        store.handleSessionQuotaTransition(provider: .crof, snapshot: baseline)
+
+        let depleted = UsageSnapshot(
+            primary: RateWindow(
+                usedPercent: 100,
+                windowMinutes: 5 * 60,
+                resetsAt: nil,
+                resetDescription: "0 requests left"),
+            secondary: credits,
+            updatedAt: Date())
+        store.handleSessionQuotaTransition(provider: .crof, snapshot: depleted)
+
+        #expect(notifier.posts.map(\.provider) == [.crof])
+    }
+}

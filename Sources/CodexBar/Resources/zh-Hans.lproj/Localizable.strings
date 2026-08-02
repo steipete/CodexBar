@@ -435,6 +435,9 @@
 "section_agent_sessions" = "智能体会话";
 "language_title" = "语言";
 "language_subtitle" = "更改显示语言。需要重启应用才能完全生效。";
+"currency_title" = "首选货币";
+"currency_subtitle" = "用于费用估算和支出指标的货币。使用每日更新的实时汇率。";
+"currency_auto" = "自动（跟随提供商 / USD）";
 "language_system" = "跟随系统";
 "language_english" = "English";
 "language_spanish" = "Español";

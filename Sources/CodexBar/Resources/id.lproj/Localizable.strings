@@ -415,6 +415,9 @@
 "section_agent_sessions" = "Sesi agen";
 "language_title" = "Bahasa";
 "language_subtitle" = "Ubah bahasa tampilan. Memerlukan restart aplikasi agar berlaku penuh.";
+"currency_title" = "Mata uang pilihan";
+"currency_subtitle" = "Mata uang untuk estimasi biaya dan pengeluaran. Menggunakan kurs yang diperbarui setiap hari.";
+"currency_auto" = "Otomatis (ikuti penyedia / USD)";
 "language_system" = "Sistem";
 "language_english" = "English";
 "language_spanish" = "Español";

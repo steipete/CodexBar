@@ -50,6 +50,7 @@ extension UsageStore {
             self.kiloScopeSnapshots = []
         }
         if provider == .claude {
+            self.widgetUsagePreservationBlockedProviders.insert(provider)
             self.clearClaudeSwapAccountState()
         }
         self.clearTokenSnapshot(for: provider)

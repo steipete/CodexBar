@@ -429,6 +429,9 @@
 "section_agent_sessions" = "Agentsessioner";
 "language_title" = "Språk";
 "language_subtitle" = "Byt visningsspråk. Appen behöver startas om för att ändringen ska slå igenom helt.";
+"currency_title" = "Önskad valuta";
+"currency_subtitle" = "Valuta för kostnadsuppskattningar och utgifter. Använder växelkurser som uppdateras dagligen.";
+"currency_auto" = "Automatiskt (följ leverantör / USD)";
 "language_system" = "System";
 "language_english" = "English";
 "language_spanish" = "Español";

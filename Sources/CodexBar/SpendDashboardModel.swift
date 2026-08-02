@@ -89,19 +89,30 @@ struct SpendDashboardModel: Equatable, Sendable {
         inputs: [ProviderInput],
         requestedDays: Int,
         now: Date,
-        calendar: Calendar = .current) -> Self
+        calendar: Calendar = .current,
+        preferredCurrencyCode: String = "auto") -> Self
     {
         let days = max(1, min(30, requestedDays))
         let calculationCalendar = Self.gregorianCalendar(timeZone: calendar.timeZone)
-        let classifiedInputs = inputs.compactMap { input -> (currencyCode: String, input: ProviderInput)? in
-            guard let currencyCode = Self.currencyCode(input.snapshot.currencyCode) else { return nil }
-            return (currencyCode, input)
+        let classifiedInputs = inputs.compactMap { input -> ClassifiedInput? in
+            guard let sourceCurrencyCode = Self.currencyCode(input.snapshot.currencyCode) else { return nil }
+            let targetCurrencyCode = UsageFormatter.effectiveCurrencyCode(
+                preferred: preferredCurrencyCode,
+                providerCurrency: sourceCurrencyCode)
+            let conversion = CurrencyExchange.shared.convert(
+                amount: 1,
+                from: sourceCurrencyCode,
+                to: targetCurrencyCode)
+            return ClassifiedInput(
+                currencyCode: conversion == nil ? sourceCurrencyCode : targetCurrencyCode,
+                input: input,
+                costMultiplier: conversion ?? 1)
         }
         let groups = Dictionary(grouping: classifiedInputs, by: { $0.currencyCode })
             .map { currencyCode, inputs in
                 Self.buildCurrencyGroup(
                     currencyCode: currencyCode,
-                    inputs: inputs.map(\.input),
+                    inputs: inputs,
                     days: days,
                     now: now,
                     calendar: calculationCalendar)
@@ -110,8 +121,15 @@ struct SpendDashboardModel: Equatable, Sendable {
         return Self(requestedDays: days, groups: groups)
     }
 
+    private struct ClassifiedInput {
+        let currencyCode: String
+        let input: ProviderInput
+        let costMultiplier: Double
+    }
+
     private struct InputSummary {
         let input: ProviderInput
+        let costMultiplier: Double
         let entries: [WindowEntry]
         let totalTokens: Int?
         let totalCost: Double?
@@ -162,14 +180,18 @@ struct SpendDashboardModel: Equatable, Sendable {
 
     private static func buildCurrencyGroup(
         currencyCode: String,
-        inputs: [ProviderInput],
+        inputs: [ClassifiedInput],
         days: Int,
         now: Date,
         calendar: Calendar) -> CurrencyGroup
     {
         let bounds = Self.bounds(days: days, now: now, calendar: calendar)
-        let summaries = inputs.map { input in
-            Self.inputSummary(input: input, bounds: bounds, calendar: calendar)
+        let summaries = inputs.map { classified in
+            Self.inputSummary(
+                input: classified.input,
+                costMultiplier: classified.costMultiplier,
+                bounds: bounds,
+                calendar: calendar)
         }
         let providers = Self.providerRows(summaries)
         let completeModelSummaries = summaries.filter { summary in
@@ -195,6 +217,7 @@ struct SpendDashboardModel: Equatable, Sendable {
 
     private static func inputSummary(
         input: ProviderInput,
+        costMultiplier: Double,
         bounds: ClosedRange<Date>,
         calendar: Calendar) -> InputSummary
     {
@@ -234,9 +257,12 @@ struct SpendDashboardModel: Equatable, Sendable {
             ? nil
             : entries.isEmpty
             ? (coveredDayCount > 0 && hasCompleteCostHistory ? 0 : nil)
-            : Self.completeCostSum(entries.map { Self.validCost($0.entry.costUSD) })
+            : Self.completeCostSum(entries.map {
+                Self.validCost($0.entry.costUSD).map { $0 * costMultiplier }
+            })
         return InputSummary(
             input: input,
+            costMultiplier: costMultiplier,
             entries: entries,
             totalTokens: totalTokens,
             totalCost: totalCost,
@@ -301,7 +327,7 @@ struct SpendDashboardModel: Equatable, Sendable {
                     } else {
                         aggregate.invalidTokens = true
                     }
-                    if let cost = Self.validCost(breakdown.costUSD) {
+                    if let cost = Self.validCost(breakdown.costUSD).map({ $0 * summary.costMultiplier }) {
                         aggregate.sawCost = true
                         aggregate.cost = Self.add(cost, to: aggregate.cost, overflowed: &aggregate.overflowedCost)
                     } else {
@@ -482,7 +508,7 @@ struct SpendDashboardModel: Equatable, Sendable {
                     provider: input.provider,
                     providerName: input.displayName,
                     cost: 0)
-                if let cost = Self.validCost(entry.costUSD) {
+                if let cost = Self.validCost(entry.costUSD).map({ $0 * summary.costMultiplier }) {
                     aggregate.cost = Self.add(cost, to: aggregate.cost, overflowed: &aggregate.overflowed)
                 } else {
                     aggregate.invalid = true

@@ -470,6 +470,61 @@ struct UsageFormatterTests {
     }
 
     @Test
+    func `currency exchange converts rates and formats correctly`() {
+        let exchange = CurrencyExchange.shared
+        let epsilon = 1e-9
+        // USD → USD is identity
+        #expect(abs((exchange.convert(usdAmount: 10.0, to: "USD") ?? 0) - 10.0) < epsilon)
+
+        // Cross-currency conversion via USD pivot
+        let gbpRate = exchange.rate(for: "GBP") ?? 0.79
+        let eurRate = exchange.rate(for: "EUR") ?? 0.92
+        #expect(abs((exchange.convert(usdAmount: 10.0, to: "GBP") ?? 0) - 10.0 * gbpRate) < epsilon)
+        #expect(abs((exchange.convert(usdAmount: 10.0, to: "EUR") ?? 0) - 10.0 * eurRate) < epsilon)
+
+        // Cross-currency: GBP → EUR
+        let gbpToEur = exchange.convert(amount: 10.0, from: "GBP", to: "EUR")
+        let expectedGbpToEur = 10.0 / gbpRate * eurRate
+        #expect(abs((gbpToEur ?? 0) - expectedGbpToEur) < epsilon)
+
+        // GBP → USD cross-currency
+        let gbpToUsd = exchange.convert(amount: 10.0, from: "GBP", to: "USD")
+        #expect(abs((gbpToUsd ?? 0) - 10.0 / gbpRate) < epsilon)
+
+        // Formatting
+        let gbpFormatted = UsageFormatter.convertedCostString(10.0, targetCurrency: "GBP")
+        #expect(gbpFormatted.contains("£"))
+
+        let usdFormatted = UsageFormatter.convertedCostString(10.0, targetCurrency: "USD")
+        #expect(usdFormatted == "$10.00")
+
+        // Smart conversion with preferred currency
+        let autoResult = UsageFormatter.convertedCostString(10.0, preferredCurrency: "auto", providerCurrency: "GBP")
+        #expect(autoResult.contains("£"))
+
+        let explicitCNY = UsageFormatter.convertedCostString(10.0, preferredCurrency: "CNY", providerCurrency: "USD")
+        #expect(explicitCNY.contains("¥"))
+
+        #expect(exchange.convert(amount: 10.0, from: "CHF", to: "USD") == nil)
+        let unavailable = UsageFormatter.convertedCostString(
+            10.0,
+            preferredCurrency: "USD",
+            providerCurrency: "CHF")
+        #expect(unavailable.contains("CHF"))
+        #expect(!unavailable.contains("$"))
+    }
+
+    @Test
+    func `live exchange rates require an explicit non USD currency`() {
+        #expect(!CurrencyExchange.requiresLiveRates(preferredCurrencyCode: "USD"))
+        #expect(!CurrencyExchange.requiresLiveRates(preferredCurrencyCode: " usd "))
+        #expect(!CurrencyExchange.requiresLiveRates(preferredCurrencyCode: "auto"))
+        #expect(!CurrencyExchange.requiresLiveRates(preferredCurrencyCode: "CHF"))
+        #expect(CurrencyExchange.requiresLiveRates(preferredCurrencyCode: "GBP"))
+        #expect(CurrencyExchange.requiresLiveRates(preferredCurrencyCode: " eur "))
+    }
+
+    @Test
     func `usage formatter localization keys exist in en and zh Hans with matching placeholders`() throws {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()

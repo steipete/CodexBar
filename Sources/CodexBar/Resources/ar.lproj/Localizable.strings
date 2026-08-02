@@ -415,6 +415,9 @@
 "section_agent_sessions" = "جلسات الوكلاء";
 "language_title" = "اللغة";
 "language_subtitle" = "غير لغة العرض. يتطلب إعادة تشغيل التطبيق ليكون مفعوله بالكامل.";
+"currency_title" = "العملة المفضلة";
+"currency_subtitle" = "عملة تقديرات التكلفة ومقاييس الإنفاق. تستخدم أسعار صرف تُحدّث يوميًا.";
+"currency_auto" = "تلقائي (حسب المزوّد / USD)";
 "language_system" = "النظام";
 "language_english" = "الإنجليزية";
 "language_spanish" = "الإسبانيول";

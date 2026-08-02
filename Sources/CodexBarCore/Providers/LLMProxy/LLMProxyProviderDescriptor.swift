@@ -51,7 +51,7 @@ struct LLMProxyAPIFetchStrategy: ProviderFetchStrategy {
 
     func isAvailable(_ context: ProviderFetchContext) async -> Bool {
         ProviderTokenResolver.llmProxyToken(environment: context.env) != nil &&
-            LLMProxySettingsReader.baseURL(environment: context.env) != nil
+            LLMProxySettingsReader.hasBaseURLOverride(environment: context.env)
     }
 
     func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
@@ -59,7 +59,11 @@ struct LLMProxyAPIFetchStrategy: ProviderFetchStrategy {
             throw LLMProxyUsageError.missingCredentials
         }
         guard let baseURL = LLMProxySettingsReader.baseURL(environment: context.env) else {
-            throw LLMProxyUsageError.missingBaseURL
+            // Distinguish "never configured" from "configured but rejected" so the user sees
+            // which one applies instead of the provider silently going unavailable.
+            throw LLMProxySettingsReader.hasBaseURLOverride(environment: context.env)
+                ? LLMProxyUsageError.invalidEndpointOverride(LLMProxySettingsReader.baseURLEnvironmentKey)
+                : LLMProxyUsageError.missingBaseURL
         }
         let usage = try await LLMProxyUsageFetcher.fetchUsage(apiKey: apiKey, baseURL: baseURL)
         return self.makeResult(

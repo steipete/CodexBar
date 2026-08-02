@@ -46,12 +46,18 @@ enum CodexLocalProjectUsageIndexer {
         defer { CodexModelsTelemetry.end("IndexRefresh", id: refreshSignpost) }
         let clampedHistoryDays = max(1, min(365, historyDays))
         let until = now
-        let since = Calendar.current.date(byAdding: .day, value: -(clampedHistoryDays - 1), to: now) ?? now
-        let comparisonSince = self.modelsAnalyticsScanStart(since: since, until: until)
         var scannerOptions = options.scannerOptions
         if forceRefresh {
             scannerOptions.refreshMinIntervalSeconds = 0
         }
+        let since = scannerOptions.calendar.date(
+            byAdding: .day,
+            value: -(clampedHistoryDays - 1),
+            to: now) ?? now
+        let comparisonSince = self.modelsAnalyticsScanStart(
+            since: since,
+            until: until,
+            calendar: scannerOptions.calendar)
 
         progress?(CodexLocalProjectUsageIndexProgress(phase: .scanningLogs))
         _ = try CostUsageScanner.loadDailyReportCancellable(
@@ -63,7 +69,10 @@ enum CodexLocalProjectUsageIndexer {
             checkCancellation: checkCancellation)
         try checkCancellation?()
 
-        let cache = CostUsageCacheIO.load(provider: .codex, cacheRoot: scannerOptions.cacheRoot)
+        let cache = CostUsageCacheIO.load(
+            provider: .codex,
+            cacheRoot: scannerOptions.cacheRoot,
+            calendar: scannerOptions.calendar)
         let catalogResult = CodexThreadCatalogReader.loadResult(options: scannerOptions)
         let catalog = catalogResult.catalog
         let sourceStatus = CodexLocalProjectUsageSourceStatus(catalog: catalogResult.completeness)
@@ -145,8 +154,14 @@ enum CodexLocalProjectUsageIndexer {
         checkCancellation: CostUsageScanner.CancellationCheck? = nil) throws -> CodexLocalProjectUsageSnapshot
     {
         let clampedHistoryDays = max(1, min(365, historyDays))
-        let range = CostUsageScanner.CostUsageDayRange(since: since, until: until)
-        let cache = cacheOverride ?? CostUsageCacheIO.load(provider: .codex, cacheRoot: options.cacheRoot)
+        let range = CostUsageScanner.CostUsageDayRange(
+            since: since,
+            until: until,
+            calendar: options.calendar)
+        let cache = cacheOverride ?? CostUsageCacheIO.load(
+            provider: .codex,
+            cacheRoot: options.cacheRoot,
+            calendar: options.calendar)
         let catalog = catalogOverride ?? CodexThreadCatalogReader.load(options: options)
         let expectedRoots = CostUsageScanner.codexRootsFingerprint(options: options)
         let scopeSignature = self.stableScopeSignature(options: options)
@@ -275,7 +290,8 @@ enum CodexLocalProjectUsageIndexer {
                     since: since,
                     until: until,
                     historyDays: clampedHistoryDays,
-                    generatedAt: now),
+                    generatedAt: now,
+                    calendar: options.calendar),
                 identity: ModelsAnalyticsIdentity(
                     scopeSignature: scopeSignature,
                     rootsFingerprint: rootsFingerprint),
@@ -297,6 +313,7 @@ extension CodexLocalProjectUsageIndexer {
         let until: Date
         let historyDays: Int
         let generatedAt: Date
+        let calendar: Calendar
     }
 
     fileprivate struct ModelsAnalyticsIdentity {
@@ -653,19 +670,27 @@ extension CodexLocalProjectUsageIndexer {
     {
         let aggregationSignpost = CodexModelsTelemetry.begin("SnapshotAggregation")
         defer { CodexModelsTelemetry.end("SnapshotAggregation", id: aggregationSignpost) }
-        let periods = self.modelsAnalyticsPeriods(since: window.since, until: window.until)
+        let periods = self.modelsAnalyticsPeriods(
+            since: window.since,
+            until: window.until,
+            calendar: window.calendar)
         let previousInterval = periods.previous
         let previousRange = CostUsageScanner.CostUsageDayRange(
             since: previousInterval.start,
-            until: previousInterval.end.addingTimeInterval(-1))
+            until: previousInterval.end.addingTimeInterval(-1),
+            calendar: window.calendar)
         let previousBuckets = try self.sessionBuckets(
             from: context.cache,
             range: previousRange,
             catalog: context.catalog,
             progress: nil,
             checkCancellation: checkCancellation).sessionBuckets
-        let currentFragments = self.analyticsFragments(from: context.currentBuckets.values)
-        let previousFragments = self.analyticsFragments(from: previousBuckets.values)
+        let currentFragments = self.analyticsFragments(
+            from: context.currentBuckets.values,
+            calendar: window.calendar)
+        let previousFragments = self.analyticsFragments(
+            from: previousBuckets.values,
+            calendar: window.calendar)
         let currentBucketsByProject = Dictionary(grouping: context.currentBuckets.values, by: \.projectId)
         let previousBucketsByProject = Dictionary(grouping: previousBuckets.values, by: \.projectId)
         let currentFragmentsByProject = Dictionary(grouping: currentFragments, by: \.workspaceID)
@@ -814,14 +839,16 @@ extension CodexLocalProjectUsageIndexer {
     }
 
     fileprivate static func analyticsFragments(
-        from buckets: Dictionary<String, SessionBucket>.Values) -> [CodexModelsUsageFragment]
+        from buckets: Dictionary<String, SessionBucket>.Values,
+        calendar: Calendar) -> [CodexModelsUsageFragment]
     {
-        buckets.flatMap { bucket in
+        let calendar = CostUsageScanner.CostUsageDayRange.localGregorianCalendar(matching: calendar)
+        return buckets.flatMap { bucket in
             if bucket.hasCompleteEventRows, !bucket.usageRows.isEmpty {
                 return bucket.usageRows.compactMap { row -> CodexModelsUsageFragment? in
                     guard let timestampUnixMs = row.timestampUnixMs else { return nil }
                     let timestamp = Date(timeIntervalSince1970: Double(timestampUnixMs) / 1000)
-                    let day = Calendar.current.startOfDay(for: timestamp)
+                    let day = calendar.startOfDay(for: timestamp)
                     let inputTokens = max(0, row.input)
                     let outputTokens = max(0, row.output)
                     let totalTokens = Int64(inputTokens + outputTokens)
@@ -841,7 +868,8 @@ extension CodexLocalProjectUsageIndexer {
                 }
             }
             return bucket.modelDailyTotals.flatMap { day, models -> [CodexModelsUsageFragment] in
-                guard let date = CostUsageDateParser.parse(day) else { return [] }
+                guard let parsedDate = CostUsageScanner.parseDayKey(day, calendar: calendar) else { return [] }
+                let date = calendar.startOfDay(for: parsedDate)
                 return models.map { model, totals in
                     CodexModelsUsageFragment(
                         workspaceID: bucket.projectId,
@@ -895,7 +923,7 @@ extension CodexLocalProjectUsageIndexer {
     }
 
     fileprivate static func stableScopeSignature(options: CostUsageScanner.Options) -> String {
-        CodexLocalDataScope.resolve(options: options).identifier
+        "\(CodexLocalDataScope.resolve(options: options).identifier)|timeZone=\(options.calendar.timeZone.identifier)"
     }
 
     fileprivate static func rootsFingerprint(_ roots: [String: Int64]) -> [String: Int64] {

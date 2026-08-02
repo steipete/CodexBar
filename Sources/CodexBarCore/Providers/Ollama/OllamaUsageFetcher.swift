@@ -7,9 +7,11 @@ import FoundationNetworking
 import SweetCookieKit
 #endif
 
+let ollamaDefaultSessionCookieName = "__Secure-session"
+
 private let ollamaSessionCookieNames: Set<String> = [
     "session",
-    "__Secure-session",
+    ollamaDefaultSessionCookieName,
     "ollama_session",
     "__Host-ollama_session",
     "wos-session",
@@ -27,8 +29,75 @@ private func isRecognizedOllamaSessionCookieName(_ name: String) -> Bool {
 }
 
 private func hasRecognizedOllamaSessionCookie(in header: String) -> Bool {
-    CookieHeaderNormalizer.pairs(from: header).contains { pair in
+    ollamaCookiePairs(from: header).contains { pair in
         isRecognizedOllamaSessionCookieName(pair.name)
+    }
+}
+
+func normalizedOllamaTokenAccountHeader(_ token: String, defaultCookieName: String) -> String {
+    let trimmed = token.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmed.isEmpty else { return "" }
+    guard trimmed.rangeOfCharacter(from: .newlines) == nil else { return "" }
+
+    let lowercased = trimmed.lowercased()
+    let headerValue: String
+    if lowercased.hasPrefix("cookie:") {
+        guard let normalized = CookieHeaderNormalizer.normalize(trimmed) else { return "" }
+        headerValue = normalized
+    } else if lowercased.hasPrefix("curl ") {
+        if let unquoted = extractUnquotedOllamaCookieHeader(from: trimmed) {
+            headerValue = unquoted
+        } else {
+            guard let normalized = CookieHeaderNormalizer.normalize(trimmed), normalized != trimmed else { return "" }
+            headerValue = normalized
+        }
+    } else {
+        headerValue = trimmed
+    }
+
+    let pairs = ollamaCookiePairs(from: headerValue)
+    if pairs.contains(where: { $0.name.caseInsensitiveCompare(defaultCookieName) == .orderedSame }) {
+        return pairs.map { pair in
+            let name = pair.name.caseInsensitiveCompare(defaultCookieName) == .orderedSame
+                ? defaultCookieName
+                : pair.name
+            return "\(name)=\(pair.value)"
+        }.joined(separator: "; ")
+    }
+    if pairs.contains(where: { isRecognizedOllamaSessionCookieName($0.name) }) {
+        return headerValue
+    }
+    if headerValue.contains(";") {
+        return headerValue
+    }
+    return "\(defaultCookieName)=\(headerValue)"
+}
+
+private func extractUnquotedOllamaCookieHeader(from raw: String) -> String? {
+    let pattern = #"(?i)(?:^|\s)-H\s*Cookie:\s*([^\s]+)"#
+    guard let regex = try? NSRegularExpression(pattern: pattern),
+          let match = regex.firstMatch(in: raw, range: NSRange(raw.startIndex..<raw.endIndex, in: raw)),
+          let captureRange = Range(match.range(at: 1), in: raw)
+    else {
+        return nil
+    }
+    let value = raw[captureRange].trimmingCharacters(in: .whitespacesAndNewlines)
+    return value.isEmpty ? nil : String(value)
+}
+
+private func ollamaCookiePairs(from header: String) -> [(name: String, value: String)] {
+    header.split(separator: ";").compactMap { part in
+        let trimmed = part.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty,
+              let equalsIndex = trimmed.firstIndex(of: "=")
+        else {
+            return nil
+        }
+        let name = trimmed[..<equalsIndex].trimmingCharacters(in: .whitespacesAndNewlines)
+        let value = trimmed[trimmed.index(after: equalsIndex)...]
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty else { return nil }
+        return (name: String(name), value: String(value))
     }
 }
 
@@ -642,13 +711,20 @@ public struct OllamaUsageFetcher: Sendable {
         manualCookieMode: Bool,
         logger: ((String) -> Void)? = nil) throws -> String?
     {
-        if let override = CookieHeaderNormalizer.normalize(override) {
-            guard hasRecognizedOllamaSessionCookie(in: override) else {
+        if let rawOverride = override?.trimmingCharacters(in: .whitespacesAndNewlines), !rawOverride.isEmpty {
+            let normalized = if rawOverride.rangeOfCharacter(from: .newlines) == nil,
+                                hasRecognizedOllamaSessionCookie(in: rawOverride)
+            {
+                rawOverride
+            } else {
+                CookieHeaderNormalizer.normalize(rawOverride) ?? rawOverride
+            }
+            guard hasRecognizedOllamaSessionCookie(in: normalized) else {
                 logger?("[ollama] Manual cookie header missing recognized session cookie")
                 throw OllamaUsageError.noSessionCookie
             }
             logger?("[ollama] Using manual cookie header")
-            return override
+            return normalized
         }
         if manualCookieMode {
             throw OllamaUsageError.noSessionCookie

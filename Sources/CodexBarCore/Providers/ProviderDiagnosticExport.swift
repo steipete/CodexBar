@@ -185,6 +185,7 @@ public struct ProviderDiagnosticUsageSummary: Codable, Sendable {
         if snapshot.claudeAdminAPIUsage != nil { providerSpecificData.append("claudeAdminAPIUsage") }
         if snapshot.mistralUsage != nil { providerSpecificData.append("mistralUsage") }
         if snapshot.deepgramUsage != nil { providerSpecificData.append("deepgramUsage") }
+        if snapshot.xaiUsage != nil { providerSpecificData.append("xaiUsage") }
         if snapshot.cursorRequests != nil { providerSpecificData.append("cursorRequests") }
 
         self.updatedAt = snapshot.updatedAt

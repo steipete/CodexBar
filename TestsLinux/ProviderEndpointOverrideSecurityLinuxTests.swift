@@ -125,6 +125,131 @@ struct ProviderEndpointOverrideSecurityLinuxTests {
         #expect(MiMoSettingsReader.apiURL(environment: [MiMoSettingsReader.apiURLKey: "mimo-proxy.test/api/v1"])
             .absoluteString == "https://mimo-proxy.test/api/v1")
     }
+
+    // MARK: - LiteLLM / LLM Proxy
+
+    // Both send their API key to the configured base URL as a bearer token. HTTPS works everywhere;
+    // HTTP is limited to loopback and explicitly private-network destinations.
+
+    @Test
+    func liteLLMRejectsRemoteHTTPBaseURLBeforeSendingKey() {
+        for endpoint in Self.publicHTTPEndpoints {
+            #expect(LiteLLMSettingsReader.baseURL(
+                environment: [LiteLLMSettingsReader.baseURLEnvironmentKey: endpoint]) == nil)
+        }
+    }
+
+    @Test
+    func liteLLMRejectsBaseURLWithEmbeddedCredentials() {
+        #expect(LiteLLMSettingsReader.baseURL(
+            environment: [LiteLLMSettingsReader.baseURLEnvironmentKey: "https://user@attacker.test"]) == nil)
+    }
+
+    @Test
+    func liteLLMAcceptsHTTPSAndPrivateNetworkHTTPBaseURLs() {
+        #expect(LiteLLMSettingsReader.baseURL(
+            environment: [LiteLLMSettingsReader.baseURLEnvironmentKey: "https://litellm.example.com"])?
+            .absoluteString == "https://litellm.example.com")
+        for endpoint in Self.privateHTTPEndpoints {
+            #expect(LiteLLMSettingsReader.baseURL(
+                environment: [LiteLLMSettingsReader.baseURLEnvironmentKey: endpoint])?.absoluteString == endpoint)
+        }
+    }
+
+    @Test
+    func llmProxyRejectsRemoteHTTPBaseURLBeforeSendingKey() {
+        for endpoint in Self.publicHTTPEndpoints {
+            #expect(LLMProxySettingsReader.baseURL(
+                environment: [LLMProxySettingsReader.baseURLEnvironmentKey: endpoint]) == nil)
+        }
+    }
+
+    @Test
+    func llmProxyRejectsBaseURLWithEmbeddedCredentials() {
+        #expect(LLMProxySettingsReader.baseURL(
+            environment: [LLMProxySettingsReader.baseURLEnvironmentKey: "https://user@attacker.test"]) == nil)
+    }
+
+    @Test
+    func rejectedBaseURLStaysConfiguredSoTheErrorCanSurface() {
+        // A rejected override must not read as "never configured": the strategy stays available so
+        // the fetch path can report invalidEndpointOverride instead of the provider going missing.
+        let liteLLM = [LiteLLMSettingsReader.baseURLEnvironmentKey: "http://attacker.test"]
+        #expect(LiteLLMSettingsReader.baseURL(environment: liteLLM) == nil)
+        #expect(LiteLLMSettingsReader.hasBaseURLOverride(environment: liteLLM))
+        #expect(!LiteLLMSettingsReader.hasBaseURLOverride(environment: [:]))
+
+        let llmProxy = [LLMProxySettingsReader.baseURLEnvironmentKey: "http://attacker.test"]
+        #expect(LLMProxySettingsReader.baseURL(environment: llmProxy) == nil)
+        #expect(LLMProxySettingsReader.hasBaseURLOverride(environment: llmProxy))
+        #expect(!LLMProxySettingsReader.hasBaseURLOverride(environment: [:]))
+    }
+
+    @Test
+    func rejectedOverrideErrorNamesTheSettingAndTheRule() {
+        // The message has to tell the user which key to fix and what shape is accepted.
+        let liteLLM = LiteLLMUsageError
+            .invalidEndpointOverride(LiteLLMSettingsReader.baseURLEnvironmentKey).errorDescription ?? ""
+        #expect(liteLLM.contains("LITELLM_BASE_URL"))
+        #expect(liteLLM.contains("HTTPS"))
+        #expect(liteLLM.contains("private-network"))
+        #expect(liteLLM.contains(".local"))
+
+        let llmProxy = LLMProxyUsageError
+            .invalidEndpointOverride(LLMProxySettingsReader.baseURLEnvironmentKey).errorDescription ?? ""
+        #expect(llmProxy.contains("LLM_PROXY_BASE_URL"))
+        #expect(llmProxy.contains("HTTPS"))
+        #expect(llmProxy.contains("private-network"))
+        #expect(llmProxy.contains(".local"))
+    }
+
+    @Test
+    func llmProxyAcceptsHTTPSAndPrivateNetworkHTTPBaseURLs() {
+        #expect(LLMProxySettingsReader.baseURL(
+            environment: [LLMProxySettingsReader.baseURLEnvironmentKey: "https://proxy.example.com"])?
+            .absoluteString == "https://proxy.example.com")
+        for endpoint in Self.privateHTTPEndpoints {
+            #expect(LLMProxySettingsReader.baseURL(
+                environment: [LLMProxySettingsReader.baseURLEnvironmentKey: endpoint])?.absoluteString == endpoint)
+        }
+    }
+
+    @Test
+    func sharedLoopbackOnlyValidatorStillRejectsPrivateNetworkHTTP() {
+        let validator = ProviderEndpointOverrideValidator()
+        #expect(validator.validatedURLAllowingLoopbackHTTP("http://127.0.0.1:4000") != nil)
+        #expect(validator.validatedURLAllowingLoopbackHTTP("http://192.168.1.10:4000") == nil)
+        #expect(validator.validatedURLAllowingLoopbackHTTP("http://[fd00::1]:4000") == nil)
+        #expect(validator.validatedURLAllowingLoopbackHTTP("http://proxy.local:4000") == nil)
+    }
+
+    private static let privateHTTPEndpoints = [
+        "http://localhost:4000",
+        "http://127.0.0.1:4000",
+        "http://[::1]:4000",
+        "http://10.255.255.255:4000",
+        "http://172.16.0.1:4000",
+        "http://172.31.255.255:4000",
+        "http://192.168.1.10:4000",
+        "http://169.254.10.20:4000",
+        "http://[fc00::1]:4000",
+        "http://[fdff:ffff::1]:4000",
+        "http://[fe80::1]:4000",
+        "http://[febf:ffff::1]:4000",
+        "http://proxy.local:4000",
+        "http://proxy.local.:4000",
+    ]
+
+    private static let publicHTTPEndpoints = [
+        "http://attacker.test:4000",
+        "http://8.8.8.8:4000",
+        "http://172.15.255.255:4000",
+        "http://172.32.0.0:4000",
+        "http://169.253.255.255:4000",
+        "http://192.169.0.1:4000",
+        "http://[2606:4700:4700::1111]:4000",
+        "http://[fec0::1]:4000",
+    ]
 }
 
 private struct FailingTransport: ProviderHTTPTransport {

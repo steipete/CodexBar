@@ -432,6 +432,9 @@
 "section_agent_sessions" = "Sesiones de agentes";
 "language_title" = "Idioma";
 "language_subtitle" = "Cambia el idioma de la interfaz. Requiere reiniciar la app para aplicarse por completo.";
+"currency_title" = "Moneda preferida";
+"currency_subtitle" = "Moneda para estimaciones de coste y gastos. Usa tipos de cambio actualizados diariamente.";
+"currency_auto" = "Automático (según proveedor / USD)";
 "language_system" = "Sistema";
 "language_english" = "English";
 "language_spanish" = "Español";

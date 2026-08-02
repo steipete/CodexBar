@@ -120,6 +120,7 @@ extension ProviderFetchOutcome {
                 diagnostic: result.diagnostic,
                 claudeOAuthKeychainPersistentRefHash: result.claudeOAuthKeychainPersistentRefHash,
                 claudeOAuthHistoryOwnerIdentifier: result.claudeOAuthHistoryOwnerIdentifier,
+                claudeOAuthCredentialOwner: result.claudeOAuthCredentialOwner,
                 claudeOAuthKeychainCredentialMismatch: result.claudeOAuthKeychainCredentialMismatch,
                 claudeOAuthKeychainCredentialAbsent: result.claudeOAuthKeychainCredentialAbsent,
                 claudeOAuthKeychainCredentialUnavailable: result.claudeOAuthKeychainCredentialUnavailable)),

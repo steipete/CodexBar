@@ -422,6 +422,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             guard let settings = self?.settings else { return }
             AdaptiveActivityConsentPresenter.presentIfNeeded(settings: settings)
             AppNotifications.shared.requestAuthorizationOnStartup()
+            // A persisted non-USD choice opts into the daily exchange-rate refresh. The service
+            // returns before networking for the default USD setting and Auto.
+            guard CurrencyExchange.requiresLiveRates(
+                preferredCurrencyCode: settings.preferredCurrencyCode)
+            else { return }
+            await CurrencyExchange.shared.fetchLatestRatesIfNeeded(
+                preferredCurrencyCode: settings.preferredCurrencyCode)
         }
         KeyboardShortcuts.onKeyUp(for: .openMenu) { [weak self] in
             // KeyboardShortcuts dispatches both normal and menu-tracking hotkeys on the main event loop.
@@ -549,6 +556,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 selection,
                 managedCodexAccountCoordinator,
                 codexAccountPromotionCoordinator)
+            if let statusController = self.statusController as? StatusItemController {
+                MenuSwitchFlickerProbe.startIfRequested(controller: statusController)
+            }
             return
         }
 

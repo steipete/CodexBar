@@ -75,6 +75,7 @@ public struct ClaudeSwapUsageWindow: Equatable, Sendable {
 public enum ClaudeSwapUsageStatus: Equatable, Sendable {
     case ok
     case tokenExpired
+    case reloginRequired
     case apiKey
     case keychainUnavailable
     case noCredentials
@@ -85,6 +86,7 @@ public enum ClaudeSwapUsageStatus: Equatable, Sendable {
         switch rawValue {
         case "ok": self = .ok
         case "token_expired": self = .tokenExpired
+        case "relogin_required": self = .reloginRequired
         case "api_key": self = .apiKey
         case "keychain_unavailable": self = .keychainUnavailable
         case "no_credentials": self = .noCredentials

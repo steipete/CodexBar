@@ -415,6 +415,9 @@
 "section_agent_sessions" = "جلسات عامل‌ها";
 "language_title" = "زبان";
 "language_subtitle" = "زبان نمایش را تغییر دهید. برای اجرایی شدن کامل برنامه نیاز به ریستارت دارد.";
+"currency_title" = "ارز ترجیحی";
+"currency_subtitle" = "ارز برآورد هزینه و مصرف. از نرخ‌های تبدیل روزانه استفاده می‌کند.";
+"currency_auto" = "خودکار (بر اساس ارائه‌دهنده / USD)";
 "language_system" = "سیستم";
 "language_english" = "انگلیسی";
 "language_spanish" = "اسپانیایی";

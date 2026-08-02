@@ -413,6 +413,9 @@
 "section_agent_sessions" = "Ajan oturumları";
 "language_title" = "Dil";
 "language_subtitle" = "Görüntüleme dilini değiştirin. Tam olarak geçerli olması için uygulamanın yeniden başlatılması gerekir.";
+"currency_title" = "Tercih edilen para birimi";
+"currency_subtitle" = "Maliyet tahminleri ve harcamalar için para birimi. Günlük güncellenen kurları kullanır.";
+"currency_auto" = "Otomatik (sağlayıcı / USD)";
 "language_system" = "Sistem";
 "language_english" = "English";
 "language_spanish" = "Español";

@@ -415,6 +415,9 @@
 "section_agent_sessions" = "Agent sessions";
 "language_title" = "Language";
 "language_subtitle" = "Change the display language. Requires app restart to take full effect.";
+"currency_title" = "Preferred Currency";
+"currency_subtitle" = "Currency for cost estimates and spend metrics. Uses live exchange rates updated daily.";
+"currency_auto" = "Auto (Follow Provider / USD)";
 "language_system" = "System";
 "language_english" = "English";
 "language_spanish" = "Español";

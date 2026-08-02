@@ -201,6 +201,8 @@ enum DashboardSnapshotBuilder {
 
         let primaryLabel = if provider == .amp {
             AmpProviderDescriptor.primaryLabel(details: usage.ampUsage) ?? metadata?.sessionLabel ?? "Session"
+        } else if provider == .crof {
+            CrofProviderDescriptor.primaryLabel(snapshot: usage)
         } else {
             metadata?.sessionLabel ?? "Session"
         }

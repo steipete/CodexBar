@@ -81,28 +81,31 @@ public struct StepFunRateLimitResponse: Decodable, Sendable {
         self.status == 1
     }
 
-    /// Credit-based plans (plan_family=2) report usage via `plan_credit_rate_limit`
-    /// instead of the five-hour / weekly rate windows. Those rate fields are 0 with
-    /// reset_time "0" — meaning "no window configured", NOT "fully consumed".
+    /// StepFun runs two Step Plan billing models side by side after the 2026-06-18
+    /// upgrade (docs/zh/step-plan/upgrade-notice): the grandfathered **Coding Plan**
+    /// meters rolling **5-hour / weekly** windows, while the current **Token Plan**
+    /// meters a monthly **Credit** pool via `plan_credit_rate_limit` (its rate windows
+    /// come back as 0 with `reset_time` `"0"` — "no window configured", not "used up").
+    ///
+    /// Classify by the shape the payload actually carries rather than trusting
+    /// `plan_family` alone: a live rolling window means Coding Plan; no window plus a
+    /// Credit pool means Token Plan. `plan_family` (2 == the Credit family) is only a
+    /// tie-breaker for an ambiguous payload (e.g. a brand-new plan with neither a live
+    /// window nor credit yet), so a future family-id change can't silently flip a
+    /// windowed plan onto the credit renderer or vice versa.
     var isCreditPlan: Bool {
-        // plan_family 2 = credit-based subscription plans (e.g. Mini, Pro).
-        if let family = self.planFamily?.value, family > 0 {
-            return family == 2
+        let hasLiveWindow = (self.fiveHourUsageResetTime?.value ?? 0) > 0
+            || (self.weeklyUsageResetTime?.value ?? 0) > 0
+        if hasLiveWindow {
+            return false
         }
-        // Fallback heuristic: if both rate windows are 0 with no reset time, but
-        // credit data is present, treat as a credit plan.
-        if let credit = self.planCreditRateLimit,
-           (credit.subscriptionCreditLeftRate?.value ?? 0) > 0
-        {
-            let fiveHourZero = (self.fiveHourUsageLeftRate?.value ?? 1) == 0
-            let weeklyZero = (self.weeklyUsageLeftRate?.value ?? 1) == 0
-            let fiveHourNoReset = (self.fiveHourUsageResetTime?.value ?? 0) == 0
-            let weeklyNoReset = (self.weeklyUsageResetTime?.value ?? 0) == 0
-            if (fiveHourZero && fiveHourNoReset) || (weeklyZero && weeklyNoReset) {
-                return true
-            }
+        let hasCreditPool = self.planCreditRateLimit?.subscriptionCreditLeftRate != nil
+            || self.planCreditRateLimit?.topupCreditLeftRate != nil
+            || !(self.planCreditRateLimit?.creditBuckets?.isEmpty ?? true)
+        if hasCreditPool {
+            return true
         }
-        return false
+        return (self.planFamily?.value).map { $0 == 2 } ?? false
     }
 }
 
@@ -253,16 +256,22 @@ public struct StepFunUsageSnapshot: Sendable {
             accountOrganization: nil,
             loginMethod: loginMethod)
 
-        // Credit-based plans (plan_family=2) don't have 5h/weekly rate windows.
-        // Show the credit balance as the primary window and drop the meaningless
-        // 0%-left rate windows entirely.
+        // Token Plan (Credit pool) carries no live 5h/weekly windows. Show the credit
+        // balance as the primary window and drop the meaningless 0%-left rate windows
+        // entirely. Coding Plan keeps its rolling windows and falls through below.
         if self.isCreditPlan, let creditRate = self.creditLeftRate {
             let creditUsedPercent = max(0, min(100, (1.0 - creditRate) * 100))
             let resetDate = self.creditResetTime ?? Date.distantFuture
             let resetDescription = UsageFormatter.resetDescription(from: resetDate)
+            // Populate windowMinutes so the monthly credit pool feeds the plan-utilization
+            // history + pace forecast, matching the Codex/Claude windows. Only when the credit
+            // pool has a real monthly reset (otherwise the pace projection is meaningless).
+            let creditWindowMinutes = self.creditResetTime == nil
+                ? nil
+                : ProviderPaceCapability.monthlyWindowSentinelMinutes
             let creditWindow = RateWindow(
                 usedPercent: creditUsedPercent,
-                windowMinutes: nil,
+                windowMinutes: creditWindowMinutes,
                 resetsAt: resetDate,
                 resetDescription: resetDescription)
 
@@ -725,7 +734,7 @@ public struct StepFunUsageFetcher: Sendable {
 
         let creditLeftRate = decoded.planCreditRateLimit?.totalCreditLeftRate
         let creditResetTime = decoded.planCreditRateLimit?.subscriptionCreditResetTime
-            .map { Date(timeIntervalSince1970: TimeInterval($0.value)) }
+            .flatMap { $0.value > 0 ? Date(timeIntervalSince1970: TimeInterval($0.value)) : nil }
 
         return StepFunUsageSnapshot(
             fiveHourUsageLeftRate: fiveHourRate,

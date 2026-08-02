@@ -428,6 +428,9 @@
 "section_agent_sessions" = "エージェントセッション";
 "language_title" = "言語";
 "language_subtitle" = "表示言語を変更します。完全に反映するにはアプリの再起動が必要です。";
+"currency_title" = "優先通貨";
+"currency_subtitle" = "費用見積もりと支出指標に使う通貨です。毎日更新される為替レートを使用します。";
+"currency_auto" = "自動（プロバイダー / USD に従う）";
 "language_system" = "システム";
 "language_english" = "英語";
 "language_spanish" = "スペイン語";

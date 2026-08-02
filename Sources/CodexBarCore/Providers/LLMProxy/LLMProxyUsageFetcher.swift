@@ -6,6 +6,7 @@ import FoundationNetworking
 public enum LLMProxyUsageError: LocalizedError, Sendable {
     case missingCredentials
     case missingBaseURL
+    case invalidEndpointOverride(String)
     case invalidURL
     case apiError(String)
     case parseFailed(String)
@@ -16,6 +17,9 @@ public enum LLMProxyUsageError: LocalizedError, Sendable {
             "Missing LLM Proxy API key. Set apiKey in ~/.codexbar/config.json or LLM_PROXY_API_KEY."
         case .missingBaseURL:
             "Missing LLM Proxy base URL. Set enterpriseHost in ~/.codexbar/config.json or LLM_PROXY_BASE_URL."
+        case let .invalidEndpointOverride(key):
+            "LLM Proxy base URL override \(key) is invalid. Use an HTTPS URL, or plain HTTP for " +
+                "loopback or private-network addresses and .local hosts, without embedded credentials."
         case .invalidURL:
             "LLM Proxy URL is invalid."
         case let .apiError(message):
