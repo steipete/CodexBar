@@ -155,6 +155,36 @@ struct ClaudeCLIBackgroundAvailabilityTests {
     }
 
     @Test
+    func `cancelled disabled Keychain exception keeps later background Auto usage available`() async throws {
+        let strategy = self.makeStrategy()
+        let profile = try self.makeProfile(accountID: "account-a")
+        defer { try? FileManager.default.removeItem(at: profile.root) }
+        let context = self.makeContext(environment: profile.environment)
+        let fetchOverride: @Sendable (String, TimeInterval, Bool) async throws
+            -> ClaudeStatusSnapshot = { _, _, _ in
+                throw CancellationError()
+            }
+
+        await ClaudeCLIBackgroundAvailability.withIsolatedStoreForTesting {
+            await KeychainAccessGate.withTaskOverrideForTesting(true) {
+                await ClaudeOAuthKeychainPromptPreference.withTaskOverrideForTesting(.never) {
+                    await ClaudeCLIResolver.withResolvedBinaryPathOverrideForTesting("/bin/echo") {
+                        await ProviderInteractionContext.$current.withValue(.background) {
+                            #expect(await strategy.isAvailable(context))
+                            await #expect(throws: CancellationError.self) {
+                                try await ClaudeStatusProbe.$fetchOverride.withValue(fetchOverride) {
+                                    try await strategy.fetch(context)
+                                }
+                            }
+                            #expect(await strategy.isAvailable(context))
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    @Test
     func `user initiated explicit OAuth retains interactive CLI recovery`() async {
         let strategy = self.makeStrategy()
         let context = self.makeContext(sourceMode: .oauth)
