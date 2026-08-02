@@ -147,6 +147,7 @@ extension CodexLocalUsageSeverity {
 
 struct CodexLocalProjectUsageWindowPresentation: Equatable {
     let snapshot: CodexLocalProjectUsageSnapshot
+    let projection: CodexLocalProjectUsageProjection
     let rankedProjects: [CodexLocalProjectUsage]
     let selectedProject: CodexLocalProjectUsage?
     let selectedDestinationID: String
@@ -178,6 +179,7 @@ struct CodexLocalProjectUsageWindowPresentation: Equatable {
         projection: CodexLocalProjectUsageProjection)
     {
         self.snapshot = snapshot
+        self.projection = projection
         self.rankedProjects = projection.rankedProjects(snapshot.projects)
         let requestedID = selectedDestinationID ?? CodexLocalProjectUsageWindowDestination.allWorkspacesID
         self.selectedProject = requestedID == CodexLocalProjectUsageWindowDestination.allWorkspacesID

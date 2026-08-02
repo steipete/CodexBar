@@ -43,8 +43,12 @@ struct CodexWorkspaceDetail<Controls: View>: View {
                 if self.modelsRevampEnabled,
                    let payload = self.presentation.snapshot.modelsAnalytics
                 {
+                    let snapshot = payload.snapshot(workspaceID: self.presentation.selectedProject?.id)
+                    let dailyUsage = self.presentation.selectedProject?.daily ?? self.presentation.snapshot.daily
                     CodexModelsDashboardView(
-                        snapshot: payload.snapshot(workspaceID: self.presentation.selectedProject?.id),
+                        snapshot: self.presentation.projection.projectedModelsAnalyticsSnapshot(
+                            snapshot,
+                            dailyUsage: dailyUsage),
                         scopeName: self.presentation.selectedProject?.displayName
                             ?? L("codex_workspaces_all_workspaces"),
                         showsEstimatedCost: self.showsEstimatedCost,

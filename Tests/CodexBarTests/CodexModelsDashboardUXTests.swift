@@ -107,6 +107,73 @@ struct CodexModelsDashboardUXTests {
 
     @Test
     @MainActor
+    func `cached input exclusion projects Models analytics without changing the raw snapshot`() throws {
+        let intervals = self.intervals(days: 7)
+        let day = try #require(self.calendar.date(byAdding: .day, value: 1, to: intervals.current.start))
+        let fragments = [
+            CodexModelsUsageFragment(
+                workspaceID: "workspace",
+                sessionID: "session-a",
+                day: day,
+                rawModelID: "model-a",
+                inputTokens: 100,
+                cachedInputTokens: 40,
+                outputTokens: 10,
+                costNanos: 100_000_000),
+            CodexModelsUsageFragment(
+                workspaceID: "workspace",
+                sessionID: "session-b",
+                day: day,
+                rawModelID: "model-b",
+                inputTokens: 50,
+                cachedInputTokens: 10,
+                outputTokens: 20,
+                costNanos: 100_000_000),
+        ]
+        let raw = CodexModelsAnalyticsBuilder().build(CodexModelsAnalyticsRequest(
+            source: CodexModelsAnalyticsSource(current: fragments, previous: []),
+            scopeID: "workspace",
+            periods: CodexModelsAnalyticsPeriods(current: intervals.current, previous: intervals.previous),
+            revision: CodexModelsAnalyticsRevision(generatedAt: intervals.current.end, indexRevision: "fixture"),
+            legacy: CodexModelsLegacyBaseline(totalTokens: 180, modelIDs: ["model-a", "model-b"])))
+        let usage = [CodexLocalUsageDailyPoint(
+            day: "2026-07-10",
+            totalTokens: 180,
+            cachedInputTokens: 50,
+            estimatedCostUSD: 0.2)]
+        let includeCache = CodexLocalProjectUsageProjection(includesCachedInput: true, showsEstimatedCost: true)
+        let excludeCache = CodexLocalProjectUsageProjection(includesCachedInput: false, showsEstimatedCost: true)
+
+        #expect(includeCache.projectedModelsAnalyticsSnapshot(raw, dailyUsage: usage) == raw)
+
+        let projected = excludeCache.projectedModelsAnalyticsSnapshot(raw, dailyUsage: usage)
+        let dashboard = CodexModelsDashboardModel(snapshot: projected)
+        let csvRows = CodexModelsCSVExporter.export(snapshot: projected)
+            .split(separator: "\n")
+            .dropFirst()
+            .map { $0.split(separator: ",", omittingEmptySubsequences: false) }
+
+        #expect(raw.totalTokens == 180)
+        #expect(raw.rows.map(\.totalTokens).sorted() == [70, 110])
+        #expect(projected.totalTokens == 130)
+        #expect(projected.rows.map(\.totalTokens).sorted() == [60, 70])
+        #expect(projected.daily.reduce(Int64.zero) { $0 + $1.tokens } == 130)
+        #expect(projected.dailyByModel.values.flatMap(\.self).reduce(Int64.zero) { $0 + $1.tokens } == 130)
+        #expect(projected.dailyByModel["model-a"]?.map(\.tokens) == [70])
+        #expect(projected.dailyByModel["model-b"]?.map(\.tokens) == [60])
+        #expect(projected.invariantViolations().isEmpty)
+        #expect(dashboard.rankedRows.map(\.id) == ["model-a", "model-b"])
+        #expect(dashboard.tableRows.map(\.row.totalTokens) == [70, 60])
+        #expect(dashboard.timelineData.buckets.reduce(Int64.zero) { $0 + $1.tokens } == 130)
+        #expect(csvRows.map { String($0[8]) }.sorted() == ["60", "70"])
+        #expect(csvRows.allSatisfy { $0[10] == "0" })
+        #expect(projected.tokenComparison == .unavailable)
+        #expect(projected.rows.allSatisfy { $0.tokenComparison == .unavailable && $0.previousTotalTokens == nil })
+        #expect(raw.rows.allSatisfy { $0.cachedInputTokens > 0 })
+    }
+
+    @Test
+    @MainActor
     func `partial final bucket is excluded from completed peak insight`() throws {
         let intervals = self.intervals(days: 7)
         let secondDay = try #require(self.calendar.date(byAdding: .day, value: 1, to: intervals.current.start))
