@@ -19,6 +19,21 @@ struct UsageStoreResetBoundaryRefreshTests {
     }
 
     @Test
+    func `low power mode does not schedule reset boundary before thirty minutes`() {
+        let now = Date(timeIntervalSince1970: 1500)
+        let resetsAt = now.addingTimeInterval(5 * 60)
+        let snapshot = Self.snapshot(updatedAt: now, primaryResetsAt: resetsAt)
+
+        let refreshAt = UsageStore.nextResetBoundaryRefreshDate(
+            snapshots: [.codex: snapshot],
+            normalRefreshInterval: 60 * 60,
+            minimumAutomaticRefreshInterval: BackgroundWorkPowerPolicy.lowPowerMinimumInterval,
+            now: now)
+
+        #expect(refreshAt == now.addingTimeInterval(30 * 60))
+    }
+
+    @Test
     func `schedules prompt refresh when reset boundary already passed`() {
         let now = Date(timeIntervalSince1970: 2000)
         let resetsAt = now.addingTimeInterval(-3 * 60)

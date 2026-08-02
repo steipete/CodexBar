@@ -213,8 +213,10 @@ extension UsageStore {
         return Task { @MainActor [weak self] in
             guard let self else { return }
             guard self.tokenSnapshotPublicationForCurrentProviderConfig(for: .codex) == nil else { return }
-            let result: (snapshot: CostUsageTokenSnapshot, lastRefreshAt: Date?)? = if let override = self
-                ._test_cachedCodexTokenSnapshotLoaderOverride
+            let result: (
+                snapshot: CostUsageTokenSnapshot,
+                lastRefreshAt: Date?,
+                staleSnapshotUpdatedAt: Date?)? = if let override = self._test_cachedCodexTokenSnapshotLoaderOverride
             {
                 await override(now, scope.codexHomePath, historyDays)
             } else {
@@ -222,7 +224,12 @@ extension UsageStore {
                     now: now,
                     codexHomePath: scope.codexHomePath,
                     historyDays: historyDays)
-                    .map { (snapshot: $0.snapshot, lastRefreshAt: $0.lastRefreshAt) }
+                    .map {
+                        (
+                            snapshot: $0.snapshot,
+                            lastRefreshAt: $0.lastRefreshAt,
+                            staleSnapshotUpdatedAt: $0.staleSnapshotUpdatedAt)
+                    }
             }
             guard let result
             else {
@@ -243,6 +250,9 @@ extension UsageStore {
             }
             self.installCachedTokenSnapshot(result.snapshot, for: .codex)
             self.tokenErrors[.codex] = nil
+            if result.staleSnapshotUpdatedAt != nil {
+                self.startCodexCostCatchUpIfNeeded()
+            }
             if let tokenFetchTTL = self.tokenFetchTTL,
                let lastRefreshAt = result.lastRefreshAt,
                now.timeIntervalSince(lastRefreshAt) >= 0,

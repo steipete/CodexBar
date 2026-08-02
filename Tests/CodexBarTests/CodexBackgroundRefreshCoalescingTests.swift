@@ -1085,12 +1085,12 @@ extension CodexBackgroundRefreshCoalescingTests {
     }
 
     @Test
-    func `forced background enrichment runs dashboard under battery saver with user context`() async throws {
+    func `forced background enrichment runs dashboard under global low power mode with user context`() async throws {
         let settings = try self.makeSettingsStore(
             suite: "CodexBackgroundRefreshCoalescingTests-forced-dashboard-battery")
         settings.statusChecksEnabled = false
         settings.costUsageEnabled = false
-        settings.openAIWebBatterySaverEnabled = true
+        settings.backgroundWorkLowPowerModeEnabled = true
         let managedAccount = try Self.installManagedAccount(
             email: "managed@example.com",
             settings: settings)
@@ -1129,6 +1129,56 @@ extension CodexBackgroundRefreshCoalescingTests {
         #expect(dashboardInteractions == [.userInitiated])
         #expect(store.openAIDashboard?.signedInEmail == managedAccount.email)
         #expect(!store.hasForcedRefreshEnrichmentInFlight)
+    }
+
+    @Test
+    func `regular automatic enrichment suppresses dashboard when only global low power mode is enabled`() async throws {
+        let settings = try self.makeSettingsStore(
+            suite: "CodexBackgroundRefreshCoalescingTests-automatic-dashboard-global-low-power")
+        settings.statusChecksEnabled = false
+        settings.costUsageEnabled = false
+        settings.openAIWebBatterySaverEnabled = false
+        settings.backgroundWorkLowPowerModeEnabled = true
+        let managedAccount = try Self.installManagedAccount(
+            email: "managed@example.com",
+            settings: settings)
+        defer { try? FileManager.default.removeItem(atPath: managedAccount.managedHomePath) }
+
+        let store = self.makeStore(settings: settings)
+        var dashboardLoadCount = 0
+        store._test_providerRefreshOverride = { _ in }
+        store._test_codexCreditsLoaderOverride = {
+            CreditsSnapshot(remaining: 25, events: [], updatedAt: Date())
+        }
+        store._test_openAIDashboardLoaderOverride = { _, _, _, _ in
+            dashboardLoadCount += 1
+            return OpenAIDashboardSnapshot(
+                signedInEmail: managedAccount.email,
+                codeReviewRemainingPercent: 95,
+                creditEvents: [],
+                dailyBreakdown: [],
+                usageBreakdown: [],
+                creditsPurchaseURL: nil,
+                creditsRemaining: 25,
+                accountPlan: "Pro",
+                updatedAt: Date())
+        }
+        defer {
+            store._test_providerRefreshOverride = nil
+            store._test_codexCreditsLoaderOverride = nil
+            store._test_openAIDashboardLoaderOverride = nil
+        }
+
+        // The first pass is startup, where the Web gate is always closed. Prime that state before
+        // exercising the regular automatic path so this test specifically proves the global saver
+        // participates in the runtime policy context.
+        await store.refresh(enrichmentMode: .automatic)
+
+        await store.refresh(enrichmentMode: .automatic)
+        await store.openAIDashboardBackgroundRefreshTask?.value
+
+        #expect(dashboardLoadCount == 0)
+        #expect(store.openAIDashboard == nil)
     }
 }
 

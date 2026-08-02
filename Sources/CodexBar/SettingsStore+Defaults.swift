@@ -704,6 +704,22 @@ extension SettingsStore {
         }
     }
 
+    var backgroundWorkLowPowerModeEnabled: Bool {
+        get { self.defaultsState.backgroundWorkLowPowerModeEnabled }
+        set {
+            self.defaultsState.backgroundWorkLowPowerModeEnabled = newValue
+            self.userDefaults.set(newValue, forKey: "backgroundWorkLowPowerModeEnabled")
+            CodexBarLog.logger(LogCategories.settings).info(
+                "Background work low power mode updated",
+                metadata: ["enabled": newValue ? "1" : "0"])
+            self.noteBackgroundWorkSettingsChanged()
+        }
+    }
+
+    var effectiveOpenAIWebBatterySaverEnabled: Bool {
+        self.openAIWebBatterySaverEnabled || self.backgroundWorkLowPowerModeEnabled
+    }
+
     var providerStorageFootprintsEnabled: Bool {
         get { self.defaultsState.providerStorageFootprintsEnabled }
         set {

@@ -23,6 +23,7 @@ extension UsageStore {
         _ = self.tokenSnapshots
         _ = self.tokenErrors
         _ = self.tokenRefreshInFlight
+        _ = self.codexCostCatchUpActivity
         _ = self.credits
         _ = self.lastCreditsError
         _ = self.openAIDashboard
@@ -183,6 +184,9 @@ final class UsageStore {
     var tokenSnapshotPublicationRevisions: [UsageProvider: UInt64] = [:]
     var tokenErrors: [UsageProvider: String] = [:]
     var tokenRefreshInFlight: Set<UsageProvider> = []
+    var codexCostCatchUpActivity: CodexCostCatchUpActivity?
+    var spendDashboardCodexCostCatchUpActivity: CodexCostCatchUpActivity?
+    var spendDashboardCodexCostCatchUpRevision: UInt64 = 0
     var credits: CreditsSnapshot?
     var lastCreditsError: String?
     var openAIDashboard: OpenAIDashboardSnapshot?
@@ -260,7 +264,34 @@ final class UsageStore {
     @ObservationIgnored var _test_cachedCodexTokenSnapshotLoaderOverride: (@MainActor (
         Date,
         String?,
-        Int) async -> (snapshot: CostUsageTokenSnapshot, lastRefreshAt: Date?)?)?
+        Int) async -> (
+        snapshot: CostUsageTokenSnapshot,
+        lastRefreshAt: Date?,
+        staleSnapshotUpdatedAt: Date?)?)?
+    @ObservationIgnored var _test_codexCostCatchUpStatusOverride: (@MainActor (
+        String?) async -> CostUsageFetcher.CodexScanCatchUpStatus)?
+    @ObservationIgnored var _test_codexCostCatchUpAdvanceOverride: (@MainActor (
+        Date,
+        String?,
+        Int) async throws -> CostUsageFetcher.CodexScanCatchUpStatus)?
+    @ObservationIgnored var _test_codexCostCatchUpSleepOverride: (@MainActor (
+        TimeInterval) async throws -> Void)?
+    @ObservationIgnored var _test_codexCostCatchUpResourceStateOverride: (@MainActor () -> (
+        powerSource: CodexCostCatchUpPowerSource,
+        lowPowerModeEnabled: Bool,
+        thermalState: ProcessInfo.ThermalState))?
+    @ObservationIgnored var _test_spendDashboardCodexCostCatchUpStatusOverride: (@MainActor (
+        CodexSpendScanRequest) async -> CostUsageFetcher.CodexScanCatchUpStatus)?
+    @ObservationIgnored var _test_spendDashboardCodexCostCatchUpAdvanceOverride: (@MainActor (
+        CodexSpendScanRequest,
+        Date,
+        Int) async throws -> CostUsageFetcher.CodexScanCatchUpStatus)?
+    @ObservationIgnored var _test_spendDashboardCodexCostCatchUpSleepOverride: (@MainActor (
+        TimeInterval) async throws -> Void)?
+    @ObservationIgnored var _test_spendDashboardCodexCostCatchUpResourceStateOverride: (@MainActor () -> (
+        powerSource: CodexCostCatchUpPowerSource,
+        lowPowerModeEnabled: Bool,
+        thermalState: ProcessInfo.ThermalState))?
     @ObservationIgnored var _test_providerStatusFetchOverride: (@MainActor (
         UsageProvider) async throws -> ProviderStatus)?
     @ObservationIgnored var _test_forcedRefreshEnrichmentWaitObserver: (@MainActor () -> Void)?
@@ -308,6 +339,18 @@ final class UsageStore {
     @ObservationIgnored var tokenRefreshSequenceToken: UUID?
     @ObservationIgnored var tokenRefreshSequenceProvider: UsageProvider?
     @ObservationIgnored var tokenRefreshRetryProviders: Set<UsageProvider> = []
+    @ObservationIgnored var codexCostCatchUpTask: Task<Void, Never>?
+    @ObservationIgnored var codexCostCatchUpToken: UUID?
+    @ObservationIgnored var codexCostCatchUpScopeSignature: String?
+    @ObservationIgnored var codexCostCatchUpMode: CodexCostCatchUpMode = .automatic
+    @ObservationIgnored var codexCostCatchUpStopRequested = false
+    @ObservationIgnored var codexCostCatchUpPassIsRunning = false
+    @ObservationIgnored var spendDashboardCodexCostCatchUpTask: Task<Void, Never>?
+    @ObservationIgnored var spendDashboardCodexCostCatchUpToken: UUID?
+    @ObservationIgnored var spendDashboardCodexCostCatchUpScopeSignature: String?
+    @ObservationIgnored var spendDashboardCodexCostCatchUpMode: CodexCostCatchUpMode = .automatic
+    @ObservationIgnored var spendDashboardCodexCostCatchUpStopRequested = false
+    @ObservationIgnored var spendDashboardCodexCostCatchUpPassIsRunning = false
     @ObservationIgnored var forcedRefreshEnrichmentTask: Task<Void, Never>?
     @ObservationIgnored var forcedRefreshEnrichmentToken: UUID?
     @ObservationIgnored var pendingForcedRefreshEnrichmentTask: Task<Void, Never>?
@@ -379,14 +422,22 @@ final class UsageStore {
     static let minimumTokenFetchTTL: TimeInterval = 5 * 60
 
     var tokenFetchTTL: TimeInterval? {
-        Self.tokenFetchTTL(for: self.settings.refreshFrequency)
+        Self.tokenFetchTTL(
+            for: self.settings.refreshFrequency,
+            lowPowerModeEnabled: self.settings.backgroundWorkLowPowerModeEnabled)
     }
 
-    static func tokenFetchTTL(for frequency: RefreshFrequency) -> TimeInterval? {
+    static func tokenFetchTTL(
+        for frequency: RefreshFrequency,
+        lowPowerModeEnabled: Bool = false) -> TimeInterval?
+    {
         let interval = frequency.usesAdaptivePolicy
             ? AdaptiveRefreshPolicy.nominalIntervalForHeuristics
             : frequency.seconds
-        return interval.map { max($0, Self.minimumTokenFetchTTL) }
+        let widgetSafeInterval = interval.map { max($0, Self.minimumTokenFetchTTL) }
+        return BackgroundWorkPowerPolicy.automaticInterval(
+            widgetSafeInterval,
+            lowPowerModeEnabled: lowPowerModeEnabled)
     }
 
     @ObservationIgnored let tokenFetchTimeout: TimeInterval = 10 * 60
@@ -783,6 +834,8 @@ final class UsageStore {
 
     #if DEBUG
     @ObservationIgnored private(set) var refreshTimerSleepOverrideForTesting: Duration?
+    @ObservationIgnored private(set) var fixedRefreshIntervalForTesting: TimeInterval?
+    @ObservationIgnored var adaptiveRefreshComputedIntervalForTesting: TimeInterval?
 
     /// Sets this store's timer sleep override and restarts the timer with it applied, so tests can
     /// observe multiple fixed/adaptive ticks without waiting real minutes. The reason/delay a tick
@@ -798,6 +851,10 @@ final class UsageStore {
     private func startTimer(preservingResetBoundaryRefresh: Bool = false) {
         self.timerTask?.cancel()
         self.adaptiveRefreshScheduledAt = nil
+        #if DEBUG
+        self.fixedRefreshIntervalForTesting = nil
+        self.adaptiveRefreshComputedIntervalForTesting = nil
+        #endif
         if !preservingResetBoundaryRefresh {
             self.cancelResetBoundaryRefresh()
         }
@@ -822,8 +879,12 @@ final class UsageStore {
             return
         }
 
-        guard let wait = frequency.seconds else { return }
+        guard let wait = Self.effectiveAutomaticRefreshInterval(
+            frequency.seconds,
+            lowPowerModeEnabled: self.settings.backgroundWorkLowPowerModeEnabled)
+        else { return }
         #if DEBUG
+        self.fixedRefreshIntervalForTesting = wait
         let fixedTimerSleepOverride = self.refreshTimerSleepOverrideForTesting
         #else
         let fixedTimerSleepOverride: Duration? = nil
@@ -846,6 +907,7 @@ final class UsageStore {
         self.timerTask?.cancel()
         self.tokenTimerTask?.cancel()
         self.tokenRefreshSequenceTask?.cancel()
+        self.codexCostCatchUpTask?.cancel()
         self.forcedRefreshEnrichmentTask?.cancel()
         self.pendingForcedRefreshEnrichmentTask?.cancel()
         self.requiredRefreshTask?.cancel()
@@ -1462,6 +1524,7 @@ extension UsageStore {
                 return
             }
             self.lastTokenFetchScope[provider] = completedCostScopeSignature
+            self.startCodexCostCatchUpIfNeeded(afterRefreshing: provider)
 
             guard !snapshot.daily.isEmpty || snapshot.meteredCostUSD != nil else {
                 self.publishConfirmedEmptyTokenSnapshot(for: provider)
@@ -1524,6 +1587,10 @@ extension UsageStore {
     }
 
     private func resetTokenUsageState(for provider: UsageProvider) {
+        if provider == .codex {
+            self.cancelCodexCostCatchUp()
+            self.cancelSpendDashboardCodexCostCatchUp()
+        }
         self.clearTokenSnapshot(for: provider)
         self.tokenErrors[provider] = nil
         self.tokenFailureGates[provider]?.reset()

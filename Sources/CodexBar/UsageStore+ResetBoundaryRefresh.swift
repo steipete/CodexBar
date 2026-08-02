@@ -11,9 +11,13 @@ extension UsageStore {
         normalRefreshInterval: TimeInterval?,
         now: Date = Date())
     {
+        let minimumAutomaticRefreshInterval = self.settings.backgroundWorkLowPowerModeEnabled
+            ? BackgroundWorkPowerPolicy.lowPowerMinimumInterval
+            : nil
         guard let candidate = Self.nextResetBoundaryRefreshCandidate(
             snapshots: self.snapshots,
             normalRefreshInterval: normalRefreshInterval,
+            minimumAutomaticRefreshInterval: minimumAutomaticRefreshInterval,
             attemptedBoundaryRefreshes: self.attemptedResetBoundaryRefreshes,
             now: now)
         else {
@@ -67,6 +71,7 @@ extension UsageStore {
     nonisolated static func nextResetBoundaryRefreshDate(
         snapshots: [UsageProvider: UsageSnapshot],
         normalRefreshInterval: TimeInterval?,
+        minimumAutomaticRefreshInterval: TimeInterval? = nil,
         attemptedBoundaryRefreshes: Set<Date> = [],
         now: Date)
         -> Date?
@@ -74,6 +79,7 @@ extension UsageStore {
         self.nextResetBoundaryRefreshCandidate(
             snapshots: snapshots,
             normalRefreshInterval: normalRefreshInterval,
+            minimumAutomaticRefreshInterval: minimumAutomaticRefreshInterval,
             attemptedBoundaryRefreshes: attemptedBoundaryRefreshes,
             now: now)?
             .refreshAt
@@ -86,18 +92,21 @@ extension UsageStore {
     private nonisolated static func nextResetBoundaryRefreshCandidate(
         snapshots: [UsageProvider: UsageSnapshot],
         normalRefreshInterval: TimeInterval?,
+        minimumAutomaticRefreshInterval: TimeInterval?,
         attemptedBoundaryRefreshes: Set<Date> = [],
         now: Date)
         -> ResetBoundaryRefreshCandidate?
     {
         guard let normalRefreshInterval else { return nil }
         let normalRefreshDate = now.addingTimeInterval(normalRefreshInterval)
+        let earliestAutomaticRefreshDate = minimumAutomaticRefreshInterval.map(now.addingTimeInterval)
         return snapshots.values
             .flatMap { snapshot in
                 Self.resetBoundaryRefreshCandidates(
                     snapshot: snapshot,
                     now: now,
                     normalRefreshDate: normalRefreshDate,
+                    earliestAutomaticRefreshDate: earliestAutomaticRefreshDate,
                     attemptedBoundaryRefreshes: attemptedBoundaryRefreshes)
             }
             .min { $0.refreshAt < $1.refreshAt }
@@ -107,6 +116,7 @@ extension UsageStore {
         snapshot: UsageSnapshot,
         now: Date,
         normalRefreshDate: Date,
+        earliestAutomaticRefreshDate: Date?,
         attemptedBoundaryRefreshes: Set<Date>)
         -> [ResetBoundaryRefreshCandidate]
     {
@@ -116,10 +126,14 @@ extension UsageStore {
             guard !attemptedBoundaryRefreshes.contains(boundaryRefreshAt) else { return nil }
             guard boundaryRefreshAt <= normalRefreshDate else { return nil }
             guard snapshot.updatedAt < boundaryRefreshAt else { return nil }
+            let minimumDelayRefreshAt = now.addingTimeInterval(Self.resetBoundaryRefreshMinimumDelaySeconds)
+            let earliestAllowedRefreshAt = max(
+                minimumDelayRefreshAt,
+                earliestAutomaticRefreshDate ?? minimumDelayRefreshAt)
+            let refreshAt = max(boundaryRefreshAt, earliestAllowedRefreshAt)
+            guard refreshAt <= normalRefreshDate else { return nil }
             return ResetBoundaryRefreshCandidate(
-                refreshAt: max(
-                    boundaryRefreshAt,
-                    now.addingTimeInterval(Self.resetBoundaryRefreshMinimumDelaySeconds)),
+                refreshAt: refreshAt,
                 boundaryRefreshAt: boundaryRefreshAt)
         }
     }

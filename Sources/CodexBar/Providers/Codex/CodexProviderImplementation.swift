@@ -134,7 +134,7 @@ struct CodexProviderImplementation: ProviderImplementation {
                 onAppearWhenEnabled: nil),
             ProviderSettingsToggleDescriptor(
                 id: "codex-openai-web-battery-saver",
-                title: "Battery Saver",
+                title: "OpenAI web battery saver",
                 subtitle: [
                     "Limits background chatgpt.com refreshes to reduce battery and network usage.",
                     "Dashboard extras may stay stale until you refresh them manually.",

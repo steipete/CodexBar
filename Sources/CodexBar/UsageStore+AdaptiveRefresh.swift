@@ -4,6 +4,15 @@ import Foundation
 /// logging the resulting decision, and applying the DEBUG-only sleep-duration override used by
 /// tests. Split out of UsageStore.swift to keep that file's class body under the lint line limit.
 extension UsageStore {
+    nonisolated static func effectiveAutomaticRefreshInterval(
+        _ requested: TimeInterval?,
+        lowPowerModeEnabled: Bool) -> TimeInterval?
+    {
+        BackgroundWorkPowerPolicy.automaticInterval(
+            requested,
+            lowPowerModeEnabled: lowPowerModeEnabled)
+    }
+
     func effectiveTimerSleepDuration(_ computed: Duration) -> Duration {
         #if DEBUG
         self.refreshTimerSleepOverrideForTesting ?? computed
@@ -50,7 +59,11 @@ extension UsageStore {
             lastCodingActivityAt: self.settings.adaptiveActivityScanningEnabled ? self.lastCodingActivityAt : nil,
             lowPowerModeEnabled: ProcessInfo.processInfo.isLowPowerModeEnabled,
             thermalState: ProcessInfo.processInfo.thermalState)
-        let candidate = date.addingTimeInterval(TimeInterval(decision.delay.components.seconds))
+        let requestedDelay = TimeInterval(decision.delay.components.seconds)
+        let effectiveDelay = Self.effectiveAutomaticRefreshInterval(
+            requestedDelay,
+            lowPowerModeEnabled: self.settings.backgroundWorkLowPowerModeEnabled) ?? requestedDelay
+        let candidate = date.addingTimeInterval(effectiveDelay)
         guard Self.shouldAdvanceAdaptiveTimer(
             scheduledAt: self.adaptiveRefreshScheduledAt,
             candidate: candidate)
@@ -123,9 +136,16 @@ extension UsageStore {
                 : nil,
             lowPowerModeEnabled: ProcessInfo.processInfo.isLowPowerModeEnabled,
             thermalState: ProcessInfo.processInfo.thermalState)
-        store.adaptiveRefreshScheduledAt = now.addingTimeInterval(TimeInterval(decision.delay.components.seconds))
+        let requestedDelay = TimeInterval(decision.delay.components.seconds)
+        let effectiveDelay = Self.effectiveAutomaticRefreshInterval(
+            requestedDelay,
+            lowPowerModeEnabled: store.settings.backgroundWorkLowPowerModeEnabled) ?? requestedDelay
+        #if DEBUG
+        store.adaptiveRefreshComputedIntervalForTesting = effectiveDelay
+        #endif
+        store.adaptiveRefreshScheduledAt = now.addingTimeInterval(effectiveDelay)
         store.logAdaptiveRefreshDecision(decision)
-        return store.effectiveTimerSleepDuration(decision.delay)
+        return store.effectiveTimerSleepDuration(.seconds(effectiveDelay))
     }
 
     /// The refresh interval scheduling *heuristics* (reset-boundary refresh, OpenAI web staleness,
@@ -136,7 +156,7 @@ extension UsageStore {
     /// resolves to what `AdaptiveRefreshPolicy` would decide right now from live signals, so those
     /// heuristics stay active and roughly proportionate instead of silently behaving like manual.
     func normalRefreshIntervalForHeuristics() -> TimeInterval? {
-        switch self.settings.refreshFrequency {
+        let requested: TimeInterval? = switch self.settings.refreshFrequency {
         case .manual:
             nil
         case .adaptive, .adaptiveAgentAware:
@@ -151,5 +171,8 @@ extension UsageStore {
         default:
             self.settings.refreshFrequency.seconds
         }
+        return Self.effectiveAutomaticRefreshInterval(
+            requested,
+            lowPowerModeEnabled: self.settings.backgroundWorkLowPowerModeEnabled)
     }
 }

@@ -60,6 +60,7 @@ extension SettingsStore {
         _ = self.codexSparkUsageVisible
         _ = self.openAIWebAccessEnabled
         _ = self.openAIWebBatterySaverEnabled
+        _ = self.backgroundWorkLowPowerModeEnabled
         _ = self.providerStorageFootprintsEnabled
         _ = self.agentSessionsEnabled
         _ = self.agentSessionLabelStyle

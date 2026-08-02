@@ -296,7 +296,7 @@ extension UsageStore {
             accessEnabled: self.isEnabled(.codex) &&
                 self.settings.openAIWebAccessEnabled &&
                 self.settings.codexCookieSource.isEnabled,
-            batterySaverEnabled: self.settings.openAIWebBatterySaverEnabled,
+            batterySaverEnabled: self.settings.effectiveOpenAIWebBatterySaverEnabled,
             force: force,
             refreshPhase: refreshPhase)
         let shouldRefreshOpenAIWeb = Self.shouldRunOpenAIWebRefresh(refreshPolicy)
