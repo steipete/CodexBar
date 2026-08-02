@@ -2,12 +2,14 @@
 set -euo pipefail
 
 # Simple script to launch CodexBar (kills existing instance first)
-# Usage: ./Scripts/launch.sh
+# Usage: ./Scripts/launch.sh [--installed]
+#   --installed   Launch /Applications/CodexBar.app instead of the freshly
+#                 packaged repository bundle.
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 APP_PATH="$PROJECT_ROOT/CodexBar.app"
-if [[ -d "/Applications/CodexBar.app" ]]; then
+if [[ "${1:-}" == "--installed" ]]; then
     APP_PATH="/Applications/CodexBar.app"
 fi
 
