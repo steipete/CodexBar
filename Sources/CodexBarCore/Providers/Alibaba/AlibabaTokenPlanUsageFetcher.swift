@@ -33,6 +33,7 @@ public struct AlibabaTokenPlanUsageFetcher: Sendable {
         let secToken: String?
         let region: AlibabaTokenPlanAPIRegion
         let environment: [String: String]
+        let now: Date
         let session: URLSession
     }
 
@@ -141,13 +142,14 @@ public struct AlibabaTokenPlanUsageFetcher: Sendable {
                 region: region,
                 environment: environment,
                 session: dashboardSession)
-            return try await self.fetchPersonalUsage(
+            let context = PersonalAPIContext(
                 apiCookieHeader: normalizedAPIHeader,
                 secToken: personalSECToken,
                 region: region,
                 environment: environment,
                 now: now,
                 session: apiSession)
+            return try await self.fetchPersonalUsage(context: context)
         }
 
         let secToken = await self.resolveSECToken(
@@ -322,28 +324,17 @@ public struct AlibabaTokenPlanUsageFetcher: Sendable {
             updatedAt: now)
     }
 
-    private static func fetchPersonalUsage(
-        apiCookieHeader: String,
-        secToken: String?,
-        region: AlibabaTokenPlanAPIRegion,
-        environment: [String: String],
-        now: Date,
-        session: URLSession) async throws -> AlibabaTokenPlanUsageSnapshot
-    {
-        let context = PersonalAPIContext(
-            apiCookieHeader: apiCookieHeader,
-            secToken: secToken,
-            region: region,
-            environment: environment,
-            session: session)
+    private static func fetchPersonalUsage(context: PersonalAPIContext) async throws -> AlibabaTokenPlanUsageSnapshot {
         self.log.info(
             "Fetching Alibaba Token Plan Personal usage",
             metadata: [
-                "apiHost": self.resolveQuotaURL(region: region, environment: environment).host ?? "unknown",
-                "region": region.rawValue,
-                "apiCookieNames": self.cookieNamesDescription(from: apiCookieHeader),
-                "hasCSRF": self.hasCSRF(in: apiCookieHeader) ? "1" : "0",
-                "secTokenSource": secToken == nil ? "missing" : "resolved",
+                "apiHost": self.resolveQuotaURL(
+                    region: context.region,
+                    environment: context.environment).host ?? "unknown",
+                "region": context.region.rawValue,
+                "apiCookieNames": self.cookieNamesDescription(from: context.apiCookieHeader),
+                "hasCSRF": self.hasCSRF(in: context.apiCookieHeader) ? "1" : "0",
+                "secTokenSource": context.secToken == nil ? "missing" : "resolved",
             ])
 
         let usageData = try await self.fetchPersonalAPI(
@@ -352,7 +343,7 @@ public struct AlibabaTokenPlanUsageFetcher: Sendable {
             context: context)
         let subscriptionData = await self.fetchOptionalPersonalAPI(
             api: self.personalSubscriptionAPI,
-            dataParameters: ["commodityCode": region.tokenPlanProductCode],
+            dataParameters: ["commodityCode": context.region.tokenPlanProductCode],
             context: context)
         let quotaConfigData = await self.fetchOptionalPersonalAPI(
             api: self.personalQuotaConfigAPI,
@@ -363,7 +354,7 @@ public struct AlibabaTokenPlanUsageFetcher: Sendable {
             from: usageData,
             subscriptionData: subscriptionData,
             quotaConfigData: quotaConfigData,
-            now: now)
+            now: context.now)
     }
 
     private static func fetchOptionalPersonalAPI(
@@ -805,6 +796,14 @@ public struct AlibabaTokenPlanUsageFetcher: Sendable {
         let combined = [code, message]
             .compactMap { $0?.lowercased() }
             .joined(separator: " ")
+        // Workspace permission failures are not credential failures. Treating
+        // them as such would evict a valid browser session and repeat the same
+        // failure after re-importing it.
+        if combined.contains("workspace.notauthorised") ||
+            combined.contains("workspace.notauthorized")
+        {
+            return false
+        }
         return combined.contains("notauthorised") ||
             combined.contains("notauthorized") ||
             combined.contains("not authorised") ||

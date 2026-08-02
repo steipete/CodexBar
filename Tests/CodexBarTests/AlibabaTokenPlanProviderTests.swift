@@ -664,7 +664,7 @@ struct AlibabaTokenPlanUsageParsingTests {
     }
 
     @Test
-    func `nested workspace authorization failure surfaces invalid credentials instead of API error 200`() throws {
+    func `nested workspace authorization failure remains a provider error instead of API error 200`() throws {
         // Live envelope observed for Personal/Solo requests missing valid
         // workspace state (issue #2500): the outer envelope claims success
         // while the nested frame carries the real gateway error.
@@ -682,7 +682,7 @@ struct AlibabaTokenPlanUsageParsingTests {
             "successResponse": true,
         ]
 
-        #expect(throws: AlibabaTokenPlanUsageError.invalidCredentials) {
+        #expect(throws: AlibabaTokenPlanUsageError.apiError("BailianGateway.Workspace.NotAuthorised")) {
             try AlibabaTokenPlanUsageFetcher.throwIfErrorPayload(payload)
         }
     }
@@ -942,6 +942,35 @@ struct AlibabaTokenPlanWebStrategyTests {
         CookieHeaderCache.clear(provider: .alibabatokenplan)
         for region in AlibabaTokenPlanAPIRegion.allCases {
             CookieHeaderCache.clear(provider: .alibabatokenplan, scope: region.cookieCacheScope)
+        }
+    }
+
+    @Test
+    func `workspace permission failure preserves cached browser cookies`() async {
+        await self.withIsolatedCookieCache {
+            self.clearCookieCaches()
+            defer { self.clearCookieCaches() }
+
+            let region = AlibabaTokenPlanAPIRegion.chinaMainlandPersonal
+            let cachedHeader = "login_aliyunid_ticket=valid-ticket; gateway=personal"
+            CookieHeaderCache.store(
+                provider: .alibabatokenplan,
+                scope: region.cookieCacheScope,
+                cookieHeader: cachedHeader,
+                sourceLabel: "Personal fixture")
+
+            let strategy = AlibabaTokenPlanWebFetchStrategy { _, _, _ in
+                throw AlibabaTokenPlanUsageError.apiError("BailianGateway.Workspace.NotAuthorised")
+            }
+
+            await #expect(throws: AlibabaTokenPlanUsageError.apiError(
+                "BailianGateway.Workspace.NotAuthorised"))
+            {
+                _ = try await strategy.fetch(self.context(region: region))
+            }
+            #expect(CookieHeaderCache.load(
+                provider: .alibabatokenplan,
+                scope: region.cookieCacheScope)?.cookieHeader == cachedHeader)
         }
     }
 

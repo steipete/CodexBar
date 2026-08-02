@@ -5,6 +5,9 @@
 ### Changed
 - About: link the Website entry to codex.bar.
 
+### Fixed
+- Alibaba: authenticate mainland and international personal Token Plans without a captured Teams workspace, preserve valid sessions on gateway permission errors, and forward optional security tokens (#2533, fixes #2500, #2349, and #2370). Thanks @wait2050!
+
 ## 0.46.0 — 2026-07-29
 
 ### Added
