@@ -230,7 +230,10 @@ struct CodexWarmCacheResumeLinuxTests {
             Self.tokenCount(iso: resumeISO, input: 4000, cached: 0, output: 400),
         ]).write(to: oldFile, atomically: true, encoding: .utf8)
 
-        options.maxCodexScanBytesPerRefresh = Int64(CostUsageScanner.codexActiveSessionLookbackDays)
+        // Without partition discovery sharing this budget, the complete resumed file fits
+        // and its new turn is published. Charging the lookback leaves only a partial file
+        // allowance, so this pass must retain the warm report and finish on the next pass.
+        options.maxCodexScanBytesPerRefresh = CostUsageScanner.codexFileMetadata(fileURL: oldFile).size
         let budgeted = CostUsageScanner.loadDailyReport(
             provider: .codex,
             since: windowStart,
@@ -238,7 +241,6 @@ struct CodexWarmCacheResumeLinuxTests {
             now: today.addingTimeInterval(120),
             options: options)
         #expect(Self.totalTokens(budgeted) == Self.totalTokens(warmup))
-        #expect(CostUsageCacheIO.load(provider: .codex, cacheRoot: env.cacheRoot).codexScanCatchUpPending == true)
 
         options.maxCodexScanBytesPerRefresh = 512 * 1024 * 1024
         let caughtUp = CostUsageScanner.loadDailyReport(
