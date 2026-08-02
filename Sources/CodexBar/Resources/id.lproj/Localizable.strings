@@ -1327,7 +1327,7 @@
 "menu_bar_layout_token_account" = "Akun";
 "menu_bar_layout_token_session" = "Sesi %";
 "menu_bar_layout_token_weekly" = "Mingguan %";
-"menu_bar_layout_token_scoped_weekly" = "Scoped weekly %";
+"menu_bar_layout_token_scoped_weekly" = "Mingguan terbatas %";
 "menu_bar_layout_token_auto" = "% otomatis";
 "menu_bar_layout_token_session_pace" = "Laju sesi";
 "menu_bar_layout_token_weekly_pace" = "Laju mingguan";

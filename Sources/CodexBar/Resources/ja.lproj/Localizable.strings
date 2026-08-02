@@ -1324,7 +1324,7 @@
 "menu_bar_layout_token_account" = "アカウント";
 "menu_bar_layout_token_session" = "セッション %";
 "menu_bar_layout_token_weekly" = "週間 %";
-"menu_bar_layout_token_scoped_weekly" = "Scoped weekly %";
+"menu_bar_layout_token_scoped_weekly" = "スコープ別週間 %";
 "menu_bar_layout_token_auto" = "自動 %";
 "menu_bar_layout_token_session_pace" = "セッションペース";
 "menu_bar_layout_token_weekly_pace" = "週間ペース";

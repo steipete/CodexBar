@@ -1325,7 +1325,7 @@
 "menu_bar_layout_token_account" = "Hesap";
 "menu_bar_layout_token_session" = "Oturum %";
 "menu_bar_layout_token_weekly" = "Haftalık %";
-"menu_bar_layout_token_scoped_weekly" = "Scoped weekly %";
+"menu_bar_layout_token_scoped_weekly" = "Kapsama göre haftalık %";
 "menu_bar_layout_token_auto" = "Otomatik %";
 "menu_bar_layout_token_session_pace" = "Oturum hızı";
 "menu_bar_layout_token_weekly_pace" = "Haftalık hız";

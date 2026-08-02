@@ -1327,7 +1327,7 @@
 "menu_bar_layout_token_account" = "الحساب";
 "menu_bar_layout_token_session" = "الجلسة %";
 "menu_bar_layout_token_weekly" = "الأسبوعي %";
-"menu_bar_layout_token_scoped_weekly" = "Scoped weekly %";
+"menu_bar_layout_token_scoped_weekly" = "أسبوعي محدد النطاق %";
 "menu_bar_layout_token_auto" = "نسبة تلقائية";
 "menu_bar_layout_token_session_pace" = "وتيرة الجلسة";
 "menu_bar_layout_token_weekly_pace" = "الوتيرة الأسبوعية";

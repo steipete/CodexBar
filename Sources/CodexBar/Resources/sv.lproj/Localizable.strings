@@ -1322,7 +1322,7 @@
 "menu_bar_layout_token_account" = "Konto";
 "menu_bar_layout_token_session" = "Session %";
 "menu_bar_layout_token_weekly" = "Vecka %";
-"menu_bar_layout_token_scoped_weekly" = "Scoped weekly %";
+"menu_bar_layout_token_scoped_weekly" = "Avgränsad vecka %";
 "menu_bar_layout_token_auto" = "Automatiskt %";
 "menu_bar_layout_token_session_pace" = "Sessionstakt";
 "menu_bar_layout_token_weekly_pace" = "Veckotakt";
