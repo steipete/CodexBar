@@ -7,6 +7,49 @@ import Musl
 #endif
 import Foundation
 
+private actor ClaudeCLISessionOperationGate {
+    private struct Waiter {
+        let id: UUID
+        let continuation: CheckedContinuation<Bool, Never>
+    }
+
+    private var ownerID: UUID?
+    private var waiters: [Waiter] = []
+
+    func acquire(id: UUID, rejectIfCancelled: Bool) async -> Bool {
+        if rejectIfCancelled, Task.isCancelled {
+            return false
+        }
+        guard self.ownerID != nil else {
+            self.ownerID = id
+            return true
+        }
+        return await withCheckedContinuation { continuation in
+            self.waiters.append(Waiter(id: id, continuation: continuation))
+        }
+    }
+
+    func cancel(id: UUID) {
+        if self.ownerID == id {
+            return
+        }
+        guard let index = self.waiters.firstIndex(where: { $0.id == id }) else { return }
+        let waiter = self.waiters.remove(at: index)
+        waiter.continuation.resume(returning: false)
+    }
+
+    func release(id: UUID) {
+        guard self.ownerID == id else { return }
+        guard !self.waiters.isEmpty else {
+            self.ownerID = nil
+            return
+        }
+        let waiter = self.waiters.removeFirst()
+        self.ownerID = waiter.id
+        waiter.continuation.resume(returning: true)
+    }
+}
+
 actor ClaudeCLISession {
     static let shared = ClaudeCLISession()
     private static let log = CodexBarLog.logger(LogCategories.claudeCLI)
@@ -50,13 +93,33 @@ actor ClaudeCLISession {
         }
     }
 
+    private struct SessionIdentity: Equatable {
+        let binaryPath: String
+        let accountScope: String?
+        let environment: [String: String]
+    }
+
+    private struct CaptureRequest {
+        let subcommand: String
+        let binary: String
+        let accountScope: String?
+        let timeout: TimeInterval
+        let environment: [String: String]
+        let idleTimeout: TimeInterval?
+        let stopOnSubstrings: [String]
+        let stopWhenNormalized: (@Sendable (String) -> Bool)?
+        let settleAfterStop: TimeInterval
+        let sendEnterEvery: TimeInterval?
+    }
+
     private var process: Process?
     private var primaryFD: Int32 = -1
     private var primaryHandle: FileHandle?
     private var secondaryHandle: FileHandle?
     private var processGroup: pid_t?
-    private var binaryPath: String?
+    private var sessionIdentity: SessionIdentity?
     private var startedAt: Date?
+    private let operationGate = ClaudeCLISessionOperationGate()
 
     private let promptSends: [String: String] = [
         "Do you trust the files in this folder?": "y\r",
@@ -120,14 +183,57 @@ actor ClaudeCLISession {
     func capture(
         subcommand: String,
         binary: String,
+        accountScope: String? = nil,
         timeout: TimeInterval,
+        environment: [String: String] = ProcessInfo.processInfo.environment,
         idleTimeout: TimeInterval? = 3.0,
         stopOnSubstrings: [String] = [],
         stopWhenNormalized: (@Sendable (String) -> Bool)? = nil,
         settleAfterStop: TimeInterval = 0.25,
         sendEnterEvery: TimeInterval? = nil) async throws -> String
     {
-        try self.ensureStarted(binary: binary)
+        let operationID = UUID()
+        let acquired = await withTaskCancellationHandler {
+            await self.operationGate.acquire(id: operationID, rejectIfCancelled: true)
+        } onCancel: {
+            Task { await self.operationGate.cancel(id: operationID) }
+        }
+        guard acquired else { throw CancellationError() }
+
+        do {
+            try Task.checkCancellation()
+            let output = try await self.captureExclusive(request: CaptureRequest(
+                subcommand: subcommand,
+                binary: binary,
+                accountScope: accountScope,
+                timeout: timeout,
+                environment: environment,
+                idleTimeout: idleTimeout,
+                stopOnSubstrings: stopOnSubstrings,
+                stopWhenNormalized: stopWhenNormalized,
+                settleAfterStop: settleAfterStop,
+                sendEnterEvery: sendEnterEvery))
+            await self.operationGate.release(id: operationID)
+            return output
+        } catch {
+            await self.operationGate.release(id: operationID)
+            throw error
+        }
+    }
+
+    private func captureExclusive(request: CaptureRequest) async throws -> String {
+        let subcommand = request.subcommand
+        let binary = request.binary
+        let accountScope = request.accountScope
+        let timeout = request.timeout
+        let environment = request.environment
+        let idleTimeout = request.idleTimeout
+        let stopOnSubstrings = request.stopOnSubstrings
+        let stopWhenNormalized = request.stopWhenNormalized
+        let settleAfterStop = request.settleAfterStop
+        let sendEnterEvery = request.sendEnterEvery
+
+        try self.ensureStarted(binary: binary, accountScope: accountScope, environment: environment)
         if let startedAt {
             let sinceStart = Date().timeIntervalSince(startedAt)
             // Claude's TUI can drop early keystrokes while it's still initializing. Wait a bit longer than the
@@ -274,12 +380,23 @@ actor ClaudeCLISession {
         utf8Carry = Data(combined.suffix(12))
     }
 
-    func reset() {
+    func reset() async {
+        let operationID = UUID()
+        _ = await self.operationGate.acquire(id: operationID, rejectIfCancelled: false)
         self.cleanup()
+        await self.operationGate.release(id: operationID)
     }
 
-    private func ensureStarted(binary: String) throws {
-        if let proc = self.process, proc.isRunning, self.binaryPath == binary {
+    private func ensureStarted(
+        binary: String,
+        accountScope: String?,
+        environment: [String: String]) throws
+    {
+        let sessionIdentity = SessionIdentity(
+            binaryPath: binary,
+            accountScope: accountScope,
+            environment: Self.launchEnvironment(baseEnv: environment))
+        if let proc = self.process, proc.isRunning, self.sessionIdentity == sessionIdentity {
             Self.log.debug("Claude CLI session reused")
             return
         }
@@ -302,10 +419,12 @@ actor ClaudeCLISession {
         let workingDirectory = ClaudeStatusProbe.preparedProbeWorkingDirectoryURL()
         // A crashed probe can leave a JSONL behind. Claude treats `--session-id` as creation-only when that local
         // transcript exists, so clear the probe-owned artifact before reusing the account-side identifier.
-        ClaudeProbeSessionArtifactCleaner.cleanupProbeSessionArtifacts(probeDirectory: workingDirectory)
+        ClaudeProbeSessionArtifactCleaner.cleanupProbeSessionArtifacts(
+            probeDirectory: workingDirectory,
+            environment: sessionIdentity.environment)
         let sessionID = Self.loadOrCreateProbeSessionID(in: workingDirectory)
         let claudeArguments = Self.launchArguments(sessionID: sessionID)
-        let disableWatchdog = ProcessInfo.processInfo.environment["CODEXBAR_DISABLE_CLAUDE_WATCHDOG"] == "1"
+        let disableWatchdog = sessionIdentity.environment["CODEXBAR_DISABLE_CLAUDE_WATCHDOG"] == "1"
         if !disableWatchdog,
            resolvedURL.lastPathComponent == "claude",
            let watchdog = TTYCommandRunner.locateBundledHelper("CodexBarClaudeWatchdog")
@@ -321,7 +440,7 @@ actor ClaudeCLISession {
         proc.standardError = secondaryHandle
 
         proc.currentDirectoryURL = workingDirectory
-        var env = Self.launchEnvironment()
+        var env = sessionIdentity.environment
         env["PWD"] = workingDirectory.path
         proc.environment = env
 
@@ -367,14 +486,15 @@ actor ClaudeCLISession {
         self.primaryHandle = primaryHandle
         self.secondaryHandle = secondaryHandle
         self.processGroup = processGroup
-        self.binaryPath = binary
+        self.sessionIdentity = sessionIdentity
         self.startedAt = Date()
     }
 
     static func launchArguments(sessionID: UUID) -> [String] {
         // `/usage` is interactive, while Claude's no-persistence option is print-only. Reusing one explicit ID keeps
-        // repeated probe launches from registering a fresh empty account session every time.
-        ["--allowed-tools", "", "--session-id", sessionID.uuidString.lowercased()]
+        // repeated probe launches from registering a fresh empty account session every time. The probe never uses MCP
+        // tools, so ignore ambient MCP configuration rather than waiting for unrelated user servers to initialize.
+        ["--allowed-tools", "", "--strict-mcp-config", "--session-id", sessionID.uuidString.lowercased()]
     }
 
     static func loadOrCreateProbeSessionID(
@@ -486,6 +606,7 @@ actor ClaudeCLISession {
         self.secondaryHandle = nil
         self.primaryFD = -1
         self.processGroup = nil
+        self.sessionIdentity = nil
         self.startedAt = nil
     }
 

@@ -58,6 +58,52 @@ struct ClaudeSourcePlannerTests {
     }
 
     @Test
+    func `app explicit OAuth selects owner mediated CLI when direct credentials are unavailable`() {
+        let plan = ClaudeSourcePlanner.resolve(input: ClaudeSourcePlanningInput(
+            runtime: .app,
+            selectedDataSource: .oauth,
+            webExtrasEnabled: false,
+            hasWebSession: true,
+            hasCLI: true,
+            hasOAuthCredentials: false))
+
+        #expect(plan.orderedSteps.map(\.dataSource) == [.oauth, .cli])
+        #expect(plan.orderedSteps.map(\.inclusionReason) == [
+            .explicitSourceSelection,
+            .explicitOAuthOwnerCLIFallback,
+        ])
+        #expect(plan.compatibilityStrategy == ClaudeUsageStrategy(dataSource: .cli, useWebExtras: false))
+    }
+
+    @Test
+    func `app explicit OAuth selects direct OAuth when credentials are available`() {
+        let plan = ClaudeSourcePlanner.resolve(input: ClaudeSourcePlanningInput(
+            runtime: .app,
+            selectedDataSource: .oauth,
+            webExtrasEnabled: false,
+            hasWebSession: true,
+            hasCLI: true,
+            hasOAuthCredentials: true))
+
+        #expect(plan.orderedSteps.map(\.dataSource) == [.oauth, .cli])
+        #expect(plan.compatibilityStrategy == ClaudeUsageStrategy(dataSource: .oauth, useWebExtras: false))
+    }
+
+    @Test
+    func `CLI explicit OAuth remains terminal`() {
+        let plan = ClaudeSourcePlanner.resolve(input: ClaudeSourcePlanningInput(
+            runtime: .cli,
+            selectedDataSource: .oauth,
+            webExtrasEnabled: false,
+            hasWebSession: true,
+            hasCLI: true,
+            hasOAuthCredentials: false))
+
+        #expect(plan.orderedSteps.map(\.dataSource) == [.oauth])
+        #expect(plan.orderedSteps.map(\.inclusionReason) == [.explicitSourceSelection])
+    }
+
+    @Test
     func `app auto CLI fallback reports web extras like runtime`() {
         let plan = ClaudeSourcePlanner.resolve(input: ClaudeSourcePlanningInput(
             runtime: .app,

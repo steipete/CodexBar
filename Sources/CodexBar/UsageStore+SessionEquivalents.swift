@@ -193,6 +193,32 @@ extension UsageStore {
         return identities?[identityKey]
     }
 
+    func materializeLegacySessionEquivalentHistoryIdentityDuringAccountAdoption(
+        provider: UsageProvider,
+        from sourceAccountKey: String?,
+        to targetAccountKey: String?,
+        targetHasHistory: Bool,
+        providerBuckets: inout PlanUtilizationHistoryBuckets)
+    {
+        guard sourceAccountKey != targetAccountKey else { return }
+
+        // Persisted identities take precedence. A target legacy identity matters only when it contributed history.
+        let accountKeys = [sourceAccountKey] + (targetHasHistory ? [targetAccountKey] : [])
+        for accountKey in accountKeys {
+            guard providerBuckets.sessionEquivalentWindowPairIdentity(for: accountKey) == nil,
+                  let legacyIdentity = self.legacySessionEquivalentHistoryIdentity(
+                      provider: provider,
+                      accountKey: accountKey)
+            else {
+                continue
+            }
+            providerBuckets.setSessionEquivalentWindowPairIdentity(legacyIdentity, for: accountKey)
+        }
+        providerBuckets.moveSessionEquivalentWindowPairIdentity(
+            from: sourceAccountKey,
+            to: targetAccountKey)
+    }
+
     func reconcileGenericSessionEquivalentHistory(
         scope: (provider: UsageProvider, accountKey: String?),
         snapshot: UsageSnapshot,

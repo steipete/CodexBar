@@ -43,6 +43,7 @@ public enum KeychainCacheStore {
     private static let cacheLabel = "CodexBar Cache"
     @TaskLocal private static var serviceOverride: String?
     @TaskLocal private static var forceImplicitTestStore = false
+    @TaskLocal private static var forceRealKeychainPath = false
     #if DEBUG
     @TaskLocal private static var operationRecorder: OperationRecorder?
 
@@ -95,7 +96,8 @@ public enum KeychainCacheStore {
             return self.loadResultForKeychainReadFailure(status: status, key: key)
         }
         #endif
-        if let testResult = loadFromTestStore(key: key, as: type),
+        if !self.forceRealKeychainPath,
+           let testResult = loadFromTestStore(key: key, as: type),
            !self.prefersDisabledAccessMemoryStoreOverTestStore
         {
             return testResult
@@ -105,6 +107,23 @@ public enum KeychainCacheStore {
         }
         guard self.canUseRealKeychain else { return .missing }
         #if os(macOS)
+        // Requesting secret bytes can surface a legacy ACL prompt even when the query carries
+        // `kSecUseAuthenticationUIFail`. Probe attributes and the item reference first, then ask
+        // for data only when the decrypt ACL already trusts this exact executable without UI.
+        switch KeychainAccessPreflight.checkGenericPassword(
+            service: self.serviceName,
+            account: key.account)
+        {
+        case .allowed:
+            break
+        case .interactionRequired:
+            self.log.info("Keychain cache item is unusable by this executable (\(key.account)); treating as missing")
+            return .missing
+        case .notFound:
+            return .missing
+        case let .failure(status):
+            return self.loadResultForKeychainReadFailure(status: OSStatus(status), key: key)
+        }
         var query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: self.serviceName,
@@ -151,7 +170,8 @@ public enum KeychainCacheStore {
             return false
         }
         #endif
-        if !self.prefersDisabledAccessMemoryStoreOverTestStore,
+        if !self.forceRealKeychainPath,
+           !self.prefersDisabledAccessMemoryStoreOverTestStore,
            let stored = self.storeInTestStore(key: key, entry: entry)
         {
             return stored
@@ -167,6 +187,20 @@ public enum KeychainCacheStore {
             return false
         }
 
+        let preflight = KeychainAccessPreflight.checkGenericPassword(
+            service: self.serviceName,
+            account: key.account)
+        switch preflight {
+        case .allowed, .notFound:
+            break
+        case .interactionRequired:
+            self.log.info("Keychain cache store requires interaction (\(key.account)); skipping")
+            return false
+        case let .failure(status):
+            self.log.error("Keychain cache store preflight failed (\(key.account)): \(status)")
+            return false
+        }
+
         var query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: self.serviceName,
@@ -174,15 +208,17 @@ public enum KeychainCacheStore {
         ]
         KeychainNoUIQuery.apply(to: &query)
 
-        let updateStatus = KeychainSecurity.update(
-            query as CFDictionary,
-            [kSecValueData as String: data] as CFDictionary)
-        if updateStatus == errSecSuccess {
-            return true
-        }
-        if updateStatus != errSecItemNotFound {
-            self.log.error("Keychain cache update failed (\(key.account)): \(updateStatus)")
-            return false
+        if case .allowed = preflight {
+            let updateStatus = KeychainSecurity.update(
+                query as CFDictionary,
+                [kSecValueData as String: data] as CFDictionary)
+            if updateStatus == errSecSuccess {
+                return true
+            }
+            if updateStatus != errSecItemNotFound {
+                self.log.error("Keychain cache update failed (\(key.account)): \(updateStatus)")
+                return false
+            }
         }
 
         var addQuery = query
@@ -194,6 +230,17 @@ public enum KeychainCacheStore {
         }
 
         let addStatus = KeychainSecurity.add(addQuery as CFDictionary, nil)
+        if addStatus == errSecDuplicateItem {
+            // Another first-party process may have inserted the same cache item after our missing preflight.
+            // Revalidate its ACL before resolving the benign race with an update.
+            guard case .allowed = KeychainAccessPreflight.checkGenericPassword(
+                service: self.serviceName,
+                account: key.account)
+            else { return false }
+            return KeychainSecurity.update(
+                query as CFDictionary,
+                [kSecValueData as String: data] as CFDictionary) == errSecSuccess
+        }
         if addStatus != errSecSuccess {
             self.log.error("Keychain cache add failed (\(key.account)): \(addStatus)")
         }
@@ -217,7 +264,8 @@ public enum KeychainCacheStore {
             return self.clearResultForKeychainDeleteStatus(status, key: key)
         }
         #endif
-        if !self.prefersDisabledAccessMemoryStoreOverTestStore,
+        if !self.forceRealKeychainPath,
+           !self.prefersDisabledAccessMemoryStoreOverTestStore,
            let removed = self.clearTestStore(key: key)
         {
             return removed ? .removed : .missing
@@ -227,6 +275,21 @@ public enum KeychainCacheStore {
         }
         guard self.canUseRealKeychain else { return .failed }
         #if os(macOS)
+        switch KeychainAccessPreflight.checkGenericPassword(
+            service: self.serviceName,
+            account: key.account)
+        {
+        case .allowed:
+            break
+        case .notFound:
+            return .missing
+        case .interactionRequired:
+            self.log.info("Keychain cache delete requires interaction (\(key.account)); skipping")
+            return .failed
+        case let .failure(status):
+            self.log.error("Keychain cache delete preflight failed (\(key.account)): \(status)")
+            return .failed
+        }
         var query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: self.serviceName,
@@ -254,7 +317,8 @@ public enum KeychainCacheStore {
             return self.keysResultForKeychainStatus(status, category: category, result: nil)
         }
         #endif
-        if !self.prefersDisabledAccessMemoryStoreOverTestStore,
+        if !self.forceRealKeychainPath,
+           !self.prefersDisabledAccessMemoryStoreOverTestStore,
            let keys = self.keysFromTestStore(category: category)
         {
             return .found(keys)
@@ -330,6 +394,14 @@ public enum KeychainCacheStore {
     }
 
     #if DEBUG
+    static func withRealKeychainPathForTesting<T>(
+        operation: () throws -> T) rethrows -> T
+    {
+        try self.$forceRealKeychainPath.withValue(true) {
+            try operation()
+        }
+    }
+
     static func withOperationRecorderForTesting<T>(
         _ recorder: OperationRecorder?,
         operation: () throws -> T) rethrows -> T
@@ -368,6 +440,15 @@ public enum KeychainCacheStore {
     {
         try self.$loadFailureStatusOverride.withValue(status) {
             try operation()
+        }
+    }
+
+    public static func withLoadFailureStatusOverrideForTesting<T>(
+        _ status: OSStatus?,
+        operation: () async throws -> T) async rethrows -> T
+    {
+        try await self.$loadFailureStatusOverride.withValue(status) {
+            try await operation()
         }
     }
 
@@ -605,44 +686,6 @@ public enum KeychainCacheStore {
         }
     }
 
-    static func trustedApplicationPathsForCacheAccess(
-        bundleURL: URL = Bundle.main.bundleURL,
-        executableURL: URL? = Bundle.main.executableURL,
-        fileExists: (String) -> Bool = { FileManager.default.fileExists(atPath: $0) }) -> [String]
-    {
-        var paths: [String] = []
-        func append(_ path: String) {
-            guard !path.isEmpty, fileExists(path), !paths.contains(path) else { return }
-            paths.append(path)
-        }
-
-        // No .app ancestor means an ephemeral dev binary; trusting its bare path
-        // would freeze a broken ACL onto the shared item (the packaged app would
-        // then prompt on every read). Refuse the ACL entirely in that case —
-        // unbundled processes use the in-memory store and never reach this path
-        // in practice.
-        guard let appBundle = self.appBundleURL(containing: bundleURL)
-            ?? executableURL.flatMap(self.appBundleURL(containing:))
-        else { return [] }
-        append(appBundle.path)
-        append(appBundle.appendingPathComponent("Contents/Helpers/CodexBarCLI").path)
-        if let executableURL {
-            append(executableURL.path)
-        }
-        return paths
-    }
-
-    private static func appBundleURL(containing url: URL) -> URL? {
-        var current = url.standardizedFileURL
-        while current.path != "/" {
-            if current.pathExtension == "app" {
-                return current
-            }
-            current.deleteLastPathComponent()
-        }
-        return nil
-    }
-
     private static func cacheAccessControl() -> SecAccess? {
         let trustedPaths = self.trustedApplicationPathsForCacheAccess()
         guard !trustedPaths.isEmpty else { return nil }
@@ -674,7 +717,7 @@ public enum KeychainCacheStore {
         CFArray,
         UnsafeMutablePointer<SecAccess?>?) -> OSStatus
 
-    private static func createTrustedApplication(path: String) -> (OSStatus, SecTrustedApplication?) {
+    static func createTrustedApplication(path: String) -> (OSStatus, SecTrustedApplication?) {
         guard let symbol = self.securitySymbol(named: "SecTrustedApplicationCreateFromPath") else {
             return (errSecInternalComponent, nil)
         }

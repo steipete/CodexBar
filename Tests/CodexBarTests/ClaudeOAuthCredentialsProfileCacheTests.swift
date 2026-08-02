@@ -596,4 +596,48 @@ struct ClaudeOAuthCredentialsProfileCacheTests {
             }
         }
     }
+
+    @Test
+    func `rejected credentials file stays quarantined per profile until its fingerprint changes`() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let profileA = root.appendingPathComponent("profile-a", isDirectory: true)
+        let profileB = root.appendingPathComponent("profile-b", isDirectory: true)
+        try FileManager.default.createDirectory(at: profileA, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: profileB, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let environmentA = ["CLAUDE_CONFIG_DIR": profileA.path]
+        let environmentB = ["CLAUDE_CONFIG_DIR": profileB.path]
+        let fileA = profileA.appendingPathComponent(".credentials.json")
+        let fileB = profileB.appendingPathComponent(".credentials.json")
+        let staleA = self.makeCredentialsData(accessToken: "stale-profile-a-token")
+        let freshA = self.makeCredentialsData(accessToken: "fresh-profile-a-token-with-new-size")
+        let profileBData = self.makeCredentialsData(accessToken: "profile-b-token")
+        try staleA.write(to: fileA)
+        try profileBData.write(to: fileB)
+
+        try self.withIsolatedCache {
+            #expect(ClaudeOAuthCredentialsStore.quarantineCurrentCredentialsFileForOAuth(
+                environment: environmentA))
+            #expect(ClaudeOAuthCredentialsStore.isCurrentCredentialsFileQuarantinedForOAuth(
+                environment: environmentA))
+            #expect(!ClaudeOAuthCredentialsStore.isCurrentCredentialsFileQuarantinedForOAuth(
+                environment: environmentB))
+            #expect(try ClaudeOAuthCredentialsStore.loadFromFile(environment: environmentB) == profileBData)
+            let error = #expect(throws: ClaudeOAuthCredentialsError.self) {
+                try ClaudeOAuthCredentialsStore.loadFromFile(environment: environmentA)
+            }
+            guard case .notFound = error else {
+                Issue.record("Expected the quarantined file to fail closed as not found")
+                return
+            }
+
+            try freshA.write(to: fileA)
+
+            #expect(!ClaudeOAuthCredentialsStore.isCurrentCredentialsFileQuarantinedForOAuth(
+                environment: environmentA))
+            #expect(try ClaudeOAuthCredentialsStore.loadFromFile(environment: environmentA) == freshA)
+        }
+    }
 }
