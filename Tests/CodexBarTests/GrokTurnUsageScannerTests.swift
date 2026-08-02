@@ -228,4 +228,157 @@ struct GrokTurnUsageScannerTests {
     func `descriptor enables token cost`() {
         #expect(GrokProviderDescriptor.descriptor.tokenCost.supportsTokenCost)
     }
+
+    @Test
+    func `skips oversized session logs over per-file budget`() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("grok-oversized-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let sessionDir = root
+            .appendingPathComponent("cwd", isDirectory: true)
+            .appendingPathComponent("big-session", isDirectory: true)
+        try FileManager.default.createDirectory(at: sessionDir, withIntermediateDirectories: true)
+
+        let now = Date()
+        let ts = Int(now.timeIntervalSince1970)
+        let line = """
+        {"timestamp":\(ts),"params":{"sessionId":"big-session","update":{"sessionUpdate":\
+        "turn_completed","prompt_id":"p","usage":{"inputTokens":10,"cachedReadTokens":0,\
+        "outputTokens":1,"totalTokens":11,"modelCalls":1,"costUsdTicks":100000000}},"_meta":{\
+        "eventId":"e-big","agentTimestampMs":\(ts)000}}
+        """
+        // Pad past the per-file limit while keeping a valid trailing turn line.
+        var payload = Data(repeating: UInt8(ascii: " "), count: 200)
+        payload.append(Data(line.utf8))
+        payload.append(Data("\n".utf8))
+        try payload.write(to: sessionDir.appendingPathComponent("updates.jsonl"))
+
+        let budget = GrokTurnUsageScanner.ScanBudget(maxFileBytes: 100, maxBytesPerRefresh: 10_000)
+        let options = GrokTurnUsageScanner.Options(
+            sessionsRoot: root,
+            maxSessionFileBytes: 100,
+            maxScanBytesPerRefresh: 10_000)
+        let turns = try GrokTurnUsageScanner.scanTurns(
+            since: now.addingTimeInterval(-86_400),
+            until: now.addingTimeInterval(60),
+            options: options,
+            checkCancellation: nil,
+            budget: budget)
+
+        #expect(turns.isEmpty)
+        #expect(budget.skippedOversizedFileCount == 1)
+        #expect(budget.bytesConsumed == 0)
+    }
+
+    @Test
+    func `refresh budget prefers newest session and defers older files`() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("grok-budget-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let now = Date()
+        let ts = Int(now.timeIntervalSince1970)
+
+        func writeSession(id: String, eventID: String, tokens: Int, modifiedAt: Date) throws {
+            let sessionDir = root
+                .appendingPathComponent("cwd", isDirectory: true)
+                .appendingPathComponent(id, isDirectory: true)
+            try FileManager.default.createDirectory(at: sessionDir, withIntermediateDirectories: true)
+            let line = """
+            {"timestamp":\(ts),"params":{"sessionId":"\(id)","update":{"sessionUpdate":\
+            "turn_completed","prompt_id":"p","usage":{"inputTokens":\(tokens),"cachedReadTokens":0,\
+            "outputTokens":1,"totalTokens":\(tokens + 1),"modelCalls":1,"costUsdTicks":100000000}},\
+            "_meta":{"eventId":"\(eventID)","agentTimestampMs":\(ts)000}}
+            """
+            let url = sessionDir.appendingPathComponent("updates.jsonl")
+            try Data((line + "\n").utf8).write(to: url)
+            try FileManager.default.setAttributes(
+                [.modificationDate: modifiedAt],
+                ofItemAtPath: url.path)
+        }
+
+        try writeSession(
+            id: "old-session",
+            eventID: "e-old",
+            tokens: 100,
+            modifiedAt: now.addingTimeInterval(-3_600))
+        try writeSession(
+            id: "new-session",
+            eventID: "e-new",
+            tokens: 50,
+            modifiedAt: now)
+
+        // Budget fits only one of the two ~similar-size session files.
+        let sampleURL = root
+            .appendingPathComponent("cwd", isDirectory: true)
+            .appendingPathComponent("new-session", isDirectory: true)
+            .appendingPathComponent("updates.jsonl")
+        let sampleSize = Int64(
+            (try FileManager.default.attributesOfItem(atPath: sampleURL.path)[.size] as? NSNumber)?
+                .int64Value ?? 0)
+        #expect(sampleSize > 0)
+
+        let budget = GrokTurnUsageScanner.ScanBudget(
+            maxFileBytes: sampleSize * 4,
+            maxBytesPerRefresh: sampleSize)
+        let options = GrokTurnUsageScanner.Options(
+            sessionsRoot: root,
+            maxSessionFileBytes: sampleSize * 4,
+            maxScanBytesPerRefresh: sampleSize,
+            preferNewestSessionsFirst: true)
+        let turns = try GrokTurnUsageScanner.scanTurns(
+            since: now.addingTimeInterval(-86_400),
+            until: now.addingTimeInterval(60),
+            options: options,
+            checkCancellation: nil,
+            budget: budget)
+
+        #expect(turns.count == 1)
+        #expect(turns[0].eventID == "e-new")
+        #expect(turns[0].totalTokens == 51)
+        #expect(budget.deferredByBudgetFileCount == 1)
+        #expect(budget.bytesConsumed == sampleSize)
+    }
+
+    @Test
+    func `skips stale session files outside the since window`() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("grok-stale-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let now = Date()
+        let sessionDir = root
+            .appendingPathComponent("cwd", isDirectory: true)
+            .appendingPathComponent("stale", isDirectory: true)
+        try FileManager.default.createDirectory(at: sessionDir, withIntermediateDirectories: true)
+        let ts = Int(now.addingTimeInterval(-10 * 86_400).timeIntervalSince1970)
+        let line = """
+        {"timestamp":\(ts),"params":{"sessionId":"stale","update":{"sessionUpdate":\
+        "turn_completed","prompt_id":"p","usage":{"inputTokens":10,"cachedReadTokens":0,\
+        "outputTokens":1,"totalTokens":11,"modelCalls":1}},"_meta":{"eventId":"e-stale",\
+        "agentTimestampMs":\(ts)000}}
+        """
+        let url = sessionDir.appendingPathComponent("updates.jsonl")
+        try Data((line + "\n").utf8).write(to: url)
+        try FileManager.default.setAttributes(
+            [.modificationDate: now.addingTimeInterval(-10 * 86_400)],
+            ofItemAtPath: url.path)
+
+        let budget = GrokTurnUsageScanner.ScanBudget(
+            maxFileBytes: 1024 * 1024,
+            maxBytesPerRefresh: 1024 * 1024)
+        let options = GrokTurnUsageScanner.Options(sessionsRoot: root)
+        let turns = try GrokTurnUsageScanner.scanTurns(
+            since: now.addingTimeInterval(-86_400),
+            until: now.addingTimeInterval(60),
+            options: options,
+            checkCancellation: nil,
+            budget: budget)
+
+        #expect(turns.isEmpty)
+        #expect(budget.skippedStaleFileCount == 1)
+        #expect(budget.bytesConsumed == 0)
+    }
 }
+

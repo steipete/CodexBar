@@ -12,15 +12,73 @@ public enum GrokTurnUsageScanner {
         public var environment: [String: String]
         /// Not Sendable; kept only for local filesystem reads (same pattern as other scanners).
         public nonisolated(unsafe) var fileManager: FileManager
+        /// Skip any single `updates.jsonl` larger than this (0 = unlimited). Default 256 MiB.
+        public var maxSessionFileBytes: Int64
+        /// Soft budget for newly-read session bytes in one refresh (0 = unlimited). Default 512 MiB.
+        public var maxScanBytesPerRefresh: Int64
+        /// Prefer newest session files first so recent usage lands before catch-up work.
+        public var preferNewestSessionsFirst: Bool
 
         public init(
             sessionsRoot: URL? = nil,
             environment: [String: String] = ProcessInfo.processInfo.environment,
-            fileManager: FileManager = .default)
+            fileManager: FileManager = .default,
+            maxSessionFileBytes: Int64 = 256 * 1024 * 1024,
+            maxScanBytesPerRefresh: Int64 = 512 * 1024 * 1024,
+            preferNewestSessionsFirst: Bool = true)
         {
             self.sessionsRoot = sessionsRoot
             self.environment = environment
             self.fileManager = fileManager
+            self.maxSessionFileBytes = max(0, maxSessionFileBytes)
+            self.maxScanBytesPerRefresh = max(0, maxScanBytesPerRefresh)
+            self.preferNewestSessionsFirst = preferNewestSessionsFirst
+        }
+    }
+
+    /// Per-refresh work limiter (mirrors Codex cost scan protection).
+    final class ScanBudget: @unchecked Sendable {
+        let maxFileBytes: Int64
+        let maxBytesPerRefresh: Int64
+        private(set) var bytesConsumed: Int64 = 0
+        private(set) var skippedOversizedFileCount = 0
+        private(set) var deferredByBudgetFileCount = 0
+        private(set) var skippedStaleFileCount = 0
+
+        init(maxFileBytes: Int64, maxBytesPerRefresh: Int64) {
+            self.maxFileBytes = max(0, maxFileBytes)
+            self.maxBytesPerRefresh = max(0, maxBytesPerRefresh)
+        }
+
+        enum Admission {
+            case allow(Int64)
+            case skipOversized
+            case deferBudget
+        }
+
+        func admit(fileBytes: Int64) -> Admission {
+            let work = max(0, fileBytes)
+            if self.maxFileBytes > 0, work > self.maxFileBytes {
+                self.skippedOversizedFileCount += 1
+                return .skipOversized
+            }
+            // Whole-file admission only: partial mid-file reads would drop newer tail turns.
+            if self.maxBytesPerRefresh > 0 {
+                let remaining = max(0, self.maxBytesPerRefresh - self.bytesConsumed)
+                if work > remaining {
+                    self.deferredByBudgetFileCount += 1
+                    return .deferBudget
+                }
+            }
+            return .allow(work)
+        }
+
+        func consume(workBytes: Int64) {
+            self.bytesConsumed += max(0, workBytes)
+        }
+
+        func markSkippedStale() {
+            self.skippedStaleFileCount += 1
         }
     }
 
@@ -77,7 +135,11 @@ public enum GrokTurnUsageScanner {
     {
         _ = now
         let range = CostUsageScanner.CostUsageDayRange(since: since, until: until)
-        let turns = try self.scanTurns(options: options, checkCancellation: checkCancellation)
+        let turns = try self.scanTurns(
+            since: since,
+            until: until,
+            options: options,
+            checkCancellation: checkCancellation)
         let inRange = turns.filter {
             CostUsageScanner.CostUsageDayRange.isInRange(
                 dayKey: $0.dayKey,
@@ -142,49 +204,79 @@ public enum GrokTurnUsageScanner {
 
     // MARK: - Scan
 
+    private struct SessionLogFile {
+        let url: URL
+        let sessionID: String
+        let size: Int64
+        let modifiedAt: Date
+    }
+
     static func scanTurns(
+        since: Date = Date.distantPast,
+        until: Date = Date.distantFuture,
         options: Options,
-        checkCancellation: (() throws -> Void)?) throws -> [TurnRecord]
+        checkCancellation: (() throws -> Void)?,
+        budget: ScanBudget? = nil) throws -> [TurnRecord]
     {
         let root = self.sessionsRoot(options: options)
         let fileManager = options.fileManager
         guard fileManager.fileExists(atPath: root.path) else { return [] }
 
-        guard let enumerator = fileManager.enumerator(
-            at: root,
-            includingPropertiesForKeys: [.isRegularFileKey],
-            options: [.skipsHiddenFiles, .skipsPackageDescendants])
-        else { return [] }
+        let activeBudget = budget ?? ScanBudget(
+            maxFileBytes: options.maxSessionFileBytes,
+            maxBytesPerRefresh: options.maxScanBytesPerRefresh)
 
+        var candidates = try self.listSessionLogFiles(
+            root: root,
+            fileManager: fileManager,
+            checkCancellation: checkCancellation)
+        if options.preferNewestSessionsFirst {
+            candidates.sort { lhs, rhs in
+                if lhs.modifiedAt != rhs.modifiedAt { return lhs.modifiedAt > rhs.modifiedAt }
+                return lhs.url.path < rhs.url.path
+            }
+        } else {
+            candidates.sort { $0.url.path < $1.url.path }
+        }
+
+        // Files that have not been touched since before the window cannot contain in-range turns.
+        let staleCutoff = since
         var byEventID: [String: TurnRecord] = [:]
         var cwdBySession: [String: String] = [:]
 
-        for case let url as URL in enumerator {
+        for file in candidates {
             try checkCancellation?()
-            guard url.lastPathComponent == "updates.jsonl" else { continue }
-
-            let sessionID = url.deletingLastPathComponent().lastPathComponent
-            if cwdBySession[sessionID] == nil {
-                cwdBySession[sessionID] = self.readCwd(
-                    sessionDirectory: url.deletingLastPathComponent(),
-                    fileManager: fileManager)
+            if file.modifiedAt < staleCutoff {
+                activeBudget.markSkippedStale()
+                continue
             }
 
-            guard let data = try? Data(contentsOf: url),
-                  let text = String(data: data, encoding: .utf8)
-            else { continue }
-
-            for line in text.split(separator: "\n", omittingEmptySubsequences: true) {
-                try checkCancellation?()
-                guard line.contains("turn_completed") else { continue }
-                guard let record = self.parseTurnLine(
-                    String(line),
-                    sessionID: sessionID,
-                    cwd: cwdBySession[sessionID])
-                else { continue }
-                if byEventID[record.eventID] == nil {
-                    byEventID[record.eventID] = record
+            switch activeBudget.admit(fileBytes: file.size) {
+            case .skipOversized:
+                continue
+            case .deferBudget:
+                // Newest-first: once the soft budget is exhausted, defer the rest.
+                continue
+            case let .allow(allowedBytes):
+                if cwdBySession[file.sessionID] == nil {
+                    cwdBySession[file.sessionID] = self.readCwd(
+                        sessionDirectory: file.url.deletingLastPathComponent(),
+                        fileManager: fileManager)
                 }
+                let cwd = cwdBySession[file.sessionID]
+                let readBytes = try self.scanSessionLogFile(
+                    url: file.url,
+                    sessionID: file.sessionID,
+                    cwd: cwd,
+                    maxBytesToRead: allowedBytes,
+                    until: until,
+                    checkCancellation: checkCancellation)
+                { record in
+                    if byEventID[record.eventID] == nil {
+                        byEventID[record.eventID] = record
+                    }
+                }
+                activeBudget.consume(workBytes: readBytes)
             }
         }
 
@@ -192,6 +284,92 @@ public enum GrokTurnUsageScanner {
             if lhs.timestamp != rhs.timestamp { return lhs.timestamp < rhs.timestamp }
             return lhs.eventID < rhs.eventID
         }
+    }
+
+    private static func listSessionLogFiles(
+        root: URL,
+        fileManager: FileManager,
+        checkCancellation: (() throws -> Void)?) throws -> [SessionLogFile]
+    {
+        let keys: Set<URLResourceKey> = [.isRegularFileKey, .fileSizeKey, .contentModificationDateKey]
+        guard let enumerator = fileManager.enumerator(
+            at: root,
+            includingPropertiesForKeys: Array(keys),
+            options: [.skipsHiddenFiles, .skipsPackageDescendants])
+        else { return [] }
+
+        var files: [SessionLogFile] = []
+        for case let url as URL in enumerator {
+            try checkCancellation?()
+            guard url.lastPathComponent == "updates.jsonl" else { continue }
+            let values = try? url.resourceValues(forKeys: keys)
+            guard values?.isRegularFile == true else { continue }
+            let size = Int64(values?.fileSize ?? 0)
+            let modifiedAt = values?.contentModificationDate ?? Date.distantPast
+            let sessionID = url.deletingLastPathComponent().lastPathComponent
+            files.append(SessionLogFile(
+                url: url,
+                sessionID: sessionID,
+                size: size,
+                modifiedAt: modifiedAt))
+        }
+        return files
+    }
+
+    /// Stream-read a session log up to `maxBytesToRead` without loading the whole file into memory.
+    @discardableResult
+    private static func scanSessionLogFile(
+        url: URL,
+        sessionID: String,
+        cwd: String?,
+        maxBytesToRead: Int64,
+        until: Date,
+        checkCancellation: (() throws -> Void)?,
+        onRecord: (TurnRecord) -> Void) throws -> Int64
+    {
+        guard maxBytesToRead > 0 else { return 0 }
+        let handle = try FileHandle(forReadingFrom: url)
+        defer { try? handle.close() }
+
+        var bytesRead: Int64 = 0
+        var pending = Data()
+        pending.reserveCapacity(16 * 1024)
+        var reachedEOF = false
+
+        func consumeLine(_ lineData: Data) throws {
+            try checkCancellation?()
+            guard let line = String(data: lineData, encoding: .utf8) else { return }
+            guard line.contains("turn_completed") else { return }
+            guard let record = self.parseTurnLine(line, sessionID: sessionID, cwd: cwd) else { return }
+            // Drop turns clearly after the window (defensive; normal scans set until=now).
+            if record.timestamp > until { return }
+            onRecord(record)
+        }
+
+        while bytesRead < maxBytesToRead {
+            try checkCancellation?()
+            let remaining = maxBytesToRead - bytesRead
+            let chunkSize = min(256 * 1024, Int(remaining))
+            guard chunkSize > 0 else { break }
+            let chunk = try handle.read(upToCount: chunkSize) ?? Data()
+            if chunk.isEmpty {
+                reachedEOF = true
+                break
+            }
+            bytesRead += Int64(chunk.count)
+            pending.append(chunk)
+
+            while let newline = pending.firstIndex(of: UInt8(ascii: "\n")) {
+                let lineData = pending.subdata(in: pending.startIndex..<newline)
+                pending.removeSubrange(pending.startIndex...newline)
+                try consumeLine(lineData)
+            }
+        }
+        // Flush trailing line only when the whole file fit in budget (avoid partial last line).
+        if reachedEOF, !pending.isEmpty {
+            try consumeLine(pending)
+        }
+        return bytesRead
     }
 
     // MARK: - Parse
