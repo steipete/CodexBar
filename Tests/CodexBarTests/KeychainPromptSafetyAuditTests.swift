@@ -142,6 +142,28 @@ struct KeychainPromptSafetyAuditTests {
         #expect(offenders.isEmpty, "Security item access bypasses KeychainSecurity: \(offenders.map(\.path))")
     }
 
+    @Test
+    func `production source resolves Security symbols via dlsym only in audited files`() throws {
+        // dlsym-resolved Security APIs (deprecated ACL/interaction functions) bypass
+        // a plain "SecItem*" grep; keep them enumerable so new runtime-resolved
+        // Security calls cannot slip past this audit unseen.
+        let allowedFiles = [
+            "Sources/CodexBarCore/KeychainCacheStore.swift",
+            "Sources/CodexBarCore/KeychainNoUIQuery.swift",
+            "Sources/CodexBarCore/KeychainSecurity.swift",
+        ]
+        let offenders = try Self.swiftFiles(
+            under: Self.repoRoot().appendingPathComponent("Sources", isDirectory: true))
+            .filter { file in
+                guard !allowedFiles.contains(where: file.path.hasSuffix) else { return false }
+                let text = try Self.readFile(file)
+                guard text.contains("dlsym") else { return false }
+                return text.contains("\"Sec") || text.contains("Security.framework")
+            }
+
+        #expect(offenders.isEmpty, "Unaudited dlsym-resolved Security access: \(offenders.map(\.path))")
+    }
+
     private static func repoRoot() -> URL {
         URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()

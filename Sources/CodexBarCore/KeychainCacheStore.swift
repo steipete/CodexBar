@@ -436,10 +436,9 @@ public enum KeychainCacheStore {
     /// reconciliation can still succeed without treating every refresh as a session change.
     /// Unit tests keep using the isolated test stores instead, unless a test explicitly opts in.
     private static func shouldUseDisabledAccessMemoryStore(for category: String) -> Bool {
-        guard category == "cookie" else { return false }
         #if DEBUG
         if self.disabledAccessMemoryStoreEnabledForTesting == true {
-            return true
+            return category == "cookie"
         }
         if KeychainTestSafety.isRunningUnderTests(
             processName: ProcessInfo.processInfo.processName,
@@ -448,8 +447,37 @@ public enum KeychainCacheStore {
             return false
         }
         #endif
+        // Unbundled processes (no .app ancestor: `swift build` binaries, dev CLI
+        // runs) must never touch the shared cache item. Creating it would freeze
+        // a trusted-application ACL onto an ephemeral unsigned binary — after
+        // which the real app prompts forever — and reading someone else's item
+        // raises the login-keychain password dialog. They get a process-local
+        // in-memory cache instead.
+        if self.isUnbundledProcess {
+            return true
+        }
+        guard category == "cookie" else { return false }
         return KeychainAccessGate.isExplicitlyDisabled
     }
+
+    /// True when the running executable has no `.app` bundle ancestor.
+    static let isUnbundledProcess: Bool = {
+        #if os(macOS)
+        if Self.appBundleURL(containing: Bundle.main.bundleURL) != nil {
+            return false
+        }
+        if let executableURL = Bundle.main.executableURL,
+           Self.appBundleURL(containing: executableURL) != nil
+        {
+            return false
+        }
+        return true
+        #else
+        // No app bundles (or real keychain) exist off macOS; the memory store is
+        // the only sensible backing there anyway.
+        return true
+        #endif
+    }()
 
     #if DEBUG
     @TaskLocal private static var disabledAccessMemoryStoreEnabledForTesting: Bool?
@@ -588,12 +616,16 @@ public enum KeychainCacheStore {
             paths.append(path)
         }
 
-        let appBundle = self.appBundleURL(containing: bundleURL)
+        // No .app ancestor means an ephemeral dev binary; trusting its bare path
+        // would freeze a broken ACL onto the shared item (the packaged app would
+        // then prompt on every read). Refuse the ACL entirely in that case —
+        // unbundled processes use the in-memory store and never reach this path
+        // in practice.
+        guard let appBundle = self.appBundleURL(containing: bundleURL)
             ?? executableURL.flatMap(self.appBundleURL(containing:))
-        if let appBundle {
-            append(appBundle.path)
-            append(appBundle.appendingPathComponent("Contents/Helpers/CodexBarCLI").path)
-        }
+        else { return [] }
+        append(appBundle.path)
+        append(appBundle.appendingPathComponent("Contents/Helpers/CodexBarCLI").path)
         if let executableURL {
             append(executableURL.path)
         }

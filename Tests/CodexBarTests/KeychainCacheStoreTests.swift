@@ -326,5 +326,32 @@ struct KeychainCacheStoreTests {
             executable.path,
         ])
     }
+
+    @Test
+    func `cache ACL refuses bare dev binaries without an app bundle`() {
+        // Trusting an ephemeral `swift build` binary would freeze a broken ACL
+        // onto the shared item; the packaged app would then prompt on every read.
+        let bundleURL = URL(fileURLWithPath: "/Users/dev/project/.build/debug")
+        let executable = URL(fileURLWithPath: "/Users/dev/project/.build/debug/CodexBarCLI")
+
+        let paths = KeychainCacheStore.trustedApplicationPathsForCacheAccess(
+            bundleURL: bundleURL,
+            executableURL: executable,
+            fileExists: { _ in true })
+
+        #expect(paths.isEmpty)
+    }
+
+    @Test
+    func `blocked keychain access exports suppression for child processes`() {
+        // Under tests access is always blocked; the decision must export the
+        // suppression variable so spawned CLI children inherit it (their process
+        // names match no test pattern).
+        #expect(KeychainTestSafety.shouldBlockRealKeychainAccess())
+
+        let exported = getenv(KeychainTestSafety.suppressAccessEnvironmentKey)
+        #expect(exported != nil)
+        #expect(exported.map { String(cString: $0) } == "1")
+    }
     #endif
 }
