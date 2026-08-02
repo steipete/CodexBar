@@ -91,6 +91,47 @@ struct ClaudeWebUsageExtraWindowTests {
     }
 
     @Test
+    func `web extras preserve OAuth credential ownership evidence`() {
+        let primaryCost = ProviderCostSnapshot(
+            used: 5,
+            limit: 20,
+            currencyCode: "USD",
+            period: "Monthly cap",
+            updatedAt: Date(timeIntervalSince1970: 1_800_000_000))
+        let snapshot = ClaudeUsageSnapshot(
+            primary: RateWindow(usedPercent: 7, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+            secondary: nil,
+            opus: nil,
+            providerCost: primaryCost,
+            updatedAt: Date(timeIntervalSince1970: 1_800_000_001),
+            accountEmail: "user@example.com",
+            accountOrganization: "org-123",
+            loginMethod: "Pro",
+            rawText: nil,
+            oauthKeychainPersistentRefHash: "persistent-ref",
+            oauthHistoryOwnerIdentifier: "history-owner",
+            oauthCredentialOwner: .claudeCLI,
+            oauthKeychainCredentialUnavailable: true)
+        let webCost = ProviderCostSnapshot(
+            used: 0,
+            limit: 0,
+            currencyCode: "USD",
+            period: "Extra usage",
+            balance: 100,
+            updatedAt: Date(timeIntervalSince1970: 1_800_000_002))
+
+        let enriched = snapshot.replacingWebExtras(
+            extraRateWindows: [],
+            providerCost: webCost)
+
+        #expect(enriched.providerCost == webCost)
+        #expect(enriched.oauthCredentialOwner == .claudeCLI)
+        #expect(enriched.oauthKeychainPersistentRefHash == "persistent-ref")
+        #expect(enriched.oauthHistoryOwnerIdentifier == "history-owner")
+        #expect(enriched.oauthKeychainCredentialUnavailable)
+    }
+
+    @Test
     func `web extras require the same Claude account and organization`() {
         let snapshot = ClaudeUsageSnapshot(
             primary: RateWindow(usedPercent: 7, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
