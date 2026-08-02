@@ -4,7 +4,7 @@ Track live Codex, Claude Code, and OhMyPi agent sessions — local Mac first, ot
 
 ## Why in CodexBar
 
-CodexBar already parses local agent metadata and ships a bundled CLI on macOS + Linux. Sessions reuse both: the local scanner feeds the menu UI, and the same scanner exposed as `codexbar sessions --json` (the complete current normalized array) or `codexbar sessions --json-v2` (an explicit equivalent spelling) is what remote Macs run over SSH. No daemon, no new app.
+CodexBar already parses local agent metadata and ships a bundled CLI on macOS + Linux. Sessions reuse both: the local scanner feeds the menu UI. For programmatic callers, `codexbar sessions --json-v2` is the complete current normalized array; `codexbar sessions --json` is the legacy v1 projection restricted to `codex` and `claude` so older clients remain decodable. Remote Macs negotiate v2 first and fall back to v1. No daemon, no new app.
 
 ## Data model (CodexBarCore)
 
