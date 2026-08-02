@@ -684,14 +684,6 @@ final class CLIEntryTests: XCTestCase {
             environment: [:]))
     }
 
-    private static var cliExecutableURL: URL {
-        URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .appendingPathComponent(".build/debug/CodexBarCLI")
-    }
-
     private static func runCLI(
         arguments: [String],
         environment: [String: String] = [:]) throws -> (status: Int32, stdout: Data, stderr: Data)
