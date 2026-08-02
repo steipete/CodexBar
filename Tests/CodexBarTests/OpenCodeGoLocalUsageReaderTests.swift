@@ -134,6 +134,32 @@ struct OpenCodeGoLocalUsageReaderTests {
         #expect(snapshot.rollingUsagePercent == 25)
         #expect(snapshot.weeklyUsagePercent == 10)
         #expect(snapshot.monthlyUsagePercent == 5)
+        #expect(!FileManager.default.fileExists(atPath: env.databaseURL.path + "-wal"))
+        #expect(!FileManager.default.fileExists(atPath: env.databaseURL.path + "-shm"))
+    }
+
+    @Test
+    func `immutable fallback rejects a non-file database URL`() throws {
+        let env = try Self.makeEnvironment()
+        defer { try? FileManager.default.removeItem(at: env.root) }
+
+        try Self.writeAuth(to: env.authURL)
+        try Self.createDatabase(at: env.databaseURL, usingWAL: true)
+        try Self.insertMessage(
+            databaseURL: env.databaseURL,
+            createdMs: Self.ms("2026-03-06T11:00:00.000Z"),
+            cost: 3.0)
+        try Self.checkpointWAL(at: env.databaseURL)
+        try Self.removeWALSidecars(at: env.databaseURL)
+
+        let nonFileDatabaseURL = try #require(URL(string: "https://example.invalid\(env.databaseURL.path)"))
+        let reader = OpenCodeGoLocalUsageReader(authURL: env.authURL, databaseURL: nonFileDatabaseURL)
+
+        #expect(throws: OpenCodeGoLocalUsageError.sqliteFailed("could not construct immutable database URI")) {
+            _ = try reader.fetch(now: Date(timeIntervalSince1970: 1_772_798_400))
+        }
+        #expect(!FileManager.default.fileExists(atPath: env.databaseURL.path + "-wal"))
+        #expect(!FileManager.default.fileExists(atPath: env.databaseURL.path + "-shm"))
     }
 
     @Test

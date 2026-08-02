@@ -247,7 +247,9 @@ public struct OpenCodeGoLocalUsageReader: Sendable {
     }
 
     private var immutableDatabaseURI: String? {
-        guard var components = URLComponents(url: self.databaseURL, resolvingAgainstBaseURL: false) else {
+        guard self.databaseURL.isFileURL,
+              var components = URLComponents(url: self.databaseURL, resolvingAgainstBaseURL: false)
+        else {
             return nil
         }
         components.queryItems = [
