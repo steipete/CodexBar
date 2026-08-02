@@ -736,27 +736,7 @@ extension UsageMenuCardView.Model {
 
     private static func resetWindowForPace(provider: UsageProvider, window: RateWindow) -> RateWindow {
         // Provider snapshots use 30 days as a monthly sentinel; use the reset date for the real calendar-cycle length.
-        let pace = ProviderDescriptorRegistry.descriptor(for: provider).pace
-        guard pace.usesInferredMonthlyDuration(window: window),
-              let resetsAt = window.resetsAt,
-              let minutes = self.inferredMonthlyWindowMinutes(endingAt: resetsAt)
-        else { return window }
-        return RateWindow(
-            usedPercent: window.usedPercent,
-            windowMinutes: minutes,
-            resetsAt: window.resetsAt,
-            resetDescription: window.resetDescription,
-            nextRegenPercent: window.nextRegenPercent,
-            isSyntheticPlaceholder: window.isSyntheticPlaceholder)
-    }
-
-    private static func inferredMonthlyWindowMinutes(endingAt resetsAt: Date) -> Int? {
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = TimeZone(secondsFromGMT: 0) ?? calendar.timeZone
-        guard let startsAt = calendar.date(byAdding: .month, value: -1, to: resetsAt) else { return nil }
-        let minutes = resetsAt.timeIntervalSince(startsAt) / 60
-        guard minutes.isFinite, minutes > 0 else { return nil }
-        return Int(minutes.rounded())
+        ProviderDescriptorRegistry.descriptor(for: provider).pace.resolvedResetWindowForPace(window)
     }
 
     static func antigravityMetrics(input: Input, snapshot: UsageSnapshot) -> [Metric] {

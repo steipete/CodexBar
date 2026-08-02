@@ -263,9 +263,15 @@ public struct StepFunUsageSnapshot: Sendable {
             let creditUsedPercent = max(0, min(100, (1.0 - creditRate) * 100))
             let resetDate = self.creditResetTime ?? Date.distantFuture
             let resetDescription = UsageFormatter.resetDescription(from: resetDate)
+            // Populate windowMinutes so the monthly credit pool feeds the plan-utilization
+            // history + pace forecast, matching the Codex/Claude windows. Only when the credit
+            // pool has a real monthly reset (otherwise the pace projection is meaningless).
+            let creditWindowMinutes = self.creditResetTime == nil
+                ? nil
+                : ProviderPaceCapability.monthlyWindowSentinelMinutes
             let creditWindow = RateWindow(
                 usedPercent: creditUsedPercent,
-                windowMinutes: nil,
+                windowMinutes: creditWindowMinutes,
                 resetsAt: resetDate,
                 resetDescription: resetDescription)
 
@@ -728,7 +734,7 @@ public struct StepFunUsageFetcher: Sendable {
 
         let creditLeftRate = decoded.planCreditRateLimit?.totalCreditLeftRate
         let creditResetTime = decoded.planCreditRateLimit?.subscriptionCreditResetTime
-            .map { Date(timeIntervalSince1970: TimeInterval($0.value)) }
+            .flatMap { $0.value > 0 ? Date(timeIntervalSince1970: TimeInterval($0.value)) : nil }
 
         return StepFunUsageSnapshot(
             fiveHourUsageLeftRate: fiveHourRate,

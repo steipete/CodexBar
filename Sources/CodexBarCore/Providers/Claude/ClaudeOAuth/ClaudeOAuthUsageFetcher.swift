@@ -18,6 +18,22 @@ public enum ClaudeOAuthFetchError: LocalizedError, Sendable {
         description == self.usageRateLimitDescription
     }
 
+    static func isCancellation(_ error: Error) -> Bool {
+        if error is CancellationError {
+            return true
+        }
+        if let urlError = error as? URLError, urlError.code == .cancelled {
+            return true
+        }
+        if let fetchError = error as? ClaudeOAuthFetchError,
+           case let .networkError(underlying) = fetchError
+        {
+            return self.isCancellation(underlying)
+        }
+        let nsError = error as NSError
+        return nsError.domain == NSURLErrorDomain && nsError.code == NSURLErrorCancelled
+    }
+
     public var errorDescription: String? {
         switch self {
         case .unauthorized:
@@ -51,6 +67,7 @@ enum ClaudeOAuthUsageFetcher {
     static func fetchUsage(
         accessToken: String,
         detectClaudeVersion: Bool = true,
+        environment: [String: String] = ProcessInfo.processInfo.environment,
         transport: any ProviderHTTPTransport = ProviderHTTPClient.shared) async throws -> OAuthUsageResponse
     {
         if let blockedUntil = ClaudeOAuthUsageRateLimitGate.blockedUntil(accessToken: accessToken) {
@@ -70,7 +87,9 @@ enum ClaudeOAuthUsageFetcher {
         // OAuth usage endpoint currently requires the beta header.
         request.setValue(Self.betaHeader, forHTTPHeaderField: "anthropic-beta")
         request.setValue(
-            Self.claudeCodeUserAgent(detectClaudeVersion: detectClaudeVersion),
+            Self.claudeCodeUserAgent(
+                detectClaudeVersion: detectClaudeVersion,
+                versionDetector: { ProviderVersionDetector.claudeVersion(environment: environment) }),
             forHTTPHeaderField: "User-Agent")
 
         do {
@@ -98,6 +117,8 @@ enum ClaudeOAuthUsageFetcher {
                 let body = String(data: data, encoding: .utf8)
                 throw ClaudeOAuthFetchError.serverError(response.statusCode, body)
             }
+        } catch let error where ClaudeOAuthFetchError.isCancellation(error) {
+            throw error
         } catch let error as ClaudeOAuthFetchError {
             throw error
         } catch {

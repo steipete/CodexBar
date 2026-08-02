@@ -316,6 +316,9 @@ struct CLIConfigCommandTests {
         process.arguments = ["config", "dump"] + (showSecrets ? ["--show-secrets"] : [])
         process.environment = ProcessInfo.processInfo.environment.merging([
             CodexBarConfigStore.pathEnvironmentKey: configURL.path,
+            // Spawned CLI binaries match no test-process name pattern; make the
+            // keychain suppression explicit instead of relying on env inheritance.
+            "CODEXBAR_SUPPRESS_TEST_KEYCHAIN_ACCESS": "1",
         ]) { _, fixturePath in fixturePath }
 
         let stdout = Pipe()

@@ -40,6 +40,8 @@ extension StatusItemController {
                    codexAccountDisplay: context.codexAccountDisplay,
                    tokenAccountDisplay: context.tokenAccountDisplay)
             {
+                MenuSwitchFlickerProbe.debugLog("cached-swap begin \(context.switcherSelection)")
+                defer { MenuSwitchFlickerProbe.debugLog("cached-swap end") }
                 // Park the outgoing payloads for an equally instant switch-back. Compatible
                 // menu-item shells stay attached, avoiding the empty intermediate layout that
                 // AppKit can visibly render when the whole content block is removed first.
@@ -78,6 +80,7 @@ extension StatusItemController {
             // unchanged, so an open tracked menu sees content mutations instead of item
             // churn. The fresh content is built into a detached scratch menu while its
             // interaction closures capture the live menu they will serve.
+            MenuSwitchFlickerProbe.debugLog("reconcile-path \(context.switcherSelection)")
             let shapes = self.menuContentShapes(in: menu, fromIndex: contentStartIndex)
             self.harvestRecyclableMenuCardViews(
                 in: menu,

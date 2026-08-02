@@ -19,13 +19,20 @@ import UniformTypeIdentifiers
 ///   reads the WindowServer's current composite without touching AppKit.
 @MainActor
 enum MenuSwitchFlickerProbe {
-    /// Appends diagnostic lines from production code paths while the probe env
-    /// var is set; inert otherwise.
+    private nonisolated static let processStart = DispatchTime.now()
+
+    /// Appends timestamped diagnostic lines from production code paths while the
+    /// probe env var is set; inert otherwise.
     nonisolated static func debugLog(_ line: @autoclosure () -> String) {
         guard let dir = ProcessInfo.processInfo.environment["CODEXBAR_FLICKER_PROBE_DIR"],
               !dir.isEmpty else { return }
         let url = URL(fileURLWithPath: dir).appendingPathComponent("padding-log.txt")
-        let text = line() + "\n"
+        // Read the start anchor before now(): the lazy static initializes on first
+        // access, so the reverse order makes start > now and underflows UInt64.
+        let startNs = self.processStart.uptimeNanoseconds
+        let nowNs = DispatchTime.now().uptimeNanoseconds
+        let elapsedMs = nowNs >= startNs ? Double(nowNs - startNs) / 1_000_000 : 0
+        let text = String(format: "[%9.1fms] ", elapsedMs) + line() + "\n"
         if let handle = try? FileHandle(forWritingTo: url) {
             handle.seekToEndOfFile()
             handle.write(Data(text.utf8))
@@ -39,9 +46,21 @@ enum MenuSwitchFlickerProbe {
         guard let dir = ProcessInfo.processInfo.environment["CODEXBAR_FLICKER_PROBE_DIR"],
               !dir.isEmpty else { return }
         let directory = URL(fileURLWithPath: dir, isDirectory: true)
+        // "hold" mode: open the menu and record for 30s without self-switching,
+        // so an external driver can exercise the real pointer path with
+        // synthesized mouse clicks. Default mode self-switches via the keyboard
+        // path across two sessions (the second verifies open-time behavior with
+        // carried-over state such as the stable-height session floor).
+        let holdMode = ProcessInfo.processInfo.environment["CODEXBAR_FLICKER_PROBE_MODE"] == "hold"
         DispatchQueue.main.asyncAfter(deadline: .now() + 4) {
-            let session = ProbeSession(controller: controller, directory: directory)
-            session.begin()
+            ProbeSession(controller: controller, directory: directory, holdMode: holdMode).begin()
+            guard !holdMode else { return }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                ProbeSession(
+                    controller: controller,
+                    directory: directory.appendingPathComponent("second"),
+                    holdMode: false).begin()
+            }
         }
     }
 
@@ -95,11 +114,12 @@ enum MenuSwitchFlickerProbe {
                 guard keepRunning, index < Self.maxFrameCount else { return }
                 let elapsed = Double(DispatchTime.now().uptimeNanoseconds - self.start.uptimeNanoseconds)
                     / 1_000_000
+                // Include framing so the window shadow / material edge is captured too.
                 let image = CGWindowListCreateImage(
                     .null,
                     .optionIncludingWindow,
                     self.windowID,
-                    [.boundsIgnoreFraming, .bestResolution])
+                    [.bestResolution])
                 let bounds = self.currentBounds() ?? .null
                 var wroteFrame = false
                 if let image {
@@ -134,20 +154,21 @@ enum MenuSwitchFlickerProbe {
     final class ProbeSession {
         private let controller: StatusItemController
         private let directory: URL
+        private let holdMode: Bool
         private var timer: Timer?
         private var log: [String] = []
         private var startedAt: DispatchTime?
-        private var didSwitchAway = false
-        private var didSwitchBack = false
+        private var switchScheduleIndex = 0
         private var searchTicks = 0
         private weak var menu: NSMenu?
         private var grabber: BackgroundFrameGrabber?
         private var originalSegment: Int?
         private var targetSegment: Int?
 
-        init(controller: StatusItemController, directory: URL) {
+        init(controller: StatusItemController, directory: URL, holdMode: Bool = false) {
             self.controller = controller
             self.directory = directory
+            self.holdMode = holdMode
         }
 
         func begin() {
@@ -166,29 +187,41 @@ enum MenuSwitchFlickerProbe {
             self.finish()
         }
 
+        /// Three away/back cycles give slower external captures several chances
+        /// to land on any transient artifact. Always ends on the original segment.
+        private static let switchScheduleMs = [400, 1000, 1600, 2200, 2800, 3400]
+        private static let sessionEndMs = 4200
+        private static let holdSessionEndMs = 30000
+
         private func tick() {
             guard let startedAt = self.startedAtOrLocateMenu() else { return }
             let now = Int((DispatchTime.now().uptimeNanoseconds - startedAt.uptimeNanoseconds) / 1_000_000)
-            if now >= 2400 {
+            let endMs = self.holdMode ? Self.holdSessionEndMs : Self.sessionEndMs
+            if now >= endMs {
                 self.timer?.invalidate()
                 self.timer = nil
                 self.menu?.cancelTracking()
                 return
             }
-            if now >= 400, !self.didSwitchAway {
-                self.didSwitchAway = true
-                let handled = self.targetSegment.map { self.switchSegment($0) } ?? false
-                self.log.append("switch-away to segment \(String(describing: self.targetSegment)) " +
-                    "at \(now)ms handled=\(handled)")
-                return
-            }
-            if now >= 1400, !self.didSwitchBack {
-                self.didSwitchBack = true
-                let handled = self.originalSegment.map { self.switchSegment($0) } ?? false
-                self.log.append("switch-back to segment \(String(describing: self.originalSegment)) " +
-                    "at \(now)ms handled=\(handled)")
-                return
-            }
+            guard !self.holdMode,
+                  self.switchScheduleIndex < Self.switchScheduleMs.count,
+                  now >= Self.switchScheduleMs[self.switchScheduleIndex] else { return }
+            let switchIndex = self.switchScheduleIndex
+            self.switchScheduleIndex += 1
+            // Cycle through overview (segment 0) too so full-rebuild transitions
+            // are exercised alongside cached swaps.
+            let cycle: [Int?] = [
+                self.targetSegment,
+                0,
+                self.originalSegment,
+                0,
+                self.targetSegment,
+                self.originalSegment,
+            ]
+            let segment = cycle[switchIndex % cycle.count]
+            let handled = segment.map { self.switchSegment($0) } ?? false
+            self.log.append("switch#\(switchIndex) to segment \(String(describing: segment)) " +
+                "at \(now)ms handled=\(handled)")
         }
 
         private func startedAtOrLocateMenu() -> DispatchTime? {
@@ -209,6 +242,16 @@ enum MenuSwitchFlickerProbe {
                 self.log.append("menu located, windowNumber=\(window.windowNumber) " +
                     "frame=\(window.frame) original=\(String(describing: self.originalSegment)) " +
                     "target=\(String(describing: self.targetSegment))")
+                // Export CG (top-left origin) bounds for external click drivers;
+                // other processes cannot enumerate this menu window.
+                let primaryHeight = NSScreen.screens.first?.frame.height ?? 0
+                let frame = window.frame
+                let cgY = primaryHeight - frame.maxY
+                let boundsLine = "\(Int(frame.minX)) \(Int(cgY)) \(Int(frame.width)) \(Int(frame.height))\n"
+                try? boundsLine.write(
+                    to: self.directory.appendingPathComponent("menu-bounds.txt"),
+                    atomically: true,
+                    encoding: .utf8)
                 return start
             }
             if self.searchTicks > 1200 {

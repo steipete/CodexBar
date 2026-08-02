@@ -29,18 +29,23 @@ enum ClaudeCLIAuthStatusProbe {
     static func isLoggedIn(
         binary: String,
         environment: [String: String],
+        workingDirectory: URL? = nil,
         timeout: TimeInterval = 5) async -> Bool
     {
         if let resultOverrideForTesting = self.resultOverrideForTesting {
             return resultOverrideForTesting
         }
         do {
+            let workingDirectory = workingDirectory ?? ClaudeStatusProbe.preparedProbeWorkingDirectoryURL()
+            var launchEnvironment = ClaudeCLISession.launchEnvironment(baseEnv: environment)
+            launchEnvironment["PWD"] = workingDirectory.path
             let result = try await SubprocessRunner.run(
                 binary: binary,
                 arguments: ["auth", "status", "--json"],
-                environment: ClaudeCLISession.launchEnvironment(baseEnv: environment),
+                environment: launchEnvironment,
                 timeout: self.timeoutOverrideForTesting ?? timeout,
                 standardInput: FileHandle.nullDevice,
+                currentDirectoryURL: workingDirectory,
                 label: "claude-auth-status")
             return self.parseLoggedIn(result.stdout)
         } catch {

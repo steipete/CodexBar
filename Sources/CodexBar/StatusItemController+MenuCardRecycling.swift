@@ -3,7 +3,7 @@ import AppKit
 extension StatusItemController {
     /// Collects the card hosting views of items the current populate pass is about to discard
     /// so `makeMenuCardItem` can reuse them for cards with the same identifier (or, failing
-    /// that, the same content type) instead of building fresh hosting views.
+    /// that, any other card row) instead of building fresh container views.
     ///
     /// Safety: live menu items can alias one merged-switcher cache entry — the one for the
     /// selection currently displayed, re-cached at the end of every populate. Consuming that
@@ -43,10 +43,8 @@ extension StatusItemController {
     }
 
     /// Pops a pool entry adoptable as `ViewType`: the same card identifier when its view
-    /// matches, otherwise the first type-compatible leftover. The fallback is what makes
-    /// provider switches cheap — a different provider's card with a different identifier but
-    /// the same SwiftUI content type (for example two providers' usage cards) is repainted
-    /// in place instead of being rebuilt.
+    /// matches, otherwise the first type-compatible leftover. Since all menu-card rows now use
+    /// one erased container type, the fallback also covers Overview↔provider transitions.
     func takeRecyclableMenuCardView<ViewType: NSView>(for id: String, as type: ViewType.Type) -> ViewType? {
         if let candidate = self.menuCardViewRecyclePool.removeValue(forKey: id) {
             if let adopted = candidate as? ViewType {

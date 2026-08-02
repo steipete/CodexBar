@@ -38,6 +38,32 @@ struct OpenCodeGoLocalUsageReaderTests {
     }
 
     @Test
+    func `reads idle WAL database without creating sidecars`() throws {
+        let env = try Self.makeEnvironment()
+        defer { try? FileManager.default.removeItem(at: env.root) }
+
+        try Self.writeAuth(to: env.authURL)
+        try Self.createDatabase(at: env.databaseURL)
+        try Self.insertMessage(
+            databaseURL: env.databaseURL,
+            createdMs: Self.ms("2026-03-06T11:00:00.000Z"),
+            cost: 3.0)
+        try Self.configureIdleWAL(at: env.databaseURL)
+
+        let walURL = URL(fileURLWithPath: env.databaseURL.path + "-wal")
+        let sharedMemoryURL = URL(fileURLWithPath: env.databaseURL.path + "-shm")
+        #expect(!FileManager.default.fileExists(atPath: walURL.path))
+        #expect(!FileManager.default.fileExists(atPath: sharedMemoryURL.path))
+
+        let reader = OpenCodeGoLocalUsageReader(authURL: env.authURL, databaseURL: env.databaseURL)
+        let snapshot = try reader.fetch(now: Date(timeIntervalSince1970: 1_772_798_400))
+
+        #expect(snapshot.rollingUsagePercent == 25)
+        #expect(!FileManager.default.fileExists(atPath: walURL.path))
+        #expect(!FileManager.default.fileExists(atPath: sharedMemoryURL.path))
+    }
+
+    @Test
     func `builds daily cost history buckets within the requested window`() throws {
         let env = try Self.makeEnvironment()
         defer { try? FileManager.default.removeItem(at: env.root) }
@@ -283,6 +309,25 @@ struct OpenCodeGoLocalUsageReaderTests {
             """)
     }
 
+    private static func configureIdleWAL(at url: URL) throws {
+        var db: OpaquePointer?
+        guard sqlite3_open(url.path, &db) == SQLITE_OK else { throw SQLiteTestError.open }
+        do {
+            try Self.exec(db: db, sql: "PRAGMA journal_mode = WAL; PRAGMA wal_checkpoint(TRUNCATE);")
+        } catch {
+            sqlite3_close(db)
+            throw error
+        }
+        guard sqlite3_close(db) == SQLITE_OK else { throw SQLiteTestError.close }
+
+        for suffix in ["-wal", "-shm"] {
+            let sidecarURL = URL(fileURLWithPath: url.path + suffix)
+            if FileManager.default.fileExists(atPath: sidecarURL.path) {
+                try FileManager.default.removeItem(at: sidecarURL)
+            }
+        }
+    }
+
     @discardableResult
     private static func insertMessage(databaseURL: URL, createdMs: Int64, cost: Double?) throws -> String {
         var db: OpaquePointer?
@@ -378,6 +423,7 @@ struct OpenCodeGoLocalUsageReaderTests {
     }
 
     private enum SQLiteTestError: Error {
+        case close
         case open
         case prepare
         case step

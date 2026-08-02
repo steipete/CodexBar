@@ -163,6 +163,7 @@ extension StatusItemController {
             self.cancelMergedSwitcherSiblingWarmup()
         }
         self.resetCompactAccountMenuExpansionStateIfIdle()
+        self.resetStableMenuHeightSessionFloor()
     }
 
     func forgetClosedMenu(_ menu: NSMenu) {
@@ -373,6 +374,7 @@ extension StatusItemController {
             self.menuLogger.debug("populateMenu(open): rebuilding whole menu and replacing provider switcher")
         }
         #endif
+        MenuSwitchFlickerProbe.debugLog("full-rebuild-path \(String(describing: switcherSelection))")
         self.rebuildMenuContent(
             menu,
             context: MenuRebuildContext(
@@ -966,6 +968,7 @@ extension StatusItemController {
             },
             onSelect: { [weak self, weak menu] selection in
                 guard let self, let menu else { return }
+                MenuSwitchFlickerProbe.debugLog("onSelect \(selection)")
                 var provider: UsageProvider?
                 self.preservingMergedSwitcherContentCachesDuringInvalidation {
                     switch selection {
@@ -989,6 +992,7 @@ extension StatusItemController {
                 self.requestProviderSwitcherMenuRebuild(menu, provider: provider)
             })
         let item = NSMenuItem()
+        item.title = ""
         item.view = view
         item.isEnabled = false
         return item
@@ -1024,6 +1028,7 @@ extension StatusItemController {
                 }
             })
         let item = NSMenuItem()
+        item.title = ""
         item.view = view
         item.isEnabled = false
         return item
@@ -1043,6 +1048,7 @@ extension StatusItemController {
                 self.handleCodexVisibleAccountSelection(account, menu: menu)
             })
         let item = NSMenuItem()
+        item.title = ""
         item.view = view
         item.isEnabled = false
         return item

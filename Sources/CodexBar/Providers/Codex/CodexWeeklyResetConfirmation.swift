@@ -143,6 +143,9 @@ struct CodexWeeklyResetConfirmation: Sendable {
                previousWeekly,
                capturedAt: previous.updatedAt)
         {
+            if confirmation.updatedAt < previousBoundary.addingTimeInterval(-2 * 60) {
+                return .preservePrevious
+            }
             guard initialBoundary.timeIntervalSince(previousBoundary) >= Self.resetEquivalenceToleranceSeconds,
                   confirmationBoundary.timeIntervalSince(previousBoundary) >= Self.resetEquivalenceToleranceSeconds
             else {
