@@ -18,6 +18,9 @@ struct MenuBarLayoutTests {
                 .percent(window: .session),
                 .percent(window: .weekly),
                 .percent(window: .automatic),
+                .pace(window: .session),
+                .pace(window: .weekly),
+                .pace(window: .automatic),
                 .usageBar,
             ],
             [

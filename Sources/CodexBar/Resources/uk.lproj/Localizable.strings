@@ -1323,8 +1323,11 @@
 "menu_bar_layout_token_account" = "Обліковий запис";
 "menu_bar_layout_token_session" = "Сесія %";
 "menu_bar_layout_token_weekly" = "Щотижня %";
-"menu_bar_layout_token_scoped_weekly" = "Fable %";
+"menu_bar_layout_token_scoped_weekly" = "Scoped weekly %";
 "menu_bar_layout_token_auto" = "Авто %";
+"menu_bar_layout_token_session_pace" = "Темп сесії";
+"menu_bar_layout_token_weekly_pace" = "Щотижневий темп";
+"menu_bar_layout_token_auto_pace" = "Авто темп";
 "menu_bar_layout_token_bar" = "Індикатор використання";
 "menu_bar_layout_token_resets_in" = "Скидання через";
 "menu_bar_layout_token_reset_at" = "Скидання о";

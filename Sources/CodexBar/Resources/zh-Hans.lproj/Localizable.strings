@@ -1299,8 +1299,11 @@
 "menu_bar_layout_token_account" = "账户";
 "menu_bar_layout_token_session" = "会话 %";
 "menu_bar_layout_token_weekly" = "每周 %";
-"menu_bar_layout_token_scoped_weekly" = "Fable %";
+"menu_bar_layout_token_scoped_weekly" = "Scoped weekly %";
 "menu_bar_layout_token_auto" = "自动 %";
+"menu_bar_layout_token_session_pace" = "会话节奏";
+"menu_bar_layout_token_weekly_pace" = "每周节奏";
+"menu_bar_layout_token_auto_pace" = "自动节奏";
 "menu_bar_layout_token_bar" = "用量条";
 "menu_bar_layout_token_resets_in" = "重置倒计时";
 "menu_bar_layout_token_reset_at" = "重置时间";

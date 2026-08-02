@@ -1322,8 +1322,11 @@
 "menu_bar_layout_token_account" = "Cuenta";
 "menu_bar_layout_token_session" = "Sesión %";
 "menu_bar_layout_token_weekly" = "Semanal %";
-"menu_bar_layout_token_scoped_weekly" = "Fable %";
+"menu_bar_layout_token_scoped_weekly" = "Scoped weekly %";
 "menu_bar_layout_token_auto" = "% automático";
+"menu_bar_layout_token_session_pace" = "Ritmo de sesión";
+"menu_bar_layout_token_weekly_pace" = "Ritmo semanal";
+"menu_bar_layout_token_auto_pace" = "Ritmo automático";
 "menu_bar_layout_token_bar" = "Barra de uso";
 "menu_bar_layout_token_resets_in" = "Se reinicia en";
 "menu_bar_layout_token_reset_at" = "Reinicio a las";

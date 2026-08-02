@@ -1327,8 +1327,11 @@
 "menu_bar_layout_token_account" = "Akun";
 "menu_bar_layout_token_session" = "Sesi %";
 "menu_bar_layout_token_weekly" = "Mingguan %";
-"menu_bar_layout_token_scoped_weekly" = "Fable %";
+"menu_bar_layout_token_scoped_weekly" = "Scoped weekly %";
 "menu_bar_layout_token_auto" = "% otomatis";
+"menu_bar_layout_token_session_pace" = "Laju sesi";
+"menu_bar_layout_token_weekly_pace" = "Laju mingguan";
+"menu_bar_layout_token_auto_pace" = "Laju otomatis";
 "menu_bar_layout_token_bar" = "Bar penggunaan";
 "menu_bar_layout_token_resets_in" = "Reset dalam";
 "menu_bar_layout_token_reset_at" = "Reset pukul";
