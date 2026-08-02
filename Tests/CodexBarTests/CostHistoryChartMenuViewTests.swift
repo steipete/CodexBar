@@ -40,6 +40,15 @@ struct CostHistoryChartMenuViewTests {
     }
 
     @Test
+    func `session model label maps codex auto review role`() {
+        #expect(CostHistoryChartMenuView.sessionModelLabel([]) == "Unknown model")
+        #expect(CostHistoryChartMenuView.sessionModelLabel(["codex-auto-review"]) == "Codex Auto Review")
+        #expect(
+            CostHistoryChartMenuView.sessionModelLabel(["codex-auto-review", "gpt-5.6-sol"])
+                == "Codex Auto Review +1")
+    }
+
+    @Test
     @MainActor
     func `menu hosting view publishes measured height through intrinsic size`() {
         let hosting = MenuHostingView(rootView: EmptyView())

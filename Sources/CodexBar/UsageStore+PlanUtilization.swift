@@ -4,7 +4,9 @@ import Foundation
 extension UsageStore {
     nonisolated static let sessionLimitResetDetectorDefaultsKey = "sessionLimitResetDetectorStates"
     private nonisolated static let weeklyLimitResetDetectorDefaultsKey = "weeklyLimitResetDetectorStates"
-    private nonisolated static let claudeOAuthAccountUuidMapDefaultsKey = "ClaudeOAuthHistoryOwnerAccountUuidMapV1"
+    private nonisolated static let claudeOAuthAccountUuidMapDefaultsKey = "ClaudeOAuthHistoryOwnerAccountUuidMapV2"
+    private nonisolated static let claudeOAuthAccountUuidMapLegacyDefaultsKey =
+        "ClaudeOAuthHistoryOwnerAccountUuidMapV1"
     private nonisolated static let claudeOAuthAccountCandidateMapDefaultsKey =
         "ClaudeOAuthHistoryOwnerAccountCandidateMapV1"
     nonisolated static let sessionWindowMinutes = 5 * 60
@@ -565,6 +567,18 @@ extension UsageStore {
                     resetsAt: window.resetsAt))
         }
 
+        func appendGenericSessionEquivalentWindows() {
+            let components = Self.genericSessionEquivalentWindowComponents(snapshot: snapshot)
+            switch Self.genericSessionEquivalentWindowPairResolution(snapshot: snapshot) {
+            case let .resolved(session, weekly, _, _):
+                appendWindow(session, name: .session)
+                appendWindow(weekly, name: .weekly)
+            case .incomplete, .ambiguous:
+                appendWindow(components.session?.window, name: .session)
+                appendWindow(components.weekly?.window, name: .weekly)
+            }
+        }
+
         switch provider {
         case .codex:
             let projection = self.codexConsumerProjection(
@@ -582,6 +596,12 @@ extension UsageStore {
             appendWindow(snapshot.primary, name: .session)
             appendWindow(snapshot.secondary, name: .weekly)
             appendWindow(snapshot.tertiary, name: .monthly)
+        case .mimo, .stepfun:
+            if snapshot.primary?.windowMinutes == ProviderPaceCapability.monthlyWindowSentinelMinutes {
+                appendWindow(snapshot.primary, name: .monthly)
+            } else {
+                appendGenericSessionEquivalentWindows()
+            }
         case .antigravity:
             if forSessionEquivalents {
                 guard let windows = self.sessionEquivalentWindows(provider: provider, snapshot: snapshot) else {
@@ -606,15 +626,7 @@ extension UsageStore {
                 }
             }
         default:
-            let components = Self.genericSessionEquivalentWindowComponents(snapshot: snapshot)
-            switch Self.genericSessionEquivalentWindowPairResolution(snapshot: snapshot) {
-            case let .resolved(session, weekly, _, _):
-                appendWindow(session, name: .session)
-                appendWindow(weekly, name: .weekly)
-            case .incomplete, .ambiguous:
-                appendWindow(components.session?.window, name: .session)
-                appendWindow(components.weekly?.window, name: .weekly)
-            }
+            appendGenericSessionEquivalentWindows()
         }
 
         return samplesByKey.values.sorted { lhs, rhs in
@@ -924,18 +936,14 @@ extension UsageStore {
         }
     }
 
-    // MARK: - Active Claude account corroboration (~/.claude.json)
-
-    /// The currently-active Claude account UUID, read prompt-free from `~/.claude.json`. This is the only
-    /// always-fresh, never-gated signal of the active account on a background poll: Claude Code's `/login`
-    /// updates the Keychain item in place and leaves `~/.claude/.credentials.json` stale, but immediately
-    /// rewrites `oauthAccount.accountUuid` in this sibling plain file. Returns nil on absence/corruption.
-    nonisolated static func activeClaudeAccountUuid() -> String? {
-        ClaudeActiveAccountProbe.activeClaudeAccountUuid()
-    }
-
     /// Persisted `historyOwnerIdentifier -> hashed active account identity` bindings.
     nonisolated static func loadClaudeOAuthAccountUuidMap(from userDefaults: UserDefaults) -> [String: String] {
+        // V1 values hash only the account UUID. V2 adds the owner-selected Claude config path, so a
+        // V1 binding can never match after upgrade and would quarantine owner-mediated samples forever.
+        // The history owner key itself is unchanged, so discarding the obsolete binding preserves history.
+        if userDefaults.object(forKey: self.claudeOAuthAccountUuidMapLegacyDefaultsKey) != nil {
+            userDefaults.removeObject(forKey: self.claudeOAuthAccountUuidMapLegacyDefaultsKey)
+        }
         guard let data = userDefaults.data(forKey: claudeOAuthAccountUuidMapDefaultsKey) else { return [:] }
         do {
             return try JSONDecoder().decode([String: String].self, from: data)
@@ -1079,30 +1087,6 @@ extension UsageStore {
                 metadata: ["error": String(describing: error)])
         }
     }
-
-    nonisolated static func activeClaudeAccountIdentity() -> String? {
-        self.activeClaudeAccountUuid().map(self.claudeAccountIdentity)
-    }
-
-    private nonisolated static func claudeAccountIdentity(_ uuid: String) -> String {
-        self.sha256Hex(
-            "claude:active-account:v1:\(uuid.trimmingCharacters(in: .whitespacesAndNewlines).lowercased())")
-    }
-
-    #if DEBUG
-    static func withActiveClaudeAccountUuidForTesting<T>(
-        _ uuid: String?,
-        _ body: () async throws -> T) async rethrows -> T
-    {
-        try await ClaudeActiveAccountProbe.$activeClaudeAccountUuidOverrideForTesting.withValue(
-            .value(uuid),
-            operation: body)
-    }
-
-    nonisolated static func _activeClaudeAccountIdentityForTesting(_ uuid: String) -> String {
-        self.claudeAccountIdentity(uuid)
-    }
-    #endif
 
     private func resolvePlanUtilizationAccountKey(
         provider: UsageProvider,
@@ -1328,6 +1312,7 @@ extension UsageStore {
         guard !providerBuckets.unscoped.isEmpty else { return }
 
         let existingHistory = providerBuckets.accounts[accountKey] ?? []
+        let targetHasHistory = !existingHistory.isEmpty
         let mergedHistory = Self.mergedPlanUtilizationHistories(provider: provider, histories: [
             existingHistory,
             providerBuckets.unscoped,
@@ -1335,7 +1320,12 @@ extension UsageStore {
         providerBuckets.setHistories(mergedHistory, for: accountKey)
         providerBuckets.setHistories([], for: nil)
         if ![UsageProvider.codex, .claude, .antigravity].contains(provider) {
-            providerBuckets.moveSessionEquivalentWindowPairIdentity(from: nil, to: accountKey)
+            self.materializeLegacySessionEquivalentHistoryIdentityDuringAccountAdoption(
+                provider: provider,
+                from: nil,
+                to: accountKey,
+                targetHasHistory: targetHasHistory,
+                providerBuckets: &providerBuckets)
         }
     }
 
@@ -1636,48 +1626,5 @@ actor PlanUtilizationHistoryPersistenceCoordinator {
         await Task.detached(priority: .utility) {
             store.save(snapshot)
         }.value
-    }
-}
-
-/// Prompt-free reader for the active Claude account UUID recorded in `~/.claude.json`. The `@TaskLocal` test
-/// seam lives here (not on `UsageStore`) because Swift forbids stored properties in extensions and task-local
-/// storage must be nonisolated, whereas `UsageStore` is `@MainActor`.
-private enum ClaudeActiveAccountProbe {
-    #if DEBUG
-    enum Override: Sendable {
-        case value(String?)
-    }
-
-    @TaskLocal static var activeClaudeAccountUuidOverrideForTesting: Override?
-    #endif
-
-    private struct ClaudeConfigAccount: Decodable {
-        struct OAuthAccount: Decodable {
-            let accountUuid: String?
-        }
-
-        let oauthAccount: OAuthAccount?
-    }
-
-    static func activeClaudeAccountUuid() -> String? {
-        #if DEBUG
-        if case let .value(uuid) = self.activeClaudeAccountUuidOverrideForTesting {
-            return uuid
-        }
-        #endif
-        // `~/.claude.json` is a SIBLING of `.claude/`, not inside it. Home resolution mirrors
-        // `ClaudeOAuthCredentials.defaultCredentialsURL()`. This intentionally does NOT honor
-        // CLAUDE_CONFIG_DIR: the credential store that yields `historyOwnerIdentifier` is purely
-        // home-relative, so the accountUuid corroboration must resolve against the same home or the
-        // two signals would point at different accounts.
-        let url = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".claude.json")
-        guard let data = try? Data(contentsOf: url),
-              let decoded = try? JSONDecoder().decode(ClaudeConfigAccount.self, from: data),
-              let uuid = decoded.oauthAccount?.accountUuid?.trimmingCharacters(in: .whitespacesAndNewlines),
-              !uuid.isEmpty
-        else {
-            return nil
-        }
-        return uuid
     }
 }

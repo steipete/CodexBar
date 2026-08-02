@@ -23,8 +23,8 @@ extension StatusItemController {
         }
     }
 
-    func makeMenuCardItem<CardContent: View>(
-        _ view: CardContent,
+    func makeMenuCardItem(
+        _ view: some View,
         id: String,
         width: CGFloat,
         heightCacheScope: String? = nil,
@@ -39,6 +39,7 @@ extension StatusItemController {
         let allowsMenuHighlight = submenu != nil || onClick != nil
         if !self.menuCardRenderingEnabledForController {
             let item = NSMenuItem()
+            item.title = ""
             item.isEnabled = allowsMenuHighlight
             item.representedObject = id
             item.submenu = submenu
@@ -49,84 +50,28 @@ extension StatusItemController {
             return item
         }
 
-        if usesGPUSelection {
-            // Selection is painted by AppKit/GPU, so the SwiftUI content is pinned to its normal
-            // appearance via a `highlightState` that is never flipped; these rows skip hosting-view
-            // recycling because the recycler is typed to `MenuCardItemHostingView`.
-            let interactiveRegionStore = MenuCardInteractiveRegionStore()
-            let wrapped = MenuCardSectionContainerView(
-                highlightState: MenuCardHighlightState(),
-                showsSubmenuIndicator: submenu != nil,
-                submenuIndicatorAlignment: submenuIndicatorAlignment,
-                submenuIndicatorTopPadding: submenuIndicatorTopPadding,
-                refreshMonitor: self.menuCardRefreshMonitor,
-                interactiveRegionStore: interactiveRegionStore)
-            {
-                view
-            }
-            let gpuHosting = GPUSelectionHostingView(
-                rootView: wrapped,
-                allowsMenuHighlight: allowsMenuHighlight,
-                containsInteractiveControls: containsInteractiveControls,
-                interactiveRegionStore: interactiveRegionStore,
-                onClick: onClick)
-            let gpuHeight = self.cachedMenuCardHeight(
-                for: id,
-                scope: heightCacheScope ?? id,
-                width: width,
-                fingerprint: heightCacheFingerprint)
-            {
-                self.menuCardHeight(for: gpuHosting, width: width)
-            }
-            gpuHosting.frame = NSRect(origin: .zero, size: NSSize(width: width, height: gpuHeight))
-            return self.makeMenuCardNSMenuItem(
-                hosting: gpuHosting,
-                id: id,
-                submenu: submenu,
-                isEnabled: allowsMenuHighlight || containsInteractiveControls)
-        }
-
-        let hosting: MenuCardItemHostingView<MenuCardSectionContainerView<CardContent>>
+        // Content is erased so every row shares one outer AppKit class. Tab switches can replant
+        // standard and GPU-selection payloads in place instead of detaching `item.view`.
+        let payload = MenuCardRowPayload(
+            content: AnyView(view),
+            showsSubmenuIndicator: submenu != nil,
+            submenuIndicatorAlignment: submenuIndicatorAlignment,
+            submenuIndicatorTopPadding: submenuIndicatorTopPadding,
+            allowsMenuHighlight: allowsMenuHighlight,
+            containsInteractiveControls: containsInteractiveControls,
+            usesGPUSelection: usesGPUSelection,
+            onClick: onClick)
+        let hosting: ErasedMenuCardHostingView
         if let recycled = self.takeRecyclableMenuCardView(
             for: id,
-            as: MenuCardItemHostingView<MenuCardSectionContainerView<CardContent>>.self)
+            as: ErasedMenuCardHostingView.self)
         {
-            let wrapped = MenuCardSectionContainerView(
-                highlightState: recycled.highlightState,
-                showsSubmenuIndicator: submenu != nil,
-                submenuIndicatorAlignment: submenuIndicatorAlignment,
-                submenuIndicatorTopPadding: submenuIndicatorTopPadding,
-                refreshMonitor: self.menuCardRefreshMonitor,
-                interactiveRegionStore: recycled.interactiveRegionStore)
-            {
-                view
-            }
-            recycled.prepareForReuse(
-                rootView: wrapped,
-                allowsMenuHighlight: allowsMenuHighlight,
-                containsInteractiveControls: containsInteractiveControls,
-                onClick: onClick)
+            self.replantMenuCardRowPayload(payload, into: recycled)
             hosting = recycled
         } else {
-            let highlightState = MenuCardHighlightState()
-            let interactiveRegionStore = MenuCardInteractiveRegionStore()
-            let wrapped = MenuCardSectionContainerView(
-                highlightState: highlightState,
-                showsSubmenuIndicator: submenu != nil,
-                submenuIndicatorAlignment: submenuIndicatorAlignment,
-                submenuIndicatorTopPadding: submenuIndicatorTopPadding,
-                refreshMonitor: self.menuCardRefreshMonitor,
-                interactiveRegionStore: interactiveRegionStore)
-            {
-                view
-            }
-            hosting = MenuCardItemHostingView(
-                rootView: wrapped,
-                highlightState: highlightState,
-                allowsMenuHighlight: allowsMenuHighlight,
-                containsInteractiveControls: containsInteractiveControls,
-                interactiveRegionStore: interactiveRegionStore,
-                onClick: onClick)
+            hosting = MenuRowContainerView(
+                payload: payload,
+                refreshMonitor: self.menuCardRefreshMonitor)
         }
         let height = self.cachedMenuCardHeight(
             for: id,
@@ -152,6 +97,10 @@ extension StatusItemController {
         isEnabled: Bool) -> NSMenuItem
     {
         let item = NSMenuItem()
+        // NSMenuItem()'s default title is the literal string "NSMenuItem"; Tahoe's
+        // NSMenu paints that fallback title for frames where a row's view is
+        // detached mid-mutation. Keep the fallback render blank instead.
+        item.title = ""
         item.view = hosting
         item.isEnabled = isEnabled
         item.representedObject = id

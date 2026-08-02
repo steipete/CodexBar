@@ -74,6 +74,36 @@ struct OpenAIDashboardModelsTests {
     }
 
     @Test
+    func `subscription renewal survives snapshot encoding and Codex projection`() throws {
+        let renewal = Self.utcDate(year: 2026, month: 8, day: 20)
+        let snapshot = OpenAIDashboardSnapshot(
+            signedInEmail: "codex@example.com",
+            codeReviewRemainingPercent: nil,
+            creditEvents: [],
+            dailyBreakdown: [],
+            usageBreakdown: [],
+            creditsPurchaseURL: nil,
+            primaryLimit: RateWindow(
+                usedPercent: 10,
+                windowMinutes: 300,
+                resetsAt: renewal,
+                resetDescription: nil),
+            subscriptionRenewsAt: renewal,
+            updatedAt: renewal)
+
+        #expect(snapshot.toUsageSnapshot()?.subscriptionRenewsAt == renewal)
+
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let decoded = try decoder.decode(
+            OpenAIDashboardSnapshot.self,
+            from: encoder.encode(snapshot))
+        #expect(decoded.subscriptionRenewsAt == renewal)
+    }
+
+    @Test
     func `snapshot decoder drops empty zero usage buckets`() throws {
         let json = """
         {

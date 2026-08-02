@@ -86,7 +86,7 @@ struct ClaudeOAuthCredentialsStoreCLIStorageOwnershipTests {
     }
 
     @Test
-    func `successful codexbar refresh is re-owned when Claude CLI storage appears`() async throws {
+    func `successful codexbar refresh is re-owned when matching Claude CLI storage appears`() async throws {
         let service = "com.steipete.codexbar.cache.tests.\(UUID().uuidString)"
         try await self.withDeterministicCacheService(service) {
             KeychainCacheStore.setTestStoreForTesting(true)
@@ -105,17 +105,21 @@ struct ClaudeOAuthCredentialsStoreCLIStorageOwnershipTests {
                     try await ClaudeOAuthCredentialsStore.withCredentialsURLOverrideForTesting(fileURL) {
                         try await ClaudeOAuthCredentialsStore.withKeychainAccessOverrideForTesting(true) {
                             ClaudeOAuthCredentialsStore.invalidateCache()
-                            let cacheKey = ClaudeOAuthCredentialsStore.cacheKeyForTesting(
-                                profileIdentifier: ClaudeOAuthCredentialsStore.credentialsProfileIdentifier(
-                                    environment: [:]))
-                            defer { KeychainCacheStore.clear(key: cacheKey) }
+                            let legacyCacheKey = KeychainCacheStore.Key.oauth(provider: .claude)
+                            let profileCacheKey = ClaudeOAuthCredentialsStore.cacheKeyForTesting(
+                                profileIdentifier: ClaudeOAuthCredentialsStore
+                                    .credentialsProfileIdentifier(environment: [:]))
+                            defer {
+                                KeychainCacheStore.clear(key: legacyCacheKey)
+                                KeychainCacheStore.clear(key: profileCacheKey)
+                            }
 
                             let expiredData = self.makeCredentialsData(
                                 accessToken: "expired-codexbar-only",
                                 expiresAt: Date(timeIntervalSinceNow: -3600),
                                 refreshToken: "cached-refresh-token")
                             KeychainCacheStore.store(
-                                key: cacheKey,
+                                key: legacyCacheKey,
                                 entry: ClaudeOAuthCredentialsStore.CacheEntry(
                                     data: expiredData,
                                     storedAt: Date(timeIntervalSinceNow: 60),
@@ -165,7 +169,7 @@ struct ClaudeOAuthCredentialsStoreCLIStorageOwnershipTests {
                             #expect(tokenRefreshRequestCount == 1)
 
                             switch KeychainCacheStore.load(
-                                key: cacheKey,
+                                key: profileCacheKey,
                                 as: ClaudeOAuthCredentialsStore.CacheEntry.self)
                             {
                             case let .found(entry):
@@ -178,12 +182,19 @@ struct ClaudeOAuthCredentialsStoreCLIStorageOwnershipTests {
                             }
 
                             let keychainData = self.makeCredentialsData(
-                                accessToken: "claude-keychain",
+                                accessToken: "fresh-codexbar-token",
                                 expiresAt: Date(timeIntervalSinceNow: 3600),
-                                refreshToken: "keychain-refresh-token")
+                                refreshToken: "fresh-refresh-token")
+                            let keychainFingerprint = ClaudeOAuthCredentialsStore.ClaudeKeychainFingerprint(
+                                modifiedAt: 2,
+                                createdAt: 1,
+                                persistentRefHash: "matching-keychain-item")
 
                             let recordAfterCLIStorageAppears = try ClaudeOAuthCredentialsStore
-                                .withClaudeKeychainOverridesForTesting(data: keychainData, fingerprint: nil) {
+                                .withClaudeKeychainOverridesForTesting(
+                                    data: keychainData,
+                                    fingerprint: keychainFingerprint)
+                                {
                                     try ClaudeOAuthCredentialsStore.loadRecord(
                                         environment: [:],
                                         allowKeychainPrompt: false,
@@ -224,6 +235,14 @@ struct ClaudeOAuthCredentialsStoreCLIStorageOwnershipTests {
                                 environment: [:]))
                         defer { KeychainCacheStore.clear(key: cacheKey) }
                         ClaudeOAuthCredentialsStore.invalidateCache()
+                        let legacyCacheKey = KeychainCacheStore.Key.oauth(provider: .claude)
+                        let profileCacheKey = ClaudeOAuthCredentialsStore.cacheKeyForTesting(
+                            profileIdentifier: ClaudeOAuthCredentialsStore
+                                .credentialsProfileIdentifier(environment: [:]))
+                        defer {
+                            KeychainCacheStore.clear(key: legacyCacheKey)
+                            KeychainCacheStore.clear(key: profileCacheKey)
+                        }
                         let expiredData = self.makeCredentialsData(
                             accessToken: "access-before-rotation",
                             expiresAt: Date(timeIntervalSinceNow: -3600),
@@ -231,7 +250,7 @@ struct ClaudeOAuthCredentialsStoreCLIStorageOwnershipTests {
                         let originalCredentials = try ClaudeOAuthCredentials.parse(data: expiredData)
                         let originalHistoryOwner = try #require(originalCredentials.historyOwnerIdentifier)
                         KeychainCacheStore.store(
-                            key: cacheKey,
+                            key: legacyCacheKey,
                             entry: ClaudeOAuthCredentialsStore.CacheEntry(
                                 data: expiredData,
                                 storedAt: Date(),
@@ -270,7 +289,7 @@ struct ClaudeOAuthCredentialsStoreCLIStorageOwnershipTests {
                         #expect(refreshedRecord.historyOwnerIdentifier == originalHistoryOwner)
 
                         switch KeychainCacheStore.load(
-                            key: cacheKey,
+                            key: profileCacheKey,
                             as: ClaudeOAuthCredentialsStore.CacheEntry.self)
                         {
                         case let .found(entry):
@@ -469,7 +488,7 @@ struct ClaudeOAuthCredentialsStoreCLIStorageOwnershipTests {
     }
 
     @Test
-    func `load record treats codexbar cache as claude CLI owned when Claude keychain item exists`() throws {
+    func `unrelated global Claude keychain item cannot re-own profile cache`() throws {
         let service = "com.steipete.codexbar.cache.tests.\(UUID().uuidString)"
         try self.withDeterministicCacheService(service) {
             KeychainCacheStore.setTestStoreForTesting(true)
@@ -486,7 +505,10 @@ struct ClaudeOAuthCredentialsStoreCLIStorageOwnershipTests {
                 try ClaudeOAuthCredentialsStore.withIsolatedMemoryCacheForTesting {
                     try ClaudeOAuthCredentialsStore.withCredentialsURLOverrideForTesting(fileURL) {
                         ClaudeOAuthCredentialsStore.invalidateCache()
-                        let cacheKey = KeychainCacheStore.Key.oauth(provider: .claude)
+                        let profileIdentifier = ClaudeOAuthCredentialsStore.credentialsProfileIdentifier(
+                            environment: [:])
+                        let cacheKey = ClaudeOAuthCredentialsStore.cacheKeyForTesting(
+                            profileIdentifier: profileIdentifier)
                         defer { KeychainCacheStore.clear(key: cacheKey) }
 
                         let cachedData = self.makeCredentialsData(
@@ -498,18 +520,23 @@ struct ClaudeOAuthCredentialsStoreCLIStorageOwnershipTests {
                             entry: ClaudeOAuthCredentialsStore.CacheEntry(
                                 data: cachedData,
                                 storedAt: Date(),
-                                owner: .codexbar))
+                                owner: .codexbar,
+                                profileIdentifier: profileIdentifier))
 
                         let keychainData = self.makeCredentialsData(
                             accessToken: "claude-keychain",
                             expiresAt: Date(timeIntervalSinceNow: 3600),
                             refreshToken: "keychain-refresh-token")
+                        let keychainFingerprint = ClaudeOAuthCredentialsStore.ClaudeKeychainFingerprint(
+                            modifiedAt: 2,
+                            createdAt: 1,
+                            persistentRefHash: "unrelated-profile-keychain-item")
 
                         let record = try ClaudeOAuthKeychainPromptPreference
                             .withTaskOverrideForTesting(.onlyOnUserAction) {
                                 try ClaudeOAuthCredentialsStore.withClaudeKeychainOverridesForTesting(
                                     data: keychainData,
-                                    fingerprint: nil)
+                                    fingerprint: keychainFingerprint)
                                 {
                                     try ClaudeOAuthCredentialsStore.loadRecord(
                                         environment: [:],
@@ -520,7 +547,7 @@ struct ClaudeOAuthCredentialsStoreCLIStorageOwnershipTests {
                             }
 
                         #expect(record.credentials.accessToken == "codexbar-cache")
-                        #expect(record.owner == .claudeCLI)
+                        #expect(record.owner == .codexbar)
                         #expect(record.source == .cacheKeychain)
                     }
                 }
@@ -669,6 +696,62 @@ struct ClaudeOAuthCredentialsStoreCLIStorageOwnershipTests {
                             }
                         }
                     })
+            }
+        }
+    }
+
+    @Test
+    func `selected profile file ignores unrelated global mcp O auth state`() async throws {
+        let service = "com.steipete.codexbar.cache.tests.\(UUID().uuidString)"
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let profile = root.appendingPathComponent("selected-profile", isDirectory: true)
+        try FileManager.default.createDirectory(at: profile, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let environment = ["CLAUDE_CONFIG_DIR": profile.path]
+        let expiredData = self.makeCredentialsData(
+            accessToken: "selected-profile-expired",
+            expiresAt: Date(timeIntervalSinceNow: -3600),
+            refreshToken: "selected-profile-refresh")
+        try expiredData.write(to: ClaudeConfigPaths.credentialsURL(environment: environment))
+        let mcpOAuthOnly = Data(#"{"mcpOAuth":{"plugin:test":{"accessToken":"other-profile"}}}"#.utf8)
+
+        await self.withDeterministicCacheService(service) {
+            KeychainCacheStore.setTestStoreForTesting(true)
+            defer { KeychainCacheStore.setTestStoreForTesting(false) }
+
+            await ClaudeOAuthCredentialsStore.withIsolatedCredentialsFileTrackingForTesting {
+                await ClaudeOAuthCredentialsStore.withIsolatedMemoryCacheForTesting {
+                    await ClaudeOAuthCredentialsStore.withEnvironmentCredentialsURLForTesting {
+                        await KeychainAccessGate.withTaskOverrideForTesting(false) {
+                            await ClaudeOAuthKeychainReadStrategyPreference.withTaskOverrideForTesting(
+                                .securityCLIExperimental)
+                            {
+                                await ClaudeOAuthCredentialsStore.withSecurityCLIReadOverrideForTesting(
+                                    .data(mcpOAuthOnly))
+                                {
+                                    do {
+                                        _ = try await ProviderInteractionContext.$current.withValue(.background) {
+                                            try await ClaudeOAuthCredentialsStore.loadWithAutoRefresh(
+                                                environment: environment,
+                                                allowKeychainPrompt: false,
+                                                respectKeychainPromptCooldown: true)
+                                        }
+                                        Issue.record("Expected selected-profile delegated refresh")
+                                    } catch let error as ClaudeOAuthCredentialsError {
+                                        guard case .refreshDelegatedToClaudeCLI = error else {
+                                            Issue.record("Expected .refreshDelegatedToClaudeCLI, got \(error)")
+                                            return
+                                        }
+                                    } catch {
+                                        Issue.record("Expected ClaudeOAuthCredentialsError, got \(error)")
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
     }

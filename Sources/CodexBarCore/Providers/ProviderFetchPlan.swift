@@ -37,6 +37,9 @@ public struct ProviderFetchContext: Sendable {
     public let tokenAccountTokenUpdater: TokenAccountTokenUpdater?
     public let providerManualTokenUpdater: ProviderManualTokenUpdater?
     public let costUsageHistoryDays: Int
+    /// Restricts a Claude retry to the credential-owning CLI after an ambient account mismatch rejects OAuth.
+    /// The original source mode remains intact so background interaction gates still apply.
+    public let claudeOwnerCLIRecoveryOnly: Bool
     /// Whether warm CLI helper sessions (such as the managed Antigravity `agy`
     /// process) may outlive a single fetch. True for long-lived hosts (the app,
     /// `codexbar serve`); false for one-shot CLI invocations that should reset
@@ -64,6 +67,7 @@ public struct ProviderFetchContext: Sendable {
         tokenAccountTokenUpdater: TokenAccountTokenUpdater? = nil,
         providerManualTokenUpdater: ProviderManualTokenUpdater? = nil,
         costUsageHistoryDays: Int = 30,
+        claudeOwnerCLIRecoveryOnly: Bool = false,
         persistsCLISessions: Bool = false,
         persistentCLISessionIdleWindow: TimeInterval? = nil)
     {
@@ -83,6 +87,7 @@ public struct ProviderFetchContext: Sendable {
         self.tokenAccountTokenUpdater = tokenAccountTokenUpdater
         self.providerManualTokenUpdater = providerManualTokenUpdater
         self.costUsageHistoryDays = max(1, min(365, costUsageHistoryDays))
+        self.claudeOwnerCLIRecoveryOnly = claudeOwnerCLIRecoveryOnly
         self.persistsCLISessions = persistsCLISessions
         self.persistentCLISessionIdleWindow = persistentCLISessionIdleWindow
     }
@@ -109,6 +114,8 @@ public struct ProviderFetchResult: Sendable {
     /// A one-way discriminator derived from the winning Claude OAuth credential.
     /// Raw access and refresh tokens never enter the fetch result or persisted history.
     public let claudeOAuthHistoryOwnerIdentifier: String?
+    /// The authority that owned the winning Claude OAuth credential. This is transient routing evidence only.
+    public let claudeOAuthCredentialOwner: ClaudeOAuthCredentialOwner?
     /// Whether a prompt-free comparison proved the winning credential differs from Claude Code's Keychain entry.
     public let claudeOAuthKeychainCredentialMismatch: Bool
     /// Whether a prompt-free probe proved Claude Code has no Keychain credential.
@@ -126,6 +133,7 @@ public struct ProviderFetchResult: Sendable {
         diagnostic: String? = nil,
         claudeOAuthKeychainPersistentRefHash: String? = nil,
         claudeOAuthHistoryOwnerIdentifier: String? = nil,
+        claudeOAuthCredentialOwner: ClaudeOAuthCredentialOwner? = nil,
         claudeOAuthKeychainCredentialMismatch: Bool = false,
         claudeOAuthKeychainCredentialAbsent: Bool = false,
         claudeOAuthKeychainCredentialUnavailable: Bool = false)
@@ -139,6 +147,7 @@ public struct ProviderFetchResult: Sendable {
         self.diagnostic = diagnostic
         self.claudeOAuthKeychainPersistentRefHash = claudeOAuthKeychainPersistentRefHash
         self.claudeOAuthHistoryOwnerIdentifier = claudeOAuthHistoryOwnerIdentifier
+        self.claudeOAuthCredentialOwner = claudeOAuthCredentialOwner
         self.claudeOAuthKeychainCredentialMismatch = claudeOAuthKeychainCredentialMismatch
         self.claudeOAuthKeychainCredentialAbsent = claudeOAuthKeychainCredentialAbsent
         self.claudeOAuthKeychainCredentialUnavailable = claudeOAuthKeychainCredentialUnavailable
@@ -175,7 +184,10 @@ public enum ProviderFetchError: LocalizedError, Sendable {
     public var errorDescription: String? {
         switch self {
         case let .noAvailableStrategy(provider):
-            "No available fetch strategy for \(provider.rawValue)."
+            if provider == .kiro {
+                return "Kiro usage requires the Kiro CLI. Install it from https://kiro.dev/docs/cli/ and run 'kiro-cli login' first."
+            }
+            return "No available fetch strategy for \(provider.rawValue)."
         }
     }
 }

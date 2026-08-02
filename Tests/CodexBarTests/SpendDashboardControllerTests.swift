@@ -753,7 +753,7 @@ struct SpendDashboardControllerTests {
         #expect(controller.selectedDays == 30)
     }
 
-    private static let fixtureNow = Date(timeIntervalSince1970: 1_784_179_200)
+    private nonisolated static let fixtureNow = Date(timeIntervalSince1970: 1_784_179_200)
 
     private static func dashboardController(
         settings: SettingsStore,
@@ -767,7 +767,8 @@ struct SpendDashboardControllerTests {
                     store: store,
                     mode: mode,
                     now: Self.fixtureNow)
-            })
+            },
+            nowProvider: { Self.fixtureNow })
     }
 
     private static func controller(gate: SpendDashboardLoaderGate) -> SpendDashboardController {

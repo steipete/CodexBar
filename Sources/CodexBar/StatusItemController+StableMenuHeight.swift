@@ -45,6 +45,7 @@ extension StatusItemController {
 
     func makeStableMenuHeightSpacerItem() -> NSMenuItem {
         let item = NSMenuItem()
+        item.title = ""
         item.isEnabled = false
         item.representedObject = Self.stableMenuHeightSpacerID
         let view = NSView(frame: NSRect(x: 0, y: 0, width: 1, height: 0))
@@ -83,15 +84,39 @@ extension StatusItemController {
                 "selection=\(String(describing: self.lastMergedMenuContentSelection)) " +
                 "cacheKeys=\(cacheEntries.keys.map { String(describing: $0) }) " +
                 "tabs=\(tabs.map { "(spacer:\($0.spacer != nil) h:\($0.contentHeight))" })")
-        guard tabs.count > 1, let maxHeight = tabs.map(\.contentHeight).max() else { return }
+        guard let contentMax = tabs.map(\.contentHeight).max() else { return }
+
+        // Session floor: on the first populate only the visible tab is measurable
+        // (sibling caches fill ~120ms later), so without a floor the menu opens
+        // short and visibly grows once the warmup lands. The floor from the
+        // previous open pads immediately; within a session the height only grows.
+        // The floor resets to the true max when the menu closes, so legitimate
+        // shrinks happen between opens, invisibly.
+        let widthKey = Int(self.renderedMenuWidth(for: menu).rounded())
+        let floorHeight = self.stableMenuHeightSessionFloor[widthKey] ?? 0
+        let targetHeight = max(contentMax, floorHeight)
+        self.stableMenuHeightSessionFloor[widthKey] = targetHeight
+        self.stableMenuHeightLastContentMax[widthKey] = tabs.count > 1
+            ? contentMax
+            : max(contentMax, self.stableMenuHeightLastContentMax[widthKey] ?? 0)
+        guard tabs.count > 1 || floorHeight > 0 else { return }
 
         for tab in tabs {
             guard let spacer = tab.spacer, let spacerView = spacer.view else { continue }
-            let padding = max(0, maxHeight - tab.contentHeight)
+            let padding = max(0, targetHeight - tab.contentHeight)
             if abs(spacerView.frame.height - padding) > 0.5 {
                 MenuSwitchFlickerProbe.debugLog("padding: set spacer \(spacerView.frame.height) -> \(padding)")
                 spacerView.setFrameSize(NSSize(width: 1, height: padding))
             }
+        }
+    }
+
+    /// Called when the last menu closes: drop the grow-only session floor to the
+    /// last true content max so the next open can start shorter if data shrank.
+    func resetStableMenuHeightSessionFloor() {
+        guard self.openMenus.isEmpty else { return }
+        for (widthKey, lastMax) in self.stableMenuHeightLastContentMax {
+            self.stableMenuHeightSessionFloor[widthKey] = lastMax
         }
     }
 

@@ -411,18 +411,22 @@ struct CostHistoryChartMenuView: View {
     }
 
     private static func sessionUsageLine(_ session: CostUsageSessionBreakdown) -> String {
-        let models = session.modelBreakdowns.map(\.modelName)
-        let modelLabel = if models.isEmpty {
-            "Unknown model"
-        } else if models.count == 1 {
-            models[0]
-        } else {
-            "\(models[0]) +\(models.count - 1)"
-        }
+        let modelLabel = Self.sessionModelLabel(session.modelBreakdowns.map(\.modelName))
         let input = session.inputTokens.map(UsageFormatter.tokenCountString) ?? "—"
         let cached = session.cachedInputTokens.map(UsageFormatter.tokenCountString) ?? "—"
         let output = session.outputTokens.map(UsageFormatter.tokenCountString) ?? "—"
         return "\(modelLabel) · \(input) input · \(cached) cached · \(output) output"
+    }
+
+    static func sessionModelLabel(_ models: [String]) -> String {
+        let labels = models.map(UsageFormatter.modelDisplayName)
+        return if labels.isEmpty {
+            "Unknown model"
+        } else if labels.count == 1 {
+            labels[0]
+        } else {
+            "\(labels[0]) +\(labels.count - 1)"
+        }
     }
 
     static func windowLabel(days: Int) -> String {

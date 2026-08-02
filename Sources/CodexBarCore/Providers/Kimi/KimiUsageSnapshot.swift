@@ -126,7 +126,7 @@ extension KimiUsageSnapshot {
             guard let ratio = balance.amountUsedRatio, ratio.isFinite else { return nil }
             let window = RateWindow(
                 usedPercent: Self.clampedPercent(ratio * 100),
-                windowMinutes: nil, // Calendar-month duration varies; do not fabricate a fixed 30-day window.
+                windowMinutes: ProviderPaceCapability.monthlyWindowSentinelMinutes,
                 resetsAt: Self.parseDate(balance.expireTime),
                 resetDescription: nil)
             return NamedRateWindow(id: "kimi-monthly", title: "Monthly", window: window)

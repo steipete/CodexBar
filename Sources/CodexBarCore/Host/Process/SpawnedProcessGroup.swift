@@ -469,7 +469,7 @@ package final class SpawnedProcessGroup: @unchecked Sendable {
         }
         if let workingDirectory {
             fileActionResults.append(workingDirectory.path.withCString { path in
-                posix_spawn_file_actions_addchdir_np(&fileActions, path)
+                PosixSpawnFileActionsCompatibility.addChangeDirectory(&fileActions, path: path)
             })
         }
         #if canImport(Glibc) || canImport(Musl)

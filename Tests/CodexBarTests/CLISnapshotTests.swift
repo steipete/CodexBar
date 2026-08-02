@@ -676,6 +676,111 @@ struct CLISnapshotTests {
     }
 
     @Test
+    func `descriptor reset window capability enables CLI pace`() throws {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let snapshot = UsageSnapshot(
+            primary: .init(
+                usedPercent: 30,
+                windowMinutes: nil,
+                resetsAt: now.addingTimeInterval(4 * 24 * 60 * 60),
+                resetDescription: "weekly"),
+            secondary: nil,
+            tertiary: nil,
+            updatedAt: now)
+
+        let pace = try #require(CLIRenderer.providerPacePayload(provider: .grok, snapshot: snapshot, now: now))
+        let primary = try #require(pace.primary)
+        #expect(primary.expectedUsedPercent == 43)
+        #expect(primary.summary == "13% in reserve | Expected 43% used | Lasts until reset")
+    }
+
+    @Test
+    func `descriptor monthly CLI pace uses the calendar cycle`() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try #require(TimeZone(secondsFromGMT: 0))
+        let resetsAt = try #require(calendar.date(from: DateComponents(
+            calendar: calendar,
+            timeZone: calendar.timeZone,
+            year: 2026,
+            month: 3,
+            day: 1)))
+        let now = try #require(calendar.date(from: DateComponents(
+            calendar: calendar,
+            timeZone: calendar.timeZone,
+            year: 2026,
+            month: 2,
+            day: 15)))
+        let snapshot = UsageSnapshot(
+            primary: .init(
+                usedPercent: 40,
+                windowMinutes: ProviderPaceCapability.monthlyWindowSentinelMinutes,
+                resetsAt: resetsAt,
+                resetDescription: "monthly"),
+            secondary: nil,
+            tertiary: nil,
+            updatedAt: now)
+
+        let pace = try #require(CLIRenderer.providerPacePayload(provider: .amp, snapshot: snapshot, now: now))
+        #expect(pace.primary?.expectedUsedPercent == 50)
+    }
+
+    @Test
+    func `descriptor monthly CLI pace includes tertiary text and JSON`() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try #require(TimeZone(secondsFromGMT: 0))
+        let resetsAt = try #require(calendar.date(from: DateComponents(
+            calendar: calendar,
+            timeZone: calendar.timeZone,
+            year: 2026,
+            month: 3,
+            day: 1)))
+        let now = try #require(calendar.date(from: DateComponents(
+            calendar: calendar,
+            timeZone: calendar.timeZone,
+            year: 2026,
+            month: 2,
+            day: 15)))
+        let snapshot = UsageSnapshot(
+            primary: nil,
+            secondary: nil,
+            tertiary: .init(
+                usedPercent: 40,
+                windowMinutes: ProviderPaceCapability.monthlyWindowSentinelMinutes,
+                resetsAt: resetsAt,
+                resetDescription: "monthly"),
+            updatedAt: now)
+
+        for provider: UsageProvider in [.alibaba, .opencodego] {
+            let pace = try #require(CLIRenderer.providerPacePayload(
+                provider: provider,
+                snapshot: snapshot,
+                now: now))
+            #expect(pace.primary == nil)
+            #expect(pace.secondary == nil)
+            #expect(pace.tertiary?.expectedUsedPercent == 50)
+
+            let output = CLIRenderer.renderText(
+                provider: provider,
+                snapshot: snapshot,
+                credits: nil,
+                context: RenderContext(
+                    header: provider.rawValue,
+                    status: nil,
+                    useColor: false,
+                    resetStyle: .countdown),
+                now: now)
+            #expect(output.contains("Monthly: 60% left"))
+            #expect(output.contains("Pace: 10% in reserve | Expected 50% used | Lasts until reset"))
+
+            let data = try JSONEncoder().encode(pace)
+            let encoded = try #require(try JSONSerialization.jsonObject(with: data) as? [String: Any])
+            #expect(encoded["primary"] == nil)
+            #expect(encoded["secondary"] == nil)
+            #expect(encoded["tertiary"] != nil)
+        }
+    }
+
+    @Test
     func `renders Ollama weekly pace line when weekly window has reset`() {
         let now = Date()
         let snap = UsageSnapshot(

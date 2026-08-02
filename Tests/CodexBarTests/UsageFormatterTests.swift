@@ -304,6 +304,12 @@ struct UsageFormatterTests {
     }
 
     @Test
+    func `model display name labels codex auto review role`() {
+        #expect(UsageFormatter.modelDisplayName("codex-auto-review") == "Codex Auto Review")
+        #expect(UsageFormatter.modelDisplayName("gpt-5.6-sol") == "gpt-5.6-sol")
+    }
+
+    @Test
     func `model cost detail uses research preview label`() {
         #expect(
             UsageFormatter.modelCostDetail("gpt-5.3-codex-spark", costUSD: 0, totalTokens: nil) == "Research Preview")

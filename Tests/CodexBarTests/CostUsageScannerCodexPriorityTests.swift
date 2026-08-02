@@ -21,6 +21,22 @@ struct CostUsageScannerCodexPriorityTests {
     }
 
     @Test
+    func `parses current priority submission metadata without exposing prompt`() {
+        let body = "session_loop{thread_id=thread}: Submission sub=Submission { "
+            + "id: \"turn\", op: UserInput { text: \"private\" }, "
+            + #"thread_settings: ThreadSettingsOverrides { service_tier: Some(Some("priority")) }"#
+
+        let parsed = CostUsageScanner.parseCodexPriorityTraceRow(
+            timestamp: "1785434553",
+            body: body)
+
+        #expect(parsed?.threadID == "thread")
+        #expect(parsed?.turnID == "turn")
+        #expect(parsed?.model == nil)
+        #expect(parsed?.timestamp == "1785434553")
+    }
+
+    @Test
     func `ignores non priority malformed and non response request rows`() {
         let prefix = "thread_id=thread turn.id=turn websocket request: "
 
@@ -72,6 +88,26 @@ struct CostUsageScannerCodexPriorityTests {
         #expect(turns.keys.sorted() == ["turn-a"])
         #expect(turns["turn-a"]?.threadID == "thread-a")
         #expect(turns["turn-a"]?.model == "request-model")
+    }
+
+    @Test
+    func `reads current priority submission rows from sqlite logs table`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+        let dbURL = env.root.appendingPathComponent("logs_2.sqlite")
+        try Self.createTestLogsDatabase(at: dbURL)
+        try Self.insertTestLog(
+            dbURL: dbURL,
+            timestamp: "2026-05-10T12:00:00Z",
+            body: "session_loop{thread_id=thread}: Submission sub=Submission { "
+                + "id: \"turn\", op: UserInput { text: \"private\" }, "
+                + #"thread_settings: ThreadSettingsOverrides { service_tier: Some(Some("priority")) }"#)
+
+        let turns = CostUsageScanner.codexPriorityTurns(databaseURL: dbURL)
+
+        #expect(turns.keys.sorted() == ["turn"])
+        #expect(turns["turn"]?.threadID == "thread")
+        #expect(turns["turn"]?.model == nil)
     }
 
     @Test
