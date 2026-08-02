@@ -92,6 +92,45 @@ final class CLIEntryTests: XCTestCase {
         try self.expectAdjacentVersionFile(raw: "version-3.2.3\n", expected: "version-3.2.3")
     }
 
+    func test_cliVersionFindsAdjacentVersionWhenInvokedViaRelativePathAndSymlink() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("codexbar-cli-version-invocation-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let installURL = root.appendingPathComponent("install/bin", isDirectory: true)
+        let linksURL = root.appendingPathComponent("links", isDirectory: true)
+        let workingDirectoryURL = root.appendingPathComponent("work", isDirectory: true)
+        try FileManager.default.createDirectory(at: installURL, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: linksURL, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: workingDirectoryURL, withIntermediateDirectories: true)
+
+        let executableURL = installURL.appendingPathComponent("CodexBarCLI")
+        try FileManager.default.copyItem(at: Self.cliExecutableURL, to: executableURL)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: executableURL.path)
+        try "8.7.6\n".write(
+            to: installURL.appendingPathComponent("VERSION"),
+            atomically: false,
+            encoding: .utf8)
+
+        XCTAssertEqual(
+            try Self.runVersionCommand(
+                executableURL: executableURL,
+                argv0: "install/bin/CodexBarCLI",
+                currentDirectoryURL: workingDirectoryURL),
+            "CodexBar 8.7.6\n")
+
+        let symlinkURL = linksURL.appendingPathComponent("codexbar")
+        try FileManager.default.createSymbolicLink(
+            atPath: symlinkURL.path,
+            withDestinationPath: "../install/bin/CodexBarCLI")
+        XCTAssertEqual(
+            try Self.runVersionCommand(
+                executableURL: symlinkURL,
+                argv0: "codexbar",
+                currentDirectoryURL: workingDirectoryURL),
+            "CodexBar 8.7.6\n")
+    }
+
     func test_cliVersionPrefersAdjacentVersionOverStandaloneBundleName() throws {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("codexbar-cli-version-bundle-\(UUID().uuidString)", isDirectory: true)
@@ -128,6 +167,58 @@ final class CLIEntryTests: XCTestCase {
             encoding: .utf8)
 
         XCTAssertEqual(CodexBarCLI.currentVersion(bundleVersion: nil, executablePath: helperURL.path), expected)
+    }
+
+    private static func runVersionCommand(
+        executableURL: URL,
+        argv0: String,
+        currentDirectoryURL: URL) throws -> String
+    {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/bin/zsh")
+        process.arguments = [
+            "-c",
+            "exec -a \"$1\" \"$2\" --version",
+            "codexbar-version-test",
+            argv0,
+            executableURL.path,
+        ]
+        process.currentDirectoryURL = currentDirectoryURL
+        // Spawned CLI binaries match no test-process name pattern; make the
+        // keychain suppression explicit instead of relying on env inheritance.
+        process.environment = ProcessInfo.processInfo.environment.merging(
+            ["CODEXBAR_SUPPRESS_TEST_KEYCHAIN_ACCESS": "1"]) { _, new in new }
+
+        let stdout = Pipe()
+        let stderr = Pipe()
+        process.standardOutput = stdout
+        process.standardError = stderr
+        try process.run()
+        process.waitUntilExit()
+
+        let output = stdout.fileHandleForReading.readDataToEndOfFile()
+        let errorOutput = stderr.fileHandleForReading.readDataToEndOfFile()
+        guard process.terminationStatus == 0 else {
+            let message = String(bytes: errorOutput, encoding: .utf8)
+                ?? "CodexBarCLI exited without an error message"
+            throw NSError(domain: "CLIEntryTests", code: Int(process.terminationStatus), userInfo: [
+                NSLocalizedDescriptionKey: message,
+            ])
+        }
+        guard let text = String(bytes: output, encoding: .utf8) else {
+            throw NSError(domain: "CLIEntryTests", code: -1, userInfo: [
+                NSLocalizedDescriptionKey: "CodexBarCLI produced non-UTF-8 output",
+            ])
+        }
+        return text
+    }
+
+    private static var cliExecutableURL: URL {
+        URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent(".build/debug/CodexBarCLI")
     }
 
     func test_renderOpenAIWebDashboardTextIncludesSummary() {
@@ -455,6 +546,30 @@ final class CLIEntryTests: XCTestCase {
             .auto,
             provider: .mimo,
             environment: ["MIMO_LOCAL_USAGE_PATH": directory.appendingPathComponent("missing.json").path]))
+    }
+
+    func test_sourceModeRequiresWebSupportAllowsQwenCookiesOnLinuxGate() {
+        XCTAssertFalse(CodexBarCLI.sourceModeRequiresWebSupport(
+            .auto,
+            provider: .qwencloud,
+            environment: ["QWEN_CLOUD_COOKIE": "login_qwencloud_ticket=test"]))
+        XCTAssertFalse(CodexBarCLI.sourceModeRequiresWebSupport(
+            .web,
+            provider: .qwencloud,
+            settings: ProviderSettingsSnapshot.make(
+                qwenCloud: .init(
+                    cookieSource: .manual,
+                    manualCookieHeader: "login_qwencloud_ticket=test"))))
+        XCTAssertTrue(CodexBarCLI.sourceModeRequiresWebSupport(
+            .auto,
+            provider: .qwencloud,
+            environment: [:]))
+        XCTAssertTrue(CodexBarCLI.sourceModeRequiresWebSupport(
+            .web,
+            provider: .qwencloud,
+            environment: ["QWEN_CLOUD_COOKIE": "login_qwencloud_ticket=test"],
+            settings: ProviderSettingsSnapshot.make(
+                qwenCloud: .init(cookieSource: .off, manualCookieHeader: nil))))
     }
 
     private func assertKimiCodeCredentialSourceMode(in directory: URL) throws {

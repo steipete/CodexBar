@@ -67,8 +67,10 @@ Admin API key setup:
   - Claude CLI Keychain bootstrap/repair fallback: `Claude Code-credentials`.
 - On Claude Code 2.1.x, `Claude Code-credentials` may contain only MCP server OAuth state (`mcpOAuth`) with no `claudeAiOauth`. CodexBar treats that as an OAuth configuration error, does not run background delegated `claude /status` refresh, and surfaces re-auth guidance. Use Web or CLI usage source, or restore a valid Claude OAuth keychain entry. See #1844.
 - Requires `user:profile` scope (CLI tokens with only `user:inference` cannot call usage).
-- Endpoint:
+- Endpoints:
   - `GET https://api.anthropic.com/api/oauth/usage`
+  - `GET https://api.anthropic.com/api/oauth/profile` → account identity used to verify that optional Web enrichment
+    belongs to the same Claude account.
 - Headers:
   - `Authorization: Bearer <access_token>`
   - `anthropic-beta: oauth-2025-04-20`
@@ -80,6 +82,9 @@ Admin API key setup:
   - `seven_day_routines` / `seven_day_cowork` → Daily Routines extra window.
   - Claude Design/Omelette keys are ignored because Claude Design shares the main Claude usage limit.
   - `extra_usage` → Extra usage cost (monthly spend/limit).
+- Preferences → Providers → Claude → Show Daily Routines usage hides only the Daily Routines row in menus and the
+  provider preview. The global optional credits and extra usage setting is its master switch. The Claude-specific
+  setting does not change fetching, history, notifications, widgets, hooks, model-scoped weekly limits, or CLI output.
 - Successful OAuth login enables Claude and preserves the selected usage source. With the default Auto source, OAuth
   remains preferred when readable, while CLI/Web fallback stays available when OAuth credentials are not usable.
 - Plan inference: `subscriptionType` is preferred when present; `rate_limit_tier` falls back to
@@ -108,11 +113,13 @@ Admin API key setup:
   - `GET https://claude.ai/api/organizations` → org UUID.
   - `GET https://claude.ai/api/organizations/{orgId}/usage` → session/weekly/opus.
   - `GET https://claude.ai/api/organizations/{orgId}/overage_spend_limit` → Extra usage spend/limit.
+  - `GET https://claude.ai/api/organizations/{orgId}/prepaid/credits` → remaining Usage credits balance.
   - `GET https://claude.ai/api/account` → email + plan hints.
 - Outputs:
   - Session + weekly + model-specific percent used.
   - Daily Routines extra window when returned by the usage API.
   - Extra usage spend/limit (if enabled).
+  - Remaining Usage credits balance (if enabled).
   - Account email + inferred plan.
 
 ## claude-swap accounts (opt-in)
@@ -127,7 +134,14 @@ The accepted multi-account design in
   active state, usage status, email (display only), the 5-hour/7-day windows, and optional display-only model-scoped
   weekly windows from `usage.scoped`.
 - Display: when claude-swap reports more than one account, the Claude menu and `codexbar cards` show one card per
-  account (active account first, then numeric slot) instead of ambient/token-account Claude cards. To use this
+  account (active account first, then numeric slot) instead of ambient/token-account Claude cards. With four or more
+  accounts the app menu switches to a compact layout (`AccountMenuLayoutPlanner`): the active account keeps its full
+  card, inactive accounts become one-line rows sorted by remaining headroom (most constrained first, red/amber below
+  50%/10% left, a star on the healthiest activatable account), and healthy rows fold behind a "N more accounts ready"
+  summary row. Clicking a compact row expands that account's full card for the current menu session; the summary row
+  reveals the hidden rows. `codexbar cards` keeps the full per-account output. The same compact layout applies to
+  every stacked multi-account list (token accounts on any provider, and flat Codex account lists; workspace-grouped
+  Codex lists keep their sectioned stacked layout). To use this
   presentation with one account, enable “Show account card when only one account is available” or set
   `claudeSwapShowSingleAccount: true` on the Claude provider in the resolved config file (normally
   `~/.config/codexbar/config.json`; legacy installs may use `~/.codexbar/config.json`). The option defaults off,

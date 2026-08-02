@@ -65,6 +65,14 @@ struct ShellCommandLocatorProcessTests {
         time.sleep(1000)
         """
 
+        // Pre-warm the interpreter so cold-start latency on loaded CI runners cannot
+        // consume the probe timeout before the helper children write their PID files.
+        let warmup = Process()
+        warmup.executableURL = URL(fileURLWithPath: "/usr/bin/python3")
+        warmup.arguments = ["-c", "pass"]
+        try warmup.run()
+        warmup.waitUntilExit()
+
         let start = Date()
         let data = ShellCommandLocator.test_runShellCommand(
             shell: "/usr/bin/python3",
@@ -72,6 +80,14 @@ struct ShellCommandLocatorProcessTests {
             timeout: 5.0)
         let elapsed = Date().timeIntervalSince(start)
 
+        // The PID files are written by detached grandchildren; give the filesystem a
+        // bounded grace period before reading so slow runners cannot race the writes.
+        let fileDeadline = Date().addingTimeInterval(10)
+        while Date() < fileDeadline,
+              !pidFiles.allSatisfy({ FileManager.default.fileExists(atPath: $0) })
+        {
+            usleep(100_000)
+        }
         let pids = try pidFiles.map { file in
             let pidText = try String(contentsOfFile: file, encoding: .utf8)
                 .trimmingCharacters(in: .whitespacesAndNewlines)

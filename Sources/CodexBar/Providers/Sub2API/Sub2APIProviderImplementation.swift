@@ -52,21 +52,38 @@ struct Sub2APIProviderImplementation: ProviderImplementation {
     func appendUsageMenuEntries(context: ProviderMenuUsageContext, entries: inout [ProviderMenuEntry]) {
         guard let usage = context.snapshot?.sub2APIUsage else { return }
         if let balance = usage.balance {
-            entries.append(.text(
-                "\(L("Balance")): \(UsageFormatter.currencyString(balance, currencyCode: usage.unit))",
-                .primary))
+            let balanceText = UsageFormatter.convertedCostString(
+                balance,
+                preferredCurrency: context.settings.preferredCurrencyCode,
+                providerCurrency: usage.unit)
+            entries.append(.text("\(L("Balance")): \(balanceText)", .primary))
         }
         if let today = usage.today {
-            entries.append(.text("\(L("Today")): \(self.totalsText(today, unit: usage.unit))", .secondary))
+            let totals = self.totalsText(
+                today,
+                unit: usage.unit,
+                preferredCurrencyCode: context.settings.preferredCurrencyCode)
+            entries.append(.text("\(L("Today")): \(totals)", .secondary))
         }
         if let total = usage.total {
-            entries.append(.text("\(L("Total")): \(self.totalsText(total, unit: usage.unit))", .secondary))
+            let totals = self.totalsText(
+                total,
+                unit: usage.unit,
+                preferredCurrencyCode: context.settings.preferredCurrencyCode)
+            entries.append(.text("\(L("Total")): \(totals)", .secondary))
         }
     }
 
-    private func totalsText(_ totals: Sub2APIUsageDetails.Totals, unit: String) -> String {
+    private func totalsText(
+        _ totals: Sub2APIUsageDetails.Totals,
+        unit: String,
+        preferredCurrencyCode: String) -> String
+    {
         "\(UsageFormatter.tokenCountString(totals.requests)) \(L("requests")) · " +
             "\(UsageFormatter.tokenCountString(totals.totalTokens)) \(L("tokens")) · " +
-            UsageFormatter.currencyString(totals.actualCostUSD, currencyCode: unit)
+            UsageFormatter.convertedCostString(
+                totals.actualCostUSD,
+                preferredCurrency: preferredCurrencyCode,
+                providerCurrency: unit)
     }
 }

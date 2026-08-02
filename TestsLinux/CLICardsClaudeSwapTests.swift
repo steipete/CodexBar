@@ -352,6 +352,7 @@ struct CLICardsClaudeSwapTests {
         let directory = FileManager.default.temporaryDirectory
             .appendingPathComponent("cards-claude-swap-tests-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
         let executable = directory.appendingPathComponent("cswap")
         let invocationMarker = directory.appendingPathComponent("invoked", isDirectory: true)
         let duplicateMarker = directory.appendingPathComponent("duplicate")
@@ -371,7 +372,7 @@ struct CLICardsClaudeSwapTests {
         ]}
         JSON
         """
-        try script.write(to: executable, atomically: true, encoding: .utf8)
+        try Data(script.utf8).write(to: executable)
         try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: executable.path)
 
         let output = await CLIClaudeSwapCards.fetch(

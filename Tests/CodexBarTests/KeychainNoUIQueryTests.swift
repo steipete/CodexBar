@@ -45,8 +45,49 @@ struct KeychainNoUIQueryTests {
 
         #expect(query[kSecReturnData as String] == nil)
         #expect(query[kSecReturnAttributes as String] as? Bool == true)
+        #expect(query[kSecReturnRef as String] as? Bool == true)
         #expect((query[kSecUseAuthenticationContext as String] as? LAContext)?.interactionNotAllowed == true)
         #expect((query[kSecUseAuthenticationUI as String] as? String) == self.resolveSecurityUIFailValue())
+    }
+
+    @Test
+    func `decrypt ACL requires successful code signature validation without a prompt selector`() {
+        #expect(KeychainAccessPreflight.decryptACLAllowsCurrentProcess(
+            trustedApplicationValidationResults: [true],
+            promptSelector: []))
+        #expect(!KeychainAccessPreflight.decryptACLAllowsCurrentProcess(
+            trustedApplicationValidationResults: [false],
+            promptSelector: []))
+        #expect(!KeychainAccessPreflight.decryptACLAllowsCurrentProcess(
+            trustedApplicationValidationResults: [],
+            promptSelector: []))
+        #expect(KeychainAccessPreflight.decryptACLAllowsCurrentProcess(
+            trustedApplicationValidationResults: nil,
+            promptSelector: []))
+        #expect(!KeychainAccessPreflight.decryptACLAllowsCurrentProcess(
+            trustedApplicationValidationResults: [true],
+            promptSelector: .init(rawValue: 1)))
+    }
+
+    @Test
+    func `trusted application validation rejects a replacement binary at the same path`() throws {
+        let fileManager = FileManager.default
+        let directory = fileManager.temporaryDirectory
+            .appendingPathComponent("codexbar-keychain-acl-\(UUID().uuidString)", isDirectory: true)
+        try fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? fileManager.removeItem(at: directory) }
+
+        let candidate = directory.appendingPathComponent("candidate")
+        try fileManager.copyItem(atPath: CommandLine.arguments[0], toPath: candidate.path)
+
+        let (createStatus, trustedApplication) = KeychainCacheStore.createTrustedApplication(path: candidate.path)
+        #expect(createStatus == errSecSuccess)
+        let application = try #require(trustedApplication)
+        #expect(KeychainAccessPreflight.trustedApplication(application, validatesExecutableAt: candidate.path))
+
+        try fileManager.removeItem(at: candidate)
+        try fileManager.copyItem(atPath: "/usr/bin/true", toPath: candidate.path)
+        #expect(!KeychainAccessPreflight.trustedApplication(application, validatesExecutableAt: candidate.path))
     }
 
     @Test
@@ -90,6 +131,16 @@ struct KeychainNoUIQueryTests {
             processName: "CodexBar",
             environment: [:]) == false)
         #expect(KeychainTestSafety.shouldBlockRealKeychainAccess(
+            processName: "swiftpm-testing-helper",
+            environment: [KeychainTestSafety.allowAccessEnvironmentKey: "1"]) == false)
+
+        #expect(KeychainTestSafety.shouldIsolateUserStateUnderTests(
+            processName: "swiftpm-testing-helper",
+            environment: [:]))
+        #expect(KeychainTestSafety.shouldIsolateUserStateUnderTests(
+            processName: "CodexBar",
+            environment: [KeychainAccessGate.disableAccessEnvironmentKey: "1"]) == false)
+        #expect(KeychainTestSafety.shouldIsolateUserStateUnderTests(
             processName: "swiftpm-testing-helper",
             environment: [KeychainTestSafety.allowAccessEnvironmentKey: "1"]) == false)
     }

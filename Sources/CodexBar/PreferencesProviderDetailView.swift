@@ -382,7 +382,7 @@ struct ProviderMetricsInlineView: View {
         let hasMetrics = !self.model.metrics.isEmpty
         let hasUsageNotes = !self.model.usageNotes.isEmpty
         let infoRows = Self.infoRows(for: self.model, openAIWebDiagnostic: self.openAIWebDiagnostic)
-        let hasProviderCost = self.model.providerCost != nil
+        let hasProviderCost = self.model.providerCost?.showsInProviderDetails == true
         let hasTokenUsage = self.model.tokenUsage != nil
         let hasResetCredits = self.model.codexResetCredits != nil
 
@@ -418,7 +418,7 @@ struct ProviderMetricsInlineView: View {
                 ProviderCodexResetCreditsInlineRow(presentation: resetCredits)
             }
 
-            if let providerCost = self.model.providerCost {
+            if let providerCost = self.model.providerCost, providerCost.showsInProviderDetails {
                 ProviderMetricInlineCostRow(
                     section: providerCost,
                     progressColor: self.model.progressColor)

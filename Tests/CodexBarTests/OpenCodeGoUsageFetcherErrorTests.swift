@@ -53,7 +53,7 @@ struct OpenCodeGoUsageFetcherErrorTests {
                 .absoluteString == "https://opencode.ai/workspace/wrk_def456/go")
         #expect(
             OpenCodeGoUsageFetcher.dashboardURL(workspaceID: nil)
-                .absoluteString == "https://opencode.ai")
+                .absoluteString == "https://opencode.ai/auth")
     }
 
     private struct UsageWindow {

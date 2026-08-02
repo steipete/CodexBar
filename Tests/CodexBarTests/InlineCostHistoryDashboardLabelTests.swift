@@ -54,6 +54,63 @@ struct InlineCostHistoryDashboardLabelTests {
     }
 
     @Test
+    func `local cost history converts from snapshot currency into preferred currency`() throws {
+        let now = Date(timeIntervalSince1970: 1_700_179_200)
+        let metadata = try #require(ProviderDefaults.metadata[.claude])
+        let tokenSnapshot = CostUsageTokenSnapshot(
+            sessionTokens: 100,
+            sessionCostUSD: 10,
+            last30DaysTokens: 100,
+            last30DaysCostUSD: 10,
+            currencyCode: "EUR",
+            daily: [
+                CostUsageDailyReport.Entry(
+                    date: "2023-11-15",
+                    inputTokens: 75,
+                    outputTokens: 25,
+                    totalTokens: 100,
+                    costUSD: 10,
+                    modelsUsed: nil,
+                    modelBreakdowns: nil),
+            ],
+            updatedAt: now)
+
+        let model = UsageMenuCardView.Model.make(.init(
+            provider: .claude,
+            metadata: metadata,
+            snapshot: UsageSnapshot(primary: nil, secondary: nil, updatedAt: now),
+            credits: nil,
+            creditsError: nil,
+            dashboard: nil,
+            dashboardError: nil,
+            tokenSnapshot: tokenSnapshot,
+            tokenError: nil,
+            account: AccountInfo(email: nil, plan: nil),
+            isRefreshing: false,
+            lastError: nil,
+            usageBarsShowUsed: false,
+            resetTimeDisplayStyle: .countdown,
+            tokenCostUsageEnabled: true,
+            showOptionalCreditsAndExtraUsage: true,
+            hidePersonalInfo: false,
+            preferredCurrencyCode: "USD",
+            now: now))
+
+        let expected = UsageFormatter.convertedCostString(
+            10,
+            preferredCurrency: "USD",
+            providerCurrency: "EUR")
+        let expectedValue = UsageFormatter.convertedCost(
+            10,
+            preferredCurrency: "USD",
+            providerCurrency: "EUR").value
+        #expect(model.inlineUsageDashboard?.currencyCode == "USD")
+        #expect(model.inlineUsageDashboard?.kpis.first?.value == expected)
+        #expect(model.inlineUsageDashboard?.points.first?.value == expectedValue)
+        #expect(model.inlineUsageDashboard?.points.first?.accessibilityValue == "2023-11-15: \(expected)")
+    }
+
+    @Test
     func `local cost history KPI titles preserve one day and dynamic windows`() throws {
         let now = Date(timeIntervalSince1970: 1_700_179_200)
         let metadata = try #require(ProviderDefaults.metadata[.claude])

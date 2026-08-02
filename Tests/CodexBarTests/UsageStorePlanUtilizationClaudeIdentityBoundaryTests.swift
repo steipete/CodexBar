@@ -128,6 +128,33 @@ struct UsageStorePlanUtilizationClaudeIdentityBoundaryTests {
 
     @MainActor
     @Test
+    func `V1 account bindings are discarded so owner mediated history continues`() async throws {
+        let store = UsageStorePlanUtilizationTests.makeStore()
+        let owner = String(repeating: "a", count: 64)
+        let legacyKey = "ClaudeOAuthHistoryOwnerAccountUuidMapV1"
+        let legacyMap = [owner: "obsolete-v1-identity"]
+        let legacyData = try JSONEncoder().encode(legacyMap)
+        store.settings.userDefaults.set(legacyData, forKey: legacyKey)
+
+        await store.recordPlanUtilizationHistorySample(
+            provider: .claude,
+            snapshot: self.snapshot(usedPercent: 60),
+            claudeOAuthHistoryOwnerIdentifier: owner,
+            claudeOAuthKeychainCredentialUnavailable: true,
+            claudeOAuthActiveAccountObservation: .stable(
+                identity: UsageStore._activeClaudeAccountIdentityForTesting("uuid-current")),
+            isClaudeOAuthSample: true)
+
+        #expect(store.settings.userDefaults.object(forKey: legacyKey) == nil)
+        let key = try #require(
+            UsageStore._claudeOAuthPlanUtilizationAccountKeyForTesting(historyOwnerIdentifier: owner))
+        let buckets = try #require(store.planUtilizationHistory[.claude])
+        #expect(findSeries(buckets.accounts[key] ?? [], name: .session, windowMinutes: 300)?
+            .entries.map(\.usedPercent) == [60])
+    }
+
+    @MainActor
+    @Test
     func `absent keychain still quarantines an owner bound to another account`() async {
         let store = UsageStorePlanUtilizationTests.makeStore()
         let owner = String(repeating: "f", count: 64)

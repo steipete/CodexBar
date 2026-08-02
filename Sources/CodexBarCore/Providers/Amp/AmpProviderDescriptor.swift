@@ -35,12 +35,21 @@ public enum AmpProviderDescriptor {
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
                 noDataMessage: { "Amp cost summary is not supported." }),
+            pace: .calendarMonthResetWindow,
             fetchPlan: ProviderFetchPlan(
                 sourceModes: [.auto, .api, .web, .cli],
                 pipeline: ProviderFetchPipeline(resolveStrategies: self.resolveStrategies)),
             cli: ProviderCLIConfig(
                 name: "amp",
                 versionDetector: nil))
+    }
+
+    public static func primaryLabel(details: AmpUsageDetails?) -> String? {
+        details?.subscriptionPlan == nil ? nil : "Other usage"
+    }
+
+    public static func secondaryLabel(details: AmpUsageDetails?) -> String? {
+        details?.subscriptionPlan == nil ? nil : "Orb usage"
     }
 
     private static func resolveStrategies(context: ProviderFetchContext) async -> [any ProviderFetchStrategy] {

@@ -12,6 +12,11 @@ struct TokenAccountCLISelection {
     }
 }
 
+enum TokenAccountCLIResolutionScope {
+    case configuredAccounts
+    case ambientAccount
+}
+
 enum TokenAccountCLIError: LocalizedError {
     case noAccounts(UsageProvider)
     case accountNotFound(UsageProvider, String)
@@ -40,6 +45,7 @@ struct TokenAccountCLIContext {
         selection: TokenAccountCLISelection,
         config: CodexBarConfig,
         verbose _: Bool,
+        resolutionScope: TokenAccountCLIResolutionScope = .configuredAccounts,
         baseEnvironment: [String: String] = ProcessInfo.processInfo.environment,
         managedCodexAccountStoreURL: URL? = nil) throws
     {
@@ -47,10 +53,15 @@ struct TokenAccountCLIContext {
         self.config = config
         self.baseEnvironment = baseEnvironment
         self.managedCodexAccountStoreURL = managedCodexAccountStoreURL
-        self.accountsByProvider = Dictionary(uniqueKeysWithValues: config.providers.compactMap { provider in
-            guard let accounts = provider.tokenAccounts else { return nil }
-            return (provider.id, accounts)
-        })
+        self.accountsByProvider = switch resolutionScope {
+        case .configuredAccounts:
+            Dictionary(uniqueKeysWithValues: config.providers.compactMap { provider in
+                guard let accounts = provider.tokenAccounts else { return nil }
+                return (provider.id, accounts)
+            })
+        case .ambientAccount:
+            [:]
+        }
     }
 
     func resolvedAccounts(for provider: UsageProvider) throws -> [ProviderTokenAccount] {
@@ -110,7 +121,14 @@ struct TokenAccountCLIContext {
                 codexActiveSourceOverride: codexActiveSourceOverride))
         case .claude:
             let routing = self.claudeCredentialRouting(account: account, config: config)
-            let claudeSource: ClaudeUsageDataSource = if routing.adminAPIKey != nil {
+            let claudeSource: ClaudeUsageDataSource = if account != nil {
+                switch routing {
+                case .adminAPIKey: .api
+                case .oauth: .oauth
+                case .webCookie: .web
+                case .none: .auto
+                }
+            } else if routing.adminAPIKey != nil {
                 .api
             } else if routing.isOAuth {
                 .oauth
@@ -151,6 +169,7 @@ struct TokenAccountCLIContext {
         }
     }
 
+    // swiftlint:disable:next cyclomatic_complexity
     private func makeCookieBackedSnapshot(
         provider: UsageProvider,
         account: ProviderTokenAccount?,
@@ -187,6 +206,8 @@ struct TokenAccountCLIContext {
                     cookieSource: cookieSettings.cookieSource,
                     manualCookieHeader: cookieSettings.manualCookieHeader,
                     apiRegion: self.resolveAlibabaTokenPlanRegion(config)))
+        case .qwencloud:
+            return self.makeSnapshot(qwenCloud: self.makeProviderCookieSettings(cookieSettings))
         case .factory:
             return self.makeSnapshot(factory: self.makeProviderCookieSettings(cookieSettings))
         case .minimax:
@@ -215,6 +236,8 @@ struct TokenAccountCLIContext {
             return self.makeSnapshot(abacus: self.makeProviderCookieSettings(cookieSettings))
         case .mistral:
             return self.makeSnapshot(mistral: self.makeProviderCookieSettings(cookieSettings))
+        case .zoommate:
+            return self.makeSnapshot(zoommate: self.makeProviderCookieSettings(cookieSettings))
         case .stepfun:
             let stepfunSettings = self.cookieSettings(
                 provider: provider,
@@ -240,6 +263,7 @@ struct TokenAccountCLIContext {
         opencodego: ProviderSettingsSnapshot.OpenCodeProviderSettings? = nil,
         alibaba: ProviderSettingsSnapshot.AlibabaCodingPlanProviderSettings? = nil,
         alibabaTokenPlan: ProviderSettingsSnapshot.AlibabaTokenPlanProviderSettings? = nil,
+        qwenCloud: ProviderSettingsSnapshot.QwenCloudProviderSettings? = nil,
         factory: ProviderSettingsSnapshot.FactoryProviderSettings? = nil,
         minimax: ProviderSettingsSnapshot.MiniMaxProviderSettings? = nil,
         manus: ProviderSettingsSnapshot.ManusProviderSettings? = nil,
@@ -258,7 +282,8 @@ struct TokenAccountCLIContext {
         abacus: ProviderSettingsSnapshot.AbacusProviderSettings? = nil,
         mistral: ProviderSettingsSnapshot.MistralProviderSettings? = nil,
         qoder: ProviderSettingsSnapshot.QoderProviderSettings? = nil,
-        stepfun: ProviderSettingsSnapshot.StepFunProviderSettings? = nil) -> ProviderSettingsSnapshot
+        stepfun: ProviderSettingsSnapshot.StepFunProviderSettings? = nil,
+        zoommate: ProviderSettingsSnapshot.ZoomMateProviderSettings? = nil) -> ProviderSettingsSnapshot
     {
         ProviderSettingsSnapshot.make(
             codex: codex,
@@ -268,6 +293,7 @@ struct TokenAccountCLIContext {
             opencodego: opencodego,
             alibaba: alibaba,
             alibabaTokenPlan: alibabaTokenPlan,
+            qwenCloud: qwenCloud,
             factory: factory,
             minimax: minimax,
             manus: manus,
@@ -278,6 +304,7 @@ struct TokenAccountCLIContext {
             augment: augment,
             moonshot: moonshot,
             amp: amp,
+            zoommate: zoommate,
             commandcode: commandcode,
             ollama: ollama,
             jetbrains: jetbrains,
@@ -438,20 +465,10 @@ struct TokenAccountCLIContext {
         let config = self.providerConfig(for: provider)
         let routing = self.claudeCredentialRouting(account: account, config: config)
 
-        if base == .auto {
-            if routing.adminAPIKey != nil {
-                return .api
-            }
-            return routing.isOAuth ? .oauth : base
-        }
+        guard account != nil else { return base }
 
-        guard base == .cli, account != nil else {
-            return base
-        }
-
-        // Claude CLI usage is ambient to the active local CLI profile, so per-token-account
-        // CLI reads can be mislabeled as separate accounts. Use the selected account's
-        // routable credential instead.
+        // Selected-account credentials are authoritative regardless of the global source. Claude CLI usage is
+        // ambient to the active local profile and must never be labeled as a configured token account.
         switch routing {
         case .adminAPIKey:
             return .api

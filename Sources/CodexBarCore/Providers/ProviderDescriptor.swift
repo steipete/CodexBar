@@ -10,11 +10,102 @@ public struct ProviderTokenCostConfig: Sendable {
     }
 }
 
+public enum ProviderPaceWindowRule: Sendable {
+    case unsupported
+    case resetDatePresent
+    case windowDurationPresent
+    case windowDuration(minutes: Int)
+    case custom(@Sendable (_ window: RateWindow, _ now: Date) -> Bool)
+
+    public func matches(window: RateWindow, now: Date) -> Bool {
+        switch self {
+        case .unsupported:
+            false
+        case .resetDatePresent:
+            window.resetsAt != nil
+        case .windowDurationPresent:
+            window.windowMinutes != nil
+        case let .windowDuration(minutes):
+            window.windowMinutes == minutes
+        case let .custom(predicate):
+            predicate(window, now)
+        }
+    }
+}
+
+public enum ProviderPaceDurationRule: Sendable {
+    case unsupported
+    case windowDurationMissing
+    case windowDuration(minutes: Int)
+
+    public func matches(window: RateWindow) -> Bool {
+        switch self {
+        case .unsupported:
+            false
+        case .windowDurationMissing:
+            window.windowMinutes == nil
+        case let .windowDuration(minutes):
+            window.windowMinutes == minutes
+        }
+    }
+}
+
+public struct ProviderPaceCapability: Sendable {
+    public static let monthlyWindowSentinelMinutes = 30 * 24 * 60
+    public static let unsupported = ProviderPaceCapability()
+    public static let calendarMonthResetWindow = ProviderPaceCapability(
+        resetWindowPace: .windowDuration(minutes: ProviderPaceCapability.monthlyWindowSentinelMinutes),
+        inferredMonthlyDuration: .windowDuration(minutes: ProviderPaceCapability.monthlyWindowSentinelMinutes))
+
+    public let resetWindowPace: ProviderPaceWindowRule
+    public let inferredMonthlyDuration: ProviderPaceDurationRule
+
+    public init(
+        resetWindowPace: ProviderPaceWindowRule = .unsupported,
+        inferredMonthlyDuration: ProviderPaceDurationRule = .unsupported)
+    {
+        self.resetWindowPace = resetWindowPace
+        self.inferredMonthlyDuration = inferredMonthlyDuration
+    }
+
+    public func supportsResetWindowPace(window: RateWindow, now: Date) -> Bool {
+        self.resetWindowPace.matches(window: window, now: now)
+    }
+
+    public func usesInferredMonthlyDuration(window: RateWindow) -> Bool {
+        self.inferredMonthlyDuration.matches(window: window)
+    }
+
+    public func resolvedResetWindowForPace(_ window: RateWindow) -> RateWindow {
+        guard self.usesInferredMonthlyDuration(window: window),
+              let resetsAt = window.resetsAt,
+              let minutes = Self.inferredMonthlyWindowMinutes(endingAt: resetsAt)
+        else { return window }
+        return RateWindow(
+            usedPercent: window.usedPercent,
+            windowMinutes: minutes,
+            resetsAt: window.resetsAt,
+            resetDescription: window.resetDescription,
+            nextRegenPercent: window.nextRegenPercent,
+            isSyntheticPlaceholder: window.isSyntheticPlaceholder)
+    }
+
+    private static func inferredMonthlyWindowMinutes(endingAt resetsAt: Date) -> Int? {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0) ?? calendar.timeZone
+        guard let startsAt = calendar.date(byAdding: .month, value: -1, to: resetsAt) else { return nil }
+        let minutes = resetsAt.timeIntervalSince(startsAt) / 60
+        guard minutes.isFinite, minutes > 0 else { return nil }
+        return Int(minutes.rounded())
+    }
+}
+
 public struct ProviderDescriptor: Sendable {
     public let id: UsageProvider
     public let metadata: ProviderMetadata
     public let branding: ProviderBranding
     public let tokenCost: ProviderTokenCostConfig
+    public let pace: ProviderPaceCapability
     public let fetchPlan: ProviderFetchPlan
     public let cli: ProviderCLIConfig
 
@@ -23,6 +114,7 @@ public struct ProviderDescriptor: Sendable {
         metadata: ProviderMetadata,
         branding: ProviderBranding,
         tokenCost: ProviderTokenCostConfig,
+        pace: ProviderPaceCapability = .unsupported,
         fetchPlan: ProviderFetchPlan,
         cli: ProviderCLIConfig)
     {
@@ -30,6 +122,7 @@ public struct ProviderDescriptor: Sendable {
         self.metadata = metadata
         self.branding = branding
         self.tokenCost = tokenCost
+        self.pace = pace
         self.fetchPlan = fetchPlan
         self.cli = cli
     }
@@ -63,6 +156,7 @@ public enum ProviderDescriptorRegistry {
         .opencodego: OpenCodeGoProviderDescriptor.descriptor,
         .alibaba: AlibabaCodingPlanProviderDescriptor.descriptor,
         .alibabatokenplan: AlibabaTokenPlanProviderDescriptor.descriptor,
+        .qwencloud: QwenCloudProviderDescriptor.descriptor,
         .factory: FactoryProviderDescriptor.descriptor,
         .gemini: GeminiProviderDescriptor.descriptor,
         .antigravity: AntigravityProviderDescriptor.descriptor,
@@ -116,6 +210,8 @@ public enum ProviderDescriptorRegistry {
         .wayfinder: WayfinderProviderDescriptor.descriptor,
         .zenmux: ZenMuxProviderDescriptor.descriptor,
         .aiand: AiAndProviderDescriptor.descriptor,
+        .zoommate: ZoomMateProviderDescriptor.descriptor,
+        .xai: XAIProviderDescriptor.descriptor,
     ]
     private static let bootstrap: Void = {
         for provider in UsageProvider.allCases {

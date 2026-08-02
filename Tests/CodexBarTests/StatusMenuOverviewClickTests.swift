@@ -10,10 +10,8 @@ struct StatusMenuOverviewClickTests {
     @Test
     func `routes runtime click without gesture recognizer`() {
         var clicked = false
-        let view = MenuCardItemHostingView(
-            rootView: Text("Overview row"),
-            highlightState: MenuCardHighlightState(),
-            allowsMenuHighlight: true,
+        let view = Self.makeRow(
+            Text("Overview row"),
             onClick: { clicked = true })
         view.frame = NSRect(x: 0, y: 0, width: 320, height: 44)
         #expect(view._test_simulateRuntimeClick())
@@ -23,18 +21,9 @@ struct StatusMenuOverviewClickTests {
     @Test
     func `routes gpu selection runtime click without gesture recognizer`() {
         var clicked = false
-        let wrapped = MenuCardSectionContainerView(
-            highlightState: MenuCardHighlightState(),
-            showsSubmenuIndicator: false,
-            submenuIndicatorAlignment: .trailing,
-            submenuIndicatorTopPadding: 0,
-            refreshMonitor: nil)
-        {
-            Text("Overview GPU row")
-        }
-        let view = GPUSelectionHostingView(
-            rootView: wrapped,
-            allowsMenuHighlight: true,
+        let view = Self.makeRow(
+            Text("Overview GPU row"),
+            usesGPUSelection: true,
             onClick: { clicked = true })
         view.frame = NSRect(x: 0, y: 0, width: 320, height: 44)
         #expect(view._test_simulateRuntimeClick())
@@ -43,18 +32,9 @@ struct StatusMenuOverviewClickTests {
 
     @Test
     func `gpu tracking activates only for mouseUp inside row`() {
-        let wrapped = MenuCardSectionContainerView(
-            highlightState: MenuCardHighlightState(),
-            showsSubmenuIndicator: false,
-            submenuIndicatorAlignment: .trailing,
-            submenuIndicatorTopPadding: 0,
-            refreshMonitor: nil)
-        {
-            Text("Overview GPU row")
-        }
-        let view = GPUSelectionHostingView(
-            rootView: wrapped,
-            allowsMenuHighlight: true,
+        let view = Self.makeRow(
+            Text("Overview GPU row"),
+            usesGPUSelection: true,
             onClick: {})
         view.frame = NSRect(x: 0, y: 0, width: 320, height: 44)
         let events = Self.mouseClick(at: NSPoint(x: 160, y: 22))
@@ -65,18 +45,10 @@ struct StatusMenuOverviewClickTests {
 
     @Test
     func `gpu tracking cancels when release leaves row`() {
-        let wrapped = MenuCardSectionContainerView(
-            highlightState: MenuCardHighlightState(),
+        let view = Self.makeRow(
+            Text("Overview GPU row"),
             showsSubmenuIndicator: true,
-            submenuIndicatorAlignment: .trailing,
-            submenuIndicatorTopPadding: 0,
-            refreshMonitor: nil)
-        {
-            Text("Overview GPU row")
-        }
-        let view = GPUSelectionHostingView(
-            rootView: wrapped,
-            allowsMenuHighlight: true,
+            usesGPUSelection: true,
             onClick: {})
         view.frame = NSRect(x: 0, y: 0, width: 320, height: 44)
         let outsideUp = Self.mouseClick(at: NSPoint(x: 340, y: 22)).up
@@ -86,18 +58,10 @@ struct StatusMenuOverviewClickTests {
 
     @Test
     func `gpu tracking yields an outside drag to native submenu tracking`() {
-        let wrapped = MenuCardSectionContainerView(
-            highlightState: MenuCardHighlightState(),
+        let view = Self.makeRow(
+            Text("Overview GPU row"),
             showsSubmenuIndicator: true,
-            submenuIndicatorAlignment: .trailing,
-            submenuIndicatorTopPadding: 0,
-            refreshMonitor: nil)
-        {
-            Text("Overview GPU row")
-        }
-        let view = GPUSelectionHostingView(
-            rootView: wrapped,
-            allowsMenuHighlight: true,
+            usesGPUSelection: true,
             onClick: {})
         view.frame = NSRect(x: 0, y: 0, width: 320, height: 44)
 
@@ -109,10 +73,8 @@ struct StatusMenuOverviewClickTests {
 
     @Test
     func `hitTest preserves button targets in standard hosting view`() {
-        let view = MenuCardItemHostingView(
-            rootView: Text("Overview row"),
-            highlightState: MenuCardHighlightState(),
-            allowsMenuHighlight: true,
+        let view = Self.makeRow(
+            Text("Overview row"),
             onClick: {})
         view.frame = NSRect(x: 0, y: 0, width: 320, height: 44)
         let button = NSButton(frame: NSRect(x: 10, y: 10, width: 50, height: 20))
@@ -125,18 +87,9 @@ struct StatusMenuOverviewClickTests {
 
     @Test
     func `hitTest preserves button targets in gpu selection hosting view`() {
-        let wrapped = MenuCardSectionContainerView(
-            highlightState: MenuCardHighlightState(),
-            showsSubmenuIndicator: false,
-            submenuIndicatorAlignment: .trailing,
-            submenuIndicatorTopPadding: 0,
-            refreshMonitor: nil)
-        {
-            Text("Overview GPU row")
-        }
-        let view = GPUSelectionHostingView(
-            rootView: wrapped,
-            allowsMenuHighlight: true,
+        let view = Self.makeRow(
+            Text("Overview GPU row"),
+            usesGPUSelection: true,
             onClick: {})
         view.frame = NSRect(x: 0, y: 0, width: 320, height: 44)
         let button = NSButton(frame: NSRect(x: 10, y: 10, width: 50, height: 20))
@@ -149,26 +102,14 @@ struct StatusMenuOverviewClickTests {
 
     @Test
     func `gpu hosting preserves nested SwiftUI button target`() {
-        let interactiveRegionStore = MenuCardInteractiveRegionStore()
         let content = Button("Copy") {}
             .frame(width: 80, height: 30)
             .menuCardInteractiveControl()
             .frame(width: 320, height: 44, alignment: .trailing)
-        let wrapped = MenuCardSectionContainerView(
-            highlightState: MenuCardHighlightState(),
-            showsSubmenuIndicator: false,
-            submenuIndicatorAlignment: .trailing,
-            submenuIndicatorTopPadding: 0,
-            refreshMonitor: nil,
-            interactiveRegionStore: interactiveRegionStore)
-        {
-            content
-        }
-        let view = GPUSelectionHostingView(
-            rootView: wrapped,
-            allowsMenuHighlight: true,
+        let view = Self.makeRow(
+            content,
             containsInteractiveControls: true,
-            interactiveRegionStore: interactiveRegionStore,
+            usesGPUSelection: true,
             onClick: {})
         view.frame = NSRect(x: 0, y: 0, width: 320, height: 51)
         Self.settleWindowlessLayout(view)
@@ -183,27 +124,13 @@ struct StatusMenuOverviewClickTests {
     @Test
     func `standard hosting forwards nested SwiftUI control events without invoking row`() {
         var rowClicked = false
-        let interactiveRegionStore = MenuCardInteractiveRegionStore()
         let content = Button("Copy") {}
             .frame(width: 80, height: 30)
             .menuCardInteractiveControl()
             .frame(width: 320, height: 44, alignment: .trailing)
-        let wrapped = MenuCardSectionContainerView(
-            highlightState: MenuCardHighlightState(),
-            showsSubmenuIndicator: false,
-            submenuIndicatorAlignment: .trailing,
-            submenuIndicatorTopPadding: 0,
-            refreshMonitor: nil,
-            interactiveRegionStore: interactiveRegionStore)
-        {
-            content
-        }
-        let view = MenuCardItemHostingView(
-            rootView: wrapped,
-            highlightState: MenuCardHighlightState(),
-            allowsMenuHighlight: true,
+        let view = Self.makeRow(
+            content,
             containsInteractiveControls: true,
-            interactiveRegionStore: interactiveRegionStore,
             onClick: { rowClicked = true })
         view.frame = NSRect(x: 0, y: 0, width: 320, height: 51)
         Self.settleWindowlessLayout(view)
@@ -223,27 +150,13 @@ struct StatusMenuOverviewClickTests {
     @Test
     func `hidden SwiftUI button region keeps row clickable`() {
         var rowClicked = false
-        let interactiveRegionStore = MenuCardInteractiveRegionStore()
         let content = Button("Hidden copy") {}
             .frame(width: 80, height: 30)
             .menuCardInteractiveControl(isEnabled: false)
             .frame(width: 320, height: 44, alignment: .trailing)
-        let wrapped = MenuCardSectionContainerView(
-            highlightState: MenuCardHighlightState(),
-            showsSubmenuIndicator: false,
-            submenuIndicatorAlignment: .trailing,
-            submenuIndicatorTopPadding: 0,
-            refreshMonitor: nil,
-            interactiveRegionStore: interactiveRegionStore)
-        {
-            content
-        }
-        let view = MenuCardItemHostingView(
-            rootView: wrapped,
-            highlightState: MenuCardHighlightState(),
-            allowsMenuHighlight: true,
+        let view = Self.makeRow(
+            content,
             containsInteractiveControls: true,
-            interactiveRegionStore: interactiveRegionStore,
             onClick: { rowClicked = true })
         view.frame = NSRect(x: 0, y: 0, width: 320, height: 44)
         Self.settleWindowlessLayout(view)
@@ -252,6 +165,26 @@ struct StatusMenuOverviewClickTests {
         #expect(!view._test_hitsHostedInteractiveControl(at: buttonPoint))
         #expect(view._test_simulateRuntimeClick(at: buttonPoint))
         #expect(rowClicked)
+    }
+
+    private static func makeRow(
+        _ content: some View,
+        showsSubmenuIndicator: Bool = false,
+        containsInteractiveControls: Bool = false,
+        usesGPUSelection: Bool = false,
+        onClick: (() -> Void)? = nil) -> MenuRowContainerView
+    {
+        MenuRowContainerView(
+            payload: MenuCardRowPayload(
+                content: AnyView(content),
+                showsSubmenuIndicator: showsSubmenuIndicator,
+                submenuIndicatorAlignment: .trailing,
+                submenuIndicatorTopPadding: 0,
+                allowsMenuHighlight: true,
+                containsInteractiveControls: containsInteractiveControls,
+                usesGPUSelection: usesGPUSelection,
+                onClick: onClick),
+            refreshMonitor: nil)
     }
 
     private static func settleWindowlessLayout(_ view: NSView) {

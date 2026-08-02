@@ -5,6 +5,179 @@ import Testing
 @Suite(.serialized)
 struct ClaudeWebCookieRenewalTests {
     @Test
+    func `stalled prepaid credits request does not fail completed usage`() async throws {
+        let probe = ClaudePrepaidRequestProbe()
+        let transport = ProviderHTTPTransportHandler { request in
+            let url = try #require(request.url)
+            if url.path == "/api/organizations/org-123/prepaid/credits" {
+                try await probe.stallUntilCancelled()
+            }
+            let (response, data) = try Self.response(for: request, setCookie: nil)
+            return (data, response)
+        }
+        let usage = try await ClaudeWebPrepaidCreditsRequest.$timeoutOverrideForTesting.withValue(
+            .milliseconds(20))
+        {
+            try await ClaudeWebHTTPTransport.$overrideForTesting.withValue(transport) {
+                try await ClaudeWebAPIFetcher.fetchUsage(
+                    cookieHeader: "sessionKey=sk-ant-manual-token")
+            }
+        }
+
+        #expect(usage.sessionPercentUsed == 11)
+        #expect(usage.extraUsageCost?.balance == nil)
+        #expect(await probe.waitForCancellation())
+    }
+
+    @Test
+    func `caller cancellation during prepaid credits request is propagated`() async {
+        let probe = ClaudePrepaidRequestProbe()
+        let transport = ProviderHTTPTransportHandler { request in
+            let url = try #require(request.url)
+            if url.path == "/api/organizations/org-123/prepaid/credits" {
+                try await probe.stallUntilCancelled()
+            }
+            let (response, data) = try Self.response(for: request, setCookie: nil)
+            return (data, response)
+        }
+        let fetchTask = Task {
+            try await ClaudeWebHTTPTransport.$overrideForTesting.withValue(transport) {
+                try await ClaudeWebAPIFetcher.fetchUsage(
+                    cookieHeader: "sessionKey=sk-ant-manual-token")
+            }
+        }
+
+        await probe.waitUntilStarted()
+        fetchTask.cancel()
+
+        await #expect(throws: CancellationError.self) {
+            try await fetchTask.value
+        }
+        #expect(await probe.waitForCancellation())
+    }
+
+    @Test
+    func `web fetch merges prepaid credits into Claude extra usage cost`() async throws {
+        try await self.withClaudeWebStub { request in
+            let url = try #require(request.url)
+            if url.path == "/api/organizations/org-123/prepaid/credits" {
+                return Self.jsonResponse(
+                    url: url,
+                    body: #"{"amount":10000,"currency":"USD"}"#,
+                    setCookie: nil)
+            }
+            if url.path == "/api/organizations/org-123/usage" {
+                return Self.jsonResponse(
+                    url: url,
+                    body: """
+                    {
+                      "five_hour": { "utilization": 11 },
+                      "extra_usage": {
+                        "is_enabled": true,
+                        "monthly_limit": 2000,
+                        "used_credits": 500,
+                        "currency": "USD"
+                      }
+                    }
+                    """,
+                    setCookie: nil)
+            }
+            return try Self.response(for: request, setCookie: nil)
+        } operation: {
+            let usage = try await ClaudeWebAPIFetcher.fetchUsage(
+                cookieHeader: "sessionKey=sk-ant-manual-token")
+
+            #expect(usage.extraUsageCost?.balance == 100)
+            #expect(usage.extraUsageCost?.currencyCode == "USD")
+        }
+    }
+
+    @Test
+    func `balance only fetch skips legacy overage request`() async throws {
+        let paths = RequestHeaderLog()
+        try await self.withClaudeWebStub { request in
+            let url = try #require(request.url)
+            paths.append(url.path)
+            if url.path == "/api/organizations/org-123/prepaid/credits" {
+                return Self.jsonResponse(
+                    url: url,
+                    body: #"{"amount":10000,"currency":"USD"}"#,
+                    setCookie: nil)
+            }
+            return try Self.response(for: request, setCookie: nil)
+        } operation: {
+            let usage = try await ClaudeWebAPIFetcher.fetchUsage(
+                cookieHeader: "sessionKey=sk-ant-manual-token",
+                includeUsageDetails: false,
+                includePrepaidBalance: true)
+
+            #expect(usage.extraUsageCost?.balance == 100)
+            #expect(usage.extraUsageCost?.used == 0)
+            #expect(usage.extraUsageCost?.limit == 0)
+            #expect(!paths.values.contains("/api/organizations/org-123/overage_spend_limit"))
+        }
+    }
+
+    @Test
+    func `balance enrichment preserves extra usage cost from usage response`() async throws {
+        let paths = RequestHeaderLog()
+        try await self.withClaudeWebStub { request in
+            let url = try #require(request.url)
+            paths.append(url.path)
+            switch url.path {
+            case "/api/organizations/org-123/usage":
+                return Self.jsonResponse(
+                    url: url,
+                    body: """
+                    {
+                      "five_hour": { "utilization": 11 },
+                      "extra_usage": {
+                        "is_enabled": true,
+                        "monthly_limit": 10000,
+                        "used_credits": 42,
+                        "currency": "USD"
+                      }
+                    }
+                    """,
+                    setCookie: nil)
+            case "/api/organizations/org-123/prepaid/credits":
+                return Self.jsonResponse(
+                    url: url,
+                    body: #"{"amount":9958,"currency":"USD"}"#,
+                    setCookie: nil)
+            default:
+                return try Self.response(for: request, setCookie: nil)
+            }
+        } operation: {
+            let usage = try await ClaudeWebAPIFetcher.fetchUsage(
+                cookieHeader: "sessionKey=sk-ant-manual-token",
+                includeUsageDetails: false,
+                includePrepaidBalance: true)
+
+            #expect(usage.extraUsageCost?.used == 0.42)
+            #expect(usage.extraUsageCost?.limit == 100)
+            #expect(usage.extraUsageCost?.balance == 99.58)
+            #expect(!paths.values.contains("/api/organizations/org-123/overage_spend_limit"))
+        }
+    }
+
+    @Test
+    func `web fetch skips prepaid credits when optional usage is disabled`() async throws {
+        let paths = RequestHeaderLog()
+        try await self.withClaudeWebStub { request in
+            paths.append(request.url?.path)
+            return try Self.response(for: request, setCookie: nil)
+        } operation: {
+            let usage = try await ClaudeWebAPIFetcher.fetchUsage(
+                cookieHeader: "sessionKey=sk-ant-manual-token",
+                includePrepaidBalance: false)
+
+            #expect(usage.sessionPercentUsed == 11)
+            #expect(!paths.values.contains("/api/organizations/org-123/prepaid/credits"))
+        }
+    }
+
+    @Test
     func `cached web session key renews from set cookie after successful fetch`() async throws {
         try await self.withIsolatedCookieCache {
             CookieHeaderCache.store(
@@ -226,7 +399,7 @@ struct ClaudeWebCookieRenewalTests {
     }
 
     @Test
-    func `usage response renewal propagates to later requests and cache`() async throws {
+    func `usage and prepaid response renewals propagate to later requests and cache`() async throws {
         try await self.withIsolatedCookieCache {
             CookieHeaderCache.store(
                 provider: .claude,
@@ -235,6 +408,7 @@ struct ClaudeWebCookieRenewalTests {
             defer { CookieHeaderCache.clear(provider: .claude) }
             let usageCookies = RequestHeaderLog()
             let overageCookies = RequestHeaderLog()
+            let prepaidCookies = RequestHeaderLog()
             let accountCookies = RequestHeaderLog()
 
             try await self.withClaudeWebStub { request in
@@ -244,22 +418,39 @@ struct ClaudeWebCookieRenewalTests {
                     usageCookies.append(request.value(forHTTPHeaderField: "Cookie"))
                 case "/api/organizations/org-123/overage_spend_limit":
                     overageCookies.append(request.value(forHTTPHeaderField: "Cookie"))
+                case "/api/organizations/org-123/prepaid/credits":
+                    prepaidCookies.append(request.value(forHTTPHeaderField: "Cookie"))
                 case "/api/account":
                     accountCookies.append(request.value(forHTTPHeaderField: "Cookie"))
                 default:
                     break
                 }
+                let setCookie: String? = switch path {
+                case "/api/organizations/org-123/usage":
+                    Self.renewedSessionCookie
+                case "/api/organizations/org-123/prepaid/credits":
+                    "sessionKey=sk-ant-prepaid-token; Path=/; HttpOnly"
+                default:
+                    nil
+                }
+                if path == "/api/organizations/org-123/prepaid/credits" {
+                    return try Self.jsonResponse(
+                        url: #require(request.url),
+                        body: #"{"amount":10000,"currency":"USD"}"#,
+                        setCookie: setCookie)
+                }
                 return try Self.response(
                     for: request,
-                    setCookie: path == "/api/organizations/org-123/usage" ? Self.renewedSessionCookie : nil)
+                    setCookie: setCookie)
             } operation: {
                 _ = try await ClaudeWebAPIFetcher.fetchUsage(browserDetection: BrowserDetection(cacheTTL: 0))
 
                 #expect(usageCookies.values == ["sessionKey=sk-ant-old-token"])
                 #expect(overageCookies.values == ["sessionKey=sk-ant-renewed-token"])
-                #expect(accountCookies.values == ["sessionKey=sk-ant-renewed-token"])
+                #expect(prepaidCookies.values == ["sessionKey=sk-ant-renewed-token"])
+                #expect(accountCookies.values == ["sessionKey=sk-ant-prepaid-token"])
                 let cached = try #require(CookieHeaderCache.load(provider: .claude))
-                #expect(cached.cookieHeader == "sessionKey=sk-ant-renewed-token")
+                #expect(cached.cookieHeader == "sessionKey=sk-ant-prepaid-token")
             }
         }
     }
@@ -426,6 +617,43 @@ struct ClaudeWebCookieRenewalTests {
             httpVersion: "HTTP/1.1",
             headerFields: headerFields)!
         return (response, Data(body.utf8))
+    }
+}
+
+private actor ClaudePrepaidRequestProbe {
+    private var started = false
+    private var cancelled = false
+    private var startedWaiters: [CheckedContinuation<Void, Never>] = []
+
+    func stallUntilCancelled() async throws {
+        self.started = true
+        for waiter in self.startedWaiters {
+            waiter.resume()
+        }
+        self.startedWaiters.removeAll()
+
+        do {
+            try await Task.sleep(for: .seconds(10))
+        } catch {
+            self.cancelled = true
+            throw error
+        }
+        throw CancellationError()
+    }
+
+    func waitUntilStarted() async {
+        if self.started { return }
+        await withCheckedContinuation { continuation in
+            self.startedWaiters.append(continuation)
+        }
+    }
+
+    func waitForCancellation() async -> Bool {
+        for _ in 0..<100 {
+            if self.cancelled { return true }
+            try? await Task.sleep(for: .milliseconds(10))
+        }
+        return self.cancelled
     }
 }
 

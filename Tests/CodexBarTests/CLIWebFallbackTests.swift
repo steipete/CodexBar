@@ -167,11 +167,13 @@ struct CLIWebFallbackTests {
     func `claude CLI fallback is enabled only for app auto`() {
         let webAvailableStrategy = ClaudeCLIFetchStrategy(
             useWebExtras: false,
+            includePrepaidBalance: false,
             manualCookieHeader: nil,
             browserDetection: BrowserDetection(cacheTTL: 0),
             hasWebFallback: true)
         let webUnavailableStrategy = ClaudeCLIFetchStrategy(
             useWebExtras: false,
+            includePrepaidBalance: false,
             manualCookieHeader: nil,
             browserDetection: BrowserDetection(cacheTTL: 0),
             hasWebFallback: false)

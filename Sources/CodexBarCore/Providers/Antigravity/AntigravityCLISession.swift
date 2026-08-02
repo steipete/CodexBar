@@ -884,7 +884,7 @@ struct AntigravityPTYProcessLauncher: AntigravityCLIProcessLaunching {
 
         let homeDirectory = NSHomeDirectory()
         _ = homeDirectory.withCString { path in
-            posix_spawn_file_actions_addchdir_np(&fileActions, path)
+            PosixSpawnFileActionsCompatibility.addChangeDirectory(&fileActions, path: path)
         }
         #if canImport(Glibc) || canImport(Musl)
         do {

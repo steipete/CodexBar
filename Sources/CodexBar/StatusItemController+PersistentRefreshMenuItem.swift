@@ -30,7 +30,9 @@ extension StatusItemController {
         item.view = view
         item.isEnabled = enabled
         item.keyEquivalentModifierMask = []
-        item.toolTip = title
+        // No toolTip: the row already reads "Refresh" with its shortcut badge, and
+        // during tab switches the churn under a stationary cursor makes AppKit pop
+        // the tooltip instantly — a stray floating "Refresh" box beside the menu.
         return item
     }
 

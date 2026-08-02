@@ -6,9 +6,13 @@ import Testing
 @Suite(.serialized)
 struct ClaudeOAuthCredentialsStoreNeverPromptCacheTests {
     private struct TestState {
-        let cacheKey = KeychainCacheStore.Key.oauth(provider: .claude)
         let pendingStore: ClaudeOAuthCredentialsStore.PendingCacheClearMemoryStore
         let recorder: ClaudeOAuthCredentialsStore.OAuthCacheOperationRecorder
+
+        var cacheKey: KeychainCacheStore.Key {
+            ClaudeOAuthCredentialsStore.cacheKeyForTesting(
+                profileIdentifier: ClaudeOAuthCredentialsStore.credentialsProfileIdentifier(environment: [:]))
+        }
     }
 
     private func makeCredentialsData(accessToken: String, expiresAt: Date, refreshToken: String? = nil) -> Data {
@@ -259,7 +263,7 @@ struct ClaudeOAuthCredentialsStoreNeverPromptCacheTests {
 
                 #expect(credentials.accessToken == "file-token-new")
                 #expect(!state.pendingStore.isPending)
-                #expect(state.recorder.operations == [.clear, .load, .store])
+                #expect(state.recorder.operations == [.clear, .load, .load, .store])
                 let cachedToken = try self.cachedToken(state)
                 #expect(cachedToken == "file-token-new")
             }
@@ -295,7 +299,7 @@ struct ClaudeOAuthCredentialsStoreNeverPromptCacheTests {
                 }
 
                 #expect(!state.pendingStore.isPending)
-                #expect(state.recorder.operations == [.clear, .load])
+                #expect(state.recorder.operations == [.clear, .load, .load])
                 let cachedToken = try self.cachedToken(state)
                 #expect(cachedToken == nil)
             }
@@ -335,7 +339,16 @@ struct ClaudeOAuthCredentialsStoreNeverPromptCacheTests {
                 }
                 #expect(second.accessToken == "file-token-new")
                 #expect(!state.pendingStore.isPending)
-                #expect(state.recorder.operations == [.clear, .clear, .load, .store])
+                #expect(state.recorder.operations == [
+                    .clear,
+                    .load,
+                    .clear,
+                    .clear,
+                    .load,
+                    .load,
+                    .load,
+                    .store,
+                ])
                 let refreshedToken = try self.cachedToken(state)
                 #expect(refreshedToken == "file-token-new")
             }
@@ -411,7 +424,7 @@ struct ClaudeOAuthCredentialsStoreNeverPromptCacheTests {
 
                 #expect(synced)
                 #expect(state.pendingStore.isPending)
-                #expect(state.recorder.operations == [.clear, .store])
+                #expect(state.recorder.operations == [.clear])
                 let cachedToken = try self.cachedToken(state)
                 #expect(cachedToken == "cached-token")
             }
@@ -609,7 +622,7 @@ struct ClaudeOAuthCredentialsStoreNeverPromptCacheTests {
     }
 
     @Test
-    func `never mode bypasses oauth cache while preserving experimental security CLI reader`() throws {
+    func `owned cache disabled still rejects ambient experimental repair`() throws {
         try self.withTestState { state in
             try self.withCredentialsFile(data: nil) { _ in
                 self.seedCache(state, accessToken: "cached-token")
@@ -618,26 +631,39 @@ struct ClaudeOAuthCredentialsStoreNeverPromptCacheTests {
                     expiresAt: Date(timeIntervalSinceNow: 3600),
                     refreshToken: "security-cli-refresh-token")
 
-                let credentials = try ClaudeOAuthKeychainReadStrategyPreference.withTaskOverrideForTesting(
-                    .securityCLIExperimental)
-                {
-                    try ClaudeOAuthKeychainPromptPreference.withTaskOverrideForTesting(.never) {
-                        try ClaudeOAuthCredentialsStore.withSecurityCLIReadOverrideForTesting(.data(securityData)) {
-                            try ClaudeOAuthCredentialsStore.withClaudeKeychainOverridesForTesting(
-                                data: securityData,
-                                fingerprint: nil)
-                            {
-                                try ProviderInteractionContext.$current.withValue(.background) {
-                                    try ClaudeOAuthCredentialsStore.load(
-                                        environment: [:],
-                                        allowKeychainPrompt: false)
+                final class ReadCounter: @unchecked Sendable {
+                    var hits = 0
+                }
+                let securityReadCalls = ReadCounter()
+
+                let error = #expect(throws: ClaudeOAuthCredentialsError.self) {
+                    try ClaudeOAuthKeychainReadStrategyPreference.withTaskOverrideForTesting(
+                        .securityCLIExperimental)
+                    {
+                        try ClaudeOAuthKeychainPromptPreference.withTaskOverrideForTesting(.never) {
+                            try ClaudeOAuthCredentialsStore.withSecurityCLIReadOverrideForTesting(.dynamic { _ in
+                                securityReadCalls.hits += 1
+                                return securityData
+                            }) {
+                                try ClaudeOAuthCredentialsStore.withClaudeKeychainOverridesForTesting(
+                                    data: securityData,
+                                    fingerprint: nil)
+                                {
+                                    try ProviderInteractionContext.$current.withValue(.background) {
+                                        try ClaudeOAuthCredentialsStore.load(
+                                            environment: [:],
+                                            allowKeychainPrompt: false)
+                                    }
                                 }
                             }
                         }
                     }
                 }
-
-                #expect(credentials.accessToken == "security-cli-token")
+                guard case .notFound = error else {
+                    Issue.record("Expected .notFound, got \(String(describing: error))")
+                    return
+                }
+                #expect(securityReadCalls.hits == 0)
                 #expect(state.recorder.operations.isEmpty)
                 #expect(state.pendingStore.isPending)
                 let cachedToken = try self.cachedToken(state)
@@ -673,7 +699,7 @@ struct ClaudeOAuthCredentialsStoreNeverPromptCacheTests {
                 }
 
                 #expect(!state.pendingStore.isPending)
-                #expect(state.recorder.operations == [.clear, .load])
+                #expect(state.recorder.operations == [.clear, .load, .load])
                 let clearedToken = try self.cachedToken(state)
                 #expect(clearedToken == nil)
 

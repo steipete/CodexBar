@@ -95,9 +95,11 @@ This is OS/keychain ACL behavior, not a `ThisDeviceOnly` migration issue.
 `Advanced -> Disable Keychain access` sets `debugDisableKeychainAccess` and flips `KeychainAccessGate.isDisabled`.
 
 Effects:
-- Blocks keychain reads/writes in legacy stores.
-- Disables keychain-backed cookie auto-import paths.
-- Forces cookie source resolution to manual/off where applicable.
+- Blocks keychain reads/writes in legacy stores and Claude CLI keychain bootstrap.
+- Disables Chromium cookie auto-import paths that require Safe Storage keychain decryption (Safari/Firefox remain eligible).
+- Keeps an in-process memory fallback only for `KeychainCacheStore` cookie session caches so Cursor (and other cookie providers) can still reconcile sessions without Keychain persistence. OAuth credential cache entries are never retained by this fallback.
+- Clears that in-process fallback whenever Keychain access is toggled, so disabled-mode cookies cannot resurface after re-enabling Keychain.
+- Allows Claude Auto **background** CLI when Keychain access is disabled only after a successful user-initiated CLI refresh establishes availability for the current app process. Background Auto never launches `claude auth status --json`; before foreground establishment it falls through without starting any Claude child process. When Keychain remains enabled, background Auto also requires prompt mode **Always**.
 
 ## Verification
 

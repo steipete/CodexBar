@@ -84,7 +84,7 @@ public struct OpenAIAPICreditBalanceSnapshot: Sendable {
 
     public func toUsageSnapshot() -> UsageSnapshot {
         let usedPercent: Double = if self.totalGranted > 0 {
-            min(100, max(0, (self.totalUsed / self.totalGranted) * 100))
+            UsagePercent(used: self.totalUsed, limit: self.totalGranted).displayClamped
         } else {
             self.totalAvailable > 0 ? 0 : 100
         }

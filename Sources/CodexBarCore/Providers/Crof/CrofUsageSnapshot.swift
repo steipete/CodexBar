@@ -5,14 +5,14 @@ public struct CrofUsageSnapshot: Sendable {
     private static let resetTimeZone = TimeZone(identifier: "America/Chicago") ?? TimeZone(secondsFromGMT: -5)!
 
     public let credits: Double
-    public let requestsPlan: Double
-    public let usableRequests: Double
+    public let requestsPlan: Double?
+    public let usableRequests: Double?
     public let updatedAt: Date
 
     public init(
         credits: Double,
-        requestsPlan: Double,
-        usableRequests: Double,
+        requestsPlan: Double? = nil,
+        usableRequests: Double? = nil,
         updatedAt: Date = Date())
     {
         self.credits = credits
@@ -22,32 +22,37 @@ public struct CrofUsageSnapshot: Sendable {
     }
 
     public func toUsageSnapshot() -> UsageSnapshot {
-        let usedPercent: Double
-        if self.requestsPlan > 0 {
-            let usableRequests = max(0, min(self.requestsPlan, self.usableRequests))
-            let remainingPercent = floor(usableRequests / self.requestsPlan * 100).clamped(to: 0...100)
-            usedPercent = 100 - remainingPercent
-        } else {
-            usedPercent = 100
-        }
-
-        let primary = RateWindow(
-            usedPercent: usedPercent,
-            windowMinutes: Self.requestWindowMinutes,
-            resetsAt: Self.nextRequestReset(after: self.updatedAt),
-            resetDescription: Self.formatRequestsLeft(self.usableRequests))
-
         let creditsDetail = Self.formatCredits(self.credits)
-        let secondary = RateWindow(
+        let creditsWindow = RateWindow(
             // Crof returns a balance but no credit cap, so the bar only indicates present vs. exhausted credits.
             usedPercent: self.credits > 0 ? 0 : 100,
             windowMinutes: nil,
             resetsAt: nil,
             resetDescription: creditsDetail)
+        let windows: (primary: RateWindow, secondary: RateWindow?)
+        if let requestsPlan, let usableRequests {
+            let usedPercent: Double
+            if requestsPlan > 0 {
+                let usableRequests = max(0, min(requestsPlan, usableRequests))
+                let remainingPercent = floor(usableRequests / requestsPlan * 100).clamped(to: 0...100)
+                usedPercent = 100 - remainingPercent
+            } else {
+                usedPercent = 100
+            }
+            windows = (
+                RateWindow(
+                    usedPercent: usedPercent,
+                    windowMinutes: Self.requestWindowMinutes,
+                    resetsAt: Self.nextRequestReset(after: self.updatedAt),
+                    resetDescription: Self.formatRequestsLeft(usableRequests)),
+                creditsWindow)
+        } else {
+            windows = (creditsWindow, nil)
+        }
 
         return UsageSnapshot(
-            primary: primary,
-            secondary: secondary,
+            primary: windows.primary,
+            secondary: windows.secondary,
             providerCost: nil,
             updatedAt: self.updatedAt,
             identity: ProviderIdentitySnapshot(

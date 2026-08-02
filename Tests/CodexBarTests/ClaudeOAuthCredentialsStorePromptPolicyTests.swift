@@ -10,6 +10,36 @@ struct ClaudeOAuthCredentialsStorePromptPolicyTests {
         _ = notify
     }
 
+    @Test
+    func `safety does not inherit the application prompt preference`() throws {
+        guard ProcessInfo.processInfo.environment[KeychainTestSafety.allowAccessEnvironmentKey] != "1" else {
+            return
+        }
+
+        #expect(ClaudeOAuthKeychainPromptPreference.currentTaskOverrideForTesting == nil)
+
+        let domain = "ClaudeOAuthPromptPolicyIsolationTests.\(UUID().uuidString)"
+        let key = "claudeOAuthKeychainPromptMode"
+        let defaults = try #require(UserDefaults(suiteName: domain))
+        defer {
+            defaults.removePersistentDomain(forName: domain)
+            defaults.synchronize()
+        }
+        defaults.set(ClaudeOAuthKeychainPromptMode.never.rawValue, forKey: key)
+        defaults.synchronize()
+
+        ClaudeOAuthKeychainPromptPreference.withImplicitApplicationUserDefaultsOverrideForTesting(defaults) {
+            // Isolation must ignore a conflicting value in the implicit application defaults domain.
+            #expect(ClaudeOAuthKeychainPromptPreference.storedMode() == .onlyOnUserAction)
+            #expect(ClaudeOAuthKeychainPromptPreference.storedMode(userDefaults: defaults) == .never)
+
+            let explicit = ClaudeOAuthKeychainPromptPreference.withTaskOverrideForTesting(.always) {
+                ClaudeOAuthKeychainPromptPreference.storedMode()
+            }
+            #expect(explicit == .always)
+        }
+    }
+
     private func makeCredentialsData(accessToken: String, expiresAt: Date, refreshToken: String? = nil) -> Data {
         let millis = Int(expiresAt.timeIntervalSince1970 * 1000)
         let refreshField: String = {

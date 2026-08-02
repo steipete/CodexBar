@@ -204,6 +204,29 @@ struct SpendDashboardDateTruthTests {
     }
 
     @Test
+    func `preferred currency combines convertible dashboard groups and preserves unavailable sources`() throws {
+        let eurRate = try #require(CurrencyExchange.shared.rate(for: "EUR"))
+        let model = SpendDashboardModel.build(
+            inputs: [
+                Self.input(id: "usd", provider: .claude, currency: "USD", cost: 2),
+                Self.input(id: "eur", provider: .codex, currency: "EUR", cost: 3),
+                Self.input(id: "chf", provider: .mistral, currency: "CHF", cost: 5),
+            ],
+            requestedDays: 30,
+            now: Self.now,
+            calendar: Self.calendar,
+            preferredCurrencyCode: "USD")
+
+        #expect(model.groups.map(\.currencyCode) == ["CHF", "USD"])
+        let chf = try #require(model.groups.first(where: { $0.currencyCode == "CHF" }))
+        let usd = try #require(model.groups.first(where: { $0.currencyCode == "USD" }))
+        #expect(chf.totalCost == 5)
+        #expect(usd.providers.map(\.id).sorted() == ["eur", "usd"])
+        #expect(abs((usd.totalCost ?? 0) - (2 + 3 / eurRate)) < 1e-9)
+        #expect(abs((usd.dailyPoints.map(\.cost).reduce(0, +)) - (2 + 3 / eurRate)) < 1e-9)
+    }
+
+    @Test
     func `date with a valid prefix and trailing junk fails closed`() throws {
         let snapshot = Self.snapshot(currency: "USD", entries: [
             Self.entry(day: "2026-07-16junk", cost: 2, tokens: 20),

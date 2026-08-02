@@ -48,7 +48,8 @@ struct WidgetSnapshotTests {
                 last30DaysLabel: "This month"),
             dailyUsage: [
                 WidgetSnapshot.DailyUsagePoint(dayKey: "2025-12-20", totalTokens: 1200, costUSD: 12.3),
-            ])
+            ],
+            quotaOwnerKey: "claude-account-cache-key")
 
         let snapshot = WidgetSnapshot(
             entries: [entry],
@@ -71,6 +72,7 @@ struct WidgetSnapshotTests {
         #expect(decoded.entries.first?.tokenUsage?.sessionLabel == "Latest billing day")
         #expect(decoded.entries.first?.tokenUsage?.last30DaysLabel == "This month")
         #expect(decoded.entries.first?.usageRows?.map(\.id) == ["session", "weekly"])
+        #expect(decoded.entries.first?.quotaOwnerKey == "claude-account-cache-key")
         #expect(decoded.enabledProviders == [.codex, .claude])
         #expect(decoded.usageBarsShowUsed)
     }
@@ -188,6 +190,7 @@ struct WidgetSnapshotTests {
 
         #expect(decoded.entries.count == 1)
         #expect(decoded.entries.first?.usageRows == nil)
+        #expect(decoded.entries.first?.quotaOwnerKey == nil)
         #expect(decoded.entries.first?.secondary?.usedPercent == 25)
         #expect(!decoded.usageBarsShowUsed)
     }

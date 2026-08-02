@@ -84,6 +84,159 @@ struct OllamaUsageFetcherRetryMappingTests {
         #expect(strategy.shouldFallback(on: OllamaUsageError.parseFailed("missing"), context: context))
     }
 
+    @Test
+    func `automatic web fetch reuses validated cached cookie without browser import`() async throws {
+        let cached = CookieHeaderCache.Entry(
+            cookieHeader: "session=cached",
+            storedAt: Date(timeIntervalSince1970: 100),
+            sourceLabel: "Chrome")
+        var events: [String] = []
+
+        let snapshot = try await OllamaStatusFetchStrategy.fetchAutomatic(
+            cached: cached,
+            fetchCached: { entry in
+                events.append("cache:\(entry.sourceLabel)")
+                return Self.makeSnapshot(sessionUsedPercent: 12)
+            },
+            fetchBrowser: {
+                events.append("browser")
+                return OllamaUsageFetcher.ResolvedCookieFetch(
+                    snapshot: Self.makeSnapshot(sessionUsedPercent: 99),
+                    cookieHeader: "session=browser",
+                    sourceLabel: "Browser")
+            },
+            clearCached: { _ in events.append("clear") },
+            storeResolved: { _ in events.append("store") })
+
+        #expect(snapshot.sessionUsedPercent == 12)
+        #expect(events == ["cache:Chrome"])
+    }
+
+    @Test
+    func `automatic web fetch keeps cached cookie on offline failure`() async {
+        let cached = CookieHeaderCache.Entry(
+            cookieHeader: "session=cached",
+            storedAt: Date(timeIntervalSince1970: 100),
+            sourceLabel: "Chrome")
+        var events: [String] = []
+
+        await #expect(throws: URLError.self) {
+            _ = try await OllamaStatusFetchStrategy.fetchAutomatic(
+                cached: cached,
+                fetchCached: { _ in throw URLError(.notConnectedToInternet) },
+                fetchBrowser: {
+                    events.append("browser")
+                    return OllamaUsageFetcher.ResolvedCookieFetch(
+                        snapshot: Self.makeSnapshot(sessionUsedPercent: 99),
+                        cookieHeader: "session=browser",
+                        sourceLabel: "Browser")
+                },
+                clearCached: { _ in events.append("clear") },
+                storeResolved: { _ in events.append("store") })
+        }
+
+        #expect(events.isEmpty)
+    }
+
+    @Test
+    func `automatic web fetch replaces cached cookie only after authentication failure`() async throws {
+        let cached = CookieHeaderCache.Entry(
+            cookieHeader: "session=expired",
+            storedAt: Date(timeIntervalSince1970: 100),
+            sourceLabel: "Chrome")
+        var events: [String] = []
+
+        let snapshot = try await OllamaStatusFetchStrategy.fetchAutomatic(
+            cached: cached,
+            fetchCached: { _ in
+                events.append("cache")
+                throw OllamaUsageError.invalidCredentials
+            },
+            fetchBrowser: {
+                events.append("browser")
+                return OllamaUsageFetcher.ResolvedCookieFetch(
+                    snapshot: Self.makeSnapshot(sessionUsedPercent: 34),
+                    cookieHeader: "session=fresh",
+                    sourceLabel: "Brave")
+            },
+            clearCached: { entry in events.append("clear:\(entry.sourceLabel)") },
+            storeResolved: { resolved in events.append("store:\(resolved.sourceLabel)") })
+
+        #expect(snapshot.sessionUsedPercent == 34)
+        #expect(events == ["cache", "clear:Chrome", "browser", "store:Brave"])
+    }
+
+    @Test
+    func `cached cookie invalidation excludes network and parse errors`() {
+        #expect(OllamaStatusFetchStrategy.shouldInvalidateCachedCookie(
+            after: OllamaUsageError.invalidCredentials))
+        #expect(OllamaStatusFetchStrategy.shouldInvalidateCachedCookie(
+            after: OllamaUsageError.notLoggedIn))
+        #expect(!OllamaStatusFetchStrategy.shouldInvalidateCachedCookie(
+            after: URLError(.notConnectedToInternet)))
+        #expect(!OllamaStatusFetchStrategy.shouldInvalidateCachedCookie(
+            after: OllamaUsageError.parseFailed("changed page")))
+    }
+
+    @Test
+    func `cached session missing usage tries another browser without clearing cache`() async throws {
+        let cached = CookieHeaderCache.Entry(
+            cookieHeader: "session=cached",
+            storedAt: Date(timeIntervalSince1970: 100),
+            sourceLabel: "Chrome")
+        var events: [String] = []
+
+        let snapshot = try await OllamaStatusFetchStrategy.fetchAutomatic(
+            cached: cached,
+            fetchCached: { _ in
+                events.append("cache")
+                throw OllamaUsageError.parseFailed("Missing Ollama usage data.")
+            },
+            fetchBrowser: {
+                events.append("browser")
+                return OllamaUsageFetcher.ResolvedCookieFetch(
+                    snapshot: Self.makeSnapshot(sessionUsedPercent: 56),
+                    cookieHeader: "session=browser",
+                    sourceLabel: "Brave")
+            },
+            clearCached: { _ in events.append("clear") },
+            storeResolved: { resolved in events.append("store:\(resolved.sourceLabel)") })
+
+        #expect(snapshot.sessionUsedPercent == 56)
+        #expect(events == ["cache", "browser", "store:Brave"])
+    }
+
+    @Test
+    func `failed browser fallback preserves cached missing usage error`() async {
+        let cached = CookieHeaderCache.Entry(
+            cookieHeader: "session=cached",
+            storedAt: Date(timeIntervalSince1970: 100),
+            sourceLabel: "Chrome")
+        var events: [String] = []
+
+        do {
+            _ = try await OllamaStatusFetchStrategy.fetchAutomatic(
+                cached: cached,
+                fetchCached: { _ in
+                    events.append("cache")
+                    throw OllamaUsageError.parseFailed("Missing Ollama usage data.")
+                },
+                fetchBrowser: {
+                    events.append("browser")
+                    throw OllamaUsageError.noSessionCookie
+                },
+                clearCached: { _ in events.append("clear") },
+                storeResolved: { _ in events.append("store") })
+            Issue.record("Expected cached parse failure")
+        } catch let OllamaUsageError.parseFailed(message) {
+            #expect(message == "Missing Ollama usage data.")
+        } catch {
+            Issue.record("Expected cached parse failure, got \(error)")
+        }
+
+        #expect(events == ["cache", "browser"])
+    }
+
     @Test(arguments: [401, 403])
     func `api fetch sends bearer token and rejects unauthorized key`(statusCode: Int) async throws {
         let url = try #require(URL(string: "https://ollama.com/api/web_search"))
@@ -470,6 +623,52 @@ struct OllamaUsageFetcherRetryMappingTests {
     }
 
     @Test
+    func `token account header survives the manual strategy boundary`() {
+        let header = "__Secure-session=my-cookie:session=abc"
+        let context = self.makeContext(
+            sourceMode: .auto,
+            settings: ProviderSettingsSnapshot.make(
+                ollama: .init(cookieSource: .manual, manualCookieHeader: header)))
+
+        #expect(OllamaStatusFetchStrategy.manualCookieHeader(from: context) == header)
+    }
+
+    @Test
+    func `token account session value reaches outgoing cookie header`() async throws {
+        defer { OllamaRetryMappingStubURLProtocol.handler = nil }
+
+        let account = ProviderTokenAccount(
+            id: UUID(),
+            label: "Primary",
+            token: "account-token",
+            addedAt: 0,
+            lastUsed: nil)
+        let settings = ProviderCookieSettingsResolver.resolve(
+            provider: .ollama,
+            configuredSource: .auto,
+            configuredHeader: nil,
+            selectedAccount: account)
+        OllamaRetryMappingStubURLProtocol.handler = { request in
+            #expect(request.value(forHTTPHeaderField: "Cookie") == "__Secure-session=account-token")
+            let url = try #require(request.url)
+            let body = """
+            <div>
+              <span>Session usage</span>
+              <span>1.2% used</span>
+              <span>Weekly usage</span>
+              <span>3.4% used</span>
+            </div>
+            """
+            return Self.makeResponse(url: url, body: body, statusCode: 200)
+        }
+
+        let fetcher = self.makeCookieFetcher()
+        _ = try await fetcher.fetch(
+            cookieHeaderOverride: settings.manualCookieHeader,
+            manualCookieMode: true)
+    }
+
+    @Test
     func `temporary session is finished after a transport failure`() async {
         defer { OllamaRetryMappingStubURLProtocol.handler = nil }
 
@@ -515,6 +714,17 @@ struct OllamaUsageFetcherRetryMappingTests {
             httpVersion: "HTTP/1.1",
             headerFields: ["Content-Type": "text/html"])!
         return (response, Data(body.utf8))
+    }
+
+    private static func makeSnapshot(sessionUsedPercent: Double) -> OllamaUsageSnapshot {
+        OllamaUsageSnapshot(
+            planName: nil,
+            accountEmail: nil,
+            sessionUsedPercent: sessionUsedPercent,
+            weeklyUsedPercent: nil,
+            sessionResetsAt: nil,
+            weeklyResetsAt: nil,
+            updatedAt: Date(timeIntervalSince1970: 200))
     }
 }
 

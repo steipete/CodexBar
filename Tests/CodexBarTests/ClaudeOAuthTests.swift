@@ -115,6 +115,42 @@ struct ClaudeOAuthTests {
     }
 
     @Test
+    func `O auth profile request decodes nested account identity`() async throws {
+        let transport = ProviderHTTPTransportStub { request in
+            let url = try #require(request.url)
+            let response = try #require(HTTPURLResponse(
+                url: url,
+                statusCode: 200,
+                httpVersion: "HTTP/1.1",
+                headerFields: ["Content-Type": "application/json"]))
+            let body = """
+            {
+              "account": {
+                "uuid": "account-123",
+                "email": "user@example.com"
+              },
+              "organization": {
+                "uuid": "org-123"
+              }
+            }
+            """
+            return (Data(body.utf8), response)
+        }
+
+        let profile = try await ClaudeOAuthUsageFetcher.fetchProfile(
+            accessToken: "oauth-token",
+            transport: transport)
+
+        #expect(profile.emailAddress == "user@example.com")
+        #expect(profile.organizationUuid == "org-123")
+        let request = try #require(await transport.requests().first)
+        #expect(request.url?.absoluteString == "https://api.anthropic.com/api/oauth/profile")
+        #expect(request.httpMethod == "GET")
+        #expect(request.value(forHTTPHeaderField: "Authorization") == "Bearer oauth-token")
+        #expect(request.value(forHTTPHeaderField: "Accept") == "application/json")
+    }
+
+    @Test
     func `maps O auth subscription type when rate limit tier is generic`() throws {
         let json = """
         {
@@ -181,6 +217,27 @@ struct ClaudeOAuthTests {
     }
 
     @Test
+    func `orders O auth scoped weekly windows before daily routines`() throws {
+        let json = """
+        {
+          "five_hour": { "utilization": 12.5, "resets_at": "2025-12-25T12:00:00.000Z" },
+          "seven_day": { "utilization": 30, "resets_at": "2025-12-31T00:00:00.000Z" },
+          "seven_day_routines": { "utilization": 18, "resets_at": "2026-01-01T00:00:00.000Z" },
+          "limits": [
+            {
+              "kind": "weekly_scoped", "group": "weekly", "percent": 29,
+              "resets_at": "2025-12-31T00:00:00.000Z",
+              "scope": { "model": { "id": null, "display_name": "Fable" }, "surface": null },
+              "is_active": false
+            }
+          ]
+        }
+        """
+        let snap = try ClaudeUsageFetcher._mapOAuthUsageForTesting(Data(json.utf8))
+        #expect(snap.extraRateWindows.map(\.title) == ["Fable only", "Daily Routines"])
+    }
+
+    @Test
     func `ignores weekly scoped limit without a model display name`() throws {
         let json = """
         {
@@ -214,7 +271,7 @@ struct ClaudeOAuthTests {
     }
 
     @Test
-    func `maps O auth null cowork as zero routines window`() throws {
+    func `omits routines window when O auth cowork is null`() throws {
         let json = """
         {
           "five_hour": { "utilization": 12.5, "resets_at": "2025-12-25T12:00:00.000Z" },
@@ -223,7 +280,7 @@ struct ClaudeOAuthTests {
         }
         """
         let snap = try ClaudeUsageFetcher._mapOAuthUsageForTesting(Data(json.utf8))
-        #expect(snap.extraRateWindows.first(where: { $0.id == "claude-routines" })?.window.usedPercent == 0)
+        #expect(snap.extraRateWindows.contains { $0.id == "claude-routines" } == false)
         #expect(snap.extraRateWindows.contains { $0.id == "claude-design" } == false)
     }
 
@@ -738,7 +795,7 @@ struct ClaudeOAuthTests {
     // MARK: - Scope-based strategy resolution
 
     @Test
-    func `prefers O auth when available`() {
+    func `app auto prefers available O auth over CLI`() {
         let strategy = ClaudeProviderDescriptor.resolveUsageStrategy(
             selectedDataSource: .auto,
             webExtrasEnabled: false,
@@ -760,14 +817,14 @@ struct ClaudeOAuthTests {
     }
 
     @Test
-    func `falls back to web when O auth missing and CLI missing`() {
+    func `app auto uses available O auth when CLI is missing`() {
         let strategy = ClaudeProviderDescriptor.resolveUsageStrategy(
             selectedDataSource: .auto,
             webExtrasEnabled: false,
             hasWebSession: true,
             hasCLI: false,
-            hasOAuthCredentials: false)
-        #expect(strategy.dataSource == .web)
+            hasOAuthCredentials: true)
+        #expect(strategy.dataSource == .oauth)
     }
 
     @Test

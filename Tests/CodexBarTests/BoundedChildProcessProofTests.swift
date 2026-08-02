@@ -35,7 +35,7 @@ struct BoundedChildProcessProofTests {
             _ = try runner.run(
                 binary: scriptURL.path,
                 send: "",
-                options: .init(timeout: 10, baseEnvironment: environment, initialDelay: 0))
+                options: .init(timeout: 60, baseEnvironment: environment, initialDelay: 0))
             Issue.record("Expected the synthetic child to exceed the PTY output limit")
         } catch TTYCommandRunner.Error.outputTooLarge {
             // Expected: the production runner propagated the bounded-output error.

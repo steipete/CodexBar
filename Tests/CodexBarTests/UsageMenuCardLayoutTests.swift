@@ -9,6 +9,11 @@ struct UsageMenuCardLayoutTests {
     private static let heightTolerance: CGFloat = 1
 
     @Test
+    func `overview groups provider content without section dividers`() {
+        #expect(OverviewMenuCardRowView.showsSectionDividers == false)
+    }
+
+    @Test
     func `header only menu card keeps comfortable padding`() {
         let model = Self.model()
         let width: CGFloat = 296

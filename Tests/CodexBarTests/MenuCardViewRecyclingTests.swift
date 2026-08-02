@@ -91,7 +91,7 @@ extension StatusMenuTests {
 
         #expect(item.isEnabled)
         #expect(controller.highlightedMenuItems[ObjectIdentifier(menu)] == nil)
-        guard let hosting = item.view as? MenuCardItemHostingView<MenuCardSectionContainerView<Text>>
+        guard let hosting = item.view as? ErasedMenuCardHostingView
         else {
             Issue.record("expected a card hosting view")
             return
@@ -426,7 +426,7 @@ extension StatusMenuTests {
         let liveItem = controller.makeMenuCardItem(Text("before"), id: "menuCard", width: 300, onClick: {})
         menu.addItem(liveItem)
         controller.menu(menu, willHighlight: liveItem)
-        guard let hosting = liveItem.view as? MenuCardItemHostingView<MenuCardSectionContainerView<Text>>
+        guard let hosting = liveItem.view as? ErasedMenuCardHostingView
         else {
             Issue.record("expected a card hosting view")
             return
@@ -468,7 +468,7 @@ extension StatusMenuTests {
         let liveItem = controller.makeMenuCardItem(Text("before"), id: "menuCard", width: 300, onClick: {})
         menu.addItem(liveItem)
         controller.menu(menu, willHighlight: liveItem)
-        guard let liveView = liveItem.view as? MenuCardItemHostingView<MenuCardSectionContainerView<Text>>
+        guard let liveView = liveItem.view as? ErasedMenuCardHostingView
         else {
             Issue.record("expected a card hosting view")
             return
@@ -484,7 +484,7 @@ extension StatusMenuTests {
         #expect(menu.items[0] === liveItem)
         #expect(!liveItem.isEnabled)
         #expect(controller.highlightedMenuItems[ObjectIdentifier(menu)] == nil)
-        guard let rebuiltView = liveItem.view as? MenuCardItemHostingView<MenuCardSectionContainerView<Text>>
+        guard let rebuiltView = liveItem.view as? ErasedMenuCardHostingView
         else {
             Issue.record("expected the rebuilt card hosting view")
             return
@@ -609,7 +609,7 @@ extension StatusMenuTests {
         let menu = NSMenu()
         let original = controller.makeMenuCardItem(Text("before"), id: "menuCard", width: 300)
         menu.addItem(original)
-        guard let originalView = original.view as? MenuCardItemHostingView<MenuCardSectionContainerView<Text>>
+        guard let originalView = original.view as? ErasedMenuCardHostingView
         else {
             Issue.record("expected a card hosting view")
             return
@@ -620,7 +620,7 @@ extension StatusMenuTests {
         let rebuilt = controller.makeMenuCardItem(Text("after"), id: "menuCard", width: 300)
 
         #expect(rebuilt.view === originalView)
-        guard let rebuiltView = rebuilt.view as? MenuCardItemHostingView<MenuCardSectionContainerView<Text>>
+        guard let rebuiltView = rebuilt.view as? ErasedMenuCardHostingView
         else {
             Issue.record("expected the recycled hosting view")
             return
@@ -633,21 +633,32 @@ extension StatusMenuTests {
 
     @Test
     func `recycled card clears button role when click action is removed`() {
-        let highlightState = MenuCardHighlightState()
-        let hosting = MenuCardItemHostingView(
-            rootView: Text("clickable"),
-            highlightState: highlightState,
+        let clickable = MenuCardRowPayload(
+            content: AnyView(Text("clickable")),
+            showsSubmenuIndicator: false,
+            submenuIndicatorAlignment: .trailing,
+            submenuIndicatorTopPadding: 0,
             allowsMenuHighlight: true,
+            containsInteractiveControls: false,
+            usesGPUSelection: false,
             onClick: {})
+        let hosting = MenuRowContainerView(payload: clickable, refreshMonitor: nil)
 
         #expect(hosting.accessibilityRole() == .button)
 
-        hosting.prepareForReuse(
-            rootView: Text("informational"),
-            allowsMenuHighlight: false,
-            onClick: nil)
+        hosting.replant(
+            MenuCardRowPayload(
+                content: AnyView(Text("informational")),
+                showsSubmenuIndicator: false,
+                submenuIndicatorAlignment: .trailing,
+                submenuIndicatorTopPadding: 0,
+                allowsMenuHighlight: false,
+                containsInteractiveControls: false,
+                usesGPUSelection: false,
+                onClick: nil),
+            refreshMonitor: nil)
 
-        #expect(hosting.accessibilityRole() == .group)
+        #expect(hosting.accessibilityRole() != .button)
     }
 
     @Test
@@ -667,7 +678,7 @@ extension StatusMenuTests {
         let item = controller.makeMenuCardItem(Text("card"), id: "menuCard", width: 300, onClick: {})
         menu.addItem(item)
         controller.menu(menu, willHighlight: item)
-        guard let hosting = item.view as? MenuCardItemHostingView<MenuCardSectionContainerView<Text>>
+        guard let hosting = item.view as? ErasedMenuCardHostingView
         else {
             Issue.record("expected a card hosting view")
             return
@@ -687,7 +698,7 @@ extension StatusMenuTests {
     }
 
     @Test
-    func `same id with different content type builds a fresh view`() {
+    func `same id with different content type reuses the erased hosting view`() {
         StatusItemController.setMenuRefreshEnabledForTesting(false)
         let previousRendering = StatusItemController.menuCardRenderingEnabled
         StatusItemController.menuCardRenderingEnabled = true
@@ -708,9 +719,47 @@ extension StatusMenuTests {
         defer { controller.clearMenuCardViewRecyclePool() }
         let rebuilt = controller.makeMenuCardItem(Image(systemName: "clock"), id: "menuCard", width: 300)
 
+        // Row content is erased to AnyView, so hosting views recycle across
+        // content types: the SwiftUI payload is replanted in place instead of
+        // detaching `item.view` (the tab-switch placeholder-flash mechanism).
         #expect(rebuilt.view != nil)
-        #expect(rebuilt.view !== originalView)
-        // The incompatible pool entry is consumed rather than left behind.
+        #expect(rebuilt.view === originalView)
+        #expect(controller.menuCardViewRecyclePool.isEmpty)
+    }
+
+    @Test
+    func `gpu and standard rows share the recycling pool`() {
+        StatusItemController.setMenuRefreshEnabledForTesting(false)
+        let previousRendering = StatusItemController.menuCardRenderingEnabled
+        StatusItemController.menuCardRenderingEnabled = true
+        defer { StatusItemController.menuCardRenderingEnabled = previousRendering }
+
+        let settings = self.makeSettings()
+        settings.statusChecksEnabled = false
+        let controller = self.makeRecyclingController(settings: settings)
+        defer { controller.releaseStatusItemsForTesting() }
+
+        let menu = NSMenu()
+        let overview = controller.makeMenuCardItem(
+            Text("Overview"),
+            id: "overview",
+            width: 300,
+            submenu: NSMenu(),
+            usesGPUSelection: true,
+            onClick: {})
+        menu.addItem(overview)
+        guard let overviewContainer = overview.view as? MenuRowContainerView else {
+            Issue.record("expected a shared menu row container")
+            return
+        }
+
+        controller.harvestRecyclableMenuCardViews(in: menu, fromIndex: 0, displacedSelection: nil)
+        defer { controller.clearMenuCardViewRecyclePool() }
+        let provider = controller.makeMenuCardItem(Text("Provider"), id: "provider", width: 300)
+
+        #expect(provider.view === overviewContainer)
+        #expect(!overviewContainer.usesGPUSelectionForTesting)
+        #expect(!overviewContainer.hasGPUSelectionLayerForTesting)
         #expect(controller.menuCardViewRecyclePool.isEmpty)
     }
 
@@ -736,9 +785,9 @@ extension StatusMenuTests {
             onClick: {})
         menu.addItem(item)
 
-        guard let gpuView = item.view as? GPUSelectionHostingView<Text>
+        guard let gpuView = item.view as? MenuRowContainerView
         else {
-            Issue.record("expected a GPU selection hosting view")
+            Issue.record("expected a shared menu row container")
             return
         }
 
@@ -751,5 +800,54 @@ extension StatusMenuTests {
         controller.menu(menu, willHighlight: nil)
         #expect(!gpuView.isHighlightedForTesting)
         #expect(!gpuView.swiftUIHighlightStateIsHighlightedForTesting)
+    }
+
+    @Test
+    func `overview and provider rows swap payloads without detaching their containers`() {
+        StatusItemController.setMenuRefreshEnabledForTesting(false)
+        let previousRendering = StatusItemController.menuCardRenderingEnabled
+        StatusItemController.menuCardRenderingEnabled = true
+        defer { StatusItemController.menuCardRenderingEnabled = previousRendering }
+
+        let settings = self.makeSettings()
+        settings.statusChecksEnabled = false
+        let controller = self.makeRecyclingController(settings: settings)
+        defer { controller.releaseStatusItemsForTesting() }
+
+        let overviewItem = controller.makeMenuCardItem(
+            Text("Overview"),
+            id: "overview",
+            width: 300,
+            submenu: NSMenu(),
+            usesGPUSelection: true,
+            onClick: {})
+        let providerItem = controller.makeMenuCardItem(
+            Text("Provider"),
+            id: "provider",
+            width: 300,
+            onClick: {})
+        let menu = NSMenu()
+        menu.addItem(overviewItem)
+        guard let attachedContainer = overviewItem.view as? MenuRowContainerView,
+              let cachedContainer = providerItem.view as? MenuRowContainerView
+        else {
+            Issue.record("expected shared menu row containers")
+            return
+        }
+
+        let displaced = controller.replaceMenuContentKeepingRowsVisible(
+            menu,
+            fromIndex: 0,
+            with: [providerItem])
+
+        #expect(menu.items[0] === overviewItem)
+        #expect(menu.items[0].view === attachedContainer)
+        #expect(!attachedContainer.usesGPUSelectionForTesting)
+        #expect(!attachedContainer.hasGPUSelectionLayerForTesting)
+        #expect(displaced.count == 1)
+        #expect(displaced[0] === providerItem)
+        #expect(displaced[0].view === cachedContainer)
+        #expect(cachedContainer.usesGPUSelectionForTesting)
+        #expect(cachedContainer.hasGPUSelectionLayerForTesting)
     }
 }

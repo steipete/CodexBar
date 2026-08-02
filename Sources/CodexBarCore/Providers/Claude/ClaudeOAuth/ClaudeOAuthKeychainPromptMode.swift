@@ -30,6 +30,7 @@ public enum ClaudeOAuthKeychainPromptPreference {
 
     @TaskLocal private static var taskOverride: ClaudeOAuthKeychainPromptMode?
     @TaskLocal private static var taskApplicationUserDefaultsOverride: UserDefaultsBox?
+    @TaskLocal private static var taskImplicitApplicationUserDefaultsOverride: UserDefaultsBox?
     #endif
 
     public static func current(userDefaults: UserDefaults? = nil) -> ClaudeOAuthKeychainPromptMode {
@@ -40,6 +41,14 @@ public enum ClaudeOAuthKeychainPromptPreference {
         #if DEBUG
         if let taskOverride {
             return taskOverride
+        }
+        // Unit tests must not inherit the developer's persisted app preference. Tests that exercise a specific
+        // policy use a task or UserDefaults override explicitly.
+        if userDefaults == nil,
+           self.taskApplicationUserDefaultsOverride == nil,
+           KeychainTestSafety.shouldIsolateUserStateUnderTests()
+        {
+            return .onlyOnUserAction
         }
         #endif
         let userDefaults = userDefaults ?? self.applicationUserDefaults
@@ -83,6 +92,9 @@ public enum ClaudeOAuthKeychainPromptPreference {
         #if DEBUG
         if let taskApplicationUserDefaultsOverride {
             return taskApplicationUserDefaultsOverride.value
+        }
+        if let taskImplicitApplicationUserDefaultsOverride {
+            return taskImplicitApplicationUserDefaultsOverride.value
         }
         #endif
         return UserDefaults(suiteName: self.applicationDefaultsDomain) ?? .standard
@@ -145,6 +157,7 @@ public enum ClaudeOAuthKeychainPromptPreference {
 
     public static func withTaskOverrideForTesting<T>(
         _ mode: ClaudeOAuthKeychainPromptMode?,
+        isolation _: isolated (any Actor)? = #isolation,
         operation: () async throws -> T) async rethrows -> T
     {
         try await self.$taskOverride.withValue(mode) {
@@ -171,6 +184,15 @@ public enum ClaudeOAuthKeychainPromptPreference {
     {
         try await self.$taskApplicationUserDefaultsOverride.withValue(userDefaults.map(UserDefaultsBox.init)) {
             try await operation()
+        }
+    }
+
+    static func withImplicitApplicationUserDefaultsOverrideForTesting<T>(
+        _ userDefaults: UserDefaults?,
+        operation: () throws -> T) rethrows -> T
+    {
+        try self.$taskImplicitApplicationUserDefaultsOverride.withValue(userDefaults.map(UserDefaultsBox.init)) {
+            try operation()
         }
     }
     #endif

@@ -42,6 +42,8 @@ public struct GrokUsageSnapshot: Sendable {
         } else if let webBilling,
                   let percent = webBilling.usedPercent
         {
+            // Do not infer the full quota cadence from the remaining time until reset; a
+            // monthly window near its reset would otherwise be misclassified as weekly.
             primary = RateWindow(
                 usedPercent: percent,
                 windowMinutes: nil,

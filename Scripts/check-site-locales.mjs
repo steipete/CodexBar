@@ -59,7 +59,11 @@ assertEqual(
   localeCatalog.filter((locale) => locale.direction === "rtl").map((locale) => locale.code),
   ["ar", "fa"],
   "RTL locale catalog");
-const appCatalogCodes = [...appLanguageSource.matchAll(/case \w+ = "([^"]+)"/g)]
+const appLanguageEnumBody = appLanguageSource.match(
+  /enum AppLanguage:[^{]+\{([\s\S]*?)\n\}/,
+)?.[1];
+assert(appLanguageEnumBody, "could not locate AppLanguage cases");
+const appCatalogCodes = [...appLanguageEnumBody.matchAll(/case \w+ = "([^"]+)"/g)]
   .map((match) => match[1])
   .filter(Boolean)
   .map((code) => ({ "zh-Hans": "zh-CN", "zh-Hant": "zh-TW", ja: "ja-JP" })[code] ?? code);
