@@ -115,7 +115,7 @@ struct OpenCodeGoLocalUsageReaderTests {
     }
 
     @Test
-    func `reads idle WAL history after OpenCode removes sidecars`() throws {
+    func `reads idle WAL history without normal SQLite read or sidecars`() throws {
         let env = try Self.makeEnvironment(rootName: "OpenCode Go WAL #\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: env.root) }
 
@@ -128,18 +128,23 @@ struct OpenCodeGoLocalUsageReaderTests {
         try Self.checkpointWAL(at: env.databaseURL)
         try Self.removeWALSidecars(at: env.databaseURL)
 
-        let reader = OpenCodeGoLocalUsageReader(authURL: env.authURL, databaseURL: env.databaseURL)
+        let normalReadCounter = SQLiteNormalReadCounter()
+        let reader = OpenCodeGoLocalUsageReader(
+            authURL: env.authURL,
+            databaseURL: env.databaseURL,
+            beforeNormalRead: { normalReadCounter.increment() })
         let snapshot = try reader.fetch(now: Date(timeIntervalSince1970: 1_772_798_400))
 
         #expect(snapshot.rollingUsagePercent == 25)
         #expect(snapshot.weeklyUsagePercent == 10)
         #expect(snapshot.monthlyUsagePercent == 5)
+        #expect(normalReadCounter.value == 0)
         #expect(!FileManager.default.fileExists(atPath: env.databaseURL.path + "-wal"))
         #expect(!FileManager.default.fileExists(atPath: env.databaseURL.path + "-shm"))
     }
 
     @Test
-    func `immutable fallback rejects a non-file database URL`() throws {
+    func `local history rejects a non-file database URL before filesystem access`() throws {
         let env = try Self.makeEnvironment()
         defer { try? FileManager.default.removeItem(at: env.root) }
 
@@ -155,7 +160,7 @@ struct OpenCodeGoLocalUsageReaderTests {
         let nonFileDatabaseURL = try #require(URL(string: "https://example.invalid\(env.databaseURL.path)"))
         let reader = OpenCodeGoLocalUsageReader(authURL: env.authURL, databaseURL: nonFileDatabaseURL)
 
-        #expect(throws: OpenCodeGoLocalUsageError.sqliteFailed("could not construct immutable database URI")) {
+        #expect(throws: OpenCodeGoLocalUsageError.historyUnavailable("database URL must be a file URL")) {
             _ = try reader.fetch(now: Date(timeIntervalSince1970: 1_772_798_400))
         }
         #expect(!FileManager.default.fileExists(atPath: env.databaseURL.path + "-wal"))
@@ -208,17 +213,21 @@ struct OpenCodeGoLocalUsageReaderTests {
 
         let writer = SQLiteWALWriter()
         defer { writer.close() }
+        let normalReadCounter = SQLiteNormalReadCounter()
         let databaseURL = env.databaseURL
         let liveCreatedMs = Self.ms("2026-03-06T11:00:00.000Z")
         let reader = OpenCodeGoLocalUsageReader(
             authURL: env.authURL,
             databaseURL: databaseURL,
             beforeNormalVerification: {
+                #expect(normalReadCounter.value == 0)
                 try writer.openAndInsert(databaseURL: databaseURL, createdMs: liveCreatedMs, cost: 3.0)
-            })
+            },
+            beforeNormalRead: { normalReadCounter.increment() })
         let snapshot = try reader.fetch(now: Date(timeIntervalSince1970: 1_772_798_400))
 
         #expect(FileManager.default.fileExists(atPath: env.databaseURL.path + "-wal"))
+        #expect(normalReadCounter.value == 1)
         #expect(snapshot.rollingUsagePercent == 33.3)
         #expect(snapshot.weeklyUsagePercent == 13.3)
         #expect(snapshot.monthlyUsagePercent == 6.7)
@@ -527,6 +536,23 @@ struct OpenCodeGoLocalUsageReaderTests {
         case prepare
         case step
         case exec
+    }
+
+    private final class SQLiteNormalReadCounter: @unchecked Sendable {
+        private let lock = NSLock()
+        private var count = 0
+
+        func increment() {
+            self.lock.lock()
+            self.count += 1
+            self.lock.unlock()
+        }
+
+        var value: Int {
+            self.lock.lock()
+            defer { self.lock.unlock() }
+            return self.count
+        }
     }
 
     private final class SQLiteWALWriter: @unchecked Sendable {

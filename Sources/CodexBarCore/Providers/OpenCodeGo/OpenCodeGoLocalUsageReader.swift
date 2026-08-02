@@ -32,6 +32,7 @@ public struct OpenCodeGoLocalUsageReader: Sendable {
     private let authURL: URL
     private let databaseURL: URL
     #if DEBUG
+    private let beforeNormalRead: @Sendable () throws -> Void
     private let beforeNormalVerification: @Sendable () throws -> Void
     #endif
 
@@ -43,6 +44,7 @@ public struct OpenCodeGoLocalUsageReader: Sendable {
         self.authURL = openCodeDirectory.appendingPathComponent("auth.json", isDirectory: false)
         self.databaseURL = openCodeDirectory.appendingPathComponent("opencode.db", isDirectory: false)
         #if DEBUG
+        self.beforeNormalRead = {}
         self.beforeNormalVerification = {}
         #endif
     }
@@ -51,6 +53,7 @@ public struct OpenCodeGoLocalUsageReader: Sendable {
         self.authURL = authURL
         self.databaseURL = databaseURL
         #if DEBUG
+        self.beforeNormalRead = {}
         self.beforeNormalVerification = {}
         #endif
     }
@@ -59,15 +62,20 @@ public struct OpenCodeGoLocalUsageReader: Sendable {
     init(
         authURL: URL,
         databaseURL: URL,
-        beforeNormalVerification: @escaping @Sendable () throws -> Void)
+        beforeNormalVerification: @escaping @Sendable () throws -> Void = {},
+        beforeNormalRead: @escaping @Sendable () throws -> Void = {})
     {
         self.authURL = authURL
         self.databaseURL = databaseURL
+        self.beforeNormalRead = beforeNormalRead
         self.beforeNormalVerification = beforeNormalVerification
     }
     #endif
 
     public func fetch(now: Date = Date(), historyDays: Int = 30) throws -> OpenCodeGoUsageSnapshot {
+        guard self.databaseURL.isFileURL else {
+            throw OpenCodeGoLocalUsageError.historyUnavailable("database URL must be a file URL")
+        }
         let hasAuth = Self.hasAuthKey(at: self.authURL)
         guard FileManager.default.fileExists(atPath: self.databaseURL.path) else {
             if hasAuth {
@@ -87,6 +95,12 @@ public struct OpenCodeGoLocalUsageReader: Sendable {
     }
 
     private func readRows() throws -> [UsageRow] {
+        // A read-only WAL connection may create missing sidecars when the directory is writable. Select the
+        // immutable recovery path before opening SQLite only when the stable file state proves it is idle.
+        if let idleWALState = self.idleWALState() {
+            return try self.readIdleWALRows(state: idleWALState)
+        }
+
         do {
             return try self.readRows(readMode: .normal)
         } catch let failure as SQLiteReadFailure {
@@ -96,31 +110,40 @@ public struct OpenCodeGoLocalUsageReader: Sendable {
                 throw failure.usageError
             }
 
-            do {
-                let rows = try self.readRows(readMode: .immutable)
-                #if DEBUG
-                try self.beforeNormalVerification()
-                #endif
+            return try self.readIdleWALRows(state: idleWALState)
+        }
+    }
 
-                // immutable=1 skips SQLite's change detection. Prefer a normal read whenever a writer appeared,
-                // and only keep the immutable snapshot if the database is still demonstrably idle.
-                do {
-                    return try self.readRows(readMode: .normal)
-                } catch let verificationFailure as SQLiteReadFailure {
-                    guard verificationFailure.resultCode == SQLITE_CANTOPEN,
-                          self.isStillIdleWAL(state: idleWALState)
-                    else {
-                        throw verificationFailure.usageError
-                    }
-                }
-                return rows
-            } catch let immutableFailure as SQLiteReadFailure {
-                throw immutableFailure.usageError
-            }
+    private func readIdleWALRows(state idleWALState: IdleWALState) throws -> [UsageRow] {
+        let rows: [UsageRow]
+        do {
+            rows = try self.readRows(readMode: .immutable)
+        } catch let immutableFailure as SQLiteReadFailure {
+            throw immutableFailure.usageError
+        }
+
+        #if DEBUG
+        try self.beforeNormalVerification()
+        #endif
+
+        // immutable=1 skips SQLite's change detection. Keep it only while the state still proves no writer
+        // appeared; a changed state must be read normally so live WAL data remains authoritative.
+        guard !self.isStillIdleWAL(state: idleWALState) else {
+            return rows
+        }
+        do {
+            return try self.readRows(readMode: .normal)
+        } catch let verificationFailure as SQLiteReadFailure {
+            throw verificationFailure.usageError
         }
     }
 
     private func readRows(readMode: SQLiteReadMode) throws -> [UsageRow] {
+        #if DEBUG
+        if case .normal = readMode {
+            try self.beforeNormalRead()
+        }
+        #endif
         var db: OpaquePointer?
         let location = try self.databaseLocation(for: readMode)
         let openResult = sqlite3_open_v2(location, &db, self.openFlags(for: readMode), nil)
