@@ -579,6 +579,9 @@ extension UsageMenuCardView.Model {
         if provider == .grok {
             details.append(contentsOf: Self.grokCostHistoryDetailLines(snapshot: snapshot))
         }
+        if snapshot.historyIsIncomplete {
+            details.append(L("History incomplete: some large session logs were only partially scanned."))
+        }
         if provider != .groq {
             if let requestCount = snapshot.last30DaysRequests {
                 details

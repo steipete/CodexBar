@@ -484,6 +484,7 @@ public struct CostUsageFetcher: Sendable {
             historyDays: clampedHistoryDays,
             calendar: scanOptions.calendar,
             historyCoverageIsEstablished: scanResult.historyCoverageIsEstablished,
+            historyIsIncomplete: scanResult.historyIsIncomplete,
             projects: scanResult.projects,
             sessions: scanResult.sessions,
             updatedAt: scanResult.staleSnapshotUpdatedAt)
@@ -495,6 +496,7 @@ public struct CostUsageFetcher: Sendable {
         let sessions: [CostUsageSessionBreakdown]
         let staleSnapshotUpdatedAt: Date?
         let historyCoverageIsEstablished: Bool
+        let historyIsIncomplete: Bool
     }
 
     private struct LocalTokenScanOptions: Sendable {
@@ -532,7 +534,9 @@ public struct CostUsageFetcher: Sendable {
                     daily: bundle.daily,
                     projects: bundle.projects,
                     sessions: bundle.sessions,
-                    staleSnapshotUpdatedAt: nil)
+                    staleSnapshotUpdatedAt: nil,
+                    historyCoverageIsEstablished: true,
+                    historyIsIncomplete: bundle.historyIsIncomplete)
             }
 
             var daily = try CostUsageScanner.loadDailyReportCancellable(
@@ -619,7 +623,8 @@ public struct CostUsageFetcher: Sendable {
                 sessions: sessions,
                 staleSnapshotUpdatedAt: staleSnapshotUpdatedAt,
                 historyCoverageIsEstablished: provider != .codex
-                    || Self.codexHistoryCoverageIsEstablished(options: options.scanOptions))
+                    || Self.codexHistoryCoverageIsEstablished(options: options.scanOptions),
+                historyIsIncomplete: false)
         }
     }
 
@@ -1098,6 +1103,7 @@ public struct CostUsageFetcher: Sendable {
         meteredCostUSD: Double? = nil,
         credentialScopeFingerprint: String? = nil,
         historyLabel: String? = nil,
+        historyIsIncomplete: Bool = false,
         projects: [CostUsageProjectBreakdown] = [],
         sessions: [CostUsageSessionBreakdown] = [],
         updatedAt: Date? = nil) -> CostUsageTokenSnapshot
@@ -1136,6 +1142,7 @@ public struct CostUsageFetcher: Sendable {
             historyDays: historyDays,
             historyCoverageIsEstablished: historyCoverageIsEstablished,
             historyLabel: historyLabel,
+            historyIsIncomplete: historyIsIncomplete,
             meteredCostUSD: meteredCostUSD,
             credentialScopeFingerprint: credentialScopeFingerprint,
             daily: daily.data,

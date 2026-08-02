@@ -177,6 +177,10 @@ extension CodexBarCLI {
         }
 
         var extraLines: [String] = []
+        if snapshot.historyIsIncomplete {
+            extraLines.append(
+                "Note: history incomplete — some session logs were only partially scanned (size/budget limits).")
+        }
         if provider == .grok {
             let input = snapshot.daily.compactMap(\.inputTokens).reduce(0, +)
             let cache = snapshot.daily.compactMap(\.cacheReadTokens).reduce(0, +)
@@ -330,6 +334,7 @@ extension CodexBarCLI {
             last30DaysTokens: snapshot?.last30DaysTokens,
             last30DaysCostUSD: snapshot?.last30DaysCostUSD,
             meteredCostUSD: snapshot?.meteredCostUSD,
+            historyIsIncomplete: snapshot.map(\.historyIsIncomplete),
             daily: daily,
             projects: projects,
             totals: snapshot.flatMap(Self.costTotals(from:)),
@@ -563,6 +568,7 @@ struct CostPayload: Encodable, Sendable {
     let last30DaysTokens: Int?
     let last30DaysCostUSD: Double?
     let meteredCostUSD: Double?
+    let historyIsIncomplete: Bool?
     let daily: [CostDailyEntryPayload]
     let projects: [CostProjectPayload]
     let totals: CostTotalsPayload?
@@ -580,6 +586,7 @@ struct CostPayload: Encodable, Sendable {
         last30DaysTokens: Int?,
         last30DaysCostUSD: Double?,
         meteredCostUSD: Double? = nil,
+        historyIsIncomplete: Bool? = nil,
         daily: [CostDailyEntryPayload],
         projects: [CostProjectPayload] = [],
         totals: CostTotalsPayload?,
@@ -596,6 +603,7 @@ struct CostPayload: Encodable, Sendable {
         self.last30DaysTokens = last30DaysTokens
         self.last30DaysCostUSD = last30DaysCostUSD
         self.meteredCostUSD = meteredCostUSD
+        self.historyIsIncomplete = historyIsIncomplete
         self.daily = daily
         self.projects = projects
         self.totals = totals

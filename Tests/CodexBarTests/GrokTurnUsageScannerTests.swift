@@ -230,7 +230,7 @@ struct GrokTurnUsageScannerTests {
     }
 
     @Test
-    func `skips oversized session logs over per-file budget`() throws {
+    func `partially scans oversized session logs and marks history incomplete`() throws {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("grok-oversized-\(UUID().uuidString)", isDirectory: true)
         let cacheRoot = FileManager.default.temporaryDirectory
@@ -253,28 +253,38 @@ struct GrokTurnUsageScannerTests {
         "outputTokens":1,"totalTokens":11,"modelCalls":1,"costUsdTicks":100000000}},"_meta":{\
         "eventId":"e-big","agentTimestampMs":\(ts)000}}
         """
-        // Pad past the per-file limit while keeping a valid trailing turn line.
-        var payload = Data(repeating: UInt8(ascii: " "), count: 200)
-        payload.append(Data(line.utf8))
+        let lineData = Data((line + "\n").utf8)
+        // Prefix padding makes the file oversized; the full trailing turn still fits in the tail slice.
+        var payload = Data(repeating: UInt8(ascii: "x"), count: 800)
         payload.append(Data("\n".utf8))
+        payload.append(lineData)
         try payload.write(to: sessionDir.appendingPathComponent("updates.jsonl"))
 
-        let budget = GrokTurnUsageScanner.ScanBudget(maxFileBytes: 100, maxBytesPerRefresh: 10_000)
+        let fileSize = Int64(payload.count)
+        let maxFileBytes = Int64(lineData.count + 50)
+        #expect(fileSize > maxFileBytes)
+
+        let budget = GrokTurnUsageScanner.ScanBudget(
+            maxFileBytes: maxFileBytes,
+            maxBytesPerRefresh: 10_000)
         let options = GrokTurnUsageScanner.Options(
             sessionsRoot: root,
             cacheRoot: cacheRoot,
-            maxSessionFileBytes: 100,
+            maxSessionFileBytes: maxFileBytes,
             maxScanBytesPerRefresh: 10_000)
-        let turns = try GrokTurnUsageScanner.scanTurns(
+        let result = try GrokTurnUsageScanner.scanTurns(
             since: now.addingTimeInterval(-86_400),
             until: now.addingTimeInterval(60),
             options: options,
             checkCancellation: nil,
             budget: budget)
 
-        #expect(turns.isEmpty)
-        #expect(budget.skippedOversizedFileCount == 1)
-        #expect(budget.bytesConsumed == 0)
+        #expect(result.turns.count == 1)
+        #expect(result.turns[0].eventID == "e-big")
+        #expect(result.historyIsIncomplete)
+        #expect(budget.partialOversizedFileCount == 1)
+        #expect(budget.bytesConsumed > 0)
+        #expect(budget.bytesConsumed <= maxFileBytes)
     }
 
     @Test
@@ -339,16 +349,17 @@ struct GrokTurnUsageScannerTests {
             maxSessionFileBytes: sampleSize * 4,
             maxScanBytesPerRefresh: sampleSize,
             preferNewestSessionsFirst: true)
-        let turns = try GrokTurnUsageScanner.scanTurns(
+        let result = try GrokTurnUsageScanner.scanTurns(
             since: now.addingTimeInterval(-86_400),
             until: now.addingTimeInterval(60),
             options: options,
             checkCancellation: nil,
             budget: budget)
 
-        #expect(turns.count == 1)
-        #expect(turns[0].eventID == "e-new")
-        #expect(turns[0].totalTokens == 51)
+        #expect(result.turns.count == 1)
+        #expect(result.turns[0].eventID == "e-new")
+        #expect(result.turns[0].totalTokens == 51)
+        #expect(result.historyIsIncomplete) // first-seen older file deferred
         #expect(budget.deferredByBudgetFileCount == 1)
         #expect(budget.bytesConsumed == sampleSize)
     }
@@ -413,13 +424,14 @@ struct GrokTurnUsageScannerTests {
         let budget1 = GrokTurnUsageScanner.ScanBudget(
             maxFileBytes: perRefresh * 4,
             maxBytesPerRefresh: perRefresh)
-        let first = try GrokTurnUsageScanner.scanTurns(
+        let firstResult = try GrokTurnUsageScanner.scanTurns(
             since: now.addingTimeInterval(-86_400),
             until: now.addingTimeInterval(60),
             options: options,
             checkCancellation: nil,
             budget: budget1)
-        #expect(first.map(\.eventID).sorted() == ["e-new"])
+        #expect(firstResult.turns.map(\.eventID).sorted() == ["e-new"])
+        #expect(firstResult.historyIsIncomplete)
         #expect(budget1.deferredByBudgetFileCount == 1)
         #expect(budget1.freshlyScannedFileCount == 1)
 
@@ -427,13 +439,14 @@ struct GrokTurnUsageScannerTests {
         let budget2 = GrokTurnUsageScanner.ScanBudget(
             maxFileBytes: perRefresh * 4,
             maxBytesPerRefresh: perRefresh)
-        let second = try GrokTurnUsageScanner.scanTurns(
+        let secondResult = try GrokTurnUsageScanner.scanTurns(
             since: now.addingTimeInterval(-86_400),
             until: now.addingTimeInterval(60),
             options: options,
             checkCancellation: nil,
             budget: budget2)
-        #expect(Set(second.map(\.eventID)) == Set(["e-new", "e-old"]))
+        #expect(Set(secondResult.turns.map(\.eventID)) == Set(["e-new", "e-old"]))
+        #expect(!secondResult.historyIsIncomplete)
         #expect(budget2.cacheHitFileCount == 1)
         #expect(budget2.freshlyScannedFileCount == 1)
         #expect(budget2.deferredByBudgetFileCount == 0)
@@ -472,14 +485,15 @@ struct GrokTurnUsageScannerTests {
             maxFileBytes: 1024 * 1024,
             maxBytesPerRefresh: 1024 * 1024)
         let options = GrokTurnUsageScanner.Options(sessionsRoot: root, cacheRoot: cacheRoot)
-        let turns = try GrokTurnUsageScanner.scanTurns(
+        let result = try GrokTurnUsageScanner.scanTurns(
             since: now.addingTimeInterval(-86_400),
             until: now.addingTimeInterval(60),
             options: options,
             checkCancellation: nil,
             budget: budget)
 
-        #expect(turns.isEmpty)
+        #expect(result.turns.isEmpty)
+        #expect(!result.historyIsIncomplete)
         #expect(budget.skippedStaleFileCount == 1)
         #expect(budget.bytesConsumed == 0)
     }

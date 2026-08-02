@@ -3,7 +3,7 @@ import Foundation
 /// Disk cache for per-file Grok `updates.jsonl` parse results so budget-deferred archives
 /// catch up across refreshes without re-reading unchanged newest sessions every time.
 enum GrokTurnUsageCacheIO {
-    private static let artifactVersion = 1
+    private static let artifactVersion = 2
 
     private static func defaultCacheRoot() -> URL {
         let root = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first!
@@ -53,7 +53,7 @@ struct GrokTurnUsageCache: Codable, Equatable {
     /// Path → last successful full-file parse.
     var files: [String: GrokTurnUsageCachedFile] = [:]
 
-    init(version: Int = 1) {
+    init(version: Int = 2) {
         self.version = version
     }
 }
@@ -63,7 +63,25 @@ struct GrokTurnUsageCachedFile: Codable, Equatable {
     var size: Int64
     var sessionID: String
     var cwd: String?
+    /// True when only a bounded slice of the file was parsed (oversized archive).
+    var isPartial: Bool
     var turns: [GrokTurnUsageCachedTurn]
+
+    init(
+        mtimeUnixMs: Int64,
+        size: Int64,
+        sessionID: String,
+        cwd: String?,
+        isPartial: Bool = false,
+        turns: [GrokTurnUsageCachedTurn])
+    {
+        self.mtimeUnixMs = mtimeUnixMs
+        self.size = size
+        self.sessionID = sessionID
+        self.cwd = cwd
+        self.isPartial = isPartial
+        self.turns = turns
+    }
 }
 
 struct GrokTurnUsageCachedTurn: Codable, Equatable {

@@ -89,6 +89,9 @@ public struct CostUsageTokenSnapshot: Sendable, Equatable {
     public let historyDays: Int
     public let historyCoverageIsEstablished: Bool
     public let historyLabel: String?
+    /// True when totals may undercount because some local session logs were only partially
+    /// scanned (for example oversized archives read under a per-file budget).
+    public let historyIsIncomplete: Bool
     /// Provider-metered spend over the same window as `last30DaysCostUSD` — what the plan
     /// actually deducts, as opposed to the API-rate estimate. Only some providers (e.g. Cursor)
     /// report this; `nil` when unknown.
@@ -112,6 +115,7 @@ public struct CostUsageTokenSnapshot: Sendable, Equatable {
         historyDays: Int = 30,
         historyCoverageIsEstablished: Bool = true,
         historyLabel: String? = nil,
+        historyIsIncomplete: Bool = false,
         meteredCostUSD: Double? = nil,
         credentialScopeFingerprint: String? = nil,
         daily: [CostUsageDailyReport.Entry],
@@ -130,6 +134,7 @@ public struct CostUsageTokenSnapshot: Sendable, Equatable {
         self.historyDays = historyDays
         self.historyCoverageIsEstablished = historyCoverageIsEstablished
         self.historyLabel = historyLabel
+        self.historyIsIncomplete = historyIsIncomplete
         self.meteredCostUSD = meteredCostUSD
         self.credentialScopeFingerprint = credentialScopeFingerprint
         self.daily = daily

@@ -45,7 +45,7 @@ public enum GrokTurnUsageScanner {
         let maxFileBytes: Int64
         let maxBytesPerRefresh: Int64
         private(set) var bytesConsumed: Int64 = 0
-        private(set) var skippedOversizedFileCount = 0
+        private(set) var partialOversizedFileCount = 0
         private(set) var deferredByBudgetFileCount = 0
         private(set) var skippedStaleFileCount = 0
         private(set) var cacheHitFileCount = 0
@@ -65,26 +65,31 @@ public enum GrokTurnUsageScanner {
         }
 
         enum Admission {
-            case allow(Int64)
-            case skipOversized
+            /// `bytes` is the max this refresh may read; `isPartial` when the file is larger.
+            case allow(bytes: Int64, isPartial: Bool)
             case deferBudget
         }
 
         func admit(fileBytes: Int64) -> Admission {
             let work = max(0, fileBytes)
-            if self.maxFileBytes > 0, work > self.maxFileBytes {
-                self.skippedOversizedFileCount += 1
-                return .skipOversized
+            let fileCap = self.maxFileBytes > 0 ? self.maxFileBytes : Int64.max
+            let capped = min(work, fileCap)
+            let isPartial = capped < work
+            if isPartial {
+                self.partialOversizedFileCount += 1
             }
-            // Whole-file admission only: partial mid-file reads would drop newer tail turns.
+            // Normal-size files: whole-file only. Oversized: allow a bounded tail slice.
             if self.maxBytesPerRefresh > 0 {
                 let remaining = max(0, self.maxBytesPerRefresh - self.bytesConsumed)
-                if work > remaining {
+                if capped > remaining {
+                    if isPartial, remaining > 0 {
+                        return .allow(bytes: remaining, isPartial: true)
+                    }
                     self.deferredByBudgetFileCount += 1
                     return .deferBudget
                 }
             }
-            return .allow(work)
+            return .allow(bytes: capped, isPartial: isPartial)
         }
 
         func consume(workBytes: Int64) {
@@ -187,6 +192,13 @@ public enum GrokTurnUsageScanner {
         public let daily: CostUsageDailyReport
         public let sessions: [CostUsageSessionBreakdown]
         public let projects: [CostUsageProjectBreakdown]
+        /// True when at least one session log was only partially scanned (oversized budget).
+        public let historyIsIncomplete: Bool
+    }
+
+    public struct ScanResult: Sendable {
+        public let turns: [TurnRecord]
+        public let historyIsIncomplete: Bool
     }
 
     /// Single-pass scan used by the Cost pipeline (daily + sessions + projects).
@@ -199,12 +211,12 @@ public enum GrokTurnUsageScanner {
     {
         _ = now
         let range = CostUsageScanner.CostUsageDayRange(since: since, until: until)
-        let turns = try self.scanTurns(
+        let result = try self.scanTurns(
             since: since,
             until: until,
             options: options,
             checkCancellation: checkCancellation)
-        let inRange = turns.filter {
+        let inRange = result.turns.filter {
             CostUsageScanner.CostUsageDayRange.isInRange(
                 dayKey: $0.dayKey,
                 since: range.sinceKey,
@@ -213,7 +225,8 @@ public enum GrokTurnUsageScanner {
         return ScanBundle(
             daily: self.dailyReport(from: inRange),
             sessions: self.sessionBreakdowns(from: inRange),
-            projects: self.projectBreakdowns(from: inRange))
+            projects: self.projectBreakdowns(from: inRange),
+            historyIsIncomplete: result.historyIsIncomplete)
     }
 
     public static func loadDailyReport(
@@ -280,11 +293,13 @@ public enum GrokTurnUsageScanner {
         until: Date = Date.distantFuture,
         options: Options,
         checkCancellation: (() throws -> Void)?,
-        budget: ScanBudget? = nil) throws -> [TurnRecord]
+        budget: ScanBudget? = nil) throws -> ScanResult
     {
         let root = self.sessionsRoot(options: options)
         let fileManager = options.fileManager
-        guard fileManager.fileExists(atPath: root.path) else { return [] }
+        guard fileManager.fileExists(atPath: root.path) else {
+            return ScanResult(turns: [], historyIsIncomplete: false)
+        }
 
         let activeBudget = budget ?? ScanBudget(
             maxFileBytes: options.maxSessionFileBytes,
@@ -310,6 +325,7 @@ public enum GrokTurnUsageScanner {
         var cache = GrokTurnUsageCacheIO.load(cacheRoot: options.cacheRoot)
         var nextCache = GrokTurnUsageCache(version: cache.version)
         var cacheDirty = false
+        var historyIsIncomplete = false
 
         for file in candidates {
             try checkCancellation?()
@@ -330,6 +346,9 @@ public enum GrokTurnUsageScanner {
                 // Unchanged file: reuse parse results without spending refresh budget.
                 activeBudget.markCacheHit()
                 nextCache.files[file.url.path] = cached
+                if cached.isPartial {
+                    historyIsIncomplete = true
+                }
                 for turn in cached.turns {
                     let record = turn.asTurnRecord()
                     if byEventID[record.eventID] == nil {
@@ -340,31 +359,25 @@ public enum GrokTurnUsageScanner {
             }
 
             switch activeBudget.admit(fileBytes: file.size) {
-            case .skipOversized:
-                // Keep any prior good parse for this path if present (best-effort).
-                if let prior = cache.files[file.url.path] {
-                    nextCache.files[file.url.path] = prior
-                    for turn in prior.turns {
-                        let record = turn.asTurnRecord()
-                        if byEventID[record.eventID] == nil {
-                            byEventID[record.eventID] = record
-                        }
-                    }
-                }
-                continue
             case .deferBudget:
                 // Persist prior results for deferred files so history is not permanently lost.
                 if let prior = cache.files[file.url.path] {
                     nextCache.files[file.url.path] = prior
+                    if prior.isPartial {
+                        historyIsIncomplete = true
+                    }
                     for turn in prior.turns {
                         let record = turn.asTurnRecord()
                         if byEventID[record.eventID] == nil {
                             byEventID[record.eventID] = record
                         }
                     }
+                } else {
+                    // First-seen but deferred: totals omit it until a later refresh catches up.
+                    historyIsIncomplete = true
                 }
                 continue
-            case let .allow(allowedBytes):
+            case let .allow(allowedBytes, isPartial):
                 if cwdBySession[file.sessionID] == nil {
                     cwdBySession[file.sessionID] = self.readCwd(
                         sessionDirectory: file.url.deletingLastPathComponent(),
@@ -372,10 +385,13 @@ public enum GrokTurnUsageScanner {
                 }
                 let cwd = cwdBySession[file.sessionID]
                 var scanned: [TurnRecord] = []
+                // Oversized files: read the newest tail so recent turns still contribute.
+                let startOffset = isPartial ? max(Int64(0), file.size - allowedBytes) : 0
                 let readBytes = try self.scanSessionLogFile(
                     url: file.url,
                     sessionID: file.sessionID,
                     cwd: cwd,
+                    startOffset: startOffset,
                     maxBytesToRead: allowedBytes,
                     until: until,
                     checkCancellation: checkCancellation)
@@ -387,11 +403,15 @@ public enum GrokTurnUsageScanner {
                 }
                 activeBudget.consume(workBytes: readBytes)
                 activeBudget.markFreshScan()
+                if isPartial {
+                    historyIsIncomplete = true
+                }
                 nextCache.files[file.url.path] = GrokTurnUsageCachedFile(
                     mtimeUnixMs: mtimeMs,
                     size: file.size,
                     sessionID: file.sessionID,
                     cwd: cwd,
+                    isPartial: isPartial,
                     turns: scanned.map(GrokTurnUsageCachedTurn.init(from:)))
                 cacheDirty = true
             }
@@ -402,10 +422,11 @@ public enum GrokTurnUsageScanner {
             GrokTurnUsageCacheIO.save(cache: nextCache, cacheRoot: options.cacheRoot)
         }
 
-        return byEventID.values.sorted { lhs, rhs in
+        let turns = byEventID.values.sorted { lhs, rhs in
             if lhs.timestamp != rhs.timestamp { return lhs.timestamp < rhs.timestamp }
             return lhs.eventID < rhs.eventID
         }
+        return ScanResult(turns: turns, historyIsIncomplete: historyIsIncomplete)
     }
 
     private static func listSessionLogFiles(
@@ -439,11 +460,13 @@ public enum GrokTurnUsageScanner {
     }
 
     /// Stream-read a session log up to `maxBytesToRead` without loading the whole file into memory.
+    /// When `startOffset > 0` (oversized tail reads), skips the first partial line after the seek.
     @discardableResult
     private static func scanSessionLogFile(
         url: URL,
         sessionID: String,
         cwd: String?,
+        startOffset: Int64 = 0,
         maxBytesToRead: Int64,
         until: Date,
         checkCancellation: (() throws -> Void)?,
@@ -453,10 +476,16 @@ public enum GrokTurnUsageScanner {
         let handle = try FileHandle(forReadingFrom: url)
         defer { try? handle.close() }
 
+        let seekOffset = max(Int64(0), startOffset)
+        if seekOffset > 0 {
+            try handle.seek(toOffset: UInt64(seekOffset))
+        }
+
         var bytesRead: Int64 = 0
         var pending = Data()
         pending.reserveCapacity(16 * 1024)
         var reachedEOF = false
+        var discardPartialLead = seekOffset > 0
 
         func consumeLine(_ lineData: Data) throws {
             try checkCancellation?()
@@ -484,11 +513,16 @@ public enum GrokTurnUsageScanner {
             while let newline = pending.firstIndex(of: UInt8(ascii: "\n")) {
                 let lineData = pending.subdata(in: pending.startIndex..<newline)
                 pending.removeSubrange(pending.startIndex...newline)
+                if discardPartialLead {
+                    // First line after a mid-file seek is almost certainly truncated.
+                    discardPartialLead = false
+                    continue
+                }
                 try consumeLine(lineData)
             }
         }
-        // Flush trailing line only when the whole file fit in budget (avoid partial last line).
-        if reachedEOF, !pending.isEmpty {
+        // Flush trailing line only when the whole slice reached EOF (avoid partial last line).
+        if reachedEOF, !pending.isEmpty, !discardPartialLead {
             try consumeLine(pending)
         }
         return bytesRead
