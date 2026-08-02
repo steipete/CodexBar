@@ -408,6 +408,7 @@ struct MenuBarLayoutEditor: View {
                             title: token.editorLabel,
                             systemImage: token.editorSystemImage,
                             isSelected: self.selectedPosition == position)
+                            .draggable(MenuBarLayoutDragItem.placed(token, at: position, in: self.layout))
                     }
                     .buttonStyle(.plain)
                     .focusable()
@@ -415,7 +416,6 @@ struct MenuBarLayoutEditor: View {
                         self.selectedPosition = position
                         return .handled
                     }
-                    .draggable(MenuBarLayoutDragItem.placed(token, at: position, in: self.layout))
                     .dropDestination(for: MenuBarLayoutDragItem.self) { items, _ in
                         self.insert(items.first, at: position)
                     }
