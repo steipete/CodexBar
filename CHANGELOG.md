@@ -3,9 +3,7 @@
 ## 0.46.1 — Unreleased
 
 ### Added
-- CLI: `codexbar hooks watch` polls providers and fires hooks on real quota/status transitions, so hook rules work
-  headless instead of only from the macOS app. Edge-triggered against the previous poll; in-memory baselines;
-  `--interval` (default 300s, minimum 60s), `--provider`, `--once`, and JSON output.
+- CLI: `codexbar hooks watch` continuously polls providers and fires hooks on real quota/status transitions for headless installs, with in-memory baselines, event rate limits, `--interval` (default 300s, minimum 60s), `--provider`, and JSON output (#2536). Thanks @OfficialAbhinavSingh!
 - Claude: compact multi-account menu for claude-swap — with four or more accounts the active account keeps its full card while the others become one-line rows sorted by remaining headroom, constrained accounts surface in red/amber, the healthiest switch target gets a star, and the healthy tail folds behind a summary row. Click a row to expand its full card.
 - Menu: the compact multi-account layout now covers every stacked multi-account list — token accounts on any provider and Codex accounts (flat lists; workspace-grouped Codex lists keep their sections).
 

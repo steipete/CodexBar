@@ -21,6 +21,18 @@ struct CLIHooksWatchArgumentPrecedenceLinuxTests {
     // MARK: - Interval
 
     @Test
+    func `once mode is rejected because watch state must survive between polls`() {
+        let parser = CommandParser(signature: CommandSignature.describe(HooksWatchOptions()))
+
+        do {
+            _ = try parser.parse(arguments: ["--once"])
+            Issue.record("expected --once to be rejected")
+        } catch {
+            #expect(String(describing: error).contains("--once"))
+        }
+    }
+
+    @Test
     func `interval below the floor is rejected without reading config`() {
         let result = CodexBarCLI.decodeHooksWatchInterval(from: Self.values(options: ["interval": ["5"]]))
         guard case let .failure(error) = result else {

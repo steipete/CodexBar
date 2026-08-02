@@ -60,19 +60,18 @@ extension CodexBarCLI {
                 kind: .config)
         }
 
-        let once = values.flags.contains("once")
         let verbose = values.flags.contains("verbose")
         let webTimeout = Self.decodeHooksWatchWebTimeout(from: values)
 
         let detector = HookTransitionDetector()
         let rateLimiter = HookRateLimiter()
         let stop = HooksWatchStopSignal()
-        let monitor = once ? nil : CLITerminationSignalMonitor { _ in
+        let monitor = CLITerminationSignalMonitor { _ in
             stop.request()
         }
-        defer { monitor?.cancel() }
+        defer { monitor.cancel() }
 
-        if !output.usesJSONOutput, !once {
+        if !output.usesJSONOutput {
             let names = providers.map(\.rawValue).joined(separator: ", ")
             print("Watching \(providers.count) provider(s) every \(Int(interval))s: \(names)")
             print("Press Ctrl-C to stop.")
@@ -100,7 +99,6 @@ extension CodexBarCLI {
                 }
             }
 
-            if once { break }
             guard !stop.isRequested else { break }
             await Self.sleepInterruptibly(interval: interval, stop: stop)
         }
@@ -378,9 +376,6 @@ struct HooksWatchOptions: CommanderParsable {
 
     @Option(name: .long("provider"), help: ProviderHelp.optionHelp)
     var provider: String?
-
-    @Flag(name: .long("once"), help: "Run a single poll and exit")
-    var once: Bool = false
 
     @Flag(name: .long("verbose"), help: "Print fetch diagnostics")
     var verbose: Bool = false

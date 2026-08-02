@@ -145,11 +145,12 @@ See `docs/configuration.md` for the schema.
   - `--interval <seconds>`: poll period. Default `300`, minimum `60`; a smaller value is rejected rather than
     clamped, because each tick fetches every selected provider.
   - `--provider <id>`: restrict to one provider; repeatable. Defaults to every enabled provider.
-  - `--once`: run a single poll and exit, for cron/systemd timers that prefer no long-lived process.
   - `--format json`/`--json`/`--pretty`: emit each fired event as JSON.
   - Events are edge-triggered against the previous poll, so a condition that merely persists (a saturated window,
     an ongoing outage) does not re-fire every tick. State is in-memory only: a restart re-establishes baselines and
     the first poll of any lane fires nothing.
+  - Run `watch` as one continuous process. Repeated one-shot invocations cannot preserve transition baselines or event
+    rate limits between polls.
   - Runs read-only, like `codexbar guard`: it never prompts for credentials. A failed refresh reports
     `refresh_failed` with a coarse category (`timeout`, `offline`, `auth_required`, `network_error`) and never
     forwards the raw provider error.
