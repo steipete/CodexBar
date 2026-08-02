@@ -11,11 +11,49 @@ struct ZaiHourlyUsageChartMenuView: View {
     @State private var isExpanded = true
     @State private var hoveredBarIndex: Int?
 
-    private enum RangeOption: Int, CaseIterable {
+    enum RangeOption: Int, CaseIterable {
         case today = 0
         case last24h = 1
         case last7d = 2
         case last30d = 3
+
+        func range(referenceDate: Date) -> ZaiHourlyRange {
+            switch self {
+            case .today: .today(referenceDate: referenceDate)
+            case .last24h: .last24h
+            case .last7d: .last7d
+            case .last30d: .last30d
+            }
+        }
+    }
+
+    struct RenderState {
+        let bars: [ZaiHourlyBar]
+        let modelNames: [String]
+        let isDaily: Bool
+
+        static func make(
+            modelUsage: ZaiModelUsageData,
+            dailyModelUsage: ZaiModelUsageData?,
+            selectedRange: RangeOption,
+            now: Date) -> RenderState
+        {
+            let range = selectedRange.range(referenceDate: now)
+            let selectedData = range.isDaily ? (dailyModelUsage ?? modelUsage) : modelUsage
+            return RenderState(
+                bars: ZaiHourlyBars.from(modelData: selectedData, range: range, now: now),
+                modelNames: selectedData.modelNames,
+                isDaily: range.isDaily)
+        }
+
+        func tooltipTitle(for bar: ZaiHourlyBar) -> String {
+            self.isDaily ? bar.label : "\(bar.label):00"
+        }
+
+        func colorIndex(for modelName: String, paletteCount: Int) -> Int {
+            guard paletteCount > 0 else { return 0 }
+            return (self.modelNames.firstIndex(of: modelName) ?? 0) % paletteCount
+        }
     }
 
     private let barHeight: CGFloat = 60
@@ -37,26 +75,18 @@ struct ZaiHourlyUsageChartMenuView: View {
         self.width = width
     }
 
-    private var range: ZaiHourlyRange {
-        switch self.selectedRange {
-        case .today: .today(referenceDate: Date())
-        case .last24h: .last24h
-        case .last7d: .last7d
-        case .last30d: .last30d
-        }
-    }
-
-    private var bars: [ZaiHourlyBar] {
-        // Daily ranges read the wide-window daily dataset; hourly ranges read the 1-day dataset.
-        let data = self.range.isDaily ? (self.dailyModelUsage ?? self.modelUsage) : self.modelUsage
-        return ZaiHourlyBars.from(modelData: data, range: self.range)
-    }
-
-    private var modelNames: [String] {
-        self.modelUsage.modelNames
+    private var renderState: RenderState {
+        RenderState.make(
+            modelUsage: self.modelUsage,
+            dailyModelUsage: self.dailyModelUsage,
+            selectedRange: self.selectedRange,
+            now: Date())
     }
 
     var body: some View {
+        let renderState = self.renderState
+        let bars = renderState.bars
+
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 4) {
                 Button(
@@ -82,7 +112,7 @@ struct ZaiHourlyUsageChartMenuView: View {
 
             if self.isExpanded {
                 VStack(alignment: .leading, spacing: 4) {
-                    if self.bars.isEmpty {
+                    if bars.isEmpty {
                         Text(L("No data"))
                             .font(.system(size: 10))
                             .foregroundColor(.secondary)
@@ -91,14 +121,18 @@ struct ZaiHourlyUsageChartMenuView: View {
                     } else {
                         GeometryReader { geometry in
                             let barWidth = max(
-                                (geometry.size.width - self.barGap * CGFloat(max(self.bars.count - 1, 0)))
-                                    / CGFloat(self.bars.count),
+                                (geometry.size.width - self.barGap * CGFloat(max(bars.count - 1, 0)))
+                                    / CGFloat(bars.count),
                                 2)
                             HStack(alignment: .bottom, spacing: self.barGap) {
-                                ForEach(Array(self.bars.enumerated()), id: \.offset) { index, bar in
+                                ForEach(Array(bars.enumerated()), id: \.offset) { index, bar in
                                     VStack(spacing: 0) {
                                         Spacer(minLength: 0)
-                                        self.barStack(bar: bar, barWidth: barWidth, maxTotal: self.maxTotal)
+                                        self.barStack(
+                                            bar: bar,
+                                            barWidth: barWidth,
+                                            maxTotal: self.maxTotal(in: bars),
+                                            renderState: renderState)
                                     }
                                     .frame(width: barWidth, height: self.barHeight)
                                     .contentShape(Rectangle())
@@ -107,7 +141,7 @@ struct ZaiHourlyUsageChartMenuView: View {
                                     }
                                     .overlay(alignment: .bottom) {
                                         if self.hoveredBarIndex == index {
-                                            self.tooltipOverlay(bar: bar)
+                                            self.tooltipOverlay(bar: bar, renderState: renderState)
                                         }
                                     }
                                 }
@@ -116,8 +150,8 @@ struct ZaiHourlyUsageChartMenuView: View {
                         }
                         .frame(height: self.barHeight)
 
-                        self.legend
-                        self.xAxisLabels
+                        self.legend(renderState: renderState)
+                        self.xAxisLabels(bars: bars)
                     }
                 }
                 .padding(.top, 6)
@@ -130,8 +164,8 @@ struct ZaiHourlyUsageChartMenuView: View {
         .animation(.easeInOut(duration: 0.2), value: self.isExpanded)
     }
 
-    private var maxTotal: Int {
-        self.bars.map(\.totalTokens).max() ?? 1
+    private func maxTotal(in bars: [ZaiHourlyBar]) -> Int {
+        bars.map(\.totalTokens).max() ?? 1
     }
 
     private var rangeToggle: some View {
@@ -151,7 +185,12 @@ struct ZaiHourlyUsageChartMenuView: View {
     }
 
     @ViewBuilder
-    private func barStack(bar: ZaiHourlyBar, barWidth: CGFloat, maxTotal: Int) -> some View {
+    private func barStack(
+        bar: ZaiHourlyBar,
+        barWidth: CGFloat,
+        maxTotal: Int,
+        renderState: RenderState) -> some View
+    {
         let scaleFactor = CGFloat(bar.totalTokens) / CGFloat(max(maxTotal, 1))
 
         VStack(spacing: 0) {
@@ -161,22 +200,22 @@ struct ZaiHourlyUsageChartMenuView: View {
                     self.barHeight * scaleFactor * segFraction,
                     segment.tokens > 0 ? 1 : 0)
                 RoundedRectangle(cornerRadius: segIndex == bar.segments.count - 1 ? 2 : 0)
-                    .fill(self.colorForModel(segment.model))
+                    .fill(self.colorForModel(segment.model, renderState: renderState))
                     .frame(height: segHeight)
             }
         }
         .clipShape(RoundedRectangle(cornerRadius: 2))
     }
 
-    private func tooltipOverlay(bar: ZaiHourlyBar) -> some View {
+    private func tooltipOverlay(bar: ZaiHourlyBar, renderState: RenderState) -> some View {
         VStack(alignment: .leading, spacing: 1) {
-            Text(bar.label + ":00")
+            Text(renderState.tooltipTitle(for: bar))
                 .font(.system(size: 10, weight: .semibold))
                 .foregroundColor(.primary)
             ForEach(Array(bar.segments.enumerated()), id: \.offset) { _, segment in
                 HStack(spacing: 3) {
                     Circle()
-                        .fill(self.colorForModel(segment.model))
+                        .fill(self.colorForModel(segment.model, renderState: renderState))
                         .frame(width: 5, height: 5)
                     Text(segment.model)
                         .font(.system(size: 9))
@@ -203,13 +242,13 @@ struct ZaiHourlyUsageChartMenuView: View {
         .offset(y: -self.barHeight - 8)
     }
 
-    private var legend: some View {
+    private func legend(renderState: RenderState) -> some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
-                ForEach(self.modelNames, id: \.self) { name in
+                ForEach(renderState.modelNames, id: \.self) { name in
                     HStack(spacing: 2) {
                         Circle()
-                            .fill(self.colorForModel(name))
+                            .fill(self.colorForModel(name, renderState: renderState))
                             .frame(width: 6, height: 6)
                         Text(name)
                             .font(.system(size: 9))
@@ -221,11 +260,11 @@ struct ZaiHourlyUsageChartMenuView: View {
         }
     }
 
-    private var xAxisLabels: some View {
+    private func xAxisLabels(bars: [ZaiHourlyBar]) -> some View {
         HStack(spacing: 0) {
-            ForEach(Array(self.labelIndices.enumerated()), id: \.offset) { _, index in
-                if index < self.bars.count {
-                    Text(self.bars[index].label)
+            ForEach(Array(self.labelIndices(for: bars).enumerated()), id: \.offset) { _, index in
+                if index < bars.count {
+                    Text(bars[index].label)
                         .font(.system(size: 9))
                         .foregroundColor(.secondary)
                         .frame(maxWidth: .infinity)
@@ -234,19 +273,19 @@ struct ZaiHourlyUsageChartMenuView: View {
         }
     }
 
-    private var labelIndices: [Int] {
-        guard self.bars.count > self.maxLabelCount else { return Array(0..<self.bars.count) }
-        let step = max(1, self.bars.count / (self.maxLabelCount - 1))
-        var indices = stride(from: 0, to: self.bars.count, by: step).map(\.self)
-        if indices.last != self.bars.count - 1 {
-            indices.append(self.bars.count - 1)
+    private func labelIndices(for bars: [ZaiHourlyBar]) -> [Int] {
+        guard bars.count > self.maxLabelCount else { return Array(0..<bars.count) }
+        let step = max(1, bars.count / (self.maxLabelCount - 1))
+        var indices = stride(from: 0, to: bars.count, by: step).map(\.self)
+        if indices.last != bars.count - 1 {
+            indices.append(bars.count - 1)
         }
         return indices
     }
 
-    private func colorForModel(_ name: String) -> Color {
-        let index = self.modelNames.firstIndex(of: name) ?? 0
-        return self.colorPalette[index % self.colorPalette.count]
+    private func colorForModel(_ name: String, renderState: RenderState) -> Color {
+        let index = renderState.colorIndex(for: name, paletteCount: self.colorPalette.count)
+        return self.colorPalette[index]
     }
 
     private func formatTokenCount(_ count: Int) -> String {
