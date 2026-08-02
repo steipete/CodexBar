@@ -28,10 +28,13 @@ public struct OpenCodeGoLocalUsageReader: Sendable {
     private static let fiveHours: TimeInterval = 5 * 60 * 60
     private static let week: TimeInterval = 7 * 24 * 60 * 60
     private static let limits = (session: 12.0, weekly: 30.0, monthly: 60.0)
+    private static let idleWALRetryLimit = 1
+    private static let normalToIdleHandoffRetryLimit = 1
 
     private let authURL: URL
     private let databaseURL: URL
     #if DEBUG
+    private let beforeImmutableRead: @Sendable () throws -> Void
     private let beforeNormalRead: @Sendable () throws -> Void
     private let beforeNormalVerification: @Sendable () throws -> Void
     #endif
@@ -44,6 +47,7 @@ public struct OpenCodeGoLocalUsageReader: Sendable {
         self.authURL = openCodeDirectory.appendingPathComponent("auth.json", isDirectory: false)
         self.databaseURL = openCodeDirectory.appendingPathComponent("opencode.db", isDirectory: false)
         #if DEBUG
+        self.beforeImmutableRead = {}
         self.beforeNormalRead = {}
         self.beforeNormalVerification = {}
         #endif
@@ -53,6 +57,7 @@ public struct OpenCodeGoLocalUsageReader: Sendable {
         self.authURL = authURL
         self.databaseURL = databaseURL
         #if DEBUG
+        self.beforeImmutableRead = {}
         self.beforeNormalRead = {}
         self.beforeNormalVerification = {}
         #endif
@@ -63,12 +68,14 @@ public struct OpenCodeGoLocalUsageReader: Sendable {
         authURL: URL,
         databaseURL: URL,
         beforeNormalVerification: @escaping @Sendable () throws -> Void = {},
+        beforeImmutableRead: @escaping @Sendable () throws -> Void = {},
         beforeNormalRead: @escaping @Sendable () throws -> Void = {})
     {
         self.authURL = authURL
         self.databaseURL = databaseURL
-        self.beforeNormalRead = beforeNormalRead
         self.beforeNormalVerification = beforeNormalVerification
+        self.beforeImmutableRead = beforeImmutableRead
+        self.beforeNormalRead = beforeNormalRead
     }
     #endif
 
@@ -98,49 +105,104 @@ public struct OpenCodeGoLocalUsageReader: Sendable {
         // A read-only WAL connection may create missing sidecars when the directory is writable. Select the
         // immutable recovery path before opening SQLite only when the stable file state proves it is idle.
         if let idleWALState = self.idleWALState() {
-            return try self.readIdleWALRows(state: idleWALState)
+            return try self.readIdleWALRows(
+                state: idleWALState,
+                idleRetriesRemaining: Self.idleWALRetryLimit,
+                normalToIdleHandoffRetriesRemaining: Self.normalToIdleHandoffRetryLimit)
         }
 
-        do {
-            return try self.readRows(readMode: .normal)
-        } catch let failure as SQLiteReadFailure {
-            guard failure.resultCode == SQLITE_CANTOPEN,
-                  let idleWALState = self.idleWALState()
-            else {
-                throw failure.usageError
-            }
+        return try self.readNormalRows(
+            idleRetriesRemaining: Self.idleWALRetryLimit,
+            normalToIdleHandoffRetriesRemaining: Self.normalToIdleHandoffRetryLimit)
+    }
 
-            return try self.readIdleWALRows(state: idleWALState)
+    private func readIdleWALRows(
+        state idleWALState: IdleWALState,
+        idleRetriesRemaining: Int,
+        normalToIdleHandoffRetriesRemaining: Int) throws -> [UsageRow]
+    {
+        do {
+            let rows = try self.readRows(readMode: .immutable)
+            #if DEBUG
+            try self.beforeNormalVerification()
+            #endif
+            return try self.resolveIdleWALRead(
+                .success(rows),
+                state: idleWALState,
+                idleRetriesRemaining: idleRetriesRemaining,
+                normalToIdleHandoffRetriesRemaining: normalToIdleHandoffRetriesRemaining)
+        } catch let immutableFailure as SQLiteReadFailure {
+            return try self.resolveIdleWALRead(
+                .failure(immutableFailure),
+                state: idleWALState,
+                idleRetriesRemaining: idleRetriesRemaining,
+                normalToIdleHandoffRetriesRemaining: normalToIdleHandoffRetriesRemaining)
         }
     }
 
-    private func readIdleWALRows(state idleWALState: IdleWALState) throws -> [UsageRow] {
-        let rows: [UsageRow]
-        do {
-            rows = try self.readRows(readMode: .immutable)
-        } catch let immutableFailure as SQLiteReadFailure {
-            throw immutableFailure.usageError
+    private func resolveIdleWALRead(
+        _ result: Result<[UsageRow], SQLiteReadFailure>,
+        state idleWALState: IdleWALState,
+        idleRetriesRemaining: Int,
+        normalToIdleHandoffRetriesRemaining: Int) throws -> [UsageRow]
+    {
+        guard let currentIdleWALState = self.idleWALState() else {
+            // immutable=1 skips SQLite's change detection. An active or otherwise unverified state must be
+            // read normally so live WAL data remains authoritative.
+            return try self.readNormalRows(
+                idleRetriesRemaining: idleRetriesRemaining,
+                normalToIdleHandoffRetriesRemaining: normalToIdleHandoffRetriesRemaining)
         }
 
-        #if DEBUG
-        try self.beforeNormalVerification()
-        #endif
-
-        // immutable=1 skips SQLite's change detection. Keep it only while the state still proves no writer
-        // appeared; a changed state must be read normally so live WAL data remains authoritative.
-        guard !self.isStillIdleWAL(state: idleWALState) else {
-            return rows
+        if currentIdleWALState == idleWALState {
+            switch result {
+            case let .success(rows):
+                return rows
+            case let .failure(immutableFailure):
+                throw immutableFailure.usageError
+            }
         }
+
+        // A writer may have committed, checkpointed, and removed its sidecars between the two probes. Retry
+        // that newly stable idle state once without creating sidecars. Do not normal-read a repeatedly
+        // sidecar-free WAL database: that is the reported SQLITE_CANTOPEN state, and local failure falls
+        // through to the existing web strategy rather than recreating sidecars in the user's history directory.
+        guard idleRetriesRemaining > 0 else {
+            throw OpenCodeGoLocalUsageError.sqliteFailed("database changed repeatedly while reading idle WAL")
+        }
+
+        return try self.readIdleWALRows(
+            state: currentIdleWALState,
+            idleRetriesRemaining: idleRetriesRemaining - 1,
+            normalToIdleHandoffRetriesRemaining: normalToIdleHandoffRetriesRemaining)
+    }
+
+    private func readNormalRows(
+        idleRetriesRemaining: Int,
+        normalToIdleHandoffRetriesRemaining: Int) throws -> [UsageRow]
+    {
         do {
             return try self.readRows(readMode: .normal)
-        } catch let verificationFailure as SQLiteReadFailure {
-            throw verificationFailure.usageError
+        } catch let normalFailure as SQLiteReadFailure {
+            guard normalFailure.resultCode == SQLITE_CANTOPEN,
+                  normalToIdleHandoffRetriesRemaining > 0,
+                  let idleWALState = self.idleWALState()
+            else {
+                throw normalFailure.usageError
+            }
+
+            return try self.readIdleWALRows(
+                state: idleWALState,
+                idleRetriesRemaining: idleRetriesRemaining,
+                normalToIdleHandoffRetriesRemaining: normalToIdleHandoffRetriesRemaining - 1)
         }
     }
 
     private func readRows(readMode: SQLiteReadMode) throws -> [UsageRow] {
         #if DEBUG
-        if case .normal = readMode {
+        if case .immutable = readMode {
+            try self.beforeImmutableRead()
+        } else {
             try self.beforeNormalRead()
         }
         #endif
@@ -293,18 +355,6 @@ public struct OpenCodeGoLocalUsageReader: Sendable {
             return nil
         }
         return IdleWALState(database: after)
-    }
-
-    private func isStillIdleWAL(state: IdleWALState) -> Bool {
-        guard self.sidecarsAreMissing(),
-              let current = Self.fileState(at: self.databaseURL),
-              current == state.database,
-              Self.hasWALHeader(at: self.databaseURL),
-              self.sidecarsAreMissing()
-        else {
-            return false
-        }
-        return true
     }
 
     private func sidecarsAreMissing() -> Bool {

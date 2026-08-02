@@ -234,6 +234,180 @@ struct OpenCodeGoLocalUsageReaderTests {
     }
 
     @Test
+    func `retries immutable read when an active WAL cleans up before normal handoff`() throws {
+        let env = try Self.makeEnvironment()
+        defer { try? FileManager.default.removeItem(at: env.root) }
+
+        try Self.writeAuth(to: env.authURL)
+        try Self.createDatabase(at: env.databaseURL, usingWAL: true)
+        try Self.insertMessage(
+            databaseURL: env.databaseURL,
+            createdMs: Self.ms("2026-03-06T10:00:00.000Z"),
+            cost: 1.0)
+        try Self.checkpointWAL(at: env.databaseURL)
+        try Self.removeWALSidecars(at: env.databaseURL)
+
+        let writer = SQLiteWALWriter()
+        defer { writer.close() }
+        let immutableSuccessCounter = SQLiteNormalReadCounter()
+        let normalReadCounter = SQLiteNormalReadCounter()
+        let databaseURL = env.databaseURL
+        let reader = OpenCodeGoLocalUsageReader(
+            authURL: env.authURL,
+            databaseURL: databaseURL,
+            beforeNormalVerification: {
+                if immutableSuccessCounter.incrementAndReturnPrevious() == 0 {
+                    try writer.openAndInsert(
+                        databaseURL: databaseURL,
+                        createdMs: Self.ms("2026-03-06T11:00:00.000Z"),
+                        cost: 3.0,
+                        payloadPadding: String(repeating: "x", count: 16384))
+                }
+            },
+            beforeNormalRead: {
+                normalReadCounter.increment()
+                writer.close()
+                try Self.checkpointWAL(at: databaseURL)
+                try Self.removeWALSidecars(at: databaseURL)
+            })
+        let snapshot = try reader.fetch(now: Date(timeIntervalSince1970: 1_772_798_400))
+
+        #expect(immutableSuccessCounter.value == 2)
+        #expect(normalReadCounter.value == 1)
+        #expect(!FileManager.default.fileExists(atPath: env.databaseURL.path + "-wal"))
+        #expect(!FileManager.default.fileExists(atPath: env.databaseURL.path + "-shm"))
+        #expect(snapshot.rollingUsagePercent == 33.3)
+        #expect(snapshot.weeklyUsagePercent == 13.3)
+        #expect(snapshot.monthlyUsagePercent == 6.7)
+    }
+
+    @Test
+    func `normal reader wins when a writer makes immutable read fail`() throws {
+        let env = try Self.makeEnvironment()
+        defer { try? FileManager.default.removeItem(at: env.root) }
+
+        try Self.writeAuth(to: env.authURL)
+        try Self.createDatabase(at: env.databaseURL, usingWAL: true, includingSchema: false)
+        try Self.checkpointWAL(at: env.databaseURL)
+        try Self.removeWALSidecars(at: env.databaseURL)
+
+        let writer = SQLiteWALWriter()
+        defer { writer.close() }
+        let normalReadCounter = SQLiteNormalReadCounter()
+        let immutableSuccessCounter = SQLiteNormalReadCounter()
+        let databaseURL = env.databaseURL
+        let reader = OpenCodeGoLocalUsageReader(
+            authURL: env.authURL,
+            databaseURL: databaseURL,
+            beforeNormalVerification: { immutableSuccessCounter.increment() },
+            beforeImmutableRead: {
+                try writer.openCreateSchemaAndInsert(
+                    databaseURL: databaseURL,
+                    createdMs: Self.ms("2026-03-06T11:00:00.000Z"),
+                    cost: 3.0)
+            },
+            beforeNormalRead: { normalReadCounter.increment() })
+        let snapshot = try reader.fetch(now: Date(timeIntervalSince1970: 1_772_798_400))
+
+        #expect(FileManager.default.fileExists(atPath: env.databaseURL.path + "-wal"))
+        #expect(immutableSuccessCounter.value == 0)
+        #expect(normalReadCounter.value == 1)
+        #expect(snapshot.rollingUsagePercent == 25)
+        #expect(snapshot.weeklyUsagePercent == 10)
+        #expect(snapshot.monthlyUsagePercent == 5)
+    }
+
+    @Test
+    func `retries immutable read after a writer returns to an idle WAL`() throws {
+        let env = try Self.makeEnvironment()
+        defer { try? FileManager.default.removeItem(at: env.root) }
+
+        try Self.writeAuth(to: env.authURL)
+        try Self.createDatabase(at: env.databaseURL, usingWAL: true)
+        try Self.insertMessage(
+            databaseURL: env.databaseURL,
+            createdMs: Self.ms("2026-03-06T10:00:00.000Z"),
+            cost: 1.0)
+        try Self.checkpointWAL(at: env.databaseURL)
+        try Self.removeWALSidecars(at: env.databaseURL)
+
+        let writer = SQLiteWALWriter()
+        defer { writer.close() }
+        let immutableSuccessCounter = SQLiteNormalReadCounter()
+        let normalReadCounter = SQLiteNormalReadCounter()
+        let databaseURL = env.databaseURL
+        let reader = OpenCodeGoLocalUsageReader(
+            authURL: env.authURL,
+            databaseURL: databaseURL,
+            beforeNormalVerification: {
+                if immutableSuccessCounter.incrementAndReturnPrevious() == 0 {
+                    try writer.openAndInsert(
+                        databaseURL: databaseURL,
+                        createdMs: Self.ms("2026-03-06T11:00:00.000Z"),
+                        cost: 3.0,
+                        payloadPadding: String(repeating: "x", count: 16384))
+                    writer.close()
+                    try Self.checkpointWAL(at: databaseURL)
+                    try Self.removeWALSidecars(at: databaseURL)
+                }
+            },
+            beforeNormalRead: { normalReadCounter.increment() })
+        let snapshot = try reader.fetch(now: Date(timeIntervalSince1970: 1_772_798_400))
+
+        #expect(immutableSuccessCounter.value == 2)
+        #expect(normalReadCounter.value == 0)
+        #expect(!FileManager.default.fileExists(atPath: env.databaseURL.path + "-wal"))
+        #expect(!FileManager.default.fileExists(atPath: env.databaseURL.path + "-shm"))
+        #expect(snapshot.rollingUsagePercent == 33.3)
+        #expect(snapshot.weeklyUsagePercent == 13.3)
+        #expect(snapshot.monthlyUsagePercent == 6.7)
+    }
+
+    @Test
+    func `does not normal read after repeated clean idle WAL transitions`() throws {
+        let env = try Self.makeEnvironment()
+        defer { try? FileManager.default.removeItem(at: env.root) }
+
+        try Self.writeAuth(to: env.authURL)
+        try Self.createDatabase(at: env.databaseURL, usingWAL: true)
+        try Self.insertMessage(
+            databaseURL: env.databaseURL,
+            createdMs: Self.ms("2026-03-06T10:00:00.000Z"),
+            cost: 1.0)
+        try Self.checkpointWAL(at: env.databaseURL)
+        try Self.removeWALSidecars(at: env.databaseURL)
+
+        let writer = SQLiteWALWriter()
+        defer { writer.close() }
+        let immutableSuccessCounter = SQLiteNormalReadCounter()
+        let normalReadCounter = SQLiteNormalReadCounter()
+        let databaseURL = env.databaseURL
+        let reader = OpenCodeGoLocalUsageReader(
+            authURL: env.authURL,
+            databaseURL: databaseURL,
+            beforeNormalVerification: {
+                let attempt = immutableSuccessCounter.incrementAndReturnPrevious()
+                try writer.openAndInsert(
+                    databaseURL: databaseURL,
+                    createdMs: Self.ms("2026-03-06T11:00:00.000Z") + Int64(attempt),
+                    cost: 3.0,
+                    payloadPadding: String(repeating: "x", count: 16384 * (attempt + 1)))
+                writer.close()
+                try Self.checkpointWAL(at: databaseURL)
+                try Self.removeWALSidecars(at: databaseURL)
+            },
+            beforeNormalRead: { normalReadCounter.increment() })
+
+        #expect(throws: OpenCodeGoLocalUsageError.sqliteFailed("database changed repeatedly while reading idle WAL")) {
+            _ = try reader.fetch(now: Date(timeIntervalSince1970: 1_772_798_400))
+        }
+        #expect(immutableSuccessCounter.value == 2)
+        #expect(normalReadCounter.value == 0)
+        #expect(!FileManager.default.fileExists(atPath: env.databaseURL.path + "-wal"))
+        #expect(!FileManager.default.fileExists(atPath: env.databaseURL.path + "-shm"))
+    }
+
+    @Test
     func `monthly window keeps original anchor after shorter month clamp`() throws {
         let env = try Self.makeEnvironment()
         defer { try? FileManager.default.removeItem(at: env.root) }
@@ -385,13 +559,22 @@ struct OpenCodeGoLocalUsageReaderTests {
         try data.write(to: url)
     }
 
-    private static func createDatabase(at url: URL, usingWAL: Bool = false) throws {
+    private static func createDatabase(
+        at url: URL,
+        usingWAL: Bool = false,
+        includingSchema: Bool = true) throws
+    {
         let db = try Self.openDatabase(at: url)
         defer { sqlite3_close(db) }
         if usingWAL {
             try Self.exec(db: db, sql: "PRAGMA journal_mode=WAL;")
         }
-        try Self.exec(
+        guard includingSchema else { return }
+        try Self.createSchema(db: db)
+    }
+
+    private static func createSchema(db: OpaquePointer) throws {
+        try self.exec(
             db: db,
             sql: """
                 CREATE TABLE message (
@@ -413,14 +596,28 @@ struct OpenCodeGoLocalUsageReaderTests {
     }
 
     @discardableResult
-    private static func insertMessage(databaseURL: URL, createdMs: Int64, cost: Double?) throws -> String {
+    private static func insertMessage(
+        databaseURL: URL,
+        createdMs: Int64,
+        cost: Double?,
+        payloadPadding: String? = nil) throws -> String
+    {
         let db = try Self.openDatabase(at: databaseURL)
         defer { sqlite3_close(db) }
-        return try Self.insertMessage(db: db, createdMs: createdMs, cost: cost)
+        return try Self.insertMessage(
+            db: db,
+            createdMs: createdMs,
+            cost: cost,
+            payloadPadding: payloadPadding)
     }
 
     @discardableResult
-    private static func insertMessage(db: OpaquePointer, createdMs: Int64, cost: Double?) throws -> String {
+    private static func insertMessage(
+        db: OpaquePointer,
+        createdMs: Int64,
+        cost: Double?,
+        payloadPadding: String? = nil) throws -> String
+    {
         let messageID = UUID().uuidString
         var payload: [String: Any] = [
             "providerID": "opencode-go",
@@ -429,6 +626,9 @@ struct OpenCodeGoLocalUsageReaderTests {
         ]
         if let cost {
             payload["cost"] = cost
+        }
+        if let payloadPadding {
+            payload["padding"] = payloadPadding
         }
         let data = try JSONSerialization.data(withJSONObject: payload)
         let json = String(data: data, encoding: .utf8) ?? "{}"
@@ -548,6 +748,14 @@ struct OpenCodeGoLocalUsageReaderTests {
             self.lock.unlock()
         }
 
+        func incrementAndReturnPrevious() -> Int {
+            self.lock.lock()
+            defer { self.lock.unlock() }
+            let previous = self.count
+            self.count += 1
+            return previous
+        }
+
         var value: Int {
             self.lock.lock()
             defer { self.lock.unlock() }
@@ -558,11 +766,33 @@ struct OpenCodeGoLocalUsageReaderTests {
     private final class SQLiteWALWriter: @unchecked Sendable {
         private var db: OpaquePointer?
 
-        func openAndInsert(databaseURL: URL, createdMs: Int64, cost: Double) throws {
+        func openAndInsert(
+            databaseURL: URL,
+            createdMs: Int64,
+            cost: Double,
+            payloadPadding: String? = nil) throws
+        {
             guard self.db == nil else { throw SQLiteTestError.open }
             let db = try OpenCodeGoLocalUsageReaderTests.openDatabase(at: databaseURL)
             self.db = db
-            _ = try OpenCodeGoLocalUsageReaderTests.insertMessage(db: db, createdMs: createdMs, cost: cost)
+            _ = try OpenCodeGoLocalUsageReaderTests.insertMessage(
+                db: db,
+                createdMs: createdMs,
+                cost: cost,
+                payloadPadding: payloadPadding)
+        }
+
+        func openCreateSchemaAndInsert(databaseURL: URL, createdMs: Int64, cost: Double) throws {
+            guard self.db == nil else { throw SQLiteTestError.open }
+            let db = try OpenCodeGoLocalUsageReaderTests.openDatabase(at: databaseURL)
+            do {
+                try OpenCodeGoLocalUsageReaderTests.createSchema(db: db)
+                _ = try OpenCodeGoLocalUsageReaderTests.insertMessage(db: db, createdMs: createdMs, cost: cost)
+                self.db = db
+            } catch {
+                sqlite3_close(db)
+                throw error
+            }
         }
 
         func close() {
