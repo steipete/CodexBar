@@ -762,26 +762,6 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         return self.openMenus[ObjectIdentifier(mergedMenu)] != nil
     }
 
-    func recreateStatusItemsForVisibilityRecovery() {
-        #if DEBUG
-        guard !self.isReleasedForTesting else { return }
-        #endif
-        self.statusItem.menu = nil
-        self.statusBar.removeStatusItem(self.statusItem)
-        self.statusItem = Self.makeStatusItem(
-            statusBar: self.statusBar,
-            identity: .merged,
-            defaults: self.settings.userDefaults,
-            legacyDefaultItemIndex: Self.mergedLegacyDefaultItemIndex)
-        for provider in Array(self.statusItems.keys) {
-            self.removeProviderStatusItem(for: provider)
-        }
-        self.lastAppliedMergedIconRenderSignature = nil
-        self.lastAppliedProviderIconRenderSignatures.removeAll()
-        self.updateVisibility()
-        self.updateIcons()
-    }
-
     private func updateVisibility() {
         #if DEBUG
         guard !self.isReleasedForTesting else { return }
@@ -1038,6 +1018,26 @@ extension StatusItemController {
         let visibleProviders = self.settings.orderedProviders().filter { self.isVisible($0) }
         guard let providerOffset = visibleProviders.firstIndex(of: provider) else { return nil }
         return Self.mergedLegacyDefaultItemIndex + 1 + providerOffset
+    }
+
+    func recreateStatusItemsForVisibilityRecovery() {
+        #if DEBUG
+        guard !self.isReleasedForTesting else { return }
+        #endif
+        self.statusItem.menu = nil
+        self.statusBar.removeStatusItem(self.statusItem)
+        self.statusItem = Self.makeStatusItem(
+            statusBar: self.statusBar,
+            identity: .merged,
+            defaults: self.settings.userDefaults,
+            legacyDefaultItemIndex: Self.mergedLegacyDefaultItemIndex)
+        for provider in Array(self.statusItems.keys) {
+            self.removeProviderStatusItem(for: provider)
+        }
+        self.lastAppliedMergedIconRenderSignature = nil
+        self.lastAppliedProviderIconRenderSignatures.removeAll()
+        self.updateVisibility()
+        self.updateIcons()
     }
 
     func refreshExistingStatusItemsForVisibilityRecovery() {
