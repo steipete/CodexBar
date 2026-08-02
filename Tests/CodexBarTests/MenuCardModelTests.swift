@@ -252,7 +252,9 @@ struct ProviderInlineDashboardModelTests {
             now: now))
 
         #expect(model.inlineUsageDashboard?.kpis.first?.value == "$0.25")
-        #expect(model.inlineUsageDashboard?.points.count == 2)
+        // Continuous daily padding fills the history window (default 30 days) ending at the latest entry.
+        #expect(model.inlineUsageDashboard?.points.count == 30)
+        #expect(model.inlineUsageDashboard?.points.filter { $0.value > 0 }.count == 2)
         #expect(model.inlineUsageDashboard?.detailLines.contains { $0.contains("claude-opus-4") } == true)
         #expect(model.tokenUsage?.sessionLine.contains("$0.25") == true)
         #expect(model.tokenUsage?.monthLine.contains("$0.37") == true)

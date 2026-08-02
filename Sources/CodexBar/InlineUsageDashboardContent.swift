@@ -441,12 +441,6 @@ extension UsageMenuCardView.Model {
             0,
             preferredCurrency: preferredCurrencyCode,
             providerCurrency: snapshot.currencyCode).currencyCode
-        func convertedValue(_ value: Double) -> Double {
-            UsageFormatter.convertedCost(
-                value,
-                preferredCurrency: preferredCurrencyCode,
-                providerCurrency: snapshot.currencyCode).value
-        }
         func convertedString(_ value: Double) -> String {
             UsageFormatter.convertedCostString(
                 value,
@@ -455,6 +449,69 @@ extension UsageMenuCardView.Model {
         }
 
         let historyDays = max(1, min(365, snapshot.historyDays))
+        let titles = Self.costHistoryTitles(provider: provider, snapshot: snapshot, historyDays: historyDays)
+        // Grok (and any sparse-cost history) plots daily tokens on the main-menu mini chart so
+        // subscription days without costUsdTicks still appear. Cost remains in KPIs/details.
+        let plotTokens = Self.shouldPlotTokensOnInlineCostChart(provider: provider, snapshot: snapshot)
+        let points = Self.inlineChartPoints(
+            provider: provider,
+            snapshot: snapshot,
+            historyDays: historyDays,
+            plotTokens: plotTokens,
+            preferredCurrencyCode: preferredCurrencyCode)
+        let latest = CostUsageTokenSnapshot.latestEntry(in: snapshot.daily)
+        let usesLatestPrimary = provider == .bedrock || provider == .mistral
+        let primaryCostUSD = usesLatestPrimary ? latest?.costUSD : snapshot.sessionCostUSD
+        let details = Self.costHistoryDetailLines(
+            provider: provider,
+            snapshot: snapshot,
+            comparisonPeriodsEnabled: comparisonPeriodsEnabled,
+            requestHistoryTitle: titles.requestHistoryTitle,
+            convertedString: convertedString)
+        let providerName = ProviderDefaults.metadata[provider]?.displayName ?? provider.rawValue
+        let accessibilityLabel = L(
+            "%@: %@",
+            providerName,
+            plotTokens
+                ? (snapshot.historyLabel.map { "\($0) tokens" } ?? L("token usage"))
+                : titles.accessibilityCostLabel)
+        let kpis = Self.costHistoryKPIs(
+            provider: provider,
+            snapshot: snapshot,
+            latest: latest,
+            usesLatestPrimary: usesLatestPrimary,
+            primaryCostUSD: primaryCostUSD,
+            historyTitle: titles.historyTitle,
+            tokenHistoryTitle: titles.tokenHistoryTitle,
+            convertedString: convertedString)
+        var model = InlineUsageDashboardModel(
+            accessibilityLabel: accessibilityLabel,
+            valueStyle: plotTokens ? .tokens : Self.costValueStyle(currencyCode: displayCurrencyCode),
+            kpis: kpis,
+            points: points,
+            detailLines: details)
+        // Grok only: Codex teal. Other providers keep branding (set by inlineUsageDashboard).
+        if provider == .grok {
+            model.barColor = Self.codexStyleChartBarColor
+        }
+        if !plotTokens {
+            model.currencyCode = displayCurrencyCode
+        }
+        return model
+    }
+
+    private struct CostHistoryTitles {
+        let historyTitle: String
+        let tokenHistoryTitle: String
+        let requestHistoryTitle: String
+        let accessibilityCostLabel: String
+    }
+
+    private static func costHistoryTitles(
+        provider: UsageProvider,
+        snapshot: CostUsageTokenSnapshot,
+        historyDays: Int) -> CostHistoryTitles
+    {
         let defaultHistoryTitle = snapshot.historyLabel
             ?? (historyDays == 1
                 ? L("Today")
@@ -467,7 +524,6 @@ extension UsageMenuCardView.Model {
                 : historyDays == 30
                 ? "30d"
                 : String(format: L("Last %d days"), historyDays))
-        let historyTitle = provider == .codex ? codexHistoryPeriod : defaultHistoryTitle
         let tokenHistoryTitle = snapshot.historyLabel.map { "\($0) \(L("tokens"))" }
             ?? (historyDays == 1
                 ? L("Today tokens")
@@ -487,18 +543,20 @@ extension UsageMenuCardView.Model {
         } else {
             L("%@ cost", historyDays == 1 ? L("Today") : String(format: L("Last %d days"), historyDays))
         }
-        // Grok (and any sparse-cost history) plots daily tokens on the main-menu mini chart so
-        // subscription days without costUsdTicks still appear. Cost remains in KPIs/details.
-        let plotTokens = Self.shouldPlotTokensOnInlineCostChart(provider: provider, snapshot: snapshot)
-        let points = Self.inlineChartPoints(
-            provider: provider,
-            snapshot: snapshot,
-            historyDays: historyDays,
-            plotTokens: plotTokens,
-            preferredCurrencyCode: preferredCurrencyCode)
-        let latest = CostUsageTokenSnapshot.latestEntry(in: snapshot.daily)
-        let usesLatestPrimary = provider == .bedrock || provider == .mistral
-        let primaryCostUSD = usesLatestPrimary ? latest?.costUSD : snapshot.sessionCostUSD
+        return CostHistoryTitles(
+            historyTitle: provider == .codex ? codexHistoryPeriod : defaultHistoryTitle,
+            tokenHistoryTitle: tokenHistoryTitle,
+            requestHistoryTitle: requestHistoryTitle,
+            accessibilityCostLabel: accessibilityCostLabel)
+    }
+
+    private static func costHistoryDetailLines(
+        provider: UsageProvider,
+        snapshot: CostUsageTokenSnapshot,
+        comparisonPeriodsEnabled: Bool,
+        requestHistoryTitle: String,
+        convertedString: (Double) -> String) -> [String]
+    {
         var details: [String] = []
         if comparisonPeriodsEnabled {
             details.append(contentsOf: snapshot.comparisonSummaries().map {
@@ -519,25 +577,7 @@ extension UsageMenuCardView.Model {
             details.append(L("codex_api_estimate_hint"))
         }
         if provider == .grok {
-            let input = snapshot.daily.compactMap(\.inputTokens).reduce(0, +)
-            let cache = snapshot.daily.compactMap(\.cacheReadTokens).reduce(0, +)
-            let output = snapshot.daily.compactMap(\.outputTokens).reduce(0, +)
-            if input + cache + output > 0 {
-                details.append(String(
-                    format: L("Uncached %@ · Cache %@ · Output %@"),
-                    UsageFormatter.tokenCountString(input),
-                    UsageFormatter.tokenCountString(cache),
-                    UsageFormatter.tokenCountString(output)))
-            }
-            let daysWithCost = snapshot.daily.count(where: { ($0.costUSD ?? 0) > 0 })
-            details.append(String(
-                format: L("Cost reported on %d/%d days"),
-                daysWithCost,
-                snapshot.daily.count))
-            if let topProject = snapshot.projects.first {
-                let tokens = topProject.totalTokens.map(UsageFormatter.tokenCountString) ?? "—"
-                details.append(String(format: L("Top project: %@ · %@"), topProject.name, tokens))
-            }
+            details.append(contentsOf: Self.grokCostHistoryDetailLines(snapshot: snapshot))
         }
         if provider != .groq {
             if let requestCount = snapshot.last30DaysRequests {
@@ -556,11 +596,43 @@ extension UsageMenuCardView.Model {
                 details.append(L("Bars show daily tokens. Cost only when reported."))
             }
         }
-        let providerName = ProviderDefaults.metadata[provider]?.displayName ?? provider.rawValue
-        let accessibilityLabel = L(
-            "%@: %@",
-            providerName,
-            plotTokens ? (snapshot.historyLabel.map { "\($0) tokens" } ?? L("token usage")) : accessibilityCostLabel)
+        return details
+    }
+
+    private static func grokCostHistoryDetailLines(snapshot: CostUsageTokenSnapshot) -> [String] {
+        var details: [String] = []
+        let input = snapshot.daily.compactMap(\.inputTokens).reduce(0, +)
+        let cache = snapshot.daily.compactMap(\.cacheReadTokens).reduce(0, +)
+        let output = snapshot.daily.compactMap(\.outputTokens).reduce(0, +)
+        if input + cache + output > 0 {
+            details.append(String(
+                format: L("Uncached %@ · Cache %@ · Output %@"),
+                UsageFormatter.tokenCountString(input),
+                UsageFormatter.tokenCountString(cache),
+                UsageFormatter.tokenCountString(output)))
+        }
+        let daysWithCost = snapshot.daily.count(where: { ($0.costUSD ?? 0) > 0 })
+        details.append(String(
+            format: L("Cost reported on %d/%d days"),
+            daysWithCost,
+            snapshot.daily.count))
+        if let topProject = snapshot.projects.first {
+            let tokens = topProject.totalTokens.map(UsageFormatter.tokenCountString) ?? "—"
+            details.append(String(format: L("Top project: %@ · %@"), topProject.name, tokens))
+        }
+        return details
+    }
+
+    private static func costHistoryKPIs(
+        provider: UsageProvider,
+        snapshot: CostUsageTokenSnapshot,
+        latest: CostUsageDailyReport.Entry?,
+        usesLatestPrimary: Bool,
+        primaryCostUSD: Double?,
+        historyTitle: String,
+        tokenHistoryTitle: String,
+        convertedString: (Double) -> String) -> [InlineUsageDashboardModel.KPI]
+    {
         var kpis = [
             InlineUsageDashboardModel.KPI(
                 title: usesLatestPrimary ? L("Latest") : L("Today"),
@@ -568,8 +640,7 @@ extension UsageMenuCardView.Model {
                 emphasis: true),
             .init(
                 title: historyTitle,
-                value: snapshot.last30DaysCostUSD
-                    .map(convertedString) ?? "—",
+                value: snapshot.last30DaysCostUSD.map(convertedString) ?? "—",
                 emphasis: false),
         ]
         // For Grok, lead with today's tokens so the main-page KPIs match the token bars.
@@ -599,20 +670,7 @@ extension UsageMenuCardView.Model {
                     emphasis: true),
                 at: 0)
         }
-        var model = InlineUsageDashboardModel(
-            accessibilityLabel: accessibilityLabel,
-            valueStyle: plotTokens ? .tokens : Self.costValueStyle(currencyCode: displayCurrencyCode),
-            kpis: kpis,
-            points: points,
-            detailLines: details)
-        // Grok only: Codex teal. Other providers keep branding (set by inlineUsageDashboard).
-        if provider == .grok {
-            model.barColor = Self.codexStyleChartBarColor
-        }
-        if !plotTokens {
-            model.currencyCode = displayCurrencyCode
-        }
-        return model
+        return kpis
     }
 
     /// Codex brand teal — shared cost-chart palette (matches Credits/Codex cost bars).

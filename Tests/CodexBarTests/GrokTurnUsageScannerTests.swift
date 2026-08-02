@@ -6,9 +6,19 @@ struct GrokTurnUsageScannerTests {
     @Test
     func `parses turn_completed matching headless usage fields`() throws {
         // Use a released public model ID (not internal -build suffixes) per repo test-model policy.
-        let line = #"""
-        {"timestamp":1784626073,"method":"_x.ai/session/update","params":{"sessionId":"session-fixture-1","update":{"sessionUpdate":"turn_completed","prompt_id":"prompt-fixture-1","stop_reason":"end_turn","usage":{"inputTokens":12845,"outputTokens":32,"totalTokens":12877,"cachedReadTokens":10752,"reasoningTokens":27,"modelCalls":1,"apiDurationMs":1772,"costUsdTicks":76036000,"modelUsage":{"grok-4":{"inputTokens":12845,"outputTokens":32,"totalTokens":12877,"cachedReadTokens":10752,"reasoningTokens":27,"modelCalls":1,"apiDurationMs":1772,"costUsdTicks":76036000}},"numTurns":1}},"_meta":{"eventId":"session-fixture-1-29","agentTimestampMs":1784626073119}}}
-        """#
+        let usage = """
+        "inputTokens":12845,"outputTokens":32,"totalTokens":12877,"cachedReadTokens":10752,\
+        "reasoningTokens":27,"modelCalls":1,"apiDurationMs":1772,"costUsdTicks":76036000,\
+        "modelUsage":{"grok-4":{"inputTokens":12845,"outputTokens":32,"totalTokens":12877,\
+        "cachedReadTokens":10752,"reasoningTokens":27,"modelCalls":1,"apiDurationMs":1772,\
+        "costUsdTicks":76036000}},"numTurns":1
+        """
+        let line = """
+        {"timestamp":1784626073,"method":"_x.ai/session/update","params":{"sessionId":\
+        "session-fixture-1","update":{"sessionUpdate":"turn_completed","prompt_id":\
+        "prompt-fixture-1","stop_reason":"end_turn","usage":{\(usage)}}},"_meta":{"eventId":\
+        "session-fixture-1-29","agentTimestampMs":1784626073119}}
+        """
 
         let record = try #require(GrokTurnUsageScanner.parseTurnLine(
             line,
@@ -35,9 +45,21 @@ struct GrokTurnUsageScannerTests {
 
     @Test
     func `preserves nested multi-model usage totals`() throws {
-        let line = #"""
-        {"timestamp":1784626073,"params":{"sessionId":"session-multi","update":{"sessionUpdate":"turn_completed","prompt_id":"p-multi","usage":{"inputTokens":300,"cachedReadTokens":50,"outputTokens":40,"totalTokens":340,"modelCalls":3,"costUsdTicks":3000000000,"modelUsage":{"grok-4":{"inputTokens":100,"cachedReadTokens":20,"outputTokens":10,"totalTokens":110,"modelCalls":1,"costUsdTicks":1000000000},"test-grok-model":{"inputTokens":200,"cachedReadTokens":30,"outputTokens":30,"totalTokens":230,"modelCalls":2,"costUsdTicks":2000000000}}}},"_meta":{"eventId":"e-multi","agentTimestampMs":1784626073000}}}
-        """#
+        let modelUsage = """
+        "grok-4":{"inputTokens":100,"cachedReadTokens":20,"outputTokens":10,"totalTokens":110,\
+        "modelCalls":1,"costUsdTicks":1000000000},"test-grok-model":{"inputTokens":200,\
+        "cachedReadTokens":30,"outputTokens":30,"totalTokens":230,"modelCalls":2,\
+        "costUsdTicks":2000000000}
+        """
+        let usage = """
+        "inputTokens":300,"cachedReadTokens":50,"outputTokens":40,"totalTokens":340,\
+        "modelCalls":3,"costUsdTicks":3000000000,"modelUsage":{\(modelUsage)}
+        """
+        let line = """
+        {"timestamp":1784626073,"params":{"sessionId":"session-multi","update":{\
+        "sessionUpdate":"turn_completed","prompt_id":"p-multi","usage":{\(usage)}}},\
+        "_meta":{"eventId":"e-multi","agentTimestampMs":1784626073000}}
+        """
 
         let record = try #require(GrokTurnUsageScanner.parseTurnLine(
             line,
@@ -95,10 +117,24 @@ struct GrokTurnUsageScannerTests {
         try Data(summary.utf8).write(to: sessionDir.appendingPathComponent("summary.json"))
 
         // Two turns same day: one with cost, one without.
-        let updates = #"""
-        {"timestamp":1784626073,"params":{"sessionId":"session-a","update":{"sessionUpdate":"turn_completed","prompt_id":"p1","usage":{"inputTokens":100,"cachedReadTokens":40,"outputTokens":10,"totalTokens":110,"modelCalls":1,"costUsdTicks":1000000000,"modelUsage":{"grok-4":{"inputTokens":100,"outputTokens":10,"totalTokens":110,"modelCalls":1,"costUsdTicks":1000000000}}}},"_meta":{"eventId":"e1","agentTimestampMs":1784626073000}}}
-        {"timestamp":1784627000,"params":{"sessionId":"session-a","update":{"sessionUpdate":"turn_completed","prompt_id":"p2","usage":{"inputTokens":200,"cachedReadTokens":50,"outputTokens":20,"totalTokens":220,"modelCalls":2,"modelUsage":{"grok-4":{"inputTokens":200,"outputTokens":20,"totalTokens":220,"modelCalls":2}}}},"_meta":{"eventId":"e2","agentTimestampMs":1784627000000}}}
-        """#
+        let turn1Usage = """
+        "inputTokens":100,"cachedReadTokens":40,"outputTokens":10,"totalTokens":110,\
+        "modelCalls":1,"costUsdTicks":1000000000,"modelUsage":{"grok-4":{"inputTokens":100,\
+        "outputTokens":10,"totalTokens":110,"modelCalls":1,"costUsdTicks":1000000000}}
+        """
+        let turn2Usage = """
+        "inputTokens":200,"cachedReadTokens":50,"outputTokens":20,"totalTokens":220,\
+        "modelCalls":2,"modelUsage":{"grok-4":{"inputTokens":200,"outputTokens":20,\
+        "totalTokens":220,"modelCalls":2}}
+        """
+        let updates = """
+        {"timestamp":1784626073,"params":{"sessionId":"session-a","update":{"sessionUpdate":\
+        "turn_completed","prompt_id":"p1","usage":{\(turn1Usage)}}},"_meta":{"eventId":"e1",\
+        "agentTimestampMs":1784626073000}}
+        {"timestamp":1784627000,"params":{"sessionId":"session-a","update":{"sessionUpdate":\
+        "turn_completed","prompt_id":"p2","usage":{\(turn2Usage)}}},"_meta":{"eventId":"e2",\
+        "agentTimestampMs":1784627000000}}
+        """
         try Data(updates.utf8).write(to: sessionDir.appendingPathComponent("updates.jsonl"))
 
         let options = GrokTurnUsageScanner.Options(sessionsRoot: root)
@@ -156,10 +192,15 @@ struct GrokTurnUsageScannerTests {
 
         let now = Date()
         let ts = Int(now.timeIntervalSince1970)
+        let usage = """
+        "inputTokens":50,"cachedReadTokens":10,"outputTokens":5,"totalTokens":55,"modelCalls":1,\
+        "costUsdTicks":500000000,"modelUsage":{"grok-4":{"inputTokens":50,"cachedReadTokens":10,\
+        "outputTokens":5,"totalTokens":55,"modelCalls":1,"costUsdTicks":500000000}}
+        """
         let updates = """
-        {"timestamp":\(
-            ts),"params":{"sessionId":"sid","update":{"sessionUpdate":"turn_completed","prompt_id":"p","usage":{"inputTokens":50,"cachedReadTokens":10,"outputTokens":5,"totalTokens":55,"modelCalls":1,"costUsdTicks":500000000,"modelUsage":{"grok-4":{"inputTokens":50,"cachedReadTokens":10,"outputTokens":5,"totalTokens":55,"modelCalls":1,"costUsdTicks":500000000}}}},"_meta":{"eventId":"e-now","agentTimestampMs":\(
-            ts)000}}}
+        {"timestamp":\(ts),"params":{"sessionId":"sid","update":{"sessionUpdate":\
+        "turn_completed","prompt_id":"p","usage":{\(usage)}}},"_meta":{"eventId":"e-now",\
+        "agentTimestampMs":\(ts)000}}
         """
         try Data(updates.utf8).write(to: sessionDir.appendingPathComponent("updates.jsonl"))
 

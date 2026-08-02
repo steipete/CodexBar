@@ -182,8 +182,11 @@ extension CodexBarCLI {
             let cache = snapshot.daily.compactMap(\.cacheReadTokens).reduce(0, +)
             let output = snapshot.daily.compactMap(\.outputTokens).reduce(0, +)
             if input + cache + output > 0 {
+                let uncached = UsageFormatter.tokenCountString(input)
+                let cacheLabel = UsageFormatter.tokenCountString(cache)
+                let outputLabel = UsageFormatter.tokenCountString(output)
                 extraLines.append(
-                    "Uncached \(UsageFormatter.tokenCountString(input)) · Cache \(UsageFormatter.tokenCountString(cache)) · Output \(UsageFormatter.tokenCountString(output))")
+                    "Uncached \(uncached) · Cache \(cacheLabel) · Output \(outputLabel)")
             }
             var modelTotals: [String: Int] = [:]
             for entry in snapshot.daily {

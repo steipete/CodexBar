@@ -535,211 +535,6 @@ struct CostHistoryChartMenuView: View {
         return [0, maxValue / 2, maxValue]
     }
 
-    private static func makeModel(
-        provider: UsageProvider,
-        daily: [DailyEntry],
-        historyDays: Int = 30) -> Model
-    {
-        let metric = self.chartMetric(for: provider, daily: daily)
-        let sorted = daily.sorted { lhs, rhs in lhs.date < rhs.date }
-
-        var entriesByKey: [String: DailyEntry] = [:]
-        entriesByKey.reserveCapacity(sorted.count)
-        var maxDetailRows = 0
-        var hasModeDetails = false
-        for entry in sorted {
-            entriesByKey[entry.date] = entry
-            let modelBreakdowns = entry.modelBreakdowns ?? []
-            var detailRowCount = modelBreakdowns.count
-            if entry.inputTokens != nil || entry.cacheReadTokens != nil || entry.outputTokens != nil {
-                detailRowCount += 1
-            }
-            maxDetailRows = max(maxDetailRows, detailRowCount)
-            hasModeDetails = hasModeDetails || modelBreakdowns.contains { Self.hasModeSubtitle($0) }
-        }
-
-        // Continuous day range (like Codex) so sparse Grok days don't collapse bar gaps.
-        let dayKeys = self.continuousDayKeys(from: sorted, historyDays: historyDays)
-        var points: [Point] = []
-        points.reserveCapacity(dayKeys.count)
-        var pointsByKey: [String: Point] = [:]
-        pointsByKey.reserveCapacity(dayKeys.count)
-        var dateKeys: [(key: String, date: Date)] = []
-        dateKeys.reserveCapacity(dayKeys.count)
-
-        var peak: (key: String, value: Double)?
-        var maxChartValue: Double = 0
-        for dayKey in dayKeys {
-            guard let date = self.dateFromDayKey(dayKey) else { continue }
-            let entry = entriesByKey[dayKey]
-            let chartValue: Double
-            let costUSD: Double?
-            let totalTokens: Int?
-            let requestCount: Int?
-            if let entry {
-                if let parsed = self.chartPointInput(for: entry, metric: metric) {
-                    chartValue = parsed.chartValue
-                    costUSD = parsed.costUSD
-                    totalTokens = entry.totalTokens
-                    requestCount = entry.requestCount
-                } else if metric == .tokens {
-                    chartValue = Double(entry.totalTokens ?? 0)
-                    costUSD = entry.costUSD
-                    totalTokens = entry.totalTokens
-                    requestCount = entry.requestCount
-                } else {
-                    chartValue = entry.costUSD ?? 0
-                    costUSD = entry.costUSD
-                    totalTokens = entry.totalTokens
-                    requestCount = entry.requestCount
-                }
-            } else {
-                // Empty day placeholder keeps bar spacing even.
-                chartValue = 0
-                costUSD = nil
-                totalTokens = 0
-                requestCount = nil
-            }
-            let point = Point(
-                date: date,
-                costUSD: costUSD,
-                totalTokens: totalTokens,
-                requestCount: requestCount,
-                chartValue: chartValue)
-            points.append(point)
-            pointsByKey[dayKey] = point
-            dateKeys.append((dayKey, date))
-            if chartValue > 0 {
-                if let cur = peak {
-                    if chartValue > cur.value {
-                        peak = (dayKey, chartValue)
-                    }
-                } else {
-                    peak = (dayKey, chartValue)
-                }
-                maxChartValue = max(maxChartValue, chartValue)
-            }
-        }
-
-        let axisDates: [Date] = {
-            guard let first = dateKeys.first?.date, let last = dateKeys.last?.date else { return [] }
-            if Calendar.current.isDate(first, inSameDayAs: last) {
-                return [first]
-            }
-            return [first, last]
-        }()
-
-        // Grok uses Codex teal; other providers keep their branding colors.
-        let barColor = Self.barColor(for: provider)
-        let yAxisTitle = metric == .tokens ? L("Tokens") : L("Cost")
-        return Model(
-            points: points,
-            pointsByDateKey: pointsByKey,
-            entriesByDateKey: entriesByKey,
-            dateKeys: dateKeys,
-            axisDates: axisDates,
-            barColor: barColor,
-            peakKey: maxChartValue > 0 ? peak?.key : nil,
-            maxChartValue: maxChartValue,
-            chartMetric: metric,
-            yAxisTitle: yAxisTitle,
-            detailViewportRowCount: min(maxDetailRows, self.maxVisibleDetailLines),
-            hasDetailOverflow: maxDetailRows > self.maxVisibleDetailLines,
-            detailRowHeight: hasModeDetails ? self.expandedDetailRowHeight : self.compactDetailRowHeight)
-    }
-
-    /// Continuous `YYYY-MM-DD` keys for the last `historyDays` ending at the latest data day
-    /// (falls back to first→last span when history is shorter).
-    private static func continuousDayKeys(from sorted: [DailyEntry], historyDays: Int) -> [String] {
-        guard let last = sorted.last?.date, let end = self.dateFromDayKey(last) else {
-            return sorted.map(\.date)
-        }
-        let calendar = Calendar.current
-        let endDay = calendar.startOfDay(for: end)
-        let span = max(1, historyDays)
-        let startDay = calendar.date(byAdding: .day, value: -(span - 1), to: endDay) ?? endDay
-        // Prefer full history window; if data starts later, still fill from window start (zeros).
-        var keys: [String] = []
-        var cursor = startDay
-        while cursor <= endDay {
-            keys.append(Self.dayKey(from: cursor))
-            guard let next = calendar.date(byAdding: .day, value: 1, to: cursor) else { break }
-            cursor = next
-        }
-        return keys.isEmpty ? sorted.map(\.date) : keys
-    }
-
-    private static func dayKey(from date: Date) -> String {
-        let comps = Calendar.current.dateComponents([.year, .month, .day], from: date)
-        return String(format: "%04d-%02d-%02d", comps.year ?? 1970, comps.month ?? 1, comps.day ?? 1)
-    }
-
-    private static func axisLabelPlacement(for dates: [Date]) -> AxisLabelPlacement {
-        switch dates.count {
-        case 0: .hidden
-        case 1: .centered
-        default: .edges
-        }
-    }
-
-    private static func xAxisLabelAnchor(for date: Date, axisDates: [Date]) -> UnitPoint {
-        switch self.axisLabelPlacement(for: axisDates) {
-        case .hidden, .centered:
-            .top
-        case .edges:
-            if let first = axisDates.first, Calendar.current.isDate(date, inSameDayAs: first) {
-                .topLeading
-            } else if let last = axisDates.last, Calendar.current.isDate(date, inSameDayAs: last) {
-                .topTrailing
-            } else {
-                .top
-            }
-        }
-    }
-
-    private static func barColor(for provider: UsageProvider) -> Color {
-        if provider == .grok {
-            return self.chartBarColor
-        }
-        let color = ProviderDescriptorRegistry.descriptor(for: provider).branding.color
-        return Color(red: color.red, green: color.green, blue: color.blue)
-    }
-
-    private static func dateFromDayKey(_ key: String) -> Date? {
-        let parts = key.split(separator: "-")
-        guard parts.count == 3,
-              let year = Int(parts[0]),
-              let month = Int(parts[1]),
-              let day = Int(parts[2]) else { return nil }
-
-        var comps = DateComponents()
-        comps.calendar = Calendar.current
-        comps.timeZone = TimeZone.current
-        comps.year = year
-        comps.month = month
-        comps.day = day
-        comps.hour = 12
-        return comps.date
-    }
-
-    /// Builds a chart point for a daily entry.
-    /// - Cost metric: requires a non-nil cost (legacy Codex behavior).
-    /// - Tokens metric: includes any day with token activity, even when cost is missing.
-    private static func chartPointInput(
-        for entry: DailyEntry,
-        metric: ChartMetric) -> (date: Date, chartValue: Double, costUSD: Double?)?
-    {
-        guard let date = self.dateFromDayKey(entry.date) else { return nil }
-        switch metric {
-        case .cost:
-            guard let costUSD = entry.costUSD, costUSD >= 0 else { return nil }
-            return (date, costUSD, costUSD)
-        case .tokens:
-            let tokens = entry.totalTokens ?? 0
-            guard tokens > 0 || (entry.costUSD ?? 0) > 0 else { return nil }
-            return (date, Double(tokens), entry.costUSD)
-        }
-    }
 
     private static func peakPoint(model: Model) -> Point? {
         guard let key = model.peakKey else { return nil }
@@ -1089,6 +884,216 @@ struct CostHistoryChartMenuView: View {
     private static func breakdownAccentOpacity(for index: Int) -> Double {
         let opacity = 0.75 - (Double(index) * 0.12)
         return max(0.3, opacity)
+    }
+}
+
+extension CostHistoryChartMenuView {
+    // MARK: - Chart model building
+
+    private static func makeModel(
+        provider: UsageProvider,
+        daily: [DailyEntry],
+        historyDays: Int = 30) -> Model
+    {
+        let metric = self.chartMetric(for: provider, daily: daily)
+        let sorted = daily.sorted { lhs, rhs in lhs.date < rhs.date }
+
+        var entriesByKey: [String: DailyEntry] = [:]
+        entriesByKey.reserveCapacity(sorted.count)
+        var maxDetailRows = 0
+        var hasModeDetails = false
+        for entry in sorted {
+            entriesByKey[entry.date] = entry
+            let modelBreakdowns = entry.modelBreakdowns ?? []
+            var detailRowCount = modelBreakdowns.count
+            if entry.inputTokens != nil || entry.cacheReadTokens != nil || entry.outputTokens != nil {
+                detailRowCount += 1
+            }
+            maxDetailRows = max(maxDetailRows, detailRowCount)
+            hasModeDetails = hasModeDetails || modelBreakdowns.contains { Self.hasModeSubtitle($0) }
+        }
+
+        // Continuous day range (like Codex) so sparse Grok days don't collapse bar gaps.
+        let dayKeys = self.continuousDayKeys(from: sorted, historyDays: historyDays)
+        var points: [Point] = []
+        points.reserveCapacity(dayKeys.count)
+        var pointsByKey: [String: Point] = [:]
+        pointsByKey.reserveCapacity(dayKeys.count)
+        var dateKeys: [(key: String, date: Date)] = []
+        dateKeys.reserveCapacity(dayKeys.count)
+
+        var peak: (key: String, value: Double)?
+        var maxChartValue: Double = 0
+        for dayKey in dayKeys {
+            guard let date = self.dateFromDayKey(dayKey) else { continue }
+            let entry = entriesByKey[dayKey]
+            let chartValue: Double
+            let costUSD: Double?
+            let totalTokens: Int?
+            let requestCount: Int?
+            if let entry {
+                if let parsed = self.chartPointInput(for: entry, metric: metric) {
+                    chartValue = parsed.chartValue
+                    costUSD = parsed.costUSD
+                    totalTokens = entry.totalTokens
+                    requestCount = entry.requestCount
+                } else if metric == .tokens {
+                    chartValue = Double(entry.totalTokens ?? 0)
+                    costUSD = entry.costUSD
+                    totalTokens = entry.totalTokens
+                    requestCount = entry.requestCount
+                } else {
+                    chartValue = entry.costUSD ?? 0
+                    costUSD = entry.costUSD
+                    totalTokens = entry.totalTokens
+                    requestCount = entry.requestCount
+                }
+            } else {
+                // Empty day placeholder keeps bar spacing even.
+                chartValue = 0
+                costUSD = nil
+                totalTokens = 0
+                requestCount = nil
+            }
+            let point = Point(
+                date: date,
+                costUSD: costUSD,
+                totalTokens: totalTokens,
+                requestCount: requestCount,
+                chartValue: chartValue)
+            points.append(point)
+            pointsByKey[dayKey] = point
+            dateKeys.append((dayKey, date))
+            if chartValue > 0 {
+                if let cur = peak {
+                    if chartValue > cur.value {
+                        peak = (dayKey, chartValue)
+                    }
+                } else {
+                    peak = (dayKey, chartValue)
+                }
+                maxChartValue = max(maxChartValue, chartValue)
+            }
+        }
+
+        let axisDates: [Date] = {
+            guard let first = dateKeys.first?.date, let last = dateKeys.last?.date else { return [] }
+            if Calendar.current.isDate(first, inSameDayAs: last) {
+                return [first]
+            }
+            return [first, last]
+        }()
+
+        // Grok uses Codex teal; other providers keep their branding colors.
+        let barColor = Self.barColor(for: provider)
+        let yAxisTitle = metric == .tokens ? L("Tokens") : L("Cost")
+        return Model(
+            points: points,
+            pointsByDateKey: pointsByKey,
+            entriesByDateKey: entriesByKey,
+            dateKeys: dateKeys,
+            axisDates: axisDates,
+            barColor: barColor,
+            peakKey: maxChartValue > 0 ? peak?.key : nil,
+            maxChartValue: maxChartValue,
+            chartMetric: metric,
+            yAxisTitle: yAxisTitle,
+            detailViewportRowCount: min(maxDetailRows, self.maxVisibleDetailLines),
+            hasDetailOverflow: maxDetailRows > self.maxVisibleDetailLines,
+            detailRowHeight: hasModeDetails ? self.expandedDetailRowHeight : self.compactDetailRowHeight)
+    }
+
+    /// Continuous `YYYY-MM-DD` keys for the last `historyDays` ending at the latest data day
+    /// (falls back to first→last span when history is shorter).
+    private static func continuousDayKeys(from sorted: [DailyEntry], historyDays: Int) -> [String] {
+        guard let last = sorted.last?.date, let end = self.dateFromDayKey(last) else {
+            return sorted.map(\.date)
+        }
+        let calendar = Calendar.current
+        let endDay = calendar.startOfDay(for: end)
+        let span = max(1, historyDays)
+        let startDay = calendar.date(byAdding: .day, value: -(span - 1), to: endDay) ?? endDay
+        // Prefer full history window; if data starts later, still fill from window start (zeros).
+        var keys: [String] = []
+        var cursor = startDay
+        while cursor <= endDay {
+            keys.append(Self.dayKey(from: cursor))
+            guard let next = calendar.date(byAdding: .day, value: 1, to: cursor) else { break }
+            cursor = next
+        }
+        return keys.isEmpty ? sorted.map(\.date) : keys
+    }
+
+    private static func dayKey(from date: Date) -> String {
+        let comps = Calendar.current.dateComponents([.year, .month, .day], from: date)
+        return String(format: "%04d-%02d-%02d", comps.year ?? 1970, comps.month ?? 1, comps.day ?? 1)
+    }
+
+    private static func axisLabelPlacement(for dates: [Date]) -> AxisLabelPlacement {
+        switch dates.count {
+        case 0: .hidden
+        case 1: .centered
+        default: .edges
+        }
+    }
+
+    private static func xAxisLabelAnchor(for date: Date, axisDates: [Date]) -> UnitPoint {
+        switch self.axisLabelPlacement(for: axisDates) {
+        case .hidden, .centered:
+            .top
+        case .edges:
+            if let first = axisDates.first, Calendar.current.isDate(date, inSameDayAs: first) {
+                .topLeading
+            } else if let last = axisDates.last, Calendar.current.isDate(date, inSameDayAs: last) {
+                .topTrailing
+            } else {
+                .top
+            }
+        }
+    }
+
+    private static func barColor(for provider: UsageProvider) -> Color {
+        if provider == .grok {
+            return self.chartBarColor
+        }
+        let color = ProviderDescriptorRegistry.descriptor(for: provider).branding.color
+        return Color(red: color.red, green: color.green, blue: color.blue)
+    }
+
+    private static func dateFromDayKey(_ key: String) -> Date? {
+        let parts = key.split(separator: "-")
+        guard parts.count == 3,
+              let year = Int(parts[0]),
+              let month = Int(parts[1]),
+              let day = Int(parts[2]) else { return nil }
+
+        var comps = DateComponents()
+        comps.calendar = Calendar.current
+        comps.timeZone = TimeZone.current
+        comps.year = year
+        comps.month = month
+        comps.day = day
+        comps.hour = 12
+        return comps.date
+    }
+
+    /// Builds a chart point for a daily entry.
+    /// - Cost metric: requires a non-nil cost (legacy Codex behavior).
+    /// - Tokens metric: includes any day with token activity, even when cost is missing.
+    private static func chartPointInput(
+        for entry: DailyEntry,
+        metric: ChartMetric) -> (date: Date, chartValue: Double, costUSD: Double?)?
+    {
+        guard let date = self.dateFromDayKey(entry.date) else { return nil }
+        switch metric {
+        case .cost:
+            guard let costUSD = entry.costUSD, costUSD >= 0 else { return nil }
+            return (date, costUSD, costUSD)
+        case .tokens:
+            let tokens = entry.totalTokens ?? 0
+            guard tokens > 0 || (entry.costUSD ?? 0) > 0 else { return nil }
+            return (date, Double(tokens), entry.costUSD)
+        }
     }
 }
 
