@@ -44,32 +44,38 @@ struct OpenCodeGoLocalUsageReaderTests {
 
         try Self.writeAuth(to: env.authURL)
         try Self.createDatabase(at: env.databaseURL)
-        // Expected keys below use the same device-local calendar convention as production.
+        let calendar = Calendar.current
+        let dayStart = calendar.startOfDay(for: Date(timeIntervalSince1970: 1_772_798_400))
+        let previousDay = try #require(calendar.date(byAdding: .day, value: -1, to: dayStart))
+        let currentDayAtNoon = dayStart.addingTimeInterval(12 * 60 * 60)
+        let currentDayAtOnePM = dayStart.addingTimeInterval(13 * 60 * 60)
+        let previousDayAtNoon = previousDay.addingTimeInterval(12 * 60 * 60)
+        let outsideWindow = try #require(calendar.date(byAdding: .day, value: -31, to: dayStart))
+            .addingTimeInterval(12 * 60 * 60)
+        let now = dayStart.addingTimeInterval(15 * 60 * 60)
+
         try Self.insertMessage(
             databaseURL: env.databaseURL,
-            createdMs: Self.ms("2026-03-06T12:00:00.000Z"),
+            createdMs: Self.ms(currentDayAtNoon),
             cost: 3.0)
         try Self.insertMessage(
             databaseURL: env.databaseURL,
-            createdMs: Self.ms("2026-03-06T13:00:00.000Z"),
+            createdMs: Self.ms(currentDayAtOnePM),
             cost: 1.5)
         try Self.insertMessage(
             databaseURL: env.databaseURL,
-            createdMs: Self.ms("2026-03-05T12:00:00.000Z"),
+            createdMs: Self.ms(previousDayAtNoon),
             cost: 6.0)
         try Self.insertMessage(
             databaseURL: env.databaseURL,
-            createdMs: Self.ms("2026-01-01T12:00:00.000Z"),
+            createdMs: Self.ms(outsideWindow),
             cost: 100.0)
 
         let reader = OpenCodeGoLocalUsageReader(authURL: env.authURL, databaseURL: env.databaseURL)
-        let now = Date(timeIntervalSince1970: TimeInterval(Self.ms("2026-03-06T15:00:00.000Z")) / 1000)
         let snapshot = try reader.fetch(now: now, historyDays: 30)
 
-        let previousDayKey = CostUsageScanner.CostUsageDayRange.dayKey(
-            from: Date(timeIntervalSince1970: TimeInterval(Self.ms("2026-03-05T12:00:00.000Z")) / 1000))
-        let currentDayKey = CostUsageScanner.CostUsageDayRange.dayKey(
-            from: Date(timeIntervalSince1970: TimeInterval(Self.ms("2026-03-06T12:00:00.000Z")) / 1000))
+        let previousDayKey = CostUsageScanner.CostUsageDayRange.dayKey(from: previousDayAtNoon)
+        let currentDayKey = CostUsageScanner.CostUsageDayRange.dayKey(from: currentDayAtNoon)
         #expect(snapshot.daily.map(\.date) == [previousDayKey, currentDayKey])
         #expect(snapshot.daily.first?.costUSD == 6.0)
         #expect(snapshot.daily.first?.requestCount == 1)
@@ -106,6 +112,90 @@ struct OpenCodeGoLocalUsageReaderTests {
         #expect(throws: OpenCodeGoLocalUsageError.self) {
             _ = try reader.fetch(now: Date(timeIntervalSince1970: 1_772_798_400))
         }
+    }
+
+    @Test
+    func `reads idle WAL history after OpenCode removes sidecars`() throws {
+        let env = try Self.makeEnvironment(rootName: "OpenCode Go WAL #\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: env.root) }
+
+        try Self.writeAuth(to: env.authURL)
+        try Self.createDatabase(at: env.databaseURL, usingWAL: true)
+        try Self.insertMessage(
+            databaseURL: env.databaseURL,
+            createdMs: Self.ms("2026-03-06T11:00:00.000Z"),
+            cost: 3.0)
+        try Self.checkpointWAL(at: env.databaseURL)
+        try Self.removeWALSidecars(at: env.databaseURL)
+
+        let reader = OpenCodeGoLocalUsageReader(authURL: env.authURL, databaseURL: env.databaseURL)
+        let snapshot = try reader.fetch(now: Date(timeIntervalSince1970: 1_772_798_400))
+
+        #expect(snapshot.rollingUsagePercent == 25)
+        #expect(snapshot.weeklyUsagePercent == 10)
+        #expect(snapshot.monthlyUsagePercent == 5)
+    }
+
+    @Test
+    func `normal reader keeps uncheckpointed live WAL usage`() throws {
+        let env = try Self.makeEnvironment()
+        defer { try? FileManager.default.removeItem(at: env.root) }
+
+        try Self.writeAuth(to: env.authURL)
+        try Self.createDatabase(at: env.databaseURL, usingWAL: true)
+        try Self.insertMessage(
+            databaseURL: env.databaseURL,
+            createdMs: Self.ms("2026-03-06T10:00:00.000Z"),
+            cost: 1.0)
+        try Self.checkpointWAL(at: env.databaseURL)
+        try Self.removeWALSidecars(at: env.databaseURL)
+
+        let writer = try Self.openDatabase(at: env.databaseURL)
+        defer { sqlite3_close(writer) }
+        try Self.insertMessage(
+            db: writer,
+            createdMs: Self.ms("2026-03-06T11:00:00.000Z"),
+            cost: 3.0)
+        #expect(FileManager.default.fileExists(atPath: env.databaseURL.path + "-wal"))
+
+        let reader = OpenCodeGoLocalUsageReader(authURL: env.authURL, databaseURL: env.databaseURL)
+        let snapshot = try reader.fetch(now: Date(timeIntervalSince1970: 1_772_798_400))
+
+        #expect(snapshot.rollingUsagePercent == 33.3)
+        #expect(snapshot.weeklyUsagePercent == 13.3)
+        #expect(snapshot.monthlyUsagePercent == 6.7)
+    }
+
+    @Test
+    func `normal verification wins when a live WAL appears during immutable fallback`() throws {
+        let env = try Self.makeEnvironment()
+        defer { try? FileManager.default.removeItem(at: env.root) }
+
+        try Self.writeAuth(to: env.authURL)
+        try Self.createDatabase(at: env.databaseURL, usingWAL: true)
+        try Self.insertMessage(
+            databaseURL: env.databaseURL,
+            createdMs: Self.ms("2026-03-06T10:00:00.000Z"),
+            cost: 1.0)
+        try Self.checkpointWAL(at: env.databaseURL)
+        try Self.removeWALSidecars(at: env.databaseURL)
+
+        let writer = SQLiteWALWriter()
+        defer { writer.close() }
+        let databaseURL = env.databaseURL
+        let liveCreatedMs = Self.ms("2026-03-06T11:00:00.000Z")
+        let reader = OpenCodeGoLocalUsageReader(
+            authURL: env.authURL,
+            databaseURL: databaseURL,
+            beforeNormalVerification: {
+                try writer.openAndInsert(databaseURL: databaseURL, createdMs: liveCreatedMs, cost: 3.0)
+            })
+        let snapshot = try reader.fetch(now: Date(timeIntervalSince1970: 1_772_798_400))
+
+        #expect(FileManager.default.fileExists(atPath: env.databaseURL.path + "-wal"))
+        #expect(snapshot.rollingUsagePercent == 33.3)
+        #expect(snapshot.weeklyUsagePercent == 13.3)
+        #expect(snapshot.monthlyUsagePercent == 6.7)
     }
 
     @Test
@@ -239,9 +329,11 @@ struct OpenCodeGoLocalUsageReaderTests {
         }
     }
 
-    private static func makeEnvironment() throws -> (root: URL, authURL: URL, databaseURL: URL) {
+    private static func makeEnvironment(rootName: String? = nil) throws -> (root: URL, authURL: URL, databaseURL: URL) {
         let root = FileManager.default.temporaryDirectory
-            .appendingPathComponent("OpenCodeGoLocalUsageReaderTests-\(UUID().uuidString)", isDirectory: true)
+            .appendingPathComponent(
+                rootName ?? "OpenCodeGoLocalUsageReaderTests-\(UUID().uuidString)",
+                isDirectory: true)
         let directory = root
             .appendingPathComponent(".local", isDirectory: true)
             .appendingPathComponent("share", isDirectory: true)
@@ -258,10 +350,12 @@ struct OpenCodeGoLocalUsageReaderTests {
         try data.write(to: url)
     }
 
-    private static func createDatabase(at url: URL) throws {
-        var db: OpaquePointer?
-        guard sqlite3_open(url.path, &db) == SQLITE_OK else { throw SQLiteTestError.open }
+    private static func createDatabase(at url: URL, usingWAL: Bool = false) throws {
+        let db = try Self.openDatabase(at: url)
         defer { sqlite3_close(db) }
+        if usingWAL {
+            try Self.exec(db: db, sql: "PRAGMA journal_mode=WAL;")
+        }
         try Self.exec(
             db: db,
             sql: """
@@ -285,10 +379,13 @@ struct OpenCodeGoLocalUsageReaderTests {
 
     @discardableResult
     private static func insertMessage(databaseURL: URL, createdMs: Int64, cost: Double?) throws -> String {
-        var db: OpaquePointer?
-        guard sqlite3_open(databaseURL.path, &db) == SQLITE_OK else { throw SQLiteTestError.open }
+        let db = try Self.openDatabase(at: databaseURL)
         defer { sqlite3_close(db) }
+        return try Self.insertMessage(db: db, createdMs: createdMs, cost: cost)
+    }
 
+    @discardableResult
+    private static func insertMessage(db: OpaquePointer, createdMs: Int64, cost: Double?) throws -> String {
         let messageID = UUID().uuidString
         var payload: [String: Any] = [
             "providerID": "opencode-go",
@@ -319,6 +416,22 @@ struct OpenCodeGoLocalUsageReaderTests {
         sqlite3_bind_int64(stmt, 5, createdMs)
         guard sqlite3_step(stmt) == SQLITE_DONE else { throw SQLiteTestError.step }
         return messageID
+    }
+
+    private static func checkpointWAL(at databaseURL: URL) throws {
+        let db = try Self.openDatabase(at: databaseURL)
+        defer { sqlite3_close(db) }
+        try Self.exec(db: db, sql: "PRAGMA wal_checkpoint(TRUNCATE);")
+    }
+
+    private static func removeWALSidecars(at databaseURL: URL) throws {
+        let fileManager = FileManager.default
+        for suffix in ["-wal", "-shm"] {
+            let sidecar = URL(fileURLWithPath: databaseURL.path + suffix, isDirectory: false)
+            if fileManager.fileExists(atPath: sidecar.path) {
+                try fileManager.removeItem(at: sidecar)
+            }
+        }
     }
 
     private static func insertStepFinishPart(
@@ -367,6 +480,12 @@ struct OpenCodeGoLocalUsageReaderTests {
         }
     }
 
+    private static func openDatabase(at url: URL) throws -> OpaquePointer {
+        var db: OpaquePointer?
+        guard sqlite3_open(url.path, &db) == SQLITE_OK, let db else { throw SQLiteTestError.open }
+        return db
+    }
+
     private static func ms(_ iso: String) -> Int64 {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
@@ -382,6 +501,23 @@ struct OpenCodeGoLocalUsageReaderTests {
         case prepare
         case step
         case exec
+    }
+
+    private final class SQLiteWALWriter: @unchecked Sendable {
+        private var db: OpaquePointer?
+
+        func openAndInsert(databaseURL: URL, createdMs: Int64, cost: Double) throws {
+            guard self.db == nil else { throw SQLiteTestError.open }
+            let db = try OpenCodeGoLocalUsageReaderTests.openDatabase(at: databaseURL)
+            self.db = db
+            _ = try OpenCodeGoLocalUsageReaderTests.insertMessage(db: db, createdMs: createdMs, cost: cost)
+        }
+
+        func close() {
+            guard let db = self.db else { return }
+            sqlite3_close(db)
+            self.db = nil
+        }
     }
 }
 

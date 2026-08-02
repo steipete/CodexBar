@@ -31,6 +31,9 @@ public struct OpenCodeGoLocalUsageReader: Sendable {
 
     private let authURL: URL
     private let databaseURL: URL
+    #if DEBUG
+    private let beforeNormalVerification: @Sendable () throws -> Void
+    #endif
 
     public init(homeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser) {
         let openCodeDirectory = homeDirectory
@@ -39,12 +42,30 @@ public struct OpenCodeGoLocalUsageReader: Sendable {
             .appendingPathComponent("opencode", isDirectory: true)
         self.authURL = openCodeDirectory.appendingPathComponent("auth.json", isDirectory: false)
         self.databaseURL = openCodeDirectory.appendingPathComponent("opencode.db", isDirectory: false)
+        #if DEBUG
+        self.beforeNormalVerification = {}
+        #endif
     }
 
     public init(authURL: URL, databaseURL: URL) {
         self.authURL = authURL
         self.databaseURL = databaseURL
+        #if DEBUG
+        self.beforeNormalVerification = {}
+        #endif
     }
+
+    #if DEBUG
+    init(
+        authURL: URL,
+        databaseURL: URL,
+        beforeNormalVerification: @escaping @Sendable () throws -> Void)
+    {
+        self.authURL = authURL
+        self.databaseURL = databaseURL
+        self.beforeNormalVerification = beforeNormalVerification
+    }
+    #endif
 
     public func fetch(now: Date = Date(), historyDays: Int = 30) throws -> OpenCodeGoUsageSnapshot {
         let hasAuth = Self.hasAuthKey(at: self.authURL)
@@ -66,21 +87,58 @@ public struct OpenCodeGoLocalUsageReader: Sendable {
     }
 
     private func readRows() throws -> [UsageRow] {
+        do {
+            return try self.readRows(readMode: .normal)
+        } catch let failure as SQLiteReadFailure {
+            guard failure.resultCode == SQLITE_CANTOPEN,
+                  let idleWALState = self.idleWALState()
+            else {
+                throw failure.usageError
+            }
+
+            do {
+                let rows = try self.readRows(readMode: .immutable)
+                #if DEBUG
+                try self.beforeNormalVerification()
+                #endif
+
+                // immutable=1 skips SQLite's change detection. Prefer a normal read whenever a writer appeared,
+                // and only keep the immutable snapshot if the database is still demonstrably idle.
+                do {
+                    return try self.readRows(readMode: .normal)
+                } catch let verificationFailure as SQLiteReadFailure {
+                    guard verificationFailure.resultCode == SQLITE_CANTOPEN,
+                          self.isStillIdleWAL(state: idleWALState)
+                    else {
+                        throw verificationFailure.usageError
+                    }
+                }
+                return rows
+            } catch let immutableFailure as SQLiteReadFailure {
+                throw immutableFailure.usageError
+            }
+        }
+    }
+
+    private func readRows(readMode: SQLiteReadMode) throws -> [UsageRow] {
         var db: OpaquePointer?
-        guard sqlite3_open_v2(self.databaseURL.path, &db, SQLITE_OPEN_READONLY, nil) == SQLITE_OK else {
-            let message = db.flatMap { String(cString: sqlite3_errmsg($0)) } ?? "unknown error"
+        let location = try self.databaseLocation(for: readMode)
+        let openResult = sqlite3_open_v2(location, &db, self.openFlags(for: readMode), nil)
+        guard openResult == SQLITE_OK, let db else {
+            let failure = SQLiteReadFailure(resultCode: openResult, db: db)
             sqlite3_close(db)
-            throw OpenCodeGoLocalUsageError.sqliteFailed(message)
+            throw failure
         }
         defer { sqlite3_close(db) }
         sqlite3_busy_timeout(db, 250)
 
-        let sql = self.hasTable(named: "part", db: db) ? Self.messageAndPartUsageSQL : Self.messageUsageSQL
+        let hasParts = try self.hasTable(named: "part", db: db)
+        let sql = hasParts ? Self.messageAndPartUsageSQL : Self.messageUsageSQL
 
         var stmt: OpaquePointer?
-        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {
-            let message = db.flatMap { String(cString: sqlite3_errmsg($0)) } ?? "unknown error"
-            throw OpenCodeGoLocalUsageError.sqliteFailed(message)
+        let prepareResult = sqlite3_prepare_v2(db, sql, -1, &stmt, nil)
+        guard prepareResult == SQLITE_OK, let stmt else {
+            throw SQLiteReadFailure(resultCode: prepareResult, db: db)
         }
         defer { sqlite3_finalize(stmt) }
 
@@ -91,8 +149,7 @@ public struct OpenCodeGoLocalUsageReader: Sendable {
                 break
             }
             guard step == SQLITE_ROW else {
-                let message = db.flatMap { String(cString: sqlite3_errmsg($0)) } ?? "unknown error"
-                throw OpenCodeGoLocalUsageError.sqliteFailed(message)
+                throw SQLiteReadFailure(resultCode: step, db: db)
             }
 
             let createdMs = sqlite3_column_int64(stmt, 0)
@@ -104,22 +161,153 @@ public struct OpenCodeGoLocalUsageReader: Sendable {
         return rows
     }
 
-    private func hasTable(named name: String, db: OpaquePointer?) -> Bool {
+    private func hasTable(named name: String, db: OpaquePointer) throws -> Bool {
         var stmt: OpaquePointer?
-        guard sqlite3_prepare_v2(
+        let prepareResult = sqlite3_prepare_v2(
             db,
             "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ? LIMIT 1",
             -1,
             &stmt,
-            nil) == SQLITE_OK
-        else {
-            return false
+            nil)
+        guard prepareResult == SQLITE_OK, let stmt else {
+            throw SQLiteReadFailure(resultCode: prepareResult, db: db)
         }
         defer { sqlite3_finalize(stmt) }
 
         let transient = unsafeBitCast(-1, to: sqlite3_destructor_type.self)
-        sqlite3_bind_text(stmt, 1, name, -1, transient)
-        return sqlite3_step(stmt) == SQLITE_ROW
+        let bindResult = sqlite3_bind_text(stmt, 1, name, -1, transient)
+        guard bindResult == SQLITE_OK else {
+            throw SQLiteReadFailure(resultCode: bindResult, db: db)
+        }
+        let step = sqlite3_step(stmt)
+        if step == SQLITE_ROW {
+            return true
+        }
+        if step == SQLITE_DONE {
+            return false
+        }
+        throw SQLiteReadFailure(resultCode: step, db: db)
+    }
+
+    private enum SQLiteReadMode {
+        case normal
+        case immutable
+    }
+
+    private struct SQLiteReadFailure: Error {
+        let resultCode: Int32
+        let message: String
+
+        init(resultCode: Int32, db: OpaquePointer?) {
+            self.resultCode = resultCode
+            self.message = db.map { String(cString: sqlite3_errmsg($0)) } ?? "unknown error"
+        }
+
+        init(resultCode: Int32, message: String) {
+            self.resultCode = resultCode
+            self.message = message
+        }
+
+        var usageError: OpenCodeGoLocalUsageError {
+            .sqliteFailed(self.message)
+        }
+    }
+
+    private struct IdleWALState: Equatable {
+        let database: DatabaseFileState
+    }
+
+    private struct DatabaseFileState: Equatable {
+        let fileNumber: UInt64?
+        let size: UInt64
+        let modificationDate: Date
+    }
+
+    private func databaseLocation(for readMode: SQLiteReadMode) throws -> String {
+        switch readMode {
+        case .normal:
+            return self.databaseURL.path
+        case .immutable:
+            guard let immutableDatabaseURI = self.immutableDatabaseURI else {
+                throw SQLiteReadFailure(
+                    resultCode: SQLITE_CANTOPEN,
+                    message: "could not construct immutable database URI")
+            }
+            return immutableDatabaseURI
+        }
+    }
+
+    private func openFlags(for readMode: SQLiteReadMode) -> Int32 {
+        switch readMode {
+        case .normal:
+            SQLITE_OPEN_READONLY
+        case .immutable:
+            SQLITE_OPEN_READONLY | SQLITE_OPEN_URI
+        }
+    }
+
+    private var immutableDatabaseURI: String? {
+        guard var components = URLComponents(url: self.databaseURL, resolvingAgainstBaseURL: false) else {
+            return nil
+        }
+        components.queryItems = [
+            URLQueryItem(name: "mode", value: "ro"),
+            URLQueryItem(name: "immutable", value: "1"),
+        ]
+        return components.url?.absoluteString
+    }
+
+    private func idleWALState() -> IdleWALState? {
+        guard self.sidecarsAreMissing(),
+              let before = Self.fileState(at: self.databaseURL),
+              Self.hasWALHeader(at: self.databaseURL),
+              let after = Self.fileState(at: self.databaseURL),
+              before == after,
+              self.sidecarsAreMissing()
+        else {
+            return nil
+        }
+        return IdleWALState(database: after)
+    }
+
+    private func isStillIdleWAL(state: IdleWALState) -> Bool {
+        guard self.sidecarsAreMissing(),
+              let current = Self.fileState(at: self.databaseURL),
+              current == state.database,
+              Self.hasWALHeader(at: self.databaseURL),
+              self.sidecarsAreMissing()
+        else {
+            return false
+        }
+        return true
+    }
+
+    private func sidecarsAreMissing() -> Bool {
+        let fileManager = FileManager.default
+        return !fileManager.fileExists(atPath: self.sidecarURL(suffix: "-wal").path) &&
+            !fileManager.fileExists(atPath: self.sidecarURL(suffix: "-shm").path)
+    }
+
+    private func sidecarURL(suffix: String) -> URL {
+        URL(fileURLWithPath: self.databaseURL.path + suffix, isDirectory: false)
+    }
+
+    private static func fileState(at url: URL) -> DatabaseFileState? {
+        guard let attributes = try? FileManager.default.attributesOfItem(atPath: url.path),
+              let size = (attributes[.size] as? NSNumber)?.uint64Value,
+              let modificationDate = attributes[.modificationDate] as? Date
+        else {
+            return nil
+        }
+        let fileNumber = (attributes[.systemFileNumber] as? NSNumber)?.uint64Value
+        return DatabaseFileState(fileNumber: fileNumber, size: size, modificationDate: modificationDate)
+    }
+
+    private static func hasWALHeader(at url: URL) -> Bool {
+        guard let handle = try? FileHandle(forReadingFrom: url) else { return false }
+        defer { try? handle.close() }
+        guard let header = try? handle.read(upToCount: 20), header.count == 20 else { return false }
+        return header[18] == 2 && header[19] == 2
     }
 
     private static let messageUsageSQL = """
