@@ -3,6 +3,7 @@
 ## 0.45.3 — Unreleased
 
 ### Fixed
+- Browser cookies: restore automatic Chromium cookie imports for background refreshes when the Safe Storage Keychain item is readable without interaction, keeping the read strictly non-interactive (SweetCookieKit 0.5.1). Cookie-only providers such as Kimi no longer report “No available fetch strategy” until a manual refresh, and background probes never write denial cooldowns that would suppress the next manual refresh.
 
 ## 0.45.2 — 2026-07-19
 

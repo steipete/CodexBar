@@ -270,7 +270,7 @@ struct BrowserDetectionTests {
     }
 
     @Test
-    func `background cookie import skips chromium before keychain preflight`() {
+    func `background cookie import allows chromium with allowed keychain preflight`() {
         BrowserCookieAccessGate.resetForTesting()
         defer { BrowserCookieAccessGate.resetForTesting() }
 
@@ -282,17 +282,20 @@ struct BrowserDetectionTests {
                 return .allowed
             } operation: {
                 ProviderInteractionContext.$current.withValue(.background) {
-                    #expect(BrowserCookieAccessGate.shouldAttempt(.chrome) == false)
+                    // Background refreshes may read Chromium cookies when the prompt-free
+                    // attribute preflight allows it; the read itself stays non-interactive
+                    // (see `withCookieReadInteractionPolicy`).
+                    #expect(BrowserCookieAccessGate.shouldAttempt(.chrome) == true)
                     #expect(BrowserCookieAccessGate.shouldAttempt(.safari) == true)
                 }
             }
         }
 
-        #expect(preflightCount == 0)
+        #expect(preflightCount == 1)
     }
 
     @Test
-    func `background cookie import skips chromium without probing keychain interaction`() {
+    func `background cookie import suppresses chromium when keychain preflight requires interaction`() {
         BrowserCookieAccessGate.resetForTesting()
         defer { BrowserCookieAccessGate.resetForTesting() }
 
@@ -304,13 +307,62 @@ struct BrowserDetectionTests {
                 return .interactionRequired
             } operation: {
                 ProviderInteractionContext.$current.withValue(.background) {
+                    // An interaction-required key is never read from background: the read
+                    // would either block or prompt, so the browser is skipped instead.
                     #expect(BrowserCookieAccessGate.shouldAttempt(.chrome) == false)
                     #expect(BrowserCookieAccessGate.shouldAttempt(.safari) == true)
                 }
             }
         }
 
-        #expect(preflightCount == 0)
+        #expect(preflightCount == 1)
+    }
+
+    @Test
+    func `background preflight does not record denial cooldown`() {
+        BrowserCookieAccessGate.resetForTesting()
+        defer { BrowserCookieAccessGate.resetForTesting() }
+
+        let start = Date(timeIntervalSince1970: 1000)
+        KeychainAccessGate.withTaskOverrideForTesting(false) {
+            KeychainAccessPreflight.withCheckGenericPasswordOverrideForTesting { _, _ in
+                .interactionRequired
+            } operation: {
+                ProviderInteractionContext.$current.withValue(.background) {
+                    #expect(BrowserCookieAccessGate.shouldAttempt(.chrome, now: start) == false)
+                }
+            }
+            // A background probe must not suppress the user's next manual refresh.
+            ProviderInteractionContext.$current.withValue(.userInitiated) {
+                KeychainAccessPreflight.withCheckGenericPasswordOverrideForTesting { _, _ in
+                    .allowed
+                } operation: {
+                    #expect(BrowserCookieAccessGate.shouldAttempt(.chrome, now: start.addingTimeInterval(60)) == true)
+                }
+            }
+        }
+    }
+
+    @Test
+    func `background cookie reads run with keychain interaction disallowed`() {
+        // Regression: background refreshes must never be able to promote a no-UI Safe
+        // Storage read to an interactive Keychain prompt. The read policy wrapper must
+        // apply SweetCookieKit's interaction suppression outside user-initiated contexts.
+        var observedDisallowed: Bool?
+
+        ProviderInteractionContext.$current.withValue(.background) {
+            BrowserCookieAccessGate.withCookieReadInteractionPolicy {
+                observedDisallowed = BrowserCookieKeychainAccessGate.isUserInteractionDisallowed
+            }
+        }
+        #expect(observedDisallowed == true)
+
+        ProviderInteractionContext.$current.withValue(.userInitiated) {
+            BrowserCookieAccessGate.withCookieReadInteractionPolicy {
+                observedDisallowed = BrowserCookieKeychainAccessGate.isUserInteractionDisallowed
+            }
+        }
+        #expect(observedDisallowed == false)
     }
 
     @Test
@@ -322,9 +374,11 @@ struct BrowserDetectionTests {
         var preflightCount = 0
 
         KeychainAccessGate.withTaskOverrideForTesting(false) {
-            BrowserCookieAccessGate.recordIfNeeded(
-                BrowserCookieError.accessDenied(browser: .arc, details: "denied"),
-                now: start)
+            ProviderInteractionContext.$current.withValue(.userInitiated) {
+                BrowserCookieAccessGate.recordIfNeeded(
+                    BrowserCookieError.accessDenied(browser: .arc, details: "denied"),
+                    now: start)
+            }
             KeychainAccessPreflight.withCheckGenericPasswordOverrideForTesting { _, _ in
                 preflightCount += 1
                 return .allowed

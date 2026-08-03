@@ -87,10 +87,25 @@ public enum BrowserCookieAccessGate {
         guard browser.usesKeychainForCookieDecryption else { return true }
         guard !KeychainAccessGate.isDisabled else { return false }
         guard ProviderInteractionContext.current == .userInitiated else {
-            self.log.info(
-                "Skipping background Chromium cookie import to avoid a Keychain prompt",
-                metadata: ["browser": browser.displayName])
-            return false
+            // Background refreshes must never surface a Safe Storage prompt. The password
+            // read itself runs non-interactively (see `withCookieReadInteractionPolicy`),
+            // so a browser whose Safe Storage key requires interaction yields no cookies
+            // instead of prompting. The prompt-free attribute preflight below filters
+            // locked/denied keychain states, and background probes never record denials
+            // (a background probe must not suppress the user's next manual refresh).
+            if self.denialCooldownActive(for: browser, now: now) {
+                self.log.debug(
+                    "Cookie access blocked for background refresh",
+                    metadata: ["browser": browser.displayName])
+                return false
+            }
+            if self.chromiumKeychainRequiresInteraction(for: browser) {
+                self.log.debug(
+                    "Cookie access requires interaction; skipping background refresh",
+                    metadata: ["browser": browser.displayName])
+                return false
+            }
+            return true
         }
         if self.deniedBrowsersForTesting?.contains(browser) == true {
             return self.isExplicitRetryAllowed(for: browser)
@@ -184,6 +199,20 @@ public enum BrowserCookieAccessGate {
         }
     }
 
+    /// Runs a browser-cookie read with the Keychain interaction policy matched to the
+    /// current refresh context. Background refreshes must never be able to promote a no-UI
+    /// Safe Storage read to an interactive prompt, so SweetCookieKit is told to keep the
+    /// read strictly non-interactive (a key that needs UI simply yields no cookies);
+    /// user-initiated refreshes keep the interactive recovery path and its consent prompt.
+    public static func withCookieReadInteractionPolicy<T>(_ operation: () throws -> T) rethrows -> T {
+        if ProviderInteractionContext.current == .userInitiated {
+            return try operation()
+        }
+        return try BrowserCookieKeychainAccessGate.withUserInteractionDisallowed {
+            try operation()
+        }
+    }
+
     public static func recordIfNeeded(_ error: Error, now: Date = Date()) {
         guard let error = error as? BrowserCookieError else { return }
         guard case .accessDenied = error else { return }
@@ -191,6 +220,10 @@ public enum BrowserCookieAccessGate {
     }
 
     public static func recordDenied(for browser: Browser, now: Date = Date()) {
+        // Only user-initiated actions may write denial cooldowns. Background probes must
+        // not suppress a browser for hours (including the user's next manual refresh)
+        // based on a non-interactive probe outcome.
+        guard ProviderInteractionContext.current == .userInitiated else { return }
         guard browser.usesKeychainForCookieDecryption else { return }
         let blockedUntil = now.addingTimeInterval(self.cooldownInterval)
         self.lock.withLock { state in
@@ -217,6 +250,22 @@ public enum BrowserCookieAccessGate {
             state.deniedUntilByBrowser.removeValue(forKey: browser.rawValue)
             state.chromiumFamilyDeniedUntil = state.deniedUntilByBrowser.values.max()
             self.persist(state)
+            return false
+        }
+    }
+
+    /// Checks whether a recorded denial cooldown (per-browser or Chromium-family-wide)
+    /// is still active, without pruning expired entries. Used by the background path,
+    /// which reads the cooldown but never writes it.
+    private static func denialCooldownActive(for browser: Browser, now: Date) -> Bool {
+        self.lock.withLock { state in
+            self.loadIfNeeded(&state)
+            if let blockedUntil = state.deniedUntilByBrowser[browser.rawValue], blockedUntil > now {
+                return true
+            }
+            if let blockedUntil = state.chromiumFamilyDeniedUntil, blockedUntil > now {
+                return true
+            }
             return false
         }
     }
@@ -337,7 +386,9 @@ extension BrowserCookieClient {
         guard BrowserCookieAccessGate.shouldAttempt(browser) else { return [] }
         guard BrowserCookieAccessGate.claimExplicitRetryCookieReadIfNeeded(for: browser) else { return [] }
         do {
-            let records = try self.records(matching: query, in: browser, logger: logger)
+            let records = try BrowserCookieAccessGate.withCookieReadInteractionPolicy {
+                try self.records(matching: query, in: browser, logger: logger)
+            }
             BrowserCookieAccessGate.recordAllowed(for: browser)
             return records
         } catch {
