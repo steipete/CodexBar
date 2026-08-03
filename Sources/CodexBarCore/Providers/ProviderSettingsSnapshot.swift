@@ -271,6 +271,9 @@ public struct ProviderSettingsSnapshot: Sendable {
         public let budgetExtrasEnabled: Bool
         public let budgetCookieSource: ProviderCookieSource
         public let manualBudgetCookieHeader: String?
+        public let orgCreditsEnabled: Bool
+        public let seatCreditEntitlement: Double?
+        public let orgCreditEntitlement: Double?
 
         public init(
             apiToken: String? = nil,
@@ -278,7 +281,10 @@ public struct ProviderSettingsSnapshot: Sendable {
             selectedAccountExternalIdentifier: String? = nil,
             budgetExtrasEnabled: Bool = false,
             budgetCookieSource: ProviderCookieSource = .auto,
-            manualBudgetCookieHeader: String? = nil)
+            manualBudgetCookieHeader: String? = nil,
+            orgCreditsEnabled: Bool = false,
+            seatCreditEntitlement: Double? = nil,
+            orgCreditEntitlement: Double? = nil)
         {
             self.apiToken = apiToken
             self.enterpriseHost = enterpriseHost
@@ -286,6 +292,9 @@ public struct ProviderSettingsSnapshot: Sendable {
             self.budgetExtrasEnabled = budgetExtrasEnabled
             self.budgetCookieSource = budgetCookieSource
             self.manualBudgetCookieHeader = manualBudgetCookieHeader
+            self.orgCreditsEnabled = orgCreditsEnabled
+            self.seatCreditEntitlement = seatCreditEntitlement
+            self.orgCreditEntitlement = orgCreditEntitlement
         }
     }
 

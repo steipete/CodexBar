@@ -85,6 +85,9 @@ extension SettingsStore {
             selectedAccountExternalIdentifier: account?.externalIdentifier.flatMap(self.normalizedConfigValue),
             budgetExtrasEnabled: self.copilotBudgetExtrasEnabled,
             budgetCookieSource: self.copilotBudgetCookieSource,
-            manualBudgetCookieHeader: self.normalizedConfigValue(self.copilotBudgetCookieHeader))
+            manualBudgetCookieHeader: self.normalizedConfigValue(self.copilotBudgetCookieHeader),
+            orgCreditsEnabled: self.copilotOrgCreditsEnabled,
+            seatCreditEntitlement: CopilotCreditEntitlementParser.parse(self.copilotSeatCreditEntitlementRaw),
+            orgCreditEntitlement: CopilotCreditEntitlementParser.parse(self.copilotOrgCreditEntitlementRaw))
     }
 }

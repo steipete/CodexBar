@@ -642,6 +642,33 @@ extension SettingsStore {
         }
     }
 
+    var copilotOrgCreditsEnabled: Bool {
+        get { self.defaultsState.copilotOrgCreditsEnabled }
+        set {
+            self.defaultsState.copilotOrgCreditsEnabled = newValue
+            self.userDefaults.set(newValue, forKey: "copilotOrgCreditsEnabled")
+            self.noteBackgroundWorkSettingsChanged()
+        }
+    }
+
+    var copilotSeatCreditEntitlementRaw: String {
+        get { self.defaultsState.copilotSeatCreditEntitlementRaw }
+        set {
+            self.defaultsState.copilotSeatCreditEntitlementRaw = newValue
+            self.userDefaults.set(newValue, forKey: "copilotSeatCreditEntitlement")
+            self.noteBackgroundWorkSettingsChanged()
+        }
+    }
+
+    var copilotOrgCreditEntitlementRaw: String {
+        get { self.defaultsState.copilotOrgCreditEntitlementRaw }
+        set {
+            self.defaultsState.copilotOrgCreditEntitlementRaw = newValue
+            self.userDefaults.set(newValue, forKey: "copilotOrgCreditEntitlement")
+            self.noteBackgroundWorkSettingsChanged()
+        }
+    }
+
     private var claudeWebExtrasEnabledRaw: Bool {
         get { self.defaultsState.claudeWebExtrasEnabledRaw }
         set {
