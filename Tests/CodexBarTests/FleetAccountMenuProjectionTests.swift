@@ -42,9 +42,15 @@ struct FleetAccountMenuProjectionTests {
 
     @Test
     func `fallback selects the freshest remote snapshot`() {
-        let old = Self.snapshot(accountKey: "old", fetchedAt: Date(timeIntervalSince1970: 100))
+        let old = Self.snapshot(
+            accountKey: "old",
+            fetchedAt: Date(timeIntervalSince1970: 100),
+            deviceID: "remote-one")
         let fresh = Self.snapshot(accountKey: "fresh", fetchedAt: Date(timeIntervalSince1970: 300))
-        let sameAccountNewer = Self.snapshot(accountKey: "old", fetchedAt: Date(timeIntervalSince1970: 250))
+        let sameAccountNewer = Self.snapshot(
+            accountKey: "old",
+            fetchedAt: Date(timeIntervalSince1970: 250),
+            deviceID: "remote-two")
         let projection = FleetAccountMenuPlanner.projection(
             provider: .codex,
             snapshots: [old, fresh, sameAccountNewer],
@@ -55,6 +61,7 @@ struct FleetAccountMenuProjectionTests {
         #expect(projection.fallback?.accountKey == "fresh")
         #expect(projection.additionalAccounts.map(\.accountKey) == ["old"])
         #expect(projection.additionalAccounts.first?.fetchedAt == sameAccountNewer.fetchedAt)
+        #expect(projection.additionalAccounts.first?.deviceID == "remote-two")
     }
 
     @Test
@@ -69,10 +76,14 @@ struct FleetAccountMenuProjectionTests {
             now: now) == "via Studio · 1h ago")
     }
 
-    private static func snapshot(accountKey: String, fetchedAt: Date) -> AccountSnapshotSyncPayload {
+    private static func snapshot(
+        accountKey: String,
+        fetchedAt: Date,
+        deviceID: String = "remote-device") -> AccountSnapshotSyncPayload
+    {
         AccountSnapshotSyncPayload(
             provider: .codex,
-            deviceID: "remote-device",
+            deviceID: deviceID,
             accountKey: accountKey,
             fetchedAt: fetchedAt,
             displayLabel: "person@example.com",

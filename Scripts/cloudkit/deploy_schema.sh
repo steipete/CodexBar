@@ -25,16 +25,16 @@ if [[ -n "${CLOUDKIT_MANAGEMENT_TOKEN:-}" ]]; then
 fi
 
 echo "Validating schema against $ENVIRONMENT..."
-xcrun cktool validate-schema "${TOKEN_ARGS[@]}" \
+xcrun cktool validate-schema ${TOKEN_ARGS[@]+"${TOKEN_ARGS[@]}"} \
   --team-id "$TEAM_ID" --container-id "$CONTAINER_ID" \
   --environment "$ENVIRONMENT" --file "$SCHEMA_FILE"
 
 echo "Importing schema into $ENVIRONMENT..."
-xcrun cktool import-schema "${TOKEN_ARGS[@]}" \
+xcrun cktool import-schema ${TOKEN_ARGS[@]+"${TOKEN_ARGS[@]}"} \
   --team-id "$TEAM_ID" --container-id "$CONTAINER_ID" \
   --environment "$ENVIRONMENT" --file "$SCHEMA_FILE"
 
 echo "Done. Current $ENVIRONMENT schema:"
-xcrun cktool export-schema "${TOKEN_ARGS[@]}" \
+xcrun cktool export-schema ${TOKEN_ARGS[@]+"${TOKEN_ARGS[@]}"} \
   --team-id "$TEAM_ID" --container-id "$CONTAINER_ID" \
   --environment "$ENVIRONMENT"

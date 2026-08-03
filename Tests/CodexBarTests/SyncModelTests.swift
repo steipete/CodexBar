@@ -1,6 +1,7 @@
 import CodexBarCore
 import Foundation
 import Testing
+@testable import CodexBar
 
 struct SyncModelTests {
     @Test
@@ -107,6 +108,19 @@ struct SyncModelTests {
     }
 
     @Test
+    func `gated remote enable intent survives the next upload`() throws {
+        let local = ProviderConfig(id: .claude, enabled: false, source: .cli)
+        let remote = ProviderIntentPayload(config: ProviderConfig(id: .claude, enabled: true))
+        let gated = try remote.applying(to: local, secretFields: [:]) { _, _ in false }
+        let nextUpload = CloudSyncEngine.providerIntentPayload(
+            config: gated,
+            suppressedEnableIntents: [UsageProvider.claude.rawValue])
+
+        #expect(gated.enabled == false)
+        #expect(nextUpload.enabled == true)
+    }
+
+    @Test
     func `absent secrets preserve local values and empty markers delete them`() throws {
         let payload = ProviderIntentPayload(config: ProviderConfig(id: .openai))
         let local = ProviderConfig(id: .openai, apiKey: "keep", secretKey: "remove")
@@ -157,6 +171,7 @@ struct SyncModelTests {
 
         #expect(decoded.accountKey == AccountSnapshotSyncPayload.accountKey(for: "person@example.com"))
         #expect(decoded.recordName == payload.recordName)
+        #expect(decoded.recordName.hasSuffix("-device-id"))
         #expect(decoded.usage.primary?.usedPercent == 42)
         #expect(decoded.fetchedAt == usage.updatedAt)
     }

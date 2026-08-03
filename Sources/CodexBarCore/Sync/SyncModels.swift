@@ -205,7 +205,7 @@ public struct AccountSnapshotSyncPayload: Codable, Sendable {
     }
 
     public var recordName: String {
-        "snap-\(self.provider.rawValue)-\(self.accountKey)"
+        "snap-\(self.provider.rawValue)-\(self.accountKey)-\(self.deviceID)"
     }
 
     public static func accountKey(for identity: String?) -> String {

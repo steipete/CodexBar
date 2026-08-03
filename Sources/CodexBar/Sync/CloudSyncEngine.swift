@@ -27,6 +27,38 @@ final class CloudSyncState {
     var fleetSnapshots: [String: AccountSnapshotSyncPayload] = [:]
 }
 
+struct CloudSyncQuotaRetryState: Equatable, Sendable {
+    private(set) var baseDelay: TimeInterval?
+    private(set) var failureCount = 0
+
+    mutating func nextDelay(serverRetryAfter: TimeInterval?) -> TimeInterval {
+        if self.baseDelay == nil {
+            self.baseDelay = max(serverRetryAfter ?? 60, 0)
+        }
+        let multiplier = pow(2, Double(self.failureCount))
+        self.failureCount += 1
+        return min((self.baseDelay ?? 60) * multiplier, 60 * 60)
+    }
+
+    mutating func reset() {
+        self = Self()
+    }
+}
+
+enum CloudSyncBatchRecordProvider {
+    static func record(
+        for recordID: CKRecord.ID,
+        desiredRecords: [CKRecord.ID: CKRecord],
+        removePendingChange: (CKSyncEngine.PendingRecordZoneChange) -> Void) -> CKRecord?
+    {
+        guard let record = desiredRecords[recordID] else {
+            removePendingChange(.saveRecord(recordID))
+            return nil
+        }
+        return record
+    }
+}
+
 enum CloudSyncEntitlementGate {
     static let entitlement = "com.apple.developer.icloud-services"
 
@@ -37,7 +69,7 @@ enum CloudSyncEntitlementGate {
             return false
         }
         if let services = value as? [String] {
-            return services.contains("CloudKit") || !services.isEmpty
+            return services.contains("CloudKit")
         }
         return false
     }
@@ -61,6 +93,9 @@ actor CloudSyncEngine: CKSyncEngineDelegate {
     private var pendingSnapshots: [AccountSnapshotSyncPayload] = []
     private var lastSnapshotHashes: [String: String] = [:]
     private var lastQueuedConfigHash: String?
+    private var lastKnownProviderConfigs: [UsageProvider: ProviderConfig] = [:]
+    private var quotaRetryState = CloudSyncQuotaRetryState()
+    private var didRehydrateFleetState = false
     private let logger = CodexBarLog.logger(LogCategories.settings)
 
     init(
@@ -95,16 +130,38 @@ actor CloudSyncEngine: CKSyncEngineDelegate {
             return
         }
         do {
-            try await self.initializeEngineIfNeeded()
+            let initialized = try await self.initializeEngineIfNeeded()
             guard self.engine != nil else { return }
             try await self.queueCurrentConfigurationAndPreferences()
             guard await MainActor.run(body: { !self.state.status.needsAppUpdate }) else { return }
             try await self.queueDeviceRecord()
             self.startPeriodicFetchTimer()
-            self.scheduleFetchChanges()
+            self.scheduleFetchChanges(scopedToSyncZone: !initialized)
         } catch {
             await self.record(error: error)
         }
+    }
+
+    func resumeOrFetch(enabled: Bool) async {
+        guard enabled else { return }
+        if self.engine == nil {
+            await self.start(enabled: true)
+        } else {
+            await self.fetchChanges()
+        }
+    }
+
+    func localUserConfigurationDidChange(_ config: CodexBarConfig) {
+        for providerConfig in config.providers {
+            if let previous = self.lastKnownProviderConfigs[providerConfig.id],
+               previous.enabled != providerConfig.enabled
+            {
+                self.persistenceEnvelope.suppressedEnableIntents.remove(providerConfig.id.rawValue)
+                self.lastQueuedConfigHash = nil
+            }
+        }
+        self.lastKnownProviderConfigs = Dictionary(uniqueKeysWithValues: config.providers.map { ($0.id, $0) })
+        self.persistEnvelope()
     }
 
     func scheduleConfigurationPush() {
@@ -166,8 +223,8 @@ actor CloudSyncEngine: CKSyncEngineDelegate {
         await self.stopEngine(clearPersistence: false)
     }
 
-    private func initializeEngineIfNeeded() async throws {
-        guard self.engine == nil else { return }
+    private func initializeEngineIfNeeded() async throws -> Bool {
+        guard self.engine == nil else { return false }
         // This is the first CKContainer access, and every path here has already passed the entitlement gate.
         let container = CKContainer(identifier: Self.containerIdentifier)
         let accountStatus = try await container.accountStatus()
@@ -176,13 +233,13 @@ actor CloudSyncEngine: CKSyncEngineDelegate {
             await self.updateAvailability(.available)
         case .restricted:
             await self.updateAvailability(.restricted)
-            return
+            return false
         case .noAccount, .couldNotDetermine, .temporarilyUnavailable:
             await self.updateAvailability(.noICloudAccount)
-            return
+            return false
         @unknown default:
             await self.updateAvailability(.noICloudAccount)
-            return
+            return false
         }
 
         var configuration = CKSyncEngine.Configuration(
@@ -192,13 +249,15 @@ actor CloudSyncEngine: CKSyncEngineDelegate {
         configuration.automaticallySync = true
         let engine = CKSyncEngine(configuration)
         self.engine = engine
+        await self.rehydrateFleetStateIfNeeded()
         engine.state.add(pendingDatabaseChanges: [.saveZone(CKRecordZone(zoneID: Self.zoneID))])
+        return true
     }
 
     private func queueCurrentConfigurationAndPreferences() async throws {
         guard let engine = self.engine else { return }
-        if self.persistenceEnvelope.recordFields.values.contains(where: {
-            ($0.integers["schemaVersion"] ?? 0) > CodexBarSyncSchema.currentVersion
+        if self.persistenceEnvelope.recordMetadata.values.contains(where: {
+            ($0.schemaVersion ?? 0) > CodexBarSyncSchema.currentVersion
         }) {
             await MainActor.run { self.state.status.needsAppUpdate = true }
             return
@@ -209,8 +268,14 @@ actor CloudSyncEngine: CKSyncEngineDelegate {
                 includeSecrets: self.settings.iCloudSyncIncludeSecrets,
                 preferences: self.settings.syncedPreferences)
         }
+        if self.lastKnownProviderConfigs.isEmpty {
+            self
+                .lastKnownProviderConfigs = Dictionary(uniqueKeysWithValues: snapshot.config.providers
+                    .map { ($0.id, $0) })
+        }
         let configHash = try CanonicalSyncJSON.hash(data: snapshot.config.orderIndependentConfigData())
             + ":secrets=\(snapshot.includeSecrets)"
+            + ":suppressed=\(self.persistenceEnvelope.suppressedEnableIntents.sorted().joined(separator: ","))"
         if configHash != self.lastQueuedConfigHash {
             for config in snapshot.config.providers {
                 try self.queueProviderIntent(config, includeSecrets: snapshot.includeSecrets, engine: engine)
@@ -225,7 +290,10 @@ actor CloudSyncEngine: CKSyncEngineDelegate {
         includeSecrets: Bool,
         engine: CKSyncEngine) throws
     {
-        let payload = try CanonicalSyncJSON.string(ProviderIntentPayload(config: config))
+        let intent = Self.providerIntentPayload(
+            config: config,
+            suppressedEnableIntents: self.persistenceEnvelope.suppressedEnableIntents)
+        let payload = try CanonicalSyncJSON.string(intent)
         let recordID = self.recordID(named: ProviderIntentPayload.recordName(for: config.id))
         let record = self.record(type: .providerIntent, id: recordID)
         let existingSecretKeys = Set(record.encryptedValues.allKeys())
@@ -250,6 +318,17 @@ actor CloudSyncEngine: CKSyncEngineDelegate {
         }
         self.desiredRecords[recordID] = record
         engine.state.add(pendingRecordZoneChanges: [.saveRecord(recordID)])
+    }
+
+    static func providerIntentPayload(
+        config: ProviderConfig,
+        suppressedEnableIntents: Set<String>) -> ProviderIntentPayload
+    {
+        var payload = ProviderIntentPayload(config: config)
+        if suppressedEnableIntents.contains(config.id.rawValue), config.enabled != true {
+            payload.enabled = true
+        }
+        return payload
     }
 
     private func queuePreferences(_ preferences: SyncedPreferences, engine: CKSyncEngine) throws {
@@ -284,7 +363,9 @@ actor CloudSyncEngine: CKSyncEngineDelegate {
         record["lastSeen"] = payload.lastSeen as CKRecordValue
         self.desiredRecords[recordID] = record
         engine.state.add(pendingRecordZoneChanges: [.saveRecord(recordID)])
+        self.persistenceEnvelope.fleetDevices[payload.recordName] = payload
         await MainActor.run { self.state.fleetDevices[payload.recordName] = payload }
+        self.persistEnvelope()
     }
 
     private func pushPendingSnapshots() async {
@@ -305,10 +386,12 @@ actor CloudSyncEngine: CKSyncEngineDelegate {
                 record.encryptedValues["usagePayload"] = try CanonicalSyncJSON.string(payload.usage) as CKRecordValue
                 self.desiredRecords[recordID] = record
                 self.lastSnapshotHashes[payload.recordName] = hash
+                self.persistenceEnvelope.fleetSnapshots[payload.recordName] = payload
                 engine.state.add(pendingRecordZoneChanges: [.saveRecord(recordID)])
             }
             self.pendingSnapshots = []
             self.lastSnapshotPushAt = Date()
+            self.persistEnvelope()
         } catch {
             await self.record(error: error)
         }
@@ -328,18 +411,20 @@ actor CloudSyncEngine: CKSyncEngineDelegate {
         case let .accountChange(change):
             switch change.changeType {
             case .signOut, .switchAccounts:
-                self.scheduleAccountReset()
+                await self.stopEngine(clearPersistence: true)
             case .signIn:
                 break
             @unknown default:
-                self.scheduleAccountReset()
+                await self.stopEngine(clearPersistence: true)
             }
         case let .fetchedRecordZoneChanges(changes):
             await self.applyFetchedRecords(changes.modifications.map(\.record))
             let deletedRecordNames = changes.deletions.map(\.recordID.recordName)
             for deletion in changes.deletions {
                 self.persistenceEnvelope.encodedSystemFields.removeValue(forKey: deletion.recordID.recordName)
-                self.persistenceEnvelope.recordFields.removeValue(forKey: deletion.recordID.recordName)
+                self.persistenceEnvelope.recordMetadata.removeValue(forKey: deletion.recordID.recordName)
+                self.persistenceEnvelope.fleetDevices.removeValue(forKey: deletion.recordID.recordName)
+                self.persistenceEnvelope.fleetSnapshots.removeValue(forKey: deletion.recordID.recordName)
             }
             await MainActor.run {
                 for recordName in deletedRecordNames {
@@ -350,6 +435,9 @@ actor CloudSyncEngine: CKSyncEngineDelegate {
             self.persistEnvelope()
             await MainActor.run { self.state.status.lastSuccessfulFetchAt = Date() }
         case let .sentRecordZoneChanges(changes):
+            if !changes.savedRecords.isEmpty || !changes.deletedRecordIDs.isEmpty {
+                self.quotaRetryState.reset()
+            }
             for record in changes.savedRecords {
                 self.cacheSystemFields(record)
                 self.desiredRecords.removeValue(forKey: record.recordID)
@@ -379,25 +467,19 @@ actor CloudSyncEngine: CKSyncEngineDelegate {
 
     private func makeChangeBatch(
         _ context: CKSyncEngine.SendChangesContext,
-        syncEngine: CKSyncEngine) -> CKSyncEngine.RecordZoneChangeBatch?
+        syncEngine: CKSyncEngine) async -> CKSyncEngine.RecordZoneChangeBatch?
     {
         let changes = syncEngine.state.pendingRecordZoneChanges.filter(context.options.scope.contains)
-        var records: [CKRecord] = []
-        var deletions: [CKRecord.ID] = []
-        for change in changes {
-            switch change {
-            case let .saveRecord(recordID):
-                if let record = self.desiredRecords[recordID] {
-                    records.append(record)
-                }
-            case let .deleteRecord(recordID):
-                deletions.append(recordID)
-            @unknown default:
-                continue
-            }
+        return await CKSyncEngine.RecordZoneChangeBatch(pendingChanges: changes) { [weak self] recordID in
+            guard let self else { return nil }
+            return await self.recordForPendingSave(recordID, syncEngine: syncEngine)
         }
-        guard !records.isEmpty || !deletions.isEmpty else { return nil }
-        return CKSyncEngine.RecordZoneChangeBatch(recordsToSave: records, recordIDsToDelete: deletions)
+    }
+
+    private func recordForPendingSave(_ recordID: CKRecord.ID, syncEngine: CKSyncEngine) -> CKRecord? {
+        CloudSyncBatchRecordProvider.record(for: recordID, desiredRecords: self.desiredRecords) { change in
+            syncEngine.state.remove(pendingRecordZoneChanges: [change])
+        }
     }
 
     private func applyFetchedRecords(_ records: [CKRecord]) async {
@@ -465,16 +547,26 @@ actor CloudSyncEngine: CKSyncEngineDelegate {
         guard let payloadString = record["payload"] as? String else { return }
         let payload = try CanonicalSyncJSON.decode(ProviderIntentPayload.self, from: payloadString)
         let secrets = self.encryptedStringFields(record)
-        try await MainActor.run {
+        let merged = try await MainActor.run {
             var config = self.settings.configSnapshot
-            guard let local = config.providerConfig(for: payload.provider) else { return }
+            guard let local = config.providerConfig(for: payload.provider) else { return nil as ProviderConfig? }
             let merged = try payload.applying(
                 to: local,
-                secretFields: secrets,
+                secretFields: self.settings.iCloudSyncIncludeSecrets ? secrets : [:],
                 canEnable: self.settings.canEnableProviderFromSync)
             config.setProviderConfig(merged)
             self.settings.applyExternalConfig(config, reason: "icloud", affectsBackgroundWork: true)
+            return merged
         }
+        guard let merged else { return }
+        self.lastKnownProviderConfigs[payload.provider] = merged
+        if payload.enabled == true, merged.enabled != true {
+            self.persistenceEnvelope.suppressedEnableIntents.insert(payload.provider.rawValue)
+        } else {
+            self.persistenceEnvelope.suppressedEnableIntents.remove(payload.provider.rawValue)
+        }
+        self.lastQueuedConfigHash = nil
+        self.persistEnvelope()
     }
 
     private func applyPreferences(_ record: CKRecord) async throws {
@@ -499,6 +591,7 @@ actor CloudSyncEngine: CKSyncEngineDelegate {
             appVersion: appVersion,
             lastSeen: lastSeen,
             schemaVersion: self.schemaVersion(record))
+        self.persistenceEnvelope.fleetDevices[record.recordID.recordName] = payload
         await MainActor.run { self.state.fleetDevices[record.recordID.recordName] = payload }
     }
 
@@ -520,6 +613,7 @@ actor CloudSyncEngine: CKSyncEngineDelegate {
             displayLabel: displayLabel,
             usage: usage,
             schemaVersion: self.schemaVersion(record))
+        self.persistenceEnvelope.fleetSnapshots[record.recordID.recordName] = payload
         await MainActor.run { self.state.fleetSnapshots[record.recordID.recordName] = payload }
     }
 
@@ -529,13 +623,33 @@ actor CloudSyncEngine: CKSyncEngineDelegate {
     {
         switch failure.error.code {
         case .quotaExceeded:
-            let retry = max(failure.error.retryAfterSeconds ?? 60, 5)
+            let retry = self.quotaRetryState.nextDelay(serverRetryAfter: failure.error.retryAfterSeconds)
             self.scheduleRetry(recordID: failure.record.recordID, after: retry)
         case .serverRecordChanged:
-            self.scheduleConflictResolution(recordID: failure.record.recordID)
+            guard let server = failure.error.serverRecord else {
+                await self.record(error: failure.error)
+                return
+            }
+            await self.resolveConflict(with: server, syncEngine: syncEngine)
+        case .zoneNotFound:
+            self.recreateZoneAndRequeue(failure.record, syncEngine: syncEngine)
         default:
-            await self.record(error: failure.error)
+            let resetEncryptedData = (failure.error.userInfo[CKErrorUserDidResetEncryptedDataKey] as? NSNumber)?
+                .boolValue == true
+            if resetEncryptedData {
+                self.recreateZoneAndRequeue(failure.record, syncEngine: syncEngine)
+            } else {
+                await self.record(error: failure.error)
+            }
         }
+    }
+
+    private func recreateZoneAndRequeue(_ record: CKRecord, syncEngine: CKSyncEngine) {
+        if self.desiredRecords[record.recordID] == nil {
+            self.desiredRecords[record.recordID] = record
+        }
+        syncEngine.state.add(pendingDatabaseChanges: [.saveZone(CKRecordZone(zoneID: Self.zoneID))])
+        syncEngine.state.add(pendingRecordZoneChanges: [.saveRecord(record.recordID)])
     }
 
     private func scheduleRetry(recordID: CKRecord.ID, after delay: TimeInterval) {
@@ -554,20 +668,15 @@ actor CloudSyncEngine: CKSyncEngineDelegate {
         }
     }
 
-    private func scheduleConflictResolution(recordID: CKRecord.ID) {
-        Task { [weak self] in
-            await Task.yield()
-            guard let self, let engine = await self.engine else { return }
-            do {
-                let server = try await engine.database.record(for: recordID)
-                await self.resolveConflict(with: server)
-            } catch {
-                await self.record(error: error)
-            }
+    private func resolveConflict(with server: CKRecord, syncEngine: CKSyncEngine) async {
+        guard self.schemaVersion(server) <= CodexBarSyncSchema.currentVersion else {
+            syncEngine.state.remove(pendingRecordZoneChanges: [.saveRecord(server.recordID)])
+            self.desiredRecords.removeValue(forKey: server.recordID)
+            self.cacheSystemFields(server)
+            self.persistEnvelope()
+            await MainActor.run { self.state.status.needsAppUpdate = true }
+            return
         }
-    }
-
-    private func resolveConflict(with server: CKRecord) async {
         guard let local = self.desiredRecords[server.recordID] else { return }
         self.cacheSystemFields(server)
         let localValue = SyncConflictValue(
@@ -582,22 +691,31 @@ actor CloudSyncEngine: CKSyncEngineDelegate {
             self.desiredRecords[server.recordID] = self.copyUserFields(from: local, onto: server)
             self.scheduleRetry(recordID: server.recordID, after: 0)
         } else {
+            syncEngine.state.remove(pendingRecordZoneChanges: [.saveRecord(server.recordID)])
             self.desiredRecords.removeValue(forKey: server.recordID)
             await self.applyFetchedRecords([server])
         }
     }
 
-    private func scheduleAccountReset() {
+    private func scheduleFetchChanges(scopedToSyncZone: Bool) {
         Task { [weak self] in
             await Task.yield()
-            await self?.stopEngine(clearPersistence: true)
+            guard let self else { return }
+            if scopedToSyncZone {
+                await self.fetchChanges()
+            } else {
+                await self.fetchAllChanges()
+            }
         }
     }
 
-    private func scheduleFetchChanges() {
-        Task { [weak self] in
-            await Task.yield()
-            await self?.fetchChanges()
+    private func fetchAllChanges() async {
+        guard self.enabled, let engine = self.engine else { return }
+        do {
+            try await engine.fetchChanges()
+            await MainActor.run { self.state.status.lastSuccessfulFetchAt = Date() }
+        } catch {
+            await self.record(error: error)
         }
     }
 
@@ -625,8 +743,11 @@ actor CloudSyncEngine: CKSyncEngineDelegate {
         self.engine = nil
         self.desiredRecords = [:]
         self.lastQueuedConfigHash = nil
+        self.lastKnownProviderConfigs = [:]
+        self.quotaRetryState.reset()
         if clearPersistence {
             self.persistenceEnvelope = .init(stateSerialization: nil, encodedSystemFields: [:])
+            self.didRehydrateFleetState = false
             try? self.persistence.delete()
             await MainActor.run {
                 self.state.fleetDevices = [:]
@@ -635,23 +756,31 @@ actor CloudSyncEngine: CKSyncEngineDelegate {
         }
     }
 
+    private func rehydrateFleetStateIfNeeded() async {
+        guard !self.didRehydrateFleetState else { return }
+        self.didRehydrateFleetState = true
+        let devices = self.persistenceEnvelope.fleetDevices
+        let snapshots = self.persistenceEnvelope.fleetSnapshots
+        await MainActor.run {
+            self.state.fleetDevices = devices
+            self.state.fleetSnapshots = snapshots
+        }
+    }
+
     private func record(type: SyncRecordType, id: CKRecord.ID) -> CKRecord {
         if let data = self.persistenceEnvelope.encodedSystemFields[id.recordName],
            let record = CloudSyncPersistence.decodeRecord(from: data),
            record.recordType == type.rawValue
         {
-            if let fields = self.persistenceEnvelope.recordFields[id.recordName] {
-                for (key, value) in fields.strings {
-                    record[key] = value as CKRecordValue
+            if let metadata = self.persistenceEnvelope.recordMetadata[id.recordName] {
+                if let schemaVersion = metadata.schemaVersion {
+                    record["schemaVersion"] = schemaVersion as CKRecordValue
                 }
-                for (key, value) in fields.integers {
-                    record[key] = value as CKRecordValue
+                if let editCount = metadata.editCount {
+                    record["editCount"] = editCount as CKRecordValue
                 }
-                for (key, value) in fields.dates {
-                    record[key] = value as CKRecordValue
-                }
-                for (key, value) in fields.encryptedStrings {
-                    record.encryptedValues[key] = value as CKRecordValue
+                if let modifiedAt = metadata.modifiedAt {
+                    record["modifiedAt"] = modifiedAt as CKRecordValue
                 }
             }
             return record
@@ -664,26 +793,7 @@ actor CloudSyncEngine: CKSyncEngineDelegate {
     }
 
     private func cacheSystemFields(_ record: CKRecord) {
-        self.persistenceEnvelope.encodedSystemFields[record.recordID.recordName] =
-            CloudSyncPersistence.encodeSystemFields(of: record)
-        var strings: [String: String] = [:]
-        var integers: [String: Int64] = [:]
-        var dates: [String: Date] = [:]
-        for key in record.allKeys() {
-            if let value = record[key] as? String {
-                strings[key] = value
-            } else if let value = record[key] as? NSNumber {
-                integers[key] = value.int64Value
-            } else if let value = record[key] as? Date {
-                dates[key] = value
-            }
-        }
-        self.persistenceEnvelope.recordFields[record.recordID.recordName] = .init(
-            recordType: record.recordType,
-            strings: strings,
-            integers: integers,
-            dates: dates,
-            encryptedStrings: self.encryptedStringFields(record))
+        CloudSyncPersistence.cacheSystemFields(of: record, in: &self.persistenceEnvelope)
     }
 
     private func persistEnvelope() {

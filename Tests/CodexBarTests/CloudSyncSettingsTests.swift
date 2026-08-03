@@ -1,3 +1,4 @@
+import CloudKit
 import CodexBarCore
 import Foundation
 import Testing
@@ -71,6 +72,64 @@ struct CloudSyncSettingsTests {
         try await Task.sleep(for: .milliseconds(500))
         watcher.stop()
         #expect(changes.value >= 1)
+    }
+
+    @Test
+    func `sync persistence never writes encrypted provider secrets and uses private permissions`() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("CloudSyncPersistenceTests-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let fileURL = directory.appendingPathComponent("engine-state.json")
+        let persistence = CloudSyncPersistence(fileURL: fileURL)
+        let config = ProviderConfig(id: .openai, apiKey: "SENTINEL-SECRET")
+        let recordID = CKRecord.ID(
+            recordName: ProviderIntentPayload.recordName(for: config.id),
+            zoneID: CloudSyncEngine.zoneID)
+        let record = CKRecord(recordType: SyncRecordType.providerIntent.rawValue, recordID: recordID)
+        record["payload"] = try CanonicalSyncJSON.string(ProviderIntentPayload(config: config)) as CKRecordValue
+        record.encryptedValues[ProviderIntentSecretField.apiKey.rawValue] = config.apiKey as CKRecordValue?
+
+        var envelope = CloudSyncPersistence.Envelope(stateSerialization: nil, encodedSystemFields: [:])
+        CloudSyncPersistence.cacheSystemFields(of: record, in: &envelope)
+        try persistence.save(envelope)
+        let loaded = persistence.load()
+        let bytes = try Data(contentsOf: fileURL)
+        let contents = try #require(String(bytes: bytes, encoding: .utf8))
+        let attributes = try FileManager.default.attributesOfItem(atPath: fileURL.path)
+
+        #expect(!contents.contains("SENTINEL-SECRET"))
+        #expect(loaded.encodedSystemFields[recordID.recordName] != nil)
+        #expect((attributes[.posixPermissions] as? NSNumber)?.intValue == 0o600)
+    }
+
+    @Test
+    func `missing desired record drains its pending save`() {
+        let recordID = CKRecord.ID(recordName: "stale", zoneID: CloudSyncEngine.zoneID)
+        let change = CKSyncEngine.PendingRecordZoneChange.saveRecord(recordID)
+        var pending: Set<CKSyncEngine.PendingRecordZoneChange> = [change]
+
+        let record = CloudSyncBatchRecordProvider.record(for: recordID, desiredRecords: [:]) {
+            pending.remove($0)
+        }
+
+        #expect(record == nil)
+        #expect(pending.isEmpty)
+    }
+
+    @Test
+    func `quota backoff doubles to one hour and resets after success`() {
+        var backoff = CloudSyncQuotaRetryState()
+
+        #expect(backoff.nextDelay(serverRetryAfter: 120) == 120)
+        #expect(backoff.nextDelay(serverRetryAfter: 999) == 240)
+        #expect(backoff.nextDelay(serverRetryAfter: nil) == 480)
+        for _ in 0..<10 {
+            _ = backoff.nextDelay(serverRetryAfter: nil)
+        }
+        #expect(backoff.nextDelay(serverRetryAfter: nil) == 3600)
+
+        backoff.reset()
+        #expect(backoff.nextDelay(serverRetryAfter: 30) == 30)
     }
 
     private func makeFixture(_ name: String) throws -> (store: SettingsStore, defaults: UserDefaults) {

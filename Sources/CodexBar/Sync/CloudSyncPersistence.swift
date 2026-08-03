@@ -1,34 +1,46 @@
 import CloudKit
+import CodexBarCore
 import Foundation
 
 struct CloudSyncPersistence: Sendable {
-    struct RecordFields: Codable, Sendable {
+    struct RecordMetadata: Codable, Sendable {
         var recordType: String
-        var strings: [String: String]
-        var integers: [String: Int64]
-        var dates: [String: Date]
-        var encryptedStrings: [String: String]
+        var schemaVersion: Int?
+        var editCount: Int64?
+        var modifiedAt: Date?
     }
 
     struct Envelope: Codable, Sendable {
         var stateSerialization: CKSyncEngine.State.Serialization?
         var encodedSystemFields: [String: Data]
-        var recordFields: [String: RecordFields]
+        var recordMetadata: [String: RecordMetadata]
+        var suppressedEnableIntents: Set<String>
+        var fleetDevices: [String: DeviceSyncPayload]
+        var fleetSnapshots: [String: AccountSnapshotSyncPayload]
 
         init(
             stateSerialization: CKSyncEngine.State.Serialization?,
             encodedSystemFields: [String: Data],
-            recordFields: [String: RecordFields] = [:])
+            recordMetadata: [String: RecordMetadata] = [:],
+            suppressedEnableIntents: Set<String> = [],
+            fleetDevices: [String: DeviceSyncPayload] = [:],
+            fleetSnapshots: [String: AccountSnapshotSyncPayload] = [:])
         {
             self.stateSerialization = stateSerialization
             self.encodedSystemFields = encodedSystemFields
-            self.recordFields = recordFields
+            self.recordMetadata = recordMetadata
+            self.suppressedEnableIntents = suppressedEnableIntents
+            self.fleetDevices = fleetDevices
+            self.fleetSnapshots = fleetSnapshots
         }
 
         private enum CodingKeys: String, CodingKey {
             case stateSerialization
             case encodedSystemFields
-            case recordFields
+            case recordMetadata
+            case suppressedEnableIntents
+            case fleetDevices
+            case fleetSnapshots
         }
 
         init(from decoder: any Decoder) throws {
@@ -39,9 +51,18 @@ struct CloudSyncPersistence: Sendable {
             self.encodedSystemFields = try container.decodeIfPresent(
                 [String: Data].self,
                 forKey: .encodedSystemFields) ?? [:]
-            self.recordFields = try container.decodeIfPresent(
-                [String: RecordFields].self,
-                forKey: .recordFields) ?? [:]
+            self.recordMetadata = try container.decodeIfPresent(
+                [String: RecordMetadata].self,
+                forKey: .recordMetadata) ?? [:]
+            self.suppressedEnableIntents = try container.decodeIfPresent(
+                Set<String>.self,
+                forKey: .suppressedEnableIntents) ?? []
+            self.fleetDevices = try container.decodeIfPresent(
+                [String: DeviceSyncPayload].self,
+                forKey: .fleetDevices) ?? [:]
+            self.fleetSnapshots = try container.decodeIfPresent(
+                [String: AccountSnapshotSyncPayload].self,
+                forKey: .fleetSnapshots) ?? [:]
         }
     }
 
@@ -57,6 +78,8 @@ struct CloudSyncPersistence: Sendable {
         else {
             return Envelope(stateSerialization: nil, encodedSystemFields: [:])
         }
+        // Rewriting also strips the legacy recordFields payload, which could contain encrypted values.
+        try? self.save(envelope)
         return envelope
     }
 
@@ -66,6 +89,9 @@ struct CloudSyncPersistence: Sendable {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys]
         try encoder.encode(envelope).write(to: self.fileURL, options: [.atomic])
+        try FileManager.default.setAttributes(
+            [.posixPermissions: NSNumber(value: Int16(0o600))],
+            ofItemAtPath: self.fileURL.path)
     }
 
     func delete() throws {
@@ -85,6 +111,15 @@ struct CloudSyncPersistence: Sendable {
         unarchiver.requiresSecureCoding = true
         defer { unarchiver.finishDecoding() }
         return CKRecord(coder: unarchiver)
+    }
+
+    static func cacheSystemFields(of record: CKRecord, in envelope: inout Envelope) {
+        envelope.encodedSystemFields[record.recordID.recordName] = self.encodeSystemFields(of: record)
+        envelope.recordMetadata[record.recordID.recordName] = RecordMetadata(
+            recordType: record.recordType,
+            schemaVersion: (record["schemaVersion"] as? NSNumber)?.intValue,
+            editCount: (record["editCount"] as? NSNumber)?.int64Value,
+            modifiedAt: record["modifiedAt"] as? Date)
     }
 
     static func defaultFileURL() -> URL {

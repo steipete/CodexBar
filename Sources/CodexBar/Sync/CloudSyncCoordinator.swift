@@ -1,3 +1,4 @@
+import CloudKit
 import CodexBarCore
 import Foundation
 import Observation
@@ -10,6 +11,8 @@ final class CloudSyncCoordinator {
     private let engine: CloudSyncEngine
     private var configObserver: NSObjectProtocol?
     private var snapshotObserver: NSObjectProtocol?
+    private var accountObserver: NSObjectProtocol?
+    private var resumeTask: Task<Void, Never>?
     private var observedEnabled: Bool
 
     init(settings: SettingsStore, state: CloudSyncState = CloudSyncState()) {
@@ -28,7 +31,11 @@ final class CloudSyncCoordinator {
         { [weak self] _ in
             MainActor.assumeIsolated {
                 guard let self else { return }
-                Task { await self.engine.scheduleConfigurationPush() }
+                let config = self.settings.configSnapshot
+                Task {
+                    await self.engine.localUserConfigurationDidChange(config)
+                    await self.engine.scheduleConfigurationPush()
+                }
             }
         }
         self.snapshotObserver = NotificationCenter.default.addObserver(
@@ -42,11 +49,20 @@ final class CloudSyncCoordinator {
                 await self.engine.queueSnapshots(event.snapshots)
             }
         }
+        self.accountObserver = NotificationCenter.default.addObserver(
+            forName: NSNotification.Name.CKAccountChanged,
+            object: nil,
+            queue: .main)
+        { [weak self] _ in
+            MainActor.assumeIsolated {
+                self?.scheduleResume(debounce: true)
+            }
+        }
         Task { await self.engine.start(enabled: self.settings.iCloudSyncEnabled) }
     }
 
     func applicationDidBecomeActive() {
-        Task { await self.engine.fetchChanges() }
+        self.scheduleResume(debounce: false)
     }
 
     func stop() {
@@ -56,9 +72,31 @@ final class CloudSyncCoordinator {
         if let snapshotObserver {
             NotificationCenter.default.removeObserver(snapshotObserver)
         }
+        if let accountObserver {
+            NotificationCenter.default.removeObserver(accountObserver)
+        }
+        self.resumeTask?.cancel()
         self.configObserver = nil
         self.snapshotObserver = nil
+        self.accountObserver = nil
+        self.resumeTask = nil
         Task { await self.engine.stop() }
+    }
+
+    private func scheduleResume(debounce: Bool) {
+        self.resumeTask?.cancel()
+        self.resumeTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            if debounce {
+                do {
+                    try await Task.sleep(for: .milliseconds(500))
+                } catch {
+                    return
+                }
+            }
+            guard !Task.isCancelled else { return }
+            await self.engine.resumeOrFetch(enabled: self.settings.iCloudSyncEnabled)
+        }
     }
 
     private func observeSettings() {
