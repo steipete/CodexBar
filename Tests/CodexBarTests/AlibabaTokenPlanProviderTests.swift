@@ -546,7 +546,7 @@ struct AlibabaTokenPlanUsageParsingTests {
     }
 
     @Test
-    func `mainland Personal fetch uses quota host cookies without requiring SEC token`() async throws {
+    func `mainland Personal fetch resolves SEC token and omits hardcoded workspace agent`() async throws {
         defer {
             AlibabaTokenPlanStubURLProtocol.handler = nil
         }
@@ -558,12 +558,31 @@ struct AlibabaTokenPlanUsageParsingTests {
 
         AlibabaTokenPlanStubURLProtocol.handler = { request in
             guard let url = request.url else { throw URLError(.badURL) }
+
+            if url.host == "bailian.console.aliyun.com", request.httpMethod == "GET" {
+                #expect(request.value(forHTTPHeaderField: "Cookie") == "dashboard_only=dashboard")
+                if url.path == "/tool/user/info.json" {
+                    let json = """
+                    {
+                      "code": "200",
+                      "data": {
+                        "secToken": "personal-sec-token"
+                      },
+                      "successResponse": true
+                    }
+                    """
+                    return Self.makeResponse(url: url, body: json, statusCode: 200)
+                }
+                return Self.makeResponse(url: url, body: "<html></html>", statusCode: 200)
+            }
+
             #expect(url.host == "bailian-cs.console.aliyun.com")
             #expect(request.httpMethod == "POST")
             #expect(request.value(forHTTPHeaderField: "Cookie") == "quota_only=quota")
             #expect(request.value(forHTTPHeaderField: "Origin") == "https://bailian.console.aliyun.com")
             let body = Self.requestBodyString(from: request)
-            #expect(!body.contains("sec_token"))
+            #expect(body.contains("sec_token=personal-sec-token"))
+            #expect(!body.contains("switchAgent"))
             #expect(body.removingPercentEncoding?.contains("cornerstoneParam") == true)
 
             let api = URLComponents(url: url, resolvingAgainstBaseURL: false)?
@@ -596,6 +615,95 @@ struct AlibabaTokenPlanUsageParsingTests {
         #expect(snapshot.planName == "Pro")
         #expect(snapshot.toUsageSnapshot().primary != nil)
         #expect(snapshot.toUsageSnapshot().secondary != nil)
+    }
+
+    @Test
+    func `Personal fetch continues without SEC token when preflight cannot resolve one`() async throws {
+        defer {
+            AlibabaTokenPlanStubURLProtocol.handler = nil
+        }
+        let usageBody = try #require(String(data: alibabaTokenPlanFixture("personal_usage"), encoding: .utf8))
+
+        AlibabaTokenPlanStubURLProtocol.handler = { request in
+            guard let url = request.url else { throw URLError(.badURL) }
+
+            if url.host == "bailian.console.aliyun.com", request.httpMethod == "GET" {
+                return Self.makeResponse(url: url, body: "<html></html>", statusCode: 200)
+            }
+
+            #expect(url.host == "bailian-cs.console.aliyun.com")
+            let body = Self.requestBodyString(from: request)
+            #expect(!body.contains("sec_token"))
+            let api = URLComponents(url: url, resolvingAgainstBaseURL: false)?
+                .queryItems?
+                .first(where: { $0.name == "api" })?
+                .value
+            switch api {
+            case "zeldaHttp.apikeyMgr./tokenplan/personal/api/v2/usage":
+                return Self.makeResponse(url: url, body: usageBody, statusCode: 200)
+            default:
+                return Self.makeResponse(
+                    url: url,
+                    body: "{\"code\":\"200\",\"successResponse\":true}",
+                    statusCode: 200)
+            }
+        }
+
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [AlibabaTokenPlanStubURLProtocol.self]
+        let session = URLSession(configuration: configuration)
+        let snapshot = try await AlibabaTokenPlanUsageFetcher.fetchUsage(
+            apiCookieHeader: "quota_only=quota",
+            dashboardCookieHeader: "dashboard_only=dashboard",
+            region: .chinaMainlandPersonal,
+            environment: [:],
+            session: session)
+
+        #expect(snapshot.fiveHourUsedPercent != nil)
+        #expect(snapshot.weeklyUsedPercent != nil)
+    }
+
+    @Test
+    func `nested workspace authorization failure remains a provider error instead of API error 200`() throws {
+        // Live envelope observed for Personal/Solo requests missing valid
+        // workspace state (issue #2500): the outer envelope claims success
+        // while the nested frame carries the real gateway error.
+        let payload: [String: Any] = [
+            "code": "200",
+            "data": [
+                "success": false,
+                "httpStatus": 200,
+                "errorCode": "BailianGateway.Workspace.NotAuthorised",
+                "api": "zeldaHttp.apikeyMgr./tokenplan/personal/api/v2/usage",
+                "errorMsg": "BailianGateway.Workspace.NotAuthorised",
+            ],
+            "httpStatusCode": "200",
+            "requestId": "676df096-861c-4d38-974c-b93f2f16083e",
+            "successResponse": true,
+        ]
+
+        #expect(throws: AlibabaTokenPlanUsageError.apiError("BailianGateway.Workspace.NotAuthorised")) {
+            try AlibabaTokenPlanUsageFetcher.throwIfErrorPayload(payload)
+        }
+    }
+
+    @Test
+    func `nested gateway failure surfaces the real error message`() throws {
+        let payload: [String: Any] = [
+            "code": "200",
+            "data": [
+                "success": false,
+                "httpStatus": 200,
+                "errorCode": "BailianGateway.Quota.ServiceUnavailable",
+                "errorMsg": "quota service unavailable",
+            ],
+            "httpStatusCode": "200",
+            "successResponse": true,
+        ]
+
+        #expect(throws: AlibabaTokenPlanUsageError.apiError("quota service unavailable")) {
+            try AlibabaTokenPlanUsageFetcher.throwIfErrorPayload(payload)
+        }
     }
 
     @Test
@@ -834,6 +942,35 @@ struct AlibabaTokenPlanWebStrategyTests {
         CookieHeaderCache.clear(provider: .alibabatokenplan)
         for region in AlibabaTokenPlanAPIRegion.allCases {
             CookieHeaderCache.clear(provider: .alibabatokenplan, scope: region.cookieCacheScope)
+        }
+    }
+
+    @Test
+    func `workspace permission failure preserves cached browser cookies`() async {
+        await self.withIsolatedCookieCache {
+            self.clearCookieCaches()
+            defer { self.clearCookieCaches() }
+
+            let region = AlibabaTokenPlanAPIRegion.chinaMainlandPersonal
+            let cachedHeader = "login_aliyunid_ticket=valid-ticket; gateway=personal"
+            CookieHeaderCache.store(
+                provider: .alibabatokenplan,
+                scope: region.cookieCacheScope,
+                cookieHeader: cachedHeader,
+                sourceLabel: "Personal fixture")
+
+            let strategy = AlibabaTokenPlanWebFetchStrategy { _, _, _ in
+                throw AlibabaTokenPlanUsageError.apiError("BailianGateway.Workspace.NotAuthorised")
+            }
+
+            await #expect(throws: AlibabaTokenPlanUsageError.apiError(
+                "BailianGateway.Workspace.NotAuthorised"))
+            {
+                _ = try await strategy.fetch(self.context(region: region))
+            }
+            #expect(CookieHeaderCache.load(
+                provider: .alibabatokenplan,
+                scope: region.cookieCacheScope)?.cookieHeader == cachedHeader)
         }
     }
 

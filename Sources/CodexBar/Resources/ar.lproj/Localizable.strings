@@ -1,7 +1,30 @@
 /* Arabic localization for CodexBar */
 
+/* iCloud Sync */
+"iCloud Sync" = "iCloud Sync";
+"Sync settings and providers across your Macs via iCloud" = "Sync settings and providers across your Macs via iCloud";
+"Include API keys, cookies, and tokens" = "Include API keys, cookies, and tokens";
+"Sync usage snapshots" = "Sync usage snapshots";
+"Show accounts from other Macs" = "Show accounts from other Macs";
+"Requires a signed release build of CodexBar." = "Requires a signed release build of CodexBar.";
+"Sign in to iCloud in System Settings to enable sync." = "Sign in to iCloud in System Settings to enable sync.";
+"iCloud access is restricted on this Mac." = "iCloud access is restricted on this Mac.";
+"Sync is paused: another Mac uses a newer version of CodexBar. Update to resume." = "Sync is paused: another Mac uses a newer version of CodexBar. Update to resume.";
+"Last successful fetch" = "Last successful fetch";
+"Last successful push" = "Last successful push";
+"Never" = "Never";
+"Macs" = "Macs";
+"No synced Macs yet." = "No synced Macs yet.";
+"Secrets use iCloud end-to-end encryption via encryptedValues. Hooks and machine-local paths never sync." = "Secrets use iCloud end-to-end encryption via encryptedValues. Hooks and machine-local paths never sync.";
+"Last seen %@" = "Last seen %@";
+"This Mac" = "This Mac";
+"another Mac" = "another Mac";
+"%dm ago" = "%dm ago";
+"%dh ago" = "%dh ago";
+"%dd ago" = "%dd ago";
+
 "ollama_safari_cookie_access_hint" = "تحتاج ملفات تعريف ارتباط Safari إلى وصول كامل إلى القرص لتطبيق CodexBar (إعدادات النظام > الخصوصية والأمان).";
-"ollama_browser_cookie_decryption_denied" = "تم رفض فك تشفير ملفات تعريف ارتباط %@ في سلسلة المفاتيح؛ أعد المحاولة بتحديث يدوي.";
+"ollama_browser_cookie_decryption_denied" = "تم رفض فك تشفير ملفات تعريف ارتباط %@ في سلسلة المفاتيح. افتح بطاقة موفر الخدمة وانقر على تحديث (⌘R) لطلب الوصول إلى سلسلة المفاتيح مرة أخرى.";
 "ollama_browser_cookie_decryption_disabled" = "فك تشفير ملفات تعريف ارتباط %@ معطل في CodexBar؛ فعّل الوصول إلى سلسلة المفاتيح ثم حدّث.";
 
 " providers" = " providers";
@@ -593,7 +616,7 @@
 "show_provider_changelog_links_title" = "اعرض روابط سجل التغييرات لمزود الخدمة";
 "show_provider_changelog_links_subtitle" = "يضيف روابط ملاحظات الإصدار لمزودي الخدمة المدعومين بدعم CLI إلى القائمة.";
 "show_credits_extra_usage_title" = "اعتمادات العرض + الاستخدام الإضافي";
-"show_credits_extra_usage_subtitle" = "عرض أقسام Codex الاعتمادات و Claude الاستخدام الإضافي في القائمة.";
+"show_credits_extra_usage_subtitle" = "عرض الأرصدة والاستخدام الإضافي لموفري الخدمات المدعومين.";
 "multi_account_layout_title" = "تخطيط الحسابات المتعددة";
 "multi_account_layout_subtitle" = "اختر تبديل الحسابات المجزأة أو بطاقات الحساب المكدسة.";
 "multi_account_layout_segmented" = "مقسم";
@@ -1328,6 +1351,9 @@
 "menu_bar_layout_token_session" = "الجلسة %";
 "menu_bar_layout_token_weekly" = "الأسبوعي %";
 "menu_bar_layout_token_auto" = "نسبة تلقائية";
+"menu_bar_layout_token_session_pace" = "وتيرة الجلسة";
+"menu_bar_layout_token_weekly_pace" = "الوتيرة الأسبوعية";
+"menu_bar_layout_token_auto_pace" = "الوتيرة التلقائية";
 "menu_bar_layout_token_bar" = "شريط الاستخدام";
 "menu_bar_layout_token_resets_in" = "إعادة الضبط خلال";
 "menu_bar_layout_token_reset_at" = "إعادة الضبط عند";
@@ -1353,3 +1379,5 @@
 "Cost today unavailable" = "تكلفة اليوم: غير متوفر";
 "30-day cost unavailable" = "تكلفة 30 يوماً: غير متوفر";
 "Resets" = "إعادات الضبط";
+"Finish now" = "إنهاء الآن";
+"Continue in background" = "المتابعة في الخلفية";

@@ -9,6 +9,7 @@ public enum JetBrainsProviderDescriptor {
             metadata: ProviderMetadata(
                 id: .jetbrains,
                 displayName: "JetBrains AI",
+                shortDisplayName: "JetBrains",
                 sessionLabel: "Current",
                 weeklyLabel: "Refill",
                 opusLabel: nil,
@@ -18,12 +19,13 @@ public enum JetBrainsProviderDescriptor {
                 toggleTitle: "Show JetBrains AI usage",
                 cliName: "jetbrains",
                 defaultEnabled: false,
+                widgetSelectable: false,
                 isPrimaryProvider: false,
                 usesAccountFallback: false,
                 dashboardURL: nil,
                 statusPageURL: nil),
             branding: ProviderBranding(
-                iconStyle: .jetbrains,
+                iconStyle: .init(provider: .jetbrains),
                 iconResourceName: "ProviderIcon-jetbrains",
                 color: ProviderColor(red: 255 / 255, green: 51 / 255, blue: 153 / 255),
                 confettiPalette: [

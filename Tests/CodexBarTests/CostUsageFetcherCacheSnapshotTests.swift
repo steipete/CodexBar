@@ -36,6 +36,47 @@ struct CostUsageFetcherCacheSnapshotTests {
     }
 
     @Test
+    func `cached codex token snapshot exposes an incompatible producer as stale upgrade data`() async throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+
+        let day = try env.makeLocalNoon(year: 2026, month: 4, day: 8)
+        try Self.writeCodexSessionFile(
+            homeRoot: env.codexHomeRoot,
+            env: env,
+            day: day,
+            filename: "cached.jsonl",
+            tokens: 42)
+
+        let options = CostUsageScanner.Options(
+            codexSessionsRoot: env.codexSessionsRoot,
+            cacheRoot: env.cacheRoot)
+        _ = try await CostUsageFetcher.loadTokenSnapshot(
+            provider: .codex,
+            now: day,
+            historyDays: 1,
+            scannerOptions: options)
+
+        let cache = CostUsageCacheIO.load(provider: .codex, cacheRoot: env.cacheRoot)
+        let scanTime = Date(timeIntervalSince1970: TimeInterval(cache.lastScanUnixMs) / 1000)
+        CostUsageCacheIO.save(
+            provider: .codex,
+            cache: cache,
+            cacheRoot: env.cacheRoot,
+            producerKey: "codex:cu:pupgrade-fixture")
+
+        let cached = await CostUsageFetcher.loadCachedCodexTokenSnapshotResult(
+            now: day.addingTimeInterval(60),
+            historyDays: 1,
+            scannerOptions: options)
+
+        #expect(cached?.snapshot.sessionTokens == 42)
+        #expect(cached?.snapshot.updatedAt == scanTime)
+        #expect(cached?.lastRefreshAt == nil)
+        #expect(cached?.staleSnapshotUpdatedAt == scanTime)
+    }
+
+    @Test
     func `cached codex token snapshot keeps the cache scan time as updatedAt`() async throws {
         let env = try CostUsageTestEnvironment()
         defer { env.cleanup() }

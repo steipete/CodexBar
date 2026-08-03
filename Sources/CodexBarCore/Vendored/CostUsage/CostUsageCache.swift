@@ -56,20 +56,55 @@ enum CostUsageCacheIO {
         return CostUsageCache()
     }
 
+    static func loadCodexForMigration(
+        cacheRoot: URL? = nil,
+        producerKey: String? = nil,
+        calendar: Calendar? = nil) -> CostUsageCodexCacheLoadResult
+    {
+        let url = self.cacheFileURL(provider: .codex, cacheRoot: cacheRoot)
+        guard let decoded = self.decodeCache(at: url) else {
+            return CostUsageCodexCacheLoadResult(cache: CostUsageCache(), incompatibleCache: nil)
+        }
+        if let calendar, decoded.timeZoneIdentifier != calendar.timeZone.identifier {
+            return CostUsageCodexCacheLoadResult(cache: CostUsageCache(), incompatibleCache: nil)
+        }
+
+        let expectedProducerKey = producerKey ?? self.currentProducerKey(provider: .codex)
+        let compatibleProducerKeys = producerKey == nil ? self.compatibleCodexProducerKeys : []
+        if decoded.producerKey == expectedProducerKey
+            || decoded.producerKey.map(compatibleProducerKeys.contains) == true
+        {
+            return CostUsageCodexCacheLoadResult(cache: decoded, incompatibleCache: nil)
+        }
+
+        // Never reuse parser-dependent offsets or totals from an incompatible producer. The
+        // caller may still convert its last visible report into a compact, explicitly stale
+        // presentation while the current producer rebuilds from byte zero.
+        guard decoded.producerKey != nil else {
+            return CostUsageCodexCacheLoadResult(cache: CostUsageCache(), incompatibleCache: nil)
+        }
+        return CostUsageCodexCacheLoadResult(cache: CostUsageCache(), incompatibleCache: decoded)
+    }
+
     private static func loadCache(
         at url: URL,
         expectedProducerKey: String?,
         compatibleProducerKeys: Set<String>) -> CostUsageCache?
     {
-        guard let data = try? Data(contentsOf: url) else { return nil }
-        guard let decoded = try? JSONDecoder().decode(CostUsageCache.self, from: data)
-        else { return nil }
-        guard decoded.version == 1 else { return nil }
+        guard let decoded = self.decodeCache(at: url) else { return nil }
         if let expectedProducerKey {
             guard decoded.producerKey == expectedProducerKey
                 || decoded.producerKey.map(compatibleProducerKeys.contains) == true
             else { return nil }
         }
+        return decoded
+    }
+
+    private static func decodeCache(at url: URL) -> CostUsageCache? {
+        guard let data = try? Data(contentsOf: url) else { return nil }
+        guard let decoded = try? JSONDecoder().decode(CostUsageCache.self, from: data)
+        else { return nil }
+        guard decoded.version == 1 else { return nil }
         return decoded
     }
 
@@ -88,18 +123,8 @@ enum CostUsageCacheIO {
         cache.producerKey = producerKey ?? self.currentProducerKey(provider: provider)
         cache.timeZoneIdentifier = calendar.timeZone.identifier
 
-        let tmp = dir.appendingPathComponent(".tmp-\(UUID().uuidString).json", isDirectory: false)
         let data = (try? JSONEncoder().encode(cache)) ?? Data()
-        do {
-            try data.write(to: tmp, options: [.atomic])
-            if FileManager.default.fileExists(atPath: url.path) {
-                _ = try FileManager.default.replaceItemAt(url, withItemAt: tmp)
-            } else {
-                try FileManager.default.moveItem(at: tmp, to: url)
-            }
-        } catch {
-            try? FileManager.default.removeItem(at: tmp)
-        }
+        try? data.write(to: url, options: [.atomic])
     }
 
     static func currentProducerKey(
@@ -109,6 +134,11 @@ enum CostUsageCacheIO {
         guard provider == .codex else { return nil }
         return "\(provider.rawValue):cu:p\(parserHash)"
     }
+}
+
+struct CostUsageCodexCacheLoadResult {
+    var cache: CostUsageCache
+    var incompatibleCache: CostUsageCache?
 }
 
 struct CostUsageCache: Codable {
@@ -123,6 +153,18 @@ struct CostUsageCache: Codable {
     var codexProjectMetadataVersion: Int?
     var codexPriorityTurnKeys: [String: String]?
     var codexPriorityTurnIDsByDay: [String: [String]]?
+    /// True when the last bounded scan left readable Codex work for a background catch-up pass.
+    var codexScanCatchUpPending: Bool?
+    var codexScanProcessedBytes: Int64?
+    var codexScanTotalBytes: Int64?
+    var codexScanCompletedFiles: Int?
+    var codexScanTotalFiles: Int?
+    /// Last user-visible report retained only while an incompatible or forced rebuild catches up.
+    var codexPreviousReport: CostUsageCodexPreviousReport?
+    /// Persistent session-id discovery and generation-scoped negative lookups for fork parents.
+    var codexSessionDiscovery: CostUsageCodexSessionDiscovery?
+    /// Resumable bounded discovery for recently modified rollouts in older date partitions.
+    var codexActiveLookbackState: CostUsageCodexActiveLookbackState?
 
     /// filePath -> file usage
     var files: [String: CostUsageFileUsage] = [:]
@@ -132,6 +174,200 @@ struct CostUsageCache: Codable {
 
     /// rootPath -> mtime (for Claude roots)
     var roots: [String: Int64]?
+}
+
+struct CostUsageCodexActiveLookbackState: Codable {
+    var scanSinceKey: String
+    var rootPaths: [String]
+    var nextDayKeyByRoot: [String: String] = [:]
+    var completedRootPaths: [String] = []
+    var pendingFilePaths: [String] = []
+    var legacyRecursivePendingRootPaths: [String] = []
+}
+
+struct CostUsageCodexSessionDiscovery: Codable {
+    struct DirectoryStamp: Codable, Equatable {
+        var mtimeUnixMs: Int64
+        var jsonlFileCount: Int
+    }
+
+    struct FileStamp: Codable, Equatable {
+        var mtimeUnixMs: Int64
+        var size: Int64
+        var fileId: String?
+    }
+
+    struct HeadScan: Codable {
+        var path: String
+        var offset: Int64
+        var resumeState: CostUsageJsonl.ResumeState?
+    }
+
+    var roots: [String]
+    var generation: String?
+    var directoryStamps: [String: DirectoryStamp]
+    var directoryPaths: [String]
+    var nextDirectoryIndex: Int
+    var filePaths: [String]
+    var nextFileIndex: Int
+    var fileStamps: [String: FileStamp]
+    var headScan: HeadScan?
+    var filePathBySessionId: [String: String]
+    var missingSessionIds: [String]
+    var pendingSessionIds: [String]
+    var validationDirectoryIndex: Int
+    var isComplete: Bool
+}
+
+struct CostUsageCodexPreviousReport: Codable, Equatable {
+    struct ModelBreakdown: Codable, Equatable {
+        var modelName: String
+        var costUSD: Double?
+        var totalTokens: Int?
+        var requestCount: Int?
+        var standardCostUSD: Double?
+        var priorityCostUSD: Double?
+        var standardTokens: Int?
+        var priorityTokens: Int?
+
+        init(_ breakdown: CostUsageDailyReport.ModelBreakdown) {
+            self.modelName = breakdown.modelName
+            self.costUSD = breakdown.costUSD
+            self.totalTokens = breakdown.totalTokens
+            self.requestCount = breakdown.requestCount
+            self.standardCostUSD = breakdown.standardCostUSD
+            self.priorityCostUSD = breakdown.priorityCostUSD
+            self.standardTokens = breakdown.standardTokens
+            self.priorityTokens = breakdown.priorityTokens
+        }
+
+        var dailyReportValue: CostUsageDailyReport.ModelBreakdown {
+            CostUsageDailyReport.ModelBreakdown(
+                modelName: self.modelName,
+                costUSD: self.costUSD,
+                totalTokens: self.totalTokens,
+                requestCount: self.requestCount,
+                standardCostUSD: self.standardCostUSD,
+                priorityCostUSD: self.priorityCostUSD,
+                standardTokens: self.standardTokens,
+                priorityTokens: self.priorityTokens)
+        }
+    }
+
+    struct Entry: Codable, Equatable {
+        var date: String
+        var inputTokens: Int?
+        var cacheReadTokens: Int?
+        var cacheCreationTokens: Int?
+        var outputTokens: Int?
+        var totalTokens: Int?
+        var requestCount: Int?
+        var costUSD: Double?
+        var modelsUsed: [String]?
+        var modelBreakdowns: [ModelBreakdown]?
+
+        init(_ entry: CostUsageDailyReport.Entry) {
+            self.date = entry.date
+            self.inputTokens = entry.inputTokens
+            self.cacheReadTokens = entry.cacheReadTokens
+            self.cacheCreationTokens = entry.cacheCreationTokens
+            self.outputTokens = entry.outputTokens
+            self.totalTokens = entry.totalTokens
+            self.requestCount = entry.requestCount
+            self.costUSD = entry.costUSD
+            self.modelsUsed = entry.modelsUsed
+            self.modelBreakdowns = entry.modelBreakdowns?.map(ModelBreakdown.init)
+        }
+
+        var dailyReportValue: CostUsageDailyReport.Entry {
+            CostUsageDailyReport.Entry(
+                date: self.date,
+                inputTokens: self.inputTokens,
+                outputTokens: self.outputTokens,
+                cacheReadTokens: self.cacheReadTokens,
+                cacheCreationTokens: self.cacheCreationTokens,
+                totalTokens: self.totalTokens,
+                requestCount: self.requestCount,
+                costUSD: self.costUSD,
+                modelsUsed: self.modelsUsed,
+                modelBreakdowns: self.modelBreakdowns?.map(\.dailyReportValue))
+        }
+    }
+
+    struct Summary: Codable, Equatable {
+        var totalInputTokens: Int?
+        var totalOutputTokens: Int?
+        var cacheReadTokens: Int?
+        var cacheCreationTokens: Int?
+        var totalTokens: Int?
+        var totalCostUSD: Double?
+
+        init(_ summary: CostUsageDailyReport.Summary) {
+            self.totalInputTokens = summary.totalInputTokens
+            self.totalOutputTokens = summary.totalOutputTokens
+            self.cacheReadTokens = summary.cacheReadTokens
+            self.cacheCreationTokens = summary.cacheCreationTokens
+            self.totalTokens = summary.totalTokens
+            self.totalCostUSD = summary.totalCostUSD
+        }
+
+        var dailyReportValue: CostUsageDailyReport.Summary {
+            CostUsageDailyReport.Summary(
+                totalInputTokens: self.totalInputTokens,
+                totalOutputTokens: self.totalOutputTokens,
+                cacheReadTokens: self.cacheReadTokens,
+                cacheCreationTokens: self.cacheCreationTokens,
+                totalTokens: self.totalTokens,
+                totalCostUSD: self.totalCostUSD)
+        }
+    }
+
+    var data: [Entry]
+    var summary: Summary?
+    var updatedAtUnixMs: Int64
+    var scanSinceKey: String?
+    var scanUntilKey: String?
+    var timeZoneIdentifier: String?
+    var roots: [String: Int64]?
+
+    init?(
+        report: CostUsageDailyReport,
+        cache: CostUsageCache)
+    {
+        guard !report.data.isEmpty else { return nil }
+        self.data = report.data.map(Entry.init)
+        self.summary = report.summary.map(Summary.init)
+        self.updatedAtUnixMs = cache.lastScanUnixMs
+        self.scanSinceKey = cache.scanSinceKey
+        self.scanUntilKey = cache.scanUntilKey
+        self.timeZoneIdentifier = cache.timeZoneIdentifier
+        self.roots = cache.roots
+    }
+
+    var report: CostUsageDailyReport {
+        CostUsageDailyReport(
+            data: self.data.map(\.dailyReportValue),
+            summary: self.summary?.dailyReportValue)
+    }
+
+    var updatedAt: Date? {
+        guard self.updatedAtUnixMs > 0 else { return nil }
+        return Date(timeIntervalSince1970: TimeInterval(self.updatedAtUnixMs) / 1000)
+    }
+
+    func matches(
+        scanSinceKey: String,
+        scanUntilKey: String,
+        timeZoneIdentifier: String,
+        roots: [String: Int64]) -> Bool
+    {
+        guard self.timeZoneIdentifier == timeZoneIdentifier,
+              self.roots == roots,
+              let cachedSince = self.scanSinceKey,
+              let cachedUntil = self.scanUntilKey
+        else { return false }
+        return scanSinceKey >= cachedSince && scanUntilKey <= cachedUntil
+    }
 }
 
 struct CostUsageFileUsage: Codable {
@@ -165,14 +401,29 @@ struct CostUsageFileUsage: Codable {
     /// Refreshed by Codex normalization paths, never by sidecar cache validation.
     var codexWorkspaceContentFingerprint: String?
     var codexRows: [CostUsageScanner.CodexUsageRow]?
+    /// Compact token events used to resolve fork baselines without rereading an entire parent rollout.
+    var codexTokenSnapshots: [CostUsageCodexTokenSnapshot]?
+    /// Sparse accumulator states for bounded lookup inside `codexTokenSnapshots`.
+    var codexTokenCheckpoints: [CostUsageCodexTokenCheckpoint]?
+    /// Allows binary-search and early-stop lookup only when event timestamps follow file order.
+    var codexTokenTimestampsMonotonic: Bool?
+    /// Validates that the indexed JSONL prefix was not rewritten before an append.
+    var codexTokenIndexAnchor: CostUsageCodexTokenIndexAnchor?
     var claudeRows: [CostUsageScanner.ClaudeUsageRow]?
-    /// Identity and target size for an in-progress bounded Codex parse.
+    /// Identity and latest observed size for an in-progress bounded Codex parse.
     var codexScanFileId: String?
     var codexScanTargetSize: Int64?
     var codexScanComplete: Bool?
     var codexJSONLResumeState: CostUsageJsonl.ResumeState?
     /// Compact relevant events retained while a subagent rollout awaits full-shape classification.
     var codexBufferedSubagentLines: [CostUsageScanner.CodexBufferedFastLine]?
+    /// Parsed events retained when an ordinary fork is waiting for its parent baseline.
+    var codexBufferedUnresolvedForkLines: [CostUsageScanner.CodexBufferedFastLine]?
+
+    var hasBufferedCodexForkRetryLines: Bool {
+        self.codexBufferedSubagentLines?.isEmpty == false
+            || self.codexBufferedUnresolvedForkLines?.isEmpty == false
+    }
 }
 
 struct CostUsageCodexSessionMetadata: Codable, Equatable {
@@ -233,4 +484,46 @@ struct CostUsageCodexTotals: Codable, Equatable {
         self.output = output
         self.reasoning = reasoning
     }
+}
+
+struct CostUsageCodexTokenSnapshot: Codable, Equatable {
+    var timestamp: String
+    var last: CostUsageCodexTotals?
+    var total: CostUsageCodexTotals?
+    var endOffset: Int64?
+
+    init(
+        timestamp: String,
+        last: CostUsageCodexTotals?,
+        total: CostUsageCodexTotals?,
+        endOffset: Int64? = nil)
+    {
+        self.timestamp = timestamp
+        self.last = last
+        self.total = total
+        self.endOffset = endOffset
+    }
+}
+
+struct CostUsageCodexTokenAccumulatorState: Codable, Equatable {
+    var countedTotals: CostUsageCodexTotals?
+    var rawTotalsBaseline: CostUsageCodexTotals?
+    var sawDivergentTotals: Bool
+    var rawTotalsWatermark: CostUsageCodexTotals?
+    var seenRawTotals: [CostUsageCodexTotals]
+    var sawInterleavedTotals: Bool
+}
+
+struct CostUsageCodexTokenCheckpoint: Codable, Equatable {
+    /// Index of the last token event already folded into `state`.
+    var eventIndex: Int
+    var timestamp: String
+    var endOffset: Int64
+    var state: CostUsageCodexTokenAccumulatorState
+}
+
+struct CostUsageCodexTokenIndexAnchor: Codable, Equatable {
+    var indexedBytes: Int64
+    var windowStart: Int64
+    var sha256: String
 }

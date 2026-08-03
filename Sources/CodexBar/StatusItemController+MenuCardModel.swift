@@ -19,7 +19,8 @@ extension StatusItemController {
         forceOverrideCard: Bool = false,
         accountOverride: AccountInfo? = nil,
         historySelectionOverride: PlanUtilizationHistorySelection? = nil,
-        planOverride: String? = nil) -> UsageMenuCardView.Model?
+        planOverride: String? = nil,
+        subtitleOverride: String? = nil) -> UsageMenuCardView.Model?
     {
         let target = provider ?? self.store.enabledProvidersForDisplay().first ?? .codex
         let metadata = self.store.metadata(for: target)
@@ -32,11 +33,10 @@ extension StatusItemController {
         }
         // Override cards belong to a specific account/context. Never fall back to
         // provider-level live data here; that can belong to a different account.
-        let snapshot: UsageSnapshot? = if surface == .overrideCard {
-            snapshotOverride
-        } else {
-            snapshotOverride ?? self.store.presentationSnapshot(for: target)
-        }
+        let snapshot = self.menuCardSnapshot(
+            provider: target,
+            surface: surface,
+            override: snapshotOverride)
         let projectedTokenSnapshot = self.store.tokenSnapshot(fromProviderSnapshot: snapshot, provider: target)
         let storedTokenSnapshot = UsageStore.tokenCostRequiresProviderSnapshot(target)
             ? nil
@@ -142,6 +142,7 @@ extension StatusItemController {
             codexSparkUsageVisible: self.settings.codexSparkUsageVisible,
             copilotBudgetExtrasEnabled: self.settings.copilotBudgetExtrasEnabled,
             sourceLabel: sourceLabel,
+            subtitleOverride: subtitleOverride,
             kiloAutoMode: kiloAutoMode,
             hidePersonalInfo: self.settings.hidePersonalInfo,
             weeklyPace: weeklyPace,
@@ -155,6 +156,39 @@ extension StatusItemController {
             preferredCurrencyCode: self.settings.preferredCurrencyCode,
             now: now)
         return UsageMenuCardView.Model.make(input)
+    }
+
+    private func menuCardSnapshot(
+        provider: UsageProvider,
+        surface: CodexConsumerProjection.Surface,
+        override: UsageSnapshot?) -> UsageSnapshot?
+    {
+        let baseSnapshot: UsageSnapshot? = if surface == .overrideCard {
+            override
+        } else {
+            override ?? self.store.presentationSnapshot(for: provider)
+        }
+        return self.subscriptionMetadataSnapshot(baseSnapshot, provider: provider, surface: surface)
+    }
+
+    private func subscriptionMetadataSnapshot(
+        _ snapshot: UsageSnapshot?,
+        provider: UsageProvider,
+        surface: CodexConsumerProjection.Surface) -> UsageSnapshot?
+    {
+        guard provider == .codex,
+              surface == .liveCard,
+              let snapshot,
+              let cache = OpenAIDashboardCacheStore.load(),
+              cache.snapshot.subscriptionRenewsAt != nil || cache.snapshot.subscriptionExpiresAt != nil,
+              let cacheEmail = CodexIdentityResolver.normalizeEmail(cache.accountEmail),
+              let currentEmail = CodexIdentityResolver.normalizeEmail(
+                  snapshot.accountEmail(for: .codex) ?? self.store.accountInfo(for: .codex).email),
+              cacheEmail == currentEmail
+        else { return snapshot }
+        return snapshot.withSubscriptionMetadata(
+            expiresAt: cache.snapshot.subscriptionExpiresAt,
+            renewsAt: cache.snapshot.subscriptionRenewsAt)
     }
 
     // swiftlint:disable:next function_parameter_count

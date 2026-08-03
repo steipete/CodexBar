@@ -18,6 +18,7 @@ public enum ClinePassProviderDescriptor {
                 toggleTitle: "Show ClinePass usage",
                 cliName: "clinepass",
                 defaultEnabled: false,
+                widgetSelectable: false,
                 isPrimaryProvider: false,
                 usesAccountFallback: false,
                 browserCookieOrder: nil,
@@ -25,7 +26,7 @@ public enum ClinePassProviderDescriptor {
                 statusPageURL: nil,
                 statusLinkURL: nil),
             branding: ProviderBranding(
-                iconStyle: .clinepass,
+                iconStyle: .init(provider: .clinepass),
                 iconResourceName: "ProviderIcon-clinepass",
                 color: ProviderColor(red: 0.38, green: 0.64, blue: 0.98),
                 confettiPalette: [

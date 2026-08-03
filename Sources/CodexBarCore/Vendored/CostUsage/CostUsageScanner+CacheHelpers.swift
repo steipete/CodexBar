@@ -302,12 +302,17 @@ extension CostUsageScanner {
         codexPriorityTokens: [String: [String: Int]]? = nil,
         codexTurnIDs: [String]? = nil,
         codexRows: [CodexUsageRow]? = nil,
+        codexTokenSnapshots: [CostUsageCodexTokenSnapshot]? = nil,
+        codexTokenCheckpoints: [CostUsageCodexTokenCheckpoint]? = nil,
+        codexTokenTimestampsMonotonic: Bool? = nil,
+        codexTokenIndexAnchor: CostUsageCodexTokenIndexAnchor? = nil,
         claudeRows: [ClaudeUsageRow]? = nil,
         codexScanFileId: String? = nil,
         codexScanTargetSize: Int64? = nil,
         codexScanComplete: Bool? = nil,
         codexJSONLResumeState: CostUsageJsonl.ResumeState? = nil,
-        codexBufferedSubagentLines: [CodexBufferedFastLine]? = nil) -> CostUsageFileUsage
+        codexBufferedSubagentLines: [CodexBufferedFastLine]? = nil,
+        codexBufferedUnresolvedForkLines: [CodexBufferedFastLine]? = nil) -> CostUsageFileUsage
     {
         CostUsageFileUsage(
             mtimeUnixMs: mtimeUnixMs,
@@ -338,12 +343,17 @@ extension CostUsageScanner {
             codexPriorityTokens: codexPriorityTokens,
             codexTurnIDs: codexTurnIDs,
             codexRows: codexRows,
+            codexTokenSnapshots: codexTokenSnapshots,
+            codexTokenCheckpoints: codexTokenCheckpoints,
+            codexTokenTimestampsMonotonic: codexTokenTimestampsMonotonic,
+            codexTokenIndexAnchor: codexTokenIndexAnchor,
             claudeRows: claudeRows,
             codexScanFileId: codexScanFileId,
             codexScanTargetSize: codexScanTargetSize,
             codexScanComplete: codexScanComplete,
             codexJSONLResumeState: codexJSONLResumeState,
-            codexBufferedSubagentLines: codexBufferedSubagentLines)
+            codexBufferedSubagentLines: codexBufferedSubagentLines,
+            codexBufferedUnresolvedForkLines: codexBufferedUnresolvedForkLines)
     }
 
     static func needsCodexCostCache(_ usage: CostUsageFileUsage) -> Bool {
@@ -805,7 +815,17 @@ extension CostUsageScanner {
                 Self.intMapOutsideScanWindow(usage.codexPriorityTokens, range: context.range),
                 splitMaps.priorityTokens),
             codexTurnIDs: Self.mergeCodexTurnIDs(nil, rows: rows),
-            codexRows: rows)
+            codexRows: rows,
+            codexTokenSnapshots: usage.codexTokenSnapshots,
+            codexTokenCheckpoints: usage.codexTokenCheckpoints,
+            codexTokenTimestampsMonotonic: usage.codexTokenTimestampsMonotonic,
+            codexTokenIndexAnchor: usage.codexTokenIndexAnchor,
+            codexScanFileId: usage.codexScanFileId,
+            codexScanTargetSize: usage.codexScanTargetSize,
+            codexScanComplete: usage.codexScanComplete,
+            codexJSONLResumeState: usage.codexJSONLResumeState,
+            codexBufferedSubagentLines: usage.codexBufferedSubagentLines,
+            codexBufferedUnresolvedForkLines: usage.codexBufferedUnresolvedForkLines)
             .refreshingCodexWorkspaceUsageFingerprint()
     }
 
@@ -975,8 +995,9 @@ extension CostUsageScanner {
         if let parentSessionId = cached.forkedFromId {
             guard let cachedDependencyKey = cached.forkBaselineDependencyKey else { return false }
             if cachedDependencyKey != Self.codexForkDependencyNotRequiredKey {
-                let currentDependencyKey = try context.resources.inheritedResolver
+                guard let currentDependencyKey = try context.resources.inheritedResolver
                     .currentDependencyKey(for: parentSessionId)
+                else { return false }
                 guard cachedDependencyKey == currentDependencyKey else { return false }
             }
         }
@@ -1053,13 +1074,25 @@ extension CostUsageScanner {
         let isResumablePartial = cached.codexScanComplete == false
             && cached.codexScanFileId != nil
             && cached.codexScanFileId == input.metadata.fileId
-            && cached.codexScanTargetSize == input.metadata.size
-            && cached.mtimeUnixMs == input.metadata.mtimeUnixMs
+            && startOffset > 0
+            && startOffset <= input.metadata.size
+            && cached.codexTokenIndexAnchor?.indexedBytes == startOffset
+            && cached.codexTokenIndexAnchor.map {
+                CostUsageScanner.codexTokenIndexAnchorMatches(
+                    $0,
+                    fileURL: input.fileURL,
+                    metadata: input.metadata)
+            } == true
             && hasMatchingResumeOffset
+        let isBufferedForkRetry = cached.forkedFromId != nil
+            && cached.forkBaselineDependencyKey == nil
+            && cached.hasBufferedCodexForkRetryLines
+            && cached.codexScanFileId == input.metadata.fileId
+            && startOffset == input.metadata.size
         if cached.codexScanComplete == false, !isResumablePartial {
             return false
         }
-        if !isResumablePartial, try Self.codexFileIsSubagentThread(
+        if !isResumablePartial, !isBufferedForkRetry, try Self.codexFileIsSubagentThread(
             fileURL: input.fileURL,
             checkCancellation: context.checkCancellation)
         {
@@ -1077,6 +1110,7 @@ extension CostUsageScanner {
         let canIncremental = startOffset > 0
             && startOffset <= input.metadata.size
             && (isResumablePartial
+                || isBufferedForkRetry
                 || (input.metadata.size > cached.size
                     && initialCountedTotals != nil
                     && cached.forkedFromId == nil
@@ -1097,10 +1131,15 @@ extension CostUsageScanner {
             initialCodexTurnID: cached.lastCodexTurnID,
             initialCodexUsageRowIndex: Self.nextCodexUsageRowIndex(cached.codexRows),
             initialBufferedSubagentLines: cached.codexBufferedSubagentLines,
+            initialBufferedUnresolvedForkLines: cached.codexBufferedUnresolvedForkLines,
             initialJSONLResumeState: cached.codexJSONLResumeState,
             maxBytesToRead: maxBytesToRead,
+            shouldStopReading: context.scanBudget.map { budget in
+                { bytesRead in budget.shouldYield(additionalBytes: bytesRead) }
+            },
+            inheritedTotalsResolver: context.resources.inheritedResolver.inheritedTotals(for:atOrBefore:),
             checkCancellation: context.checkCancellation)
-        if delta.forkedFromId != nil, !isResumablePartial {
+        if delta.forkedFromId != nil, !isResumablePartial, !isBufferedForkRetry {
             return false
         }
         let migrated = Self.codexFileUsageWithCostCache(cached, context: context)
@@ -1169,6 +1208,9 @@ extension CostUsageScanner {
             priorityTurns: context.resources.priorityTurns,
             modelsDevCatalog: context.resources.modelsDevCatalog,
             modelsDevCacheRoot: context.resources.modelsDevCacheRoot)
+        let mergedTokenSnapshots = isBufferedForkRetry
+            ? (migratedCached.codexTokenSnapshots ?? [])
+            : (migratedCached.codexTokenSnapshots ?? []) + delta.tokenSnapshots
         cache.files[input.metadata.path] = Self.makeFileUsage(
             mtimeUnixMs: input.metadata.mtimeUnixMs,
             size: input.metadata.size,
@@ -1215,11 +1257,18 @@ extension CostUsageScanner {
                 priorityTurns: context.resources.priorityTurns,
                 modelsDevCatalog: context.resources.modelsDevCatalog,
                 modelsDevCacheRoot: context.resources.modelsDevCacheRoot),
+            codexTokenSnapshots: mergedTokenSnapshots,
+            codexTokenCheckpoints: Self.codexTokenCheckpoints(for: mergedTokenSnapshots),
+            codexTokenTimestampsMonotonic: Self.codexTokenTimestampsAreMonotonic(mergedTokenSnapshots),
+            codexTokenIndexAnchor: Self.codexTokenIndexAnchor(
+                fileURL: input.fileURL,
+                indexedBytes: delta.parsedBytes),
             codexScanFileId: input.metadata.fileId,
             codexScanTargetSize: input.metadata.size,
             codexScanComplete: delta.parsedBytes >= input.metadata.size && delta.jsonlResumeState == nil,
             codexJSONLResumeState: delta.jsonlResumeState,
-            codexBufferedSubagentLines: delta.bufferedSubagentLines)
+            codexBufferedSubagentLines: delta.bufferedSubagentLines,
+            codexBufferedUnresolvedForkLines: delta.bufferedUnresolvedForkLines)
             .refreshingCodexWorkspaceUsageFingerprint()
         Self.rememberScannedCodexFile(
             input: input,
@@ -1250,6 +1299,9 @@ extension CostUsageScanner {
             fileURL: input.fileURL,
             range: context.range,
             maxBytesToRead: maxBytesToRead,
+            shouldStopReading: context.scanBudget.map { budget in
+                { bytesRead in budget.shouldYield(additionalBytes: bytesRead) }
+            },
             inheritedTotalsResolver: context.resources.inheritedResolver.inheritedTotals(for:atOrBefore:),
             checkCancellation: context.checkCancellation)
         let forkBaselineDependencyKey = Self.codexForkBaselineDependencyKey(
@@ -1362,11 +1414,18 @@ extension CostUsageScanner {
                     priorityTurns: context.resources.priorityTurns,
                     modelsDevCatalog: context.resources.modelsDevCatalog,
                     modelsDevCacheRoot: context.resources.modelsDevCacheRoot),
+            codexTokenSnapshots: parsed.tokenSnapshots,
+            codexTokenCheckpoints: Self.codexTokenCheckpoints(for: parsed.tokenSnapshots),
+            codexTokenTimestampsMonotonic: Self.codexTokenTimestampsAreMonotonic(parsed.tokenSnapshots),
+            codexTokenIndexAnchor: Self.codexTokenIndexAnchor(
+                fileURL: input.fileURL,
+                indexedBytes: parsed.parsedBytes),
             codexScanFileId: input.metadata.fileId,
             codexScanTargetSize: input.metadata.size,
             codexScanComplete: parsed.parsedBytes >= input.metadata.size && parsed.jsonlResumeState == nil,
             codexJSONLResumeState: parsed.jsonlResumeState,
-            codexBufferedSubagentLines: parsed.bufferedSubagentLines)
+            codexBufferedSubagentLines: parsed.bufferedSubagentLines,
+            codexBufferedUnresolvedForkLines: parsed.bufferedUnresolvedForkLines)
             .refreshingCodexWorkspaceUsageFingerprint()
         Self.applyFileDays(cache: &cache, fileDays: cache.files[input.metadata.path]?.days ?? [:], sign: 1)
         Self.rememberScannedCodexFile(

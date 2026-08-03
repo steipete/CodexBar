@@ -60,6 +60,7 @@ struct SettingsDefaultsState {
     var codexSparkUsageVisible: Bool
     var openAIWebAccessEnabled: Bool
     var openAIWebBatterySaverEnabled: Bool
+    var backgroundWorkLowPowerModeEnabled: Bool
     var providerStorageFootprintsEnabled: Bool
     var jetbrainsIDEBasePath: String
     var mergeIcons: Bool
@@ -75,4 +76,9 @@ struct SettingsDefaultsState {
     var agentSessionLabelStyleRaw: String
     var agentSessionsManualHosts: String
     var preferredCurrencyCode: String
+    var iCloudSyncEnabled: Bool
+    var iCloudSyncIncludeSecrets: Bool
+    var iCloudSyncSnapshotsEnabled: Bool
+    var iCloudSyncShowFleetAccounts: Bool
+    var iCloudSyncDeviceID: String
 }

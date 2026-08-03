@@ -18,6 +18,7 @@ public enum FactoryProviderDescriptor {
                 toggleTitle: "Show Droid usage",
                 cliName: "factory",
                 defaultEnabled: false,
+                widgetSelectable: false,
                 isPrimaryProvider: false,
                 usesAccountFallback: false,
                 browserCookieOrder: ProviderBrowserCookieDefaults.defaultImportOrder,
@@ -25,7 +26,7 @@ public enum FactoryProviderDescriptor {
                 statusPageURL: "https://status.factory.ai",
                 statusLinkURL: nil),
             branding: ProviderBranding(
-                iconStyle: .factory,
+                iconStyle: .init(provider: .factory),
                 iconResourceName: "ProviderIcon-factory",
                 color: ProviderColor(red: 255 / 255, green: 107 / 255, blue: 53 / 255),
                 confettiPalette: [

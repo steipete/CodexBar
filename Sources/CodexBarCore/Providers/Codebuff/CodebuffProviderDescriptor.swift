@@ -18,6 +18,7 @@ public enum CodebuffProviderDescriptor {
                 toggleTitle: "Show Codebuff usage",
                 cliName: "codebuff",
                 defaultEnabled: false,
+                widgetSelectable: false,
                 isPrimaryProvider: false,
                 usesAccountFallback: false,
                 browserCookieOrder: nil,
@@ -25,7 +26,7 @@ public enum CodebuffProviderDescriptor {
                 statusPageURL: nil,
                 statusLinkURL: nil),
             branding: ProviderBranding(
-                iconStyle: .codebuff,
+                iconStyle: .init(provider: .codebuff),
                 iconResourceName: "ProviderIcon-codebuff",
                 color: ProviderColor(red: 68 / 255, green: 255 / 255, blue: 0 / 255),
                 confettiPalette: [

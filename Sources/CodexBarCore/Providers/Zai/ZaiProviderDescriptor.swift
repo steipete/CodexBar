@@ -23,7 +23,7 @@ public enum ZaiProviderDescriptor {
                 dashboardURL: ZaiAPIRegion.global.dashboardURL.absoluteString,
                 statusPageURL: nil),
             branding: ProviderBranding(
-                iconStyle: .zai,
+                iconStyle: .init(provider: .zai),
                 iconResourceName: "ProviderIcon-zai",
                 color: ProviderColor(red: 232 / 255, green: 90 / 255, blue: 106 / 255),
                 confettiPalette: [

@@ -444,6 +444,28 @@ struct CodexBarTests {
     }
 
     @Test
+    func `subscription metadata replacement switches renewal to expiration`() {
+        let renewal = Date(timeIntervalSince1970: 1_787_236_207)
+        let expiration = renewal.addingTimeInterval(86400)
+        let original = UsageSnapshot(
+            primary: RateWindow(
+                usedPercent: 20,
+                windowMinutes: 300,
+                resetsAt: nil,
+                resetDescription: nil),
+            secondary: nil,
+            subscriptionRenewsAt: renewal,
+            updatedAt: Date(timeIntervalSince1970: 1_787_000_000))
+
+        let replaced = original.withSubscriptionMetadata(expiresAt: expiration, renewsAt: nil)
+
+        #expect(replaced.primary == original.primary)
+        #expect(replaced.updatedAt == original.updatedAt)
+        #expect(replaced.subscriptionRenewsAt == nil)
+        #expect(replaced.subscriptionExpiresAt == expiration)
+    }
+
+    @Test
     func `copying rate windows preserves provider payloads`() {
         let updatedAt = Date(timeIntervalSince1970: 1_800_000_000)
         let mimoUsage = MiMoUsageSnapshot(

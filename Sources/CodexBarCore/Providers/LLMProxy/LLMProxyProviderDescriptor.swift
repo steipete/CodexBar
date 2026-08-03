@@ -18,13 +18,14 @@ public enum LLMProxyProviderDescriptor {
                 toggleTitle: "Show LLM Proxy usage",
                 cliName: "llmproxy",
                 defaultEnabled: false,
+                widgetSelectable: false,
                 isPrimaryProvider: false,
                 usesAccountFallback: false,
                 browserCookieOrder: nil,
                 dashboardURL: nil,
                 statusPageURL: nil),
             branding: ProviderBranding(
-                iconStyle: .llmproxy,
+                iconStyle: .init(provider: .llmproxy),
                 iconResourceName: "ProviderIcon-llmproxy",
                 color: ProviderColor(red: 36 / 255, green: 180 / 255, blue: 126 / 255),
                 confettiPalette: [

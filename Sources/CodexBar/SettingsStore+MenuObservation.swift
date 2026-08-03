@@ -60,10 +60,14 @@ extension SettingsStore {
         _ = self.codexSparkUsageVisible
         _ = self.openAIWebAccessEnabled
         _ = self.openAIWebBatterySaverEnabled
+        _ = self.backgroundWorkLowPowerModeEnabled
         _ = self.providerStorageFootprintsEnabled
         _ = self.agentSessionsEnabled
         _ = self.agentSessionLabelStyle
         _ = self.agentSessionsManualHosts
+        _ = self.iCloudSyncEnabled
+        _ = self.iCloudSyncSnapshotsEnabled
+        _ = self.iCloudSyncShowFleetAccounts
         _ = self.codexUsageDataSource
         _ = self.codexActiveSource
         _ = self.claudeUsageDataSource

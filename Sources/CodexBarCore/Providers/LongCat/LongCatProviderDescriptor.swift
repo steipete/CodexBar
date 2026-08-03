@@ -18,13 +18,14 @@ public enum LongCatProviderDescriptor {
                 toggleTitle: "Show LongCat usage",
                 cliName: "longcat",
                 defaultEnabled: false,
+                widgetSelectable: false,
                 isPrimaryProvider: false,
                 usesAccountFallback: false,
                 browserCookieOrder: ProviderBrowserCookieDefaults.longcatCookieImportOrder,
                 dashboardURL: "https://longcat.chat/platform/",
                 statusPageURL: nil),
             branding: ProviderBranding(
-                iconStyle: .longcat,
+                iconStyle: .init(provider: .longcat),
                 iconResourceName: "ProviderIcon-longcat",
                 color: ProviderColor(red: 255 / 255, green: 209 / 255, blue: 0 / 255),
                 confettiPalette: [

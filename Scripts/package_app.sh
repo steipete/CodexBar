@@ -242,6 +242,36 @@ if [[ "$ALLOW_LLDB" == "1" && "$LOWER_CONF" != "debug" ]]; then
   echo "ERROR: CODEXBAR_ALLOW_LLDB requires debug configuration" >&2
   exit 1
 fi
+# iCloud sync (CloudKit) requires restricted entitlements authorized by an embedded
+# Developer ID provisioning profile. Only identity-signed release builds of the primary
+# bundle ID carry them; adhoc/debug builds run with sync unavailable.
+PROVISIONING_PROFILE_SOURCE="$ROOT/Scripts/profiles/CodexBar-DeveloperID.provisionprofile"
+EMBED_PROVISIONING_PROFILE=0
+ICLOUD_ENTITLEMENT_KEYS=""
+if [[ "$SIGNING_MODE" == "identity" && "$LOWER_CONF" == "release" && "$BUNDLE_ID" == "com.steipete.codexbar" ]]; then
+  if [[ ! -f "$PROVISIONING_PROFILE_SOURCE" ]]; then
+    echo "ERROR: Missing $PROVISIONING_PROFILE_SOURCE (required for iCloud entitlements in release builds)" >&2
+    exit 1
+  fi
+  EMBED_PROVISIONING_PROFILE=1
+  ICLOUD_ENTITLEMENT_KEYS=$(cat <<ICLOUD
+    <key>com.apple.application-identifier</key>
+    <string>${APP_TEAM_ID}.${BUNDLE_ID}</string>
+    <key>com.apple.developer.team-identifier</key>
+    <string>${APP_TEAM_ID}</string>
+    <key>com.apple.developer.icloud-services</key>
+    <array>
+        <string>CloudKit</string>
+    </array>
+    <key>com.apple.developer.icloud-container-identifiers</key>
+    <array>
+        <string>iCloud.${BUNDLE_ID}</string>
+    </array>
+    <key>com.apple.developer.icloud-container-environment</key>
+    <string>Production</string>
+ICLOUD
+)
+fi
 cat > "$APP_ENTITLEMENTS" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -251,6 +281,7 @@ cat > "$APP_ENTITLEMENTS" <<PLIST
     <array>
         <string>${APP_GROUP_ID}</string>
     </array>
+${ICLOUD_ENTITLEMENT_KEYS}
     $(if [[ "$ALLOW_LLDB" == "1" ]]; then echo "    <key>com.apple.security.get-task-allow</key><true/>"; fi)
 </dict>
 </plist>
@@ -560,6 +591,12 @@ if [[ -d "${APP}/Contents/PlugIns/CodexBarWidget.appex" ]]; then
   codesign "${CODESIGN_ARGS[@]}" \
     --entitlements "$WIDGET_ENTITLEMENTS" \
     "$APP/Contents/PlugIns/CodexBarWidget.appex"
+fi
+
+# Embed the Developer ID provisioning profile (authorizes the iCloud entitlements;
+# Gatekeeper re-validates it at every launch, so it must be sealed into the signature).
+if [[ "$EMBED_PROVISIONING_PROFILE" == "1" ]]; then
+  cp "$PROVISIONING_PROFILE_SOURCE" "$APP/Contents/embedded.provisionprofile"
 fi
 
 # Finally sign the app bundle itself

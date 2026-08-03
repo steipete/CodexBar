@@ -373,7 +373,7 @@ struct CLICardsClaudeSwapTests {
         ]}
         JSON
         """
-        try script.write(to: executable, atomically: true, encoding: .utf8)
+        try Data(script.utf8).write(to: executable)
         try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: executable.path)
 
         let output = await CLIClaudeSwapCards.fetch(

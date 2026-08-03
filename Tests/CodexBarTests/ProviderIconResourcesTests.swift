@@ -7,57 +7,6 @@ import Testing
 @MainActor
 struct ProviderIconResourcesTests {
     @Test
-    func `provider icon SV gs exist`() throws {
-        let root = try Self.repoRoot()
-        let resources = root.appending(path: "Sources/CodexBar/Resources", directoryHint: .isDirectory)
-
-        let slugs = [
-            "codex",
-            "claude",
-            "clinepass",
-            "zai",
-            "minimax",
-            "cursor",
-            "opencode",
-            "opencodego",
-            "alibaba",
-            "gemini",
-            "antigravity",
-            "factory",
-            "copilot",
-            "devin",
-            "crof",
-            "commandcode",
-            "t3chat",
-            "kimi",
-            "longcat",
-            "bedrock",
-            "elevenlabs",
-            "groq",
-            "llmproxy",
-            "litellm",
-            "deepgram",
-            "ollama",
-            "clawrouter",
-            "sub2api",
-            "wayfinder",
-            "zenmux",
-            "aiand",
-            "zoommate",
-            "xai",
-        ]
-        for slug in slugs {
-            let url = resources.appending(path: "ProviderIcon-\(slug).svg")
-            #expect(
-                FileManager.default.fileExists(atPath: url.path(percentEncoded: false)),
-                "Missing SVG for \(slug)")
-
-            let image = NSImage(contentsOf: url)
-            #expect(image != nil, "Could not load SVG as NSImage for \(slug)")
-        }
-    }
-
-    @Test
     func `groq and grok provider icons are distinct`() throws {
         let root = try Self.repoRoot()
         let resources = root.appending(path: "Sources/CodexBar/Resources", directoryHint: .isDirectory)

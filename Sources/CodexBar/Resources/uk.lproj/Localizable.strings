@@ -1,5 +1,28 @@
 /* Ukrainian localization for CodexBar */
 
+/* iCloud Sync */
+"iCloud Sync" = "iCloud Sync";
+"Sync settings and providers across your Macs via iCloud" = "Sync settings and providers across your Macs via iCloud";
+"Include API keys, cookies, and tokens" = "Include API keys, cookies, and tokens";
+"Sync usage snapshots" = "Sync usage snapshots";
+"Show accounts from other Macs" = "Show accounts from other Macs";
+"Requires a signed release build of CodexBar." = "Requires a signed release build of CodexBar.";
+"Sign in to iCloud in System Settings to enable sync." = "Sign in to iCloud in System Settings to enable sync.";
+"iCloud access is restricted on this Mac." = "iCloud access is restricted on this Mac.";
+"Sync is paused: another Mac uses a newer version of CodexBar. Update to resume." = "Sync is paused: another Mac uses a newer version of CodexBar. Update to resume.";
+"Last successful fetch" = "Last successful fetch";
+"Last successful push" = "Last successful push";
+"Never" = "Never";
+"Macs" = "Macs";
+"No synced Macs yet." = "No synced Macs yet.";
+"Secrets use iCloud end-to-end encryption via encryptedValues. Hooks and machine-local paths never sync." = "Secrets use iCloud end-to-end encryption via encryptedValues. Hooks and machine-local paths never sync.";
+"Last seen %@" = "Last seen %@";
+"This Mac" = "This Mac";
+"another Mac" = "another Mac";
+"%dm ago" = "%dm ago";
+"%dh ago" = "%dh ago";
+"%dd ago" = "%dd ago";
+
 "tab_hooks" = "Хуки";
 "hooks_enable_title" = "Увімкнути хуки";
 "hooks_enable_subtitle" = "Запускати зовнішні команди під час подій квоти або провайдера.";
@@ -21,7 +44,7 @@
 "hooks_delete_argument" = "Видалити аргумент";
 
 "ollama_safari_cookie_access_hint" = "Для файлів cookie Safari програмі CodexBar потрібен повний доступ до диска (Системні параметри > Конфіденційність і безпека).";
-"ollama_browser_cookie_decryption_denied" = "Розшифрування файлів cookie %@ було відхилено у В’язці ключів; повторіть спробу за допомогою ручного оновлення.";
+"ollama_browser_cookie_decryption_denied" = "Розшифрування файлів cookie %@ було відхилено у В’язці ключів. Відкрийте картку провайдера й натисніть «Оновити» (⌘R), щоб знову запитати доступ до В’язки ключів.";
 "ollama_browser_cookie_decryption_disabled" = "Розшифрування файлів cookie %@ вимкнено в CodexBar; увімкніть доступ до В’язки ключів і оновіть.";
 
 " providers" = "провайдерів";
@@ -587,7 +610,7 @@
 "show_provider_changelog_links_title" = "Показати посилання журналу змін провайдера";
 "show_provider_changelog_links_subtitle" = "Додає в меню посилання на примітки до випуску для підтримуваних постачальників, що підтримують CLI.";
 "show_credits_extra_usage_title" = "Показати кредити + додаткове використання";
-"show_credits_extra_usage_subtitle" = "Показати в меню розділи використання кредитів Codex і Claude Extra.";
+"show_credits_extra_usage_subtitle" = "Показувати кредити та додаткове використання для підтримуваних постачальників.";
 "multi_account_layout_title" = "Макет кількох облікових записів";
 "multi_account_layout_subtitle" = "Виберіть сегментоване перемикання облікових записів або складені картки облікових записів.";
 "multi_account_layout_segmented" = "Сегментований";
@@ -1324,6 +1347,9 @@
 "menu_bar_layout_token_session" = "Сесія %";
 "menu_bar_layout_token_weekly" = "Щотижня %";
 "menu_bar_layout_token_auto" = "Авто %";
+"menu_bar_layout_token_session_pace" = "Темп сесії";
+"menu_bar_layout_token_weekly_pace" = "Щотижневий темп";
+"menu_bar_layout_token_auto_pace" = "Авто темп";
 "menu_bar_layout_token_bar" = "Індикатор використання";
 "menu_bar_layout_token_resets_in" = "Скидання через";
 "menu_bar_layout_token_reset_at" = "Скидання о";
@@ -1349,3 +1375,5 @@
 "Cost today unavailable" = "Вартість сьогодні: Недоступний";
 "30-day cost unavailable" = "Вартість за 30 днів: Недоступний";
 "Resets" = "Скидання";
+"Finish now" = "Завершити зараз";
+"Continue in background" = "Продовжити у фоновому режимі";

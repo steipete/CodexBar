@@ -1,0 +1,51 @@
+DEFINE SCHEMA
+
+    RECORD TYPE AccountSnapshot (
+        accountKey       STRING,
+        deviceID         STRING,
+        fetchedAt        TIMESTAMP,
+        provider         STRING,
+        schemaVersion    INT64,
+        displayLabel     ENCRYPTED STRING,
+        usagePayload     ENCRYPTED STRING,
+        GRANT WRITE TO "_creator",
+        GRANT CREATE TO "_icloud",
+        GRANT READ TO "_creator"
+    );
+
+    RECORD TYPE Device (
+        appVersion       STRING,
+        deviceID         STRING,
+        hostName         STRING,
+        lastSeen         TIMESTAMP,
+        model            STRING,
+        schemaVersion    INT64,
+        GRANT WRITE TO "_creator",
+        GRANT CREATE TO "_icloud",
+        GRANT READ TO "_creator"
+    );
+
+    RECORD TYPE Preferences (
+        editCount        INT64,
+        modifiedAt       TIMESTAMP,
+        payload          STRING,
+        schemaVersion    INT64,
+        GRANT WRITE TO "_creator",
+        GRANT CREATE TO "_icloud",
+        GRANT READ TO "_creator"
+    );
+
+    RECORD TYPE ProviderIntent (
+        editCount        INT64,
+        modifiedAt       TIMESTAMP,
+        payload          STRING,
+        provider         STRING,
+        schemaVersion    INT64,
+        apiKey           ENCRYPTED STRING,
+        cookieHeader     ENCRYPTED STRING,
+        secretKey        ENCRYPTED STRING,
+        tokenAccounts    ENCRYPTED STRING,
+        GRANT WRITE TO "_creator",
+        GRANT CREATE TO "_icloud",
+        GRANT READ TO "_creator"
+    );

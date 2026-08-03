@@ -18,13 +18,14 @@ public enum OpenRouterProviderDescriptor {
                 toggleTitle: "Show OpenRouter usage",
                 cliName: "openrouter",
                 defaultEnabled: false,
+                widgetSelectable: false,
                 isPrimaryProvider: false,
                 usesAccountFallback: false,
                 dashboardURL: "https://openrouter.ai/settings/credits",
                 statusPageURL: nil,
                 statusLinkURL: "https://status.openrouter.ai"),
             branding: ProviderBranding(
-                iconStyle: .openrouter,
+                iconStyle: .init(provider: .openrouter),
                 iconResourceName: "ProviderIcon-openrouter",
                 color: ProviderColor(red: 100 / 255, green: 103 / 255, blue: 242 / 255),
                 confettiPalette: [

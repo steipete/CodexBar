@@ -18,12 +18,13 @@ public enum OpenAIAPIProviderDescriptor {
                 toggleTitle: "Show OpenAI usage",
                 cliName: "openai",
                 defaultEnabled: false,
+                widgetSelectable: false,
                 isPrimaryProvider: false,
                 usesAccountFallback: false,
                 dashboardURL: "https://platform.openai.com/usage",
                 statusPageURL: "https://status.openai.com"),
             branding: ProviderBranding(
-                iconStyle: .openai,
+                iconStyle: .init(provider: .openai),
                 iconResourceName: "ProviderIcon-codex",
                 color: ProviderColor(red: 0.06, green: 0.51, blue: 0.43),
                 confettiPalette: [

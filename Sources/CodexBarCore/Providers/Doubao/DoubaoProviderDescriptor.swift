@@ -27,13 +27,14 @@ public enum DoubaoProviderDescriptor {
                 toggleTitle: "Show Doubao usage",
                 cliName: "doubao",
                 defaultEnabled: false,
+                widgetSelectable: false,
                 isPrimaryProvider: false,
                 usesAccountFallback: false,
                 browserCookieOrder: nil,
                 dashboardURL: "https://console.volcengine.com/ark/region:ark+cn-beijing/openManagement?LLM=%7B%7D&advancedActiveKey=subscribe",
                 statusPageURL: nil),
             branding: ProviderBranding(
-                iconStyle: .doubao,
+                iconStyle: .init(provider: .doubao),
                 iconResourceName: "ProviderIcon-doubao",
                 color: ProviderColor(red: 51 / 255, green: 112 / 255, blue: 255 / 255),
                 confettiPalette: [

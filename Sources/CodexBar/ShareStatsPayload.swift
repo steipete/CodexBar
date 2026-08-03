@@ -202,6 +202,9 @@ struct ShareStatsSubscriptionName: Sendable, Equatable {
             "starter": "Starter", "pro": "Pro", "team": "Team", "enterprise": "Enterprise",
         ],
         UsageProvider.t3chat.rawValue: ["free": "Free", "pro": "Pro", "team": "Team"],
+        UsageProvider.notion.rawValue: [
+            "free": "Free", "plus": "Plus", "business": "Business", "enterprise": "Enterprise",
+        ],
         UsageProvider.sub2api.rawValue: [
             "free": "Free", "pro": "Pro", "team": "Team", "claude team": "Team",
             "enterprise": "Enterprise", "wallet plan": "Wallet",

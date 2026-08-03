@@ -18,12 +18,13 @@ public enum LiteLLMProviderDescriptor {
                 toggleTitle: "Show LiteLLM usage",
                 cliName: "litellm",
                 defaultEnabled: false,
+                widgetSelectable: false,
                 isPrimaryProvider: false,
                 usesAccountFallback: false,
                 dashboardURL: nil,
                 statusPageURL: nil),
             branding: ProviderBranding(
-                iconStyle: .litellm,
+                iconStyle: .init(provider: .litellm),
                 iconResourceName: "ProviderIcon-litellm",
                 color: ProviderColor(red: 76 / 255, green: 137 / 255, blue: 240 / 255),
                 confettiPalette: [

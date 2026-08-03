@@ -24,7 +24,7 @@ public enum OpenCodeProviderDescriptor {
                 dashboardURL: "https://opencode.ai/auth",
                 statusPageURL: nil),
             branding: ProviderBranding(
-                iconStyle: .opencode,
+                iconStyle: .init(provider: .opencode),
                 iconResourceName: "ProviderIcon-opencode",
                 color: ProviderColor(red: 59 / 255, green: 130 / 255, blue: 246 / 255),
                 confettiPalette: [

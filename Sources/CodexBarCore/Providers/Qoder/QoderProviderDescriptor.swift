@@ -18,6 +18,7 @@ public enum QoderProviderDescriptor {
                 toggleTitle: "Show Qoder usage",
                 cliName: "qoder",
                 defaultEnabled: false,
+                widgetSelectable: false,
                 isPrimaryProvider: false,
                 usesAccountFallback: false,
                 browserCookieOrder: ProviderBrowserCookieDefaults.qoderCookieImportOrder,
@@ -25,7 +26,7 @@ public enum QoderProviderDescriptor {
                 statusPageURL: nil,
                 statusLinkURL: nil),
             branding: ProviderBranding(
-                iconStyle: .qoder,
+                iconStyle: .init(provider: .qoder),
                 iconResourceName: "ProviderIcon-qoder",
                 color: ProviderColor(red: 16 / 255, green: 185 / 255, blue: 129 / 255),
                 confettiPalette: [

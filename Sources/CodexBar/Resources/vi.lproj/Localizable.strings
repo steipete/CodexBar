@@ -1,5 +1,28 @@
 /* English localization for CodexBar (base/fallback) */
 
+/* iCloud Sync */
+"iCloud Sync" = "iCloud Sync";
+"Sync settings and providers across your Macs via iCloud" = "Sync settings and providers across your Macs via iCloud";
+"Include API keys, cookies, and tokens" = "Include API keys, cookies, and tokens";
+"Sync usage snapshots" = "Sync usage snapshots";
+"Show accounts from other Macs" = "Show accounts from other Macs";
+"Requires a signed release build of CodexBar." = "Requires a signed release build of CodexBar.";
+"Sign in to iCloud in System Settings to enable sync." = "Sign in to iCloud in System Settings to enable sync.";
+"iCloud access is restricted on this Mac." = "iCloud access is restricted on this Mac.";
+"Sync is paused: another Mac uses a newer version of CodexBar. Update to resume." = "Sync is paused: another Mac uses a newer version of CodexBar. Update to resume.";
+"Last successful fetch" = "Last successful fetch";
+"Last successful push" = "Last successful push";
+"Never" = "Never";
+"Macs" = "Macs";
+"No synced Macs yet." = "No synced Macs yet.";
+"Secrets use iCloud end-to-end encryption via encryptedValues. Hooks and machine-local paths never sync." = "Secrets use iCloud end-to-end encryption via encryptedValues. Hooks and machine-local paths never sync.";
+"Last seen %@" = "Last seen %@";
+"This Mac" = "This Mac";
+"another Mac" = "another Mac";
+"%dm ago" = "%dm ago";
+"%dh ago" = "%dh ago";
+"%dd ago" = "%dd ago";
+
 "tab_hooks" = "Hook";
 "hooks_enable_title" = "Bật hook";
 "hooks_enable_subtitle" = "Chạy lệnh bên ngoài khi có sự kiện hạn mức hoặc nhà cung cấp.";
@@ -21,7 +44,7 @@
 "hooks_delete_argument" = "Xóa đối số";
 
 "ollama_safari_cookie_access_hint" = "Cookie Safari cần Quyền truy cập toàn bộ ổ đĩa cho CodexBar (Cài đặt hệ thống > Quyền riêng tư & Bảo mật).";
-"ollama_browser_cookie_decryption_denied" = "Việc giải mã cookie %@ đã bị từ chối trong Chuỗi khóa; hãy thử lại bằng cách làm mới thủ công.";
+"ollama_browser_cookie_decryption_denied" = "Việc giải mã cookie %@ đã bị từ chối trong Chuỗi khóa. Mở thẻ nhà cung cấp và bấm Làm mới (⌘R) để yêu cầu lại quyền truy cập Chuỗi khóa.";
 "ollama_browser_cookie_decryption_disabled" = "Việc giải mã cookie %@ bị tắt trong CodexBar; hãy bật quyền truy cập Chuỗi khóa rồi làm mới.";
 
 " providers" = "nhà cung cấp";
@@ -583,7 +606,7 @@
 "show_provider_changelog_links_title" = "Hiển thị Nhà cung cấp liên kết nhật ký thay đổi";
 "show_provider_changelog_links_subtitle" = "Thêm liên kết ghi chú phát hành cho các nhà cung cấp được hỗ trợ CLI vào menu.";
 "show_credits_extra_usage_title" = "Hiển thị tín dụng + phần Mức sử dụng";
-"show_credits_extra_usage_subtitle" = "Hiển thị tín dụng Codex và Claude Các phần Mức sử dụng bổ sung trong menu.";
+"show_credits_extra_usage_subtitle" = "Hiển thị tín dụng và mức sử dụng bổ sung cho các nhà cung cấp được hỗ trợ.";
 "multi_account_layout_title" = "Bố cục nhiều tài khoản";
 "multi_account_layout_subtitle" = "Chọn thẻ tài khoản chuyển đổi phân đoạn hoặc thẻ tài khoản xếp chồng.";
 "multi_account_layout_segmented" = "Được phân đoạn";
@@ -1325,6 +1348,9 @@
 "menu_bar_layout_token_session" = "Phiên %";
 "menu_bar_layout_token_weekly" = "Hàng tuần %";
 "menu_bar_layout_token_auto" = "% tự động";
+"menu_bar_layout_token_session_pace" = "Tốc độ phiên";
+"menu_bar_layout_token_weekly_pace" = "Tốc độ hàng tuần";
+"menu_bar_layout_token_auto_pace" = "Tốc độ tự động";
 "menu_bar_layout_token_bar" = "Thanh sử dụng";
 "menu_bar_layout_token_resets_in" = "Đặt lại sau";
 "menu_bar_layout_token_reset_at" = "Đặt lại lúc";
@@ -1350,3 +1376,5 @@
 "Cost today unavailable" = "Chi phí hôm nay: Không có sẵn";
 "30-day cost unavailable" = "Chi phí 30 ngày: Không có sẵn";
 "Resets" = "Lần đặt lại";
+"Finish now" = "Hoàn tất ngay";
+"Continue in background" = "Tiếp tục trong nền";

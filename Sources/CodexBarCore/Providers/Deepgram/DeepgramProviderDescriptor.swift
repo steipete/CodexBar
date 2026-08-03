@@ -18,6 +18,7 @@ public enum DeepgramProviderDescriptor {
                 toggleTitle: "Show Deepgram usage",
                 cliName: "deepgram",
                 defaultEnabled: false,
+                widgetSelectable: false,
                 isPrimaryProvider: false,
                 usesAccountFallback: false,
                 browserCookieOrder: nil,
@@ -25,7 +26,7 @@ public enum DeepgramProviderDescriptor {
                 statusPageURL: nil,
                 statusLinkURL: "https://status.deepgram.com"),
             branding: ProviderBranding(
-                iconStyle: .deepgram,
+                iconStyle: .init(provider: .deepgram),
                 iconResourceName: "ProviderIcon-deepgram",
                 color: ProviderColor(
                     red: 100 / 255,

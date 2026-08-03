@@ -9,6 +9,7 @@ public enum MoonshotProviderDescriptor {
             metadata: ProviderMetadata(
                 id: .moonshot,
                 displayName: "Moonshot / Kimi API",
+                shortDisplayName: "Moonshot",
                 sessionLabel: "Balance",
                 weeklyLabel: "Balance",
                 opusLabel: nil,
@@ -18,13 +19,14 @@ public enum MoonshotProviderDescriptor {
                 toggleTitle: "Show Moonshot / Kimi API balance",
                 cliName: "moonshot",
                 defaultEnabled: false,
+                widgetSelectable: false,
                 isPrimaryProvider: false,
                 usesAccountFallback: false,
                 browserCookieOrder: nil,
                 dashboardURL: "https://platform.moonshot.ai/console/account",
                 statusPageURL: nil),
             branding: ProviderBranding(
-                iconStyle: .kimi,
+                iconStyle: .init(provider: .kimi),
                 iconResourceName: "ProviderIcon-kimi",
                 color: ProviderColor(red: 32 / 255, green: 93 / 255, blue: 235 / 255),
                 confettiPalette: [

@@ -13,6 +13,8 @@ extension CodexBarCLI {
             self.runHooksSetEnabled(values, enabled: false)
         case ["hooks", "test"]:
             await self.runHooksTest(values)
+        case ["hooks", "watch"]:
+            await self.runHooksWatch(values)
         default:
             self.exit(
                 code: .failure,

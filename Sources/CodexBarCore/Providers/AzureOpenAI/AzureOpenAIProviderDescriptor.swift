@@ -18,6 +18,7 @@ public enum AzureOpenAIProviderDescriptor {
                 toggleTitle: "Show Azure OpenAI status",
                 cliName: "azure-openai",
                 defaultEnabled: false,
+                widgetSelectable: false,
                 isPrimaryProvider: false,
                 usesAccountFallback: false,
                 browserCookieOrder: nil,
@@ -25,7 +26,7 @@ public enum AzureOpenAIProviderDescriptor {
                 statusPageURL: nil,
                 statusLinkURL: "https://azure.status.microsoft/en-us/status"),
             branding: ProviderBranding(
-                iconStyle: .openai,
+                iconStyle: .init(provider: .openai),
                 iconResourceName: "ProviderIcon-codex",
                 color: ProviderColor(red: 0, green: 120 / 255, blue: 212 / 255),
                 confettiPalette: [

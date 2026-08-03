@@ -24,7 +24,7 @@ public enum KiloProviderDescriptor {
                 dashboardURL: "https://app.kilo.ai/usage",
                 statusPageURL: nil),
             branding: ProviderBranding(
-                iconStyle: .kilo,
+                iconStyle: .init(provider: .kilo),
                 iconResourceName: "ProviderIcon-kilo",
                 color: ProviderColor(red: 242 / 255, green: 112 / 255, blue: 39 / 255),
                 confettiPalette: [

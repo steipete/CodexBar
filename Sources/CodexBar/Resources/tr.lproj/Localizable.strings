@@ -1,7 +1,30 @@
 /* Turkish localization for CodexBar */
 
+/* iCloud Sync */
+"iCloud Sync" = "iCloud Sync";
+"Sync settings and providers across your Macs via iCloud" = "Sync settings and providers across your Macs via iCloud";
+"Include API keys, cookies, and tokens" = "Include API keys, cookies, and tokens";
+"Sync usage snapshots" = "Sync usage snapshots";
+"Show accounts from other Macs" = "Show accounts from other Macs";
+"Requires a signed release build of CodexBar." = "Requires a signed release build of CodexBar.";
+"Sign in to iCloud in System Settings to enable sync." = "Sign in to iCloud in System Settings to enable sync.";
+"iCloud access is restricted on this Mac." = "iCloud access is restricted on this Mac.";
+"Sync is paused: another Mac uses a newer version of CodexBar. Update to resume." = "Sync is paused: another Mac uses a newer version of CodexBar. Update to resume.";
+"Last successful fetch" = "Last successful fetch";
+"Last successful push" = "Last successful push";
+"Never" = "Never";
+"Macs" = "Macs";
+"No synced Macs yet." = "No synced Macs yet.";
+"Secrets use iCloud end-to-end encryption via encryptedValues. Hooks and machine-local paths never sync." = "Secrets use iCloud end-to-end encryption via encryptedValues. Hooks and machine-local paths never sync.";
+"Last seen %@" = "Last seen %@";
+"This Mac" = "This Mac";
+"another Mac" = "another Mac";
+"%dm ago" = "%dm ago";
+"%dh ago" = "%dh ago";
+"%dd ago" = "%dd ago";
+
 "ollama_safari_cookie_access_hint" = "Safari çerezleri için CodexBar’a Tam Disk Erişimi gerekir (Sistem Ayarları > Gizlilik ve Güvenlik).";
-"ollama_browser_cookie_decryption_denied" = "%@ çerezlerinin şifresini çözme Anahtar Zinciri’nde reddedildi; manuel yenilemeyle tekrar deneyin.";
+"ollama_browser_cookie_decryption_denied" = "%@ çerezlerinin şifresini çözme Anahtar Zinciri’nde reddedildi. Sağlayıcı kartını açın ve Anahtar Zinciri erişimini yeniden istemek için Yenile’ye (⌘R) tıklayın.";
 "ollama_browser_cookie_decryption_disabled" = "%@ çerezlerinin şifresini çözme CodexBar’da devre dışı; Anahtar Zinciri erişimini etkinleştirip yenileyin.";
 
 " providers" = " sağlayıcı";
@@ -593,7 +616,7 @@
 "show_provider_changelog_links_title" = "Sağlayıcı değişiklik günlüğü bağlantılarını göster";
 "show_provider_changelog_links_subtitle" = "Desteklenen CLI destekli sağlayıcılar için menüye sürüm notları bağlantıları ekler.";
 "show_credits_extra_usage_title" = "Krediler + ekstra kullanımı göster";
-"show_credits_extra_usage_subtitle" = "Menüde Codex Kredileri ve Claude Ekstra kullanım bölümlerini göster.";
+"show_credits_extra_usage_subtitle" = "Desteklenen sağlayıcılar için kredileri ve ek kullanımı göster.";
 "multi_account_layout_title" = "Çoklu hesap düzeni";
 "multi_account_layout_subtitle" = "Bölümlü hesap değiştirme veya yığınlı hesap kartları seçin.";
 "multi_account_layout_segmented" = "Bölümlü";
@@ -1326,6 +1349,9 @@
 "menu_bar_layout_token_session" = "Oturum %";
 "menu_bar_layout_token_weekly" = "Haftalık %";
 "menu_bar_layout_token_auto" = "Otomatik %";
+"menu_bar_layout_token_session_pace" = "Oturum hızı";
+"menu_bar_layout_token_weekly_pace" = "Haftalık hız";
+"menu_bar_layout_token_auto_pace" = "Otomatik hız";
 "menu_bar_layout_token_bar" = "Kullanım çubuğu";
 "menu_bar_layout_token_resets_in" = "Sıfırlamaya";
 "menu_bar_layout_token_reset_at" = "Sıfırlama saati";
@@ -1351,3 +1377,5 @@
 "Cost today unavailable" = "Bugünkü maliyet: Kullanılamıyor";
 "30-day cost unavailable" = "30 günlük maliyet: Kullanılamıyor";
 "Resets" = "Sıfırlamalar";
+"Finish now" = "Şimdi tamamla";
+"Continue in background" = "Arka planda devam et";

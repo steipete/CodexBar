@@ -99,13 +99,13 @@ extension UsageStore {
         let stamp = now.formatted(date: .abbreviated, time: .shortened)
         self.logOpenAIWeb("[\(stamp)] OpenAI web refresh request: \(reason)")
         let forceRefresh = Self.forceOpenAIWebRefreshForStaleRequest(
-            batterySaverEnabled: self.settings.openAIWebBatterySaverEnabled) || needsMenuHistoryRefresh
+            batterySaverEnabled: self.settings.effectiveOpenAIWebBatterySaverEnabled) || needsMenuHistoryRefresh
         self.openAIWebLogger.info(
             "OpenAI web stale refresh gate",
             metadata: [
                 "reason": reason,
                 "force": forceRefresh ? "1" : "0",
-                "batterySaverEnabled": self.settings.openAIWebBatterySaverEnabled ? "1" : "0",
+                "batterySaverEnabled": self.settings.effectiveOpenAIWebBatterySaverEnabled ? "1" : "0",
                 "interaction": ProviderInteractionContext.current == .userInitiated ? "user" : "background",
             ])
         let expectedGuard = self.freshCodexOpenAIWebRefreshGuard()
@@ -254,6 +254,12 @@ extension UsageStore {
             self.lastOpenAIDashboardAttachmentAuthorized = true
             self.lastOpenAIDashboardError = nil
             self.openAIDashboardRequiresLogin = false
+
+            if let currentUsage = self.snapshots[.codex] {
+                self.snapshots[.codex] = currentUsage.withSubscriptionMetadata(
+                    expiresAt: dashboard.subscriptionExpiresAt,
+                    renewsAt: dashboard.subscriptionRenewsAt)
+            }
 
             if decision.allowedEffects.contains(.usageBackfill),
                allowCodexUsageBackfill,

@@ -9,7 +9,11 @@ extension UsageStore {
         let signature: String
     }
 
-    private static let automaticStorageRefreshInterval: TimeInterval = 5 * 60
+    nonisolated static func automaticStorageRefreshInterval(lowPowerModeEnabled: Bool) -> TimeInterval {
+        BackgroundWorkPowerPolicy.automaticInterval(
+            5 * 60,
+            lowPowerModeEnabled: lowPowerModeEnabled) ?? 5 * 60
+    }
 
     var isStorageRefreshInFlight: Bool {
         self.storageRefreshTask != nil
@@ -102,7 +106,8 @@ extension UsageStore {
         if !force {
             if self.lastStorageRefreshRequestKey == requestKey,
                let lastStorageRefreshAt,
-               now.timeIntervalSince(lastStorageRefreshAt) < Self.automaticStorageRefreshInterval
+               now.timeIntervalSince(lastStorageRefreshAt) < Self.automaticStorageRefreshInterval(
+                   lowPowerModeEnabled: self.settings.backgroundWorkLowPowerModeEnabled)
             {
                 return
             }

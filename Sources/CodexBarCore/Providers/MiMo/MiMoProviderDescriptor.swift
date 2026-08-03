@@ -9,6 +9,7 @@ public enum MiMoProviderDescriptor {
             metadata: ProviderMetadata(
                 id: .mimo,
                 displayName: "Xiaomi MiMo",
+                shortDisplayName: "MiMo",
                 sessionLabel: "Credits",
                 weeklyLabel: "Window",
                 opusLabel: nil,
@@ -18,13 +19,14 @@ public enum MiMoProviderDescriptor {
                 toggleTitle: "Show Xiaomi MiMo token plan & balance",
                 cliName: "mimo",
                 defaultEnabled: false,
+                widgetSelectable: false,
                 isPrimaryProvider: false,
                 usesAccountFallback: false,
                 browserCookieOrder: ProviderBrowserCookieDefaults.mimoCookieImportOrder,
                 dashboardURL: "https://platform.xiaomimimo.com/#/console/balance",
                 statusPageURL: nil),
             branding: ProviderBranding(
-                iconStyle: .mimo,
+                iconStyle: .init(provider: .mimo),
                 iconResourceName: "ProviderIcon-mimo",
                 color: ProviderColor(red: 1.0, green: 105 / 255, blue: 0),
                 confettiPalette: [

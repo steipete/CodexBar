@@ -447,6 +447,7 @@ public enum UsageFormatter {
     public static func modelDisplayName(_ raw: String) -> String {
         var cleaned = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !cleaned.isEmpty else { return raw }
+        if cleaned == "codex-auto-review" { return "Codex Auto Review" }
         if CostUsagePricing.isCodexUnattributedModel(cleaned) { return "Unknown model" }
 
         let patterns = [

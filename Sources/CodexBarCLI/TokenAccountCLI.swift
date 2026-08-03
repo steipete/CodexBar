@@ -238,6 +238,14 @@ struct TokenAccountCLIContext {
             return self.makeSnapshot(mistral: self.makeProviderCookieSettings(cookieSettings))
         case .zoommate:
             return self.makeSnapshot(zoommate: self.makeProviderCookieSettings(cookieSettings))
+        case .notion:
+            // Carries `workspaceID` like OpenCode does; the generic cookie-settings shape would drop it
+            // and leave the CLI auto-selecting a workspace the user had explicitly pinned.
+            return self.makeSnapshot(
+                notion: ProviderSettingsSnapshot.NotionProviderSettings(
+                    cookieSource: cookieSettings.cookieSource,
+                    manualCookieHeader: cookieSettings.manualCookieHeader,
+                    workspaceID: config?.workspaceID))
         case .stepfun:
             let stepfunSettings = self.cookieSettings(
                 provider: provider,
@@ -283,7 +291,8 @@ struct TokenAccountCLIContext {
         mistral: ProviderSettingsSnapshot.MistralProviderSettings? = nil,
         qoder: ProviderSettingsSnapshot.QoderProviderSettings? = nil,
         stepfun: ProviderSettingsSnapshot.StepFunProviderSettings? = nil,
-        zoommate: ProviderSettingsSnapshot.ZoomMateProviderSettings? = nil) -> ProviderSettingsSnapshot
+        zoommate: ProviderSettingsSnapshot.ZoomMateProviderSettings? = nil,
+        notion: ProviderSettingsSnapshot.NotionProviderSettings? = nil) -> ProviderSettingsSnapshot
     {
         ProviderSettingsSnapshot.make(
             codex: codex,
@@ -305,6 +314,7 @@ struct TokenAccountCLIContext {
             moonshot: moonshot,
             amp: amp,
             zoommate: zoommate,
+            notion: notion,
             commandcode: commandcode,
             ollama: ollama,
             jetbrains: jetbrains,

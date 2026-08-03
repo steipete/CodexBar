@@ -18,13 +18,14 @@ public enum AmpProviderDescriptor {
                 toggleTitle: "Show Amp usage",
                 cliName: "amp",
                 defaultEnabled: false,
+                widgetSelectable: false,
                 isPrimaryProvider: false,
                 usesAccountFallback: false,
                 browserCookieOrder: ProviderBrowserCookieDefaults.defaultImportOrder,
                 dashboardURL: "https://ampcode.com/settings/usage",
                 statusPageURL: nil),
             branding: ProviderBranding(
-                iconStyle: .amp,
+                iconStyle: .init(provider: .amp),
                 iconResourceName: "ProviderIcon-amp",
                 color: ProviderColor(red: 220 / 255, green: 38 / 255, blue: 38 / 255),
                 confettiPalette: [

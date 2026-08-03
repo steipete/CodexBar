@@ -18,6 +18,7 @@ public enum CommandCodeProviderDescriptor {
                 toggleTitle: "Show Command Code usage",
                 cliName: "commandcode",
                 defaultEnabled: false,
+                widgetSelectable: false,
                 isPrimaryProvider: false,
                 usesAccountFallback: false,
                 browserCookieOrder: ProviderBrowserCookieDefaults.defaultImportOrder,
@@ -26,7 +27,7 @@ public enum CommandCodeProviderDescriptor {
                 statusPageURL: nil,
                 statusLinkURL: nil),
             branding: ProviderBranding(
-                iconStyle: .commandcode,
+                iconStyle: .init(provider: .commandcode),
                 iconResourceName: "ProviderIcon-commandcode",
                 color: ProviderColor(hex: 0xA04DFD),
                 confettiPalette: [

@@ -1203,6 +1203,9 @@ struct CostUsageScannerBreakdownTests {
             now: day,
             options: options)
         #expect(wide.summary?.totalTokens == 30)
+        try FileManager.default.setAttributes(
+            [.modificationDate: olderDay],
+            ofItemAtPath: olderFile.path)
 
         var cache = CostUsageCacheIO.load(provider: .codex, cacheRoot: env.cacheRoot)
         cache.codexProjectMetadataVersion = nil
@@ -4222,9 +4225,7 @@ struct CostUsageScannerBreakdownTests {
             until: childDay,
             now: childDay,
             options: options)
-        #expect(withoutParent.data.first?.inputTokens == 7)
-        #expect(withoutParent.data.first?.cacheReadTokens == 2)
-        #expect(withoutParent.data.first?.outputTokens == 2)
+        #expect(withoutParent.data.isEmpty)
 
         _ = try env.writeCodexSessionFile(
             day: parentDay,
@@ -4503,10 +4504,7 @@ struct CostUsageScannerBreakdownTests {
             now: childDay,
             options: options)
 
-        #expect(report.data.count == 1)
-        #expect(report.data[0].inputTokens == 20)
-        #expect(report.data[0].outputTokens == 3)
-        #expect(report.data[0].totalTokens == 23)
+        #expect(report.data.isEmpty)
     }
 
     @Test
@@ -5054,7 +5052,7 @@ struct CostUsageScannerBreakdownTests {
     }
 
     @Test
-    func `codex unresolved fork ignores duplicated total and last replay after prefix`() throws {
+    func `codex unresolved fork remains fail closed after later total and last rows`() throws {
         let env = try CostUsageTestEnvironment()
         defer { env.cleanup() }
 
@@ -5105,13 +5103,8 @@ struct CostUsageScannerBreakdownTests {
                 return .unresolved
             })
 
-        let dayKey = CostUsageScanner.CostUsageDayRange.dayKey(from: day)
-        let normalized = CostUsagePricing.normalizeCodexModel(model)
-        let packed = try #require(parsed.days[dayKey]?[normalized])
-        #expect(packed[0] == 30)
-        #expect(packed[1] == 7)
-        #expect(packed[2] == 8)
-        #expect(parsed.rows.count == 2)
+        #expect(parsed.days.isEmpty)
+        #expect(parsed.rows.isEmpty)
     }
 
     @Test
@@ -6349,6 +6342,9 @@ struct CostUsageScannerBreakdownTests {
                     ],
                 ],
             ]))
+        try FileManager.default.setAttributes(
+            [.modificationDate: archivedDay],
+            ofItemAtPath: archivedURL.path)
 
         var options = CostUsageScanner.Options(
             codexSessionsRoot: env.codexSessionsRoot,

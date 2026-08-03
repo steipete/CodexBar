@@ -55,6 +55,7 @@ public enum DeepSeekProviderDescriptor {
                 toggleTitle: "Show DeepSeek usage",
                 cliName: "deepseek",
                 defaultEnabled: false,
+                widgetSelectable: false,
                 isPrimaryProvider: false,
                 usesAccountFallback: false,
                 browserCookieOrder: nil,
@@ -62,7 +63,7 @@ public enum DeepSeekProviderDescriptor {
                 statusPageURL: nil,
                 statusLinkURL: "https://status.deepseek.com"),
             branding: ProviderBranding(
-                iconStyle: .deepseek,
+                iconStyle: .init(provider: .deepseek),
                 iconResourceName: "ProviderIcon-deepseek",
                 color: ProviderColor(red: 0.32, green: 0.49, blue: 0.94),
                 confettiPalette: [

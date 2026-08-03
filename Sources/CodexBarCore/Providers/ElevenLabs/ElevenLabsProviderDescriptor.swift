@@ -18,6 +18,7 @@ public enum ElevenLabsProviderDescriptor {
                 toggleTitle: "Show ElevenLabs usage",
                 cliName: "elevenlabs",
                 defaultEnabled: false,
+                widgetSelectable: false,
                 isPrimaryProvider: false,
                 usesAccountFallback: false,
                 browserCookieOrder: nil,
@@ -26,7 +27,7 @@ public enum ElevenLabsProviderDescriptor {
                 statusPageURL: nil,
                 statusLinkURL: "https://status.elevenlabs.io"),
             branding: ProviderBranding(
-                iconStyle: .elevenlabs,
+                iconStyle: .init(provider: .elevenlabs),
                 iconResourceName: "ProviderIcon-elevenlabs",
                 color: ProviderColor(red: 0.92, green: 0.92, blue: 0.90),
                 confettiPalette: [

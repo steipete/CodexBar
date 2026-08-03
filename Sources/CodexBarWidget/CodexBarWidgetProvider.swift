@@ -24,118 +24,19 @@ enum ProviderChoice: String, AppEnum {
 
     static let typeDisplayRepresentation = TypeDisplayRepresentation(name: "Provider")
 
-    static let caseDisplayRepresentations: [ProviderChoice: DisplayRepresentation] = [
-        .codex: DisplayRepresentation(title: "Codex"),
-        .claude: DisplayRepresentation(title: "Claude"),
-        .gemini: DisplayRepresentation(title: "Gemini"),
-        .alibaba: DisplayRepresentation(title: "Alibaba"),
-        .alibabatokenplan: DisplayRepresentation(title: "Alibaba Token Plan"),
-        .qwencloud: DisplayRepresentation(title: "Qwen Cloud"),
-        .antigravity: DisplayRepresentation(title: "Antigravity"),
-        .cursor: DisplayRepresentation(title: "Cursor"),
-        .zai: DisplayRepresentation(title: "z.ai"),
-        .copilot: DisplayRepresentation(title: "Copilot"),
-        .devin: DisplayRepresentation(title: "Devin"),
-        .minimax: DisplayRepresentation(title: "MiniMax"),
-        .kilo: DisplayRepresentation(title: "Kilo"),
-        .opencode: DisplayRepresentation(title: "OpenCode"),
-        .opencodego: DisplayRepresentation(title: "OpenCode Go"),
-        .mistral: DisplayRepresentation(title: "Mistral"),
-        .kimi: DisplayRepresentation(title: "Kimi"),
-    ]
+    static let caseDisplayRepresentations: [ProviderChoice: DisplayRepresentation] = Dictionary(
+        uniqueKeysWithValues: Self.allCases.map { choice in
+            let name = ProviderDescriptorRegistry.descriptor(for: choice.provider).metadata.displayName
+            return (choice, DisplayRepresentation(title: "\(name)"))
+        })
 
     var provider: UsageProvider {
-        switch self {
-        case .codex: .codex
-        case .claude: .claude
-        case .gemini: .gemini
-        case .alibaba: .alibaba
-        case .alibabatokenplan: .alibabatokenplan
-        case .qwencloud: .qwencloud
-        case .antigravity: .antigravity
-        case .cursor: .cursor
-        case .zai: .zai
-        case .copilot: .copilot
-        case .devin: .devin
-        case .minimax: .minimax
-        case .kilo: .kilo
-        case .opencode: .opencode
-        case .opencodego: .opencodego
-        case .mistral: .mistral
-        case .kimi: .kimi
-        }
+        UsageProvider(rawValue: self.rawValue)!
     }
 
-    // swiftlint:disable:next cyclomatic_complexity
     init?(provider: UsageProvider) {
-        switch provider {
-        case .codex: self = .codex
-        case .openai: return nil // OpenAI not yet supported in widgets
-        case .azureopenai: return nil // Azure OpenAI not yet supported in widgets
-        case .claude: self = .claude
-        case .clinepass: return nil // ClinePass not yet supported in widgets
-        case .gemini: self = .gemini
-        case .alibaba: self = .alibaba
-        case .alibabatokenplan: self = .alibabatokenplan
-        case .qwencloud: self = .qwencloud
-        case .antigravity: self = .antigravity
-        case .cursor: self = .cursor
-        case .opencode: self = .opencode
-        case .opencodego: self = .opencodego
-        case .zai: self = .zai
-        case .factory: return nil // Factory not yet supported in widgets
-        case .copilot: self = .copilot
-        case .devin: self = .devin
-        case .minimax: self = .minimax
-        case .manus: return nil // Manus not yet supported in widgets
-        case .vertexai: return nil // Vertex AI not yet supported in widgets
-        case .kilo: self = .kilo
-        case .kiro: return nil // Kiro not yet supported in widgets
-        case .augment: return nil // Augment not yet supported in widgets
-        case .jetbrains: return nil // JetBrains not yet supported in widgets
-        case .kimi: self = .kimi
-        case .moonshot: return nil // Moonshot not yet supported in widgets
-        case .amp: return nil // Amp not yet supported in widgets
-        case .t3chat: return nil // T3 Chat not yet supported in widgets
-        case .zoommate: return nil // ZoomMate not yet supported in widgets
-        case .ollama: return nil // Ollama not yet supported in widgets
-        case .synthetic: return nil // Synthetic not yet supported in widgets
-        case .openrouter: return nil // OpenRouter not yet supported in widgets
-        case .clawrouter: return nil // ClawRouter not yet supported in widgets
-        case .sub2api: return nil // sub2api not yet supported in widgets
-        case .wayfinder: return nil // Wayfinder not yet supported in widgets
-        case .elevenlabs: return nil // ElevenLabs not yet supported in widgets
-        case .warp: return nil // Warp not yet supported in widgets
-        case .windsurf: return nil // Windsurf not yet supported in widgets
-        case .perplexity: return nil // Perplexity not yet supported in widgets
-        case .mimo: return nil // Xiaomi MiMo not yet supported in widgets
-        case .doubao: return nil // Doubao not yet supported in widgets
-        case .sakana: return nil // Sakana AI not yet supported in widgets
-        case .abacus: return nil // Abacus AI not yet supported in widgets
-        case .mistral: self = .mistral
-        case .deepseek: return nil // DeepSeek not yet supported in widgets
-        case .deepinfra: return nil // DeepInfra not yet supported in widgets
-        case .codebuff: return nil // Codebuff not yet supported in widgets
-        case .crof: return nil // Crof not yet supported in widgets
-        case .venice: return nil // Venice not yet supported in widgets
-        case .commandcode: return nil // CommandCode not yet supported in widgets
-        case .qoder: return nil // Qoder not yet supported in widgets
-        case .stepfun: return nil // StepFun not yet supported in widgets
-        case .bedrock: return nil // Bedrock not yet supported in widgets
-        case .grok: return nil // Grok not yet supported in widgets
-        case .groq: return nil // Groq not yet supported in widgets
-        case .llmproxy: return nil // LLM Proxy not yet supported in widgets
-        case .litellm: return nil // LiteLLM not yet supported in widgets
-        case .deepgram: return nil // Deepgram not yet supported in widgets
-        case .poe: return nil // Poe not yet supported in widgets
-        case .chutes: return nil // Chutes not yet supported in widgets
-        case .longcat: return nil // LongCat not yet supported in widgets
-        case .zed: return nil // Zed not yet supported in widgets
-        case .neuralwatt: return nil // Neuralwatt not yet supported in widgets
-        case .zenmux: return nil // ZenMux not yet supported in widgets
-        case .aiand: return nil // ai& not yet supported in widgets
-        case .xai: return nil // xAI not yet supported in widgets
-        }
+        guard ProviderDescriptorRegistry.descriptor(for: provider).metadata.widgetSelectable else { return nil }
+        self.init(rawValue: provider.rawValue)
     }
 }
 

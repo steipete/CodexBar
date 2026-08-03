@@ -1,5 +1,28 @@
 /* Spanish localization for CodexBar */
 
+/* iCloud Sync */
+"iCloud Sync" = "iCloud Sync";
+"Sync settings and providers across your Macs via iCloud" = "Sync settings and providers across your Macs via iCloud";
+"Include API keys, cookies, and tokens" = "Include API keys, cookies, and tokens";
+"Sync usage snapshots" = "Sync usage snapshots";
+"Show accounts from other Macs" = "Show accounts from other Macs";
+"Requires a signed release build of CodexBar." = "Requires a signed release build of CodexBar.";
+"Sign in to iCloud in System Settings to enable sync." = "Sign in to iCloud in System Settings to enable sync.";
+"iCloud access is restricted on this Mac." = "iCloud access is restricted on this Mac.";
+"Sync is paused: another Mac uses a newer version of CodexBar. Update to resume." = "Sync is paused: another Mac uses a newer version of CodexBar. Update to resume.";
+"Last successful fetch" = "Last successful fetch";
+"Last successful push" = "Last successful push";
+"Never" = "Never";
+"Macs" = "Macs";
+"No synced Macs yet." = "No synced Macs yet.";
+"Secrets use iCloud end-to-end encryption via encryptedValues. Hooks and machine-local paths never sync." = "Secrets use iCloud end-to-end encryption via encryptedValues. Hooks and machine-local paths never sync.";
+"Last seen %@" = "Last seen %@";
+"This Mac" = "This Mac";
+"another Mac" = "another Mac";
+"%dm ago" = "%dm ago";
+"%dh ago" = "%dh ago";
+"%dd ago" = "%dd ago";
+
 "tab_hooks" = "Hooks";
 "hooks_enable_title" = "Activar hooks";
 "hooks_enable_subtitle" = "Ejecuta comandos externos cuando ocurran eventos de cuota o proveedor.";
@@ -21,7 +44,7 @@
 "hooks_delete_argument" = "Eliminar argumento";
 
 "ollama_safari_cookie_access_hint" = "Las cookies de Safari necesitan acceso total al disco para CodexBar (Ajustes del Sistema > Privacidad y seguridad).";
-"ollama_browser_cookie_decryption_denied" = "Se rechazó en el Llavero el descifrado de las cookies de %@; vuelve a intentarlo con una actualización manual.";
+"ollama_browser_cookie_decryption_denied" = "Se rechazó en el Llavero el descifrado de las cookies de %@. Abre la tarjeta del proveedor y haz clic en Actualizar (⌘R) para volver a solicitar acceso al Llavero.";
 "ollama_browser_cookie_decryption_disabled" = "El descifrado de las cookies de %@ está desactivado en CodexBar; activa el acceso al Llavero y actualiza.";
 
 " providers" = " proveedores";
@@ -579,7 +602,7 @@
 "show_provider_changelog_links_title" = "Mostrar enlaces al registro de cambios del proveedor";
 "show_provider_changelog_links_subtitle" = "Añade al menú enlaces a las notas de versión de los proveedores compatibles basados en CLI.";
 "show_credits_extra_usage_title" = "Mostrar créditos + uso adicional";
-"show_credits_extra_usage_subtitle" = "Mostrar las secciones de Créditos de Codex y Uso adicional de Claude en el menú.";
+"show_credits_extra_usage_subtitle" = "Muestra créditos y uso adicional para los proveedores compatibles.";
 "multi_account_layout_title" = "Diseño multicuenta";
 "multi_account_layout_subtitle" = "Elige cambio de cuenta segmentado o tarjetas de cuenta apiladas.";
 "multi_account_layout_segmented" = "Segmentado";
@@ -1323,6 +1346,9 @@
 "menu_bar_layout_token_session" = "Sesión %";
 "menu_bar_layout_token_weekly" = "Semanal %";
 "menu_bar_layout_token_auto" = "% automático";
+"menu_bar_layout_token_session_pace" = "Ritmo de sesión";
+"menu_bar_layout_token_weekly_pace" = "Ritmo semanal";
+"menu_bar_layout_token_auto_pace" = "Ritmo automático";
 "menu_bar_layout_token_bar" = "Barra de uso";
 "menu_bar_layout_token_resets_in" = "Se reinicia en";
 "menu_bar_layout_token_reset_at" = "Reinicio a las";
@@ -1348,3 +1374,5 @@
 "Cost today unavailable" = "Coste de hoy: No disponible";
 "30-day cost unavailable" = "Coste de 30 días: No disponible";
 "Resets" = "Reinicios";
+"Finish now" = "Finalizar ahora";
+"Continue in background" = "Continuar en segundo plano";

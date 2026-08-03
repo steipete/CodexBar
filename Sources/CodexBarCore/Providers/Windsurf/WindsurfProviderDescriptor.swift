@@ -18,12 +18,13 @@ public enum WindsurfProviderDescriptor {
                 toggleTitle: "Show Windsurf usage",
                 cliName: "windsurf",
                 defaultEnabled: false,
+                widgetSelectable: false,
                 isPrimaryProvider: false,
                 usesAccountFallback: false,
                 dashboardURL: "https://windsurf.com/subscription/usage",
                 statusPageURL: nil),
             branding: ProviderBranding(
-                iconStyle: .windsurf,
+                iconStyle: .init(provider: .windsurf),
                 iconResourceName: "ProviderIcon-windsurf",
                 color: ProviderColor(red: 52 / 255, green: 232 / 255, blue: 187 / 255),
                 confettiPalette: [

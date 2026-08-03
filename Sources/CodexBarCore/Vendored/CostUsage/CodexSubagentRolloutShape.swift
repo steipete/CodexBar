@@ -7,9 +7,10 @@ extension CostUsageScanner {
     }
 
     /// Subagent source is lineage evidence, not counter semantics. The first session metadata
-    /// owns leaf identity. Embedded ancestor metadata proves a copied prefix by itself; compact
-    /// rollouts need both the first-turn boundary and an exact parent snapshot match in the scanner.
-    /// Do not restore a blanket "all subagents are independent/inherited" rule.
+    /// owns leaf identity. Embedded ancestor metadata proves a copied prefix by itself. Compact
+    /// rollouts need a first-turn boundary plus either local `total - last` proof or an exact parent
+    /// snapshot match in the scanner. Do not restore a blanket "all subagents are
+    /// independent/inherited" rule.
     struct CodexSubagentRolloutShape {
         let counterSemantics: CodexSubagentCounterSemantics
         let ownedSuffix: CodexSubagentOwnedSuffix?
@@ -24,6 +25,7 @@ extension CostUsageScanner {
         struct CodexSubagentOwnedSuffixCandidate {
             let ownedSuffix: CodexSubagentOwnedSuffix
             let parentTotalsAtBoundary: CostUsageCodexTotals
+            let isLocallyConfirmed: Bool
         }
 
         struct Observation {
@@ -83,6 +85,7 @@ extension CostUsageScanner {
             var pendingTurnContext: (lineIndex: Int, baseline: CostUsageCodexTotals)?
             var ownedSuffix: CodexSubagentOwnedSuffix?
             var parentTotalsAtBoundary: CostUsageCodexTotals?
+            var locallyConfirmedBoundary = false
             var inspectedOwnedSuffixFirstTotal = false
             var observedAuthoritativeMetadata = false
             var observedTurnContext = false
@@ -103,6 +106,7 @@ extension CostUsageScanner {
                         // A later ancestor meta proves that any earlier candidate boundary was replay.
                         ownedSuffix = nil
                         parentTotalsAtBoundary = nil
+                        locallyConfirmedBoundary = false
                         inspectedOwnedSuffixFirstTotal = false
                     }
                     pendingTurnContext = nil
@@ -128,6 +132,7 @@ extension CostUsageScanner {
                             startLineIndex: pendingTurnContext.lineIndex,
                             rawTotalsBaseline: pendingTurnContext.baseline)
                         parentTotalsAtBoundary = pendingTurnContext.baseline
+                        locallyConfirmedBoundary = false
                         inspectedOwnedSuffixFirstTotal = false
                     }
                     pendingTurnContext = nil
@@ -147,6 +152,15 @@ extension CostUsageScanner {
                             ownedSuffix = Self.CodexSubagentOwnedSuffix(
                                 startLineIndex: suffix.startLineIndex,
                                 rawTotalsBaseline: .init(input: 0, cached: 0, output: 0))
+                        } else if let last,
+                                  let inferredBaseline = Self.subtract(last, from: total),
+                                  Self.totalsEqual(inferredBaseline, suffix.rawTotalsBaseline)
+                        {
+                            // Local delivery metadata is not part of copied model history. When
+                            // the first owned cumulative row also proves total - last == the
+                            // pre-boundary snapshot, the child can establish its inherited
+                            // baseline without rereading the parent rollout.
+                            locallyConfirmedBoundary = true
                         }
                     }
                     if let total {
@@ -167,7 +181,8 @@ extension CostUsageScanner {
             let candidate: CodexSubagentOwnedSuffixCandidate? = if let ownedSuffix, let parentTotalsAtBoundary {
                 Self.CodexSubagentOwnedSuffixCandidate(
                     ownedSuffix: ownedSuffix,
-                    parentTotalsAtBoundary: parentTotalsAtBoundary)
+                    parentTotalsAtBoundary: parentTotalsAtBoundary,
+                    isLocallyConfirmed: locallyConfirmedBoundary)
             } else {
                 nil
             }
@@ -195,6 +210,26 @@ extension CostUsageScanner {
 
         private static func totalsContainUsage(_ totals: CostUsageCodexTotals) -> Bool {
             totals.input > 0 || totals.cached > 0 || totals.output > 0
+        }
+
+        private static func subtract(
+            _ delta: CostUsageCodexTotals,
+            from total: CostUsageCodexTotals) -> CostUsageCodexTotals?
+        {
+            guard self.totalsAtLeast(total, delta) else { return nil }
+            let reasoning: Int? = if let totalReasoning = total.reasoning,
+                                     let deltaReasoning = delta.reasoning,
+                                     totalReasoning >= deltaReasoning
+            {
+                totalReasoning - deltaReasoning
+            } else {
+                nil
+            }
+            return CostUsageCodexTotals(
+                input: total.input - delta.input,
+                cached: total.cached - delta.cached,
+                output: total.output - delta.output,
+                reasoning: reasoning)
         }
 
         private static func normalizedSessionID(_ value: String?) -> String? {

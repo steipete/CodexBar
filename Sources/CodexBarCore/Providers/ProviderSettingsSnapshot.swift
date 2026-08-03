@@ -32,6 +32,7 @@ public struct ProviderSettingsSnapshot: Sendable {
         amp: AmpProviderSettings? = nil,
         t3chat: T3ChatProviderSettings? = nil,
         zoommate: ZoomMateProviderSettings? = nil,
+        notion: NotionProviderSettings? = nil,
         devin: DevinProviderSettings? = nil,
         commandcode: CommandCodeProviderSettings? = nil,
         ollama: OllamaProviderSettings? = nil,
@@ -68,6 +69,7 @@ public struct ProviderSettingsSnapshot: Sendable {
             amp: amp,
             t3chat: t3chat,
             zoommate: zoommate,
+            notion: notion,
             devin: devin,
             commandcode: commandcode,
             ollama: ollama,
@@ -375,6 +377,22 @@ public struct ProviderSettingsSnapshot: Sendable {
         }
     }
 
+    /// Deliberately not a `ProviderCookieSettings`: that protocol's initializer takes only the two
+    /// cookie fields, so conforming would hand every generic construction path a way to build this
+    /// type with `workspaceID` silently dropped. Build it through the one initializer below.
+    public struct NotionProviderSettings: Sendable {
+        public let cookieSource: ProviderCookieSource
+        public let manualCookieHeader: String?
+        /// Optional space id override for accounts that belong to more than one workspace.
+        public let workspaceID: String?
+
+        public init(cookieSource: ProviderCookieSource, manualCookieHeader: String?, workspaceID: String?) {
+            self.cookieSource = cookieSource
+            self.manualCookieHeader = manualCookieHeader
+            self.workspaceID = workspaceID
+        }
+    }
+
     public struct DevinProviderSettings: Sendable {
         public let cookieSource: ProviderCookieSource
         public let manualBearerToken: String?
@@ -515,6 +533,7 @@ public struct ProviderSettingsSnapshot: Sendable {
     public let amp: AmpProviderSettings?
     public let t3chat: T3ChatProviderSettings?
     public let zoommate: ZoomMateProviderSettings?
+    public let notion: NotionProviderSettings?
     public let devin: DevinProviderSettings?
     public let commandcode: CommandCodeProviderSettings?
     public let ollama: OllamaProviderSettings?
@@ -555,6 +574,7 @@ public struct ProviderSettingsSnapshot: Sendable {
         amp: AmpProviderSettings?,
         t3chat: T3ChatProviderSettings? = nil,
         zoommate: ZoomMateProviderSettings? = nil,
+        notion: NotionProviderSettings? = nil,
         devin: DevinProviderSettings? = nil,
         commandcode: CommandCodeProviderSettings? = nil,
         ollama: OllamaProviderSettings?,
@@ -590,6 +610,7 @@ public struct ProviderSettingsSnapshot: Sendable {
         self.amp = amp
         self.t3chat = t3chat
         self.zoommate = zoommate
+        self.notion = notion
         self.devin = devin
         self.commandcode = commandcode
         self.ollama = ollama
@@ -626,6 +647,7 @@ public enum ProviderSettingsSnapshotContribution: Sendable {
     case amp(ProviderSettingsSnapshot.AmpProviderSettings)
     case t3chat(ProviderSettingsSnapshot.T3ChatProviderSettings)
     case zoommate(ProviderSettingsSnapshot.ZoomMateProviderSettings)
+    case notion(ProviderSettingsSnapshot.NotionProviderSettings)
     case devin(ProviderSettingsSnapshot.DevinProviderSettings)
     case commandcode(ProviderSettingsSnapshot.CommandCodeProviderSettings)
     case ollama(ProviderSettingsSnapshot.OllamaProviderSettings)
@@ -663,6 +685,7 @@ public struct ProviderSettingsSnapshotBuilder: Sendable {
     public var amp: ProviderSettingsSnapshot.AmpProviderSettings?
     public var t3chat: ProviderSettingsSnapshot.T3ChatProviderSettings?
     public var zoommate: ProviderSettingsSnapshot.ZoomMateProviderSettings?
+    public var notion: ProviderSettingsSnapshot.NotionProviderSettings?
     public var devin: ProviderSettingsSnapshot.DevinProviderSettings?
     public var commandcode: ProviderSettingsSnapshot.CommandCodeProviderSettings?
     public var ollama: ProviderSettingsSnapshot.OllamaProviderSettings?
@@ -704,6 +727,7 @@ public struct ProviderSettingsSnapshotBuilder: Sendable {
         case let .amp(value): self.amp = value
         case let .t3chat(value): self.t3chat = value
         case let .zoommate(value): self.zoommate = value
+        case let .notion(value): self.notion = value
         case let .devin(value): self.devin = value
         case let .commandcode(value): self.commandcode = value
         case let .ollama(value): self.ollama = value
@@ -743,6 +767,7 @@ public struct ProviderSettingsSnapshotBuilder: Sendable {
             amp: self.amp,
             t3chat: self.t3chat,
             zoommate: self.zoommate,
+            notion: self.notion,
             devin: self.devin,
             commandcode: self.commandcode,
             ollama: self.ollama,

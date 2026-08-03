@@ -18,13 +18,14 @@ public enum OllamaProviderDescriptor {
                 toggleTitle: "Show Ollama usage",
                 cliName: "ollama",
                 defaultEnabled: false,
+                widgetSelectable: false,
                 isPrimaryProvider: false,
                 usesAccountFallback: false,
                 browserCookieOrder: ProviderBrowserCookieDefaults.defaultImportOrder,
                 dashboardURL: "https://ollama.com/settings",
                 statusPageURL: nil),
             branding: ProviderBranding(
-                iconStyle: .ollama,
+                iconStyle: .init(provider: .ollama),
                 iconResourceName: "ProviderIcon-ollama",
                 color: ProviderColor(red: 136 / 255, green: 136 / 255, blue: 136 / 255),
                 confettiPalette: [

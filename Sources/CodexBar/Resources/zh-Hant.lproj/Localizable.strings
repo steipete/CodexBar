@@ -1,5 +1,28 @@
 /* Chinese (Traditional) localization for CodexBar */
 
+/* iCloud Sync */
+"iCloud Sync" = "iCloud Sync";
+"Sync settings and providers across your Macs via iCloud" = "Sync settings and providers across your Macs via iCloud";
+"Include API keys, cookies, and tokens" = "Include API keys, cookies, and tokens";
+"Sync usage snapshots" = "Sync usage snapshots";
+"Show accounts from other Macs" = "Show accounts from other Macs";
+"Requires a signed release build of CodexBar." = "Requires a signed release build of CodexBar.";
+"Sign in to iCloud in System Settings to enable sync." = "Sign in to iCloud in System Settings to enable sync.";
+"iCloud access is restricted on this Mac." = "iCloud access is restricted on this Mac.";
+"Sync is paused: another Mac uses a newer version of CodexBar. Update to resume." = "Sync is paused: another Mac uses a newer version of CodexBar. Update to resume.";
+"Last successful fetch" = "Last successful fetch";
+"Last successful push" = "Last successful push";
+"Never" = "Never";
+"Macs" = "Macs";
+"No synced Macs yet." = "No synced Macs yet.";
+"Secrets use iCloud end-to-end encryption via encryptedValues. Hooks and machine-local paths never sync." = "Secrets use iCloud end-to-end encryption via encryptedValues. Hooks and machine-local paths never sync.";
+"Last seen %@" = "Last seen %@";
+"This Mac" = "This Mac";
+"another Mac" = "another Mac";
+"%dm ago" = "%dm ago";
+"%dh ago" = "%dh ago";
+"%dd ago" = "%dd ago";
+
 "tab_hooks" = "掛鉤";
 "hooks_enable_title" = "啟用掛鉤";
 "hooks_enable_subtitle" = "在配額或提供者事件發生時執行外部指令。";
@@ -21,7 +44,7 @@
 "hooks_delete_argument" = "刪除引數";
 
 "ollama_safari_cookie_access_hint" = "CodexBar 需要「完整磁碟存取權」才能讀取 Safari Cookie（系統設定 > 隱私權與安全性）。";
-"ollama_browser_cookie_decryption_denied" = "鑰匙圈拒絕解密 %@ Cookie；請透過手動重新整理再試一次。";
+"ollama_browser_cookie_decryption_denied" = "鑰匙圈拒絕解密 %@ Cookie。開啟供應商卡片並按一下「重新整理」(⌘R)，再次要求鑰匙圈存取權限。";
 "ollama_browser_cookie_decryption_disabled" = "CodexBar 中已停用 %@ Cookie 解密；請啟用鑰匙圈存取權並重新整理。";
 
 " providers" = " 提供者";
@@ -586,7 +609,7 @@
 "show_provider_changelog_links_title" = "顯示提供者版本資訊連結";
 "show_provider_changelog_links_subtitle" = "在選單中為支援的 CLI 提供者新增發行說明連結。";
 "show_credits_extra_usage_title" = "顯示額度 + 額外使用量";
-"show_credits_extra_usage_subtitle" = "在選單中顯示 Codex 額度和 Claude 額外使用量部分。";
+"show_credits_extra_usage_subtitle" = "顯示支援的供應商的額度和額外用量。";
 "multi_account_layout_title" = "多帳號版面配置";
 "multi_account_layout_subtitle" = "選擇分段帳號切換或堆疊帳號卡片。";
 "multi_account_layout_segmented" = "分段";
@@ -1355,6 +1378,9 @@
 "menu_bar_layout_token_session" = "工作階段 %";
 "menu_bar_layout_token_weekly" = "每週 %";
 "menu_bar_layout_token_auto" = "自動 %";
+"menu_bar_layout_token_session_pace" = "工作階段節奏";
+"menu_bar_layout_token_weekly_pace" = "每週節奏";
+"menu_bar_layout_token_auto_pace" = "自動節奏";
 "menu_bar_layout_token_bar" = "用量列";
 "menu_bar_layout_token_resets_in" = "重設倒數";
 "menu_bar_layout_token_reset_at" = "重設時間";
@@ -1380,3 +1406,5 @@
 "Cost today unavailable" = "今日費用: 無法使用";
 "30-day cost unavailable" = "30 天費用: 無法使用";
 "Resets" = "重設";
+"Finish now" = "立即完成";
+"Continue in background" = "在背景繼續";

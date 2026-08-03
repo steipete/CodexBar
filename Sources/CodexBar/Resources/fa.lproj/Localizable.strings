@@ -1,7 +1,30 @@
 /* Persian localization for CodexBar */
 
+/* iCloud Sync */
+"iCloud Sync" = "iCloud Sync";
+"Sync settings and providers across your Macs via iCloud" = "Sync settings and providers across your Macs via iCloud";
+"Include API keys, cookies, and tokens" = "Include API keys, cookies, and tokens";
+"Sync usage snapshots" = "Sync usage snapshots";
+"Show accounts from other Macs" = "Show accounts from other Macs";
+"Requires a signed release build of CodexBar." = "Requires a signed release build of CodexBar.";
+"Sign in to iCloud in System Settings to enable sync." = "Sign in to iCloud in System Settings to enable sync.";
+"iCloud access is restricted on this Mac." = "iCloud access is restricted on this Mac.";
+"Sync is paused: another Mac uses a newer version of CodexBar. Update to resume." = "Sync is paused: another Mac uses a newer version of CodexBar. Update to resume.";
+"Last successful fetch" = "Last successful fetch";
+"Last successful push" = "Last successful push";
+"Never" = "Never";
+"Macs" = "Macs";
+"No synced Macs yet." = "No synced Macs yet.";
+"Secrets use iCloud end-to-end encryption via encryptedValues. Hooks and machine-local paths never sync." = "Secrets use iCloud end-to-end encryption via encryptedValues. Hooks and machine-local paths never sync.";
+"Last seen %@" = "Last seen %@";
+"This Mac" = "This Mac";
+"another Mac" = "another Mac";
+"%dm ago" = "%dm ago";
+"%dh ago" = "%dh ago";
+"%dd ago" = "%dd ago";
+
 "ollama_safari_cookie_access_hint" = "کوکی‌های Safari برای CodexBar به دسترسی کامل دیسک نیاز دارند (تنظیمات سیستم > حریم خصوصی و امنیت).";
-"ollama_browser_cookie_decryption_denied" = "رمزگشایی کوکی‌های %@ در Keychain رد شد؛ با یک تازه‌سازی دستی دوباره تلاش کنید.";
+"ollama_browser_cookie_decryption_denied" = "رمزگشایی کوکی‌های %@ در Keychain رد شد. کارت ارائه‌دهنده را باز کنید و روی تازه‌سازی (⌘R) کلیک کنید تا دوباره دسترسی به Keychain درخواست شود.";
 "ollama_browser_cookie_decryption_disabled" = "رمزگشایی کوکی‌های %@ در CodexBar غیرفعال است؛ دسترسی Keychain را فعال و تازه‌سازی کنید.";
 
 " providers" = " providers";
@@ -593,7 +616,7 @@
 "show_provider_changelog_links_title" = "لینک های تغییرات ارائه دهنده را نمایش دهید";
 "show_provider_changelog_links_subtitle" = "لینک های یادداشت های انتشار برای ارائه دهندگان پشتیبانی شده با پشتیبانی CLI به منو اضافه می شود.";
 "show_credits_extra_usage_title" = "نمایش اعتبارها + استفاده اضافی";
-"show_credits_extra_usage_subtitle" = "بخش های Codex اعتبارها و Claude استفاده اضافی را در منو نمایش دهید.";
+"show_credits_extra_usage_subtitle" = "اعتبارها و استفادهٔ اضافی را برای ارائه‌دهندگان پشتیبانی‌شده نمایش دهید.";
 "multi_account_layout_title" = "چیدمان چندحسابی";
 "multi_account_layout_subtitle" = "کارت های حساب سوئیچینگ تقسیم شده یا کارت های حساب انباشته را انتخاب کنید.";
 "multi_account_layout_segmented" = "بخش بندی شده";
@@ -1328,6 +1351,9 @@
 "menu_bar_layout_token_session" = "جلسه %";
 "menu_bar_layout_token_weekly" = "هفتگی %";
 "menu_bar_layout_token_auto" = "درصد خودکار";
+"menu_bar_layout_token_session_pace" = "سرعت جلسه";
+"menu_bar_layout_token_weekly_pace" = "سرعت هفتگی";
+"menu_bar_layout_token_auto_pace" = "سرعت خودکار";
 "menu_bar_layout_token_bar" = "نوار مصرف";
 "menu_bar_layout_token_resets_in" = "بازنشانی در";
 "menu_bar_layout_token_reset_at" = "بازنشانی در ساعت";
@@ -1353,3 +1379,5 @@
 "Cost today unavailable" = "هزینهٔ امروز: در دسترس نیست";
 "30-day cost unavailable" = "هزینهٔ ۳۰ روز: در دسترس نیست";
 "Resets" = "بازنشانی‌ها";
+"Finish now" = "اکنون تمام شود";
+"Continue in background" = "ادامه در پس‌زمینه";
