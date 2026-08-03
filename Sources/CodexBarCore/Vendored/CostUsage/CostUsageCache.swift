@@ -123,18 +123,8 @@ enum CostUsageCacheIO {
         cache.producerKey = producerKey ?? self.currentProducerKey(provider: provider)
         cache.timeZoneIdentifier = calendar.timeZone.identifier
 
-        let tmp = dir.appendingPathComponent(".tmp-\(UUID().uuidString).json", isDirectory: false)
         let data = (try? JSONEncoder().encode(cache)) ?? Data()
-        do {
-            try data.write(to: tmp, options: [.atomic])
-            if FileManager.default.fileExists(atPath: url.path) {
-                _ = try FileManager.default.replaceItemAt(url, withItemAt: tmp)
-            } else {
-                try FileManager.default.moveItem(at: tmp, to: url)
-            }
-        } catch {
-            try? FileManager.default.removeItem(at: tmp)
-        }
+        try? data.write(to: url, options: [.atomic])
     }
 
     static func currentProducerKey(
