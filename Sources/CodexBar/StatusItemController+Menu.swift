@@ -163,7 +163,6 @@ extension StatusItemController {
             self.cancelMergedSwitcherSiblingWarmup()
         }
         self.resetCompactAccountMenuExpansionStateIfIdle()
-        self.resetStableMenuHeightSessionFloor()
     }
 
     func forgetClosedMenu(_ menu: NSMenu) {
@@ -233,9 +232,6 @@ extension StatusItemController {
             "populateMenu",
             breadcrumb: "populateMenu:\(provider?.rawValue ?? "merged")")
         defer { self.endMenuOperationTrace(trace, menu: menu, provider: provider) }
-        // LIFO defers: warmup fills sibling caches, card heights finalize, then the
-        // stable-height pass equalizes provider tabs against the tallest cached tab.
-        defer { self.applyStableMenuHeightPadding(in: menu) }
         defer { self.refreshMenuCardHeights(in: menu) }
         // Re-warm sibling tab caches after every populate of the open merged menu so a
         // tab switch attaches pre-rendered rows; no-ops for closed or non-merged menus.
@@ -771,10 +767,6 @@ extension StatusItemController {
                 width: context.menuWidth)
             {
                 menu.addItem(.separator())
-            }
-            if self.shouldMergeIcons, self.store.enabledProvidersForDisplay().count > 1 {
-                // Sized by `applyStableMenuHeightPadding` so provider tabs share one height.
-                menu.addItem(self.makeStableMenuHeightSpacerItem())
             }
         }
     }

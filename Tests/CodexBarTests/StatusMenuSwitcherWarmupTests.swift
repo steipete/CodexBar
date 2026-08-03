@@ -62,50 +62,19 @@ final class StatusMenuSwitcherWarmupTests: XCTestCase {
         }
     }
 
-    func test_stableHeightPaddingEqualizesProviderTabs() {
-        let (controller, menu) = self.makeController()
-        defer { controller.releaseStatusItemsForTesting() }
-
-        controller.warmMergedSwitcherSiblingContent(in: menu)
-
-        // Overview is excluded from equalization by design; compare provider tabs only.
-        var totals: [CGFloat] = []
-        let visibleSelection = controller.lastMergedMenuContentSelection
-        if let visibleSelection, visibleSelection != .overview {
-            let contentStartIndex = controller.providerSwitcherContentStartIndex(in: menu)
-            let visible = controller.measureTab(items: Array(menu.items[contentStartIndex...]))
-            totals.append(visible.contentHeight + (visible.spacer?.view?.frame.height ?? 0))
-        }
-        let caches = controller.mergedSwitcherContentCaches[ObjectIdentifier(menu)] ?? [:]
-        for (selection, entry) in caches where selection != .overview {
-            if selection == visibleSelection {
-                continue
-            }
-            let tab = controller.measureTab(items: entry.items)
-            XCTAssertNotNil(tab.spacer, "provider tab content must carry a stable-height spacer")
-            totals.append(tab.contentHeight + (tab.spacer?.view?.frame.height ?? 0))
-        }
-        XCTAssertGreaterThan(totals.count, 1)
-        let reference = totals[0]
-        for total in totals {
-            XCTAssertEqual(total, reference, accuracy: 0.5)
-        }
-    }
-
-    func test_stableHeightPaddingPublishesSpacerHeightThroughIntrinsicSize() {
+    func test_warmupDoesNotAddFlexibleProviderPadding() {
         let (controller, menu) = self.makeController()
         defer { controller.releaseStatusItemsForTesting() }
 
         controller.warmMergedSwitcherSiblingContent(in: menu)
 
         let caches = controller.mergedSwitcherContentCaches[ObjectIdentifier(menu)] ?? [:]
-        let providerSpacers = caches.compactMap { selection, entry -> StableMenuHeightSpacerView? in
-            guard selection != .overview else { return nil }
-            return controller.measureTab(items: entry.items).spacer?.view as? StableMenuHeightSpacerView
-        }
-        XCTAssertFalse(providerSpacers.isEmpty)
-        for spacer in providerSpacers {
-            XCTAssertEqual(spacer.intrinsicContentSize.height, spacer.frame.height, accuracy: 0.5)
+        let providerEntries = caches.filter { $0.key != .overview }
+        XCTAssertFalse(providerEntries.isEmpty)
+        for (_, entry) in providerEntries {
+            XCTAssertFalse(entry.items.contains { item in
+                item.title.isEmpty && item.view?.frame.height == 0
+            }, "provider tabs must size to their content instead of carrying a flexible blank row")
         }
     }
 

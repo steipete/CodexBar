@@ -56,9 +56,6 @@ extension StatusItemController {
                 in: menu,
                 enabledProviders: enabledProviders)
         }
-        // Freshly warmed tabs carry zero-height spacers; equalize provider-tab
-        // heights now so the first switch does not resize the menu window.
-        self.applyStableMenuHeightPadding(in: menu)
     }
 
     private func warmMergedSwitcherContentIfMissing(

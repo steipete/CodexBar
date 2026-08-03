@@ -13,7 +13,7 @@
 - Doubao: show Agent Plan windows alongside Coding Plan usage for Volcengine AK/SK accounts that subscribe to both products (#2517). Thanks @Astro-Han!
 - Augment: store session cookies owner-only (0600), atomically publish updates, and repair permissions on legacy files (#2567).
 - Ollama: direct declined Chrome Keychain access recovery to the provider card's Refresh (⌘R) action instead of the ambiguous manual-cookie path (#2072).
-- Menu: switching from a tall Overview to a shorter provider now shrinks the menu instead of stretching the provider-height spacer into a large blank region.
+- Menu: merged provider tabs now size to their own content when switching from Overview instead of padding every tab to the tallest provider and leaving large blank regions.
 - Codex: persist and budget fork-parent discovery so missing parents quiesce between inventory changes instead of sweeping every rollout on each refresh (#2525, #2538). Thanks @xx205, and @Helmi and @kiranmagic7 for the investigation!
 - Claude: Auto cold boot with Keychain disabled loads without manual refresh (#2494, fixes #2493). Thanks @gmkbenjamin!
 - Menu: no more stray floating "Refresh" tooltip beside the menu when switching tabs with the cursor over the actions area.
