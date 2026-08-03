@@ -13,8 +13,12 @@ struct CompactOverviewProjection {
         let warningMarkerPercents: [Double]
         let workdayMarkerPercents: [Double]
 
-        var accessibilityLabel: String {
+        var barAccessibilityLabel: String {
             self.percentStyle.accessibilityLabel
+        }
+
+        var accessibilitySummary: String {
+            "\(self.title), \(UsageFormatter.percentText(self.percent, suffix: self.percentStyle.labelSuffix))"
         }
     }
 
@@ -44,6 +48,13 @@ struct CompactOverviewProjection {
             return text
         }
 
+        var accessibilitySummary: String {
+            switch self {
+            case let .status(_, title, text): "\(title): \(text)"
+            case let .loading(text), let .generic(text): text
+            }
+        }
+
         fileprivate var layoutSignature: String {
             switch self {
             case .loading:
@@ -68,6 +79,18 @@ struct CompactOverviewProjection {
     let lanes: [Lane]
     let fallback: Fallback?
     let layoutSignature: String
+
+    var accessibilitySummary: String {
+        if !self.lanes.isEmpty {
+            return self.lanes.map(\.accessibilitySummary).joined(separator: ". ")
+        }
+        return self.fallback?.accessibilitySummary ?? ""
+    }
+
+    var accessibilityLabel: String {
+        let summary = self.accessibilitySummary
+        return summary.isEmpty ? self.providerName : "\(self.providerName). \(summary)"
+    }
 
     init(
         model: UsageMenuCardView.Model,
@@ -161,8 +184,8 @@ struct CompactOverviewLayout {
     static let labeledMetricContentSpacing: CGFloat = 6
     static let providerBarsLaneSpacing: CGFloat = UsageMenuCardLayout.metricSpacing
     static let barsOnlyLaneSpacing: CGFloat = UsageMenuCardLayout.metricSpacing
-    static let barsOnlyInterProviderSpacing: CGFloat = 18
-    static let barsOnlySectionOuterSpacing: CGFloat = UsageMenuCardLayout.metricSpacing
+    static let barsOnlyInterProviderSpacing: CGFloat = 24
+    static let barsOnlySectionOuterSpacing: CGFloat = 15
     static var barsOnlyVerticalPadding: CGFloat {
         (self.barsOnlyInterProviderSpacing - MenuCardItemSizing.measuredHeightPadding) / 2
     }
@@ -201,19 +224,14 @@ struct CompactOverviewLayout {
         menuWidth: CGFloat,
         layoutDirection: LayoutDirection) -> Self
     {
-        assert(
-            menuWidth >= self.minimumMenuWidth,
-            "Compact Overview menu width must be at least \(self.minimumMenuWidth) points")
-        precondition(menuWidth >= self.minimumMenuWidth)
-        precondition(self.barsOnlyVerticalPadding >= 0)
-        precondition(self.barsOnlySectionSpacerHeight >= 0)
+        let resolvedMenuWidth = max(menuWidth, self.minimumMenuWidth)
         let direction = switch layoutDirection {
         case .leftToRight: "ltr"
         case .rightToLeft: "rtl"
         @unknown default: "unknown"
         }
         let signature = Self.signature(fields: [
-            "menu=\(Self.geometryToken(menuWidth))",
+            "menu=\(Self.geometryToken(resolvedMenuWidth))",
             "gutter=\(Self.geometryToken(Self.chevronGutterWidth))",
             "padding=\(Self.geometryToken(Self.horizontalPadding))",
             "barHeight=\(Self.geometryToken(Self.barHeight))",
@@ -231,7 +249,7 @@ struct CompactOverviewLayout {
             "direction=\(direction)",
         ])
         return Self(
-            menuWidth: menuWidth,
+            menuWidth: resolvedMenuWidth,
             layoutDirection: layoutDirection,
             signature: signature)
     }
@@ -317,7 +335,7 @@ private struct CompactOverviewLabeledMetric: View {
             UsageProgressBar(
                 percent: self.lane.percent,
                 tint: self.lane.tint,
-                accessibilityLabel: self.lane.accessibilityLabel,
+                accessibilityLabel: self.lane.barAccessibilityLabel,
                 pacePercent: self.lane.pacePercent,
                 paceOnTop: self.lane.paceOnTop,
                 warningMarkerPercents: self.lane.warningMarkerPercents,
@@ -447,7 +465,7 @@ private struct CompactOverviewBareBarLane: View {
         UsageProgressBar(
             percent: self.lane.percent,
             tint: self.lane.tint,
-            accessibilityLabel: self.lane.accessibilityLabel,
+            accessibilityLabel: self.lane.barAccessibilityLabel,
             pacePercent: self.lane.pacePercent,
             paceOnTop: self.lane.paceOnTop,
             warningMarkerPercents: self.lane.warningMarkerPercents,

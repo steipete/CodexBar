@@ -628,8 +628,6 @@
 "overview_layout_compact" = "ارائه‌دهندگان، معیارها و نوارها";
 "overview_layout_provider_bars" = "ارائه‌دهندگان و نوارها";
 "overview_layout_bars_only" = "فقط نوارها";
-"overview_compact_title" = "نمای کلی فشرده";
-"overview_compact_subtitle" = "نام ارائه‌دهندگان و نوارهای مصرف را در چیدمانی کم‌جا نشان می‌دهد.";
 "overview_compact_no_bars" = "نوار مصرفی وجود ندارد";
 "configure" = "پیکربندی کن...";
 "overview_enable_merge_icons_hint" = "فعال سازی Merge Icons برای پیکربندی ارائه دهندگان تب نمای کلی.";

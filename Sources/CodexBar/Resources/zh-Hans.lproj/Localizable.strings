@@ -601,8 +601,6 @@
 "overview_layout_compact" = "提供商、指标和使用量条";
 "overview_layout_provider_bars" = "提供商和使用量条";
 "overview_layout_bars_only" = "仅使用量条";
-"overview_compact_title" = "紧凑概览";
-"overview_compact_subtitle" = "以节省空间的布局显示提供商名称和使用量条。";
 "overview_compact_no_bars" = "无使用量条";
 "configure" = "配置…";
 "overview_enable_merge_icons_hint" = "启用“合并图标”以配置“概览”标签中的提供商。";

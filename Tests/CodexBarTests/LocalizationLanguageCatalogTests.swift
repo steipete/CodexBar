@@ -127,8 +127,6 @@ struct LocalizationLanguageCatalogTests {
             "overview_layout_compact": "Providers, metrics & bars",
             "overview_layout_provider_bars": "Providers & bars",
             "overview_layout_bars_only": "Bars only",
-            "overview_compact_title": "Compact Overview",
-            "overview_compact_subtitle": "Show provider names and usage bars in a space-saving layout.",
             "overview_compact_no_bars": "No usage bars",
         ]
 

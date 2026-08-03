@@ -620,8 +620,6 @@
 "overview_layout_compact" = "Anbieter, Metriken und Balken";
 "overview_layout_provider_bars" = "Anbieter und Balken";
 "overview_layout_bars_only" = "Nur Balken";
-"overview_compact_title" = "Kompakte Übersicht";
-"overview_compact_subtitle" = "Zeigt Anbieternamen und Nutzungsbalken in einem platzsparenden Layout.";
 "overview_compact_no_bars" = "Keine Nutzungsbalken";
 "configure" = "Konfigurieren…";
 "overview_enable_merge_icons_hint" = "Aktivieren Sie \"Symbole zusammenführen\", um Anbieter für die Registerkarte \"Übersicht\" zu konfigurieren.";

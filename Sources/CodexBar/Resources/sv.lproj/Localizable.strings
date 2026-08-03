@@ -621,8 +621,6 @@
 "overview_layout_compact" = "Leverantörer, mätvärden och staplar";
 "overview_layout_provider_bars" = "Leverantörer och staplar";
 "overview_layout_bars_only" = "Endast staplar";
-"overview_compact_title" = "Kompakt översikt";
-"overview_compact_subtitle" = "Visa leverantörsnamn och användningsstaplar i en utrymmessnål layout.";
 "overview_compact_no_bars" = "Inga användningsstaplar";
 "configure" = "Konfigurera…";
 "overview_enable_merge_icons_hint" = "Aktivera Slå ihop ikoner för att konfigurera leverantörer på översiktsfliken.";

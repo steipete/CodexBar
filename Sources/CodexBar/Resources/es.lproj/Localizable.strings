@@ -614,8 +614,6 @@
 "overview_layout_compact" = "Proveedores, métricas y barras";
 "overview_layout_provider_bars" = "Proveedores y barras";
 "overview_layout_bars_only" = "Solo barras";
-"overview_compact_title" = "Resumen compacto";
-"overview_compact_subtitle" = "Muestra los nombres de los proveedores y las barras de uso en un diseño compacto.";
 "overview_compact_no_bars" = "No hay barras de uso";
 "configure" = "Configurar…";
 "overview_enable_merge_icons_hint" = "Activa Combinar iconos para configurar los proveedores de la pestaña Resumen.";

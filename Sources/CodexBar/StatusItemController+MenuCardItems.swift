@@ -46,6 +46,7 @@ extension StatusItemController {
         usesGPUSelection: Bool = false,
         layoutDirection: LayoutDirection? = nil,
         accessibilityLabel: String? = nil,
+        accessibilityUserInputLabels: [String]? = nil,
         accessibilityHelp: String? = nil,
         onClick: (() -> Void)? = nil) -> NSMenuItem
     {
@@ -75,6 +76,7 @@ extension StatusItemController {
             usesGPUSelection: usesGPUSelection,
             layoutDirection: layoutDirection,
             accessibilityLabel: accessibilityLabel,
+            accessibilityUserInputLabels: accessibilityUserInputLabels,
             accessibilityHelp: accessibilityHelp,
             onClick: onClick)
         let hosting: ErasedMenuCardHostingView

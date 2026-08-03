@@ -630,8 +630,6 @@
 "overview_layout_compact" = "Dostawcy, metryki i paski";
 "overview_layout_provider_bars" = "Dostawcy i paski";
 "overview_layout_bars_only" = "Tylko paski";
-"overview_compact_title" = "Kompaktowy przegląd";
-"overview_compact_subtitle" = "Pokazuj nazwy dostawców i paski użycia w układzie oszczędzającym miejsce.";
 "overview_compact_no_bars" = "Brak pasków użycia";
 "configure" = "Skonfiguruj…";
 "overview_enable_merge_icons_hint" = "Włącz Scal ikony, aby skonfigurować dostawców zakładki Przegląd.";

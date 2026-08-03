@@ -110,21 +110,33 @@ struct OverviewMenuCardRowView: View {
             self.detailedContent
         case .compact:
             if let compactLayout = self.compactLayout {
+                let projection = self.compactProjection
                 CompactOverviewLabeledContent(
-                    projection: self.compactProjection,
+                    projection: projection,
                     layout: compactLayout)
+                    .preference(
+                        key: MenuCardAccessibilityLabelPreferenceKey.self,
+                        value: projection.accessibilityLabel)
             }
         case .providerBars:
             if let compactLayout = self.compactLayout {
+                let projection = self.compactProjection
                 CompactOverviewProviderBarsContent(
-                    projection: self.compactProjection,
+                    projection: projection,
                     layout: compactLayout)
+                    .preference(
+                        key: MenuCardAccessibilityLabelPreferenceKey.self,
+                        value: projection.accessibilityLabel)
             }
         case .barsOnly:
             if let compactLayout = self.compactLayout {
+                let projection = self.compactProjection
                 CompactOverviewBarsOnlyContent(
-                    projection: self.compactProjection,
+                    projection: projection,
                     layout: compactLayout)
+                    .preference(
+                        key: MenuCardAccessibilityLabelPreferenceKey.self,
+                        value: projection.accessibilityLabel)
             }
         }
     }

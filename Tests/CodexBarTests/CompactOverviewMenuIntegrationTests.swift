@@ -13,6 +13,66 @@ struct CompactOverviewMenuIntegrationTests {
         try self.assertReducedOverview(layout: .barsOnly)
     }
 
+    @Test
+    func `reduced overview accessibility labels follow compatible live values without rebuilding`() async throws {
+        try await self.assertLiveAccessibilityLabel(layout: .compact)
+        try await self.assertLiveAccessibilityLabel(layout: .providerBars)
+        try await self.assertLiveAccessibilityLabel(layout: .barsOnly)
+    }
+
+    @Test
+    func `reduced overview accessibility labels retain the rendered lane shape until rebuilding`() async throws {
+        try await self.assertFrozenAccessibilityLabel(layout: .compact)
+        try await self.assertFrozenAccessibilityLabel(layout: .providerBars)
+        try await self.assertFrozenAccessibilityLabel(layout: .barsOnly)
+    }
+
+    @Test
+    func `reduced overview accessibility label honors the manual refresh freeze`() async throws {
+        let fixture = self.makeFixture(layout: .compact)
+        defer {
+            fixture.controller.menuCardRefreshMonitor.resetManualRefresh()
+            fixture.controller.releaseStatusItemsForTesting()
+        }
+
+        let layoutModel = try #require(fixture.controller.menuCardModel(for: .cursor))
+        let menu = self.renderOverviewMenu(fixture.controller)
+        let row = try #require(Self.rowsByProvider(in: menu)[.cursor])
+        let view = try #require(row.view)
+        let layoutLabel = try #require(row.view?.accessibilityLabel())
+
+        fixture.store._setSnapshotForTesting(
+            Self.cursorSnapshot(primaryPercent: 41),
+            provider: .cursor)
+        let compatibleLiveModel = try #require(fixture.controller.menuCardModel(for: .cursor))
+        let compatibleLiveLabel = CompactOverviewProjection(model: compatibleLiveModel).accessibilityLabel
+        await Self.waitForAccessibilityLabel(compatibleLiveLabel, view: view)
+        #expect(compatibleLiveLabel != layoutLabel)
+
+        fixture.controller.menuCardRefreshMonitor.beginManualRefresh(
+            frozenModels: [.cursor: layoutModel],
+            provider: .cursor)
+        await Self.waitForAccessibilityLabel(layoutLabel, view: view)
+
+        fixture.store._setSnapshotForTesting(
+            Self.cursorSnapshot(primaryPercent: 81),
+            provider: .cursor)
+
+        let refreshedLiveModel = try #require(fixture.controller.menuCardModel(for: .cursor))
+        let refreshedLiveLabel = CompactOverviewProjection(model: refreshedLiveModel).accessibilityLabel
+        let frozenProjection = CompactOverviewProjectionResolver.resolve(
+            fallbackModel: layoutModel,
+            layoutModel: layoutModel)
+        {
+            fixture.controller.menuCardRefreshMonitor.model(for: .cursor, fallback: layoutModel)
+        }
+        #expect(frozenProjection.accessibilityLabel == layoutLabel)
+        #expect(frozenProjection.accessibilityLabel != refreshedLiveLabel)
+
+        fixture.controller.menuCardRefreshMonitor.endManualRefresh(for: .cursor)
+        await Self.waitForAccessibilityLabel(refreshedLiveLabel, view: view)
+    }
+
     private func assertReducedOverview(layout: MergedOverviewLayout) throws {
         let fixture = self.makeFixture(layout: layout)
         defer { fixture.controller.releaseStatusItemsForTesting() }
@@ -28,6 +88,11 @@ struct CompactOverviewMenuIntegrationTests {
             "overviewRow-cursor",
             "overviewRow-claude",
         ])
+        // Reduced rows publish live accessibility labels through the unified row host's preference store.
+        #expect(rows.allSatisfy { row in
+            guard let view = row.view as? MenuRowContainerView else { return false }
+            return view.usesGPUSelectionForTesting
+        })
 
         let cursorIndex = try #require(menu.items.firstIndex(of: rows[0]))
         let claudeIndex = try #require(menu.items.firstIndex(of: rows[1]))
@@ -53,7 +118,10 @@ struct CompactOverviewMenuIntegrationTests {
         #expect(cursorRow.submenu == nil)
         #expect(try NSStringFromSelector(#require(cursorRow.action)) == "selectOverviewProvider:")
         #expect((cursorRow.target as AnyObject?) === fixture.controller)
-        #expect(cursorRow.view?.accessibilityLabel() == cursorModel.providerName)
+        #expect(
+            cursorRow.view?.accessibilityLabel() ==
+                CompactOverviewProjection(model: cursorModel).accessibilityLabel)
+        #expect(cursorRow.view?.accessibilityUserInputLabels() == [cursorModel.providerName])
         #expect(cursorRow.view?.accessibilityHelp() == L("Show details"))
 
         let claudeRow = rows[1]
@@ -62,7 +130,10 @@ struct CompactOverviewMenuIntegrationTests {
         #expect(claudeSubmenu.items.first?.toolTip == UsageProvider.claude.rawValue)
         #expect(try NSStringFromSelector(#require(claudeRow.action)) == "menuCardNoOp:")
         #expect((claudeRow.target as AnyObject?) === fixture.controller)
-        #expect(claudeRow.view?.accessibilityLabel() == claudeModel.providerName)
+        #expect(
+            claudeRow.view?.accessibilityLabel() ==
+                CompactOverviewProjection(model: claudeModel).accessibilityLabel)
+        #expect(claudeRow.view?.accessibilityUserInputLabels() == [claudeModel.providerName])
         #expect(claudeRow.view?.accessibilityHelp() == L("Show details"))
 
         let cursorHeight = try #require(cursorRow.view?.frame.height)
@@ -76,6 +147,85 @@ struct CompactOverviewMenuIntegrationTests {
         #expect(claudeView._test_simulateRuntimeClick())
         #expect(!fixture.settings.mergedMenuLastSelectedWasOverview)
         #expect(fixture.settings.selectedMenuProvider == .claude)
+    }
+
+    private func assertLiveAccessibilityLabel(layout: MergedOverviewLayout) async throws {
+        let fixture = self.makeFixture(layout: layout)
+        let menu = self.renderOverviewMenu(fixture.controller)
+        let menuKey = ObjectIdentifier(menu)
+        fixture.controller.mergedMenu = menu
+        fixture.controller.openMenus[menuKey] = menu
+        fixture.controller.markMenuFresh(menu)
+        var rebuildCount = 0
+        fixture.controller._test_openMenuRebuildObserver = { _ in rebuildCount += 1 }
+        defer {
+            fixture.controller._test_openMenuRebuildObserver = nil
+            fixture.controller.openMenus[menuKey] = nil
+            fixture.controller.releaseStatusItemsForTesting()
+        }
+
+        let initialStructuralSignature = fixture.controller.compactOverviewStructuralSignature()
+        let initialContentVersion = fixture.controller.menuContentVersion
+        let row = try #require(Self.rowsByProvider(in: menu)[.cursor])
+        let view = try #require(row.view)
+        let initialLabel = try #require(view.accessibilityLabel())
+
+        fixture.store._setSnapshotForTesting(
+            Self.cursorSnapshot(primaryPercent: 81),
+            provider: .cursor)
+
+        for _ in 0..<20 where fixture.controller.menuContentVersion == initialContentVersion {
+            await Task.yield()
+        }
+
+        let liveModel = try #require(fixture.controller.menuCardModel(for: .cursor))
+        let expectedLabel = CompactOverviewProjection(model: liveModel).accessibilityLabel
+        #expect(fixture.controller.menuContentVersion != initialContentVersion)
+        #expect(fixture.controller.compactOverviewStructuralSignature() == initialStructuralSignature)
+        #expect(rebuildCount == 0)
+        #expect(row.view === view)
+        await Self.waitForAccessibilityLabel(expectedLabel, view: view)
+        #expect(view.accessibilityLabel() == expectedLabel)
+        #expect(view.accessibilityLabel() != initialLabel)
+        #expect(view.accessibilityUserInputLabels() == [liveModel.providerName])
+    }
+
+    private func assertFrozenAccessibilityLabel(layout: MergedOverviewLayout) async throws {
+        let fixture = self.makeFixture(layout: layout)
+        defer { fixture.controller.releaseStatusItemsForTesting() }
+
+        let menu = self.renderOverviewMenu(fixture.controller)
+        let row = try #require(Self.rowsByProvider(in: menu)[.claude])
+        let view = try #require(row.view)
+        let renderedLabel = try #require(view.accessibilityLabel())
+
+        fixture.store._setSnapshotForTesting(
+            Self.claudeSnapshot(
+                primaryPercent: 41,
+                secondaryPercent: 42,
+                extraPercent: 43,
+                extraTitle: "Peer"),
+            provider: .claude)
+        let compatibleLiveModel = try #require(fixture.controller.menuCardModel(for: .claude))
+        let compatibleLiveLabel = CompactOverviewProjection(model: compatibleLiveModel).accessibilityLabel
+        await Self.waitForAccessibilityLabel(compatibleLiveLabel, view: view)
+        #expect(compatibleLiveLabel != renderedLabel)
+
+        fixture.store._setSnapshotForTesting(
+            Self.claudeSnapshot(
+                primaryPercent: 81,
+                secondaryPercent: 82,
+                extraPercent: 83,
+                extraTitle: "Peer",
+                additionalExtraTitle: "Fourth lane"),
+            provider: .claude)
+
+        let incompatibleLiveModel = try #require(fixture.controller.menuCardModel(for: .claude))
+        let incompatibleLiveLabel = CompactOverviewProjection(model: incompatibleLiveModel).accessibilityLabel
+        await Self.waitForAccessibilityLabel(renderedLabel, view: view)
+        #expect(row.view === view)
+        #expect(view.accessibilityLabel() == renderedLabel)
+        #expect(view.accessibilityLabel() != incompatibleLiveLabel)
     }
 
     @Test
@@ -133,7 +283,7 @@ struct CompactOverviewMenuIntegrationTests {
             #expect(barsOnlyHeight < providerBarsHeight)
             #expect(providerBarsHeight < compactHeight)
             #expect(compactHeight < detailedHeight)
-            let expectedBarsOnlyHeight: CGFloat = provider == .cursor ? 24 : 60
+            let expectedBarsOnlyHeight: CGFloat = provider == .cursor ? 30 : 66
             let expectedProviderBarsHeight: CGFloat = provider == .cursor ? 57 : 93
             #expect(abs(barsOnlyHeight - expectedBarsOnlyHeight) <= 1)
             #expect(abs(providerBarsHeight - expectedProviderBarsHeight) <= 1)
@@ -250,9 +400,9 @@ struct CompactOverviewMenuIntegrationTests {
         let cursorFirstHeight = try rowHeight(.cursor, in: threeProviderMenu)
         let codexInteriorHeight = try rowHeight(.codex, in: threeProviderMenu)
         let claudeLastHeight = try rowHeight(.claude, in: threeProviderMenu)
-        #expect(abs(cursorFirstHeight - 24) <= 1)
-        #expect(abs(codexInteriorHeight - 24) <= 1)
-        #expect(abs(claudeLastHeight - 24) <= 1)
+        #expect(abs(cursorFirstHeight - 30) <= 1)
+        #expect(abs(codexInteriorHeight - 30) <= 1)
+        #expect(abs(claudeLastHeight - 30) <= 1)
         #expect(Self.barsOnlySpacers(in: threeProviderMenu).count == 2)
         let interiorFingerprints = fingerprints(.codex)
         #expect(interiorFingerprints.count == 1)
@@ -264,7 +414,7 @@ struct CompactOverviewMenuIntegrationTests {
             activeProviders: activeProviders)
         let twoProviderMenu = self.renderOverviewMenu(fixture.controller)
         let codexFirstHeight = try rowHeight(.codex, in: twoProviderMenu)
-        #expect(abs(codexFirstHeight - 24) <= 1)
+        #expect(abs(codexFirstHeight - 30) <= 1)
         #expect(Self.barsOnlySpacers(in: twoProviderMenu).count == 2)
         let firstFingerprints = fingerprints(.codex)
         #expect(firstFingerprints == interiorFingerprints)
@@ -275,7 +425,7 @@ struct CompactOverviewMenuIntegrationTests {
             activeProviders: activeProviders)
         let oneProviderMenu = self.renderOverviewMenu(fixture.controller)
         let codexOnlyHeight = try rowHeight(.codex, in: oneProviderMenu)
-        #expect(abs(codexOnlyHeight - 24) <= 1)
+        #expect(abs(codexOnlyHeight - 30) <= 1)
         #expect(Self.barsOnlySpacers(in: oneProviderMenu).count == 2)
         let soleFingerprints = fingerprints(.codex)
         #expect(soleFingerprints == firstFingerprints)
@@ -413,6 +563,15 @@ struct CompactOverviewMenuIntegrationTests {
             try? await Task.sleep(for: .milliseconds(10))
         }
         #expect(rebuildCount() == expected)
+    }
+
+    private static func waitForAccessibilityLabel(_ expected: String, view: NSView) async {
+        for _ in 0..<100 where view.accessibilityLabel() != expected {
+            view.layoutSubtreeIfNeeded()
+            await Task.yield()
+            try? await Task.sleep(for: .milliseconds(10))
+        }
+        #expect(view.accessibilityLabel() == expected)
     }
 
     private func enableOnly(_ enabled: Set<UsageProvider>, settings: SettingsStore) {

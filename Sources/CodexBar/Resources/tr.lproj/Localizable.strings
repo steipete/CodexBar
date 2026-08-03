@@ -628,8 +628,6 @@
 "overview_layout_compact" = "Sağlayıcılar, metrikler ve çubuklar";
 "overview_layout_provider_bars" = "Sağlayıcılar ve çubuklar";
 "overview_layout_bars_only" = "Yalnızca çubuklar";
-"overview_compact_title" = "Kompakt Genel Bakış";
-"overview_compact_subtitle" = "Sağlayıcı adlarını ve kullanım çubuklarını yerden tasarruf eden bir düzende gösterin.";
 "overview_compact_no_bars" = "Kullanım çubuğu yok";
 "configure" = "Yapılandır…";
 "overview_enable_merge_icons_hint" = "Genel Bakış sekmesi sağlayıcılarını yapılandırmak için Simgeleri Birleştir'i etkinleştirin.";

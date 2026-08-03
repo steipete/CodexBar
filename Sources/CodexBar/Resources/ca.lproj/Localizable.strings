@@ -606,8 +606,6 @@
 "overview_layout_compact" = "Proveïdors, mètriques i barres";
 "overview_layout_provider_bars" = "Proveïdors i barres";
 "overview_layout_bars_only" = "Només barres";
-"overview_compact_title" = "Resum compacte";
-"overview_compact_subtitle" = "Mostra els noms dels proveïdors i les barres d’ús en un disseny que estalvia espai.";
 "overview_compact_no_bars" = "No hi ha barres d’ús";
 "configure" = "Configureu…";
 "overview_enable_merge_icons_hint" = "Activeu Combina les icones per configurar els proveïdors de la pestanya Resum.";

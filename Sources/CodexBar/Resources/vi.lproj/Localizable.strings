@@ -618,8 +618,6 @@
 "overview_layout_compact" = "Nhà cung cấp, chỉ số và thanh";
 "overview_layout_provider_bars" = "Nhà cung cấp và thanh";
 "overview_layout_bars_only" = "Chỉ thanh";
-"overview_compact_title" = "Tổng quan thu gọn";
-"overview_compact_subtitle" = "Hiển thị tên nhà cung cấp và thanh mức sử dụng trong bố cục tiết kiệm không gian.";
 "overview_compact_no_bars" = "Không có thanh mức sử dụng";
 "configure" = "Định cấu hình…";
 "overview_enable_merge_icons_hint" = "Bật Hợp nhất Biểu tượng để định cấu hình nhà cung cấp tab Tổng quan.";

@@ -667,44 +667,6 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         }
     }
 
-    private func shouldRefreshOpenMenusForProviderSwitcher() -> Bool {
-        var shouldRefresh = false
-        let revision = self.settings.configRevision
-        if revision != self.lastConfigRevision {
-            self.lastConfigRevision = revision
-            shouldRefresh = true
-        }
-        let order = self.settings.providerOrder
-        if order != self.lastProviderOrder {
-            self.lastProviderOrder = order
-            shouldRefresh = true
-        }
-        let mergeIcons = self.settings.mergeIcons
-        if mergeIcons != self.lastMergeIcons {
-            self.lastMergeIcons = mergeIcons
-            shouldRefresh = true
-        }
-        let showsIcons = self.settings.switcherShowsIcons
-        if showsIcons != self.lastSwitcherShowsIcons {
-            self.lastSwitcherShowsIcons = showsIcons
-            shouldRefresh = true
-        }
-        let usageBarsShowUsed = self.settings.usageBarsShowUsed
-        if usageBarsShowUsed != self.lastObservedUsageBarsShowUsed {
-            self.lastObservedUsageBarsShowUsed = usageBarsShowUsed
-            shouldRefresh = true
-        }
-        let overviewObservation = MergedOverviewMenuObservation(settings: self.settings)
-        if overviewObservation != self.lastMergedOverviewMenuObservation {
-            self.lastMergedOverviewMenuObservation = overviewObservation
-            shouldRefresh = true
-        }
-        if self.menuLocalizationSignature() != self.lastMenuLocalizationSignature {
-            shouldRefresh = true
-        }
-        return shouldRefresh
-    }
-
     private func handleSettingsChange(reason: String) {
         #if DEBUG
         guard !self.isReleasedForTesting else { return }
@@ -962,6 +924,46 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         self.screenChangeVisibilityTask?.cancel()
         self.pendingScreenChangePreviousCount = nil
         NotificationCenter.default.removeObserver(self)
+    }
+}
+
+extension StatusItemController {
+    private func shouldRefreshOpenMenusForProviderSwitcher() -> Bool {
+        var shouldRefresh = false
+        let revision = self.settings.configRevision
+        if revision != self.lastConfigRevision {
+            self.lastConfigRevision = revision
+            shouldRefresh = true
+        }
+        let order = self.settings.providerOrder
+        if order != self.lastProviderOrder {
+            self.lastProviderOrder = order
+            shouldRefresh = true
+        }
+        let mergeIcons = self.settings.mergeIcons
+        if mergeIcons != self.lastMergeIcons {
+            self.lastMergeIcons = mergeIcons
+            shouldRefresh = true
+        }
+        let showsIcons = self.settings.switcherShowsIcons
+        if showsIcons != self.lastSwitcherShowsIcons {
+            self.lastSwitcherShowsIcons = showsIcons
+            shouldRefresh = true
+        }
+        let usageBarsShowUsed = self.settings.usageBarsShowUsed
+        if usageBarsShowUsed != self.lastObservedUsageBarsShowUsed {
+            self.lastObservedUsageBarsShowUsed = usageBarsShowUsed
+            shouldRefresh = true
+        }
+        let overviewObservation = MergedOverviewMenuObservation(settings: self.settings)
+        if overviewObservation != self.lastMergedOverviewMenuObservation {
+            self.lastMergedOverviewMenuObservation = overviewObservation
+            shouldRefresh = true
+        }
+        if self.menuLocalizationSignature() != self.lastMenuLocalizationSignature {
+            shouldRefresh = true
+        }
+        return shouldRefresh
     }
 }
 

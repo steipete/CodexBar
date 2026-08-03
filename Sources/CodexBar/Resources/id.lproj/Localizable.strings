@@ -630,8 +630,6 @@
 "overview_layout_compact" = "Penyedia, metrik, dan bilah";
 "overview_layout_provider_bars" = "Penyedia dan bilah";
 "overview_layout_bars_only" = "Hanya bilah";
-"overview_compact_title" = "Ikhtisar ringkas";
-"overview_compact_subtitle" = "Tampilkan nama penyedia dan bilah penggunaan dalam tata letak hemat ruang.";
 "overview_compact_no_bars" = "Tidak ada bilah penggunaan";
 "configure" = "Konfigurasi…";
 "overview_enable_merge_icons_hint" = "Aktifkan Gabung Ikon untuk mengonfigurasi penyedia tab Ikhtisar.";

@@ -628,8 +628,6 @@
 "overview_layout_compact" = "المزوّدون والمقاييس والأشرطة";
 "overview_layout_provider_bars" = "المزوّدون والأشرطة";
 "overview_layout_bars_only" = "الأشرطة فقط";
-"overview_compact_title" = "نظرة عامة مدمجة";
-"overview_compact_subtitle" = "اعرض أسماء المزوّدين وأشرطة الاستخدام بتنسيق موفّر للمساحة.";
 "overview_compact_no_bars" = "لا توجد أشرطة استخدام";
 "configure" = "تكوين...";
 "overview_enable_merge_icons_hint" = "تفعيل أيقونات الدمج لتكوين مزودي تبويب النظرة العامة.";

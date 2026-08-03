@@ -621,8 +621,6 @@
 "overview_layout_compact" = "供應商、指標與用量列";
 "overview_layout_provider_bars" = "供應商與用量列";
 "overview_layout_bars_only" = "僅用量列";
-"overview_compact_title" = "精簡概覽";
-"overview_compact_subtitle" = "以節省空間的版面顯示提供者名稱和用量列。";
 "overview_compact_no_bars" = "沒有用量列";
 "configure" = "設定…";
 "overview_enable_merge_icons_hint" = "啟用「合併圖示」以設定「概覽」標籤中的提供者。";

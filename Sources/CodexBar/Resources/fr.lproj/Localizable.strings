@@ -622,8 +622,6 @@
 "overview_layout_compact" = "Fournisseurs, métriques et barres";
 "overview_layout_provider_bars" = "Fournisseurs et barres";
 "overview_layout_bars_only" = "Barres uniquement";
-"overview_compact_title" = "Vue d’ensemble compacte";
-"overview_compact_subtitle" = "Affichez les noms des fournisseurs et les barres d’utilisation dans une disposition compacte.";
 "overview_compact_no_bars" = "Aucune barre d’utilisation";
 "configure" = "Configurer…";
 "overview_enable_merge_icons_hint" = "Activez Fusionner les icônes pour configurer les fournisseurs d'onglets Présentation.";

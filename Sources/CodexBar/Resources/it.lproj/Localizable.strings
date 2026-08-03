@@ -630,8 +630,6 @@
 "overview_layout_compact" = "Provider, metriche e barre";
 "overview_layout_provider_bars" = "Provider e barre";
 "overview_layout_bars_only" = "Solo barre";
-"overview_compact_title" = "Panoramica compatta";
-"overview_compact_subtitle" = "Mostra i nomi dei provider e le barre di utilizzo in un layout salvaspazio.";
 "overview_compact_no_bars" = "Nessuna barra di utilizzo";
 "configure" = "Configura…";
 "overview_enable_merge_icons_hint" = "Abilita Unisci icone per configurare i provider della scheda Panoramica.";

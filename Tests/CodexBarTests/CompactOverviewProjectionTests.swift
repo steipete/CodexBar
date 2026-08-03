@@ -122,7 +122,10 @@ struct CompactOverviewProjectionTests {
         #expect(lane.title == "Full Metric Name")
         #expect(lane.percent == 0.4)
         #expect(lane.percentStyle.rawValue == UsageMenuCardView.Model.PercentStyle.used.rawValue)
-        #expect(lane.accessibilityLabel == L("Usage used"))
+        #expect(lane.barAccessibilityLabel == L("Usage used"))
+        #expect(lane.accessibilitySummary == "Full Metric Name, <1% used")
+        #expect(projection.accessibilitySummary == lane.accessibilitySummary)
+        #expect(projection.accessibilityLabel == "Full Provider Name. Full Metric Name, <1% used")
         #expect(lane.tint == tint)
         #expect(lane.pacePercent == 61)
         #expect(lane.paceOnTop == false)
@@ -208,6 +211,9 @@ struct CompactOverviewProjectionTests {
         let wider = CompactOverviewLayout.resolveForMenu(
             menuWidth: 360,
             layoutDirection: .leftToRight)
+        let undersized = CompactOverviewLayout.resolveForMenu(
+            menuWidth: 200,
+            layoutDirection: .leftToRight)
 
         #expect(minimum.menuWidth == CompactOverviewLayout.minimumMenuWidth)
         #expect(minimum.contentWidth == 270)
@@ -221,12 +227,14 @@ struct CompactOverviewProjectionTests {
         #expect(wider.labeledBarWidth == minimum.labeledBarWidth + 50)
         #expect(wider.providerBarsBarWidth == minimum.providerBarsBarWidth + 50)
         #expect(wider.barsOnlyBarWidth == minimum.barsOnlyBarWidth + 50)
+        #expect(undersized.menuWidth == CompactOverviewLayout.minimumMenuWidth)
+        #expect(undersized.signature == minimum.signature)
         #expect(CompactOverviewLayout.barHeight == UsageProgressBar.defaultHeight)
         #expect(CompactOverviewLayout.providerBarsLaneSpacing == 12)
         #expect(CompactOverviewLayout.barsOnlyLaneSpacing == 12)
-        #expect(CompactOverviewLayout.barsOnlyInterProviderSpacing == 18)
-        #expect(CompactOverviewLayout.barsOnlySectionOuterSpacing == 12)
-        #expect(CompactOverviewLayout.barsOnlyVerticalPadding == 5.5)
+        #expect(CompactOverviewLayout.barsOnlyInterProviderSpacing == 24)
+        #expect(CompactOverviewLayout.barsOnlySectionOuterSpacing == 15)
+        #expect(CompactOverviewLayout.barsOnlyVerticalPadding == 8.5)
         #expect(CompactOverviewLayout.barsOnlySectionSpacerHeight == 3)
         let interProviderSpacing = MenuCardItemSizing.measuredHeightPadding
             + CompactOverviewLayout.barsOnlyVerticalPadding * 2
@@ -427,7 +435,7 @@ struct CompactOverviewProjectionTests {
             #expect(providerBarsHeight < labeledHeight)
         }
 
-        for (count, target) in [(1, 17.0), (2, 35.0), (3, 53.0)] {
+        for (count, target) in [(1, 23.0), (2, 41.0), (3, 59.0)] {
             let barsOnlyHeight = try #require(barsOnlyHeights[count])
             #expect(abs(barsOnlyHeight - target) <= 1)
         }
@@ -465,7 +473,7 @@ struct CompactOverviewProjectionTests {
             layout: layout))
         let height = host.sizeThatFits(in: CGSize(width: layout.menuWidth, height: 10000)).height
 
-        #expect(abs(height - 17) <= 1)
+        #expect(abs(height - 23) <= 1)
         #expect(CompactOverviewLayout.barsOnlySectionSpacerHeight == 3)
     }
 

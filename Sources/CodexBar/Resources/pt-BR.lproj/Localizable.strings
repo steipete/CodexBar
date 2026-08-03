@@ -619,8 +619,6 @@
 "overview_layout_compact" = "Provedores, métricas e barras";
 "overview_layout_provider_bars" = "Provedores e barras";
 "overview_layout_bars_only" = "Somente barras";
-"overview_compact_title" = "Visão geral compacta";
-"overview_compact_subtitle" = "Mostre nomes de provedores e barras de uso em um layout que economiza espaço.";
 "overview_compact_no_bars" = "Sem barras de uso";
 "configure" = "Configurar…";
 "overview_enable_merge_icons_hint" = "Ative Mesclar Ícones para configurar provedores da aba Visão geral.";

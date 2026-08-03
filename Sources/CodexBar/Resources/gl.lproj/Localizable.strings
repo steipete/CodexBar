@@ -601,8 +601,6 @@
 "overview_layout_compact" = "Provedores, métricas e barras";
 "overview_layout_provider_bars" = "Provedores e barras";
 "overview_layout_bars_only" = "Só barras";
-"overview_compact_title" = "Resumo compacto";
-"overview_compact_subtitle" = "Mostra os nomes dos provedores e as barras de uso nun deseño que aforra espazo.";
 "overview_compact_no_bars" = "Non hai barras de uso";
 "configure" = "Configurar…";
 "overview_enable_merge_icons_hint" = "Activa Combinar as iconas para configurar os provedores da lapela Resumo.";

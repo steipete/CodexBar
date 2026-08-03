@@ -87,7 +87,7 @@ extension StatusItemController {
                     ?? "overviewBarsOnly:missing"
             }
             let accessibilityLabel = rowStyle.usesReducedContent
-                ? row.projection?.providerName ?? row.layoutModel.providerName
+                ? row.projection?.accessibilityLabel ?? row.layoutModel.providerName
                 : row.model.providerName
             let item = self.makeMenuCardItem(
                 OverviewMenuCardRowView(
@@ -108,9 +108,13 @@ extension StatusItemController {
                 containsInteractiveControls: OverviewMenuRowInteractionPolicy.containsInteractiveControls(
                     style: rowStyle,
                     model: row.model),
+                // Reduced Overview rows publish their live accessibility label through the row host's store.
                 usesGPUSelection: true,
                 layoutDirection: rowStyle.usesReducedContent ? compactLayout?.layoutDirection : nil,
                 accessibilityLabel: accessibilityLabel,
+                accessibilityUserInputLabels: rowStyle.usesReducedContent
+                    ? [row.layoutModel.providerName]
+                    : nil,
                 accessibilityHelp: rowStyle.usesReducedContent ? L("Show details") : nil,
                 onClick: { [weak self, weak interactionMenu] in
                     guard let self, let interactionMenu else { return }

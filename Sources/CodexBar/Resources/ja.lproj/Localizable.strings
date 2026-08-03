@@ -619,8 +619,6 @@
 "overview_layout_compact" = "プロバイダー、指標、バー";
 "overview_layout_provider_bars" = "プロバイダーとバー";
 "overview_layout_bars_only" = "バーのみ";
-"overview_compact_title" = "コンパクトな概要";
-"overview_compact_subtitle" = "プロバイダ名と使用量バーを省スペースのレイアウトで表示します。";
 "overview_compact_no_bars" = "使用量バーはありません";
 "configure" = "設定…";
 "overview_enable_merge_icons_hint" = "概要タブのプロバイダを設定するには「アイコンを統合」を有効にしてください。";
