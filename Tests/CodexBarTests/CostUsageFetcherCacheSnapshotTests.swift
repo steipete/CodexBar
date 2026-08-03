@@ -265,6 +265,22 @@ struct CostUsageFetcherCacheSnapshotTests {
     }
 
     @Test
+    func `public cached codex snapshot wrapper keeps unscoped home semantics`() async {
+        // Compatibility surface for external CodexBarCore clients (ClawSweeper #2397 P1).
+        let fetcher = CostUsageFetcher()
+        let emptyScoped = await fetcher.loadCachedCodexTokenSnapshot(
+            codexHomePath: "/synthetic/managed-codex-home",
+            historyDays: 7)
+        #expect(emptyScoped == nil)
+
+        // Defaulted three-parameter public signature must remain call-compatible.
+        let ambient = await fetcher.loadCachedCodexTokenSnapshot(
+            now: Date(timeIntervalSince1970: 1_784_179_200),
+            historyDays: 7)
+        _ = ambient
+    }
+
+    @Test
     func `cached codex token snapshot keeps scoped homes opt in and validates their roots`() async throws {
         let env = try CostUsageTestEnvironment()
         defer { env.cleanup() }

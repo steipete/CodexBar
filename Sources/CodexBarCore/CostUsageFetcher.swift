@@ -84,6 +84,37 @@ public struct CostUsageFetcher: Sendable {
         self.scannerOptions = scannerOptions
     }
 
+    /// Public unscoped cached Codex snapshot loader. Scoped homes always return nil.
+    public func loadCachedCodexTokenSnapshot(
+        now: Date = Date(),
+        codexHomePath: String? = nil,
+        historyDays: Int = 30) async -> CostUsageTokenSnapshot?
+    {
+        await Self.loadCachedCodexTokenSnapshot(
+            now: now,
+            codexHomePath: codexHomePath,
+            historyDays: historyDays,
+            allowScopedCodexHome: false,
+            includePiSessions: true,
+            includeProjectAndSessionBreakdowns: true,
+            scannerOptions: self.scannerOptionsOverride())
+    }
+
+    package func loadCachedCodexTokenSnapshotResult(
+        now: Date = Date(),
+        codexHomePath: String? = nil,
+        historyDays: Int = 30) async -> CachedCodexTokenSnapshotResult?
+    {
+        await Self.loadCachedCodexTokenSnapshotResult(
+            now: now,
+            codexHomePath: codexHomePath,
+            historyDays: historyDays,
+            allowScopedCodexHome: false,
+            includePiSessions: true,
+            includeProjectAndSessionBreakdowns: true,
+            scannerOptions: self.scannerOptionsOverride())
+    }
+
     public func loadCachedCodexLocalProjectUsageSnapshot(
         now: Date = Date(),
         codexHomePath: String? = nil,
@@ -1255,23 +1286,7 @@ public struct CostUsageFetcher: Sendable {
 }
 
 extension CostUsageFetcher {
-    public func loadCachedCodexTokenSnapshot(
-        now: Date = Date(),
-        codexHomePath: String? = nil,
-        historyDays: Int = 30,
-        includePiSessions: Bool = true,
-        includeProjectAndSessionBreakdowns: Bool = true) async -> CostUsageTokenSnapshot?
-    {
-        await Self.loadCachedCodexTokenSnapshot(
-            now: now,
-            codexHomePath: codexHomePath,
-            historyDays: historyDays,
-            allowScopedCodexHome: false,
-            includePiSessions: includePiSessions,
-            includeProjectAndSessionBreakdowns: includeProjectAndSessionBreakdowns,
-            scannerOptions: self.scannerOptionsOverride())
-    }
-
+    /// Dashboard-only scoped-home cache reader. Not part of the public CodexBarCore surface.
     package func loadCachedCodexTokenSnapshotForScopedHome(
         now: Date = Date(),
         codexHomePath: String,
@@ -1301,23 +1316,6 @@ extension CostUsageFetcher {
             codexHomePath: codexHomePath,
             historyDays: historyDays,
             allowScopedCodexHome: true,
-            includePiSessions: includePiSessions,
-            includeProjectAndSessionBreakdowns: includeProjectAndSessionBreakdowns,
-            scannerOptions: self.scannerOptionsOverride())
-    }
-
-    package func loadCachedCodexTokenSnapshotResult(
-        now: Date = Date(),
-        codexHomePath: String? = nil,
-        historyDays: Int = 30,
-        includePiSessions: Bool = true,
-        includeProjectAndSessionBreakdowns: Bool = true) async -> CachedCodexTokenSnapshotResult?
-    {
-        await Self.loadCachedCodexTokenSnapshotResult(
-            now: now,
-            codexHomePath: codexHomePath,
-            historyDays: historyDays,
-            allowScopedCodexHome: false,
             includePiSessions: includePiSessions,
             includeProjectAndSessionBreakdowns: includeProjectAndSessionBreakdowns,
             scannerOptions: self.scannerOptionsOverride())
