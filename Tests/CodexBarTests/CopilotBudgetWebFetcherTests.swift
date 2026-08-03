@@ -445,6 +445,205 @@ struct CopilotBudgetWebFetcherTests {
         } == false)
     }
 
+    // MARK: - Org credits wiring (CopilotProviderDescriptor.addOrgCreditsIfNeeded)
+
+    // A unit test on `CopilotCreditsUsage.mergingOrgLane` proves the merge itself is correct, but not
+    // that `addOrgCreditsIfNeeded` calls it with the right arguments, in the right order, or at all.
+    // These drive the real `fetchOutcome`/`fetch()` path, reusing `CopilotBudgetBindingStubURLProtocol`
+    // (rather than a second competing stub) so a swapped entitlement, a reordered guard, or a dropped
+    // best-effort fallback shows up as a failing test instead of a silent bug in production.
+
+    @Test
+    func `org credits merge onto the seat lane through the fetch strategy`() async {
+        let registered = URLProtocol.registerClass(CopilotBudgetBindingStubURLProtocol.self)
+        defer {
+            if registered {
+                URLProtocol.unregisterClass(CopilotBudgetBindingStubURLProtocol.self)
+            }
+            CopilotBudgetBindingStubURLProtocol.reset()
+        }
+        CopilotBudgetBindingStubURLProtocol.reset()
+        CopilotBudgetBindingStubURLProtocol.handler = { request in
+            guard let url = request.url else {
+                throw URLError(.badURL)
+            }
+            if url.host == "api.github.com", url.path == "/copilot_internal/user" {
+                return Self.stubResponse(
+                    url: url,
+                    data: Data("""
+                    {
+                      "copilot_plan": "business",
+                      "token_based_billing": true,
+                      "quota_reset_date": "2026-09-01",
+                      "organization_login_list": ["example-org"],
+                      "quota_snapshots": {
+                        "premium_interactions": {
+                          "entitlement": 0, "remaining": 0, "percent_remaining": 100,
+                          "quota_id": "premium_interactions", "unlimited": true, "credits_used": 31
+                        }
+                      }
+                    }
+                    """.utf8))
+            }
+            if url.host == "api.github.com", url.path == "/orgs/example-org/settings/billing/ai_credit/usage" {
+                return Self.stubResponse(
+                    url: url,
+                    data: Data(#"{"usageItems":[{"grossQuantity":81.1}]}"#.utf8))
+            }
+            Issue.record("Unexpected request: \(url.absoluteString)")
+            return Self.stubResponse(url: url, data: Data("{}".utf8), statusCode: 404)
+        }
+
+        let descriptor = ProviderDescriptorRegistry.descriptor(for: .copilot)
+        let settings = ProviderSettingsSnapshot.make(copilot: .init(
+            apiToken: "selected-token",
+            orgCreditsEnabled: true,
+            seatCreditEntitlement: 3000,
+            orgCreditEntitlement: 6000))
+        let context = Self.makeFetchContext(settings: settings)
+
+        let outcome = await descriptor.fetchPlan.fetchOutcome(context: context, provider: .copilot)
+
+        guard case let .success(result) = outcome.result else {
+            Issue.record("Expected Copilot usage fetch to succeed")
+            return
+        }
+        // Seat lane and its own entitlement survive the merge untouched.
+        #expect(result.usage.copilotCredits?.seat?.creditsUsed == 31)
+        #expect(result.usage.copilotCredits?.seat?.entitlement == 3000)
+        // Org lane comes from the billing response, denominated by orgCreditEntitlement -- NOT
+        // seatCreditEntitlement. A swap of the two settings fields would flip this to 3000.
+        #expect(result.usage.copilotCredits?.org?.creditsUsed == 81.1)
+        #expect(result.usage.copilotCredits?.org?.entitlement == 6000)
+        #expect(result.usage.copilotCredits?.orgLogin == "example-org")
+        // resetsAt is sourced from the seat lane's reset date, not left nil or independently derived.
+        #expect(result.usage.copilotCredits?.seat?.resetsAt != nil)
+        #expect(result.usage.copilotCredits?.org?.resetsAt == result.usage.copilotCredits?.seat?.resetsAt)
+    }
+
+    @Test
+    func `seat lane survives when the org billing call is rejected`() async {
+        let registered = URLProtocol.registerClass(CopilotBudgetBindingStubURLProtocol.self)
+        defer {
+            if registered {
+                URLProtocol.unregisterClass(CopilotBudgetBindingStubURLProtocol.self)
+            }
+            CopilotBudgetBindingStubURLProtocol.reset()
+        }
+        CopilotBudgetBindingStubURLProtocol.reset()
+        CopilotBudgetBindingStubURLProtocol.handler = { request in
+            guard let url = request.url else {
+                throw URLError(.badURL)
+            }
+            if url.host == "api.github.com", url.path == "/copilot_internal/user" {
+                return Self.stubResponse(
+                    url: url,
+                    data: Data("""
+                    {
+                      "copilot_plan": "business",
+                      "token_based_billing": true,
+                      "organization_login_list": ["example-org"],
+                      "quota_snapshots": {
+                        "premium_interactions": {
+                          "entitlement": 0, "remaining": 0, "percent_remaining": 100,
+                          "quota_id": "premium_interactions", "unlimited": true, "credits_used": 31
+                        }
+                      }
+                    }
+                    """.utf8))
+            }
+            if url.host == "api.github.com", url.path == "/orgs/example-org/settings/billing/ai_credit/usage" {
+                // Most tokens do not have org billing access -- this is the common real-world case.
+                return Self.stubResponse(
+                    url: url,
+                    data: Data(#"{"message":"Forbidden"}"#.utf8),
+                    statusCode: 403)
+            }
+            Issue.record("Unexpected request: \(url.absoluteString)")
+            return Self.stubResponse(url: url, data: Data("{}".utf8), statusCode: 404)
+        }
+
+        let descriptor = ProviderDescriptorRegistry.descriptor(for: .copilot)
+        let settings = ProviderSettingsSnapshot.make(copilot: .init(
+            apiToken: "selected-token",
+            orgCreditsEnabled: true,
+            seatCreditEntitlement: 3000,
+            orgCreditEntitlement: 6000))
+        let context = Self.makeFetchContext(settings: settings)
+
+        let outcome = await descriptor.fetchPlan.fetchOutcome(context: context, provider: .copilot)
+
+        guard case let .success(result) = outcome.result else {
+            Issue.record("Expected Copilot usage fetch to succeed")
+            return
+        }
+        #expect(result.usage.copilotCredits?.seat?.creditsUsed == 31)
+        #expect(result.usage.copilotCredits?.seat?.entitlement == 3000)
+        #expect(result.usage.copilotCredits?.org == nil)
+        // The rejection must be a real best-effort miss, not a guard that quietly skipped the call.
+        #expect(CopilotBudgetBindingStubURLProtocol.requests().contains {
+            $0.url?.path == "/orgs/example-org/settings/billing/ai_credit/usage"
+        })
+    }
+
+    @Test
+    func `org billing endpoint is never contacted when the toggle is off`() async {
+        let registered = URLProtocol.registerClass(CopilotBudgetBindingStubURLProtocol.self)
+        defer {
+            if registered {
+                URLProtocol.unregisterClass(CopilotBudgetBindingStubURLProtocol.self)
+            }
+            CopilotBudgetBindingStubURLProtocol.reset()
+        }
+        CopilotBudgetBindingStubURLProtocol.reset()
+        CopilotBudgetBindingStubURLProtocol.handler = { request in
+            guard let url = request.url else {
+                throw URLError(.badURL)
+            }
+            if url.host == "api.github.com", url.path == "/copilot_internal/user" {
+                return Self.stubResponse(
+                    url: url,
+                    data: Data("""
+                    {
+                      "copilot_plan": "business",
+                      "token_based_billing": true,
+                      "organization_login_list": ["example-org"],
+                      "quota_snapshots": {
+                        "premium_interactions": {
+                          "entitlement": 0, "remaining": 0, "percent_remaining": 100,
+                          "quota_id": "premium_interactions", "unlimited": true, "credits_used": 31
+                        }
+                      }
+                    }
+                    """.utf8))
+            }
+            // No stub for the org billing endpoint on purpose: if the toggle guard were reordered
+            // after the network call, this branch would be missed and the request recorded below.
+            Issue.record("Unexpected request: \(url.absoluteString)")
+            return Self.stubResponse(url: url, data: Data("{}".utf8), statusCode: 404)
+        }
+
+        let descriptor = ProviderDescriptorRegistry.descriptor(for: .copilot)
+        let settings = ProviderSettingsSnapshot.make(copilot: .init(
+            apiToken: "selected-token",
+            orgCreditsEnabled: false,
+            seatCreditEntitlement: 3000,
+            orgCreditEntitlement: 6000))
+        let context = Self.makeFetchContext(settings: settings)
+
+        let outcome = await descriptor.fetchPlan.fetchOutcome(context: context, provider: .copilot)
+
+        guard case let .success(result) = outcome.result else {
+            Issue.record("Expected Copilot usage fetch to succeed")
+            return
+        }
+        #expect(result.usage.copilotCredits?.seat?.creditsUsed == 31)
+        #expect(result.usage.copilotCredits?.org == nil)
+        #expect(CopilotBudgetBindingStubURLProtocol.requests().allSatisfy {
+            $0.url?.path != "/orgs/example-org/settings/billing/ai_credit/usage"
+        })
+    }
+
     @Test
     func `invalid github budget JSON maps to invalid response`() async throws {
         let transport = ProviderHTTPTransportStub { request in
@@ -679,13 +878,17 @@ final class CopilotBudgetBindingStubURLProtocol: URLProtocol {
     override static func canInit(with request: URLRequest) -> Bool {
         guard self.hasHandler else { return false }
         guard request.url?.scheme == "https" else { return false }
-        switch (request.url?.host, request.url?.path) {
+        guard let host = request.url?.host, let path = request.url?.path else { return false }
+        switch (host, path) {
         case ("api.github.com", "/copilot_internal/user"),
              ("api.github.com", "/user"),
              ("github.com", "/settings/billing/budgets"):
             return true
         default:
-            return false
+            // Org AI-credit billing usage, e.g. /orgs/example-org/settings/billing/ai_credit/usage.
+            return host == "api.github.com"
+                && path.hasPrefix("/orgs/")
+                && path.hasSuffix("/settings/billing/ai_credit/usage")
         }
     }
 

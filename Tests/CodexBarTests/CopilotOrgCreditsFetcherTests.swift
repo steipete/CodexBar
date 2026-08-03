@@ -109,3 +109,9 @@ struct CopilotOrgCreditsFetcherTests {
         #expect(merged.orgLogin == "example-org")
     }
 }
+
+// Integration coverage for CopilotProviderDescriptor.addOrgCreditsIfNeeded (guard ordering, entitlement
+// routing, and the best-effort merge through the real fetch strategy) lives in
+// `CopilotBudgetWebFetcherTests.swift`. It reuses that file's `CopilotBudgetBindingStubURLProtocol`
+// rather than registering a second global URLProtocol stub for the same `/copilot_internal/user`
+// endpoint, which would race with it whenever both suites run in the same test process.
