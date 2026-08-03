@@ -187,13 +187,19 @@ public enum WidgetSnapshotStore {
     private static let filename = AppGroupSupport.widgetSnapshotFilename
 
     public static func load(bundleID: String? = Bundle.main.bundleIdentifier) -> WidgetSnapshot? {
-        let url = self.snapshotURL(bundleID: bundleID)
+        self.load(from: self.snapshotURL(bundleID: bundleID))
+    }
+
+    public static func load(from url: URL) -> WidgetSnapshot? {
         guard let data = try? Data(contentsOf: url) else { return nil }
         return try? self.decoder.decode(WidgetSnapshot.self, from: data)
     }
 
     public static func save(_ snapshot: WidgetSnapshot, bundleID: String? = Bundle.main.bundleIdentifier) {
-        let url = self.snapshotURL(bundleID: bundleID)
+        self.save(snapshot, to: self.snapshotURL(bundleID: bundleID))
+    }
+
+    public static func save(_ snapshot: WidgetSnapshot, to url: URL) {
         do {
             let data = try self.encoder.encode(snapshot)
             try data.write(to: url, options: [.atomic])

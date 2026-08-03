@@ -300,6 +300,7 @@ final class UsageStore {
         TimeInterval) async throws -> Void)?
     @ObservationIgnored var widgetSnapshotPersistTask: Task<Void, Never>?
     @ObservationIgnored var lastQueuedWidgetSnapshot: WidgetSnapshot?
+    @ObservationIgnored let widgetSnapshotURL: URL?
     @ObservationIgnored var widgetUsagePreservationBlockedProviders: Set<UsageProvider> = []
 
     @ObservationIgnored let codexFetcher: UsageFetcher
@@ -457,6 +458,7 @@ final class UsageStore {
         sessionQuotaNotifier: any SessionQuotaNotifying = SessionQuotaNotifier(),
         startupBehavior: StartupBehavior = .automatic,
         environmentBase: [String: String] = ProcessInfo.processInfo.environment,
+        widgetSnapshotURL: URL? = nil,
         planUtilizationHistoryLoadGateForTesting: PlanUtilizationHistoryLoadGate? = nil)
     {
         self.codexFetcher = fetcher
@@ -466,6 +468,7 @@ final class UsageStore {
         self.settings = settings
         self.registry = registry
         self.environmentBase = environmentBase
+        self.widgetSnapshotURL = widgetSnapshotURL
         self.historicalUsageHistoryStore = historicalUsageHistoryStore
         self.startupBehavior = startupBehavior.resolved(isRunningTests: Self.isRunningTestsProcess())
         let planHistoryStore = Self.resolvedPlanHistoryStore(planUtilizationHistoryStore, startup: self.startupBehavior)

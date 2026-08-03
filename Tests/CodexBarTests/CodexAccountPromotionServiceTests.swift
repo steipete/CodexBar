@@ -22,6 +22,8 @@ struct CodexAccountPromotionServiceTests {
         let targetAuthData = try container.managedAuthData(for: target)
         let result = try await container.makeService().promoteManagedAccount(id: target.id)
         let accounts = try container.loadAccounts().accounts
+        await container.usageStore.widgetSnapshotPersistTask?.value
+        let widgetSnapshot = WidgetSnapshotStore.load(from: container.widgetSnapshotURL)
 
         #expect(result.targetManagedAccountID == target.id)
         #expect(result.outcome == .promoted)
@@ -33,6 +35,7 @@ struct CodexAccountPromotionServiceTests {
         #expect(accounts.first?.id == target.id)
         #expect(container.settings.codexActiveSource == .liveSystem)
         #expect(container.usageStore.snapshots[.codex]?.accountEmail(for: .codex) == "beta@example.com")
+        #expect(widgetSnapshot?.entries.contains(where: { $0.provider == .codex }) == true)
     }
 
     @Test
