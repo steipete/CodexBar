@@ -1353,3 +1353,5 @@
 "Cost today unavailable" = "Вартість сьогодні: Недоступний";
 "30-day cost unavailable" = "Вартість за 30 днів: Недоступний";
 "Resets" = "Скидання";
+"Finish now" = "Завершити зараз";
+"Continue in background" = "Продовжити у фоновому режимі";

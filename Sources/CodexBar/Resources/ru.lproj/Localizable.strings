@@ -1355,3 +1355,5 @@
 "Cost today unavailable" = "Расход сегодня: Недоступно";
 "30-day cost unavailable" = "Расход за 30 дней: Недоступно";
 "Resets" = "Сбросы";
+"Finish now" = "Завершить сейчас";
+"Continue in background" = "Продолжить в фоновом режиме";

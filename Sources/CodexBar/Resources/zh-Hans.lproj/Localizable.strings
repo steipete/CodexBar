@@ -193,6 +193,7 @@
 "Login failed" = "登录失败";
 "Login shell PATH (startup capture)" = "登录 shell PATH（启动时捕获）";
 "Login timed out" = "登录超时";
+"Low Power Mode" = "低功耗模式";
 "MCP details" = "MCP 详情";
 "Managed Codex accounts unavailable" = "托管 Codex 账户不可用";
 "Managed account storage is unreadable. Live account access is still available, " = "托管账户存储不可读。实时账户访问仍可用，";
@@ -244,6 +245,7 @@
 "Open menu" = "打开菜单";
 "Open token file" = "打开令牌文件";
 "OpenAI cookies" = "OpenAI Cookie";
+"OpenAI web battery saver" = "OpenAI 网页省电";
 "OpenAI web extras" = "OpenAI Web 附加功能";
 "Option A" = "选项 A";
 "Option B" = "选项 B";
@@ -278,6 +280,7 @@
 "Quit CodexBar" = "退出 CodexBar";
 "Random (default)" = "随机（默认）";
 "Reads local usage logs. Shows today + last 30 days cost in the menu." = "读取本地用量日志。在菜单中显示今天及所选历史窗口的费用。";
+"Runs automatic provider, local usage, and storage refreshes no more often than every 30 minutes. Manual refresh remains available." = "自动供应商刷新、本地用量扫描和存储扫描最多每 30 分钟运行一次；仍可随时手动刷新。";
 "Refresh" = "刷新";
 "Refreshing" = "正在刷新";
 "Refresh cadence" = "刷新频率";
@@ -1329,3 +1332,5 @@
 "Cost today unavailable" = "今日费用: 不可用";
 "30-day cost unavailable" = "30 天费用: 不可用";
 "Resets" = "重置";
+"Finish now" = "立即完成";
+"Continue in background" = "转为后台运行";

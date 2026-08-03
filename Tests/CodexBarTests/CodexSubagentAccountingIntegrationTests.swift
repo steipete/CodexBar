@@ -507,6 +507,137 @@ struct CodexSubagentAccountingIntegrationTests {
     }
 
     @Test
+    func `protocol ordinal isolates the child suffix without resolving its parent`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+
+        let day = try env.makeLocalNoon(year: 2026, month: 7, day: 16)
+        let timestamp = env.isoString(for: day)
+        let parentModel = "openai/gpt-5.3"
+        let leafModel = "openai/gpt-5.4"
+        var sessionMetadata: [String: Any] = [
+            "type": "session_meta",
+            "timestamp": timestamp,
+            "payload": [
+                "id": "ordinal-child",
+                "forked_from_id": "ordinal-parent",
+                "timestamp": timestamp,
+                "subagent_history_start_ordinal": 10,
+                "source": [
+                    "subagent": [
+                        "thread_spawn": ["parent_thread_id": "ordinal-parent"],
+                    ],
+                ],
+            ],
+        ]
+        sessionMetadata["ordinal"] = 0
+        var copiedTotal = self.tokenCount(
+            timestamp: env.isoString(for: day.addingTimeInterval(1)),
+            model: parentModel,
+            total: (input: 1000, cached: 900, output: 100),
+            last: (input: 50, cached: 10, output: 5))
+        copiedTotal["ordinal"] = 9
+        var ownedContext = self.turnContext(
+            timestamp: env.isoString(for: day.addingTimeInterval(2)),
+            model: leafModel)
+        ownedContext["ordinal"] = 10
+        var ownedTotal = self.tokenCount(
+            timestamp: env.isoString(for: day.addingTimeInterval(3)),
+            model: leafModel,
+            total: (input: 1050, cached: 910, output: 105),
+            last: (input: 50, cached: 10, output: 5))
+        ownedTotal["ordinal"] = 11
+        let fileURL = try env.writeCodexSessionFile(
+            day: day,
+            filename: "rollout-\(timestamp)-ordinal-child.jsonl",
+            contents: env.jsonl([sessionMetadata, copiedTotal, ownedContext, ownedTotal]))
+
+        var resolvedParentBaseline = false
+        let parsed = CostUsageScanner.parseCodexFile(
+            fileURL: fileURL,
+            range: CostUsageScanner.CostUsageDayRange(since: day, until: day),
+            inheritedTotalsResolver: { _, _ in
+                resolvedParentBaseline = true
+                return .resolved(.init(input: 1, cached: 1, output: 1))
+            })
+
+        let dayKey = CostUsageScanner.CostUsageDayRange.dayKey(from: day)
+        let normalizedLeafModel = CostUsagePricing.normalizeCodexModel(leafModel)
+        #expect(parsed.days[dayKey]?[normalizedLeafModel] == [50, 10, 5])
+        #expect(parsed.days[dayKey]?[CostUsagePricing.normalizeCodexModel(parentModel)] == nil)
+        #expect(!parsed.dependsOnParentTotals)
+        #expect(!resolvedParentBaseline)
+    }
+
+    @Test
+    func `legacy child proves its inherited baseline from first owned total minus last`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+
+        let day = try env.makeLocalNoon(year: 2026, month: 7, day: 16)
+        let timestamp = env.isoString(for: day)
+        let parentModel = "openai/gpt-5.3"
+        let leafModel = "openai/gpt-5.4"
+        let fileURL = try env.writeCodexSessionFile(
+            day: day,
+            filename: "rollout-\(timestamp)-legacy-self-confirmed.jsonl",
+            contents: env.jsonl([
+                [
+                    "type": "session_meta",
+                    "timestamp": timestamp,
+                    "payload": [
+                        "id": "legacy-self-confirmed",
+                        "forked_from_id": "legacy-parent",
+                        "timestamp": timestamp,
+                        "source": [
+                            "subagent": [
+                                "thread_spawn": ["parent_thread_id": "legacy-parent"],
+                            ],
+                        ],
+                    ],
+                ],
+                self.tokenCount(
+                    timestamp: env.isoString(for: day.addingTimeInterval(1)),
+                    model: parentModel,
+                    total: (input: 1000, cached: 900, output: 100)),
+                self.turnContext(
+                    timestamp: env.isoString(for: day.addingTimeInterval(2)),
+                    model: leafModel),
+                [
+                    "type": "inter_agent_communication_metadata",
+                    "timestamp": env.isoString(for: day.addingTimeInterval(2)),
+                    "payload": ["trigger_turn": true],
+                ],
+                self.tokenCount(
+                    timestamp: env.isoString(for: day.addingTimeInterval(3)),
+                    model: leafModel,
+                    total: (input: 1050, cached: 910, output: 105),
+                    last: (input: 50, cached: 10, output: 5)),
+                self.tokenCount(
+                    timestamp: env.isoString(for: day.addingTimeInterval(4)),
+                    model: leafModel,
+                    total: (input: 1070, cached: 915, output: 110),
+                    last: (input: 20, cached: 5, output: 5)),
+            ]))
+
+        var resolvedParentBaseline = false
+        let parsed = CostUsageScanner.parseCodexFile(
+            fileURL: fileURL,
+            range: CostUsageScanner.CostUsageDayRange(since: day, until: day),
+            inheritedTotalsResolver: { _, _ in
+                resolvedParentBaseline = true
+                return .unresolved
+            })
+
+        let dayKey = CostUsageScanner.CostUsageDayRange.dayKey(from: day)
+        let normalizedLeafModel = CostUsagePricing.normalizeCodexModel(leafModel)
+        #expect(parsed.days[dayKey]?[normalizedLeafModel] == [70, 15, 10])
+        #expect(parsed.days[dayKey]?[CostUsagePricing.normalizeCodexModel(parentModel)] == nil)
+        #expect(!parsed.dependsOnParentTotals)
+        #expect(!resolvedParentBaseline)
+    }
+
+    @Test
     func `bounded append fallback reclassifies the complete subagent rollout`() throws {
         let env = try CostUsageTestEnvironment()
         defer { env.cleanup() }

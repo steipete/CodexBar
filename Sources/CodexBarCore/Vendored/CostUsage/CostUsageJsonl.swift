@@ -4,6 +4,20 @@ enum CostUsageJsonl {
     struct Line {
         let bytes: Data
         let wasTruncated: Bool
+        let startOffset: Int64
+        let endOffset: Int64
+
+        init(
+            bytes: Data,
+            wasTruncated: Bool,
+            startOffset: Int64 = 0,
+            endOffset: Int64 = 0)
+        {
+            self.bytes = bytes
+            self.wasTruncated = wasTruncated
+            self.startOffset = startOffset
+            self.endOffset = endOffset
+        }
     }
 
     struct ResumeState: Codable {
@@ -272,6 +286,7 @@ enum CostUsageJsonl {
             prefixBytes: prefixBytes,
             maxBytesToRead: maxBytesToRead,
             resumeState: nil,
+            shouldStop: nil,
             checkCancellation: checkCancellation,
             onLine: onLine).committedOffset
     }
@@ -284,6 +299,7 @@ enum CostUsageJsonl {
         prefixBytes: Int,
         maxBytesToRead: Int64?,
         resumeState: ResumeState?,
+        shouldStop: ((Int64) -> Bool)? = nil,
         checkCancellation: (() throws -> Void)? = nil,
         onLine: (Line) -> Void) throws -> ScanProgress
     {
@@ -320,9 +336,13 @@ enum CostUsageJsonl {
             }
         }
 
-        func flushLine() {
+        func flushLine(endOffset: Int64) {
             guard lineBytes > 0 else { return }
-            let line = Line(bytes: current, wasTruncated: truncated)
+            let line = Line(
+                bytes: current,
+                wasTruncated: truncated,
+                startOffset: lineStartOffset,
+                endOffset: endOffset)
             onLine(line)
             current.removeAll(keepingCapacity: true)
             lineBytes = 0
@@ -354,10 +374,13 @@ enum CostUsageJsonl {
 
         while true {
             try checkCancellation?()
+            if bytesRead > 0, shouldStop?(bytesRead) == true {
+                break
+            }
             let remaining = maxBytesToRead.map { max(0, $0 - bytesRead) }
             if remaining == 0 {
                 if let fileSize, startOffset + bytesRead >= fileSize, hasCompleteJSONTail() {
-                    flushLine()
+                    flushLine(endOffset: startOffset + bytesRead)
                     committedOffset = startOffset + bytesRead
                     lineStartOffset = committedOffset
                 }
@@ -368,7 +391,7 @@ enum CostUsageJsonl {
                 let chunk = try handle.read(upToCount: readCount) ?? Data()
                 if chunk.isEmpty {
                     if hasCompleteJSONTail() {
-                        flushLine()
+                        flushLine(endOffset: startOffset + bytesRead)
                         committedOffset = startOffset + bytesRead
                         lineStartOffset = committedOffset
                     }
@@ -385,8 +408,9 @@ enum CostUsageJsonl {
                     while index < rawBuffer.count {
                         if base[index] == 0x0A {
                             appendSegment(base.advanced(by: segmentStart), count: index - segmentStart)
-                            flushLine()
-                            committedOffset = chunkStartOffset + Int64(index + 1)
+                            let lineEndOffset = chunkStartOffset + Int64(index + 1)
+                            flushLine(endOffset: lineEndOffset)
+                            committedOffset = lineEndOffset
                             lineStartOffset = committedOffset
                             segmentStart = index + 1
                         } else {

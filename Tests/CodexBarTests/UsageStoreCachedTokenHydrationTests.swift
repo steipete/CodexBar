@@ -192,6 +192,63 @@ struct UsageStoreCachedTokenHydrationTests {
     }
 
     @Test
+    func `incompatible cached hydration remains visible and starts marked catch-up`() async throws {
+        let staleAt = Date(timeIntervalSince1970: 1_775_000_000)
+        let settings = Self.makeCodexOnlySettings(historyDays: 1)
+        let store = UsageStore(
+            fetcher: UsageFetcher(),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings,
+            startupBehavior: .testing,
+            environmentBase: [:])
+        var observedStalePresentation = false
+        var statusLoadCount = 0
+        store._test_cachedCodexTokenSnapshotLoaderOverride = { _, _, _ in
+            (Self.cachedTokenSnapshot(), nil, staleAt)
+        }
+        store._test_tokenUsageSnapshotLoaderOverride = { _, _, now, _, _ in
+            CostUsageTokenSnapshot(
+                sessionTokens: 84,
+                sessionCostUSD: 2,
+                last30DaysTokens: 84,
+                last30DaysCostUSD: 2,
+                daily: [],
+                updatedAt: now)
+        }
+        store._test_codexCostCatchUpStatusOverride = { _ in
+            statusLoadCount += 1
+            return CostUsageFetcher.CodexScanCatchUpStatus(
+                pending: statusLoadCount == 1,
+                progressKey: "status-\(statusLoadCount)",
+                staleSnapshotUpdatedAt: statusLoadCount == 1 ? staleAt : nil)
+        }
+        store._test_codexCostCatchUpAdvanceOverride = { _, _, _ in
+            CostUsageFetcher.CodexScanCatchUpStatus(
+                pending: false,
+                progressKey: "complete")
+        }
+        store._test_codexCostCatchUpSleepOverride = { _ in
+            observedStalePresentation =
+                store.codexCostCatchUpActivity?.staleSnapshotUpdatedAt == staleAt
+            await Task.yield()
+        }
+        store._test_codexCostCatchUpResourceStateOverride = {
+            (.ac, false, .nominal)
+        }
+
+        let hydration = store.hydrateCachedTokenSnapshots()
+        await hydration?.value
+        for _ in 0..<1000 where store.codexCostCatchUpTask != nil {
+            try await Task.sleep(for: .milliseconds(1))
+        }
+
+        #expect(observedStalePresentation)
+        #expect(store.codexCostCatchUpTask == nil)
+        #expect(store.codexCostCatchUpActivity?.phase == .complete)
+        #expect(store.codexCostCatchUpActivity?.staleSnapshotUpdatedAt == nil)
+    }
+
+    @Test
     func `confirmed empty publication wins over in flight cached codex hydration`() async {
         let settings = Self.makeCodexOnlySettings(historyDays: 1)
         let store = UsageStore(
@@ -203,7 +260,7 @@ struct UsageStoreCachedTokenHydrationTests {
         let gate = CachedTokenHydrationGate()
         store._test_cachedCodexTokenSnapshotLoaderOverride = { _, _, _ in
             await gate.enter()
-            return (Self.cachedTokenSnapshot(), Date())
+            return (Self.cachedTokenSnapshot(), Date(), nil)
         }
 
         let hydration = store.hydrateCachedTokenSnapshots()
