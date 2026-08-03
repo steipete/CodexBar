@@ -173,6 +173,8 @@ struct CostUsageCache: Codable {
     var codexPreviousReport: CostUsageCodexPreviousReport?
     /// Persistent session-id discovery and generation-scoped negative lookups for fork parents.
     var codexSessionDiscovery: CostUsageCodexSessionDiscovery?
+    /// Resumable bounded discovery for recently modified rollouts in older date partitions.
+    var codexActiveLookbackState: CostUsageCodexActiveLookbackState?
 
     /// filePath -> file usage
     var files: [String: CostUsageFileUsage] = [:]
@@ -182,6 +184,15 @@ struct CostUsageCache: Codable {
 
     /// rootPath -> mtime (for Claude roots)
     var roots: [String: Int64]?
+}
+
+struct CostUsageCodexActiveLookbackState: Codable {
+    var scanSinceKey: String
+    var rootPaths: [String]
+    var nextDayKeyByRoot: [String: String] = [:]
+    var completedRootPaths: [String] = []
+    var pendingFilePaths: [String] = []
+    var legacyRecursivePendingRootPaths: [String] = []
 }
 
 struct CostUsageCodexSessionDiscovery: Codable {

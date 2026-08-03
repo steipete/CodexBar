@@ -2078,13 +2078,13 @@ enum CostUsageScanner {
             indexedBytes: anchor.indexedBytes) == anchor
     }
 
-    private static func listCodexRecentlyModifiedFiles(
+    private static func listCodexRecentlyModifiedPartitionFiles(
         root: URL,
         scanSinceKey: String,
         modifiedSince: Date,
-        includeLegacyRecursiveScan: Bool,
         scanBudget: CodexScanBudget,
-        calendar: Calendar = .current) -> [URL]
+        resumeDayKey: String?,
+        calendar: Calendar = .current) -> CodexDatePartitionListing
     {
         let lookbackSinceKey = self.dayKey(
             scanSinceKey,
@@ -2098,24 +2098,12 @@ enum CostUsageScanner {
             scanSinceKey: lookbackSinceKey,
             scanUntilKey: lookbackUntilKey,
             calendar: calendar,
-            scanBudget: scanBudget)
-        let partitionedModified = self.filterRecentlyModified(
-            files: partitioned.files,
-            modifiedSince: modifiedSince)
-
-        // The recursive walk visits the entire sessions root, so its cost grows with
-        // the whole corpus rather than with the lookback. It stays cold-cache only;
-        // warm refreshes use the bounded partition lookback above.
-        guard includeLegacyRecursiveScan, partitioned.isComplete else { return partitionedModified }
-
-        let legacyRecursive = self.listCodexRecentlyModifiedFilesRecursive(root: root, modifiedSince: modifiedSince)
-        var seen = Set(partitionedModified.map(\.path))
-        var out = partitionedModified
-        for fileURL in legacyRecursive where !seen.contains(fileURL.path) {
-            seen.insert(fileURL.path)
-            out.append(fileURL)
-        }
-        return out
+            scanBudget: scanBudget,
+            resumeDayKey: resumeDayKey)
+        return CodexDatePartitionListing(
+            files: self.filterRecentlyModified(files: partitioned.files, modifiedSince: modifiedSince),
+            isComplete: partitioned.isComplete,
+            nextDayKey: partitioned.nextDayKey)
     }
 
     private static func filterRecentlyModified(files: [URL], modifiedSince: Date) -> [URL] {
@@ -2189,9 +2177,9 @@ enum CostUsageScanner {
     }
 
     static func isWithinCodexRoots(fileURL: URL, roots: [URL]) -> Bool {
-        let filePath = fileURL.standardizedFileURL.path
+        let filePath = self.codexResolvedPath(fileURL)
         return roots.contains { root in
-            let rootPath = root.standardizedFileURL.path
+            let rootPath = self.codexResolvedPath(root)
             if filePath == rootPath {
                 return true
             }
@@ -2200,9 +2188,18 @@ enum CostUsageScanner {
         }
     }
 
+    private static func codexResolvedPath(_ url: URL) -> String {
+        let path = url.resolvingSymlinksInPath().standardizedFileURL.path
+        if path.hasPrefix("/private/var/") {
+            return String(path.dropFirst("/private".count))
+        }
+        return path
+    }
+
     private struct CodexDatePartitionListing {
         let files: [URL]
         let isComplete: Bool
+        let nextDayKey: String?
     }
 
     private static func listCodexSessionFilesByDatePartition(
@@ -2210,15 +2207,22 @@ enum CostUsageScanner {
         scanSinceKey: String,
         scanUntilKey: String,
         calendar: Calendar = .current,
-        scanBudget: CodexScanBudget? = nil) -> CodexDatePartitionListing
+        scanBudget: CodexScanBudget? = nil,
+        resumeDayKey: String? = nil) -> CodexDatePartitionListing
     {
         guard FileManager.default.fileExists(atPath: root.path) else {
-            return CodexDatePartitionListing(files: [], isComplete: true)
+            return CodexDatePartitionListing(files: [], isComplete: true, nextDayKey: nil)
         }
         let calendar = CostUsageDayRange.localGregorianCalendar(matching: calendar)
         var out: [URL] = []
-        var date = Self.parseDayKey(scanSinceKey, calendar: calendar) ?? Date()
-        let untilDate = Self.parseDayKey(scanUntilKey, calendar: calendar) ?? date
+        let sinceDate = Self.parseDayKey(scanSinceKey, calendar: calendar) ?? Date()
+        let untilDate = Self.parseDayKey(scanUntilKey, calendar: calendar) ?? sinceDate
+        let resumedDate = resumeDayKey.flatMap { Self.parseDayKey($0, calendar: calendar) }
+        var date = if let resumedDate, resumedDate >= sinceDate, resumedDate <= untilDate {
+            resumedDate
+        } else {
+            sinceDate
+        }
 
         while date <= untilDate {
             let admittedWork: Int64
@@ -2226,7 +2230,10 @@ enum CostUsageScanner {
                 switch scanBudget.admit(workBytes: 1) {
                 case let .allow(allowance): admittedWork = allowance
                 case .deferBudget:
-                    return CodexDatePartitionListing(files: out, isComplete: false)
+                    return CodexDatePartitionListing(
+                        files: out,
+                        isComplete: false,
+                        nextDayKey: CostUsageDayRange.dayKey(from: date, calendar: calendar))
                 }
             } else {
                 admittedWork = 0
@@ -2255,7 +2262,109 @@ enum CostUsageScanner {
             date = calendar.date(byAdding: .day, value: 1, to: date) ?? untilDate.addingTimeInterval(1)
         }
 
-        return CodexDatePartitionListing(files: out, isComplete: true)
+        return CodexDatePartitionListing(files: out, isComplete: true, nextDayKey: nil)
+    }
+
+    private static func codexActiveLookbackState(
+        cache: CostUsageCache,
+        roots: [URL],
+        scanSinceKey: String,
+        includeLegacyRecursiveScan: Bool) -> CostUsageCodexActiveLookbackState
+    {
+        let rootPaths = roots.map(Self.codexResolvedPath).sorted()
+        if let cached = cache.codexActiveLookbackState,
+           cached.scanSinceKey == scanSinceKey,
+           cached.rootPaths == rootPaths
+        {
+            return cached
+        }
+        return CostUsageCodexActiveLookbackState(
+            scanSinceKey: scanSinceKey,
+            rootPaths: rootPaths,
+            legacyRecursivePendingRootPaths: includeLegacyRecursiveScan ? rootPaths : [])
+    }
+
+    private static func advanceCodexActiveLookback(
+        root: URL,
+        range: CostUsageDayRange,
+        modifiedSince: Date,
+        scanBudget: CodexScanBudget,
+        state: inout CostUsageCodexActiveLookbackState)
+    {
+        let rootPath = Self.codexResolvedPath(root)
+        var completedRootPaths = Set(state.completedRootPaths)
+        var pendingFilePaths = Set(state.pendingFilePaths)
+        if !completedRootPaths.contains(rootPath) {
+            let listing = Self.listCodexRecentlyModifiedPartitionFiles(
+                root: root,
+                scanSinceKey: range.scanSinceKey,
+                modifiedSince: modifiedSince,
+                scanBudget: scanBudget,
+                resumeDayKey: state.nextDayKeyByRoot[rootPath],
+                calendar: range.calendar)
+            pendingFilePaths.formUnion(listing.files.map(Self.codexResolvedPath))
+            if listing.isComplete {
+                completedRootPaths.insert(rootPath)
+                state.nextDayKeyByRoot.removeValue(forKey: rootPath)
+            } else if let nextDayKey = listing.nextDayKey {
+                state.nextDayKeyByRoot[rootPath] = nextDayKey
+            }
+        }
+
+        var legacyPendingRoots = Set(state.legacyRecursivePendingRootPaths)
+        if completedRootPaths.contains(rootPath), legacyPendingRoots.remove(rootPath) != nil {
+            // This recursive walk belongs only to the cold-start cycle. Later warm cycles
+            // retain the bounded partition discovery above.
+            let legacy = Self.listCodexRecentlyModifiedFilesRecursive(
+                root: root,
+                modifiedSince: modifiedSince)
+            pendingFilePaths.formUnion(legacy.map(Self.codexResolvedPath))
+        }
+        state.completedRootPaths = completedRootPaths.sorted()
+        state.pendingFilePaths = pendingFilePaths.sorted()
+        state.legacyRecursivePendingRootPaths = legacyPendingRoots.sorted()
+    }
+
+    private static func appendPendingCodexActiveLookbackFiles(
+        state: inout CostUsageCodexActiveLookbackState,
+        roots: [URL],
+        seenPaths: inout Set<String>,
+        files: inout [URL])
+    {
+        state.pendingFilePaths = state.pendingFilePaths.filter { path in
+            FileManager.default.fileExists(atPath: path)
+                && Self.isWithinCodexRoots(fileURL: URL(fileURLWithPath: path), roots: roots)
+        }
+        var seenFileIDs = Set(files.compactMap { Self.codexFileMetadata(fileURL: $0).fileId })
+        for path in state.pendingFilePaths where !seenPaths.contains(path) {
+            let fileID = Self.codexFileMetadata(fileURL: URL(fileURLWithPath: path)).fileId
+            if let fileID, !seenFileIDs.insert(fileID).inserted {
+                continue
+            }
+            seenPaths.insert(path)
+            files.append(URL(fileURLWithPath: path))
+        }
+    }
+
+    private static func finalizedCodexActiveLookbackState(
+        _ state: CostUsageCodexActiveLookbackState,
+        cache: CostUsageCache) -> CostUsageCodexActiveLookbackState?
+    {
+        var state = state
+        state.pendingFilePaths.removeAll { path in
+            guard FileManager.default.fileExists(atPath: path) else { return true }
+            let fileID = Self.codexFileMetadata(fileURL: URL(fileURLWithPath: path)).fileId
+            if let fileID {
+                return cache.files.values.contains {
+                    $0.codexScanFileId == fileID && $0.codexScanComplete == true
+                }
+            }
+            return cache.files[path]?.codexScanComplete == true
+        }
+        let isComplete = Set(state.completedRootPaths) == Set(state.rootPaths)
+            && state.pendingFilePaths.isEmpty
+            && state.legacyRecursivePendingRootPaths.isEmpty
+        return isComplete ? nil : state
     }
 
     private static func listCodexSessionFilesFlat(root: URL, scanSinceKey: String, scanUntilKey: String) -> [URL] {
@@ -4079,6 +4188,7 @@ enum CostUsageScanner {
             Self.dropCachedCodexFile(path: metadata.path, cached: cache.files[metadata.path], cache: &cache)
             return
         }
+        Self.reconcileCodexCachePathAliases(metadata: metadata, cache: &cache)
 
         let cached = cache.files[metadata.path]
 
@@ -4393,6 +4503,11 @@ enum CostUsageScanner {
                 maxFileBytes: options.maxCodexSessionFileBytes,
                 maxBytesPerRefresh: options.maxCodexScanBytesPerRefresh,
                 maxDuration: options.maxCodexScanDurationPerRefresh)
+            var activeLookbackState = Self.codexActiveLookbackState(
+                cache: cache,
+                roots: plan.roots,
+                scanSinceKey: range.scanSinceKey,
+                includeLegacyRecursiveScan: shouldRunColdCacheLookback)
             var seenPaths: Set<String> = []
             var files: [URL] = []
             for root in plan.roots {
@@ -4413,25 +4528,24 @@ enum CostUsageScanner {
                 // cannot either until it has been scanned once. Without this, such a
                 // session's usage stays invisible until a forced rescan.
                 //
-                // Only the bounded partition lookback runs when the cache is warm; the
-                // unbounded recursive walk remains cold-cache only so refresh cost does
-                // not scale with the whole corpus.
+                // Partition discovery and any discovered candidates persist across bounded
+                // passes. That prevents a small budget from restarting at the oldest day or
+                // rediscovering a file without ever leaving enough budget to parse it.
                 if let coldCacheLookbackStart {
-                    let recentlyModifiedFiles = Self.listCodexRecentlyModifiedFiles(
+                    Self.advanceCodexActiveLookback(
                         root: root,
-                        scanSinceKey: range.scanSinceKey,
+                        range: range,
                         modifiedSince: coldCacheLookbackStart,
-                        includeLegacyRecursiveScan: shouldRunColdCacheLookback,
                         scanBudget: scanBudget,
-                        calendar: options.calendar)
-                    for fileURL in recentlyModifiedFiles.sorted(by: { $0.path < $1.path })
-                        where !seenPaths.contains(fileURL.path)
-                    {
-                        seenPaths.insert(fileURL.path)
-                        files.append(fileURL)
-                    }
+                        state: &activeLookbackState)
                 }
             }
+
+            Self.appendPendingCodexActiveLookbackFiles(
+                state: &activeLookbackState,
+                roots: plan.roots,
+                seenPaths: &seenPaths,
+                files: &files)
 
             for fileURL in Self.cachedCodexSessionFiles(
                 cache: cache,
@@ -4484,6 +4598,9 @@ enum CostUsageScanner {
                 context: scanContext,
                 cache: &cache,
                 inheritedResolver: inheritedResolver))
+            cache.codexActiveLookbackState = Self.finalizedCodexActiveLookbackState(
+                activeLookbackState,
+                cache: cache)
             if scanBudget.resumedPartialFileCount > 0
                 || scanBudget.deferredByBudgetFileCount > 0
                 || scanBudget.deferredByTimeBudgetFileCount > 0
@@ -4558,6 +4675,7 @@ enum CostUsageScanner {
                 || cache.files.values.contains { $0.codexScanComplete == false }
                 || cache.files.values.contains { $0.hasBufferedCodexForkRetryLines }
                 || fileIndex.hasPendingDiscovery
+                || cache.codexActiveLookbackState != nil
             cache.codexScanCatchUpPending = catchUpPending
             cache.codexPreviousReport = catchUpPending ? previousReport : nil
             if plan.hasPriorityMetadata {
@@ -4750,6 +4868,27 @@ enum CostUsageScanner {
                 return left.size < right.size
             }
             return lhs.path < rhs.path
+        }
+    }
+
+    private static func reconcileCodexCachePathAliases(
+        metadata: CodexFileMetadata,
+        cache: inout CostUsageCache)
+    {
+        guard let fileID = metadata.fileId else { return }
+        var aliases = cache.files.compactMap { path, usage in
+            path != metadata.path && usage.codexScanFileId == fileID ? path : nil
+        }.sorted()
+        guard !aliases.isEmpty else { return }
+
+        if cache.files[metadata.path] == nil, let migratedPath = aliases.first {
+            cache.files[metadata.path] = cache.files.removeValue(forKey: migratedPath)
+            aliases.removeFirst()
+        }
+        for alias in aliases {
+            guard let stale = cache.files[alias] else { continue }
+            Self.applyFileDays(cache: &cache, fileDays: stale.days, sign: -1)
+            cache.files.removeValue(forKey: alias)
         }
     }
 }

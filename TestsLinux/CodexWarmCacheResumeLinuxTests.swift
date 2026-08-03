@@ -230,24 +230,40 @@ struct CodexWarmCacheResumeLinuxTests {
             Self.tokenCount(iso: resumeISO, input: 4000, cached: 0, output: 400),
         ]).write(to: oldFile, atomically: true, encoding: .utf8)
 
-        // Without partition discovery sharing this budget, the complete resumed file fits
-        // and its new turn is published. Charging the lookback leaves only a partial file
-        // allowance, so this pass must retain the warm report and finish on the next pass.
-        options.maxCodexScanBytesPerRefresh = CostUsageScanner.codexFileMetadata(fileURL: oldFile).size
-        let budgeted = CostUsageScanner.loadDailyReport(
+        // Ten units cannot reach the old partition in one pass. The persisted cursor must
+        // advance rather than restarting at the oldest lookback day on every refresh.
+        options.maxCodexScanBytesPerRefresh = 10
+        let firstBudgeted = CostUsageScanner.loadDailyReport(
             provider: .codex,
             since: windowStart,
             until: today,
             now: today.addingTimeInterval(120),
             options: options)
-        #expect(Self.totalTokens(budgeted) == Self.totalTokens(warmup))
+        #expect(Self.totalTokens(firstBudgeted) == Self.totalTokens(warmup))
+        let firstState = try #require(
+            CostUsageCacheIO.load(provider: .codex, cacheRoot: env.cacheRoot).codexActiveLookbackState)
+        let sessionsRootPath = env.codexSessionsRoot.standardizedFileURL.path
+        let firstNextDay = try #require(firstState.nextDayKeyByRoot[sessionsRootPath])
+        #expect(!firstState.pendingFilePaths.contains(oldFile.standardizedFileURL.path))
+
+        let secondBudgeted = CostUsageScanner.loadDailyReport(
+            provider: .codex,
+            since: windowStart,
+            until: today,
+            now: today.addingTimeInterval(180),
+            options: options)
+        #expect(Self.totalTokens(secondBudgeted) == Self.totalTokens(warmup))
+        let secondState = try #require(
+            CostUsageCacheIO.load(provider: .codex, cacheRoot: env.cacheRoot).codexActiveLookbackState)
+        #expect(secondState.nextDayKeyByRoot[sessionsRootPath].map { $0 > firstNextDay } == true)
+        #expect(secondState.pendingFilePaths.contains(oldFile.standardizedFileURL.path))
 
         options.maxCodexScanBytesPerRefresh = 512 * 1024 * 1024
         let caughtUp = CostUsageScanner.loadDailyReport(
             provider: .codex,
             since: windowStart,
             until: today,
-            now: today.addingTimeInterval(180),
+            now: today.addingTimeInterval(240),
             options: options)
         var forcedOptions = options
         forcedOptions.forceRescan = true
@@ -255,7 +271,7 @@ struct CodexWarmCacheResumeLinuxTests {
             provider: .codex,
             since: windowStart,
             until: today,
-            now: today.addingTimeInterval(240),
+            now: today.addingTimeInterval(300),
             options: forcedOptions)
         #expect(Self.totalTokens(caughtUp) == Self.totalTokens(forced))
     }

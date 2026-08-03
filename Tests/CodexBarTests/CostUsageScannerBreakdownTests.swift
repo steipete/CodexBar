@@ -6342,6 +6342,9 @@ struct CostUsageScannerBreakdownTests {
                     ],
                 ],
             ]))
+        try FileManager.default.setAttributes(
+            [.modificationDate: archivedDay],
+            ofItemAtPath: archivedURL.path)
 
         var options = CostUsageScanner.Options(
             codexSessionsRoot: env.codexSessionsRoot,
