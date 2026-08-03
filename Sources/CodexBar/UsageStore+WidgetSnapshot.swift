@@ -6,6 +6,11 @@ import WidgetKit
 
 extension UsageStore {
     func persistWidgetSnapshot(reason: String) {
+        #if DEBUG
+        // Unsigned test processes must not cross into the real app-group container. Snapshot tests
+        // opt in with an in-memory override, which also keeps their assertions deterministic.
+        guard !SettingsStore.isRunningTests || self._test_widgetSnapshotSaveOverride != nil else { return }
+        #endif
         // A fresh process has token-cost data before a user-authorized Claude OAuth refresh can run.
         // Keep the last queued snapshot in memory so back-to-back writes cannot race the on-disk cache.
         let previousSnapshot = self.lastQueuedWidgetSnapshot ?? {
