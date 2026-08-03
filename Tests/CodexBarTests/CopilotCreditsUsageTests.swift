@@ -38,4 +38,20 @@ struct CopilotCreditsUsageTests {
         let decoded = try JSONDecoder().decode(CopilotCreditsUsage.self, from: data)
         #expect(decoded == usage)
     }
+
+    @Test
+    func `usage snapshot carries copilot credits through codable`() throws {
+        let snapshot = UsageSnapshot(
+            primary: nil,
+            secondary: nil,
+            copilotCredits: CopilotCreditsUsage(
+                seat: CopilotCreditsUsage.Lane(creditsUsed: 31, entitlement: 3000, resetsAt: nil),
+                org: nil,
+                orgLogin: nil),
+            updatedAt: Date(timeIntervalSince1970: 0))
+        let data = try JSONEncoder().encode(snapshot)
+        let decoded = try JSONDecoder().decode(UsageSnapshot.self, from: data)
+        #expect(decoded.copilotCredits?.seat?.creditsUsed == 31)
+        #expect(decoded.copilotCredits?.seat?.entitlement == 3000)
+    }
 }

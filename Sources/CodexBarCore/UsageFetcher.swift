@@ -170,6 +170,7 @@ public struct UsageSnapshot: Codable, Sendable {
     public let poeUsage: PoeUsageHistorySnapshot?
     public let xaiUsage: XAIUsageSnapshot?
     public let cursorRequests: CursorRequestUsage?
+    public let copilotCredits: CopilotCreditsUsage?
     /// Live-only marker for optional Command Code subscription lookup failure.
     public let commandCodeSubscriptionEnrichmentUnavailable: Bool
     /// Live-only marker that Command Code returned a recognized subscription plan.
@@ -204,6 +205,7 @@ public struct UsageSnapshot: Codable, Sendable {
         case deepgramUsage
         case poeUsage
         case xaiUsage
+        case copilotCredits
         case subscriptionExpiresAt
         case subscriptionRenewsAt
         case updatedAt
@@ -244,6 +246,7 @@ public struct UsageSnapshot: Codable, Sendable {
         poeUsage: PoeUsageHistorySnapshot? = nil,
         xaiUsage: XAIUsageSnapshot? = nil,
         cursorRequests: CursorRequestUsage? = nil,
+        copilotCredits: CopilotCreditsUsage? = nil,
         commandCodeSubscriptionEnrichmentUnavailable: Bool = false,
         commandCodeHasSubscriptionPlan: Bool = false,
         commandCodeMonthlyGrantDepleted: Bool = false,
@@ -282,6 +285,7 @@ public struct UsageSnapshot: Codable, Sendable {
         self.poeUsage = poeUsage
         self.xaiUsage = xaiUsage
         self.cursorRequests = cursorRequests
+        self.copilotCredits = copilotCredits
         self.commandCodeSubscriptionEnrichmentUnavailable = commandCodeSubscriptionEnrichmentUnavailable
         self.commandCodeHasSubscriptionPlan = commandCodeHasSubscriptionPlan
         self.commandCodeMonthlyGrantDepleted = commandCodeMonthlyGrantDepleted
@@ -351,6 +355,7 @@ public struct UsageSnapshot: Codable, Sendable {
         self.poeUsage = try container.decodeIfPresent(PoeUsageHistorySnapshot.self, forKey: .poeUsage)
         self.xaiUsage = try container.decodeIfPresent(XAIUsageSnapshot.self, forKey: .xaiUsage)
         self.cursorRequests = nil // Not persisted, fetched fresh each time
+        self.copilotCredits = try container.decodeIfPresent(CopilotCreditsUsage.self, forKey: .copilotCredits)
         self.commandCodeSubscriptionEnrichmentUnavailable = false // Live-only fetch state
         self.commandCodeHasSubscriptionPlan = false // Live-only fetch state
         self.commandCodeMonthlyGrantDepleted = false // Live-only fetch state
@@ -404,6 +409,7 @@ public struct UsageSnapshot: Codable, Sendable {
         try container.encodeIfPresent(self.deepgramUsage, forKey: .deepgramUsage)
         try container.encodeIfPresent(self.poeUsage, forKey: .poeUsage)
         try container.encodeIfPresent(self.xaiUsage, forKey: .xaiUsage)
+        try container.encodeIfPresent(self.copilotCredits, forKey: .copilotCredits)
         try container.encodeIfPresent(self.subscriptionExpiresAt, forKey: .subscriptionExpiresAt)
         try container.encodeIfPresent(self.subscriptionRenewsAt, forKey: .subscriptionRenewsAt)
         try container.encode(self.updatedAt, forKey: .updatedAt)
@@ -554,7 +560,8 @@ public struct UsageSnapshot: Codable, Sendable {
         subscriptionExpiresAt: Replacement<Date?> = .unchanged,
         subscriptionRenewsAt: Replacement<Date?> = .unchanged,
         identity: Replacement<ProviderIdentitySnapshot?> = .unchanged,
-        dataConfidence: Replacement<UsageDataConfidence> = .unchanged) -> UsageSnapshot
+        dataConfidence: Replacement<UsageDataConfidence> = .unchanged,
+        copilotCredits: Replacement<CopilotCreditsUsage?> = .unchanged) -> UsageSnapshot
     {
         UsageSnapshot(
             primary: primary.resolving(self.primary),
@@ -586,6 +593,7 @@ public struct UsageSnapshot: Codable, Sendable {
             poeUsage: self.poeUsage,
             xaiUsage: self.xaiUsage,
             cursorRequests: self.cursorRequests,
+            copilotCredits: copilotCredits.resolving(self.copilotCredits),
             commandCodeSubscriptionEnrichmentUnavailable: self.commandCodeSubscriptionEnrichmentUnavailable,
             commandCodeHasSubscriptionPlan: self.commandCodeHasSubscriptionPlan,
             commandCodeMonthlyGrantDepleted: self.commandCodeMonthlyGrantDepleted,
