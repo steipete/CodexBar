@@ -1,8 +1,9 @@
 import CodexBarCore
 import Foundation
 
-private enum ConfigChangeOrigin {
+enum ConfigChangeOrigin: Equatable {
     case localUser
+    case localFile
     case externalSync
 }
 
@@ -15,17 +16,20 @@ private struct ConfigChangeContext {
         Self(origin: .localUser, reason: reason, affectsBackgroundWork: affectsBackgroundWork)
     }
 
-    static func external(reason: String, affectsBackgroundWork: Bool) -> Self {
-        Self(origin: .externalSync, reason: reason, affectsBackgroundWork: affectsBackgroundWork)
+    static func external(
+        origin: ConfigChangeOrigin = .externalSync,
+        reason: String,
+        affectsBackgroundWork: Bool) -> Self
+    {
+        Self(origin: origin, reason: reason, affectsBackgroundWork: affectsBackgroundWork)
     }
 
     var shouldBroadcast: Bool {
-        switch self.origin {
-        case .localUser:
-            true
-        case .externalSync:
-            false
-        }
+        self.origin == .localUser
+    }
+
+    var shouldNotifyCloudSync: Bool {
+        self.origin == .localFile
     }
 }
 
@@ -33,7 +37,7 @@ extension SettingsStore {
     func startConfigFileWatcher() {
         let watcher = ConfigFileWatcher(fileURL: self.configStore.fileURL) { [weak self] in
             Task { @MainActor [weak self] in
-                self?.reloadConfig(reason: "file-watch")
+                self?.reloadConfig(reason: "file-watch", origin: .localFile)
             }
         }
         if let data = try? Data(contentsOf: self.configStore.fileURL) {
@@ -150,14 +154,19 @@ extension SettingsStore {
         }
     }
 
-    func reloadConfig(reason: String, affectsBackgroundWork: Bool? = nil) {
+    func reloadConfig(
+        reason: String,
+        affectsBackgroundWork: Bool? = nil,
+        origin: ConfigChangeOrigin = .externalSync)
+    {
         guard !self.configLoading else { return }
         do {
             guard let loaded = try self.configStore.load() else { return }
             self.applyExternalConfig(
                 loaded,
                 reason: "reload-\(reason)",
-                affectsBackgroundWork: affectsBackgroundWork)
+                affectsBackgroundWork: affectsBackgroundWork,
+                origin: origin)
         } catch {
             CodexBarLog.logger(LogCategories.configStore).error("Failed to reload config: \(error)")
         }
@@ -166,7 +175,8 @@ extension SettingsStore {
     func applyExternalConfig(
         _ config: CodexBarConfig,
         reason: String,
-        affectsBackgroundWork: Bool? = nil)
+        affectsBackgroundWork: Bool? = nil,
+        origin: ConfigChangeOrigin = .externalSync)
     {
         guard !self.configLoading else { return }
         let normalized = config.normalized()
@@ -179,6 +189,7 @@ extension SettingsStore {
         self.updateProviderState(config: normalized)
         self.configLoading = false
         self.bumpConfigRevision(.external(
+            origin: origin,
             reason: "sync-\(reason)",
             affectsBackgroundWork: resolvedBackgroundWorkChange))
     }
@@ -216,6 +227,12 @@ extension SettingsStore {
             .debug(
                 "Config revision bumped (\(context.reason)) -> \(self.configRevision)",
                 metadata: ["backgroundWork": context.affectsBackgroundWork ? "1" : "0"])
+        if context.shouldNotifyCloudSync {
+            NotificationCenter.default.post(
+                name: .codexbarLocalConfigFileDidChange,
+                object: self,
+                userInfo: ["reason": context.reason])
+        }
         guard context.shouldBroadcast else { return }
         NotificationCenter.default.post(
             name: .codexbarProviderConfigDidChange,

@@ -171,6 +171,33 @@ struct CloudSyncSettingsTests {
     }
 
     @Test
+    func `CLI style file edit queues exactly that provider`() async throws {
+        let fixture = try self.makeFixture("dirty-file-provider")
+        let persistence = self.makePersistence("dirty-file-provider")
+        let coordinator = CloudSyncCoordinator(settings: fixture.store, persistence: persistence)
+        coordinator.start()
+        defer { coordinator.stop() }
+        try fixture.store.configStore.save(fixture.store.configSnapshot)
+        try await Task.sleep(for: .milliseconds(500))
+
+        var updated = fixture.store.configSnapshot
+        var claude = try #require(updated.providerConfig(for: .claude))
+        claude.extrasEnabled = !(claude.extrasEnabled ?? false)
+        updated.setProviderConfig(claude)
+        try fixture.store.configStore.save(updated)
+
+        for _ in 0..<100 where persistence.load().dirtyProviders.isEmpty {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+
+        let envelope = persistence.load()
+        let recordNames = CloudSyncDirtyState.configurationRecordNamesToQueue(
+            envelope: envelope,
+            configuredProviders: updated.providers.map(\.id))
+        #expect(recordNames == [ProviderIntentPayload.recordName(for: .claude)])
+    }
+
+    @Test
     func `machine local provider edit does not become dirty`() async throws {
         let fixture = try self.makeFixture("machine-local-provider")
         let persistence = self.makePersistence("machine-local-provider")
@@ -222,10 +249,15 @@ struct CloudSyncSettingsTests {
     }
 
     @Test
-    func `remote provider apply does not become dirty`() async throws {
+    func `remote provider apply writes config without becoming dirty`() async throws {
         let fixture = try self.makeFixture("remote-provider")
         let persistence = self.makePersistence("remote-provider")
         let initial = fixture.store.configSnapshot
+        let coordinator = CloudSyncCoordinator(settings: fixture.store, persistence: persistence)
+        coordinator.start()
+        defer { coordinator.stop() }
+        try fixture.store.configStore.save(initial)
+        try await Task.sleep(for: .milliseconds(500))
         let engine = CloudSyncEngine(
             settings: fixture.store,
             state: CloudSyncState(),
@@ -242,7 +274,10 @@ struct CloudSyncSettingsTests {
         record["payload"] = try CanonicalSyncJSON.string(ProviderIntentPayload(config: remoteConfig)) as CKRecordValue
 
         await engine.applyFetchedRecords([record])
+        try await Task.sleep(for: .milliseconds(500))
 
+        let savedConfig = try #require(try fixture.store.configStore.load())
+        #expect(savedConfig.providerConfig(for: .claude)?.extrasEnabled == remoteConfig.extrasEnabled)
         #expect(persistence.load().dirtyProviders.isEmpty)
     }
 
