@@ -61,11 +61,13 @@ struct CopilotAPIFetchStrategy: ProviderFetchStrategy {
         }
         let fetcher = CopilotUsageFetcher(
             token: token,
-            enterpriseHost: context.settings?.copilot?.enterpriseHost)
+            enterpriseHost: context.settings?.copilot?.enterpriseHost,
+            seatEntitlement: context.settings?.copilot?.seatCreditEntitlement)
         let usage = try await fetcher.fetch()
         let snap = await self.addBudgetWindowsIfNeeded(to: usage, token: token, context: context)
+        let withCredits = await self.addOrgCreditsIfNeeded(to: snap, token: token, context: context)
         return self.makeResult(
-            usage: snap,
+            usage: withCredits,
             sourceLabel: "api")
     }
 
@@ -111,6 +113,30 @@ struct CopilotAPIFetchStrategy: ProviderFetchStrategy {
                 metadata: ["error": "\(error.localizedDescription)"])
             return usage
         }
+    }
+
+    private func addOrgCreditsIfNeeded(
+        to usage: UsageSnapshot,
+        token: String,
+        context: ProviderFetchContext) async -> UsageSnapshot
+    {
+        guard let settings = context.settings?.copilot,
+              settings.orgCreditsEnabled,
+              let credits = usage.copilotCredits,
+              let org = credits.orgLogin
+        else { return usage }
+
+        guard let creditsUsed = await CopilotOrgCreditsFetcher(
+            token: token,
+            enterpriseHost: settings.enterpriseHost)
+            .fetchCreditsUsed(org: org)
+        else { return usage }
+
+        let merged = credits.mergingOrgLane(
+            creditsUsed: creditsUsed,
+            entitlement: settings.orgCreditEntitlement,
+            resetsAt: credits.seat?.resetsAt)
+        return usage.replacing(copilotCredits: .value(merged))
     }
 
     static func budgetCookieHeaderOverride(

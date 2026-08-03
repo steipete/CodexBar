@@ -40,6 +40,18 @@ public struct CopilotCreditsUsage: Codable, Equatable, Sendable {
         self.org = org
         self.orgLogin = orgLogin
     }
+
+    /// Returns a copy with the organization lane replaced, preserving the seat lane and org login.
+    public func mergingOrgLane(
+        creditsUsed: Double,
+        entitlement: Double?,
+        resetsAt: Date?) -> CopilotCreditsUsage
+    {
+        CopilotCreditsUsage(
+            seat: self.seat,
+            org: Lane(creditsUsed: creditsUsed, entitlement: entitlement, resetsAt: resetsAt),
+            orgLogin: self.orgLogin)
+    }
 }
 
 /// Parses the user-entered credit allowance from settings.

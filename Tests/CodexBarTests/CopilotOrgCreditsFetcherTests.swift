@@ -95,4 +95,17 @@ struct CopilotOrgCreditsFetcherTests {
         #expect(url.absoluteString == "https://api.github.com/orgs/..%2F..%2Fetc/settings/billing/ai_credit/usage")
         #expect(!url.absoluteString.contains("/orgs/../../etc"))
     }
+
+    @Test
+    func `org lane merges onto an existing snapshot`() {
+        let base = CopilotCreditsUsage(
+            seat: CopilotCreditsUsage.Lane(creditsUsed: 31, entitlement: 3000, resetsAt: nil),
+            org: nil,
+            orgLogin: "example-org")
+        let merged = base.mergingOrgLane(creditsUsed: 81.1, entitlement: 6000, resetsAt: nil)
+        #expect(merged.seat?.creditsUsed == 31)
+        #expect(merged.org?.creditsUsed == 81.1)
+        #expect(merged.org?.entitlement == 6000)
+        #expect(merged.orgLogin == "example-org")
+    }
 }
