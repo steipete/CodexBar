@@ -280,6 +280,79 @@ struct CopilotUsageFetcherTests {
     }
 
     @Test
+    func `fetch surfaces seat credits for token billing accounts`() async throws {
+        let transport = ProviderHTTPTransportStub { request in
+            let response = try HTTPURLResponse(
+                url: #require(request.url),
+                statusCode: 200,
+                httpVersion: "HTTP/1.1",
+                headerFields: ["Content-Type": "application/json"])!
+            let data = Data(
+                """
+                {
+                  "copilot_plan": "business",
+                  "token_based_billing": true,
+                  "quota_reset_date": "2026-09-01",
+                  "organization_login_list": ["example-org"],
+                  "quota_snapshots": {
+                    "premium_interactions": {
+                      "entitlement": 0, "remaining": 0, "percent_remaining": 100,
+                      "quota_id": "premium_interactions", "unlimited": true, "credits_used": 31
+                    }
+                  }
+                }
+                """.utf8)
+            return (data, response)
+        }
+
+        let usage = try await CopilotUsageFetcher(
+            token: "test-token-placeholder",
+            seatEntitlement: 3000,
+            transport: transport)
+            .fetch()
+
+        #expect(usage.copilotCredits?.seat?.creditsUsed == 31)
+        #expect(usage.copilotCredits?.seat?.entitlement == 3000)
+        #expect(usage.copilotCredits?.orgLogin == "example-org")
+        // Regression guard for #1258: credits must not resurrect a fake quota bar.
+        #expect(usage.primary == nil)
+        #expect(usage.secondary == nil)
+    }
+
+    @Test
+    func `fetch omits credits when the payload has none`() async throws {
+        let transport = ProviderHTTPTransportStub { request in
+            let response = try HTTPURLResponse(
+                url: #require(request.url),
+                statusCode: 200,
+                httpVersion: "HTTP/1.1",
+                headerFields: ["Content-Type": "application/json"])!
+            let data = Data(
+                """
+                {
+                  "copilot_plan": "individual",
+                  "quota_snapshots": {
+                    "premium_interactions": {
+                      "entitlement": 300, "remaining": 150, "percent_remaining": 50,
+                      "quota_id": "premium_interactions"
+                    }
+                  }
+                }
+                """.utf8)
+            return (data, response)
+        }
+
+        let usage = try await CopilotUsageFetcher(
+            token: "test-token-placeholder",
+            transport: transport)
+            .fetch()
+
+        #expect(usage.copilotCredits == nil)
+        // Metered accounts keep their real bar.
+        #expect(usage.primary?.usedPercent == 50)
+    }
+
+    @Test
     func `parseQuotaResetDate supports date only and ISO timestamps`() throws {
         let dateOnly = try #require(ISO8601DateFormatter().date(from: "2026-07-01T00:00:00Z"))
         let iso = try #require(ISO8601DateFormatter().date(from: "2026-07-01T08:30:45Z"))

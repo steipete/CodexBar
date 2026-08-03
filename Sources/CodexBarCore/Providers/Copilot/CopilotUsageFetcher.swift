@@ -16,15 +16,18 @@ public struct CopilotUsageFetcher: Sendable {
 
     private let token: String
     private let enterpriseHost: String?
+    private let seatEntitlement: Double?
     private let transport: any ProviderHTTPTransport
 
     public init(
         token: String,
         enterpriseHost: String? = nil,
+        seatEntitlement: Double? = nil,
         transport: any ProviderHTTPTransport = ProviderHTTPClient.shared)
     {
         self.token = token
         self.enterpriseHost = enterpriseHost
+        self.seatEntitlement = seatEntitlement
         self.transport = transport
     }
 
@@ -72,6 +75,10 @@ public struct CopilotUsageFetcher: Sendable {
         let premium = Self.makeRateWindow(from: premiumSnapshot, resetsAt: resetsAt)
         let chat = Self.makeRateWindow(from: chatSnapshot, resetsAt: resetsAt)
         let hasUnlimitedQuota = premiumSnapshot?.unlimited == true || chatSnapshot?.unlimited == true
+        let credits = Self.makeCreditsUsage(
+            usage: usage,
+            seatEntitlement: self.seatEntitlement,
+            resetsAt: resetsAt)
 
         let primary: RateWindow?
         let secondary: RateWindow?
@@ -102,6 +109,7 @@ public struct CopilotUsageFetcher: Sendable {
             secondary: secondary,
             tertiary: nil,
             providerCost: nil,
+            copilotCredits: credits,
             updatedAt: Date(),
             identity: identity)
     }
@@ -159,6 +167,22 @@ public struct CopilotUsageFetcher: Sendable {
             windowMinutes: nil,
             resetsAt: resetsAt,
             resetDescription: overQuotaDescription)
+    }
+
+    static func makeCreditsUsage(
+        usage: CopilotUsageResponse,
+        seatEntitlement: Double?,
+        resetsAt: Date?) -> CopilotCreditsUsage?
+    {
+        guard let creditsUsed = usage.premiumInteractionsCreditsUsed else { return nil }
+        let seat = CopilotCreditsUsage.Lane(
+            creditsUsed: creditsUsed,
+            entitlement: seatEntitlement,
+            resetsAt: resetsAt)
+        return CopilotCreditsUsage(
+            seat: seat,
+            org: nil,
+            orgLogin: usage.organizationLoginList.first)
     }
 
     static func parseQuotaResetDate(_ value: String?) -> Date? {
