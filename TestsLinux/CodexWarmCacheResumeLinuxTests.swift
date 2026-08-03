@@ -99,6 +99,11 @@ struct CodexWarmCacheResumeLinuxTests {
         report.data.reduce(0) { $0 + ($1.totalTokens ?? 0) }
     }
 
+    private static func persistedCache(cacheRoot: URL) throws -> CostUsageCache {
+        let data = try Data(contentsOf: CostUsageCacheIO.cacheFileURL(provider: .codex, cacheRoot: cacheRoot))
+        return try JSONDecoder().decode(CostUsageCache.self, from: data)
+    }
+
     @Test
     func `a session resumed in an older partition keeps being counted on a warm cache`() throws {
         let env = try Environment()
@@ -241,7 +246,7 @@ struct CodexWarmCacheResumeLinuxTests {
             options: options)
         #expect(Self.totalTokens(firstBudgeted) == Self.totalTokens(warmup))
         let firstState = try #require(
-            CostUsageCacheIO.load(provider: .codex, cacheRoot: env.cacheRoot).codexActiveLookbackState)
+            Self.persistedCache(cacheRoot: env.cacheRoot).codexActiveLookbackState)
         let sessionsRootPath = env.codexSessionsRoot.standardizedFileURL.path
         let firstNextDay = try #require(firstState.nextDayKeyByRoot[sessionsRootPath])
         #expect(!firstState.pendingFilePaths.contains(oldFile.standardizedFileURL.path))
@@ -254,7 +259,7 @@ struct CodexWarmCacheResumeLinuxTests {
             options: options)
         #expect(Self.totalTokens(secondBudgeted) == Self.totalTokens(warmup))
         let secondState = try #require(
-            CostUsageCacheIO.load(provider: .codex, cacheRoot: env.cacheRoot).codexActiveLookbackState)
+            Self.persistedCache(cacheRoot: env.cacheRoot).codexActiveLookbackState)
         #expect(secondState.nextDayKeyByRoot[sessionsRootPath].map { $0 > firstNextDay } == true)
         #expect(secondState.pendingFilePaths.contains(oldFile.standardizedFileURL.path))
 
