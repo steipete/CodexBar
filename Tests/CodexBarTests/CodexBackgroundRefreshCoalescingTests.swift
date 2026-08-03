@@ -7,7 +7,7 @@ import Testing
 @MainActor
 struct CodexBackgroundRefreshCoalescingTests {
     @Test
-    func `rapid regular refreshes coalesce concurrent Codex credits fetches`() async throws {
+    func `rapid scheduled refreshes coalesce concurrent Codex credits fetches`() async throws {
         let settings = try self.makeSettingsStore(
             suite: "CodexBackgroundRefreshCoalescingTests-credits-coalescing")
         settings.statusChecksEnabled = false
@@ -19,52 +19,25 @@ struct CodexBackgroundRefreshCoalescingTests {
 
         let store = self.makeStore(settings: settings)
         let blocker = BlockingCreditsLoader()
-        let firstCompletion = RefreshCompletionProbe()
-        let secondCompletion = RefreshCompletionProbe()
-        store._test_providerRefreshOverride = { _ in }
-        defer { store._test_providerRefreshOverride = nil }
         store._test_codexCreditsLoaderOverride = {
             try await blocker.awaitResult()
         }
         defer { store._test_codexCreditsLoaderOverride = nil }
 
-        let firstRefreshTask = Task {
-            await store.refresh(forceTokenUsage: false)
-            await firstCompletion.markCompleted()
-        }
+        store.scheduleCreditsRefreshIfNeeded()
         let didStartFirstCreditsRefresh = await blocker.waitUntilStartedWithin(count: 1)
         #expect(didStartFirstCreditsRefresh)
         guard didStartFirstCreditsRefresh else {
-            await self.cancelCreditsWork(store: store, blocker: blocker, tasks: [firstRefreshTask])
+            await self.cancelCreditsWork(store: store, blocker: blocker, tasks: [])
             return
         }
-        let didCompleteFirstRefresh = await firstCompletion.waitUntilCompleted()
-        #expect(didCompleteFirstRefresh)
-        guard didCompleteFirstRefresh else {
-            await self.cancelCreditsWork(store: store, blocker: blocker, tasks: [firstRefreshTask])
-            return
-        }
+        let creditsTask = try #require(store.creditsRefreshTask)
 
-        let secondRefreshTask = Task {
-            await store.refresh(forceTokenUsage: false)
-            await secondCompletion.markCompleted()
-        }
-
-        let didCompleteSecondRefresh = await secondCompletion.waitUntilCompleted()
-        #expect(didCompleteSecondRefresh)
-        guard didCompleteSecondRefresh else {
-            await self.cancelCreditsWork(
-                store: store,
-                blocker: blocker,
-                tasks: [firstRefreshTask, secondRefreshTask])
-            return
-        }
+        store.scheduleCreditsRefreshIfNeeded()
         #expect(await blocker.startedCount() == 1)
 
         await blocker.resumeNext(with: .success(CreditsSnapshot(remaining: 25, events: [], updatedAt: Date())))
-
-        await firstRefreshTask.value
-        await secondRefreshTask.value
+        await creditsTask.value
     }
 
     @Test

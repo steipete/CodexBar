@@ -58,7 +58,13 @@ struct CursorStatusFetchStrategy: ProviderFetchStrategy {
     func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
         let probe = CursorStatusProbe(browserDetection: context.browserDetection)
         let manual = Self.manualCookieHeader(from: context)
-        let snap = try await probe.fetch(cookieHeaderOverride: manual)
+        let logger: ((String) -> Void)? = context.verbose
+            ? { message in CodexBarLog.logger(LogCategories.cursor).verbose(message) }
+            : nil
+        let snap = try await probe.fetch(
+            cookieHeaderOverride: manual,
+            allowAppAuthFallback: context.sourceMode != .web,
+            logger: logger)
         return self.makeResult(
             usage: snap.toUsageSnapshot(),
             sourceLabel: "web")
