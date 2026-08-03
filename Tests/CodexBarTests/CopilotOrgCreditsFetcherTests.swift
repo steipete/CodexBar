@@ -75,4 +75,24 @@ struct CopilotOrgCreditsFetcherTests {
             .fetchCreditsUsed(org: "o")
         #expect(total == 0)
     }
+
+    @Test
+    func `encodes org names that contain path separators`() async throws {
+        let transport = self.makeTransport(statusCode: 200, body: #"{"usageItems":[]}"#)
+
+        _ = await CopilotOrgCreditsFetcher(
+            token: "test-token-placeholder",
+            transport: transport)
+            .fetchCreditsUsed(org: "../../etc")
+
+        let requests = await transport.requests()
+        let url = try #require(requests.first?.url)
+
+        // `url.path`/`url.pathComponents` re-decode `%2F` back into a literal `/` -- a Foundation
+        // quirk that isn't even stable between direct URL access and URLRequest-wrapped access on
+        // this platform -- so neither can be trusted to prove safety here. What actually goes on the
+        // wire is the encoded string, so assert on that: the separators must survive as `%2F`.
+        #expect(url.absoluteString == "https://api.github.com/orgs/..%2F..%2Fetc/settings/billing/ai_credit/usage")
+        #expect(!url.absoluteString.contains("/orgs/../../etc"))
+    }
 }

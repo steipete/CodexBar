@@ -31,13 +31,22 @@ public struct CopilotOrgCreditsFetcher: Sendable {
     }
 
     public static func usageURL(org: String, enterpriseHost: String?) -> URL? {
-        guard let encoded = org.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
+        guard let encoded = org.addingPercentEncoding(withAllowedCharacters: orgSegmentAllowedCharacters),
               !encoded.isEmpty
         else { return nil }
         return CopilotDeviceFlow.makeRequestURL(
             host: CopilotUsageFetcher.apiHost(enterpriseHost: enterpriseHost),
             path: "/orgs/\(encoded)/settings/billing/ai_credit/usage")
     }
+
+    /// `.urlPathAllowed` leaves `/` unescaped since it is meant for encoding a full multi-segment
+    /// path. `org` is a single path segment, so `/` must be escaped here too, or an org value such
+    /// as `"../../repos/x"` would traverse outside `/orgs/<org>/...` on the request host.
+    private static let orgSegmentAllowedCharacters: CharacterSet = {
+        var allowed = CharacterSet.urlPathAllowed
+        allowed.remove(charactersIn: "/")
+        return allowed
+    }()
 
     /// Total AI credits consumed by the organization this billing period, or `nil` when unavailable.
     public func fetchCreditsUsed(org: String) async -> Double? {
