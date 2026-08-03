@@ -34,6 +34,16 @@ public struct CostUsageFetcher: Sendable {
         package let snapshot: CostUsageTokenSnapshot
         package let lastRefreshAt: Date?
         package let staleSnapshotUpdatedAt: Date?
+
+        package init(
+            snapshot: CostUsageTokenSnapshot,
+            lastRefreshAt: Date?,
+            staleSnapshotUpdatedAt: Date? = nil)
+        {
+            self.snapshot = snapshot
+            self.lastRefreshAt = lastRefreshAt
+            self.staleSnapshotUpdatedAt = staleSnapshotUpdatedAt
+        }
     }
 
     package struct CodexScanCatchUpStatus: Sendable, Equatable {
@@ -1270,6 +1280,23 @@ extension CostUsageFetcher {
         includeProjectAndSessionBreakdowns: Bool = true) async -> CostUsageTokenSnapshot?
     {
         await Self.loadCachedCodexTokenSnapshot(
+            now: now,
+            codexHomePath: codexHomePath,
+            historyDays: historyDays,
+            allowScopedCodexHome: true,
+            includePiSessions: includePiSessions,
+            includeProjectAndSessionBreakdowns: includeProjectAndSessionBreakdowns,
+            scannerOptions: self.scannerOptionsOverride())
+    }
+
+    package func loadCachedCodexTokenSnapshotResultForScopedHome(
+        now: Date = Date(),
+        codexHomePath: String,
+        historyDays: Int = 30,
+        includePiSessions: Bool = false,
+        includeProjectAndSessionBreakdowns: Bool = true) async -> CachedCodexTokenSnapshotResult?
+    {
+        await Self.loadCachedCodexTokenSnapshotResult(
             now: now,
             codexHomePath: codexHomePath,
             historyDays: historyDays,

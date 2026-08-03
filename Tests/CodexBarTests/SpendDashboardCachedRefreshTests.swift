@@ -139,6 +139,24 @@ struct SpendDashboardCachedRefreshTests {
     }
 
     @Test
+    func `priming admits only current caches and rejects stale catch-up placeholders`() {
+        let snapshot = Self.input(cost: 9).snapshot
+        let admitted = CostUsageFetcher.CachedCodexTokenSnapshotResult(
+            snapshot: snapshot,
+            lastRefreshAt: Date(timeIntervalSince1970: 100),
+            staleSnapshotUpdatedAt: nil)
+        let stale = CostUsageFetcher.CachedCodexTokenSnapshotResult(
+            snapshot: snapshot,
+            lastRefreshAt: nil,
+            staleSnapshotUpdatedAt: Date(timeIntervalSince1970: 50))
+
+        #expect(SpendDashboardSource.admittedCachedCodexSnapshot(from: admitted)?.last30DaysCostUSD == snapshot
+            .last30DaysCostUSD)
+        #expect(SpendDashboardSource.admittedCachedCodexSnapshot(from: stale) == nil)
+        #expect(SpendDashboardSource.admittedCachedCodexSnapshot(from: nil) == nil)
+    }
+
+    @Test
     func `cached dashboard data rejects auth rotation during hydration`() async throws {
         let home = FileManager.default.temporaryDirectory
             .appendingPathComponent("SpendDashboardCachedRefreshTests-auth-\(UUID().uuidString)", isDirectory: true)

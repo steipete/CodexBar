@@ -258,6 +258,15 @@ enum SpendDashboardSource {
         })
     }
 
+    /// Dashboard priming may only publish current admitted caches. Stale catch-up placeholders
+    /// (previous report or incompatible producer) stay hidden until live validation finishes.
+    static func admittedCachedCodexSnapshot(
+        from result: CostUsageFetcher.CachedCodexTokenSnapshotResult?) -> CostUsageTokenSnapshot?
+    {
+        guard let result, result.staleSnapshotUpdatedAt == nil else { return nil }
+        return result.snapshot
+    }
+
     static func loadCached(_ request: SpendDashboardLoadRequest) async -> SpendDashboardLoadResult {
         await self.loadCached(request, cacheRootResolver: { self.codexCacheRoot(for: $0) })
     }
@@ -270,12 +279,18 @@ enum SpendDashboardSource {
             request,
             cacheRootResolver: cacheRootResolver,
             cachedCodexSnapshotLoader: { context in
-                await CostUsageFetcher(cacheRoot: context.cacheRoot).loadCachedCodexTokenSnapshotForScopedHome(
-                    now: context.now,
-                    codexHomePath: context.account.homePath,
-                    historyDays: context.historyDays,
-                    includePiSessions: false,
-                    includeProjectAndSessionBreakdowns: false)
+                // Only prime from an admitted current cache. Previous-report / incompatible-producer
+                // placeholders carry staleSnapshotUpdatedAt while catch-up or producer upgrade is
+                // still pending; showing those as "validated" spend would reintroduce the upgrade
+                // risk that #2525's catch-up path is designed to retire.
+                let cached = await CostUsageFetcher(cacheRoot: context.cacheRoot)
+                    .loadCachedCodexTokenSnapshotResultForScopedHome(
+                        now: context.now,
+                        codexHomePath: context.account.homePath,
+                        historyDays: context.historyDays,
+                        includePiSessions: false,
+                        includeProjectAndSessionBreakdowns: false)
+                return Self.admittedCachedCodexSnapshot(from: cached)
             })
     }
 
@@ -381,18 +396,6 @@ enum SpendDashboardSource {
             inputs: inputs,
             failedSourceIDs: failedSourceIDs,
             invalidatedSourceIDs: invalidatedSourceIDs)
-    }
-
-    private static func codexCacheRoot(for account: CodexSpendScanRequest) -> URL {
-        let costUsageDirectory = UsageStore.costUsageCacheDirectory()
-        if account.source == .liveSystem {
-            // The live account reads the same local-home telemetry as UsageStore's ambient scanner.
-            // Reuse that cache instead of indexing the identical session corpus a second time.
-            return costUsageDirectory.deletingLastPathComponent()
-        }
-        return costUsageDirectory
-            .appendingPathComponent("accounts", isDirectory: true)
-            .appendingPathComponent(account.cacheIdentity, isDirectory: true)
     }
 
     private static func loadCodexSnapshot(
@@ -578,7 +581,13 @@ enum SpendDashboardSource {
     }
 
     static func codexCacheRoot(for request: CodexSpendScanRequest) -> URL {
-        UsageStore.costUsageCacheDirectory()
+        let costUsageDirectory = UsageStore.costUsageCacheDirectory()
+        if request.source == .liveSystem {
+            // The live account reads the same local-home telemetry as UsageStore's ambient scanner.
+            // Reuse that cache instead of indexing the identical session corpus a second time.
+            return costUsageDirectory.deletingLastPathComponent()
+        }
+        return costUsageDirectory
             .appendingPathComponent("accounts", isDirectory: true)
             .appendingPathComponent(request.cacheIdentity, isDirectory: true)
     }
