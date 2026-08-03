@@ -39,8 +39,9 @@ Common building blocks already exist:
 - OpenAI dashboard web scrape: `OpenAIDashboardFetcher` (WKWebView + JS)
 - cost usage: local log scanner (Codex + Claude)
 
-Provider behavior is descriptor-driven. Two explicit, exhaustive registries form the bootstrap boundary:
-`ProviderDescriptorRegistry` owns core descriptors and `ProviderImplementationRegistry` owns app implementations.
+Provider behavior is descriptor-driven. Two flat first-party manifests form the closed bootstrap boundary:
+`ProviderManifest` lists core descriptors and `ProviderImplementationManifest` lists app implementations. The registries
+retain thread-safe `register(_:)` methods for future dynamic providers.
 
 ## Provider descriptor (source of truth)
 
@@ -120,7 +121,7 @@ public enum ExampleProviderDescriptor {
                 dashboardURL: nil,
                 statusPageURL: nil),
             branding: ProviderBranding(
-                iconStyle: .codex,
+                iconStyle: .init(provider: .example),
                 iconResourceName: "ProviderIcon-example",
                 color: ProviderColor(red: 0.2, green: 0.6, blue: 0.8),
                 confettiPalette: [
@@ -176,35 +177,26 @@ boundary:
 
 An integration can be restored when missing operator or authorization evidence becomes available.
 
-## Adding a new provider (current flow)
+## Adding a new provider
 
-Checklist:
-- Add `UsageProvider` case in `Sources/CodexBarCore/Providers/Providers.swift`.
-- Create `Sources/CodexBarCore/Providers/<ProviderID>/`:
-  - `<ProviderID>Descriptor.swift`: define `ProviderDescriptor` + fetch pipeline.
-  - `<ProviderID>Strategies.swift`: implement one or more `ProviderFetchStrategy`.
-  - `<ProviderID>Probe.swift` / `<ProviderID>Fetcher.swift`: concrete fetcher logic.
-  - `<ProviderID>Models.swift`: snapshot structs.
-  - `<ProviderID>Parser.swift` (if needed).
-- Define a cached `public static let descriptor` and `static func makeDescriptor() -> ProviderDescriptor`.
-- Add the descriptor to `ProviderDescriptorRegistry.descriptorsByID`.
-- Add `Sources/CodexBar/Providers/<ProviderID>/<ProviderID>ProviderImplementation.swift`:
-  - `ProviderImplementation` only for settings/login UI hooks.
-- Add an exhaustive case to `ProviderImplementationRegistry.makeImplementation(for:)`.
-- Add icons + colors in descriptor:
-  - `iconName` must match `ProviderIcon-<id>` asset.
-  - Color used in menu cards + switcher.
-  - Provide a curated `confettiPalette` with 2–3 colors for reset celebrations.
-- If CLI-specific behavior is needed:
-  - add `cliName`, `cliAliases`, `sourceModes`, `versionProvider` in descriptor.
-  - strategies decide which `--source` modes apply.
-- Tests:
-  - `UsageSnapshot` mapping unit tests
-  - strategy availability + fallback tests
-  - CLI provider parsing (aliases + --source validation)
-- Docs:
-  - add provider section in `docs/providers.md` with data source + auth notes
-  - update `docs/provider.md` if the pipeline model changes
+The mandatory registration checklist is intentionally short:
+
+1. Create `Sources/CodexBarCore/Providers/<Name>/` with the descriptor and fetch strategies.
+2. Create `Sources/CodexBar/Providers/<Name>/` with the app implementation and optional settings extension.
+3. Add one stable case to `UsageProvider` in `Sources/CodexBarCore/Providers/Providers.swift`.
+4. Add one `ProviderIcon-<id>.svg` resource under `Sources/CodexBar/Resources` and reference it from branding.
+5. Add one descriptor line to `ProviderManifest.allDescriptors`.
+6. Add one implementation factory line to `ProviderImplementationManifest.makeImplementations`.
+7. Add one case to the WidgetKit `ProviderChoice` `AppEnum`. New descriptors are widget-selectable by default; set
+   `widgetSelectable: false` in the provider's descriptor only when the provider genuinely cannot appear in widgets.
+
+Everything else is derived from the descriptor: icon-style identity, log-category construction, display and compact
+labels, default enablement, fetch/CLI metadata, icon validation, and widget display representations. The provider
+architecture gatekeeper test reports missing descriptor, implementation, icon, or widget registrations by provider ID.
+
+Provider-specific behavior still deserves focused tests—for example snapshot mapping, strategy availability/fallback,
+CLI aliases/source validation, and parser fixtures. Add a section to `docs/providers.md` when users need data-source or
+authentication guidance.
 
 ## UI notes (Providers settings)
 Current: checkboxes per provider.

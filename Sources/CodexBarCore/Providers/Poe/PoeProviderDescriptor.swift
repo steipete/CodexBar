@@ -18,6 +18,7 @@ public enum PoeProviderDescriptor {
                 toggleTitle: "Show Poe usage",
                 cliName: "poe",
                 defaultEnabled: false,
+                widgetSelectable: false,
                 isPrimaryProvider: false,
                 usesAccountFallback: false,
                 browserCookieOrder: nil,
@@ -25,7 +26,7 @@ public enum PoeProviderDescriptor {
                 statusPageURL: nil,
                 statusLinkURL: nil),
             branding: ProviderBranding(
-                iconStyle: .poe,
+                iconStyle: .init(provider: .poe),
                 iconResourceName: "ProviderIcon-poe",
                 color: ProviderColor(red: 93 / 255, green: 92 / 255, blue: 222 / 255),
                 confettiPalette: [

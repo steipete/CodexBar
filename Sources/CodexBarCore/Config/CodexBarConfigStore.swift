@@ -51,15 +51,22 @@ public struct CodexBarConfigStore: @unchecked Sendable {
     }
 
     public func save(_ config: CodexBarConfig) throws {
+        let data = try self.encodedData(for: config)
+        try self.saveEncodedData(data)
+    }
+
+    public func encodedData(for config: CodexBarConfig) throws -> Data {
         let normalized = config.normalized()
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-        let data: Data
         do {
-            data = try encoder.encode(normalized)
+            return try encoder.encode(normalized)
         } catch {
             throw CodexBarConfigStoreError.encodeFailed(error.localizedDescription)
         }
+    }
+
+    public func saveEncodedData(_ data: Data) throws {
         let directory = self.fileURL.deletingLastPathComponent()
         if !self.fileManager.fileExists(atPath: directory.path) {
             try self.fileManager.createDirectory(at: directory, withIntermediateDirectories: true)

@@ -1,7 +1,30 @@
 /* Catalan localization for CodexBar */
 
+/* iCloud Sync */
+"iCloud Sync" = "iCloud Sync";
+"Sync settings and providers across your Macs via iCloud" = "Sync settings and providers across your Macs via iCloud";
+"Include API keys, cookies, and tokens" = "Include API keys, cookies, and tokens";
+"Sync usage snapshots" = "Sync usage snapshots";
+"Show accounts from other Macs" = "Show accounts from other Macs";
+"Requires a signed release build of CodexBar." = "Requires a signed release build of CodexBar.";
+"Sign in to iCloud in System Settings to enable sync." = "Sign in to iCloud in System Settings to enable sync.";
+"iCloud access is restricted on this Mac." = "iCloud access is restricted on this Mac.";
+"Sync is paused: another Mac uses a newer version of CodexBar. Update to resume." = "Sync is paused: another Mac uses a newer version of CodexBar. Update to resume.";
+"Last successful fetch" = "Last successful fetch";
+"Last successful push" = "Last successful push";
+"Never" = "Never";
+"Macs" = "Macs";
+"No synced Macs yet." = "No synced Macs yet.";
+"Secrets use iCloud end-to-end encryption via encryptedValues. Hooks and machine-local paths never sync." = "Secrets use iCloud end-to-end encryption via encryptedValues. Hooks and machine-local paths never sync.";
+"Last seen %@" = "Last seen %@";
+"This Mac" = "This Mac";
+"another Mac" = "another Mac";
+"%dm ago" = "%dm ago";
+"%dh ago" = "%dh ago";
+"%dd ago" = "%dd ago";
+
 "ollama_safari_cookie_access_hint" = "Les galetes de Safari necessiten accés complet al disc per a CodexBar (Configuració del Sistema > Privadesa i seguretat).";
-"ollama_browser_cookie_decryption_denied" = "S'ha denegat el desxifratge de les galetes de %@ al Clauer; torneu-ho a provar amb una actualització manual.";
+"ollama_browser_cookie_decryption_denied" = "S'ha denegat el desxifratge de les galetes de %@ al Clauer. Obriu la targeta del proveïdor i feu clic a Actualitza (⌘R) per tornar a sol·licitar accés al Clauer.";
 "ollama_browser_cookie_decryption_disabled" = "El desxifratge de les galetes de %@ està desactivat a CodexBar; activeu l'accés al Clauer i actualitzeu.";
 
 " providers" = " proveïdors";
@@ -571,7 +594,7 @@
 "show_provider_changelog_links_title" = "Mostreu els enllaços al registre de canvis del proveïdor";
 "show_provider_changelog_links_subtitle" = "Afegiu al menú enllaços a les notes de versió dels proveïdors compatibles basats en CLI.";
 "show_credits_extra_usage_title" = "Mostreu crèdits + ús addicional";
-"show_credits_extra_usage_subtitle" = "Mostreu les seccions de Crèdits de Codex i Ús addicional de Claude al menú.";
+"show_credits_extra_usage_subtitle" = "Mostra els crèdits i l’ús addicional dels proveïdors compatibles.";
 "multi_account_layout_title" = "Disposició multicompte";
 "multi_account_layout_subtitle" = "Trieu el canvi de compte segmentat o targetes de compte apilades.";
 "multi_account_layout_segmented" = "Segmentat";

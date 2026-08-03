@@ -360,6 +360,7 @@ struct CostUsagePerformanceGateTests {
             maxCodexSessionFileBytes: slice,
             maxCodexScanBytesPerRefresh: slice)
         options.refreshMinIntervalSeconds = 0
+        options.maxCodexScanBytesPerRefresh += Self.codexLookbackDiscoveryWork(options: options)
 
         _ = CostUsageScanner.loadDailyReport(
             provider: .codex,
@@ -406,6 +407,7 @@ struct CostUsagePerformanceGateTests {
             maxCodexSessionFileBytes: slice,
             maxCodexScanBytesPerRefresh: slice)
         options.refreshMinIntervalSeconds = 0
+        options.maxCodexScanBytesPerRefresh += Self.codexLookbackDiscoveryWork(options: options)
 
         _ = CostUsageScanner.loadDailyReport(
             provider: .codex,
@@ -1253,7 +1255,7 @@ extension CostUsagePerformanceGateTests {
         let childSize = CostUsageScanner.codexFileMetadata(fileURL: childURL).size
 
         options.maxCodexSessionFileBytes = 64 * 1024 * 1024
-        options.maxCodexScanBytesPerRefresh = childSize
+        options.maxCodexScanBytesPerRefresh = childSize + Self.codexLookbackDiscoveryWork(options: options)
         options.preferNewestCodexSessionsFirst = true
         _ = CostUsageScanner.loadDailyReport(
             provider: .codex,
@@ -1400,6 +1402,13 @@ extension CostUsagePerformanceGateTests {
         guard sqlite3_step(statement) == SQLITE_DONE else {
             throw CocoaError(.fileWriteUnknown)
         }
+    }
+
+    private static func codexLookbackDiscoveryWork(options: CostUsageScanner.Options) -> Int64 {
+        let existingRootCount = CostUsageScanner.codexSessionsRoots(options: options).count {
+            FileManager.default.fileExists(atPath: $0.path)
+        }
+        return Int64(CostUsageScanner.codexActiveSessionLookbackDays * existingRootCount)
     }
 }
 

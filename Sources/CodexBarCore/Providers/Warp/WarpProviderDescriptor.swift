@@ -18,13 +18,14 @@ public enum WarpProviderDescriptor {
                 toggleTitle: "Show Warp usage",
                 cliName: "warp",
                 defaultEnabled: false,
+                widgetSelectable: false,
                 isPrimaryProvider: false,
                 usesAccountFallback: false,
                 browserCookieOrder: nil,
                 dashboardURL: "https://docs.warp.dev/reference/cli/api-keys",
                 statusPageURL: nil),
             branding: ProviderBranding(
-                iconStyle: .warp,
+                iconStyle: .init(provider: .warp),
                 iconResourceName: "ProviderIcon-warp",
                 color: ProviderColor(red: 147 / 255, green: 139 / 255, blue: 180 / 255),
                 confettiPalette: [

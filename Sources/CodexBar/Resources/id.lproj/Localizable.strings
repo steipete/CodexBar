@@ -1,7 +1,30 @@
 /* Indonesian localization for CodexBar */
 
+/* iCloud Sync */
+"iCloud Sync" = "iCloud Sync";
+"Sync settings and providers across your Macs via iCloud" = "Sync settings and providers across your Macs via iCloud";
+"Include API keys, cookies, and tokens" = "Include API keys, cookies, and tokens";
+"Sync usage snapshots" = "Sync usage snapshots";
+"Show accounts from other Macs" = "Show accounts from other Macs";
+"Requires a signed release build of CodexBar." = "Requires a signed release build of CodexBar.";
+"Sign in to iCloud in System Settings to enable sync." = "Sign in to iCloud in System Settings to enable sync.";
+"iCloud access is restricted on this Mac." = "iCloud access is restricted on this Mac.";
+"Sync is paused: another Mac uses a newer version of CodexBar. Update to resume." = "Sync is paused: another Mac uses a newer version of CodexBar. Update to resume.";
+"Last successful fetch" = "Last successful fetch";
+"Last successful push" = "Last successful push";
+"Never" = "Never";
+"Macs" = "Macs";
+"No synced Macs yet." = "No synced Macs yet.";
+"Secrets use iCloud end-to-end encryption via encryptedValues. Hooks and machine-local paths never sync." = "Secrets use iCloud end-to-end encryption via encryptedValues. Hooks and machine-local paths never sync.";
+"Last seen %@" = "Last seen %@";
+"This Mac" = "This Mac";
+"another Mac" = "another Mac";
+"%dm ago" = "%dm ago";
+"%dh ago" = "%dh ago";
+"%dd ago" = "%dd ago";
+
 "ollama_safari_cookie_access_hint" = "Cookie Safari memerlukan Akses Disk Penuh untuk CodexBar (Pengaturan Sistem > Privasi & Keamanan).";
-"ollama_browser_cookie_decryption_denied" = "Dekripsi cookie %@ ditolak di Rantai Kunci; coba lagi dengan penyegaran manual.";
+"ollama_browser_cookie_decryption_denied" = "Dekripsi cookie %@ ditolak di Rantai Kunci. Buka kartu penyedia dan klik Segarkan (⌘R) untuk meminta akses Rantai Kunci lagi.";
 "ollama_browser_cookie_decryption_disabled" = "Dekripsi cookie %@ dinonaktifkan di CodexBar; aktifkan akses Rantai Kunci lalu segarkan.";
 
 " providers" = " penyedia";
@@ -595,7 +618,7 @@
 "show_provider_changelog_links_title" = "Tampilkan tautan changelog penyedia";
 "show_provider_changelog_links_subtitle" = "Menambahkan tautan catatan rilis untuk penyedia berbasis CLI yang didukung ke menu.";
 "show_credits_extra_usage_title" = "Tampilkan kredit + penggunaan ekstra";
-"show_credits_extra_usage_subtitle" = "Tampilkan bagian Kredit Codex dan penggunaan Ekstra Claude di menu.";
+"show_credits_extra_usage_subtitle" = "Tampilkan kredit dan penggunaan tambahan untuk penyedia yang didukung.";
 "multi_account_layout_title" = "Tata letak multi-akun";
 "multi_account_layout_subtitle" = "Pilih pengalihan akun tersegmentasi atau kartu akun bertumpuk.";
 "multi_account_layout_segmented" = "Tersegmentasi";

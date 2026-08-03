@@ -19,7 +19,8 @@ extension StatusItemController {
         forceOverrideCard: Bool = false,
         accountOverride: AccountInfo? = nil,
         historySelectionOverride: PlanUtilizationHistorySelection? = nil,
-        planOverride: String? = nil) -> UsageMenuCardView.Model?
+        planOverride: String? = nil,
+        subtitleOverride: String? = nil) -> UsageMenuCardView.Model?
     {
         let target = provider ?? self.store.enabledProvidersForDisplay().first ?? .codex
         let metadata = self.store.metadata(for: target)
@@ -141,6 +142,7 @@ extension StatusItemController {
             codexSparkUsageVisible: self.settings.codexSparkUsageVisible,
             copilotBudgetExtrasEnabled: self.settings.copilotBudgetExtrasEnabled,
             sourceLabel: sourceLabel,
+            subtitleOverride: subtitleOverride,
             kiloAutoMode: kiloAutoMode,
             hidePersonalInfo: self.settings.hidePersonalInfo,
             weeklyPace: weeklyPace,

@@ -12,6 +12,7 @@ struct PreferencesPaneSmokeTests {
         let store = Self.makeUsageStore(settings: settings)
 
         _ = GeneralPane(settings: settings).body
+        _ = ICloudSyncPane(settings: settings, state: CloudSyncState()).body
         _ = NotificationsPane(settings: settings).body
         _ = MenuBarPane(settings: settings, store: store).body
         _ = MenuPane(settings: settings, store: store).body
@@ -45,6 +46,7 @@ struct PreferencesPaneSmokeTests {
         store._setErrorForTesting("Example error", provider: .codex)
 
         _ = GeneralPane(settings: settings).body
+        _ = ICloudSyncPane(settings: settings, state: CloudSyncState()).body
         _ = NotificationsPane(settings: settings).body
         _ = MenuBarPane(settings: settings, store: store).body
         _ = MenuPane(settings: settings, store: store).body

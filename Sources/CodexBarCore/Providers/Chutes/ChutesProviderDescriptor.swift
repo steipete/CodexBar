@@ -18,13 +18,14 @@ public enum ChutesProviderDescriptor {
                 toggleTitle: "Show Chutes usage",
                 cliName: "chutes",
                 defaultEnabled: false,
+                widgetSelectable: false,
                 isPrimaryProvider: false,
                 usesAccountFallback: false,
                 browserCookieOrder: nil,
                 dashboardURL: "https://chutes.ai",
                 statusPageURL: nil),
             branding: ProviderBranding(
-                iconStyle: .chutes,
+                iconStyle: .init(provider: .chutes),
                 iconResourceName: "ProviderIcon-chutes",
                 color: ProviderColor(red: 49 / 255, green: 132 / 255, blue: 255 / 255),
                 confettiPalette: [

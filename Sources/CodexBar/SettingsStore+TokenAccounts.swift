@@ -240,7 +240,9 @@ extension SettingsStore {
 
     func openTokenAccountsFile() {
         do {
-            try self.configStore.save(self.config)
+            let data = try self.configStore.encodedData(for: self.config)
+            self.configFileWatcher?.noteAppWrite(data: data)
+            try self.configStore.saveEncodedData(data)
         } catch {
             CodexBarLog.logger(LogCategories.tokenAccounts).error("Failed to persist config: \(error)")
             return

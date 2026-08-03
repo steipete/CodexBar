@@ -1,7 +1,30 @@
 /* Galician localization for CodexBar */
 
+/* iCloud Sync */
+"iCloud Sync" = "iCloud Sync";
+"Sync settings and providers across your Macs via iCloud" = "Sync settings and providers across your Macs via iCloud";
+"Include API keys, cookies, and tokens" = "Include API keys, cookies, and tokens";
+"Sync usage snapshots" = "Sync usage snapshots";
+"Show accounts from other Macs" = "Show accounts from other Macs";
+"Requires a signed release build of CodexBar." = "Requires a signed release build of CodexBar.";
+"Sign in to iCloud in System Settings to enable sync." = "Sign in to iCloud in System Settings to enable sync.";
+"iCloud access is restricted on this Mac." = "iCloud access is restricted on this Mac.";
+"Sync is paused: another Mac uses a newer version of CodexBar. Update to resume." = "Sync is paused: another Mac uses a newer version of CodexBar. Update to resume.";
+"Last successful fetch" = "Last successful fetch";
+"Last successful push" = "Last successful push";
+"Never" = "Never";
+"Macs" = "Macs";
+"No synced Macs yet." = "No synced Macs yet.";
+"Secrets use iCloud end-to-end encryption via encryptedValues. Hooks and machine-local paths never sync." = "Secrets use iCloud end-to-end encryption via encryptedValues. Hooks and machine-local paths never sync.";
+"Last seen %@" = "Last seen %@";
+"This Mac" = "This Mac";
+"another Mac" = "another Mac";
+"%dm ago" = "%dm ago";
+"%dh ago" = "%dh ago";
+"%dd ago" = "%dd ago";
+
 "ollama_safari_cookie_access_hint" = "As cookies de Safari precisan acceso total ao disco para CodexBar (Axustes do Sistema > Privacidade e seguridade).";
-"ollama_browser_cookie_decryption_denied" = "Rexeitouse no Chaveiro o descifrado das cookies de %@; téntao de novo cunha actualización manual.";
+"ollama_browser_cookie_decryption_denied" = "Rexeitouse no Chaveiro o descifrado das cookies de %@. Abre a tarxeta do provedor e preme Actualizar (⌘R) para solicitar de novo acceso ao Chaveiro.";
 "ollama_browser_cookie_decryption_disabled" = "O descifrado das cookies de %@ está desactivado en CodexBar; activa o acceso ao Chaveiro e actualiza.";
 
 " providers" = " provedores";
@@ -566,7 +589,7 @@
 "show_provider_changelog_links_title" = "Amosar as ligazóns ao rexistro de cambios do provedor";
 "show_provider_changelog_links_subtitle" = "Engade ao menú enlaces ás notas de versión dos provedores compatibles baseados en CLI.";
 "show_credits_extra_usage_title" = "Amosar créditos + uso adicional";
-"show_credits_extra_usage_subtitle" = "Amosa as seccións de Créditos de Codex e Uso adicional de Claude no menú.";
+"show_credits_extra_usage_subtitle" = "Amosa créditos e uso adicional para os provedores compatibles.";
 "multi_account_layout_title" = "Disposición multiconta";
 "multi_account_layout_subtitle" = "Escolle o cambio de conta segmentado ou tarxetas de conta apiladas.";
 "multi_account_layout_segmented" = "Segmentado";

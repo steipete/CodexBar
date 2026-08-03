@@ -143,7 +143,7 @@ struct MenuBarLayoutEditorTests {
     @Test
     @available(macOS 15.2, *)
     func `palette drag transfer representation round trips`() async throws {
-        let payload = MenuBarLayoutDragItem.palette(.percent(window: .weekly))
+        let payload = MenuBarLayoutDragItem.palette(.percent(window: .scopedWeekly))
 
         #expect(MenuBarLayoutDragItem.exportedContentTypes() == [.codexBarMenuLayoutItem])
         #expect(MenuBarLayoutDragItem.importedContentTypes() == [.codexBarMenuLayoutItem])

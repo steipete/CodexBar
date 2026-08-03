@@ -65,6 +65,9 @@ extension SettingsStore {
         _ = self.agentSessionsEnabled
         _ = self.agentSessionLabelStyle
         _ = self.agentSessionsManualHosts
+        _ = self.iCloudSyncEnabled
+        _ = self.iCloudSyncSnapshotsEnabled
+        _ = self.iCloudSyncShowFleetAccounts
         _ = self.codexUsageDataSource
         _ = self.codexActiveSource
         _ = self.claudeUsageDataSource

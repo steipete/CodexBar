@@ -30,6 +30,19 @@ private struct ConfigChangeContext {
 }
 
 extension SettingsStore {
+    func startConfigFileWatcher() {
+        let watcher = ConfigFileWatcher(fileURL: self.configStore.fileURL) { [weak self] in
+            Task { @MainActor [weak self] in
+                self?.reloadConfig(reason: "file-watch")
+            }
+        }
+        if let data = try? Data(contentsOf: self.configStore.fileURL) {
+            watcher.noteAppWrite(data: data)
+        }
+        self.configFileWatcher = watcher
+        watcher.start()
+    }
+
     private func updateConfig(
         reason: String,
         affectsBackgroundWork: Bool,
@@ -225,13 +238,16 @@ extension SettingsStore {
         self.configPersistTask?.cancel()
         if Self.isRunningTests {
             do {
-                try self.configStore.save(self.config)
+                let data = try self.configStore.encodedData(for: self.config)
+                self.configFileWatcher?.noteAppWrite(data: data)
+                try self.configStore.saveEncodedData(data)
             } catch {
                 CodexBarLog.logger(LogCategories.configStore).error("Failed to persist config: \(error)")
             }
             return
         }
         let store = self.configStore
+        let watcher = self.configFileWatcher
         self.configPersistTask = Task { @MainActor in
             do {
                 try await Task.sleep(nanoseconds: 350_000_000)
@@ -240,9 +256,17 @@ extension SettingsStore {
             }
             guard !Task.isCancelled else { return }
             let snapshot = self.config
+            let data: Data
+            do {
+                data = try store.encodedData(for: snapshot)
+                watcher?.noteAppWrite(data: data)
+            } catch {
+                CodexBarLog.logger(LogCategories.configStore).error("Failed to encode config: \(error)")
+                return
+            }
             let error: (any Error)? = await Task.detached(priority: .utility) {
                 do {
-                    try store.save(snapshot)
+                    try store.saveEncodedData(data)
                     return nil
                 } catch {
                     return error

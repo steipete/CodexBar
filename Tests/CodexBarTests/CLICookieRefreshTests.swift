@@ -310,7 +310,8 @@ struct CLICookieRefreshTests {
                 error: NSError(domain: "opaque-test-marker", code: 1))
 
             #expect(result.message ==
-                "Chrome cookie decryption was declined in Keychain; retry with --allow-keychain-prompt.")
+                "Chrome cookie decryption was declined in Keychain; " +
+                "rerun with --allow-keychain-prompt to request Keychain access again.")
             #expect(!result.message.contains("opaque-test-marker"))
         }
     }

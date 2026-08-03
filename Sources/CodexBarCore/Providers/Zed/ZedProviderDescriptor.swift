@@ -18,12 +18,13 @@ public enum ZedProviderDescriptor {
                 toggleTitle: "Show Zed usage",
                 cliName: "zed",
                 defaultEnabled: false,
+                widgetSelectable: false,
                 isPrimaryProvider: false,
                 usesAccountFallback: false,
                 dashboardURL: nil,
                 statusPageURL: nil),
             branding: ProviderBranding(
-                iconStyle: .zed,
+                iconStyle: .init(provider: .zed),
                 iconResourceName: "ProviderIcon-zed",
                 color: ProviderColor(red: 8 / 255, green: 78 / 255, blue: 255 / 255),
                 confettiPalette: [

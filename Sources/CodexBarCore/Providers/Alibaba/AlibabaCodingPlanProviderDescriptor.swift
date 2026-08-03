@@ -43,7 +43,7 @@ public enum AlibabaCodingPlanProviderDescriptor {
                 statusPageURL: nil,
                 statusLinkURL: "https://status.aliyun.com"),
             branding: ProviderBranding(
-                iconStyle: .alibaba,
+                iconStyle: .init(provider: .alibaba),
                 iconResourceName: "ProviderIcon-alibaba",
                 color: ProviderColor(red: 1.0, green: 106 / 255, blue: 0),
                 confettiPalette: [

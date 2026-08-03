@@ -152,7 +152,7 @@ extension CodexBarCLI {
                 provider: descriptor.cli.name,
                 status: .failed,
                 message: "\(browser.displayName) cookie decryption was declined in Keychain; " +
-                    "retry with --allow-keychain-prompt.")
+                    "rerun with --allow-keychain-prompt to request Keychain access again.")
         }
         return CookieRefreshResult(
             provider: descriptor.cli.name,

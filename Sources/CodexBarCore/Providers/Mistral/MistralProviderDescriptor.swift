@@ -25,7 +25,7 @@ public enum MistralProviderDescriptor {
                 statusPageURL: nil,
                 statusLinkURL: "https://status.mistral.ai"),
             branding: ProviderBranding(
-                iconStyle: .mistral,
+                iconStyle: .init(provider: .mistral),
                 iconResourceName: "ProviderIcon-mistral",
                 color: ProviderColor(red: 255 / 255, green: 80 / 255, blue: 15 / 255),
                 confettiPalette: [

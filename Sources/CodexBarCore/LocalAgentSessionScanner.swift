@@ -70,12 +70,11 @@ public struct LocalAgentSessionScanner: Sendable {
         environment: [String: String] = ProcessInfo.processInfo.environment,
         includeFileOnlySessions: Bool = true) async -> [AgentSession]
     {
-        let processOutput = if let processOutputProvider = self.processOutputProvider {
-            await processOutputProvider(environment)
+        let allProcesses = if let processOutputProvider = self.processOutputProvider {
+            await AgentPSOutputParser.parse(processOutputProvider(environment))
         } else {
-            await self.processOutput(environment: environment)
+            await self.processRecords(environment: environment)
         }
-        let allProcesses = AgentPSOutputParser.parse(processOutput)
         let processes = Array(AgentSessionCorrelation.newestProcessesFirst(
             AgentPSOutputParser.agentProcesses(from: allProcesses))
             .prefix(max(0, self.config.maxProcessCount)))
@@ -289,6 +288,25 @@ public struct LocalAgentSessionScanner: Sendable {
             .filter { seen.insert("\($0.host):\($0.id)").inserted }
     }
 
+    private func processRecords(environment: [String: String]) async -> [AgentProcessRecord] {
+        #if canImport(Darwin)
+        return DarwinProcessEnumerator.allPIDs().compactMap { pid in
+            guard let bsdInfo = DarwinProcessEnumerator.bsdInfo(pid: pid),
+                  let executablePath = DarwinProcessEnumerator.executablePath(pid: pid)
+            else { return nil }
+            let command = DarwinProcessEnumerator.commandLine(pid: pid) ?? executablePath
+            return AgentProcessRecord(
+                pid: pid,
+                ppid: bsdInfo.ppid,
+                startedAt: bsdInfo.startTime,
+                command: command)
+        }
+        #else
+        return await AgentPSOutputParser.parse(self.processOutput(environment: environment))
+        #endif
+    }
+
+    #if !canImport(Darwin)
     private func processOutput(environment: [String: String]) async -> String {
         let binary = ["/bin/ps", "/usr/bin/ps"].first { FileManager.default.isExecutableFile(atPath: $0) }
         guard let binary,
@@ -301,9 +319,15 @@ public struct LocalAgentSessionScanner: Sendable {
         else { return "" }
         return result.stdout
     }
+    #endif
 
     private func cwdByPID(_ pids: [Int32], environment: [String: String]) async -> [Int32: String] {
         guard !pids.isEmpty else { return [:] }
+        #if canImport(Darwin)
+        return Dictionary(uniqueKeysWithValues: pids.compactMap { pid in
+            DarwinProcessEnumerator.currentWorkingDirectory(pid: pid).map { (pid, $0) }
+        })
+        #else
         if let lsof = self.findExecutable("lsof", environment: environment) {
             let joinedPIDs = pids.map(String.init).joined(separator: ",")
             if let result = try? await SubprocessRunner.run(
@@ -318,14 +342,11 @@ public struct LocalAgentSessionScanner: Sendable {
             }
         }
 
-        #if os(Linux)
         return Dictionary(uniqueKeysWithValues: pids.compactMap { pid in
             let path = "/proc/\(pid)/cwd"
             guard let destination = try? FileManager.default.destinationOfSymbolicLink(atPath: path) else { return nil }
             return (pid, destination)
         })
-        #else
-        return [:]
         #endif
     }
 

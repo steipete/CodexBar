@@ -26,7 +26,7 @@ public enum CodexProviderDescriptor {
                 changelogURL: "https://github.com/openai/codex/releases",
                 statusPageURL: "https://status.openai.com/"),
             branding: ProviderBranding(
-                iconStyle: .codex,
+                iconStyle: .init(provider: .codex),
                 iconResourceName: "ProviderIcon-codex",
                 color: ProviderColor(red: 73 / 255, green: 163 / 255, blue: 176 / 255),
                 confettiPalette: [

@@ -34,7 +34,14 @@ extension UsageStore {
             // windows without windowMinutes would fabricate a weekly pace for non-weekly windows
             // (e.g. Factory monthly with only resetsAt).
             guard window.windowMinutes != nil else { return nil }
-            resolved = UsagePace.weekly(window: window, now: now, defaultWindowMinutes: 10080, workDays: workDays)
+            // Expand a monthly sentinel to the real calendar cycle before scoring. The menu card and the
+            // CLI both resolve first, so skipping it here would score a billing period as a flat 30 days
+            // and disagree with them — and a 31-day cycle would exceed the sentinel outright, dropping the
+            // pace for the first day of every long month.
+            let paceWindow = ProviderDescriptorRegistry.descriptor(for: provider)
+                .pace
+                .resolvedResetWindowForPace(window)
+            resolved = UsagePace.weekly(window: paceWindow, now: now, defaultWindowMinutes: 10080, workDays: workDays)
         }
 
         guard let resolved else { return nil }

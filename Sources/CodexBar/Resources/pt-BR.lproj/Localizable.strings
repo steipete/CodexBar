@@ -1,5 +1,28 @@
 /* Brazilian Portuguese localization for CodexBar */
 
+/* iCloud Sync */
+"iCloud Sync" = "iCloud Sync";
+"Sync settings and providers across your Macs via iCloud" = "Sync settings and providers across your Macs via iCloud";
+"Include API keys, cookies, and tokens" = "Include API keys, cookies, and tokens";
+"Sync usage snapshots" = "Sync usage snapshots";
+"Show accounts from other Macs" = "Show accounts from other Macs";
+"Requires a signed release build of CodexBar." = "Requires a signed release build of CodexBar.";
+"Sign in to iCloud in System Settings to enable sync." = "Sign in to iCloud in System Settings to enable sync.";
+"iCloud access is restricted on this Mac." = "iCloud access is restricted on this Mac.";
+"Sync is paused: another Mac uses a newer version of CodexBar. Update to resume." = "Sync is paused: another Mac uses a newer version of CodexBar. Update to resume.";
+"Last successful fetch" = "Last successful fetch";
+"Last successful push" = "Last successful push";
+"Never" = "Never";
+"Macs" = "Macs";
+"No synced Macs yet." = "No synced Macs yet.";
+"Secrets use iCloud end-to-end encryption via encryptedValues. Hooks and machine-local paths never sync." = "Secrets use iCloud end-to-end encryption via encryptedValues. Hooks and machine-local paths never sync.";
+"Last seen %@" = "Last seen %@";
+"This Mac" = "This Mac";
+"another Mac" = "another Mac";
+"%dm ago" = "%dm ago";
+"%dh ago" = "%dh ago";
+"%dd ago" = "%dd ago";
+
 "tab_hooks" = "Hooks";
 "hooks_enable_title" = "Ativar hooks";
 "hooks_enable_subtitle" = "Executa comandos externos quando ocorrerem eventos de cota ou provedor.";
@@ -21,7 +44,7 @@
 "hooks_delete_argument" = "Excluir argumento";
 
 "ollama_safari_cookie_access_hint" = "Os cookies do Safari precisam de Acesso Total ao Disco para o CodexBar (Ajustes do Sistema > Privacidade e Segurança).";
-"ollama_browser_cookie_decryption_denied" = "A descriptografia dos cookies do %@ foi recusada nas Chaves; tente novamente com uma atualização manual.";
+"ollama_browser_cookie_decryption_denied" = "A descriptografia dos cookies do %@ foi recusada nas Chaves. Abra o cartão do provedor e clique em Atualizar (⌘R) para solicitar novamente o acesso às Chaves.";
 "ollama_browser_cookie_decryption_disabled" = "A descriptografia dos cookies do %@ está desativada no CodexBar; ative o acesso às Chaves e atualize.";
 
 " providers" = " provedores";
@@ -584,7 +607,7 @@
 "show_provider_changelog_links_title" = "Mostrar links de changelog dos provedores";
 "show_provider_changelog_links_subtitle" = "Adiciona links de notas de versão para provedores baseados em CLI compatíveis no menu.";
 "show_credits_extra_usage_title" = "Mostrar créditos + uso extra";
-"show_credits_extra_usage_subtitle" = "Mostra as seções de créditos do Codex e uso extra do Claude no menu.";
+"show_credits_extra_usage_subtitle" = "Mostra créditos e uso extra para provedores compatíveis.";
 "multi_account_layout_title" = "Layout de múltiplas contas";
 "multi_account_layout_subtitle" = "Escolha alternância segmentada de contas ou cartões de contas empilhados.";
 "multi_account_layout_segmented" = "Segmentado";

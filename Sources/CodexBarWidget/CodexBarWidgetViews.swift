@@ -298,74 +298,7 @@ private struct ProviderSwitchChip: View {
     }
 
     private var shortLabel: String {
-        switch self.provider {
-        case .codex: "Codex"
-        case .openai: "OpenAI"
-        case .azureopenai: "Azure OpenAI"
-        case .claude: "Claude"
-        case .clinepass: "ClinePass"
-        case .gemini: "Gemini"
-        case .antigravity: "Anti"
-        case .cursor: "Cursor"
-        case .opencode: "OpenCode"
-        case .opencodego: "OpenCode Go"
-        case .alibaba: "Alibaba"
-        case .alibabatokenplan: "Token Plan"
-        case .qwencloud: "Qwen Cloud"
-        case .zai: "z.ai"
-        case .factory: "Droid"
-        case .copilot: "Copilot"
-        case .devin: "Devin"
-        case .minimax: "MiniMax"
-        case .manus: "Manus"
-        case .vertexai: "Vertex"
-        case .kilo: "Kilo"
-        case .kiro: "Kiro"
-        case .augment: "Augment"
-        case .jetbrains: "JetBrains"
-        case .kimi: "Kimi"
-        case .moonshot: "Moonshot"
-        case .amp: "Amp"
-        case .t3chat: "T3 Chat"
-        case .zoommate: "ZoomMate"
-        case .ollama: "Ollama"
-        case .synthetic: "Synthetic"
-        case .openrouter: "OpenRouter"
-        case .clawrouter: "ClawRouter"
-        case .sub2api: "sub2api"
-        case .wayfinder: "Wayfinder"
-        case .elevenlabs: "ElevenLabs"
-        case .warp: "Warp"
-        case .windsurf: "Windsurf"
-        case .perplexity: "Pplx"
-        case .mimo: "MiMo"
-        case .doubao: "Doubao"
-        case .sakana: "Sakana"
-        case .abacus: "Abacus"
-        case .mistral: "Mistral"
-        case .deepseek: "DeepSeek"
-        case .deepinfra: "DeepInfra"
-        case .codebuff: "Codebuff"
-        case .crof: "Crof"
-        case .venice: "Venice"
-        case .commandcode: "Command Code"
-        case .qoder: "Qoder"
-        case .stepfun: "StepFun"
-        case .bedrock: "Bedrock"
-        case .grok: "Grok"
-        case .groq: "Groq"
-        case .llmproxy: "LLM Proxy"
-        case .litellm: "LiteLLM"
-        case .deepgram: "Deepgram"
-        case .poe: "Poe"
-        case .chutes: "Chutes"
-        case .longcat: "LongCat"
-        case .zed: "Zed"
-        case .neuralwatt: "Neuralwatt"
-        case .zenmux: "ZenMux"
-        case .aiand: "ai&"
-        case .xai: "xAI"
-        }
+        ProviderDefaults.metadata[self.provider]?.shortDisplayName ?? self.provider.rawValue.capitalized
     }
 }
 
@@ -640,12 +573,16 @@ struct WidgetUsageRow: Identifiable, Equatable {
     }
 
     static func smallWidgetRowLimit(for entry: WidgetSnapshot.ProviderEntry) -> Int? {
-        if entry.provider == .kimi { return 3 }
+        if entry.provider == .kimi {
+            return 3
+        }
         return self.antigravityQuotaSummaryRowLimit(for: entry, limit: 2)
     }
 
     static func mediumWidgetRowLimit(for entry: WidgetSnapshot.ProviderEntry) -> Int? {
-        if entry.provider == .kimi { return 3 }
+        if entry.provider == .kimi {
+            return 3
+        }
         return self.antigravityQuotaSummaryRowLimit(for: entry, limit: 3)
     }
 
@@ -951,7 +888,9 @@ private struct UsageHistoryChart: View {
     var body: some View {
         let isCostMode = UsageHistoryChartMode.isCostMode(self.points)
         let values = self.points.map { point -> Double in
-            if isCostMode { return point.costUSD ?? 0 }
+            if isCostMode {
+                return point.costUSD ?? 0
+            }
             return Double(point.totalTokens ?? 0)
         }
         let scale = UsageChartScale(values: values)
@@ -1053,6 +992,8 @@ enum WidgetColors {
             Color(red: 245 / 255, green: 102 / 255, blue: 71 / 255)
         case .zoommate:
             Color(red: 11 / 255, green: 92 / 255, blue: 255 / 255) // Zoom blue
+        case .notion:
+            Color(red: 51 / 255, green: 126 / 255, blue: 169 / 255) // Notion accent blue
         case .ollama:
             Color(red: 32 / 255, green: 32 / 255, blue: 32 / 255) // Ollama charcoal
         case .synthetic:

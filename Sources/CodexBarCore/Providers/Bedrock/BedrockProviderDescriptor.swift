@@ -9,6 +9,7 @@ public enum BedrockProviderDescriptor {
             metadata: ProviderMetadata(
                 id: .bedrock,
                 displayName: "AWS Bedrock",
+                shortDisplayName: "Bedrock",
                 sessionLabel: "Budget",
                 weeklyLabel: "Cost",
                 opusLabel: nil,
@@ -18,13 +19,14 @@ public enum BedrockProviderDescriptor {
                 toggleTitle: "Show AWS Bedrock usage",
                 cliName: "bedrock",
                 defaultEnabled: false,
+                widgetSelectable: false,
                 isPrimaryProvider: false,
                 usesAccountFallback: false,
                 dashboardURL: "https://console.aws.amazon.com/bedrock",
                 statusPageURL: nil,
                 statusLinkURL: "https://health.aws.amazon.com/health/status"),
             branding: ProviderBranding(
-                iconStyle: .bedrock,
+                iconStyle: .init(provider: .bedrock),
                 iconResourceName: "ProviderIcon-bedrock",
                 color: ProviderColor(red: 1, green: 0.6, blue: 0),
                 confettiPalette: [

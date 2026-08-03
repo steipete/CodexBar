@@ -1,5 +1,28 @@
 /* Russian localization for CodexBar */
 
+/* iCloud Sync */
+"iCloud Sync" = "iCloud Sync";
+"Sync settings and providers across your Macs via iCloud" = "Sync settings and providers across your Macs via iCloud";
+"Include API keys, cookies, and tokens" = "Include API keys, cookies, and tokens";
+"Sync usage snapshots" = "Sync usage snapshots";
+"Show accounts from other Macs" = "Show accounts from other Macs";
+"Requires a signed release build of CodexBar." = "Requires a signed release build of CodexBar.";
+"Sign in to iCloud in System Settings to enable sync." = "Sign in to iCloud in System Settings to enable sync.";
+"iCloud access is restricted on this Mac." = "iCloud access is restricted on this Mac.";
+"Sync is paused: another Mac uses a newer version of CodexBar. Update to resume." = "Sync is paused: another Mac uses a newer version of CodexBar. Update to resume.";
+"Last successful fetch" = "Last successful fetch";
+"Last successful push" = "Last successful push";
+"Never" = "Never";
+"Macs" = "Macs";
+"No synced Macs yet." = "No synced Macs yet.";
+"Secrets use iCloud end-to-end encryption via encryptedValues. Hooks and machine-local paths never sync." = "Secrets use iCloud end-to-end encryption via encryptedValues. Hooks and machine-local paths never sync.";
+"Last seen %@" = "Last seen %@";
+"This Mac" = "This Mac";
+"another Mac" = "another Mac";
+"%dm ago" = "%dm ago";
+"%dh ago" = "%dh ago";
+"%dd ago" = "%dd ago";
+
 "tab_hooks" = "Хуки";
 "hooks_enable_title" = "Включить хуки";
 "hooks_enable_subtitle" = "Запускать внешние команды при событиях квоты или провайдера.";
@@ -21,7 +44,7 @@
 "hooks_delete_argument" = "Удалить аргумент";
 
 "ollama_safari_cookie_access_hint" = "Для файлов cookie Safari приложению CodexBar нужен полный доступ к диску (Системные настройки > Конфиденциальность и безопасность).";
-"ollama_browser_cookie_decryption_denied" = "Расшифровка файлов cookie %@ была отклонена в Связке ключей; повторите попытку с помощью ручного обновления.";
+"ollama_browser_cookie_decryption_denied" = "Расшифровка файлов cookie %@ была отклонена в Связке ключей. Откройте карточку провайдера и нажмите «Обновить» (⌘R), чтобы снова запросить доступ к Связке ключей.";
 "ollama_browser_cookie_decryption_disabled" = "Расшифровка файлов cookie %@ отключена в CodexBar; включите доступ к Связке ключей и обновите.";
 
 " providers" = " провайдеров";
@@ -588,7 +611,7 @@
 "show_provider_changelog_links_title" = "Показывать ссылки на журналы изменений провайдеров";
 "show_provider_changelog_links_subtitle" = "Добавляет в меню ссылки на заметки к релизам для поддерживаемых CLI-провайдеров.";
 "show_credits_extra_usage_title" = "Показывать кредиты и доп. использование";
-"show_credits_extra_usage_subtitle" = "Показывать в меню разделы кредитов Codex и дополнительного использования Claude.";
+"show_credits_extra_usage_subtitle" = "Показывать кредиты и дополнительное использование для поддерживаемых провайдеров.";
 "multi_account_layout_title" = "Макет нескольких аккаунтов";
 "multi_account_layout_subtitle" = "Выберите сегментированное переключение аккаунтов или сгруппированные карты аккаунтов.";
 "multi_account_layout_segmented" = "Сегментированный";

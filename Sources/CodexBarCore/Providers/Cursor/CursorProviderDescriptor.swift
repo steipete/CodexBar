@@ -13,8 +13,8 @@ public enum CursorProviderDescriptor {
                 weeklyLabel: "Auto",
                 opusLabel: "API",
                 supportsOpus: true,
-                supportsCredits: true,
-                creditsHint: "On-demand usage beyond included plan limits.",
+                supportsCredits: false,
+                creditsHint: "",
                 toggleTitle: "Show Cursor usage",
                 cliName: "cursor",
                 defaultEnabled: false,
@@ -26,7 +26,7 @@ public enum CursorProviderDescriptor {
                 statusPageURL: "https://status.cursor.com",
                 statusLinkURL: nil),
             branding: ProviderBranding(
-                iconStyle: .cursor,
+                iconStyle: .init(provider: .cursor),
                 iconResourceName: "ProviderIcon-cursor",
                 color: ProviderColor(red: 0 / 255, green: 191 / 255, blue: 165 / 255),
                 confettiPalette: [

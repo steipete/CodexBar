@@ -26,7 +26,7 @@ public enum ClaudeProviderDescriptor {
                 changelogURL: "https://github.com/anthropics/claude-code/releases",
                 statusPageURL: "https://status.claude.com/"),
             branding: ProviderBranding(
-                iconStyle: .claude,
+                iconStyle: .init(provider: .claude),
                 iconResourceName: "ProviderIcon-claude",
                 color: ProviderColor(red: 204 / 255, green: 124 / 255, blue: 94 / 255),
                 confettiPalette: [

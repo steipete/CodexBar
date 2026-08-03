@@ -1,5 +1,28 @@
 /* Chinese (Simplified) localization for CodexBar */
 
+/* iCloud Sync */
+"iCloud Sync" = "iCloud Sync";
+"Sync settings and providers across your Macs via iCloud" = "Sync settings and providers across your Macs via iCloud";
+"Include API keys, cookies, and tokens" = "Include API keys, cookies, and tokens";
+"Sync usage snapshots" = "Sync usage snapshots";
+"Show accounts from other Macs" = "Show accounts from other Macs";
+"Requires a signed release build of CodexBar." = "Requires a signed release build of CodexBar.";
+"Sign in to iCloud in System Settings to enable sync." = "Sign in to iCloud in System Settings to enable sync.";
+"iCloud access is restricted on this Mac." = "iCloud access is restricted on this Mac.";
+"Sync is paused: another Mac uses a newer version of CodexBar. Update to resume." = "Sync is paused: another Mac uses a newer version of CodexBar. Update to resume.";
+"Last successful fetch" = "Last successful fetch";
+"Last successful push" = "Last successful push";
+"Never" = "Never";
+"Macs" = "Macs";
+"No synced Macs yet." = "No synced Macs yet.";
+"Secrets use iCloud end-to-end encryption via encryptedValues. Hooks and machine-local paths never sync." = "Secrets use iCloud end-to-end encryption via encryptedValues. Hooks and machine-local paths never sync.";
+"Last seen %@" = "Last seen %@";
+"This Mac" = "This Mac";
+"another Mac" = "another Mac";
+"%dm ago" = "%dm ago";
+"%dh ago" = "%dh ago";
+"%dd ago" = "%dd ago";
+
 "tab_hooks" = "钩子";
 "hooks_enable_title" = "启用钩子";
 "hooks_enable_subtitle" = "在配额或提供商事件发生时运行外部命令。";
@@ -21,7 +44,7 @@
 "hooks_delete_argument" = "删除参数";
 
 "ollama_safari_cookie_access_hint" = "CodexBar 需要“完全磁盘访问权限”才能读取 Safari Cookie（系统设置 > 隐私与安全性）。";
-"ollama_browser_cookie_decryption_denied" = "钥匙串拒绝解密 %@ Cookie；请通过手动刷新重试。";
+"ollama_browser_cookie_decryption_denied" = "钥匙串拒绝解密 %@ Cookie。打开提供商卡片并点按“刷新”(⌘R)，再次请求钥匙串访问权限。";
 "ollama_browser_cookie_decryption_disabled" = "CodexBar 中已停用 %@ Cookie 解密；请启用钥匙串访问权限并刷新。";
 
 " providers" = " 提供商";
@@ -566,7 +589,7 @@
 "show_provider_changelog_links_title" = "显示提供商变更日志链接";
 "show_provider_changelog_links_subtitle" = "在菜单中为支持的 CLI 提供商添加发布说明链接。";
 "show_credits_extra_usage_title" = "显示额度 + 额外用量";
-"show_credits_extra_usage_subtitle" = "在菜单中显示 Codex 额度和 Claude 额外用量部分。";
+"show_credits_extra_usage_subtitle" = "显示受支持提供商的额度和额外用量。";
 "multi_account_layout_title" = "多账户布局";
 "multi_account_layout_subtitle" = "选择分段账户切换或堆叠账户卡片。";
 "multi_account_layout_segmented" = "分段";

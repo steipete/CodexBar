@@ -5,6 +5,7 @@ import SwiftUI
 /// Sidebar destinations of the settings window: fixed app panes plus one entry per provider.
 enum SettingsPane: Hashable {
     case general
+    case iCloudSync
     case usageSpend
     case notifications
     case menuBar
@@ -25,6 +26,7 @@ enum SettingsPane: Hashable {
     var title: String {
         switch self {
         case .general: L("tab_general")
+        case .iCloudSync: L("iCloud Sync")
         case .usageSpend: L("tab_usage_spend")
         case .notifications: L("tab_notifications")
         case .menuBar: L("tab_menu_bar")
@@ -43,6 +45,7 @@ enum SettingsPane: Hashable {
 struct PreferencesView: View {
     @Bindable var settings: SettingsStore
     @Bindable var store: UsageStore
+    @Bindable var cloudSyncState: CloudSyncState
     let updater: UpdaterProviding
     @Bindable var selection: PreferencesSelection
     let managedCodexAccountCoordinator: ManagedCodexAccountCoordinator
@@ -53,6 +56,7 @@ struct PreferencesView: View {
     init(
         settings: SettingsStore,
         store: UsageStore,
+        cloudSyncState: CloudSyncState = CloudSyncState(),
         updater: UpdaterProviding,
         selection: PreferencesSelection,
         managedCodexAccountCoordinator: ManagedCodexAccountCoordinator = ManagedCodexAccountCoordinator(),
@@ -61,6 +65,7 @@ struct PreferencesView: View {
     {
         self.settings = settings
         self.store = store
+        self.cloudSyncState = cloudSyncState
         self.updater = updater
         self.selection = selection
         self.managedCodexAccountCoordinator = managedCodexAccountCoordinator
@@ -123,6 +128,8 @@ struct PreferencesView: View {
         switch self.selection.pane {
         case .general:
             GeneralPane(settings: self.settings)
+        case .iCloudSync:
+            ICloudSyncPane(settings: self.settings, state: self.cloudSyncState)
         case .usageSpend:
             SpendDashboardPane(settings: self.settings, store: self.store)
         case .notifications:

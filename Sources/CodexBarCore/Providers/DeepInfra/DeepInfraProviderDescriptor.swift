@@ -18,6 +18,7 @@ public enum DeepInfraProviderDescriptor {
                 toggleTitle: "Show DeepInfra usage",
                 cliName: "deepinfra",
                 defaultEnabled: false,
+                widgetSelectable: false,
                 isPrimaryProvider: false,
                 usesAccountFallback: false,
                 browserCookieOrder: nil,
@@ -25,7 +26,7 @@ public enum DeepInfraProviderDescriptor {
                 statusPageURL: nil,
                 statusLinkURL: "https://status.deepinfra.com"),
             branding: ProviderBranding(
-                iconStyle: .deepinfra,
+                iconStyle: .init(provider: .deepinfra),
                 iconResourceName: "ProviderIcon-deepinfra",
                 color: ProviderColor(red: 42 / 255, green: 50 / 255, blue: 117 / 255),
                 confettiPalette: [

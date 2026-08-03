@@ -18,10 +18,11 @@ public enum ZenMuxProviderDescriptor {
                 toggleTitle: "Show ZenMux usage",
                 cliName: "zenmux",
                 defaultEnabled: false,
+                widgetSelectable: false,
                 dashboardURL: "https://zenmux.ai/platform/management",
                 statusPageURL: nil),
             branding: ProviderBranding(
-                iconStyle: .zenmux,
+                iconStyle: .init(provider: .zenmux),
                 iconResourceName: "ProviderIcon-zenmux",
                 color: ProviderColor(red: 108 / 255, green: 92 / 255, blue: 231 / 255),
                 confettiPalette: [

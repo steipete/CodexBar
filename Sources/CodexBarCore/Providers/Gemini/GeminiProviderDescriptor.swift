@@ -26,7 +26,7 @@ public enum GeminiProviderDescriptor {
                 statusLinkURL: "https://www.google.com/appsstatus/dashboard/products/npdyhgECDJ6tB66MxXyo/history",
                 statusWorkspaceProductID: "npdyhgECDJ6tB66MxXyo"),
             branding: ProviderBranding(
-                iconStyle: .gemini,
+                iconStyle: .init(provider: .gemini),
                 iconResourceName: "ProviderIcon-gemini",
                 color: ProviderColor(red: 171 / 255, green: 135 / 255, blue: 234 / 255),
                 confettiPalette: [

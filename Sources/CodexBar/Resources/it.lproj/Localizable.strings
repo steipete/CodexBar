@@ -1,7 +1,30 @@
 /* Italian localization for CodexBar */
 
+/* iCloud Sync */
+"iCloud Sync" = "Sincronizzazione iCloud";
+"Sync settings and providers across your Macs via iCloud" = "Sincronizza impostazioni e provider sui tuoi Mac tramite iCloud";
+"Include API keys, cookies, and tokens" = "Includi chiavi API, cookie e token";
+"Sync usage snapshots" = "Sincronizza istantanee di utilizzo";
+"Show accounts from other Macs" = "Mostra account da altri Mac";
+"Requires a signed release build of CodexBar." = "Richiede una build di rilascio firmata di CodexBar.";
+"Sign in to iCloud in System Settings to enable sync." = "Accedi a iCloud in Impostazioni di Sistema per abilitare la sincronizzazione.";
+"iCloud access is restricted on this Mac." = "L’accesso a iCloud è limitato su questo Mac.";
+"Sync is paused: another Mac uses a newer version of CodexBar. Update to resume." = "La sincronizzazione è in pausa: un altro Mac usa una versione più recente di CodexBar. Aggiorna per riprendere.";
+"Last successful fetch" = "Ultimo recupero riuscito";
+"Last successful push" = "Ultimo invio riuscito";
+"Never" = "Mai";
+"Macs" = "Computer Mac";
+"No synced Macs yet." = "Nessun Mac sincronizzato.";
+"Secrets use iCloud end-to-end encryption via encryptedValues. Hooks and machine-local paths never sync." = "I segreti usano la crittografia end-to-end di iCloud tramite encryptedValues. Gli hook e i percorsi locali non vengono mai sincronizzati.";
+"Last seen %@" = "Ultima attività: %@";
+"This Mac" = "Questo Mac";
+"another Mac" = "un altro Mac";
+"%dm ago" = "%dm fa";
+"%dh ago" = "%dh fa";
+"%dd ago" = "%dg fa";
+
 "ollama_safari_cookie_access_hint" = "I cookie di Safari richiedono l’accesso completo al disco per CodexBar (Impostazioni di Sistema > Privacy e sicurezza).";
-"ollama_browser_cookie_decryption_denied" = "La decrittografia dei cookie di %@ è stata rifiutata nel Portachiavi; riprova con un aggiornamento manuale.";
+"ollama_browser_cookie_decryption_denied" = "La decrittografia dei cookie di %@ è stata rifiutata nel Portachiavi. Apri la scheda del provider e fai clic su Aggiorna (⌘R) per richiedere di nuovo l’accesso al Portachiavi.";
 "ollama_browser_cookie_decryption_disabled" = "La decrittografia dei cookie di %@ è disabilitata in CodexBar; abilita l’accesso al Portachiavi e aggiorna.";
 
 " providers" = " provider";
@@ -595,7 +618,7 @@
 "show_provider_changelog_links_title" = "Mostra link changelog provider";
 "show_provider_changelog_links_subtitle" = "Aggiunge link alle note di rilascio per i provider CLI supportati.";
 "show_credits_extra_usage_title" = "Mostra crediti + uso extra";
-"show_credits_extra_usage_subtitle" = "Mostra nel menu le sezioni Crediti Codex e Uso extra Claude.";
+"show_credits_extra_usage_subtitle" = "Mostra crediti e utilizzo extra per i provider supportati.";
 "multi_account_layout_title" = "Layout multi-account";
 "multi_account_layout_subtitle" = "Scegli tra selezione segmentata o schede account impilate.";
 "multi_account_layout_segmented" = "Segmentato";

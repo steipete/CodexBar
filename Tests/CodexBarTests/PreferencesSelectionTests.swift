@@ -9,6 +9,7 @@ struct PreferencesSelectionTests {
     func `pane persistence tokens round-trip`() {
         let panes: [SettingsPane] = [
             .general,
+            .iCloudSync,
             .usageSpend,
             .notifications,
             .menuBar,

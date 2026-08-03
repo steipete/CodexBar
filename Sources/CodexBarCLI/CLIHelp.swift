@@ -262,6 +262,7 @@ extension CodexBarCLI {
           codexbar hooks enable
           codexbar hooks disable
           codexbar hooks test <event> --provider <name>
+          codexbar hooks watch [--interval <seconds>] [--provider <name>]
 
         Description:
           Run external commands when quota/provider events occur. Rules are stored in the
@@ -272,11 +273,19 @@ extension CodexBarCLI {
           Commands run directly (no shell), receive event metadata via CODEXBAR_* environment
           variables and a JSON payload on stdin, and are timed out. Only configure commands you trust.
 
+          `watch` polls the selected providers and fires rules on real transitions, so hooks
+          work without the macOS app. Events are edge-triggered against the previous poll, so a
+          persisting condition does not re-fire. Baselines are in-memory: the first poll of a
+          lane establishes state without firing. Keep one continuous process running so transition
+          baselines and event rate limits survive between polls. Default interval 300s, minimum 60s.
+
         Examples:
           codexbar hooks list
           codexbar hooks enable
           codexbar hooks test quota_reached --provider codex
           codexbar hooks test quota_low --provider claude
+          codexbar hooks watch --interval 600
+          codexbar hooks watch --provider codex
         """
     }
 

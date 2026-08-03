@@ -26,7 +26,7 @@ public enum KimiProviderDescriptor {
                 dashboardURL: "https://www.kimi.com/code/console",
                 statusPageURL: nil),
             branding: ProviderBranding(
-                iconStyle: .kimi,
+                iconStyle: .init(provider: .kimi),
                 iconResourceName: "ProviderIcon-kimi",
                 color: ProviderColor(red: 254 / 255, green: 96 / 255, blue: 60 / 255),
                 confettiPalette: [

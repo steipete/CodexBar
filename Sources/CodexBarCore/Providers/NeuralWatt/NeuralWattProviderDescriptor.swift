@@ -18,6 +18,7 @@ public enum NeuralWattProviderDescriptor {
                 toggleTitle: "Show Neuralwatt usage",
                 cliName: "neuralwatt",
                 defaultEnabled: false,
+                widgetSelectable: false,
                 isPrimaryProvider: false,
                 usesAccountFallback: false,
                 browserCookieOrder: nil,
@@ -27,7 +28,7 @@ public enum NeuralWattProviderDescriptor {
                 statusPageURL: nil,
                 statusLinkURL: nil),
             branding: ProviderBranding(
-                iconStyle: .neuralwatt,
+                iconStyle: .init(provider: .neuralwatt),
                 iconResourceName: "ProviderIcon-neuralwatt",
                 color: ProviderColor(red: 0.22, green: 0.85, blue: 0.55),
                 confettiPalette: [

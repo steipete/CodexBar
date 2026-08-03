@@ -35,7 +35,7 @@ public enum QwenCloudProviderDescriptor {
                 statusPageURL: nil,
                 statusLinkURL: "https://status.alibabacloud.com"),
             branding: ProviderBranding(
-                iconStyle: .qwencloud,
+                iconStyle: .init(provider: .qwencloud),
                 iconResourceName: "ProviderIcon-qwencloud",
                 color: ProviderColor(hex: 0x615CED),
                 confettiPalette: [

@@ -34,6 +34,34 @@ struct ProviderRegistryTests {
     }
 
     @Test
+    func `icon styles derive from provider identifiers while preserving shared styles`() {
+        #expect(IconStyle.allCases == UsageProvider.allCases.map(IconStyle.init(provider:)) + [.combined])
+
+        let sharedStyles: [UsageProvider: UsageProvider] = [
+            .azureopenai: .openai,
+            .alibabatokenplan: .alibaba,
+            .moonshot: .kimi,
+        ]
+        for descriptor in ProviderDescriptorRegistry.all {
+            let expectedProvider = sharedStyles[descriptor.id] ?? descriptor.id
+            #expect(
+                descriptor.branding.iconStyle == IconStyle(provider: expectedProvider),
+                "Unexpected icon style for \(descriptor.id.rawValue).")
+        }
+    }
+
+    @Test
+    func `provider log categories derive byte identical names`() {
+        #expect(LogCategories.provider(.codex) == "codex")
+        #expect(LogCategories.provider(.deepseek, scope: "usage") == "deepseek-usage")
+        #expect(LogCategories.provider(.opencodego, scope: "usage") == "opencode-go-usage")
+        #expect(LogCategories.codexRPC == "codex-rpc")
+        #expect(LogCategories.openAIWebview == "openai-webview")
+        #expect(LogCategories.minimaxAPITokenStore == "minimax-api-token-store")
+        #expect(LogCategories.neuralWattUsage == "neuralwatt-usage")
+    }
+
+    @Test
     func `minimax sorts after zai in registry`() {
         let ids = ProviderDescriptorRegistry.all.map(\.id)
         guard let zaiIndex = ids.firstIndex(of: .zai),

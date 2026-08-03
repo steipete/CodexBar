@@ -1,0 +1,37 @@
+{
+  "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee": {
+    "notion_user": {
+      "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee": {
+        "value": {
+          "value": {
+            "id": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+            "email": "person@example.com",
+            "name": "Example Person"
+          }
+        }
+      }
+    },
+    "space": {
+      "66666666-7777-8888-9999-aaaaaaaaaaaa": {
+        "value": {
+          "value": {
+            "id": "66666666-7777-8888-9999-aaaaaaaaaaaa",
+            "name": "Personal",
+            "plan_type": "personal",
+            "subscription_tier": "free"
+          }
+        }
+      },
+      "11111111-2222-3333-4444-555555555555": {
+        "value": {
+          "value": {
+            "id": "11111111-2222-3333-4444-555555555555",
+            "name": "Acme",
+            "plan_type": "team",
+            "subscription_tier": "business"
+          }
+        }
+      }
+    }
+  }
+}

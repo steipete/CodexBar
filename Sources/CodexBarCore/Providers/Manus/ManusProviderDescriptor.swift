@@ -18,13 +18,14 @@ public enum ManusProviderDescriptor {
                 toggleTitle: "Show Manus usage",
                 cliName: "manus",
                 defaultEnabled: false,
+                widgetSelectable: false,
                 isPrimaryProvider: false,
                 usesAccountFallback: false,
                 browserCookieOrder: ProviderBrowserCookieDefaults.defaultImportOrder,
                 dashboardURL: "https://manus.im",
                 statusPageURL: nil),
             branding: ProviderBranding(
-                iconStyle: .manus,
+                iconStyle: .init(provider: .manus),
                 iconResourceName: "ProviderIcon-manus",
                 color: ProviderColor(red: 52 / 255, green: 50 / 255, blue: 45 / 255),
                 confettiPalette: [

@@ -41,10 +41,15 @@ enum ProcNetTCPListeningPortParser {
 }
 
 extension AntigravityStatusProbe {
-    /// Resolves the TCP ports the process `pid` is listening on. Uses `lsof` when
-    /// present (the common denominator across macOS and Linux) and falls back to
-    /// the kernel's `/proc` interface on Linux hosts without `lsof`.
+    /// Resolves the TCP ports the process `pid` is listening on.
     static func listeningPorts(pid: Int, timeout: TimeInterval) async throws -> [Int] {
+        #if canImport(Darwin)
+        let ports = DarwinProcessEnumerator.listeningTCPPorts(pid: Int32(pid))
+        if ports.isEmpty {
+            throw AntigravityStatusProbeError.portDetectionFailed("no listening ports found")
+        }
+        return ports
+        #else
         let lsof = ["/usr/sbin/lsof", "/usr/bin/lsof"].first(where: {
             FileManager.default.isExecutableFile(atPath: $0)
         })
@@ -53,7 +58,6 @@ extension AntigravityStatusProbe {
             return try await Self.lsofListeningPorts(lsof: lsof, pid: pid, timeout: timeout)
         }
 
-        #if os(Linux)
         // `lsof` is frequently absent on minimal Linux hosts. Fall back to the
         // kernel's /proc interface, mirroring the /proc/<pid>/cwd fallback that
         // LocalAgentSessionScanner.cwdByPID already uses when lsof is missing.
@@ -62,8 +66,6 @@ extension AntigravityStatusProbe {
             throw AntigravityStatusProbeError.portDetectionFailed("no listening ports found")
         }
         return ports
-        #else
-        throw AntigravityStatusProbeError.portDetectionFailed("lsof not available")
         #endif
     }
 

@@ -126,7 +126,7 @@ All provider fields are optional unless noted.
 - `cookieHeader`: raw cookie header value (e.g. `key=value; other=...`).
 - `region`: provider-specific region (e.g. `zai`, `minimax`).
 - `workspaceID`: provider-specific workspace/deployment/project ID (e.g. Azure OpenAI deployment, OpenAI API project,
-  `opencode`).
+  `opencode`, Notion space).
 - `tokenAccounts`: multi-account tokens for providers in `TokenAccountSupportCatalog`.
 - `claudeSwapEnabled`: allow the Claude provider to read account usage from claude-swap.
 - `claudeSwapExecutablePath`: path to the `cswap` executable.
@@ -270,10 +270,19 @@ z.ai team accounts also use `usageScope`, `organizationId`, and `workspaceID`; s
 
 ## Provider IDs
 Current IDs (see `Sources/CodexBarCore/Providers/Providers.swift`):
-`codex`, `openai`, `azureopenai`, `claude`, `clinepass`, `cursor`, `opencode`, `opencodego`, `alibaba`, `alibabatokenplan`, `qwencloud`, `factory`, `gemini`, `antigravity`, `copilot`, `devin`, `zai`, `minimax`, `manus`, `kimi`, `kilo`, `kiro`, `vertexai`, `augment`, `jetbrains`, `moonshot`, `amp`, `t3chat`, `ollama`, `synthetic`, `warp`, `openrouter`, `elevenlabs`, `windsurf`, `zed`, `perplexity`, `mimo`, `doubao`, `sakana`, `abacus`, `mistral`, `deepseek`, `deepinfra`, `codebuff`, `crof`, `venice`, `commandcode`, `qoder`, `stepfun`, `bedrock`, `grok`, `groq`, `llmproxy`, `litellm`, `deepgram`, `poe`, `chutes`, `neuralwatt`, `clawrouter`, `longcat`, `sub2api`, `wayfinder`, `zenmux`, `aiand`, `zoommate`, `xai`.
+`codex`, `openai`, `azureopenai`, `claude`, `clinepass`, `cursor`, `opencode`, `opencodego`, `alibaba`, `alibabatokenplan`, `qwencloud`, `factory`, `gemini`, `antigravity`, `copilot`, `devin`, `zai`, `minimax`, `manus`, `kimi`, `kilo`, `kiro`, `vertexai`, `augment`, `jetbrains`, `moonshot`, `amp`, `t3chat`, `ollama`, `synthetic`, `warp`, `openrouter`, `elevenlabs`, `windsurf`, `zed`, `perplexity`, `mimo`, `doubao`, `sakana`, `abacus`, `mistral`, `deepseek`, `deepinfra`, `codebuff`, `crof`, `venice`, `commandcode`, `qoder`, `stepfun`, `bedrock`, `grok`, `groq`, `llmproxy`, `litellm`, `deepgram`, `poe`, `chutes`, `neuralwatt`, `clawrouter`, `longcat`, `sub2api`, `wayfinder`, `zenmux`, `aiand`, `zoommate`, `xai`, `notion`.
 
 ## Ordering
 The order of `providers` controls display/order in the app and CLI. Reorder the array to change ordering.
+
+## iCloud sync
+Opt-in (Settings → iCloud Sync, off by default; requires a signed release build and an iCloud account). When enabled, CodexBar syncs across the user's Macs via CloudKit (private database, container `iCloud.com.steipete.codexbar`):
+
+- **Provider configuration** — portable fields of each provider entry (enabled intent, extras, region, workspace, quota-warning overrides, ordering-relevant metadata). Secrets (`apiKey`, `secretKey`, `cookieHeader`, `tokenAccounts`) sync only when "Include API keys, cookies, and tokens" is on, and travel exclusively in CloudKit `encryptedValues` (end-to-end encrypted; readable only on the user's devices).
+- **A curated preferences subset** — notification/threshold/display settings.
+- **Usage snapshots** — per-device current usage per account, so other Macs can show last-known data ("via <Mac> · 1h ago") and accounts discovered on other Macs.
+
+Never synced, by design: `hooks` (sync payloads structurally cannot create or modify hook rules — they execute local binaries), machine-local paths (`claudeSwapExecutablePath`, `codexProfileHomePaths`, `awsProfile`/`awsAuthMode`, `source`, `codexActiveSource`, `cookieSource`), menu-bar layout/geometry, debug settings, usage history, and cost ledgers. A provider is never auto-enabled on a Mac where its required local CLI is missing. Records carry a schema version; older app versions pause sync instead of rewriting newer payloads. The CLI does not talk to CloudKit — the app applies remote changes to `config.json` and watches the file, so CLI edits reload into the running app. (CLI/hand edits currently apply locally only; pushing them to other Macs is a known follow-up.) Only changes made while sync is enabled push to the fleet: the app tracks per-provider dirty state and never re-uploads unchanged state at launch.
 
 ## Notes
 - Fields not relevant to a provider are ignored.

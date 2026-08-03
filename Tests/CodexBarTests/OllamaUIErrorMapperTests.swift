@@ -14,6 +14,11 @@ struct OllamaUIErrorMapperTests {
 
     @Test
     func `maps Brave decryption denial with browser name`() {
+        #expect(
+            OllamaUsageError.browserCookieDecryptionDenied("Brave").localizedDescription ==
+                "Brave cookie decryption was declined in Keychain. " +
+                "Open the provider card and click Refresh (⌘R) to request Keychain access again.")
+
         let message = OllamaUIErrorMapper.userFacingMessage(
             OllamaUsageError.browserCookieDecryptionDenied("Brave").localizedDescription,
             localize: { key in

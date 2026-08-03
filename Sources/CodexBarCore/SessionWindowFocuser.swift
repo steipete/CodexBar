@@ -91,17 +91,7 @@ public enum SessionWindowFocuser {
     }
 
     private static func parentPID(of pid: Int32) -> Int32? {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/bin/ps")
-        process.arguments = ["-o", "ppid=", "-p", String(pid)]
-        let pipe = Pipe()
-        process.standardOutput = pipe
-        process.standardError = FileHandle.nullDevice
-        guard (try? process.run()) != nil else { return nil }
-        process.waitUntilExit()
-        let data = pipe.fileHandleForReading.readDataToEndOfFile()
-        guard let output = String(data: data, encoding: .utf8) else { return nil }
-        return Int32(output.trimmingCharacters(in: .whitespacesAndNewlines))
+        DarwinProcessEnumerator.bsdInfo(pid: pid)?.ppid
     }
 }
 #endif

@@ -1044,6 +1044,16 @@ public struct AntigravityStatusProbe: Sendable {
         timeout: TimeInterval,
         scope: ProcessScope = .ideAndCLI) async throws -> [ProcessInfoResult]
     {
+        #if canImport(Darwin)
+        let entries = DarwinProcessEnumerator.allPIDs().compactMap { pid -> (pid: Int, command: String)? in
+            guard let executablePath = DarwinProcessEnumerator.executablePath(pid: pid),
+                  DarwinProcessEnumerator.isAntigravityCandidatePath(executablePath)
+            else { return nil }
+            let command = DarwinProcessEnumerator.commandLine(pid: pid) ?? executablePath
+            return (Int(pid), command)
+        }
+        return try self.processInfos(fromEntries: entries, scope: scope)
+        #else
         let env = ProcessInfo.processInfo.environment
         let result = try await SubprocessRunner.run(
             binary: "/bin/ps",
@@ -1053,6 +1063,7 @@ public struct AntigravityStatusProbe: Sendable {
             label: "antigravity-ps")
 
         return try Self.processInfos(fromProcessListOutput: result.stdout, scope: scope)
+        #endif
     }
 
     static func processInfo(
@@ -1070,31 +1081,39 @@ public struct AntigravityStatusProbe: Sendable {
         fromProcessListOutput output: String,
         scope: ProcessScope = .ideAndCLI) throws -> [ProcessInfoResult]
     {
-        let lines = output.split(separator: "\n")
+        let entries = output.split(separator: "\n").compactMap { line -> (pid: Int, command: String)? in
+            guard let match = Self.matchProcessLine(String(line)) else { return nil }
+            return (match.pid, match.command)
+        }
+        return try self.processInfos(fromEntries: entries, scope: scope)
+    }
+
+    static func processInfos(
+        fromEntries entries: [(pid: Int, command: String)],
+        scope: ProcessScope = .ideAndCLI) throws -> [ProcessInfoResult]
+    {
         var sawTokenlessIDE = false
         var results: [ProcessInfoResult] = []
-        for line in lines {
-            let text = String(line)
-            guard let match = Self.matchProcessLine(text) else { continue }
-            guard let kind = Self.antigravityProcessKind(match.command) else { continue }
+        for entry in entries {
+            guard let kind = Self.antigravityProcessKind(entry.command) else { continue }
             if !Self.processKind(kind, matches: scope) { continue }
             // The IDE language server authenticates local requests with a
             // `--csrf_token` and must keep requiring it: skip a tokenless IDE
             // or app match so a later valid server can still be found (and surface
             // `missingCSRFToken` if none is). The CLI's language server exposes
             // no token flag and needs none, so an empty token is allowed there.
-            guard let token = Self.resolvedCSRFToken(forKind: kind, command: match.command) else {
+            guard let token = Self.resolvedCSRFToken(forKind: kind, command: entry.command) else {
                 sawTokenlessIDE = true
                 continue
             }
-            let port = Self.extractPort("--extension_server_port", from: match.command)
-            let extensionServerCSRFToken = Self.extractFlag("--extension_server_csrf_token", from: match.command)
+            let port = Self.extractPort("--extension_server_port", from: entry.command)
+            let extensionServerCSRFToken = Self.extractFlag("--extension_server_csrf_token", from: entry.command)
             results.append(ProcessInfoResult(
-                pid: match.pid,
+                pid: entry.pid,
                 extensionPort: port,
                 extensionServerCSRFToken: extensionServerCSRFToken,
                 csrfToken: token,
-                commandLine: match.command))
+                commandLine: entry.command))
         }
 
         if !results.isEmpty {
