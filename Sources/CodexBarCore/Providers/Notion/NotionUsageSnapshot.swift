@@ -294,9 +294,13 @@ public enum NotionUsageParser {
             }
             return record["id"] as? String == key
         }
-        if identified.count == 1 { return identified.first }
+        if identified.count == 1 {
+            return identified.first
+        }
         // Older responses omit the self-identifying id; a single-key payload is still unambiguous.
-        if identified.isEmpty, root.count == 1 { return root.keys.first }
+        if identified.isEmpty, root.count == 1 {
+            return root.keys.first
+        }
         return nil
     }
 
@@ -304,7 +308,9 @@ public enum NotionUsageParser {
     private static func unwrapRecord(_ raw: Any) -> [String: Any]? {
         guard let outer = raw as? [String: Any] else { return nil }
         guard let value = outer["value"] as? [String: Any] else { return outer }
-        if let inner = value["value"] as? [String: Any] { return inner }
+        if let inner = value["value"] as? [String: Any] {
+            return inner
+        }
         return value
     }
 }

@@ -15,9 +15,8 @@ Notion begins enforcing the AI usage allowance on **August 3, 2026**. Before tha
 reports `"enforcement": "preview"` while still returning real usage numbers, so the gauges are accurate
 either way.
 
-> **Unofficial integration:** Notion does not publish an API for this data. CodexBar reads a
-> cookie-authenticated endpoint used by the Notion web app, so the integration may change or stop working
-> without notice.
+> **Unsupported integration:** CodexBar uses Notion's internal, cookie-authenticated `/api/v3` endpoints.
+> These endpoints are not a supported public API and may change or break without notice.
 
 ## Requirements
 
@@ -29,21 +28,23 @@ provider error rather than an empty gauge.
 
 ### Automatic (recommended)
 
-1. Sign in to Notion in any supported browser.
+1. Sign in to Notion in Chrome.
 2. Enable **Notion AI** in **Settings → Providers**.
 
 CodexBar imports your browser session cookie automatically and sends it only to `https://app.notion.com`.
 The import requires the `token_v2` session cookie; a browser profile that has Notion cookies but no
 `token_v2` is skipped rather than used for a request that would fail with 401.
 
-**Note**: Browser cookie import may require Full Disk Access (especially for Safari) or macOS Keychain
-approval (for Chromium-based browsers).
+**Note**: Automatic import defaults to Chrome only to avoid probing unrelated browser stores. Callers using
+the shared browser-cookie plumbing can still supply an explicit browser list. Chrome cookie decryption may
+require macOS Keychain approval.
 
 ### Manual
 
-Set **Cookie source** to **Manual** in the Notion AI provider settings, then paste either:
+Set **Cookie source** to **Manual** in the Notion AI provider settings, then paste one of:
 
-- A bare `Cookie: ...` header value copied from a browser network request to `app.notion.com`, or
+- The bare `token_v2` value,
+- A `Cookie: ...` header value copied from a browser network request to `app.notion.com`, or
 - A full `curl` command captured from the Notion web app (all `-H` flags are parsed; only the `Cookie`
   header and a fixed set of safe request headers are forwarded).
 

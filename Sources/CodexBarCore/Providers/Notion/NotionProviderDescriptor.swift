@@ -22,7 +22,7 @@ public enum NotionProviderDescriptor {
                 widgetSelectable: false,
                 isPrimaryProvider: false,
                 usesAccountFallback: false,
-                browserCookieOrder: ProviderBrowserCookieDefaults.defaultImportOrder,
+                browserCookieOrder: ProviderBrowserCookieDefaults.chromeOnlyImportOrder,
                 dashboardURL: "https://app.notion.com/",
                 statusPageURL: nil,
                 statusLinkURL: "https://status.notion.so/"),

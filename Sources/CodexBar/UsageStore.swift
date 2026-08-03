@@ -1357,23 +1357,6 @@ extension UsageStore {
         }
     }
 
-    private static func debugNotionLog(
-        browserDetection: BrowserDetection,
-        notionCookieSource: ProviderCookieSource,
-        notionCookieHeader: String,
-        notionWorkspaceID: String) async -> String
-    {
-        await runWithTimeout(seconds: 15) {
-            let fetcher = NotionUsageFetcher(browserDetection: browserDetection)
-            let manualHeader = notionCookieSource == .manual
-                ? CookieHeaderNormalizer.normalize(notionCookieHeader)
-                : nil
-            return await fetcher.debugRawProbe(
-                cookieHeaderOverride: manualHeader,
-                preferredSpaceID: notionWorkspaceID.isEmpty ? nil : notionWorkspaceID)
-        }
-    }
-
     /// Version probes can spawn subprocesses (Antigravity's `ps` scan trips a TCC
     /// prompt, CLI providers exec their binaries), so disabled providers must not
     /// be probed (#2267). Settings changes re-run this when the enabled set changes.

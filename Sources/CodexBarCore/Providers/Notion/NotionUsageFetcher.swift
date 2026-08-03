@@ -24,17 +24,26 @@ public enum NotionCookieImporter {
     ]
 
     public struct SessionInfo: Sendable {
-        public let cookieHeader: String
+        public let cookies: [HTTPCookie]
         public let sourceLabel: String
 
-        public init(cookieHeader: String, sourceLabel: String) {
-            self.cookieHeader = cookieHeader
+        public init(cookies: [HTTPCookie], sourceLabel: String) {
+            self.cookies = cookies
             self.sourceLabel = sourceLabel
+        }
+
+        public var cookieHeader: String {
+            self.cookies.map { "\($0.name)=\($0.value)" }.joined(separator: "; ")
+        }
+
+        var tokenV2: String? {
+            self.cookies.first(where: { $0.name == NotionUsageFetcher.sessionCookieName })?.value
         }
     }
 
     public static func importSession(
         browserDetection: BrowserDetection,
+        browserOrder: BrowserCookieImportOrder? = nil,
         logger: ((String) -> Void)? = nil) throws -> SessionInfo
     {
         let log: (String) -> Void = { msg in logger?("[notion-cookie] \(msg)") }
@@ -44,11 +53,12 @@ public enum NotionCookieImporter {
         if let cached = self.importSessionCache.load(now: now) {
             return cached
         }
-        let installed = self.cookieImportOrder.cookieImportCandidates(using: browserDetection)
+        let importOrder = browserOrder ?? self.cookieImportOrder
+        let installed = importOrder.cookieImportCandidates(using: browserDetection)
         // `cookieImportCandidates` drops Chromium browsers on anything but a user-initiated refresh,
         // to avoid a Keychain prompt. Saying "log in" there would be wrong — the session is fine, it
         // just cannot be read yet.
-        if installed.isEmpty, !self.cookieImportOrder.browsersWithProfileData(using: browserDetection).isEmpty {
+        if installed.isEmpty, !importOrder.browsersWithProfileData(using: browserDetection).isEmpty {
             throw NotionUsageError.cookieImportDeferred
         }
 
@@ -70,8 +80,7 @@ public enum NotionCookieImporter {
                     }
                     let names = deduped.map(\.name).joined(separator: ", ")
                     log("\(source.label) cookies: \(names)")
-                    let header = deduped.map { "\($0.name)=\($0.value)" }.joined(separator: "; ")
-                    let session = SessionInfo(cookieHeader: header, sourceLabel: source.label)
+                    let session = SessionInfo(cookies: deduped, sourceLabel: source.label)
                     self.importSessionCache.store(session, now: now)
                     return session
                 }
@@ -92,7 +101,9 @@ public enum NotionCookieImporter {
         for cookie in cookies {
             let host = cookie.domain.hasPrefix(".") ? String(cookie.domain.dropFirst()) : cookie.domain
             let rank = self.cookieDomains.firstIndex(of: host.lowercased()) ?? self.cookieDomains.count
-            if let existing = best[cookie.name], existing.rank <= rank { continue }
+            if let existing = best[cookie.name], existing.rank <= rank {
+                continue
+            }
             best[cookie.name] = (rank, cookie)
         }
         return best.keys.sorted().compactMap { best[$0]?.cookie }
@@ -207,7 +218,22 @@ public struct NotionUsageFetcher: Sendable {
                     options: options)
             } catch NotionUsageError.invalidCredentials {
                 CookieHeaderCache.clear(provider: .notion)
-                log("Cached cookie header was rejected; cleared it and retrying with a fresh import")
+                await NotionSessionStore.shared.clearSession()
+                log("Cached session was rejected; cleared persisted copies and retrying with a fresh import")
+            }
+        }
+
+        if ProviderInteractionContext.current != .userInitiated,
+           let stored = await NotionSessionStore.shared.getSession()
+        {
+            log("Using stored session from \(stored.sourceLabel)")
+            do {
+                return try await self.runFetch(
+                    context: RequestContext(cookieHeader: stored.cookieHeader),
+                    options: options)
+            } catch NotionUsageError.invalidCredentials {
+                await NotionSessionStore.shared.clearSession()
+                log("Stored session was rejected; cleared it and retrying with a fresh import")
             }
         }
 
@@ -218,6 +244,9 @@ public struct NotionUsageFetcher: Sendable {
         let snapshot = try await self.runFetch(
             context: RequestContext(cookieHeader: session.cookieHeader),
             options: options)
+        if let tokenV2 = session.tokenV2 {
+            await NotionSessionStore.shared.setSession(tokenV2: tokenV2, sourceLabel: session.sourceLabel)
+        }
         CookieHeaderCache.store(
             provider: .notion,
             cookieHeader: session.cookieHeader,
@@ -402,8 +431,14 @@ public struct NotionUsageFetcher: Sendable {
         guard let raw = raw?.trimmingCharacters(in: .whitespacesAndNewlines), !raw.isEmpty else { return nil }
         let headerFields = CurlCaptureParser.headerFields(from: raw)
         let headers = CurlCaptureParser.forwardedHeaders(from: headerFields, allowlist: self.forwardedManualHeaders)
+        guard let normalized = CookieHeaderNormalizer.normalize(
+            CurlCaptureParser.headerValue(named: "Cookie", in: headerFields) ?? raw)
+        else { return nil }
+        let cookieHeader = CookieHeaderNormalizer.pairs(from: normalized).isEmpty
+            ? "\(self.sessionCookieName)=\(normalized)"
+            : normalized
         let context = RequestContext(
-            cookieHeader: CurlCaptureParser.headerValue(named: "Cookie", in: headerFields) ?? raw,
+            cookieHeader: cookieHeader,
             headers: headers)
         return context.isUsable ? context : nil
     }

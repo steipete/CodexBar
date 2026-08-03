@@ -13,15 +13,6 @@ struct NotionUsageFetcherTests {
     private static let personalSpaceID = "66666666-7777-8888-9999-aaaaaaaaaaaa"
     private static let userID = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
 
-    private static let rateLimitResponse = """
-    {"status":"within_limit",
-     "window":{"creditType":"basic_ai_credits","scope":"per_user","window":"6h","used":42.5,"limit":100},
-     "resetsInSeconds":12600,
-     "billingPeriodWindow":{"creditType":"basic_ai_credits","scope":"per_user","cadence":"billing_period",
-      "used":18.0,"limit":100,"periodEndMs":1788000000000},
-     "enforcement":"preview"}
-    """
-
     /// Older responses wrap each record once; newer ones wrap twice. Both shapes must parse.
     private static let singlyWrappedSpacesResponse = """
     {"\(Self.userID)":{
@@ -32,19 +23,20 @@ struct NotionUsageFetcherTests {
           "id":"\(Self.businessSpaceID)","name":"Acme","plan_type":"team","subscription_tier":"business"}}}}}
     """
 
-    private static let spacesResponse = """
-    {"\(Self.userID)":{
-      "notion_user":{"\(Self.userID)":{"value":{"value":{
-        "id":"\(Self.userID)","email":"person@example.com","name":"Example Person"}}}},
-      "space":{
-        "\(Self.personalSpaceID)":{"value":{"value":{
-          "id":"\(Self.personalSpaceID)","name":"Personal","plan_type":"personal","subscription_tier":"free"}}},
-        "\(Self.businessSpaceID)":{"value":{"value":{
-          "id":"\(Self.businessSpaceID)","name":"Acme","plan_type":"team","subscription_tier":"business"}}}}}}
-    """
-
     private static func rateLimitStatus() throws -> NotionCreditRateLimitStatus {
-        try NotionUsageParser.parseRateLimitStatus(Data(self.rateLimitResponse.utf8))
+        try NotionUsageParser.parseRateLimitStatus(self.fixtureData("get-credit-rate-limit-status"))
+    }
+
+    private static func account() throws -> NotionAccount {
+        try NotionUsageParser.parseSpaces(self.fixtureData("get-spaces"))
+    }
+
+    private static func fixtureData(_ name: String) throws -> Data {
+        let url = try #require(Bundle.module.url(
+            forResource: name,
+            withExtension: "json",
+            subdirectory: "Fixtures/Providers/Notion"))
+        return try Data(contentsOf: url)
     }
 
     @Test
@@ -105,7 +97,7 @@ struct NotionUsageFetcherTests {
 
     @Test
     func `parses spaces payload into account and workspaces`() throws {
-        let account = try NotionUsageParser.parseSpaces(Data(Self.spacesResponse.utf8))
+        let account = try Self.account()
 
         #expect(account.userID == Self.userID)
         #expect(account.email == "person@example.com")
@@ -116,7 +108,7 @@ struct NotionUsageFetcherTests {
 
     @Test
     func `prefers a workspace whose plan carries an allowance`() throws {
-        let account = try NotionUsageParser.parseSpaces(Data(Self.spacesResponse.utf8))
+        let account = try Self.account()
 
         // The personal/free space sorts first by id but reports `not_applicable`, so it must not win.
         #expect(account.resolveWorkspace()?.id == Self.businessSpaceID)
@@ -124,7 +116,7 @@ struct NotionUsageFetcherTests {
 
     @Test
     func `honours a configured workspace id in either uuid form`() throws {
-        let account = try NotionUsageParser.parseSpaces(Data(Self.spacesResponse.utf8))
+        let account = try Self.account()
         let undashed = Self.personalSpaceID.replacingOccurrences(of: "-", with: "")
 
         #expect(account.resolveWorkspace(preferredID: Self.personalSpaceID)?.id == Self.personalSpaceID)
@@ -218,6 +210,22 @@ struct NotionUsageFetcherTests {
     }
 
     @Test
+    func `names a manually pasted bare token v2 value`() {
+        let context = NotionUsageFetcher.requestContext(from: "bare-token-value")
+
+        #expect(context?.cookieHeader == "token_v2=bare-token-value")
+    }
+
+    @Test
+    func `defaults automatic imports to Chrome only`() {
+        #if os(macOS)
+        #expect(NotionProviderDescriptor.descriptor.metadata.browserCookieOrder == [.chrome])
+        #else
+        #expect(NotionProviderDescriptor.descriptor.metadata.browserCookieOrder == nil)
+        #endif
+    }
+
+    @Test
     func `parses singly wrapped records`() throws {
         let account = try NotionUsageParser.parseSpaces(Data(Self.singlyWrappedSpacesResponse.utf8))
 
@@ -242,7 +250,7 @@ struct NotionUsageFetcherTests {
 
     @Test
     func `falls back to auto selection when the configured workspace id is unknown`() throws {
-        let account = try NotionUsageParser.parseSpaces(Data(Self.spacesResponse.utf8))
+        let account = try Self.account()
 
         // A typo'd id would otherwise be queried anyway and answered with an opaque 403.
         #expect(account.resolveWorkspace(preferredID: "00000000-0000-0000-0000-000000000000")?.id
@@ -287,10 +295,10 @@ struct NotionUsageFetcherTests {
     }
 
     @Test
-    func `maps an unauthorized response to invalid credentials`() async {
-        let transport = StubTransport(
+    func `maps an unauthorized response to invalid credentials`() async throws {
+        let transport = try StubTransport(
             spaces: StubResponse(statusCode: 401, body: Data("{}".utf8)),
-            rateLimit: StubResponse(statusCode: 200, body: Data(Self.rateLimitResponse.utf8)))
+            rateLimit: StubResponse(statusCode: 200, body: Self.fixtureData("get-credit-rate-limit-status")))
 
         await #expect(throws: NotionUsageError.invalidCredentials) {
             try await Self.fetchUsage(transport: transport)
@@ -298,9 +306,9 @@ struct NotionUsageFetcherTests {
     }
 
     @Test
-    func `maps a server error to an api error`() async {
-        let transport = StubTransport(
-            spaces: StubResponse(statusCode: 200, body: Data(Self.spacesResponse.utf8)),
+    func `maps a server error to an api error`() async throws {
+        let transport = try StubTransport(
+            spaces: StubResponse(statusCode: 200, body: Self.fixtureData("get-spaces")),
             rateLimit: StubResponse(statusCode: 500, body: Data("nope".utf8)))
 
         await #expect(throws: NotionUsageError.apiError("HTTP 500 from getCreditRateLimitStatus")) {
@@ -309,9 +317,9 @@ struct NotionUsageFetcherTests {
     }
 
     @Test
-    func `throws when the resolved workspace has no allowance`() async {
-        let transport = StubTransport(
-            spaces: StubResponse(statusCode: 200, body: Data(Self.spacesResponse.utf8)),
+    func `throws when the resolved workspace has no allowance`() async throws {
+        let transport = try StubTransport(
+            spaces: StubResponse(statusCode: 200, body: Self.fixtureData("get-spaces")),
             rateLimit: StubResponse(statusCode: 200, body: Data(#"{"status":"not_applicable"}"#.utf8)))
 
         await #expect(throws: NotionUsageError.allowanceNotApplicable(workspace: "Personal")) {
@@ -321,9 +329,9 @@ struct NotionUsageFetcherTests {
 
     @Test
     func `returns a snapshot for a workspace that carries an allowance`() async throws {
-        let transport = StubTransport(
-            spaces: StubResponse(statusCode: 200, body: Data(Self.spacesResponse.utf8)),
-            rateLimit: StubResponse(statusCode: 200, body: Data(Self.rateLimitResponse.utf8)))
+        let transport = try StubTransport(
+            spaces: StubResponse(statusCode: 200, body: Self.fixtureData("get-spaces")),
+            rateLimit: StubResponse(statusCode: 200, body: Self.fixtureData("get-credit-rate-limit-status")))
 
         let snapshot = try await Self.fetchUsage(transport: transport)
 
