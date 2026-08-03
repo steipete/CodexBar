@@ -176,3 +176,32 @@ struct SyncModelTests {
         #expect(decoded.fetchedAt == usage.updatedAt)
     }
 }
+
+import CloudKit
+
+struct CloudSyncRecordRebaseTests {
+    @Test
+    func `copying user fields keeps encrypted fields on the encrypted API surface`() {
+        // Regression: allKeys() includes encrypted field names; assigning them through the
+        // plain subscript makes CloudKit throw NSInvalidArgumentException and crashed the
+        // app while applying fetched records (receiver crash-loop, 2026-08-03).
+        let source = CKRecord(recordType: "ProviderIntent", recordID: .init(recordName: "intent-test"))
+        source["payload"] = "{}" as CKRecordValue
+        source["editCount"] = 3 as CKRecordValue
+        source.encryptedValues["apiKey"] = "sk-secret" as CKRecordValue
+        source.encryptedValues["cookieHeader"] = "cookie=1" as CKRecordValue
+
+        let server = CKRecord(recordType: "ProviderIntent", recordID: .init(recordName: "intent-test"))
+        server["payload"] = "{\"old\":true}" as CKRecordValue
+        server["schemaVersion"] = 1 as CKRecordValue
+        server.encryptedValues["apiKey"] = "sk-older" as CKRecordValue
+
+        let rebased = CloudSyncEngine.copyUserFields(from: source, onto: server)
+
+        #expect(rebased["payload"] as? String == "{}")
+        #expect((rebased["editCount"] as? NSNumber)?.intValue == 3)
+        #expect(rebased["schemaVersion"] == nil)
+        #expect(rebased.encryptedValues["apiKey"] as? String == "sk-secret")
+        #expect(rebased.encryptedValues["cookieHeader"] as? String == "cookie=1")
+    }
+}

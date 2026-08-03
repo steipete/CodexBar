@@ -59,6 +59,69 @@ enum CloudSyncBatchRecordProvider {
     }
 }
 
+enum CloudSyncDirtyState {
+    private static let providerIntentPrefix = "intent-"
+
+    static func configurationRecordNamesToQueue(
+        envelope: CloudSyncPersistence.Envelope,
+        configuredProviders: [UsageProvider]) -> Set<String>
+    {
+        var recordNames = Set(configuredProviders.compactMap { provider in
+            envelope.dirtyProviders.contains(provider.rawValue)
+                ? ProviderIntentPayload.recordName(for: provider)
+                : nil
+        })
+        if envelope.preferencesDirty {
+            recordNames.insert(PreferencesSyncPayload.recordName)
+        }
+        return recordNames
+    }
+
+    static func markBootstrapDirtyIfNeeded(
+        configuredProviders: [UsageProvider],
+        envelope: inout CloudSyncPersistence.Envelope)
+    {
+        guard !envelope.recordMetadata.keys.contains(where: { $0.hasPrefix(self.providerIntentPrefix) }) else {
+            return
+        }
+        envelope.dirtyProviders.formUnion(configuredProviders.map(\.rawValue))
+        envelope.preferencesDirty = true
+    }
+
+    static func clearSavedRecords(
+        _ recordNames: some Sequence<String>,
+        envelope: inout CloudSyncPersistence.Envelope)
+    {
+        for recordName in recordNames {
+            if recordName == PreferencesSyncPayload.recordName {
+                envelope.preferencesDirty = false
+            } else if recordName.hasPrefix(self.providerIntentPrefix) {
+                envelope.dirtyProviders.remove(String(recordName.dropFirst(self.providerIntentPrefix.count)))
+            }
+        }
+    }
+
+    static func providerSyncContentChanged(
+        from previous: ProviderConfig,
+        previousSuppressedEnableIntents: Set<String>,
+        to current: ProviderConfig,
+        currentSuppressedEnableIntents: Set<String>) throws -> Bool
+    {
+        let previousPayload = CloudSyncEngine.providerIntentPayload(
+            config: previous,
+            suppressedEnableIntents: previousSuppressedEnableIntents)
+        let currentPayload = CloudSyncEngine.providerIntentPayload(
+            config: current,
+            suppressedEnableIntents: currentSuppressedEnableIntents)
+        guard try CanonicalSyncJSON.encode(previousPayload) == CanonicalSyncJSON.encode(currentPayload) else {
+            return true
+        }
+        let previousSecrets = try ProviderIntentPayload.secretFields(for: previous, includeSecrets: true)
+        let currentSecrets = try ProviderIntentPayload.secretFields(for: current, includeSecrets: true)
+        return previousSecrets != currentSecrets
+    }
+}
+
 enum CloudSyncEntitlementGate {
     static let entitlement = "com.apple.developer.icloud-services"
 
@@ -92,8 +155,9 @@ actor CloudSyncEngine: CKSyncEngineDelegate {
     private var lastSnapshotPushAt: Date?
     private var pendingSnapshots: [AccountSnapshotSyncPayload] = []
     private var lastSnapshotHashes: [String: String] = [:]
-    private var lastQueuedConfigHash: String?
     private var lastKnownProviderConfigs: [UsageProvider: ProviderConfig] = [:]
+    private var lastKnownPreferences: SyncedPreferences?
+    private var lastKnownIncludeSecrets: Bool?
     private var quotaRetryState = CloudSyncQuotaRetryState()
     private var didRehydrateFleetState = false
     private let logger = CodexBarLog.logger(LogCategories.settings)
@@ -101,12 +165,21 @@ actor CloudSyncEngine: CKSyncEngineDelegate {
     init(
         settings: SettingsStore,
         state: CloudSyncState,
-        persistence: CloudSyncPersistence = CloudSyncPersistence())
+        persistence: CloudSyncPersistence = CloudSyncPersistence(),
+        initialConfiguration: CodexBarConfig? = nil,
+        initialPreferences: SyncedPreferences? = nil,
+        initialIncludeSecrets: Bool? = nil)
     {
         self.settings = settings
         self.state = state
         self.persistence = persistence
         self.persistenceEnvelope = persistence.load()
+        if let initialConfiguration {
+            self.lastKnownProviderConfigs = Dictionary(
+                uniqueKeysWithValues: initialConfiguration.providers.map { ($0.id, $0) })
+        }
+        self.lastKnownPreferences = initialPreferences
+        self.lastKnownIncludeSecrets = initialIncludeSecrets
     }
 
     func start(enabled: Bool) async {
@@ -132,6 +205,17 @@ actor CloudSyncEngine: CKSyncEngineDelegate {
         do {
             let initialized = try await self.initializeEngineIfNeeded()
             guard self.engine != nil else { return }
+            // First sync on this device: apply the fleet's existing state before composing
+            // any push. Otherwise a fresh device's records (editCount 1, newer timestamps)
+            // win conflict ties against the fleet's records and clobber them server-side.
+            if !self.persistenceEnvelope.recordMetadata.keys.contains(where: { $0.hasPrefix("intent-") }) {
+                await self.fetchChanges()
+            }
+            let configuredProviders = await MainActor.run { self.settings.configSnapshot.providers.map(\.id) }
+            CloudSyncDirtyState.markBootstrapDirtyIfNeeded(
+                configuredProviders: configuredProviders,
+                envelope: &self.persistenceEnvelope)
+            self.persistEnvelope()
             try await self.queueCurrentConfigurationAndPreferences()
             guard await MainActor.run(body: { !self.state.status.needsAppUpdate }) else { return }
             try await self.queueDeviceRecord()
@@ -152,15 +236,53 @@ actor CloudSyncEngine: CKSyncEngineDelegate {
     }
 
     func localUserConfigurationDidChange(_ config: CodexBarConfig) {
+        let previousSuppressedEnableIntents = self.persistenceEnvelope.suppressedEnableIntents
         for providerConfig in config.providers {
             if let previous = self.lastKnownProviderConfigs[providerConfig.id],
                previous.enabled != providerConfig.enabled
             {
                 self.persistenceEnvelope.suppressedEnableIntents.remove(providerConfig.id.rawValue)
-                self.lastQueuedConfigHash = nil
+            }
+            guard let previous = self.lastKnownProviderConfigs[providerConfig.id] else {
+                self.persistenceEnvelope.dirtyProviders.insert(providerConfig.id.rawValue)
+                continue
+            }
+            do {
+                if try CloudSyncDirtyState.providerSyncContentChanged(
+                    from: previous,
+                    previousSuppressedEnableIntents: previousSuppressedEnableIntents,
+                    to: providerConfig,
+                    currentSuppressedEnableIntents: self.persistenceEnvelope.suppressedEnableIntents)
+                {
+                    self.persistenceEnvelope.dirtyProviders.insert(providerConfig.id.rawValue)
+                }
+            } catch {
+                self.persistenceEnvelope.dirtyProviders.insert(providerConfig.id.rawValue)
+                self.logger.error("Failed to compare provider sync content: \(error)")
             }
         }
         self.lastKnownProviderConfigs = Dictionary(uniqueKeysWithValues: config.providers.map { ($0.id, $0) })
+        self.persistEnvelope()
+    }
+
+    func localUserPreferencesDidChange(_ preferences: SyncedPreferences) {
+        defer { self.lastKnownPreferences = preferences }
+        guard let previous = self.lastKnownPreferences else { return }
+        do {
+            guard try CanonicalSyncJSON.encode(previous) != CanonicalSyncJSON.encode(preferences) else { return }
+            self.persistenceEnvelope.preferencesDirty = true
+            self.persistEnvelope()
+        } catch {
+            self.persistenceEnvelope.preferencesDirty = true
+            self.persistEnvelope()
+            self.logger.error("Failed to compare synced preferences: \(error)")
+        }
+    }
+
+    func localIncludeSecretsDidChange(_ includeSecrets: Bool, config: CodexBarConfig) {
+        defer { self.lastKnownIncludeSecrets = includeSecrets }
+        guard let previous = self.lastKnownIncludeSecrets, previous != includeSecrets else { return }
+        self.persistenceEnvelope.dirtyProviders.formUnion(config.providers.map(\.id.rawValue))
         self.persistEnvelope()
     }
 
@@ -268,21 +390,26 @@ actor CloudSyncEngine: CKSyncEngineDelegate {
                 includeSecrets: self.settings.iCloudSyncIncludeSecrets,
                 preferences: self.settings.syncedPreferences)
         }
-        if self.lastKnownProviderConfigs.isEmpty {
-            self
-                .lastKnownProviderConfigs = Dictionary(uniqueKeysWithValues: snapshot.config.providers
-                    .map { ($0.id, $0) })
+        for config in snapshot.config.providers where self.lastKnownProviderConfigs[config.id] == nil {
+            self.lastKnownProviderConfigs[config.id] = config
         }
-        let configHash = try CanonicalSyncJSON.hash(data: snapshot.config.orderIndependentConfigData())
-            + ":secrets=\(snapshot.includeSecrets)"
-            + ":suppressed=\(self.persistenceEnvelope.suppressedEnableIntents.sorted().joined(separator: ","))"
-        if configHash != self.lastQueuedConfigHash {
-            for config in snapshot.config.providers {
-                try self.queueProviderIntent(config, includeSecrets: snapshot.includeSecrets, engine: engine)
-            }
-            self.lastQueuedConfigHash = configHash
+        if self.lastKnownPreferences == nil {
+            self.lastKnownPreferences = snapshot.preferences
         }
-        try self.queuePreferences(snapshot.preferences, engine: engine)
+        if self.lastKnownIncludeSecrets == nil {
+            self.lastKnownIncludeSecrets = snapshot.includeSecrets
+        }
+        let recordNames = CloudSyncDirtyState.configurationRecordNamesToQueue(
+            envelope: self.persistenceEnvelope,
+            configuredProviders: snapshot.config.providers.map(\.id))
+        for config in snapshot.config.providers
+            where recordNames.contains(ProviderIntentPayload.recordName(for: config.id))
+        {
+            try self.queueProviderIntent(config, includeSecrets: snapshot.includeSecrets, engine: engine)
+        }
+        if recordNames.contains(PreferencesSyncPayload.recordName) {
+            try self.queuePreferences(snapshot.preferences, engine: engine)
+        }
     }
 
     private func queueProviderIntent(
@@ -442,6 +569,9 @@ actor CloudSyncEngine: CKSyncEngineDelegate {
                 self.cacheSystemFields(record)
                 self.desiredRecords.removeValue(forKey: record.recordID)
             }
+            CloudSyncDirtyState.clearSavedRecords(
+                changes.savedRecords.map(\.recordID.recordName),
+                envelope: &self.persistenceEnvelope)
             for failure in changes.failedRecordSaves {
                 await self.handleSaveFailure(failure, syncEngine: syncEngine)
             }
@@ -482,7 +612,7 @@ actor CloudSyncEngine: CKSyncEngineDelegate {
         }
     }
 
-    private func applyFetchedRecords(_ records: [CKRecord]) async {
+    func applyFetchedRecords(_ records: [CKRecord]) async {
         if records.contains(where: { self.schemaVersion($0) > CodexBarSyncSchema.currentVersion }) {
             await MainActor.run { self.state.status.needsAppUpdate = true }
             for record in records {
@@ -537,7 +667,7 @@ actor CloudSyncEngine: CKSyncEngineDelegate {
             self.desiredRecords.removeValue(forKey: server.recordID)
             return true
         }
-        let rebased = self.copyUserFields(from: local, onto: server)
+        let rebased = Self.copyUserFields(from: local, onto: server)
         self.desiredRecords[server.recordID] = rebased
         engine.state.add(pendingRecordZoneChanges: [.saveRecord(server.recordID)])
         return false
@@ -556,6 +686,10 @@ actor CloudSyncEngine: CKSyncEngineDelegate {
                 canEnable: self.settings.canEnableProviderFromSync)
             config.setProviderConfig(merged)
             self.settings.applyExternalConfig(config, reason: "icloud", affectsBackgroundWork: true)
+            // applyExternalConfig deliberately skips persistence (its other caller reloads FROM
+            // the config file). Sync applies originate remotely, so the merge must reach disk —
+            // the CLI and the next app launch read config.json, not our in-memory state.
+            self.settings.schedulePersistConfig()
             return merged
         }
         guard let merged else { return }
@@ -565,13 +699,13 @@ actor CloudSyncEngine: CKSyncEngineDelegate {
         } else {
             self.persistenceEnvelope.suppressedEnableIntents.remove(payload.provider.rawValue)
         }
-        self.lastQueuedConfigHash = nil
         self.persistEnvelope()
     }
 
     private func applyPreferences(_ record: CKRecord) async throws {
         guard let payloadString = record["payload"] as? String else { return }
         let payload = try CanonicalSyncJSON.decode(PreferencesSyncPayload.self, from: payloadString)
+        self.lastKnownPreferences = payload.preferences
         await MainActor.run {
             self.settings.applySyncedPreferences(payload.preferences)
         }
@@ -688,7 +822,7 @@ actor CloudSyncEngine: CKSyncEngineDelegate {
             editCount: self.editCount(server),
             modifiedAt: self.modifiedAt(server))
         if SyncConflictResolver.winner(local: localValue, server: serverValue).value === local {
-            self.desiredRecords[server.recordID] = self.copyUserFields(from: local, onto: server)
+            self.desiredRecords[server.recordID] = Self.copyUserFields(from: local, onto: server)
             self.scheduleRetry(recordID: server.recordID, after: 0)
         } else {
             syncEngine.state.remove(pendingRecordZoneChanges: [.saveRecord(server.recordID)])
@@ -742,8 +876,6 @@ actor CloudSyncEngine: CKSyncEngineDelegate {
         }
         self.engine = nil
         self.desiredRecords = [:]
-        self.lastQueuedConfigHash = nil
-        self.lastKnownProviderConfigs = [:]
         self.quotaRetryState.reset()
         if clearPersistence {
             self.persistenceEnvelope = .init(stateSerialization: nil, encodedSystemFields: [:])
@@ -810,17 +942,22 @@ actor CloudSyncEngine: CKSyncEngineDelegate {
         })
     }
 
-    private func copyUserFields(from source: CKRecord, onto server: CKRecord) -> CKRecord {
-        for key in server.allKeys() {
+    static func copyUserFields(from source: CKRecord, onto server: CKRecord) -> CKRecord {
+        // allKeys() includes encrypted field names, but CloudKit throws NSInvalidArgumentException
+        // when an encrypted field goes through the plain subscript — every key must stay on the
+        // API surface (plain vs encryptedValues) it was written with.
+        let serverEncryptedKeys = Set(server.encryptedValues.allKeys())
+        let sourceEncryptedKeys = Set(source.encryptedValues.allKeys())
+        for key in server.allKeys() where !serverEncryptedKeys.contains(key) {
             server[key] = nil
         }
-        for key in server.encryptedValues.allKeys() {
+        for key in serverEncryptedKeys {
             server.encryptedValues[key] = nil
         }
-        for key in source.allKeys() {
+        for key in source.allKeys() where !sourceEncryptedKeys.contains(key) {
             server[key] = source[key]
         }
-        for key in source.encryptedValues.allKeys() {
+        for key in sourceEncryptedKeys {
             server.encryptedValues[key] = source.encryptedValues[key]
         }
         return server

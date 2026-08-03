@@ -15,6 +15,8 @@ struct CloudSyncPersistence: Sendable {
         var encodedSystemFields: [String: Data]
         var recordMetadata: [String: RecordMetadata]
         var suppressedEnableIntents: Set<String>
+        var dirtyProviders: Set<String>
+        var preferencesDirty: Bool
         var fleetDevices: [String: DeviceSyncPayload]
         var fleetSnapshots: [String: AccountSnapshotSyncPayload]
 
@@ -23,6 +25,8 @@ struct CloudSyncPersistence: Sendable {
             encodedSystemFields: [String: Data],
             recordMetadata: [String: RecordMetadata] = [:],
             suppressedEnableIntents: Set<String> = [],
+            dirtyProviders: Set<String> = [],
+            preferencesDirty: Bool = false,
             fleetDevices: [String: DeviceSyncPayload] = [:],
             fleetSnapshots: [String: AccountSnapshotSyncPayload] = [:])
         {
@@ -30,6 +34,8 @@ struct CloudSyncPersistence: Sendable {
             self.encodedSystemFields = encodedSystemFields
             self.recordMetadata = recordMetadata
             self.suppressedEnableIntents = suppressedEnableIntents
+            self.dirtyProviders = dirtyProviders
+            self.preferencesDirty = preferencesDirty
             self.fleetDevices = fleetDevices
             self.fleetSnapshots = fleetSnapshots
         }
@@ -39,6 +45,8 @@ struct CloudSyncPersistence: Sendable {
             case encodedSystemFields
             case recordMetadata
             case suppressedEnableIntents
+            case dirtyProviders
+            case preferencesDirty
             case fleetDevices
             case fleetSnapshots
         }
@@ -57,6 +65,12 @@ struct CloudSyncPersistence: Sendable {
             self.suppressedEnableIntents = try container.decodeIfPresent(
                 Set<String>.self,
                 forKey: .suppressedEnableIntents) ?? []
+            self.dirtyProviders = try container.decodeIfPresent(
+                Set<String>.self,
+                forKey: .dirtyProviders) ?? []
+            self.preferencesDirty = try container.decodeIfPresent(
+                Bool.self,
+                forKey: .preferencesDirty) ?? false
             self.fleetDevices = try container.decodeIfPresent(
                 [String: DeviceSyncPayload].self,
                 forKey: .fleetDevices) ?? [:]

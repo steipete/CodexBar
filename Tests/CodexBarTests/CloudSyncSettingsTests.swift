@@ -103,6 +103,150 @@ struct CloudSyncSettingsTests {
     }
 
     @Test
+    func `legacy sync persistence defaults dirty state to clean`() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("CloudSyncPersistenceLegacyTests-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let fileURL = directory.appendingPathComponent("engine-state.json")
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        try Data("""
+        {
+          "encodedSystemFields": {},
+          "recordMetadata": {},
+          "suppressedEnableIntents": [],
+          "fleetDevices": {},
+          "fleetSnapshots": {}
+        }
+        """.utf8).write(to: fileURL)
+
+        let envelope = CloudSyncPersistence(fileURL: fileURL).load()
+
+        #expect(envelope.dirtyProviders.isEmpty)
+        #expect(!envelope.preferencesDirty)
+    }
+
+    @Test
+    func `relaunch with cached fleet records and clean dirty set queues no configuration records`() {
+        let metadata = CloudSyncPersistence.RecordMetadata(
+            recordType: SyncRecordType.providerIntent.rawValue,
+            schemaVersion: CodexBarSyncSchema.currentVersion,
+            editCount: 4,
+            modifiedAt: Date())
+        let envelope = CloudSyncPersistence.Envelope(
+            stateSerialization: nil,
+            encodedSystemFields: [:],
+            recordMetadata: [ProviderIntentPayload.recordName(for: .claude): metadata])
+
+        let recordNames = CloudSyncDirtyState.configurationRecordNamesToQueue(
+            envelope: envelope,
+            configuredProviders: [.claude, .codex])
+
+        #expect(recordNames.isEmpty)
+    }
+
+    @Test
+    func `local provider edit queues exactly that provider`() async throws {
+        let fixture = try self.makeFixture("dirty-provider")
+        let persistence = self.makePersistence("dirty-provider")
+        let initial = fixture.store.configSnapshot
+        let engine = CloudSyncEngine(
+            settings: fixture.store,
+            state: CloudSyncState(),
+            persistence: persistence,
+            initialConfiguration: initial,
+            initialPreferences: fixture.store.syncedPreferences,
+            initialIncludeSecrets: fixture.store.iCloudSyncIncludeSecrets)
+        var updated = initial
+        var claude = try #require(updated.providerConfig(for: .claude))
+        claude.extrasEnabled = !(claude.extrasEnabled ?? false)
+        updated.setProviderConfig(claude)
+
+        await engine.localUserConfigurationDidChange(updated)
+
+        let envelope = persistence.load()
+        let recordNames = CloudSyncDirtyState.configurationRecordNamesToQueue(
+            envelope: envelope,
+            configuredProviders: updated.providers.map(\.id))
+        #expect(recordNames == [ProviderIntentPayload.recordName(for: .claude)])
+    }
+
+    @Test
+    func `machine local provider edit does not become dirty`() async throws {
+        let fixture = try self.makeFixture("machine-local-provider")
+        let persistence = self.makePersistence("machine-local-provider")
+        let initial = fixture.store.configSnapshot
+        let engine = CloudSyncEngine(
+            settings: fixture.store,
+            state: CloudSyncState(),
+            persistence: persistence,
+            initialConfiguration: initial,
+            initialPreferences: fixture.store.syncedPreferences,
+            initialIncludeSecrets: fixture.store.iCloudSyncIncludeSecrets)
+        var updated = initial
+        var claude = try #require(updated.providerConfig(for: .claude))
+        claude.claudeSwapExecutablePath = "/machine-only/claude-swap"
+        updated.setProviderConfig(claude)
+
+        await engine.localUserConfigurationDidChange(updated)
+
+        #expect(persistence.load().dirtyProviders.isEmpty)
+    }
+
+    @Test
+    func `empty fleet bootstrap dirties every configured provider and preferences`() {
+        var envelope = CloudSyncPersistence.Envelope(stateSerialization: nil, encodedSystemFields: [:])
+
+        CloudSyncDirtyState.markBootstrapDirtyIfNeeded(
+            configuredProviders: [.claude, .codex],
+            envelope: &envelope)
+
+        #expect(envelope.dirtyProviders == [UsageProvider.claude.rawValue, UsageProvider.codex.rawValue])
+        #expect(envelope.preferencesDirty)
+    }
+
+    @Test
+    func `successful saves clear dirty while failed saves keep it`() {
+        var envelope = CloudSyncPersistence.Envelope(
+            stateSerialization: nil,
+            encodedSystemFields: [:],
+            dirtyProviders: [UsageProvider.claude.rawValue, UsageProvider.codex.rawValue],
+            preferencesDirty: true)
+
+        CloudSyncDirtyState.clearSavedRecords(
+            [ProviderIntentPayload.recordName(for: .claude), PreferencesSyncPayload.recordName],
+            envelope: &envelope)
+
+        #expect(envelope.dirtyProviders == [UsageProvider.codex.rawValue])
+        #expect(!envelope.preferencesDirty)
+        #expect(envelope.dirtyProviders.contains(UsageProvider.codex.rawValue))
+    }
+
+    @Test
+    func `remote provider apply does not become dirty`() async throws {
+        let fixture = try self.makeFixture("remote-provider")
+        let persistence = self.makePersistence("remote-provider")
+        let initial = fixture.store.configSnapshot
+        let engine = CloudSyncEngine(
+            settings: fixture.store,
+            state: CloudSyncState(),
+            persistence: persistence,
+            initialConfiguration: initial,
+            initialPreferences: fixture.store.syncedPreferences,
+            initialIncludeSecrets: fixture.store.iCloudSyncIncludeSecrets)
+        var remoteConfig = try #require(initial.providerConfig(for: .claude))
+        remoteConfig.extrasEnabled = !(remoteConfig.extrasEnabled ?? false)
+        let recordID = CKRecord.ID(
+            recordName: ProviderIntentPayload.recordName(for: .claude),
+            zoneID: CloudSyncEngine.zoneID)
+        let record = CKRecord(recordType: SyncRecordType.providerIntent.rawValue, recordID: recordID)
+        record["payload"] = try CanonicalSyncJSON.string(ProviderIntentPayload(config: remoteConfig)) as CKRecordValue
+
+        await engine.applyFetchedRecords([record])
+
+        #expect(persistence.load().dirtyProviders.isEmpty)
+    }
+
+    @Test
     func `missing desired record drains its pending save`() {
         let recordID = CKRecord.ID(recordName: "stale", zoneID: CloudSyncEngine.zoneID)
         let change = CKSyncEngine.PendingRecordZoneChange.saveRecord(recordID)
@@ -145,6 +289,12 @@ struct CloudSyncSettingsTests {
             configStore: configStore,
             performInitialProviderDetection: false)
         return (store, defaults)
+    }
+
+    private func makePersistence(_ name: String) -> CloudSyncPersistence {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("CloudSyncDirtyTests-\(name)-\(UUID().uuidString)", isDirectory: true)
+        return CloudSyncPersistence(fileURL: directory.appendingPathComponent("engine-state.json"))
     }
 }
 

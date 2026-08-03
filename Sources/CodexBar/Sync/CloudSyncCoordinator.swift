@@ -19,7 +19,12 @@ final class CloudSyncCoordinator {
         self.settings = settings
         self.state = state
         self.observedEnabled = settings.iCloudSyncEnabled
-        self.engine = CloudSyncEngine(settings: settings, state: self.state)
+        self.engine = CloudSyncEngine(
+            settings: settings,
+            state: self.state,
+            initialConfiguration: settings.configSnapshot,
+            initialPreferences: settings.syncedPreferences,
+            initialIncludeSecrets: settings.iCloudSyncIncludeSecrets)
     }
 
     func start() {
@@ -114,6 +119,10 @@ final class CloudSyncCoordinator {
                     self.observedEnabled = enabled
                     await self.engine.setEnabled(enabled)
                 } else {
+                    await self.engine.localUserPreferencesDidChange(self.settings.syncedPreferences)
+                    await self.engine.localIncludeSecretsDidChange(
+                        self.settings.iCloudSyncIncludeSecrets,
+                        config: self.settings.configSnapshot)
                     await self.engine.scheduleConfigurationPush()
                 }
             }
