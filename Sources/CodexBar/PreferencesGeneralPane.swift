@@ -174,6 +174,14 @@ struct GeneralPane: View {
 
                 Toggle(L("refresh_on_open_title"), isOn: self.$settings.refreshAllProvidersOnMenuOpen)
 
+                Toggle(isOn: self.$settings.backgroundWorkLowPowerModeEnabled) {
+                    SettingsRowLabel(
+                        L("Low Power Mode"),
+                        subtitle: L(
+                            "Runs automatic provider, local usage, and storage refreshes no more often than every " +
+                                "30 minutes. Manual refresh remains available."))
+                }
+
                 Toggle(isOn: self.$settings.statusChecksEnabled) {
                     SettingsRowLabel(
                         L("check_provider_status_title"),

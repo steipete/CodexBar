@@ -180,6 +180,7 @@ struct DoubaoUsageFetcherTests {
                   }
                 }
                 """),
+            .rawResponse(statusCode: 200, body: #"{"Result":{}}"#),
         ])
         let credentials = DoubaoCodingPlanCredentials(
             accessKeyID: "AKLTTEST",
@@ -191,7 +192,7 @@ struct DoubaoUsageFetcherTests {
             credentials: credentials,
             session: transport,
             date: date)
-        let request = await transport.lastCapturedRequest()
+        let request = await transport.firstCapturedRequest()
 
         #expect(snapshot.toUsageSnapshot().primary?.usedPercent == 12.5)
         #expect(request?.method == "POST")
@@ -1005,7 +1006,7 @@ private actor DoubaoScriptedTransport: ProviderHTTPTransport {
 
     private var results: [Result]
     private var requests = 0
-    private var capturedRequest: CapturedRequest?
+    private var capturedRequests: [CapturedRequest] = []
 
     init(results: [Result]) {
         self.results = results
@@ -1016,18 +1017,22 @@ private actor DoubaoScriptedTransport: ProviderHTTPTransport {
     }
 
     func lastCapturedRequest() -> CapturedRequest? {
-        self.capturedRequest
+        self.capturedRequests.last
+    }
+
+    func firstCapturedRequest() -> CapturedRequest? {
+        self.capturedRequests.first
     }
 
     func data(for request: URLRequest) throws -> (Data, URLResponse) {
         self.requests += 1
-        self.capturedRequest = CapturedRequest(
+        self.capturedRequests.append(CapturedRequest(
             url: request.url?.absoluteString,
             method: request.httpMethod,
             host: request.value(forHTTPHeaderField: "Host"),
             date: request.value(forHTTPHeaderField: "X-Date"),
             contentSHA256: request.value(forHTTPHeaderField: "X-Content-Sha256"),
-            authorization: request.value(forHTTPHeaderField: "Authorization"))
+            authorization: request.value(forHTTPHeaderField: "Authorization")))
         let result = self.results.removeFirst()
         switch result {
         case let .response(statusCode, limit, remaining):
@@ -1118,97 +1123,91 @@ struct DoubaoAgentPlanUsageTests {
     }
 
     @Test
-    func `coding plan fetch falls back to agent plan when coding plan is reclaimed`() async throws {
+    func `agent-only account returns agent plan windows`() async throws {
         let transport = DoubaoScriptedTransport(results: [
             .rawResponse(
                 statusCode: 200,
                 body: #"{"Result":{"Status":"Reclaimed","UpdateTimestamp":1785322689}}"#),
-            .rawResponse(
-                statusCode: 200,
-                body: """
-                {
-                  "Result": {
-                    "PlanType": "medium",
-                    "AFPFiveHour": {"Quota": 10000, "Used": 0, "ResetTime": -1},
-                    "AFPWeekly": {"Quota": 35000, "Used": 0, "ResetTime": 1785686400000},
-                    "AFPMonthly": {"Quota": 100000, "Used": 0, "ResetTime": 1787846399000}
-                  }
-                }
-                """),
+            .rawResponse(statusCode: 200, body: Self.agentPlanBody),
         ])
-        let credentials = DoubaoCodingPlanCredentials(
-            accessKeyID: "AKLTTEST",
-            secretAccessKey: "secret",
-            region: "cn-beijing")
 
         let snapshot = try await DoubaoUsageFetcher.fetchCodingPlanUsage(
-            credentials: credentials,
+            credentials: Self.credentials,
             session: transport,
             date: Date(timeIntervalSince1970: 1_781_654_400))
 
-        // Both the Coding Plan probe and the Agent Plan fallback were issued, and the
-        // fallback's second request targeted the GetAFPUsage action.
         #expect(await transport.requestCount() == 2)
         let request = await transport.lastCapturedRequest()
         #expect(request?.url == "https://open.volcengineapi.com/?Action=GetAFPUsage&Version=2024-01-01")
 
         let usage = snapshot.toUsageSnapshot()
         let extra = usage.extraRateWindows ?? []
+        #expect(usage.primary == nil)
+        #expect(extra.contains { $0.id == "doubao-agent-session" })
         #expect(extra.contains { $0.id == "doubao-agent-weekly" && $0.window.usedPercent == 0 })
         #expect(extra.contains { $0.id == "doubao-agent-monthly" })
     }
 
     @Test
-    func `coding plan fetch keeps active coding plan without probing agent plan`() async throws {
+    func `both-active account returns coding and agent plan windows`() async throws {
         let transport = DoubaoScriptedTransport(results: [
-            .rawResponse(
-                statusCode: 200,
-                body: """
-                {
-                  "Result": {
-                    "Status": "Running",
-                    "UpdateTimestamp": 1782226444,
-                    "QuotaUsage": [
-                      {"Level": "session", "Percent": 12.5, "ResetTimestamp": 1782226478}
-                    ]
-                  }
-                }
-                """),
+            .rawResponse(statusCode: 200, body: Self.codingPlanBody),
+            .rawResponse(statusCode: 200, body: Self.agentPlanBody),
         ])
-        let credentials = DoubaoCodingPlanCredentials(
-            accessKeyID: "AKLTTEST",
-            secretAccessKey: "secret",
-            region: "cn-beijing")
 
         let snapshot = try await DoubaoUsageFetcher.fetchCodingPlanUsage(
-            credentials: credentials,
+            credentials: Self.credentials,
             session: transport,
             date: Date(timeIntervalSince1970: 1_781_654_400))
 
-        // An active Coding Plan is returned as-is; no second (Agent Plan) request is made.
-        #expect(await transport.requestCount() == 1)
-        #expect(snapshot.toUsageSnapshot().primary?.usedPercent == 12.5)
+        #expect(await transport.requestCount() == 2)
+        let usage = snapshot.toUsageSnapshot()
+        #expect(usage.primary?.usedPercent == 12.5)
+        #expect(usage.secondary?.usedPercent == 25)
+        #expect(usage.tertiary?.usedPercent == 50)
+        #expect(Set((usage.extraRateWindows ?? []).map(\.id)) == [
+            "doubao-agent-session",
+            "doubao-agent-weekly",
+            "doubao-agent-monthly",
+        ])
     }
 
     @Test
-    func `agent plan fallback surfaces access denied`() async {
+    func `coding-only account treats agent plan access denied as absence`() async throws {
         let transport = DoubaoScriptedTransport(results: [
-            .rawResponse(
-                statusCode: 200,
-                body: #"{"Result":{"Status":"Reclaimed"}}"#),
+            .rawResponse(statusCode: 200, body: Self.codingPlanBody),
             .rawResponse(
                 statusCode: 403,
                 body: #"{"ResponseMetadata":{"Error":{"Code":"AccessDenied","Message":"not authorized"}}}"#),
         ])
 
-        await #expect {
-            _ = try await DoubaoUsageFetcher.fetchCodingPlanUsage(
-                credentials: Self.credentials,
-                session: transport)
-        } throws: { error in
-            guard case let DoubaoUsageError.apiError(code, message) = error else { return false }
-            return code == 403 && message.contains("AccessDenied")
-        }
+        let snapshot = try await DoubaoUsageFetcher.fetchCodingPlanUsage(
+            credentials: Self.credentials,
+            session: transport)
+
+        let usage = snapshot.toUsageSnapshot()
+        #expect(await transport.requestCount() == 2)
+        #expect(usage.primary?.usedPercent == 12.5)
+        #expect(usage.extraRateWindows == nil)
+    }
+
+    @Test
+    func `absent agent plan preserves coding plan windows`() async throws {
+        let transport = DoubaoScriptedTransport(results: [
+            .rawResponse(statusCode: 200, body: Self.codingPlanBody),
+            .rawResponse(statusCode: 200, body: #"{"Result":{}}"#),
+        ])
+
+        let snapshot = try await DoubaoUsageFetcher.fetchCodingPlanUsage(
+            credentials: Self.credentials,
+            session: transport)
+
+        let usage = snapshot.toUsageSnapshot()
+        #expect(await transport.requestCount() == 2)
+        #expect(usage.primary?.usedPercent == 12.5)
+        #expect(usage.secondary?.usedPercent == 25)
+        #expect(usage.tertiary?.usedPercent == 50)
+        #expect(usage.extraRateWindows == nil)
     }
 
     @Test
@@ -1231,7 +1230,23 @@ struct DoubaoAgentPlanUsageTests {
     }
 
     @Test
-    func `agent plan fallback surfaces transport failure`() async {
+    func `agent plan transport failure preserves active coding plan`() async throws {
+        let transport = DoubaoScriptedTransport(results: [
+            .rawResponse(statusCode: 200, body: Self.codingPlanBody),
+            .failure(URLError(.timedOut)),
+        ])
+
+        let snapshot = try await DoubaoUsageFetcher.fetchCodingPlanUsage(
+            credentials: Self.credentials,
+            session: transport)
+
+        #expect(await transport.requestCount() == 2)
+        #expect(snapshot.toUsageSnapshot().primary?.usedPercent == 12.5)
+        #expect(snapshot.toUsageSnapshot().extraRateWindows == nil)
+    }
+
+    @Test
+    func `agent plan transport failure surfaces when no plan result is available`() async {
         let transport = DoubaoScriptedTransport(results: [
             .rawResponse(
                 statusCode: 200,
@@ -1250,11 +1265,9 @@ struct DoubaoAgentPlanUsageTests {
     }
 
     @Test
-    func `agent plan fallback propagates cancellation`() async {
+    func `agent plan cancellation propagates after active coding plan`() async {
         let transport = DoubaoScriptedTransport(results: [
-            .rawResponse(
-                statusCode: 200,
-                body: #"{"Result":{"Status":"Reclaimed"}}"#),
+            .rawResponse(statusCode: 200, body: Self.codingPlanBody),
             .cancellation,
         ])
 
@@ -1263,10 +1276,36 @@ struct DoubaoAgentPlanUsageTests {
                 credentials: Self.credentials,
                 session: transport)
         }
+        #expect(await transport.requestCount() == 2)
     }
 
     private static let credentials = DoubaoCodingPlanCredentials(
         accessKeyID: "AKLTTEST",
         secretAccessKey: "secret",
         region: "cn-beijing")
+
+    private static let codingPlanBody = """
+    {
+      "Result": {
+        "Status": "Running",
+        "UpdateTimestamp": 1782226444,
+        "QuotaUsage": [
+          {"Level": "session", "Percent": 12.5, "ResetTimestamp": 1782226478},
+          {"Level": "weekly", "Percent": 25, "ResetTimestamp": 1782662400},
+          {"Level": "monthly", "Percent": 50, "ResetTimestamp": 1782403199}
+        ]
+      }
+    }
+    """
+
+    private static let agentPlanBody = """
+    {
+      "Result": {
+        "PlanType": "medium",
+        "AFPFiveHour": {"Quota": 10000, "Used": 0, "ResetTime": -1},
+        "AFPWeekly": {"Quota": 35000, "Used": 0, "ResetTime": 1785686400000},
+        "AFPMonthly": {"Quota": 100000, "Used": 0, "ResetTime": 1787846399000}
+      }
+    }
+    """
 }

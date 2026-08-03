@@ -1,7 +1,7 @@
 /* English localization for CodexBar (base/fallback) */
 
 "ollama_safari_cookie_access_hint" = "Safari cookies need Full Disk Access for CodexBar (System Settings > Privacy & Security).";
-"ollama_browser_cookie_decryption_denied" = "%@ cookie decryption was declined in Keychain; retry with a manual refresh.";
+"ollama_browser_cookie_decryption_denied" = "%@ cookie decryption was declined in Keychain. Open the provider card and click Refresh (⌘R) to request Keychain access again.";
 "ollama_browser_cookie_decryption_disabled" = "%@ cookie decryption is disabled in CodexBar; enable Keychain access and refresh.";
 
 " providers" = " providers";
@@ -1329,6 +1329,9 @@
 "menu_bar_layout_token_session" = "Session %";
 "menu_bar_layout_token_weekly" = "Weekly %";
 "menu_bar_layout_token_auto" = "Auto %";
+"menu_bar_layout_token_session_pace" = "Session pace";
+"menu_bar_layout_token_weekly_pace" = "Weekly pace";
+"menu_bar_layout_token_auto_pace" = "Auto pace";
 "menu_bar_layout_token_bar" = "Usage bar";
 "menu_bar_layout_token_resets_in" = "Resets in";
 "menu_bar_layout_token_reset_at" = "Reset at";

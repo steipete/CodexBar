@@ -21,7 +21,7 @@
 "hooks_delete_argument" = "删除参数";
 
 "ollama_safari_cookie_access_hint" = "CodexBar 需要“完全磁盘访问权限”才能读取 Safari Cookie（系统设置 > 隐私与安全性）。";
-"ollama_browser_cookie_decryption_denied" = "钥匙串拒绝解密 %@ Cookie；请通过手动刷新重试。";
+"ollama_browser_cookie_decryption_denied" = "钥匙串拒绝解密 %@ Cookie。打开提供商卡片并点按“刷新”(⌘R)，再次请求钥匙串访问权限。";
 "ollama_browser_cookie_decryption_disabled" = "CodexBar 中已停用 %@ Cookie 解密；请启用钥匙串访问权限并刷新。";
 
 " providers" = " 提供商";
@@ -193,6 +193,7 @@
 "Login failed" = "登录失败";
 "Login shell PATH (startup capture)" = "登录 shell PATH（启动时捕获）";
 "Login timed out" = "登录超时";
+"Low Power Mode" = "低功耗模式";
 "MCP details" = "MCP 详情";
 "Managed Codex accounts unavailable" = "托管 Codex 账户不可用";
 "Managed account storage is unreadable. Live account access is still available, " = "托管账户存储不可读。实时账户访问仍可用，";
@@ -244,6 +245,7 @@
 "Open menu" = "打开菜单";
 "Open token file" = "打开令牌文件";
 "OpenAI cookies" = "OpenAI Cookie";
+"OpenAI web battery saver" = "OpenAI 网页省电";
 "OpenAI web extras" = "OpenAI Web 附加功能";
 "Option A" = "选项 A";
 "Option B" = "选项 B";
@@ -278,6 +280,7 @@
 "Quit CodexBar" = "退出 CodexBar";
 "Random (default)" = "随机（默认）";
 "Reads local usage logs. Shows today + last 30 days cost in the menu." = "读取本地用量日志。在菜单中显示今天及所选历史窗口的费用。";
+"Runs automatic provider, local usage, and storage refreshes no more often than every 30 minutes. Manual refresh remains available." = "自动供应商刷新、本地用量扫描和存储扫描最多每 30 分钟运行一次；仍可随时手动刷新。";
 "Refresh" = "刷新";
 "Refreshing" = "正在刷新";
 "Refresh cadence" = "刷新频率";
@@ -1300,6 +1303,9 @@
 "menu_bar_layout_token_session" = "会话 %";
 "menu_bar_layout_token_weekly" = "每周 %";
 "menu_bar_layout_token_auto" = "自动 %";
+"menu_bar_layout_token_session_pace" = "会话节奏";
+"menu_bar_layout_token_weekly_pace" = "每周节奏";
+"menu_bar_layout_token_auto_pace" = "自动节奏";
 "menu_bar_layout_token_bar" = "用量条";
 "menu_bar_layout_token_resets_in" = "重置倒计时";
 "menu_bar_layout_token_reset_at" = "重置时间";

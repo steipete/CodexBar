@@ -140,6 +140,21 @@ See `docs/configuration.md` for the schema.
   commands run directly without a shell and receive `CODEXBAR_*` variables plus JSON on stdin. `--format json` and
   `--json-only` return structured per-rule results. See
   `docs/configuration.md#external-event-hooks` for the event, payload, timeout, and security contract.
+- `codexbar hooks watch` polls enabled providers and fires matching hooks on real quota and status transitions.
+  Without it, hook rules only ever fire from the macOS app, so a headless install can configure hooks that never run.
+  - `--interval <seconds>`: poll period. Default `300`, minimum `60`; a smaller value is rejected rather than
+    clamped, because each tick fetches every selected provider.
+  - `--provider <id>`: restrict to one provider; repeatable. Defaults to every enabled provider.
+  - `--format json`/`--json`/`--pretty`: emit each fired event as JSON.
+  - Events are edge-triggered against the previous poll, so a condition that merely persists (a saturated window,
+    an ongoing outage) does not re-fire every tick. State is in-memory only: a restart re-establishes baselines and
+    the first poll of any lane fires nothing.
+  - Run `watch` as one continuous process. Repeated one-shot invocations cannot preserve transition baselines or event
+    rate limits between polls.
+  - Runs read-only, like `codexbar guard`: it never prompts for credentials. A failed refresh reports
+    `refresh_failed` with a coarse category (`timeout`, `offline`, `auth_required`, `network_error`) and never
+    forwards the raw provider error.
+  - Stops cleanly on `SIGINT`/`SIGTERM`/`SIGHUP`.
 
 ### Token accounts
 The CLI reads multi-account tokens from the same resolved config file as the app.

@@ -1,7 +1,7 @@
 /* English localization for CodexBar (base/fallback) */
 
 "ollama_safari_cookie_access_hint" = "Pliki cookie Safari wymagają pełnego dostępu do dysku dla CodexBar (Ustawienia systemowe > Prywatność i ochrona).";
-"ollama_browser_cookie_decryption_denied" = "Odszyfrowanie plików cookie %@ zostało odrzucone w Pęku kluczy; spróbuj ponownie przez ręczne odświeżenie.";
+"ollama_browser_cookie_decryption_denied" = "Odszyfrowanie plików cookie %@ zostało odrzucone w Pęku kluczy. Otwórz kartę dostawcy i kliknij Odśwież (⌘R), aby ponownie poprosić o dostęp do Pęku kluczy.";
 "ollama_browser_cookie_decryption_disabled" = "Odszyfrowanie plików cookie %@ jest wyłączone w CodexBar; włącz dostęp do Pęku kluczy i odśwież.";
 
 " providers" = " providers";
@@ -1328,6 +1328,9 @@
 "menu_bar_layout_token_session" = "Sesja %";
 "menu_bar_layout_token_weekly" = "Tydzień %";
 "menu_bar_layout_token_auto" = "Automatycznie %";
+"menu_bar_layout_token_session_pace" = "Tempo sesji";
+"menu_bar_layout_token_weekly_pace" = "Tempo tygodniowe";
+"menu_bar_layout_token_auto_pace" = "Tempo automatyczne";
 "menu_bar_layout_token_bar" = "Pasek użycia";
 "menu_bar_layout_token_resets_in" = "Reset za";
 "menu_bar_layout_token_reset_at" = "Reset o";

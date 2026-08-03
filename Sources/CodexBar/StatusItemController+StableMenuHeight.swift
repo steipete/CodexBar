@@ -40,6 +40,28 @@ private enum NativeMenuRowMetrics {
     }
 }
 
+/// AppKit lays out custom menu rows from their intrinsic size while a menu is tracking.
+/// A bare `NSView` only carries a frame hint, so switching from a tall Overview can stretch
+/// the provider spacer to fill Overview's old viewport and leave a large blank band.
+@MainActor
+final class StableMenuHeightSpacerView: NSView {
+    private var measuredHeight: CGFloat = 0
+
+    override var intrinsicContentSize: NSSize {
+        NSSize(width: NSView.noIntrinsicMetric, height: self.measuredHeight)
+    }
+
+    func applyHeight(_ height: CGFloat) {
+        let resolvedHeight = max(0, ceil(height))
+        guard self.measuredHeight != resolvedHeight || self.frame.height != resolvedHeight else { return }
+
+        self.measuredHeight = resolvedHeight
+        self.setFrameSize(NSSize(width: 1, height: resolvedHeight))
+        self.invalidateIntrinsicContentSize()
+        self.superview?.layoutSubtreeIfNeeded()
+    }
+}
+
 extension StatusItemController {
     static let stableMenuHeightSpacerID = "stableHeightSpacer"
 
@@ -48,7 +70,7 @@ extension StatusItemController {
         item.title = ""
         item.isEnabled = false
         item.representedObject = Self.stableMenuHeightSpacerID
-        let view = NSView(frame: NSRect(x: 0, y: 0, width: 1, height: 0))
+        let view = StableMenuHeightSpacerView(frame: NSRect(x: 0, y: 0, width: 1, height: 0))
         item.view = view
         return item
     }
@@ -76,7 +98,9 @@ extension StatusItemController {
         }
         let cacheEntries = self.mergedSwitcherContentCaches[ObjectIdentifier(menu)] ?? [:]
         for (selection, entry) in cacheEntries where selection != .overview {
-            if visibleIsProviderTab, selection == self.lastMergedMenuContentSelection { continue }
+            if visibleIsProviderTab, selection == self.lastMergedMenuContentSelection {
+                continue
+            }
             tabs.append(self.measureTab(items: entry.items))
         }
         MenuSwitchFlickerProbe.debugLog(
@@ -102,11 +126,13 @@ extension StatusItemController {
         guard tabs.count > 1 || floorHeight > 0 else { return }
 
         for tab in tabs {
-            guard let spacer = tab.spacer, let spacerView = spacer.view else { continue }
+            guard let spacer = tab.spacer,
+                  let spacerView = spacer.view as? StableMenuHeightSpacerView
+            else { continue }
             let padding = max(0, targetHeight - tab.contentHeight)
             if abs(spacerView.frame.height - padding) > 0.5 {
                 MenuSwitchFlickerProbe.debugLog("padding: set spacer \(spacerView.frame.height) -> \(padding)")
-                spacerView.setFrameSize(NSSize(width: 1, height: padding))
+                spacerView.applyHeight(padding)
             }
         }
     }

@@ -52,6 +52,9 @@ extension CursorStatusProbe {
         "net.imput.helium": .helium,
         "org.chromium.chromium": .chromium,
         "org.mozilla.firefox": .firefox,
+        "org.mozilla.firefox.beta": .firefoxBeta,
+        "org.mozilla.firefoxdeveloperedition": .firefoxDeveloperEdition,
+        "org.mozilla.nightly": .firefoxNightly,
     ]
 
     private static func normalizedBundleIdentifier(_ value: String?) -> String? {

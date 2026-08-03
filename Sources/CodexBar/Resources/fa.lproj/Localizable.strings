@@ -1,7 +1,7 @@
 /* Persian localization for CodexBar */
 
 "ollama_safari_cookie_access_hint" = "کوکی‌های Safari برای CodexBar به دسترسی کامل دیسک نیاز دارند (تنظیمات سیستم > حریم خصوصی و امنیت).";
-"ollama_browser_cookie_decryption_denied" = "رمزگشایی کوکی‌های %@ در Keychain رد شد؛ با یک تازه‌سازی دستی دوباره تلاش کنید.";
+"ollama_browser_cookie_decryption_denied" = "رمزگشایی کوکی‌های %@ در Keychain رد شد. کارت ارائه‌دهنده را باز کنید و روی تازه‌سازی (⌘R) کلیک کنید تا دوباره دسترسی به Keychain درخواست شود.";
 "ollama_browser_cookie_decryption_disabled" = "رمزگشایی کوکی‌های %@ در CodexBar غیرفعال است؛ دسترسی Keychain را فعال و تازه‌سازی کنید.";
 
 " providers" = " providers";
@@ -1328,6 +1328,9 @@
 "menu_bar_layout_token_session" = "جلسه %";
 "menu_bar_layout_token_weekly" = "هفتگی %";
 "menu_bar_layout_token_auto" = "درصد خودکار";
+"menu_bar_layout_token_session_pace" = "سرعت جلسه";
+"menu_bar_layout_token_weekly_pace" = "سرعت هفتگی";
+"menu_bar_layout_token_auto_pace" = "سرعت خودکار";
 "menu_bar_layout_token_bar" = "نوار مصرف";
 "menu_bar_layout_token_resets_in" = "بازنشانی در";
 "menu_bar_layout_token_reset_at" = "بازنشانی در ساعت";

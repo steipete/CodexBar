@@ -33,6 +33,22 @@ struct AdaptiveRefreshHeuristicsTests {
     }
 
     @Test
+    func `global low power mode clamps fixed and interactive adaptive heuristics`() {
+        let fixedStore = Self.makeStore(suite: "heuristics-low-power-fixed", frequency: .oneMinute)
+        fixedStore.settings.backgroundWorkLowPowerModeEnabled = true
+        #expect(fixedStore.normalRefreshIntervalForHeuristics() == 1800.0)
+
+        let adaptiveStore = Self.makeStore(suite: "heuristics-low-power-adaptive", frequency: .adaptive)
+        adaptiveStore.settings.backgroundWorkLowPowerModeEnabled = true
+        adaptiveStore.noteMenuOpened()
+        #expect(adaptiveStore.normalRefreshIntervalForHeuristics() == 1800.0)
+
+        let manualStore = Self.makeStore(suite: "heuristics-low-power-manual", frequency: .manual)
+        manualStore.settings.backgroundWorkLowPowerModeEnabled = true
+        #expect(manualStore.normalRefreshIntervalForHeuristics() == nil)
+    }
+
+    @Test
     func `adaptive resolves to the live adaptive decision delay`() {
         let store = Self.makeStore(suite: "heuristics-adaptive-live", frequency: .adaptive)
 

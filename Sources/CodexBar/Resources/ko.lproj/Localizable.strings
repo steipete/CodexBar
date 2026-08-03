@@ -21,7 +21,7 @@
 "hooks_delete_argument" = "인수 삭제";
 
 "ollama_safari_cookie_access_hint" = "Safari 쿠키를 읽으려면 CodexBar에 전체 디스크 접근 권한이 필요합니다(시스템 설정 > 개인정보 보호 및 보안).";
-"ollama_browser_cookie_decryption_denied" = "%@ 쿠키 복호화가 키체인에서 거부되었습니다. 수동 새로 고침으로 다시 시도하세요.";
+"ollama_browser_cookie_decryption_denied" = "%@ 쿠키 복호화가 키체인에서 거부되었습니다. 제공자 카드를 열고 새로 고침(⌘R)을 클릭하여 키체인 접근을 다시 요청하세요.";
 "ollama_browser_cookie_decryption_disabled" = "%@ 쿠키 복호화가 CodexBar에서 비활성화되어 있습니다. 키체인 접근을 활성화하고 새로 고침하세요.";
 
 " providers" = " 공급자";
@@ -1292,6 +1292,9 @@
 "menu_bar_layout_token_session" = "세션 %";
 "menu_bar_layout_token_weekly" = "주간 %";
 "menu_bar_layout_token_auto" = "자동 %";
+"menu_bar_layout_token_session_pace" = "세션 속도";
+"menu_bar_layout_token_weekly_pace" = "주간 속도";
+"menu_bar_layout_token_auto_pace" = "자동 속도";
 "menu_bar_layout_token_bar" = "사용량 막대";
 "menu_bar_layout_token_resets_in" = "재설정까지";
 "menu_bar_layout_token_reset_at" = "재설정 시각";

@@ -146,7 +146,7 @@ struct KiroStatusProbeTests {
             return true
         }
 
-        #expect(startedAt.duration(to: clock.now) < .seconds(7))
+        #expect(startedAt.duration(to: clock.now) < TestTimingBudget.scaled(.seconds(7)))
         #expect(!FileManager.default.fileExists(atPath: ptyMarker.path))
         let pipePIDText = try String(contentsOf: pipePIDFile, encoding: .utf8)
         let pipePID = try #require(pid_t(pipePIDText.trimmingCharacters(in: .whitespacesAndNewlines)))
@@ -452,7 +452,7 @@ extension KiroStatusProbeTests {
             _ = try await task.value
         }
 
-        #expect(shutdownStartedAt.duration(to: clock.now) < .seconds(2))
+        #expect(shutdownStartedAt.duration(to: clock.now) < TestTimingBudget.scaled(.seconds(2)))
         #expect(!registry.isRegistered(pipePID))
         #expect(registry.didUnregister(pipePID))
         #expect(kill(pipePID, 0) == -1)

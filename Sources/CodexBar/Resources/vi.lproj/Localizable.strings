@@ -21,7 +21,7 @@
 "hooks_delete_argument" = "Xóa đối số";
 
 "ollama_safari_cookie_access_hint" = "Cookie Safari cần Quyền truy cập toàn bộ ổ đĩa cho CodexBar (Cài đặt hệ thống > Quyền riêng tư & Bảo mật).";
-"ollama_browser_cookie_decryption_denied" = "Việc giải mã cookie %@ đã bị từ chối trong Chuỗi khóa; hãy thử lại bằng cách làm mới thủ công.";
+"ollama_browser_cookie_decryption_denied" = "Việc giải mã cookie %@ đã bị từ chối trong Chuỗi khóa. Mở thẻ nhà cung cấp và bấm Làm mới (⌘R) để yêu cầu lại quyền truy cập Chuỗi khóa.";
 "ollama_browser_cookie_decryption_disabled" = "Việc giải mã cookie %@ bị tắt trong CodexBar; hãy bật quyền truy cập Chuỗi khóa rồi làm mới.";
 
 " providers" = "nhà cung cấp";
@@ -1325,6 +1325,9 @@
 "menu_bar_layout_token_session" = "Phiên %";
 "menu_bar_layout_token_weekly" = "Hàng tuần %";
 "menu_bar_layout_token_auto" = "% tự động";
+"menu_bar_layout_token_session_pace" = "Tốc độ phiên";
+"menu_bar_layout_token_weekly_pace" = "Tốc độ hàng tuần";
+"menu_bar_layout_token_auto_pace" = "Tốc độ tự động";
 "menu_bar_layout_token_bar" = "Thanh sử dụng";
 "menu_bar_layout_token_resets_in" = "Đặt lại sau";
 "menu_bar_layout_token_reset_at" = "Đặt lại lúc";

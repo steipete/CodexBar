@@ -211,6 +211,42 @@ struct AdaptiveRefreshTimerTests {
     }
 
     @Test
+    func `fixed timer uses global low power interval without changing test sleep override`() throws {
+        let settings = Self.makeSettingsStore(
+            suite: "AdaptiveRefreshTimerTests-fixed-global-low-power",
+            frequency: .fiveMinutes)
+        settings.backgroundWorkLowPowerModeEnabled = true
+        let store = Self.makeUsageStore(settings: settings, startupBehavior: .testing)
+
+        store.restartTimerWithSleepOverrideForTesting(.seconds(10))
+
+        let computedInterval = try #require(store.fixedRefreshIntervalForTesting)
+        #expect(computedInterval == 30 * 60)
+        #expect(store.refreshTimerSleepOverrideForTesting == .seconds(10))
+    }
+
+    @Test
+    func `adaptive timer publishes clamped schedule while preserving test sleep override`() async throws {
+        let settings = Self.makeSettingsStore(
+            suite: "AdaptiveRefreshTimerTests-adaptive-global-low-power",
+            frequency: .adaptive)
+        settings.backgroundWorkLowPowerModeEnabled = true
+        let store = Self.makeUsageStore(settings: settings, startupBehavior: .testing)
+        let now = Date()
+        store.noteMenuOpened(at: now.addingTimeInterval(-10 * 60))
+        store.restartTimerWithSleepOverrideForTesting(.seconds(10))
+
+        let sleepDuration = try #require(await UsageStore.nextAdaptiveTimerSleepDuration(for: store))
+
+        let computedInterval = try #require(store.adaptiveRefreshComputedIntervalForTesting)
+        #expect(computedInterval == 30 * 60)
+        #expect(sleepDuration == .seconds(10))
+        let scheduledAt = try #require(store.adaptiveRefreshScheduledAt)
+        #expect(scheduledAt.timeIntervalSince(Date()) > 29 * 60)
+        #expect(scheduledAt.timeIntervalSince(Date()) <= 30 * 60)
+    }
+
+    @Test
     func `fixed cadence advances from scheduled tick instead of refresh completion`() {
         let interval = Duration.milliseconds(100)
         let start = ContinuousClock.now

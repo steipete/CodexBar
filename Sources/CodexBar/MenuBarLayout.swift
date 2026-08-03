@@ -12,6 +12,9 @@ enum MenuBarLayoutToken: Codable, Hashable, Sendable {
     case providerName
     case accountLabel
     case percent(window: PercentWindow)
+    /// Signed pace delta for a window, e.g. `+11%` when usage runs ahead of the sustainable rate.
+    /// `runsOut` answers "when does this end"; this token answers "how far off the even rate am I".
+    case pace(window: PercentWindow)
     case usageBar
     case resetCountdown
     case resetAbsolute

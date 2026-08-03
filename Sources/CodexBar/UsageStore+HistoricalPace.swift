@@ -42,6 +42,20 @@ extension UsageStore {
         return resolved
     }
 
+    /// Signed pace delta (`+11%`, `-8%`, `0%`) for a menu-bar layout pace token, or nil when the window
+    /// carries no pace-capable metadata. Shared by the status item and the layout editor preview so both
+    /// resolve pace through the same historical/work-day settings as the menu card.
+    func menuBarLayoutPaceText(
+        provider: UsageProvider,
+        window: RateWindow?,
+        now: Date = .init())
+        -> String?
+    {
+        window
+            .flatMap { self.weeklyPace(provider: provider, window: $0, now: now) }
+            .flatMap { MenuBarDisplayText.paceText(pace: $0) }
+    }
+
     func recordCodexHistoricalSampleIfNeeded(snapshot: UsageSnapshot) {
         guard self.settings.historicalTrackingEnabled else { return }
         let projection = self.codexConsumerProjection(

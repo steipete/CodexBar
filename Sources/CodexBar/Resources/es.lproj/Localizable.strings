@@ -21,7 +21,7 @@
 "hooks_delete_argument" = "Eliminar argumento";
 
 "ollama_safari_cookie_access_hint" = "Las cookies de Safari necesitan acceso total al disco para CodexBar (Ajustes del Sistema > Privacidad y seguridad).";
-"ollama_browser_cookie_decryption_denied" = "Se rechazó en el Llavero el descifrado de las cookies de %@; vuelve a intentarlo con una actualización manual.";
+"ollama_browser_cookie_decryption_denied" = "Se rechazó en el Llavero el descifrado de las cookies de %@. Abre la tarjeta del proveedor y haz clic en Actualizar (⌘R) para volver a solicitar acceso al Llavero.";
 "ollama_browser_cookie_decryption_disabled" = "El descifrado de las cookies de %@ está desactivado en CodexBar; activa el acceso al Llavero y actualiza.";
 
 " providers" = " proveedores";
@@ -1323,6 +1323,9 @@
 "menu_bar_layout_token_session" = "Sesión %";
 "menu_bar_layout_token_weekly" = "Semanal %";
 "menu_bar_layout_token_auto" = "% automático";
+"menu_bar_layout_token_session_pace" = "Ritmo de sesión";
+"menu_bar_layout_token_weekly_pace" = "Ritmo semanal";
+"menu_bar_layout_token_auto_pace" = "Ritmo automático";
 "menu_bar_layout_token_bar" = "Barra de uso";
 "menu_bar_layout_token_resets_in" = "Se reinicia en";
 "menu_bar_layout_token_reset_at" = "Reinicio a las";

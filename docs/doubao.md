@@ -21,6 +21,7 @@ To keep using API credentials instead, paste an API key or AK/SK pair in provide
 - Auto mode honors configured API credentials first so an ambient arkcli SSO session cannot silently switch accounts. Without configured credentials, it uses `arkcli usage plan --format json`.
 - CLI mode uses only `arkcli`; API mode uses only configured AK/SK or Ark API-key credentials.
 - `arkcli` output provides distinct personal and team Coding Plan and Agent Plan 5-hour, weekly, and monthly windows when those subscriptions are present.
+- Volcengine AK/SK mode checks Coding Plan and Agent Plan independently, so accounts subscribed to both show both sets of windows.
 - Ark API-key endpoint: `POST https://ark.cn-beijing.volces.com/api/coding/v3/chat/completions`
 - Probe models: `doubao-seed-2.0-code`, `doubao-1.5-pro-32k`, `doubao-lite-32k`
 - Reads `x-ratelimit-remaining-requests`, `x-ratelimit-limit-requests`, and `x-ratelimit-reset-requests` when returned.

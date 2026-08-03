@@ -123,18 +123,8 @@ enum CostUsageCacheIO {
         cache.producerKey = producerKey ?? self.currentProducerKey(provider: provider)
         cache.timeZoneIdentifier = calendar.timeZone.identifier
 
-        let tmp = dir.appendingPathComponent(".tmp-\(UUID().uuidString).json", isDirectory: false)
         let data = (try? JSONEncoder().encode(cache)) ?? Data()
-        do {
-            try data.write(to: tmp, options: [.atomic])
-            if FileManager.default.fileExists(atPath: url.path) {
-                _ = try FileManager.default.replaceItemAt(url, withItemAt: tmp)
-            } else {
-                try FileManager.default.moveItem(at: tmp, to: url)
-            }
-        } catch {
-            try? FileManager.default.removeItem(at: tmp)
-        }
+        try? data.write(to: url, options: [.atomic])
     }
 
     static func currentProducerKey(
@@ -173,6 +163,8 @@ struct CostUsageCache: Codable {
     var codexPreviousReport: CostUsageCodexPreviousReport?
     /// Persistent session-id discovery and generation-scoped negative lookups for fork parents.
     var codexSessionDiscovery: CostUsageCodexSessionDiscovery?
+    /// Resumable bounded discovery for recently modified rollouts in older date partitions.
+    var codexActiveLookbackState: CostUsageCodexActiveLookbackState?
 
     /// filePath -> file usage
     var files: [String: CostUsageFileUsage] = [:]
@@ -182,6 +174,15 @@ struct CostUsageCache: Codable {
 
     /// rootPath -> mtime (for Claude roots)
     var roots: [String: Int64]?
+}
+
+struct CostUsageCodexActiveLookbackState: Codable {
+    var scanSinceKey: String
+    var rootPaths: [String]
+    var nextDayKeyByRoot: [String: String] = [:]
+    var completedRootPaths: [String] = []
+    var pendingFilePaths: [String] = []
+    var legacyRecursivePendingRootPaths: [String] = []
 }
 
 struct CostUsageCodexSessionDiscovery: Codable {

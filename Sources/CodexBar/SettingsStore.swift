@@ -509,6 +509,8 @@ extension SettingsStore {
         if Self.isRunningTests, openAIWebBatterySaverDefault == nil {
             userDefaults.set(false, forKey: "openAIWebBatterySaverEnabled")
         }
+        let backgroundWorkLowPowerModeEnabled =
+            userDefaults.object(forKey: "backgroundWorkLowPowerModeEnabled") as? Bool ?? false
         let providerStorageFootprintsDefault = userDefaults.object(forKey: "providerStorageFootprintsEnabled") as? Bool
         let providerStorageFootprintsEnabled = providerStorageFootprintsDefault ?? false
         if Self.isRunningTests, providerStorageFootprintsDefault == nil {
@@ -591,6 +593,7 @@ extension SettingsStore {
             codexSparkUsageVisible: codexSparkUsageVisible,
             openAIWebAccessEnabled: openAIWebAccessEnabled,
             openAIWebBatterySaverEnabled: openAIWebBatterySaverEnabled,
+            backgroundWorkLowPowerModeEnabled: backgroundWorkLowPowerModeEnabled,
             providerStorageFootprintsEnabled: providerStorageFootprintsEnabled,
             jetbrainsIDEBasePath: jetbrainsIDEBasePath,
             mergeIcons: mergeIcons,

@@ -21,7 +21,7 @@
 "hooks_delete_argument" = "Ta bort argument";
 
 "ollama_safari_cookie_access_hint" = "Safari-cookies kräver full skivåtkomst för CodexBar (Systeminställningar > Integritet och säkerhet).";
-"ollama_browser_cookie_decryption_denied" = "Dekryptering av %@-cookies nekades i Nyckelhanteraren; försök igen med en manuell uppdatering.";
+"ollama_browser_cookie_decryption_denied" = "Dekryptering av %@-cookies nekades i Nyckelhanteraren. Öppna leverantörskortet och klicka på Uppdatera (⌘R) för att begära åtkomst till Nyckelhanteraren igen.";
 "ollama_browser_cookie_decryption_disabled" = "Dekryptering av %@-cookies är inaktiverad i CodexBar; aktivera åtkomst till Nyckelhanteraren och uppdatera.";
 
 " providers" = " leverantörer";
@@ -1323,6 +1323,9 @@
 "menu_bar_layout_token_session" = "Session %";
 "menu_bar_layout_token_weekly" = "Vecka %";
 "menu_bar_layout_token_auto" = "Automatiskt %";
+"menu_bar_layout_token_session_pace" = "Sessionstakt";
+"menu_bar_layout_token_weekly_pace" = "Veckotakt";
+"menu_bar_layout_token_auto_pace" = "Automatisk takt";
 "menu_bar_layout_token_bar" = "Användningsstapel";
 "menu_bar_layout_token_resets_in" = "Återställs om";
 "menu_bar_layout_token_reset_at" = "Återställs kl.";

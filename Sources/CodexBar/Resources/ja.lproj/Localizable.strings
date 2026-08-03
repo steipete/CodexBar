@@ -21,7 +21,7 @@
 "hooks_delete_argument" = "引数を削除";
 
 "ollama_safari_cookie_access_hint" = "Safari Cookie を読み込むには、CodexBar にフルディスクアクセスが必要です（システム設定 > プライバシーとセキュリティ）。";
-"ollama_browser_cookie_decryption_denied" = "%@ Cookie の復号がキーチェーンで拒否されました。手動で更新して再試行してください。";
+"ollama_browser_cookie_decryption_denied" = "%@ Cookie の復号がキーチェーンで拒否されました。プロバイダーカードを開き、更新（⌘R）をクリックしてキーチェーンへのアクセスを再度要求してください。";
 "ollama_browser_cookie_decryption_disabled" = "%@ Cookie の復号が CodexBar で無効です。キーチェーンへのアクセスを有効にして更新してください。";
 
 " providers" = " 件のプロバイダ";
@@ -1325,6 +1325,9 @@
 "menu_bar_layout_token_session" = "セッション %";
 "menu_bar_layout_token_weekly" = "週間 %";
 "menu_bar_layout_token_auto" = "自動 %";
+"menu_bar_layout_token_session_pace" = "セッションペース";
+"menu_bar_layout_token_weekly_pace" = "週間ペース";
+"menu_bar_layout_token_auto_pace" = "自動ペース";
 "menu_bar_layout_token_bar" = "使用量バー";
 "menu_bar_layout_token_resets_in" = "リセットまで";
 "menu_bar_layout_token_reset_at" = "リセット時刻";
