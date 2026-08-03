@@ -134,7 +134,8 @@ public enum OllamaUsageError: LocalizedError, Sendable {
         case .safariCookieAccessDenied:
             "Safari cookies need Full Disk Access for CodexBar (System Settings > Privacy & Security)."
         case let .browserCookieDecryptionDenied(browserName):
-            "\(browserName) cookie decryption was declined in Keychain; retry with a manual refresh."
+            "\(browserName) cookie decryption was declined in Keychain. " +
+                "Open the provider card and click Refresh (⌘R) to request Keychain access again."
         case let .browserCookieDecryptionDisabled(browserName):
             "\(browserName) cookie decryption is disabled in CodexBar; enable Keychain access and refresh."
         }

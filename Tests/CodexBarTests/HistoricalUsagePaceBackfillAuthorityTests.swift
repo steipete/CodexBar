@@ -475,6 +475,39 @@ extension HistoricalUsagePaceTests {
 
     @MainActor
     @Test
+    func `menu bar pace text signs the delta and drops windows without pace`() throws {
+        let suite = "HistoricalUsagePaceTests-menu-bar-pace-text-\(UUID().uuidString)"
+        let store = try Self.makeUsageStoreForBackfillTests(
+            suite: suite,
+            historyFileURL: Self.makeTempURL())
+
+        let now = Date(timeIntervalSince1970: 0)
+        // 3 of 7 days elapsed => 42.86% expected. 60% used runs ahead of it, 30% runs behind.
+        let deficit = RateWindow(
+            usedPercent: 60,
+            windowMinutes: 10080,
+            resetsAt: now.addingTimeInterval(4 * 24 * 60 * 60),
+            resetDescription: nil)
+        let reserve = RateWindow(
+            usedPercent: 30,
+            windowMinutes: 10080,
+            resetsAt: now.addingTimeInterval(4 * 24 * 60 * 60),
+            resetDescription: nil)
+        // Barely into the window: below the 3% expected-usage floor, so pace stays unavailable.
+        let tooEarly = RateWindow(
+            usedPercent: 1,
+            windowMinutes: 10080,
+            resetsAt: now.addingTimeInterval(7 * 24 * 60 * 60 - 60 * 60),
+            resetDescription: nil)
+
+        #expect(store.menuBarLayoutPaceText(provider: .zai, window: deficit, now: now) == "+17%")
+        #expect(store.menuBarLayoutPaceText(provider: .zai, window: reserve, now: now) == "-13%")
+        #expect(store.menuBarLayoutPaceText(provider: .zai, window: tooEarly, now: now) == nil)
+        #expect(store.menuBarLayoutPaceText(provider: .zai, window: nil, now: now) == nil)
+    }
+
+    @MainActor
+    @Test
     func `usage store applies configured work days to generic weekly pace`() throws {
         let suite = "HistoricalUsagePaceTests-generic-workdays-\(UUID().uuidString)"
         let store = try Self.makeUsageStoreForBackfillTests(

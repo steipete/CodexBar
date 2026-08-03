@@ -21,7 +21,7 @@
 "hooks_delete_argument" = "Argument löschen";
 
 "ollama_safari_cookie_access_hint" = "Safari-Cookies benötigen vollen Festplattenzugriff für CodexBar (Systemeinstellungen > Datenschutz & Sicherheit).";
-"ollama_browser_cookie_decryption_denied" = "Die Entschlüsselung der %@-Cookies wurde im Schlüsselbund abgelehnt; versuchen Sie es mit einer manuellen Aktualisierung erneut.";
+"ollama_browser_cookie_decryption_denied" = "Die Entschlüsselung der %@-Cookies wurde im Schlüsselbund abgelehnt. Öffne die Anbieterkarte und klicke auf „Aktualisieren“ (⌘R), um erneut Schlüsselbundzugriff anzufordern.";
 "ollama_browser_cookie_decryption_disabled" = "Die Entschlüsselung der %@-Cookies ist in CodexBar deaktiviert; aktivieren Sie den Schlüsselbundzugriff und aktualisieren Sie.";
 
 " providers" = "Anbieter";
@@ -1325,6 +1325,9 @@
 "menu_bar_layout_token_session" = "Sitzung %";
 "menu_bar_layout_token_weekly" = "Wöchentlich %";
 "menu_bar_layout_token_auto" = "Automatisch %";
+"menu_bar_layout_token_session_pace" = "Sitzungstempo";
+"menu_bar_layout_token_weekly_pace" = "Wochentempo";
+"menu_bar_layout_token_auto_pace" = "Automatisches Tempo";
 "menu_bar_layout_token_bar" = "Nutzungsleiste";
 "menu_bar_layout_token_resets_in" = "Zurücksetzung in";
 "menu_bar_layout_token_reset_at" = "Zurücksetzung um";

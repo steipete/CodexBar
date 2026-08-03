@@ -1,7 +1,7 @@
 /* Catalan localization for CodexBar */
 
 "ollama_safari_cookie_access_hint" = "Les galetes de Safari necessiten accés complet al disc per a CodexBar (Configuració del Sistema > Privadesa i seguretat).";
-"ollama_browser_cookie_decryption_denied" = "S'ha denegat el desxifratge de les galetes de %@ al Clauer; torneu-ho a provar amb una actualització manual.";
+"ollama_browser_cookie_decryption_denied" = "S'ha denegat el desxifratge de les galetes de %@ al Clauer. Obriu la targeta del proveïdor i feu clic a Actualitza (⌘R) per tornar a sol·licitar accés al Clauer.";
 "ollama_browser_cookie_decryption_disabled" = "El desxifratge de les galetes de %@ està desactivat a CodexBar; activeu l'accés al Clauer i actualitzeu.";
 
 " providers" = " proveïdors";
@@ -1327,6 +1327,9 @@
 "menu_bar_layout_token_session" = "Sessió %";
 "menu_bar_layout_token_weekly" = "Setmanal %";
 "menu_bar_layout_token_auto" = "% automàtic";
+"menu_bar_layout_token_session_pace" = "Ritme de sessió";
+"menu_bar_layout_token_weekly_pace" = "Ritme setmanal";
+"menu_bar_layout_token_auto_pace" = "Ritme automàtic";
 "menu_bar_layout_token_bar" = "Barra d’ús";
 "menu_bar_layout_token_resets_in" = "Es reinicia d’aquí a";
 "menu_bar_layout_token_reset_at" = "Reinici a";

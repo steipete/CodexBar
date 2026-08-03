@@ -1,7 +1,7 @@
 /* Italian localization for CodexBar */
 
 "ollama_safari_cookie_access_hint" = "I cookie di Safari richiedono l’accesso completo al disco per CodexBar (Impostazioni di Sistema > Privacy e sicurezza).";
-"ollama_browser_cookie_decryption_denied" = "La decrittografia dei cookie di %@ è stata rifiutata nel Portachiavi; riprova con un aggiornamento manuale.";
+"ollama_browser_cookie_decryption_denied" = "La decrittografia dei cookie di %@ è stata rifiutata nel Portachiavi. Apri la scheda del provider e fai clic su Aggiorna (⌘R) per richiedere di nuovo l’accesso al Portachiavi.";
 "ollama_browser_cookie_decryption_disabled" = "La decrittografia dei cookie di %@ è disabilitata in CodexBar; abilita l’accesso al Portachiavi e aggiorna.";
 
 " providers" = " provider";
@@ -1328,6 +1328,9 @@
 "menu_bar_layout_token_session" = "Sessione %";
 "menu_bar_layout_token_weekly" = "Settimanale %";
 "menu_bar_layout_token_auto" = "% automatica";
+"menu_bar_layout_token_session_pace" = "Ritmo sessione";
+"menu_bar_layout_token_weekly_pace" = "Ritmo settimanale";
+"menu_bar_layout_token_auto_pace" = "Ritmo automatico";
 "menu_bar_layout_token_bar" = "Barra utilizzo";
 "menu_bar_layout_token_resets_in" = "Ripristino tra";
 "menu_bar_layout_token_reset_at" = "Ripristino alle";

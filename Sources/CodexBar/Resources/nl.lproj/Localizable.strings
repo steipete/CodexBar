@@ -21,7 +21,7 @@
 "hooks_delete_argument" = "Argument verwijderen";
 
 "ollama_safari_cookie_access_hint" = "Safari-cookies vereisen volledige schijftoegang voor CodexBar (Systeeminstellingen > Privacy en beveiliging).";
-"ollama_browser_cookie_decryption_denied" = "Het ontsleutelen van %@-cookies is geweigerd in Sleutelhanger; probeer opnieuw met handmatig vernieuwen.";
+"ollama_browser_cookie_decryption_denied" = "Het ontsleutelen van %@-cookies is geweigerd in Sleutelhanger. Open de providerkaart en klik op Vernieuw (⌘R) om opnieuw toegang tot Sleutelhanger te vragen.";
 "ollama_browser_cookie_decryption_disabled" = "Het ontsleutelen van %@-cookies is uitgeschakeld in CodexBar; schakel Sleutelhangertoegang in en vernieuw.";
 
 " providers" = " providers";
@@ -1324,6 +1324,9 @@
 "menu_bar_layout_token_session" = "Sessie %";
 "menu_bar_layout_token_weekly" = "Wekelijks %";
 "menu_bar_layout_token_auto" = "Automatisch %";
+"menu_bar_layout_token_session_pace" = "Sessietempo";
+"menu_bar_layout_token_weekly_pace" = "Weektempo";
+"menu_bar_layout_token_auto_pace" = "Automatisch tempo";
 "menu_bar_layout_token_bar" = "Gebruiksbalk";
 "menu_bar_layout_token_resets_in" = "Reset over";
 "menu_bar_layout_token_reset_at" = "Reset om";

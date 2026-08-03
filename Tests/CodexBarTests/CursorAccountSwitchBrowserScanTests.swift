@@ -51,6 +51,18 @@ struct CursorAccountSwitchBrowserScanTests {
     }
 
     @Test
+    func `mapped Firefox variants are keychain-free for interactive login`() {
+        let mappedFirefoxVariants: Set<Browser> = [
+            .firefox,
+            .firefoxBeta,
+            .firefoxDeveloperEdition,
+            .firefoxNightly,
+        ]
+
+        #expect(mappedFirefoxVariants.allSatisfy { !$0.usesKeychainForCookieDecryption })
+    }
+
+    @Test
     func `interactive browser support requires a readable cookie source`() throws {
         let temp = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let applicationURL = temp.appendingPathComponent("Firefox.app", isDirectory: true)

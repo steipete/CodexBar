@@ -15,7 +15,8 @@ struct OllamaUIErrorMapper {
         }
         if let browserName = self.browserName(
             in: trimmed,
-            suffix: " cookie decryption was declined in Keychain; retry with a manual refresh.")
+            suffix: " cookie decryption was declined in Keychain. " +
+                "Open the provider card and click Refresh (⌘R) to request Keychain access again.")
         {
             return String(format: localize("ollama_browser_cookie_decryption_denied"), browserName)
         }

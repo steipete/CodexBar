@@ -21,7 +21,7 @@
 "hooks_delete_argument" = "Видалити аргумент";
 
 "ollama_safari_cookie_access_hint" = "Для файлів cookie Safari програмі CodexBar потрібен повний доступ до диска (Системні параметри > Конфіденційність і безпека).";
-"ollama_browser_cookie_decryption_denied" = "Розшифрування файлів cookie %@ було відхилено у В’язці ключів; повторіть спробу за допомогою ручного оновлення.";
+"ollama_browser_cookie_decryption_denied" = "Розшифрування файлів cookie %@ було відхилено у В’язці ключів. Відкрийте картку провайдера й натисніть «Оновити» (⌘R), щоб знову запитати доступ до В’язки ключів.";
 "ollama_browser_cookie_decryption_disabled" = "Розшифрування файлів cookie %@ вимкнено в CodexBar; увімкніть доступ до В’язки ключів і оновіть.";
 
 " providers" = "провайдерів";
@@ -1324,6 +1324,9 @@
 "menu_bar_layout_token_session" = "Сесія %";
 "menu_bar_layout_token_weekly" = "Щотижня %";
 "menu_bar_layout_token_auto" = "Авто %";
+"menu_bar_layout_token_session_pace" = "Темп сесії";
+"menu_bar_layout_token_weekly_pace" = "Щотижневий темп";
+"menu_bar_layout_token_auto_pace" = "Авто темп";
 "menu_bar_layout_token_bar" = "Індикатор використання";
 "menu_bar_layout_token_resets_in" = "Скидання через";
 "menu_bar_layout_token_reset_at" = "Скидання о";

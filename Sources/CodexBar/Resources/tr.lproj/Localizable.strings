@@ -1,7 +1,7 @@
 /* Turkish localization for CodexBar */
 
 "ollama_safari_cookie_access_hint" = "Safari çerezleri için CodexBar’a Tam Disk Erişimi gerekir (Sistem Ayarları > Gizlilik ve Güvenlik).";
-"ollama_browser_cookie_decryption_denied" = "%@ çerezlerinin şifresini çözme Anahtar Zinciri’nde reddedildi; manuel yenilemeyle tekrar deneyin.";
+"ollama_browser_cookie_decryption_denied" = "%@ çerezlerinin şifresini çözme Anahtar Zinciri’nde reddedildi. Sağlayıcı kartını açın ve Anahtar Zinciri erişimini yeniden istemek için Yenile’ye (⌘R) tıklayın.";
 "ollama_browser_cookie_decryption_disabled" = "%@ çerezlerinin şifresini çözme CodexBar’da devre dışı; Anahtar Zinciri erişimini etkinleştirip yenileyin.";
 
 " providers" = " sağlayıcı";
@@ -1326,6 +1326,9 @@
 "menu_bar_layout_token_session" = "Oturum %";
 "menu_bar_layout_token_weekly" = "Haftalık %";
 "menu_bar_layout_token_auto" = "Otomatik %";
+"menu_bar_layout_token_session_pace" = "Oturum hızı";
+"menu_bar_layout_token_weekly_pace" = "Haftalık hız";
+"menu_bar_layout_token_auto_pace" = "Otomatik hız";
 "menu_bar_layout_token_bar" = "Kullanım çubuğu";
 "menu_bar_layout_token_resets_in" = "Sıfırlamaya";
 "menu_bar_layout_token_reset_at" = "Sıfırlama saati";

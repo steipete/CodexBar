@@ -21,7 +21,7 @@
 "hooks_delete_argument" = "刪除引數";
 
 "ollama_safari_cookie_access_hint" = "CodexBar 需要「完整磁碟存取權」才能讀取 Safari Cookie（系統設定 > 隱私權與安全性）。";
-"ollama_browser_cookie_decryption_denied" = "鑰匙圈拒絕解密 %@ Cookie；請透過手動重新整理再試一次。";
+"ollama_browser_cookie_decryption_denied" = "鑰匙圈拒絕解密 %@ Cookie。開啟供應商卡片並按一下「重新整理」(⌘R)，再次要求鑰匙圈存取權限。";
 "ollama_browser_cookie_decryption_disabled" = "CodexBar 中已停用 %@ Cookie 解密；請啟用鑰匙圈存取權並重新整理。";
 
 " providers" = " 提供者";
@@ -1355,6 +1355,9 @@
 "menu_bar_layout_token_session" = "工作階段 %";
 "menu_bar_layout_token_weekly" = "每週 %";
 "menu_bar_layout_token_auto" = "自動 %";
+"menu_bar_layout_token_session_pace" = "工作階段節奏";
+"menu_bar_layout_token_weekly_pace" = "每週節奏";
+"menu_bar_layout_token_auto_pace" = "自動節奏";
 "menu_bar_layout_token_bar" = "用量列";
 "menu_bar_layout_token_resets_in" = "重設倒數";
 "menu_bar_layout_token_reset_at" = "重設時間";
