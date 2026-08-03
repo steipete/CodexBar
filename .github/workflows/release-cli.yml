@@ -420,7 +420,7 @@ jobs:
   update-homebrew-tap:
     runs-on: ubuntu-24.04
     needs: build-cli
-    if: github.event_name == 'release' && github.repository == 'steipete/CodexBar'
+    if: github.event_name == 'release'
     steps:
       - name: Resolve release tag
         id: release

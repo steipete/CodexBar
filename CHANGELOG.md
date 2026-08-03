@@ -2,6 +2,9 @@
 
 ## 0.47.1 — Unreleased
 
+### Added
+- CLI: expose Codex cost-history completeness in JSON and add an experimental provider-native-only scan mode (#2520). Thanks @NickGuAI!
+
 ### Changed
 - Menu: move each usage window's used percentage and reset time into its title row, with all pace detail on one line (#2182). Thanks @jack24254029!
 

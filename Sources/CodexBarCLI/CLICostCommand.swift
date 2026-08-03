@@ -258,6 +258,7 @@ extension CodexBarCLI {
             sessionTokens: snapshot?.sessionTokens,
             sessionCostUSD: snapshot?.sessionCostUSD,
             historyDays: snapshot?.historyDays,
+            historyCoverageIsEstablished: snapshot?.historyCoverageIsEstablished,
             last30DaysTokens: snapshot?.last30DaysTokens,
             last30DaysCostUSD: snapshot?.last30DaysCostUSD,
             meteredCostUSD: snapshot?.meteredCostUSD,
@@ -472,7 +473,7 @@ struct CostOptions: CommanderParsable {
 
     @Flag(
         name: .long("provider-native-only"),
-        help: "Exclude pi and OMP session mirrors from Claude/Codex cost history")
+        help: "Experimental: exclude pi and OMP session mirrors from Claude/Codex cost history")
     var providerNativeOnly: Bool = false
 
     @Option(name: .long("days"), help: "Cost history window in days (1...365)")
@@ -490,6 +491,7 @@ struct CostPayload: Encodable, Sendable {
     let sessionTokens: Int?
     let sessionCostUSD: Double?
     let historyDays: Int?
+    let historyCoverageIsEstablished: Bool?
     let last30DaysTokens: Int?
     let last30DaysCostUSD: Double?
     let meteredCostUSD: Double?
@@ -506,6 +508,7 @@ struct CostPayload: Encodable, Sendable {
         sessionTokens: Int?,
         sessionCostUSD: Double?,
         historyDays: Int?,
+        historyCoverageIsEstablished: Bool? = nil,
         last30DaysTokens: Int?,
         last30DaysCostUSD: Double?,
         meteredCostUSD: Double? = nil,
@@ -521,6 +524,7 @@ struct CostPayload: Encodable, Sendable {
         self.sessionTokens = sessionTokens
         self.sessionCostUSD = sessionCostUSD
         self.historyDays = historyDays
+        self.historyCoverageIsEstablished = historyCoverageIsEstablished
         self.last30DaysTokens = last30DaysTokens
         self.last30DaysCostUSD = last30DaysCostUSD
         self.meteredCostUSD = meteredCostUSD

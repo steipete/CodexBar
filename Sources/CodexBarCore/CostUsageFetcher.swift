@@ -316,6 +316,13 @@ public struct CostUsageFetcher: Sendable {
             staleSnapshotUpdatedAt: pending ? cache.codexPreviousReport?.updatedAt : nil)
     }
 
+    private static func codexHistoryCoverageIsEstablished(
+        options: CostUsageScanner.Options) -> Bool
+    {
+        let status = self.codexScanCatchUpStatus(options: options)
+        return !status.pending && status.progressKey != "scope-mismatch"
+    }
+
     private static func resolvedScannerOptions(
         _ override: CostUsageScanner.Options?,
         provider: UsageProvider,
@@ -447,6 +454,7 @@ public struct CostUsageFetcher: Sendable {
             now: now,
             historyDays: clampedHistoryDays,
             calendar: scanOptions.calendar,
+            historyCoverageIsEstablished: scanResult.historyCoverageIsEstablished,
             projects: scanResult.projects,
             sessions: scanResult.sessions,
             updatedAt: scanResult.staleSnapshotUpdatedAt)
@@ -457,6 +465,7 @@ public struct CostUsageFetcher: Sendable {
         let projects: [CostUsageProjectBreakdown]
         let sessions: [CostUsageSessionBreakdown]
         let staleSnapshotUpdatedAt: Date?
+        let historyCoverageIsEstablished: Bool
     }
 
     private struct LocalTokenScanOptions: Sendable {
@@ -559,7 +568,9 @@ public struct CostUsageFetcher: Sendable {
                 daily: daily,
                 projects: projects,
                 sessions: sessions,
-                staleSnapshotUpdatedAt: staleSnapshotUpdatedAt)
+                staleSnapshotUpdatedAt: staleSnapshotUpdatedAt,
+                historyCoverageIsEstablished: provider != .codex
+                    || Self.codexHistoryCoverageIsEstablished(options: options.scanOptions))
         }
     }
 
@@ -799,6 +810,7 @@ public struct CostUsageFetcher: Sendable {
                     now: now,
                     historyDays: clampedHistoryDays,
                     calendar: options.calendar,
+                    historyCoverageIsEstablished: Self.codexHistoryCoverageIsEstablished(options: options),
                     projects: Self.mergedProjectBreakdowns(projects),
                     sessions: sessions,
                     updatedAt: scanTimes.min()),
@@ -953,6 +965,7 @@ public struct CostUsageFetcher: Sendable {
         historyDays: Int = 30,
         useCurrentLocalDayForSession: Bool = true,
         calendar: Calendar = .current,
+        historyCoverageIsEstablished: Bool = true,
         meteredCostUSD: Double? = nil,
         credentialScopeFingerprint: String? = nil,
         historyLabel: String? = nil,
@@ -992,6 +1005,7 @@ public struct CostUsageFetcher: Sendable {
             last30DaysTokens: last30DaysTokens,
             last30DaysCostUSD: last30DaysCostUSD,
             historyDays: historyDays,
+            historyCoverageIsEstablished: historyCoverageIsEstablished,
             historyLabel: historyLabel,
             meteredCostUSD: meteredCostUSD,
             credentialScopeFingerprint: credentialScopeFingerprint,

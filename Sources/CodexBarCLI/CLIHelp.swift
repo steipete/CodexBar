@@ -105,7 +105,7 @@ extension CodexBarCLI {
         Description:
           Print local token cost usage from Claude/Codex native logs plus supported pi and OMP sessions.
           This does not require web or CLI access and uses cached scan results unless --refresh is provided.
-          Use --provider-native-only to exclude pi and OMP session mirrors.
+          Experimental: use --provider-native-only to exclude pi and OMP session mirrors.
 
         Examples:
           codexbar cost
