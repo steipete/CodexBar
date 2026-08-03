@@ -1170,7 +1170,8 @@ enum CLIRenderer {
         func supportsStandardPace(provider: UsageProvider) -> Bool {
             switch self {
             case .session:
-                provider == .codex || provider == .claude || provider == .ollama || provider == .kimi
+                provider == .codex || provider == .claude || provider == .ollama || provider == .kimi ||
+                    provider == .notion
             case .weekly:
                 provider == .codex || provider == .claude || provider == .opencode || provider == .ollama ||
                     provider == .kimi
@@ -1222,7 +1223,9 @@ enum CLIRenderer {
             guard supportsWindow else { return nil }
         }
         // Only pace a real session window here; Claude w/o 5-hour data falls a 7-day window into primary.
-        if case .session = resolvedKind, let minutes = paceWindow.windowMinutes, minutes > 300 {
+        // Notion's rolling allowance is a 6-hour window, so it needs the wider ceiling to match the card.
+        let sessionCeilingMinutes = provider == .notion ? NotionProviderDescriptor.rollingWindowMaxMinutes : 300
+        if case .session = resolvedKind, let minutes = paceWindow.windowMinutes, minutes > sessionCeilingMinutes {
             return nil
         }
         if provider == .ollama, paceWindow.windowMinutes == nil {

@@ -166,7 +166,7 @@ public struct NotionUsageSnapshot: Sendable {
             Self.percent(used: window.used, limit: window.limit).map { percent in
                 RateWindow(
                     usedPercent: percent,
-                    windowMinutes: Self.minutes(fromWindowToken: window.window),
+                    windowMinutes: Self.rollingMinutes(fromWindowToken: window.window),
                     resetsAt: Self.rollingReset(from: self.rateLimit.resetsInSeconds, now: self.updatedAt),
                     resetDescription: nil)
             }
@@ -176,7 +176,16 @@ public struct NotionUsageSnapshot: Sendable {
             Self.percent(used: billing.used, limit: billing.limit).map { percent in
                 RateWindow(
                     usedPercent: percent,
-                    windowMinutes: nil,
+                    // Notion reports only `periodEndMs`, so carry the shared monthly sentinel: it is what
+                    // makes `ProviderPaceCapability.calendarMonthResetWindow` match, and resolution then
+                    // replaces it with the real length of the calendar cycle ending at `resetsAt`.
+                    //
+                    // A nil length is not pace-safe on its own. `UsagePace.weekly` substitutes the
+                    // caller's `defaultWindowMinutes` (7 days on every weekly path) rather than skipping
+                    // the window, and the surfaces that do refuse a lengthless window drop it outright —
+                    // so before the sentinel the monthly bar carried no estimate, and removing it now
+                    // would score a billing period against a week.
+                    windowMinutes: ProviderPaceCapability.monthlyWindowSentinelMinutes,
                     resetsAt: Self.date(fromMilliseconds: billing.periodEndMs),
                     resetDescription: nil)
             }
@@ -202,6 +211,17 @@ public struct NotionUsageSnapshot: Sendable {
     static func percent(used: Double?, limit: Double?) -> Double? {
         guard let used, let limit, limit > 0 else { return nil }
         return max(0, used / limit * 100)
+    }
+
+    /// The rolling length, dropped when the token lands on the monthly sentinel. `30d` (and `720h`,
+    /// `43200m`) parses to exactly `monthlyWindowSentinelMinutes`, which pace matching keys on, so a
+    /// rolling window carrying one would be resolved as the calendar cycle ending at a reset that is
+    /// hours away. Reporting no length is wrong by less than mislabeling the window as a billing period.
+    static func rollingMinutes(fromWindowToken raw: String?) -> Int? {
+        guard let minutes = Self.minutes(fromWindowToken: raw),
+              minutes != ProviderPaceCapability.monthlyWindowSentinelMinutes
+        else { return nil }
+        return minutes
     }
 
     /// Notion expresses the rolling window as a short token such as `6h`.

@@ -1,6 +1,11 @@
 import Foundation
 
 public enum NotionProviderDescriptor {
+    /// Notion reports the rolling allowance as a `6h` window — session-shaped, but wider than the
+    /// 5-hour ceiling the shared session-pace paths assume. Windows longer than this are not rolling
+    /// allowances and must not be paced as one.
+    public static let rollingWindowMaxMinutes = 6 * 60
+
     public static let descriptor: ProviderDescriptor = Self.makeDescriptor()
 
     static func makeDescriptor() -> ProviderDescriptor {
@@ -40,6 +45,9 @@ public enum NotionProviderDescriptor {
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
                 noDataMessage: { "Notion AI cost summary is not supported." }),
+            // The billing-period window renews on a calendar cycle, so pace has to measure the real
+            // month ending at the reset rather than the 30-day sentinel the snapshot carries.
+            pace: .calendarMonthResetWindow,
             fetchPlan: ProviderFetchPlan(
                 sourceModes: [.auto, .web],
                 pipeline: ProviderFetchPipeline(resolveStrategies: { _ in [NotionWebFetchStrategy()] })),

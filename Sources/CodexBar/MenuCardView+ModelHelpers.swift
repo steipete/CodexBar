@@ -720,7 +720,11 @@ extension UsageMenuCardView.Model {
               window.remainingPercent > 0
         else { return nil }
         let paceWindow = Self.resetWindowForPace(provider: input.provider, window: window)
-        let resolved = pace ?? UsagePace.weekly(
+        // A caller-supplied pace was measured against the raw window, so reuse it only when resolution
+        // left the duration alone. Trusting it for a monthly sentinel would score the billing period as
+        // a flat 30 days and silently undo the calendar-cycle resolution one line above.
+        let reusablePace = paceWindow.windowMinutes == window.windowMinutes ? pace : nil
+        let resolved = reusablePace ?? UsagePace.weekly(
             window: paceWindow,
             now: input.now,
             defaultWindowMinutes: 10080,

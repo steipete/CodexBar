@@ -98,7 +98,7 @@ The rate-limit response looks like this:
 | CodexBar window | Notion field | Notes |
 | --- | --- | --- |
 | Rolling (primary) | `window.used` / `window.limit` | `window.window` (`6h`) sets the window length; `resetsInSeconds` sets the reset time. |
-| Monthly (secondary) | `billingPeriodWindow.used` / `.limit` | `periodEndMs` sets the reset time; the window has no fixed length. |
+| Monthly (secondary) | `billingPeriodWindow.used` / `.limit` | `periodEndMs` sets the reset time, and the window length is the calendar month ending there. |
 | Identity | `getSpaces` | Account email, workspace name, and the capitalized subscription tier. |
 
 Usage is reported against the returned `limit` rather than assumed to be a percentage, so a future
@@ -107,6 +107,26 @@ downstream.
 
 Custom Agents and Workers are **not** covered by this allowance — Notion meters those with Notion credits
 (`getAIUsageEligibilityV2`), which this provider does not read.
+
+### Pace
+
+Both bars carry an expected-usage estimate on the card and in `codexbar usage`, reading `n% in deficit`
+when you are ahead of an even burn and `n% in reserve` when behind.
+
+The monthly estimate needs a window length, and Notion reports only `periodEndMs`. The snapshot
+therefore carries the shared monthly sentinel, which is what makes the provider's
+`ProviderPaceCapability` match; resolution then substitutes the real calendar month ending at the reset
+— not a flat 30 days, which would misstate expected usage in February and in any 31-day cycle.
+
+A `nil` length is not a safe alternative. `UsagePace.weekly` substitutes the caller's
+`defaultWindowMinutes` (7 days on every weekly path) rather than skipping the window, so a lengthless
+billing period would be scored against a week; the surfaces that do refuse a lengthless window drop it
+from pacing entirely instead. Every path that scores one of these windows — the card, the menu-bar pace
+token, predictive pace warnings, and the CLI — resolves the sentinel first, so they cannot disagree.
+
+The rolling window is paced as a session window. Its length comes from the API's `6h` token rather than
+being fixed, so only a window no longer than six hours is paced this way; anything longer is a billing
+period and goes through the reset-window path instead.
 
 ## Status
 

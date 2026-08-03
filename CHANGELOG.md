@@ -4,6 +4,7 @@
 
 ### Added
 - Notion AI: add Business and Enterprise workspace allowance tracking for rolling and billing-period windows (#2552). Thanks @n0ah37!
+- Notion AI: pace estimates on both the rolling and billing-period bars, scored against the real calendar month ending at the reset rather than a flat 30 days (#2552). Thanks @n0ah37!
 - Sync: opt-in iCloud sync (Settings → iCloud Sync, default off) syncs provider configuration, a curated preferences subset, and per-device usage snapshots across Macs via CloudKit; API keys/cookies/tokens ride end-to-end-encrypted fields with their own opt-out, hooks and machine-local paths never sync, and menus can show accounts from other Macs with last-known usage ("via <Mac> · 1h ago") when the local fetch is unavailable. The app now also watches `config.json`, so external CLI edits apply live.
 - z.ai: add 7-day and 30-day model-usage chart ranges with dataset-consistent legends, colors, and daily tooltips (#2524). Thanks @LeoLin990405!
 - Refresh: add a default-off global Low Power Mode that limits automatic provider, local usage, and storage work to once every 30 minutes while keeping manual refresh immediate (#2518). Thanks @Carl723000!
@@ -13,6 +14,8 @@
 - Menu bar: Session/Weekly/Auto pace layout tokens that render the signed pace delta (`+11%`, `-8%`, `0%`), restoring the pre-0.45 "Both" display in the layout editor (#2540, fixes #2534). Thanks @kratocz!
 
 ### Fixed
+- Notion AI: `codexbar` now honors the provider's Workspace ID, manual cookie header, and `off` source instead of always auto-selecting a workspace (#2552). Thanks @n0ah37!
+- Providers with monthly billing windows (Notion AI, Amp, MiMo, StepFun, Doubao, Alibaba, OpenCode Go): the menu bar's pace token, the "runs out" estimate, and predictive pace warnings now measure the real calendar cycle, matching the card and the CLI instead of scoring every period as a flat 30 days (#2552). Thanks @n0ah37!
 - Cursor: make on-demand extra usage follow the shared optional-usage setting and remove the unsupported credits placeholder (#2338). Thanks @Zihao-Qi!
 - Antigravity/Sessions: inspect processes in-process via libproc instead of spawning full-system ps/lsof, eliminating repeated macOS 26 “access data from other apps” prompts (#2267 hardening).
 - Doubao: show Agent Plan windows alongside Coding Plan usage for Volcengine AK/SK accounts that subscribe to both products (#2517). Thanks @Astro-Han!
