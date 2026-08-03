@@ -1272,6 +1272,13 @@ extension UsageMenuCardView.Model {
             snapshot: snapshot,
             input: input,
             percentStyle: percentStyle))
+        // Deliberately a separate call outside extraRateWindowMetrics: Copilot AI credits are core
+        // data (GitHub bills some accounts by credit, not by rate window) and must render regardless
+        // of the copilotBudgetExtrasEnabled gate that hides optional budget extras above.
+        metrics.append(contentsOf: Self.copilotCreditMetrics(
+            snapshot: snapshot,
+            input: input,
+            percentStyle: percentStyle))
         if input.provider == .kilo || input.provider == .kimi,
            metrics.contains(where: { $0.id == "primary" }),
            metrics.contains(where: { $0.id == "secondary" })

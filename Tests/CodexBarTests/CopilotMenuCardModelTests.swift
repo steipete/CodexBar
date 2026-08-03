@@ -108,6 +108,76 @@ struct CopilotMenuCardModelTests {
         #expect(premium.pacePercent == nil)
     }
 
+    private func makeModel(
+        credits: CopilotCreditsUsage?,
+        now: Date = Date(timeIntervalSince1970: 0)) throws -> UsageMenuCardView.Model
+    {
+        let snapshot = UsageSnapshot(
+            primary: nil,
+            secondary: nil,
+            copilotCredits: credits,
+            updatedAt: now)
+        let metadata = try #require(ProviderDefaults.metadata[.copilot])
+        return UsageMenuCardView.Model.make(.init(
+            provider: .copilot,
+            metadata: metadata,
+            snapshot: snapshot,
+            credits: nil,
+            creditsError: nil,
+            dashboard: nil,
+            dashboardError: nil,
+            tokenSnapshot: nil,
+            tokenError: nil,
+            account: AccountInfo(email: nil, plan: nil),
+            isRefreshing: false,
+            lastError: nil,
+            usageBarsShowUsed: true,
+            resetTimeDisplayStyle: .countdown,
+            tokenCostUsageEnabled: false,
+            showOptionalCreditsAndExtraUsage: true,
+            hidePersonalInfo: false,
+            now: now))
+    }
+
+    @Test
+    func `credit lane renders a bar when an entitlement is set`() throws {
+        let model = try self.makeModel(credits: CopilotCreditsUsage(
+            seat: CopilotCreditsUsage.Lane(creditsUsed: 31, entitlement: 3000, resetsAt: nil),
+            org: nil,
+            orgLogin: nil))
+        let metric = try #require(model.metrics.first { $0.id == "copilot-seat-credits" })
+        #expect(metric.title == "AI credits")
+        #expect(metric.statusText == nil)
+        #expect(metric.detailLeftText == "31 / 3,000")
+    }
+
+    @Test
+    func `credit lane renders text when no entitlement is set`() throws {
+        let model = try self.makeModel(credits: CopilotCreditsUsage(
+            seat: CopilotCreditsUsage.Lane(creditsUsed: 31, entitlement: nil, resetsAt: nil),
+            org: nil,
+            orgLogin: nil))
+        let metric = try #require(model.metrics.first { $0.id == "copilot-seat-credits" })
+        #expect(metric.statusText == "31 credits used")
+    }
+
+    @Test
+    func `credit rows are absent without credit data`() throws {
+        let model = try self.makeModel(credits: nil)
+        #expect(model.metrics.contains { $0.id.hasSuffix("-credits") } == false)
+    }
+
+    @Test
+    func `credit rows render even when budget extras are disabled`() throws {
+        // Regression guard: credit rows must not be swallowed by the copilotBudgetExtrasEnabled
+        // early return that gates extraRateWindows at MenuCardView+ModelHelpers.swift:795.
+        let model = try self.makeModel(credits: CopilotCreditsUsage(
+            seat: CopilotCreditsUsage.Lane(creditsUsed: 31, entitlement: 3000, resetsAt: nil),
+            org: nil,
+            orgLogin: nil))
+        #expect(model.metrics.contains { $0.id == "copilot-seat-credits" })
+    }
+
     private static func model(snapshot: UsageSnapshot, now: Date) throws -> UsageMenuCardView.Model {
         let metadata = try #require(ProviderDefaults.metadata[.copilot])
         return UsageMenuCardView.Model.make(.init(

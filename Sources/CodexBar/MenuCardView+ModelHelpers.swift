@@ -854,6 +854,96 @@ extension UsageMenuCardView.Model {
         }
     }
 
+    static func copilotCreditMetrics(
+        snapshot: UsageSnapshot,
+        input: Input,
+        percentStyle: PercentStyle) -> [Metric]
+    {
+        guard input.provider == .copilot, let credits = snapshot.copilotCredits else { return [] }
+        return [
+            (id: "copilot-seat-credits", title: L("AI credits"), lane: credits.seat),
+            (id: "copilot-org-credits", title: L("Org credits"), lane: credits.org),
+        ].compactMap { entry in
+            guard let lane = entry.lane else { return nil }
+            return Self.copilotCreditMetric(
+                id: entry.id,
+                title: entry.title,
+                lane: lane,
+                input: input,
+                percentStyle: percentStyle)
+        }
+    }
+
+    private static func copilotCreditMetric(
+        id: String,
+        title: String,
+        lane: CopilotCreditsUsage.Lane,
+        input: Input,
+        percentStyle: PercentStyle) -> Metric
+    {
+        // `resetText(for:style:now:)` formats a RateWindow, so wrap the lane's date in a throwaway
+        // window purely to reuse the app's existing reset formatting rather than duplicating it.
+        let resetText: String? = lane.resetsAt.flatMap { resetsAt in
+            Self.resetText(
+                for: RateWindow(
+                    usedPercent: 0,
+                    windowMinutes: nil,
+                    resetsAt: resetsAt,
+                    resetDescription: nil),
+                style: input.resetTimeDisplayStyle,
+                now: input.now)
+        }
+        let usedLabel = Self.formatCredits(lane.creditsUsed)
+        guard let usedPercent = lane.usedPercent, let entitlement = lane.entitlement else {
+            // No denominator: GitHub does not publish the included-credit ceiling, so show the raw
+            // count rather than a bar that would imply a limit we do not know.
+            let status = resetText.map { "\(usedLabel) \(L("credits used")) - \($0)" }
+                ?? "\(usedLabel) \(L("credits used"))"
+            return Metric(
+                id: id,
+                title: title,
+                percent: 0,
+                percentStyle: percentStyle,
+                statusText: status,
+                resetText: nil,
+                detailText: nil,
+                detailLeftText: nil,
+                detailRightText: nil,
+                pacePercent: nil,
+                paceOnTop: true)
+        }
+        return Metric(
+            id: id,
+            title: title,
+            percent: Self.clamped(input.usageBarsShowUsed ? usedPercent : max(0, 100 - usedPercent)),
+            percentStyle: percentStyle,
+            statusText: nil,
+            resetText: resetText,
+            detailText: nil,
+            detailLeftText: "\(usedLabel) / \(Self.formatCredits(entitlement))",
+            detailRightText: nil,
+            pacePercent: nil,
+            paceOnTop: true)
+    }
+
+    private static func formatCredits(_ value: Double) -> String {
+        let formatter = NumberFormatter()
+        // Pinned rather than left to the current locale: this string feeds directly into a test
+        // assertion (and user-facing display) that expects a fixed "," grouping separator. Locale
+        // alone is not enough here — `en_US_POSIX` (the usual "deterministic" choice) disables
+        // grouping entirely (`usesGroupingSeparator == false`), so pinning locale but leaving
+        // grouping to its default still produces "3000" instead of "3,000" on this very machine.
+        // Set every formatting property explicitly so the output is identical on every locale.
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.numberStyle = .decimal
+        formatter.usesGroupingSeparator = true
+        formatter.groupingSeparator = ","
+        formatter.decimalSeparator = "."
+        formatter.maximumFractionDigits = value < 10 ? 1 : 0
+        formatter.minimumFractionDigits = 0
+        return formatter.string(from: NSNumber(value: value)) ?? String(Int(value))
+    }
+
     private static func isCodexSparkRateWindow(_ namedWindow: NamedRateWindow) -> Bool {
         namedWindow.id == CodexAdditionalRateLimitMapper.sparkWindowID ||
             namedWindow.id == CodexAdditionalRateLimitMapper.sparkWeeklyWindowID

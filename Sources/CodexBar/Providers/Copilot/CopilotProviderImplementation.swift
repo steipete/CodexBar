@@ -18,6 +18,9 @@ struct CopilotProviderImplementation: ProviderImplementation {
         _ = settings.copilotBudgetExtrasEnabled
         _ = settings.copilotBudgetCookieSource
         _ = settings.copilotBudgetCookieHeader
+        _ = settings.copilotOrgCreditsEnabled
+        _ = settings.copilotSeatCreditEntitlementRaw
+        _ = settings.copilotOrgCreditEntitlementRaw
     }
 
     @MainActor
@@ -75,6 +78,25 @@ struct CopilotProviderImplementation: ProviderImplementation {
                     } else {
                         context.store.clearCopilotBudgetExtras()
                     }
+                },
+                onAppDidBecomeActive: nil,
+                onAppearWhenEnabled: nil),
+            ProviderSettingsToggleDescriptor(
+                id: "copilot-org-credits",
+                title: "Organization AI credits",
+                subtitle: [
+                    "Optional.",
+                    "Fetches organization-wide AI credit usage.",
+                    "Requires a token with access to the organization's billing settings.",
+                ].joined(separator: " "),
+                binding: Binding(
+                    get: { context.settings.copilotOrgCreditsEnabled },
+                    set: { context.settings.copilotOrgCreditsEnabled = $0 }),
+                statusText: { nil },
+                actions: [],
+                isVisible: nil,
+                onChange: { _ in
+                    await context.store.refreshProvider(.copilot, allowDisabled: true)
                 },
                 onAppDidBecomeActive: nil,
                 onAppearWhenEnabled: nil),
@@ -207,6 +229,30 @@ struct CopilotProviderImplementation: ProviderImplementation {
                         }),
                 ],
                 isVisible: nil,
+                onActivate: nil),
+            ProviderSettingsFieldDescriptor(
+                id: "copilot-seat-credit-entitlement",
+                title: "Included AI credits (per seat)",
+                subtitle: "GitHub does not publish this value. Enter it to show a usage bar.",
+                kind: .plain,
+                placeholder: "e.g. 3000",
+                binding: Binding(
+                    get: { context.settings.copilotSeatCreditEntitlementRaw },
+                    set: { context.settings.copilotSeatCreditEntitlementRaw = $0 }),
+                actions: [],
+                isVisible: nil,
+                onActivate: nil),
+            ProviderSettingsFieldDescriptor(
+                id: "copilot-org-credit-entitlement",
+                title: "Included AI credits (organization)",
+                subtitle: "Total monthly organization allowance.",
+                kind: .plain,
+                placeholder: "e.g. 6000",
+                binding: Binding(
+                    get: { context.settings.copilotOrgCreditEntitlementRaw },
+                    set: { context.settings.copilotOrgCreditEntitlementRaw = $0 }),
+                actions: [],
+                isVisible: { context.settings.copilotOrgCreditsEnabled },
                 onActivate: nil),
         ]
     }
