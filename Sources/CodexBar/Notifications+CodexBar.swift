@@ -11,7 +11,16 @@ extension Notification.Name {
     static let codexbarSessionLimitReset = Notification.Name("codexbarSessionLimitReset")
     static let codexbarWeeklyLimitReset = Notification.Name("codexbarWeeklyLimitReset")
     static let codexbarProviderConfigDidChange = Notification.Name("codexbarProviderConfigDidChange")
+    static let codexbarUsageSnapshotsDidChange = Notification.Name("codexbarUsageSnapshotsDidChange")
     static let codexbarQuotaWarningDidPost = Notification.Name("codexbarQuotaWarningDidPost")
+}
+
+final class UsageSnapshotsDidChangeEvent: NSObject, @unchecked Sendable {
+    let snapshots: [AccountSnapshotSyncPayload]
+
+    init(snapshots: [AccountSnapshotSyncPayload]) {
+        self.snapshots = snapshots
+    }
 }
 
 @MainActor

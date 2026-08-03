@@ -622,6 +622,9 @@ extension StatusItemController {
     }
 
     private func addMenuCards(to menu: NSMenu, context: MenuCardContext, captureMenu: NSMenu? = nil) -> Bool {
+        let fleetProjection = self.fleetAccountProjection(for: context.currentProvider)
+        if self.addFleetFallback(fleetProjection, to: menu, context: context) { return false }
+
         if let codexAccountDisplay = context.codexAccountDisplay, codexAccountDisplay.showAll {
             if !self.addCompactCodexAccountMenuIfPlanned(
                 display: codexAccountDisplay,
@@ -631,6 +634,7 @@ extension StatusItemController {
             {
                 self.addStackedCodexMenuCards(codexAccountDisplay, to: menu, context: context)
             }
+            self.addFleetAccountMenuCards(fleetProjection.additionalAccounts, to: menu, context: context)
             return false
         }
 
@@ -642,6 +646,7 @@ extension StatusItemController {
             showSingleAccount: self.settings.claudeSwapShowSingleAccount)
         {
             self.addClaudeSwapMenuCards(to: menu, captureMenu: captureMenu ?? menu, context: context)
+            self.addFleetAccountMenuCards(fleetProjection.additionalAccounts, to: menu, context: context)
             return false
         }
 
@@ -652,6 +657,7 @@ extension StatusItemController {
                 captureMenu: captureMenu ?? menu,
                 context: context)
             {
+                self.addFleetAccountMenuCards(fleetProjection.additionalAccounts, to: menu, context: context)
                 return false
             }
             let accountSnapshots = tokenAccountDisplay.snapshots
@@ -663,6 +669,7 @@ extension StatusItemController {
                         accountSnapshot: accountSnapshot)
                 }
             self.addStackedMenuCards(cards, to: menu, context: context)
+            self.addFleetAccountMenuCards(fleetProjection.additionalAccounts, to: menu, context: context)
             return false
         }
 
@@ -675,6 +682,7 @@ extension StatusItemController {
                     forceOverrideCard: scope.snapshot == nil)
             }
             self.addStackedMenuCards(cards, to: menu, context: context)
+            self.addFleetAccountMenuCards(fleetProjection.additionalAccounts, to: menu, context: context)
             return false
         }
 
@@ -694,6 +702,7 @@ extension StatusItemController {
                 layoutModel: renderedModel,
                 width: context.menuWidth,
                 webItems: webItems)
+            self.addFleetAccountMenuCards(fleetProjection.additionalAccounts, to: menu, context: context)
             return true
         }
 
@@ -704,6 +713,7 @@ extension StatusItemController {
             heightCacheScope: context.currentProvider.rawValue,
             heightCacheFingerprint: renderedModel.heightFingerprint(section: "card"),
             containsInteractiveControls: true))
+        self.addFleetAccountMenuCards(fleetProjection.additionalAccounts, to: menu, context: context)
         if self.addStorageMenuCardSection(to: menu, provider: context.currentProvider, width: context.menuWidth) {
             menu.addItem(.separator())
         }

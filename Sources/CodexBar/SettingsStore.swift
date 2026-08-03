@@ -213,6 +213,7 @@ final class SettingsStore {
     @ObservationIgnored let antigravityOAuthCredentialsStore: AntigravityOAuthCredentialsStore
     @ObservationIgnored var config: CodexBarConfig
     @ObservationIgnored var configPersistTask: Task<Void, Never>?
+    @ObservationIgnored var configFileWatcher: ConfigFileWatcher?
     @ObservationIgnored var configLoading = false
     @ObservationIgnored var tokenAccountsLoaded = false
     @ObservationIgnored var cachedCodexAccountReconciliationSnapshot:
@@ -374,6 +375,11 @@ final class SettingsStore {
             self.defaultsState.openAIWebAccessEnabled = resolvedOpenAIWebAccessEnabled
         }
         KeychainAccessGate.isDisabled = self.debugDisableKeychainAccess
+        self.startConfigFileWatcher()
+    }
+
+    deinit {
+        self.configFileWatcher?.stop()
     }
 }
 
@@ -533,6 +539,14 @@ extension SettingsStore {
             ?? AgentSessionLabelStyle.project.rawValue
         let agentSessionsManualHosts = userDefaults.string(forKey: "agentSessionsManualHosts") ?? ""
         let preferredCurrencyCode = userDefaults.string(forKey: "preferredCurrencyCode") ?? "USD"
+        let iCloudSyncEnabled = userDefaults.object(forKey: "iCloudSyncEnabled") as? Bool ?? false
+        let iCloudSyncIncludeSecrets = userDefaults.object(forKey: "iCloudSyncIncludeSecrets") as? Bool ?? true
+        let iCloudSyncSnapshotsEnabled = userDefaults.object(forKey: "iCloudSyncSnapshotsEnabled") as? Bool ?? true
+        let iCloudSyncShowFleetAccounts = userDefaults.object(forKey: "iCloudSyncShowFleetAccounts") as? Bool ?? true
+        let iCloudSyncDeviceID = userDefaults.string(forKey: "iCloudSyncDeviceID") ?? UUID().uuidString.lowercased()
+        if userDefaults.string(forKey: "iCloudSyncDeviceID") == nil {
+            userDefaults.set(iCloudSyncDeviceID, forKey: "iCloudSyncDeviceID")
+        }
         return SettingsDefaultsState(
             refreshFrequency: refreshFrequency,
             adaptiveActivityScanConsent: adaptiveActivityScanConsent,
@@ -608,7 +622,12 @@ extension SettingsStore {
             agentSessionsEnabled: agentSessionsEnabled,
             agentSessionLabelStyleRaw: agentSessionLabelStyleRaw,
             agentSessionsManualHosts: agentSessionsManualHosts,
-            preferredCurrencyCode: preferredCurrencyCode)
+            preferredCurrencyCode: preferredCurrencyCode,
+            iCloudSyncEnabled: iCloudSyncEnabled,
+            iCloudSyncIncludeSecrets: iCloudSyncIncludeSecrets,
+            iCloudSyncSnapshotsEnabled: iCloudSyncSnapshotsEnabled,
+            iCloudSyncShowFleetAccounts: iCloudSyncShowFleetAccounts,
+            iCloudSyncDeviceID: iCloudSyncDeviceID)
     }
 
     private static func hadPreviousAppLaunch(userDefaults: UserDefaults) -> Bool {

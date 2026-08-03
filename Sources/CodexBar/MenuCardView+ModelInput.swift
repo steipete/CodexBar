@@ -31,6 +31,7 @@ extension UsageMenuCardView.Model {
         let codexSparkUsageVisible: Bool
         let copilotBudgetExtrasEnabled: Bool
         let sourceLabel: String?
+        let subtitleOverride: String?
         let kiloAutoMode: Bool
         let hidePersonalInfo: Bool
         let weeklyPace: UsagePace?
@@ -70,6 +71,7 @@ extension UsageMenuCardView.Model {
             codexSparkUsageVisible: Bool = true,
             copilotBudgetExtrasEnabled: Bool = false,
             sourceLabel: String? = nil,
+            subtitleOverride: String? = nil,
             kiloAutoMode: Bool = false,
             hidePersonalInfo: Bool,
             weeklyPace: UsagePace? = nil,
@@ -108,6 +110,7 @@ extension UsageMenuCardView.Model {
             self.codexSparkUsageVisible = codexSparkUsageVisible
             self.copilotBudgetExtrasEnabled = copilotBudgetExtrasEnabled
             self.sourceLabel = sourceLabel
+            self.subtitleOverride = subtitleOverride
             self.kiloAutoMode = kiloAutoMode
             self.hidePersonalInfo = hidePersonalInfo
             self.weeklyPace = weeklyPace

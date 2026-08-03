@@ -275,6 +275,15 @@ Current IDs (see `Sources/CodexBarCore/Providers/Providers.swift`):
 ## Ordering
 The order of `providers` controls display/order in the app and CLI. Reorder the array to change ordering.
 
+## iCloud sync
+Opt-in (Settings → iCloud Sync, off by default; requires a signed release build and an iCloud account). When enabled, CodexBar syncs across the user's Macs via CloudKit (private database, container `iCloud.com.steipete.codexbar`):
+
+- **Provider configuration** — portable fields of each provider entry (enabled intent, extras, region, workspace, quota-warning overrides, ordering-relevant metadata). Secrets (`apiKey`, `secretKey`, `cookieHeader`, `tokenAccounts`) sync only when "Include API keys, cookies, and tokens" is on, and travel exclusively in CloudKit `encryptedValues` (end-to-end encrypted; readable only on the user's devices).
+- **A curated preferences subset** — notification/threshold/display settings.
+- **Usage snapshots** — per-device current usage per account, so other Macs can show last-known data ("via <Mac> · 1h ago") and accounts discovered on other Macs.
+
+Never synced, by design: `hooks` (sync payloads structurally cannot create or modify hook rules — they execute local binaries), machine-local paths (`claudeSwapExecutablePath`, `codexProfileHomePaths`, `awsProfile`/`awsAuthMode`, `source`, `codexActiveSource`, `cookieSource`), menu-bar layout/geometry, debug settings, usage history, and cost ledgers. A provider is never auto-enabled on a Mac where its required local CLI is missing. Records carry a schema version; older app versions pause sync instead of rewriting newer payloads. The CLI does not talk to CloudKit — the app applies remote changes to `config.json` (and watches the file, so CLI edits propagate).
+
 ## Notes
 - Fields not relevant to a provider are ignored.
 - Omitted providers are appended with defaults during normalization.

@@ -3,6 +3,7 @@
 ## 0.46.1 — Unreleased
 
 ### Added
+- Sync: opt-in iCloud sync (Settings → iCloud Sync, default off) syncs provider configuration, a curated preferences subset, and per-device usage snapshots across Macs via CloudKit; API keys/cookies/tokens ride end-to-end-encrypted fields with their own opt-out, hooks and machine-local paths never sync, and menus can show accounts from other Macs with last-known usage ("via <Mac> · 1h ago") when the local fetch is unavailable. The app now also watches `config.json`, so external CLI edits apply live.
 - z.ai: add 7-day and 30-day model-usage chart ranges with dataset-consistent legends, colors, and daily tooltips (#2524). Thanks @LeoLin990405!
 - Refresh: add a default-off global Low Power Mode that limits automatic provider, local usage, and storage work to once every 30 minutes while keeping manual refresh immediate (#2518). Thanks @Carl723000!
 - CLI: `codexbar hooks watch` continuously polls providers and fires hooks on real quota/status transitions for headless installs, with in-memory baselines, event rate limits, `--interval` (default 300s, minimum 60s), `--provider`, and JSON output (#2536). Thanks @OfficialAbhinavSingh!

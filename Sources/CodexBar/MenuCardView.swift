@@ -939,11 +939,12 @@ extension UsageMenuCardView.Model {
             snapshot: tokenUsageSnapshot,
             error: input.tokenError,
             preferredCurrencyCode: input.preferredCurrencyCode)
-        let subtitle = Self.subtitle(
-            snapshot: input.snapshot,
-            isRefreshing: input.isRefreshing,
-            lastError: Self.lastError(input: input),
-            now: input.now)
+        let subtitle = input.subtitleOverride.map { (text: $0, style: SubtitleStyle.info) }
+            ?? Self.subtitle(
+                snapshot: input.snapshot,
+                isRefreshing: input.isRefreshing,
+                lastError: Self.lastError(input: input),
+                now: input.now)
         let redacted = Self.redactedText(input: input, subtitle: subtitle)
         let placeholder = Self.placeholder(input: input)
 
