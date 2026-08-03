@@ -23,6 +23,9 @@ public struct CopilotUsageResponse: Sendable, Decodable {
         public let quotaId: String
         public let hasPercentRemaining: Bool
         public let unlimited: Bool
+        /// Credits consumed against this lane. GitHub reports this for token-based-billing seats,
+        /// where `entitlement`/`remaining` are zeroed and carry no usable quota signal.
+        public let creditsUsed: Double?
         private let entitlementWasDecoded: Bool
         private let remainingWasDecoded: Bool
         public var usedPercent: Double {
@@ -61,6 +64,7 @@ public struct CopilotUsageResponse: Sendable, Decodable {
             case percentRemaining = "percent_remaining"
             case quotaId = "quota_id"
             case unlimited
+            case creditsUsed = "credits_used"
         }
 
         public init(
@@ -69,7 +73,8 @@ public struct CopilotUsageResponse: Sendable, Decodable {
             percentRemaining: Double,
             quotaId: String,
             hasPercentRemaining: Bool = true,
-            unlimited: Bool = false)
+            unlimited: Bool = false,
+            creditsUsed: Double? = nil)
         {
             self.entitlement = entitlement
             self.remaining = remaining
@@ -77,6 +82,7 @@ public struct CopilotUsageResponse: Sendable, Decodable {
             self.quotaId = quotaId
             self.hasPercentRemaining = unlimited || hasPercentRemaining
             self.unlimited = unlimited
+            self.creditsUsed = creditsUsed
             self.entitlementWasDecoded = true
             self.remainingWasDecoded = true
         }
@@ -111,6 +117,7 @@ public struct CopilotUsageResponse: Sendable, Decodable {
             }
             self.quotaId = try container.decodeIfPresent(String.self, forKey: .quotaId) ?? ""
             self.unlimited = decodedUnlimited
+            self.creditsUsed = Self.decodeNumberIfPresent(container: container, key: .creditsUsed)
         }
 
         private static func decodeNumberIfPresent(
@@ -170,20 +177,31 @@ public struct CopilotUsageResponse: Sendable, Decodable {
     public struct QuotaSnapshots: Sendable, Decodable {
         public let premiumInteractions: QuotaSnapshot?
         public let chat: QuotaSnapshot?
+        /// Credits consumed on the premium lane, captured before placeholder filtering. Token-based-
+        /// billing snapshots are placeholders by `isPlaceholder`'s definition (zero entitlement/remaining),
+        /// so `premiumInteractions` itself is nil'd out for those accounts; this survives that filtering.
+        public let premiumInteractionsCreditsUsed: Double?
 
         private enum CodingKeys: String, CodingKey {
             case premiumInteractions = "premium_interactions"
             case chat
         }
 
-        public init(premiumInteractions: QuotaSnapshot?, chat: QuotaSnapshot?) {
+        public init(
+            premiumInteractions: QuotaSnapshot?,
+            chat: QuotaSnapshot?,
+            premiumInteractionsCreditsUsed: Double? = nil)
+        {
             self.premiumInteractions = premiumInteractions
             self.chat = chat
+            self.premiumInteractionsCreditsUsed = premiumInteractionsCreditsUsed
         }
 
         public init(from decoder: any Decoder) throws {
             let container = try decoder.container(keyedBy: CodingKeys.self)
-            var premium = try container.decodeIfPresent(QuotaSnapshot.self, forKey: .premiumInteractions)
+            let rawPremium = try container.decodeIfPresent(QuotaSnapshot.self, forKey: .premiumInteractions)
+            self.premiumInteractionsCreditsUsed = rawPremium?.creditsUsed
+            var premium = rawPremium
             var chat = try container.decodeIfPresent(QuotaSnapshot.self, forKey: .chat)
             if premium?.isPlaceholder == true {
                 premium = nil
@@ -249,6 +267,7 @@ public struct CopilotUsageResponse: Sendable, Decodable {
     public let tokenBasedBilling: Bool
     public let assignedDate: String?
     public let quotaResetDate: String?
+    public let organizationLoginList: [String]
 
     private enum CodingKeys: String, CodingKey {
         case quotaSnapshots = "quota_snapshots"
@@ -258,6 +277,7 @@ public struct CopilotUsageResponse: Sendable, Decodable {
         case quotaResetDate = "quota_reset_date"
         case monthlyQuotas = "monthly_quotas"
         case limitedUserQuotas = "limited_user_quotas"
+        case organizationLoginList = "organization_login_list"
     }
 
     public init(
@@ -265,13 +285,15 @@ public struct CopilotUsageResponse: Sendable, Decodable {
         copilotPlan: String,
         tokenBasedBilling: Bool = false,
         assignedDate: String?,
-        quotaResetDate: String?)
+        quotaResetDate: String?,
+        organizationLoginList: [String] = [])
     {
         self.quotaSnapshots = quotaSnapshots
         self.copilotPlan = copilotPlan
         self.tokenBasedBilling = tokenBasedBilling
         self.assignedDate = assignedDate
         self.quotaResetDate = quotaResetDate
+        self.organizationLoginList = organizationLoginList
     }
 
     public init(from decoder: any Decoder) throws {
@@ -287,7 +309,10 @@ public struct CopilotUsageResponse: Sendable, Decodable {
             direct: directSnapshots?.chat,
             fallback: monthlyLimitedSnapshots?.chat)
         if premium != nil || chat != nil {
-            self.quotaSnapshots = QuotaSnapshots(premiumInteractions: premium, chat: chat)
+            self.quotaSnapshots = QuotaSnapshots(
+                premiumInteractions: premium,
+                chat: chat,
+                premiumInteractionsCreditsUsed: directSnapshots?.premiumInteractionsCreditsUsed)
         } else {
             self.quotaSnapshots = directSnapshots ?? QuotaSnapshots(premiumInteractions: nil, chat: nil)
         }
@@ -295,6 +320,15 @@ public struct CopilotUsageResponse: Sendable, Decodable {
         self.tokenBasedBilling = try container.decodeIfPresent(Bool.self, forKey: .tokenBasedBilling) ?? false
         self.assignedDate = try container.decodeIfPresent(String.self, forKey: .assignedDate)
         self.quotaResetDate = try container.decodeIfPresent(String.self, forKey: .quotaResetDate)
+        self.organizationLoginList = try container.decodeIfPresent(
+            [String].self,
+            forKey: .organizationLoginList) ?? []
+    }
+
+    /// Credits consumed on the premium lane. Deliberately not summed across snapshots —
+    /// `chat` and `completions` may report the same pool, and summing would double-count.
+    public var premiumInteractionsCreditsUsed: Double? {
+        self.quotaSnapshots.premiumInteractionsCreditsUsed
     }
 
     private static func makeQuotaSnapshots(monthly: QuotaCounts?, limited: QuotaCounts?) -> QuotaSnapshots? {

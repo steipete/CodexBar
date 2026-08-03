@@ -571,6 +571,49 @@ struct CopilotUsageModelsTests {
         #expect(response.quotaSnapshots.chat?.isPlaceholder == false)
     }
 
+    @Test
+    func `decodes credits used from business token billing payload`() throws {
+        let json = """
+        {
+          "copilot_plan": "business",
+          "token_based_billing": true,
+          "quota_reset_date": "2026-09-01",
+          "organization_login_list": ["example-org"],
+          "quota_snapshots": {
+            "premium_interactions": {
+              "entitlement": 0, "remaining": 0, "percent_remaining": 100,
+              "quota_id": "premium_interactions", "unlimited": true, "credits_used": 31
+            },
+            "chat": {
+              "entitlement": 0, "remaining": 0, "percent_remaining": 100,
+              "quota_id": "chat", "unlimited": true, "credits_used": 0
+            }
+          }
+        }
+        """
+        let decoded = try JSONDecoder().decode(CopilotUsageResponse.self, from: Data(json.utf8))
+        #expect(decoded.premiumInteractionsCreditsUsed == 31)
+        #expect(decoded.organizationLoginList == ["example-org"])
+    }
+
+    @Test
+    func `credits used is nil when absent`() throws {
+        let json = """
+        {
+          "copilot_plan": "individual",
+          "quota_snapshots": {
+            "premium_interactions": {
+              "entitlement": 300, "remaining": 150, "percent_remaining": 50,
+              "quota_id": "premium_interactions"
+            }
+          }
+        }
+        """
+        let decoded = try JSONDecoder().decode(CopilotUsageResponse.self, from: Data(json.utf8))
+        #expect(decoded.premiumInteractionsCreditsUsed == nil)
+        #expect(decoded.organizationLoginList.isEmpty)
+    }
+
     private static func decodeFixture(_ fixture: String) throws -> CopilotUsageResponse {
         try JSONDecoder().decode(CopilotUsageResponse.self, from: Data(fixture.utf8))
     }
