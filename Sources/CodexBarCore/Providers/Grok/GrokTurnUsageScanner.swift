@@ -196,9 +196,9 @@ public enum GrokTurnUsageScanner {
         public let historyIsIncomplete: Bool
     }
 
-    public struct ScanResult: Sendable {
-        public let turns: [TurnRecord]
-        public let historyIsIncomplete: Bool
+    struct ScanResult: Sendable {
+        let turns: [TurnRecord]
+        let historyIsIncomplete: Bool
     }
 
     /// Single-pass scan used by the Cost pipeline (daily + sessions + projects).
