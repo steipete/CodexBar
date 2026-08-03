@@ -59,6 +59,36 @@ struct CompactOverviewProjectionTests {
     }
 
     @Test
+    func `doubao projection preserves plan family for colliding metric titles`() {
+        let codingTitle = "\(L("Coding Plan")) — 5-hour"
+        let agentTitle = "\(L("Agent Plan")) — 5-hour"
+        let projection = CompactOverviewProjection(model: Self.model(
+            provider: .doubao,
+            providerName: "Doubao",
+            metrics: [
+                Self.metric(id: "primary", title: "5-hour", percent: 25),
+                Self.metric(id: "doubao-agent-session", title: "5-hour", percent: 75),
+            ]))
+        let fallback = CompactOverviewProjection(model: Self.model(
+            provider: .doubao,
+            providerName: "Doubao",
+            metrics: [
+                Self.metric(id: "primary", title: "5-hour", statusText: "Unavailable"),
+                Self.metric(id: "doubao-agent-session", title: "5-hour", statusText: "Unavailable"),
+            ]))
+        let codingOnly = CompactOverviewProjection(model: Self.model(
+            provider: .doubao,
+            metrics: [Self.metric(id: "primary", title: "5-hour")]))
+
+        #expect(projection.lanes.map(\.title) == [codingTitle, agentTitle])
+        #expect(projection.accessibilityLabel ==
+            "Doubao. \(codingTitle), 25% left. \(agentTitle), 75% left")
+        #expect(fallback.fallback?.metricTitle == codingTitle)
+        #expect(fallback.accessibilityLabel == "Doubao. \(codingTitle): Unavailable")
+        #expect(codingOnly.lanes.first?.title == "5-hour")
+    }
+
+    @Test
     func `loading status and generic fallback precedence is deterministic`() {
         let statusMetrics = [
             Self.metric(id: "empty", title: "Empty", statusText: " \n "),

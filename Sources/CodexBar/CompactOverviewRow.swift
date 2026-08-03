@@ -97,12 +97,17 @@ struct CompactOverviewProjection {
         loadingText: String = L("Loading…"),
         noBarsText: String = L("overview_compact_no_bars"))
     {
+        let disclosesDoubaoPlanFamily = model.provider == .doubao
+            && model.metrics.contains { $0.id.hasPrefix("doubao-agent-") }
         self.providerName = model.providerName
         self.lanes = model.metrics.compactMap { metric in
             guard metric.statusText == nil else { return nil }
             return Lane(
                 id: metric.id,
-                title: UsageMenuCardView.popupMetricTitle(provider: model.provider, metric: metric),
+                title: Self.metricTitle(
+                    provider: model.provider,
+                    metric: metric,
+                    disclosesDoubaoPlanFamily: disclosesDoubaoPlanFamily),
                 percent: metric.percent,
                 percentStyle: metric.percentStyle,
                 tint: model.progressColor,
@@ -116,7 +121,8 @@ struct CompactOverviewProjection {
             self.fallback = Self.makeFallback(
                 model: model,
                 loadingText: loadingText,
-                noBarsText: noBarsText)
+                noBarsText: noBarsText,
+                disclosesDoubaoPlanFamily: disclosesDoubaoPlanFamily)
         } else {
             self.fallback = nil
         }
@@ -126,7 +132,8 @@ struct CompactOverviewProjection {
     private static func makeFallback(
         model: UsageMenuCardView.Model,
         loadingText: String,
-        noBarsText: String) -> Fallback
+        noBarsText: String,
+        disclosesDoubaoPlanFamily: Bool) -> Fallback
     {
         if case .loading = model.subtitleStyle {
             return .loading(text: loadingText)
@@ -139,10 +146,24 @@ struct CompactOverviewProjection {
             else { continue }
             return .status(
                 metricID: metric.id,
-                title: UsageMenuCardView.popupMetricTitle(provider: model.provider, metric: metric),
+                title: Self.metricTitle(
+                    provider: model.provider,
+                    metric: metric,
+                    disclosesDoubaoPlanFamily: disclosesDoubaoPlanFamily),
                 text: statusText)
         }
         return .generic(text: noBarsText)
+    }
+
+    private static func metricTitle(
+        provider: UsageProvider,
+        metric: UsageMenuCardView.Model.Metric,
+        disclosesDoubaoPlanFamily: Bool) -> String
+    {
+        let title = UsageMenuCardView.popupMetricTitle(provider: provider, metric: metric)
+        guard disclosesDoubaoPlanFamily else { return title }
+        let planTitle = metric.id.hasPrefix("doubao-agent-") ? L("Agent Plan") : L("Coding Plan")
+        return "\(planTitle) — \(title)"
     }
 
     private static func makeLayoutSignature(lanes: [Lane], fallback: Fallback?) -> String {
