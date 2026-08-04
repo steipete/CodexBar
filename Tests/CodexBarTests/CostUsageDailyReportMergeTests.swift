@@ -4,6 +4,56 @@ import Testing
 
 struct CostUsageDailyReportMergeTests {
     @Test
+    func `merged report keeps native and claude code proxy model rows distinct`() throws {
+        let native = CostUsageDailyReport(
+            data: [
+                CostUsageDailyReport.Entry(
+                    date: "2026-07-24",
+                    inputTokens: 100,
+                    outputTokens: 10,
+                    totalTokens: 110,
+                    costUSD: 1,
+                    modelsUsed: ["gpt-5.5"],
+                    modelBreakdowns: [
+                        CostUsageDailyReport.ModelBreakdown(
+                            modelName: "gpt-5.5",
+                            costUSD: 1,
+                            totalTokens: 110),
+                    ]),
+            ],
+            summary: nil)
+        let proxyAttribution = CostUsageAttribution(
+            client: .claudeCode,
+            route: .cliProxyAPI,
+            modelProvider: .openAI,
+            upstream: .init(provider: "codex", authType: .oauth),
+            evidence: [.cliProxyRequestLog, .cliProxyUsageTelemetry, .modelProvider])
+        let proxy = CostUsageDailyReport(
+            data: [
+                CostUsageDailyReport.Entry(
+                    date: "2026-07-24",
+                    inputTokens: 50,
+                    outputTokens: 5,
+                    totalTokens: 55,
+                    costUSD: 0.5,
+                    modelsUsed: ["gpt-5.5"],
+                    modelBreakdowns: [
+                        CostUsageDailyReport.ModelBreakdown(
+                            modelName: "gpt-5.5",
+                            costUSD: 0.5,
+                            totalTokens: 55,
+                            attribution: proxyAttribution),
+                    ]),
+            ],
+            summary: nil)
+
+        let breakdowns = try #require(native.merged(with: proxy).data.first?.modelBreakdowns)
+        #expect(breakdowns.count == 2)
+        #expect(breakdowns.first { $0.attribution == nil }?.totalTokens == 110)
+        #expect(breakdowns.first { $0.attribution == proxyAttribution }?.totalTokens == 55)
+    }
+
+    @Test
     func `merged report sums overlapping day totals and model breakdowns`() {
         let native = CostUsageDailyReport(
             data: [
@@ -127,6 +177,236 @@ struct CostUsageDailyReportMergeTests {
         #expect(merged.data.last?.modelBreakdowns?.map(\.modelName) == ["gpt-5.4", "gpt-5.3-codex"])
         #expect(merged.summary?.totalTokens == 70)
         #expect(abs((merged.summary?.totalCostUSD ?? 0) - 0.70) < 0.000001)
+    }
+
+    @Test
+    func `merged report uses complete attribution to order otherwise equal model breakdowns`() throws {
+        let apiKeyAttribution = CostUsageAttribution(
+            client: .claudeCode,
+            route: .cliProxyAPI,
+            modelProvider: .openAI,
+            upstream: .init(
+                provider: "codex",
+                authType: .apiKey,
+                model: "gpt-5.4",
+                executorType: "codex"),
+            evidence: [.cliProxyRequestLog])
+        let oauthAttribution = CostUsageAttribution(
+            client: .claudeCode,
+            route: .cliProxyAPI,
+            modelProvider: .openAI,
+            upstream: .init(
+                provider: "codex",
+                authType: .oauth,
+                model: "gpt-5.4",
+                executorType: "codex"),
+            evidence: [.cliProxyRequestLog])
+        let report = CostUsageDailyReport(
+            data: [
+                CostUsageDailyReport.Entry(
+                    date: "2026-07-24",
+                    inputTokens: nil,
+                    outputTokens: nil,
+                    totalTokens: 20,
+                    costUSD: 0.2,
+                    modelsUsed: ["gpt-5.4"],
+                    modelBreakdowns: [
+                        CostUsageDailyReport.ModelBreakdown(
+                            modelName: "gpt-5.4",
+                            costUSD: 0.1,
+                            totalTokens: 10,
+                            attribution: apiKeyAttribution),
+                        CostUsageDailyReport.ModelBreakdown(
+                            modelName: "gpt-5.4",
+                            costUSD: 0.1,
+                            totalTokens: 10,
+                            attribution: oauthAttribution),
+                    ]),
+            ],
+            summary: nil)
+
+        let breakdowns = try #require(CostUsageDailyReport.merged([report]).data.first?.modelBreakdowns)
+        #expect(breakdowns.map(\.attribution) == [apiKeyAttribution, oauthAttribution])
+    }
+
+    @Test
+    func `vendored cache sorter uses complete attribution for equal model breakdowns`() {
+        let apiKeyAttribution = CostUsageAttribution(
+            client: .claudeCode,
+            route: .cliProxyAPI,
+            modelProvider: .openAI,
+            upstream: .init(
+                provider: "codex",
+                authType: .apiKey,
+                model: "gpt-5.4",
+                executorType: "codex"),
+            evidence: [.cliProxyRequestLog])
+        let oauthAttribution = CostUsageAttribution(
+            client: .claudeCode,
+            route: .cliProxyAPI,
+            modelProvider: .openAI,
+            upstream: .init(
+                provider: "codex",
+                authType: .oauth,
+                model: "gpt-5.4",
+                executorType: "codex"),
+            evidence: [.cliProxyRequestLog])
+        let breakdowns = [
+            CostUsageDailyReport.ModelBreakdown(
+                modelName: "gpt-5.4",
+                costUSD: 0.1,
+                totalTokens: 10,
+                attribution: oauthAttribution),
+            CostUsageDailyReport.ModelBreakdown(
+                modelName: "gpt-5.4",
+                costUSD: 0.1,
+                totalTokens: 10,
+                attribution: apiKeyAttribution),
+        ]
+
+        let sorted = CostUsageScanner.sortedModelBreakdowns(breakdowns)
+
+        #expect(sorted.map(\.attribution) == [apiKeyAttribution, oauthAttribution])
+    }
+
+    @Test
+    func `project breakdown sorter uses complete attribution for equal model breakdowns`() throws {
+        let apiKeyAttribution = CostUsageAttribution(
+            client: .claudeCode,
+            route: .cliProxyAPI,
+            modelProvider: .openAI,
+            upstream: .init(
+                provider: "codex",
+                authType: .apiKey,
+                model: "gpt-5.4",
+                executorType: "codex"),
+            evidence: [.cliProxyRequestLog])
+        let oauthAttribution = CostUsageAttribution(
+            client: .claudeCode,
+            route: .cliProxyAPI,
+            modelProvider: .openAI,
+            upstream: .init(
+                provider: "codex",
+                authType: .oauth,
+                model: "gpt-5.4",
+                executorType: "codex"),
+            evidence: [.cliProxyRequestLog])
+        let entry = CostUsageDailyReport.Entry(
+            date: "2026-07-16",
+            inputTokens: 20,
+            outputTokens: 0,
+            totalTokens: 20,
+            costUSD: 0.2,
+            modelsUsed: ["gpt-5.4"],
+            modelBreakdowns: [
+                .init(
+                    modelName: "gpt-5.4",
+                    costUSD: 0.1,
+                    totalTokens: 10,
+                    attribution: oauthAttribution),
+                .init(
+                    modelName: "gpt-5.4",
+                    costUSD: 0.1,
+                    totalTokens: 10,
+                    attribution: apiKeyAttribution),
+            ])
+
+        let sorted = try #require(CostUsageFetcher.projectModelBreakdowns(from: [entry]))
+
+        #expect(sorted.map(\.attribution) == [apiKeyAttribution, oauthAttribution])
+    }
+
+    @Test
+    func `attribution sort key includes every distinguishable field`() {
+        let attributions = [
+            CostUsageAttribution(
+                client: .claudeCode,
+                route: .cliProxyAPI,
+                modelProvider: .openAI,
+                upstream: .init(
+                    provider: "codex",
+                    authType: .oauth,
+                    model: "gpt-5.4",
+                    executorType: "codex"),
+                evidence: [.cliProxyRequestLog, .modelProvider]),
+            CostUsageAttribution(
+                client: .claudeCode,
+                route: .unknown,
+                modelProvider: .openAI,
+                upstream: .init(
+                    provider: "codex",
+                    authType: .oauth,
+                    model: "gpt-5.4",
+                    executorType: "codex"),
+                evidence: [.cliProxyRequestLog, .modelProvider]),
+            CostUsageAttribution(
+                client: .claudeCode,
+                route: .cliProxyAPI,
+                modelProvider: .anthropic,
+                upstream: .init(
+                    provider: "codex",
+                    authType: .oauth,
+                    model: "gpt-5.4",
+                    executorType: "codex"),
+                evidence: [.cliProxyRequestLog, .modelProvider]),
+            CostUsageAttribution(
+                client: .claudeCode,
+                route: .cliProxyAPI,
+                modelProvider: .openAI,
+                evidence: [.cliProxyRequestLog, .modelProvider]),
+            CostUsageAttribution(
+                client: .claudeCode,
+                route: .cliProxyAPI,
+                modelProvider: .openAI,
+                upstream: .init(
+                    provider: "openrouter",
+                    authType: .oauth,
+                    model: "gpt-5.4",
+                    executorType: "codex"),
+                evidence: [.cliProxyRequestLog, .modelProvider]),
+            CostUsageAttribution(
+                client: .claudeCode,
+                route: .cliProxyAPI,
+                modelProvider: .openAI,
+                upstream: .init(
+                    provider: "codex",
+                    authType: .apiKey,
+                    model: "gpt-5.4",
+                    executorType: "codex"),
+                evidence: [.cliProxyRequestLog, .modelProvider]),
+            CostUsageAttribution(
+                client: .claudeCode,
+                route: .cliProxyAPI,
+                modelProvider: .openAI,
+                upstream: .init(
+                    provider: "codex",
+                    authType: .oauth,
+                    model: "gpt-5.3",
+                    executorType: "codex"),
+                evidence: [.cliProxyRequestLog, .modelProvider]),
+            CostUsageAttribution(
+                client: .claudeCode,
+                route: .cliProxyAPI,
+                modelProvider: .openAI,
+                upstream: .init(
+                    provider: "codex",
+                    authType: .oauth,
+                    model: "gpt-5.4",
+                    executorType: "openai"),
+                evidence: [.cliProxyRequestLog, .modelProvider]),
+            CostUsageAttribution(
+                client: .claudeCode,
+                route: .cliProxyAPI,
+                modelProvider: .openAI,
+                upstream: .init(
+                    provider: "codex",
+                    authType: .oauth,
+                    model: "gpt-5.4",
+                    executorType: "codex"),
+                evidence: [.modelProvider, .cliProxyRequestLog]),
+        ]
+
+        #expect(Set(attributions.map(\.deterministicSortKey)).count == attributions.count)
     }
 
     @Test

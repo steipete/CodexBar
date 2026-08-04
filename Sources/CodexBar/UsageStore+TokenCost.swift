@@ -11,6 +11,12 @@ struct CurrentProviderConfigTokenPublication: Sendable, Equatable {
     let publicationRevision: UInt64
 }
 
+struct TokenRefreshPublicationGuard {
+    let provider: UsageStore.ProviderPublicationRevision
+    let tokenSnapshot: UInt64
+    let providerConfig: UInt64
+}
+
 struct TokenSnapshotPublication: Sendable, Equatable {
     let snapshot: CostUsageTokenSnapshot?
     let publicationRevision: UInt64
@@ -116,6 +122,13 @@ extension UsageStore {
         self.tokenSnapshotPublicationRevisions[provider.instanceID] ?? 0
     }
 
+    func tokenRefreshPublicationGuard(for provider: UsageProvider) -> TokenRefreshPublicationGuard {
+        TokenRefreshPublicationGuard(
+            provider: self.providerPublicationRevision(for: provider),
+            tokenSnapshot: self.tokenSnapshotPublicationRevision(for: provider),
+            providerConfig: self.settings.providerConfigRevision(for: provider))
+    }
+
     func publishTokenSnapshot(_ snapshot: CostUsageTokenSnapshot, for provider: UsageProvider) {
         self.tokenSnapshots[provider.instanceID] = snapshot
         self.publishTokenSnapshotState(snapshot, for: provider)
@@ -124,6 +137,20 @@ extension UsageStore {
     func publishConfirmedEmptyTokenSnapshot(for provider: UsageProvider) {
         self.tokenSnapshots.removeValue(forKey: provider.instanceID)
         self.publishTokenSnapshotState(nil, for: provider)
+    }
+
+    func invalidateCLIProxyAPICostAttribution(widgetReason: String = "cliproxyapi-removed") {
+        self.cancelCodexCostCatchUp()
+        self.cancelSpendDashboardCodexCostCatchUp()
+        self.spendDashboardCodexCostCatchUpRevision &+= 1
+        for provider in [UsageProvider.codex, .claude] {
+            self.publishConfirmedEmptyTokenSnapshot(for: provider)
+            self.tokenErrors[provider.instanceID] = nil
+            self.tokenFailureGates[provider.instanceID]?.reset()
+            self.lastTokenFetchAt.removeValue(forKey: provider.instanceID)
+            self.lastTokenFetchScope.removeValue(forKey: provider.instanceID)
+        }
+        self.persistWidgetSnapshot(reason: widgetReason)
     }
 
     private func publishTokenSnapshotState(_ snapshot: CostUsageTokenSnapshot?, for provider: UsageProvider) {
@@ -150,6 +177,9 @@ extension UsageStore {
     }
 
     func clearTokenSnapshots() {
+        for provider in UsageProvider.allCases {
+            self.tokenSnapshotPublicationRevisions[provider.instanceID, default: 0] &+= 1
+        }
         self.tokenSnapshots.removeAll()
         self.tokenSnapshotPublications.removeAll()
     }
@@ -210,6 +240,7 @@ extension UsageStore {
         let costUsageSettingsRevision = self.settings.costUsageSettingsRevision
         let tokenSnapshotScopeSignature = self.tokenSnapshotScopeSignature(for: .codex)
         let tokenSnapshotPublicationRevision = self.tokenSnapshotPublicationRevision(for: .codex)
+        let cliProxyAPIConfigurationGeneration = self.costUsageFetcher.cliProxyAPIConfigurationGeneration()
         return Task { @MainActor [weak self] in
             guard let self else { return }
             guard self.tokenSnapshotPublicationForCurrentProviderConfig(for: .codex) == nil else { return }
@@ -244,6 +275,7 @@ extension UsageStore {
                   self.settings.costUsageHistoryDays == historyDays,
                   self.tokenSnapshotScopeSignature(for: .codex) == tokenSnapshotScopeSignature,
                   self.tokenSnapshotPublicationRevision(for: .codex) == tokenSnapshotPublicationRevision,
+                  self.costUsageFetcher.cliProxyAPIConfigurationGeneration() == cliProxyAPIConfigurationGeneration,
                   self.tokenSnapshotPublicationForCurrentProviderConfig(for: .codex) == nil
             else {
                 return
@@ -365,14 +397,14 @@ extension UsageStore {
 
     func tokenRefreshPublicationIsCurrent(
         provider: UsageProvider,
-        publicationRevision: ProviderPublicationRevision,
-        providerConfigRevision: UInt64,
+        publicationGuard: TokenRefreshPublicationGuard,
         historyDays: Int,
         costScopeSignature: String,
         fetchedCredentialScopeFingerprint: String? = nil) -> Bool
     {
-        guard self.providerPublicationRevisionIsCurrent(publicationRevision, for: provider),
-              self.settings.providerConfigRevision(for: provider) == providerConfigRevision,
+        guard self.providerPublicationRevisionIsCurrent(publicationGuard.provider, for: provider),
+              self.tokenSnapshotPublicationRevision(for: provider) == publicationGuard.tokenSnapshot,
+              self.settings.providerConfigRevision(for: provider) == publicationGuard.providerConfig,
               self.settings.costUsageEnabled,
               self.isEnabled(provider),
               self.settings.costUsageHistoryDays == historyDays
@@ -445,41 +477,63 @@ extension UsageStore {
     nonisolated static func costUsageCacheDirectory(
         fileManager: FileManager = .default) -> URL
     {
-        let root = fileManager.urls(for: .cachesDirectory, in: .userDomainMask).first!
-        return root
-            .appendingPathComponent("CodexBar", isDirectory: true)
-            .appendingPathComponent("cost-usage", isDirectory: true)
+        CostUsageCacheLocations.directories(fileManager: fileManager)[0]
     }
 
-    func clearCostUsageCache() async -> String? {
-        let errorMessage: String? = await Task.detached(priority: .utility) {
-            let fm = FileManager.default
-            let cacheDirs = [
-                Self.costUsageCacheDirectory(fileManager: fm),
-            ]
+    func clearCostUsageCache(
+        clearDirectories: (@Sendable () async -> (cleared: Int, errorMessage: String?))? = nil,
+        fileManager: FileManager = .default) async -> String?
+    {
+        guard !self.costUsageCacheClearInProgress else { return nil }
+        self.costUsageCacheClearInProgress = true
+        defer { self.costUsageCacheClearInProgress = false }
 
-            for cacheDir in cacheDirs {
-                do {
-                    try fm.removeItem(at: cacheDir)
-                } catch let error as NSError {
-                    if error.domain == NSCocoaErrorDomain, error.code == NSFileNoSuchFileError {
-                        continue
-                    }
-                    return error.localizedDescription
-                }
+        let collectorTask = self.stopCLIProxyAPIUsageCollector()
+        await collectorTask?.value
+        defer {
+            if collectorTask != nil {
+                self.startCLIProxyAPIUsageCollector()
             }
-            return nil
-        }.value
+        }
 
-        guard errorMessage == nil else { return errorMessage }
+        await self.drainTokenRefreshesForCostCacheClear()
+        self.cancelCodexCostCatchUp()
+        self.cancelSpendDashboardCodexCostCatchUp()
+
+        let cacheDirectories = CostUsageCacheLocations.directories(fileManager: fileManager)
+        let cliProxyAPIStateRoot = cacheDirectories[1].deletingLastPathComponent()
+        let clearResult: (didClear: Bool, errorMessage: String?)
+        if let clearDirectories {
+            let result = await clearDirectories()
+            clearResult = (result.errorMessage == nil || result.cleared > 0, result.errorMessage)
+        } else {
+            let result = await Task.detached(priority: .utility) {
+                CostUsageCacheLocations.clearAllCostUsageCaches(
+                    in: cacheDirectories,
+                    stateRoot: cliProxyAPIStateRoot)
+            }.value
+            clearResult = (result.errorDescription == nil || result.cleared > 0, result.errorDescription)
+        }
+
+        guard clearResult.didClear else { return clearResult.errorMessage }
 
         self.clearTokenSnapshots()
+        self.spendDashboardCodexCostCatchUpRevision &+= 1
         self.tokenErrors.removeAll()
         self.lastTokenFetchAt.removeAll()
         self.lastTokenFetchScope.removeAll()
         self.tokenFailureGates[.codex]?.reset()
         self.tokenFailureGates[.claude]?.reset()
-        return nil
+        return clearResult.errorMessage
+    }
+
+    /// Fast failures may retry on the next scheduled pass instead of waiting out the fetch
+    /// TTL; timed-out scans keep the TTL so a slow corpus cannot thrash back-to-back rescans.
+    nonisolated static func tokenFetchFailureAllowsEarlyRetry(_ error: Error) -> Bool {
+        if case CostUsageError.timedOut = error {
+            return false
+        }
+        return true
     }
 
     nonisolated static func tokenCostNoDataMessage(for provider: UsageProvider) -> String {

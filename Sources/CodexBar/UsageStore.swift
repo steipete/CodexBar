@@ -184,6 +184,7 @@ final class UsageStore {
     var tokenSnapshotPublicationRevisions: [ProviderInstanceID: UInt64] = [:]
     var tokenErrors: [ProviderInstanceID: String] = [:]
     var tokenRefreshInFlight: Set<ProviderInstanceID> = []
+    @ObservationIgnored var costUsageCacheClearInProgress = false
     var codexCostCatchUpActivity: CodexCostCatchUpActivity?
     var spendDashboardCodexCostCatchUpActivity: CodexCostCatchUpActivity?
     var spendDashboardCodexCostCatchUpRevision: UInt64 = 0
@@ -412,6 +413,8 @@ final class UsageStore {
 
     /// Background load task; cleared on deinit and on the cancel test seam.
     @ObservationIgnored var planUtilizationHistoryLoadTask: Task<Void, Never>?
+    @ObservationIgnored var cliProxyAPIUsageCollectorTask: Task<Void, Never>?
+    @ObservationIgnored var cliProxyAPICleanupRetryTask: Task<Void, Never>?
     /// Set once after the load completes. Gates mutation paths and sync menu
     /// accessors so they cannot race the decode or write empty history back to disk.
     @ObservationIgnored var planUtilizationHistoryLoaded: Bool = false
@@ -520,6 +523,7 @@ final class UsageStore {
             effectivePATH: PathBuilder.effectivePATH(purposes: [.rpc, .tty, .nodeTooling]),
             loginShellPATH: LoginShellPathCache.shared.current?.joined(separator: ":"))
         guard self.startupBehavior.automaticallyStartsBackgroundWork else { return }
+        let cliProxyAPIConfigurationGeneration = self.costUsageFetcher.cliProxyAPIConfigurationGeneration()
         self.hydrateCachedTokenSnapshots()
         self.detectVersions()
         self.updateProviderRuntimes()
@@ -537,6 +541,8 @@ final class UsageStore {
         Task { await self.refresh(enrichmentMode: .automatic) }
         self.startTimer()
         self.startTokenTimer()
+        self.startCLIProxyAPIUsageCollector(
+            initialConfigurationGeneration: cliProxyAPIConfigurationGeneration)
     }
 
     var iconStyle: IconStyle {
@@ -927,6 +933,8 @@ final class UsageStore {
         self.codexPlanHistoryBackfillTask?.cancel()
         self.resetBoundaryRefreshTask?.cancel()
         self.planUtilizationHistoryLoadTask?.cancel()
+        self.cliProxyAPIUsageCollectorTask?.cancel()
+        self.cliProxyAPICleanupRetryTask?.cancel()
     }
 
     enum SessionQuotaWindowSource: String {
@@ -1476,8 +1484,7 @@ extension UsageStore {
         }
         let costScope = self.tokenCostScope(for: provider)
         let costScopeSignature = self.tokenSnapshotScopeSignature(for: provider)
-        let publicationRevision = self.providerPublicationRevision(for: provider)
-        let providerConfigRevision = self.settings.providerConfigRevision(for: provider)
+        let publicationGuard = self.tokenRefreshPublicationGuard(for: provider)
         if !force, self.tokenRefreshCanReuseCurrentSnapshot(
             provider: provider,
             now: now,
@@ -1521,8 +1528,7 @@ extension UsageStore {
                 snapshot: snapshot)
             guard self.tokenRefreshPublicationIsCurrent(
                 provider: provider,
-                publicationRevision: publicationRevision,
-                providerConfigRevision: providerConfigRevision,
+                publicationGuard: publicationGuard,
                 historyDays: historyDays,
                 costScopeSignature: costScopeSignature,
                 fetchedCredentialScopeFingerprint: snapshot.credentialScopeFingerprint)
@@ -1555,8 +1561,7 @@ extension UsageStore {
         } catch {
             guard self.tokenRefreshPublicationIsCurrent(
                 provider: provider,
-                publicationRevision: publicationRevision,
-                providerConfigRevision: providerConfigRevision,
+                publicationGuard: publicationGuard,
                 historyDays: historyDays,
                 costScopeSignature: costScopeSignature)
             else {
@@ -1640,15 +1645,6 @@ extension UsageStore {
         }
         self.lastTokenFetchAt.removeValue(forKey: provider.instanceID)
         self.lastTokenFetchScope.removeValue(forKey: provider.instanceID)
-    }
-
-    /// Fast failures may retry on the next scheduled pass instead of waiting out the fetch
-    /// TTL; timed-out scans keep the TTL so a slow corpus cannot thrash back-to-back rescans.
-    nonisolated static func tokenFetchFailureAllowsEarlyRetry(_ error: Error) -> Bool {
-        if case CostUsageError.timedOut = error {
-            return false
-        }
-        return true
     }
 }
 

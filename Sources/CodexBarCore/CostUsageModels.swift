@@ -272,6 +272,132 @@ public struct CostUsageProjectSourceBreakdown: Sendable, Equatable {
     }
 }
 
+public struct CostUsageAttribution: Sendable, Codable, Equatable, Hashable {
+    public enum Client: String, Sendable, Codable, Hashable {
+        case claudeCode
+    }
+
+    public enum Route: String, Sendable, Codable, Hashable {
+        case unknown
+        case cliProxyAPI
+    }
+
+    public enum ModelProvider: String, Sendable, Codable, Hashable {
+        case openAI
+        case anthropic
+        case google
+        case unknown
+    }
+
+    public struct Upstream: Sendable, Codable, Equatable, Hashable {
+        public enum AuthType: String, Sendable, Codable, Hashable {
+            case oauth
+            case apiKey
+            case unknown
+        }
+
+        public let provider: String
+        public let authType: AuthType
+        public let model: String?
+        public let executorType: String?
+
+        public init(
+            provider: String,
+            authType: AuthType,
+            model: String? = nil,
+            executorType: String? = nil)
+        {
+            self.provider = provider
+            self.authType = authType
+            self.model = model
+            self.executorType = executorType
+        }
+
+        public var isCodex: Bool {
+            self.provider.trimmingCharacters(in: .whitespacesAndNewlines)
+                .caseInsensitiveCompare("codex") == .orderedSame
+        }
+
+        public var providerDisplayName: String {
+            switch self.provider.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
+            case "codex": "Codex"
+            case "claude": "Claude"
+            case "gemini": "Gemini"
+            case "gemini-interactions": "Gemini Interactions"
+            case "aistudio": "AI Studio"
+            case "vertex": "Vertex AI"
+            case "antigravity": "Antigravity"
+            case "xai": "xAI"
+            case "kimi": "Kimi"
+            case "openrouter": "OpenRouter"
+            case let provider where provider.isEmpty: "Unknown"
+            case let provider: provider
+            }
+        }
+
+        public var authDisplayName: String? {
+            switch self.authType {
+            case .oauth: "OAuth"
+            case .apiKey: "API key"
+            case .unknown: nil
+            }
+        }
+
+        public var displayName: String {
+            guard let authDisplayName else { return self.providerDisplayName }
+            return "\(self.providerDisplayName) \(authDisplayName)"
+        }
+    }
+
+    public enum Evidence: String, Sendable, Codable, Hashable {
+        case cliProxyAuthInventory
+        case cliProxyModelAlias
+        case modelProvider
+        case cliProxyRequestLog
+        case cliProxyUsageTelemetry
+    }
+
+    public let client: Client
+    public let route: Route
+    public let modelProvider: ModelProvider
+    public let upstream: Upstream?
+    public let evidence: [Evidence]
+
+    public init(
+        client: Client,
+        route: Route,
+        modelProvider: ModelProvider = .unknown,
+        upstream: Upstream? = nil,
+        evidence: [Evidence] = [])
+    {
+        self.client = client
+        self.route = route
+        self.modelProvider = modelProvider
+        self.upstream = upstream
+        self.evidence = evidence
+    }
+
+    package var deterministicSortKey: String {
+        let fields = [
+            self.client.rawValue,
+            self.route.rawValue,
+            self.modelProvider.rawValue,
+            self.upstream == nil ? "0" : "1",
+            self.upstream?.provider ?? "",
+            self.upstream?.authType.rawValue ?? "",
+            self.upstream?.model == nil ? "0" : "1",
+            self.upstream?.model ?? "",
+            self.upstream?.executorType == nil ? "0" : "1",
+            self.upstream?.executorType ?? "",
+            String(self.evidence.count),
+        ] + self.evidence.map(\.rawValue)
+
+        return fields
+            .map { "\($0.utf8.count):\($0)" }
+            .joined()
+    }
+}
+
 public struct CostUsageDailyReport: Sendable, Decodable {
     public struct ModelBreakdown: Sendable, Decodable, Equatable {
         public let modelName: String
@@ -282,6 +408,7 @@ public struct CostUsageDailyReport: Sendable, Decodable {
         public let priorityCostUSD: Double?
         public let standardTokens: Int?
         public let priorityTokens: Int?
+        public let attribution: CostUsageAttribution?
 
         private enum CodingKeys: String, CodingKey {
             case modelName
@@ -294,6 +421,7 @@ public struct CostUsageDailyReport: Sendable, Decodable {
             case priorityCostUSD
             case standardTokens
             case priorityTokens
+            case attribution
         }
 
         public init(from decoder: Decoder) throws {
@@ -310,6 +438,7 @@ public struct CostUsageDailyReport: Sendable, Decodable {
             self.priorityCostUSD = try container.decodeIfPresent(Double.self, forKey: .priorityCostUSD)
             self.standardTokens = try container.decodeIfPresent(Int.self, forKey: .standardTokens)
             self.priorityTokens = try container.decodeIfPresent(Int.self, forKey: .priorityTokens)
+            self.attribution = try container.decodeIfPresent(CostUsageAttribution.self, forKey: .attribution)
         }
 
         public init(
@@ -320,7 +449,8 @@ public struct CostUsageDailyReport: Sendable, Decodable {
             standardCostUSD: Double? = nil,
             priorityCostUSD: Double? = nil,
             standardTokens: Int? = nil,
-            priorityTokens: Int? = nil)
+            priorityTokens: Int? = nil,
+            attribution: CostUsageAttribution? = nil)
         {
             self.modelName = modelName
             self.costUSD = costUSD
@@ -330,6 +460,7 @@ public struct CostUsageDailyReport: Sendable, Decodable {
             self.priorityCostUSD = priorityCostUSD
             self.standardTokens = standardTokens
             self.priorityTokens = priorityTokens
+            self.attribution = attribution
         }
     }
 
@@ -527,6 +658,11 @@ public struct CostUsageDailyReport: Sendable, Decodable {
 }
 
 extension CostUsageDailyReport {
+    private struct BreakdownKey: Hashable {
+        let modelName: String
+        let attribution: CostUsageAttribution?
+    }
+
     private struct BreakdownAccumulator {
         var totalTokens: Int = 0
         var sawTotalTokens = false
@@ -568,15 +704,16 @@ extension CostUsageDailyReport {
             }
         }
 
-        func build(modelName: String) -> ModelBreakdown {
+        func build(key: BreakdownKey) -> ModelBreakdown {
             ModelBreakdown(
-                modelName: modelName,
+                modelName: key.modelName,
                 costUSD: self.sawCost ? self.costUSD : nil,
                 totalTokens: self.sawTotalTokens ? self.totalTokens : nil,
                 standardCostUSD: self.sawStandardCost ? self.standardCostUSD : nil,
                 priorityCostUSD: self.sawPriorityCost ? self.priorityCostUSD : nil,
                 standardTokens: self.sawStandardTokens ? self.standardTokens : nil,
-                priorityTokens: self.sawPriorityTokens ? self.priorityTokens : nil)
+                priorityTokens: self.sawPriorityTokens ? self.priorityTokens : nil,
+                attribution: key.attribution)
         }
     }
 
@@ -595,7 +732,7 @@ extension CostUsageDailyReport {
         var costUSD: Double = 0
         var sawCost = false
         var modelsUsed: Set<String> = []
-        var breakdowns: [String: BreakdownAccumulator] = [:]
+        var breakdowns: [BreakdownKey: BreakdownAccumulator] = [:]
 
         mutating func add(_ entry: Entry) {
             let entryDerivedTotalTokens = (entry.inputTokens ?? 0)
@@ -633,9 +770,12 @@ extension CostUsageDailyReport {
             }
             if let modelBreakdowns = entry.modelBreakdowns {
                 for breakdown in modelBreakdowns {
-                    var accumulator = self.breakdowns[breakdown.modelName] ?? BreakdownAccumulator()
+                    let key = BreakdownKey(
+                        modelName: breakdown.modelName,
+                        attribution: breakdown.attribution)
+                    var accumulator = self.breakdowns[key] ?? BreakdownAccumulator()
                     accumulator.add(breakdown)
-                    self.breakdowns[breakdown.modelName] = accumulator
+                    self.breakdowns[key] = accumulator
                     self.modelsUsed.insert(breakdown.modelName)
                 }
             }
@@ -657,8 +797,8 @@ extension CostUsageDailyReport {
                 guard !self.breakdowns.isEmpty else { return nil }
                 return CostUsageDailyReport.sortedModelBreakdowns(
                     self.breakdowns
-                        .map { modelName, accumulator in
-                            accumulator.build(modelName: modelName)
+                        .map { key, accumulator in
+                            accumulator.build(key: key)
                         })
             }()
             let modelsUsed = self.modelsUsed.isEmpty ? nil : self.modelsUsed.sorted()
@@ -767,7 +907,12 @@ extension CostUsageDailyReport {
                 return lhsTokens > rhsTokens
             }
 
-            return lhs.modelName > rhs.modelName
+            if lhs.modelName != rhs.modelName {
+                return lhs.modelName > rhs.modelName
+            }
+            let lhsAttribution = lhs.attribution?.deterministicSortKey ?? ""
+            let rhsAttribution = rhs.attribution?.deterministicSortKey ?? ""
+            return lhsAttribution > rhsAttribution
         }
     }
 }

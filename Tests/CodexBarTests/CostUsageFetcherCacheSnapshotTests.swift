@@ -4,6 +4,31 @@ import Testing
 
 struct CostUsageFetcherCacheSnapshotTests {
     @Test
+    func `cached codex token snapshot resolves the default cli proxy home`() {
+        let options = CostUsageFetcher.resolvedScannerOptions(
+            nil,
+            provider: .codex,
+            codexHomePath: nil)
+
+        #expect(options.cliProxyAPIHome == FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent(".cli-proxy-api", isDirectory: true))
+    }
+
+    @Test
+    func `cache root scanner options retain the default cli proxy home`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+
+        let options = try #require(CostUsageFetcher.defaultScannerOptions(
+            cacheRoot: env.cacheRoot,
+            homeDirectory: env.root))
+
+        #expect(options.cacheRoot == env.cacheRoot)
+        #expect(options.cliProxyAPIHome == env.root
+            .appendingPathComponent(".cli-proxy-api", isDirectory: true))
+    }
+
+    @Test
     func `cached codex token snapshot loads from existing cache without rescanning`() async throws {
         let env = try CostUsageTestEnvironment()
         defer { env.cleanup() }

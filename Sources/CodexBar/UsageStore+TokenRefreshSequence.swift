@@ -24,7 +24,10 @@ extension UsageStore {
     }
 
     func scheduleTokenRefresh() {
-        guard self.tokenRefreshSequenceTask == nil, !self.hasForcedRefreshEnrichmentInFlight else { return }
+        guard !self.costUsageCacheClearInProgress,
+              self.tokenRefreshSequenceTask == nil,
+              !self.hasForcedRefreshEnrichmentInFlight
+        else { return }
         if self.startPendingTokenRefreshRetryIfPossible() {
             return
         }
@@ -37,6 +40,7 @@ extension UsageStore {
     }
 
     func refreshTokenUsageNow(for provider: UsageProvider, force: Bool) async {
+        guard !self.costUsageCacheClearInProgress else { return }
         if force,
            self.tokenRefreshSequenceTask != nil,
            let activeProvider = self.tokenRefreshSequenceProvider,
@@ -53,6 +57,17 @@ extension UsageStore {
             return
         }
         await self.awaitTokenRefreshSequence(task)
+    }
+
+    func drainTokenRefreshesForCostCacheClear() async {
+        self.tokenRefreshRetryProviders.removeAll()
+        let sequenceTask = self.tokenRefreshSequenceTask
+        sequenceTask?.cancel()
+        await sequenceTask?.value
+        while !self.tokenRefreshInFlight.isEmpty {
+            await Task.yield()
+        }
+        self.tokenRefreshRetryProviders.removeAll()
     }
 
     private func serializedTokenRefreshTask(

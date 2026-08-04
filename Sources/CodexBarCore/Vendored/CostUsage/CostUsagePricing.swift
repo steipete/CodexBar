@@ -451,6 +451,22 @@ enum CostUsagePricing {
         self.normalizeCodexModel(raw) == self.codexUnattributedModel
     }
 
+    static func isOpenAIModel(
+        _ model: String,
+        modelsDevCatalog: ModelsDevCatalog? = nil,
+        modelsDevCacheRoot: URL? = nil) -> Bool
+    {
+        let normalized = self.normalizeCodexModel(model)
+        if normalized != self.codexUnattributedModel, self.codex[normalized] != nil {
+            return true
+        }
+        return self.modelsDevLookup(
+            providerID: self.codexModelsDevProviderID,
+            model: model,
+            catalog: modelsDevCatalog,
+            cacheRoot: modelsDevCacheRoot) != nil
+    }
+
     static func codexDisplayLabel(model: String) -> String? {
         let key = self.normalizeCodexModel(model)
         return self.codex[key]?.displayLabel
@@ -550,6 +566,31 @@ enum CostUsagePricing {
             cachedInputTokens: cachedInputTokens,
             cacheWriteInputTokens: cacheWriteInputTokens,
             outputTokens: outputTokens)
+    }
+
+    static func claudeProxyCodexCostUSD(
+        model: String,
+        inputTokens: Int,
+        cacheReadInputTokens: Int,
+        cacheCreationInputTokens: Int,
+        outputTokens: Int,
+        modelsDevCatalog: ModelsDevCatalog? = nil,
+        modelsDevCacheRoot: URL? = nil) -> Double?
+    {
+        let uncachedInput = max(0, inputTokens)
+        let cachedInput = max(0, cacheReadInputTokens)
+        let cacheWriteInput = max(0, cacheCreationInputTokens)
+        let totalInput = [uncachedInput, cachedInput, cacheWriteInput].reduce(0) { total, component in
+            total > Int.max - component ? Int.max : total + component
+        }
+        return self.codexCostUSD(
+            model: model,
+            inputTokens: totalInput,
+            cachedInputTokens: cachedInput,
+            outputTokens: outputTokens,
+            cacheWriteInputTokens: cacheWriteInput,
+            modelsDevCatalog: modelsDevCatalog,
+            modelsDevCacheRoot: modelsDevCacheRoot)
     }
 
     static func codexPriorityCostUSD(
@@ -779,5 +820,32 @@ enum CostUsagePricing {
             providerID: providerID,
             modelID: model,
             cacheRoot: cacheRoot)
+    }
+}
+
+extension CostUsagePricing {
+    static func claudeProxyGoogleCostUSD(
+        model: String,
+        inputTokens: Int,
+        cacheReadInputTokens: Int,
+        cacheCreationInputTokens: Int,
+        outputTokens: Int,
+        modelsDevCatalog: ModelsDevCatalog? = nil,
+        modelsDevCacheRoot: URL? = nil) -> Double?
+    {
+        guard let lookup = self.modelsDevLookup(
+            providerID: "google",
+            model: model,
+            catalog: modelsDevCatalog,
+            cacheRoot: modelsDevCacheRoot)
+        else { return nil }
+        return self.claudeCostUSD(
+            pricing: lookup.pricing,
+            tokens: ClaudeCostTokens(
+                input: inputTokens,
+                cacheRead: cacheReadInputTokens,
+                cacheCreation: cacheCreationInputTokens,
+                cacheCreation1h: 0,
+                output: outputTokens))
     }
 }
