@@ -14,7 +14,7 @@ public enum ClaudeOAuthDelegatedRefreshCoordinator {
         var inFlightAttemptID: UInt64?
         var inFlightInteraction: ProviderInteraction?
         var inFlightProfileIdentifier: String?
-        var inFlightTask: Task<Outcome, Never>?
+        var inFlightTask: Task<AttemptResult, Never>?
         var nextAttemptID: UInt64 = 0
 
         init(persistsCooldown: Bool) {
@@ -28,11 +28,18 @@ public enum ClaudeOAuthDelegatedRefreshCoordinator {
         case cliUnavailable
         case attemptedSucceeded
         case attemptedFailed(String)
-        /// The Claude CLI can still refresh its own credentials, but CodexBar has no permitted way to observe the
-        /// result: production never reads the foreign Keychain item, and this profile has no credentials file to
-        /// fall back on. The touch still runs first, in case it writes that file; when it does not, report this
-        /// rather than a retryable failure so background polling can back off.
-        case unreadableAfterRefresh
+    }
+
+    /// `Outcome` ships in the `CodexBarCore` library product, so a new case would break downstream exhaustive
+    /// switches. The unreadable verdict rides alongside it instead of extending it.
+    struct AttemptResult: Sendable, Equatable {
+        let outcome: Outcome
+        let isUnreadableAfterRefresh: Bool
+
+        init(_ outcome: Outcome, isUnreadableAfterRefresh: Bool = false) {
+            self.outcome = outcome
+            self.isUnreadableAfterRefresh = isUnreadableAfterRefresh
+        }
     }
 
     private static let log = CodexBarLog.logger(LogCategories.claudeUsage)
@@ -49,8 +56,16 @@ public enum ClaudeOAuthDelegatedRefreshCoordinator {
         timeout: TimeInterval = 8,
         environment: [String: String] = ProcessInfo.processInfo.environment) async -> Outcome
     {
+        await self.attemptDetailed(now: now, timeout: timeout, environment: environment).outcome
+    }
+
+    static func attemptDetailed(
+        now: Date = Date(),
+        timeout: TimeInterval = 8,
+        environment: [String: String] = ProcessInfo.processInfo.environment) async -> AttemptResult
+    {
         if Task.isCancelled {
-            return .attemptedFailed("Cancelled.")
+            return AttemptResult(.attemptedFailed("Cancelled."))
         }
 
         let decision = self.inFlightDecision(
@@ -71,31 +86,32 @@ public enum ClaudeOAuthDelegatedRefreshCoordinator {
         case let .join(task):
             return await task.value
         case let .joinThenRetry(id, task, state):
-            let outcome = await task.value
+            let result = await task.value
             self.clearInFlightTaskIfStillCurrent(id: id, state: state)
-            switch outcome {
+            // Retrying cannot make an unreadable refresh readable, so reuse the joined verdict.
+            if result.isUnreadableAfterRefresh { return result }
+            switch result.outcome {
             case .attemptedFailed, .skippedByCooldown, .skippedByPromptPolicy, .cliUnavailable:
-                return await self.attempt(now: now, timeout: timeout, environment: environment)
-            case .attemptedSucceeded, .unreadableAfterRefresh:
-                // Retrying cannot make an unreadable refresh readable; reuse the joined verdict.
-                return outcome
+                return await self.attemptDetailed(now: now, timeout: timeout, environment: environment)
+            case .attemptedSucceeded:
+                return result
             }
         case let .joinDifferentProfileThenRetry(id, task, state):
             _ = await task.value
             self.clearInFlightTaskIfStillCurrent(id: id, state: state)
-            return await self.attempt(now: now, timeout: timeout, environment: environment)
+            return await self.attemptDetailed(now: now, timeout: timeout, environment: environment)
         case let .start(id, task, state):
-            let outcome = await task.value
+            let result = await task.value
             self.clearInFlightTaskIfStillCurrent(id: id, state: state)
-            return outcome
+            return result
         }
     }
 
     private enum InFlightDecision {
-        case join(Task<Outcome, Never>)
-        case joinThenRetry(UInt64, Task<Outcome, Never>, AttemptStateStorage)
-        case joinDifferentProfileThenRetry(UInt64, Task<Outcome, Never>, AttemptStateStorage)
-        case start(UInt64, Task<Outcome, Never>, AttemptStateStorage)
+        case join(Task<AttemptResult, Never>)
+        case joinThenRetry(UInt64, Task<AttemptResult, Never>, AttemptStateStorage)
+        case joinDifferentProfileThenRetry(UInt64, Task<AttemptResult, Never>, AttemptStateStorage)
+        case start(UInt64, Task<AttemptResult, Never>, AttemptStateStorage)
     }
 
     private struct AttemptConfiguration {
@@ -206,7 +222,7 @@ public enum ClaudeOAuthDelegatedRefreshCoordinator {
         now: Date,
         timeout: TimeInterval,
         configuration: AttemptConfiguration,
-        state: AttemptStateStorage) async -> Outcome
+        state: AttemptStateStorage) async -> AttemptResult
     {
         let profileIdentifier = configuration.profileIdentifier
 
@@ -217,12 +233,12 @@ public enum ClaudeOAuthDelegatedRefreshCoordinator {
            configuration.keychainAccessDisabled || configuration.promptMode != .always
         {
             self.log.info("Claude OAuth delegated refresh skipped by Keychain prompt policy")
-            return .skippedByPromptPolicy
+            return AttemptResult(.skippedByPromptPolicy)
         }
 
         guard self.isClaudeCLIAvailable(environment: configuration.environment, configuration: configuration) else {
             self.log.info("Claude OAuth delegated refresh skipped: claude CLI unavailable")
-            return .cliUnavailable
+            return AttemptResult(.cliUnavailable)
         }
 
         // Atomically reserve an attempt under the lock so concurrent callers don't race past isInCooldown() and start
@@ -234,7 +250,7 @@ public enum ClaudeOAuthDelegatedRefreshCoordinator {
             state: state)
         else {
             self.log.debug("Claude OAuth delegated refresh skipped by cooldown")
-            return .skippedByCooldown
+            return AttemptResult(.skippedByCooldown)
         }
 
         if let mcpOAuthOnlyFailure = self.mcpOAuthOnlyKeychainFailureIfPresent(
@@ -252,7 +268,7 @@ public enum ClaudeOAuthDelegatedRefreshCoordinator {
             self.log.warning(
                 "Claude OAuth delegated refresh skipped: Claude keychain has MCP OAuth state only",
                 metadata: ["readStrategy": configuration.readStrategy.rawValue])
-            return .attemptedFailed(mcpOAuthOnlyFailure)
+            return AttemptResult(.attemptedFailed(mcpOAuthOnlyFailure))
         }
 
         let baseline = self.currentKeychainChangeObservationBaseline(
@@ -285,23 +301,21 @@ public enum ClaudeOAuthDelegatedRefreshCoordinator {
                 profileIdentifier: profileIdentifier,
                 state: state)
             self.log.info("Claude OAuth delegated refresh touch succeeded")
-            return .attemptedSucceeded
+            return AttemptResult(.attemptedSucceeded)
         }
 
-        // Re-check after the touch rather than reusing the pre-touch snapshot: on older Claude Code the touch can
-        // still create the credentials file, which is a readable source even though the Keychain item is not.
         let unreadable = touchError == nil
             && self.isRefreshResultUnreadable(configuration: configuration)
         self.recordAttempt(
             now: now,
-            // Nothing about this state changes until the user switches source or Claude Code writes a file again,
-            // so back off on the long interval instead of retrying every short cycle.
             cooldown: unreadable ? self.defaultCooldownInterval : self.shortCooldownInterval,
             profileIdentifier: profileIdentifier,
             state: state)
         if unreadable {
             self.log.warning("Claude OAuth delegated refresh produced no readable credential source")
-            return .unreadableAfterRefresh
+            return AttemptResult(
+                .attemptedFailed("No readable Claude credential source after the Claude CLI touch."),
+                isUnreadableAfterRefresh: true)
         }
         if let touchError {
             let errorType = String(describing: type(of: touchError))
@@ -309,11 +323,11 @@ public enum ClaudeOAuthDelegatedRefreshCoordinator {
                 "Claude OAuth delegated refresh touch failed",
                 metadata: ["errorType": errorType])
             self.log.debug("Claude OAuth delegated refresh touch error: \(touchError.localizedDescription)")
-            return .attemptedFailed(touchError.localizedDescription)
+            return AttemptResult(.attemptedFailed(touchError.localizedDescription))
         }
 
         self.log.warning("Claude OAuth delegated refresh touch did not update Claude keychain")
-        return .attemptedFailed("Claude keychain did not update after Claude CLI touch.")
+        return AttemptResult(.attemptedFailed("Claude keychain did not update after Claude CLI touch."))
     }
 
     public static func isInCooldown(
@@ -507,16 +521,10 @@ public enum ClaudeOAuthDelegatedRefreshCoordinator {
             readStrategy: readStrategy)
     }
 
-    /// Whether a successful Claude CLI refresh would still be invisible to CodexBar.
-    ///
-    /// Production never reads `Claude Code-credentials` (see `ClaudeOAuthCredentialsStore.keychainAccessAllowed`),
-    /// so the only attributable source left is the profile's credentials file. Claude Code 2.1.x stops writing that
-    /// file, which leaves nothing for the post-touch reload to pick up.
     private static func isRefreshResultUnreadable(configuration: AttemptConfiguration) -> Bool {
         guard !configuration.keychainReadAllowed else { return false }
         guard !configuration.hasSelectedProfileOAuthCredentialsFile else { return false }
-        // The captured value predates the touch, so ask again: on older Claude Code the touch itself can write the
-        // credentials file, and that is a source the post-touch reload can still use.
+        // Ask again: the captured value predates the touch, which on older Claude Code writes the file itself.
         return !ClaudeOAuthCredentialsStore.hasSelectedProfileOAuthCredentialsFile(
             environment: configuration.environment)
     }

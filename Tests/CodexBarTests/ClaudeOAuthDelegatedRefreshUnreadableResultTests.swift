@@ -19,8 +19,7 @@ private final class UnreadableResultTouchCounter: @unchecked Sendable {
     }
 }
 
-/// Regression coverage for #2634: the Claude CLI touch runs and completes, but the refreshed credential lands
-/// somewhere the current build never reads, so a retryable "keychain did not update" verdict is wrong.
+/// Regression coverage for #2634: the touch completes, but nothing this build reads holds the result.
 @Suite(.serialized)
 struct ClaudeOAuthDelegatedRefreshUnreadableResultTests {
     private static let unchangedFingerprint = ClaudeOAuthCredentialsStore.ClaudeKeychainFingerprint(
@@ -48,12 +47,11 @@ struct ClaudeOAuthDelegatedRefreshUnreadableResultTests {
         return root
     }
 
-    /// Runs one attempt with the Claude Keychain unreadable and the credentials file pinned to `credentialsURL`.
     private func attemptWithUnreadableKeychain(
         credentialsURL: URL,
         now: Date,
         touchAuthPath: @escaping @Sendable (TimeInterval, [String: String]) async throws -> Void)
-        async throws -> ClaudeOAuthDelegatedRefreshCoordinator.Outcome
+        async throws -> ClaudeOAuthDelegatedRefreshCoordinator.AttemptResult
     {
         try await ClaudeOAuthCredentialsStore.withKeychainAccessOverrideForTesting(true) {
             try await ClaudeOAuthCredentialsStore.withCredentialsURLOverrideForTesting(credentialsURL) {
@@ -70,7 +68,7 @@ struct ClaudeOAuthDelegatedRefreshUnreadableResultTests {
                                         .withCLIAvailableOverrideForTesting(true) {
                                             try await ClaudeOAuthDelegatedRefreshCoordinator
                                                 .withTouchAuthPathOverrideForTesting(touchAuthPath) {
-                                                    await ClaudeOAuthDelegatedRefreshCoordinator.attempt(
+                                                    await ClaudeOAuthDelegatedRefreshCoordinator.attemptDetailed(
                                                         now: now,
                                                         timeout: 0.1)
                                                 }
@@ -92,10 +90,10 @@ struct ClaudeOAuthDelegatedRefreshUnreadableResultTests {
         let outcome = try await self.attemptWithUnreadableKeychain(
             credentialsURL: root.appendingPathComponent(".credentials.json"),
             now: Date(timeIntervalSince1970: 70000),
-            // Succeeds, and deliberately leaves the fingerprint untouched: Claude Code already refreshed.
+            // Succeeds while leaving the fingerprint untouched: Claude Code already refreshed.
             touchAuthPath: { _, _ in touches.increment() })
 
-        #expect(outcome == .unreadableAfterRefresh)
+        #expect(outcome.isUnreadableAfterRefresh)
         // The touch still runs: on older Claude Code it can create the credentials file we would then read.
         #expect(touches.count() == 1)
     }
@@ -115,7 +113,8 @@ struct ClaudeOAuthDelegatedRefreshUnreadableResultTests {
             now: Date(timeIntervalSince1970: 71000),
             touchAuthPath: { _, _ in })
 
-        guard case let .attemptedFailed(message) = outcome else {
+        #expect(!outcome.isUnreadableAfterRefresh)
+        guard case let .attemptedFailed(message) = outcome.outcome else {
             Issue.record("Expected .attemptedFailed, got \(outcome)")
             return
         }

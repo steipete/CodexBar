@@ -405,12 +405,14 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
                 policy: delegatedPromptPolicy,
                 allowBackgroundDelegatedRefresh: self.fetcher.allowBackgroundDelegatedRefresh)
 
-            let delegatedOutcome = await ClaudeUsageFetcher.attemptDelegatedRefresh(
+            let delegatedResult = await ClaudeUsageFetcher.attemptDelegatedRefresh(
                 environment: self.fetcher.environment)
+            let delegatedOutcome = delegatedResult.outcome
             ClaudeUsageFetcher.log.info(
                 "Claude OAuth delegated refresh attempted",
                 metadata: [
                     "outcome": ClaudeUsageFetcher.delegatedRefreshOutcomeLabel(delegatedOutcome),
+                    "unreadableAfterRefresh": "\(delegatedResult.isUnreadableAfterRefresh)",
                 ])
 
             do {
@@ -420,7 +422,7 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
                         throw ClaudeUsageError.oauthFailed(
                             "Claude OAuth token expired; delegated refresh is unavailable (outcome="
                                 + "\(ClaudeUsageFetcher.delegatedRefreshOutcomeLabel(delegatedOutcome))).")
-                    case .attemptedSucceeded, .attemptedFailed, .unreadableAfterRefresh:
+                    case .attemptedSucceeded, .attemptedFailed:
                         break
                     }
                 }
@@ -517,7 +519,7 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
                         delegatedOutcome: delegatedOutcome))
                 throw ClaudeUsageError.oauthFailed(
                     ClaudeUsageFetcher.delegatedRefreshFailureMessage(
-                        for: delegatedOutcome,
+                        for: delegatedResult,
                         retryError: error))
             }
         }
@@ -951,14 +953,14 @@ extension ClaudeUsageFetcher {
         now: Date = Date(),
         timeout: TimeInterval = 15,
         environment: [String: String] = ProcessInfo.processInfo.environment)
-        async -> ClaudeOAuthDelegatedRefreshCoordinator.Outcome
+        async -> ClaudeOAuthDelegatedRefreshCoordinator.AttemptResult
     {
         #if DEBUG
         if let override = delegatedRefreshAttemptOverride {
-            return await override(now, timeout, environment)
+            return await .init(override(now, timeout, environment))
         }
         #endif
-        return await ClaudeOAuthDelegatedRefreshCoordinator.attempt(
+        return await ClaudeOAuthDelegatedRefreshCoordinator.attemptDetailed(
             now: now,
             timeout: timeout,
             environment: environment)

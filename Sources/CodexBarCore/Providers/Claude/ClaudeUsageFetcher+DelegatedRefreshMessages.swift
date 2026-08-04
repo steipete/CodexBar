@@ -1,7 +1,6 @@
 import Foundation
 
-/// Presentation helpers for delegated Claude CLI refresh outcomes, split out to keep ClaudeUsageFetcher.swift
-/// within the file-length limit.
+/// Split out of `ClaudeUsageFetcher.swift` to keep that file within the file-length limit.
 extension ClaudeUsageFetcher {
     static func delegatedRefreshOutcomeLabel(
         _ outcome: ClaudeOAuthDelegatedRefreshCoordinator.Outcome) -> String
@@ -17,13 +16,11 @@ extension ClaudeUsageFetcher {
             "attemptedSucceeded"
         case .attemptedFailed:
             "attemptedFailed"
-        case .unreadableAfterRefresh:
-            "unreadableAfterRefresh"
         }
     }
 
     static func delegatedRefreshFailureMessage(
-        for outcome: ClaudeOAuthDelegatedRefreshCoordinator.Outcome,
+        for result: ClaudeOAuthDelegatedRefreshCoordinator.AttemptResult,
         retryError: Error) -> String
     {
         if let oauthError = retryError as? ClaudeOAuthFetchError,
@@ -32,7 +29,15 @@ extension ClaudeUsageFetcher {
             return oauthError.localizedDescription
         }
 
-        switch outcome {
+        if result.isUnreadableAfterRefresh {
+            // Not "run `claude login`, then retry": that refreshes Claude Code's own Keychain item, which this
+            // build never reads, so the same expired cache comes back.
+            return "Claude OAuth credentials expired and CodexBar cannot read them back. Claude Code owns the "
+                + "Keychain item and no credentials file is present for this profile, so refreshing will not "
+                + "restore usage. Switch Claude Usage source to Web/CLI."
+        }
+
+        switch result.outcome {
         case .skippedByCooldown:
             return "Claude OAuth token expired and delegated refresh is cooling down. "
                 + "Please retry shortly, or run `claude login`."
@@ -48,12 +53,6 @@ extension ClaudeUsageFetcher {
         case let .attemptedFailed(message):
             return "Claude OAuth token expired and delegated Claude CLI refresh failed: \(message). "
                 + "Run `claude login`, then retry."
-        case .unreadableAfterRefresh:
-            // Deliberately not "run `claude login`, then retry": Claude Code would refresh its own Keychain item,
-            // which CodexBar does not read, so the same expired cache would come back.
-            return "Claude OAuth credentials expired and CodexBar cannot read them back. Claude Code owns the "
-                + "Keychain item and no credentials file is present for this profile, so refreshing will not "
-                + "restore usage. Switch Claude Usage source to Web/CLI."
         }
     }
 }
