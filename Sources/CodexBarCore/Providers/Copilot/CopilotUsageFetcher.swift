@@ -78,6 +78,7 @@ public struct CopilotUsageFetcher: Sendable {
         let credits = Self.makeCreditsUsage(
             usage: usage,
             seatEntitlement: self.seatEntitlement,
+            hasUnlimitedQuota: hasUnlimitedQuota,
             resetsAt: resetsAt)
 
         let primary: RateWindow?
@@ -172,9 +173,17 @@ public struct CopilotUsageFetcher: Sendable {
     static func makeCreditsUsage(
         usage: CopilotUsageResponse,
         seatEntitlement: Double?,
+        hasUnlimitedQuota: Bool,
         resetsAt: Date?) -> CopilotCreditsUsage?
     {
         guard let creditsUsed = usage.premiumInteractionsCreditsUsed else { return nil }
+        // GitHub reports `credits_used: 0` on metered snapshots too, so the field alone is not
+        // exclusive to credit-billed seats. Only surface the lane when it carries real signal:
+        // token/unlimited billing, actual consumption, or a user-configured entitlement to track
+        // against. Otherwise every Copilot Pro/Individual seat would grow a permanent, unremovable
+        // "0 credits used" row.
+        let hasSignal = usage.tokenBasedBilling || hasUnlimitedQuota || creditsUsed > 0 || seatEntitlement != nil
+        guard hasSignal else { return nil }
         let seat = CopilotCreditsUsage.Lane(
             creditsUsed: creditsUsed,
             entitlement: seatEntitlement,
