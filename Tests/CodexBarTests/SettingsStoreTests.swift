@@ -1364,6 +1364,39 @@ struct SettingsStoreTests {
     }
 
     @Test
+    func `Claude model scoped widget usage defaults on persists and refreshes only menus`() async throws {
+        let suite = "SettingsStoreTests-claude-model-scoped-widget-usage-visible"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        let configStore = testConfigStore(suiteName: suite)
+        let store = SettingsStore(
+            userDefaults: defaults,
+            configStore: configStore,
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+
+        #expect(store.claudeModelScopedWeeklyUsageVisible)
+        let backgroundRevision = store.backgroundWorkSettingsRevision
+        let menuDidChange = ObservationFlag()
+        withObservationTracking {
+            _ = store.menuObservationToken
+        } onChange: {
+            menuDidChange.set()
+        }
+        store.claudeModelScopedWeeklyUsageVisible = false
+        try? await Task.sleep(nanoseconds: 50_000_000)
+        #expect(store.backgroundWorkSettingsRevision == backgroundRevision)
+        #expect(menuDidChange.get())
+
+        let reloaded = SettingsStore(
+            userDefaults: defaults,
+            configStore: configStore,
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+        #expect(reloaded.claudeModelScopedWeeklyUsageVisible == false)
+    }
+
+    @Test
     func `menu observation token updates on defaults change`() async throws {
         let suite = "SettingsStoreTests-observation-defaults"
         let defaults = try #require(UserDefaults(suiteName: suite))

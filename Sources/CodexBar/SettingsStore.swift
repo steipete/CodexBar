@@ -504,6 +504,12 @@ extension SettingsStore {
         if Self.isRunningTests, claudeDailyRoutinesUsageVisibleDefault == nil {
             userDefaults.set(true, forKey: "claudeDailyRoutinesUsageVisible")
         }
+        let claudeModelScopedWeeklyUsageVisibleDefault = userDefaults.object(
+            forKey: "claudeModelScopedWeeklyUsageVisible") as? Bool
+        let claudeModelScopedWeeklyUsageVisible = claudeModelScopedWeeklyUsageVisibleDefault ?? true
+        if Self.isRunningTests, claudeModelScopedWeeklyUsageVisibleDefault == nil {
+            userDefaults.set(true, forKey: "claudeModelScopedWeeklyUsageVisible")
+        }
         let codexSparkUsageVisibleDefault = userDefaults.object(forKey: "codexSparkUsageVisible") as? Bool
         let codexSparkUsageVisible = codexSparkUsageVisibleDefault ?? true
         if Self.isRunningTests, codexSparkUsageVisibleDefault == nil {
@@ -608,6 +614,7 @@ extension SettingsStore {
             claudeWebExtrasEnabledRaw: claudeWebExtrasEnabledRaw,
             showOptionalCreditsAndExtraUsage: showOptionalCreditsAndExtraUsage,
             claudeDailyRoutinesUsageVisible: claudeDailyRoutinesUsageVisible,
+            claudeModelScopedWeeklyUsageVisible: claudeModelScopedWeeklyUsageVisible,
             codexSparkUsageVisible: codexSparkUsageVisible,
             openAIWebAccessEnabled: openAIWebAccessEnabled,
             openAIWebBatterySaverEnabled: openAIWebBatterySaverEnabled,
