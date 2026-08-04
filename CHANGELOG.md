@@ -3,6 +3,7 @@
 ## 0.46.1 — Unreleased
 
 ### Added
+- Copilot: show AI credit usage for Business seats billed by credit instead of quota, which previously rendered blank. A seat lane comes from the existing usage response; an opt-in organization lane fetches `/orgs/{org}/settings/billing/ai_credit/usage` when the token has org billing access. GitHub publishes no credit entitlement on any documented endpoint, so both denominators are user-entered, and a lane without one shows as text instead of a bar (#2593). Thanks @KSEGIT!
 - Refresh: add a default-off global Low Power Mode that limits automatic provider, local usage, and storage work to once every 30 minutes while keeping manual refresh immediate (#2518). Thanks @Carl723000!
 - CLI: `codexbar hooks watch` continuously polls providers and fires hooks on real quota/status transitions for headless installs, with in-memory baselines, event rate limits, `--interval` (default 300s, minimum 60s), `--provider`, and JSON output (#2536). Thanks @OfficialAbhinavSingh!
 - Claude: compact multi-account menu for claude-swap — with four or more accounts the active account keeps its full card while the others become one-line rows sorted by remaining headroom, constrained accounts surface in red/amber, the healthiest switch target gets a star, and the healthy tail folds behind a summary row. Click a row to expand its full card.
