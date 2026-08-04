@@ -1056,6 +1056,8 @@ extension CostUsageScanner {
         return !(Set(cached.codexTurnIDs ?? []).isDisjoint(with: context.changedPriorityTurnIDs))
     }
 
+    /// Reuses compact ordinary-fork events for a same-size dependency retry or a validated suffix.
+    /// Subagent buffers still require a full rescan after append because later lineage can change attribution.
     static func isAppendSafeBufferedCodexForkResume(
         metadata: CodexFileMetadata,
         cached: CostUsageFileUsage) -> Bool
@@ -1063,7 +1065,8 @@ extension CostUsageScanner {
         let startOffset = cached.parsedBytes ?? cached.size
         guard cached.codexScanComplete != false,
               cached.forkedFromId != nil,
-              cached.hasBufferedCodexForkRetryLines,
+              cached.codexBufferedSubagentLines?.isEmpty != false,
+              cached.codexBufferedUnresolvedForkLines?.isEmpty == false,
               cached.codexJSONLResumeState == nil,
               cached.codexScanFileId != nil,
               cached.codexScanFileId == metadata.fileId,
@@ -1111,9 +1114,25 @@ extension CostUsageScanner {
                     metadata: input.metadata)
             } == true
             && hasMatchingResumeOffset
-        let isBufferedForkResume = Self.isAppendSafeBufferedCodexForkResume(
+        let isBufferedForkRetry = cached.forkedFromId != nil
+            && cached.forkBaselineDependencyKey == nil
+            && cached.hasBufferedCodexForkRetryLines
+            && cached.codexScanComplete != false
+            && cached.codexJSONLResumeState == nil
+            && cached.codexScanFileId == input.metadata.fileId
+            && startOffset > 0
+            && startOffset == input.metadata.size
+            && cached.codexTokenIndexAnchor?.indexedBytes == startOffset
+            && cached.codexTokenIndexAnchor.map {
+                CostUsageScanner.codexTokenIndexAnchorMatches(
+                    $0,
+                    fileURL: input.fileURL,
+                    metadata: input.metadata)
+            } == true
+        let isOrdinaryUnresolvedForkResume = Self.isAppendSafeBufferedCodexForkResume(
             metadata: input.metadata,
             cached: cached)
+        let isBufferedForkResume = isBufferedForkRetry || isOrdinaryUnresolvedForkResume
         if cached.codexScanComplete == false, !isResumablePartial {
             return false
         }

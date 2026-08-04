@@ -112,6 +112,113 @@ struct CodexForkAppendResumeTests {
         #expect(secondUsage.codexTokenSnapshots?.count == 2)
     }
 
+    @Test
+    func `bounded append keeps an unresolved subagent on the full rescan path`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+
+        let day = try env.makeLocalNoon(year: 2026, month: 7, day: 16)
+        let timestamp = env.isoString(for: day)
+        var initialLines: [[String: Any]] = [
+            [
+                "type": "session_meta",
+                "timestamp": timestamp,
+                "payload": [
+                    "id": "redacted-subagent",
+                    "forked_from_id": "redacted-missing-parent",
+                    "source": ["subagent": ["thread_spawn": [:]]],
+                ],
+            ],
+            self.tokenCount(
+                timestamp: env.isoString(for: day.addingTimeInterval(1)),
+                model: "openai/gpt-5.3",
+                total: (input: 1000, cached: 900, output: 100)),
+            [
+                "type": "session_meta",
+                "timestamp": timestamp,
+                "payload": ["id": "redacted-missing-parent"],
+            ],
+        ]
+        for index in 0..<80 {
+            initialLines.append([
+                "type": "response_item",
+                "timestamp": timestamp,
+                "payload": [
+                    "sequence": index,
+                    "text": String(repeating: "x", count: 128),
+                ],
+            ])
+        }
+        let fileURL = try env.writeCodexSessionFile(
+            day: day,
+            filename: "rollout-\(timestamp)-redacted-subagent.jsonl",
+            contents: env.jsonl(initialLines))
+
+        var options = CostUsageScanner.Options(
+            codexSessionsRoot: env.codexSessionsRoot,
+            claudeProjectsRoots: nil,
+            cacheRoot: env.cacheRoot,
+            maxCodexSessionFileBytes: 64 * 1024,
+            maxCodexScanBytesPerRefresh: 64 * 1024)
+        options.refreshMinIntervalSeconds = 0
+        _ = CostUsageScanner.loadDailyReport(
+            provider: .codex,
+            since: day,
+            until: day,
+            now: day,
+            options: options)
+
+        let firstCache = CostUsageCacheIO.load(provider: .codex, cacheRoot: env.cacheRoot)
+        let firstUsage = try #require(firstCache.files.values.first { $0.sessionId == "redacted-subagent" })
+        let firstParsedBytes = try #require(firstUsage.parsedBytes)
+        #expect(firstUsage.forkedFromId == "redacted-missing-parent")
+        #expect(firstUsage.codexBufferedSubagentLines?.isEmpty == false)
+        #expect(firstUsage.codexBufferedUnresolvedForkLines?.isEmpty != false)
+        #expect(firstUsage.codexScanComplete == true)
+        #expect(firstParsedBytes == CostUsageScanner.codexFileMetadata(fileURL: fileURL).size)
+        #expect(firstParsedBytes > 512)
+
+        let appended = try env.jsonl([
+            self.turnContext(
+                timestamp: env.isoString(for: day.addingTimeInterval(4)),
+                model: "openai/gpt-5.4"),
+            [
+                "type": "inter_agent_communication_metadata",
+                "timestamp": env.isoString(for: day.addingTimeInterval(4)),
+                "payload": ["trigger_turn": true],
+            ],
+            self.tokenCount(
+                timestamp: env.isoString(for: day.addingTimeInterval(5)),
+                model: "openai/gpt-5.4",
+                total: (input: 1050, cached: 910, output: 105),
+                last: (input: 50, cached: 10, output: 5)),
+        ])
+        let handle = try FileHandle(forWritingTo: fileURL)
+        try handle.seekToEnd()
+        try handle.write(contentsOf: Data(appended.utf8))
+        try handle.close()
+
+        let appendedMetadata = CostUsageScanner.codexFileMetadata(fileURL: fileURL)
+        #expect(appendedMetadata.size > firstParsedBytes)
+        #expect(CostUsageScanner.pendingCodexScanWorkBytes(
+            metadata: appendedMetadata,
+            cached: firstUsage) == appendedMetadata.size)
+
+        options.maxCodexSessionFileBytes = 512
+        options.maxCodexScanBytesPerRefresh = 512
+        _ = CostUsageScanner.loadDailyReport(
+            provider: .codex,
+            since: day,
+            until: day,
+            now: day.addingTimeInterval(1),
+            options: options)
+
+        let secondCache = CostUsageCacheIO.load(provider: .codex, cacheRoot: env.cacheRoot)
+        let secondUsage = try #require(secondCache.files.values.first { $0.sessionId == "redacted-subagent" })
+        #expect((secondUsage.parsedBytes ?? 0) <= 512)
+        #expect(secondUsage.codexScanComplete == false)
+    }
+
     private func turnContext(timestamp: String, model: String) -> [String: Any] {
         [
             "type": "turn_context",
