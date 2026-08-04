@@ -61,6 +61,7 @@ public struct PerplexityUsageSnapshot: Sendable {
 
     private static let promoExpiryFormatter: DateFormatter = {
         let fmt = DateFormatter()
+        fmt.locale = Locale(identifier: "en_US_POSIX")
         fmt.dateFormat = "MMM d"
         return fmt
     }()
