@@ -28,6 +28,11 @@ public enum ClaudeOAuthDelegatedRefreshCoordinator {
         case cliUnavailable
         case attemptedSucceeded
         case attemptedFailed(String)
+        /// The Claude CLI can still refresh its own credentials, but CodexBar has no permitted way to observe the
+        /// result: production never reads the foreign Keychain item, and this profile has no credentials file to
+        /// fall back on. The touch still runs first, in case it writes that file; when it does not, report this
+        /// rather than a retryable failure so background polling can back off.
+        case unreadableAfterRefresh
     }
 
     private static let log = CodexBarLog.logger(LogCategories.claudeUsage)
@@ -71,7 +76,8 @@ public enum ClaudeOAuthDelegatedRefreshCoordinator {
             switch outcome {
             case .attemptedFailed, .skippedByCooldown, .skippedByPromptPolicy, .cliUnavailable:
                 return await self.attempt(now: now, timeout: timeout, environment: environment)
-            case .attemptedSucceeded:
+            case .attemptedSucceeded, .unreadableAfterRefresh:
+                // Retrying cannot make an unreadable refresh readable; reuse the joined verdict.
                 return outcome
             }
         case let .joinDifferentProfileThenRetry(id, task, state):
@@ -99,6 +105,7 @@ public enum ClaudeOAuthDelegatedRefreshCoordinator {
         let readStrategy: ClaudeOAuthKeychainReadStrategy
         let promptMode: ClaudeOAuthKeychainPromptMode
         let keychainAccessDisabled: Bool
+        let keychainReadAllowed: Bool
         let hasSelectedProfileOAuthCredentialsFile: Bool
         #if DEBUG
         let cliAvailableOverride: Bool?
@@ -147,6 +154,7 @@ public enum ClaudeOAuthDelegatedRefreshCoordinator {
             // from the user's stored preference, not the strategy-adjusted mode used by our own reads.
             promptMode: ClaudeOAuthKeychainPromptPreference.storedMode(),
             keychainAccessDisabled: KeychainAccessGate.isDisabled,
+            keychainReadAllowed: ClaudeOAuthCredentialsStore.keychainAccessAllowed,
             hasSelectedProfileOAuthCredentialsFile: ClaudeOAuthCredentialsStore
                 .hasSelectedProfileOAuthCredentialsFile(environment: environment),
             cliAvailableOverride: self.cliAvailableOverrideForTesting,
@@ -164,6 +172,7 @@ public enum ClaudeOAuthDelegatedRefreshCoordinator {
             // from the user's stored preference, not the strategy-adjusted mode used by our own reads.
             promptMode: ClaudeOAuthKeychainPromptPreference.storedMode(),
             keychainAccessDisabled: KeychainAccessGate.isDisabled,
+            keychainReadAllowed: ClaudeOAuthCredentialsStore.keychainAccessAllowed,
             hasSelectedProfileOAuthCredentialsFile: ClaudeOAuthCredentialsStore
                 .hasSelectedProfileOAuthCredentialsFile(environment: environment))
         #endif
@@ -279,11 +288,21 @@ public enum ClaudeOAuthDelegatedRefreshCoordinator {
             return .attemptedSucceeded
         }
 
+        // Re-check after the touch rather than reusing the pre-touch snapshot: on older Claude Code the touch can
+        // still create the credentials file, which is a readable source even though the Keychain item is not.
+        let unreadable = touchError == nil
+            && self.isRefreshResultUnreadable(configuration: configuration)
         self.recordAttempt(
             now: now,
-            cooldown: self.shortCooldownInterval,
+            // Nothing about this state changes until the user switches source or Claude Code writes a file again,
+            // so back off on the long interval instead of retrying every short cycle.
+            cooldown: unreadable ? self.defaultCooldownInterval : self.shortCooldownInterval,
             profileIdentifier: profileIdentifier,
             state: state)
+        if unreadable {
+            self.log.warning("Claude OAuth delegated refresh produced no readable credential source")
+            return .unreadableAfterRefresh
+        }
         if let touchError {
             let errorType = String(describing: type(of: touchError))
             self.log.warning(
@@ -486,6 +505,20 @@ public enum ClaudeOAuthDelegatedRefreshCoordinator {
         return ClaudeOAuthCredentialsStore.readRawClaudeKeychainPayloadViaSecurityCLIIfEnabled(
             interaction: interaction,
             readStrategy: readStrategy)
+    }
+
+    /// Whether a successful Claude CLI refresh would still be invisible to CodexBar.
+    ///
+    /// Production never reads `Claude Code-credentials` (see `ClaudeOAuthCredentialsStore.keychainAccessAllowed`),
+    /// so the only attributable source left is the profile's credentials file. Claude Code 2.1.x stops writing that
+    /// file, which leaves nothing for the post-touch reload to pick up.
+    private static func isRefreshResultUnreadable(configuration: AttemptConfiguration) -> Bool {
+        guard !configuration.keychainReadAllowed else { return false }
+        guard !configuration.hasSelectedProfileOAuthCredentialsFile else { return false }
+        // The captured value predates the touch, so ask again: on older Claude Code the touch itself can write the
+        // credentials file, and that is a source the post-touch reload can still use.
+        return !ClaudeOAuthCredentialsStore.hasSelectedProfileOAuthCredentialsFile(
+            environment: configuration.environment)
     }
 
     private static func mcpOAuthOnlyKeychainFailureIfPresent(
