@@ -455,6 +455,7 @@ enum SpendDashboardSource {
         encoder.append(snapshot.updatedAt.timeIntervalSinceReferenceDate)
         encoder.append(snapshot.last30DaysTokens)
         encoder.append(snapshot.last30DaysCostUSD)
+        encoder.append(snapshot.last30DaysRequests)
         encoder.append(snapshot.daily.count)
         for entry in snapshot.daily {
             encoder.append(entry.date)
