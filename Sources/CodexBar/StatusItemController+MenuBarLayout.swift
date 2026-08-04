@@ -74,6 +74,10 @@ extension StatusItemController {
             scopedWeekly: MenuBarLayoutRenderWindow(scopedNamed?.window),
             scopedWeeklyTitle: scopedNamed?.title,
             automatic: MenuBarLayoutRenderWindow(windows.automatic),
+            automaticFallbackUsedPercent: self.menuBarLayoutAutomaticFallbackUsedPercent(
+                provider: provider,
+                snapshot: snapshot,
+                now: now),
             sessionPace: self.store.menuBarLayoutPaceText(provider: provider, window: windows.session, now: now),
             weeklyPace: self.store.menuBarLayoutPaceText(provider: provider, window: windows.weekly, now: now),
             automaticPace: self.store.menuBarLayoutPaceText(
@@ -83,6 +87,19 @@ extension StatusItemController {
             runsOut: runsOut,
             costToday: costStrings.today,
             cost30d: costStrings.last30Days)
+    }
+
+    func menuBarLayoutAutomaticFallbackUsedPercent(
+        provider: UsageProvider,
+        snapshot: UsageSnapshot?,
+        now: Date)
+        -> Double?
+    {
+        self.store.codexConsumerProjectionIfNeeded(
+            for: provider,
+            surface: .menuBar,
+            snapshotOverride: snapshot,
+            now: now)?.menuBarFallbackUsedPercent
     }
 
     func menuBarLayoutAccountLabel(provider: UsageProvider, snapshot: UsageSnapshot?) -> String? {

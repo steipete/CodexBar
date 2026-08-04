@@ -32,6 +32,9 @@ struct MenuBarLayoutRenderData: Hashable {
     /// `.scopedWeekly` token with the real model rather than assuming Fable.
     let scopedWeeklyTitle: String?
     let automatic: MenuBarLayoutRenderWindow?
+    /// Used percentage for a non-rate-window quota that can stand in for the automatic metric.
+    /// Codex credit limits use this when the account exposes credits but no session/weekly lanes.
+    let automaticFallbackUsedPercent: Double?
     /// Signed pace deltas per window, already formatted (`+11%`, `-8%`, `0%`). Pace needs the store's
     /// historical dataset and work-day setting, so it is resolved upstream like `runsOut` rather than
     /// derived from the render windows here.
@@ -239,7 +242,9 @@ final class MenuBarLayoutRenderer {
                 attributes: style.attributes)
         case let .percent(window):
             let rateWindow = Self.window(window, data: data)
-            let percent = rateWindow.map { options.showUsed ? $0.usedPercent : $0.remainingPercent }
+            let fallbackUsedPercent = window == .automatic ? data.automaticFallbackUsedPercent : nil
+            let percent = fallbackUsedPercent.map { options.showUsed ? $0 : max(0, 100 - $0) }
+                ?? rateWindow.map { options.showUsed ? $0.usedPercent : $0.remainingPercent }
             let value = percent.map(UsageFormatter.percentString) ?? Self.missingValue
             let prefix: String
             let accessibilityPrefix: String
@@ -269,13 +274,13 @@ final class MenuBarLayoutRenderer {
                 accessibilityPrefix: Self.paceAccessibilityPrefix(window),
                 attributes: style.attributes)
         case .usageBar:
-            guard let window = data.automatic else {
+            guard let usedPercent = data.automaticFallbackUsedPercent ?? data.automatic?.usedPercent else {
                 return self.textToken(
                     self.missingValue,
                     accessibilityText: L("Usage bar unavailable"),
                     attributes: style.attributes)
             }
-            let displayedPercent = options.showUsed ? window.usedPercent : window.remainingPercent
+            let displayedPercent = options.showUsed ? usedPercent : max(0, 100 - usedPercent)
             let filled = Int((displayedPercent.clamped(to: 0...100) / 100 * 3).rounded())
             let value = String(repeating: "▮", count: filled) + String(repeating: "▯", count: 3 - filled)
             return self.textToken(

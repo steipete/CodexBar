@@ -569,6 +569,11 @@ struct CodexConsumerProjection {
             $0.remainingPercent <= 0 && ($0.resetsAt.map { $0 > self.evaluationTime } ?? true)
         }
     }
+
+    var menuBarFallbackUsedPercent: Double? {
+        guard self.menuBarFallback == .creditsBalance else { return nil }
+        return self.credits?.snapshot?.codexCreditLimit?.usedPercent
+    }
 }
 
 extension UsageStore {

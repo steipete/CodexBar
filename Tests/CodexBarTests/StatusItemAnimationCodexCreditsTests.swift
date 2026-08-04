@@ -7,6 +7,52 @@ import Testing
 @MainActor
 struct StatusItemAnimationCodexCreditsTests {
     @Test
+    func `codex automatic percentage uses credit limit when usage is missing`() {
+        let settings = testSettingsStore(suiteName: "StatusItemAnimationTests-credit-limit-layout")
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = false
+        settings.menuBarShowsBrandIconWithPercent = true
+        settings.menuBarLayout = .defaultLayout
+        settings.usageBarsShowUsed = true
+
+        let registry = ProviderRegistry.shared
+        if let codexMeta = registry.metadata[.codex] {
+            settings.setProviderEnabled(provider: .codex, metadata: codexMeta, enabled: true)
+        }
+
+        let now = Date()
+        let fetcher = UsageFetcher()
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+        store._setSnapshotForTesting(nil, provider: .codex)
+        store.credits = CreditsSnapshot(
+            remaining: 41556.4,
+            events: [],
+            updatedAt: now,
+            codexCreditLimit: CodexCreditLimitSnapshot(
+                used: 1193.6,
+                limit: 42750,
+                remainingPercent: 97.208,
+                resetsAt: nil,
+                updatedAt: now))
+
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: testStatusBar())
+        defer { controller.releaseStatusItemsForTesting() }
+
+        controller.applyIcon(for: .codex, phase: nil)
+
+        let title = controller.statusItems[.codex]?.button?.attributedTitle.string
+        #expect(title?.contains("3%") == true)
+        #expect(title?.contains("–") == false)
+    }
+
+    @Test
     func `codex icon keeps credits only rendering when usage is missing`() {
         let settings = testSettingsStore(suiteName: "StatusItemAnimationTests-credits-only-icon")
         settings.statusChecksEnabled = false
