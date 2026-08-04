@@ -270,6 +270,30 @@ struct SpendDashboardModelTests {
     }
 
     @Test
+    func `partially attributed Codex history retains its priced model rows`() throws {
+        let codex = SpendDashboardModel.ProviderInput(
+            provider: .codex,
+            displayName: "Codex",
+            snapshot: Self.snapshot(
+                currency: "USD",
+                entries: [
+                    Self.entry(day: "2026-07-15", cost: 2, model: "gpt-5.2-codex"),
+                    Self.entry(day: "2026-07-16", cost: 3, model: nil),
+                ]))
+        let group = try #require(SpendDashboardModel.build(
+            inputs: [codex],
+            requestedDays: 7,
+            now: Self.now,
+            calendar: Self.calendar).groups.first)
+
+        #expect(group.totalCost == 5)
+        #expect(group.modelHistoryCompleteness == .incomplete)
+        #expect(group.models.map(\.modelName) == ["gpt-5.2-codex"])
+        #expect(group.models.map(\.totalCost) == [2])
+        #expect(spendDashboardModelHistoryPresentation(group) == .partial)
+    }
+
+    @Test
     func `only uncovered source reports model breakdown unavailable`() throws {
         let uncovered = SpendDashboardModel.ProviderInput(
             provider: .claude,

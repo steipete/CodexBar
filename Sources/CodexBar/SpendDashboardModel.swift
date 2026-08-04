@@ -194,12 +194,17 @@ struct SpendDashboardModel: Equatable, Sendable {
                 calendar: calendar)
         }
         let providers = Self.providerRows(summaries)
-        let completeModelSummaries = summaries.filter { summary in
+        let modelSummaries = summaries.filter { summary in
             guard summary.totalCost != nil else { return false }
-            return Self.modelSummary(summaries: [summary]).completeness == .complete
+            let summaryModelHistory = Self.modelSummary(summaries: [summary])
+            return summaryModelHistory.completeness == .complete ||
+                Self.canRetainPartialCodexModelHistory(summary)
         }
-        let modelSummary = Self.modelSummary(summaries: completeModelSummaries)
-        let modelHistoryCompleteness = completeModelSummaries.count == summaries.count
+        // A Codex session can have valid total cost without a model on every day. Keep its
+        // directly attributed rows, but the UI marks the aggregate partial and removes ranking.
+        let modelSummary = Self.modelSummary(summaries: modelSummaries)
+        let modelHistoryCompleteness = modelSummaries.count == summaries.count &&
+            modelSummary.completeness == .complete
             ? ModelHistoryCompleteness.complete
             : ModelHistoryCompleteness.incomplete
         let dailyPoints = Self.dailyPoints(summaries: summaries)
@@ -269,6 +274,15 @@ struct SpendDashboardModel: Equatable, Sendable {
             coveredInterval: coveredInterval,
             coveredDayCount: coveredDayCount,
             hasInvalidCostHistory: invalidCostHistory)
+    }
+
+    private static func canRetainPartialCodexModelHistory(_ summary: InputSummary) -> Bool {
+        guard summary.input.provider == .codex else { return false }
+        return summary.entries.allSatisfy { windowEntry in
+            let entry = windowEntry.entry
+            return Self.hasCompleteModelCostCoverage(entry) ||
+                (entry.modelBreakdowns?.isEmpty != false && Self.validCost(entry.costUSD) != nil)
+        }
     }
 
     private static func providerRows(_ summaries: [InputSummary]) -> [ProviderRow] {
