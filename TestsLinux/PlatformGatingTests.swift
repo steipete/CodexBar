@@ -230,8 +230,7 @@ struct PlatformGatingTests {
           printf '%s\\n' '{"loggedIn":\(loggedInJSON)}'
         fi
         """
-        try Data(script.utf8).write(to: binaryURL)
-        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: binaryURL.path)
+        try FakeExecutable.install(script, at: binaryURL)
         return binaryURL
     }
 

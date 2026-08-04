@@ -8,10 +8,7 @@ struct AntigravityCLIStrategyLinuxTests {
     func `cli local strategy is available with HTTP fallback`() async throws {
         let binaryURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("codexbar-antigravity-\(UUID().uuidString)")
-        try Data("#!/bin/sh\n".utf8).write(to: binaryURL)
-        try FileManager.default.setAttributes(
-            [.posixPermissions: 0o755],
-            ofItemAtPath: binaryURL.path)
+        try FakeExecutable.install("#!/bin/sh\n", at: binaryURL)
         defer { try? FileManager.default.removeItem(at: binaryURL) }
 
         let context = ProviderFetchContext(
