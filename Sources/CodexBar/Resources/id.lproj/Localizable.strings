@@ -624,6 +624,13 @@
 "multi_account_layout_segmented" = "Tersegmentasi";
 "multi_account_layout_stacked" = "Bertumpuk";
 "overview_tab_providers_title" = "Penyedia tab ikhtisar";
+"overview_layout_title" = "Tata letak Ikhtisar";
+"overview_layout_subtitle" = "Pilih seberapa banyak informasi yang ditampilkan Ikhtisar.";
+"overview_layout_detailed" = "Terperinci";
+"overview_layout_compact" = "Penyedia, metrik, dan bilah";
+"overview_layout_provider_bars" = "Penyedia dan bilah";
+"overview_layout_bars_only" = "Hanya bilah";
+"overview_compact_no_bars" = "Tidak ada bilah penggunaan";
 "configure" = "Konfigurasi…";
 "overview_enable_merge_icons_hint" = "Aktifkan Gabung Ikon untuk mengonfigurasi penyedia tab Ikhtisar.";
 "overview_no_providers_hint" = "Tidak ada penyedia aktif untuk Ikhtisar.";

@@ -38,6 +38,17 @@ struct NativeHighlightDeferredMenuRebuild {
 }
 
 @MainActor
+private struct MergedOverviewMenuObservation: Equatable {
+    let layout: MergedOverviewLayout
+    let selectedProviders: [UsageProvider]
+
+    init(settings: SettingsStore) {
+        self.layout = settings.mergedOverviewLayout
+        self.selectedProviders = settings.mergedOverviewSelectedProviders
+    }
+}
+
+@MainActor
 final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControlling {
     // Disable SwiftUI menu cards + menu refresh work in tests to avoid swiftpm-testing-helper crashes.
     static var menuCardRenderingEnabled = !SettingsStore.isRunningTests
@@ -258,6 +269,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
     private var lastMergeIcons: Bool
     private var lastSwitcherShowsIcons: Bool
     private var lastObservedUsageBarsShowUsed: Bool
+    private var lastMergedOverviewMenuObservation: MergedOverviewMenuObservation
     var lastWidgetDisplaySettingsSignature = ""
     var lastAgentSessionsEnabled: Bool
     var lastAgentSessionsManualHosts: String
@@ -421,6 +433,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         self.lastMergeIcons = settings.mergeIcons
         self.lastSwitcherShowsIcons = settings.switcherShowsIcons
         self.lastObservedUsageBarsShowUsed = settings.usageBarsShowUsed
+        self.lastMergedOverviewMenuObservation = MergedOverviewMenuObservation(settings: settings)
         self.lastAgentSessionsEnabled = settings.agentSessionsEnabled
         self.lastAgentSessionsManualHosts = settings.agentSessionsManualHosts
         self.lastAgentSessionsRefreshFrequency = settings.refreshFrequency
@@ -654,39 +667,6 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         }
     }
 
-    private func shouldRefreshOpenMenusForProviderSwitcher() -> Bool {
-        var shouldRefresh = false
-        let revision = self.settings.configRevision
-        if revision != self.lastConfigRevision {
-            self.lastConfigRevision = revision
-            shouldRefresh = true
-        }
-        let order = self.settings.providerOrder
-        if order != self.lastProviderOrder {
-            self.lastProviderOrder = order
-            shouldRefresh = true
-        }
-        let mergeIcons = self.settings.mergeIcons
-        if mergeIcons != self.lastMergeIcons {
-            self.lastMergeIcons = mergeIcons
-            shouldRefresh = true
-        }
-        let showsIcons = self.settings.switcherShowsIcons
-        if showsIcons != self.lastSwitcherShowsIcons {
-            self.lastSwitcherShowsIcons = showsIcons
-            shouldRefresh = true
-        }
-        let usageBarsShowUsed = self.settings.usageBarsShowUsed
-        if usageBarsShowUsed != self.lastObservedUsageBarsShowUsed {
-            self.lastObservedUsageBarsShowUsed = usageBarsShowUsed
-            shouldRefresh = true
-        }
-        if self.menuLocalizationSignature() != self.lastMenuLocalizationSignature {
-            shouldRefresh = true
-        }
-        return shouldRefresh
-    }
-
     private func handleSettingsChange(reason: String) {
         #if DEBUG
         guard !self.isReleasedForTesting else { return }
@@ -695,6 +675,8 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         let configChanged = self.settings.configRevision != self.lastConfigRevision
         let orderChanged = self.settings.providerOrder != self.lastProviderOrder
         let localizationChanged = self.menuLocalizationSignature() != self.lastMenuLocalizationSignature
+        let overviewChanged =
+            MergedOverviewMenuObservation(settings: self.settings) != self.lastMergedOverviewMenuObservation
         let shouldRefreshOpenMenus = self.shouldRefreshOpenMenusForProviderSwitcher()
         self.invalidateMenus()
         if orderChanged || configChanged {
@@ -705,7 +687,8 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         self.persistWidgetSnapshotIfWidgetDisplaySettingsChanged()
         if shouldRefreshOpenMenus {
             self.refreshOpenMenusAllowingParentRebuild(
-                deferParentRebuildDuringTracking: !localizationChanged)
+                deferParentRebuildDuringTracking: !(
+                    localizationChanged || overviewChanged))
         }
     }
 
@@ -941,6 +924,46 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         self.screenChangeVisibilityTask?.cancel()
         self.pendingScreenChangePreviousCount = nil
         NotificationCenter.default.removeObserver(self)
+    }
+}
+
+extension StatusItemController {
+    private func shouldRefreshOpenMenusForProviderSwitcher() -> Bool {
+        var shouldRefresh = false
+        let revision = self.settings.configRevision
+        if revision != self.lastConfigRevision {
+            self.lastConfigRevision = revision
+            shouldRefresh = true
+        }
+        let order = self.settings.providerOrder
+        if order != self.lastProviderOrder {
+            self.lastProviderOrder = order
+            shouldRefresh = true
+        }
+        let mergeIcons = self.settings.mergeIcons
+        if mergeIcons != self.lastMergeIcons {
+            self.lastMergeIcons = mergeIcons
+            shouldRefresh = true
+        }
+        let showsIcons = self.settings.switcherShowsIcons
+        if showsIcons != self.lastSwitcherShowsIcons {
+            self.lastSwitcherShowsIcons = showsIcons
+            shouldRefresh = true
+        }
+        let usageBarsShowUsed = self.settings.usageBarsShowUsed
+        if usageBarsShowUsed != self.lastObservedUsageBarsShowUsed {
+            self.lastObservedUsageBarsShowUsed = usageBarsShowUsed
+            shouldRefresh = true
+        }
+        let overviewObservation = MergedOverviewMenuObservation(settings: self.settings)
+        if overviewObservation != self.lastMergedOverviewMenuObservation {
+            self.lastMergedOverviewMenuObservation = overviewObservation
+            shouldRefresh = true
+        }
+        if self.menuLocalizationSignature() != self.lastMenuLocalizationSignature {
+            shouldRefresh = true
+        }
+        return shouldRefresh
     }
 }
 

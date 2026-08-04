@@ -622,6 +622,13 @@
 "multi_account_layout_segmented" = "แบ่งกลุ่ม";
 "multi_account_layout_stacked" = "ซ้อนกัน";
 "overview_tab_providers_title" = "ผู้ให้บริการแท็บภาพรวม";
+"overview_layout_title" = "เค้าโครงภาพรวม";
+"overview_layout_subtitle" = "เลือกปริมาณข้อมูลที่จะแสดงในภาพรวม";
+"overview_layout_detailed" = "แบบละเอียด";
+"overview_layout_compact" = "ผู้ให้บริการ เมตริก และแถบ";
+"overview_layout_provider_bars" = "ผู้ให้บริการและแถบ";
+"overview_layout_bars_only" = "เฉพาะแถบ";
+"overview_compact_no_bars" = "ไม่มีแถบการใช้งาน";
 "configure" = "กําหนดค่า...";
 "overview_enable_merge_icons_hint" = "เปิดใช้งานไอคอนผสานเพื่อกําหนดค่าผู้ให้บริการแท็บภาพรวม";
 "overview_no_providers_hint" = "ไม่มีผู้ให้บริการที่เปิดใช้งานสําหรับภาพรวม";

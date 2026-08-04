@@ -624,6 +624,13 @@
 "multi_account_layout_segmented" = "Segmentato";
 "multi_account_layout_stacked" = "Impilato";
 "overview_tab_providers_title" = "Provider della scheda Panoramica";
+"overview_layout_title" = "Layout Panoramica";
+"overview_layout_subtitle" = "Scegli quante informazioni mostrare in Panoramica.";
+"overview_layout_detailed" = "Dettagliato";
+"overview_layout_compact" = "Provider, metriche e barre";
+"overview_layout_provider_bars" = "Provider e barre";
+"overview_layout_bars_only" = "Solo barre";
+"overview_compact_no_bars" = "Nessuna barra di utilizzo";
 "configure" = "Configura…";
 "overview_enable_merge_icons_hint" = "Abilita Unisci icone per configurare i provider della scheda Panoramica.";
 "overview_no_providers_hint" = "Nessun provider attivo disponibile per Panoramica.";

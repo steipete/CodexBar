@@ -608,6 +608,13 @@
 "multi_account_layout_segmented" = "Segmentado";
 "multi_account_layout_stacked" = "Apilado";
 "overview_tab_providers_title" = "Proveedores de la pestaña Resumen";
+"overview_layout_title" = "Diseño de Resumen";
+"overview_layout_subtitle" = "Elige cuánta información muestra Resumen.";
+"overview_layout_detailed" = "Detallado";
+"overview_layout_compact" = "Proveedores, métricas y barras";
+"overview_layout_provider_bars" = "Proveedores y barras";
+"overview_layout_bars_only" = "Solo barras";
+"overview_compact_no_bars" = "No hay barras de uso";
 "configure" = "Configurar…";
 "overview_enable_merge_icons_hint" = "Activa Combinar iconos para configurar los proveedores de la pestaña Resumen.";
 "overview_no_providers_hint" = "No hay proveedores activados disponibles para Resumen.";

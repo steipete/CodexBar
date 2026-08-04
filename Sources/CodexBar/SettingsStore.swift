@@ -524,6 +524,18 @@ extension SettingsStore {
         }
         let jetbrainsIDEBasePath = userDefaults.string(forKey: "jetbrainsIDEBasePath") ?? ""
         let mergeIcons = userDefaults.object(forKey: "mergeIcons") as? Bool ?? true
+        let mergedOverviewLayoutRaw: String = if let stored = userDefaults.string(forKey: "mergedOverviewLayout") {
+            stored
+        } else if let legacyCompact = userDefaults.object(forKey: "mergedOverviewUsesCompactLayout") as? Bool {
+            legacyCompact ? MergedOverviewLayout.compact.rawValue : MergedOverviewLayout.detailed.rawValue
+        } else {
+            MergedOverviewLayout.detailed.rawValue
+        }
+        if userDefaults.string(forKey: "mergedOverviewLayout") == nil,
+           userDefaults.object(forKey: "mergedOverviewUsesCompactLayout") != nil
+        {
+            userDefaults.set(mergedOverviewLayoutRaw, forKey: "mergedOverviewLayout")
+        }
         let switcherShowsIcons = userDefaults.object(forKey: "switcherShowsIcons") as? Bool ?? true
         let mergedMenuLastSelectedWasOverview = userDefaults.object(
             forKey: "mergedMenuLastSelectedWasOverview") as? Bool ?? false
@@ -611,6 +623,7 @@ extension SettingsStore {
             providerStorageFootprintsEnabled: providerStorageFootprintsEnabled,
             jetbrainsIDEBasePath: jetbrainsIDEBasePath,
             mergeIcons: mergeIcons,
+            mergedOverviewLayoutRaw: mergedOverviewLayoutRaw,
             switcherShowsIcons: switcherShowsIcons,
             mergedMenuLastSelectedWasOverview: mergedMenuLastSelectedWasOverview,
             mergedOverviewSelectedProvidersRaw: mergedOverviewSelectedProvidersRaw,

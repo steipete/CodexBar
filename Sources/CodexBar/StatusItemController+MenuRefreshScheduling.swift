@@ -122,6 +122,14 @@ extension StatusItemController {
             "claudeSwapRevision=\(self.store.claudeSwapRevision)",
         ]
 
+        if self.shouldMergeIcons, self.settings.mergedMenuLastSelectedWasOverview {
+            let overviewLayout = self.settings.mergedOverviewLayout
+            parts.append("overviewLayout=\(overviewLayout.rawValue)")
+            if overviewLayout.usesReducedContent {
+                parts.append("compactOverview=\(self.compactOverviewStructuralSignature())")
+            }
+        }
+
         for provider in self.store.enabledProvidersForDisplay() {
             let tokenSignature = self.tokenSnapshotReadinessSignature(for: provider)
             let usageHistoryVisible = self.store.supportsPlanUtilizationHistory(for: provider) &&
@@ -137,6 +145,30 @@ extension StatusItemController {
         }
 
         return parts.joined(separator: "|")
+    }
+
+    func compactOverviewStructuralSignature() -> String {
+        let providers = self.settings.resolvedMergedOverviewProviders(
+            activeProviders: self.store.enabledProvidersForDisplay(),
+            maxVisibleProviders: SettingsStore.mergedOverviewProviderLimit)
+        let providerSignature = providers.map { provider in
+            guard let model = self.menuCardModel(for: provider) else {
+                return "\(provider.rawValue):missing"
+            }
+            guard !model.isOverviewErrorOnly else {
+                return "\(provider.rawValue):error-only"
+            }
+            let layoutModel = model.usesLiveSubtitle
+                ? self.menuCardRefreshMonitor.model(for: provider, fallback: model)
+                : model
+            let projection = CompactOverviewProjection(model: layoutModel)
+            return [
+                provider.rawValue,
+                UsageMenuCardView.Model.heightFingerprintField("providerName", projection.providerName),
+                projection.layoutSignature,
+            ].map { "\($0.utf8.count):\($0)" }.joined(separator: "|")
+        }.joined(separator: ";")
+        return "layout=\(self.settings.mergedOverviewLayout.rawValue)|\(providerSignature)"
     }
 
     static func dashboardBreakdownReadinessSignature(

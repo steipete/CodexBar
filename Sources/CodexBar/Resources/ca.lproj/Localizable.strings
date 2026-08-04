@@ -600,6 +600,13 @@
 "multi_account_layout_segmented" = "Segmentat";
 "multi_account_layout_stacked" = "Apilat";
 "overview_tab_providers_title" = "Proveïdors de la pestanya Resum";
+"overview_layout_title" = "Disseny del Resum";
+"overview_layout_subtitle" = "Trieu quanta informació mostra el Resum.";
+"overview_layout_detailed" = "Detallat";
+"overview_layout_compact" = "Proveïdors, mètriques i barres";
+"overview_layout_provider_bars" = "Proveïdors i barres";
+"overview_layout_bars_only" = "Només barres";
+"overview_compact_no_bars" = "No hi ha barres d’ús";
 "configure" = "Configureu…";
 "overview_enable_merge_icons_hint" = "Activeu Combina les icones per configurar els proveïdors de la pestanya Resum.";
 "overview_no_providers_hint" = "No hi ha proveïdors activats disponibles per al Resum.";

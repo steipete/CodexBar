@@ -229,6 +229,10 @@ func codexBarLocalizedResourceLocale() -> Locale {
     return codexBarLocale(forLanguage: bundleURL.deletingPathExtension().lastPathComponent)
 }
 
+func codexBarUsesRightToLeftLayout() -> Bool {
+    Locale.Language(identifier: codexBarLocalizedResourceLocale().identifier).characterDirection == .rightToLeft
+}
+
 private func codexBarLocale(forLanguage language: String) -> Locale {
     guard !language.isEmpty else { return .current }
     let normalized = language.lowercased()

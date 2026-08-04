@@ -615,6 +615,13 @@
 "multi_account_layout_segmented" = "Segmenterad";
 "multi_account_layout_stacked" = "Staplad";
 "overview_tab_providers_title" = "Leverantörer på översiktsfliken";
+"overview_layout_title" = "Översiktslayout";
+"overview_layout_subtitle" = "Välj hur mycket information som visas i översikten.";
+"overview_layout_detailed" = "Detaljerad";
+"overview_layout_compact" = "Leverantörer, mätvärden och staplar";
+"overview_layout_provider_bars" = "Leverantörer och staplar";
+"overview_layout_bars_only" = "Endast staplar";
+"overview_compact_no_bars" = "Inga användningsstaplar";
 "configure" = "Konfigurera…";
 "overview_enable_merge_icons_hint" = "Aktivera Slå ihop ikoner för att konfigurera leverantörer på översiktsfliken.";
 "overview_no_providers_hint" = "Inga aktiverade leverantörer är tillgängliga för översikten.";

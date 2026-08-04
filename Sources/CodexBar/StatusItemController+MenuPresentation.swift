@@ -142,7 +142,39 @@ struct MenuCardRowPayload {
     let allowsMenuHighlight: Bool
     let containsInteractiveControls: Bool
     let usesGPUSelection: Bool
+    let layoutDirection: LayoutDirection?
+    let accessibilityLabel: String?
+    let accessibilityUserInputLabels: [String]?
+    let accessibilityHelp: String?
     let onClick: (() -> Void)?
+
+    init(
+        content: AnyView,
+        showsSubmenuIndicator: Bool,
+        submenuIndicatorAlignment: Alignment,
+        submenuIndicatorTopPadding: CGFloat,
+        allowsMenuHighlight: Bool,
+        containsInteractiveControls: Bool,
+        usesGPUSelection: Bool,
+        layoutDirection: LayoutDirection? = nil,
+        accessibilityLabel: String? = nil,
+        accessibilityUserInputLabels: [String]? = nil,
+        accessibilityHelp: String? = nil,
+        onClick: (() -> Void)?)
+    {
+        self.content = content
+        self.showsSubmenuIndicator = showsSubmenuIndicator
+        self.submenuIndicatorAlignment = submenuIndicatorAlignment
+        self.submenuIndicatorTopPadding = submenuIndicatorTopPadding
+        self.allowsMenuHighlight = allowsMenuHighlight
+        self.containsInteractiveControls = containsInteractiveControls
+        self.usesGPUSelection = usesGPUSelection
+        self.layoutDirection = layoutDirection
+        self.accessibilityLabel = accessibilityLabel
+        self.accessibilityUserInputLabels = accessibilityUserInputLabels
+        self.accessibilityHelp = accessibilityHelp
+        self.onClick = onClick
+    }
 }
 
 /// Inner SwiftUI host used by every card row. The outer container owns AppKit event handling and,
@@ -159,6 +191,7 @@ private final class MenuRowContentHostingView: NSHostingView<MenuCardSectionCont
 final class MenuRowContainerView: NSView, MenuCardHighlighting, MenuCardMeasuring {
     let highlightState: MenuCardHighlightState
     let interactiveRegionStore: MenuCardInteractiveRegionStore
+    private let accessibilityLabelStore: MenuCardAccessibilityLabelStore
     private let hosting: MenuRowContentHostingView
     private var selectionView: NSVisualEffectView?
     private var tintFilter: CIFilter?
@@ -194,8 +227,10 @@ final class MenuRowContainerView: NSView, MenuCardHighlighting, MenuCardMeasurin
     {
         let highlightState = MenuCardHighlightState()
         let interactiveRegionStore = MenuCardInteractiveRegionStore()
+        let accessibilityLabelStore = MenuCardAccessibilityLabelStore(label: payload.accessibilityLabel)
         self.highlightState = highlightState
         self.interactiveRegionStore = interactiveRegionStore
+        self.accessibilityLabelStore = accessibilityLabelStore
         self.rowPayload = payload
         self.allowsMenuHighlight = payload.allowsMenuHighlight
         self.containsInteractiveControls = payload.containsInteractiveControls
@@ -204,12 +239,14 @@ final class MenuRowContainerView: NSView, MenuCardHighlighting, MenuCardMeasurin
             payload: payload,
             highlightState: highlightState,
             refreshMonitor: refreshMonitor,
-            interactiveRegionStore: interactiveRegionStore))
+            interactiveRegionStore: interactiveRegionStore,
+            accessibilityLabelStore: accessibilityLabelStore))
         super.init(frame: .zero)
         self.wantsLayer = true
         self.hosting.wantsLayer = true
         self.hosting.autoresizingMask = [.width, .height]
         self.addSubview(self.hosting)
+        self.applyAccessibilityPayload()
         self.configureSelectionMode(animated: false)
     }
 
@@ -232,7 +269,9 @@ final class MenuRowContainerView: NSView, MenuCardHighlighting, MenuCardMeasurin
             payload: payload,
             highlightState: self.highlightState,
             refreshMonitor: refreshMonitor,
-            interactiveRegionStore: self.interactiveRegionStore)
+            interactiveRegionStore: self.interactiveRegionStore,
+            accessibilityLabelStore: self.accessibilityLabelStore)
+        self.applyAccessibilityPayload()
         self.configureSelectionMode(animated: false)
         self.invalidateIntrinsicContentSize()
     }
@@ -243,6 +282,10 @@ final class MenuRowContainerView: NSView, MenuCardHighlighting, MenuCardMeasurin
     /// `onClick` (and therefore keeps the menu open) instead of regressing to mouse-only.
     override func accessibilityRole() -> NSAccessibility.Role? {
         self.onClick == nil ? super.accessibilityRole() : .button
+    }
+
+    override func accessibilityLabel() -> String? {
+        self.accessibilityLabelStore.label ?? super.accessibilityLabel()
     }
 
     override func accessibilityPerformPress() -> Bool {
@@ -484,18 +527,27 @@ final class MenuRowContainerView: NSView, MenuCardHighlighting, MenuCardMeasurin
         payload: MenuCardRowPayload,
         highlightState: MenuCardHighlightState,
         refreshMonitor: MenuCardRefreshMonitor?,
-        interactiveRegionStore: MenuCardInteractiveRegionStore) -> MenuCardSectionContainerView<AnyView>
+        interactiveRegionStore: MenuCardInteractiveRegionStore,
+        accessibilityLabelStore: MenuCardAccessibilityLabelStore) -> MenuCardSectionContainerView<AnyView>
     {
         MenuCardSectionContainerView(
             highlightState: highlightState,
             showsSubmenuIndicator: payload.showsSubmenuIndicator,
             submenuIndicatorAlignment: payload.submenuIndicatorAlignment,
             submenuIndicatorTopPadding: payload.submenuIndicatorTopPadding,
+            layoutDirection: payload.layoutDirection,
             refreshMonitor: refreshMonitor,
-            interactiveRegionStore: interactiveRegionStore)
+            interactiveRegionStore: interactiveRegionStore,
+            accessibilityLabelStore: accessibilityLabelStore)
         {
             payload.content
         }
+    }
+
+    private func applyAccessibilityPayload() {
+        self.accessibilityLabelStore.label = self.rowPayload.accessibilityLabel
+        self.setAccessibilityUserInputLabels(self.rowPayload.accessibilityUserInputLabels)
+        self.setAccessibilityHelp(self.rowPayload.accessibilityHelp)
     }
 
     private func primaryPressDecision(for event: NSEvent) -> Bool? {
@@ -806,6 +858,10 @@ extension MenuRowContainerView {
     var hasGPUSelectionLayerForTesting: Bool {
         self.selectionView != nil
     }
+
+    var showsSubmenuIndicatorForTesting: Bool {
+        self.rowPayload.showsSubmenuIndicator
+    }
 }
 #endif
 
@@ -814,25 +870,32 @@ struct MenuCardSectionContainerView<Content: View>: View {
     let showsSubmenuIndicator: Bool
     let submenuIndicatorAlignment: Alignment
     let submenuIndicatorTopPadding: CGFloat
+    let layoutDirectionOverride: LayoutDirection?
     var refreshMonitor: MenuCardRefreshMonitor?
     var interactiveRegionStore: MenuCardInteractiveRegionStore?
+    var accessibilityLabelStore: MenuCardAccessibilityLabelStore?
     @ViewBuilder let content: () -> Content
+    @Environment(\.layoutDirection) private var inheritedLayoutDirection
 
     init(
         highlightState: MenuCardHighlightState,
         showsSubmenuIndicator: Bool,
         submenuIndicatorAlignment: Alignment,
         submenuIndicatorTopPadding: CGFloat,
+        layoutDirection: LayoutDirection? = nil,
         refreshMonitor: MenuCardRefreshMonitor?,
         interactiveRegionStore: MenuCardInteractiveRegionStore? = nil,
+        accessibilityLabelStore: MenuCardAccessibilityLabelStore? = nil,
         @ViewBuilder content: @escaping () -> Content)
     {
         self.highlightState = highlightState
         self.showsSubmenuIndicator = showsSubmenuIndicator
         self.submenuIndicatorAlignment = submenuIndicatorAlignment
         self.submenuIndicatorTopPadding = submenuIndicatorTopPadding
+        self.layoutDirectionOverride = layoutDirection
         self.refreshMonitor = refreshMonitor
         self.interactiveRegionStore = interactiveRegionStore
+        self.accessibilityLabelStore = accessibilityLabelStore
         self.content = content
     }
 
@@ -843,6 +906,10 @@ struct MenuCardSectionContainerView<Content: View>: View {
             .coordinateSpace(name: MenuCardInteractiveRegionPreferenceKey.coordinateSpaceName)
             .onPreferenceChange(MenuCardInteractiveRegionPreferenceKey.self) { regions in
                 self.interactiveRegionStore?.regions = regions
+            }
+            .onPreferenceChange(MenuCardAccessibilityLabelPreferenceKey.self) { label in
+                guard let label else { return }
+                self.accessibilityLabelStore?.label = label
             }
             .foregroundStyle(MenuHighlightStyle.primary(self.highlightState.isHighlighted))
             .background(alignment: .topLeading) {
@@ -855,13 +922,22 @@ struct MenuCardSectionContainerView<Content: View>: View {
             }
             .overlay(alignment: self.submenuIndicatorAlignment) {
                 if self.showsSubmenuIndicator {
-                    Image(systemName: "chevron.right")
+                    Image(systemName: Self.submenuIndicatorSystemName(for: self.effectiveLayoutDirection))
                         .font(.caption2.weight(.semibold))
                         .foregroundStyle(MenuHighlightStyle.secondary(self.highlightState.isHighlighted))
                         .padding(.top, self.submenuIndicatorTopPadding)
                         .padding(.trailing, 10)
                 }
             }
+            .environment(\.layoutDirection, self.effectiveLayoutDirection)
+    }
+
+    private var effectiveLayoutDirection: LayoutDirection {
+        self.layoutDirectionOverride ?? self.inheritedLayoutDirection
+    }
+
+    static func submenuIndicatorSystemName(for layoutDirection: LayoutDirection) -> String {
+        layoutDirection == .rightToLeft ? "chevron.left" : "chevron.right"
     }
 }
 
@@ -878,6 +954,24 @@ final class MenuCardInteractiveRegionStore {
             y: max(0, (hostingBounds.height - fittedSize.height) / 2))
         let contentPoint = CGPoint(x: point.x - contentOrigin.x, y: point.y - contentOrigin.y)
         return self.regions.contains { $0.contains(contentPoint) }
+    }
+}
+
+@MainActor
+@Observable
+final class MenuCardAccessibilityLabelStore {
+    var label: String?
+
+    init(label: String?) {
+        self.label = label
+    }
+}
+
+struct MenuCardAccessibilityLabelPreferenceKey: PreferenceKey {
+    static let defaultValue: String? = nil
+
+    static func reduce(value: inout String?, nextValue: () -> String?) {
+        value = nextValue() ?? value
     }
 }
 

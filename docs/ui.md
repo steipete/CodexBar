@@ -14,6 +14,16 @@ read_when:
   positions.
 - When Overview has selected providers, the switcher includes an Overview tab that renders up to 6 provider rows.
 - Overview row order follows provider order; selecting a row jumps to that provider detail card.
+- Preferences → Menu → Content → Overview layout controls how much information merged Overview shows:
+  Detailed; Providers, metrics & bars; Providers & bars; or Bars only. Detailed retains the full provider cards.
+- The three reduced layouts preserve every drawable usage metric in model order and use the existing six-point progress
+  bars. Providers, metrics & bars shows provider and metric names; Providers & bars hides metric names; Bars only hides
+  both provider and metric names. Visible numeric percentages are omitted in all three reduced layouts.
+- Reduced layouts retain provider actions, detail submenus, refresh behavior, native menu scrolling, and accessible
+  provider names, metric names, percentages, and used-versus-left semantics. A provider without a drawable metric shows
+  a visible fallback in Providers, metrics & bars or an accessible unavailable rail in the two bar-only presentations.
+  The two provider-labeled layouts keep inter-provider dividers; Bars only uses balanced whitespace between and around
+  provider groups so hover highlighting remains centered.
 - The global open-menu keyboard shortcut toggles the currently tracked menu closed before opening a new one.
 - Display → Menu Bar → Layout provides presets plus a token editor. Tokens can be clicked to append, dragged from the
   palette, reordered between one or two lines, dragged out, or removed with Delete. Layouts can be global or overridden
@@ -86,7 +96,10 @@ window has elapsed.
 - Advanced: “Disable Keychain access” turns off browser cookie import; paste Cookie headers manually in Providers.
 - Advanced: “Show provider storage usage” enables background scans of known provider-owned local paths; CodexBar only
   reports sizes and cleanup ideas, it does not delete files.
-- Display: “Overview tab providers” controls which providers appear in Merge Icons → Overview (up to 6).
+- Menu Bar → Combined Icon: “Overview tab providers” controls which providers appear in Merge Icons → Overview
+  (up to 6).
+- Menu → Content: “Overview layout” offers Detailed, Providers, metrics & bars, Providers & bars, and Bars only. The
+  picker is disabled while Merge Icons is off, retains its stored value, and defaults to Detailed.
 - If no providers are selected for Overview, the Overview tab is hidden.
 - Providers → Claude: “Avoid Keychain prompts” selects the Security.framework reader's `Never prompt` policy.
 - The lower-level “Keychain prompt policy” picker remains visible as the source of truth for Claude OAuth prompts.

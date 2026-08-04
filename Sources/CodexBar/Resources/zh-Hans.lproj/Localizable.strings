@@ -595,6 +595,13 @@
 "multi_account_layout_segmented" = "分段";
 "multi_account_layout_stacked" = "堆叠";
 "overview_tab_providers_title" = "概览标签提供商";
+"overview_layout_title" = "概览布局";
+"overview_layout_subtitle" = "选择“概览”显示的信息量。";
+"overview_layout_detailed" = "详细";
+"overview_layout_compact" = "提供商、指标和使用量条";
+"overview_layout_provider_bars" = "提供商和使用量条";
+"overview_layout_bars_only" = "仅使用量条";
+"overview_compact_no_bars" = "无使用量条";
 "configure" = "配置…";
 "overview_enable_merge_icons_hint" = "启用“合并图标”以配置“概览”标签中的提供商。";
 "overview_no_providers_hint" = "“概览”中没有可用的已启用提供商。";

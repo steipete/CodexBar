@@ -613,6 +613,13 @@
 "multi_account_layout_segmented" = "セグメント";
 "multi_account_layout_stacked" = "スタック";
 "overview_tab_providers_title" = "概要タブのプロバイダ";
+"overview_layout_title" = "概要のレイアウト";
+"overview_layout_subtitle" = "概要に表示する情報量を選択します。";
+"overview_layout_detailed" = "詳細";
+"overview_layout_compact" = "プロバイダー、指標、バー";
+"overview_layout_provider_bars" = "プロバイダーとバー";
+"overview_layout_bars_only" = "バーのみ";
+"overview_compact_no_bars" = "使用量バーはありません";
 "configure" = "設定…";
 "overview_enable_merge_icons_hint" = "概要タブのプロバイダを設定するには「アイコンを統合」を有効にしてください。";
 "overview_no_providers_hint" = "概要に使用できる有効なプロバイダがありません。";

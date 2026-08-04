@@ -2,6 +2,20 @@ import AppKit
 import CodexBarCore
 import SwiftUI
 
+extension View {
+    func usageMenuCardProviderTitleStyle() -> some View {
+        self
+            .font(.headline)
+            .fontWeight(.semibold)
+    }
+
+    func usageMenuCardMetricTitleStyle() -> some View {
+        self
+            .font(.body)
+            .fontWeight(.medium)
+    }
+}
+
 /// SwiftUI card used inside the NSMenu to mirror Apple's rich menu panels.
 struct UsageMenuCardView: View {
     struct Model {
@@ -187,7 +201,7 @@ struct UsageMenuCardView: View {
     @Environment(\.menuItemHighlighted) private var isHighlighted
     @Environment(\.menuCardRefreshMonitor) private var refreshMonitor
 
-    static func popupMetricTitle(provider: UsageProvider, metric: Model.Metric) -> String {
+    nonisolated static func popupMetricTitle(provider: UsageProvider, metric: Model.Metric) -> String {
         if provider == .openrouter, metric.id == "primary" {
             return L("API key limit")
         }
@@ -311,8 +325,8 @@ private struct UsageMenuCardHeaderView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: UsageMenuCardLayout.headerLineSpacing) {
             HStack(alignment: .firstTextBaseline, spacing: UsageMenuCardLayout.headerColumnSpacing) {
-                Text(self.model.providerName).font(.headline)
-                    .fontWeight(.semibold)
+                Text(self.model.providerName)
+                    .usageMenuCardProviderTitleStyle()
                     .lineLimit(1).truncationMode(.tail).layoutPriority(1)
                 Spacer()
                 Text(self.model.email).font(.subheadline)
@@ -656,7 +670,7 @@ private struct UsageMenuCardUsageContentView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: UsageMenuCardLayout.metricSpacing) {
             if let split = self.doubaoSplitMetrics {
                 if !split.coding.isEmpty {
                     self.groupHeader("Coding Plan")

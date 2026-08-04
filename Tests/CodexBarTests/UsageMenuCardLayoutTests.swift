@@ -9,7 +9,8 @@ struct UsageMenuCardLayoutTests {
     private static let heightTolerance: CGFloat = 1
 
     @Test
-    func `overview groups provider content without section dividers`() {
+    func `detailed overview separates provider header without inner usage dividers`() {
+        #expect(OverviewMenuCardRowView.showsHeaderDivider)
         #expect(OverviewMenuCardRowView.showsSectionDividers == false)
     }
 

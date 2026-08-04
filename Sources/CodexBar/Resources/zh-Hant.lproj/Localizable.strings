@@ -615,6 +615,13 @@
 "multi_account_layout_segmented" = "分段";
 "multi_account_layout_stacked" = "堆疊";
 "overview_tab_providers_title" = "概覽標籤提供者";
+"overview_layout_title" = "概覽版面";
+"overview_layout_subtitle" = "選擇「概覽」顯示的資訊量。";
+"overview_layout_detailed" = "詳細";
+"overview_layout_compact" = "供應商、指標與用量列";
+"overview_layout_provider_bars" = "供應商與用量列";
+"overview_layout_bars_only" = "僅用量列";
+"overview_compact_no_bars" = "沒有用量列";
 "configure" = "設定…";
 "overview_enable_merge_icons_hint" = "啟用「合併圖示」以設定「概覽」標籤中的提供者。";
 "overview_no_providers_hint" = "「概覽」中沒有可用的已啟用提供者。";

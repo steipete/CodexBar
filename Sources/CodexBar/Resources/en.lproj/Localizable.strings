@@ -599,6 +599,13 @@
 "multi_account_layout_segmented" = "Segmented";
 "multi_account_layout_stacked" = "Stacked";
 "overview_tab_providers_title" = "Overview providers";
+"overview_layout_title" = "Overview layout";
+"overview_layout_subtitle" = "Choose how much information Overview shows.";
+"overview_layout_detailed" = "Detailed";
+"overview_layout_compact" = "Providers, metrics & bars";
+"overview_layout_provider_bars" = "Providers & bars";
+"overview_layout_bars_only" = "Bars only";
+"overview_compact_no_bars" = "No usage bars";
 "configure" = "Configure…";
 "overview_enable_merge_icons_hint" = "Turn on Merge icons to configure Overview providers.";
 "overview_no_providers_hint" = "No enabled providers available for Overview.";

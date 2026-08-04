@@ -1,6 +1,15 @@
 import AppKit
 import SwiftUI
 
+enum MenuCardItemSizing {
+    static let baseHeightPadding: CGFloat = 6
+    static let descenderSafety: CGFloat = 1
+
+    static var measuredHeightPadding: CGFloat {
+        self.baseHeightPadding + self.descenderSafety
+    }
+}
+
 extension StatusItemController {
     func refreshMenuCardHeights(in menu: NSMenu) {
         let width = self.renderedMenuWidth(for: menu)
@@ -30,10 +39,15 @@ extension StatusItemController {
         heightCacheScope: String? = nil,
         heightCacheFingerprint: String? = nil,
         submenu: NSMenu? = nil,
+        showsSubmenuIndicator: Bool = true,
         submenuIndicatorAlignment: Alignment = .topTrailing,
         submenuIndicatorTopPadding: CGFloat = 8,
         containsInteractiveControls: Bool = false,
         usesGPUSelection: Bool = false,
+        layoutDirection: LayoutDirection? = nil,
+        accessibilityLabel: String? = nil,
+        accessibilityUserInputLabels: [String]? = nil,
+        accessibilityHelp: String? = nil,
         onClick: (() -> Void)? = nil) -> NSMenuItem
     {
         let allowsMenuHighlight = submenu != nil || onClick != nil
@@ -54,12 +68,16 @@ extension StatusItemController {
         // standard and GPU-selection payloads in place instead of detaching `item.view`.
         let payload = MenuCardRowPayload(
             content: AnyView(view),
-            showsSubmenuIndicator: submenu != nil,
+            showsSubmenuIndicator: showsSubmenuIndicator && submenu != nil,
             submenuIndicatorAlignment: submenuIndicatorAlignment,
             submenuIndicatorTopPadding: submenuIndicatorTopPadding,
             allowsMenuHighlight: allowsMenuHighlight,
             containsInteractiveControls: containsInteractiveControls,
             usesGPUSelection: usesGPUSelection,
+            layoutDirection: layoutDirection,
+            accessibilityLabel: accessibilityLabel,
+            accessibilityUserInputLabels: accessibilityUserInputLabels,
+            accessibilityHelp: accessibilityHelp,
             onClick: onClick)
         let hosting: ErasedMenuCardHostingView
         if let recycled = self.takeRecyclableMenuCardView(
@@ -113,15 +131,12 @@ extension StatusItemController {
     }
 
     private func menuCardHeight(for view: NSView, width: CGFloat) -> CGFloat {
-        let basePadding: CGFloat = 6
-        let descenderSafety: CGFloat = 1
-
         if let measured = view as? MenuCardMeasuring {
-            return max(1, ceil(measured.measuredHeight(width: width) + basePadding + descenderSafety))
+            return max(1, ceil(measured.measuredHeight(width: width) + MenuCardItemSizing.measuredHeightPadding))
         }
 
         view.frame = NSRect(origin: .zero, size: NSSize(width: width, height: 1))
         let fitted = view.fittingSize
-        return max(1, ceil(fitted.height + basePadding + descenderSafety))
+        return max(1, ceil(fitted.height + MenuCardItemSizing.measuredHeightPadding))
     }
 }

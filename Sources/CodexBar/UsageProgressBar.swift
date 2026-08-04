@@ -14,6 +14,7 @@ struct UsageProgressBar: View {
 
     private static let paceStripeCount = 3
     private static let stripePunchOpacity = 0.9
+    nonisolated static let defaultHeight: CGFloat = 6
 
     private nonisolated static var warningMarkerPunchWidth: CGFloat {
         5
@@ -39,6 +40,7 @@ struct UsageProgressBar: View {
     let paceOnTop: Bool
     let warningMarkerPercents: [Double]
     let workdayMarkerPercents: [Double]
+    let height: CGFloat
     @Environment(\.menuItemHighlighted) private var isHighlighted
     @Environment(\.displayScale) private var displayScale
 
@@ -49,7 +51,8 @@ struct UsageProgressBar: View {
         pacePercent: Double? = nil,
         paceOnTop: Bool = true,
         warningMarkerPercents: [Double] = [],
-        workdayMarkerPercents: [Double] = [])
+        workdayMarkerPercents: [Double] = [],
+        height: CGFloat = Self.defaultHeight)
     {
         self.percent = percent
         self.tint = tint
@@ -58,6 +61,7 @@ struct UsageProgressBar: View {
         self.paceOnTop = paceOnTop
         self.warningMarkerPercents = warningMarkerPercents
         self.workdayMarkerPercents = workdayMarkerPercents
+        self.height = height
     }
 
     private var clamped: Double {
@@ -154,7 +158,7 @@ struct UsageProgressBar: View {
                 context.fill(stripes.center.applying(shift), with: .color(stripeColor))
             }
         }
-        .frame(height: 6)
+        .frame(height: self.height)
         .accessibilityLabel(self.accessibilityLabel)
         .accessibilityValue(self.markerAccessibilityValue)
     }

@@ -616,6 +616,13 @@
 "multi_account_layout_segmented" = "Сегментований";
 "multi_account_layout_stacked" = "складені";
 "overview_tab_providers_title" = "Постачальники вкладок огляду";
+"overview_layout_title" = "Компонування огляду";
+"overview_layout_subtitle" = "Виберіть, скільки інформації показувати в огляді.";
+"overview_layout_detailed" = "Докладно";
+"overview_layout_compact" = "Провайдери, показники й смуги";
+"overview_layout_provider_bars" = "Провайдери й смуги";
+"overview_layout_bars_only" = "Лише смуги";
+"overview_compact_no_bars" = "Немає смуг використання";
 "configure" = "Налаштувати…";
 "overview_enable_merge_icons_hint" = "Увімкніть Merge Icons, щоб налаштувати постачальників вкладок «Огляд».";
 "overview_no_providers_hint" = "Немає активованих постачальників, доступних для огляду.";
