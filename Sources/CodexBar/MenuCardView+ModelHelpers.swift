@@ -860,9 +860,13 @@ extension UsageMenuCardView.Model {
         percentStyle: PercentStyle) -> [Metric]
     {
         guard input.provider == .copilot, let credits = snapshot.copilotCredits else { return [] }
+        // A user in multiple orgs would otherwise silently see org #1's numbers with no indication
+        // of which org the row describes, so parenthesize the login the same way other providers
+        // qualify a row title (see the `.doubao` team-title pattern below).
+        let orgTitle = credits.orgLogin.map { "\(L("Org credits")) (\($0))" } ?? L("Org credits")
         return [
             (id: "copilot-seat-credits", title: L("AI credits"), lane: credits.seat),
-            (id: "copilot-org-credits", title: L("Org credits"), lane: credits.org),
+            (id: "copilot-org-credits", title: orgTitle, lane: credits.org),
         ].compactMap { entry in
             guard let lane = entry.lane else { return nil }
             return Self.copilotCreditMetric(

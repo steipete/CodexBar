@@ -162,6 +162,26 @@ struct CopilotMenuCardModelTests {
     }
 
     @Test
+    func `org credit row title includes the org login`() throws {
+        let model = try self.makeModel(credits: CopilotCreditsUsage(
+            seat: nil,
+            org: CopilotCreditsUsage.Lane(creditsUsed: 81, entitlement: 6000, resetsAt: nil),
+            orgLogin: "acme-corp"))
+        let metric = try #require(model.metrics.first { $0.id == "copilot-org-credits" })
+        #expect(metric.title == "Org credits (acme-corp)")
+    }
+
+    @Test
+    func `org credit row title falls back without an org login`() throws {
+        let model = try self.makeModel(credits: CopilotCreditsUsage(
+            seat: nil,
+            org: CopilotCreditsUsage.Lane(creditsUsed: 81, entitlement: 6000, resetsAt: nil),
+            orgLogin: nil))
+        let metric = try #require(model.metrics.first { $0.id == "copilot-org-credits" })
+        #expect(metric.title == "Org credits")
+    }
+
+    @Test
     func `credit rows are absent without credit data`() throws {
         let model = try self.makeModel(credits: nil)
         #expect(model.metrics.contains { $0.id.hasSuffix("-credits") } == false)
