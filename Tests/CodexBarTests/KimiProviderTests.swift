@@ -851,6 +851,8 @@ struct KimiUsageResponseParsingTests {
           ]
         }
         """
+        // Keep the cancellation-ignoring request slower than the scaled wall-clock guard.
+        let subscriptionDelaySeconds = 0.5 * TestTimingBudget.slowdownFactor
         let transport = ProviderHTTPTransportHandler { request in
             let url = try #require(request.url)
             let response = try #require(HTTPURLResponse(
@@ -867,7 +869,7 @@ struct KimiUsageResponseParsingTests {
             }
 
             return await withCheckedContinuation { continuation in
-                DispatchQueue.global().asyncAfter(deadline: .now() + 0.5) {
+                DispatchQueue.global().asyncAfter(deadline: .now() + subscriptionDelaySeconds) {
                     continuation.resume(returning: (Data("{}".utf8), response))
                 }
             }
@@ -885,10 +887,12 @@ struct KimiUsageResponseParsingTests {
         #expect(usage.primary?.windowMinutes == KimiProviderDescriptor.weeklyWindowMinutes)
         #expect(usage.secondary?.usedPercent == 25)
         #expect(usage.extraRateWindows == nil)
-        #expect(elapsed < .milliseconds(250), "Subscription enrichment outlived its total budget: \(elapsed)")
+        #expect(
+            elapsed < TestTimingBudget.scaled(.milliseconds(250)),
+            "Subscription enrichment outlived its total budget: \(elapsed)")
 
         // Drain the deliberately cancellation-ignoring test request before the test exits.
-        try await Task.sleep(for: .milliseconds(550))
+        try await Task.sleep(for: TestTimingBudget.scaled(.milliseconds(550)))
     }
 
     @Test
