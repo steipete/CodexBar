@@ -14,8 +14,9 @@ struct PerplexityPromoExpiryLocaleTests {
 
     @Test
     func `promo expiry renders an English month regardless of host locale`() {
-        // 2026-01-01T00:00:00Z, rendered in the formatter's own time zone.
-        let expiry = Date(timeIntervalSince1970: 1_767_225_600)
+        // 2026-01-15T12:00:00Z. The formatter keeps the host time zone, so this sits far enough from both
+        // month boundaries to stay in January from UTC-12 through UTC+14.
+        let expiry = Date(timeIntervalSince1970: 1_768_478_400)
         let rendered = PerplexityUsageSnapshot.promoExpiryFormatter.string(from: expiry)
 
         #expect(rendered.hasPrefix("Jan"))
