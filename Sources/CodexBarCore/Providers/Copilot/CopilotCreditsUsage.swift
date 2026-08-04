@@ -52,6 +52,14 @@ public struct CopilotCreditsUsage: Codable, Equatable, Sendable {
             org: Lane(creditsUsed: creditsUsed, entitlement: entitlement, resetsAt: resetsAt),
             orgLogin: self.orgLogin)
     }
+
+    /// Returns a copy with the organization lane removed, preserving the seat lane and org login.
+    ///
+    /// Used when the org-credits toggle is turned off: a stale org lane must not keep rendering for
+    /// a disabled feature just because the next refresh failed (offline, token lost org access, 401).
+    public func clearingOrgLane() -> CopilotCreditsUsage {
+        CopilotCreditsUsage(seat: self.seat, org: nil, orgLogin: self.orgLogin)
+    }
 }
 
 /// Parses the user-entered credit allowance from settings.

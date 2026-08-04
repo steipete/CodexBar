@@ -300,6 +300,10 @@ public struct UsageSnapshot: Codable, Sendable {
         self.replacing(extraRateWindows: .value(extraRateWindows))
     }
 
+    public func with(copilotCredits: CopilotCreditsUsage?) -> UsageSnapshot {
+        self.replacing(copilotCredits: .value(copilotCredits))
+    }
+
     public func withCodexResetCredits(_ resetCredits: CodexRateLimitResetCreditsSnapshot?) -> UsageSnapshot {
         self.replacing(codexResetCredits: .value(resetCredits))
     }

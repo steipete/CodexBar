@@ -95,8 +95,12 @@ struct CopilotProviderImplementation: ProviderImplementation {
                 statusText: { nil },
                 actions: [],
                 isVisible: nil,
-                onChange: { _ in
-                    await context.store.refreshProvider(.copilot, allowDisabled: true)
+                onChange: { enabled in
+                    if enabled {
+                        await context.store.refreshProvider(.copilot, allowDisabled: true)
+                    } else {
+                        context.store.clearCopilotOrgCredits()
+                    }
                 },
                 onAppDidBecomeActive: nil,
                 onAppearWhenEnabled: nil),

@@ -335,6 +335,64 @@ struct UsageStoreCoverageTests {
     }
 
     @Test
+    func `clearing copilot org credits syncs reset baseline`() {
+        let settings = Self.makeSettingsStore(suite: "UsageStoreCoverageTests-copilot-org-credits-clear")
+        let store = Self.makeUsageStore(settings: settings)
+        let liveCredits = CopilotCreditsUsage(
+            seat: CopilotCreditsUsage.Lane(creditsUsed: 31, entitlement: 3000, resetsAt: nil),
+            org: CopilotCreditsUsage.Lane(creditsUsed: 81, entitlement: 6000, resetsAt: nil),
+            orgLogin: "example-org")
+        let resetCredits = CopilotCreditsUsage(
+            seat: CopilotCreditsUsage.Lane(creditsUsed: 20, entitlement: 3000, resetsAt: nil),
+            org: CopilotCreditsUsage.Lane(creditsUsed: 40, entitlement: 6000, resetsAt: nil),
+            orgLogin: "example-org")
+        let live = Self.makeCopilotSnapshot(usedPercent: 20, extraRateWindows: nil, copilotCredits: liveCredits)
+        let resetBaseline = Self.makeCopilotSnapshot(
+            usedPercent: 10,
+            extraRateWindows: nil,
+            copilotCredits: resetCredits)
+        store._setSnapshotForTesting(live, provider: .copilot)
+        store.lastKnownResetSnapshots[.copilot] = resetBaseline
+
+        store.clearCopilotOrgCredits()
+
+        #expect(store.snapshot(for: .copilot)?.copilotCredits?.org == nil)
+        #expect(store.snapshot(for: .copilot)?.copilotCredits?.seat?.creditsUsed == 31)
+        #expect(store.snapshot(for: .copilot)?.copilotCredits?.orgLogin == "example-org")
+        #expect(store.lastKnownResetSnapshots[.copilot]?.copilotCredits?.org == nil)
+        #expect(store.lastKnownResetSnapshots[.copilot]?.copilotCredits?.seat?.creditsUsed == 31)
+    }
+
+    @Test
+    func `clearing copilot org credits also clears stale reset baseline`() {
+        let settings = Self.makeSettingsStore(suite: "UsageStoreCoverageTests-copilot-org-credits-reset-clear")
+        let store = Self.makeUsageStore(settings: settings)
+        let liveCredits = CopilotCreditsUsage(
+            seat: CopilotCreditsUsage.Lane(creditsUsed: 31, entitlement: 3000, resetsAt: nil),
+            org: nil,
+            orgLogin: "example-org")
+        let resetCredits = CopilotCreditsUsage(
+            seat: CopilotCreditsUsage.Lane(creditsUsed: 20, entitlement: 3000, resetsAt: nil),
+            org: CopilotCreditsUsage.Lane(creditsUsed: 40, entitlement: 6000, resetsAt: nil),
+            orgLogin: "example-org")
+        let live = Self.makeCopilotSnapshot(usedPercent: 20, extraRateWindows: nil, copilotCredits: liveCredits)
+        let resetBaseline = Self.makeCopilotSnapshot(
+            usedPercent: 10,
+            extraRateWindows: nil,
+            copilotCredits: resetCredits)
+        store._setSnapshotForTesting(live, provider: .copilot)
+        store.lastKnownResetSnapshots[.copilot] = resetBaseline
+
+        store.clearCopilotOrgCredits()
+
+        // The live snapshot already had no org lane, so it is untouched...
+        #expect(store.snapshot(for: .copilot)?.copilotCredits?.seat?.creditsUsed == 31)
+        // ...but the stale reset baseline's org lane must not survive either.
+        #expect(store.lastKnownResetSnapshots[.copilot]?.copilotCredits?.org == nil)
+        #expect(store.lastKnownResetSnapshots[.copilot]?.copilotCredits?.seat?.creditsUsed == 20)
+    }
+
+    @Test
     func `permission prompt errors are detected for notifications`() {
         let errors: [LocalizedTestError] = [
             LocalizedTestError("Waiting for folder trust prompt"),
@@ -1067,12 +1125,14 @@ extension UsageStoreCoverageTests {
 
     private static func makeCopilotSnapshot(
         usedPercent: Double,
-        extraRateWindows: [NamedRateWindow]?) -> UsageSnapshot
+        extraRateWindows: [NamedRateWindow]?,
+        copilotCredits: CopilotCreditsUsage? = nil) -> UsageSnapshot
     {
         UsageSnapshot(
             primary: RateWindow(usedPercent: usedPercent, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
             secondary: nil,
             extraRateWindows: extraRateWindows,
+            copilotCredits: copilotCredits,
             updatedAt: Date(timeIntervalSince1970: 1_780_358_400))
     }
 
