@@ -6,6 +6,7 @@ public enum QoderProviderDescriptor {
     static func makeDescriptor() -> ProviderDescriptor {
         ProviderDescriptor(
             id: .qoder,
+            settingsSection: .init(QoderProviderSettingsKey.self),
             metadata: ProviderMetadata(
                 id: .qoder,
                 displayName: "Qoder",

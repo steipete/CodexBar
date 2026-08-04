@@ -6,6 +6,7 @@ public enum KiloProviderDescriptor {
     static func makeDescriptor() -> ProviderDescriptor {
         ProviderDescriptor(
             id: .kilo,
+            settingsSection: .init(KiloProviderSettingsKey.self),
             metadata: ProviderMetadata(
                 id: .kilo,
                 displayName: "Kilo",

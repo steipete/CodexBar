@@ -122,9 +122,14 @@ struct ProviderRegistry {
             tokenOverride: tokenOverride,
             codexActiveSourceOverride: codexActiveSourceOverride)
         for implementation in ProviderCatalog.all {
-            if let contribution = implementation.settingsSnapshot(context: context) {
-                builder.apply(contribution)
+            let registration = ProviderDescriptorRegistry.descriptor(for: implementation.id).settingsSection
+            guard let contribution = implementation.settingsSnapshot(context: context) else {
+                preconditionFailure("Missing settings snapshot section for provider '\(implementation.id.rawValue)'")
             }
+            guard registration.accepts(contribution) else {
+                preconditionFailure("Mismatched settings snapshot section for provider '\(implementation.id.rawValue)'")
+            }
+            builder.apply(contribution)
         }
         return builder.build()
     }

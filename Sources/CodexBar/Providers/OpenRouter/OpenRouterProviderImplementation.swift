@@ -17,12 +17,6 @@ struct OpenRouterProviderImplementation: ProviderImplementation {
     }
 
     @MainActor
-    func settingsSnapshot(context: ProviderSettingsSnapshotContext) -> ProviderSettingsSnapshotContribution? {
-        _ = context
-        return nil
-    }
-
-    @MainActor
     func isAvailable(context: ProviderAvailabilityContext) -> Bool {
         if OpenRouterSettingsReader.apiToken(environment: context.environment) != nil {
             return true

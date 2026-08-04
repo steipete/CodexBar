@@ -6,6 +6,7 @@ public enum AmpProviderDescriptor {
     static func makeDescriptor() -> ProviderDescriptor {
         ProviderDescriptor(
             id: .amp,
+            settingsSection: .init(AmpProviderSettingsKey.self),
             metadata: ProviderMetadata(
                 id: .amp,
                 displayName: "Amp",

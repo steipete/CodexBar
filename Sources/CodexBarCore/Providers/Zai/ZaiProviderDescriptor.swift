@@ -6,6 +6,7 @@ public enum ZaiProviderDescriptor {
     static func makeDescriptor() -> ProviderDescriptor {
         ProviderDescriptor(
             id: .zai,
+            settingsSection: .init(ZaiProviderSettingsKey.self),
             metadata: ProviderMetadata(
                 id: .zai,
                 displayName: "z.ai / GLM",

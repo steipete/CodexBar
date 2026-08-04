@@ -24,6 +24,33 @@ struct ProviderArchitectureGatekeeperTests {
     }
 
     @Test
+    func `every provider can produce and read its registered settings section`() {
+        let settings = testSettingsStore(suiteName: "ProviderArchitectureGatekeeperTests-settings-sections")
+        let context = ProviderSettingsSnapshotContext(settings: settings, tokenOverride: nil)
+        var builder = ProviderSettingsSnapshotBuilder()
+
+        for implementation in ProviderImplementationRegistry.all {
+            let providerName = implementation.id.rawValue
+            let registration = ProviderDescriptorRegistry.descriptor(for: implementation.id).settingsSection
+            guard let contribution = implementation.settingsSnapshot(context: context) else {
+                Issue.record("Missing settings-section contribution for provider '\(providerName)'.")
+                continue
+            }
+            #expect(
+                registration.accepts(contribution),
+                "Settings-section registration does not match provider '\(providerName)'.")
+            builder.apply(contribution)
+        }
+
+        let snapshot = builder.build()
+        for descriptor in ProviderDescriptorRegistry.all {
+            #expect(
+                descriptor.settingsSection.canRead(from: snapshot),
+                "Could not read settings section for provider '\(descriptor.id.rawValue)'.")
+        }
+    }
+
+    @Test
     func `every provider descriptor has a loadable SVG resource`() throws {
         let resources = try Self.repoRoot()
             .appending(path: "Sources/CodexBar/Resources", directoryHint: .isDirectory)

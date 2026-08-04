@@ -6,6 +6,7 @@ public enum StepFunProviderDescriptor {
     static func makeDescriptor() -> ProviderDescriptor {
         ProviderDescriptor(
             id: .stepfun,
+            settingsSection: .init(StepFunProviderSettingsKey.self),
             metadata: ProviderMetadata(
                 id: .stepfun,
                 displayName: "StepFun",

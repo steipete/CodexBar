@@ -6,6 +6,7 @@ public enum ZoomMateProviderDescriptor {
     static func makeDescriptor() -> ProviderDescriptor {
         ProviderDescriptor(
             id: .zoommate,
+            settingsSection: .init(ZoomMateProviderSettingsKey.self),
             metadata: ProviderMetadata(
                 id: .zoommate,
                 displayName: "ZoomMate",

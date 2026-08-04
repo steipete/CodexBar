@@ -6,6 +6,7 @@ public enum CodexProviderDescriptor {
     static func makeDescriptor() -> ProviderDescriptor {
         ProviderDescriptor(
             id: .codex,
+            settingsSection: .init(CodexProviderSettingsKey.self),
             metadata: ProviderMetadata(
                 id: .codex,
                 displayName: "Codex",

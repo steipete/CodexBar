@@ -16,6 +16,7 @@ public enum QwenCloudProviderDescriptor {
 
         return ProviderDescriptor(
             id: .qwencloud,
+            settingsSection: .init(QwenCloudProviderSettingsKey.self),
             metadata: ProviderMetadata(
                 id: .qwencloud,
                 displayName: "Qwen Cloud",

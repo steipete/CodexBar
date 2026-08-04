@@ -6,6 +6,7 @@ public enum LongCatProviderDescriptor {
     static func makeDescriptor() -> ProviderDescriptor {
         ProviderDescriptor(
             id: .longcat,
+            settingsSection: .init(LongCatProviderSettingsKey.self),
             metadata: ProviderMetadata(
                 id: .longcat,
                 displayName: "LongCat",

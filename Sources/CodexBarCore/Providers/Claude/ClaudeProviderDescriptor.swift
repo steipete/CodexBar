@@ -6,6 +6,7 @@ public enum ClaudeProviderDescriptor {
     static func makeDescriptor() -> ProviderDescriptor {
         ProviderDescriptor(
             id: .claude,
+            settingsSection: .init(ClaudeProviderSettingsKey.self),
             metadata: ProviderMetadata(
                 id: .claude,
                 displayName: "Claude",

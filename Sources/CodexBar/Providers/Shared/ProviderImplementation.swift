@@ -160,7 +160,7 @@ extension ProviderImplementation {
 
     @MainActor
     func settingsSnapshot(context _: ProviderSettingsSnapshotContext) -> ProviderSettingsSnapshotContribution? {
-        nil
+        ProviderDescriptorRegistry.descriptor(for: self.id).settingsSection.defaultContribution
     }
 
     @MainActor

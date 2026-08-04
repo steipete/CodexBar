@@ -11,6 +11,7 @@ public enum NotionProviderDescriptor {
     static func makeDescriptor() -> ProviderDescriptor {
         ProviderDescriptor(
             id: .notion,
+            settingsSection: .init(NotionProviderSettingsKey.self),
             metadata: ProviderMetadata(
                 id: .notion,
                 displayName: "Notion AI",

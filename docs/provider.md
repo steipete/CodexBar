@@ -43,6 +43,12 @@ Provider behavior is descriptor-driven. Two flat first-party manifests form the 
 `ProviderManifest` lists core descriptors and `ProviderImplementationManifest` lists app implementations. The registries
 retain thread-safe `register(_:)` methods for future dynamic providers.
 
+Runtime settings follow the same boundary. A provider owns its `ProviderSettingsSectionKey` and section payload in its
+core folder, registers that key on its descriptor, and contributes the payload from its app implementation. The generic
+`ProviderSettingsSnapshot` container performs the sole type-erased cast behind its constrained subscript; provider-local
+accessors keep fetch strategies fully typed. Providers that share a payload type still declare a distinct key for each
+`ProviderInstanceID`, while providers with no runtime settings receive an empty section from the descriptor default.
+
 ## Provider descriptor (source of truth)
 
 Introduce a single descriptor per provider:
@@ -189,6 +195,10 @@ The mandatory registration checklist is intentionally short:
 6. Add one implementation factory line to `ProviderImplementationManifest.makeImplementations`.
 7. Add one case to the WidgetKit `ProviderChoice` `AppEnum`. New descriptors are widget-selectable by default; set
    `widgetSelectable: false` in the provider's descriptor only when the provider genuinely cannot appear in widgets.
+
+If the provider has runtime settings, add its section key and payload beside the descriptor, pass the key as the
+descriptor's `settingsSection`, and return a typed contribution from the app implementation. No central settings file
+or builder switch changes are needed.
 
 Everything else is derived from the descriptor: icon-style identity, log-category construction, display and compact
 labels, default enablement, fetch/CLI metadata, icon validation, and widget display representations. The provider

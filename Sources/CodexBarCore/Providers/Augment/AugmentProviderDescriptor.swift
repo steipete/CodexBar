@@ -30,6 +30,7 @@ public enum AugmentProviderDescriptor {
 
         return ProviderDescriptor(
             id: .augment,
+            settingsSection: .init(AugmentProviderSettingsKey.self),
             metadata: ProviderMetadata(
                 id: .augment,
                 displayName: "Augment",

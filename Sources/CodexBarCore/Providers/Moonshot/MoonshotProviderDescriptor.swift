@@ -6,6 +6,7 @@ public enum MoonshotProviderDescriptor {
     static func makeDescriptor() -> ProviderDescriptor {
         ProviderDescriptor(
             id: .moonshot,
+            settingsSection: .init(MoonshotProviderSettingsKey.self),
             metadata: ProviderMetadata(
                 id: .moonshot,
                 displayName: "Moonshot / Kimi Open Platform",

@@ -6,6 +6,7 @@ public enum WindsurfProviderDescriptor {
     static func makeDescriptor() -> ProviderDescriptor {
         ProviderDescriptor(
             id: .windsurf,
+            settingsSection: .init(WindsurfProviderSettingsKey.self),
             metadata: ProviderMetadata(
                 id: .windsurf,
                 displayName: "Windsurf",

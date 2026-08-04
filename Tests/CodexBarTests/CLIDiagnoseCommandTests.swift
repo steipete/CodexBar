@@ -30,28 +30,11 @@ struct CLIDiagnoseCommandTests {
     }
 
     private func makeSettingsWithMiniMaxCookie(_ manualCookieHeader: String) -> ProviderSettingsSnapshot {
-        ProviderSettingsSnapshot(
-            debugMenuEnabled: false,
-            debugKeepCLISessionsAlive: false,
-            codex: nil,
-            claude: nil,
-            cursor: nil,
-            opencode: nil,
-            opencodego: nil,
-            alibaba: nil,
-            factory: nil,
+        ProviderSettingsSnapshot.make(
             minimax: ProviderSettingsSnapshot.MiniMaxProviderSettings(
                 cookieSource: .manual,
                 manualCookieHeader: manualCookieHeader,
-                apiRegion: .global),
-            manus: nil,
-            zai: nil,
-            copilot: nil,
-            kilo: nil,
-            kimi: nil,
-            augment: nil,
-            amp: nil,
-            ollama: nil)
+                apiRegion: .global))
     }
 
     @Test

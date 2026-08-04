@@ -22,6 +22,7 @@ read_when:
 ## Data flow
 - Background refresh → `UsageFetcher`/provider probes → `UsageStore` → menu/icon/widgets.
 - Settings toggles feed `SettingsStore` → `UsageStore` refresh cadence + feature flags.
+- Runtime-only provider settings flow through typed, descriptor-registered sections in `ProviderSettingsSnapshot`.
 
 ## Concurrency & platform
 - Swift 6 strict concurrency enabled; prefer Sendable state and explicit MainActor hops.

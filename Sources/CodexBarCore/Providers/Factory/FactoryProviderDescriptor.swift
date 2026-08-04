@@ -6,6 +6,7 @@ public enum FactoryProviderDescriptor {
     static func makeDescriptor() -> ProviderDescriptor {
         ProviderDescriptor(
             id: .factory,
+            settingsSection: .init(FactoryProviderSettingsKey.self),
             metadata: ProviderMetadata(
                 id: .factory,
                 displayName: "Droid",

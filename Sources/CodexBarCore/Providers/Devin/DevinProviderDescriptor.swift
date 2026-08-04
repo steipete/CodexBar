@@ -6,6 +6,7 @@ public enum DevinProviderDescriptor {
     static func makeDescriptor() -> ProviderDescriptor {
         ProviderDescriptor(
             id: .devin,
+            settingsSection: .init(DevinProviderSettingsKey.self),
             metadata: ProviderMetadata(
                 id: .devin,
                 displayName: "Devin",

@@ -6,6 +6,7 @@ public enum ManusProviderDescriptor {
     static func makeDescriptor() -> ProviderDescriptor {
         ProviderDescriptor(
             id: .manus,
+            settingsSection: .init(ManusProviderSettingsKey.self),
             metadata: ProviderMetadata(
                 id: .manus,
                 displayName: "Manus",

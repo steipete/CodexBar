@@ -24,6 +24,7 @@ public enum AlibabaCodingPlanProviderDescriptor {
 
         return ProviderDescriptor(
             id: .alibaba,
+            settingsSection: .init(AlibabaCodingPlanProviderSettingsKey.self),
             metadata: ProviderMetadata(
                 id: .alibaba,
                 displayName: "Alibaba",

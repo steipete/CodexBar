@@ -106,11 +106,13 @@ public struct ProviderDescriptor: Sendable {
     public let branding: ProviderBranding
     public let tokenCost: ProviderTokenCostConfig
     public let pace: ProviderPaceCapability
+    public let settingsSection: ProviderSettingsSectionRegistration
     public let fetchPlan: ProviderFetchPlan
     public let cli: ProviderCLIConfig
 
     public init(
         id: UsageProvider,
+        settingsSection: ProviderSettingsSectionRegistration? = nil,
         metadata: ProviderMetadata,
         branding: ProviderBranding,
         tokenCost: ProviderTokenCostConfig,
@@ -119,6 +121,7 @@ public struct ProviderDescriptor: Sendable {
         cli: ProviderCLIConfig)
     {
         self.id = id
+        self.settingsSection = settingsSection ?? .empty(for: id.instanceID)
         self.metadata = metadata
         self.branding = branding
         self.tokenCost = tokenCost

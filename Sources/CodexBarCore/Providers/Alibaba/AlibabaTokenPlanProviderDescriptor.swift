@@ -32,6 +32,7 @@ public enum AlibabaTokenPlanProviderDescriptor {
 
         return ProviderDescriptor(
             id: .alibabatokenplan,
+            settingsSection: .init(AlibabaTokenPlanProviderSettingsKey.self),
             metadata: ProviderMetadata(
                 id: .alibabatokenplan,
                 displayName: "Alibaba Token Plan",

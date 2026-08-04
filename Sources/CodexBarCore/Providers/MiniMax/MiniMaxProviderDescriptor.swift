@@ -6,6 +6,7 @@ public enum MiniMaxProviderDescriptor {
     static func makeDescriptor() -> ProviderDescriptor {
         ProviderDescriptor(
             id: .minimax,
+            settingsSection: .init(MiniMaxProviderSettingsKey.self),
             metadata: ProviderMetadata(
                 id: .minimax,
                 displayName: "MiniMax",
