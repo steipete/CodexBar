@@ -320,6 +320,46 @@ struct CopilotUsageFetcherTests {
     }
 
     @Test
+    func `fetch surfaces seat credits when token based billing is the only signal`() async throws {
+        // Isolates the `tokenBasedBilling` disjunct in the seat-lane gate: credits_used is zero, no
+        // snapshot carries `unlimited`, and no seatEntitlement is configured, so tokenBasedBilling is
+        // the only thing that can make the gate true. A Business account reporting zero credits early
+        // in the billing month is a real, common state, and the seat lane must still appear for it --
+        // that is this gate's entire purpose.
+        let transport = ProviderHTTPTransportStub { request in
+            let response = try HTTPURLResponse(
+                url: #require(request.url),
+                statusCode: 200,
+                httpVersion: "HTTP/1.1",
+                headerFields: ["Content-Type": "application/json"])!
+            let data = Data(
+                """
+                {
+                  "copilot_plan": "business",
+                  "token_based_billing": true,
+                  "quota_snapshots": {
+                    "premium_interactions": {
+                      "entitlement": 0, "remaining": 0, "percent_remaining": 100,
+                      "quota_id": "premium_interactions", "credits_used": 0
+                    }
+                  }
+                }
+                """.utf8)
+            return (data, response)
+        }
+
+        let usage = try await CopilotUsageFetcher(
+            token: "test-token-placeholder",
+            transport: transport)
+            .fetch()
+
+        #expect(usage.copilotCredits?.seat?.creditsUsed == 0)
+        #expect(usage.copilotCredits?.seat?.entitlement == nil)
+        #expect(usage.primary == nil)
+        #expect(usage.secondary == nil)
+    }
+
+    @Test
     func `fetch omits seat credits for metered accounts reporting zero credits`() async throws {
         // Regression guard: `credits_used: 0` on a NOT credit-billed snapshot must not grow a
         // permanent, unremovable "0 credits used" row on Copilot Pro/Individual seats.

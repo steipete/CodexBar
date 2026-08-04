@@ -103,6 +103,30 @@ struct CopilotOrgCreditsFetcherTests {
     }
 
     @Test
+    func `returns nil when usage items exist but none match the ai credits unit type`() async {
+        let transport = self.makeTransport(
+            statusCode: 200,
+            body: """
+            {
+              "timePeriod": { "year": 2026, "month": 8 },
+              "organization": "example-org",
+              "usageItems": [
+                { "product": "Copilot", "sku": "Copilot Seats",
+                  "unitType": "seats", "grossQuantity": 999 },
+                { "product": "Copilot", "sku": "Copilot Unknown", "grossQuantity": 12 }
+              ]
+            }
+            """)
+
+        let total = await CopilotOrgCreditsFetcher(
+            token: "test-token-placeholder",
+            transport: transport)
+            .fetchCreditsUsed(org: "example-org")
+
+        #expect(total == nil)
+    }
+
+    @Test
     func `encodes org names that contain path separators`() async throws {
         let transport = self.makeTransport(statusCode: 200, body: #"{"usageItems":[]}"#)
 

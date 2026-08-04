@@ -862,7 +862,7 @@ extension UsageMenuCardView.Model {
         guard input.provider == .copilot, let credits = snapshot.copilotCredits else { return [] }
         // A user in multiple orgs would otherwise silently see org #1's numbers with no indication
         // of which org the row describes, so parenthesize the login the same way other providers
-        // qualify a row title (see the `.doubao` team-title pattern below).
+        // qualify a row title (see the `.doubao` team-title pattern above).
         let orgTitle = credits.orgLogin.map { "\(L("Org credits")) (\($0))" } ?? L("Org credits")
         return [
             (id: "copilot-seat-credits", title: L("AI credits"), lane: credits.seat),

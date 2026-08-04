@@ -87,8 +87,23 @@ public struct CopilotOrgCreditsFetcher: Sendable {
             return nil
         }
 
-        return report.usageItems
-            .filter { $0.unitType == "ai-credits" }
-            .reduce(0) { $0 + ($1.grossQuantity ?? 0) }
+        guard !report.usageItems.isEmpty else {
+            // A genuinely empty usage list is a successful response reporting no usage this period.
+            return 0
+        }
+
+        let creditItems = report.usageItems.filter { $0.unitType == "ai-credits" }
+        guard !creditItems.isEmpty else {
+            // Usage items came back, but none matched the expected unit type -- that is data we
+            // could not interpret, not zero usage. If GitHub ever changes the unit-type spelling,
+            // returning 0 here would render a fabricated "0 credits used" (or a fabricated 0% bar
+            // against a configured entitlement) instead of surfacing the unrecognized response.
+            CodexBarLog.logger(LogCategories.providers).warning(
+                "Copilot org credits unavailable",
+                metadata: ["error": "no usage items matched unitType ai-credits"])
+            return nil
+        }
+
+        return creditItems.reduce(0) { $0 + ($1.grossQuantity ?? 0) }
     }
 }

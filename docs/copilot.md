@@ -56,6 +56,7 @@ Copilot uses GitHub OAuth device flow and the Copilot internal usage API for pri
    - Disabled by default. The Copilot provider's "Organization AI credits" setting must be enabled, and the seat's
      usage fetch must already have resolved an `organization_login_list` entry, before CodexBar calls this endpoint.
    - `GET https://api.github.com/orgs/{org}/settings/billing/ai_credit/usage`
+   - With an enterprise host, the API host is `api.<enterpriseHost>`.
    - Headers:
      - `Authorization: token <github_oauth_token>`
      - `Accept: application/json`
