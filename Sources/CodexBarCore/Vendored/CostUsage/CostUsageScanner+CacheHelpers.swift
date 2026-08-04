@@ -1056,6 +1056,29 @@ extension CostUsageScanner {
         return !(Set(cached.codexTurnIDs ?? []).isDisjoint(with: context.changedPriorityTurnIDs))
     }
 
+    static func isAppendSafeBufferedCodexForkResume(
+        metadata: CodexFileMetadata,
+        cached: CostUsageFileUsage) -> Bool
+    {
+        let startOffset = cached.parsedBytes ?? cached.size
+        guard cached.codexScanComplete != false,
+              cached.forkedFromId != nil,
+              cached.hasBufferedCodexForkRetryLines,
+              cached.codexJSONLResumeState == nil,
+              cached.codexScanFileId != nil,
+              cached.codexScanFileId == metadata.fileId,
+              startOffset > 0,
+              startOffset <= metadata.size,
+              cached.codexTokenIndexAnchor?.indexedBytes == startOffset
+        else { return false }
+        return cached.codexTokenIndexAnchor.map {
+            Self.codexTokenIndexAnchorMatches(
+                $0,
+                fileURL: URL(fileURLWithPath: metadata.path),
+                metadata: metadata)
+        } == true
+    }
+
     // swiftlint:disable:next function_body_length
     static func appendCodexFileIncrementIfPossible(
         input: CodexFileScanInput,
@@ -1088,15 +1111,13 @@ extension CostUsageScanner {
                     metadata: input.metadata)
             } == true
             && hasMatchingResumeOffset
-        let isBufferedForkRetry = cached.forkedFromId != nil
-            && cached.forkBaselineDependencyKey == nil
-            && cached.hasBufferedCodexForkRetryLines
-            && cached.codexScanFileId == input.metadata.fileId
-            && startOffset == input.metadata.size
+        let isBufferedForkResume = Self.isAppendSafeBufferedCodexForkResume(
+            metadata: input.metadata,
+            cached: cached)
         if cached.codexScanComplete == false, !isResumablePartial {
             return false
         }
-        if !isResumablePartial, !isBufferedForkRetry, try Self.codexFileIsSubagentThread(
+        if !isResumablePartial, !isBufferedForkResume, try Self.codexFileIsSubagentThread(
             fileURL: input.fileURL,
             checkCancellation: context.checkCancellation)
         {
@@ -1114,7 +1135,7 @@ extension CostUsageScanner {
         let canIncremental = startOffset > 0
             && startOffset <= input.metadata.size
             && (isResumablePartial
-                || isBufferedForkRetry
+                || isBufferedForkResume
                 || (input.metadata.size > cached.size
                     && initialCountedTotals != nil
                     && cached.forkedFromId == nil
@@ -1143,7 +1164,7 @@ extension CostUsageScanner {
             },
             inheritedTotalsResolver: context.resources.inheritedResolver.inheritedTotals(for:atOrBefore:),
             checkCancellation: context.checkCancellation)
-        if delta.forkedFromId != nil, !isResumablePartial, !isBufferedForkRetry {
+        if delta.forkedFromId != nil, !isResumablePartial, !isBufferedForkResume {
             return false
         }
         let migrated = Self.codexFileUsageWithCostCache(cached, context: context)
@@ -1212,7 +1233,7 @@ extension CostUsageScanner {
             priorityTurns: context.resources.priorityTurns,
             modelsDevCatalog: context.resources.modelsDevCatalog,
             modelsDevCacheRoot: context.resources.modelsDevCacheRoot)
-        let mergedTokenSnapshots = isBufferedForkRetry
+        let mergedTokenSnapshots = isBufferedForkResume && startOffset == input.metadata.size
             ? (migratedCached.codexTokenSnapshots ?? [])
             : (migratedCached.codexTokenSnapshots ?? []) + delta.tokenSnapshots
         cache.files[input.metadata.path] = Self.makeFileUsage(
@@ -1231,7 +1252,13 @@ extension CostUsageScanner {
             lastCodexTurnID: delta.lastCodexTurnID,
             sessionId: sessionId,
             forkedFromId: codexSession.forkedFromId ?? delta.forkedFromId ?? migratedCached.forkedFromId,
-            forkBaselineDependencyKey: forkBaselineDependencyKey ?? migratedCached.forkBaselineDependencyKey,
+            // A buffered fork replay can discover that its previous dependency is no longer
+            // usable while the replacement parent is still queued for this refresh. Preserve
+            // that nil so the post-parent retry runs; retaining the old missing-parent key would
+            // incorrectly mark the child reusable and leave its buffered usage unpublished.
+            forkBaselineDependencyKey: isBufferedForkResume
+                ? forkBaselineDependencyKey
+                : forkBaselineDependencyKey ?? migratedCached.forkBaselineDependencyKey,
             projectPath: projectPath,
             canonicalProjectPath: canonicalProjectPath,
             codexSession: codexSession.isEmpty ? nil : codexSession,

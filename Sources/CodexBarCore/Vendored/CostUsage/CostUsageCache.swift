@@ -2,9 +2,11 @@ import Foundation
 
 enum CostUsageCacheIO {
     /// Producer keys from older parser hashes whose caches are still valid under the current
-    /// delta semantics. Cleared for #2037: interleave containment changed how cumulative
-    /// totals are counted, so every earlier cache must be rebuilt.
-    private static let compatibleCodexProducerKeys: Set<String> = []
+    /// delta semantics. #2037 invalidated earlier keys; append-safe fork resume does not change
+    /// stored totals or cache layout, so its immediate predecessor remains reusable.
+    private static let compatibleCodexProducerKeys: Set<String> = [
+        "codex:cu:p843ca061c36bbea1",
+    ]
 
     /// Parsing and attribution changes rotate the Codex parser producer key.
     /// Increment this artifact version only when the stored schema or cache layout becomes incompatible.

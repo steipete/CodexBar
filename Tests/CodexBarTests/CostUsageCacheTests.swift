@@ -205,6 +205,29 @@ struct CostUsageCacheTests {
     }
 
     @Test
+    func `current codex cache accepts the append resume predecessor`() throws {
+        let root = try self.makeTemporaryCacheRoot()
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        var cache = CostUsageCache()
+        cache.lastScanUnixMs = 123
+        cache.days = ["2026-05-18": ["gpt-5.5": [1, 2, 3]]]
+        CostUsageCacheIO.save(
+            provider: .codex,
+            cache: cache,
+            cacheRoot: root,
+            producerKey: "codex:cu:p843ca061c36bbea1")
+
+        let loaded = CostUsageCacheIO.load(provider: .codex, cacheRoot: root)
+        let migration = CostUsageCacheIO.loadCodexForMigration(cacheRoot: root)
+
+        #expect(loaded.lastScanUnixMs == 123)
+        #expect(loaded.days["2026-05-18"]?["gpt-5.5"] == [1, 2, 3])
+        #expect(migration.cache.lastScanUnixMs == 123)
+        #expect(migration.incompatibleCache == nil)
+    }
+
+    @Test
     func `non codex cache does not require producer key`() throws {
         let root = try self.makeTemporaryCacheRoot()
         defer { try? FileManager.default.removeItem(at: root) }

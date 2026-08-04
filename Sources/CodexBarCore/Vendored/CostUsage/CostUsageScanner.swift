@@ -4255,13 +4255,9 @@ enum CostUsageScanner {
         // (forced full rescan, priority invalidation, fork-dependency drift, etc.), the scanner
         // will read the whole file — never report zero pending work in that case.
         guard let cached else { return max(0, metadata.size) }
-        if cached.forkedFromId != nil,
-           cached.forkBaselineDependencyKey == nil,
-           cached.hasBufferedCodexForkRetryLines,
-           cached.codexScanFileId == metadata.fileId,
-           cached.parsedBytes == metadata.size
-        {
-            return 0
+        if Self.isAppendSafeBufferedCodexForkResume(metadata: metadata, cached: cached) {
+            let startOffset = cached.parsedBytes ?? cached.size
+            return max(0, metadata.size - startOffset)
         }
         if cached.codexScanComplete == false {
             if cached.codexScanFileId != nil,
