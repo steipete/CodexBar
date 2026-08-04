@@ -43,5 +43,5 @@ read_when:
 - Each day's bucket also carries a per-model cost breakdown, read from each local assistant message's `modelID`
   (the real model behind the constant `opencode-go` Zen proxy `providerID`). This lets the shared Cost history
   chart show a per-model breakdown for OpenCode Go the same way it already does for Claude (see the "Cost usage"
-  section in [docs/CLAUDE.md](CLAUDE.md)). Rows with no `modelID` are grouped under an "unknown" bucket instead of
+  section in [docs/claude.md](claude.md)). Rows with no `modelID` are grouped under an "unknown" bucket instead of
   being dropped.
