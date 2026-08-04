@@ -67,7 +67,7 @@ struct SettingsStoreAdditionalTests {
         #expect(settings.menuBarMetricPreference(for: .zai) == .secondary)
 
         settings.setMenuBarMetricPreference(.tertiary, for: .zai)
-        #expect(settings.menuBarMetricPreference(for: .zai) == .tertiary)
+        #expect(settings.menuBarMetricPreference(for: .zai) == .automatic)
         #expect(settings.menuBarMetricPreference(for: .zai, snapshot: nil) == .automatic)
         #expect(settings.menuBarMetricSupportsTertiary(for: .zai, snapshot: nil) == false)
 

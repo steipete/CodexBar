@@ -1,3 +1,4 @@
+import CodexBarCore
 import Foundation
 
 extension UsageMenuCardView.Model {
@@ -22,6 +23,7 @@ extension UsageMenuCardView.Model {
             "codexResetCredits=\(self.codexResetCredits?.heightFingerprint ?? "")",
             "metrics=\(MenuCardHeightFingerprint.join(self.metrics.map(\.heightFingerprint)))",
             "notes=\(notesFingerprint)",
+            "providerDetails=\(self.providerDetails.heightFingerprint)",
             "dashboard=\(self.inlineUsageDashboard?.heightFingerprint ?? "")",
             "providerCost=\(self.providerCost?.heightFingerprint ?? "")",
             "tokenUsage=\(self.tokenUsage?.heightFingerprint ?? "")",
@@ -31,6 +33,31 @@ extension UsageMenuCardView.Model {
 
     static func heightFingerprintField(_ name: String, _ value: String?) -> String {
         MenuCardHeightFingerprint.field(name, value)
+    }
+}
+
+extension [ProviderDetailSection] {
+    fileprivate var heightFingerprint: String {
+        MenuCardHeightFingerprint.join(self.map { section in
+            MenuCardHeightFingerprint.join([
+                MenuCardHeightFingerprint.field("title", section.title),
+                MenuCardHeightFingerprint.join(section.rows.map { row in
+                    MenuCardHeightFingerprint.join([
+                        MenuCardHeightFingerprint.field("label", row.label),
+                        MenuCardHeightFingerprint.field("value", row.value),
+                        MenuCardHeightFingerprint.field("secondary", row.secondaryValue),
+                    ])
+                }),
+                section.chart.map { chart in
+                    MenuCardHeightFingerprint.join([
+                        chart.kind.rawValue,
+                        MenuCardHeightFingerprint.field("title", chart.title),
+                        MenuCardHeightFingerprint.field("unit", chart.unit),
+                        "points=\(chart.points.count)",
+                    ])
+                } ?? "chart=nil",
+            ])
+        })
     }
 }
 

@@ -35,13 +35,48 @@ public enum OpenAIAPIProviderDescriptor {
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: true,
                 noDataMessage: { "OpenAI usage needs an Admin API key for organization usage." }),
-            fetchPlan: ProviderFetchPlan(
-                sourceModes: [.auto, .api],
-                pipeline: ProviderFetchPipeline(resolveStrategies: { _ in [OpenAIAPIBalanceFetchStrategy()] })),
+            fetchPlan: self.fetchPlan(),
             cli: ProviderCLIConfig(
                 name: "openai",
                 aliases: ["openai-api"],
                 versionDetector: nil))
+    }
+
+    private static func fetchPlan() -> ProviderFetchPlan {
+        #if canImport(JavaScriptCore)
+        ProviderFetchPlan(
+            sourceModes: [.auto, .api],
+            pipeline: ProviderFetchPipeline(resolveStrategies: { context in
+                let swift = OpenAIAPIBalanceFetchStrategy()
+                guard ProviderPluginPrototype.isEnabled(environment: context.env) else { return [swift] }
+                return [
+                    ScriptFetchStrategy(
+                        id: "openai.js",
+                        provider: .openai,
+                        bundledPlugin: "openai",
+                        secretKey: OpenAIAPISettingsReader.apiKeyEnvironmentKey,
+                        resolveValues: { context in
+                            guard let credential = OpenAIAPIUsageCredential(environment: context.env)
+                            else { return nil }
+                            var settings: [String: String] = [:]
+                            if let projectID = credential.projectID {
+                                settings[OpenAIAPISettingsReader.projectIDEnvironmentKey] = projectID
+                            }
+                            settings["OPENAI_HISTORY_DAYS"] = String(context.costUsageHistoryDays)
+                            settings["OPENAI_ALLOW_BALANCE_FALLBACK"] =
+                                credential.allowsLegacyBalanceFallback ? "1" : "0"
+                            return ScriptFetchStrategy.Values(
+                                settings: settings,
+                                secrets: [OpenAIAPISettingsReader.apiKeyEnvironmentKey: credential.apiKey])
+                        }),
+                    swift,
+                ]
+            }))
+        #else
+        ProviderFetchPlan(
+            sourceModes: [.auto, .api],
+            pipeline: ProviderFetchPipeline(resolveStrategies: { _ in [OpenAIAPIBalanceFetchStrategy()] }))
+        #endif
     }
 }
 

@@ -6,7 +6,7 @@ import Testing
 @MainActor
 struct CommandCodeQuotaTransitionTests {
     @Test
-    func `display keeps prior primary only during subscription enrichment failure`() throws {
+    func `display keeps prior monthly window only during subscription enrichment failure`() throws {
         let plan = try #require(CommandCodePlanCatalog.plans.first { $0.monthlyCreditsUSD > 0 })
         let availableWithPlan = self.snapshot(remaining: 6, plan: plan)
         let missingSubscription = self.snapshot(
@@ -17,33 +17,57 @@ struct CommandCodeQuotaTransitionTests {
         let freeTier = self.snapshot(remaining: 0, plan: nil)
         let freeTierWithPurchasedCredits = self.snapshot(remaining: 0, purchasedCredits: 5, plan: nil)
 
-        #expect(missingSubscription.primary?.usedPercent == 0)
-        #expect(freeTierWithPurchasedCredits.primary?.usedPercent == 0)
+        #expect(missingSubscription.tertiary?.usedPercent == 0)
+        #expect(freeTierWithPurchasedCredits.tertiary?.usedPercent == 0)
 
         let stabilized = UsageStore.commandCodeSnapshotResolvingDepletionOnEnrichmentFailure(
             current: missingSubscription,
             previous: availableWithPlan)
-        #expect(stabilized.primary?.usedPercent == 100)
+        #expect(stabilized.tertiary?.usedPercent == 100)
 
         let stabilizedAgain = UsageStore.commandCodeSnapshotResolvingDepletionOnEnrichmentFailure(
             current: missingSubscription,
             previous: stabilized)
-        #expect(stabilizedAgain.primary?.usedPercent == 100)
+        #expect(stabilizedAgain.tertiary?.usedPercent == 100)
 
         let startupFailure = UsageStore.commandCodeSnapshotResolvingDepletionOnEnrichmentFailure(
             current: missingSubscription,
             previous: nil)
-        #expect(startupFailure.primary?.usedPercent == 0)
+        #expect(startupFailure.tertiary?.usedPercent == 0)
 
         let freeTierFailure = UsageStore.commandCodeSnapshotResolvingDepletionOnEnrichmentFailure(
             current: missingSubscription,
             previous: freeTierWithPurchasedCredits)
-        #expect(freeTierFailure.primary?.usedPercent == 0)
+        #expect(freeTierFailure.tertiary?.usedPercent == 0)
 
         let validFreeTier = UsageStore.commandCodeSnapshotResolvingDepletionOnEnrichmentFailure(
             current: freeTier,
             previous: availableWithPlan)
-        #expect(validFreeTier.primary == nil)
+        #expect(validFreeTier.tertiary == nil)
+    }
+
+    @Test
+    func `subscription enrichment failure preserves rolling windows`() throws {
+        let plan = try #require(CommandCodePlanCatalog.plans.first { $0.monthlyCreditsUSD > 0 })
+        let rolling = RateWindow(
+            usedPercent: 25,
+            windowMinutes: 5 * 60,
+            resetsAt: Date(timeIntervalSince1970: 1_780_000_000),
+            resetDescription: nil)
+        let availableWithPlan = self.snapshot(remaining: 6, plan: plan)
+        let missingSubscription = self.snapshot(
+            remaining: 0,
+            purchasedCredits: 5,
+            plan: nil,
+            subscriptionUnavailable: true,
+            fiveHourWindow: rolling)
+
+        let stabilized = UsageStore.commandCodeSnapshotResolvingDepletionOnEnrichmentFailure(
+            current: missingSubscription,
+            previous: availableWithPlan)
+
+        #expect(stabilized.primary == rolling)
+        #expect(stabilized.tertiary?.usedPercent == 100)
     }
 
     @Test
@@ -53,15 +77,22 @@ struct CommandCodeQuotaTransitionTests {
         let notifier = NotifierSpy()
         let store = self.makeStore(settings: settings, notifier: notifier)
         let plan = try #require(CommandCodePlanCatalog.plans.first { $0.monthlyCreditsUSD > 0 })
-        let depletedWithPlan = self.snapshot(remaining: 0, plan: plan)
-        let freeTier = self.snapshot(remaining: 0, plan: nil)
+        let availableWithPlan = self.snapshot(
+            remaining: 6,
+            plan: plan,
+            fiveHourWindow: self.rollingWindow(usedPercent: 0))
+        let depletedWithPlan = self.snapshot(
+            remaining: 0,
+            plan: plan,
+            fiveHourWindow: self.rollingWindow(usedPercent: 100))
         let missingSubscription = self.snapshot(
             remaining: 0,
             purchasedCredits: 5,
             plan: nil,
-            subscriptionUnavailable: true)
+            subscriptionUnavailable: true,
+            fiveHourWindow: self.rollingWindow(usedPercent: 100))
 
-        store.handleSessionQuotaTransition(provider: .commandcode, snapshot: freeTier)
+        store.handleSessionQuotaTransition(provider: .commandcode, snapshot: availableWithPlan)
         #expect(notifier.posts.isEmpty)
 
         store.handleSessionQuotaTransition(provider: .commandcode, snapshot: depletedWithPlan)
@@ -77,7 +108,7 @@ struct CommandCodeQuotaTransitionTests {
 
         #expect(notifier.posts.count(where: { $0.transition == .depleted }) == 1)
 
-        store.handleSessionQuotaTransition(provider: .commandcode, snapshot: freeTier)
+        store.handleSessionQuotaTransition(provider: .commandcode, snapshot: availableWithPlan)
         store.handleSessionQuotaTransition(provider: .commandcode, snapshot: depletedWithPlan)
         #expect(notifier.posts.count(where: { $0.transition == .depleted }) == 2)
     }
@@ -91,28 +122,36 @@ struct CommandCodeQuotaTransitionTests {
         let store = self.makeStore(settings: settings, notifier: notifier)
         let plan = try #require(CommandCodePlanCatalog.plans.first { $0.monthlyCreditsUSD > 0 })
 
-        store.handleQuotaWarningTransitions(provider: .commandcode, snapshot: self.snapshot(remaining: 6, plan: plan))
-        store.handleQuotaWarningTransitions(provider: .commandcode, snapshot: self.snapshot(remaining: 4, plan: plan))
-        let availableWithPlan = self.snapshot(remaining: 4, plan: plan)
+        let availableWithPlan = self.snapshot(
+            remaining: 6,
+            plan: plan,
+            fiveHourWindow: self.rollingWindow(usedPercent: 40))
+        let warningWithPlan = self.snapshot(
+            remaining: 4,
+            plan: plan,
+            fiveHourWindow: self.rollingWindow(usedPercent: 60))
+        store.handleQuotaWarningTransitions(provider: .commandcode, snapshot: availableWithPlan)
+        store.handleQuotaWarningTransitions(provider: .commandcode, snapshot: warningWithPlan)
         let missingSubscription = self.snapshot(
             remaining: 0,
             purchasedCredits: 5,
             plan: nil,
-            subscriptionUnavailable: true)
+            subscriptionUnavailable: true,
+            fiveHourWindow: self.rollingWindow(usedPercent: 60))
         let stabilizedFailure = UsageStore.commandCodeSnapshotResolvingDepletionOnEnrichmentFailure(
             current: missingSubscription,
-            previous: availableWithPlan)
+            previous: warningWithPlan)
         store.handleQuotaWarningTransitions(provider: .commandcode, snapshot: stabilizedFailure)
         let repeatedFailure = UsageStore.commandCodeSnapshotResolvingDepletionOnEnrichmentFailure(
             current: missingSubscription,
             previous: stabilizedFailure)
         store.handleQuotaWarningTransitions(provider: .commandcode, snapshot: repeatedFailure)
-        store.handleQuotaWarningTransitions(provider: .commandcode, snapshot: self.snapshot(remaining: 4, plan: plan))
+        store.handleQuotaWarningTransitions(provider: .commandcode, snapshot: warningWithPlan)
 
         #expect(notifier.quotaWarningPosts.count == 1)
 
-        store.handleQuotaWarningTransitions(provider: .commandcode, snapshot: self.snapshot(remaining: 0, plan: nil))
-        store.handleQuotaWarningTransitions(provider: .commandcode, snapshot: self.snapshot(remaining: 4, plan: plan))
+        store.handleQuotaWarningTransitions(provider: .commandcode, snapshot: availableWithPlan)
+        store.handleQuotaWarningTransitions(provider: .commandcode, snapshot: warningWithPlan)
         #expect(notifier.quotaWarningPosts.count == 2)
     }
 
@@ -141,18 +180,28 @@ struct CommandCodeQuotaTransitionTests {
         remaining: Double,
         purchasedCredits: Double = 0,
         plan: CommandCodePlanCatalog.Plan?,
-        subscriptionUnavailable: Bool = false) -> UsageSnapshot
+        subscriptionUnavailable: Bool = false,
+        fiveHourWindow: RateWindow? = nil) -> UsageSnapshot
     {
         CommandCodeUsageSnapshot(
             monthlyCreditsRemaining: remaining,
             purchasedCredits: purchasedCredits,
             premiumMonthlyCredits: 0,
             opensourceMonthlyCredits: 0,
+            fiveHourWindow: fiveHourWindow,
             plan: plan,
             billingPeriodEnd: nil,
             subscriptionStatus: plan == nil ? nil : "active",
             subscriptionEnrichmentUnavailable: subscriptionUnavailable)
             .toUsageSnapshot()
+    }
+
+    private func rollingWindow(usedPercent: Double) -> RateWindow {
+        RateWindow(
+            usedPercent: usedPercent,
+            windowMinutes: 5 * 60,
+            resetsAt: Date(timeIntervalSince1970: 1_780_000_000),
+            resetDescription: nil)
     }
 
     private final class NotifierSpy: SessionQuotaNotifying {

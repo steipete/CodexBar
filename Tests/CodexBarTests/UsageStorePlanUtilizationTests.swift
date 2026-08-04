@@ -1310,7 +1310,7 @@ extension UsageStorePlanUtilizationTests {
             secondary: RateWindow(usedPercent: 20, windowMinutes: 10080, resetsAt: nil, resetDescription: nil),
             updatedAt: Date(),
             identity: ProviderIdentitySnapshot(
-                providerID: provider,
+                providerID: provider.instanceID,
                 accountEmail: email,
                 accountOrganization: nil,
                 loginMethod: "plus"))

@@ -1,7 +1,11 @@
 public enum LogCategories {
-    public static func provider(_ provider: UsageProvider, scope: String? = nil) -> String {
-        let base = provider == .opencodego ? "opencode-go" : provider.rawValue
+    public static func providerInstance(_ instanceID: ProviderInstanceID, scope: String? = nil) -> String {
+        let base = instanceID.firstPartyProvider == .opencodego ? "opencode-go" : instanceID.rawValue
         return scope.map { "\(base)-\($0)" } ?? base
+    }
+
+    public static func provider(_ provider: UsageProvider, scope: String? = nil) -> String {
+        self.providerInstance(provider.instanceID, scope: scope)
     }
 
     public static let abacusCookie = Self.provider(.abacus, scope: "cookie")

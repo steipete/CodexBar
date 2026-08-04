@@ -4,7 +4,7 @@ import QuartzCore
 
 enum ProviderSwitcherSelection: Hashable {
     case overview
-    case provider(UsageProvider)
+    case provider(ProviderInstanceID)
 }
 
 final class ProviderSwitcherView: NSView {
@@ -63,7 +63,7 @@ final class ProviderSwitcherView: NSView {
             // Avoid any resampling: we ship exact 16pt/32px assets for crisp rendering.
             icon.size = NSSize(width: 16, height: 16)
             return Segment(
-                selection: .provider(provider),
+                selection: .provider(provider.instanceID),
                 image: icon,
                 title: fullTitle)
         }
@@ -668,8 +668,8 @@ final class ProviderSwitcherView: NSView {
 
     private func remainingPercent(for selection: ProviderSwitcherSelection) -> Double? {
         switch selection {
-        case let .provider(provider):
-            self.weeklyRemainingProvider(provider)
+        case let .provider(instanceID):
+            instanceID.firstPartyProvider.flatMap(self.weeklyRemainingProvider)
         case .overview:
             nil
         }
@@ -1145,7 +1145,8 @@ extension ProviderSwitcherView {
         remainingPercent _: Double) -> NSColor
     {
         switch selection {
-        case let .provider(provider):
+        case let .provider(instanceID):
+            guard let provider = instanceID.firstPartyProvider else { return NSColor.secondaryLabelColor }
             let color = ProviderDescriptorRegistry.descriptor(for: provider).branding.color
             return NSColor(deviceRed: color.red, green: color.green, blue: color.blue, alpha: 1)
         case .overview:

@@ -56,7 +56,6 @@ extension UsageStore {
             self.clearQuotaLowHookUsage(provider: provider)
         }
         guard notificationsEnabled || hooksActive else { return }
-        if provider == .commandcode, snapshot.commandCodeSubscriptionEnrichmentUnavailable { return }
 
         let accountContext = QuotaWarningAccountContext(
             discriminator: accountDiscriminator,

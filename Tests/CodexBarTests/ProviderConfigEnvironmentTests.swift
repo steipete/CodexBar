@@ -3,6 +3,25 @@ import Testing
 
 struct ProviderConfigEnvironmentTests {
     @Test
+    func `projects Moonshot key with its bound region`() {
+        let config = ProviderConfig(
+            id: .moonshot,
+            apiKey: "china-token",
+            region: MoonshotRegion.china.rawValue,
+            apiKeyRegion: MoonshotRegion.china.rawValue)
+        let env = ProviderConfigEnvironment.applyAPIKeyOverride(
+            base: ["MOONSHOT_API_KEY": "international-token"],
+            provider: .moonshot,
+            config: config)
+
+        #expect(env["MOONSHOT_API_KEY"] == "international-token")
+        #expect(env[MoonshotSettingsReader.configAPIKeyEnvironmentKey] == "china-token")
+        #expect(env[MoonshotSettingsReader.configAPIKeyRegionEnvironmentKey] == "china")
+        #expect(MoonshotSettingsReader.apiKey(for: .china, environment: env) == "china-token")
+        #expect(MoonshotSettingsReader.apiKey(for: .international, environment: env) == "international-token")
+    }
+
+    @Test
     func `applies API key override for amp`() {
         let config = ProviderConfig(id: .amp, apiKey: "sgamp-config")
         let env = ProviderConfigEnvironment.applyAPIKeyOverride(
@@ -283,17 +302,17 @@ struct ProviderConfigEnvironmentTests {
 
     @Test
     func `applies API key override for moonshot`() {
-        let config = ProviderConfig(id: .moonshot, apiKey: "moon-token")
+        let config = ProviderConfig(
+            id: .moonshot,
+            apiKey: "moon-token",
+            apiKeyRegion: MoonshotRegion.international.rawValue)
         let env = ProviderConfigEnvironment.applyAPIKeyOverride(
             base: [:],
             provider: .moonshot,
             config: config)
 
-        let key = MoonshotSettingsReader.apiKeyEnvironmentKeys.first
-        #expect(key != nil)
-        guard let key else { return }
-
-        #expect(env[key] == "moon-token")
+        #expect(env[MoonshotSettingsReader.configAPIKeyEnvironmentKey] == "moon-token")
+        #expect(MoonshotSettingsReader.apiKey(for: .international, environment: env) == "moon-token")
     }
 
     @Test

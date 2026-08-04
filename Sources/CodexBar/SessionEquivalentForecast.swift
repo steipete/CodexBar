@@ -465,7 +465,7 @@ extension UsageStore {
                         SessionEquivalentBurnCacheKey.idleTimeBucketSeconds))
                 : nil)
         let burnEstimate: SessionEquivalentBurnEstimate?
-        if let cached = self.sessionEquivalentBurnCache[provider], cached.key == cacheKey {
+        if let cached = self.sessionEquivalentBurnCache[provider.instanceID], cached.key == cacheKey {
             burnEstimate = cached.estimate
         } else {
             burnEstimate = SessionEquivalentBurnEstimator.estimate(
@@ -473,7 +473,7 @@ extension UsageStore {
                 currentSessionResetsAt: currentSessionResetsAt,
                 now: now)
             self.sessionEquivalentHistoryScanCount &+= 1
-            self.sessionEquivalentBurnCache[provider] = SessionEquivalentBurnCacheEntry(
+            self.sessionEquivalentBurnCache[provider.instanceID] = SessionEquivalentBurnCacheEntry(
                 key: cacheKey,
                 estimate: burnEstimate)
         }

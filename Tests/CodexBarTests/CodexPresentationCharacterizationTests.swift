@@ -423,7 +423,7 @@ struct CodexPresentationCharacterizationTests {
     }
 
     @Test
-    func `zai menu descriptor includes Tokens MCP and 5-hour rows`() {
+    func `zai menu descriptor includes 5-hour weekly and MCP rows`() {
         let settings = self.makeSettingsStore(suite: "CodexPresentationCharacterizationTests-zai-three-quota")
         settings.statusChecksEnabled = false
 
@@ -436,20 +436,26 @@ struct CodexPresentationCharacterizationTests {
         store._setSnapshotForTesting(
             UsageSnapshot(
                 primary: RateWindow(
-                    usedPercent: 9,
-                    windowMinutes: 10080,
-                    resetsAt: nil,
-                    resetDescription: nil),
-                secondary: RateWindow(
-                    usedPercent: 50,
-                    windowMinutes: nil,
-                    resetsAt: nil,
-                    resetDescription: nil),
-                tertiary: RateWindow(
                     usedPercent: 25,
                     windowMinutes: 300,
                     resetsAt: nil,
-                    resetDescription: nil),
+                    resetDescription: "5-hour"),
+                secondary: RateWindow(
+                    usedPercent: 9,
+                    windowMinutes: 10080,
+                    resetsAt: nil,
+                    resetDescription: "1 week window"),
+                tertiary: nil,
+                extraRateWindows: [
+                    NamedRateWindow(
+                        id: "zai-mcp",
+                        title: "MCP",
+                        window: RateWindow(
+                            usedPercent: 50,
+                            windowMinutes: nil,
+                            resetsAt: nil,
+                            resetDescription: "MCP")),
+                ],
                 updatedAt: Date(),
                 identity: ProviderIdentitySnapshot(
                     providerID: .zai,
@@ -467,9 +473,9 @@ struct CodexPresentationCharacterizationTests {
             includeContextualActions: false)
 
         let lines = self.textLines(from: descriptor)
-        #expect(lines.contains(where: { $0.hasPrefix("Tokens:") }))
         #expect(lines.contains(where: { $0.hasPrefix("MCP:") }))
         #expect(lines.contains(where: { $0.hasPrefix("5-hour:") }))
+        #expect(lines.contains(where: { $0.hasPrefix("Weekly:") }))
     }
 
     private func makeSettingsStore(suite: String) -> SettingsStore {

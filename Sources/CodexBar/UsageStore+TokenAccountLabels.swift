@@ -9,11 +9,11 @@ extension UsageStore {
     {
         let label = account.label.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !label.isEmpty else { return snapshot }
-        let existing = snapshot.identity(for: provider)
+        let existing = snapshot.identity(for: provider.instanceID)
         let email = existing?.accountEmail?.trimmingCharacters(in: .whitespacesAndNewlines)
         let resolvedEmail = (email?.isEmpty ?? true) ? label : email
         let identity = ProviderIdentitySnapshot(
-            providerID: provider,
+            providerID: provider.instanceID,
             accountEmail: resolvedEmail,
             accountOrganization: existing?.accountOrganization,
             loginMethod: existing?.loginMethod)

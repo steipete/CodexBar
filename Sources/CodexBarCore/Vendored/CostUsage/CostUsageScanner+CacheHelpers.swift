@@ -170,7 +170,9 @@ extension CostUsageScanner {
                     model: pricedModel,
                     inputTokens: row.input,
                     cachedInputTokens: row.cached,
-                    outputTokens: row.output)
+                    outputTokens: row.output,
+                    modelsDevCatalog: modelsDevCatalog,
+                    modelsDevCacheRoot: modelsDevCacheRoot)
             else { continue }
             total += max(priorityCost - baseCost, 0)
             seen = true
@@ -183,11 +185,7 @@ extension CostUsageScanner {
         priorityMetadata: CodexPriorityTurnMetadata) -> String
     {
         guard let model = priorityMetadata.model,
-              CostUsagePricing.codexPriorityCostUSD(
-                  model: model,
-                  inputTokens: row.input,
-                  cachedInputTokens: row.cached,
-                  outputTokens: row.output) != nil
+              CostUsagePricing.codexAPIFastMultiplier(model: model) != nil
         else { return row.model }
         return model
     }
@@ -256,7 +254,9 @@ extension CostUsageScanner {
                 model: pricedModel,
                 inputTokens: row.input,
                 cachedInputTokens: row.cached,
-                outputTokens: row.output)
+                outputTokens: row.output,
+                modelsDevCatalog: modelsDevCatalog,
+                modelsDevCacheRoot: modelsDevCacheRoot)
             {
                 breakdown.priorityCostUSD += max(priorityCost, baseCost ?? priorityCost)
                 breakdown.sawPriorityCost = true
@@ -478,7 +478,9 @@ extension CostUsageScanner {
                                             model: pricedModel,
                                             inputTokens: row.input,
                                             cachedInputTokens: row.cached,
-                                            outputTokens: row.output)
+                                            outputTokens: row.output,
+                                            modelsDevCatalog: modelsDevCatalog,
+                                            modelsDevCacheRoot: modelsDevCacheRoot)
             {
                 max(priorityCost, baseCost ?? priorityCost)
             } else {
@@ -621,7 +623,9 @@ extension CostUsageScanner {
                 model: pricedModel,
                 inputTokens: row.input,
                 cachedInputTokens: row.cached,
-                outputTokens: row.output)
+                outputTokens: row.output,
+                modelsDevCatalog: modelsDevCatalog,
+                modelsDevCacheRoot: modelsDevCacheRoot)
             {
                 priorityCostNanos[row.day, default: [:]][row.model, default: 0] += Int64(
                     (max(priorityCost, baseCost ?? priorityCost) * Self.costScale).rounded())

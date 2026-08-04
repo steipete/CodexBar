@@ -61,7 +61,7 @@ public struct CodexReconciledState: Sendable {
         let resolvedEmail = accountEmail ?? snapshot.signedInEmail
         let resolvedPlan = accountPlan ?? snapshot.accountPlan
         let identity = ProviderIdentitySnapshot(
-            providerID: provider,
+            providerID: provider.instanceID,
             accountEmail: resolvedEmail,
             accountOrganization: nil,
             loginMethod: resolvedPlan)

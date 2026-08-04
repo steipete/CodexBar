@@ -72,6 +72,8 @@ struct SpendDashboardPane: View {
         self.store = store
         self._controller = State(initialValue: SpendDashboardController(requestBuilder: { mode in
             await SpendDashboardSource.makeRequest(settings: settings, store: store, mode: mode)
+        }, cachedLoader: { request in
+            await SpendDashboardSource.loadCached(request)
         }))
     }
 
@@ -293,11 +295,12 @@ struct SpendDashboardPane: View {
                 .frame(maxWidth: .infinity, minHeight: 220)
             }
         } else if self.controller.model.groups.isEmpty {
+            let emptyState = SpendDashboardEmptyState.make(isRefreshing: self.controller.isRefreshing)
             SpendDashboardPanel {
                 ContentUnavailableView {
-                    Label(L("No local cost history yet"), systemImage: "chart.bar.xaxis")
+                    Label(emptyState.title, systemImage: "chart.bar.xaxis")
                 } description: {
-                    Text(L("Turn on cost tracking or refresh after using a supported provider."))
+                    Text(emptyState.message)
                 }
                 .frame(maxWidth: .infinity, minHeight: 220)
             }
@@ -366,7 +369,7 @@ struct SpendDashboardPane: View {
                         codexRowCount == 1 ? self.store.snapshot(for: .codex) : nil,
                     ]
                 } else {
-                    [self.store.snapshot(for: row.provider)]
+                    [self.store.snapshot(for: row.provider.instanceID)]
                 }
                 if let name = ShareStatsSubscriptionName.first(from: snapshots, provider: row.provider) {
                     names[row.id] = name
@@ -380,6 +383,22 @@ struct SpendDashboardPane: View {
         Binding(
             get: { self.controller.selectedDays },
             set: { self.controller.selectDays($0) })
+    }
+}
+
+struct SpendDashboardEmptyState: Equatable {
+    let title: String
+    let message: String
+
+    static func make(isRefreshing: Bool) -> Self {
+        if isRefreshing {
+            return Self(
+                title: L("Refreshing"),
+                message: L("Local estimated cost history across supported providers."))
+        }
+        return Self(
+            title: L("No local cost history yet"),
+            message: L("Turn on cost tracking or refresh after using a supported provider."))
     }
 }
 

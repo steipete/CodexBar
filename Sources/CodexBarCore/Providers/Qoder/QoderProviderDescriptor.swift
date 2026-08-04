@@ -37,13 +37,36 @@ public enum QoderProviderDescriptor {
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
                 noDataMessage: { "Qoder cost summary is not supported." }),
-            fetchPlan: ProviderFetchPlan(
-                sourceModes: [.auto, .web],
-                pipeline: ProviderFetchPipeline(resolveStrategies: { _ in [QoderWebFetchStrategy()] })),
+            fetchPlan: self.fetchPlan(),
             cli: ProviderCLIConfig(
                 name: "qoder",
                 aliases: [],
                 versionDetector: nil))
+    }
+
+    private static func fetchPlan() -> ProviderFetchPlan {
+        ProviderFetchPlan(
+            sourceModes: [.auto, .web],
+            pipeline: ProviderFetchPipeline(resolveStrategies: { context in
+                let swift = QoderWebFetchStrategy()
+                #if canImport(JavaScriptCore)
+                guard ProviderPluginPrototype.isEnabled(environment: context.env) else { return [swift] }
+                return [
+                    ScriptFetchStrategy(
+                        id: "qoder.js",
+                        provider: .qoder,
+                        bundledPlugin: "qoder",
+                        kind: .web,
+                        resolveValues: { context in
+                            guard context.settings?.qoder?.cookieSource != .off else { return nil }
+                            return ScriptFetchStrategy.Values()
+                        }),
+                    swift,
+                ]
+                #else
+                return [swift]
+                #endif
+            }))
     }
 
     public static func dashboardURL(
@@ -171,8 +194,12 @@ struct QoderWebFetchStrategy: ProviderFetchStrategy {
         terminalNonAuthError: Error?,
         sawInvalidCredentials: Bool) -> Error?
     {
-        if let terminalNonAuthError { return terminalNonAuthError }
-        if sawInvalidCredentials { return QoderUsageError.invalidCredentials }
+        if let terminalNonAuthError {
+            return terminalNonAuthError
+        }
+        if sawInvalidCredentials {
+            return QoderUsageError.invalidCredentials
+        }
         return nil
     }
 

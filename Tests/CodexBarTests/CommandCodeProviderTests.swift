@@ -30,6 +30,11 @@ struct CommandCodeProviderTests {
         #expect(descriptor.metadata.cliName == "commandcode")
         #expect(descriptor.branding.iconResourceName == "ProviderIcon-commandcode")
         #expect(descriptor.branding.iconStyle == .commandcode)
+        #expect(descriptor.metadata.sessionLabel == "5-hour")
+        #expect(descriptor.metadata.weeklyLabel == "Weekly")
+        #expect(descriptor.metadata.opusLabel == "Monthly")
+        #expect(descriptor.metadata.supportsOpus)
+        #expect(descriptor.fetchPlan.sourceModes == [.auto, .web])
     }
 
     @Test

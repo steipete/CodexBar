@@ -1,6 +1,9 @@
 import Foundation
 import Testing
 @testable import CodexBarCore
+#if os(macOS)
+import SweetCookieKit
+#endif
 
 struct ZoomMateUsageFetcherTests {
     private final class MessageRecorder: @unchecked Sendable {
@@ -821,39 +824,68 @@ struct ZoomMateUsageFetcherTests {
 
     #if os(macOS)
     @Test
-    func `automatic import partitions parent and host-only cookies per destination`() throws {
-        func cookie(domain: String, name: String) throws -> HTTPCookie {
-            try #require(HTTPCookie(properties: [
-                .domain: domain,
-                .path: "/",
-                .name: name,
-                .value: "fake",
-                .secure: "TRUE",
-            ]))
-        }
-
-        let headers = try ZoomMateCookieImporter.cookieHeaders(from: [
-            cookie(domain: ".zoom.us", name: "parent"),
-            cookie(domain: "zoom.us", name: "parent-host-only"),
-            cookie(domain: "ai.zoom.us", name: "ai-only"),
-            cookie(domain: "zoommate.zoom.us", name: "mate-only"),
-            cookie(domain: "marketing.zoom.us", name: "marketing-only"),
-        ])
+    func `issue 2507 fixture routes parent domain cookie to both hosts without leaking host-only cookies`() throws {
+        let records = try Self.issue2507CookieRecords()
+        let headers = ZoomMateCookieImporter.cookieHeaders(from: records)
 
         #expect(headers.header(forHost: "ai.zoom.us") == "parent=fake; ai-only=fake")
         #expect(headers.header(forHost: "zoommate.zoom.us") == "parent=fake; mate-only=fake")
     }
 
     @Test
-    func `cookie scope filter follows RFC 6265 host-only and domain matching`() {
-        #expect(ZoomMateCookieImporter.isSendable(cookieDomain: "ai.zoom.us", toHost: "ai.zoom.us"))
-        #expect(!ZoomMateCookieImporter.isSendable(cookieDomain: "ai.zoom.us", toHost: "zoommate.zoom.us"))
-        #expect(ZoomMateCookieImporter.isSendable(cookieDomain: ".zoom.us", toHost: "ai.zoom.us"))
-        #expect(ZoomMateCookieImporter.isSendable(cookieDomain: ".zoom.us", toHost: "zoommate.zoom.us"))
-        #expect(!ZoomMateCookieImporter.isSendable(cookieDomain: "zoom.us", toHost: "ai.zoom.us"))
-        #expect(!ZoomMateCookieImporter.isSendable(cookieDomain: "marketing.zoom.us", toHost: "ai.zoom.us"))
-        #expect(!ZoomMateCookieImporter.isSendable(cookieDomain: "zoom.us.attacker.com", toHost: "ai.zoom.us"))
-        #expect(!ZoomMateCookieImporter.isSendable(cookieDomain: "", toHost: "ai.zoom.us"))
+    func `cookie scope filter follows explicit RFC 6265 scope`() {
+        #expect(ZoomMateCookieImporter.isSendable(
+            cookieDomain: "ai.zoom.us", scope: .hostOnly, toHost: "ai.zoom.us"))
+        #expect(!ZoomMateCookieImporter.isSendable(
+            cookieDomain: "ai.zoom.us", scope: .hostOnly, toHost: "zoommate.zoom.us"))
+        #expect(ZoomMateCookieImporter.isSendable(
+            cookieDomain: "zoom.us", scope: .domain, toHost: "ai.zoom.us"))
+        #expect(ZoomMateCookieImporter.isSendable(
+            cookieDomain: "zoom.us", scope: .domain, toHost: "zoommate.zoom.us"))
+        #expect(!ZoomMateCookieImporter.isSendable(
+            cookieDomain: "zoom.us", scope: .hostOnly, toHost: "ai.zoom.us"))
+        #expect(!ZoomMateCookieImporter.isSendable(
+            cookieDomain: "marketing.zoom.us", scope: .hostOnly, toHost: "ai.zoom.us"))
+        #expect(!ZoomMateCookieImporter.isSendable(
+            cookieDomain: "zoom.us.attacker.com", scope: .domain, toHost: "ai.zoom.us"))
+        #expect(!ZoomMateCookieImporter.isSendable(cookieDomain: "", scope: .domain, toHost: "ai.zoom.us"))
+    }
+
+    private struct CookieScopeFixture: Decodable {
+        let records: [Record]
+
+        struct Record: Decodable {
+            let sourceDomain: String
+            let domain: String
+            let scope: String
+            let name: String
+            let value: String
+        }
+    }
+
+    private static func issue2507CookieRecords() throws -> [BrowserCookieRecord] {
+        let url = try #require(Bundle.module.url(
+            forResource: "issue-2507-cookie-scope",
+            withExtension: "json",
+            subdirectory: "Fixtures/ZoomMate"))
+        let fixture = try JSONDecoder().decode(CookieScopeFixture.self, from: Data(contentsOf: url))
+        return try fixture.records.map { record in
+            let scope: BrowserCookieScope = switch record.scope {
+            case "domain": .domain
+            case "hostOnly": .hostOnly
+            default: throw ZoomMateUsageError.parseFailed("Unknown cookie fixture scope: \(record.scope)")
+            }
+            #expect(record.sourceDomain.trimmingPrefix(".") == record.domain)
+            return BrowserCookieRecord(
+                domain: record.domain,
+                name: record.name,
+                path: "/",
+                value: record.value,
+                expires: nil,
+                isSecure: true,
+                isHTTPOnly: true,
+                scope: scope)
+        }
     }
     #endif
 

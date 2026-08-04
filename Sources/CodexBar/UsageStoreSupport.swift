@@ -112,7 +112,7 @@ struct ConsecutiveFailureGate {
 #if DEBUG
 extension UsageStore {
     func _setSnapshotForTesting(_ snapshot: UsageSnapshot?, provider: UsageProvider) {
-        self.snapshots[provider] = snapshot?.scoped(to: provider)
+        self.snapshots[provider.instanceID] = snapshot?.scoped(to: provider)
     }
 
     func _setTokenSnapshotForTesting(_ snapshot: CostUsageTokenSnapshot?, provider: UsageProvider) {
@@ -124,18 +124,18 @@ extension UsageStore {
     }
 
     func _setTokenErrorForTesting(_ error: String?, provider: UsageProvider) {
-        self.tokenErrors[provider] = error
+        self.tokenErrors[provider.instanceID] = error
     }
 
     func _setErrorForTesting(_ error: String?, provider: UsageProvider) {
-        self.errors[provider] = error
+        self.errors[provider.instanceID] = error
     }
 
     func _setKnownLimitsAvailabilityForTesting(
         _ availability: UsageLimitsAvailability?,
         provider: UsageProvider)
     {
-        self.knownLimitsAvailabilityByProvider[provider] = availability
+        self.knownLimitsAvailabilityByProvider[provider.instanceID] = availability
     }
 
     func _setCodexHistoricalDatasetForTesting(_ dataset: CodexHistoricalDataset?, accountKey: String? = nil) {

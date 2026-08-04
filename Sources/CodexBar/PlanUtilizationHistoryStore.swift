@@ -206,7 +206,7 @@ struct PlanUtilizationHistoryStore: Sendable {
         Self()
     }
 
-    func load() -> [UsageProvider: PlanUtilizationHistoryBuckets] {
+    func load() -> [ProviderInstanceID: PlanUtilizationHistoryBuckets] {
         self.loadProviderFiles()
     }
 
@@ -216,11 +216,11 @@ struct PlanUtilizationHistoryStore: Sendable {
     /// ~150 ms for mature two-year histories and must not run on the app
     /// startup main thread. The returned dictionary is safe to apply on the
     /// main actor once decoding completes.
-    func loadAsync() async -> [UsageProvider: PlanUtilizationHistoryBuckets] {
+    func loadAsync() async -> [ProviderInstanceID: PlanUtilizationHistoryBuckets] {
         await Task.detached(priority: .utility) { self.load() }.value
     }
 
-    func save(_ providers: [UsageProvider: PlanUtilizationHistoryBuckets]) {
+    func save(_ providers: [ProviderInstanceID: PlanUtilizationHistoryBuckets]) {
         guard let directoryURL = self.directoryURL else { return }
         do {
             try FileManager.default.createDirectory(
@@ -230,9 +230,10 @@ struct PlanUtilizationHistoryStore: Sendable {
             encoder.dateEncodingStrategy = .iso8601
             encoder.outputFormatting = [.sortedKeys]
 
-            for provider in UsageProvider.allCases {
-                let fileURL = self.providerFileURL(for: provider)
-                let buckets = providers[provider] ?? PlanUtilizationHistoryBuckets()
+            let knownInstanceIDs = Set(UsageProvider.allCases.map(\.instanceID)).union(providers.keys)
+            for instanceID in knownInstanceIDs.sorted(by: { $0.rawValue < $1.rawValue }) {
+                let fileURL = self.providerFileURL(for: instanceID)
+                let buckets = providers[instanceID] ?? PlanUtilizationHistoryBuckets()
                 let unscoped = Self.sortedHistories(buckets.unscoped)
                 let accounts = Self.sortedAccounts(buckets.accounts)
                 guard !unscoped.isEmpty || !accounts.isEmpty || !buckets.sessionEquivalentWindowPairIdentities.isEmpty
@@ -255,17 +256,21 @@ struct PlanUtilizationHistoryStore: Sendable {
         }
     }
 
-    private func loadProviderFiles() -> [UsageProvider: PlanUtilizationHistoryBuckets] {
-        guard self.directoryURL != nil else { return [:] }
+    private func loadProviderFiles() -> [ProviderInstanceID: PlanUtilizationHistoryBuckets] {
+        guard let directoryURL = self.directoryURL,
+              let fileURLs = try? FileManager.default.contentsOfDirectory(
+                  at: directoryURL,
+                  includingPropertiesForKeys: nil)
+        else { return [:] }
 
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
 
-        var output: [UsageProvider: PlanUtilizationHistoryBuckets] = [:]
+        var output: [ProviderInstanceID: PlanUtilizationHistoryBuckets] = [:]
 
-        for provider in UsageProvider.allCases {
-            let fileURL = self.providerFileURL(for: provider)
-            guard FileManager.default.fileExists(atPath: fileURL.path) else { continue }
+        for fileURL in fileURLs where fileURL.pathExtension == "json" {
+            guard let instanceID = ProviderInstanceID(rawValue: fileURL.deletingPathExtension().lastPathComponent)
+            else { continue }
             guard let data = try? Data(contentsOf: fileURL),
                   let decoded = try? decoder.decode(ProviderHistoryDocument.self, from: data)
             else {
@@ -277,19 +282,19 @@ struct PlanUtilizationHistoryStore: Sendable {
                 unscoped: decoded.unscoped,
                 accounts: decoded.accounts,
                 sessionEquivalentWindowPairIdentities: decoded.sessionEquivalentWindowPairIdentities)
-            output[provider] = Self.decodeProvider(history)
+            output[instanceID] = Self.decodeProvider(history)
         }
 
         return output
     }
 
     private static func decodeProviders(
-        _ providers: [String: ProviderHistoryFile]) -> [UsageProvider: PlanUtilizationHistoryBuckets]
+        _ providers: [String: ProviderHistoryFile]) -> [ProviderInstanceID: PlanUtilizationHistoryBuckets]
     {
-        var output: [UsageProvider: PlanUtilizationHistoryBuckets] = [:]
+        var output: [ProviderInstanceID: PlanUtilizationHistoryBuckets] = [:]
         for (rawProvider, providerHistory) in providers {
-            guard let provider = UsageProvider(rawValue: rawProvider) else { continue }
-            output[provider] = Self.decodeProvider(providerHistory)
+            guard let instanceID = ProviderInstanceID(rawValue: rawProvider) else { continue }
+            output[instanceID] = Self.decodeProvider(providerHistory)
         }
         return output
     }
@@ -342,9 +347,9 @@ struct PlanUtilizationHistoryStore: Sendable {
         return dir.appendingPathComponent("history", isDirectory: true)
     }
 
-    private func providerFileURL(for provider: UsageProvider) -> URL {
+    private func providerFileURL(for instanceID: ProviderInstanceID) -> URL {
         let directoryURL = self.directoryURL ?? URL(fileURLWithPath: "/dev/null", isDirectory: true)
-        return directoryURL.appendingPathComponent("\(provider.rawValue).json", isDirectory: false)
+        return directoryURL.appendingPathComponent("\(instanceID.rawValue).json", isDirectory: false)
     }
 }
 

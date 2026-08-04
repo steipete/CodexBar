@@ -476,7 +476,7 @@ provider-specific cookie validation, endpoints, login detection, and error trans
 ## Command Code
 - Browser session cookies from automatic import or manual `Cookie:` header.
 - Linux CLI supports configured manual cookies; automatic browser import remains macOS-only.
-- Reads monthly USD credits and billing-cycle usage from `api.commandcode.ai`.
+- Reads 5-hour and weekly rolling limits plus monthly USD credits and billing-cycle usage from `api.commandcode.ai`.
 - Automatic import looks for better-auth session cookies from `commandcode.ai` / `www.commandcode.ai`.
 - Status: none yet.
 - Details: `docs/command-code.md`.

@@ -124,7 +124,7 @@ struct StatusItemControllerSplitLifecycleTests {
         defer { controller.releaseStatusItemsForTesting() }
 
         let menus = try [UsageProvider.codex, .claude].map { provider in
-            try #require(controller.providerMenus[provider])
+            try #require(controller.providerMenus[provider.instanceID])
         }
         let keys = menus.map(ObjectIdentifier.init)
         for (menu, key) in zip(menus, keys) {

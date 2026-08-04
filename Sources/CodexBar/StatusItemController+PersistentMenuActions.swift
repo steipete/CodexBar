@@ -41,8 +41,8 @@ extension StatusItemController {
             // A manual refresh of a different provider must not grey out this provider's row: only
             // reflect the global refresh, this provider's own manual refresh, and its store refresh.
             return self.store.isRefreshing
-                || self.manualRefreshTasks[.provider(provider)] != nil
-                || self.store.refreshingProviders.contains(provider)
+                || self.manualRefreshTasks[.provider(provider.instanceID)] != nil
+                || self.store.refreshingProviders.contains(provider.instanceID)
         }
         return self.store.isRefreshing
             || !self.manualRefreshTasks.isEmpty
@@ -53,7 +53,7 @@ extension StatusItemController {
         guard self.shouldMergeIcons else { return false }
         if let mergedMenu = self.mergedMenu, menu !== mergedMenu { return false }
         let providers = self.settings.resolvedMergedOverviewProviders(
-            activeProviders: self.store.enabledProvidersForDisplay(),
+            activeProviders: self.store.enabledFirstPartyProvidersForDisplay(),
             maxVisibleProviders: SettingsStore.mergedOverviewProviderLimit)
         return !providers.isEmpty && self.settings.mergedMenuLastSelectedWasOverview
     }

@@ -167,7 +167,7 @@ struct MenuBarPane: View {
     }
 
     private var activeProvidersInOrder: [UsageProvider] {
-        self.store.enabledProviders()
+        self.store.enabledFirstPartyProviders()
     }
 
     private var overviewSelectedProviders: [UsageProvider] {

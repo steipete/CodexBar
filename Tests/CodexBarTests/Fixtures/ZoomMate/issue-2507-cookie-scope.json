@@ -1,0 +1,39 @@
+{
+  "records": [
+    {
+      "sourceDomain": ".zoom.us",
+      "domain": "zoom.us",
+      "scope": "domain",
+      "name": "parent",
+      "value": "fake"
+    },
+    {
+      "sourceDomain": "zoom.us",
+      "domain": "zoom.us",
+      "scope": "hostOnly",
+      "name": "parent-host-only",
+      "value": "fake"
+    },
+    {
+      "sourceDomain": "ai.zoom.us",
+      "domain": "ai.zoom.us",
+      "scope": "hostOnly",
+      "name": "ai-only",
+      "value": "fake"
+    },
+    {
+      "sourceDomain": "zoommate.zoom.us",
+      "domain": "zoommate.zoom.us",
+      "scope": "hostOnly",
+      "name": "mate-only",
+      "value": "fake"
+    },
+    {
+      "sourceDomain": "marketing.zoom.us",
+      "domain": "marketing.zoom.us",
+      "scope": "hostOnly",
+      "name": "marketing-only",
+      "value": "fake"
+    }
+  ]
+}

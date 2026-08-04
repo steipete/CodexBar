@@ -18,7 +18,8 @@ private struct KimiStubClaudeFetcher: ClaudeUsageFetching {
 
 private func makeKimiFetchContext(
     sourceMode: ProviderSourceMode,
-    environment: [String: String] = [:]) -> ProviderFetchContext
+    environment: [String: String] = [:],
+    settings: ProviderSettingsSnapshot? = nil) -> ProviderFetchContext
 {
     let env = environment
     return ProviderFetchContext(
@@ -29,7 +30,7 @@ private func makeKimiFetchContext(
         webDebugDumpHTML: false,
         verbose: false,
         env: env,
-        settings: nil,
+        settings: settings,
         fetcher: UsageFetcher(environment: env),
         claudeFetcher: KimiStubClaudeFetcher(),
         browserDetection: BrowserDetection(cacheTTL: 0))
@@ -283,6 +284,87 @@ struct KimiSettingsReaderTests {
 }
 
 struct KimiAPIFetchStrategyTests {
+    @Test
+    func `cookie source off disables every browser import path`() {
+        let offContext = makeKimiFetchContext(
+            sourceMode: .auto,
+            settings: .make(kimi: .init(cookieSource: .off, manualCookieHeader: nil)))
+        let autoContext = makeKimiFetchContext(
+            sourceMode: .auto,
+            settings: .make(kimi: .init(cookieSource: .auto, manualCookieHeader: nil)))
+
+        #expect(KimiBrowserImportPolicy.allowsImport(offContext) == false)
+        #expect(KimiBrowserImportPolicy.allowsImport(autoContext))
+        #expect(ProviderTokenResolver.kimiAuthResolution(environment: [:]) == nil)
+    }
+
+    @Test
+    func `cookie source off skips monthly enrichment resolution`() async throws {
+        let transport = ProviderHTTPTransportStub { request in
+            let url = try #require(request.url)
+            #expect(url.path == "/coding/v1/usages")
+            let response = try #require(HTTPURLResponse(
+                url: url,
+                statusCode: 200,
+                httpVersion: nil,
+                headerFields: ["Content-Type": "application/json"]))
+            let data = Data(#"{"usage":{"limit":"100","used":"25","remaining":"75"},"limits":[]}"#.utf8)
+            return (data, response)
+        }
+        let strategy = KimiAPIFetchStrategy(
+            transport: transport,
+            resolveWebAuthToken: { _ in
+                Issue.record("Cookie source Off must not resolve desktop or browser sessions")
+                return "unexpected-web-token"
+            })
+        let context = makeKimiFetchContext(
+            sourceMode: .api,
+            environment: ["KIMI_CODE_API_KEY": "api-token"],
+            settings: .make(kimi: .init(cookieSource: .off, manualCookieHeader: nil)))
+
+        let result = try await strategy.fetch(context)
+
+        #expect(result.usage.primary?.usedPercent == 25)
+        #expect(result.usage.extraRateWindows == nil)
+        #expect(await transport.requests().count == 1)
+    }
+
+    @Test
+    func `code API usage enriches monthly pool from explicit web session`() async throws {
+        let transport = ProviderHTTPTransportStub { request in
+            let url = try #require(request.url)
+            let response = try #require(HTTPURLResponse(
+                url: url,
+                statusCode: 200,
+                httpVersion: nil,
+                headerFields: ["Content-Type": "application/json"]))
+            if url.path == "/coding/v1/usages" {
+                return (
+                    Data(#"{"usage":{"limit":"100","used":"25","remaining":"75"},"limits":[]}"#.utf8),
+                    response)
+            }
+            #expect(url.path.hasSuffix("/GetSubscriptionStats"))
+            #expect(request.value(forHTTPHeaderField: "Cookie") == "kimi-auth=desktop-token")
+            return (
+                Data(#"{"subscriptionBalance":{"feature":"FEATURE_OMNI","type":"SUBSCRIPTION","amountUsedRatio":0.42}}"#
+                    .utf8),
+                response)
+        }
+        let strategy = KimiAPIFetchStrategy(
+            transport: transport,
+            resolveWebAuthToken: { _ in "desktop-token" })
+        let context = makeKimiFetchContext(
+            sourceMode: .api,
+            environment: ["KIMI_CODE_API_KEY": "api-token"],
+            settings: .make(kimi: .init(cookieSource: .auto, manualCookieHeader: nil)))
+
+        let result = try await strategy.fetch(context)
+        let monthly = result.usage.extraRateWindows?.first { $0.id == "kimi-monthly" }
+
+        #expect(monthly?.window.usedPercent == 42)
+        #expect(await transport.requests().count == 2)
+    }
+
     @Test
     func `auto mode accepts CLI credential and reports expired remediation`() async throws {
         let home = try makeTemporaryKimiCodeHome()

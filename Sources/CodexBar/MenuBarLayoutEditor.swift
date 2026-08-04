@@ -190,7 +190,7 @@ struct MenuBarLayoutEditor: View {
     }
 
     private var providers: [UsageProvider] {
-        self.store.enabledProvidersForDisplay()
+        self.store.enabledFirstPartyProvidersForDisplay()
     }
 
     private var scopedProvider: UsageProvider? {
@@ -627,7 +627,7 @@ private struct MenuBarLayoutPreview: View {
 
     var body: some View {
         let provider = self.provider ?? .codex
-        let snapshot = self.store.snapshot(for: provider)
+        let snapshot = self.store.snapshot(for: provider.instanceID)
         let data = snapshot.map { self.liveData(provider: provider, snapshot: $0) }
             ?? self.representativeData(provider: provider)
         let icon = ProviderBrandIcon.image(for: provider)

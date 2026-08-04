@@ -53,6 +53,30 @@ struct MenuCardCostComparisonTests {
     }
 
     @Test
+    func `retained cost rows keep totals while showing refresh activity`() throws {
+        let snapshot = CostUsageTokenSnapshot(
+            sessionTokens: 100,
+            sessionCostUSD: 1,
+            last30DaysTokens: 900,
+            last30DaysCostUSD: 9,
+            historyDays: 30,
+            daily: [],
+            updatedAt: Date())
+
+        let section = try #require(UsageMenuCardView.Model.tokenUsageSection(
+            provider: .codex,
+            enabled: true,
+            isRefreshing: true,
+            comparisonPeriodsEnabled: false,
+            snapshot: snapshot,
+            error: nil))
+
+        #expect(section.isRefreshing)
+        #expect(section.sessionLine.contains("$1.00"))
+        #expect(section.monthLine.contains("$9.00"))
+    }
+
+    @Test
     func `inline dashboard shows enabled comparison periods`() throws {
         let now = Date(timeIntervalSince1970: 1_783_123_200)
         let snapshot = CostUsageTokenSnapshot(

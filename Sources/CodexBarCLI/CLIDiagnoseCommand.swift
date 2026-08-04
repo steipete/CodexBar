@@ -27,7 +27,9 @@ extension CodexBarCLI {
             }
             providerSelection = parsed
         } else {
-            providerSelection = Self.providerSelection(rawOverride: nil, enabled: config.enabledProviders())
+            providerSelection = Self.providerSelection(
+                rawOverride: nil,
+                enabled: config.enabledProviders().compactMap(\.firstPartyProvider))
         }
 
         let providers = providerSelection.asList
@@ -152,7 +154,7 @@ extension CodexBarCLI {
             auth: Self.diagnosticAuthSummary(
                 provider: provider,
                 account: account,
-                config: tokenContext.config.providerConfig(for: provider),
+                config: tokenContext.config.providerConfig(for: provider.instanceID),
                 environment: env,
                 settings: settings),
             appVersion: Self.currentVersion()))

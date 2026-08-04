@@ -14,7 +14,7 @@ struct WidgetProviderChoiceTests {
         "qwencloud": "Qwen Cloud",
         "antigravity": "Antigravity",
         "cursor": "Cursor",
-        "zai": "z.ai",
+        "zai": "z.ai / GLM",
         "copilot": "Copilot",
         "devin": "Devin",
         "minimax": "MiniMax",
@@ -22,7 +22,7 @@ struct WidgetProviderChoiceTests {
         "opencode": "OpenCode",
         "opencodego": "OpenCode Go",
         "mistral": "Mistral",
-        "kimi": "Kimi",
+        "kimi": "Kimi Code",
     ]
 
     @Test

@@ -541,7 +541,7 @@ extension UsageStoreHighestUsageTests {
     @Test
     func `automatic metric uses zai 5-hour token lane when ranking highest usage`() {
         let settings = SettingsStore(
-            configStore: testConfigStore(suiteName: "UsageStoreHighestUsageTests-zai-automatic-tertiary"),
+            configStore: testConfigStore(suiteName: "UsageStoreHighestUsageTests-zai-automatic-primary"),
             zaiTokenStore: NoopZaiTokenStore(),
             syntheticTokenStore: NoopSyntheticTokenStore())
         settings.refreshFrequency = .manual
@@ -565,9 +565,9 @@ extension UsageStoreHighestUsageTests {
             secondary: nil,
             updatedAt: Date())
         let zaiSnapshot = UsageSnapshot(
-            primary: RateWindow(usedPercent: 15, windowMinutes: 10080, resetsAt: nil, resetDescription: nil),
-            secondary: RateWindow(usedPercent: 10, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
-            tertiary: RateWindow(usedPercent: 90, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+            primary: RateWindow(usedPercent: 90, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+            secondary: RateWindow(usedPercent: 15, windowMinutes: 10080, resetsAt: nil, resetDescription: nil),
+            tertiary: nil,
             updatedAt: Date())
 
         store._setSnapshotForTesting(codexSnapshot, provider: .codex)

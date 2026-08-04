@@ -35,7 +35,7 @@ extension StatusItemController {
     }
 
     private func providerStoreIconObservationSignature(for provider: UsageProvider, showBrandPercent: Bool) -> String {
-        let snapshot = self.store.snapshot(for: provider)
+        let snapshot = self.store.snapshot(for: provider.instanceID)
         let style = self.store.style(for: provider)
         let resolved = self.resolvedMenuBarIconPercents(
             provider: provider,
@@ -66,7 +66,7 @@ extension StatusItemController {
             "stale=\(self.store.isStale(provider: provider) ? "1" : "0")",
             "status=\(self.store.statusIndicator(for: provider).rawValue)",
             "anim=\(self.shouldAnimate(provider: provider) ? "1" : "0")",
-            "refreshing=\(self.store.refreshingProviders.contains(provider) ? "1" : "0")",
+            "refreshing=\(self.store.refreshingProviders.contains(provider.instanceID) ? "1" : "0")",
             "text=\(displayText ?? "nil")",
             "layoutCost=\(layoutCostSignature ?? "nil")",
             "layoutAccount=\(layoutAccountSignature ?? "nil")",

@@ -27,4 +27,13 @@ public enum MoonshotRegion: String, CaseIterable, Sendable {
     public var balanceURL: URL {
         URL(string: self.apiBaseURLString)!.appendingPathComponent(Self.balancePath)
     }
+
+    public var consoleURL: URL {
+        switch self {
+        case .international:
+            URL(string: "https://platform.moonshot.ai/console/account")!
+        case .china:
+            URL(string: "https://platform.kimi.com/console/account")!
+        }
+    }
 }

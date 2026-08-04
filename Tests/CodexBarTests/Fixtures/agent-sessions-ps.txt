@@ -7,3 +7,12 @@
   401     1 Mon Jul  6 09:05:00 2026 /Applications/Codex.app/Contents/Frameworks/Codex Framework.framework/Helpers/Codex (Renderer) --type=renderer
   402     1 Mon Jul  6 09:06:00 2026 /Applications/Claude.app/Contents/MacOS/Claude
   403     1 Mon Jul  6 09:07:00 2026 ./Codex Computer Use.app/Contents/MacOS/helper mcp
+  501     1 Mon Jul  6 09:08:00 2026 /Users/test/.local/bin/omp --project /Users/test/Projects/oh-my-pi
+  502     1 Mon Jul  6 09:08:01 2026 /opt/homebrew/bin/bun /Users/test/.bun/install/global/node_modules/oh-my-pi/omp --project /Users/test/Projects/oh-my-pi
+  503     1 Mon Jul  6 09:08:02 2026 /Users/test/.local/bin/omp --help
+  504     1 Mon Jul  6 09:08:03 2026 /opt/homebrew/bin/bun /Users/test/.bun/install/global/node_modules/oh-my-pi/omp --VeRsIoN
+  505     1 Mon Jul  6 09:08:04 2026 /Users/test/.local/bin/omp --SMOKE-TEST
+  506     1 Mon Jul  6 09:08:05 2026 /opt/homebrew/bin/bun /Users/test/.bun/install/global/node_modules/oh-my-pi/omp __OMP_WORKER_123
+  507     1 Mon Jul  6 09:08:06 2026 /opt/homebrew/bin/bun /Users/test/.bun/install/global/node_modules/other-cli/index.js
+  508     1 Mon Jul  6 09:08:07 2026 /opt/homebrew/bin/npm /Users/test/.bun/install/global/node_modules/oh-my-pi/omp
+  509     1 Mon Jul  6 09:08:08 2026 /Users/test/.local/bin/pi

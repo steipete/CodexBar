@@ -419,11 +419,6 @@ extension UsageStore {
                 : .antigravityLegacy
             return (window, source)
         }
-        // z.ai's typed sessionTokenLimit is rendered in the tertiary lane when the response also
-        // contains its weekly token limit and MCP time limit. Prefer that semantic session lane.
-        if provider == .zai, let tertiary = snapshot.tertiary {
-            return (tertiary, .zaiTertiary)
-        }
         if let primary = snapshot.primary, Self.isSessionWindow(primary) {
             // Crof credits-only balances publish a duration-less primary with no secondary quota
             // window. Keep that PAYG shape out of session-quota transitions so a $0 balance cannot
@@ -445,7 +440,7 @@ extension UsageStore {
     }
 
     func clearSessionQuotaTransitionState(provider: UsageProvider) {
-        let removedState = self.sessionQuotaTransitionStates.removeValue(forKey: provider)
+        let removedState = self.sessionQuotaTransitionStates.removeValue(forKey: provider.instanceID)
         // Generic provider cleanup can run while Codex is disabled or temporarily unavailable. Preserve
         // an already-depleted baseline across recovery so depletion cannot refire, but let a newly depleted
         // account notify after a positive baseline was discarded.

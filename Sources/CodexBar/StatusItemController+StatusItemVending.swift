@@ -12,19 +12,19 @@ extension StatusItemController {
         onCreated: ((NSStatusItem) -> Void)? = nil)
         -> NSStatusItem
     {
-        if let existing = self.statusItems[provider] {
+        if let existing = self.statusItems[provider.instanceID] {
             return existing
         }
         return Self.makeStatusItem(
             statusBar: self.statusBar,
-            identity: .provider(provider),
+            identity: .provider(provider.instanceID),
             defaults: self.settings.userDefaults,
             legacyDefaultItemIndex: self.legacyDefaultItemIndex(forNewProvider: provider),
             onCreated: { item in
                 // Register before invoking the caller/setup callbacks: button configuration and
                 // icon-observation can synchronously re-enter vending for this provider, and an
                 // unregistered item there vends a duplicate (issue #2162).
-                self.statusItems[provider] = item
+                self.statusItems[provider.instanceID] = item
                 onCreated?(item)
             })
     }

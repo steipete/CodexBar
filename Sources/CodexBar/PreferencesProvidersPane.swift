@@ -208,7 +208,9 @@ struct ProvidersPane: View {
             L("usage_not_fetched_yet")
         }
 
-        let detailLine: String = if let sourceLabel = self.store.lastSourceLabels[provider], !sourceLabel.isEmpty {
+        let detailLine: String = if let sourceLabel = self.store.lastSourceLabels[provider.instanceID],
+                                    !sourceLabel.isEmpty
+        {
             sourceLabel
         } else if let version = self.store.version(for: provider), !version.isEmpty {
             "\(meta.cliName) \(version)"
@@ -573,7 +575,7 @@ struct ProvidersPane: View {
             tokenSnapshot: tokenSnapshot,
             tokenError: tokenError,
             account: self.store.accountInfo(for: provider),
-            isRefreshing: self.store.refreshingProviders.contains(provider),
+            isRefreshing: self.store.refreshingProviders.contains(provider.instanceID),
             lastError: codexProjection?.userFacingErrors.usage ?? self.store.userFacingError(for: provider),
             limitsAvailability: self.store.knownLimitsAvailability(for: provider),
             usageBarsShowUsed: self.settings.usageBarsShowUsed,

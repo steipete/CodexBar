@@ -22,7 +22,7 @@ extension StatusItemController {
         _ selection: ProviderSwitcherSelection?,
         _ includesOverview: Bool)
     {
-        self.lastSwitcherProviders = providers
+        self.lastSwitcherProviders = providers.map(\.instanceID)
         self.lastSwitcherUsageBarsShowUsed = self.settings.usageBarsShowUsed
         self.lastMergedSwitcherSelection = selection
         self.lastMergedMenuContentSelection = selection

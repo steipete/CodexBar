@@ -6,6 +6,22 @@ import Testing
 
 struct CLIConfigCommandTests {
     @Test
+    func `Moonshot API key is bound to configured region`() {
+        var config = CodexBarConfig.makeDefault()
+        config.setProviderConfig(ProviderConfig(id: .moonshot, region: MoonshotRegion.china.rawValue))
+
+        let updated = CodexBarCLI.configSettingAPIKey(
+            config,
+            provider: .moonshot,
+            apiKey: "china-token",
+            enableProvider: true)
+
+        let moonshot = updated.providerConfig(for: .moonshot)
+        #expect(moonshot?.apiKey == "china-token")
+        #expect(moonshot?.apiKeyRegion == MoonshotRegion.china.rawValue)
+    }
+
+    @Test
     func `config set api key parses provider stdin and no enable flags`() throws {
         let parser = CommandParser(signature: CodexBarCLI._configSetAPIKeySignatureForTesting())
         let parsed = try parser.parse(arguments: [

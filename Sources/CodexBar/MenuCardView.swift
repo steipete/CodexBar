@@ -112,6 +112,7 @@ struct UsageMenuCardView: View {
         }
 
         struct TokenUsageSection {
+            let isRefreshing: Bool
             let sessionLine: String
             let monthLine: String
             let meteredLine: String?
@@ -123,6 +124,7 @@ struct UsageMenuCardView: View {
             /// Explicit initializer so `meteredLine`/`comparisonLines` default to empty: callers
             /// that predate them (and providers that never report them) keep their call sites.
             init(
+                isRefreshing: Bool = false,
                 sessionLine: String,
                 monthLine: String,
                 meteredLine: String? = nil,
@@ -131,6 +133,7 @@ struct UsageMenuCardView: View {
                 errorLine: String?,
                 errorCopyText: String?)
             {
+                self.isRefreshing = isRefreshing
                 self.sessionLine = sessionLine
                 self.monthLine = monthLine
                 self.meteredLine = meteredLine
@@ -162,6 +165,7 @@ struct UsageMenuCardView: View {
         let metrics: [Metric]
         let usageNotes: [String]
         var subscriptionNotes: [String] = []
+        var providerDetails: [ProviderDetailSection] = []
         let openAIAPIUsage: OpenAIAPIUsageSnapshot?
         let inlineUsageDashboard: InlineUsageDashboardModel?
         let creditsText: String?
@@ -213,6 +217,11 @@ struct UsageMenuCardView: View {
                     Text(placeholder)
                         .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
                         .font(.subheadline)
+                }
+                if !liveModel.providerDetails.isEmpty {
+                    ProviderDetailSectionsContent(
+                        sections: liveModel.providerDetails,
+                        chartColor: liveModel.progressColor)
                 }
             } else {
                 let hasUsage = liveModel.hasUsageContent
@@ -451,9 +460,16 @@ private struct TokenUsageSectionContent: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(UsageMenuCardView.Model.tokenUsageHeader(provider: self.provider))
-                .font(.body)
-                .fontWeight(.medium)
+            HStack(spacing: 6) {
+                Text(UsageMenuCardView.Model.tokenUsageHeader(provider: self.provider))
+                    .font(.body)
+                    .fontWeight(.medium)
+                if self.tokenUsage.isRefreshing {
+                    ProgressView()
+                        .controlSize(.mini)
+                        .accessibilityLabel(L("Refreshing"))
+                }
+            }
             Text(self.tokenUsage.sessionLine)
                 .font(self.lineFont)
                 .lineLimit(1)
@@ -673,6 +689,11 @@ private struct UsageMenuCardUsageContentView: View {
                 Text(placeholder)
                     .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
                     .font(.subheadline)
+            }
+            if !self.model.providerDetails.isEmpty {
+                ProviderDetailSectionsContent(
+                    sections: self.model.providerDetails,
+                    chartColor: self.model.progressColor)
             }
             if self.showBottomDivider {
                 Divider()
@@ -936,6 +957,7 @@ extension UsageMenuCardView.Model {
         let tokenUsage = Self.tokenUsageSection(
             provider: input.provider,
             enabled: input.tokenCostMenuSectionEnabled,
+            isRefreshing: input.tokenCostIsRefreshing,
             comparisonPeriodsEnabled: input.costComparisonPeriodsEnabled,
             snapshot: tokenUsageSnapshot,
             error: input.tokenError,
@@ -960,6 +982,7 @@ extension UsageMenuCardView.Model {
             metrics: metrics,
             usageNotes: usageNotes,
             subscriptionNotes: Self.subscriptionMetadataNotes(snapshot: input.snapshot, provider: input.provider),
+            providerDetails: input.snapshot?.details ?? [],
             openAIAPIUsage: openAIAPIUsage,
             inlineUsageDashboard: inlineUsageDashboard,
             creditsText: creditsText,
@@ -1181,9 +1204,10 @@ extension UsageMenuCardView.Model {
         var metrics: [Metric] = []
         let percentStyle: PercentStyle = input.usageBarsShowUsed ? .used : .left
         let zaiUsage = input.provider == .zai ? snapshot.zaiUsage : nil
-        let zaiTokenDetail = Self.zaiLimitDetailText(limit: zaiUsage?.tokenLimit)
-        let zaiTimeDetail = Self.zaiLimitDetailText(limit: zaiUsage?.timeLimit)
-        let zaiSessionDetail = Self.zaiLimitDetailText(limit: zaiUsage?.sessionTokenLimit)
+        let zaiPrimaryDetail = Self.zaiLimitDetailText(limit: zaiUsage?.sessionTokenLimit ?? zaiUsage?.tokenLimit)
+        let zaiSecondaryDetail = zaiUsage?.sessionTokenLimit == nil
+            ? nil
+            : Self.zaiLimitDetailText(limit: zaiUsage?.tokenLimit)
         let openRouterQuotaDetail = Self.openRouterQuotaDetail(
             provider: input.provider,
             snapshot: snapshot,
@@ -1214,7 +1238,7 @@ extension UsageMenuCardView.Model {
                 primary: primary,
                 percentStyle: percentStyle,
                 title: labels.primary,
-                zaiTokenDetail: zaiTokenDetail,
+                zaiTokenDetail: zaiPrimaryDetail,
                 openRouterQuotaDetail: openRouterQuotaDetail))
         }
         if input.provider != .codex, let weekly = snapshot.secondary {
@@ -1223,7 +1247,7 @@ extension UsageMenuCardView.Model {
                 weekly: weekly,
                 percentStyle: percentStyle,
                 title: labels.secondary,
-                zaiTimeDetail: zaiTimeDetail))
+                zaiTimeDetail: zaiSecondaryDetail))
         }
         if input.provider == .mimo, let mimoUsage = snapshot.mimoUsage {
             metrics.append(Metric(
@@ -1245,9 +1269,6 @@ extension UsageMenuCardView.Model {
                let detail = opus.resetDescription,
                !detail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             {
-                tertiaryDetailText = detail
-            }
-            if input.provider == .zai, let detail = zaiSessionDetail {
                 tertiaryDetailText = detail
             }
             // Perplexity purchased credits don't reset; show balance without "Resets" prefix.

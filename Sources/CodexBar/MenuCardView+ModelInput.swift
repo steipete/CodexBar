@@ -22,6 +22,7 @@ extension UsageMenuCardView.Model {
         let usageBarsShowUsed: Bool
         let resetTimeDisplayStyle: ResetTimeDisplayStyle
         let tokenCostUsageEnabled: Bool
+        let tokenCostIsRefreshing: Bool
         let codexLocalSessionCostLedgerEnabled: Bool
         let tokenCostInlineDashboardEnabled: Bool
         let tokenCostMenuSectionEnabled: Bool
@@ -62,6 +63,7 @@ extension UsageMenuCardView.Model {
             usageBarsShowUsed: Bool,
             resetTimeDisplayStyle: ResetTimeDisplayStyle,
             tokenCostUsageEnabled: Bool,
+            tokenCostIsRefreshing: Bool = false,
             codexLocalSessionCostLedgerEnabled: Bool = false,
             tokenCostInlineDashboardEnabled: Bool? = nil,
             tokenCostMenuSectionEnabled: Bool? = nil,
@@ -101,6 +103,7 @@ extension UsageMenuCardView.Model {
             self.usageBarsShowUsed = usageBarsShowUsed
             self.resetTimeDisplayStyle = resetTimeDisplayStyle
             self.tokenCostUsageEnabled = tokenCostUsageEnabled
+            self.tokenCostIsRefreshing = tokenCostIsRefreshing
             self.codexLocalSessionCostLedgerEnabled = codexLocalSessionCostLedgerEnabled
             self.tokenCostInlineDashboardEnabled = tokenCostInlineDashboardEnabled ?? tokenCostUsageEnabled
             self.tokenCostMenuSectionEnabled = tokenCostMenuSectionEnabled ?? tokenCostUsageEnabled

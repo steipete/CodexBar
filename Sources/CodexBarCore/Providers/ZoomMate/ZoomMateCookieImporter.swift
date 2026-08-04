@@ -55,8 +55,8 @@ public enum ZoomMateCookieImporter {
     /// Includes the parent "zoom.us" domain — ZoomMate's SSO session cookies (`_zm_*`,
     /// `cf_clearance`, etc.) are scoped to the shared parent domain, not the leaf subdomains, and
     /// domain matching here is substring-based (`.contains`), so this one pattern also matches the
-    /// leaf domains below; both are kept for clarity. The over-broad `.contains("zoom.us")` read is
-    /// then narrowed at send time by `isSendable(toSessionHosts:)`.
+    /// leaf domains below; both are kept for clarity. The broad read is narrowed per destination
+    /// using each record's explicit browser scope.
     private static let cookieDomains = ["zoommate.zoom.us", "ai.zoom.us", "zoom.us"]
 
     public struct SessionInfo: Sendable {
@@ -92,8 +92,7 @@ public enum ZoomMateCookieImporter {
                     in: browserSource,
                     logger: log)
                 for source in sources where !source.records.isEmpty {
-                    let cookies = BrowserCookieClient.makeHTTPCookies(source.records, origin: query.origin)
-                    let cookieHeaders = Self.cookieHeaders(from: cookies)
+                    let cookieHeaders = Self.cookieHeaders(from: source.records)
                     guard !cookieHeaders.isEmpty else { continue }
                     log("\(source.label): found host-scoped cookie headers")
                     sessions.append(SessionInfo(cookieHeaders: cookieHeaders, sourceLabel: source.label))
@@ -108,26 +107,31 @@ public enum ZoomMateCookieImporter {
         return sessions
     }
 
-    /// Whether a browser would attach a cookie scoped to `cookieDomain` to a request to `host`, per
-    /// RFC 6265 domain-matching: a host-only cookie matches its exact host; a
-    /// domain cookie (stored with a leading dot) matches that host and all of its subdomains. This
-    /// keeps parent `.zoom.us` SSO cookies while preventing an `ai.zoom.us` host-only cookie from
-    /// reaching `zoommate.zoom.us` (and vice versa).
-    static func isSendable(cookieDomain: String, toHost host: String) -> Bool {
-        let normalizedDomain = cookieDomain.lowercased()
+    /// Whether a browser would attach a cookie to `host`, per RFC 6265 domain-matching. Scope is
+    /// carried separately because Chromium normalizes `.zoom.us` and `zoom.us` to the same domain
+    /// string when records become `HTTPCookie` values.
+    static func isSendable(cookieDomain: String, scope: BrowserCookieScope, toHost host: String) -> Bool {
+        let normalizedDomain = cookieDomain
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .trimmingPrefix(".")
+            .lowercased()
         let normalizedHost = host.lowercased()
         guard ZoomMateCookieHeaders.allowedHosts.contains(normalizedHost), !normalizedDomain.isEmpty else {
             return false
         }
-        guard normalizedDomain.hasPrefix(".") else { return normalizedHost == normalizedDomain }
-        let bareDomain = String(normalizedDomain.dropFirst())
-        guard !bareDomain.isEmpty else { return false }
-        return normalizedHost == bareDomain || normalizedHost.hasSuffix("." + bareDomain)
+        switch scope {
+        case .hostOnly:
+            return normalizedHost == normalizedDomain
+        case .domain:
+            return normalizedHost == normalizedDomain || normalizedHost.hasSuffix("." + normalizedDomain)
+        }
     }
 
-    static func cookieHeaders(from cookies: [HTTPCookie]) -> ZoomMateCookieHeaders {
+    static func cookieHeaders(from records: [BrowserCookieRecord]) -> ZoomMateCookieHeaders {
         let pairs: [(String, String)] = ZoomMateCookieHeaders.allowedHosts.compactMap { host in
-            let sendable = cookies.filter { Self.isSendable(cookieDomain: $0.domain, toHost: host) }
+            let sendable = records.filter {
+                Self.isSendable(cookieDomain: $0.domain, scope: $0.scope, toHost: host)
+            }
             guard !sendable.isEmpty else { return nil }
             let header = sendable.map { "\($0.name)=\($0.value)" }.joined(separator: "; ")
             return (host, header)

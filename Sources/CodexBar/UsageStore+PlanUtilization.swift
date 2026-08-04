@@ -19,9 +19,9 @@ extension UsageStore {
         case .codex, .claude, .antigravity, .opencodego:
             true
         default:
-            if self.planUtilizationHistory[provider]?.isEmpty == false {
+            if self.planUtilizationHistory[provider.instanceID]?.isEmpty == false {
                 true
-            } else if self.settings.historicalTrackingEnabled, let snapshot = self.snapshots[provider] {
+            } else if self.settings.historicalTrackingEnabled, let snapshot = self.snapshots[provider.instanceID] {
                 !self.planUtilizationSeriesSamples(
                     provider: provider,
                     snapshot: snapshot,
@@ -60,10 +60,10 @@ extension UsageStore {
         // background load would record samples against an empty bucket and
         // overwrite real disk history.
         if !self.planUtilizationHistoryLoaded {
-            let providerBuckets = self.planUtilizationHistory[provider] ?? PlanUtilizationHistoryBuckets()
+            let providerBuckets = self.planUtilizationHistory[provider.instanceID] ?? PlanUtilizationHistoryBuckets()
             return PlanUtilizationHistorySelection(accountKey: nil, histories: providerBuckets.histories(for: nil))
         }
-        var providerBuckets = self.planUtilizationHistory[provider] ?? PlanUtilizationHistoryBuckets()
+        var providerBuckets = self.planUtilizationHistory[provider.instanceID] ?? PlanUtilizationHistoryBuckets()
         if provider == .claude,
            providerBuckets.preferredAccountKey == Self.planUtilizationUnscopedPreferredKey
            || Self.isClaudeOAuthPlanUtilizationAccountKey(providerBuckets.preferredAccountKey)
@@ -78,13 +78,13 @@ extension UsageStore {
         let originalProviderBuckets = providerBuckets
         let accountKey = self.resolvePlanUtilizationAccountKey(
             provider: provider,
-            snapshot: self.snapshots[provider],
+            snapshot: self.snapshots[provider.instanceID],
             preferredAccount: nil,
             providerBuckets: &providerBuckets)
-        self.planUtilizationHistory[provider] = providerBuckets
+        self.planUtilizationHistory[provider.instanceID] = providerBuckets
         if providerBuckets != originalProviderBuckets {
             self.planUtilizationHistoryRevision &+= 1
-            self.sessionEquivalentBurnCache.removeValue(forKey: provider)
+            self.sessionEquivalentBurnCache.removeValue(forKey: provider.instanceID)
             let snapshotToPersist = self.planUtilizationHistory
             Task {
                 await self.planUtilizationPersistenceCoordinator.enqueue(snapshotToPersist)
@@ -110,7 +110,7 @@ extension UsageStore {
                 return currentSelection
             }
         }
-        let providerBuckets = self.planUtilizationHistory[provider] ?? PlanUtilizationHistoryBuckets()
+        let providerBuckets = self.planUtilizationHistory[provider.instanceID] ?? PlanUtilizationHistoryBuckets()
         return PlanUtilizationHistorySelection(
             accountKey: accountKey,
             histories: providerBuckets.histories(for: accountKey))
@@ -126,7 +126,7 @@ extension UsageStore {
             return .unavailable
         }
         if self.settings.effectiveSelectedTokenAccount(for: provider) == nil,
-           let currentSnapshot = self.snapshots[provider],
+           let currentSnapshot = self.snapshots[provider.instanceID],
            Self.planUtilizationIdentityAccountKey(provider: provider, snapshot: currentSnapshot) == accountKey
         {
             let currentSelection = self.planUtilizationHistorySelection(for: provider)
@@ -134,7 +134,7 @@ extension UsageStore {
                 return currentSelection
             }
         }
-        let providerBuckets = self.planUtilizationHistory[provider] ?? PlanUtilizationHistoryBuckets()
+        let providerBuckets = self.planUtilizationHistory[provider.instanceID] ?? PlanUtilizationHistoryBuckets()
         return PlanUtilizationHistorySelection(
             accountKey: accountKey,
             histories: providerBuckets.histories(for: accountKey))
@@ -187,13 +187,13 @@ extension UsageStore {
     }
 
     func shouldShowRefreshingMenuCard(for provider: UsageProvider) -> Bool {
-        self.refreshingProviders.contains(provider)
-            && self.snapshots[provider] == nil
+        self.refreshingProviders.contains(provider.instanceID)
+            && self.snapshots[provider.instanceID] == nil
             && self.error(for: provider) == nil
     }
 
     func shouldShowRefreshingMenuCardIndicator(for provider: UsageProvider) -> Bool {
-        self.refreshingProviders.contains(provider) && self.error(for: provider) == nil
+        self.refreshingProviders.contains(provider.instanceID) && self.error(for: provider) == nil
     }
 
     func shouldHidePlanUtilizationMenuItem(for provider: UsageProvider) -> Bool {
@@ -285,9 +285,9 @@ extension UsageStore {
             _ = await self.planUtilizationHistoryLoadTask?.result
         }
 
-        var snapshotToPersist: [UsageProvider: PlanUtilizationHistoryBuckets]?
+        var snapshotToPersist: [ProviderInstanceID: PlanUtilizationHistoryBuckets]?
         await MainActor.run {
-            var providerBuckets = self.planUtilizationHistory[provider] ?? PlanUtilizationHistoryBuckets()
+            var providerBuckets = self.planUtilizationHistory[provider.instanceID] ?? PlanUtilizationHistoryBuckets()
             let originalProviderBuckets = providerBuckets
             let preferredAccount = account ?? self.settings.effectiveSelectedTokenAccount(for: provider)
             let accountKey = self.resolvePlanUtilizationAccountKey(
@@ -318,7 +318,7 @@ extension UsageStore {
                     providerBuckets: &providerBuckets,
                     histories: &histories,
                     samples: &samplesToPersist)
-                self.sessionEquivalentBurnCache.removeValue(forKey: provider)
+                self.sessionEquivalentBurnCache.removeValue(forKey: provider.instanceID)
             }
 
             let updatedHistories = Self.updatedPlanUtilizationHistories(
@@ -329,7 +329,7 @@ extension UsageStore {
             }
 
             guard providerBuckets != originalProviderBuckets else { return }
-            self.planUtilizationHistory[provider] = providerBuckets
+            self.planUtilizationHistory[provider.instanceID] = providerBuckets
             self.planUtilizationHistoryRevision &+= 1
             snapshotToPersist = self.planUtilizationHistory
         }
@@ -475,11 +475,7 @@ extension UsageStore {
         context: LimitResetDetectionContext,
         samples: [PlanUtilizationSeriesSample])
     {
-        let shouldIgnoreCommandCode = context.provider == .commandcode
-            && context.snapshot.commandCodeSubscriptionEnrichmentUnavailable
-        let sessionObservation: LimitResetObservation? = if shouldIgnoreCommandCode {
-            nil
-        } else if context.provider == .codex {
+        let sessionObservation: LimitResetObservation? = if context.provider == .codex {
             samples.last(where: { $0.name == .session }).map {
                 LimitResetObservation(
                     usedPercent: $0.entry.usedPercent,
@@ -532,7 +528,7 @@ extension UsageStore {
         case .primary:
             guard let minutes = resolved.window.windowMinutes else { return false }
             return minutes > 0 && minutes <= 6 * 60
-        case .copilotSecondaryFallback, .zaiTertiary, .antigravityQuotaSummary, .antigravityLegacy:
+        case .copilotSecondaryFallback, .antigravityQuotaSummary, .antigravityLegacy:
             return true
         }
     }
@@ -771,7 +767,7 @@ extension UsageStore {
         if let accountKey {
             return accountKey
         }
-        let resolvedSnapshot = snapshot ?? self.snapshots[provider]
+        let resolvedSnapshot = snapshot ?? self.snapshots[provider.instanceID]
         return resolvedSnapshot.flatMap { Self.planUtilizationIdentityAccountKey(provider: provider, snapshot: $0) }
     }
 
@@ -810,7 +806,7 @@ extension UsageStore {
         provider: UsageProvider,
         snapshot: UsageSnapshot) -> String?
     {
-        guard let identity = snapshot.identity(for: provider) else { return nil }
+        guard let identity = snapshot.identity(for: provider.instanceID) else { return nil }
 
         let normalizedEmail = identity.accountEmail?
             .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -1595,14 +1591,14 @@ extension UsageStore {
 
 actor PlanUtilizationHistoryPersistenceCoordinator {
     private let store: PlanUtilizationHistoryStore
-    private var pendingSnapshot: [UsageProvider: PlanUtilizationHistoryBuckets]?
+    private var pendingSnapshot: [ProviderInstanceID: PlanUtilizationHistoryBuckets]?
     private var isPersisting: Bool = false
 
     init(store: PlanUtilizationHistoryStore) {
         self.store = store
     }
 
-    func enqueue(_ snapshot: [UsageProvider: PlanUtilizationHistoryBuckets]) {
+    func enqueue(_ snapshot: [ProviderInstanceID: PlanUtilizationHistoryBuckets]) {
         self.pendingSnapshot = snapshot
         guard !self.isPersisting else { return }
         self.isPersisting = true
@@ -1621,7 +1617,7 @@ actor PlanUtilizationHistoryPersistenceCoordinator {
         self.isPersisting = false
     }
 
-    private func saveAsync(_ snapshot: [UsageProvider: PlanUtilizationHistoryBuckets]) async {
+    private func saveAsync(_ snapshot: [ProviderInstanceID: PlanUtilizationHistoryBuckets]) async {
         let store = self.store
         await Task.detached(priority: .utility) {
             store.save(snapshot)

@@ -1,5 +1,5 @@
 ---
-summary: "Command Code provider notes: cookie authentication and monthly credit parsing."
+summary: "Command Code provider notes: cookie authentication and usage-window parsing."
 read_when:
   - Debugging Command Code cookie import or usage parsing
   - Updating Command Code billing or credit display
@@ -15,8 +15,9 @@ to your other AI coding providers.
 
 - `https://api.commandcode.ai` billing endpoints, authenticated with the
   signed-in Command Code web session.
-- The provider reads monthly credit usage, plan allowance, remaining credits,
-  and billing-cycle reset timing when the account data is available.
+- The provider reads 5-hour and weekly rolling limits alongside monthly credit
+  usage, plan allowance, remaining credits, and billing-cycle reset timing when
+  the account data is available.
 
 ## Authentication
 
@@ -40,7 +41,8 @@ provide the Command Code `Cookie` header in `cookieHeader`; both `auto` and
 ## Display
 
 - The menu bar item and provider card use the Command Code icon and label.
-- The primary row shows monthly credits used/remaining.
+- The primary and secondary rows show 5-hour and weekly rolling usage.
+- The tertiary row shows monthly credits used/remaining.
 - Widgets do not expose Command Code in the provider picker yet.
 
 ## Related files

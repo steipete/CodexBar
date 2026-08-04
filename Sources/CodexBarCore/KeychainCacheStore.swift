@@ -878,16 +878,16 @@ public enum KeychainCacheStore {
 }
 
 extension KeychainCacheStore.Key {
-    public static func cookie(provider: UsageProvider, scopeIdentifier: String? = nil) -> Self {
+    public static func cookie(provider instanceID: ProviderInstanceID, scopeIdentifier: String? = nil) -> Self {
         let identifier: String = if let scopeIdentifier, !scopeIdentifier.isEmpty {
-            "\(provider.rawValue).\(scopeIdentifier)"
+            "\(instanceID.rawValue).\(scopeIdentifier)"
         } else {
-            provider.rawValue
+            instanceID.rawValue
         }
         return Self(category: "cookie", identifier: identifier)
     }
 
-    public static func oauth(provider: UsageProvider) -> Self {
-        Self(category: "oauth", identifier: provider.rawValue)
+    public static func oauth(provider instanceID: ProviderInstanceID) -> Self {
+        Self(category: "oauth", identifier: instanceID.rawValue)
     }
 }

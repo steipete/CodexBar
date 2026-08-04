@@ -268,12 +268,12 @@ enum MenuSwitchFlickerProbe {
         /// current selection so the probe performs a real switch, and restores
         /// the original selection afterwards.
         private func resolveSegments() {
-            let enabledProviders = self.controller.store.enabledProvidersForDisplay()
+            let enabledProviders = self.controller.store.enabledFirstPartyProvidersForDisplay()
             let includesOverview = self.controller.includesOverviewTab(enabledProviders: enabledProviders)
             let selection = self.controller.resolvedSwitcherSelection(
                 enabledProviders: enabledProviders,
                 includesOverview: includesOverview)
-            var segments: [ProviderSwitcherSelection] = enabledProviders.map { .provider($0) }
+            var segments: [ProviderSwitcherSelection] = enabledProviders.map { .provider($0.instanceID) }
             if includesOverview {
                 segments.insert(.overview, at: 0)
             }

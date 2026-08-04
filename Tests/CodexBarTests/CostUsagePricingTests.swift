@@ -133,11 +133,11 @@ struct CostUsagePricingTests {
             outputTokens: 5,
             modelsDevCacheRoot: root)
 
-        // Rates per token: Sol $5/$30 per 1M, Terra $2.50/$15, Luna $1/$6;
+        // Rates per token: Sol $5/$30 per 1M, Terra $2/$12, Luna $0.20/$1.20;
         // cache read is 10% of input. Non-cached input is 90 tokens.
         #expect(sol == (90.0 * 5e-6) + (10.0 * 5e-7) + (5.0 * 3e-5))
-        #expect(terra == (90.0 * 2.5e-6) + (10.0 * 2.5e-7) + (5.0 * 1.5e-5))
-        #expect(luna == (90.0 * 1e-6) + (10.0 * 1e-7) + (5.0 * 6e-6))
+        #expect(terra == (90.0 * 2e-6) + (10.0 * 2e-7) + (5.0 * 1.2e-5))
+        #expect(luna == (90.0 * 2e-7) + (10.0 * 2e-8) + (5.0 * 1.2e-6))
         // Unsuffixed gpt-5.6 alias routes to Sol.
         #expect(alias == sol)
     }
@@ -236,6 +236,13 @@ struct CostUsagePricingTests {
     }
 
     @Test
+    func `codex pricing fingerprint records API fast USD definition`() {
+        let fingerprint = CostUsagePricing.codexBuiltInPricingFingerprint()
+
+        #expect(fingerprint.contains("fastPricingDefinition=api-fast-usd-v1"))
+    }
+
+    @Test
     func `codex cost applies gpt56 long context rates`() throws {
         let root = try Self.cacheRoot()
         let sol = CostUsagePricing.codexCostUSD(
@@ -263,8 +270,8 @@ struct CostUsagePricingTests {
         // Long-context (>272K) rates apply to the entire request. Total input contains 10 cached,
         // 20 cache-write, and 271,971 ordinary input tokens.
         #expect(sol == (271_971.0 * 1e-5) + (10.0 * 1e-6) + (20.0 * 1.25e-5) + (10.0 * 4.5e-5))
-        #expect(terra == (271_971.0 * 5e-6) + (10.0 * 5e-7) + (20.0 * 6.25e-6) + (10.0 * 2.25e-5))
-        #expect(luna == (271_971.0 * 2e-6) + (10.0 * 2e-7) + (20.0 * 2.5e-6) + (10.0 * 9e-6))
+        #expect(terra == (271_971.0 * 4e-6) + (10.0 * 4e-7) + (20.0 * 5e-6) + (10.0 * 1.8e-5))
+        #expect(luna == (271_971.0 * 4e-7) + (10.0 * 4e-8) + (20.0 * 5e-7) + (10.0 * 1.8e-6))
     }
 
     @Test
@@ -284,31 +291,34 @@ struct CostUsagePricingTests {
     }
 
     @Test
-    func `codex priority cost supports gpt56 tiers`() {
+    func `codex API fast cost matches brief gpt56 scenarios`() {
         let sol = CostUsagePricing.codexPriorityCostUSD(
             model: "gpt-5.6-sol",
-            inputTokens: 100,
-            cachedInputTokens: 20,
-            outputTokens: 10)
+            inputTokens: 100_000,
+            cachedInputTokens: 20000,
+            outputTokens: 20000)
         let terra = CostUsagePricing.codexPriorityCostUSD(
             model: "gpt-5.6-terra",
-            inputTokens: 100,
-            cachedInputTokens: 20,
-            outputTokens: 10)
+            inputTokens: 100_000,
+            cachedInputTokens: 20000,
+            outputTokens: 20000)
         let luna = CostUsagePricing.codexPriorityCostUSD(
             model: "gpt-5.6-luna",
-            inputTokens: 100,
-            cachedInputTokens: 20,
-            outputTokens: 10)
+            inputTokens: 100_000,
+            cachedInputTokens: 20000,
+            outputTokens: 20000)
 
-        // Priority is 2x short-context rates (Sol input $10/1M, etc.).
-        #expect(sol == (80.0 * 1e-5) + (20.0 * 1e-6) + (10.0 * 6e-5))
-        #expect(terra == (80.0 * 5e-6) + (20.0 * 5e-7) + (10.0 * 3e-5))
-        #expect(luna == (80.0 * 2e-6) + (20.0 * 2e-7) + (10.0 * 1.2e-5))
+        // Public API Fast rates are 2x Standard for GPT-5.6.
+        let expectedSol = 2.02
+        let expectedTerra = 0.808
+        let expectedLuna = 0.0808
+        #expect(abs((sol ?? 0) - expectedSol) < 1e-12)
+        #expect(abs((terra ?? 0) - expectedTerra) < 1e-12)
+        #expect(abs((luna ?? 0) - expectedLuna) < 1e-12)
     }
 
     @Test
-    func `codex priority cost uses explicit cache write rates`() {
+    func `codex priority cost multiplies standard cache write rates`() {
         let sol = CostUsagePricing.codexPriorityCostUSD(
             model: "gpt-5.6-sol",
             inputTokens: 100,
@@ -334,13 +344,57 @@ struct CostUsagePricingTests {
             cacheWriteInputTokens: 20,
             outputTokens: 5)
 
-        #expect(sol == (70.0 * 1e-5) + (10.0 * 1e-6) + (20.0 * 1.25e-5) + (5.0 * 6e-5))
-        #expect(terra == (70.0 * 5e-6) + (10.0 * 5e-7) + (20.0 * 6.25e-6) + (5.0 * 3e-5))
-        #expect(luna == (70.0 * 2e-6) + (10.0 * 2e-7) + (20.0 * 2.5e-6) + (5.0 * 1.2e-5))
-        // A model without an explicit Priority cache-write price keeps the legacy input-rate fold.
-        #expect(
-            modelWithoutCacheWriteSupport ==
-                (90.0 * 1.25e-5) + (10.0 * 1.25e-6) + (5.0 * 7.5e-5))
+        let solInput = 70.0 * 5e-6
+        let solCached = 10.0 * 5e-7
+        let solWrite = 20.0 * 6.25e-6
+        let solOutput = 5.0 * 3e-5
+        let expectedSol: Double = (solInput + solCached + solWrite + solOutput) * 2
+        let terraInput = 70.0 * 2e-6
+        let terraCached = 10.0 * 2e-7
+        let terraWrite = 20.0 * 2.5e-6
+        let terraOutput = 5.0 * 1.2e-5
+        let expectedTerra: Double = (terraInput + terraCached + terraWrite + terraOutput) * 2
+        let lunaInput = 70.0 * 2e-7
+        let lunaCached = 10.0 * 2e-8
+        let lunaWrite = 20.0 * 2.5e-7
+        let lunaOutput = 5.0 * 1.2e-6
+        let expectedLuna: Double = (lunaInput + lunaCached + lunaWrite + lunaOutput) * 2
+        #expect(abs((sol ?? 0) - expectedSol) < 1e-12)
+        #expect(abs((terra ?? 0) - expectedTerra) < 1e-12)
+        #expect(abs((luna ?? 0) - expectedLuna) < 1e-12)
+        // A legacy model without a Standard cache-write price folds writes into uncached input.
+        let legacyInput = 90.0 * 1.25e-5
+        let legacyCached = 10.0 * 1.25e-6
+        let legacyOutput = 5.0 * 7.5e-5
+        let expectedLegacy: Double = legacyInput + legacyCached + legacyOutput
+        #expect(abs((modelWithoutCacheWriteSupport ?? 0) - expectedLegacy) < 1e-12)
+    }
+
+    @Test
+    func `codex priority cost multiplies models dev standard pricing`() throws {
+        let root = try Self.seedModelsDevCache("""
+        {
+          "openai": {
+            "id": "openai",
+            "models": {
+              "gpt-5.6-sol": {
+                "id": "gpt-5.6-sol",
+                "cost": { "input": 5, "output": 30, "cache_read": 0.5, "cache_write": 6.25 }
+              }
+            }
+          }
+        }
+        """)
+
+        let cost = CostUsagePricing.codexPriorityCostUSD(
+            model: "gpt-5.6-sol",
+            inputTokens: 100_000,
+            cachedInputTokens: 20000,
+            outputTokens: 20000,
+            modelsDevCacheRoot: root)
+
+        // The brief's Standard total is $1.01; API Fast is 2x for GPT-5.6.
+        #expect(abs((cost ?? 0) - 2.02) < 1e-12)
     }
 
     @Test

@@ -1,0 +1,127 @@
+import Foundation
+
+public struct ProviderInstanceID: RawRepresentable, Hashable, Codable, Sendable, CustomStringConvertible {
+    public let rawValue: String
+
+    public var description: String {
+        self.rawValue
+    }
+
+    public init?(rawValue: String) {
+        guard Self.isValid(rawValue) else { return nil }
+        self.rawValue = rawValue
+    }
+
+    public init(firstPartyProvider provider: UsageProvider) {
+        self.rawValue = provider.rawValue
+    }
+
+    public var firstPartyProvider: UsageProvider? {
+        UsageProvider(rawValue: self.rawValue)
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        let rawValue = try container.decode(String.self)
+        guard let instanceID = Self(rawValue: rawValue) else {
+            throw DecodingError.dataCorruptedError(
+                in: container,
+                debugDescription: "Provider instance ID must contain 1-64 lowercase ASCII letters, digits, or hyphens")
+        }
+        self = instanceID
+    }
+
+    public func encode(to encoder: any Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(self.rawValue)
+    }
+
+    private static func isValid(_ rawValue: String) -> Bool {
+        guard (1...64).contains(rawValue.utf8.count) else { return false }
+        return rawValue.utf8.allSatisfy { byte in
+            (UInt8(ascii: "a")...UInt8(ascii: "z")).contains(byte) ||
+                (UInt8(ascii: "0")...UInt8(ascii: "9")).contains(byte) ||
+                byte == UInt8(ascii: "-")
+        }
+    }
+}
+
+extension UsageProvider {
+    public var instanceID: ProviderInstanceID {
+        ProviderInstanceID(firstPartyProvider: self)
+    }
+}
+
+// First-party spellings keep call sites concise while their values remain validated instance IDs.
+// swiftformat:disable sortDeclarations
+extension ProviderInstanceID {
+    public static let codex = UsageProvider.codex.instanceID
+    public static let openai = UsageProvider.openai.instanceID
+    public static let azureopenai = UsageProvider.azureopenai.instanceID
+    public static let claude = UsageProvider.claude.instanceID
+    public static let clinepass = UsageProvider.clinepass.instanceID
+    public static let cursor = UsageProvider.cursor.instanceID
+    public static let opencode = UsageProvider.opencode.instanceID
+    public static let opencodego = UsageProvider.opencodego.instanceID
+    public static let alibaba = UsageProvider.alibaba.instanceID
+    public static let alibabatokenplan = UsageProvider.alibabatokenplan.instanceID
+    public static let qwencloud = UsageProvider.qwencloud.instanceID
+    public static let factory = UsageProvider.factory.instanceID
+    public static let gemini = UsageProvider.gemini.instanceID
+    public static let antigravity = UsageProvider.antigravity.instanceID
+    public static let copilot = UsageProvider.copilot.instanceID
+    public static let devin = UsageProvider.devin.instanceID
+    public static let zai = UsageProvider.zai.instanceID
+    public static let minimax = UsageProvider.minimax.instanceID
+    public static let manus = UsageProvider.manus.instanceID
+    public static let kimi = UsageProvider.kimi.instanceID
+    public static let kilo = UsageProvider.kilo.instanceID
+    public static let kiro = UsageProvider.kiro.instanceID
+    public static let vertexai = UsageProvider.vertexai.instanceID
+    public static let augment = UsageProvider.augment.instanceID
+    public static let jetbrains = UsageProvider.jetbrains.instanceID
+    public static let moonshot = UsageProvider.moonshot.instanceID
+    public static let amp = UsageProvider.amp.instanceID
+    public static let t3chat = UsageProvider.t3chat.instanceID
+    public static let ollama = UsageProvider.ollama.instanceID
+    public static let synthetic = UsageProvider.synthetic.instanceID
+    public static let warp = UsageProvider.warp.instanceID
+    public static let openrouter = UsageProvider.openrouter.instanceID
+    public static let elevenlabs = UsageProvider.elevenlabs.instanceID
+    public static let windsurf = UsageProvider.windsurf.instanceID
+    public static let zed = UsageProvider.zed.instanceID
+    public static let perplexity = UsageProvider.perplexity.instanceID
+    public static let mimo = UsageProvider.mimo.instanceID
+    public static let doubao = UsageProvider.doubao.instanceID
+    public static let sakana = UsageProvider.sakana.instanceID
+    public static let abacus = UsageProvider.abacus.instanceID
+    public static let mistral = UsageProvider.mistral.instanceID
+    public static let deepseek = UsageProvider.deepseek.instanceID
+    public static let deepinfra = UsageProvider.deepinfra.instanceID
+    public static let codebuff = UsageProvider.codebuff.instanceID
+    public static let crof = UsageProvider.crof.instanceID
+    public static let venice = UsageProvider.venice.instanceID
+    public static let commandcode = UsageProvider.commandcode.instanceID
+    public static let qoder = UsageProvider.qoder.instanceID
+    public static let stepfun = UsageProvider.stepfun.instanceID
+    public static let bedrock = UsageProvider.bedrock.instanceID
+    public static let grok = UsageProvider.grok.instanceID
+    public static let groq = UsageProvider.groq.instanceID
+    public static let llmproxy = UsageProvider.llmproxy.instanceID
+    public static let litellm = UsageProvider.litellm.instanceID
+    public static let deepgram = UsageProvider.deepgram.instanceID
+    public static let poe = UsageProvider.poe.instanceID
+    public static let chutes = UsageProvider.chutes.instanceID
+    public static let neuralwatt = UsageProvider.neuralwatt.instanceID
+    public static let clawrouter = UsageProvider.clawrouter.instanceID
+    public static let longcat = UsageProvider.longcat.instanceID
+    public static let sub2api = UsageProvider.sub2api.instanceID
+    public static let wayfinder = UsageProvider.wayfinder.instanceID
+    public static let zenmux = UsageProvider.zenmux.instanceID
+    public static let aiand = UsageProvider.aiand.instanceID
+    public static let zoommate = UsageProvider.zoommate.instanceID
+    public static let xai = UsageProvider.xai.instanceID
+    public static let notion = UsageProvider.notion.instanceID
+}
+
+// swiftformat:enable sortDeclarations

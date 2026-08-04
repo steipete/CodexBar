@@ -34,13 +34,40 @@ public enum Sub2APIProviderDescriptor {
         tokenCost: ProviderTokenCostConfig(
             supportsTokenCost: false,
             noDataMessage: { "sub2api spend is reported by its usage API." }),
-        fetchPlan: ProviderFetchPlan(
-            sourceModes: [.auto, .api],
-            pipeline: ProviderFetchPipeline(resolveStrategies: { _ in [Sub2APIAPIFetchStrategy()] })),
+        fetchPlan: Self.fetchPlan(),
         cli: ProviderCLIConfig(
             name: "sub2api",
             aliases: ["sub-2-api"],
             versionDetector: nil))
+
+    private static func fetchPlan() -> ProviderFetchPlan {
+        ProviderFetchPlan(
+            sourceModes: [.auto, .api],
+            pipeline: ProviderFetchPipeline(resolveStrategies: { context in
+                let swift = Sub2APIAPIFetchStrategy()
+                #if canImport(JavaScriptCore)
+                guard ProviderPluginPrototype.isEnabled(environment: context.env) else { return [swift] }
+                return [
+                    ScriptFetchStrategy(
+                        id: "sub2api.js",
+                        provider: .sub2api,
+                        bundledPlugin: "sub2api",
+                        secretKey: Sub2APISettingsReader.apiKeyEnvironmentKey,
+                        resolveValues: { context in
+                            guard let key = Sub2APISettingsReader.apiKey(environment: context.env),
+                                  let baseURL = Sub2APISettingsReader.baseURL(environment: context.env)
+                            else { return nil }
+                            return ScriptFetchStrategy.Values(
+                                settings: [Sub2APISettingsReader.baseURLEnvironmentKey: baseURL.absoluteString],
+                                secrets: [Sub2APISettingsReader.apiKeyEnvironmentKey: key])
+                        }),
+                    swift,
+                ]
+                #else
+                return [swift]
+                #endif
+            }))
+    }
 }
 
 struct Sub2APIAPIFetchStrategy: ProviderFetchStrategy {

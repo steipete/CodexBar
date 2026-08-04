@@ -16,6 +16,7 @@ public struct KimiUsageFetcher: Sendable {
         apiKey: String,
         baseURL: URL = KimiSettingsReader.defaultCodeAPIBaseURL,
         identityHeaders: [String: String] = [:],
+        webAuthToken: String? = nil,
         now: Date = Date(),
         transport: any ProviderHTTPTransport = ProviderHTTPClient.shared) async throws -> KimiUsageSnapshot
     {
@@ -44,7 +45,13 @@ public struct KimiUsageFetcher: Sendable {
             throw self.codeAPIError(statusCode: response.statusCode)
         }
 
-        return try self.parseCodeAPIUsage(from: data, now: now)
+        let snapshot = try self.parseCodeAPIUsage(from: data, now: now)
+        guard let webAuthToken else { return snapshot }
+        return try await self.enrichCodeAPIUsage(
+            snapshot,
+            webAuthToken: webAuthToken,
+            now: now,
+            transport: transport)
     }
 
     static func _parseCodeAPIUsageForTesting(_ data: Data, now: Date = Date()) throws -> KimiUsageSnapshot {
@@ -177,6 +184,35 @@ public struct KimiUsageFetcher: Sendable {
         }
 
         return codingUsage
+    }
+
+    private static func enrichCodeAPIUsage(
+        _ snapshot: KimiUsageSnapshot,
+        webAuthToken: String,
+        now: Date,
+        transport: any ProviderHTTPTransport) async throws -> KimiUsageSnapshot
+    {
+        let sessionInfo = self.decodeSessionInfo(from: webAuthToken)
+        let subscriptionStats: KimiSubscriptionStatsResponse?
+        do {
+            subscriptionStats = try await self.fetchSubscriptionStats(
+                authToken: webAuthToken,
+                sessionInfo: sessionInfo,
+                transport: transport)
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch {
+            Self.log.warning("Kimi Code monthly enrichment unavailable: \(error.localizedDescription)")
+            return snapshot
+        }
+        guard let subscriptionStats else { return snapshot }
+        return KimiUsageSnapshot(
+            weekly: snapshot.weekly,
+            rateLimit: snapshot.rateLimit,
+            rateLimitWindow: snapshot.rateLimitWindow,
+            subscriptionBalance: subscriptionStats.subscriptionBalance,
+            subscriptionCodeWeeklyLimit: subscriptionStats.ratelimitCode7d,
+            updatedAt: now)
     }
 
     private static func parseCodeAPIUsage(from data: Data, now: Date) throws -> KimiUsageSnapshot {

@@ -8,6 +8,13 @@ import FoundationNetworking
 /// Tests for `CommandCodeUsageFetcher` parsers and the cookie/snapshot derivation,
 /// using real responses captured from api.commandcode.ai for an active "individual-go" plan.
 struct CommandCodeUsageFetcherTests {
+    private static func creditsFixture(_ name: String) throws -> Data {
+        try Data(contentsOf: #require(Bundle.module.url(
+            forResource: name,
+            withExtension: "json",
+            subdirectory: "Fixtures/Providers/CommandCode")))
+    }
+
     private static let creditsJSON = """
     {"credits":{"belowThreshold":false,"creditThreshold":0,"monthlyCredits":8.7784,\
     "purchasedCredits":0,"premiumMonthlyCredits":0,"opensourceMonthlyCredits":8.7784}}
@@ -31,6 +38,36 @@ struct CommandCodeUsageFetcherTests {
         #expect(payload.purchasedCredits == 0)
         #expect(payload.premiumMonthlyCredits == 0)
         #expect(payload.opensourceMonthlyCredits == 8.7784)
+    }
+
+    @Test
+    func `parses rolling windows at response root`() throws {
+        let payload = try CommandCodeUsageFetcher.parseCredits(
+            data: Self.creditsFixture("window-limits-root"))
+
+        #expect(payload.monthlyCredits == 8.5)
+        let fiveHour = try #require(payload.fiveHourWindow)
+        #expect(fiveHour.usedPercent == 25)
+        #expect(fiveHour.windowMinutes == 5 * 60)
+        #expect(fiveHour.resetsAt == Date(timeIntervalSince1970: 1_780_000_000))
+        let weekly = try #require(payload.weeklyWindow)
+        #expect(weekly.usedPercent == 10)
+        #expect(weekly.windowMinutes == 7 * 24 * 60)
+        #expect(weekly.resetsAt == Date(timeIntervalSince1970: 1_780_100_000))
+    }
+
+    @Test
+    func `parses rolling windows nested in credits`() throws {
+        let payload = try CommandCodeUsageFetcher.parseCredits(
+            data: Self.creditsFixture("window-limits-nested"))
+
+        #expect(payload.monthlyCredits == 7.25)
+        let fiveHour = try #require(payload.fiveHourWindow)
+        #expect(fiveHour.usedPercent == 25)
+        #expect(fiveHour.resetsAt == Date(timeIntervalSince1970: 1_780_200_000))
+        let weekly = try #require(payload.weeklyWindow)
+        #expect(weekly.usedPercent == 20)
+        #expect(weekly.resetsAt == Date(timeIntervalSince1970: 1_780_300_000))
     }
 
     @Test
@@ -311,6 +348,16 @@ struct CommandCodeUsageFetcherTests {
             purchasedCredits: 0,
             premiumMonthlyCredits: 0,
             opensourceMonthlyCredits: 8.7784,
+            fiveHourWindow: RateWindow(
+                usedPercent: 25,
+                windowMinutes: 5 * 60,
+                resetsAt: Date(timeIntervalSince1970: 1_779_000_000),
+                resetDescription: nil),
+            weeklyWindow: RateWindow(
+                usedPercent: 10,
+                windowMinutes: 7 * 24 * 60,
+                resetsAt: Date(timeIntervalSince1970: 1_779_500_000),
+                resetDescription: nil),
             plan: plan,
             billingPeriodEnd: Date(timeIntervalSince1970: 1_780_000_000),
             subscriptionStatus: "active",
@@ -319,9 +366,12 @@ struct CommandCodeUsageFetcherTests {
         #expect(abs((snapshot.monthlyCreditsUsed ?? -1) - 1.2216) < 0.0001)
 
         let usage = snapshot.toUsageSnapshot()
-        let primary = try #require(usage.primary)
-        #expect(abs(primary.usedPercent - 12.216) < 0.001)
-        #expect(primary.resetsAt == Date(timeIntervalSince1970: 1_780_000_000))
+        #expect(usage.primary?.usedPercent == 25)
+        #expect(usage.secondary?.usedPercent == 10)
+        let monthly = try #require(usage.tertiary)
+        #expect(abs(monthly.usedPercent - 12.216) < 0.001)
+        #expect(monthly.windowMinutes == ProviderPaceCapability.monthlyWindowSentinelMinutes)
+        #expect(monthly.resetsAt == Date(timeIntervalSince1970: 1_780_000_000))
         #expect(usage.identity?.loginMethod == "Go · $1.22 of $10.00")
     }
 
@@ -336,7 +386,7 @@ struct CommandCodeUsageFetcherTests {
             billingPeriodEnd: nil,
             subscriptionStatus: nil)
 
-        #expect(snapshot.toUsageSnapshot().primary == nil)
+        #expect(snapshot.toUsageSnapshot().tertiary == nil)
     }
 
     @Test

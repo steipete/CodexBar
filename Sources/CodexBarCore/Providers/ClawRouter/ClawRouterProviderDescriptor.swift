@@ -33,13 +33,35 @@ public enum ClawRouterProviderDescriptor {
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
                 noDataMessage: { "ClawRouter spend is reported by its usage API." }),
-            fetchPlan: ProviderFetchPlan(
-                sourceModes: [.auto, .api],
-                pipeline: ProviderFetchPipeline(resolveStrategies: { _ in [ClawRouterAPIFetchStrategy()] })),
+            fetchPlan: self.fetchPlan(),
             cli: ProviderCLIConfig(
                 name: "clawrouter",
                 aliases: ["claw-router"],
                 versionDetector: nil))
+    }
+
+    private static func fetchPlan() -> ProviderFetchPlan {
+        #if canImport(JavaScriptCore)
+        ProviderFetchPlan(
+            sourceModes: [.auto, .api],
+            pipeline: ProviderFetchPipeline(resolveStrategies: { context in
+                let swift = ClawRouterAPIFetchStrategy()
+                guard ProviderPluginPrototype.isEnabled(environment: context.env) else { return [swift] }
+                return [
+                    ScriptFetchStrategy(
+                        id: "clawrouter.js",
+                        provider: .clawrouter,
+                        bundledPlugin: "clawrouter",
+                        secretKey: ClawRouterSettingsReader.apiKeyEnvironmentKey,
+                        resolveSecret: { ProviderTokenResolver.clawRouterToken(environment: $0) }),
+                    swift,
+                ]
+            }))
+        #else
+        ProviderFetchPlan(
+            sourceModes: [.auto, .api],
+            pipeline: ProviderFetchPipeline(resolveStrategies: { _ in [ClawRouterAPIFetchStrategy()] }))
+        #endif
     }
 }
 

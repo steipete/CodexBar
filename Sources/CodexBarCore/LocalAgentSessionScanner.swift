@@ -37,6 +37,7 @@ public struct LocalAgentSessionScanner: Sendable {
         let codexAppServerPresent: Bool
         let includeFileOnlySessions: Bool
         let threadMetadata: [String: CodexThreadMetadata]
+        let piFamilySessions: [AgentSession]
     }
 
     public let config: SessionScanConfig
@@ -104,6 +105,22 @@ public struct LocalAgentSessionScanner: Sendable {
                 ? self.config.directoryScanBudget
                 : min(self.config.directoryScanBudget, self.config.adaptiveDirectoryScanBudget),
             didVisitEntry: self.didVisitDirectoryEntry)
+        var piFamilyDirectoryBudget = DirectoryMetadataScanBudget(
+            maxEntryCount: self.config.maxDirectoryEntryCount,
+            maxDepth: self.config.maxDirectoryDepth,
+            timeLimit: includeFileOnlySessions
+                ? self.config.directoryScanBudget
+                : min(self.config.directoryScanBudget, self.config.adaptiveDirectoryScanBudget),
+            didVisitEntry: self.didVisitDirectoryEntry)
+        let piFamilySessions = PiFamilySessionScanner.scan(
+            input: PiFamilySessionScanner.ScanInput(
+                processes: processes,
+                cwdByPID: cwdByPID,
+                environment: environment,
+                now: now,
+                host: host,
+                config: self.config),
+            directoryBudget: &piFamilyDirectoryBudget)
         let rollouts: [Rollout] = if includeFileOnlySessions || !codexCWDs.isEmpty {
             self.codexRollouts(
                 now: now,
@@ -127,7 +144,8 @@ public struct LocalAgentSessionScanner: Sendable {
                 now: now,
                 codexAppServerPresent: codexAppServerPresent,
                 includeFileOnlySessions: includeFileOnlySessions,
-                threadMetadata: threadMetadata),
+                threadMetadata: threadMetadata,
+                piFamilySessions: piFamilySessions),
             directoryBudget: &directoryBudget)
     }
 
@@ -254,6 +272,8 @@ public struct LocalAgentSessionScanner: Sendable {
                     lastActivityAt: rollout?.modifiedAt,
                     transcriptPath: rollout?.url.path,
                     host: context.host))
+            case .pi:
+                continue
             }
         }
 
@@ -275,6 +295,7 @@ public struct LocalAgentSessionScanner: Sendable {
                 appServerPresent: context.codexAppServerPresent)
             sessions.append(session)
         }
+        sessions.append(contentsOf: context.piFamilySessions)
 
         var seen = Set<String>()
         return sessions

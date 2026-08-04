@@ -93,11 +93,11 @@ struct ProviderSettingsDescriptorTests {
                         provider: provider,
                         cookieHeader: "new-test-cookie",
                         sourceLabel: "Test new")
-                    fixture.store.snapshots[provider] = UsageSnapshot(
+                    fixture.store.snapshots[provider.instanceID] = UsageSnapshot(
                         primary: nil,
                         secondary: nil,
                         updatedAt: Date())
-                    fixture.store.lastSourceLabels[provider] = "web"
+                    fixture.store.lastSourceLabels[provider.instanceID] = "web"
                 }
                 defer { fixture.store._test_providerRefreshOverride = nil }
 
@@ -151,11 +151,11 @@ struct ProviderSettingsDescriptorTests {
                         provider: provider,
                         cookieHeader: "invalid-test-cookie",
                         sourceLabel: "Test invalid")
-                    fixture.store.snapshots[provider] = UsageSnapshot(
+                    fixture.store.snapshots[provider.instanceID] = UsageSnapshot(
                         primary: nil,
                         secondary: nil,
                         updatedAt: Date())
-                    fixture.store.lastSourceLabels[provider] = "local"
+                    fixture.store.lastSourceLabels[provider.instanceID] = "local"
                 }
                 defer { fixture.store._test_providerRefreshOverride = nil }
 
@@ -191,7 +191,7 @@ struct ProviderSettingsDescriptorTests {
                         provider: provider,
                         cookieHeader: "unvalidated-test-cookie",
                         sourceLabel: "Test unvalidated")
-                    fixture.store.snapshots.removeValue(forKey: provider)
+                    fixture.store.snapshots.removeValue(forKey: provider.instanceID)
                 }
                 defer { fixture.store._test_providerRefreshOverride = nil }
 
@@ -490,7 +490,8 @@ struct ProviderSettingsDescriptorTests {
         let usagePicker = try #require(pickers.first(where: { $0.id == "kimi-usage-source" }))
         #expect(usagePicker.options.map(\.id) == ["auto", "api", "web"])
         #expect(usagePicker.subtitle ==
-            "Auto tries your configured API key, then a signed-in Kimi Code CLI credential, then browser cookies.")
+            "Kimi Code subscription usage from api.kimi.com. Auto tries your configured API key, then a signed-in " +
+            "Kimi Code CLI credential, then web cookies. China Open Platform balance is a separate provider.")
         #expect(usagePicker.placement == .connection)
         #expect(usagePicker.trailingText?() == nil)
         fixture.store.lastSourceLabels[.kimi] = "Kimi Code CLI"

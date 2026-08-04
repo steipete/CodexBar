@@ -16,7 +16,7 @@ public struct WidgetSnapshot: Codable, Sendable {
     }
 
     public struct ProviderEntry: Codable, Sendable {
-        public let provider: UsageProvider
+        public let provider: ProviderInstanceID
         public let updatedAt: Date
         public let primary: RateWindow?
         public let secondary: RateWindow?
@@ -28,6 +28,34 @@ public struct WidgetSnapshot: Codable, Sendable {
         public let dailyUsage: [DailyUsagePoint]
         public let providerCost: ProviderCostSnapshot?
         public let quotaOwnerKey: String?
+
+        public init(
+            instanceID: ProviderInstanceID,
+            updatedAt: Date,
+            primary: RateWindow?,
+            secondary: RateWindow?,
+            tertiary: RateWindow?,
+            usageRows: [WidgetUsageRowSnapshot]? = nil,
+            creditsRemaining: Double?,
+            codeReviewRemainingPercent: Double?,
+            tokenUsage: TokenUsageSummary?,
+            dailyUsage: [DailyUsagePoint],
+            providerCost: ProviderCostSnapshot? = nil,
+            quotaOwnerKey: String? = nil)
+        {
+            self.provider = instanceID
+            self.updatedAt = updatedAt
+            self.primary = primary
+            self.secondary = secondary
+            self.tertiary = tertiary
+            self.usageRows = usageRows
+            self.creditsRemaining = creditsRemaining
+            self.codeReviewRemainingPercent = codeReviewRemainingPercent
+            self.tokenUsage = tokenUsage
+            self.dailyUsage = dailyUsage
+            self.providerCost = providerCost
+            self.quotaOwnerKey = quotaOwnerKey
+        }
 
         public init(
             provider: UsageProvider,
@@ -43,18 +71,19 @@ public struct WidgetSnapshot: Codable, Sendable {
             providerCost: ProviderCostSnapshot? = nil,
             quotaOwnerKey: String? = nil)
         {
-            self.provider = provider
-            self.updatedAt = updatedAt
-            self.primary = primary
-            self.secondary = secondary
-            self.tertiary = tertiary
-            self.usageRows = usageRows
-            self.creditsRemaining = creditsRemaining
-            self.codeReviewRemainingPercent = codeReviewRemainingPercent
-            self.tokenUsage = tokenUsage
-            self.dailyUsage = dailyUsage
-            self.providerCost = providerCost
-            self.quotaOwnerKey = quotaOwnerKey
+            self.init(
+                instanceID: provider.instanceID,
+                updatedAt: updatedAt,
+                primary: primary,
+                secondary: secondary,
+                tertiary: tertiary,
+                usageRows: usageRows,
+                creditsRemaining: creditsRemaining,
+                codeReviewRemainingPercent: codeReviewRemainingPercent,
+                tokenUsage: tokenUsage,
+                dailyUsage: dailyUsage,
+                providerCost: providerCost,
+                quotaOwnerKey: quotaOwnerKey)
         }
     }
 
@@ -142,13 +171,13 @@ public struct WidgetSnapshot: Codable, Sendable {
     }
 
     public let entries: [ProviderEntry]
-    public let enabledProviders: [UsageProvider]
+    public let enabledProviders: [ProviderInstanceID]
     public let usageBarsShowUsed: Bool
     public let generatedAt: Date
 
     public init(
         entries: [ProviderEntry],
-        enabledProviders: [UsageProvider]? = nil,
+        enabledProviders: [ProviderInstanceID]? = nil,
         usageBarsShowUsed: Bool = false,
         generatedAt: Date)
     {
@@ -169,7 +198,7 @@ public struct WidgetSnapshot: Codable, Sendable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         self.entries = try container.decode([ProviderEntry].self, forKey: .entries)
         self.generatedAt = try container.decode(Date.self, forKey: .generatedAt)
-        self.enabledProviders = try container.decodeIfPresent([UsageProvider].self, forKey: .enabledProviders)
+        self.enabledProviders = try container.decodeIfPresent([ProviderInstanceID].self, forKey: .enabledProviders)
             ?? self.entries.map(\.provider)
         self.usageBarsShowUsed = try container.decodeIfPresent(Bool.self, forKey: .usageBarsShowUsed) ?? false
     }
@@ -232,18 +261,25 @@ public enum WidgetSnapshotStore {
 public enum WidgetSelectionStore {
     private static let selectedProviderKey = "widgetSelectedProvider"
 
-    public static func loadSelectedProvider(bundleID: String? = Bundle.main.bundleIdentifier) -> UsageProvider? {
+    public static func loadSelectedProvider(bundleID: String? = Bundle.main.bundleIdentifier) -> ProviderInstanceID? {
         let defaults = self.sharedDefaults(bundleID: bundleID)
         guard let raw = defaults.string(forKey: self.selectedProviderKey) else { return nil }
-        return UsageProvider(rawValue: raw)
+        return ProviderInstanceID(rawValue: raw)
+    }
+
+    public static func saveSelectedProvider(
+        instanceID: ProviderInstanceID,
+        bundleID: String? = Bundle.main.bundleIdentifier)
+    {
+        let defaults = self.sharedDefaults(bundleID: bundleID)
+        defaults.set(instanceID.rawValue, forKey: self.selectedProviderKey)
     }
 
     public static func saveSelectedProvider(
         _ provider: UsageProvider,
         bundleID: String? = Bundle.main.bundleIdentifier)
     {
-        let defaults = self.sharedDefaults(bundleID: bundleID)
-        defaults.set(provider.rawValue, forKey: self.selectedProviderKey)
+        self.saveSelectedProvider(instanceID: provider.instanceID, bundleID: bundleID)
     }
 
     private static func sharedDefaults(bundleID: String?) -> UserDefaults {

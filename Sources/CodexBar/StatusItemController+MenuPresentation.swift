@@ -5,7 +5,7 @@ import SwiftUI
 
 extension StatusItemController {
     func switcherWeeklyRemaining(for provider: UsageProvider) -> Double? {
-        let snapshot = self.store.snapshot(for: provider)
+        let snapshot = self.store.snapshot(for: provider.instanceID)
         return Self.switcherWeeklyMetricPercent(
             for: provider,
             snapshot: snapshot,

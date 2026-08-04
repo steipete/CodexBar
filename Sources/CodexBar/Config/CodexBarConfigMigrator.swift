@@ -40,6 +40,7 @@ struct CodexBarConfigMigrator {
         // applyLegacyCookieSources reads only UserDefaults — cheap, runs unconditionally so
         // newly-added cookie-source keys are picked up on every launch.
         self.applyLegacyCookieSources(userDefaults: userDefaults, config: &config, state: &state)
+        self.bindLegacyMoonshotAPIKeyRegion(config: &config, state: &state)
 
         let migrationCompleted = userDefaults.bool(forKey: Self.legacyMigrationCompletedKey)
         if !migrationCompleted {
@@ -164,6 +165,17 @@ struct CodexBarConfigMigrator {
         }
     }
 
+    private static func bindLegacyMoonshotAPIKeyRegion(
+        config: inout CodexBarConfig,
+        state: inout MigrationState)
+    {
+        self.updateProvider(.moonshot, config: &config, state: &state) { entry in
+            guard entry.sanitizedAPIKey != nil, entry.sanitizedAPIKeyRegion == nil else { return false }
+            entry.apiKeyRegion = entry.sanitizedRegion ?? MoonshotRegion.international.rawValue
+            return true
+        }
+    }
+
     private static func migrateTokenProviders(
         _ providers: [(UsageProvider, () throws -> String?)],
         config: inout CodexBarConfig,
@@ -171,7 +183,9 @@ struct CodexBarConfigMigrator {
     {
         for (provider, loader) in providers {
             let token = try? loader()
-            if token != nil { state.sawLegacySecrets = true }
+            if token != nil {
+                state.sawLegacySecrets = true
+            }
             self.updateProvider(provider, config: &config, state: &state) { entry in
                 self.setIfEmpty(&entry.apiKey, token)
             }
@@ -185,7 +199,9 @@ struct CodexBarConfigMigrator {
     {
         for (provider, loader) in providers {
             let header = try? loader()
-            if header != nil { state.sawLegacySecrets = true }
+            if header != nil {
+                state.sawLegacySecrets = true
+            }
             self.updateProvider(provider, config: &config, state: &state) { entry in
                 self.setIfEmpty(&entry.cookieHeader, header)
             }
@@ -226,7 +242,9 @@ struct CodexBarConfigMigrator {
         if token?.isEmpty ?? true {
             token = userDefaults.string(forKey: "kimiManualCookieHeader")
         }
-        if token != nil { state.sawLegacySecrets = true }
+        if token != nil {
+            state.sawLegacySecrets = true
+        }
         self.updateProvider(.kimi, config: &config, state: &state) { entry in
             self.setIfEmpty(&entry.cookieHeader, token)
         }
@@ -239,7 +257,9 @@ struct CodexBarConfigMigrator {
         state: inout MigrationState)
     {
         let header = try? stores.opencodeCookieStore.loadCookieHeader()
-        if header != nil { state.sawLegacySecrets = true }
+        if header != nil {
+            state.sawLegacySecrets = true
+        }
         let workspaceID = userDefaults.string(forKey: "opencodeWorkspaceID")
         self.updateProvider(.opencode, config: &config, state: &state) { entry in
             var changed = false
@@ -274,7 +294,7 @@ struct CodexBarConfigMigrator {
         state: inout MigrationState,
         mutate: (inout ProviderConfig) -> Bool)
     {
-        guard let index = config.providers.firstIndex(where: { $0.id == provider }) else { return }
+        guard let index = config.providers.firstIndex(where: { $0.id == provider.instanceID }) else { return }
         var entry = config.providers[index]
         let changed = mutate(&entry)
         if changed {
@@ -331,21 +351,21 @@ struct CodexBarConfigMigrator {
 
     private static func applyProviderOrder(_ raw: [String], config: CodexBarConfig) -> CodexBarConfig {
         let configsByID = Dictionary(uniqueKeysWithValues: config.providers.map { ($0.id, $0) })
-        var seen: Set<UsageProvider> = []
+        var seen: Set<ProviderInstanceID> = []
         var ordered: [ProviderConfig] = []
         ordered.reserveCapacity(config.providers.count)
 
         for rawValue in raw {
-            guard let provider = UsageProvider(rawValue: rawValue),
-                  let entry = configsByID[provider],
-                  !seen.contains(provider)
+            guard let instanceID = ProviderInstanceID(rawValue: rawValue),
+                  let entry = configsByID[instanceID],
+                  !seen.contains(instanceID)
             else { continue }
-            seen.insert(provider)
+            seen.insert(instanceID)
             ordered.append(entry)
         }
 
-        for provider in UsageProvider.allCases where !seen.contains(provider) {
-            ordered.append(configsByID[provider] ?? ProviderConfig(id: provider))
+        for provider in UsageProvider.allCases where !seen.contains(provider.instanceID) {
+            ordered.append(configsByID[provider.instanceID] ?? ProviderConfig(id: provider.instanceID))
         }
 
         var updated = config
@@ -359,7 +379,7 @@ struct CodexBarConfigMigrator {
     {
         var updated = config
         for index in updated.providers.indices {
-            let provider = updated.providers[index].id
+            guard let provider = updated.providers[index].id.firstPartyProvider else { continue }
             let meta = ProviderDescriptorRegistry.descriptor(for: provider).metadata
             if let value = toggles[meta.cliName] {
                 updated.providers[index].enabled = value

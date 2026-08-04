@@ -6,6 +6,31 @@ import Testing
 @Suite(.serialized)
 struct CodexBarConfigMigratorTests {
     @Test
+    func `legacy Moonshot key is bound to its selected region`() throws {
+        let suite = "CodexBarConfigMigratorTests-moonshot-\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let configStore = testConfigStore(suiteName: suite)
+        var config = CodexBarConfig.makeDefault()
+        config.setProviderConfig(ProviderConfig(
+            id: .moonshot,
+            apiKey: "legacy-china-token",
+            region: MoonshotRegion.china.rawValue))
+        try configStore.save(config)
+
+        let migrated = CodexBarConfigMigrator.loadOrMigrate(
+            configStore: configStore,
+            userDefaults: defaults,
+            stores: Self.legacyStores(
+                secrets: CountingLegacySecretStore(),
+                accountStore: CountingTokenAccountStore()))
+
+        #expect(migrated.providerConfig(for: .moonshot)?.apiKeyRegion == MoonshotRegion.china.rawValue)
+        #expect(try configStore.load()?.providerConfig(for: .moonshot)?.apiKeyRegion == MoonshotRegion.china.rawValue)
+    }
+
+    @Test
     func `legacy secret migration completion flag skips repeated scans`() throws {
         let suite = "CodexBarConfigMigratorTests-skip-\(UUID().uuidString)"
         let defaults = try #require(UserDefaults(suiteName: suite))

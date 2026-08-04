@@ -11,15 +11,26 @@ public enum ProviderPluginPrototype {
 
 public final class ScriptFetchStrategy: ProviderFetchStrategy, @unchecked Sendable {
     public typealias SecretResolver = @Sendable ([String: String]) -> String?
+    public struct Values: Sendable {
+        public let settings: [String: String]
+        public let secrets: [String: String]
+
+        public init(settings: [String: String] = [:], secrets: [String: String] = [:]) {
+            self.settings = settings
+            self.secrets = secrets
+        }
+    }
+
+    public typealias ValuesResolver = @Sendable (ProviderFetchContext) -> Values?
     public typealias EnabledResolver = @Sendable ([String: String]) -> Bool
 
     public let id: String
-    public let kind: ProviderFetchKind = .apiToken
+    public let kind: ProviderFetchKind
 
     private let provider: UsageProvider
     private let bundledPlugin: String
-    private let secretKey: String
-    private let resolveSecret: SecretResolver
+    private let secretKey: String?
+    private let resolveValues: ValuesResolver
     private let isEnabled: EnabledResolver
     private let transport: any ProviderHTTPTransport
     private let timeout: TimeInterval
@@ -31,6 +42,7 @@ public final class ScriptFetchStrategy: ProviderFetchStrategy, @unchecked Sendab
         provider: UsageProvider,
         bundledPlugin: String,
         secretKey: String,
+        kind: ProviderFetchKind = .apiToken,
         transport: any ProviderHTTPTransport = ProviderHTTPClient.shared,
         timeout: TimeInterval = ProviderPluginRuntime.defaultTimeout,
         resolveSecret: @escaping SecretResolver,
@@ -39,30 +51,64 @@ public final class ScriptFetchStrategy: ProviderFetchStrategy, @unchecked Sendab
         self.id = id
         self.provider = provider
         self.bundledPlugin = bundledPlugin
+        self.kind = kind
         self.secretKey = secretKey
         self.transport = transport
         self.timeout = timeout
-        self.resolveSecret = resolveSecret
+        self.resolveValues = { context in
+            guard let secret = resolveSecret(context.env) else { return nil }
+            return Values(secrets: [secretKey: secret])
+        }
+        self.isEnabled = isEnabled
+    }
+
+    public init(
+        id: String,
+        provider: UsageProvider,
+        bundledPlugin: String,
+        secretKey: String? = nil,
+        kind: ProviderFetchKind = .apiToken,
+        transport: any ProviderHTTPTransport = ProviderHTTPClient.shared,
+        timeout: TimeInterval = ProviderPluginRuntime.defaultTimeout,
+        resolveValues: @escaping ValuesResolver,
+        isEnabled: @escaping EnabledResolver = { ProviderPluginPrototype.isEnabled(environment: $0) })
+    {
+        self.id = id
+        self.provider = provider
+        self.bundledPlugin = bundledPlugin
+        self.kind = kind
+        self.secretKey = secretKey
+        self.transport = transport
+        self.timeout = timeout
+        self.resolveValues = resolveValues
         self.isEnabled = isEnabled
     }
 
     public func isAvailable(_ context: ProviderFetchContext) async -> Bool {
-        self.isEnabled(context.env) && self.resolveSecret(context.env) != nil
+        guard self.isEnabled(context.env), let values = self.resolveValues(context) else { return false }
+        guard let secretKey else { return true }
+        return values.secrets[secretKey]?.isEmpty == false
     }
 
     public func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
         guard self.isEnabled(context.env) else {
             throw ProviderPluginError.load("JavaScript provider prototype is disabled")
         }
-        guard let secret = self.resolveSecret(context.env) else {
+        guard let values = self.resolveValues(context) else {
+            throw ProviderPluginError.secretAccess("required provider secret is unavailable")
+        }
+        if let secretKey, values.secrets[secretKey]?.isEmpty != false {
             throw ProviderPluginError.secretAccess("required provider secret is unavailable")
         }
         let runtime = try self.loadedRuntime()
-        guard runtime.manifest.id == self.provider else {
+        guard runtime.manifest.id == self.provider.instanceID else {
             throw ProviderPluginError.invalidManifest(
                 "bundled plugin id '\(runtime.manifest.id.rawValue)' does not match '\(self.provider.rawValue)'")
         }
-        let usage = try await runtime.fetchUsage(secrets: [self.secretKey: secret])
+        let usage = try await runtime.fetchUsage(
+            settings: values.settings,
+            secrets: values.secrets,
+            cookieResolver: ProviderPluginCookieBroker.resolver(context: context))
         return self.makeResult(usage: usage, sourceLabel: "js")
     }
 

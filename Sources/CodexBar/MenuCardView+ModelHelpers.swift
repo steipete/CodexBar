@@ -279,6 +279,7 @@ extension UsageMenuCardView.Model {
         self.subtitleStyle == .error &&
             self.metrics.isEmpty &&
             self.usageNotes.isEmpty &&
+            self.providerDetails.isEmpty &&
             self.openAIAPIUsage == nil &&
             self.inlineUsageDashboard == nil &&
             self.creditsRemaining == nil &&
@@ -290,6 +291,7 @@ extension UsageMenuCardView.Model {
     var hasUsageContent: Bool {
         !self.metrics.isEmpty ||
             !self.usageNotes.isEmpty ||
+            !self.providerDetails.isEmpty ||
             self.openAIAPIUsage != nil ||
             self.inlineUsageDashboard != nil ||
             self.codexResetCredits != nil ||
@@ -301,6 +303,7 @@ extension UsageMenuCardView.Model {
             self.inlineUsageDashboard != nil &&
             self.metrics.isEmpty &&
             self.usageNotes.isEmpty &&
+            self.providerDetails.isEmpty &&
             self.openAIAPIUsage == nil &&
             self.codexResetCredits == nil &&
             self.placeholder == nil
@@ -337,6 +340,7 @@ extension UsageMenuCardView.Model {
         guard self.provider == candidate.provider,
               !includeMetrics || self.metrics.count == candidate.metrics.count,
               self.usageNotes == candidate.usageNotes,
+              self.providerDetails == candidate.providerDetails,
               (self.openAIAPIUsage == nil) == (candidate.openAIAPIUsage == nil),
               Self.hasCompatibleCreditsLayout(
                   currentText: self.creditsText,
@@ -821,9 +825,13 @@ extension UsageMenuCardView.Model {
             let resetText = input.provider == .sub2api && namedWindow.window.resetsAt == nil
                 ? nil
                 : resolvedResetText
-            let detailText = input.provider == .sub2api
-                ? namedWindow.window.resetDescription
-                : nil
+            let detailText: String? = if input.provider == .sub2api {
+                namedWindow.window.resetDescription
+            } else if input.provider == .zai, namedWindow.id == "zai-mcp" {
+                Self.zaiLimitDetailText(limit: input.snapshot?.zaiUsage?.timeLimit)
+            } else {
+                nil
+            }
             let statusText: String? = if usageKnown {
                 nil
             } else if let resetText {
@@ -921,7 +929,9 @@ extension UsageMenuCardView.Model {
         window: RateWindow,
         input: Input) -> PaceDetail?
     {
-        if provider == .claude, window.windowMinutes != 10080 { return nil }
+        if provider == .claude, window.windowMinutes != 10080 {
+            return nil
+        }
         guard provider == .codex || provider == .claude || provider == .antigravity else { return nil }
         switch window.windowMinutes {
         case 300:

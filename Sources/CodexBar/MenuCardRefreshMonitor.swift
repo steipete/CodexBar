@@ -20,8 +20,8 @@ final class MenuCardRefreshMonitor {
     private var globalManualRefreshInFlight = false
     /// Providers with an individual manual refresh in flight. Concurrent entries are allowed so
     /// refreshing one provider does not stall or unfreeze another.
-    private var manualRefreshProviders: Set<UsageProvider> = []
-    private var frozenManualRefreshModels: [UsageProvider: UsageMenuCardView.Model] = [:]
+    private var manualRefreshProviders: Set<ProviderInstanceID> = []
+    private var frozenManualRefreshModels: [ProviderInstanceID: UsageMenuCardView.Model] = [:]
 
     /// True while any manual refresh (global or per-provider) is running.
     var isManualRefreshInFlight: Bool {
@@ -41,10 +41,11 @@ final class MenuCardRefreshMonitor {
         provider: UsageProvider? = nil)
     {
         if let provider {
-            self.frozenManualRefreshModels[provider] = frozenModels[provider]
-            self.manualRefreshProviders.insert(provider)
+            self.frozenManualRefreshModels[provider.instanceID] = frozenModels[provider]
+            self.manualRefreshProviders.insert(provider.instanceID)
         } else {
-            self.frozenManualRefreshModels = frozenModels
+            self.frozenManualRefreshModels = Dictionary(
+                uniqueKeysWithValues: frozenModels.map { ($0.key.instanceID, $0.value) })
             self.globalManualRefreshInFlight = true
         }
     }
@@ -52,8 +53,8 @@ final class MenuCardRefreshMonitor {
     /// Balances a `beginManualRefresh` with the same `provider` argument (nil ends the global refresh).
     func endManualRefresh(for provider: UsageProvider? = nil) {
         if let provider {
-            self.manualRefreshProviders.remove(provider)
-            self.frozenManualRefreshModels[provider] = nil
+            self.manualRefreshProviders.remove(provider.instanceID)
+            self.frozenManualRefreshModels[provider.instanceID] = nil
         } else {
             self.globalManualRefreshInFlight = false
             self.frozenManualRefreshModels.removeAll(keepingCapacity: true)
@@ -67,7 +68,7 @@ final class MenuCardRefreshMonitor {
     }
 
     func isManualRefreshInFlight(for provider: UsageProvider) -> Bool {
-        self.manualRefreshProviders.contains(provider) ||
+        self.manualRefreshProviders.contains(provider.instanceID) ||
             (self.globalManualRefreshInFlight && self.isProviderRefreshActive(provider))
     }
 
@@ -76,7 +77,7 @@ final class MenuCardRefreshMonitor {
         fallback: UsageMenuCardView.Model) -> UsageMenuCardView.Model
     {
         guard !self.isManualRefreshInFlight(for: provider) else {
-            guard let frozen = self.frozenManualRefreshModels[provider] else {
+            guard let frozen = self.frozenManualRefreshModels[provider.instanceID] else {
                 return fallback
             }
             if fallback.hasCompatibleTrackedLayout(with: frozen) {

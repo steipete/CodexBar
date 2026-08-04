@@ -2,6 +2,23 @@ import CodexBarCore
 import Foundation
 
 extension UsageStore {
+    var statusChecksEnabled: Bool {
+        self.settings.statusChecksEnabled
+    }
+
+    /// Compile-time implementation kinds for provider-specific fetch and bespoke UI boundaries.
+    func enabledFirstPartyProviders() -> [UsageProvider] {
+        self.enabledProviders().compactMap(\.firstPartyProvider)
+    }
+
+    func enabledFirstPartyProvidersForDisplay() -> [UsageProvider] {
+        self.enabledProvidersForDisplay().compactMap(\.firstPartyProvider)
+    }
+
+    func enabledFirstPartyProvidersForBackgroundWork() -> [UsageProvider] {
+        self.enabledProvidersForBackgroundWork().compactMap(\.firstPartyProvider)
+    }
+
     struct DeepSeekProfileTransition {
         var snapshot: UsageSnapshot
         let accountID: UUID?
@@ -9,7 +26,7 @@ extension UsageStore {
     }
 
     func version(for provider: UsageProvider) -> String? {
-        self.versions[provider]
+        self.versions[provider.instanceID]
     }
 
     var codexSnapshot: UsageSnapshot? {
@@ -27,7 +44,7 @@ extension UsageStore {
         {
             return transition.snapshot
         }
-        if let snapshot = self.snapshots[provider] {
+        if let snapshot = self.snapshots[provider.instanceID] {
             if provider == .codex {
                 if self.openAIDashboardAttachmentAuthorized,
                    let dashboard = self.openAIDashboard,
@@ -52,8 +69,8 @@ extension UsageStore {
             }
             return snapshot
         }
-        guard provider == .deepseek, self.refreshingProviders.contains(provider) else { return nil }
-        return self.lastKnownResetSnapshots[provider]
+        guard provider == .deepseek, self.refreshingProviders.contains(provider.instanceID) else { return nil }
+        return self.lastKnownResetSnapshots[provider.instanceID]
     }
 
     func beginDeepSeekProfileTransition(preservingBalance: Bool = true) {
@@ -119,15 +136,15 @@ extension UsageStore {
     }
 
     func error(for provider: UsageProvider) -> String? {
-        self.errors[provider]
+        self.errors[provider.instanceID]
     }
 
     func diagnostic(for provider: UsageProvider) -> String? {
-        self.diagnostics[provider]
+        self.diagnostics[provider.instanceID]
     }
 
     func userFacingError(for provider: UsageProvider) -> String? {
-        if let raw = self.errors[provider] {
+        if let raw = self.errors[provider.instanceID] {
             switch provider {
             case .codex:
                 return CodexUIErrorMapper.userFacingMessage(raw)
@@ -137,14 +154,14 @@ extension UsageStore {
                 return raw
             }
         }
-        if let diagnostic = self.diagnostics[provider] {
+        if let diagnostic = self.diagnostics[provider.instanceID] {
             return diagnostic
         }
         return self.unavailableMessage(for: provider)
     }
 
     func unavailableMessage(for provider: UsageProvider) -> String? {
-        guard self.enabledProvidersForDisplay().contains(provider),
+        guard self.enabledProvidersForDisplay().contains(provider.instanceID),
               !self.isProviderAvailable(provider)
         else {
             return nil
@@ -190,7 +207,7 @@ extension UsageStore {
 
     func status(for provider: UsageProvider) -> ProviderStatus? {
         guard self.statusChecksEnabled else { return nil }
-        return self.statuses[provider]
+        return self.statuses[provider.instanceID]
     }
 
     func statusIndicator(for provider: UsageProvider) -> ProviderStatusIndicator {
@@ -199,13 +216,13 @@ extension UsageStore {
 
     func statusComponents(for provider: UsageProvider) -> [ProviderStatusComponent] {
         guard self.statusChecksEnabled else { return [] }
-        return self.statusComponents[provider] ?? []
+        return self.statusComponents[provider.instanceID] ?? []
     }
 
     func accountInfo(for provider: UsageProvider) -> AccountInfo {
         let now = Date()
         let configRevision = self.settings.configRevision
-        if let cached = self.accountInfoCache[provider],
+        if let cached = self.accountInfoCache[provider.instanceID],
            cached.isValid(now: now, configRevision: configRevision)
         {
             return cached.account
@@ -223,7 +240,7 @@ extension UsageStore {
         } else {
             account = self.codexFetcher.loadAccountInfo()
         }
-        self.accountInfoCache[provider] = AccountInfoCacheEntry(
+        self.accountInfoCache[provider.instanceID] = AccountInfoCacheEntry(
             account: account,
             configRevision: configRevision,
             expiresAt: now.addingTimeInterval(self.accountInfoCacheTTL))

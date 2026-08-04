@@ -40,7 +40,9 @@ public struct CodexBarConfig: Codable, Sendable {
             let providerDecoder = try providersContainer.superDecoder()
             let providerContainer = try providerDecoder.container(keyedBy: ProviderCodingKeys.self)
             let rawID = try providerContainer.decode(String.self, forKey: .id)
-            guard UsageProvider(rawValue: rawID) != nil else {
+            guard let instanceID = ProviderInstanceID(rawValue: rawID),
+                  Self.isKnownProviderInstance(instanceID)
+            else {
                 Self.log.warning("Ignoring unknown provider in config", metadata: ["provider": rawID])
                 continue
             }
@@ -48,6 +50,16 @@ public struct CodexBarConfig: Codable, Sendable {
         }
         self.providers = providers
         self.hooks = try container.decodeIfPresent(HooksConfig.self, forKey: .hooks)
+    }
+
+    /// User plugins exist only where JavaScriptCore does; other platforms drop their config entries.
+    private static func isKnownProviderInstance(_ instanceID: ProviderInstanceID) -> Bool {
+        if instanceID.firstPartyProvider != nil { return true }
+        #if canImport(JavaScriptCore)
+        return UserProviderPluginRegistry.plugin(for: instanceID) != nil
+        #else
+        return false
+        #endif
     }
 
     public static func makeDefault(
@@ -72,7 +84,9 @@ public struct CodexBarConfig: Codable, Sendable {
         UsageProvider.allCases.sorted { lhs, rhs in
             let lhsEnabled = enablement(lhs)
             let rhsEnabled = enablement(rhs)
-            if lhsEnabled != rhsEnabled { return lhsEnabled }
+            if lhsEnabled != rhsEnabled {
+                return lhsEnabled
+            }
             let lhsName = metadata[lhs]?.displayName ?? lhs.rawValue
             let rhsName = metadata[rhs]?.displayName ?? rhs.rawValue
             switch lhsName.localizedCaseInsensitiveCompare(rhsName) {
@@ -86,21 +100,27 @@ public struct CodexBarConfig: Codable, Sendable {
     public func normalized(
         metadata: [UsageProvider: ProviderMetadata] = ProviderDescriptorRegistry.metadata) -> CodexBarConfig
     {
-        var seen: Set<UsageProvider> = []
+        var seen: Set<ProviderInstanceID> = []
         var normalized: [ProviderConfig] = []
         normalized.reserveCapacity(max(self.providers.count, UsageProvider.allCases.count))
 
         for var provider in self.providers {
             guard !seen.contains(provider.id) else { continue }
             seen.insert(provider.id)
-            if provider.id == .deepseek {
+            if provider.id.firstPartyProvider == .deepseek {
                 provider.deepseekProfileID = provider.sanitizedDeepSeekProfileID
                 provider.deepseekProfileScope = provider.sanitizedDeepSeekProfileScope
+            }
+            if provider.id.firstPartyProvider == .moonshot,
+               provider.sanitizedAPIKey != nil,
+               provider.sanitizedAPIKeyRegion == nil
+            {
+                provider.apiKeyRegion = provider.sanitizedRegion ?? MoonshotRegion.international.rawValue
             }
             normalized.append(provider)
         }
 
-        for provider in UsageProvider.allCases where !seen.contains(provider) {
+        for provider in UsageProvider.allCases where !seen.contains(provider.instanceID) {
             normalized.append(Self.defaultProviderConfig(
                 provider,
                 metadata: metadata,
@@ -120,20 +140,21 @@ public struct CodexBarConfig: Codable, Sendable {
         return copy
     }
 
-    public func orderedProviders() -> [UsageProvider] {
+    public func orderedProviders() -> [ProviderInstanceID] {
         self.providers.map(\.id)
     }
 
     public func enabledProviders(
-        metadata: [UsageProvider: ProviderMetadata] = ProviderDescriptorRegistry.metadata) -> [UsageProvider]
+        metadata: [UsageProvider: ProviderMetadata] = ProviderDescriptorRegistry.metadata) -> [ProviderInstanceID]
     {
         self.providers.compactMap { config in
-            let enabled = config.enabled ?? metadata[config.id]?.defaultEnabled ?? false
+            let enabled = config.enabled ?? config.id.firstPartyProvider
+                .flatMap { metadata[$0]?.defaultEnabled } ?? false
             return enabled ? config.id : nil
         }
     }
 
-    public func providerConfig(for id: UsageProvider) -> ProviderConfig? {
+    public func providerConfig(for id: ProviderInstanceID) -> ProviderConfig? {
         self.providers.first(where: { $0.id == id })
     }
 
@@ -151,14 +172,14 @@ public struct CodexBarConfig: Codable, Sendable {
         alibabaTokenPlanRegion: AlibabaTokenPlanAPIRegion) -> ProviderConfig
     {
         ProviderConfig(
-            id: provider,
+            id: provider.instanceID,
             enabled: metadata[provider]?.defaultEnabled,
             region: provider == .alibabatokenplan ? alibabaTokenPlanRegion.rawValue : nil)
     }
 }
 
 public struct ProviderConfig: Codable, Sendable, Identifiable {
-    public let id: UsageProvider
+    public let id: ProviderInstanceID
     public var enabled: Bool?
     public var source: ProviderSourceMode?
     public var extrasEnabled: Bool?
@@ -183,9 +204,14 @@ public struct ProviderConfig: Codable, Sendable, Identifiable {
     public var awsAuthMode: String?
     public var deepseekProfileID: String?
     public var deepseekProfileScope: String?
+    /// Region that owns `apiKey`. Region-routed providers use this to keep credentials host-scoped.
+    public var apiKeyRegion: String?
+    /// Arbitrary user-plugin values stay scoped to the provider instance. Secure values are redacted from config dumps.
+    public var pluginSettings: [String: String]?
+    public var pluginSecrets: [String: String]?
 
     public init(
-        id: UsageProvider,
+        id: ProviderInstanceID,
         enabled: Bool? = nil,
         source: ProviderSourceMode? = nil,
         extrasEnabled: Bool? = nil,
@@ -209,7 +235,10 @@ public struct ProviderConfig: Codable, Sendable, Identifiable {
         awsProfile: String? = nil,
         awsAuthMode: String? = nil,
         deepseekProfileID: String? = nil,
-        deepseekProfileScope: String? = nil)
+        deepseekProfileScope: String? = nil,
+        apiKeyRegion: String? = nil,
+        pluginSettings: [String: String]? = nil,
+        pluginSecrets: [String: String]? = nil)
     {
         self.id = id
         self.enabled = enabled
@@ -236,6 +265,9 @@ public struct ProviderConfig: Codable, Sendable, Identifiable {
         self.awsAuthMode = awsAuthMode
         self.deepseekProfileID = deepseekProfileID
         self.deepseekProfileScope = deepseekProfileScope
+        self.apiKeyRegion = apiKeyRegion
+        self.pluginSettings = pluginSettings
+        self.pluginSecrets = pluginSecrets
     }
 
     public var sanitizedAPIKey: String? {
@@ -252,6 +284,10 @@ public struct ProviderConfig: Codable, Sendable, Identifiable {
 
     public var sanitizedRegion: String? {
         Self.clean(self.region)
+    }
+
+    public var sanitizedAPIKeyRegion: String? {
+        Self.clean(self.apiKeyRegion)
     }
 
     public var sanitizedWorkspaceID: String? {
@@ -292,6 +328,9 @@ public struct ProviderConfig: Codable, Sendable, Identifiable {
         }
         if copy.cookieHeader != nil {
             copy.cookieHeader = "[REDACTED]"
+        }
+        if copy.pluginSecrets != nil {
+            copy.pluginSecrets = copy.pluginSecrets?.mapValues { _ in "[REDACTED]" }
         }
         if let tokenAccounts = copy.tokenAccounts {
             copy.tokenAccounts = tokenAccounts.sanitizedForDump()

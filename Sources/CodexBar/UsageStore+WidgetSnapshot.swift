@@ -58,13 +58,15 @@ extension UsageStore {
         let deviceID = self.settings.iCloudSyncDeviceID
         var payloads: [String: AccountSnapshotSyncPayload] = [:]
 
-        for (provider, usage) in self.snapshots {
+        for (instanceID, usage) in self.snapshots {
             let identity = usage.identity?.accountID ?? usage.identity?.accountEmail
             let label = usage.identity?.accountEmail
                 ?? usage.identity?.accountOrganization
-                ?? ProviderDescriptorRegistry.descriptor(for: provider).metadata.displayName
+                ?? instanceID.firstPartyProvider
+                .map { ProviderDescriptorRegistry.descriptor(for: $0).metadata.displayName }
+                ?? instanceID.rawValue
             let payload = AccountSnapshotSyncPayload(
-                provider: provider,
+                provider: instanceID,
                 deviceID: deviceID,
                 accountIdentity: identity,
                 displayLabel: label,
@@ -95,7 +97,7 @@ extension UsageStore {
                 ?? usage.identity?.accountEmail
                 ?? "\(accountSnapshot.id.source):\(accountSnapshot.id.opaqueID)"
             let payload = AccountSnapshotSyncPayload(
-                provider: accountSnapshot.provider,
+                provider: accountSnapshot.provider.instanceID,
                 deviceID: deviceID,
                 accountIdentity: identity,
                 displayLabel: accountSnapshot.displayLabel,
@@ -113,10 +115,10 @@ extension UsageStore {
             identities.insert(AccountSnapshotSyncPayload.accountKey(for: identity))
         }
 
-        if let usage = self.snapshots[provider] {
+        if let usage = self.snapshots[provider.instanceID] {
             insert(usage.identity?.accountID ?? usage.identity?.accountEmail)
         }
-        for accountSnapshot in self.accountSnapshots[provider] ?? [] {
+        for accountSnapshot in self.accountSnapshots[provider.instanceID] ?? [] {
             insert(accountSnapshot.snapshot?.identity?.accountID)
             insert(accountSnapshot.snapshot?.identity?.accountEmail)
             insert(accountSnapshot.account.externalIdentifier)
@@ -157,7 +159,7 @@ extension UsageStore {
             self.makeWidgetEntry(
                 for: provider,
                 now: now,
-                previousEntry: previousSnapshot?.entries.first { $0.provider == provider })
+                previousEntry: previousSnapshot?.entries.first { $0.provider == provider.instanceID })
         }
         return WidgetSnapshot(
             entries: entries,
@@ -171,7 +173,7 @@ extension UsageStore {
         now: Date,
         previousEntry: WidgetSnapshot.ProviderEntry?) -> WidgetSnapshot.ProviderEntry?
     {
-        let snapshot = self.snapshots[provider]
+        let snapshot = self.snapshots[provider.instanceID]
         let storedTokenSnapshot = self.tokenSnapshotForCurrentProviderConfig(for: provider)?.snapshot
         let claudeQuotaOwnerKey: String? = if provider == .claude {
             self.claudeWidgetQuotaOwnerKey()
@@ -181,8 +183,10 @@ extension UsageStore {
         let preservedClaudeUsage: PreservedClaudeWidgetUsage? = if provider == .claude,
                                                                    snapshot == nil,
                                                                    !self.widgetUsagePreservationBlockedProviders
-                                                                       .contains(provider),
-                                                                       self.knownLimitsAvailabilityByProvider[provider]?
+                                                                       .contains(provider.instanceID),
+                                                                       self
+                                                                           .knownLimitsAvailabilityByProvider[provider
+                                                                               .instanceID]?
                                                                            .isUnavailable != true
         {
             Self.preservedClaudeWidgetUsage(

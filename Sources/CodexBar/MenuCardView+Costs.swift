@@ -127,7 +127,9 @@ extension UsageMenuCardView.Model {
         preferredCurrencyCode: String = "auto") -> String?
     {
         guard metadata.supportsCredits else { return nil }
-        if metadata.id == .codex, credits == nil, error == nil { return nil }
+        if metadata.id == .codex, credits == nil, error == nil {
+            return nil
+        }
         if metadata.id == .amp,
            let ampUsage = snapshot?.ampUsage,
            let ampCredits = self.ampCreditsLine(ampUsage, preferredCurrencyCode: preferredCurrencyCode)
@@ -187,6 +189,7 @@ extension UsageMenuCardView.Model {
     static func tokenUsageSection(
         provider: UsageProvider,
         enabled: Bool,
+        isRefreshing: Bool = false,
         comparisonPeriodsEnabled: Bool,
         snapshot: CostUsageTokenSnapshot?,
         error: String?,
@@ -253,6 +256,7 @@ extension UsageMenuCardView.Model {
         }
         let err = (error?.isEmpty ?? true) ? nil : error
         return TokenUsageSection(
+            isRefreshing: isRefreshing,
             sessionLine: sessionLine,
             monthLine: monthLine,
             meteredLine: meteredLine,
@@ -338,13 +342,19 @@ extension UsageMenuCardView.Model {
             return (entry, dayKey)
         }
         .max { lhs, rhs in
-            if lhs.dayKey != rhs.dayKey { return lhs.dayKey < rhs.dayKey }
+            if lhs.dayKey != rhs.dayKey {
+                return lhs.dayKey < rhs.dayKey
+            }
             let lCost = lhs.entry.costUSD ?? -1
             let rCost = rhs.entry.costUSD ?? -1
-            if lCost != rCost { return lCost < rCost }
+            if lCost != rCost {
+                return lCost < rCost
+            }
             let lTokens = lhs.entry.totalTokens ?? -1
             let rTokens = rhs.entry.totalTokens ?? -1
-            if lTokens != rTokens { return lTokens < rTokens }
+            if lTokens != rTokens {
+                return lTokens < rTokens
+            }
             return lhs.entry.date < rhs.entry.date
         }?.entry
     }
@@ -396,8 +406,12 @@ extension UsageMenuCardView.Model {
     private static func daysInBedrockBillingMonth(_ month: Int, year: Int) -> Int {
         switch month {
         case 2:
-            if year.isMultiple(of: 400) { return 29 }
-            if year.isMultiple(of: 100) { return 28 }
+            if year.isMultiple(of: 400) {
+                return 29
+            }
+            if year.isMultiple(of: 100) {
+                return 28
+            }
             return year.isMultiple(of: 4) ? 29 : 28
         case 4, 6, 9, 11:
             return 30

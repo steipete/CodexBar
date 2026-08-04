@@ -36,13 +36,36 @@ public enum ManusProviderDescriptor {
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
                 noDataMessage: { "Manus cost summary is not supported." }),
-            fetchPlan: ProviderFetchPlan(
-                sourceModes: [.auto, .web],
-                pipeline: ProviderFetchPipeline(resolveStrategies: { _ in [ManusWebFetchStrategy()] })),
+            fetchPlan: self.fetchPlan(),
             cli: ProviderCLIConfig(
                 name: "manus",
                 aliases: [],
                 versionDetector: nil))
+    }
+
+    private static func fetchPlan() -> ProviderFetchPlan {
+        ProviderFetchPlan(
+            sourceModes: [.auto, .web],
+            pipeline: ProviderFetchPipeline(resolveStrategies: { context in
+                let swift = ManusWebFetchStrategy()
+                #if canImport(JavaScriptCore)
+                guard ProviderPluginPrototype.isEnabled(environment: context.env) else { return [swift] }
+                return [
+                    ScriptFetchStrategy(
+                        id: "manus.js",
+                        provider: .manus,
+                        bundledPlugin: "manus",
+                        kind: .web,
+                        resolveValues: { context in
+                            guard context.settings?.manus?.cookieSource != .off else { return nil }
+                            return ScriptFetchStrategy.Values()
+                        }),
+                    swift,
+                ]
+                #else
+                return [swift]
+                #endif
+            }))
     }
 }
 
@@ -69,7 +92,9 @@ struct ManusWebFetchStrategy: ProviderFetchStrategy {
 
     func isAvailable(_ context: ProviderFetchContext) async -> Bool {
         guard context.settings?.manus?.cookieSource != .off else { return false }
-        if context.settings?.manus?.cookieSource == .manual { return true }
+        if context.settings?.manus?.cookieSource == .manual {
+            return true
+        }
 
         if let cached = CookieHeaderCache.load(provider: .manus),
            ManusCookieHeader.token(from: cached.cookieHeader) != nil
@@ -116,9 +141,15 @@ struct ManusWebFetchStrategy: ProviderFetchStrategy {
     }
 
     func shouldFallback(on error: Error, context _: ProviderFetchContext) -> Bool {
-        if case ManusAPIError.missingToken = error { return false }
-        if case ManusAPIError.invalidCookie = error { return false }
-        if case ManusAPIError.invalidToken = error { return false }
+        if case ManusAPIError.missingToken = error {
+            return false
+        }
+        if case ManusAPIError.invalidCookie = error {
+            return false
+        }
+        if case ManusAPIError.invalidToken = error {
+            return false
+        }
         return true
     }
 

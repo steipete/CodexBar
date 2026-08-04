@@ -68,6 +68,10 @@ enum CodexBarCLI {
                 await self.runDiagnose(invocation.parsedValues)
             case ["guard"]:
                 await self.runGuard(invocation.parsedValues)
+            #if canImport(JavaScriptCore)
+            case let path where path.first == "plugins":
+                await self.runPlugins(path: path, values: invocation.parsedValues)
+            #endif
             default:
                 Self.exit(
                     code: .failure,
@@ -163,7 +167,7 @@ enum CodexBarCLI {
         let diagnoseSignature = CommandSignature.describe(DiagnoseOptions())
         let guardSignature = CommandSignature.describe(GuardOptions())
 
-        return [
+        var descriptors = [
             CommandDescriptor(
                 name: "cards",
                 abstract: "Print usage as a terminal card grid",
@@ -186,13 +190,13 @@ enum CodexBarCLI {
                 signature: costSignature),
             CommandDescriptor(
                 name: "sessions",
-                abstract: "List live Codex and Claude Code sessions",
+                abstract: "List live Codex, Claude Code, pi, and OMP sessions",
                 discussion: nil,
                 signature: CommandSignature(),
                 subcommands: [
                     CommandDescriptor(
                         name: "list",
-                        abstract: "List live Codex and Claude Code sessions",
+                        abstract: "List live Codex, Claude Code, pi, and OMP sessions",
                         discussion: nil,
                         signature: sessionsSignature),
                     CommandDescriptor(
@@ -267,7 +271,34 @@ enum CodexBarCLI {
                 discussion: nil,
                 signature: diagnoseSignature),
         ]
+        #if canImport(JavaScriptCore)
+        descriptors.append(Self.pluginsCommandDescriptor())
+        #endif
+        return descriptors
     }
+
+    #if canImport(JavaScriptCore)
+    private static func pluginsCommandDescriptor() -> CommandDescriptor {
+        CommandDescriptor(
+            name: "plugins",
+            abstract: "List or fetch user-installed provider plugins",
+            discussion: nil,
+            signature: CommandSignature(),
+            subcommands: [
+                CommandDescriptor(
+                    name: "list",
+                    abstract: "List discovered local plugins",
+                    discussion: nil,
+                    signature: CommandSignature()),
+                CommandDescriptor(
+                    name: "fetch",
+                    abstract: "Fetch one plugin, interactively approving network access when needed",
+                    discussion: nil,
+                    signature: CommandSignature.describe(PluginFetchOptions())),
+            ],
+            defaultSubcommandName: "list")
+    }
+    #endif
 
     private static func dashboardCommandDescriptor() -> CommandDescriptor {
         CommandDescriptor(

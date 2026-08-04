@@ -29,7 +29,7 @@ extension StatusItemController {
             snapshots: self.cloudSyncState.fleetSnapshots.values,
             currentDeviceID: self.settings.iCloudSyncDeviceID,
             localAccountKeys: self.store.cloudSyncLocalAccountKeys(for: provider),
-            hasLocalUsage: localSnapshots.contains(where: { $0.provider == provider }))
+            hasLocalUsage: localSnapshots.contains(where: { $0.provider == provider.instanceID }))
     }
 
     func addFleetAccountMenuCards(
@@ -75,13 +75,14 @@ extension StatusItemController {
     func fleetAccountMenuCardModel(
         _ snapshot: AccountSnapshotSyncPayload) -> UsageMenuCardView.Model?
     {
+        guard let provider = snapshot.provider.firstPartyProvider else { return nil }
         let deviceName = self.cloudSyncState.fleetDevices.values
             .first(where: { $0.deviceID == snapshot.deviceID })?
             .hostName ?? L("another Mac")
         let badge = FleetAccountMenuPlanner.badge(deviceName: deviceName, fetchedAt: snapshot.fetchedAt)
         let label = snapshot.displayLabel.trimmingCharacters(in: .whitespacesAndNewlines)
         return self.menuCardModel(
-            for: snapshot.provider,
+            for: provider,
             snapshotOverride: snapshot.usage,
             forceOverrideCard: true,
             accountOverride: AccountInfo(email: label.isEmpty ? nil : label, plan: nil),

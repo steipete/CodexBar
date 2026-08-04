@@ -41,6 +41,12 @@ enum CLIRenderer {
             context: context,
             now: now,
             lines: &lines)
+        self.appendZaiExtraRateWindows(
+            provider: provider,
+            snapshot: snapshot,
+            context: context,
+            now: now,
+            lines: &lines)
         self.appendMiMoBalanceLine(snapshot: snapshot, useColor: context.useColor, lines: &lines)
         self.appendClawRouterUsageLines(snapshot: snapshot, useColor: context.useColor, lines: &lines)
         self.appendSub2APIUsageLines(snapshot: snapshot, useColor: context.useColor, lines: &lines)
@@ -113,6 +119,12 @@ enum CLIRenderer {
             provider: provider,
             snapshot: snapshot,
             labels: labels,
+            context: context,
+            now: now,
+            lines: &lines)
+        self.appendZaiExtraRateWindows(
+            provider: provider,
+            snapshot: snapshot,
             context: context,
             now: now,
             lines: &lines)
@@ -449,6 +461,16 @@ enum CLIRenderer {
                 window: tertiary,
                 resetStyle: resetStyle,
                 now: now))
+        }
+        if provider == .zai {
+            for extra in snapshot.extraRateWindows ?? [] where extra.id == "zai-mcp" {
+                metrics.append(self.makeCardMetric(
+                    provider: provider,
+                    label: extra.title,
+                    window: extra.window,
+                    resetStyle: resetStyle,
+                    now: now))
+            }
         }
         return metrics
     }
@@ -827,6 +849,22 @@ enum CLIRenderer {
         }
         if let reset = self.resetLine(for: tertiary, style: context.resetStyle, now: now) {
             lines.append(self.subtleLine(reset, useColor: context.useColor))
+        }
+    }
+
+    private static func appendZaiExtraRateWindows(
+        provider: UsageProvider,
+        snapshot: UsageSnapshot,
+        context: RenderContext,
+        now: Date,
+        lines: inout [String])
+    {
+        guard provider == .zai else { return }
+        for extra in snapshot.extraRateWindows ?? [] where extra.id == "zai-mcp" {
+            lines.append(self.rateLine(title: extra.title, window: extra.window, useColor: context.useColor))
+            if let reset = self.resetLine(for: extra.window, style: context.resetStyle, now: now) {
+                lines.append(self.subtleLine(reset, useColor: context.useColor))
+            }
         }
     }
 

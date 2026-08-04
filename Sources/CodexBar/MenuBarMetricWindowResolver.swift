@@ -70,9 +70,6 @@ enum MenuBarMetricWindowResolver {
     }
 
     private static func tertiaryOrder(for provider: UsageProvider) -> [Lane] {
-        if provider == .zai {
-            return [.tertiary, .primary, .secondary]
-        }
         if provider == .perplexity || provider == .cursor || provider == .antigravity {
             return [.tertiary, .secondary, .primary]
         }
@@ -80,9 +77,6 @@ enum MenuBarMetricWindowResolver {
     }
 
     private static func primaryOrder(for provider: UsageProvider) -> [Lane] {
-        if provider == .zai {
-            return [.primary, .tertiary, .secondary]
-        }
         if provider == .perplexity || provider == .antigravity {
             return [.primary, .secondary, .tertiary]
         }
@@ -90,7 +84,7 @@ enum MenuBarMetricWindowResolver {
     }
 
     private static func secondaryOrder(for provider: UsageProvider) -> [Lane] {
-        if provider == .zai || provider == .antigravity {
+        if provider == .antigravity {
             return [.secondary, .primary, .tertiary]
         }
         if provider == .perplexity {
@@ -147,8 +141,8 @@ enum MenuBarMetricWindowResolver {
         if provider == .zai {
             return self.mostConstrainedWindow(
                 primary: snapshot.primary,
-                secondary: snapshot.tertiary,
-                tertiary: nil) ?? snapshot.secondary
+                secondary: snapshot.secondary,
+                tertiary: nil)
         }
         if provider == .factory || provider == .kimi || provider == .litellm {
             if let exhausted = exhaustedWindow(

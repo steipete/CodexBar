@@ -37,13 +37,36 @@ public enum T3ChatProviderDescriptor {
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
                 noDataMessage: { "T3 Chat cost summary is not supported." }),
-            fetchPlan: ProviderFetchPlan(
-                sourceModes: [.auto, .web],
-                pipeline: ProviderFetchPipeline(resolveStrategies: { _ in [T3ChatWebFetchStrategy()] })),
+            fetchPlan: self.fetchPlan(),
             cli: ProviderCLIConfig(
                 name: "t3chat",
                 aliases: ["t3-chat", "t3"],
                 versionDetector: nil))
+    }
+
+    private static func fetchPlan() -> ProviderFetchPlan {
+        ProviderFetchPlan(
+            sourceModes: [.auto, .web],
+            pipeline: ProviderFetchPipeline(resolveStrategies: { context in
+                let swift = T3ChatWebFetchStrategy()
+                #if canImport(JavaScriptCore)
+                guard ProviderPluginPrototype.isEnabled(environment: context.env) else { return [swift] }
+                return [
+                    ScriptFetchStrategy(
+                        id: "t3chat.js",
+                        provider: .t3chat,
+                        bundledPlugin: "t3chat",
+                        kind: .web,
+                        resolveValues: { context in
+                            guard context.settings?.t3chat?.cookieSource != .off else { return nil }
+                            return ScriptFetchStrategy.Values()
+                        }),
+                    swift,
+                ]
+                #else
+                return [swift]
+                #endif
+            }))
     }
 }
 

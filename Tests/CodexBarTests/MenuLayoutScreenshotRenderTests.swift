@@ -35,6 +35,34 @@ final class MenuLayoutScreenshotRenderTests: XCTestCase {
         }
     }
 
+    func test_renderCachedCostRefreshScreenshots() throws {
+        guard let dir = ProcessInfo.processInfo.environment["CODEXBAR_COST_SCREENSHOT_DIR"] else {
+            throw XCTSkip("Set CODEXBAR_COST_SCREENSHOT_DIR to render cached cost screenshots.")
+        }
+        let directory = URL(fileURLWithPath: dir, isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+
+        for isRefreshing in [false, true] {
+            let tokenUsage = UsageMenuCardView.Model.TokenUsageSection(
+                isRefreshing: isRefreshing,
+                sessionLine: "Today: $1.24 · 18.4K tokens",
+                monthLine: "Last 30 days: $38.62 · 612K tokens",
+                hintLine: "Costs are estimated from local usage.",
+                errorLine: nil,
+                errorCopyText: nil)
+            let view = AnyView(UsageMenuCardCostSectionView(
+                model: Self.costModel(tokenUsage: tokenUsage),
+                topPadding: 12,
+                bottomPadding: 12,
+                width: Self.width))
+            let suffix = isRefreshing ? "refreshing" : "idle"
+            let data = try XCTUnwrap(Self.pngData(for: view), "render failed for cached cost \(suffix)")
+            let url = directory.appendingPathComponent("usage-spend-cached-menu-\(suffix).png")
+            try data.write(to: url, options: .atomic)
+            print("Wrote \(url.path)")
+        }
+    }
+
     // MARK: - Fixture
 
     private static func screenshotAccounts() -> [ProviderAccountUsageSnapshot] {
@@ -96,6 +124,32 @@ final class MenuLayoutScreenshotRenderTests: XCTestCase {
             showOptionalCreditsAndExtraUsage: false,
             hidePersonalInfo: false,
             now: self.now))
+    }
+
+    private static func costModel(
+        tokenUsage: UsageMenuCardView.Model.TokenUsageSection) -> UsageMenuCardView.Model
+    {
+        UsageMenuCardView.Model(
+            provider: .codex,
+            providerName: "Codex",
+            email: "",
+            subtitleText: "Updated now",
+            subtitleStyle: .info,
+            planText: nil,
+            metrics: [],
+            usageNotes: [],
+            openAIAPIUsage: nil,
+            inlineUsageDashboard: nil,
+            creditsText: nil,
+            creditsRemaining: nil,
+            creditsProgressPercent: nil,
+            creditsScaleText: nil,
+            creditsHintText: nil,
+            creditsHintCopyText: nil,
+            providerCost: nil,
+            tokenUsage: tokenUsage,
+            placeholder: nil,
+            progressColor: .blue)
     }
 
     // MARK: - Preview composition

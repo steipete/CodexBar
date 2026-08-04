@@ -35,7 +35,7 @@ enum ProviderChoice: String, AppEnum {
         .qwencloud: DisplayRepresentation(title: "Qwen Cloud"),
         .antigravity: DisplayRepresentation(title: "Antigravity"),
         .cursor: DisplayRepresentation(title: "Cursor"),
-        .zai: DisplayRepresentation(title: "z.ai"),
+        .zai: DisplayRepresentation(title: "z.ai / GLM"),
         .copilot: DisplayRepresentation(title: "Copilot"),
         .devin: DisplayRepresentation(title: "Devin"),
         .minimax: DisplayRepresentation(title: "MiniMax"),
@@ -43,7 +43,7 @@ enum ProviderChoice: String, AppEnum {
         .opencode: DisplayRepresentation(title: "OpenCode"),
         .opencodego: DisplayRepresentation(title: "OpenCode Go"),
         .mistral: DisplayRepresentation(title: "Mistral"),
-        .kimi: DisplayRepresentation(title: "Kimi"),
+        .kimi: DisplayRepresentation(title: "Kimi Code"),
     ]
 
     var provider: UsageProvider {
@@ -195,8 +195,8 @@ struct CodexBarSwitcherTimelineProvider: TimelineProvider {
         let snapshot = WidgetSnapshotStore.load() ?? WidgetPreviewData.emptySnapshot()
         let providers = self.availableProviders(from: snapshot)
         let stored = WidgetSelectionStore.loadSelectedProvider()
-        let selected = providers.first { $0 == stored } ?? providers.first ?? .codex
-        if selected != stored {
+        let selected = providers.first { $0.instanceID == stored } ?? providers.first ?? .codex
+        if selected.instanceID != stored {
             WidgetSelectionStore.saveSelectedProvider(selected)
         }
         return CodexBarSwitcherEntry(
@@ -212,8 +212,13 @@ struct CodexBarSwitcherTimelineProvider: TimelineProvider {
 
     static func supportedProviders(from snapshot: WidgetSnapshot) -> [UsageProvider] {
         let enabled = snapshot.enabledProviders
-        let providers = enabled.isEmpty ? snapshot.entries.map(\.provider) : enabled
-        let supported = providers.filter { ProviderChoice(provider: $0) != nil }
+        let instanceIDs = enabled.isEmpty ? snapshot.entries.map(\.provider) : enabled
+        let supported = instanceIDs.compactMap { instanceID -> UsageProvider? in
+            guard let provider = instanceID.firstPartyProvider, ProviderChoice(provider: provider) != nil else {
+                return nil
+            }
+            return provider
+        }
         return supported.isEmpty ? [.codex] : supported
     }
 }

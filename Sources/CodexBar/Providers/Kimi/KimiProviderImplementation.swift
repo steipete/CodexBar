@@ -75,8 +75,9 @@ struct KimiProviderImplementation: ProviderImplementation {
             ProviderSettingsPickerDescriptor(
                 id: "kimi-usage-source",
                 title: "Usage source",
-                subtitle: "Auto tries your configured API key, then a signed-in Kimi Code CLI credential, " +
-                    "then browser cookies.",
+                subtitle: "Kimi Code subscription usage from api.kimi.com. Auto tries your configured API key, " +
+                    "then a signed-in Kimi Code CLI credential, then web cookies. China Open Platform balance " +
+                    "is a separate provider.",
                 binding: usageBinding,
                 options: usageOptions,
                 isVisible: nil,
@@ -103,8 +104,9 @@ struct KimiProviderImplementation: ProviderImplementation {
         [
             ProviderSettingsFieldDescriptor(
                 id: "kimi-api-key",
-                title: "API key",
-                subtitle: "Stored in ~/.codexbar/config.json. You can also provide KIMI_CODE_API_KEY.",
+                title: "Kimi Code API key",
+                subtitle: "Kimi Code key from www.kimi.com/code. For China Open Platform balance, use " +
+                    "Moonshot / Kimi Open Platform.",
                 kind: .secure,
                 placeholder: "Paste Kimi Code API key...",
                 binding: context.stringBinding(\.kimiAPIKey),

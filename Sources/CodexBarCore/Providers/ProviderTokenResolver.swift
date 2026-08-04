@@ -307,20 +307,7 @@ public enum ProviderTokenResolver {
     public static func kimiAuthResolution(
         environment: [String: String] = ProcessInfo.processInfo.environment) -> ProviderTokenResolution?
     {
-        if let resolution = self.resolveEnv(KimiSettingsReader.authToken(environment: environment)) {
-            return resolution
-        }
-        #if os(macOS)
-        do {
-            let session = try KimiCookieImporter.importSession()
-            if let token = session.authToken {
-                return ProviderTokenResolution(token: token, source: .environment)
-            }
-        } catch {
-            // No browser cookies found, continue to fallback
-        }
-        #endif
-        return nil
+        self.resolveEnv(KimiSettingsReader.authToken(environment: environment))
     }
 
     public static func kimiAPIResolution(

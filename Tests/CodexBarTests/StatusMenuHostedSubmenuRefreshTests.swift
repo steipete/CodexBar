@@ -467,7 +467,7 @@ struct StatusMenuHostedSubmenuRefreshTests {
         settings.statusChecksEnabled = false
         settings.refreshFrequency = .manual
         settings.mergeIcons = true
-        settings.selectedMenuProvider = provider
+        settings.selectedMenuProvider = provider.instanceID
         settings.costUsageEnabled = true
         settings.providerStorageFootprintsEnabled = true
         Self.enableOnly(settings, provider: provider)

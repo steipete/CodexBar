@@ -122,7 +122,7 @@ extension StatusItemController {
             "claudeSwapRevision=\(self.store.claudeSwapRevision)",
         ]
 
-        for provider in self.store.enabledProvidersForDisplay() {
+        for provider in self.store.enabledFirstPartyProvidersForDisplay() {
             let tokenSignature = self.tokenSnapshotReadinessSignature(for: provider)
             let usageHistoryVisible = self.store.supportsPlanUtilizationHistory(for: provider) &&
                 !self.store.shouldHidePlanUtilizationMenuItem(for: provider)

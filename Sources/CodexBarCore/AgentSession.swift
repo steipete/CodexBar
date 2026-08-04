@@ -4,6 +4,12 @@ public struct AgentSession: Codable, Equatable, Sendable, Identifiable {
     public enum Provider: String, Codable, Sendable {
         case codex
         case claude
+        case pi
+    }
+
+    public enum Dialect: String, Codable, Sendable {
+        case pi
+        case omp
     }
 
     public enum Source: String, Codable, Sendable {
@@ -20,6 +26,7 @@ public struct AgentSession: Codable, Equatable, Sendable, Identifiable {
 
     public var id: String
     public var provider: Provider
+    public var dialect: Dialect?
     public var source: Source
     public var state: State
     public var pid: Int32?
@@ -34,6 +41,7 @@ public struct AgentSession: Codable, Equatable, Sendable, Identifiable {
     public init(
         id: String,
         provider: Provider,
+        dialect: Dialect? = nil,
         source: Source,
         state: State,
         pid: Int32?,
@@ -47,6 +55,7 @@ public struct AgentSession: Codable, Equatable, Sendable, Identifiable {
     {
         self.id = id
         self.provider = provider
+        self.dialect = dialect
         self.source = source
         self.state = state
         self.pid = pid
@@ -216,6 +225,9 @@ public enum AgentPSOutputParser {
     public static func agentProcesses(from records: [AgentProcessRecord]) -> [AgentProcessRecord] {
         let candidates = records.filter { record in
             let basename = record.executableBasename.lowercased()
+            if self.piDialect(for: record) != nil {
+                return !self.isObviousPiFamilyHelper(record.command)
+            }
             if basename == "codex" {
                 let arguments = self.arguments(record.command)
                 return self.isCodexAgentExecutable(record.command) &&
@@ -248,7 +260,27 @@ public enum AgentPSOutputParser {
         if basename == "claude" || basename == "disclaimer" {
             return .claude
         }
+        if self.piDialect(for: record) != nil, !self.isObviousPiFamilyHelper(record.command) {
+            return .pi
+        }
         return nil
+    }
+
+    public static func piDialect(for record: AgentProcessRecord) -> AgentSession.Dialect? {
+        let tokens = record.command.split(whereSeparator: \ .isWhitespace).map(String.init)
+        guard let firstToken = tokens.first else { return nil }
+
+        let firstBasename = URL(fileURLWithPath: firstToken).lastPathComponent.lowercased()
+        if firstBasename == "pi" {
+            return .pi
+        }
+        if firstBasename == "omp" {
+            return .omp
+        }
+        guard firstBasename == "bun" else { return nil }
+        return tokens.dropFirst().contains {
+            URL(fileURLWithPath: $0).lastPathComponent.lowercased() == "omp"
+        } ? .omp : nil
     }
 
     public static func source(for record: AgentProcessRecord) -> AgentSession.Source {
@@ -293,6 +325,14 @@ public enum AgentPSOutputParser {
     private static func isClaudeAgentExecutable(_ command: String) -> Bool {
         let lowercased = command.lowercased()
         return !lowercased.contains(".app/") || lowercased.contains("application support/claude/claude-code/claude")
+    }
+
+    private static func isObviousPiFamilyHelper(_ command: String) -> Bool {
+        let lowercased = command.lowercased()
+        return lowercased.contains("--help") ||
+            lowercased.contains("--version") ||
+            lowercased.contains("--smoke-test") ||
+            lowercased.contains("__omp_worker_")
     }
 }
 

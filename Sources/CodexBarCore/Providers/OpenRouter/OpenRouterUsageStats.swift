@@ -220,7 +220,8 @@ public struct OpenRouterUsageFetcher: Sendable {
     /// Fetches credits usage from OpenRouter using the provided API key
     public static func fetchUsage(
         apiKey: String,
-        environment: [String: String] = ProcessInfo.processInfo.environment) async throws -> OpenRouterUsageSnapshot
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        transport: any ProviderHTTPTransport = ProviderHTTPClient.shared) async throws -> OpenRouterUsageSnapshot
     {
         guard !apiKey.isEmpty else {
             throw OpenRouterUsageError.invalidCredentials
@@ -241,7 +242,7 @@ public struct OpenRouterUsageFetcher: Sendable {
         let title = Self.sanitizedHeaderValue(environment[self.clientTitleEnvKey]) ?? Self.defaultClientTitle
         request.setValue(title, forHTTPHeaderField: "X-Title")
 
-        let response = try await ProviderHTTPClient.shared.response(for: request)
+        let response = try await transport.response(for: request)
         let data = response.data
         guard response.statusCode == 200 else {
             let errorSummary = LogRedactor.redact(Self.sanitizedResponseBodySummary(data))
@@ -263,7 +264,8 @@ public struct OpenRouterUsageFetcher: Sendable {
             let keyFetch = try await fetchKeyData(
                 apiKey: apiKey,
                 baseURL: baseURL,
-                timeoutSeconds: Self.rateLimitTimeoutSeconds)
+                timeoutSeconds: Self.rateLimitTimeoutSeconds,
+                transport: transport)
 
             return OpenRouterUsageSnapshot(
                 totalCredits: creditsResponse.data.totalCredits,
@@ -300,14 +302,16 @@ public struct OpenRouterUsageFetcher: Sendable {
     private static func fetchKeyData(
         apiKey: String,
         baseURL: URL,
-        timeoutSeconds: TimeInterval) async throws -> OpenRouterKeyFetchResult
+        timeoutSeconds: TimeInterval,
+        transport: any ProviderHTTPTransport) async throws -> OpenRouterKeyFetchResult
     {
         let timeout = max(0.1, timeoutSeconds)
         return try await self.boundedKeyFetch(timeout: .seconds(timeout)) {
             await Self.fetchKeyDataRequest(
                 apiKey: apiKey,
                 baseURL: baseURL,
-                timeoutSeconds: timeout)
+                timeoutSeconds: timeout,
+                transport: transport)
         }
     }
 
@@ -348,7 +352,8 @@ public struct OpenRouterUsageFetcher: Sendable {
     private static func fetchKeyDataRequest(
         apiKey: String,
         baseURL: URL,
-        timeoutSeconds: TimeInterval) async -> OpenRouterKeyFetchResult
+        timeoutSeconds: TimeInterval,
+        transport: any ProviderHTTPTransport) async -> OpenRouterKeyFetchResult
     {
         let keyURL = baseURL.appendingPathComponent("key")
 
@@ -359,7 +364,7 @@ public struct OpenRouterUsageFetcher: Sendable {
         request.timeoutInterval = timeoutSeconds
 
         do {
-            let response = try await ProviderHTTPClient.shared.response(for: request)
+            let response = try await transport.response(for: request)
             guard response.statusCode == 200 else {
                 return OpenRouterKeyFetchResult(data: nil, fetched: false)
             }

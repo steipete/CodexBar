@@ -5,11 +5,28 @@ import Foundation
 extension CodexBarCLI {
     static func runSessions(_ values: ParsedValues) async {
         let sessions = await LocalAgentSessionScanner().scan()
-        if values.flags.contains("jsonShortcut") {
-            Self.printJSON(sessions, pretty: values.flags.contains("pretty"))
+        if let jsonVersion = Self.sessionsJSONProtocolVersion(from: values) {
+            Self.printJSON(
+                Self.sessionsForJSON(sessions, includePiFamily: jsonVersion == 2),
+                pretty: values.flags.contains("pretty"))
         } else {
             print(Self.renderSessionsTable(sessions))
         }
+    }
+
+    static func sessionsJSONProtocolVersion(from values: ParsedValues) -> Int? {
+        if values.flags.contains("jsonV2") {
+            return 2
+        }
+        if values.flags.contains("jsonShortcut") {
+            return 1
+        }
+        return nil
+    }
+
+    static func sessionsForJSON(_ sessions: [AgentSession], includePiFamily: Bool) -> [AgentSession] {
+        guard !includePiFamily else { return sessions }
+        return sessions.filter { $0.provider == .codex || $0.provider == .claude }
     }
 
     static func runSessionsFocus(_ values: ParsedValues) async {
@@ -46,13 +63,14 @@ extension CodexBarCLI {
             [
                 session.state == .active ? "active" : "idle",
                 session.provider.rawValue,
+                session.dialect?.rawValue ?? "—",
                 session.source.rawValue,
                 session.projectName ?? "—",
                 Self.sessionAge(session, now: now),
                 session.id,
             ]
         }
-        let headers = ["STATE", "PROVIDER", "SOURCE", "PROJECT", "ACTIVITY", "ID"]
+        let headers = ["STATE", "PROVIDER", "DIALECT", "SOURCE", "PROJECT", "ACTIVITY", "ID"]
         let widths = headers.indices.map { index in
             ([headers[index]] + rows.map { $0[index] }).map(\ .count).max() ?? headers[index].count
         }
@@ -81,8 +99,11 @@ extension CodexBarCLI {
 }
 
 struct SessionsOptions: CommanderParsable {
-    @Flag(name: .long("json"), help: "Emit JSON")
+    @Flag(name: .long("json"), help: "Emit legacy JSON compatible with older clients")
     var jsonShortcut: Bool = false
+
+    @Flag(name: .long("json-v2"), help: "Emit complete JSON, including Pi-family sessions")
+    var jsonV2: Bool = false
 
     @Flag(name: .long("pretty"), help: "Pretty-print JSON output")
     var pretty: Bool = false

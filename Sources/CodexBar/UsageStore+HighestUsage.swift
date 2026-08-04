@@ -10,10 +10,11 @@ extension UsageStore {
     {
         let candidateSet = candidateProviders.map(Set.init)
         var highest: (provider: UsageProvider, usedPercent: Double)?
-        for provider in self.enabledProviders()
-            where candidateSet?.contains(provider) ?? true
-        {
-            guard let snapshot = self.snapshots[provider] else { continue }
+        for instanceID in self.enabledProviders() {
+            guard let provider = instanceID.firstPartyProvider,
+                  candidateSet?.contains(provider) ?? true,
+                  let snapshot = self.snapshots[instanceID]
+            else { continue }
             guard let window = self.menuBarMetricWindowForHighestUsage(
                 provider: provider,
                 snapshot: snapshot,

@@ -295,11 +295,11 @@ extension SettingsStore {
     }
 
     func menuBarMetricSupportsTertiary(for provider: UsageProvider) -> Bool {
-        provider == .cursor || provider == .perplexity || provider == .zai
+        provider == .cursor || provider == .perplexity
     }
 
     func menuBarMetricSupportsTertiary(for provider: UsageProvider, snapshot: UsageSnapshot?) -> Bool {
-        if provider == .cursor || provider == .zai {
+        if provider == .cursor {
             return snapshot?.tertiary != nil
         }
         return self.menuBarMetricSupportsTertiary(for: provider)

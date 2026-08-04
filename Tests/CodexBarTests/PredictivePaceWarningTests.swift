@@ -692,7 +692,7 @@ struct PredictivePaceWarningTests {
                 resetDescription: nil),
             updatedAt: now,
             identity: ProviderIdentitySnapshot(
-                providerID: provider,
+                providerID: provider.instanceID,
                 accountEmail: accountEmail,
                 accountOrganization: nil,
                 loginMethod: nil))

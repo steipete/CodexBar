@@ -1356,11 +1356,17 @@ struct CLISnapshotTests {
     }
 
     @Test
-    func `renders 5-hour tertiary row for zai`() {
+    func `renders GLM coding windows with MCP separate`() {
         let snap = UsageSnapshot(
-            primary: .init(usedPercent: 9, windowMinutes: 10080, resetsAt: nil, resetDescription: nil),
-            secondary: .init(usedPercent: 50, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
-            tertiary: .init(usedPercent: 25, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+            primary: .init(usedPercent: 25, windowMinutes: 300, resetsAt: nil, resetDescription: "5-hour"),
+            secondary: .init(usedPercent: 9, windowMinutes: 10080, resetsAt: nil, resetDescription: "1 week window"),
+            tertiary: nil,
+            extraRateWindows: [
+                NamedRateWindow(
+                    id: "zai-mcp",
+                    title: "MCP",
+                    window: .init(usedPercent: 50, windowMinutes: nil, resetsAt: nil, resetDescription: "MCP")),
+            ],
             updatedAt: Date(timeIntervalSince1970: 0))
 
         let output = CLIRenderer.renderText(
@@ -1374,7 +1380,7 @@ struct CLISnapshotTests {
                 resetStyle: .absolute))
 
         #expect(output.contains("5-hour:"))
-        #expect(output.contains("Tokens:"))
+        #expect(output.contains("Weekly:"))
         #expect(output.contains("MCP:"))
     }
 

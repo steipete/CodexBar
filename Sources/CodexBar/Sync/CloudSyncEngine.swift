@@ -64,7 +64,7 @@ enum CloudSyncDirtyState {
 
     static func configurationRecordNamesToQueue(
         envelope: CloudSyncPersistence.Envelope,
-        configuredProviders: [UsageProvider]) -> Set<String>
+        configuredProviders: [ProviderInstanceID]) -> Set<String>
     {
         var recordNames = Set(configuredProviders.compactMap { provider in
             envelope.dirtyProviders.contains(provider.rawValue)
@@ -78,7 +78,7 @@ enum CloudSyncDirtyState {
     }
 
     static func markBootstrapDirtyIfNeeded(
-        configuredProviders: [UsageProvider],
+        configuredProviders: [ProviderInstanceID],
         envelope: inout CloudSyncPersistence.Envelope)
     {
         guard !envelope.recordMetadata.keys.contains(where: { $0.hasPrefix(self.providerIntentPrefix) }) else {
@@ -155,7 +155,7 @@ actor CloudSyncEngine: CKSyncEngineDelegate {
     private var lastSnapshotPushAt: Date?
     private var pendingSnapshots: [AccountSnapshotSyncPayload] = []
     private var lastSnapshotHashes: [String: String] = [:]
-    private var lastKnownProviderConfigs: [UsageProvider: ProviderConfig] = [:]
+    private var lastKnownProviderConfigs: [ProviderInstanceID: ProviderConfig] = [:]
     private var lastKnownPreferences: SyncedPreferences?
     private var lastKnownIncludeSecrets: Bool?
     private var quotaRetryState = CloudSyncQuotaRetryState()
@@ -731,7 +731,7 @@ actor CloudSyncEngine: CKSyncEngineDelegate {
 
     private func applyAccountSnapshot(_ record: CKRecord) async throws {
         guard let providerRaw = record["provider"] as? String,
-              let provider = UsageProvider(rawValue: providerRaw),
+              let provider = ProviderInstanceID(rawValue: providerRaw),
               let deviceID = record["deviceID"] as? String,
               let accountKey = record["accountKey"] as? String,
               let fetchedAt = record["fetchedAt"] as? Date,

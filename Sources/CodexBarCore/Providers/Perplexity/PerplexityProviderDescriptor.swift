@@ -38,13 +38,36 @@ public enum PerplexityProviderDescriptor {
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
                 noDataMessage: { "Perplexity cost tracking is not supported." }),
-            fetchPlan: ProviderFetchPlan(
-                sourceModes: [.auto, .web],
-                pipeline: ProviderFetchPipeline(resolveStrategies: { _ in [PerplexityWebFetchStrategy()] })),
+            fetchPlan: self.fetchPlan(),
             cli: ProviderCLIConfig(
                 name: "perplexity",
                 aliases: [],
                 versionDetector: nil))
+    }
+
+    private static func fetchPlan() -> ProviderFetchPlan {
+        ProviderFetchPlan(
+            sourceModes: [.auto, .web],
+            pipeline: ProviderFetchPipeline(resolveStrategies: { context in
+                let swift = PerplexityWebFetchStrategy()
+                #if canImport(JavaScriptCore)
+                guard ProviderPluginPrototype.isEnabled(environment: context.env) else { return [swift] }
+                return [
+                    ScriptFetchStrategy(
+                        id: "perplexity.js",
+                        provider: .perplexity,
+                        bundledPlugin: "perplexity",
+                        kind: .web,
+                        resolveValues: { context in
+                            guard context.settings?.perplexity?.cookieSource != .off else { return nil }
+                            return ScriptFetchStrategy.Values()
+                        }),
+                    swift,
+                ]
+                #else
+                return [swift]
+                #endif
+            }))
     }
 }
 
@@ -75,7 +98,9 @@ struct PerplexityWebFetchStrategy: ProviderFetchStrategy {
 
     func isAvailable(_ context: ProviderFetchContext) async -> Bool {
         guard context.settings?.perplexity?.cookieSource != .off else { return false }
-        if context.settings?.perplexity?.cookieSource == .manual { return true }
+        if context.settings?.perplexity?.cookieSource == .manual {
+            return true
+        }
 
         // Priority order mirrors resolveSessionCookie: manual override → cache → browser import → env var
         if PerplexityCookieHeader.resolveCookieOverride(context: context) != nil {
@@ -88,7 +113,9 @@ struct PerplexityWebFetchStrategy: ProviderFetchStrategy {
 
         #if os(macOS)
         if context.settings?.perplexity?.cookieSource != .off {
-            if PerplexityCookieImporter.hasSession() { return true }
+            if PerplexityCookieImporter.hasSession() {
+                return true
+            }
         }
         #endif
 
@@ -129,9 +156,15 @@ struct PerplexityWebFetchStrategy: ProviderFetchStrategy {
     }
 
     func shouldFallback(on error: Error, context: ProviderFetchContext) -> Bool {
-        if case PerplexityAPIError.missingToken = error { return false }
-        if case PerplexityAPIError.invalidCookie = error { return false }
-        if case PerplexityAPIError.invalidToken = error { return false }
+        if case PerplexityAPIError.missingToken = error {
+            return false
+        }
+        if case PerplexityAPIError.invalidCookie = error {
+            return false
+        }
+        if case PerplexityAPIError.invalidToken = error {
+            return false
+        }
         return true
     }
 

@@ -69,6 +69,8 @@ public enum CommandCodeUsageFetcher {
             purchasedCredits: credits.purchasedCredits,
             premiumMonthlyCredits: credits.premiumMonthlyCredits,
             opensourceMonthlyCredits: credits.opensourceMonthlyCredits,
+            fiveHourWindow: credits.fiveHourWindow,
+            weeklyWindow: credits.weeklyWindow,
             plan: plan,
             billingPeriodEnd: subscription?.currentPeriodEnd,
             subscriptionStatus: subscription?.status,
@@ -126,6 +128,8 @@ public enum CommandCodeUsageFetcher {
         let purchasedCredits: Double
         let premiumMonthlyCredits: Double
         let opensourceMonthlyCredits: Double
+        let fiveHourWindow: RateWindow?
+        let weeklyWindow: RateWindow?
     }
 
     struct SubscriptionPayload {
@@ -199,11 +203,19 @@ public enum CommandCodeUsageFetcher {
         guard let monthly = self.double(from: credits["monthlyCredits"]) else {
             throw CommandCodeUsageError.parseFailed("Credits: missing monthlyCredits")
         }
+        let windowLimits = (root["windowLimits"] as? [String: Any])
+            ?? (credits["windowLimits"] as? [String: Any])
         return CreditsPayload(
             monthlyCredits: monthly,
             purchasedCredits: self.double(from: credits["purchasedCredits"]) ?? 0,
             premiumMonthlyCredits: self.double(from: credits["premiumMonthlyCredits"]) ?? 0,
-            opensourceMonthlyCredits: self.double(from: credits["opensourceMonthlyCredits"]) ?? 0)
+            opensourceMonthlyCredits: self.double(from: credits["opensourceMonthlyCredits"]) ?? 0,
+            fiveHourWindow: self.rateWindow(
+                from: windowLimits?["fiveHour"],
+                windowMinutes: 5 * 60),
+            weeklyWindow: self.rateWindow(
+                from: windowLimits?["weekly"],
+                windowMinutes: 7 * 24 * 60))
     }
 
     static func parseSubscription(data: Data) throws -> SubscriptionPayload? {
@@ -234,6 +246,21 @@ public enum CommandCodeUsageFetcher {
         return SubscriptionPayload(planID: planID, status: status, currentPeriodEnd: periodEnd)
     }
 
+    private static func rateWindow(from value: Any?, windowMinutes: Int) -> RateWindow? {
+        guard let limit = value as? [String: Any],
+              let cap = self.double(from: limit["cap"]),
+              cap > 0
+        else {
+            return nil
+        }
+        let used = self.double(from: limit["used"]) ?? 0
+        return RateWindow(
+            usedPercent: UsagePercent(used: used, limit: cap).displayClamped,
+            windowMinutes: windowMinutes,
+            resetsAt: self.date(from: limit["resetAt"]),
+            resetDescription: nil)
+    }
+
     // MARK: - Value coercion
 
     private static func double(from value: Any?) -> Double? {
@@ -250,12 +277,18 @@ public enum CommandCodeUsageFetcher {
     }
 
     private static func date(from value: Any?) -> Date? {
+        if let timestamp = self.double(from: value), timestamp > 0 {
+            let seconds = timestamp > 10_000_000_000 ? timestamp / 1000 : timestamp
+            return Date(timeIntervalSince1970: seconds)
+        }
         guard let s = value as? String else { return nil }
         let trimmed = s.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return nil }
         let fractional = ISO8601DateFormatter()
         fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        if let date = fractional.date(from: trimmed) { return date }
+        if let date = fractional.date(from: trimmed) {
+            return date
+        }
         let plain = ISO8601DateFormatter()
         plain.formatOptions = [.withInternetDateTime]
         return plain.date(from: trimmed)

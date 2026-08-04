@@ -2,6 +2,22 @@ import CodexBarCore
 import Foundation
 
 extension CodexBarCLI {
+    static func pluginsHelp(version: String) -> String {
+        """
+        CodexBar \(version)
+
+        Usage:
+          codexbar plugins list
+          codexbar plugins fetch <id> [--json] [--pretty]
+
+        Description:
+          Discover local .js and .ts provider plugins. Fetch requires a recorded approval binding.
+          An interactive terminal can create the approval after showing exact origins, capabilities,
+          secret names, and cookie domains. Headless use fails closed. Browser-cookie plugins are
+          app-only and fail closed in the CLI.
+        """
+    }
+
     static func cardsHelp(version: String) -> String {
         """
         CodexBar \(version)
@@ -119,17 +135,20 @@ extension CodexBarCLI {
         CodexBar \(version)
 
         Usage:
-          codexbar sessions [--json] [--pretty]
+          codexbar sessions [--json|--json-v2] [--pretty]
           codexbar sessions focus <id>
 
         Description:
-          List live local Codex and Claude Code agent sessions.
+          List live local Codex, Claude Code, pi, and OMP agent sessions.
+          --json emits the legacy v1 array with only Codex and Claude providers.
+          --json-v2 emits the complete current array, including Pi-family sessions.
           JSON uses stable AgentSession field names and ISO-8601 dates.
           Focus activates the owning terminal or desktop app on macOS.
 
         Examples:
           codexbar sessions
           codexbar sessions --json
+          codexbar sessions --json-v2
           codexbar sessions focus 019f3497-73bf-7df3-a173-4f67d968914a
         """
     }
@@ -429,7 +448,7 @@ extension CodexBarCLI {
                        [--provider \(ProviderHelp.list)] [--no-color] [--pretty] [--refresh]
                        [--provider-native-only]
                        [--days <days>] [--group-by project]
-          codexbar sessions [--json] [--pretty]
+          codexbar sessions [--json|--json-v2] [--pretty]
           codexbar sessions focus <id>
           codexbar dashboard [--pretty] [--timeout <seconds>]
           codexbar serve [--host <host>] [--port <port>] [--refresh-interval <seconds>]
@@ -449,6 +468,7 @@ extension CodexBarCLI {
                                    --organization-id <org> --workspace-id <project>
           codexbar hooks <list|enable|disable> [--format text|json] [--pretty]
           codexbar hooks test <event> --provider <name>
+          codexbar plugins <list|fetch <id>> [--json] [--pretty]
           codexbar cache clear <--cookies|--cost|--all> [--provider <name>]
           codexbar cookie refresh <--provider <name>|--all> [--allow-keychain-prompt]
           codexbar diagnose --provider <name|all> --format json [--redact] [--output <path>] [--pretty]
@@ -477,6 +497,7 @@ extension CodexBarCLI {
           codexbar config enable --provider grok
           codexbar config set-api-key --provider elevenlabs --stdin
           codexbar hooks test quota_reached --provider codex
+          codexbar plugins list
           codexbar cache clear --cookies
           codexbar cookie refresh --provider opencodego --allow-keychain-prompt
           codexbar diagnose --provider minimax --format json --redact --output diagnostic.json

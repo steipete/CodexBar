@@ -103,6 +103,8 @@ public enum ProviderConfigEnvironment {
             self.applyAzureOpenAIOverrides(base: base, config: config)
         case .kimi:
             self.applyKimiOverrides(base: base, config: config)
+        case .moonshot:
+            self.applyMoonshotOverrides(base: base, config: config)
         case .doubao:
             self.applyDoubaoOverrides(base: base, config: config)
         case .sakana:
@@ -367,6 +369,20 @@ public enum ProviderConfigEnvironment {
         if let baseURL = config.sanitizedEnterpriseHost {
             env[KimiSettingsReader.codeAPIBaseURLEnvironmentKey] = baseURL
         }
+        return env
+    }
+
+    private static func applyMoonshotOverrides(
+        base: [String: String],
+        config: ProviderConfig?) -> [String: String]
+    {
+        guard let config,
+              let apiKey = config.sanitizedAPIKey,
+              let apiKeyRegion = config.sanitizedAPIKeyRegion
+        else { return base }
+        var env = base
+        env[MoonshotSettingsReader.configAPIKeyEnvironmentKey] = apiKey
+        env[MoonshotSettingsReader.configAPIKeyRegionEnvironmentKey] = apiKeyRegion
         return env
     }
 

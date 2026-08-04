@@ -1,6 +1,6 @@
 import Foundation
 
-/// Parsed view of CommandCode `/internal/billing/credits` + `/internal/billing/subscriptions`.
+/// Parsed view of Command Code billing credits, rolling limits, and subscription state.
 public struct CommandCodeUsageSnapshot: Sendable {
     /// USD remaining in the current monthly grant (`credits.monthlyCredits`).
     public let monthlyCreditsRemaining: Double
@@ -10,6 +10,10 @@ public struct CommandCodeUsageSnapshot: Sendable {
     public let premiumMonthlyCredits: Double
     /// USD remaining in the open-source monthly grant (`credits.opensourceMonthlyCredits`).
     public let opensourceMonthlyCredits: Double
+    /// Rolling five-hour usage limit reported by the credits response.
+    public let fiveHourWindow: RateWindow?
+    /// Rolling weekly usage limit reported by the credits response.
+    public let weeklyWindow: RateWindow?
     /// Subscription plan, or nil when the user is on the free tier.
     public let plan: CommandCodePlanCatalog.Plan?
     /// `currentPeriodEnd` from the active subscription.
@@ -25,6 +29,8 @@ public struct CommandCodeUsageSnapshot: Sendable {
         purchasedCredits: Double,
         premiumMonthlyCredits: Double,
         opensourceMonthlyCredits: Double,
+        fiveHourWindow: RateWindow? = nil,
+        weeklyWindow: RateWindow? = nil,
         plan: CommandCodePlanCatalog.Plan?,
         billingPeriodEnd: Date?,
         subscriptionStatus: String?,
@@ -35,6 +41,8 @@ public struct CommandCodeUsageSnapshot: Sendable {
         self.purchasedCredits = purchasedCredits
         self.premiumMonthlyCredits = premiumMonthlyCredits
         self.opensourceMonthlyCredits = opensourceMonthlyCredits
+        self.fiveHourWindow = fiveHourWindow
+        self.weeklyWindow = weeklyWindow
         self.plan = plan
         self.billingPeriodEnd = billingPeriodEnd
         self.subscriptionStatus = subscriptionStatus
@@ -54,7 +62,7 @@ public struct CommandCodeUsageSnapshot: Sendable {
     }
 
     public func toUsageSnapshot() -> UsageSnapshot {
-        let primary = self.makePrimaryWindow()
+        let monthly = self.makeMonthlyWindow()
 
         let identity = ProviderIdentitySnapshot(
             providerID: .commandcode,
@@ -63,9 +71,9 @@ public struct CommandCodeUsageSnapshot: Sendable {
             loginMethod: self.makeLoginMethod())
 
         return UsageSnapshot(
-            primary: primary,
-            secondary: nil,
-            tertiary: nil,
+            primary: self.fiveHourWindow,
+            secondary: self.weeklyWindow,
+            tertiary: monthly,
             providerCost: nil,
             commandCodeSubscriptionEnrichmentUnavailable: self.subscriptionEnrichmentUnavailable,
             commandCodeHasSubscriptionPlan: self.plan != nil,
@@ -74,13 +82,13 @@ public struct CommandCodeUsageSnapshot: Sendable {
             identity: identity)
     }
 
-    private func makePrimaryWindow() -> RateWindow? {
+    private func makeMonthlyWindow() -> RateWindow? {
         guard let total = self.monthlyCreditsTotal, total > 0 else {
             // Free / unknown plan with no allowance — surface 100% so the bar renders empty.
             if self.monthlyCreditsRemaining > 0 || self.purchasedCredits > 0 {
                 return RateWindow(
                     usedPercent: 0,
-                    windowMinutes: nil,
+                    windowMinutes: ProviderPaceCapability.monthlyWindowSentinelMinutes,
                     resetsAt: self.billingPeriodEnd,
                     resetDescription: nil)
             }
@@ -90,7 +98,7 @@ public struct CommandCodeUsageSnapshot: Sendable {
         let percent = UsagePercent(used: used, limit: total).displayClamped
         return RateWindow(
             usedPercent: percent,
-            windowMinutes: nil,
+            windowMinutes: ProviderPaceCapability.monthlyWindowSentinelMinutes,
             resetsAt: self.billingPeriodEnd,
             resetDescription: nil)
     }

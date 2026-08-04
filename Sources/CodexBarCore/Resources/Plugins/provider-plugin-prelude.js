@@ -3,16 +3,61 @@
 
   ctx.http = Object.freeze({
     getJSON(url, opts) {
-      return new Promise((resolve, reject) => host.http(String(url), opts || {}, true, resolve, reject));
+      return new Promise((resolve, reject) => host.http(String(url), opts || {}, "GET", true, resolve, reject));
     },
     get(url, opts) {
-      return new Promise((resolve, reject) => host.http(String(url), opts || {}, false, resolve, reject));
+      return new Promise((resolve, reject) => host.http(String(url), opts || {}, "GET", false, resolve, reject));
+    },
+    postJSON(url, opts) {
+      if (!opts || typeof opts !== "object" || !("body" in opts)) {
+        return Promise.reject(new TypeError("postJSON requires a body"));
+      }
+      let bodyJSON;
+      try {
+        bodyJSON = JSON.stringify(opts.body);
+      } catch (error) {
+        return Promise.reject(new TypeError(`postJSON body is not JSON-serializable: ${error.message}`));
+      }
+      if (bodyJSON === undefined) {
+        return Promise.reject(new TypeError("postJSON body is not JSON-serializable"));
+      }
+      const hostOptions = { bodyJSON };
+      if (opts.headers !== undefined) hostOptions.headers = opts.headers;
+      return new Promise((resolve, reject) => host.http(String(url), hostOptions, "POST", true, resolve, reject));
     },
   });
 
-  ctx.secrets = Object.freeze({
+  ctx.settings = Object.freeze({
     get(key) {
-      return host.secretGet(String(key));
+      return host.settingGet(String(key), false);
+    },
+    getSecret(key) {
+      return host.settingGet(String(key), true);
+    },
+  });
+
+  ctx.browser = Object.freeze({
+    cookieHeader(domain) {
+      return new Promise((resolve, reject) => host.cookieHeader(String(domain), resolve, reject));
+    },
+  });
+
+  ctx.html = Object.freeze({
+    metaContent(html, name) {
+      const target = String(name).toLowerCase();
+      const tags = String(html).match(/<meta\b[^>]*>/gi) || [];
+      for (const tag of tags) {
+        const nameMatch = tag.match(/\b(?:name|property)\s*=\s*["']([^"']*)["']/i);
+        if (!nameMatch || nameMatch[1].toLowerCase() !== target) continue;
+        const contentMatch = tag.match(/\bcontent\s*=\s*["']([^"']*)["']/i);
+        if (contentMatch) return contentMatch[1];
+      }
+      return null;
+    },
+    matchFirst(html, regexSource, flags) {
+      const regex = new RegExp(String(regexSource), flags === undefined ? "" : String(flags));
+      const match = regex.exec(String(html));
+      return match ? (match.length > 1 ? match[1] : match[0]) : null;
     },
   });
 

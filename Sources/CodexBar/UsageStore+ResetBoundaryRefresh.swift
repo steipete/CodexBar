@@ -69,7 +69,7 @@ extension UsageStore {
     }
 
     nonisolated static func nextResetBoundaryRefreshDate(
-        snapshots: [UsageProvider: UsageSnapshot],
+        snapshots: [ProviderInstanceID: UsageSnapshot],
         normalRefreshInterval: TimeInterval?,
         minimumAutomaticRefreshInterval: TimeInterval? = nil,
         attemptedBoundaryRefreshes: Set<Date> = [],
@@ -90,7 +90,7 @@ extension UsageStore {
     }
 
     private nonisolated static func nextResetBoundaryRefreshCandidate(
-        snapshots: [UsageProvider: UsageSnapshot],
+        snapshots: [ProviderInstanceID: UsageSnapshot],
         normalRefreshInterval: TimeInterval?,
         minimumAutomaticRefreshInterval: TimeInterval?,
         attemptedBoundaryRefreshes: Set<Date> = [],

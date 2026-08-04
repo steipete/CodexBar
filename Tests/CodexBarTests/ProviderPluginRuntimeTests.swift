@@ -52,9 +52,171 @@ struct ProviderPluginRuntimeTests {
     }
 
     @Test
+    func `settings split enforces kind and only secrets are redacted`() async throws {
+        let runtime = try ProviderPluginRuntime(source: Self.plugin(
+            settings: """
+            { key: "TEST_KEY", title: "API key", type: "secure" },
+            { key: "PLAIN_VALUE", title: "Plain value", type: "plain" }
+            """,
+            fetchBody: """
+            const plain = ctx.settings.get("PLAIN_VALUE");
+            const secret = ctx.settings.getSecret("TEST_KEY");
+            throw new Error(`${plain}:${secret}`);
+            """))
+
+        do {
+            _ = try await runtime.fetchUsage(
+                settings: ["PLAIN_VALUE": "visible-setting"],
+                secrets: ["TEST_KEY": "hidden-secret"])
+            Issue.record("Expected rejection")
+        } catch {
+            #expect(error.localizedDescription.contains("visible-setting"))
+            #expect(!error.localizedDescription.contains("hidden-secret"))
+            #expect(error.localizedDescription.contains("<redacted>"))
+        }
+    }
+
+    @Test
+    func `authorization scheme injects bounded token prefix`() async throws {
+        let requests = RequestRecorder()
+        let runtime = try ProviderPluginRuntime(
+            source: Self.plugin(
+                auth: #"{ type: "authorization-scheme", scheme: "Token", secret: "TEST_KEY" }"#,
+                fetchBody: """
+                const response = await ctx.http.getJSON("https://api.example.test/usage");
+                return { primary: { usedPercent: response.status } };
+                """),
+            transport: Self.transport(recorder: requests))
+
+        _ = try await runtime.fetchUsage(secrets: ["TEST_KEY": "fixture-key"])
+
+        #expect(await requests.first?.value(forHTTPHeaderField: "Authorization") == "Token fixture-key")
+        #expect(throws: ProviderPluginError.self) {
+            _ = try ProviderPluginRuntime(source: Self.plugin(
+                auth: #"{ type: "authorization-scheme", scheme: "bad scheme", secret: "TEST_KEY" }"#))
+        }
+    }
+
+    @Test
+    func `postJSON sends serialized body without relaxing headers`() async throws {
+        let requests = RequestRecorder()
+        let runtime = try ProviderPluginRuntime(
+            source: Self.plugin(fetchBody: """
+            const response = await ctx.http.postJSON("https://api.example.test/usage", {
+              body: { team: "fixture", count: 2 },
+              headers: { "X-Client": "plugin-test" },
+            });
+            return { primary: { usedPercent: response.json.used } };
+            """),
+            transport: Self.transport(recorder: requests, body: #"{"used":17}"#))
+
+        let snapshot = try await runtime.fetchUsage(secrets: ["TEST_KEY": "fixture-key"])
+        let request = try #require(await requests.first)
+        #expect(snapshot.primary?.usedPercent == 17)
+        #expect(request.httpMethod == "POST")
+        #expect(request.value(forHTTPHeaderField: "Content-Type") == "application/json")
+        let body = try #require(request.httpBody)
+        let object = try #require(JSONSerialization.jsonObject(with: body) as? [String: Any])
+        #expect(object["team"] as? String == "fixture")
+        #expect(object["count"] as? Int == 2)
+    }
+
+    @Test
+    func `setting endpoint resolves at fetch time and permits loopback HTTP only by policy`() async throws {
+        let requests = RequestRecorder()
+        let runtime = try ProviderPluginRuntime(
+            source: Self.plugin(
+                endpoints: #"[{ setting: "BASE_URL", policy: "https-or-loopback-http" }]"#,
+                settings: """
+                { key: "TEST_KEY", title: "API key", type: "secure" },
+                { key: "BASE_URL", title: "Base URL", type: "plain" }
+                """,
+                fetchBody: """
+                const base = ctx.settings.get("BASE_URL");
+                const response = await ctx.http.getJSON(`${base}/usage`);
+                return { primary: { usedPercent: response.json.used } };
+                """),
+            transport: Self.transport(recorder: requests, body: #"{"used":23}"#))
+
+        let snapshot = try await runtime.fetchUsage(
+            settings: ["BASE_URL": "http://127.0.0.1:8787"],
+            secrets: ["TEST_KEY": "fixture-key"])
+        #expect(snapshot.primary?.usedPercent == 23)
+        #expect(await requests.first?.url?.absoluteString == "http://127.0.0.1:8787/usage")
+
+        let rejectedRequests = RequestRecorder()
+        let rejected = try ProviderPluginRuntime(
+            source: Self.plugin(
+                endpoints: #"[{ setting: "BASE_URL", policy: "https-or-loopback-http" }]"#,
+                settings: """
+                { key: "TEST_KEY", title: "API key", type: "secure" },
+                { key: "BASE_URL", title: "Base URL", type: "plain" }
+                """,
+                fetchBody: """
+                await ctx.http.getJSON(`${ctx.settings.get("BASE_URL")}/usage`);
+                return { primary: { usedPercent: 1 } };
+                """),
+            transport: Self.transport(recorder: rejectedRequests))
+        await #expect(throws: ProviderPluginError.self) {
+            _ = try await rejected.fetchUsage(
+                settings: ["BASE_URL": "http://example.test"],
+                secrets: ["TEST_KEY": "fixture-key"])
+        }
+        #expect(await rejectedRequests.isEmpty)
+    }
+
+    @Test
+    func `browser cookie access is declared domain only and cookie values are redacted`() async throws {
+        let access = CookieAccessRecorder(header: "session=secret-cookie-value")
+        let runtime = try ProviderPluginRuntime(source: Self.plugin(
+            capabilities: #"capabilities: ["browser-cookies"], cookieDomains: ["example.test"],"#,
+            fetchBody: """
+            const cookie = await ctx.browser.cookieHeader("example.test");
+            throw new Error(`cookie was ${cookie}`);
+            """))
+
+        do {
+            _ = try await runtime.fetchUsage(
+                secrets: ["TEST_KEY": "fixture-key"],
+                cookieResolver: { provider, domain in try await access.resolve(provider: provider, domain: domain) })
+            Issue.record("Expected rejection")
+        } catch {
+            #expect(!error.localizedDescription.contains("secret-cookie-value"))
+            #expect(error.localizedDescription.contains("<redacted>"))
+        }
+        #expect(await access.domains == ["example.test"])
+
+        let rejected = try ProviderPluginRuntime(source: Self.plugin(
+            capabilities: #"capabilities: ["browser-cookies"], cookieDomains: ["example.test"],"#,
+            fetchBody: """
+            await ctx.browser.cookieHeader("other.test");
+            return { primary: { usedPercent: 1 } };
+            """))
+        await #expect(throws: ProviderPluginError.self) {
+            _ = try await rejected.fetchUsage(
+                secrets: ["TEST_KEY": "fixture-key"],
+                cookieResolver: { provider, domain in try await access.resolve(provider: provider, domain: domain) })
+        }
+        #expect(await access.domains == ["example.test"])
+    }
+
+    @Test
+    func `HTML helpers extract meta content and first regex capture`() async throws {
+        let runtime = try ProviderPluginRuntime(source: Self.plugin(fetchBody: """
+        const html = '<meta content="fixture-token" name="csrf"><div>credits: 37</div>';
+        const meta = ctx.html.metaContent(html, "csrf");
+        const credits = ctx.html.matchFirst(html, "credits:\\\\s*(\\\\d+)", "i");
+        return { primary: { usedPercent: meta === "fixture-token" ? Number(credits) : 0 } };
+        """))
+
+        let snapshot = try await runtime.fetchUsage(secrets: ["TEST_KEY": "fixture-key"])
+        #expect(snapshot.primary?.usedPercent == 37)
+    }
+
+    @Test
     func `undeclared secret access fails`() async throws {
         let runtime = try ProviderPluginRuntime(source: Self.plugin(fetchBody: """
-        ctx.secrets.get("OTHER_KEY");
+        ctx.settings.getSecret("OTHER_KEY");
         return { primary: { usedPercent: 1 } };
         """))
 
@@ -95,6 +257,59 @@ struct ProviderPluginRuntimeTests {
     }
 
     @Test
+    func `details map strictly and trim display strings`() async throws {
+        let runtime = try ProviderPluginRuntime(source: Self.plugin(fetchBody: """
+        return {
+          details: [{
+            title: " Summary ",
+            rows: [{ label: " Requests ", value: " 42 ", secondaryValue: " Today " }],
+            chart: {
+              kind: "line",
+              title: " Daily ",
+              unit: " tokens ",
+              points: [{ label: " Mon ", value: 12.5 }],
+            },
+          }],
+        };
+        """))
+
+        let snapshot = try await runtime.fetchUsage(secrets: ["TEST_KEY": "secret"])
+
+        let section = try #require(snapshot.details.first)
+        #expect(section.title == "Summary")
+        #expect(try section.rows == [ProviderDetailSection.Row(
+            label: "Requests",
+            value: "42",
+            secondaryValue: "Today")])
+        let expectedChart = try ProviderDetailSection.Chart(
+            kind: .line,
+            title: "Daily",
+            unit: "tokens",
+            points: [ProviderDetailSection.Chart.Point(label: "Mon", value: 12.5)])
+        #expect(section.chart == expectedChart)
+    }
+
+    @Test(arguments: [
+        #"details: {}"#,
+        #"details: [{ rows: [{ label: "ok", value: 1 }] }]"#,
+        #"details: [{ rows: [], chart: { kind: "pie", points: [] } }]"#,
+        #"details: [{ rows: [], chart: { kind: "bars", points: [{ label: "x", value: NaN }] } }]"#,
+        #"""
+        details: [{
+          rows: [],
+          chart: { kind: "bars", points: Array.from({length: 121}, (_, i) => ({label: String(i), value: i})) },
+        }]
+        """#,
+    ])
+    func `present invalid details fail the fetch`(body: String) async throws {
+        let runtime = try ProviderPluginRuntime(source: Self.plugin(fetchBody: "return { \(body) };"))
+
+        await #expect(throws: ProviderPluginError.self) {
+            _ = try await runtime.fetchUsage(secrets: ["TEST_KEY": "secret"])
+        }
+    }
+
+    @Test
     func `promise rejection preserves message`() async throws {
         let runtime = try ProviderPluginRuntime(source: Self.plugin(fetchBody: """
         throw new Error("fixture rejected");
@@ -112,7 +327,7 @@ struct ProviderPluginRuntimeTests {
     func `script errors redact known secrets`() async throws {
         let secret = "super-secret-fixture-value"
         let runtime = try ProviderPluginRuntime(source: Self.plugin(fetchBody: """
-        throw new Error(`leaked: ${ctx.secrets.get("TEST_KEY")}`);
+        throw new Error(`leaked: ${ctx.settings.getSecret("TEST_KEY")}`);
         """))
 
         do {
@@ -128,7 +343,7 @@ struct ProviderPluginRuntimeTests {
     func `hung script times out and next fetch uses a fresh context`() async throws {
         let runtime = try ProviderPluginRuntime(
             source: Self.plugin(fetchBody: """
-            if (ctx.secrets.get("TEST_KEY") === "hang") while (true) {}
+            if (ctx.settings.getSecret("TEST_KEY") === "hang") while (true) {}
             return { primary: { usedPercent: 7 } };
             """),
             timeout: 0.15)
@@ -143,14 +358,21 @@ struct ProviderPluginRuntimeTests {
         #expect(recovered.primary?.usedPercent == 7)
     }
 
-    private static func plugin(fetchBody: String = "return { primary: { usedPercent: 1 } };") -> String {
+    private static func plugin(
+        endpoints: String = #"["https://api.example.test"]"#,
+        auth: String = #"{ type: "bearer", secret: "TEST_KEY" }"#,
+        settings: String = #"{ key: "TEST_KEY", title: "API key", type: "secure" }"#,
+        capabilities: String = "",
+        fetchBody: String = "return { primary: { usedPercent: 1 } };") -> String
+    {
         """
         defineProvider({
           id: "synthetic",
           name: "Fixture",
-          endpoints: ["https://api.example.test"],
-          auth: { type: "bearer", secret: "TEST_KEY" },
-          settings: [{ key: "TEST_KEY", title: "API key", type: "secure" }],
+          endpoints: \(endpoints),
+          auth: \(auth),
+          settings: [\(settings)],
+          \(capabilities)
           async fetchUsage(ctx) {
             \(fetchBody)
           },
@@ -171,6 +393,20 @@ struct ProviderPluginRuntimeTests {
                 headerFields: ["Content-Type": "application/json"]))
             return (Data(body.utf8), response)
         }
+    }
+}
+
+private actor CookieAccessRecorder {
+    let header: String
+    private(set) var domains: [String] = []
+
+    init(header: String) {
+        self.header = header
+    }
+
+    func resolve(provider _: UsageProvider, domain: String) throws -> String {
+        self.domains.append(domain)
+        return self.header
     }
 }
 

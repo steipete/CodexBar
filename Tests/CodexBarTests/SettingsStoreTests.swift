@@ -1600,7 +1600,7 @@ struct SettingsStoreTests {
             zaiTokenStore: NoopZaiTokenStore(),
             syntheticTokenStore: NoopSyntheticTokenStore())
 
-        #expect(store.orderedProviders() == UsageProvider.allCases)
+        #expect(store.orderedProviders() == UsageProvider.allCases.map(\.instanceID))
     }
 
     @Test
@@ -1625,7 +1625,7 @@ struct SettingsStoreTests {
 
         let legacyOrder: [UsageProvider] = [.gemini, .codex]
         let appendedProviders = UsageProvider.allCases.filter { !legacyOrder.contains($0) }
-        #expect(storeA.orderedProviders() == legacyOrder + appendedProviders)
+        #expect(storeA.orderedProviders() == (legacyOrder + appendedProviders).map(\.instanceID))
 
         // Move one provider; ensure it's persisted across instances.
         let antigravityIndex = try #require(storeA.orderedProviders().firstIndex(of: .antigravity))

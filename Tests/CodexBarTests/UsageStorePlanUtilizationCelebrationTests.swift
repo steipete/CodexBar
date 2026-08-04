@@ -1182,8 +1182,8 @@ extension UsageStorePlanUtilizationTests {
         defer { recorder.invalidate() }
 
         let before = UsageSnapshot(
-            primary: RateWindow(usedPercent: 92, windowMinutes: 10080, resetsAt: nil, resetDescription: nil),
-            secondary: RateWindow(usedPercent: 15, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+            primary: RateWindow(usedPercent: 15, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+            secondary: RateWindow(usedPercent: 92, windowMinutes: 10080, resetsAt: nil, resetDescription: nil),
             updatedAt: Date(timeIntervalSince1970: 1_700_000_000),
             identity: ProviderIdentitySnapshot(
                 providerID: .zai,
@@ -1191,8 +1191,8 @@ extension UsageStorePlanUtilizationTests {
                 accountOrganization: accountLabel,
                 loginMethod: "pro"))
         let after = UsageSnapshot(
-            primary: RateWindow(usedPercent: 0, windowMinutes: 10080, resetsAt: nil, resetDescription: nil),
-            secondary: RateWindow(usedPercent: 15, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+            primary: RateWindow(usedPercent: 15, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+            secondary: RateWindow(usedPercent: 0, windowMinutes: 10080, resetsAt: nil, resetDescription: nil),
             updatedAt: Date(timeIntervalSince1970: 1_700_003_600),
             identity: ProviderIdentitySnapshot(
                 providerID: .zai,
@@ -1319,7 +1319,7 @@ extension UsageStorePlanUtilizationTests {
 
     @MainActor
     @Test
-    func `session quota celebration uses zai semantic tertiary session lane`() async {
+    func `session quota celebration uses zai primary 5-hour lane`() async {
         let store = Self.makeStore()
         let accountLabel = "zai-semantic-session-org"
         let recorder = SessionLimitResetEventRecorder(provider: .zai, accountLabel: accountLabel)
@@ -1328,20 +1328,16 @@ extension UsageStorePlanUtilizationTests {
         func snapshot(sessionUsed: Double, updatedAt: Date) -> UsageSnapshot {
             UsageSnapshot(
                 primary: RateWindow(
-                    usedPercent: 30,
-                    windowMinutes: 10080,
-                    resetsAt: nil,
-                    resetDescription: nil),
-                secondary: RateWindow(
-                    usedPercent: 40,
-                    windowMinutes: 43200,
-                    resetsAt: nil,
-                    resetDescription: "Monthly"),
-                tertiary: RateWindow(
                     usedPercent: sessionUsed,
                     windowMinutes: 300,
                     resetsAt: nil,
                     resetDescription: nil),
+                secondary: RateWindow(
+                    usedPercent: 30,
+                    windowMinutes: 10080,
+                    resetsAt: nil,
+                    resetDescription: "1 week window"),
+                tertiary: nil,
                 updatedAt: updatedAt,
                 identity: ProviderIdentitySnapshot(
                     providerID: .zai,
@@ -1358,7 +1354,7 @@ extension UsageStorePlanUtilizationTests {
 
         #expect(recorder.events.count == 1)
         #expect(recorder.events.first?.usedPercent == 0)
-        #expect(store.sessionLimitResetDetectorStates.values.first?.sourceRawValue == "zaiTertiary")
+        #expect(store.sessionLimitResetDetectorStates.values.first?.sourceRawValue == "primary")
     }
 
     @MainActor
@@ -1424,7 +1420,7 @@ extension UsageStorePlanUtilizationTests {
 
     @MainActor
     @Test
-    func `session quota celebration ignores command code subscription enrichment failure`() async {
+    func `session quota celebration keeps command code rolling window during subscription enrichment failure`() async {
         let store = Self.makeStore()
         let recorder = SessionLimitResetEventRecorder(provider: .commandcode, accountLabel: nil)
         defer { recorder.invalidate() }
@@ -1443,11 +1439,11 @@ extension UsageStorePlanUtilizationTests {
 
         let firstDate = Date(timeIntervalSince1970: 1_700_000_000)
         let before = snapshot(usedPercent: 80, enrichmentUnavailable: false, updatedAt: firstDate)
-        let failedEnrichment = snapshot(
+        let rollingReset = snapshot(
             usedPercent: 0,
             enrichmentUnavailable: true,
             updatedAt: firstDate.addingTimeInterval(3600))
-        let validReset = snapshot(
+        let confirmedReset = snapshot(
             usedPercent: 0,
             enrichmentUnavailable: false,
             updatedAt: firstDate.addingTimeInterval(7200))
@@ -1455,14 +1451,14 @@ extension UsageStorePlanUtilizationTests {
         await store.recordPlanUtilizationHistorySample(provider: .commandcode, snapshot: before, now: before.updatedAt)
         await store.recordPlanUtilizationHistorySample(
             provider: .commandcode,
-            snapshot: failedEnrichment,
-            now: failedEnrichment.updatedAt)
-        #expect(recorder.events.isEmpty)
+            snapshot: rollingReset,
+            now: rollingReset.updatedAt)
+        #expect(recorder.events.count == 1)
 
         await store.recordPlanUtilizationHistorySample(
             provider: .commandcode,
-            snapshot: validReset,
-            now: validReset.updatedAt)
+            snapshot: confirmedReset,
+            now: confirmedReset.updatedAt)
         #expect(recorder.events.count == 1)
     }
 

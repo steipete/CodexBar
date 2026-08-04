@@ -209,6 +209,27 @@ struct AgentSessionMenuDescriptorTests {
     }
 
     @Test
+    func `Pi-family session rows use the dedicated glyph and dialect tag`() {
+        let now = Date(timeIntervalSince1970: 1000)
+        let session = AgentSession(
+            id: "omp",
+            provider: .pi,
+            dialect: .omp,
+            source: .cli,
+            state: .active,
+            pid: 42,
+            cwd: "/Users/test/alpha",
+            projectName: "alpha",
+            startedAt: nil,
+            lastActivityAt: now,
+            transcriptPath: nil,
+            host: "local-mac")
+
+        let title = Self.actionTitle(for: session, style: .project, now: now)
+        #expect(title.contains("π alpha — omp · cli · 0s"))
+    }
+
+    @Test
     func `remote refresh gate retries changed settings and rejects stale result`() throws {
         var gate = AgentSessionRemoteRefreshGate()
         let initialGenerationCandidate = gate.begin()
