@@ -373,8 +373,14 @@ struct CLICardsClaudeSwapTests {
         ]}
         JSON
         """
-        try Data(script.utf8).write(to: executable)
-        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: executable.path)
+        // Executing a file this process just wrote races with every other test
+        // that spawns a child: the fork inherits the still-open write descriptor
+        // and execve fails with ETXTBSY. Write the body as data instead, and
+        // execute the checked-in trampoline that reads it.
+        try Data(script.utf8).write(to: executable.appendingPathExtension("sh"))
+        try FileManager.default.createSymbolicLink(
+            at: executable,
+            withDestinationURL: Self.execTrampoline())
 
         let output = await CLIClaudeSwapCards.fetch(
             eligible: true,
@@ -417,5 +423,19 @@ struct CLICardsClaudeSwapTests {
         #expect(output.cards == ambient.cards)
         #expect(output.cardFailures.last?.accountLabel == "claude-swap")
         #expect(output.exitCode != .success)
+    }
+
+    private static func execTrampoline() throws -> URL {
+        var directory = URL(filePath: #filePath).deletingLastPathComponent()
+        for _ in 0..<12 {
+            let candidate = directory.appending(path: "Tests/CodexBarTests/Fixtures/Scripts/exec-trampoline.sh")
+            if FileManager.default.fileExists(atPath: candidate.path(percentEncoded: false)) {
+                return candidate
+            }
+            directory.deleteLastPathComponent()
+        }
+        throw NSError(domain: "CLICardsClaudeSwapTests", code: 1, userInfo: [
+            NSLocalizedDescriptionKey: "Could not locate exec-trampoline.sh from \(#filePath)",
+        ])
     }
 }
