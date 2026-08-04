@@ -908,7 +908,7 @@ extension SpendDashboardModelTests {
                         totalCost: 2,
                         totalTokens: 100,
                         breakdowns: [
-                            .init(modelName: "gpt-5.6-terra", costUSD: 2, totalTokens: 40),
+                            .init(modelName: "example-priced-codex-model", costUSD: 2, totalTokens: 40),
                             .init(modelName: "codex-auto-review", costUSD: nil, totalTokens: 60),
                         ]),
                 ]))
@@ -920,7 +920,7 @@ extension SpendDashboardModelTests {
 
         #expect(group.totalCost == 2)
         #expect(group.modelHistoryCompleteness == .incomplete)
-        #expect(group.models.first(where: { $0.modelName == "gpt-5.6-terra" })?.totalCost == 2)
+        #expect(group.models.first(where: { $0.modelName == "example-priced-codex-model" })?.totalCost == 2)
         #expect(group.models.first(where: { $0.modelName == "codex-auto-review" })?.totalCost == nil)
         #expect(spendDashboardModelHistoryPresentation(group) == .partial)
     }
