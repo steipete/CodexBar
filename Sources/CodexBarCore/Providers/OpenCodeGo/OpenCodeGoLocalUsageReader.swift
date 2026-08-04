@@ -327,8 +327,8 @@ public struct OpenCodeGoLocalUsageReader: Sendable {
             let date = Date(timeIntervalSince1970: TimeInterval(row.createdMs) / 1000)
             guard date >= sinceStartOfDay, date <= now else { continue }
             let key = CostUsageScanner.CostUsageDayRange.dayKey(from: date)
-            let model = row.model.trimmingCharacters(in: .whitespacesAndNewlines)
-                .isEmpty ? Self.unknownModelName : row.model
+            let trimmedModel = row.model.trimmingCharacters(in: .whitespacesAndNewlines)
+            let model = trimmedModel.isEmpty ? Self.unknownModelName : trimmedModel
             var dayTotals = totalsByModel[key] ?? [:]
             var bucket = dayTotals[model] ?? (cost: 0, requestCount: 0)
             bucket.cost += row.cost

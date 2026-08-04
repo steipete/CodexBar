@@ -346,6 +346,59 @@ struct OpenCodeGoLocalUsageReaderTests {
     }
 
     @Test
+    func `whitespace only model ids fall back to the unknown model bucket`() throws {
+        let env = try Self.makeEnvironment()
+        defer { try? FileManager.default.removeItem(at: env.root) }
+
+        try Self.writeAuth(to: env.authURL)
+        try Self.createDatabase(at: env.databaseURL)
+        try Self.insertMessage(
+            databaseURL: env.databaseURL,
+            createdMs: Self.ms("2026-03-06T11:00:00.000Z"),
+            cost: 5.0,
+            model: "   ")
+
+        let reader = OpenCodeGoLocalUsageReader(authURL: env.authURL, databaseURL: env.databaseURL)
+        let snapshot = try reader.fetch(now: Date(timeIntervalSince1970: 1_772_798_400))
+
+        let entry = try #require(snapshot.daily.first)
+        #expect(entry.modelsUsed == ["unknown"])
+        #expect(entry.modelBreakdowns?.first?.modelName == "unknown")
+        #expect(entry.modelBreakdowns?.first?.costUSD == 5.0)
+    }
+
+    @Test
+    func `model ids with incidental whitespace merge with the trimmed model bucket`() throws {
+        let env = try Self.makeEnvironment()
+        defer { try? FileManager.default.removeItem(at: env.root) }
+
+        try Self.writeAuth(to: env.authURL)
+        try Self.createDatabase(at: env.databaseURL)
+        try Self.insertMessage(
+            databaseURL: env.databaseURL,
+            createdMs: Self.ms("2026-03-06T11:00:00.000Z"),
+            cost: 2.0,
+            model: "claude-sonnet-4-5")
+        try Self.insertMessage(
+            databaseURL: env.databaseURL,
+            createdMs: Self.ms("2026-03-06T12:00:00.000Z"),
+            cost: 3.0,
+            model: "  claude-sonnet-4-5  ")
+
+        let reader = OpenCodeGoLocalUsageReader(authURL: env.authURL, databaseURL: env.databaseURL)
+        let now = Date(timeIntervalSince1970: TimeInterval(Self.ms("2026-03-06T15:00:00.000Z")) / 1000)
+        let snapshot = try reader.fetch(now: now, historyDays: 30)
+
+        let entry = try #require(snapshot.daily.first)
+        #expect(entry.modelsUsed == ["claude-sonnet-4-5"])
+        let breakdowns = try #require(entry.modelBreakdowns)
+        #expect(breakdowns.count == 1)
+        #expect(breakdowns.first?.modelName == "claude-sonnet-4-5")
+        #expect(breakdowns.first?.costUSD == 5.0)
+        #expect(breakdowns.first?.requestCount == 2)
+    }
+
+    @Test
     func `missing auth and history is not detected`() throws {
         let env = try Self.makeEnvironment()
         defer { try? FileManager.default.removeItem(at: env.root) }
