@@ -45,6 +45,32 @@ struct CopilotOrgCreditsFetcherTests {
     }
 
     @Test
+    func `filters out non ai credit unit types when summing`() async {
+        let transport = self.makeTransport(
+            statusCode: 200,
+            body: """
+            {
+              "timePeriod": { "year": 2026, "month": 8 },
+              "organization": "example-org",
+              "usageItems": [
+                { "product": "Copilot", "sku": "Copilot AI Credits",
+                  "unitType": "ai-credits", "grossQuantity": 31.13 },
+                { "product": "Copilot", "sku": "Copilot Seats",
+                  "unitType": "seats", "grossQuantity": 999 },
+                { "product": "Copilot", "sku": "Copilot Unknown", "grossQuantity": 12 }
+              ]
+            }
+            """)
+
+        let total = await CopilotOrgCreditsFetcher(
+            token: "test-token-placeholder",
+            transport: transport)
+            .fetchCreditsUsed(org: "example-org")
+
+        #expect(abs((total ?? 0) - 31.13) < 0.001)
+    }
+
+    @Test
     func `returns nil when github rejects the request`() async {
         let transport = self.makeTransport(statusCode: 403, body: #"{"message":"Forbidden"}"#)
         let total = await CopilotOrgCreditsFetcher(

@@ -11,6 +11,10 @@ public struct CopilotOrgCreditsFetcher: Sendable {
     struct UsageReport: Decodable {
         struct Item: Decodable {
             let grossQuantity: Double?
+            /// The endpoint is credit-scoped today, but future line items could carry another unit.
+            /// Only "ai-credits" items are summed, so an unrelated unit type cannot silently inflate
+            /// the total.
+            let unitType: String?
         }
 
         let usageItems: [Item]
@@ -57,11 +61,34 @@ public struct CopilotOrgCreditsFetcher: Sendable {
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.setValue("2022-11-28", forHTTPHeaderField: "X-GitHub-Api-Version")
 
-        guard let response = try? await self.transport.response(for: request),
-              response.statusCode == 200,
-              let report = try? JSONDecoder().decode(UsageReport.self, from: response.data)
-        else { return nil }
+        let response: ProviderHTTPResponse
+        do {
+            response = try await self.transport.response(for: request)
+        } catch {
+            // Best-effort by design (see the type doc comment): the common case is a token without
+            // org billing access, so this stays a warning rather than surfacing an error on the card.
+            CodexBarLog.logger(LogCategories.providers).warning(
+                "Copilot org credits unavailable",
+                metadata: ["error": "\(error.localizedDescription)"])
+            return nil
+        }
 
-        return report.usageItems.reduce(0) { $0 + ($1.grossQuantity ?? 0) }
+        guard response.statusCode == 200 else {
+            CodexBarLog.logger(LogCategories.providers).warning(
+                "Copilot org credits unavailable",
+                metadata: ["statusCode": "\(response.statusCode)"])
+            return nil
+        }
+
+        guard let report = try? JSONDecoder().decode(UsageReport.self, from: response.data) else {
+            CodexBarLog.logger(LogCategories.providers).warning(
+                "Copilot org credits unavailable",
+                metadata: ["error": "could not decode usage report"])
+            return nil
+        }
+
+        return report.usageItems
+            .filter { $0.unitType == "ai-credits" }
+            .reduce(0) { $0 + ($1.grossQuantity ?? 0) }
     }
 }

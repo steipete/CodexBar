@@ -488,7 +488,7 @@ struct CopilotBudgetWebFetcherTests {
             if url.host == "api.github.com", url.path == "/orgs/example-org/settings/billing/ai_credit/usage" {
                 return Self.stubResponse(
                     url: url,
-                    data: Data(#"{"usageItems":[{"grossQuantity":81.1}]}"#.utf8))
+                    data: Data(#"{"usageItems":[{"unitType":"ai-credits","grossQuantity":81.1}]}"#.utf8))
             }
             Issue.record("Unexpected request: \(url.absoluteString)")
             return Self.stubResponse(url: url, data: Data("{}".utf8), statusCode: 404)
