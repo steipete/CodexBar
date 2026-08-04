@@ -307,8 +307,14 @@ struct SpendDashboardModel: Equatable, Sendable {
                 pricedCost += cost
                 guard pricedCost.isFinite else { return false }
                 sawPricedBreakdown = true
-            } else if Self.nonnegative(breakdown.totalTokens) == nil {
-                return false
+            } else {
+                // Only an absent cost is an unpriced routing row. A present but malformed
+                // cost must fail closed instead of being silently treated as unpriced.
+                guard breakdown.costUSD == nil,
+                      Self.nonnegative(breakdown.totalTokens) != nil
+                else {
+                    return false
+                }
             }
         }
         return sawPricedBreakdown && Self.costsMatch(entryCost, pricedCost)

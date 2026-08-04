@@ -924,4 +924,32 @@ extension SpendDashboardModelTests {
         #expect(group.models.first(where: { $0.modelName == "codex-auto-review" })?.totalCost == nil)
         #expect(spendDashboardModelHistoryPresentation(group) == .partial)
     }
+
+    @Test
+    func `partial Codex model history rejects a malformed named cost`() throws {
+        let codex = SpendDashboardModel.ProviderInput(
+            provider: .codex,
+            displayName: "Codex",
+            snapshot: Self.snapshot(
+                currency: "USD",
+                entries: [
+                    Self.entryWithBreakdowns(
+                        day: "2026-07-15",
+                        totalCost: 2,
+                        totalTokens: 100,
+                        breakdowns: [
+                            .init(modelName: "example-priced-codex-model", costUSD: 2, totalTokens: 40),
+                            .init(modelName: "example-invalid-codex-model", costUSD: -1, totalTokens: 60),
+                        ]),
+                ]))
+        let group = try #require(SpendDashboardModel.build(
+            inputs: [codex],
+            requestedDays: 7,
+            now: Self.now,
+            calendar: Self.calendar).groups.first)
+
+        #expect(group.totalCost == 2)
+        #expect(group.modelHistoryCompleteness == .incomplete)
+        #expect(group.models.isEmpty)
+    }
 }
