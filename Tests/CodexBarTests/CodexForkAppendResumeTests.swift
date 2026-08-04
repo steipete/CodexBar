@@ -113,7 +113,7 @@ struct CodexForkAppendResumeTests {
     }
 
     @Test
-    func `bounded append keeps an unresolved subagent on the full rescan path`() throws {
+    func `same-size subagent retry is free but an append forces a full rescan`() throws {
         let env = try CostUsageTestEnvironment()
         defer { env.cleanup() }
 
@@ -177,6 +177,24 @@ struct CodexForkAppendResumeTests {
         #expect(firstUsage.codexScanComplete == true)
         #expect(firstParsedBytes == CostUsageScanner.codexFileMetadata(fileURL: fileURL).size)
         #expect(firstParsedBytes > 512)
+
+        var sameSizeRetryUsage = firstUsage
+        sameSizeRetryUsage.forkBaselineDependencyKey = nil
+        let sameSizeMetadata = CostUsageScanner.codexFileMetadata(fileURL: fileURL)
+        let sameSizePendingWork = CostUsageScanner.pendingCodexScanWorkBytes(
+            metadata: sameSizeMetadata,
+            cached: sameSizeRetryUsage)
+        #expect(sameSizePendingWork == 0)
+        let exhaustedBudget = CostUsageScanner.CodexScanBudget(
+            maxFileBytes: 512,
+            maxBytesPerRefresh: 512)
+        exhaustedBudget.consume(workBytes: 512)
+        switch exhaustedBudget.admit(workBytes: sameSizePendingWork) {
+        case let .allow(allowance):
+            #expect(allowance == 0)
+        case .deferBudget:
+            Issue.record("same-size in-memory retry must not be deferred by an exhausted byte budget")
+        }
 
         let appended = try env.jsonl([
             self.turnContext(
