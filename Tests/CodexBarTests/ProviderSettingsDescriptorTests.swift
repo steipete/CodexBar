@@ -479,6 +479,53 @@ struct ProviderSettingsDescriptorTests {
     }
 
     @Test
+    func `copilot org credits toggle writes through to the settings snapshot`() throws {
+        let fixture = try self.makeSettingsFixture(suite: "ProviderSettingsDescriptorTests-copilot-org-toggle")
+        let context = fixture.settingsContext(provider: .copilot)
+
+        let toggles = CopilotProviderImplementation().settingsToggles(context: context)
+        let toggle = try #require(toggles.first { $0.id == "copilot-org-credits" })
+        #expect(fixture.settings.copilotSettingsSnapshot(tokenOverride: nil).orgCreditsEnabled == false)
+
+        toggle.binding.wrappedValue = true
+
+        #expect(fixture.settings.copilotOrgCreditsEnabled)
+        #expect(fixture.settings.copilotSettingsSnapshot(tokenOverride: nil).orgCreditsEnabled)
+    }
+
+    @Test
+    func `copilot seat credit entitlement field writes through to the settings snapshot`() throws {
+        let fixture = try self.makeSettingsFixture(suite: "ProviderSettingsDescriptorTests-copilot-seat-entitlement")
+        let context = fixture.settingsContext(provider: .copilot)
+
+        let fields = CopilotProviderImplementation().settingsFields(context: context)
+        let field = try #require(fields.first { $0.id == "copilot-seat-credit-entitlement" })
+        field.binding.wrappedValue = "3000"
+
+        #expect(fixture.settings.copilotSeatCreditEntitlementRaw == "3000")
+        #expect(fixture.settings.copilotSettingsSnapshot(tokenOverride: nil).seatCreditEntitlement == 3000)
+    }
+
+    @Test
+    func `copilot org credit entitlement field follows the org credits toggle`() throws {
+        let fixture = try self.makeSettingsFixture(suite: "ProviderSettingsDescriptorTests-copilot-org-entitlement")
+        let context = fixture.settingsContext(provider: .copilot)
+        let impl = CopilotProviderImplementation()
+
+        let field = try #require(impl.settingsFields(context: context)
+            .first { $0.id == "copilot-org-credit-entitlement" })
+        #expect(field.isVisible?() == false)
+
+        fixture.settings.copilotOrgCreditsEnabled = true
+        #expect(field.isVisible?() == true)
+
+        field.binding.wrappedValue = "6000"
+
+        #expect(fixture.settings.copilotOrgCreditEntitlementRaw == "6000")
+        #expect(fixture.settings.copilotSettingsSnapshot(tokenOverride: nil).orgCreditEntitlement == 6000)
+    }
+
+    @Test
     func `kimi exposes usage source picker plus api and cookie fields`() throws {
         let fixture = try self.makeSettingsFixture(suite: "ProviderSettingsDescriptorTests-kimi")
         let context = fixture.settingsContext(provider: .kimi)
