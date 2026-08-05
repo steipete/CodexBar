@@ -34,7 +34,7 @@ struct FireworksUsageFetcherTests {
 
         let summary = try FireworksUsageFetcher._parseSummaryForTesting(Data(json.utf8))
 
-        #expect(summary.last30DaysSpend ?? -1 == 1.525548296, accuracy: 0.000000001)
+        #expect((summary.last30DaysSpend ?? -1) == 1.525548296, accuracy: 0.000000001)
         #expect(summary.currencyCode == "USD")
 
         let usage = FireworksUsageSnapshot(summary: summary).toUsageSnapshot()
@@ -71,7 +71,7 @@ struct FireworksUsageFetcherTests {
         let summary = try FireworksUsageFetcher._parseSummaryForTesting(Data(json.utf8))
 
         #expect(summary.currencyCode == "USD")
-        #expect(summary.last30DaysSpend ?? -1 == 1.35, accuracy: 0.000000001)
+        #expect((summary.last30DaysSpend ?? -1) == 1.35, accuracy: 0.000000001)
     }
 
     @Test
@@ -109,8 +109,8 @@ struct FireworksUsageFetcherTests {
             endTime: Date(timeIntervalSince1970: 86_400))
 
         #expect(url.absoluteString.hasPrefix("https://api.fireworks.ai/v1/accounts/x0mh0x/billing/summary?"))
-        #expect(url.absoluteString.contains("startTime=1970-01-01T00%3A00%3A00Z"))
-        #expect(url.absoluteString.contains("endTime=1970-01-02T00%3A00%3A00Z"))
+        #expect(url.absoluteString.contains("startTime=1970-01-01T00:00:00Z"))
+        #expect(url.absoluteString.contains("endTime=1970-01-02T00:00:00Z"))
     }
 
     @Test
@@ -160,7 +160,7 @@ struct FireworksUsageFetcherTests {
             session: session)
 
         #expect(FireworksStubURLProtocol.requests.count == 1)
-        #expect(snapshot.summary.last30DaysSpend ?? -1 == 0.5, accuracy: 0.000000001)
+        #expect((snapshot.summary.last30DaysSpend ?? -1) == 0.5, accuracy: 0.000000001)
     }
 
     @Test

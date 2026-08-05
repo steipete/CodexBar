@@ -74,9 +74,9 @@ public enum FireworksUsageError: LocalizedError, Sendable, Equatable {
         case .rateLimited:
             "Fireworks rate limit exceeded. Usage will refresh on the next cycle."
         case let .apiError(statusCode):
-            "Fireworks billing API returned HTTP \\(statusCode)."
+            "Fireworks billing API returned HTTP \(statusCode)."
         case let .parseFailed(message):
-            "Could not parse Fireworks usage: \\(message)"
+            "Could not parse Fireworks usage: \(message)"
         }
     }
 }
@@ -107,7 +107,7 @@ public struct FireworksUsageFetcher: Sendable {
         var request = URLRequest(
             url: Self.resolveSummaryURL(accountSlug: cleanedSlug, startTime: startTime, endTime: now))
         request.httpMethod = "GET"
-        request.setValue("Bearer \\(cleanedKey)", forHTTPHeaderField: "Authorization")
+        request.setValue("Bearer \(cleanedKey)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.timeoutInterval = Self.timeoutSeconds
 
@@ -126,7 +126,7 @@ public struct FireworksUsageFetcher: Sendable {
         case 429:
             throw FireworksUsageError.rateLimited
         default:
-            Self.log.error("Fireworks API returned HTTP \\(response.statusCode)")
+            Self.log.error("Fireworks API returned HTTP \(response.statusCode)")
             throw FireworksUsageError.apiError(response.statusCode)
         }
 
@@ -142,7 +142,7 @@ public struct FireworksUsageFetcher: Sendable {
         endTime: Date? = nil) -> URL
     {
         var components = URLComponents(
-            string: "https://api.fireworks.ai/v1/accounts/\\(accountSlug)/billing/summary")!
+            string: "https://api.fireworks.ai/v1/accounts/\(accountSlug)/billing/summary")!
         var query: [URLQueryItem] = []
         if let startTime {
             query.append(URLQueryItem(name: "startTime", value: Self.isoString(startTime)))
