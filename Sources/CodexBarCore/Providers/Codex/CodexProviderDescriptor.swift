@@ -17,6 +17,8 @@ public enum CodexProviderDescriptor {
     static func makeDescriptor() -> ProviderDescriptor {
         ProviderDescriptor(
             id: .codex,
+            menuBarMetrics: ProviderMenuBarMetricCapabilities(
+                supported: [.automatic, .primary, .secondary, .primaryAndSecondary]),
             settingsSection: .init(CodexProviderSettingsKey.self),
             metadata: ProviderMetadata(
                 id: .codex,

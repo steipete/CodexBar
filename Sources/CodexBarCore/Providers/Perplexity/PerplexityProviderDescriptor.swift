@@ -17,6 +17,8 @@ public enum PerplexityProviderDescriptor {
     static func makeDescriptor() -> ProviderDescriptor {
         ProviderDescriptor(
             id: .perplexity,
+            menuBarMetrics: ProviderMenuBarMetricCapabilities(
+                supported: [.automatic, .primary, .secondary, .tertiary]),
             settingsSection: .init(
                 PerplexityProviderSettingsKey.self,
                 cookieSettings: PerplexityProviderSettings.self),

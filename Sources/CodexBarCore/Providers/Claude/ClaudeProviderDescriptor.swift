@@ -50,6 +50,8 @@ public enum ClaudeProviderDescriptor {
     static func makeDescriptor() -> ProviderDescriptor {
         ProviderDescriptor(
             id: .claude,
+            menuBarMetrics: ProviderMenuBarMetricCapabilities(
+                supported: [.automatic, .primary, .secondary, .primaryAndSecondary, .extraUsage]),
             settingsSection: .init(ClaudeProviderSettingsKey.self, credentialSettings: { context in
                 let manualCookieHeader = context.account == nil ? context.config?.sanitizedCookieHeader : nil
                 let routing = ClaudeCredentialRouting.resolve(

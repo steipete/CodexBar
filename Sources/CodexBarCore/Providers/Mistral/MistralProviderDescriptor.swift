@@ -23,6 +23,7 @@ public enum MistralProviderDescriptor {
     static func makeDescriptor() -> ProviderDescriptor {
         ProviderDescriptor(
             id: .mistral,
+            menuBarMetrics: ProviderMenuBarMetricCapabilities(supported: [.automatic, .monthlyPlan]),
             settingsSection: .init(MistralProviderSettingsKey.self, cookieSettings: MistralProviderSettings.self),
             credentials: self.credentials,
             metadata: ProviderMetadata(

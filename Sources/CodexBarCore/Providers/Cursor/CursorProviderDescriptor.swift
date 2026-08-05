@@ -23,6 +23,9 @@ public enum CursorProviderDescriptor {
     static func makeDescriptor() -> ProviderDescriptor {
         ProviderDescriptor(
             id: .cursor,
+            menuBarMetrics: ProviderMenuBarMetricCapabilities(
+                supported: [.automatic, .primary, .secondary, .tertiary, .extraUsage],
+                tertiaryRequiresWindow: true),
             settingsSection: .init(CursorProviderSettingsKey.self, cookieSettings: CursorProviderSettings.self),
             credentials: self.credentials,
             metadata: ProviderMetadata(
