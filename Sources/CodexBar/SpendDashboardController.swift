@@ -463,7 +463,7 @@ enum SpendDashboardSource {
         settings: SettingsStore,
         store: UsageStore) -> [SpendDashboardTrackedSource]
     {
-        let enabled = Set(store.enabledProvidersForDisplay())
+        let enabled = Set(store.enabledFirstPartyProvidersForDisplay())
         var sources: [SpendDashboardTrackedSource] = []
 
         for provider in UsageProvider.allCases {
@@ -495,13 +495,14 @@ enum SpendDashboardSource {
             let accounts = settings.tokenAccounts(for: provider)
             if !accounts.isEmpty {
                 let activeAccountID = settings.effectiveSelectedTokenAccount(for: provider)?.id
-                let cachedByID = Dictionary(uniqueKeysWithValues: (store.accountSnapshots[provider] ?? []).map {
-                    ($0.id, $0.snapshot != nil)
-                })
+                let cachedByID = Dictionary(
+                    uniqueKeysWithValues: (store.accountSnapshots[provider.instanceID] ?? []).map {
+                        ($0.id, $0.snapshot != nil)
+                    })
                 sources.append(contentsOf: accounts.map { account in
                     let isActive = account.id == activeAccountID
                     let connected = cachedByID[account.id] == true
-                        || (isActive && store.snapshot(for: provider) != nil)
+                        || (isActive && store.snapshot(for: provider.instanceID) != nil)
                     return SpendDashboardTrackedSource(
                         id: "\(provider.rawValue):account:\(account.id.uuidString.lowercased())",
                         provider: provider,
@@ -518,7 +519,7 @@ enum SpendDashboardSource {
             let hasConfiguredCredential = config?.sanitizedAPIKey != nil
                 || config?.sanitizedSecretKey != nil
                 || config?.sanitizedCookieHeader != nil
-            let hasLiveSnapshot = store.snapshot(for: provider) != nil
+            let hasLiveSnapshot = store.snapshot(for: provider.instanceID) != nil
                 || store.tokenSnapshotPublicationForCurrentProviderConfig(for: provider) != nil
             guard hasConfiguredCredential || hasLiveSnapshot else { continue }
             sources.append(SpendDashboardTrackedSource(
