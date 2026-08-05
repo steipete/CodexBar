@@ -118,6 +118,27 @@ extension SpendDashboardModel {
         }
     }
 
+    static func canRetainTokenOnlyModelHistory(_ summary: InputSummary) -> Bool {
+        var sawTokenOnlyModel = false
+        for windowEntry in summary.entries {
+            let entry = windowEntry.entry
+            guard self.validCost(entry.costUSD) != nil else { return false }
+            guard entry.modelBreakdowns?.isEmpty == false else {
+                continue
+            }
+            guard self.hasCompleteModelTokenCoverage(entry),
+                  entry.modelBreakdowns?.allSatisfy({ breakdown in
+                      !breakdown.modelName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                          && breakdown.costUSD == nil
+                  }) == true
+            else {
+                return false
+            }
+            sawTokenOnlyModel = true
+        }
+        return sawTokenOnlyModel
+    }
+
     private static func hasRetainablePartialCodexModelCostCoverage(
         _ entry: CostUsageDailyReport.Entry) -> Bool
     {

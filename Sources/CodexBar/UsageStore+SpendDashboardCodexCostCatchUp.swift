@@ -31,8 +31,9 @@ extension UsageStore {
             return
         }
 
-        let scopeSignature = accounts
-            .map { "\($0.id)|\($0.cacheIdentity)" }
+        let historyDays = self.settings.effectiveCostUsageHistoryDays
+        let scopeSignature = (["historyDays=\(historyDays)"] + accounts
+            .map { "\($0.id)|\($0.cacheIdentity)" })
             .joined(separator: "\u{0}")
         if self.spendDashboardCodexCostCatchUpTask != nil,
            self.spendDashboardCodexCostCatchUpScopeSignature == scopeSignature
@@ -51,7 +52,7 @@ extension UsageStore {
         let context = SpendDashboardCodexCostCatchUpContext(
             token: token,
             accounts: accounts,
-            historyDays: SpendDashboardSource.scanDays,
+            historyDays: historyDays,
             scopeSignature: scopeSignature,
             providerConfigRevision: self.settings.providerConfigRevision(for: .codex),
             costUsageSettingsRevision: self.settings.costUsageSettingsRevision)
@@ -243,6 +244,7 @@ extension UsageStore {
         !Task.isCancelled
             && self.spendDashboardCodexCostCatchUpToken == context.token
             && self.spendDashboardCodexCostCatchUpScopeSignature == context.scopeSignature
+            && self.settings.effectiveCostUsageHistoryDays == context.historyDays
             && self.settings.providerConfigRevision(for: .codex) == context.providerConfigRevision
             && self.settings.costUsageSettingsRevision == context.costUsageSettingsRevision
             && self.settings.isCostUsageEffectivelyEnabled(for: .codex)

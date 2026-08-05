@@ -15,6 +15,7 @@ struct SpendDashboardCachedPresentationTests {
     func `production loader reads a validated scoped account report`() async throws {
         let env = try CostUsageTestEnvironment()
         defer { env.cleanup() }
+        let historyDays = 30
         let day = try env.makeLocalNoon(year: 2026, month: 7, day: 15)
         _ = try env.writeCodexSessionFile(
             day: day,
@@ -45,7 +46,7 @@ struct SpendDashboardCachedPresentationTests {
             provider: .codex,
             now: day,
             codexHomePath: env.codexHomeRoot.path,
-            historyDays: SpendDashboardSource.scanDays,
+            historyDays: historyDays,
             includePiSessions: false)
         let account = CodexSpendScanRequest(
             id: "profile",
@@ -64,7 +65,8 @@ struct SpendDashboardCachedPresentationTests {
             unavailableSourceIDs: [],
             codexRequests: [account],
             now: day,
-            force: false)
+            force: false,
+            historyDays: historyDays)
         let cacheRoot = env.cacheRoot
 
         let result = await SpendDashboardSource.loadCached(request, cacheRootResolver: { _ in cacheRoot })
@@ -117,12 +119,13 @@ struct SpendDashboardCachedPresentationTests {
             unavailableSourceIDs: [],
             codexRequests: [first, second],
             now: Self.fixtureNow,
-            force: false)
+            force: false,
+            historyDays: 365)
 
         let result = await SpendDashboardSource.loadCached(request, cachedCodexSnapshotLoader: { context in
             switch context.account.id {
-            case "first": Self.input(cost: 2).snapshot
-            case "second": Self.input(cost: 5).snapshot
+            case "first": Self.input(cost: 2, historyDays: context.historyDays).snapshot
+            case "second": Self.input(cost: 5, historyDays: context.historyDays).snapshot
             default: nil
             }
         })
@@ -131,6 +134,7 @@ struct SpendDashboardCachedPresentationTests {
             "codex:first": 2,
             "codex:second": 5,
         ])
+        #expect(result.inputs.allSatisfy { $0.snapshot.historyDays == 365 })
         #expect(SpendDashboardSource.codexCacheRoot(for: first).lastPathComponent == "first-cache")
         #expect(SpendDashboardSource.codexCacheRoot(for: second).lastPathComponent == "second-cache")
     }
@@ -207,7 +211,8 @@ struct SpendDashboardCachedPresentationTests {
 
     private nonisolated static func input(
         id: String? = nil,
-        cost: Double) -> SpendDashboardModel.ProviderInput
+        cost: Double,
+        historyDays: Int = 30) -> SpendDashboardModel.ProviderInput
     {
         let entry = CostUsageDailyReport.Entry(
             date: "2026-07-15",
@@ -222,6 +227,7 @@ struct SpendDashboardCachedPresentationTests {
             sessionCostUSD: nil,
             last30DaysTokens: 10,
             last30DaysCostUSD: cost,
+            historyDays: historyDays,
             daily: [entry],
             updatedAt: Self.fixtureNow)
         return SpendDashboardModel.ProviderInput(
