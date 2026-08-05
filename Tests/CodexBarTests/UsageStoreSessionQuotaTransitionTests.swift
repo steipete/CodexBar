@@ -936,9 +936,9 @@ struct CrofQuotaNotificationTests {
             settings: settings,
             sessionQuotaNotifier: notifier)
 
-        let funded = CrofUsageSnapshot(credits: 9.0441, updatedAt: Date()).toUsageSnapshot()
-        let depleted = CrofUsageSnapshot(credits: 0, updatedAt: Date()).toUsageSnapshot()
-        let toppedUp = CrofUsageSnapshot(credits: 5, updatedAt: Date()).toUsageSnapshot()
+        let funded = CrofTestSnapshots.credits(9.0441)
+        let depleted = CrofTestSnapshots.credits(0)
+        let toppedUp = CrofTestSnapshots.credits(5)
 
         #expect(funded.secondary == nil)
         #expect(funded.primary?.windowMinutes == nil)

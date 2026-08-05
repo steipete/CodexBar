@@ -16,6 +16,7 @@
 - Copilot: decode the AI credits counter for token-billed seats and expose it in `codexbar diagnose`, so Business seats with zero-entitlement quotas are no longer blank at the data layer (#2613, refs #2593). Thanks @Yuxin-Qiao, and @KSEGIT for the discovery!
 
 ### Changed
+- Provider plugins: use the bundled JavaScript implementation by default for Crof and Venice on macOS, with identical golden-tested output and the native fetchers retained only for the Linux CLI.
 - Settings: refresh the Plugins pane to match the other panes — labeled install and directory rows with a Show in Finder affordance, a tilde-abbreviated path, a properly sized empty state, and consistent section footers.
 - Settings: localize every Plugins pane control, status, approval prompt, and alert across all complete app locales.
 - **Breaking JSON change:** provider-specific usage payload keys are being removed from `codexbar usage --format json`, `serve /usage`, and synced snapshots in favor of the generic Codable `usage.details` sections. The app and text CLI now render those same declarative rows and charts.

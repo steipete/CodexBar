@@ -13,8 +13,8 @@ This document describes the bundled first-party conversion prototype. User-insta
 
 This prototype proves that an existing first-party `UsageProvider` can define its manifest, HTTP requests, response
 parsing, and generic `UsageSnapshot` projection in one bundled JavaScript file. It is deliberately not a user-plugin
-system: IDs remain compile-time `UsageProvider` cases, scripts ship inside CodexBar, and the normal Swift path remains
-the default.
+system: IDs remain compile-time `UsageProvider` cases and scripts ship inside CodexBar. Crof and Venice have cut over
+to the bundled script on JavaScriptCore platforms; their native fetch cores remain compiled only for the Linux CLI.
 
 Plugin manifests and their projected snapshots now carry a validated `ProviderInstanceID`. The prototype still maps
 that instance ID to an existing first-party `UsageProvider` before using browser-cookie brokerage or other bespoke
@@ -23,12 +23,13 @@ case therefore remain out of scope for this prototype.
 
 ## Enable and test
 
-Set `CODEXBAR_JS_PROVIDERS=1` in CodexBar's environment. Synthetic, Venice, Crof, OpenAI, z.ai, OpenRouter, Poe,
-ClawRouter, Deepgram, sub2api, xAI, Manus, Perplexity, T3 Chat, and Qoder then prepend a script strategy to their
-existing pipeline. A missing required secret or disabled cookie source leaves the script
+Set `CODEXBAR_JS_PROVIDERS=1` in CodexBar's environment. Synthetic, OpenAI, z.ai, OpenRouter, Poe, ClawRouter,
+Deepgram, sub2api, xAI, Manus, Perplexity, T3 Chat, and Qoder then prepend a script strategy to their existing pipeline.
+A missing required secret or disabled cookie source leaves the script
 strategy unavailable and permits the Swift strategy to run; a loaded script that fails does not fall back, so parity
 defects stay visible. Without the variable, the resolver returns the original Swift strategy only and does not load
-JavaScriptCore or a plugin resource.
+JavaScriptCore or a plugin resource for those providers. Crof and Venice always resolve only their script strategy on
+JavaScriptCore platforms; `CODEXBAR_JS_PROVIDERS` does not affect them.
 
 Run the focused proof with:
 
@@ -169,9 +170,12 @@ new context on a fresh executor, which the hung-script recovery test proves. Thi
 cannot interrupt the abandoned JavaScriptCore thread, which may remain alive until process exit. A production plugin
 runtime needs a public interrupt API or a killable helper-process boundary before accepting untrusted scripts.
 
+The same watchdog is production-default for first-party cut-over providers. It is part of the shared runtime, not the
+prototype flag, so Crof and Venice retain timeout and fresh-context recovery without `CODEXBAR_JS_PROVIDERS`.
+
 ## Current limitations
 
-The bundled-conversion flag is macOS-only and compiled out when JavaScriptCore is unavailable. It supports bundled
+The remaining bundled-conversion flag is macOS-only and compiled out when JavaScriptCore is unavailable. It supports bundled
 first-party IDs and the generic snapshot and declarative details only: no provider-specific Swift payloads,
 OAuth/refresh broker, local files or databases, subprocesses,
 arbitrary/form POST bodies, PTY, WebView, binary/protobuf responses, private-network HTTP, or unvalidated dynamic

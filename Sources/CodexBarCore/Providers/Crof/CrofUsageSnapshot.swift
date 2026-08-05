@@ -1,3 +1,5 @@
+// Linux compatibility only. JavaScriptCore platforms use the bundled Crof plugin.
+#if !canImport(JavaScriptCore)
 import Foundation
 
 public struct CrofUsageSnapshot: Sendable {
@@ -86,3 +88,4 @@ public struct CrofUsageSnapshot: Sendable {
             : startOfDay
     }
 }
+#endif

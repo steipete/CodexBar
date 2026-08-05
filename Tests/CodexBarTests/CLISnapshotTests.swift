@@ -349,9 +349,7 @@ struct CLISnapshotTests {
     @Test
     func `renders crof dollar balance as detail not reset`() {
         let meta = ProviderDescriptorRegistry.descriptor(for: .crof).metadata
-        let snap = CrofUsageSnapshot(
-            credits: 9.9999,
-            updatedAt: Date(timeIntervalSince1970: 0)).toUsageSnapshot()
+        let snap = CrofTestSnapshots.credits(9.9999, updatedAt: Date(timeIntervalSince1970: 0))
 
         let output = CLIRenderer.renderText(
             provider: .crof,
@@ -371,11 +369,11 @@ struct CLISnapshotTests {
 
     @Test
     func `renders crof request quota when returned`() {
-        let snap = CrofUsageSnapshot(
+        let snap = CrofTestSnapshots.requestQuota(
             credits: 9.9999,
-            requestsPlan: 1000,
-            usableRequests: 998,
-            updatedAt: Date(timeIntervalSince1970: 0)).toUsageSnapshot()
+            plan: 1000,
+            remaining: 998,
+            updatedAt: Date(timeIntervalSince1970: 0))
 
         let output = CLIRenderer.renderText(
             provider: .crof,

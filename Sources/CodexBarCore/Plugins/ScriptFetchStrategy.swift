@@ -29,6 +29,7 @@ public final class ScriptFetchStrategy: ProviderFetchStrategy, @unchecked Sendab
 
     private let provider: UsageProvider
     private let bundledPlugin: String
+    private let sourceLabel: String
     private let secretKey: String?
     private let resolveValues: ValuesResolver
     private let isEnabled: EnabledResolver
@@ -42,6 +43,7 @@ public final class ScriptFetchStrategy: ProviderFetchStrategy, @unchecked Sendab
         provider: UsageProvider,
         bundledPlugin: String,
         secretKey: String,
+        sourceLabel: String = "js",
         kind: ProviderFetchKind = .apiToken,
         transport: any ProviderHTTPTransport = ProviderHTTPClient.shared,
         timeout: TimeInterval = ProviderPluginRuntime.defaultTimeout,
@@ -51,6 +53,7 @@ public final class ScriptFetchStrategy: ProviderFetchStrategy, @unchecked Sendab
         self.id = id
         self.provider = provider
         self.bundledPlugin = bundledPlugin
+        self.sourceLabel = sourceLabel
         self.kind = kind
         self.secretKey = secretKey
         self.transport = transport
@@ -67,6 +70,7 @@ public final class ScriptFetchStrategy: ProviderFetchStrategy, @unchecked Sendab
         provider: UsageProvider,
         bundledPlugin: String,
         secretKey: String? = nil,
+        sourceLabel: String = "js",
         kind: ProviderFetchKind = .apiToken,
         transport: any ProviderHTTPTransport = ProviderHTTPClient.shared,
         timeout: TimeInterval = ProviderPluginRuntime.defaultTimeout,
@@ -76,6 +80,7 @@ public final class ScriptFetchStrategy: ProviderFetchStrategy, @unchecked Sendab
         self.id = id
         self.provider = provider
         self.bundledPlugin = bundledPlugin
+        self.sourceLabel = sourceLabel
         self.kind = kind
         self.secretKey = secretKey
         self.transport = transport
@@ -109,7 +114,7 @@ public final class ScriptFetchStrategy: ProviderFetchStrategy, @unchecked Sendab
             settings: values.settings,
             secrets: values.secrets,
             cookieResolver: ProviderPluginCookieBroker.resolver(context: context))
-        return self.makeResult(usage: usage, sourceLabel: "js")
+        return self.makeResult(usage: usage, sourceLabel: self.sourceLabel)
     }
 
     public func shouldFallback(on _: Error, context _: ProviderFetchContext) -> Bool {

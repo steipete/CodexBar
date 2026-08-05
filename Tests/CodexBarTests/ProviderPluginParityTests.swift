@@ -23,6 +23,23 @@ struct ProviderPluginParityTests {
     }
 
     @Test
+    func `cut-over providers use only JS without the prototype flag`() async {
+        for (provider, key) in [(UsageProvider.crof, "CROF_API_KEY"), (.venice, "VENICE_API_KEY")] {
+            let descriptor = ProviderDescriptorRegistry.descriptor(for: provider)
+            let context = Self.context(environment: [key: "fixture-key"])
+            let strategies = await descriptor.fetchPlan.pipeline.resolveStrategies(context)
+
+            #expect(strategies.map(\.id) == ["\(provider.rawValue).js"])
+            #expect(await strategies[0].isAvailable(context))
+            let flagged = await descriptor.fetchPlan.pipeline.resolveStrategies(Self.context(environment: [
+                key: "fixture-key",
+                ProviderPluginPrototype.environmentKey: "1",
+            ]))
+            #expect(flagged.map(\.id) == ["\(provider.rawValue).js"])
+        }
+    }
+
+    @Test
     func `Synthetic fixture has Swift and JS snapshot parity`() async throws {
         let body = """
         {
@@ -64,7 +81,7 @@ struct ProviderPluginParityTests {
     }
 
     @Test
-    func `Venice fixture has Swift and JS snapshot parity`() async throws {
+    func `Venice fixture matches the cut-over golden`() async throws {
         let body = """
         {
           "canConsume": true,
@@ -76,28 +93,53 @@ struct ProviderPluginParityTests {
         let transport = Self.transport(body: body)
         let now = Date(timeIntervalSince1970: 1_775_000_000)
 
-        let swift = try await VeniceUsageFetcher.fetchUsage(
-            apiKey: "fixture-key",
-            transport: transport).toUsageSnapshot()
         let runtime = try ProviderPluginRuntime(bundledPlugin: "venice", transport: transport)
         let script = try await runtime.fetchUsage(secrets: ["VENICE_API_KEY": "fixture-key"], now: now)
 
-        Self.expectCoreParity(swift, script)
+        #expect(script.primary == RateWindow(
+            usedPercent: 50,
+            windowMinutes: nil,
+            resetsAt: nil,
+            resetDescription: "DIEM 50.00 / 100.00 epoch allocation"))
+        #expect(script.secondary == nil)
+        #expect(script.tertiary == nil)
+        #expect(script.providerCost == nil)
+        #expect(script.identity?.providerID == .venice)
+        #expect(script.identity?.accountEmail == nil)
+        #expect(script.identity?.accountOrganization == nil)
+        #expect(script.identity?.loginMethod == nil)
     }
 
     @Test
-    func `Crof fixture has Swift and JS snapshot parity`() async throws {
+    func `Crof fixture matches the cut-over golden`() async throws {
         let body = #"{"credits":9.9999,"requests_plan":1000,"usable_requests":998}"#
         let transport = Self.transport(body: body)
-        let now = Date()
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let fetchStartedAt = Date()
 
-        let swift = try await CrofUsageFetcher.fetchUsage(
-            apiKey: "fixture-key",
-            session: transport).toUsageSnapshot()
         let runtime = try ProviderPluginRuntime(bundledPlugin: "crof", transport: transport)
         let script = try await runtime.fetchUsage(secrets: ["CROF_API_KEY": "fixture-key"], now: now)
 
-        Self.expectCoreParity(swift, script)
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try #require(TimeZone(identifier: "America/Chicago"))
+        let reset = try #require(calendar.date(
+            byAdding: .day,
+            value: 1,
+            to: calendar.startOfDay(for: fetchStartedAt)))
+        #expect(script.primary == RateWindow(
+            usedPercent: 1,
+            windowMinutes: 1440,
+            resetsAt: reset,
+            resetDescription: "998 requests left"))
+        #expect(script.secondary == RateWindow(
+            usedPercent: 0,
+            windowMinutes: nil,
+            resetsAt: nil,
+            resetDescription: "$9.99"))
+        #expect(script.tertiary == nil)
+        #expect(script.providerCost == nil)
+        #expect(script.identity?.providerID == .crof)
+        #expect(script.identity?.loginMethod == "API key")
     }
 
     @Test

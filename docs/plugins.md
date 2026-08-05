@@ -107,6 +107,10 @@ User-plugin requests run in an ephemeral session with no ambient cookies, creden
 rejected, the timeout is 15 seconds, `Accept-Encoding: identity` is sent, compressed and non-2xx responses fail, and
 response bytes are capped at 1 MiB. Request URLs must match a declared, approved origin.
 
+Bundled first-party providers that have cut over to JavaScript use the shared runtime's 20-second hung-script watchdog.
+A timeout fails that refresh and discards the poisoned worker so the next refresh starts with a fresh context; this is
+production-default and does not depend on `CODEXBAR_JS_PROVIDERS`.
+
 ## Snapshot result
 
 Return at least one rate window, cost object, or detail section:
@@ -178,4 +182,3 @@ surfaces (status feeds, token accounts, OAuth, browser automation, storage probe
 specific payloads). Rendering is limited to generic snapshots and declarative details. There are no remote catalogs,
 downloaded plugins/assets, custom SVGs, imports, arbitrary local I/O, or compatibility fallback from an unknown ID to a
 built-in provider.
-

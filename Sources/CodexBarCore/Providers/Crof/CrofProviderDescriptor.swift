@@ -52,18 +52,22 @@ public enum CrofProviderDescriptor {
 
     private static func fetchPlan() -> ProviderFetchPlan {
         #if canImport(JavaScriptCore)
-        .scriptPrototypeAPI(
-            configuration: .init(
-                provider: .crof,
-                plugin: "crof",
-                secretKey: CrofSettingsReader.apiKeyEnvironmentKeys[0],
-                strategyID: "crof.api"),
-            resolveToken: { ProviderTokenResolver.crofToken(environment: $0) },
-            missingCredentialsError: { CrofUsageError.missingCredentials },
-            loadUsage: { apiKey, _ in
-                try await CrofUsageFetcher.fetchUsage(apiKey: apiKey).toUsageSnapshot()
-            })
+        ProviderFetchPlan(
+            sourceModes: [.auto, .api],
+            pipeline: ProviderFetchPipeline(resolveStrategies: { _ in
+                [ScriptFetchStrategy(
+                    id: "crof.js",
+                    provider: .crof,
+                    bundledPlugin: "crof",
+                    secretKey: CrofSettingsReader.apiKeyEnvironmentKeys[0],
+                    sourceLabel: "api",
+                    resolveSecret: { environment in
+                        self.credentials.resolveToken(environment: environment)?.token
+                    },
+                    isEnabled: { _ in true })]
+            }))
         #else
+        // Linux compatibility only. JavaScriptCore platforms use the bundled plugin above.
         .apiToken(
             strategyID: "crof.api",
             resolveToken: { ProviderTokenResolver.crofToken(environment: $0) },

@@ -1,3 +1,5 @@
+// Linux compatibility only. JavaScriptCore platforms use the bundled Venice plugin.
+#if !canImport(JavaScriptCore)
 import Foundation
 #if canImport(FoundationNetworking)
 import FoundationNetworking
@@ -237,3 +239,4 @@ extension KeyedDecodingContainer {
             debugDescription: "Expected a number or numeric string for \(key.stringValue)")
     }
 }
+#endif

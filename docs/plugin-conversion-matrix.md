@@ -17,7 +17,8 @@ is inherently a user-chosen origin (LLM Proxy and LiteLLM) do not qualify. The c
 current Swift request methods and snapshot projections; Azure OpenAI, StepFun, and Warp were removed from the audit's
 earlier “fully expressible” baseline because their current implementations issue POST requests.
 
-`converted` means the bundled JavaScript conversion is present behind `CODEXBAR_JS_PROVIDERS=1`. The Converted column
+`converted` means the bundled JavaScript conversion is present behind `CODEXBAR_JS_PROVIDERS=1`. `cut-over` means the
+bundled script is the only JavaScriptCore implementation, with any retained native core serving Linux only. The Converted column
 makes implementation state explicit and the totals are mutually exclusive: `convertible-now` counts only providers
 that remain cheap to convert. Remaining buckets name the next blocker after this host-extension slice.
 
@@ -25,7 +26,8 @@ that remain cheap to convert. Remaining buckets name the next blocker after this
 
 | Status | Count |
 |---|---:|
-| `converted` | 15 |
+| `cut-over` | 2 |
+| `converted` | 13 |
 | `convertible-now` | 8 |
 | `needs-cookie-import` | 19 |
 | `needs-files/subprocess/oauth-broker` | 15 |
@@ -67,7 +69,7 @@ that remain cheap to convert. Remaining buckets name the next blocker after this
 | ollama | `needs-cookie-import` | No | Skipped: hosted parity requires HTML bootstrap/state extraction plus API-key fallback arbitration. |
 | synthetic | `converted` | Yes | Converted: fixed-origin bearer GET with generic windows, cost, dates, and identity. |
 | warp | `needs-pty/webview/native` | No | Warp sends a POST GraphQL operation, which the GET-only HTTP broker cannot express. |
-| openrouter | `converted` | Yes | Converted: bearer GET credits plus best-effort key budget, period spend, rate-limit rows, and a spend chart. |
+| openrouter | `converted` | Yes | Cutover stopped: the plugin lacks the endpoint/referer/title overrides and one-second best-effort key-enrichment deadline of the native path. |
 | elevenlabs | `convertible-now` | No | Verified `xi-api-key` GET; heterogeneous character/minute quotas map to named generic windows. |
 | windsurf | `needs-files/subprocess/oauth-broker` | No | Chromium localStorage, IDE databases, and binary protobuf decoding supply the current session. |
 | zed | `needs-files/subprocess/oauth-broker` | No | Zed server settings and a named Keychain credential must be read locally. |
@@ -80,8 +82,8 @@ that remain cheap to convert. Remaining buckets name the next blocker after this
 | deepseek | `needs-files/subprocess/oauth-broker` | No | Platform auth/profile selection reads Chromium localStorage, and the result has a bespoke history model. |
 | deepinfra | `convertible-now` | No | Verified fixed-origin bearer GET pair; spend limit and balance project into generic cost/windows. |
 | codebuff | `needs-files/subprocess/oauth-broker` | No | Full credential parity reads a local Manicode credential file; environment-key mode is partial. |
-| crof | `converted` | Yes | Converted: fixed-origin bearer GET with exact credit formatting and America/Chicago daily reset. |
-| venice | `converted` | Yes | Converted: fixed-origin bearer GET with DIEM/USD allocation projection. |
+| crof | `cut-over` | Yes | Cut over on JavaScriptCore: fixed-origin bearer GET with exact credit formatting and America/Chicago daily reset; native fetch code is Linux-only. |
+| venice | `cut-over` | Yes | Cut over on JavaScriptCore: fixed-origin bearer GET with DIEM/USD allocation projection; native fetch code is Linux-only. |
 | commandcode | `needs-cookie-import` | No | Skipped: live subscription/depletion flags lack reconstructable fixtures within the per-provider cap. |
 | qoder | `converted` | Yes | Converted: declared global/China cookie domains, browser headers, and merged generic quota window. |
 | stepfun | `needs-files/subprocess/oauth-broker` | No | Device registration, password login, refresh, quota, and plan operations are POST-based token-broker work. |
@@ -90,13 +92,13 @@ that remain cheap to convert. Remaining buckets name the next blocker after this
 | groq | `needs-cookie-import` | No | Skipped: Stytch session exchange and console history remain a multi-step auth flow. |
 | llmproxy | `needs-pty/webview/native` | No | Its origin is user-selected and may be private HTTP, conflicting with the manifest's fixed HTTPS origins. |
 | litellm | `needs-pty/webview/native` | No | Its required user-selected proxy origin and optional private HTTP cannot be declared by a bundled static manifest. |
-| deepgram | `converted` | Yes | Converted: bounded `Token` authorization scheme plus project discovery and usage details. |
+| deepgram | `converted` | Yes | Cutover stopped: the plugin does not preserve native 400/401/403, network, and parse error classification. |
 | poe | `converted` | Yes | Converted: fixed-origin bearer GET balance/history pagination with daily points and model/type summaries. |
 | chutes | `convertible-now` | No | Verified bearer GET fan-out on the canonical origin; dynamic quota lanes map to named windows. |
 | neuralwatt | `convertible-now` | No | Verified canonical bearer GET; quota lanes and prepaid cost/energy project generically. |
-| clawrouter | `converted` | Yes | Converted for the canonical origin: monthly budget, ledger, request/token totals, routed-provider rows, and cost chart. |
+| clawrouter | `converted` | Yes | Cutover stopped: the plugin supports only the canonical origin, while native production accepts a validated `CLAWROUTER_BASE_URL`. |
 | longcat | `needs-cookie-import` | No | Skipped: browser-cookie retry needs domain/path-aware cookie selection across multiple imported sessions; the generic broker currently returns one flattened header. |
-| sub2api | `converted` | Yes | Converted: settings-derived HTTPS or loopback-HTTP origin with quota and usage details. |
+| sub2api | `converted` | Yes | Cutover stopped: the plugin does not preserve the native total-request deadline and 401/403 invalid-credential classification. |
 | wayfinder | `needs-pty/webview/native` | No | The local unauthenticated HTTP gateway, metrics text, and routing/savings model violate HTTPS-only generic scope. |
 | zenmux | `convertible-now` | No | Verified fixed-origin bearer GET pair; subscription and optional PAYG balance map generically. |
 | aiand | `convertible-now` | No | Verified fixed-origin bearer GET pagination; 30-day spend maps to generic cost. |
