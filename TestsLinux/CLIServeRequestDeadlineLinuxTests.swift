@@ -129,12 +129,17 @@ struct CLIServeRequestDeadlineLinuxTests {
     @Test
     func `trickling clients cannot hold connection slots indefinitely`() async throws {
         let connectionCap = 3
+        // A short injected deadline keeps this suite from occupying executor threads
+        // for the full production budget, which would stall unrelated suites running
+        // alongside it.
+        let deadlineMilliseconds: Int64 = 1500
         let listening = ListeningSignal()
         let server = CLILocalHTTPServer(
             host: "127.0.0.1",
             port: 0,
             allowedHosts: .loopbackOnly,
-            maximumConnections: connectionCap)
+            maximumConnections: connectionCap,
+            totalReadTimeoutMilliseconds: deadlineMilliseconds)
         { _ in
             CLILocalHTTPResponse(status: .ok, body: Data(#"{"ok":true}"#.utf8))
         }
@@ -148,27 +153,31 @@ struct CLIServeRequestDeadlineLinuxTests {
         var clients: [TricklingClient] = []
         for _ in 0..<connectionCap {
             if let client = TricklingClient(port: port) {
-                client.start(intervalSeconds: 1.0)
+                // Comfortably inside the 5s per-read window, so that timeout never
+                // fires and only the overall deadline can evict these clients.
+                client.start(intervalSeconds: 0.3)
                 clients.append(client)
             }
         }
         #expect(clients.count == connectionCap, "fixture sanity: all trickling clients connected")
 
-        try await Task.sleep(nanoseconds: 500_000_000)
+        try await Task.sleep(nanoseconds: 300_000_000)
 
         // Over-cap connections are dropped immediately rather than queued, so a
         // legitimate client has to retry until a slot frees. With an overall
         // deadline the trickling clients are evicted and one becomes available;
         // without one they hold every slot for as long as they keep sending.
         let started = DispatchTime.now().uptimeNanoseconds
-        let budgetSeconds = 25.0
+        // Well beyond the injected deadline, but far short of how long the trickling
+        // clients would hold their slots without one.
+        let budgetSeconds = 12.0
         var servedAfterSeconds: Double?
         while Double(DispatchTime.now().uptimeNanoseconds &- started) / 1e9 < budgetSeconds {
             if Self.probeHealth(port: port, timeoutSeconds: 2) != nil {
                 servedAfterSeconds = Double(DispatchTime.now().uptimeNanoseconds &- started) / 1e9
                 break
             }
-            try await Task.sleep(nanoseconds: 500_000_000)
+            try await Task.sleep(nanoseconds: 200_000_000)
         }
 
         for client in clients {

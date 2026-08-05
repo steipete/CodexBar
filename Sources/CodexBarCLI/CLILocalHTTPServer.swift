@@ -286,6 +286,9 @@ final class CLILocalHTTPServer: @unchecked Sendable {
     private let port: UInt16
     private let allowedHosts: CLILocalHTTPAllowedHosts
     private let connectionGate: CLILocalHTTPConnectionGate
+    /// Overall budget for reading one request head. Injectable so tests can use a
+    /// short deadline instead of occupying an executor thread for the production one.
+    private let totalReadTimeout: Int64
     private let handler: Handler
     private let stateLock = NSLock()
     private var listeningFD: Int32?
@@ -297,12 +300,14 @@ final class CLILocalHTTPServer: @unchecked Sendable {
         port: UInt16,
         allowedHosts: CLILocalHTTPAllowedHosts = .loopbackOnly,
         maximumConnections: Int = 16,
+        totalReadTimeoutMilliseconds: Int64 = requestTotalReadTimeoutMilliseconds,
         handler: @escaping Handler)
     {
         self.host = host
         self.port = port
         self.allowedHosts = allowedHosts
         self.connectionGate = CLILocalHTTPConnectionGate(maximumConnections: maximumConnections)
+        self.totalReadTimeout = totalReadTimeoutMilliseconds
         self.handler = handler
     }
 
@@ -411,7 +416,11 @@ final class CLILocalHTTPServer: @unchecked Sendable {
                     closeSocket(clientFD)
                     connectionGate.release()
                 }
-                await handleClient(clientFD, allowedHosts: allowedHosts, handler: handler)
+                await handleClient(
+                    clientFD,
+                    allowedHosts: allowedHosts,
+                    totalReadTimeoutMilliseconds: self.totalReadTimeout,
+                    handler: handler)
             }
         }
     }
@@ -456,10 +465,15 @@ final class CLILocalHTTPServer: @unchecked Sendable {
 private func handleClient(
     _ clientFD: Int32,
     allowedHosts: CLILocalHTTPAllowedHosts,
+    totalReadTimeoutMilliseconds: Int64,
     handler: @Sendable (CLILocalHTTPRequest) async -> CLILocalHTTPResponse) async
 {
     let request: CLILocalHTTPRequest
-    switch readRequest(clientFD, allowedHosts: allowedHosts) {
+    switch readRequest(
+        clientFD,
+        allowedHosts: allowedHosts,
+        totalReadTimeoutMilliseconds: totalReadTimeoutMilliseconds)
+    {
     case let .success(parsedRequest):
         request = parsedRequest
     case .failure(.disallowedHost):
@@ -486,7 +500,8 @@ private func handleClient(
 
 private func readRequest(
     _ fd: Int32,
-    allowedHosts: CLILocalHTTPAllowedHosts) -> Result<CLILocalHTTPRequest, CLILocalHTTPRequestParseError>
+    allowedHosts: CLILocalHTTPAllowedHosts,
+    totalReadTimeoutMilliseconds: Int64) -> Result<CLILocalHTTPRequest, CLILocalHTTPRequestParseError>
 {
     var data = Data()
     var buffer = [UInt8](repeating: 0, count: 4096)
@@ -499,7 +514,7 @@ private func readRequest(
         // Bound the request as a whole, not just each read: a client trickling one
         // byte per read window would otherwise never time out.
         let elapsedMilliseconds = Int64((DispatchTime.now().uptimeNanoseconds &- startedAt) / 1_000_000)
-        let remainingMilliseconds = requestTotalReadTimeoutMilliseconds - elapsedMilliseconds
+        let remainingMilliseconds = totalReadTimeoutMilliseconds - elapsedMilliseconds
         guard remainingMilliseconds > 0 else {
             return .failure(.invalidRequest)
         }
