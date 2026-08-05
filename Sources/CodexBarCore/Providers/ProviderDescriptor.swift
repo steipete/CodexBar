@@ -109,6 +109,7 @@ public struct ProviderDescriptor: Sendable {
     public let settingsSection: ProviderSettingsSectionRegistration
     public let fetchPlan: ProviderFetchPlan
     public let cli: ProviderCLIConfig
+    private let configNormalizer: @Sendable (inout ProviderConfig) -> Void
 
     public init(
         id: UsageProvider,
@@ -118,7 +119,8 @@ public struct ProviderDescriptor: Sendable {
         tokenCost: ProviderTokenCostConfig,
         pace: ProviderPaceCapability = .unsupported,
         fetchPlan: ProviderFetchPlan,
-        cli: ProviderCLIConfig)
+        cli: ProviderCLIConfig,
+        configNormalizer: @escaping @Sendable (inout ProviderConfig) -> Void = { _ in })
     {
         self.id = id
         self.settingsSection = settingsSection ?? .empty(for: id.instanceID)
@@ -128,6 +130,7 @@ public struct ProviderDescriptor: Sendable {
         self.pace = pace
         self.fetchPlan = fetchPlan
         self.cli = cli
+        self.configNormalizer = configNormalizer
     }
 
     public func fetchOutcome(context: ProviderFetchContext) async -> ProviderFetchOutcome {
@@ -137,6 +140,10 @@ public struct ProviderDescriptor: Sendable {
     public func fetch(context: ProviderFetchContext) async throws -> ProviderFetchResult {
         let outcome = await self.fetchOutcome(context: context)
         return try outcome.result.get()
+    }
+
+    public func normalizeConfig(_ config: inout ProviderConfig) {
+        self.configNormalizer(&config)
     }
 }
 

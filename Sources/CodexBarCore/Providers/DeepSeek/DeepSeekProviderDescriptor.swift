@@ -80,7 +80,11 @@ public enum DeepSeekProviderDescriptor {
             cli: ProviderCLIConfig(
                 name: "deepseek",
                 aliases: ["deep-seek", "ds"],
-                versionDetector: nil))
+                versionDetector: nil),
+            configNormalizer: { config in
+                config.deepseekProfileID = config.sanitizedDeepSeekProfileID
+                config.deepseekProfileScope = config.sanitizedDeepSeekProfileScope
+            })
     }
 
     private static func resolveStrategies(context: ProviderFetchContext) async -> [any ProviderFetchStrategy] {

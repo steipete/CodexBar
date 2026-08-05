@@ -626,12 +626,10 @@ struct TokenAccountEnvironmentPrecedenceTests {
                 lastAuthenticatedAt: nil),
         ])
         try FileManagedCodexAccountStore(fileURL: storeURL).storeAccounts(accounts)
-        let config = CodexBarConfig(providers: [
-            ProviderConfig(
-                id: .codex,
-                codexActiveSource: .managedAccount(id: secondID),
-                codexProfileHomePaths: [profileHome.path]),
-        ])
+        var providerConfig = ProviderConfig(id: .codex)
+        providerConfig.codexActiveSource = .managedAccount(id: secondID)
+        providerConfig.codexProfileHomePaths = [profileHome.path]
+        let config = CodexBarConfig(providers: [providerConfig])
         let context = try TokenAccountCLIContext(
             selection: TokenAccountCLISelection(label: nil, index: nil, allAccounts: true),
             config: config,
@@ -705,12 +703,10 @@ struct TokenAccountEnvironmentPrecedenceTests {
         defer { try? FileManager.default.removeItem(at: root) }
         try FileManager.default.createDirectory(at: ambientHome, withIntermediateDirectories: true)
 
-        let config = CodexBarConfig(providers: [
-            ProviderConfig(
-                id: .codex,
-                codexActiveSource: .profileHome(path: "relative-codex-home"),
-                codexProfileHomePaths: ["relative-codex-home"]),
-        ])
+        var providerConfig = ProviderConfig(id: .codex)
+        providerConfig.codexActiveSource = .profileHome(path: "relative-codex-home")
+        providerConfig.codexProfileHomePaths = ["relative-codex-home"]
+        let config = CodexBarConfig(providers: [providerConfig])
         let context = try TokenAccountCLIContext(
             selection: TokenAccountCLISelection(label: nil, index: nil, allAccounts: false),
             config: config,

@@ -168,13 +168,11 @@ struct CodexProfileHomeAccountTests {
         #expect(settings.cachedCodexAccountReconciliationSnapshot != nil)
         #expect(settings.cachedCodexAccountMenuProjection != nil)
 
+        var externalProviderConfig = ProviderConfig(id: .codex)
+        externalProviderConfig.codexActiveSource = .profileHome(path: profileHome.path)
+        externalProviderConfig.codexProfileHomePaths = []
         settings.applyExternalConfig(
-            CodexBarConfig(providers: [
-                ProviderConfig(
-                    id: .codex,
-                    codexActiveSource: .profileHome(path: profileHome.path),
-                    codexProfileHomePaths: []),
-            ]),
+            CodexBarConfig(providers: [externalProviderConfig]),
             reason: "profile-removed")
 
         #expect(settings.cachedCodexAccountReconciliationSnapshot == nil)

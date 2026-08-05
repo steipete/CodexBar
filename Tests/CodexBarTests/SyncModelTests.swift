@@ -12,7 +12,7 @@ struct SyncModelTests {
             token: "account-secret",
             addedAt: 1,
             lastUsed: nil)
-        let local = ProviderConfig(
+        var local = ProviderConfig(
             id: .codex,
             enabled: true,
             source: .cli,
@@ -23,12 +23,12 @@ struct SyncModelTests {
             cookieSource: .manual,
             region: "us",
             workspaceID: "workspace",
-            tokenAccounts: .init(version: 1, accounts: [account], activeIndex: 0),
-            claudeSwapExecutablePath: "/machine/bin/cswap",
-            codexActiveSource: .managedAccount(id: UUID()),
-            codexProfileHomePaths: ["/machine/codex"],
-            awsProfile: "machine-profile",
-            awsAuthMode: "machine-auth")
+            tokenAccounts: .init(version: 1, accounts: [account], activeIndex: 0))
+        local.claudeSwapExecutablePath = "/machine/bin/cswap"
+        local.codexActiveSource = .managedAccount(id: UUID())
+        local.codexProfileHomePaths = ["/machine/codex"]
+        local.awsProfile = "machine-profile"
+        local.awsAuthMode = "machine-auth"
 
         let payload = ProviderIntentPayload(config: local)
         let encoded = try CanonicalSyncJSON.string(payload)
@@ -43,17 +43,17 @@ struct SyncModelTests {
         #expect(secrets["cookieHeader"] == "session=secret")
         #expect(secrets["tokenAccounts"]?.contains("account-secret") == true)
 
-        let baseline = ProviderConfig(
+        var baseline = ProviderConfig(
             id: .codex,
             enabled: false,
             source: .web,
             apiKey: "local-api",
-            cookieSource: .off,
-            claudeSwapExecutablePath: "/local/cswap",
-            codexActiveSource: .liveSystem,
-            codexProfileHomePaths: ["/local/home"],
-            awsProfile: "local-profile",
-            awsAuthMode: "local-auth")
+            cookieSource: .off)
+        baseline.claudeSwapExecutablePath = "/local/cswap"
+        baseline.codexActiveSource = .liveSystem
+        baseline.codexProfileHomePaths = ["/local/home"]
+        baseline.awsProfile = "local-profile"
+        baseline.awsAuthMode = "local-auth"
         let applied = try decoded.applying(to: baseline, secretFields: secrets) { _, _ in true }
 
         #expect(applied.enabled == true)

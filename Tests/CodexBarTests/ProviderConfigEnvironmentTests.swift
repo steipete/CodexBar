@@ -4,11 +4,11 @@ import Testing
 struct ProviderConfigEnvironmentTests {
     @Test
     func `projects Moonshot key with its bound region`() {
-        let config = ProviderConfig(
+        var config = ProviderConfig(
             id: .moonshot,
             apiKey: "china-token",
-            region: MoonshotRegion.china.rawValue,
-            apiKeyRegion: MoonshotRegion.china.rawValue)
+            region: MoonshotRegion.china.rawValue)
+        config.apiKeyRegion = MoonshotRegion.china.rawValue
         let env = ProviderConfigEnvironment.applyAPIKeyOverride(
             base: ["MOONSHOT_API_KEY": "international-token"],
             provider: .moonshot,
@@ -302,10 +302,10 @@ struct ProviderConfigEnvironmentTests {
 
     @Test
     func `applies API key override for moonshot`() {
-        let config = ProviderConfig(
+        var config = ProviderConfig(
             id: .moonshot,
-            apiKey: "moon-token",
-            apiKeyRegion: MoonshotRegion.international.rawValue)
+            apiKey: "moon-token")
+        config.apiKeyRegion = MoonshotRegion.international.rawValue
         let env = ProviderConfigEnvironment.applyAPIKeyOverride(
             base: [:],
             provider: .moonshot,
@@ -516,13 +516,13 @@ struct ProviderConfigEnvironmentTests {
 
     @Test
     func `bedrock profile mode projects AWS_PROFILE without saved static keys`() {
-        let config = ProviderConfig(
+        var config = ProviderConfig(
             id: .bedrock,
             apiKey: "AKIATEST",
             secretKey: "secret",
-            region: "eu-west-1",
-            awsProfile: "work",
-            awsAuthMode: "profile")
+            region: "eu-west-1")
+        config.awsProfile = "work"
+        config.awsAuthMode = "profile"
         let env = ProviderConfigEnvironment.applyAPIKeyOverride(
             base: [:],
             provider: .bedrock,
@@ -565,7 +565,9 @@ struct ProviderConfigEnvironmentTests {
 
     @Test
     func `bedrock profile mode preserves inherited static credentials for environment source profiles`() {
-        let config = ProviderConfig(id: .bedrock, awsProfile: "work", awsAuthMode: "profile")
+        var config = ProviderConfig(id: .bedrock)
+        config.awsProfile = "work"
+        config.awsAuthMode = "profile"
         let env = ProviderConfigEnvironment.applyAPIKeyOverride(
             base: [
                 BedrockSettingsReader.accessKeyIDKey: "AKIAINHERITED",
@@ -602,12 +604,12 @@ struct ProviderConfigEnvironmentTests {
 
     @Test
     func `bedrock keys mode still projects static credentials`() {
-        let config = ProviderConfig(
+        var config = ProviderConfig(
             id: .bedrock,
             apiKey: "AKIATEST",
             secretKey: "secret",
-            region: "us-west-2",
-            awsAuthMode: "keys")
+            region: "us-west-2")
+        config.awsAuthMode = "keys"
         let env = ProviderConfigEnvironment.applyAPIKeyOverride(
             base: [:],
             provider: .bedrock,
@@ -636,12 +638,12 @@ struct ProviderConfigEnvironmentTests {
 
     @Test
     func `projects the legacy DeepSeek Platform token and stable profile identifier`() {
-        let config = ProviderConfig(
+        var config = ProviderConfig(
             id: .deepseek,
             apiKey: "legacy-api-key",
-            cookieHeader: "browser-platform-token",
-            deepseekProfileID: "/profiles/Profile 2",
-            deepseekProfileScope: "account-id")
+            cookieHeader: "browser-platform-token")
+        config.deepseekProfileID = "/profiles/Profile 2"
+        config.deepseekProfileScope = "account-id"
         let env = ProviderConfigEnvironment.applyProviderConfigOverrides(
             base: [:],
             provider: .deepseek,
@@ -655,13 +657,10 @@ struct ProviderConfigEnvironmentTests {
 
     @Test
     func `normalization preserves a legacy DeepSeek browser token and canonicalizes the profile path`() throws {
-        let config = CodexBarConfig(providers: [
-            ProviderConfig(
-                id: .deepseek,
-                cookieHeader: "browser-platform-token",
-                deepseekProfileID: "/profiles/Profile 2",
-                deepseekProfileScope: " account-id "),
-        ]).normalized()
+        var providerConfig = ProviderConfig(id: .deepseek, cookieHeader: "browser-platform-token")
+        providerConfig.deepseekProfileID = "/profiles/Profile 2"
+        providerConfig.deepseekProfileScope = " account-id "
+        let config = CodexBarConfig(providers: [providerConfig]).normalized()
         let deepseek = try #require(config.providerConfig(for: .deepseek))
 
         #expect(deepseek.cookieHeader == "browser-platform-token")

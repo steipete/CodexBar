@@ -74,9 +74,7 @@ struct CodexActiveSourceConfigTests {
     func `provider config encodes live system active source with expected schema`() throws {
         let config = CodexBarConfig(
             providers: [
-                ProviderConfig(
-                    id: .codex,
-                    codexActiveSource: .liveSystem),
+                codexProviderConfig(activeSource: .liveSystem),
             ])
 
         let data = try JSONEncoder().encode(config)
@@ -95,9 +93,7 @@ struct CodexActiveSourceConfigTests {
         let accountID = UUID()
         let config = CodexBarConfig(
             providers: [
-                ProviderConfig(
-                    id: .codex,
-                    codexActiveSource: .managedAccount(id: accountID)),
+                codexProviderConfig(activeSource: .managedAccount(id: accountID)),
             ])
 
         let data = try JSONEncoder().encode(config)
@@ -115,10 +111,9 @@ struct CodexActiveSourceConfigTests {
     func `provider config encodes profile home source in downgrade readable envelope`() throws {
         let config = CodexBarConfig(
             providers: [
-                ProviderConfig(
-                    id: .codex,
-                    codexActiveSource: .profileHome(path: "/Users/test/.codex-work"),
-                    codexProfileHomePaths: ["/Users/test/.codex-work"]),
+                codexProviderConfig(
+                    activeSource: .profileHome(path: "/Users/test/.codex-work"),
+                    profileHomePaths: ["/Users/test/.codex-work"]),
             ])
 
         let data = try JSONEncoder().encode(config)
@@ -140,9 +135,7 @@ struct CodexActiveSourceConfigTests {
     func `provider config round trips live system active source`() throws {
         let config = CodexBarConfig(
             providers: [
-                ProviderConfig(
-                    id: .codex,
-                    codexActiveSource: .liveSystem),
+                codexProviderConfig(activeSource: .liveSystem),
             ])
 
         let data = try JSONEncoder().encode(config)
@@ -156,9 +149,7 @@ struct CodexActiveSourceConfigTests {
         let accountID = UUID()
         let config = CodexBarConfig(
             providers: [
-                ProviderConfig(
-                    id: .codex,
-                    codexActiveSource: .managedAccount(id: accountID)),
+                codexProviderConfig(activeSource: .managedAccount(id: accountID)),
             ])
 
         let data = try JSONEncoder().encode(config)
@@ -171,10 +162,9 @@ struct CodexActiveSourceConfigTests {
     func `provider config round trips profile home active source`() throws {
         let config = CodexBarConfig(
             providers: [
-                ProviderConfig(
-                    id: .codex,
-                    codexActiveSource: .profileHome(path: "/Users/test/.codex-work"),
-                    codexProfileHomePaths: ["/Users/test/.codex-work"]),
+                codexProviderConfig(
+                    activeSource: .profileHome(path: "/Users/test/.codex-work"),
+                    profileHomePaths: ["/Users/test/.codex-work"]),
             ])
 
         let data = try JSONEncoder().encode(config)
@@ -206,6 +196,16 @@ struct CodexActiveSourceConfigTests {
 
         #expect(decoded == .liveSystem)
     }
+}
+
+private func codexProviderConfig(
+    activeSource: CodexActiveSource,
+    profileHomePaths: [String]? = nil) -> ProviderConfig
+{
+    var config = ProviderConfig(id: .codex)
+    config.codexActiveSource = activeSource
+    config.codexProfileHomePaths = profileHomePaths
+    return config
 }
 
 private struct ReleasedCodexBarConfig: Decodable {

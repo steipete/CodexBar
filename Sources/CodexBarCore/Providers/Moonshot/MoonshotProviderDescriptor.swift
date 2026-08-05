@@ -44,7 +44,11 @@ public enum MoonshotProviderDescriptor {
             cli: ProviderCLIConfig(
                 name: "moonshot",
                 aliases: [],
-                versionDetector: nil))
+                versionDetector: nil),
+            configNormalizer: { config in
+                guard config.sanitizedAPIKey != nil, config.sanitizedAPIKeyRegion == nil else { return }
+                config.apiKeyRegion = config.sanitizedRegion ?? MoonshotRegion.international.rawValue
+            })
     }
 }
 
