@@ -1,5 +1,21 @@
 import Foundation
 
+package struct CostUsageTokenActivityCache: Sendable, Equatable {
+    package let daily: [CostUsageDailyReport.Entry]
+    package let coverageSinceKey: String
+    package let coverageUntilKey: String
+
+    package init(
+        daily: [CostUsageDailyReport.Entry],
+        coverageSinceKey: String,
+        coverageUntilKey: String)
+    {
+        self.daily = daily
+        self.coverageSinceKey = coverageSinceKey
+        self.coverageUntilKey = coverageUntilKey
+    }
+}
+
 public struct CostUsageWindowSummary: Sendable, Equatable {
     public let days: Int
     public let totalTokens: Int?

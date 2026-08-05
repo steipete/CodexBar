@@ -1380,3 +1380,13 @@
 "Resets" = "Сбросы";
 "Finish now" = "Завершить сейчас";
 "Continue in background" = "Продолжить в фоновом режиме";
+
+"Cumulative" = "Накопительно";
+"Token activity" = "Активность токенов";
+"View" = "Вид";
+"in the last year" = "за последний год";
+"No activity in the last 12 months" = "Нет активности за последние 12 месяцев";
+"Each column = 1 week" = "Каждый столбец = 1 неделя";
+"Running total" = "Накопленный итог";
+"Less" = "Меньше";
+"More" = "Больше";

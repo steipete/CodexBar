@@ -1382,3 +1382,13 @@
 "Resets" = "การรีเซ็ต";
 "Finish now" = "เสร็จสิ้นตอนนี้";
 "Continue in background" = "ทำต่อในเบื้องหลัง";
+
+"Cumulative" = "สะสม";
+"Token activity" = "กิจกรรมโทเทน";
+"View" = "มุมมอง";
+"in the last year" = "ในปีที่ผ่านมา";
+"No activity in the last 12 months" = "ไม่มีกิจกรรมในช่วง 12 เดือนที่ผ่านมา";
+"Each column = 1 week" = "แต่ละคอลัมน์ = 1 สัปดาห์";
+"Running total" = "ยอดรวมสะสม";
+"Less" = "น้อย";
+"More" = "มาก";

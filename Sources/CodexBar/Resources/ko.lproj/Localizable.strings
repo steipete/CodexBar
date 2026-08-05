@@ -1346,3 +1346,13 @@
 "Resets" = "재설정";
 "Finish now" = "지금 완료";
 "Continue in background" = "백그라운드에서 계속";
+
+"Cumulative" = "누적";
+"Token activity" = "토큰 활동";
+"View" = "보기";
+"in the last year" = "지난 1년";
+"No activity in the last 12 months" = "지난 12개월 동안 활동 없음";
+"Each column = 1 week" = "각 열 = 1주";
+"Running total" = "누적 합계";
+"Less" = "적음";
+"More" = "많음";

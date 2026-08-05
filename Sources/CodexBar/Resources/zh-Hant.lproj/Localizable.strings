@@ -1409,3 +1409,13 @@
 "Resets" = "重設";
 "Finish now" = "立即完成";
 "Continue in background" = "在背景繼續";
+
+"Cumulative" = "累計";
+"Token activity" = "Token 活動";
+"View" = "檢視";
+"in the last year" = "近一年";
+"No activity in the last 12 months" = "近 12 個月暫無活動";
+"Each column = 1 week" = "每列 = 1 週";
+"Running total" = "累計總量";
+"Less" = "少";
+"More" = "多";

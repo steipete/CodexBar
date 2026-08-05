@@ -1380,3 +1380,13 @@
 "Resets" = "Sıfırlamalar";
 "Finish now" = "Şimdi tamamla";
 "Continue in background" = "Arka planda devam et";
+
+"Cumulative" = "Kümülatif";
+"Token activity" = "Token etkinliği";
+"View" = "Görünüm";
+"in the last year" = "son yılda";
+"No activity in the last 12 months" = "Son 12 ayda etkinlik yok";
+"Each column = 1 week" = "Her sütun = 1 hafta";
+"Running total" = "Birikimli toplam";
+"Less" = "Az";
+"More" = "Çok";

@@ -5,15 +5,25 @@ import WidgetKit
 #endif
 
 extension UsageStore {
+    /// Tests must never touch the real app-group container: the widget-snapshot
+    /// `open()` can block forever behind macOS 26 app-data (TCC) gating, hanging
+    /// the whole suite. A test opts into persistence with an in-memory save
+    /// override (its container load is stubbed out) or an injected snapshot URL
+    /// that redirects all I/O to a test-owned file.
+    static func shouldPersistWidgetSnapshot(
+        isRunningTests: Bool,
+        hasSaveOverride: Bool,
+        hasInjectedSnapshotURL: Bool) -> Bool
+    {
+        !isRunningTests || hasSaveOverride || hasInjectedSnapshotURL
+    }
+
     func persistWidgetSnapshot(reason: String) {
-        #if DEBUG
-        // Unsigned test processes must not cross into the real app-group container. Snapshot tests
-        // opt in with an in-memory save override or an injected file URL.
-        guard !SettingsStore.isRunningTests ||
-            self._test_widgetSnapshotSaveOverride != nil ||
-            self.widgetSnapshotURL != nil
+        guard Self.shouldPersistWidgetSnapshot(
+            isRunningTests: SettingsStore.isRunningTests,
+            hasSaveOverride: self._test_widgetSnapshotSaveOverride != nil,
+            hasInjectedSnapshotURL: self.widgetSnapshotURL != nil)
         else { return }
-        #endif
         // A fresh process has token-cost data before a user-authorized Claude OAuth refresh can run.
         // Keep the last queued snapshot in memory so back-to-back writes cannot race the on-disk cache.
         let previousSnapshot = self.lastQueuedWidgetSnapshot ?? {

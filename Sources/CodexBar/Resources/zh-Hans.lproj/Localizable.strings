@@ -1357,3 +1357,13 @@
 "Resets" = "重置";
 "Finish now" = "立即完成";
 "Continue in background" = "转为后台运行";
+
+"Cumulative" = "累计";
+"Token activity" = "Token 活动";
+"View" = "视图";
+"in the last year" = "近一年";
+"No activity in the last 12 months" = "近 12 个月暂无活动";
+"Each column = 1 week" = "每列 = 1 周";
+"Running total" = "累计总量";
+"Less" = "少";
+"More" = "多";
