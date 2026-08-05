@@ -6,7 +6,7 @@ import FoundationNetworking
 /// Fetches live billing data from `api.commandcode.ai` using a better-auth session
 /// cookie scraped from the user's browser.
 public enum CommandCodeUsageFetcher {
-    private static let log = CodexBarLog.logger(LogCategories.commandcodeUsage)
+    private static let log = CodexBarLog.logger(LogCategories.provider(.commandcode, scope: "usage"))
     private static let requestTimeoutSeconds: TimeInterval = 15
     private static let subscriptionGraceSeconds: TimeInterval = 2
     private static let apiBase = URL(string: "https://api.commandcode.ai")!

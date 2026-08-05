@@ -304,7 +304,7 @@ extension OpenRouterUsageSnapshot {
 
 /// Fetches usage stats from the OpenRouter API
 public struct OpenRouterUsageFetcher: Sendable {
-    private static let log = CodexBarLog.logger(LogCategories.openRouterUsage)
+    private static let log = CodexBarLog.logger(LogCategories.provider(.openrouter, scope: "usage"))
     private static let rateLimitTimeoutSeconds: TimeInterval = 1.0
     private static let creditsRequestTimeoutSeconds: TimeInterval = 15
     private static let maxErrorBodyLength = 240

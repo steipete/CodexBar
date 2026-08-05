@@ -97,7 +97,7 @@ struct DevinWebFetchStrategy: ProviderFetchStrategy {
         let fetcher = DevinUsageFetcher(browserDetection: context.browserDetection)
         let settings = context.settings?.devin
         let logger: ((String) -> Void)? = context.verbose
-            ? { msg in CodexBarLog.logger(LogCategories.devin).verbose(msg) }
+            ? { msg in CodexBarLog.logger(LogCategories.provider(.devin)).verbose(msg) }
             : nil
         let snapshot = try await fetcher.fetch(
             bearerTokenOverride: settings?.cookieSource == .manual ? Self.bearerTokenOverride(context: context) : nil,

@@ -85,7 +85,7 @@ struct AbacusWebFetchStrategy: ProviderFetchStrategy {
             manual = nil
         }
         let logger: ((String) -> Void)? = context.verbose
-            ? { msg in CodexBarLog.logger(LogCategories.abacusUsage).verbose(msg) }
+            ? { msg in CodexBarLog.logger(LogCategories.provider(.abacus, scope: "usage")).verbose(msg) }
             : nil
         let snap = try await AbacusUsageFetcher.fetchUsage(
             cookieHeaderOverride: manual,

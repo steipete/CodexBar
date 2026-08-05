@@ -64,7 +64,7 @@ public enum LongCatProviderDescriptor {
 struct LongCatWebFetchStrategy: ProviderFetchStrategy {
     let id: String = "longcat.web"
     let kind: ProviderFetchKind = .web
-    private static let log = CodexBarLog.logger(LogCategories.longcatWeb)
+    private static let log = CodexBarLog.logger(LogCategories.provider(.longcat, scope: "web"))
 
     func isAvailable(_ context: ProviderFetchContext) async -> Bool {
         if LongCatCookieHeader.resolveCookieOverride(context: context) != nil {

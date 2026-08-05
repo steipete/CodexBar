@@ -24,7 +24,7 @@ public enum OpenCodeUsageError: LocalizedError {
 }
 
 public struct OpenCodeUsageFetcher: Sendable {
-    private static let log = CodexBarLog.logger(LogCategories.opencodeUsage)
+    private static let log = CodexBarLog.logger(LogCategories.provider(.opencode, scope: "usage"))
     private static let baseURL = URL(string: "https://opencode.ai")!
     private static let serverURL = URL(string: "https://opencode.ai/_server")!
     private static let workspacesServerID = "def39973159c7f0483d8793a822b8dbb10d067e12c65455fcb4608459ba0234f"

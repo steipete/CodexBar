@@ -263,7 +263,7 @@ public struct KiroStatusProbe: Sendable {
         self.pipeProcessRegistry = pipeProcessRegistry
     }
 
-    private static let logger = CodexBarLog.logger(LogCategories.kiro)
+    private static let logger = CodexBarLog.logger(LogCategories.provider(.kiro))
 
     public static func detectVersion() -> String? {
         guard let path = TTYCommandRunner.which("kiro-cli"),

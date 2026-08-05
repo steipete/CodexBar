@@ -450,7 +450,7 @@ public final class AugmentSessionKeepalive {
         return false
     }
 
-    private static let log = CodexBarLog.logger(LogCategories.augmentKeepalive)
+    private static let log = CodexBarLog.logger(LogCategories.provider(.augment, scope: "keepalive"))
 
     private static func durationDescription(seconds: TimeInterval) -> String {
         let totalSeconds = max(0, Int(seconds.rounded()))

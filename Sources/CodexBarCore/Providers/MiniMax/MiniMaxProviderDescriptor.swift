@@ -176,7 +176,7 @@ struct MiniMaxAPIFetchStrategy: ProviderFetchStrategy {
 struct MiniMaxCodingPlanFetchStrategy: ProviderFetchStrategy {
     let id: String = "minimax.web"
     let kind: ProviderFetchKind = .web
-    private static let log = CodexBarLog.logger(LogCategories.minimaxWeb)
+    private static let log = CodexBarLog.logger(LogCategories.provider(.minimax, scope: "web"))
 
     func isAvailable(_ context: ProviderFetchContext) async -> Bool {
         if Self.resolveCookieOverride(context: context) != nil {

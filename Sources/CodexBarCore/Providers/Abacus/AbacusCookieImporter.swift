@@ -6,7 +6,7 @@ import SweetCookieKit
 // MARK: - Abacus Cookie Importer
 
 public enum AbacusCookieImporter {
-    private static let log = CodexBarLog.logger(LogCategories.abacusCookie)
+    private static let log = CodexBarLog.logger(LogCategories.provider(.abacus, scope: "cookie"))
     private static let cookieClient = BrowserCookieClient()
     private static let cookieDomains = ["abacus.ai", "apps.abacus.ai"]
     private static let cookieImportOrder: BrowserCookieImportOrder =

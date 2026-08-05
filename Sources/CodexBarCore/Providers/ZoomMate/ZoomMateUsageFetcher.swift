@@ -4,7 +4,7 @@ import FoundationNetworking
 #endif
 
 public struct ZoomMateUsageFetcher: Sendable {
-    private static let log = CodexBarLog.logger(LogCategories.zoommate)
+    private static let log = CodexBarLog.logger(LogCategories.provider(.zoommate))
     private static let refererURL = URL(string: "https://zoommate.zoom.us")!
     /// First-party API hosts, tried in order. `ai.zoom.us` and `zoommate.zoom.us` currently serve
     /// the same `/ai-computer/` API interchangeably and either may retire in the future, so every

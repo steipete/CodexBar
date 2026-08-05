@@ -232,7 +232,7 @@ public enum DoubaoUsageError: LocalizedError, Sendable {
 }
 
 public struct DoubaoUsageFetcher: Sendable {
-    private static let log = CodexBarLog.logger(LogCategories.doubaoUsage)
+    private static let log = CodexBarLog.logger(LogCategories.provider(.doubao, scope: "usage"))
     private static let apiURL = URL(string: "https://ark.cn-beijing.volces.com/api/coding/v3/chat/completions")!
     private static let codingPlanAPIURL = URL(
         string: "https://open.volcengineapi.com/?Action=GetCodingPlanUsage&Version=2024-01-01")!

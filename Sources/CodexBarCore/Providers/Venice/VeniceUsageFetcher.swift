@@ -159,7 +159,7 @@ public enum VeniceUsageError: LocalizedError, Sendable {
 // MARK: - Fetcher
 
 public struct VeniceUsageFetcher: Sendable {
-    private static let log = CodexBarLog.logger(LogCategories.veniceUsage)
+    private static let log = CodexBarLog.logger(LogCategories.provider(.venice, scope: "usage"))
     private static let balanceURL = URL(string: "https://api.venice.ai/api/v1/billing/balance")!
     private static let timeoutSeconds: TimeInterval = 15
 

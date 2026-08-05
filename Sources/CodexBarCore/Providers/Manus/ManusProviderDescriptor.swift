@@ -103,7 +103,7 @@ struct ManusWebFetchStrategy: ProviderFetchStrategy {
 
     let id: String = "manus.web"
     let kind: ProviderFetchKind = .web
-    private static let log = CodexBarLog.logger(LogCategories.manusWeb)
+    private static let log = CodexBarLog.logger(LogCategories.provider(.manus, scope: "web"))
 
     func isAvailable(_ context: ProviderFetchContext) async -> Bool {
         guard context.settings?.manus?.cookieSource != .off else { return false }

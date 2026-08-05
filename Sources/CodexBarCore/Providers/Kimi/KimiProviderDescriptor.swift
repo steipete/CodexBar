@@ -252,7 +252,7 @@ private enum KimiCodeAPIFallbackPolicy {
 struct KimiWebFetchStrategy: ProviderFetchStrategy {
     let id: String = "kimi.web"
     let kind: ProviderFetchKind = .web
-    private static let log = CodexBarLog.logger(LogCategories.kimiWeb)
+    private static let log = CodexBarLog.logger(LogCategories.provider(.kimi, scope: "web"))
 
     func isAvailable(_ context: ProviderFetchContext) async -> Bool {
         if KimiCookieHeader.resolveCookieOverride(context: context) != nil {

@@ -163,7 +163,7 @@ struct AntigravityCLIHTTPSFetchStrategy: ProviderFetchStrategy {
     static let sourceLabel = "cli"
     let id: String = "antigravity.cli-https"
     let kind: ProviderFetchKind = .cli
-    private static let log = CodexBarLog.logger(LogCategories.antigravity)
+    private static let log = CodexBarLog.logger(LogCategories.provider(.antigravity))
 
     struct SnapshotWaitDependencies {
         let pollIntervalNanoseconds: UInt64

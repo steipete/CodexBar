@@ -4,7 +4,7 @@ import Foundation
 import SweetCookieKit
 
 public enum LongCatCookieImporter {
-    private static let log = CodexBarLog.logger(LogCategories.longcatCookie)
+    private static let log = CodexBarLog.logger(LogCategories.provider(.longcat, scope: "cookie"))
     private static let cookieClient = BrowserCookieClient()
     private static let cookieDomains = ["longcat.chat", "www.longcat.chat"]
     private static let cookieImportOrder: BrowserCookieImportOrder =

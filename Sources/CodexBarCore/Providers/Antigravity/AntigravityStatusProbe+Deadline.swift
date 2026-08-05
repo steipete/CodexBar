@@ -1,7 +1,7 @@
 import Foundation
 
 extension AntigravityStatusProbe {
-    private static let processProbeLog = CodexBarLog.logger(LogCategories.antigravity)
+    private static let processProbeLog = CodexBarLog.logger(LogCategories.provider(.antigravity))
 
     private enum ProcessSnapshotFetchFailure {
         case antigravity(AntigravityStatusProbeError)

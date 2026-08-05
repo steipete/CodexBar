@@ -348,7 +348,7 @@ public enum StepFunUsageError: LocalizedError, Sendable {
 // MARK: - Fetcher
 
 public struct StepFunUsageFetcher: Sendable {
-    private static let log = CodexBarLog.logger(LogCategories.stepfunUsage)
+    private static let log = CodexBarLog.logger(LogCategories.provider(.stepfun, scope: "usage"))
     private static let platformURL = URL(string: "https://platform.stepfun.com")!
     private static let apiURL =
         URL(string: "https://platform.stepfun.com/api/step.openapi.devcenter.Dashboard/QueryStepPlanRateLimit")!

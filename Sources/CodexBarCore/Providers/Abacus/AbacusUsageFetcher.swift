@@ -24,7 +24,7 @@ public enum AbacusUsageFetcher {
         let value: [String: Any]
     }
 
-    private static let log = CodexBarLog.logger(LogCategories.abacusUsage)
+    private static let log = CodexBarLog.logger(LogCategories.provider(.abacus, scope: "usage"))
     private static let computePointsURL =
         URL(string: "https://apps.abacus.ai/api/_getOrganizationComputePoints")!
     private static let billingInfoURL =

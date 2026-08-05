@@ -123,7 +123,7 @@ final class CursorLoginRunner {
     private let accountChooser: AccountChooser?
     private let timeout: TimeInterval
     private let pollInterval: TimeInterval
-    private let logger = CodexBarLog.logger(LogCategories.cursorLogin)
+    private let logger = CodexBarLog.logger(LogCategories.provider(.cursor, scope: "login"))
 
     static let authURL = URL(string: "https://authenticator.cursor.sh/")!
 

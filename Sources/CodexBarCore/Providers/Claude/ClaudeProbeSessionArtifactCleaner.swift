@@ -1,7 +1,7 @@
 import Foundation
 
 enum ClaudeProbeSessionArtifactCleaner {
-    private static let log = CodexBarLog.logger(LogCategories.claudeProbe)
+    private static let log = CodexBarLog.logger(LogCategories.provider(.claude, scope: "probe"))
     private static let maxProjectDirectoryNameLength = 200
 
     @discardableResult

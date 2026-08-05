@@ -26,7 +26,7 @@ protocol ClaudeOAuthPendingCacheClearStore: Sendable {
 
 final class ClaudeOAuthPendingCacheClearUserDefaultsStore: ClaudeOAuthPendingCacheClearStore, @unchecked Sendable {
     private static let processLock = NSLock()
-    private static let log = CodexBarLog.logger(LogCategories.claudeUsage)
+    private static let log = CodexBarLog.logger(LogCategories.provider(.claude, scope: "usage"))
     private static let legacyProfileIdentifier = "__legacy__"
     private static let legacyCleanupProfilePrefix = "__legacy_cleanup__."
     private static let legacyRecheckProfilePrefix = "__legacy_recheck__."

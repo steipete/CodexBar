@@ -19,7 +19,7 @@ public struct LongCatUsageFetcher: Sendable {
         }
     }
 
-    private static let log = CodexBarLog.logger(LogCategories.longcatAPI)
+    private static let log = CodexBarLog.logger(LogCategories.provider(.longcat, scope: "api"))
     private static let host = "https://longcat.chat"
 
     private static let userCurrentPath = "/api/v1/user-current"

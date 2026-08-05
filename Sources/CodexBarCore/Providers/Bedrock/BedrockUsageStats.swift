@@ -107,7 +107,7 @@ extension BedrockUsageSnapshot {
 }
 
 enum BedrockUsageFetcher {
-    private static let log = CodexBarLog.logger(LogCategories.bedrockUsage)
+    private static let log = CodexBarLog.logger(LogCategories.provider(.bedrock, scope: "usage"))
     private static let requestTimeoutSeconds: TimeInterval = 15
 
     private struct CostExplorerQuery {

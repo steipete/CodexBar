@@ -31,7 +31,7 @@ public struct AntigravityRemoteUsageFetcher: Sendable {
     public var oauthClientResolver: @Sendable () -> AntigravityOAuthClient?
     public var credentialsUpdateHandler: @Sendable (AntigravityOAuthCredentials) async throws -> Void
 
-    private static let log = CodexBarLog.logger(LogCategories.antigravity)
+    private static let log = CodexBarLog.logger(LogCategories.provider(.antigravity))
     private static let userAgent = "antigravity"
     private static let baseURL = "https://cloudcode-pa.googleapis.com"
     private static let loadCodeAssistEndpoint = "\(baseURL)/v1internal:loadCodeAssist"

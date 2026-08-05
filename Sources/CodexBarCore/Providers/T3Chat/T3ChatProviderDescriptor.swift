@@ -95,7 +95,7 @@ struct T3ChatWebFetchStrategy: ProviderFetchStrategy {
         let fetcher = T3ChatUsageFetcher(browserDetection: context.browserDetection)
         let manual = Self.manualCookieHeader(from: context)
         let logger: ((String) -> Void)? = context.verbose
-            ? { msg in CodexBarLog.logger(LogCategories.t3chat).verbose(msg) }
+            ? { msg in CodexBarLog.logger(LogCategories.provider(.t3chat)).verbose(msg) }
             : nil
         let snapshot = try await fetcher.fetch(
             cookieHeaderOverride: manual,

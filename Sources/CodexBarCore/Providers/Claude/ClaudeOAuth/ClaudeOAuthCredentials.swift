@@ -33,7 +33,7 @@ public enum ClaudeOAuthCredentialsStore {
             ?? self.defaultOAuthClientID
     }
 
-    static let log = CodexBarLog.logger(LogCategories.claudeUsage)
+    static let log = CodexBarLog.logger(LogCategories.provider(.claude, scope: "usage"))
     /// The unscoped fingerprint key used by released builds. It is attributable only to the
     /// historical default credentials profile and is migrated lazily to that profile.
     private static let legacyFileFingerprintKey = "ClaudeOAuthCredentialsFileFingerprintV2"

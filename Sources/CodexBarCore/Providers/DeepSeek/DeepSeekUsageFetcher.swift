@@ -280,7 +280,7 @@ public struct DeepSeekUsageFetcher: Sendable {
         case cost(Data)
     }
 
-    private static let log = CodexBarLog.logger(LogCategories.deepSeekUsage)
+    private static let log = CodexBarLog.logger(LogCategories.provider(.deepseek, scope: "usage"))
     private static let balanceURL = URL(string: "https://api.deepseek.com/user/balance")!
     private static let usageAmountURL = URL(string: "https://platform.deepseek.com/api/v0/usage/amount")!
     private static let usageCostURL = URL(string: "https://platform.deepseek.com/api/v0/usage/cost")!

@@ -7,7 +7,7 @@ import SweetCookieKit
 public enum CommandCodeCookieImporter {
     private static let importSessionCacheTTL: TimeInterval = 5
     private static let importSessionCache = ImportSessionCache(ttl: importSessionCacheTTL)
-    private static let log = CodexBarLog.logger(LogCategories.commandcodeCookie)
+    private static let log = CodexBarLog.logger(LogCategories.provider(.commandcode, scope: "cookie"))
     private static let cookieClient = BrowserCookieClient()
     private static let cookieDomains = ["commandcode.ai", "www.commandcode.ai"]
     private static let cookieImportOrder: BrowserCookieImportOrder =
