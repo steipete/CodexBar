@@ -8,6 +8,14 @@ import Musl
 #endif
 
 private let requestReadTimeoutMilliseconds: Int32 = 5000
+/// Ceiling on how long one client may take to deliver a complete request head.
+///
+/// `requestReadTimeoutMilliseconds` only bounds a single `recv`, so a client that
+/// sends one byte just inside that window can hold its connection — and the
+/// cooperative-executor thread serving it — indefinitely. Both the Host allowlist
+/// and the bearer-token check run only after the head has been read, so without an
+/// overall bound a few such clients exhaust `maximumConnections` pre-auth.
+private let requestTotalReadTimeoutMilliseconds: Int64 = 10000
 
 /// Host header values a `CLILocalHTTPServer` accepts. Loopback names are always allowed;
 /// non-loopback bind hosts extend the set instead of replacing the loopback check.
@@ -485,8 +493,18 @@ private func readRequest(
     let bufferSize = buffer.count
     var sawHeaderEnd = false
 
+    let startedAt = DispatchTime.now().uptimeNanoseconds
+
     while data.count < 16384 {
-        guard waitForReadable(fd, timeoutMilliseconds: requestReadTimeoutMilliseconds) else {
+        // Bound the request as a whole, not just each read: a client trickling one
+        // byte per read window would otherwise never time out.
+        let elapsedMilliseconds = Int64((DispatchTime.now().uptimeNanoseconds &- startedAt) / 1_000_000)
+        let remainingMilliseconds = requestTotalReadTimeoutMilliseconds - elapsedMilliseconds
+        guard remainingMilliseconds > 0 else {
+            return .failure(.invalidRequest)
+        }
+        let waitMilliseconds = Int32(min(Int64(requestReadTimeoutMilliseconds), remainingMilliseconds))
+        guard waitForReadable(fd, timeoutMilliseconds: waitMilliseconds) else {
             return .failure(.invalidRequest)
         }
         let count = buffer.withUnsafeMutableBytes { rawBuffer in
