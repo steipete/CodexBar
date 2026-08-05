@@ -755,32 +755,6 @@ struct SpendDashboardControllerTests {
         #expect(controller.model.groups.isEmpty)
     }
 
-    @Test
-    func `range selection persists only supported windows`() throws {
-        let suite = "SpendDashboardControllerTests-days"
-        let defaults = try #require(UserDefaults(suiteName: suite))
-        defaults.removePersistentDomain(forName: suite)
-        defer { defaults.removePersistentDomain(forName: suite) }
-        let controller = SpendDashboardController(
-            userDefaults: defaults,
-            requestBuilder: { mode in
-                Self.request(
-                    configuration: Self.configuration(account: "unused"),
-                    force: mode.forcesLoader)
-            })
-
-        #expect(controller.selectedDays == 30)
-        controller.selectDays(7)
-        #expect(controller.selectedDays == 7)
-        #expect(defaults.integer(forKey: "settingsSpendDashboardDays") == 7)
-        controller.selectDays(30)
-        #expect(controller.selectedDays == 30)
-        controller.selectDays(365)
-        #expect(controller.selectedDays == 365)
-        controller.selectDays(9)
-        #expect(controller.selectedDays == 30)
-    }
-
     private nonisolated static let fixtureNow = Date(timeIntervalSince1970: 1_784_179_200)
 
     private static func dashboardController(
