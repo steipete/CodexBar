@@ -99,6 +99,31 @@ struct ClaudeOAuthDelegatedRefreshUnreadableResultTests {
     }
 
     @Test
+    func `failed touch stays retryable even in the unreadable configuration`() async throws {
+        let root = try self.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        struct TouchStubError: Error, LocalizedError {
+            var errorDescription: String? {
+                "SessionError: capture timed out"
+            }
+        }
+        let result = try await self.attemptWithUnreadableKeychain(
+            credentialsURL: root.appendingPathComponent(".credentials.json"),
+            now: Date(timeIntervalSince1970: 72000),
+            touchAuthPath: { _, _ in throw TouchStubError() })
+
+        // Deliberate: a touch *error* may be transient, and on older Claude Code a retried touch can still
+        // create the credentials file, so only the completes-cleanly-but-unobservable variant is terminal.
+        #expect(!result.isUnreadableAfterRefresh)
+        guard case let .attemptedFailed(message) = result.outcome else {
+            Issue.record("Expected .attemptedFailed, got \(result)")
+            return
+        }
+        #expect(message.contains("SessionError"))
+    }
+
+    @Test
     func `unchanged fingerprint stays retryable when a credentials file is present`() async throws {
         let root = try self.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }

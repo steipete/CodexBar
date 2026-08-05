@@ -304,6 +304,9 @@ public enum ClaudeOAuthDelegatedRefreshCoordinator {
             return AttemptResult(.attemptedSucceeded)
         }
 
+        // A touch *error* deliberately stays retryable even when nothing is readable: the error may be transient,
+        // and on older Claude Code a retried touch can still create the credentials file. Only the
+        // completes-cleanly-but-unobservable variant is provably terminal.
         let unreadable = touchError == nil
             && self.isRefreshResultUnreadable(configuration: configuration)
         self.recordAttempt(
