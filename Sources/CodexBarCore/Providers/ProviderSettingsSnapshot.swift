@@ -45,6 +45,10 @@ public struct ProviderSettingsSnapshot: Sendable {
         return ProviderSettingsSnapshot(section, for: key)
     }
 
+    public static func make() -> ProviderSettingsSnapshot {
+        ProviderSettingsSnapshot()
+    }
+
     public subscript<Key: ProviderSettingsSectionKey>(key: Key.Type) -> Key.Section? {
         self.sections[key.providerID] as? Key.Section
     }

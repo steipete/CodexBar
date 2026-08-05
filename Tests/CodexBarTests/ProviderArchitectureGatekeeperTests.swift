@@ -51,6 +51,15 @@ struct ProviderArchitectureGatekeeperTests {
     }
 
     @Test
+    func `empty settings snapshot factory has no provider sections`() {
+        let snapshot = ProviderSettingsSnapshot.make()
+
+        #expect(snapshot.abacus == nil)
+        #expect(!snapshot.debugMenuEnabled)
+        #expect(!snapshot.debugKeepCLISessionsAlive)
+    }
+
+    @Test
     func `every provider descriptor has a loadable SVG resource`() throws {
         let resources = try Self.repoRoot()
             .appending(path: "Sources/CodexBar/Resources", directoryHint: .isDirectory)
