@@ -24,105 +24,17 @@ case "$MODE" in
     ;;
 esac
 
-# Canonical first-party bootstrap order. This single declaration generates both manifests and the
-# ProviderInstanceID aliases; provider types are discovered from their provider-owned declarations.
-PROVIDERS=(
-  codex
-  openai
-  azureopenai
-  claude
-  clinepass
-  cursor
-  opencode
-  opencodego
-  alibaba
-  alibabatokenplan
-  qwencloud
-  factory
-  gemini
-  antigravity
-  copilot
-  devin
-  zai
-  minimax
-  manus
-  kimi
-  kilo
-  kiro
-  vertexai
-  augment
-  jetbrains
-  moonshot
-  amp
-  t3chat
-  ollama
-  synthetic
-  openrouter
-  elevenlabs
-  warp
-  windsurf
-  zed
-  perplexity
-  mimo
-  doubao
-  sakana
-  abacus
-  mistral
-  deepseek
-  deepinfra
-  codebuff
-  crof
-  venice
-  commandcode
-  qoder
-  stepfun
-  bedrock
-  grok
-  groq
-  llmproxy
-  litellm
-  deepgram
-  poe
-  chutes
-  neuralwatt
-  clawrouter
-  longcat
-  sub2api
-  wayfinder
-  zenmux
-  aiand
-  zoommate
-  xai
-  notion
-)
-
-ENUM_PROVIDERS=()
+# UsageProvider is the canonical first-party bootstrap order. Provider types are discovered from
+# their provider-owned declarations; this parsed order generates both manifests and the aliases.
+PROVIDERS=()
 while IFS= read -r provider; do
-  ENUM_PROVIDERS+=("$provider")
+  PROVIDERS+=("$provider")
 done < <(sed -nE '/public enum UsageProvider:/,/^}/s/^[[:space:]]*case ([a-z0-9]+)$/\1/p' "$PROVIDERS_FILE")
 
-contains_provider() {
-  local needle="$1"
-  shift
-  local candidate
-  for candidate in "$@"; do
-    [[ "$candidate" == "$needle" ]] && return 0
-  done
-  return 1
-}
-
-for provider in "${ENUM_PROVIDERS[@]}"; do
-  if ! contains_provider "$provider" "${PROVIDERS[@]}"; then
-    echo "error: UsageProvider '${provider}' is missing from the canonical PROVIDERS order in ${BASH_SOURCE[0]#${ROOT_DIR}/}" >&2
-    exit 1
-  fi
-done
-for provider in "${PROVIDERS[@]}"; do
-  if ! contains_provider "$provider" "${ENUM_PROVIDERS[@]}"; then
-    echo "error: canonical provider '${provider}' has no UsageProvider case in ${PROVIDERS_FILE#${ROOT_DIR}/}" >&2
-    exit 1
-  fi
-done
+if [[ "${#PROVIDERS[@]}" -eq 0 ]]; then
+  echo "error: no UsageProvider cases found in ${PROVIDERS_FILE#${ROOT_DIR}/}" >&2
+  exit 1
+fi
 
 DESCRIPTOR_TYPES=()
 IMPLEMENTATION_TYPES=()

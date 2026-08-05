@@ -13,6 +13,7 @@ struct ProviderRegistryTests {
 
         let missing = Set(UsageProvider.allCases).subtracting(ids)
         #expect(missing.isEmpty, "Missing descriptors for providers: \(missing).")
+        #expect(ids == UsageProvider.allCases, "Descriptor manifest order must match UsageProvider.")
 
         let secondPass = ProviderDescriptorRegistry.all.map(\.id)
         #expect(ids == secondPass, "ProviderDescriptorRegistry order changed between reads.")
@@ -28,6 +29,7 @@ struct ProviderRegistryTests {
 
         let missing = Set(UsageProvider.allCases).subtracting(ids)
         #expect(missing.isEmpty, "Missing implementations for providers: \(missing).")
+        #expect(ids == UsageProvider.allCases, "Implementation manifest order must match UsageProvider.")
 
         let secondPass = ProviderImplementationRegistry.all.map(\.id)
         #expect(ids == secondPass, "ProviderImplementationRegistry order changed between reads.")
