@@ -1754,6 +1754,7 @@ enum CostUsageScanner {
         if let override = options.grokSessionsRoot {
             scannerOptions.sessionsRoot = override
         }
+        scannerOptions.cacheRoot = options.cacheRoot
         return try GrokTurnUsageScanner.loadDailyReport(
             since: since,
             until: until,
