@@ -228,7 +228,8 @@ struct SpendDashboardModel: Equatable, Sendable {
             guard summary.totalCost != nil else { return false }
             let summaryModelHistory = Self.modelSummary(summaries: [summary])
             return summaryModelHistory.completeness == .complete ||
-                Self.canRetainPartialCodexModelHistory(summary)
+                Self.canRetainPartialCodexModelHistory(summary) ||
+                Self.canRetainTokenOnlyModelHistory(summary)
         }
         // A Codex session can have valid priced rows alongside model-less or unpriced rows.
         // Keep only the directly priced portion, but mark the aggregate partial and remove ranking.
