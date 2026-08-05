@@ -29,8 +29,8 @@ struct ProviderArchitectureGatekeeperTests {
             .abacus, .aiand, .alibaba, .alibabatokenplan, .amp, .antigravity, .augment,
             .azureopenai, .bedrock, .chutes, .claude, .clawrouter, .clinepass, .codebuff,
             .copilot, .crof, .cursor, .deepgram, .deepinfra, .deepseek, .doubao, .elevenlabs,
-            .factory, .groq, .kilo, .kimi, .litellm, .llmproxy, .longcat, .manus, .minimax,
-            .mistral, .moonshot, .neuralwatt, .ollama, .openai, .opencode, .opencodego,
+            .factory, .fireworks, .groq, .kilo, .kimi, .litellm, .llmproxy, .longcat, .manus,
+            .minimax, .mistral, .moonshot, .neuralwatt, .ollama, .openai, .opencode, .opencodego,
             .openrouter, .perplexity, .poe, .qoder, .qwencloud, .sakana, .stepfun, .sub2api,
             .synthetic, .venice, .warp, .wayfinder, .xai, .zai, .zenmux,
         ]
@@ -140,8 +140,8 @@ struct ProviderArchitectureGatekeeperTests {
             Self.hash(descriptor.branding.burnDownWidgetColor, into: &burnDownFingerprint)
         }
 
-        #expect(widgetFingerprint == 8_322_639_844_029_602_741)
-        #expect(burnDownFingerprint == 3_478_078_203_311_670_951)
+        #expect(widgetFingerprint == 14_107_788_210_679_862_955)
+        #expect(burnDownFingerprint == 10_228_205_203_406_434_725)
     }
 
     @Test

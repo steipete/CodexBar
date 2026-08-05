@@ -3,6 +3,7 @@
 ## 0.47.1 — Unreleased
 
 ### Added
+- Fireworks: new provider showing 30-day spend from the account billing summary API, with Settings fields for the API key and account slug (Fireworks has no whoami endpoint and no public balance API).
 - CLI: expose Codex cost-history completeness in JSON and add an experimental provider-native-only scan mode (#2520). Thanks @NickGuAI!
 - Usage & Spend: add an accessible daily, weekly, and cumulative token-activity heatmap backed by the existing persistent cost scan cache (#2548). Thanks @Yuxin-Qiao!
 - Settings: the sidebar is now resizable — drag the divider between 200–380pt; the width persists across launches.

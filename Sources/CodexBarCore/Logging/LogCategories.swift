@@ -39,6 +39,7 @@ public enum LogCategories {
     public static let devin = Self.provider(.devin)
     public static let doubaoUsage = Self.provider(.doubao, scope: "usage")
     public static let elevenLabsUsage = Self.provider(.elevenlabs, scope: "usage")
+    public static let fireworksUsage = Self.provider(.fireworks, scope: "usage")
     public static let geminiProbe = Self.provider(.gemini, scope: "probe")
     public static let grok = Self.provider(.grok)
     public static let hooks = "hooks"

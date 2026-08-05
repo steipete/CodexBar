@@ -39,6 +39,7 @@ PROVIDERS=(
   alibabatokenplan
   qwencloud
   factory
+  fireworks
   gemini
   antigravity
   copilot

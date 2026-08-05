@@ -117,6 +117,7 @@ See [CLI configuration](docs/cli-configuration.md) for the full flow.
 - [Abacus AI](docs/abacus.md) — Browser cookie auth for ChatLLM/RouteLLM compute credit tracking.
 - [Mistral](docs/mistral.md) — Browser cookies for API spend, credit balance, and monthly-plan usage.
 - [DeepSeek](docs/deepseek.md) — API key for credit balance tracking (paid vs. granted breakdown).
+- [Fireworks](docs/fireworks.md) — API key + account slug for 30-day spend from the billing summary API.
 - [DeepInfra](docs/deepinfra.md) — API key for prepaid balance, current-month spend, and spending-limit tracking.
 - [Moonshot / Kimi API](docs/moonshot.md) — API key for Moonshot/Kimi API account balance tracking.
 - [Venice](docs/venice.md) — API key for DIEM or USD balance tracking.
