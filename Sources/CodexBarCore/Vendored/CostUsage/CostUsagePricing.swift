@@ -791,9 +791,9 @@ enum CostUsagePricing {
         case .claude:
             [self.claudeModelsDevProviderID]
         case .alibaba:
-            ["alibaba-coding-plan", "alibaba-coding-plan-cn", "alibaba"]
+            ["alibaba-coding-plan", "alibaba-coding-plan-cn"]
         case .alibabatokenplan:
-            ["alibaba-token-plan", "alibaba-token-plan-cn", "alibaba"]
+            ["alibaba-token-plan", "alibaba-token-plan-cn"]
         case .zai:
             ["zai", "zai-coding-plan"]
         case .deepseek:

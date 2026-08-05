@@ -59,6 +59,11 @@ struct ModelsDevPricingTests {
           "alibaba": {
             "id": "alibaba",
             "name": "Alibaba",
+            "models": {}
+          },
+          "alibaba-coding-plan": {
+            "id": "alibaba-coding-plan",
+            "name": "Alibaba Coding Plan",
             "models": {
               "qwen3.7-max": {
                 "id": "qwen3.7-max",
@@ -176,6 +181,52 @@ struct ModelsDevPricingTests {
         #expect(deepSeekPro.pricing.cacheReadInputCostPerToken == 0.003625 / 1_000_000.0)
         #expect(CostUsagePricing.modelsDevPricing(
             provider: .deepseek,
+            model: "qwen3.7-max",
+            catalog: catalog) == nil)
+    }
+
+    @Test
+    func `alibaba plan providers do not fall back to direct api pricing`() throws {
+        let catalog = try Self.catalog("""
+        {
+          "alibaba": {
+            "id": "alibaba",
+            "name": "Alibaba",
+            "models": {
+              "qwen3.7-max": {
+                "id": "qwen3.7-max",
+                "name": "Qwen3.7 Max",
+                "cost": {
+                  "input": 2.5,
+                  "output": 7.5,
+                  "cache_read": 0.5,
+                  "cache_write": 3.125
+                },
+                "limit": {
+                  "context": 1000000
+                }
+              }
+            }
+          },
+          "alibaba-coding-plan": {
+            "id": "alibaba-coding-plan",
+            "name": "Alibaba Coding Plan",
+            "models": {}
+          },
+          "alibaba-token-plan": {
+            "id": "alibaba-token-plan",
+            "name": "Alibaba Token Plan",
+            "models": {}
+          }
+        }
+        """)
+
+        #expect(CostUsagePricing.modelsDevPricing(
+            provider: .alibaba,
+            model: "qwen3.7-max",
+            catalog: catalog) == nil)
+        #expect(CostUsagePricing.modelsDevPricing(
+            provider: .alibabatokenplan,
             model: "qwen3.7-max",
             catalog: catalog) == nil)
     }
