@@ -19,6 +19,7 @@ public enum OpenAIAPIProviderDescriptor {
         ProviderDescriptor(
             id: .openai,
             credentials: self.credentials,
+            config: ProviderConfigCapabilities(workspaceIDValidationOrder: 1),
             metadata: ProviderMetadata(
                 id: .openai,
                 displayName: "OpenAI",

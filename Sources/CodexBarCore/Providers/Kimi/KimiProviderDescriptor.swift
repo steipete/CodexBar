@@ -36,6 +36,7 @@ public enum KimiProviderDescriptor {
             id: .kimi,
             settingsSection: .init(KimiProviderSettingsKey.self, cookieSettings: KimiProviderSettings.self),
             credentials: self.credentials,
+            config: ProviderConfigCapabilities(supportsEnterpriseHost: true),
             metadata: ProviderMetadata(
                 id: .kimi,
                 displayName: "Kimi Code",

@@ -28,6 +28,7 @@ public enum OpenCodeGoProviderDescriptor {
                         workspaceID: context.config?.workspaceID)
                 }),
             credentials: self.credentials,
+            config: ProviderConfigCapabilities(workspaceIDValidationOrder: 3),
             metadata: ProviderMetadata(
                 id: .opencodego,
                 displayName: "OpenCode Go",

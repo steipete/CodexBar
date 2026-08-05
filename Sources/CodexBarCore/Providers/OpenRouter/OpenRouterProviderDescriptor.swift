@@ -31,6 +31,7 @@ public enum OpenRouterProviderDescriptor {
         ProviderDescriptor(
             id: .openrouter,
             credentials: self.credentials,
+            config: ProviderConfigCapabilities(supportsEnterpriseHost: true),
             metadata: ProviderMetadata(
                 id: .openrouter,
                 displayName: "OpenRouter",

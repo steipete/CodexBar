@@ -38,6 +38,7 @@ public enum Sub2APIProviderDescriptor {
     public static let descriptor = ProviderDescriptor(
         id: .sub2api,
         credentials: Self.credentials,
+        config: ProviderConfigCapabilities(supportsEnterpriseHost: true),
         metadata: ProviderMetadata(
             id: .sub2api,
             displayName: "sub2api",

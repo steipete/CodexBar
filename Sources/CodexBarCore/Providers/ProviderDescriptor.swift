@@ -36,6 +36,19 @@ public struct ProviderHistoryCapability: Sendable, Equatable {
     }
 }
 
+public struct ProviderConfigCapabilities: Sendable, Equatable {
+    public let workspaceIDValidationOrder: Int?
+    public let supportsEnterpriseHost: Bool
+
+    public init(
+        workspaceIDValidationOrder: Int? = nil,
+        supportsEnterpriseHost: Bool = false)
+    {
+        self.workspaceIDValidationOrder = workspaceIDValidationOrder
+        self.supportsEnterpriseHost = supportsEnterpriseHost
+    }
+}
+
 public enum ProviderPaceWindowRule: Sendable {
     case unsupported
     case resetDatePresent
@@ -208,6 +221,7 @@ public struct ProviderDescriptor: Sendable {
     public let presentation: ProviderUsagePresentation
     public let settingsSection: ProviderSettingsSectionRegistration
     public let credentials: ProviderCredentialAdapter?
+    public let config: ProviderConfigCapabilities
     public let fetchPlan: ProviderFetchPlan
     public let cli: ProviderCLIConfig
     private let configNormalizer: @Sendable (inout ProviderConfig) -> Void
@@ -216,6 +230,7 @@ public struct ProviderDescriptor: Sendable {
         id: UsageProvider,
         settingsSection: ProviderSettingsSectionRegistration? = nil,
         credentials: ProviderCredentialAdapter? = nil,
+        config: ProviderConfigCapabilities = ProviderConfigCapabilities(),
         metadata: ProviderMetadata,
         branding: ProviderBranding,
         tokenCost: ProviderTokenCostConfig,
@@ -235,6 +250,7 @@ public struct ProviderDescriptor: Sendable {
         self.history = history
         self.presentation = presentation
         self.credentials = credentials
+        self.config = config
         self.fetchPlan = fetchPlan
         self.cli = cli
         self.configNormalizer = configNormalizer

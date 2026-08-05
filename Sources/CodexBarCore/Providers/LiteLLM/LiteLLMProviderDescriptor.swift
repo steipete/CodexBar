@@ -18,6 +18,7 @@ public enum LiteLLMProviderDescriptor {
         ProviderDescriptor(
             id: .litellm,
             credentials: self.credentials,
+            config: ProviderConfigCapabilities(supportsEnterpriseHost: true),
             metadata: ProviderMetadata(
                 id: .litellm,
                 displayName: "LiteLLM",

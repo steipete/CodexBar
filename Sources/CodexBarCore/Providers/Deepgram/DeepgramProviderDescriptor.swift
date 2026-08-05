@@ -25,6 +25,7 @@ public enum DeepgramProviderDescriptor {
         ProviderDescriptor(
             id: .deepgram,
             credentials: self.credentials,
+            config: ProviderConfigCapabilities(workspaceIDValidationOrder: 5),
             metadata: ProviderMetadata(
                 id: .deepgram,
                 displayName: "Deepgram",

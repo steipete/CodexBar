@@ -17,6 +17,7 @@ public enum DevinProviderDescriptor {
         ProviderDescriptor(
             id: .devin,
             settingsSection: .init(DevinProviderSettingsKey.self),
+            config: ProviderConfigCapabilities(workspaceIDValidationOrder: 4),
             metadata: ProviderMetadata(
                 id: .devin,
                 displayName: "Devin",

@@ -15,6 +15,7 @@ public enum AzureOpenAIProviderDescriptor {
         ProviderDescriptor(
             id: .azureopenai,
             credentials: self.credentials,
+            config: ProviderConfigCapabilities(workspaceIDValidationOrder: 0, supportsEnterpriseHost: true),
             metadata: ProviderMetadata(
                 id: .azureopenai,
                 displayName: "Azure OpenAI",

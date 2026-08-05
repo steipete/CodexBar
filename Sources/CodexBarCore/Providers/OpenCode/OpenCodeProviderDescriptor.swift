@@ -38,6 +38,7 @@ public enum OpenCodeProviderDescriptor {
                         workspaceID: context.config?.workspaceID)
                 }),
             credentials: self.credentials,
+            config: ProviderConfigCapabilities(workspaceIDValidationOrder: 2),
             metadata: ProviderMetadata(
                 id: .opencode,
                 displayName: "OpenCode",

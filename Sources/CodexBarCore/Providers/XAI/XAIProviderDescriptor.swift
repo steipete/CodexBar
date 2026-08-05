@@ -11,6 +11,7 @@ public enum XAIProviderDescriptor {
         ProviderDescriptor(
             id: .xai,
             credentials: self.credentials,
+            config: ProviderConfigCapabilities(workspaceIDValidationOrder: 6),
             metadata: ProviderMetadata(
                 id: .xai,
                 displayName: "xAI",

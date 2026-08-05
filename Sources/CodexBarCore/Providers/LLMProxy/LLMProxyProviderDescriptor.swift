@@ -18,6 +18,7 @@ public enum LLMProxyProviderDescriptor {
         ProviderDescriptor(
             id: .llmproxy,
             credentials: self.credentials,
+            config: ProviderConfigCapabilities(supportsEnterpriseHost: true),
             metadata: ProviderMetadata(
                 id: .llmproxy,
                 displayName: "LLM Proxy",

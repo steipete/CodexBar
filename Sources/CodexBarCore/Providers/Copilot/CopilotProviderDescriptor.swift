@@ -32,6 +32,7 @@ public enum CopilotProviderDescriptor {
                     manualCookieHeader: settings.manualBudgetCookieHeader)
             }),
             credentials: self.credentials,
+            config: ProviderConfigCapabilities(supportsEnterpriseHost: true),
             metadata: ProviderMetadata(
                 id: .copilot,
                 displayName: "Copilot",

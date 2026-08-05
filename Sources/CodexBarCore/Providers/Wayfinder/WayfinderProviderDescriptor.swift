@@ -2,14 +2,17 @@ import Foundation
 
 public enum WayfinderProviderDescriptor {
     public static let descriptor: ProviderDescriptor = Self.makeDescriptor()
-    private static let credentials = ProviderCredentialAdapter(environmentProjections: [
-        .enterpriseHost(WayfinderSettingsReader.baseURLEnvironmentKey),
-    ])
+    private static let credentials = ProviderCredentialAdapter(
+        requiresAPIKeyForAPISource: false,
+        environmentProjections: [
+            .enterpriseHost(WayfinderSettingsReader.baseURLEnvironmentKey),
+        ])
 
     static func makeDescriptor() -> ProviderDescriptor {
         ProviderDescriptor(
             id: .wayfinder,
             credentials: self.credentials,
+            config: ProviderConfigCapabilities(supportsEnterpriseHost: true),
             metadata: ProviderMetadata(
                 id: .wayfinder,
                 displayName: "Wayfinder",
