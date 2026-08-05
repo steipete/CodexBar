@@ -510,6 +510,7 @@ struct LocalizationLanguageCatalogTests {
             "Deployment",
             "Email",
             "Endpoint",
+            "File",
             "Gemini Flash",
             "GitHub",
             "Google OAuth",
