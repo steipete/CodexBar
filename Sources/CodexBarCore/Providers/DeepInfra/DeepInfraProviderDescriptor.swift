@@ -52,6 +52,12 @@ public enum DeepInfraProviderDescriptor {
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
                 noDataMessage: { "DeepInfra per-request cost history is not available in CodexBar." }),
+            presentation: ProviderUsagePresentation(
+                menuCard: ProviderMenuCardPresentation(
+                    showsPrimaryBalanceDescription: true,
+                    hidesPrimaryResetWithoutDate: true,
+                    movePrimaryDetailToStatus: { _ in true }),
+                menu: ProviderMenuDescriptorPresentation(primaryDescriptionIsDetail: { _ in true })),
             fetchPlan: .apiToken(
                 strategyID: "deepinfra.api",
                 resolveToken: { ProviderTokenResolver.deepInfraToken(environment: $0) },

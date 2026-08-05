@@ -332,7 +332,7 @@ public struct ZedStatusProbe: Sendable {
             .appendingPathComponent(".config/zed/settings.json")
     }
 
-    private static let logger = CodexBarLog.logger(LogCategories.zed)
+    private static let logger = CodexBarLog.logger(LogCategories.provider(.zed))
 
     private let credentialsReader: any ZedCredentialsReading
     private let transport: any ProviderHTTPTransport

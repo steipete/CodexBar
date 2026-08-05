@@ -41,6 +41,8 @@ public enum SyntheticProviderDescriptor {
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
                 noDataMessage: { "Synthetic cost summary is not supported." }),
+            presentation: ProviderUsagePresentation(menuCard: ProviderMenuCardPresentation(
+                usesSyntheticRollingRegen: true)),
             fetchPlan: self.fetchPlan(),
             cli: ProviderCLIConfig(
                 name: "synthetic",

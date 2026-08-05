@@ -45,13 +45,22 @@ public enum CrofProviderDescriptor {
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
                 noDataMessage: { "Crof cost summary is not available via API." }),
-            presentation: ProviderUsagePresentation(rateWindowLabeler: { metadata, snapshot, _ in
-                ProviderRateWindowLabels(
-                    primary: Self.primaryLabel(snapshot: snapshot),
-                    secondary: metadata.weeklyLabel,
-                    tertiary: metadata.opusLabel ?? "Sonnet",
-                    showsTertiary: metadata.supportsOpus)
-            }),
+            presentation: ProviderUsagePresentation(
+                rateWindowLabeler: { metadata, snapshot, _ in
+                    ProviderRateWindowLabels(
+                        primary: Self.primaryLabel(snapshot: snapshot),
+                        secondary: metadata.weeklyLabel,
+                        tertiary: metadata.opusLabel ?? "Sonnet",
+                        showsTertiary: metadata.supportsOpus)
+                },
+                menuCard: ProviderMenuCardPresentation(
+                    primaryDescriptionPlacement: .detailBySecondaryPresence,
+                    hidesPrimaryResetWithoutSecondary: true,
+                    movePrimaryDetailToStatus: { $0?.secondary == nil }),
+                menu: ProviderMenuDescriptorPresentation(
+                    primaryDescriptionIsDetail: { $0.secondary == nil },
+                    duplicatesPrimaryDetailWhenResetDatePresent: true,
+                    secondaryDescriptionMode: .resetOverride)),
             fetchPlan: self.fetchPlan(),
             cli: ProviderCLIConfig(
                 name: "crof",

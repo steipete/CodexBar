@@ -82,7 +82,7 @@ public enum FireworksUsageError: LocalizedError, Sendable, Equatable {
 }
 
 public struct FireworksUsageFetcher: Sendable {
-    private static let log = CodexBarLog.logger(LogCategories.fireworksUsage)
+    private static let log = CodexBarLog.logger(LogCategories.provider(.fireworks, scope: "usage"))
     private static let timeoutSeconds: TimeInterval = 15
     /// Fireworks billing windows are tied to calendar days; a 30-day lookback matches the
     /// card's "Last 30 days" period.

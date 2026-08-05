@@ -237,13 +237,10 @@ struct MenuDescriptor {
         if let snap = store.snapshot(for: provider.instanceID) {
             let resetStyle = settings.resetTimeDisplayStyle
             let labels = Self.rateWindowLabels(provider: provider, metadata: meta, snapshot: snap)
-            let crofShowsCreditsOnly = provider == .crof && snap.secondary == nil
+            let presentation = ProviderDescriptorRegistry.descriptor(for: provider).presentation
             if let primary = snap.primary {
                 let primaryDetail = primary.resetDescription?.trimmingCharacters(in: .whitespacesAndNewlines)
-                let primaryDescriptionIsDetail = provider == .warp || provider == .kilo || provider == .abacus ||
-                    provider == .deepseek || provider == .deepinfra || provider == .neuralwatt ||
-                    provider == .azureopenai || provider == .mimo || provider == .qoder || provider == .sub2api ||
-                    crofShowsCreditsOnly || provider == .chutes
+                let primaryDescriptionIsDetail = presentation.menu.usesPrimaryDescriptionAsDetail(snapshot: snap)
                 let primaryWindow = if primaryDescriptionIsDetail {
                     // Some providers use resetDescription for non-reset detail
                     // (e.g., "Unlimited", "X/Y credits"). Avoid rendering it as a "Resets ..." line.
@@ -267,14 +264,14 @@ struct MenuDescriptor {
                 {
                     entries.append(.text(primaryDetail, .secondary))
                 }
-                if provider == .crof,
+                if presentation.menu.duplicatesPrimaryDetailWhenResetDatePresent,
                    primary.resetsAt != nil,
                    let primaryDetail,
                    !primaryDetail.isEmpty
                 {
                     entries.append(.text(primaryDetail, .secondary))
                 }
-                if provider == .abacus,
+                if presentation.menu.showsPrimaryWeeklyPace,
                    let pace = store.weeklyPace(provider: provider, window: primary)
                 {
                     let paceSummary = UsagePaceText.weeklySummary(provider: provider, pace: pace)
@@ -286,15 +283,16 @@ struct MenuDescriptor {
             }
             if let weekly = snap.secondary {
                 let weeklyResetOverride: String? = {
-                    guard provider == .warp || provider == .kilo || provider == .perplexity || provider == .crof ||
-                        provider == .sub2api || provider == .chutes
-                    else { return nil }
                     let detail = weekly.resetDescription?.trimmingCharacters(in: .whitespacesAndNewlines)
                     guard let detail, !detail.isEmpty else { return nil }
-                    if [.kilo, .chutes].contains(provider), weekly.resetsAt != nil {
+                    switch presentation.menu.secondaryDescriptionMode {
+                    case .standard:
                         return nil
+                    case .resetOverride:
+                        return detail
+                    case .detailWhenResetDatePresent:
+                        return weekly.resetsAt == nil ? detail : nil
                     }
-                    return detail
                 }()
                 Self.appendRateWindow(
                     entries: &entries,
@@ -303,7 +301,7 @@ struct MenuDescriptor {
                     resetStyle: resetStyle,
                     showUsed: settings.usageBarsShowUsed,
                     resetOverride: weeklyResetOverride)
-                if [.kilo, .chutes].contains(provider),
+                if presentation.menu.secondaryDescriptionMode == .detailWhenResetDatePresent,
                    weekly.resetsAt != nil,
                    let detail = weekly.resetDescription?.trimmingCharacters(in: .whitespacesAndNewlines),
                    !detail.isEmpty
@@ -317,7 +315,7 @@ struct MenuDescriptor {
             }
             if labels.showsTertiary, let opus = snap.tertiary {
                 // Perplexity purchased credits don't reset; show the balance as plain text.
-                let opusResetOverride: String? = provider == .perplexity || provider == .sub2api
+                let opusResetOverride: String? = presentation.menu.tertiaryDescriptionOverridesReset
                     ? opus.resetDescription?.trimmingCharacters(in: .whitespacesAndNewlines)
                     : nil
                 Self.appendRateWindow(
@@ -328,15 +326,13 @@ struct MenuDescriptor {
                     showUsed: settings.usageBarsShowUsed,
                     resetOverride: opusResetOverride)
             }
-            if provider == .zai {
-                for extra in snap.extraRateWindows ?? [] where extra.id == "zai-mcp" {
-                    Self.appendRateWindow(
-                        entries: &entries,
-                        title: extra.title,
-                        window: extra.window,
-                        resetStyle: resetStyle,
-                        showUsed: settings.usageBarsShowUsed)
-                }
+            for extra in presentation.extraRateWindows(snapshot: snap) {
+                Self.appendRateWindow(
+                    entries: &entries,
+                    title: extra.title,
+                    window: extra.window,
+                    resetStyle: resetStyle,
+                    showUsed: settings.usageBarsShowUsed)
             }
 
             Self.appendProviderUsageSummaries(

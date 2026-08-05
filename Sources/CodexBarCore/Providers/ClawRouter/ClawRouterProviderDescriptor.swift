@@ -12,6 +12,7 @@ public enum ClawRouterProviderDescriptor {
         ProviderDescriptor(
             id: .clawrouter,
             credentials: self.credentials,
+            config: ProviderConfigCapabilities(supportsEnterpriseHost: true),
             metadata: ProviderMetadata(
                 id: .clawrouter,
                 displayName: "ClawRouter",

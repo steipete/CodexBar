@@ -119,7 +119,7 @@ struct ZoomMateWebFetchStrategy: ProviderFetchStrategy {
         let fetcher = ZoomMateUsageFetcher(browserDetection: context.browserDetection)
         let manual = Self.manualCookieHeader(from: context)
         let logger: (@Sendable (String) -> Void)? = context.verbose
-            ? { @Sendable msg in CodexBarLog.logger(LogCategories.zoommate).verbose(msg) }
+            ? { @Sendable msg in CodexBarLog.logger(LogCategories.provider(.zoommate)).verbose(msg) }
             : nil
         let requestContext = try await fetcher.resolveRequestContext(
             manualCaptureOverride: manual,
@@ -154,11 +154,11 @@ struct ZoomMateWebFetchStrategy: ProviderFetchStrategy {
                 timeout: context.webTimeout)
         } catch ZoomMateUsageError.invalidCredentials {
             await Self.invalidateCachedBearerToken(for: requestContext)
-            CodexBarLog.logger(LogCategories.zoommate)
+            CodexBarLog.logger(LogCategories.provider(.zoommate))
                 .info("ZoomMate credits history fetch failed (non-fatal): invalid credentials")
             history = nil
         } catch {
-            CodexBarLog.logger(LogCategories.zoommate)
+            CodexBarLog.logger(LogCategories.provider(.zoommate))
                 .info("ZoomMate credits history fetch failed (non-fatal): \(error.localizedDescription)")
             history = nil
         }

@@ -9,7 +9,7 @@ import CSQLite3
 #if canImport(SQLite3) || canImport(CSQLite3)
 /// Read-only access to the official Kimi Desktop Chromium cookie store.
 public enum KimiDesktopAuthToken: Sendable {
-    private static let log = CodexBarLog.logger(LogCategories.kimiCookie)
+    private static let log = CodexBarLog.logger(LogCategories.provider(.kimi, scope: "cookie"))
 
     public static func cookiesDatabaseURL(
         homeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser) -> URL

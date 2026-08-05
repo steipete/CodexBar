@@ -17,6 +17,7 @@ public enum DevinProviderDescriptor {
         ProviderDescriptor(
             id: .devin,
             settingsSection: .init(DevinProviderSettingsKey.self),
+            config: ProviderConfigCapabilities(workspaceIDValidationOrder: 4),
             metadata: ProviderMetadata(
                 id: .devin,
                 displayName: "Devin",
@@ -54,17 +55,19 @@ public enum DevinProviderDescriptor {
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
                 noDataMessage: { "Devin cost summary is not supported." }),
-            presentation: ProviderUsagePresentation(costPresenter: { snapshot in
-                guard let cost = snapshot.providerCost, cost.period == "Extra usage balance" else {
-                    return ProviderCostPresentation()
-                }
-                return ProviderCostPresentation(
-                    showsGenericFallback: false,
-                    balances: [ProviderCostPresentation.Balance(
-                        label: "Extra usage",
-                        amount: cost.used,
-                        currencyCode: cost.currencyCode)])
-            }),
+            presentation: ProviderUsagePresentation(
+                costPresenter: { snapshot in
+                    guard let cost = snapshot.providerCost, cost.period == "Extra usage balance" else {
+                        return ProviderCostPresentation()
+                    }
+                    return ProviderCostPresentation(
+                        showsGenericFallback: false,
+                        balances: [ProviderCostPresentation.Balance(
+                            label: "Extra usage",
+                            amount: cost.used,
+                            currencyCode: cost.currencyCode)])
+                },
+                menuCard: ProviderMenuCardPresentation(costVisibilityResolver: { $0.showOptionalUsage })),
             fetchPlan: ProviderFetchPlan(
                 sourceModes: [.auto, .web],
                 pipeline: ProviderFetchPipeline(resolveStrategies: { _ in [DevinWebFetchStrategy()] })),
@@ -96,7 +99,7 @@ struct DevinWebFetchStrategy: ProviderFetchStrategy {
         let fetcher = DevinUsageFetcher(browserDetection: context.browserDetection)
         let settings = context.settings?.devin
         let logger: ((String) -> Void)? = context.verbose
-            ? { msg in CodexBarLog.logger(LogCategories.devin).verbose(msg) }
+            ? { msg in CodexBarLog.logger(LogCategories.provider(.devin)).verbose(msg) }
             : nil
         let snapshot = try await fetcher.fetch(
             bearerTokenOverride: settings?.cookieSource == .manual ? Self.bearerTokenOverride(context: context) : nil,

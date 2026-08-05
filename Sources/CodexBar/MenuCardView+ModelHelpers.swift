@@ -24,21 +24,23 @@ extension UsageMenuCardView.Model {
         input: Input,
         primary: RateWindow)
     {
-        if input.provider == .openrouter, let detail = self.trimmedResetDescription(primary) {
+        let policy = ProviderDescriptorRegistry.descriptor(for: input.provider).presentation.menuCard
+        guard let detail = self.trimmedResetDescription(primary) else { return }
+        switch policy.primaryDescriptionPlacement {
+        case .reset:
             presentation.resetText = detail
-        }
-        if [.copilot, .zenmux].contains(input.provider),
-           let detail = Self.trimmedResetDescription(primary)
-        {
+        case .detailLeft:
             presentation.detailLeft = detail
-        }
-        guard input.provider == .crof,
-              let detail = Self.trimmedResetDescription(primary)
-        else { return }
-        if input.snapshot?.secondary != nil {
-            presentation.detailRight = detail
-        } else {
+        case .detail:
             presentation.detailText = detail
+        case .detailBySecondaryPresence:
+            if input.snapshot?.secondary != nil {
+                presentation.detailRight = detail
+            } else {
+                presentation.detailText = detail
+            }
+        case .standard:
+            break
         }
     }
 
@@ -47,29 +49,29 @@ extension UsageMenuCardView.Model {
         input: Input,
         primary: RateWindow)
     {
-        if [.warp, .kilo, .mimo, .deepseek, .deepinfra, .qoder, .mistral, .neuralwatt, .litellm, .chutes]
-            .contains(input.provider),
-            let detail = nonEmptyResetDescription(primary)
+        let policy = ProviderDescriptorRegistry.descriptor(for: input.provider).presentation.menuCard
+        if policy.showsPrimaryBalanceDescription,
+           let detail = nonEmptyResetDescription(primary)
         {
             presentation.detailText = detail
         }
-        if let balance = Self.poeBalanceDetailText(input: input) {
-            presentation.detailText = balance
-        }
-        if input.provider == .kiro,
-           let remaining = input.snapshot?.detailRow(label: "Credits left")?.value,
-           let total = input.snapshot?.detailRow(label: "Credits total")?.value,
-           total != "0"
-        {
-            presentation.detailLeft = String(format: L("%@ of %@ credits left"), remaining, total)
-        }
-        if input.provider == .alibaba || input.provider == .alibabatokenplan || input.provider == .manus,
-           let detail = Self.nonEmptyResetDescription(primary)
-        {
-            presentation.detailText = detail
-            if input.provider == .manus {
-                presentation.resetText = nil
+        switch policy.primaryDetailKind {
+        case .poeBalance:
+            if let balance = Self.poeBalanceDetailText(input: input) {
+                presentation.detailText = balance
             }
+        case .kiroCredits:
+            if let remaining = input.snapshot?.detailRow(label: "Credits left")?.value,
+               let total = input.snapshot?.detailRow(label: "Credits total")?.value,
+               total != "0"
+            {
+                presentation.detailLeft = String(format: L("%@ of %@ credits left"), remaining, total)
+            }
+        case .none, .requestQuota:
+            break
+        }
+        if policy.clearsPrimaryReset {
+            presentation.resetText = nil
         }
     }
 
@@ -78,16 +80,14 @@ extension UsageMenuCardView.Model {
         input: Input,
         primary: RateWindow)
     {
-        if input.provider == .sub2api {
+        let policy = ProviderDescriptorRegistry.descriptor(for: input.provider).presentation.menuCard
+        if policy.usesRawPrimaryResetDescription {
             presentation.resetText = primary.resetDescription
         }
-        if [.warp, .kilo, .mimo, .deepseek, .deepinfra, .qoder, .mistral, .neuralwatt, .litellm, .zenmux, .chutes]
-            .contains(input.provider),
-            primary.resetsAt == nil
-        {
+        if policy.hidesPrimaryResetWithoutDate, primary.resetsAt == nil {
             presentation.resetText = nil
         }
-        if input.provider == .crof, input.snapshot?.secondary == nil {
+        if policy.hidesPrimaryResetWithoutSecondary, input.snapshot?.secondary == nil {
             presentation.resetText = nil
         }
     }
@@ -97,6 +97,7 @@ extension UsageMenuCardView.Model {
         input: Input,
         primary: RateWindow)
     {
+        let policy = ProviderDescriptorRegistry.descriptor(for: input.provider).presentation.menuCard
         if let paceDetail = sessionPaceDetail(
             provider: input.provider,
             window: primary,
@@ -105,7 +106,7 @@ extension UsageMenuCardView.Model {
         {
             self.apply(paceDetail, to: &presentation)
         }
-        if input.provider == .abacus {
+        if policy.usesAbacusPace {
             if let detail = Self.nonEmptyResetDescription(primary) {
                 presentation.detailText = detail
             }
@@ -125,7 +126,7 @@ extension UsageMenuCardView.Model {
         } else if let paceDetail = Self.resetWindowPaceDetail(
             window: primary,
             input: input,
-            pace: input.provider == .kimi ? input.weeklyPace : nil)
+            pace: policy.resetWindowUsesWeeklyPace ? input.weeklyPace : nil)
         {
             Self.apply(paceDetail, to: &presentation)
         }
@@ -136,11 +137,14 @@ extension UsageMenuCardView.Model {
         input: Input,
         primary: RateWindow)
     {
+        let policy = ProviderDescriptorRegistry.descriptor(for: input.provider).presentation.menuCard
         // Legacy request-based Cursor plans surface the raw used/limit quota on its own line.
-        if input.provider == .cursor, let quota = input.snapshot?.detailRow(label: "Request quota")?.value {
+        if case .requestQuota = policy.primaryDetailKind,
+           let quota = input.snapshot?.detailRow(label: "Request quota")?.value
+        {
             presentation.detailText = "\(L("Request quota")): \(quota)"
         }
-        if input.provider == .synthetic,
+        if policy.usesSyntheticRollingRegen,
            let regen = Self.syntheticRollingRegenDetail(
                window: primary,
                now: input.now,
@@ -149,9 +153,7 @@ extension UsageMenuCardView.Model {
             presentation.resetText = regen.resetText
             Self.apply(regen.pace, to: &presentation)
         }
-        let usesBalanceStatusText = input.provider == .deepseek || input.provider == .deepinfra ||
-            (input.provider == .crof && input.snapshot?.secondary == nil)
-        if usesBalanceStatusText {
+        if policy.movesPrimaryDetailToStatus(snapshot: input.snapshot) {
             presentation.statusText = presentation.detailText
             presentation.detailText = nil
         }

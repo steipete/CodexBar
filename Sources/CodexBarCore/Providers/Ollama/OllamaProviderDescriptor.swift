@@ -54,7 +54,15 @@ public enum OllamaProviderDescriptor {
                 noDataMessage: { "Ollama cost summary is not supported." }),
             pace: ProviderPaceCapability(
                 primary: .session(maximumMinutes: 300, requiresDuration: true),
-                secondary: .weeklyWithDuration),
+                secondary: .weeklyWithDuration,
+                sessionPaceWindowRule: .windowDurationPresent),
+            presentation: ProviderUsagePresentation(menuCard: ProviderMenuCardPresentation(
+                usageNotesResolver: { context in
+                    guard context.snapshot?.identity?.loginMethod == "API key" else { return .unhandled }
+                    return .localized([
+                        "API key verified. Cloud quotas need browser cookies. Sign in to Ollama.",
+                    ])
+                })),
             fetchPlan: ProviderFetchPlan(
                 sourceModes: [.auto, .web, .api],
                 pipeline: ProviderFetchPipeline(resolveStrategies: self.resolveStrategies)),
@@ -105,7 +113,7 @@ struct OllamaStatusFetchStrategy: ProviderFetchStrategy {
         let manual = Self.manualCookieHeader(from: context)
         let isManualMode = context.settings?.ollama?.cookieSource == .manual
         let logger: ((String) -> Void)? = context.verbose
-            ? { msg in CodexBarLog.logger(LogCategories.ollama).verbose(msg) }
+            ? { msg in CodexBarLog.logger(LogCategories.provider(.ollama)).verbose(msg) }
             : nil
         let snap: OllamaUsageSnapshot = if isManualMode {
             try await fetcher.fetch(

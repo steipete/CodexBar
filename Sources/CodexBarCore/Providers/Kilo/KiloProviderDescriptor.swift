@@ -61,25 +61,32 @@ public enum KiloProviderDescriptor {
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
                 noDataMessage: { "Kilo cost summary is not supported." }),
-            presentation: ProviderUsagePresentation(identityPresenter: { provider, snapshot in
-                guard let loginMethod = snapshot.loginMethod(for: provider) else {
-                    return ProviderIdentityPresentation(badge: nil, plan: nil)
-                }
-                let parts = loginMethod
-                    .components(separatedBy: "·")
-                    .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-                    .filter { !$0.isEmpty }
-                guard let first = parts.first else {
-                    return ProviderIdentityPresentation(badge: nil, plan: nil)
-                }
-                let firstIsActivity = first.lowercased().hasPrefix("auto top-up:")
-                let plan = firstIsActivity ? nil : UsageFormatter.cleanPlanName(first)
-                let activity = firstIsActivity ? parts : Array(parts.dropFirst())
-                return ProviderIdentityPresentation(
-                    badge: plan,
-                    plan: plan,
-                    details: activity.map { ProviderIdentityPresentation.Detail(label: "Activity", value: $0) })
-            }),
+            presentation: ProviderUsagePresentation(
+                identityPresenter: { provider, snapshot in
+                    guard let loginMethod = snapshot.loginMethod(for: provider) else {
+                        return ProviderIdentityPresentation(badge: nil, plan: nil)
+                    }
+                    let parts = loginMethod
+                        .components(separatedBy: "·")
+                        .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                        .filter { !$0.isEmpty }
+                    guard let first = parts.first else {
+                        return ProviderIdentityPresentation(badge: nil, plan: nil)
+                    }
+                    let firstIsActivity = first.lowercased().hasPrefix("auto top-up:")
+                    let plan = firstIsActivity ? nil : UsageFormatter.cleanPlanName(first)
+                    let activity = firstIsActivity ? parts : Array(parts.dropFirst())
+                    return ProviderIdentityPresentation(
+                        badge: plan,
+                        plan: plan,
+                        details: activity.map { ProviderIdentityPresentation.Detail(label: "Activity", value: $0) })
+                },
+                menuCard: ProviderMenuCardPresentation(
+                    showsPrimaryBalanceDescription: true,
+                    hidesPrimaryResetWithoutDate: true),
+                menu: ProviderMenuDescriptorPresentation(
+                    primaryDescriptionIsDetail: { _ in true },
+                    secondaryDescriptionMode: .detailWhenResetDatePresent)),
             fetchPlan: ProviderFetchPlan(
                 sourceModes: [.auto, .api, .cli],
                 pipeline: ProviderFetchPipeline(resolveStrategies: self.resolveStrategies)),

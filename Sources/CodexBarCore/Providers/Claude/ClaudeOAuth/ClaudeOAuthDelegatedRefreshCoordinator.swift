@@ -42,7 +42,7 @@ public enum ClaudeOAuthDelegatedRefreshCoordinator {
         }
     }
 
-    private static let log = CodexBarLog.logger(LogCategories.claudeUsage)
+    private static let log = CodexBarLog.logger(LogCategories.provider(.claude, scope: "usage"))
     private static let cooldownDefaultsKey = "claudeOAuthDelegatedRefreshLastAttemptAtV1"
     private static let cooldownIntervalDefaultsKey = "claudeOAuthDelegatedRefreshCooldownIntervalSecondsV1"
     private static let cooldownProfileKeySeparator = ".profile."

@@ -105,6 +105,39 @@ public enum DeepSeekProviderDescriptor {
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
                 noDataMessage: { "DeepSeek per-day cost history is not available via API." }),
+            presentation: ProviderUsagePresentation(
+                menuCard: ProviderMenuCardPresentation(
+                    usageNotesResolver: { context in
+                        if context.isRefreshing {
+                            return .localized([])
+                        }
+                        let state = context.snapshot?.deepseekDetailedUsageState
+                        if context.snapshot?.primary == nil {
+                            if state == .webSessionRequired {
+                                return .localized(["Sign in to DeepSeek Platform in Chrome for detailed usage."])
+                            }
+                            if state == .profileSelectionRequired {
+                                return .localized(["Select a DeepSeek Chrome profile in Settings."])
+                            }
+                        }
+                        guard context.tokenCostInlineDashboardEnabled, context.showOptionalUsage else {
+                            return .unhandled
+                        }
+                        guard context.snapshot?.details.isEmpty == false else {
+                            if state == .webSessionRequired {
+                                return .localized(["Sign in to DeepSeek Platform in Chrome for detailed usage."])
+                            }
+                            if state == .profileSelectionRequired {
+                                return .localized(["Select a DeepSeek Chrome profile in Settings."])
+                            }
+                            return .localized(["Detailed usage unavailable."])
+                        }
+                        return .unhandled
+                    },
+                    showsPrimaryBalanceDescription: true,
+                    hidesPrimaryResetWithoutDate: true,
+                    movePrimaryDetailToStatus: { _ in true }),
+                menu: ProviderMenuDescriptorPresentation(primaryDescriptionIsDetail: { _ in true })),
             fetchPlan: ProviderFetchPlan(
                 sourceModes: [.auto, .api, .web],
                 pipeline: ProviderFetchPipeline(resolveStrategies: self.resolveStrategies)),

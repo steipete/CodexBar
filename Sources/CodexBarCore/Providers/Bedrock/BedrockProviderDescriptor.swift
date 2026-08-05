@@ -61,6 +61,8 @@ public enum BedrockProviderDescriptor {
                 },
                 menuHintLines: [.literal("AWS Cost Explorer billing can lag.")],
                 supportsTokenSnapshot: true),
+            presentation: ProviderUsagePresentation(menuCard: ProviderMenuCardPresentation(
+                supportsInlineTokenCostDashboard: true)),
             fetchPlan: ProviderFetchPlan(
                 sourceModes: [.auto, .api],
                 pipeline: ProviderFetchPipeline(resolveStrategies: { _ in [BedrockAPIFetchStrategy()] })),

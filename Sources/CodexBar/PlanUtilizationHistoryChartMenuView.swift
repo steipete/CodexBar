@@ -238,13 +238,11 @@ struct PlanUtilizationHistoryChartMenuView: View {
         provider: UsageProvider,
         history: PlanUtilizationSeriesHistory) -> PlanUtilizationSeriesName
     {
-        if provider == .codex,
-           history.windowMinutes == CodexConsumerProjection.monthlyWindowMinutes,
-           history.name == .session || history.name == .weekly
-        {
-            return .monthly
-        }
-        return history.name
+        let presentation = ProviderDescriptorRegistry.descriptor(for: provider).presentation
+        let normalized = presentation.normalizePlanUtilizationSeries(
+            self.providerSeries(history.name),
+            windowMinutes: history.windowMinutes)
+        return self.historySeries(normalized)
     }
 
     nonisolated static func mergedEntries(
@@ -262,30 +260,32 @@ struct PlanUtilizationHistoryChartMenuView: View {
     {
         guard let snapshot else { return nil }
 
-        var names: Set<PlanUtilizationSeriesName> = []
-        switch provider {
-        case .codex:
-            names = CodexConsumerProjection.planUtilizationSeriesNames(snapshot: snapshot)
-        case .claude:
-            if snapshot.primary != nil { names.insert(.session) }
-            if snapshot.secondary != nil { names.insert(.weekly) }
-            if snapshot.tertiary != nil,
-               ProviderDescriptorRegistry.metadata[provider]?.supportsOpus == true
-            {
-                names.insert(.opus)
-            }
-        case .opencodego:
-            if snapshot.primary != nil { names.insert(.session) }
-            if snapshot.secondary != nil { names.insert(.weekly) }
-            if snapshot.tertiary != nil { names.insert(.monthly) }
-        default:
-            let windows = [snapshot.primary, snapshot.secondary, snapshot.tertiary].compactMap(\.self)
-                + (snapshot.extraRateWindows?.filter(\.usageKnown).map(\.window) ?? [])
-            guard windows.contains(where: { $0.windowMinutes == 7 * 24 * 60 }) else { return nil }
-            names.insert(.weekly)
-        }
+        return ProviderDescriptorRegistry.descriptor(for: provider).presentation
+            .planUtilizationSeries(snapshot: snapshot)
+            .map { Set($0.map(self.historySeries)) }
+    }
 
-        return names
+    private nonisolated static func providerSeries(
+        _ series: PlanUtilizationSeriesName) -> ProviderPlanUtilizationSeries
+    {
+        switch series {
+        case .session: .session
+        case .weekly: .weekly
+        case .opus: .tertiary
+        case .monthly: .monthly
+        default: .weekly
+        }
+    }
+
+    private nonisolated static func historySeries(
+        _ series: ProviderPlanUtilizationSeries) -> PlanUtilizationSeriesName
+    {
+        switch series {
+        case .session: .session
+        case .weekly: .weekly
+        case .tertiary: .opus
+        case .monthly: .monthly
+        }
     }
 
     private nonisolated static func makeModel(
@@ -798,14 +798,18 @@ struct PlanUtilizationHistoryChartMenuView: View {
         geo: GeometryProxy)
     {
         guard let location else {
-            if self.selectedPointID != nil { self.selectedPointID = nil }
+            if self.selectedPointID != nil {
+                self.selectedPointID = nil
+            }
             return
         }
 
         guard let plotAnchor = proxy.plotFrame else { return }
         let plotFrame = geo[plotAnchor]
         guard plotFrame.contains(location) else {
-            if self.selectedPointID != nil { self.selectedPointID = nil }
+            if self.selectedPointID != nil {
+                self.selectedPointID = nil
+            }
             return
         }
 

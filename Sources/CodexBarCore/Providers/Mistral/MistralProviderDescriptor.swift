@@ -23,6 +23,7 @@ public enum MistralProviderDescriptor {
     static func makeDescriptor() -> ProviderDescriptor {
         ProviderDescriptor(
             id: .mistral,
+            menuBarMetrics: ProviderMenuBarMetricCapabilities(supported: [.automatic, .monthlyPlan]),
             settingsSection: .init(MistralProviderSettingsKey.self, cookieSettings: MistralProviderSettings.self),
             credentials: self.credentials,
             metadata: ProviderMetadata(
@@ -58,6 +59,21 @@ public enum MistralProviderDescriptor {
                 supportsTokenCost: true,
                 noDataMessage: { "Mistral cost history needs a billing web session." },
                 menuHintLines: [.literal("Reported by Mistral billing usage.")]),
+            presentation: ProviderUsagePresentation(menuBarWindowResolver: { context in
+                guard context.metric == .monthlyPlan else { return .unhandled }
+                return .resolved(context.snapshot.extraRateWindows?.first {
+                    $0.id == "mistral-monthly-plan"
+                }?.window)
+            }, menuCard: ProviderMenuCardPresentation(
+                usesProviderCostHistoryAsPrimaryDashboard: true,
+                primaryCostHistoryResolver: { snapshot, tokenSnapshot in
+                    if let projected = snapshot?.mistralUsage?.toCostUsageTokenSnapshot() {
+                        return projected
+                    }
+                    return snapshot == nil ? tokenSnapshot : nil
+                },
+                showsPrimaryBalanceDescription: true,
+                hidesPrimaryResetWithoutDate: true)),
             fetchPlan: ProviderFetchPlan(
                 sourceModes: [.auto, .web],
                 pipeline: ProviderFetchPipeline(resolveStrategies: { _ in [MistralWebFetchStrategy()] })),

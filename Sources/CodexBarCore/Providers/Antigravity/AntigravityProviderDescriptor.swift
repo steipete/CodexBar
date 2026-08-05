@@ -51,13 +51,125 @@ public enum AntigravityProviderDescriptor {
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
                 noDataMessage: { "Antigravity cost summary is not supported." }),
+            pace: ProviderPaceCapability(
+                sessionPaceWindowRule: .custom { window, _ in
+                    window.windowMinutes == nil || window.windowMinutes == 300
+                }),
             history: .alwaysTracked,
+            presentation: ProviderUsagePresentation(
+                iconWindowResolver: self.iconWindows,
+                iconDecorations: [.gemini, .antigravity],
+                requestedMenuBarLaneOrders: [
+                    .primary: [.primary, .secondary, .tertiary],
+                    .secondary: [.secondary, .primary, .tertiary],
+                    .tertiary: [.tertiary, .secondary, .primary],
+                ],
+                automaticSelectionPrioritizesExhaustedWindow: false,
+                menuBarWindowResolver: self.menuBarWindow,
+                widgetRowLimitResolver: { rows, family in
+                    guard rows?.contains(where: { $0.id.hasPrefix(Self.quotaSummaryPrefix) }) == true else {
+                        return nil
+                    }
+                    return family == .small ? 2 : 3
+                }),
             fetchPlan: ProviderFetchPlan(
                 sourceModes: [.auto, .cli, .oauth],
                 pipeline: ProviderFetchPipeline(resolveStrategies: self.resolveStrategies)),
             cli: ProviderCLIConfig(
                 name: "antigravity",
                 versionDetector: nil))
+    }
+
+    private static let quotaSummaryPrefix = "antigravity-quota-summary-"
+    private static let compactFallbackPrefix = "antigravity-compact-fallback-"
+
+    private static func iconWindows(context: ProviderIconWindowContext) -> ProviderUsageWindowPair {
+        let windows = (context.snapshot.extraRateWindows ?? [])
+            .filter { $0.usageKnown && $0.id.hasPrefix(self.quotaSummaryPrefix) }
+        guard !windows.isEmpty else { return ProviderUsageWindowPair(primary: nil, secondary: nil) }
+        return ProviderUsageWindowPair(
+            primary: self.mostConstrained(windows: windows, minutes: 300),
+            secondary: self.mostConstrained(windows: windows, minutes: 7 * 24 * 60))
+    }
+
+    private static func mostConstrained(windows: [NamedRateWindow], minutes: Int) -> RateWindow? {
+        windows
+            .filter { $0.window.windowMinutes == minutes }
+            .max { lhs, rhs in
+                if lhs.window.usedPercent != rhs.window.usedPercent {
+                    return lhs.window.usedPercent < rhs.window.usedPercent
+                }
+                return lhs.id > rhs.id
+            }?
+            .window
+    }
+
+    private static func menuBarWindow(
+        context: ProviderMenuBarWindowContext) -> ProviderMenuBarWindowResolution
+    {
+        switch context.metric {
+        case .primary, .secondary, .tertiary:
+            let order = self.descriptor.presentation.requestedMenuBarLaneOrder(for: context.metric)
+            return .resolved(
+                ProviderUsagePresentation.window(in: context.snapshot, following: order)
+                    ?? self.mostConstrainedExtraWindow(
+                        snapshot: context.snapshot,
+                        prefix: self.compactFallbackPrefix))
+        case .average where !context.supportsAverage:
+            return .resolved(ProviderUsagePresentation.window(
+                in: context.snapshot,
+                following: [.primary, .secondary, .tertiary]))
+        case .automatic:
+            if context.prioritizesExhaustedQuotas,
+               let ranked = self.rankedQuotaSummaryWindow(snapshot: context.snapshot, now: context.now)
+            {
+                return .resolved(ranked)
+            }
+            return .resolved(
+                self.mostConstrainedExtraWindow(snapshot: context.snapshot, prefix: self.quotaSummaryPrefix)
+                    ?? ProviderUsagePresentation.mostConstrained(
+                        context.snapshot.primary,
+                        context.snapshot.secondary,
+                        context.snapshot.tertiary)
+                    ?? self.mostConstrainedExtraWindow(
+                        snapshot: context.snapshot,
+                        prefix: self.compactFallbackPrefix))
+        default:
+            return .unhandled
+        }
+    }
+
+    private static func mostConstrainedExtraWindow(snapshot: UsageSnapshot, prefix: String) -> RateWindow? {
+        let windows = (snapshot.extraRateWindows ?? [])
+            .filter { $0.usageKnown && $0.id.hasPrefix(prefix) }
+            .map(\.window)
+        let usable = windows.filter { $0.usedPercent < 100 }
+        return (usable.isEmpty ? windows : usable).max(by: { $0.usedPercent < $1.usedPercent })
+    }
+
+    private static func rankedQuotaSummaryWindow(snapshot: UsageSnapshot, now: Date) -> RateWindow? {
+        (snapshot.extraRateWindows ?? [])
+            .filter {
+                $0.usageKnown &&
+                    $0.id.hasPrefix(self.quotaSummaryPrefix) &&
+                    $0.window.usedPercent.isFinite &&
+                    [300, 7 * 24 * 60].contains($0.window.windowMinutes)
+            }
+            .max { lhs, rhs in
+                if lhs.window.usedPercent != rhs.window.usedPercent {
+                    return lhs.window.usedPercent < rhs.window.usedPercent
+                }
+                let lhsReset = lhs.window.resetsAt.flatMap { $0 > now ? $0 : nil }
+                let rhsReset = rhs.window.resetsAt.flatMap { $0 > now ? $0 : nil }
+                if (lhsReset == nil) != (rhsReset == nil) {
+                    return lhsReset == nil
+                }
+                if let lhsReset, let rhsReset, lhsReset != rhsReset {
+                    return lhsReset > rhsReset
+                }
+                return lhs.id < rhs.id
+            }?
+            .window
     }
 
     private static func resolveStrategies(context: ProviderFetchContext) async -> [any ProviderFetchStrategy] {
@@ -163,7 +275,7 @@ struct AntigravityCLIHTTPSFetchStrategy: ProviderFetchStrategy {
     static let sourceLabel = "cli"
     let id: String = "antigravity.cli-https"
     let kind: ProviderFetchKind = .cli
-    private static let log = CodexBarLog.logger(LogCategories.antigravity)
+    private static let log = CodexBarLog.logger(LogCategories.provider(.antigravity))
 
     struct SnapshotWaitDependencies {
         let pollIntervalNanoseconds: UInt64

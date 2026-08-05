@@ -179,7 +179,7 @@ public enum ElevenLabsUsageError: LocalizedError, Sendable {
 }
 
 public struct ElevenLabsUsageFetcher: Sendable {
-    private static let log = CodexBarLog.logger(LogCategories.elevenLabsUsage)
+    private static let log = CodexBarLog.logger(LogCategories.provider(.elevenlabs, scope: "usage"))
     private static let timeoutSeconds: TimeInterval = 15
 
     public static func fetchUsage(

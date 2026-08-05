@@ -103,7 +103,7 @@ private let miMoCookieImportOrder: BrowserCookieImportOrder =
     ProviderDefaults.metadata[.mimo]?.browserCookieOrder ?? Browser.defaultImportOrder
 
 public enum MiMoCookieImporter {
-    private static let log = CodexBarLog.logger(LogCategories.mimoCookie)
+    private static let log = CodexBarLog.logger(LogCategories.provider(.mimo, scope: "cookie"))
     private static let cookieClient = BrowserCookieClient()
     private static let cookieDomains = [
         "platform.xiaomimimo.com",

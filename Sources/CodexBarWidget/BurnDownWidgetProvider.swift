@@ -2,6 +2,8 @@ import AppIntents
 import CodexBarCore
 import WidgetKit
 
+/// Provider-specific by design: AppIntents requires compile-time enum cases and display representations;
+/// runtime presentation policy still comes from each provider descriptor below this literal WidgetKit surface.
 enum BurnProviderChoice: String, AppEnum {
     case codex
     case claude
@@ -95,10 +97,8 @@ struct BurnDownState {
     }
 
     var secondaryGloballyCapsPrimary: Bool {
-        switch self.entry.provider {
-        case .codex, .claude: true
-        default: false
-        }
+        guard let provider = self.entry.provider.firstPartyProvider else { return false }
+        return ProviderDescriptorRegistry.descriptor(for: provider).presentation.secondaryGloballyCapsPrimary
     }
 
     var secondaryExhausted: Bool {

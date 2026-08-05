@@ -50,20 +50,24 @@ public enum FactoryProviderDescriptor {
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
                 noDataMessage: { "Droid cost summary is not supported." }),
-            presentation: ProviderUsagePresentation(rateWindowLabeler: { metadata, snapshot, _ in
-                guard snapshot.tertiary != nil else {
+            presentation: ProviderUsagePresentation(
+                rateWindowLabeler: { metadata, snapshot, _ in
+                    guard snapshot.tertiary != nil else {
+                        return ProviderRateWindowLabels(
+                            primary: metadata.sessionLabel,
+                            secondary: metadata.weeklyLabel,
+                            tertiary: metadata.opusLabel ?? "Sonnet",
+                            showsTertiary: metadata.supportsOpus)
+                    }
                     return ProviderRateWindowLabels(
-                        primary: metadata.sessionLabel,
-                        secondary: metadata.weeklyLabel,
-                        tertiary: metadata.opusLabel ?? "Sonnet",
-                        showsTertiary: metadata.supportsOpus)
-                }
-                return ProviderRateWindowLabels(
-                    primary: "5-hour",
-                    secondary: "Weekly",
-                    tertiary: "Monthly",
-                    showsTertiary: true)
-            }),
+                        primary: "5-hour",
+                        secondary: "Weekly",
+                        tertiary: "Monthly",
+                        showsTertiary: true)
+                },
+                iconDecorations: [.factory],
+                menuBarWindowResolver: self.secondaryFirstMenuBarWindow,
+                menuCard: ProviderMenuCardPresentation(costVisibilityResolver: { $0.showOptionalUsage })),
             fetchPlan: ProviderFetchPlan(
                 // `.cli` remains as an Auto compatibility alias for persisted configs from older builds
                 // that advertised `[.auto, .cli]` while only implementing the web strategy.
@@ -76,6 +80,16 @@ public enum FactoryProviderDescriptor {
                     guard sourceMode == .auto || sourceMode == .cli else { return false }
                     return environment.map { FactorySettingsReader.apiKey(environment: $0) != nil } == true
                 }))
+    }
+
+    private static func secondaryFirstMenuBarWindow(
+        context: ProviderMenuBarWindowContext) -> ProviderMenuBarWindowResolution
+    {
+        guard context.metric == .automatic else { return .unhandled }
+        return .resolved(
+            ProviderUsagePresentation.exhausted(context.snapshot.primary, context.snapshot.secondary)
+                ?? context.snapshot.secondary
+                ?? context.snapshot.primary)
     }
 
     private static func resolveStrategies(context: ProviderFetchContext) async -> [any ProviderFetchStrategy] {

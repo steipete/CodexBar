@@ -32,6 +32,7 @@ public enum CopilotProviderDescriptor {
                     manualCookieHeader: settings.manualBudgetCookieHeader)
             }),
             credentials: self.credentials,
+            config: ProviderConfigCapabilities(supportsEnterpriseHost: true),
             metadata: ProviderMetadata(
                 id: .copilot,
                 displayName: "Copilot",
@@ -69,6 +70,26 @@ public enum CopilotProviderDescriptor {
             pace: ProviderPaceCapability(
                 resetWindowPace: .resetDatePresent,
                 inferredMonthlyDuration: .windowDurationMissing),
+            presentation: ProviderUsagePresentation(
+                iconWindowResolver: { context in
+                    guard let id = context.secondaryOverrideWindowID,
+                          let extra = context.snapshot.extraRateWindows?.first(where: { $0.id == id })?.window
+                    else {
+                        return ProviderUsageWindowPair(
+                            primary: context.snapshot.primary,
+                            secondary: context.snapshot.secondary)
+                    }
+                    return ProviderUsageWindowPair(primary: context.snapshot.primary, secondary: extra)
+                },
+                automaticSelectionPrioritizesExhaustedWindow: false,
+                menuBarWindowResolver: { context in
+                    guard context.metric == .automatic,
+                          let primary = context.snapshot.primary,
+                          let secondary = context.snapshot.secondary
+                    else { return .unhandled }
+                    return .resolved(primary.usedPercent >= secondary.usedPercent ? primary : secondary)
+                },
+                menuCard: ProviderMenuCardPresentation(primaryDescriptionPlacement: .detailLeft)),
             fetchPlan: ProviderFetchPlan(
                 sourceModes: [.auto, .api],
                 pipeline: ProviderFetchPipeline(resolveStrategies: { _ in [CopilotAPIFetchStrategy()] })),

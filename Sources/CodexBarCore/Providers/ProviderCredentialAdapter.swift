@@ -96,6 +96,7 @@ public struct ProviderCredentialAdapter: Sendable {
     public typealias ManualTokenPersister = @Sendable (_ token: String) throws -> Void
 
     public let supportsAPIKeyOverride: Bool
+    public let requiresAPIKeyForAPISource: Bool
     public let usesRegion: Bool
     public let usesSecretKey: Bool
     public let environmentProjections: [ProviderCredentialEnvironmentProjection]
@@ -112,6 +113,7 @@ public struct ProviderCredentialAdapter: Sendable {
 
     public init(
         supportsAPIKeyOverride: Bool = false,
+        requiresAPIKeyForAPISource: Bool = true,
         usesRegion: Bool = false,
         usesSecretKey: Bool = false,
         environmentProjections: [ProviderCredentialEnvironmentProjection] = [],
@@ -127,6 +129,7 @@ public struct ProviderCredentialAdapter: Sendable {
         manualTokenPersister: ManualTokenPersister? = nil)
     {
         self.supportsAPIKeyOverride = supportsAPIKeyOverride
+        self.requiresAPIKeyForAPISource = requiresAPIKeyForAPISource
         self.usesRegion = usesRegion
         self.usesSecretKey = usesSecretKey
         self.environmentProjections = environmentProjections

@@ -95,7 +95,7 @@ public enum MoonshotUsageError: LocalizedError, Sendable {
 }
 
 public struct MoonshotUsageFetcher: Sendable {
-    private static let log = CodexBarLog.logger(LogCategories.moonshotUsage)
+    private static let log = CodexBarLog.logger(LogCategories.provider(.moonshot, scope: "usage"))
     private static let timeoutSeconds: TimeInterval = 15
 
     public static func fetchUsage(

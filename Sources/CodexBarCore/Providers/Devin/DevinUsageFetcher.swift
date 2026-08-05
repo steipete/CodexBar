@@ -4,7 +4,7 @@ import FoundationNetworking
 #endif
 
 public struct DevinUsageFetcher: Sendable {
-    private static let log = CodexBarLog.logger(LogCategories.devin)
+    private static let log = CodexBarLog.logger(LogCategories.provider(.devin))
     private static let baseURL = URL(string: "https://app.devin.ai")!
     private static let defaultUserAgent =
         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) " +

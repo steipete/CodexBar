@@ -92,6 +92,15 @@ public enum MiniMaxProviderDescriptor {
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
                 noDataMessage: { "MiniMax cost summary is not supported." }),
+            presentation: ProviderUsagePresentation(
+                automaticSelectionPrioritizesExhaustedWindow: false,
+                menuBarWindowResolver: { context in
+                    guard context.metric == .automatic else { return .unhandled }
+                    return .resolved(ProviderUsagePresentation.mostConstrained(
+                        context.snapshot.primary,
+                        context.snapshot.secondary,
+                        context.snapshot.tertiary))
+                }),
             fetchPlan: ProviderFetchPlan(
                 sourceModes: [.auto, .web, .api],
                 pipeline: ProviderFetchPipeline(resolveStrategies: self.resolveStrategies)),
@@ -176,7 +185,7 @@ struct MiniMaxAPIFetchStrategy: ProviderFetchStrategy {
 struct MiniMaxCodingPlanFetchStrategy: ProviderFetchStrategy {
     let id: String = "minimax.web"
     let kind: ProviderFetchKind = .web
-    private static let log = CodexBarLog.logger(LogCategories.minimaxWeb)
+    private static let log = CodexBarLog.logger(LogCategories.provider(.minimax, scope: "web"))
 
     func isAvailable(_ context: ProviderFetchContext) async -> Bool {
         if Self.resolveCookieOverride(context: context) != nil {

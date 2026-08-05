@@ -360,12 +360,11 @@ struct ConfigValidationTests {
         var config = CodexBarConfig.makeDefault()
         config.setProviderConfig(ProviderConfig(id: .gemini, workspaceID: "workspace-123"))
         let issues = CodexBarConfigValidator.validate(config)
-        #expect(issues.contains(where: { $0.provider == .gemini && $0.code == "workspace_unused" }))
-        #expect(issues.contains(where: { issue in
-            issue.provider == .gemini &&
-                issue.code == "workspace_unused" &&
-                issue.message.contains("openai")
-        }))
+        let issue = issues.first { $0.provider == .gemini && $0.code == "workspace_unused" }
+        let expectedMessage =
+            "workspaceID is set but only azureopenai, openai, opencode, opencodego, devin, deepgram, and xai " +
+            "support workspaceID."
+        #expect(issue?.message == expectedMessage)
     }
 
     @Test

@@ -41,6 +41,8 @@ public enum VertexAIProviderDescriptor {
                 },
                 menuHintLines: [.localized("cost_estimate_hint")],
                 supportsTokenSnapshot: true),
+            presentation: ProviderUsagePresentation(menuCard: ProviderMenuCardPresentation(
+                supportsInlineTokenCostDashboard: true)),
             fetchPlan: ProviderFetchPlan(
                 sourceModes: [.auto, .oauth],
                 pipeline: ProviderFetchPipeline(resolveStrategies: { _ in [VertexAIOAuthFetchStrategy()] })),

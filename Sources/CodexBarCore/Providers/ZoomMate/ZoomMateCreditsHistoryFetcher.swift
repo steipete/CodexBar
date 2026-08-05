@@ -76,7 +76,7 @@ public struct ZoomMateCreditsHistorySnapshot: Sendable {
 /// mechanism. `app_id` is confirmed not a scoping filter (D3/R2), so a fixed placeholder matching
 /// ZoomMate's own web UI (`demo_app`) is sent on every request.
 public struct ZoomMateCreditsHistoryFetcher: Sendable {
-    private static let log = CodexBarLog.logger(LogCategories.zoommate)
+    private static let log = CodexBarLog.logger(LogCategories.provider(.zoommate))
     private static let historyPath = "/ai-computer/api/v1/credits/history"
     private static let refererURL = URL(string: "https://zoommate.zoom.us")!
     private static let userAgent =

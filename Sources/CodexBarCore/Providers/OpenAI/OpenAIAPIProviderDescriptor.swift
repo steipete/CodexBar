@@ -19,6 +19,7 @@ public enum OpenAIAPIProviderDescriptor {
         ProviderDescriptor(
             id: .openai,
             credentials: self.credentials,
+            config: ProviderConfigCapabilities(workspaceIDValidationOrder: 1),
             metadata: ProviderMetadata(
                 id: .openai,
                 displayName: "OpenAI",
@@ -50,6 +51,18 @@ public enum OpenAIAPIProviderDescriptor {
                 supportsTokenCost: true,
                 noDataMessage: { "OpenAI usage needs an Admin API key for organization usage." },
                 menuHintLines: [.literal("Reported by OpenAI Admin API organization usage.")]),
+            presentation: ProviderUsagePresentation(menuCard: ProviderMenuCardPresentation(
+                usageNotesResolver: { context in
+                    context.snapshot?.openAIAPIUsage.map(ProviderUsageNotesResolution.openAIAPI) ?? .unhandled
+                },
+                costVisibilityResolver: { $0.snapshot?.openAIAPIUsage == nil },
+                usesProviderCostHistoryAsPrimaryDashboard: true,
+                primaryCostHistoryResolver: { snapshot, tokenSnapshot in
+                    if let projected = snapshot?.openAIAPIUsage?.toCostUsageTokenSnapshot() {
+                        return projected
+                    }
+                    return snapshot == nil ? tokenSnapshot : nil
+                })),
             fetchPlan: self.fetchPlan(),
             cli: ProviderCLIConfig(
                 name: "openai",

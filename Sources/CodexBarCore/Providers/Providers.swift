@@ -50,9 +50,9 @@ public enum UsageProvider: String, CaseIterable, Sendable, Codable {
     case t3chat
     case ollama
     case synthetic
-    case warp
     case openrouter
     case elevenlabs
+    case warp
     case windsurf
     case zed
     case perplexity

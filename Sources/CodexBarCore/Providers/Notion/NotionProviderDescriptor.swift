@@ -75,7 +75,11 @@ public enum NotionProviderDescriptor {
                 resetWindowPace: .windowDuration(minutes: ProviderPaceCapability.monthlyWindowSentinelMinutes),
                 inferredMonthlyDuration: .windowDuration(
                     minutes: ProviderPaceCapability.monthlyWindowSentinelMinutes),
-                primary: .session(maximumMinutes: self.rollingWindowMaxMinutes)),
+                primary: .session(maximumMinutes: self.rollingWindowMaxMinutes),
+                sessionPaceWindowRule: .custom { window, _ in
+                    guard let minutes = window.windowMinutes else { return false }
+                    return minutes <= Self.rollingWindowMaxMinutes
+                }),
             fetchPlan: ProviderFetchPlan(
                 sourceModes: [.auto, .web],
                 pipeline: ProviderFetchPipeline(resolveStrategies: { _ in [NotionWebFetchStrategy()] })),
@@ -107,7 +111,7 @@ struct NotionWebFetchStrategy: ProviderFetchStrategy {
         let fetcher = NotionUsageFetcher(browserDetection: context.browserDetection)
         let manual = Self.manualCookieHeader(from: context)
         let logger: ((String) -> Void)? = context.verbose
-            ? { msg in CodexBarLog.logger(LogCategories.notion).verbose(msg) }
+            ? { msg in CodexBarLog.logger(LogCategories.provider(.notion)).verbose(msg) }
             : nil
         let snapshot = try await fetcher.fetch(
             cookieHeaderOverride: manual,

@@ -358,7 +358,7 @@ public enum NeuralWattUsageError: LocalizedError, Sendable {
 // MARK: - Fetcher
 
 public struct NeuralWattUsageFetcher: Sendable {
-    private static let log = CodexBarLog.logger(LogCategories.neuralWattUsage)
+    private static let log = CodexBarLog.logger(LogCategories.provider(.neuralwatt, scope: "usage"))
     private static let timeoutSeconds: TimeInterval = 15
 
     public static func fetchUsage(

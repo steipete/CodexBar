@@ -5,7 +5,7 @@ import FoundationNetworking
 #endif
 
 public struct PerplexityUsageFetcher: Sendable {
-    private static let log = CodexBarLog.logger(LogCategories.perplexityAPI)
+    private static let log = CodexBarLog.logger(LogCategories.provider(.perplexity, scope: "api"))
     private static let creditsURL =
         URL(string: "https://www.perplexity.ai/rest/billing/credits?version=2.18&source=default")!
     @TaskLocal static var fetchCreditsOverride:

@@ -27,7 +27,7 @@ public enum PoeUsageError: LocalizedError, Sendable {
 }
 
 public struct PoeUsageFetcher: Sendable {
-    private static let log = CodexBarLog.logger(LogCategories.poeUsage)
+    private static let log = CodexBarLog.logger(LogCategories.provider(.poe, scope: "usage"))
     private static let usageURL = URL(string: "https://api.poe.com/usage/current_balance")!
     private static let historyURL = URL(string: "https://api.poe.com/usage/points_history")!
     private static let timeoutSeconds: TimeInterval = 15

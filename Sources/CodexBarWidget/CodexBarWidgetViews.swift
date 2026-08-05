@@ -573,31 +573,21 @@ struct WidgetUsageRow: Identifiable, Equatable {
     }
 
     static func smallWidgetRowLimit(for entry: WidgetSnapshot.ProviderEntry) -> Int? {
-        if entry.provider == .kimi {
-            return 3
-        }
-        return self.antigravityQuotaSummaryRowLimit(for: entry, limit: 2)
+        self.widgetRowLimit(for: entry, family: .small)
     }
 
     static func mediumWidgetRowLimit(for entry: WidgetSnapshot.ProviderEntry) -> Int? {
-        if entry.provider == .kimi {
-            return 3
-        }
-        return self.antigravityQuotaSummaryRowLimit(for: entry, limit: 3)
+        self.widgetRowLimit(for: entry, family: .medium)
     }
 
-    private static func antigravityQuotaSummaryRowLimit(
+    private static func widgetRowLimit(
         for entry: WidgetSnapshot.ProviderEntry,
-        limit: Int) -> Int?
+        family: ProviderWidgetFamily) -> Int?
     {
-        guard entry.provider == .antigravity,
-              entry.usageRows?.contains(where: {
-                  $0.id.hasPrefix("antigravity-quota-summary-")
-              }) == true
-        else {
-            return nil
-        }
-        return limit
+        guard let provider = entry.provider.firstPartyProvider else { return nil }
+        return ProviderDescriptorRegistry.descriptor(for: provider).presentation.widgetRowLimit(
+            rows: entry.usageRows,
+            family: family)
     }
 
     static func rows(

@@ -23,6 +23,9 @@ public enum CursorProviderDescriptor {
     static func makeDescriptor() -> ProviderDescriptor {
         ProviderDescriptor(
             id: .cursor,
+            menuBarMetrics: ProviderMenuBarMetricCapabilities(
+                supported: [.automatic, .primary, .secondary, .tertiary, .extraUsage],
+                tertiaryRequiresWindow: true),
             settingsSection: .init(CursorProviderSettingsKey.self, cookieSettings: CursorProviderSettings.self),
             credentials: self.credentials,
             metadata: ProviderMetadata(
@@ -68,6 +71,16 @@ public enum CursorProviderDescriptor {
                 menuHintLines: [.estimate],
                 supportsTokenSnapshot: self.supportsTokenSnapshot),
             pace: ProviderPaceCapability(resetWindowPace: .windowDurationPresent),
+            presentation: ProviderUsagePresentation(
+                requestedMenuBarLaneOrders: [
+                    .tertiary: [.tertiary, .secondary, .primary],
+                ],
+                automaticSelectionPrioritizesExhaustedWindow: false,
+                menuBarWindowResolver: self.menuBarWindow,
+                menuCard: ProviderMenuCardPresentation(
+                    costVisibilityResolver: { $0.showOptionalUsage },
+                    supportsInlineTokenCostDashboard: true,
+                    primaryDetailKind: .requestQuota)),
             fetchPlan: ProviderFetchPlan(
                 sourceModes: [.auto, .cli, .web],
                 pipeline: ProviderFetchPipeline(resolveStrategies: { _ in [CursorStatusFetchStrategy()] })),
@@ -82,6 +95,23 @@ public enum CursorProviderDescriptor {
                     false
                     #endif
                 }))
+    }
+
+    private static func menuBarWindow(
+        context: ProviderMenuBarWindowContext) -> ProviderMenuBarWindowResolution
+    {
+        guard context.metric == .automatic else { return .unhandled }
+        let total = context.snapshot.primary
+        let subquotas = [context.snapshot.secondary, context.snapshot.tertiary].compactMap(\.self)
+        let usableSubquotas = subquotas.filter { $0.remainingPercent > 0 }
+        if let total, total.remainingPercent <= 0 {
+            return .resolved(total)
+        }
+        if !subquotas.isEmpty, usableSubquotas.isEmpty {
+            return .resolved(subquotas.max(by: { $0.usedPercent < $1.usedPercent }))
+        }
+        return .resolved(([total].compactMap(\.self) + usableSubquotas)
+            .max(by: { $0.usedPercent < $1.usedPercent }))
     }
 
     private static var supportsTokenSnapshot: Bool {

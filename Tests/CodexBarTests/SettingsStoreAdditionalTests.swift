@@ -194,6 +194,36 @@ struct SettingsStoreAdditionalTests {
     }
 
     @Test
+    func `menu bar metric capability membership preserves every provider verdict`() {
+        let settings = Self.makeSettingsStore(suite: "SettingsStoreAdditionalTests-menu-metric-capabilities")
+        let standard: Set<MenuBarMetricPreference> = [.automatic, .primary, .secondary]
+        let overrides: [UsageProvider: Set<MenuBarMetricPreference>] = [
+            .codex: standard.union([.primaryAndSecondary]),
+            .claude: standard.union([.primaryAndSecondary, .extraUsage]),
+            .cursor: standard.union([.tertiary, .extraUsage]),
+            .gemini: standard.union([.average]),
+            .perplexity: standard.union([.tertiary]),
+            .mistral: [.automatic, .monthlyPlan],
+            .openrouter: [.automatic, .primary],
+            .deepseek: [.automatic],
+            .deepinfra: [.automatic],
+            .moonshot: [.automatic],
+            .poe: [.automatic],
+        ]
+
+        for provider in UsageProvider.allCases {
+            let supported = overrides[provider] ?? standard
+            for preference in MenuBarMetricPreference.allCases {
+                settings.setMenuBarMetricPreference(preference, for: provider)
+                let expected = supported.contains(preference) ? preference : .automatic
+                #expect(
+                    settings.menuBarMetricPreference(for: provider) == expected,
+                    "Unexpected \(preference.rawValue) verdict for \(provider.rawValue).")
+            }
+        }
+    }
+
+    @Test
     func `minimax auth mode uses stored values`() {
         let settings = Self.makeSettingsStore(suite: "SettingsStoreAdditionalTests-minimax")
         settings.minimaxAPIToken = "sk-api-test-token"

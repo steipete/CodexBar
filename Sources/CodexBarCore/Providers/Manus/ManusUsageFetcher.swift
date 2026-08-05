@@ -69,7 +69,7 @@ public struct ManusCreditsResponse: Decodable, Sendable {
 }
 
 public enum ManusUsageFetcher {
-    private static let log = CodexBarLog.logger(LogCategories.manusAPI)
+    private static let log = CodexBarLog.logger(LogCategories.provider(.manus, scope: "api"))
     private static let creditsURL =
         URL(string: "https://api.manus.im/user.v1.UserService/GetAvailableCredits")!
     @TaskLocal static var fetchCreditsOverride:

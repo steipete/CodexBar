@@ -49,17 +49,22 @@ public enum MiMoProviderDescriptor {
                 supportsTokenCost: false,
                 noDataMessage: { "Xiaomi MiMo cost summary is not supported." }),
             pace: .calendarMonthResetWindow,
-            presentation: ProviderUsagePresentation(identityPresenter: { provider, snapshot in
-                let balance = snapshot.detailRow(label: "Balance")?.value
-                guard let plan = snapshot.loginMethod(for: provider),
-                      !plan.isEmpty,
-                      !plan.localizedCaseInsensitiveContains("balance:")
-                else {
-                    return ProviderIdentityPresentation(badge: balance, plan: nil)
-                }
-                let display = UsageFormatter.cleanPlanName(plan)
-                return ProviderIdentityPresentation(badge: balance ?? display, plan: display)
-            }),
+            presentation: ProviderUsagePresentation(
+                identityPresenter: { provider, snapshot in
+                    let balance = snapshot.detailRow(label: "Balance")?.value
+                    guard let plan = snapshot.loginMethod(for: provider),
+                          !plan.isEmpty,
+                          !plan.localizedCaseInsensitiveContains("balance:")
+                    else {
+                        return ProviderIdentityPresentation(badge: balance, plan: nil)
+                    }
+                    let display = UsageFormatter.cleanPlanName(plan)
+                    return ProviderIdentityPresentation(badge: balance ?? display, plan: display)
+                },
+                menuCard: ProviderMenuCardPresentation(
+                    showsPrimaryBalanceDescription: true,
+                    hidesPrimaryResetWithoutDate: true),
+                menu: ProviderMenuDescriptorPresentation(primaryDescriptionIsDetail: { _ in true })),
             fetchPlan: ProviderFetchPlan(
                 sourceModes: [.auto, .web],
                 pipeline: ProviderFetchPipeline(resolveStrategies: { context in

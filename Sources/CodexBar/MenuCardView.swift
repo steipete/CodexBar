@@ -911,7 +911,8 @@ extension UsageMenuCardView.Model {
         let openAIAPIUsage = input.snapshot?.openAIAPIUsage
         let inlineUsageDashboard = Self.inlineUsageDashboard(input: input)
         let usageNotes = Self.usageNotes(input: input)
-        let rawCreditsText: String? = if input.provider == .openrouter ||
+        let menuCard = ProviderDescriptorRegistry.descriptor(for: input.provider).presentation.menuCard
+        let rawCreditsText: String? = if !menuCard.showsCreditsSection ||
             !input.showOptionalCreditsAndExtraUsage
         {
             nil
@@ -927,18 +928,11 @@ extension UsageMenuCardView.Model {
         let creditsProgressPercent = Self.creditsProgressPercent(credits: input.credits)
         let creditsScaleText = Self.creditsScaleText(credits: input.credits)
         let codexCreditLimitDetail = Self.codexCreditLimitDetail(credits: input.credits, now: input.now)
-        let isClaudeAdminAPI = input.provider == .claude &&
-            input.snapshot?.loginMethod(for: .claude) == "Admin API"
-        let isRequiredOpenCodeZenBalance = Self.isRequiredOpenCodeZenBalance(input.snapshot)
-        let hidesOptionalProviderCost = ((input.provider == .claude && !isClaudeAdminAPI) ||
-            input.provider == .cursor ||
-            input.provider == .factory ||
-            input.provider == .devin ||
-            (input.provider == .opencodego && !isRequiredOpenCodeZenBalance)) &&
-            !input.showOptionalCreditsAndExtraUsage
-        let providerCost: ProviderCostSection? = if hidesOptionalProviderCost ||
-            (input.provider == .openai && openAIAPIUsage != nil)
-        {
+        let isClaudeAdminAPI = input.snapshot?.loginMethod(for: input.provider) == "Admin API"
+        let showsProviderCost = menuCard.showsProviderCost(context: ProviderCostVisibilityContext(
+            snapshot: input.snapshot,
+            showOptionalUsage: input.showOptionalCreditsAndExtraUsage))
+        let providerCost: ProviderCostSection? = if !showsProviderCost {
             nil
         } else {
             Self.providerCostSection(

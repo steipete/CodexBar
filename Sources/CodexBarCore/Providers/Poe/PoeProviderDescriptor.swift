@@ -42,6 +42,8 @@ public enum PoeProviderDescriptor {
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
                 noDataMessage: { "Poe usage history is unavailable." }),
+            presentation: ProviderUsagePresentation(menuCard: ProviderMenuCardPresentation(
+                primaryDetailKind: .poeBalance)),
             fetchPlan: self.fetchPlan(),
             cli: ProviderCLIConfig(
                 name: "poe",

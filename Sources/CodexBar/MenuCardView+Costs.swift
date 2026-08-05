@@ -111,10 +111,11 @@ extension UsageMenuCardView.Model {
         preferredCurrencyCode: String = "auto") -> String?
     {
         guard metadata.supportsCredits else { return nil }
-        if metadata.id == .codex, credits == nil, error == nil {
-            return nil
-        }
-        if metadata.id == .amp, snapshot != nil {
+        let visibility = ProviderDescriptorRegistry.descriptor(for: metadata.id).presentation.menuCard.creditsVisibility
+        if visibility == .hidden ||
+            (visibility == .requiresValueOrError && credits == nil && error == nil) ||
+            (visibility == .hiddenWhenUsageSnapshotPresent && snapshot != nil)
+        {
             return nil
         }
         if let credits {

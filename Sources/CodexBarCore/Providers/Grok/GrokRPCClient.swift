@@ -6,7 +6,7 @@ import Foundation
 /// but uses `protocolVersion`/`clientCapabilities` for the `initialize` call instead of
 /// `clientInfo`. Billing is fetched via the `x.ai/billing` extension method.
 final class GrokRPCClient: @unchecked Sendable {
-    private static let log = CodexBarLog.logger(LogCategories.grok)
+    private static let log = CodexBarLog.logger(LogCategories.provider(.grok))
 
     private let process = Process()
     private let stdinPipe = Pipe()

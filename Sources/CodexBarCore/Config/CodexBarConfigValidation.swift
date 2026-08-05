@@ -28,28 +28,6 @@ public struct CodexBarConfigIssue: Codable, Sendable, Equatable {
 }
 
 public enum CodexBarConfigValidator {
-    private static let enterpriseHostProviders: [UsageProvider] = [
-        .azureopenai,
-        .clawrouter,
-        .copilot,
-        .kimi,
-        .litellm,
-        .llmproxy,
-        .openrouter,
-        .sub2api,
-        .wayfinder,
-    ]
-
-    private static let workspaceIDProviders: [UsageProvider] = [
-        .azureopenai,
-        .openai,
-        .opencode,
-        .opencodego,
-        .devin,
-        .deepgram,
-        .xai,
-    ]
-
     public static func validate(_ config: CodexBarConfig) -> [CodexBarConfigIssue] {
         var issues: [CodexBarConfigIssue] = []
 
@@ -278,11 +256,18 @@ public enum CodexBarConfigValidator {
     }
 
     private static func providerSupportsWorkspaceID(_ provider: UsageProvider) -> Bool {
-        self.workspaceIDProviders.contains(provider)
+        ProviderDescriptorRegistry.descriptor(for: provider).config.workspaceIDValidationOrder != nil
     }
 
     private static var workspaceIDProviderList: String {
-        self.formattedProviderList(self.workspaceIDProviders)
+        let providers = ProviderDescriptorRegistry.all
+            .compactMap { descriptor -> (UsageProvider, Int)? in
+                guard let order = descriptor.config.workspaceIDValidationOrder else { return nil }
+                return (descriptor.id, order)
+            }
+            .sorted { $0.1 < $1.1 }
+            .map(\.0)
+        return self.formattedProviderList(providers)
     }
 
     private static func formattedProviderList(_ providers: [UsageProvider]) -> String {
@@ -293,11 +278,11 @@ public enum CodexBarConfigValidator {
     }
 
     private static func providerSupportsEnterpriseHost(_ provider: UsageProvider) -> Bool {
-        self.enterpriseHostProviders.contains(provider)
+        ProviderDescriptorRegistry.descriptor(for: provider).config.supportsEnterpriseHost
     }
 
     private static func providerRequiresAPIKey(_ provider: UsageProvider) -> Bool {
-        provider != .wayfinder
+        ProviderDescriptorRegistry.descriptor(for: provider).credentials?.requiresAPIKeyForAPISource ?? true
     }
 
     private static func hasConfiguredAPICredential(_ entry: ProviderConfig) -> Bool {
@@ -313,7 +298,11 @@ public enum CodexBarConfigValidator {
     }
 
     private static var enterpriseHostProviderList: String {
-        self.formattedProviderList(self.enterpriseHostProviders)
+        let providers = ProviderDescriptorRegistry.all
+            .filter(\.config.supportsEnterpriseHost)
+            .map(\.id)
+            .sorted { $0.rawValue < $1.rawValue }
+        return self.formattedProviderList(providers)
     }
 
     private static func validateRegion(_ entry: ProviderConfig, issues: inout [CodexBarConfigIssue]) {

@@ -28,6 +28,7 @@ public enum OpenCodeGoProviderDescriptor {
                         workspaceID: context.config?.workspaceID)
                 }),
             credentials: self.credentials,
+            config: ProviderConfigCapabilities(workspaceIDValidationOrder: 3),
             metadata: ProviderMetadata(
                 id: .opencodego,
                 displayName: "OpenCode Go",
@@ -61,6 +62,28 @@ public enum OpenCodeGoProviderDescriptor {
                 }),
             pace: .calendarMonthResetWindow,
             history: .alwaysTracked,
+            presentation: ProviderUsagePresentation(
+                planUtilizationSeriesResolver: { snapshot in
+                    var series: Set<ProviderPlanUtilizationSeries> = []
+                    if snapshot.primary != nil {
+                        series.insert(.session)
+                    }
+                    if snapshot.secondary != nil {
+                        series.insert(.weekly)
+                    }
+                    if snapshot.tertiary != nil {
+                        series.insert(.monthly)
+                    }
+                    return series
+                },
+                menuCard: ProviderMenuCardPresentation(
+                    costVisibilityResolver: { context in
+                        context.showOptionalUsage ||
+                            (context.snapshot?.primary == nil &&
+                                context.snapshot?.secondary == nil &&
+                                context.snapshot?.providerCost?.period == "Zen balance")
+                    },
+                    supportsInlineTokenCostDashboard: true)),
             fetchPlan: ProviderFetchPlan(
                 sourceModes: [.auto, .web],
                 pipeline: ProviderFetchPipeline(resolveStrategies: self.resolveStrategies)),

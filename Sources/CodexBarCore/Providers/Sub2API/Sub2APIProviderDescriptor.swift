@@ -38,6 +38,7 @@ public enum Sub2APIProviderDescriptor {
     public static let descriptor = ProviderDescriptor(
         id: .sub2api,
         credentials: Self.credentials,
+        config: ProviderConfigCapabilities(supportsEnterpriseHost: true),
         metadata: ProviderMetadata(
             id: .sub2api,
             displayName: "sub2api",
@@ -70,13 +71,19 @@ public enum Sub2APIProviderDescriptor {
         tokenCost: ProviderTokenCostConfig(
             supportsTokenCost: false,
             noDataMessage: { "sub2api spend is reported by its usage API." }),
-        presentation: ProviderUsagePresentation(rateWindowLabeler: { metadata, snapshot, _ in
-            ProviderRateWindowLabels(
-                primary: Self.primaryLabel(snapshot: snapshot) ?? metadata.sessionLabel,
-                secondary: metadata.weeklyLabel,
-                tertiary: metadata.opusLabel ?? "Sonnet",
-                showsTertiary: metadata.supportsOpus)
-        }),
+        presentation: ProviderUsagePresentation(
+            rateWindowLabeler: { metadata, snapshot, _ in
+                ProviderRateWindowLabels(
+                    primary: Self.primaryLabel(snapshot: snapshot) ?? metadata.sessionLabel,
+                    secondary: metadata.weeklyLabel,
+                    tertiary: metadata.opusLabel ?? "Sonnet",
+                    showsTertiary: metadata.supportsOpus)
+            },
+            menuCard: ProviderMenuCardPresentation(usesRawPrimaryResetDescription: true),
+            menu: ProviderMenuDescriptorPresentation(
+                primaryDescriptionIsDetail: { _ in true },
+                secondaryDescriptionMode: .resetOverride,
+                tertiaryDescriptionOverridesReset: true)),
         fetchPlan: Self.fetchPlan(),
         cli: ProviderCLIConfig(
             name: "sub2api",

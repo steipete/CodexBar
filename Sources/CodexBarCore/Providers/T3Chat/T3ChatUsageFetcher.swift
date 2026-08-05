@@ -59,7 +59,7 @@ public enum T3ChatCookieImporter {
 #endif
 
 public struct T3ChatUsageFetcher: Sendable {
-    private static let log = CodexBarLog.logger(LogCategories.t3chat)
+    private static let log = CodexBarLog.logger(LogCategories.provider(.t3chat))
     private static let baseURL = URL(string: "https://t3.chat")!
     private static let refererURL = URL(string: "https://t3.chat/settings/customization")!
     /// Browser fingerprint defaults are only fallbacks; full cURL captures override these forwarded headers.

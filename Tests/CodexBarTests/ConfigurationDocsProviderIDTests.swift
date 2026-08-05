@@ -4,12 +4,12 @@ import Testing
 
 struct ConfigurationDocsProviderIDTests {
     @Test
-    func `configuration docs list every provider id in enum order`() throws {
+    func `generated docs list every provider id in enum order`() throws {
         let rootURL = try Self.repoRoot()
-        let docsURL = rootURL.appending(path: "docs/configuration.md")
+        let docsURL = rootURL.appending(path: "docs/provider-ids.md")
         let docs = try String(contentsOf: docsURL, encoding: .utf8)
 
-        let marker = "## Provider IDs"
+        let marker = "# Provider IDs"
         let sectionStart = try #require(docs.range(of: marker)?.upperBound)
         let section = docs[sectionStart...]
         let idsLine = try #require(section.split(separator: "\n").first { $0.hasPrefix("`") })
