@@ -185,7 +185,7 @@ extension CodexBarCLI {
 
         let result = ConfigSetAPIKeyResult(
             provider: provider.rawValue,
-            enabled: config.providerConfig(for: provider)?.enabled ?? false,
+            enabled: config.providerConfig(for: provider.instanceID)?.enabled ?? false,
             configPath: store.fileURL.path)
 
         switch output.format {
@@ -226,7 +226,7 @@ extension CodexBarCLI {
         accountOptions: ConfigAPIKeyAccountOptions? = nil) -> CodexBarConfig
     {
         var updated = config.normalized()
-        var providerConfig = updated.providerConfig(for: provider) ?? ProviderConfig(id: provider)
+        var providerConfig = updated.providerConfig(for: provider.instanceID) ?? ProviderConfig(id: provider.instanceID)
         if let accountOptions {
             let existing = providerConfig.tokenAccounts
             let accounts = existing?.accounts ?? []
@@ -309,7 +309,7 @@ extension CodexBarCLI {
         enabled: Bool) -> CodexBarConfig
     {
         var updated = config.normalized()
-        var providerConfig = updated.providerConfig(for: provider) ?? ProviderConfig(id: provider)
+        var providerConfig = updated.providerConfig(for: provider.instanceID) ?? ProviderConfig(id: provider.instanceID)
         providerConfig.enabled = enabled
         updated.setProviderConfig(providerConfig)
         return updated
@@ -318,7 +318,8 @@ extension CodexBarCLI {
     static func configProviderStatuses(_ config: CodexBarConfig) -> [ConfigProviderStatusResult] {
         let metadata = ProviderDescriptorRegistry.metadata
         return config.normalized().providers.map { providerConfig in
-            let meta = metadata[providerConfig.id]
+            let provider = providerConfig.id.firstPartyProvider
+            let meta = provider.flatMap { metadata[$0] }
             let defaultEnabled = meta?.defaultEnabled ?? false
             return ConfigProviderStatusResult(
                 provider: providerConfig.id.rawValue,

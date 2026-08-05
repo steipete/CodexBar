@@ -310,7 +310,7 @@ extension StatusItemController {
     }
 
     private func usageHistoryRenderSignature(for provider: UsageProvider) -> String {
-        let snapshot = self.store.snapshot(for: provider)
+        let snapshot = self.store.snapshot(for: provider.instanceID)
         let selection = self.store.planUtilizationHistorySelection(for: provider)
         return [
             "\(self.store.planUtilizationHistoryRevision)",
@@ -348,7 +348,7 @@ extension StatusItemController {
     }
 
     private func zaiHourlyUsageRenderSignature(for provider: UsageProvider) -> String {
-        guard let zai = self.store.snapshot(for: provider)?.zaiUsage,
+        guard let zai = self.store.snapshot(for: provider.instanceID)?.zaiUsage,
               let modelUsage = zai.modelUsage else { return "none" }
         return Self.zaiHourlyUsageRenderSignature(
             modelUsage: modelUsage,
@@ -631,7 +631,7 @@ extension StatusItemController {
         width: CGFloat) -> Bool
     {
         guard provider == .zai,
-              let snapshot = self.store.snapshot(for: provider),
+              let snapshot = self.store.snapshot(for: provider.instanceID),
               let modelUsage = snapshot.zaiUsage?.modelUsage
         else { return false }
 

@@ -213,7 +213,7 @@ struct ShareStatsSubscriptionName: Sendable, Equatable {
 
     /// Converts plan-bearing provider identity into a closed, non-identifying share-card value.
     static func from(snapshot: UsageSnapshot?, provider: UsageProvider) -> Self? {
-        guard let identity = snapshot?.identity(for: provider),
+        guard let identity = snapshot?.identity(for: provider.instanceID),
               let rawName = identity.loginMethod,
               !Self.matchesAccountIdentity(rawName, identity: identity)
         else { return nil }

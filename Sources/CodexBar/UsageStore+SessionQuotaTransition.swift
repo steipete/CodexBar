@@ -57,7 +57,7 @@ extension UsageStore {
             self.sessionQuotaLogger.debug("ignored stale session observation while awaiting a fresh Codex baseline")
             return
         }
-        let previousState = self.sessionQuotaTransitionStates[provider]
+        let previousState = self.sessionQuotaTransitionStates[provider.instanceID]
         let forceBaseline = provider == .codex && self.codexSessionQuotaBaselineRequirement != nil
         let evaluation = SessionQuotaTransitionReducer.evaluate(
             previous: previousState,
@@ -71,7 +71,7 @@ extension UsageStore {
                 codexOwnerKey: codexOwnerKey),
             notificationsEnabled: detectionEnabled,
             forceBaseline: forceBaseline)
-        self.sessionQuotaTransitionStates[provider] = evaluation.state
+        self.sessionQuotaTransitionStates[provider.instanceID] = evaluation.state
         if provider == .codex {
             self.codexSessionQuotaBaselineRequirement = nil
         }

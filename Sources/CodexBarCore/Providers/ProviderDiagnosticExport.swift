@@ -145,6 +145,7 @@ public struct ProviderDiagnosticUsageSummary: Codable, Sendable {
     public let extraWindowCount: Int
     public let providerCostPresent: Bool
     public let providerSpecificData: [String]
+    public let copilotCredits: ProviderDiagnosticCopilotCredits?
 
     private enum CodingKeys: String, CodingKey {
         case updatedAt
@@ -153,6 +154,7 @@ public struct ProviderDiagnosticUsageSummary: Codable, Sendable {
         case extraWindowCount
         case providerCostPresent
         case providerSpecificData
+        case copilotCredits
     }
 
     public init(from snapshot: UsageSnapshot) {
@@ -187,6 +189,7 @@ public struct ProviderDiagnosticUsageSummary: Codable, Sendable {
         if snapshot.deepgramUsage != nil { providerSpecificData.append("deepgramUsage") }
         if snapshot.xaiUsage != nil { providerSpecificData.append("xaiUsage") }
         if snapshot.cursorRequests != nil { providerSpecificData.append("cursorRequests") }
+        if snapshot.copilotCredits != nil { providerSpecificData.append("copilotCredits") }
 
         self.updatedAt = snapshot.updatedAt
         self.dataConfidence = snapshot.dataConfidence.rawValue
@@ -194,6 +197,11 @@ public struct ProviderDiagnosticUsageSummary: Codable, Sendable {
         self.extraWindowCount = snapshot.extraRateWindows?.count ?? 0
         self.providerCostPresent = snapshot.providerCost != nil
         self.providerSpecificData = providerSpecificData.sorted()
+        self.copilotCredits = snapshot.copilotCredits.map {
+            ProviderDiagnosticCopilotCredits(
+                creditsUsed: $0.creditsUsed,
+                quotaResetDate: $0.quotaResetDate)
+        }
     }
 
     public init(from decoder: Decoder) throws {
@@ -205,6 +213,19 @@ public struct ProviderDiagnosticUsageSummary: Codable, Sendable {
         self.extraWindowCount = try container.decode(Int.self, forKey: .extraWindowCount)
         self.providerCostPresent = try container.decode(Bool.self, forKey: .providerCostPresent)
         self.providerSpecificData = try container.decode([String].self, forKey: .providerSpecificData)
+        self.copilotCredits = try container.decodeIfPresent(
+            ProviderDiagnosticCopilotCredits.self,
+            forKey: .copilotCredits)
+    }
+}
+
+public struct ProviderDiagnosticCopilotCredits: Codable, Sendable {
+    public let creditsUsed: Double
+    public let quotaResetDate: Date?
+
+    public init(creditsUsed: Double, quotaResetDate: Date?) {
+        self.creditsUsed = creditsUsed
+        self.quotaResetDate = quotaResetDate
     }
 }
 

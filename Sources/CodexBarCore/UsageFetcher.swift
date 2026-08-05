@@ -171,6 +171,7 @@ public struct UsageSnapshot: Codable, Sendable {
     public let poeUsage: PoeUsageHistorySnapshot?
     public let xaiUsage: XAIUsageSnapshot?
     public let cursorRequests: CursorRequestUsage?
+    public let copilotCredits: CopilotCreditsSnapshot?
     /// Live-only marker for optional Command Code subscription lookup failure.
     public let commandCodeSubscriptionEnrichmentUnavailable: Bool
     /// Live-only marker that Command Code returned a recognized subscription plan.
@@ -247,6 +248,7 @@ public struct UsageSnapshot: Codable, Sendable {
         poeUsage: PoeUsageHistorySnapshot? = nil,
         xaiUsage: XAIUsageSnapshot? = nil,
         cursorRequests: CursorRequestUsage? = nil,
+        copilotCredits: CopilotCreditsSnapshot? = nil,
         commandCodeSubscriptionEnrichmentUnavailable: Bool = false,
         commandCodeHasSubscriptionPlan: Bool = false,
         commandCodeMonthlyGrantDepleted: Bool = false,
@@ -289,6 +291,7 @@ public struct UsageSnapshot: Codable, Sendable {
         self.poeUsage = poeUsage
         self.xaiUsage = xaiUsage
         self.cursorRequests = cursorRequests
+        self.copilotCredits = copilotCredits
         self.commandCodeSubscriptionEnrichmentUnavailable = commandCodeSubscriptionEnrichmentUnavailable
         self.commandCodeHasSubscriptionPlan = commandCodeHasSubscriptionPlan
         self.commandCodeMonthlyGrantDepleted = commandCodeMonthlyGrantDepleted
@@ -364,6 +367,7 @@ public struct UsageSnapshot: Codable, Sendable {
         self.poeUsage = try container.decodeIfPresent(PoeUsageHistorySnapshot.self, forKey: .poeUsage)
         self.xaiUsage = try container.decodeIfPresent(XAIUsageSnapshot.self, forKey: .xaiUsage)
         self.cursorRequests = nil // Not persisted, fetched fresh each time
+        self.copilotCredits = nil // Not persisted, fetched fresh each time
         self.commandCodeSubscriptionEnrichmentUnavailable = false // Live-only fetch state
         self.commandCodeHasSubscriptionPlan = false // Live-only fetch state
         self.commandCodeMonthlyGrantDepleted = false // Live-only fetch state
@@ -432,8 +436,8 @@ public struct UsageSnapshot: Codable, Sendable {
         try container.encodeIfPresent(self.identity?.loginMethod, forKey: .loginMethod)
     }
 
-    public func identity(for provider: UsageProvider) -> ProviderIdentitySnapshot? {
-        guard let identity, identity.providerID == provider else { return nil }
+    public func identity(for instanceID: ProviderInstanceID) -> ProviderIdentitySnapshot? {
+        guard let identity, identity.providerID == instanceID else { return nil }
         return identity
     }
 
@@ -460,15 +464,15 @@ public struct UsageSnapshot: Codable, Sendable {
     }
 
     public func accountEmail(for provider: UsageProvider) -> String? {
-        self.identity(for: provider)?.accountEmail
+        self.identity(for: provider.instanceID)?.accountEmail
     }
 
     public func accountOrganization(for provider: UsageProvider) -> String? {
-        self.identity(for: provider)?.accountOrganization
+        self.identity(for: provider.instanceID)?.accountOrganization
     }
 
     public func loginMethod(for provider: UsageProvider) -> String? {
-        self.identity(for: provider)?.loginMethod
+        self.identity(for: provider.instanceID)?.loginMethod
     }
 
     public var hasRateLimitWindows: Bool {
@@ -603,6 +607,7 @@ public struct UsageSnapshot: Codable, Sendable {
             poeUsage: self.poeUsage,
             xaiUsage: self.xaiUsage,
             cursorRequests: self.cursorRequests,
+            copilotCredits: self.copilotCredits,
             commandCodeSubscriptionEnrichmentUnavailable: self.commandCodeSubscriptionEnrichmentUnavailable,
             commandCodeHasSubscriptionPlan: self.commandCodeHasSubscriptionPlan,
             commandCodeMonthlyGrantDepleted: self.commandCodeMonthlyGrantDepleted,
@@ -689,7 +694,7 @@ public enum UsageLimitsAvailability: Equatable, Sendable {
 
         if provider == .doubao || provider == .antigravity {
             guard let snapshot,
-                  snapshot.identity(for: provider) != nil
+                  snapshot.identity(for: provider.instanceID) != nil
             else {
                 return .available
             }
@@ -699,7 +704,7 @@ public enum UsageLimitsAvailability: Equatable, Sendable {
         guard provider == .codex else { return .available }
 
         if let snapshot {
-            guard snapshot.identity(for: provider) != nil else { return .available }
+            guard snapshot.identity(for: provider.instanceID) != nil else { return .available }
             return snapshot.hasRateLimitWindows ? .available : .unavailable
         }
 

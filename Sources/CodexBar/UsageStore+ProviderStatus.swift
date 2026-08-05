@@ -22,19 +22,19 @@ extension UsageStore {
                 return
             }
             guard self.statusRefreshPublicationIsCurrent(publicationRevision, for: provider) else { return }
-            self.statuses[provider] = status
+            self.statuses[provider.instanceID] = status
             // A component endpoint is best-effort. Preserve the last good list when the
             // overall status succeeds but the component request or decoding fails.
             if let components {
-                self.statusComponents[provider] = components
+                self.statusComponents[provider.instanceID] = components
             }
             self.emitProviderStatusHooks(provider: provider, indicator: status.indicator)
         } catch {
             guard self.statusRefreshPublicationIsCurrent(publicationRevision, for: provider) else { return }
             self.recordStartupConnectivityRetryableFailure(error)
             // Keep the previous status to avoid flapping when the API hiccups.
-            if self.statuses[provider] == nil {
-                self.statuses[provider] = ProviderStatus(
+            if self.statuses[provider.instanceID] == nil {
+                self.statuses[provider.instanceID] = ProviderStatus(
                     indicator: .unknown,
                     description: error.localizedDescription,
                     updatedAt: nil)

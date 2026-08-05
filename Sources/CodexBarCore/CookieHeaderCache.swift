@@ -919,7 +919,7 @@ public enum CookieHeaderCache {
     }
 
     private static func key(for provider: UsageProvider, scope: Scope?) -> KeychainCacheStore.Key {
-        KeychainCacheStore.Key.cookie(provider: provider, scopeIdentifier: scope?.keychainIdentifier)
+        KeychainCacheStore.Key.cookie(provider: provider.instanceID, scopeIdentifier: scope?.keychainIdentifier)
     }
 }
 

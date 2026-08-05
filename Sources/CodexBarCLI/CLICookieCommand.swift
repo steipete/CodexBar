@@ -255,7 +255,7 @@ extension CodexBarCLI {
         descriptor: ProviderDescriptor,
         config: CodexBarConfig) -> CookieRefreshResult?
     {
-        switch config.providerConfig(for: descriptor.id)?.cookieSource ?? .auto {
+        switch config.providerConfig(for: descriptor.id.instanceID)?.cookieSource ?? .auto {
         case .manual:
             CookieRefreshResult(
                 provider: descriptor.cli.name,

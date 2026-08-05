@@ -784,8 +784,8 @@ extension SettingsStore {
         }
     }
 
-    var selectedMenuProvider: UsageProvider? {
-        get { self.selectedMenuProviderRaw.flatMap(UsageProvider.init(rawValue:)) }
+    var selectedMenuProvider: ProviderInstanceID? {
+        get { self.selectedMenuProviderRaw.flatMap(ProviderInstanceID.init(rawValue:)) }
         set {
             self.selectedMenuProviderRaw = newValue?.rawValue
         }

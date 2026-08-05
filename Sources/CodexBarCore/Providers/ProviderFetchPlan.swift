@@ -25,6 +25,11 @@ public struct ProviderFetchContext: Sendable {
     public let sourceMode: ProviderSourceMode
     public let includeCredits: Bool
     public let includeOptionalUsage: Bool
+    /// Whether this fetch should wait for optional usage data (such as prepaid balances) to
+    /// complete instead of bounding it with the short optional join grace. Usage-snapshot
+    /// reads enable this; guard and diagnostic commands keep the bounded join so a slow
+    /// optional request cannot consume their deadline.
+    public let requiresOptionalUsageCompleteness: Bool
     public let webTimeout: TimeInterval
     public let webDebugDumpHTML: Bool
     public let verbose: Bool
@@ -55,6 +60,7 @@ public struct ProviderFetchContext: Sendable {
         sourceMode: ProviderSourceMode,
         includeCredits: Bool,
         includeOptionalUsage: Bool = true,
+        requiresOptionalUsageCompleteness: Bool = false,
         webTimeout: TimeInterval,
         webDebugDumpHTML: Bool,
         verbose: Bool,
@@ -75,6 +81,7 @@ public struct ProviderFetchContext: Sendable {
         self.sourceMode = sourceMode
         self.includeCredits = includeCredits
         self.includeOptionalUsage = includeOptionalUsage
+        self.requiresOptionalUsageCompleteness = requiresOptionalUsageCompleteness
         self.webTimeout = webTimeout
         self.webDebugDumpHTML = webDebugDumpHTML
         self.verbose = verbose

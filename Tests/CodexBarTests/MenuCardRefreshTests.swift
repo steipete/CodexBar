@@ -45,7 +45,7 @@ struct MenuCardRefreshTests {
                 secondary: nil,
                 updatedAt: updatedAt,
                 identity: ProviderIdentitySnapshot(
-                    providerID: provider,
+                    providerID: provider.instanceID,
                     accountEmail: nil,
                     accountOrganization: nil,
                     loginMethod: "Pro"))

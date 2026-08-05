@@ -294,7 +294,7 @@ struct CodexBarConfigMigrator {
         state: inout MigrationState,
         mutate: (inout ProviderConfig) -> Bool)
     {
-        guard let index = config.providers.firstIndex(where: { $0.id == provider }) else { return }
+        guard let index = config.providers.firstIndex(where: { $0.id == provider.instanceID }) else { return }
         var entry = config.providers[index]
         let changed = mutate(&entry)
         if changed {
@@ -351,21 +351,21 @@ struct CodexBarConfigMigrator {
 
     private static func applyProviderOrder(_ raw: [String], config: CodexBarConfig) -> CodexBarConfig {
         let configsByID = Dictionary(uniqueKeysWithValues: config.providers.map { ($0.id, $0) })
-        var seen: Set<UsageProvider> = []
+        var seen: Set<ProviderInstanceID> = []
         var ordered: [ProviderConfig] = []
         ordered.reserveCapacity(config.providers.count)
 
         for rawValue in raw {
-            guard let provider = UsageProvider(rawValue: rawValue),
-                  let entry = configsByID[provider],
-                  !seen.contains(provider)
+            guard let instanceID = ProviderInstanceID(rawValue: rawValue),
+                  let entry = configsByID[instanceID],
+                  !seen.contains(instanceID)
             else { continue }
-            seen.insert(provider)
+            seen.insert(instanceID)
             ordered.append(entry)
         }
 
-        for provider in UsageProvider.allCases where !seen.contains(provider) {
-            ordered.append(configsByID[provider] ?? ProviderConfig(id: provider))
+        for provider in UsageProvider.allCases where !seen.contains(provider.instanceID) {
+            ordered.append(configsByID[provider.instanceID] ?? ProviderConfig(id: provider.instanceID))
         }
 
         var updated = config
@@ -379,7 +379,7 @@ struct CodexBarConfigMigrator {
     {
         var updated = config
         for index in updated.providers.indices {
-            let provider = updated.providers[index].id
+            guard let provider = updated.providers[index].id.firstPartyProvider else { continue }
             let meta = ProviderDescriptorRegistry.descriptor(for: provider).metadata
             if let value = toggles[meta.cliName] {
                 updated.providers[index].enabled = value

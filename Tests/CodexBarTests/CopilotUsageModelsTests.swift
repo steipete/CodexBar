@@ -530,6 +530,123 @@ struct CopilotUsageModelsTests {
     }
 
     @Test
+    func `decodes credits used counter from token billed business payload`() throws {
+        let response = try Self.decodeFixture(
+            """
+            {
+              "copilot_plan": "business",
+              "token_based_billing": true,
+              "quota_reset_date": "2026-09-01",
+              "quota_snapshots": {
+                "premium_interactions": {
+                  "unlimited": true,
+                  "entitlement": 0,
+                  "remaining": 0,
+                  "percent_remaining": 100.0,
+                  "quota_id": "premium_interactions",
+                  "credits_used": 31
+                },
+                "chat": {
+                  "unlimited": true,
+                  "entitlement": 0,
+                  "remaining": 0,
+                  "percent_remaining": 100.0,
+                  "quota_id": "chat",
+                  "credits_used": 0
+                }
+              }
+            }
+            """)
+
+        let premium = try #require(response.quotaSnapshots.premiumInteractions)
+        #expect(response.tokenBasedBilling == true)
+        #expect(premium.creditsUsed == 31)
+        #expect(premium.unlimited)
+        #expect(premium.usedPercent == 0)
+    }
+
+    @Test
+    func `keeps credit counter when zero entitlement direct snapshot falls back to monthly quota`() throws {
+        let response = try Self.decodeFixture(
+            """
+            {
+              "copilot_plan": "business",
+              "token_based_billing": true,
+              "monthly_quotas": { "completions": 300 },
+              "limited_user_quotas": { "completions": 75 },
+              "quota_snapshots": {
+                "premium_interactions": {
+                  "entitlement": 0,
+                  "remaining": 0,
+                  "percent_remaining": 100,
+                  "quota_id": "premium_interactions",
+                  "credits_used": 31
+                }
+              }
+            }
+            """)
+
+        let premium = try #require(response.quotaSnapshots.premiumInteractions)
+        #expect(premium.creditsUsed == 31)
+        #expect(premium.quotaId == "completions")
+        #expect(premium.usedPercent == 75)
+    }
+
+    @Test
+    func `keeps credit counter when unlimited direct snapshot falls back to monthly quota`() throws {
+        let response = try Self.decodeFixture(
+            """
+            {
+              "copilot_plan": "business",
+              "token_based_billing": true,
+              "monthly_quotas": { "completions": 300 },
+              "limited_user_quotas": { "completions": 75 },
+              "quota_snapshots": {
+                "premium_interactions": {
+                  "unlimited": true,
+                  "entitlement": 0,
+                  "remaining": 0,
+                  "percent_remaining": 100,
+                  "quota_id": "premium_interactions",
+                  "credits_used": 31
+                }
+              }
+            }
+            """)
+
+        let premium = try #require(response.quotaSnapshots.premiumInteractions)
+        #expect(premium.creditsUsed == 31)
+        #expect(premium.quotaId == "completions")
+        #expect(premium.usedPercent == 75)
+    }
+
+    @Test
+    func `keeps credit counter accessible without unlimited marker`() throws {
+        // A zero-entitlement snapshot without `unlimited` is still a placeholder
+        // for percentage windows, but its absolute counter must not be lost.
+        let response = try Self.decodeFixture(
+            """
+            {
+              "copilot_plan": "business",
+              "token_based_billing": true,
+              "quota_snapshots": {
+                "premium_interactions": {
+                  "entitlement": 0,
+                  "remaining": 0,
+                  "percent_remaining": 100,
+                  "quota_id": "premium_interactions",
+                  "credits_used": 31
+                }
+              }
+            }
+            """)
+
+        let premium = try #require(response.quotaSnapshots.premiumInteractions)
+        #expect(premium.creditsUsed == 31)
+        #expect(premium.isPlaceholder)
+    }
+
+    @Test
     func `flags zero entitlement snapshot as placeholder`() {
         let snapshot = CopilotUsageResponse.QuotaSnapshot(
             entitlement: 0,

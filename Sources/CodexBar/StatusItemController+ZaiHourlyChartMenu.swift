@@ -8,7 +8,7 @@ extension StatusItemController {
     @discardableResult
     func addZaiHourlyUsageMenuItemIfNeeded(to menu: NSMenu, provider: UsageProvider, width: CGFloat) -> Bool {
         guard provider == .zai else { return false }
-        guard let snapshot = self.store.snapshot(for: provider),
+        guard let snapshot = self.store.snapshot(for: provider.instanceID),
               snapshot.zaiUsage?.modelUsage != nil
         else { return false }
         let submenu = self.makeHostedSubviewPlaceholderMenu(chartID: Self.zaiHourlyUsageChartID, provider: provider)

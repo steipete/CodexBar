@@ -26,7 +26,7 @@ struct StatusMenuMergedOverviewRefreshTests {
         defer { controller.menuDidClose(menu) }
 
         let visibleProviders = settings.resolvedMergedOverviewProviders(
-            activeProviders: controller.store.enabledProvidersForDisplay())
+            activeProviders: controller.store.enabledFirstPartyProvidersForDisplay())
         #expect(!visibleProviders.contains(.opencode))
 
         controller.store.refreshingProviders.insert(.opencode)

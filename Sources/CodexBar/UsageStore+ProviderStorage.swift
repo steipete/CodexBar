@@ -21,7 +21,7 @@ extension UsageStore {
 
     func storageFootprint(for provider: UsageProvider) -> ProviderStorageFootprint? {
         guard self.settings.providerStorageFootprintsEnabled else { return nil }
-        return self.providerStorageFootprints[provider]
+        return self.providerStorageFootprints[provider.instanceID]
     }
 
     func storageFootprintText(for provider: UsageProvider) -> String? {
@@ -33,15 +33,15 @@ extension UsageStore {
     }
 
     func refreshStorageFootprintsForOverview() {
-        self.scheduleStorageFootprintRefresh(for: self.enabledProvidersForDisplay())
+        self.scheduleStorageFootprintRefresh(for: self.enabledFirstPartyProvidersForDisplay())
     }
 
     func refreshStorageFootprintsForOverviewNow() async {
-        await self.refreshStorageFootprintsNow(for: self.enabledProvidersForDisplay())
+        await self.refreshStorageFootprintsNow(for: self.enabledFirstPartyProvidersForDisplay())
     }
 
     func scheduleStorageFootprintRefreshForOverview(force: Bool = false) {
-        self.scheduleStorageFootprintRefresh(for: self.enabledProvidersForDisplay(), force: force)
+        self.scheduleStorageFootprintRefresh(for: self.enabledFirstPartyProvidersForDisplay(), force: force)
     }
 
     func refreshStorageFootprintsNow(for providers: [UsageProvider]) async {
@@ -181,18 +181,18 @@ extension UsageStore {
         requestKey: String? = nil,
         updatedAt: Date)
     {
-        let providerSet = Set(providers)
+        let providerSet = Set(providers.map(\.instanceID))
         var updated = self.providerStorageFootprints.filter { !providerSet.contains($0.key) }
         for provider in providers {
             // Reuse the existing footprint when only its scan timestamp would change, so the equality
             // guard below treats an unchanged scan as a no-op.
             if let incoming = footprints[provider],
-               let existing = self.providerStorageFootprints[provider],
+               let existing = self.providerStorageFootprints[provider.instanceID],
                existing.hasSameContents(as: incoming)
             {
-                updated[provider] = existing
+                updated[provider.instanceID] = existing
             } else {
-                updated[provider] = footprints[provider]
+                updated[provider.instanceID] = footprints[provider]
             }
         }
         // Only republish the observable footprints when a value actually changed. Storage scans run

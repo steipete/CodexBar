@@ -254,6 +254,151 @@ struct OpenCodeGoLocalUsageReaderTests {
     }
 
     @Test
+    func `daily entries group cost by model within a day`() throws {
+        let env = try Self.makeEnvironment()
+        defer { try? FileManager.default.removeItem(at: env.root) }
+
+        try Self.writeAuth(to: env.authURL)
+        try Self.createDatabase(at: env.databaseURL)
+        try Self.insertMessage(
+            databaseURL: env.databaseURL,
+            createdMs: Self.ms("2026-03-06T11:00:00.000Z"),
+            cost: 3.0,
+            model: "claude-sonnet-4-5")
+        try Self.insertMessage(
+            databaseURL: env.databaseURL,
+            createdMs: Self.ms("2026-03-06T12:00:00.000Z"),
+            cost: 2.0,
+            model: "gpt-5.1-codex")
+        try Self.insertMessage(
+            databaseURL: env.databaseURL,
+            createdMs: Self.ms("2026-03-06T13:00:00.000Z"),
+            cost: 1.0,
+            model: "claude-sonnet-4-5")
+
+        let reader = OpenCodeGoLocalUsageReader(authURL: env.authURL, databaseURL: env.databaseURL)
+        let now = Date(timeIntervalSince1970: TimeInterval(Self.ms("2026-03-06T15:00:00.000Z")) / 1000)
+        let snapshot = try reader.fetch(now: now, historyDays: 30)
+
+        #expect(snapshot.daily.count == 1)
+        let entry = try #require(snapshot.daily.first)
+        #expect(entry.costUSD == 6.0)
+        #expect(entry.requestCount == 3)
+        #expect(entry.modelsUsed == ["claude-sonnet-4-5", "gpt-5.1-codex"])
+
+        let breakdowns = try #require(entry.modelBreakdowns)
+        #expect(breakdowns.count == 2)
+        #expect(breakdowns.first?.modelName == "claude-sonnet-4-5")
+        #expect(breakdowns.first?.costUSD == 4.0)
+        #expect(breakdowns.first?.requestCount == 2)
+        #expect(breakdowns.last?.modelName == "gpt-5.1-codex")
+        #expect(breakdowns.last?.costUSD == 2.0)
+        #expect(breakdowns.last?.requestCount == 1)
+    }
+
+    @Test
+    func `step finish parts inherit their model from the parent message`() throws {
+        let env = try Self.makeEnvironment()
+        defer { try? FileManager.default.removeItem(at: env.root) }
+
+        try Self.writeAuth(to: env.authURL)
+        try Self.createDatabase(at: env.databaseURL)
+        let messageID = try Self.insertMessage(
+            databaseURL: env.databaseURL,
+            createdMs: Self.ms("2026-03-06T11:00:00.000Z"),
+            cost: nil,
+            model: "grok-code-fast-1")
+        try Self.insertStepFinishPart(
+            databaseURL: env.databaseURL,
+            messageID: messageID,
+            createdMs: Self.ms("2026-03-06T11:00:00.000Z"),
+            cost: 3.0)
+
+        let reader = OpenCodeGoLocalUsageReader(authURL: env.authURL, databaseURL: env.databaseURL)
+        let snapshot = try reader.fetch(now: Date(timeIntervalSince1970: 1_772_798_400))
+
+        let entry = try #require(snapshot.daily.first)
+        #expect(entry.modelsUsed == ["grok-code-fast-1"])
+        #expect(entry.modelBreakdowns?.first?.modelName == "grok-code-fast-1")
+        #expect(entry.modelBreakdowns?.first?.costUSD == 3.0)
+    }
+
+    @Test
+    func `messages without a model fall back to the unknown model bucket`() throws {
+        let env = try Self.makeEnvironment()
+        defer { try? FileManager.default.removeItem(at: env.root) }
+
+        try Self.writeAuth(to: env.authURL)
+        try Self.createDatabase(at: env.databaseURL)
+        try Self.insertMessage(
+            databaseURL: env.databaseURL,
+            createdMs: Self.ms("2026-03-06T11:00:00.000Z"),
+            cost: 4.0)
+
+        let reader = OpenCodeGoLocalUsageReader(authURL: env.authURL, databaseURL: env.databaseURL)
+        let snapshot = try reader.fetch(now: Date(timeIntervalSince1970: 1_772_798_400))
+
+        let entry = try #require(snapshot.daily.first)
+        #expect(entry.costUSD == 4.0)
+        #expect(entry.modelsUsed == ["unknown"])
+        #expect(entry.modelBreakdowns?.first?.modelName == "unknown")
+        #expect(entry.modelBreakdowns?.first?.costUSD == 4.0)
+    }
+
+    @Test
+    func `whitespace only model ids fall back to the unknown model bucket`() throws {
+        let env = try Self.makeEnvironment()
+        defer { try? FileManager.default.removeItem(at: env.root) }
+
+        try Self.writeAuth(to: env.authURL)
+        try Self.createDatabase(at: env.databaseURL)
+        try Self.insertMessage(
+            databaseURL: env.databaseURL,
+            createdMs: Self.ms("2026-03-06T11:00:00.000Z"),
+            cost: 5.0,
+            model: "   ")
+
+        let reader = OpenCodeGoLocalUsageReader(authURL: env.authURL, databaseURL: env.databaseURL)
+        let snapshot = try reader.fetch(now: Date(timeIntervalSince1970: 1_772_798_400))
+
+        let entry = try #require(snapshot.daily.first)
+        #expect(entry.modelsUsed == ["unknown"])
+        #expect(entry.modelBreakdowns?.first?.modelName == "unknown")
+        #expect(entry.modelBreakdowns?.first?.costUSD == 5.0)
+    }
+
+    @Test
+    func `model ids with incidental whitespace merge with the trimmed model bucket`() throws {
+        let env = try Self.makeEnvironment()
+        defer { try? FileManager.default.removeItem(at: env.root) }
+
+        try Self.writeAuth(to: env.authURL)
+        try Self.createDatabase(at: env.databaseURL)
+        try Self.insertMessage(
+            databaseURL: env.databaseURL,
+            createdMs: Self.ms("2026-03-06T11:00:00.000Z"),
+            cost: 2.0,
+            model: "claude-sonnet-4-5")
+        try Self.insertMessage(
+            databaseURL: env.databaseURL,
+            createdMs: Self.ms("2026-03-06T12:00:00.000Z"),
+            cost: 3.0,
+            model: "  claude-sonnet-4-5  ")
+
+        let reader = OpenCodeGoLocalUsageReader(authURL: env.authURL, databaseURL: env.databaseURL)
+        let now = Date(timeIntervalSince1970: TimeInterval(Self.ms("2026-03-06T15:00:00.000Z")) / 1000)
+        let snapshot = try reader.fetch(now: now, historyDays: 30)
+
+        let entry = try #require(snapshot.daily.first)
+        #expect(entry.modelsUsed == ["claude-sonnet-4-5"])
+        let breakdowns = try #require(entry.modelBreakdowns)
+        #expect(breakdowns.count == 1)
+        #expect(breakdowns.first?.modelName == "claude-sonnet-4-5")
+        #expect(breakdowns.first?.costUSD == 5.0)
+        #expect(breakdowns.first?.requestCount == 2)
+    }
+
+    @Test
     func `missing auth and history is not detected`() throws {
         let env = try Self.makeEnvironment()
         defer { try? FileManager.default.removeItem(at: env.root) }
@@ -329,7 +474,12 @@ struct OpenCodeGoLocalUsageReaderTests {
     }
 
     @discardableResult
-    private static func insertMessage(databaseURL: URL, createdMs: Int64, cost: Double?) throws -> String {
+    private static func insertMessage(
+        databaseURL: URL,
+        createdMs: Int64,
+        cost: Double?,
+        model: String? = nil) throws -> String
+    {
         var db: OpaquePointer?
         guard sqlite3_open(databaseURL.path, &db) == SQLITE_OK else { throw SQLiteTestError.open }
         defer { sqlite3_close(db) }
@@ -342,6 +492,9 @@ struct OpenCodeGoLocalUsageReaderTests {
         ]
         if let cost {
             payload["cost"] = cost
+        }
+        if let model {
+            payload["modelID"] = model
         }
         let data = try JSONSerialization.data(withJSONObject: payload)
         let json = String(data: data, encoding: .utf8) ?? "{}"

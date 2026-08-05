@@ -38,7 +38,7 @@ extension StatusItemController {
         width: CGFloat) -> Bool
     {
         let histories = self.store.planUtilizationHistory(for: provider)
-        let snapshot = self.store.snapshot(for: provider)
+        let snapshot = self.store.snapshot(for: provider.instanceID)
 
         if !self.menuCardRenderingEnabledForController {
             let chartItem = NSMenuItem()

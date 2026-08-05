@@ -13,7 +13,7 @@ extension StatusItemController {
             return submenu
         }
         if provider == .zai,
-           let submenu = self.makeZaiUsageDetailsSubmenu(snapshot: self.store.snapshot(for: provider))
+           let submenu = self.makeZaiUsageDetailsSubmenu(snapshot: self.store.snapshot(for: provider.instanceID))
         {
             return submenu
         }
@@ -55,12 +55,12 @@ extension StatusItemController {
     }
 
     func selectOverviewProvider(_ provider: UsageProvider, menu: NSMenu) {
-        if !self.settings.mergedMenuLastSelectedWasOverview, self.selectedMenuProvider == provider { return }
+        if !self.settings.mergedMenuLastSelectedWasOverview, self.selectedMenuProvider == provider.instanceID { return }
         self.preservingMergedSwitcherContentCachesDuringInvalidation {
             self.settings.mergedMenuLastSelectedWasOverview = false
-            self.lastMergedSwitcherSelection = .provider(provider)
-            self.selectedMenuProvider = provider
-            self.lastMenuProvider = provider
+            self.lastMergedSwitcherSelection = .provider(provider.instanceID)
+            self.selectedMenuProvider = provider.instanceID
+            self.lastMenuProvider = provider.instanceID
             self.refreshProviderSelectionDependentUI(deferRendering: true)
         }
         // Custom-view clicks stay open and rebuild next turn. Standard menu-item activation can close;

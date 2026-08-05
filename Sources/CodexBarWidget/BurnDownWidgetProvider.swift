@@ -88,7 +88,7 @@ struct BurnDownState {
         selection: BurnWindowChoice,
         now: Date = Date())
     {
-        guard let entry = snapshot.entries.first(where: { $0.provider == provider }) else { return nil }
+        guard let entry = snapshot.entries.first(where: { $0.provider == provider.instanceID }) else { return nil }
         self.entry = entry
         self.selection = selection
         self.now = now
@@ -156,7 +156,7 @@ enum BurnDownRefreshSchedule {
         now: Date = Date()) -> Date
     {
         let fallback = now.addingTimeInterval(self.maximumInterval)
-        guard let entry = snapshot.entries.first(where: { $0.provider == provider }) else { return fallback }
+        guard let entry = snapshot.entries.first(where: { $0.provider == provider.instanceID }) else { return fallback }
         let nextReset = [entry.primary?.resetsAt, entry.secondary?.resetsAt]
             .compactMap(\.self)
             .filter { $0 > now }

@@ -3,11 +3,11 @@ import Foundation
 
 extension SettingsStore {
     func providerConfig(for provider: UsageProvider) -> ProviderConfig? {
-        self.configSnapshot.providerConfig(for: provider)
+        self.configSnapshot.providerConfig(for: provider.instanceID)
     }
 
     func quotaWarningConfig(for provider: UsageProvider) -> QuotaWarningConfig {
-        self.configSnapshot.providerConfig(for: provider)?.quotaWarnings ?? QuotaWarningConfig()
+        self.configSnapshot.providerConfig(for: provider.instanceID)?.quotaWarnings ?? QuotaWarningConfig()
     }
 
     func resolvedQuotaWarningThresholds(provider: UsageProvider, window: QuotaWarningWindow) -> [Int] {
@@ -154,8 +154,10 @@ extension SettingsStore {
     var tokenAccountsByProvider: [UsageProvider: ProviderTokenAccountData] {
         get {
             Dictionary(uniqueKeysWithValues: self.configSnapshot.providers.compactMap { entry in
-                guard let accounts = entry.tokenAccounts else { return nil }
-                return (entry.id, accounts)
+                guard let provider = entry.id.firstPartyProvider,
+                      let accounts = entry.tokenAccounts
+                else { return nil }
+                return (provider, accounts)
             })
         }
         set {
@@ -184,7 +186,7 @@ extension SettingsStore {
         provider: UsageProvider,
         fallback: ProviderCookieSource) -> ProviderCookieSource
     {
-        let source = self.configSnapshot.providerConfig(for: provider)?.cookieSource ?? fallback
+        let source = self.configSnapshot.providerConfig(for: provider.instanceID)?.cookieSource ?? fallback
         guard self.debugDisableKeychainAccess == false else { return source == .off ? .off : .manual }
         return source
     }

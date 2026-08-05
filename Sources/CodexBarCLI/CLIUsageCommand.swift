@@ -477,6 +477,7 @@ extension CodexBarCLI {
             runtime: command.providerRuntime,
             sourceMode: effectiveSourceMode,
             includeCredits: command.includeCredits,
+            requiresOptionalUsageCompleteness: true,
             webTimeout: command.webTimeout,
             webDebugDumpHTML: command.webDebugDumpHTML,
             verbose: command.verbose,

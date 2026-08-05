@@ -84,14 +84,15 @@ extension StatusItemController {
 
     func deferMenuInteractionRefreshIfNeeded(providers: [UsageProvider]) {
         guard !self.store.isRefreshing else { return }
-        self.deferredMenuInteractionRefreshProviders.formUnion(providers)
+        self.deferredMenuInteractionRefreshProviders.formUnion(providers.map(\.instanceID))
     }
 
-    func clearSatisfiedDeferredMenuInteractionRefreshes(for providers: [UsageProvider]) {
-        for provider in providers
-            where !self.store.needsUsageRefreshRetry(for: provider)
-        {
-            self.deferredMenuInteractionRefreshProviders.remove(provider)
+    func clearSatisfiedDeferredMenuInteractionRefreshes(for providers: [ProviderInstanceID]) {
+        for instanceID in providers {
+            guard let provider = instanceID.firstPartyProvider,
+                  !self.store.needsUsageRefreshRetry(for: provider)
+            else { continue }
+            self.deferredMenuInteractionRefreshProviders.remove(instanceID)
         }
     }
 

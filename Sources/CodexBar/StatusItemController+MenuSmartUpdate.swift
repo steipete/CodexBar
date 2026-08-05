@@ -29,7 +29,7 @@ extension StatusItemController {
             }
             let outgoingSelection = self.lastMergedMenuContentSelection
             let isSelectionSwitch = outgoingSelection != nil && outgoingSelection != context.switcherSelection
-            let enabledProviders = self.store.enabledProvidersForDisplay()
+            let enabledProviders = self.store.enabledFirstPartyProvidersForDisplay()
 
             if isSelectionSwitch,
                let outgoingSelection,

@@ -1391,7 +1391,9 @@ extension CodexBarCLI {
         config: CodexBarConfig) throws -> ProviderSelection
     {
         guard let rawProvider, !rawProvider.isEmpty else {
-            return providerSelection(rawOverride: nil, enabled: config.enabledProviders())
+            return providerSelection(
+                rawOverride: nil,
+                enabled: config.enabledProviders().compactMap(\.firstPartyProvider))
         }
         guard let selection = ProviderSelection(argument: rawProvider) else {
             throw CLIServeArgumentError.invalidProvider(rawProvider)

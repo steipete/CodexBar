@@ -1381,3 +1381,13 @@
 "Resets" = "Reinicis";
 "Finish now" = "Finalitza ara";
 "Continue in background" = "Continua en segon pla";
+
+"Cumulative" = "Acumulat";
+"Token activity" = "Activitat de tokens";
+"View" = "Vista";
+"in the last year" = "l'últim any";
+"No activity in the last 12 months" = "Sense activitat en els últims 12 mesos";
+"Each column = 1 week" = "Cada columna = 1 setmana";
+"Running total" = "Total acumulat";
+"Less" = "Menys";
+"More" = "Més";

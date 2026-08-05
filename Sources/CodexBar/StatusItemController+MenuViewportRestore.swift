@@ -608,7 +608,7 @@ extension StatusItemController {
         if self.isMergedOverviewSelected(in: menu) {
             return .overview
         }
-        return .provider(self.resolvedMenuProvider() ?? .codex)
+        return .provider((self.resolvedMenuProvider() ?? .codex).instanceID)
     }
 
     private func isCurrentManualRefreshViewportRestoreContext(

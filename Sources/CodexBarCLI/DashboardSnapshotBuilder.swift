@@ -18,7 +18,7 @@ enum DashboardSnapshotBuilder {
         for cost in costPayloads {
             costByProvider[cost.provider] = cost
         }
-        let enabledProviders = Set(config.enabledProviders())
+        let enabledProviders = Set(config.enabledProviders().compactMap(\.firstPartyProvider))
         var sortKeys: [String: Int] = [:]
         for (index, provider) in config.orderedProviders().enumerated() where sortKeys[provider.rawValue] == nil {
             sortKeys[provider.rawValue] = index * 10
@@ -114,7 +114,7 @@ enum DashboardSnapshotBuilder {
     {
         guard mode != .none,
               let provider,
-              let identity = usage?.identity(for: provider)
+              let identity = usage?.identity(for: provider.instanceID)
         else {
             return nil
         }

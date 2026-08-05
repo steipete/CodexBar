@@ -388,7 +388,10 @@ struct CookieHeaderCacheTests {
             #expect(loaded == nil)
             #expect(FileManager.default.fileExists(atPath: legacyURL.path) == true)
 
-            switch KeychainCacheStore.load(key: .cookie(provider: provider), as: CookieHeaderCache.Entry.self) {
+            switch KeychainCacheStore.load(
+                key: .cookie(provider: provider.instanceID),
+                as: CookieHeaderCache.Entry.self)
+            {
             case .missing:
                 #expect(true)
             case .found, .temporarilyUnavailable, .invalid:
@@ -407,7 +410,7 @@ struct CookieHeaderCacheTests {
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
         CookieHeaderCache.withLegacyBaseURLOverrideForTesting(legacyBase) {
             let provider: UsageProvider = .codex
-            let key = KeychainCacheStore.Key.cookie(provider: provider)
+            let key = KeychainCacheStore.Key.cookie(provider: provider.instanceID)
             KeychainCacheStore.store(key: key, entry: WrongEntry(value: "not-a-cookie-entry"))
 
             #expect(CookieHeaderCache.load(provider: provider) == nil)
@@ -438,7 +441,7 @@ struct CookieHeaderCacheTests {
                 cookieHeader: "auth=scoped",
                 sourceLabel: "Chrome")
             KeychainCacheStore.store(
-                key: .cookie(provider: provider, scopeIdentifier: "managed-store-unreadable"),
+                key: .cookie(provider: provider.instanceID, scopeIdentifier: "managed-store-unreadable"),
                 entry: WrongEntry(value: "invalid"))
             CookieHeaderCache.store(
                 CookieHeaderCache.Entry(
@@ -473,7 +476,7 @@ struct CookieHeaderCacheTests {
 
         // Remove the backing entry without going through CookieHeaderCache: the strict load
         // sees the change, the display path keeps serving the memoized snapshot.
-        KeychainCacheStore.clear(key: .cookie(provider: provider))
+        KeychainCacheStore.clear(key: .cookie(provider: provider.instanceID))
         #expect(CookieHeaderCache.load(provider: provider) == nil)
         #expect(CookieHeaderCache.loadForDisplay(provider: provider)?.cookieHeader == "auth=abc")
     }
@@ -489,12 +492,12 @@ struct CookieHeaderCacheTests {
         #expect(CookieHeaderCache.loadForDisplay(provider: provider) == nil)
 
         KeychainCacheStore.store(
-            key: .cookie(provider: provider),
+            key: .cookie(provider: provider.instanceID),
             entry: CookieHeaderCache.Entry(
                 cookieHeader: "auth=behind-the-back",
                 storedAt: Date(timeIntervalSince1970: 0),
                 sourceLabel: "Chrome"))
-        defer { KeychainCacheStore.clear(key: .cookie(provider: provider)) }
+        defer { KeychainCacheStore.clear(key: .cookie(provider: provider.instanceID)) }
         #expect(CookieHeaderCache.loadForDisplay(provider: provider) == nil)
     }
 
@@ -593,7 +596,7 @@ struct CookieHeaderCacheTests {
         try await CookieHeaderCache.withDisplayUnavailableRetryIntervalOverrideForTesting(0.05) {
             let provider: UsageProvider = .codex
             KeychainCacheStore.store(
-                key: .cookie(provider: provider),
+                key: .cookie(provider: provider.instanceID),
                 entry: CookieHeaderCache.Entry(
                     cookieHeader: "auth=available-after-retry",
                     storedAt: Date(timeIntervalSince1970: 0),
@@ -829,7 +832,7 @@ struct CookieHeaderCacheTests {
 
         let provider: UsageProvider = .codex
         KeychainCacheStore.store(
-            key: .cookie(provider: provider),
+            key: .cookie(provider: provider.instanceID),
             entry: CookieHeaderCache.Entry(
                 cookieHeader: "auth=secret",
                 storedAt: Date(timeIntervalSince1970: 0),
@@ -858,7 +861,7 @@ struct CookieHeaderCacheTests {
         try await CookieHeaderCache.withDisplayStalenessIntervalOverrideForTesting(0) {
             let provider: UsageProvider = .codex
             KeychainCacheStore.store(
-                key: .cookie(provider: provider),
+                key: .cookie(provider: provider.instanceID),
                 entry: CookieHeaderCache.Entry(
                     cookieHeader: "auth=old",
                     storedAt: Date(timeIntervalSince1970: 0),
@@ -866,7 +869,7 @@ struct CookieHeaderCacheTests {
             #expect(CookieHeaderCache.loadForDisplay(provider: provider)?.cookieHeader == "auth=old")
 
             KeychainCacheStore.store(
-                key: .cookie(provider: provider),
+                key: .cookie(provider: provider.instanceID),
                 entry: CookieHeaderCache.Entry(
                     cookieHeader: "auth=new",
                     storedAt: Date(timeIntervalSince1970: 1),

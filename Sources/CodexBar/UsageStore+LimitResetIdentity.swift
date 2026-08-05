@@ -11,7 +11,7 @@ extension UsageStore {
         if provider == .codex {
             return codexLimitResetOwnerKey?.rawValue
         }
-        let identity = snapshot.identity(for: provider)
+        let identity = snapshot.identity(for: provider.instanceID)
         return account?.id.uuidString.lowercased()
             ?? accountKey
             ?? identity?.accountEmail
@@ -24,7 +24,7 @@ extension UsageStore {
         account: ProviderTokenAccount?,
         snapshot: UsageSnapshot) -> String?
     {
-        let identity = snapshot.identity(for: provider)
+        let identity = snapshot.identity(for: provider.instanceID)
         return account?.label
             ?? identity?.accountEmail
             ?? identity?.accountOrganization

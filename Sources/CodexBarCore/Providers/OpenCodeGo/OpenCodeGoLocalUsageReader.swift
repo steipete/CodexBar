@@ -122,7 +122,8 @@ public struct OpenCodeGoLocalUsageReader: Sendable {
             let cost = sqlite3_column_double(stmt, 1)
             guard createdMs > 0, cost >= 0, cost.isFinite else { continue }
             let requestCount = max(1, Int(sqlite3_column_int64(stmt, 2)))
-            rows.append(UsageRow(createdMs: createdMs, cost: cost, requestCount: requestCount))
+            let model = sqlite3_column_text(stmt, 3).map { String(cString: $0) } ?? ""
+            rows.append(UsageRow(createdMs: createdMs, cost: cost, requestCount: requestCount, model: model))
         }
         return rows
     }
@@ -165,7 +166,8 @@ public struct OpenCodeGoLocalUsageReader: Sendable {
         SELECT
           CAST(COALESCE(json_extract(data, '$.time.created'), time_created) AS INTEGER) AS createdMs,
           CAST(json_extract(data, '$.cost') AS REAL) AS cost,
-          1 AS requestCount
+          1 AS requestCount,
+          COALESCE(json_extract(data, '$.modelID'), '') AS modelID
         FROM message
         WHERE json_valid(data)
           AND json_extract(data, '$.providerID') = 'opencode-go'
@@ -179,7 +181,8 @@ public struct OpenCodeGoLocalUsageReader: Sendable {
             id AS messageID,
             CAST(COALESCE(json_extract(data, '$.time.created'), time_created) AS INTEGER) AS createdMs,
             CAST(json_extract(data, '$.cost') AS REAL) AS cost,
-            json_type(data, '$.cost') IN ('integer', 'real') AS hasCost
+            json_type(data, '$.cost') IN ('integer', 'real') AS hasCost,
+            COALESCE(json_extract(data, '$.modelID'), '') AS modelID
           FROM message
           WHERE json_valid(data)
             AND json_extract(data, '$.providerID') = 'opencode-go'
@@ -189,14 +192,15 @@ public struct OpenCodeGoLocalUsageReader: Sendable {
           CAST(COALESCE(json_extract(p.data, '$.time.created'), p.time_created, m.createdMs) AS INTEGER)
             AS createdMs,
           CAST(json_extract(p.data, '$.cost') AS REAL) AS cost,
-          1 AS requestCount
+          1 AS requestCount,
+          m.modelID AS modelID
         FROM part p
         JOIN provider_messages m ON m.messageID = p.message_id
         WHERE json_valid(p.data)
           AND json_extract(p.data, '$.type') = 'step-finish'
           AND json_type(p.data, '$.cost') IN ('integer', 'real')
         UNION ALL
-        SELECT createdMs, cost, 1 AS requestCount
+        SELECT createdMs, cost, 1 AS requestCount, modelID
         FROM provider_messages m
         WHERE hasCost
           AND NOT EXISTS (
@@ -214,6 +218,8 @@ public struct OpenCodeGoLocalUsageReader: Sendable {
         let cost: Double
         /// One provider invocation per step-finish part; message-only databases fall back to one.
         let requestCount: Int
+        /// The underlying model behind the `opencode-go` Zen proxy; empty when unattributed.
+        let model: String
     }
 
     private struct SQLiteReadFailure: Error {
@@ -316,30 +322,46 @@ public struct OpenCodeGoLocalUsageReader: Sendable {
         }
         let sinceStartOfDay = calendar.startOfDay(for: since)
 
-        var totals: [String: (cost: Double, requestCount: Int)] = [:]
+        var totalsByModel: [String: [String: (cost: Double, requestCount: Int)]] = [:]
         for row in rows {
             let date = Date(timeIntervalSince1970: TimeInterval(row.createdMs) / 1000)
             guard date >= sinceStartOfDay, date <= now else { continue }
             let key = CostUsageScanner.CostUsageDayRange.dayKey(from: date)
-            var bucket = totals[key] ?? (cost: 0, requestCount: 0)
+            let trimmedModel = row.model.trimmingCharacters(in: .whitespacesAndNewlines)
+            let model = trimmedModel.isEmpty ? Self.unknownModelName : trimmedModel
+            var dayTotals = totalsByModel[key] ?? [:]
+            var bucket = dayTotals[model] ?? (cost: 0, requestCount: 0)
             bucket.cost += row.cost
             bucket.requestCount += row.requestCount
-            totals[key] = bucket
+            dayTotals[model] = bucket
+            totalsByModel[key] = dayTotals
         }
 
-        return totals.keys.sorted().compactMap { key in
-            guard let bucket = totals[key] else { return nil }
+        return totalsByModel.keys.sorted().compactMap { key in
+            guard let dayTotals = totalsByModel[key] else { return nil }
+            let modelBreakdowns = dayTotals.keys.sorted().map { model in
+                let bucket = dayTotals[model] ?? (cost: 0, requestCount: 0)
+                return CostUsageDailyReport.ModelBreakdown(
+                    modelName: model,
+                    costUSD: bucket.cost,
+                    requestCount: bucket.requestCount)
+            }.sorted { ($0.costUSD ?? 0) > ($1.costUSD ?? 0) }
+            let totalCost = dayTotals.values.reduce(0) { $0 + $1.cost }
+            let totalRequests = dayTotals.values.reduce(0) { $0 + $1.requestCount }
             return CostUsageDailyReport.Entry(
                 date: key,
                 inputTokens: nil,
                 outputTokens: nil,
                 totalTokens: nil,
-                requestCount: bucket.requestCount,
-                costUSD: bucket.cost,
-                modelsUsed: nil,
-                modelBreakdowns: nil)
+                requestCount: totalRequests,
+                costUSD: totalCost,
+                modelsUsed: dayTotals.keys.sorted(),
+                modelBreakdowns: modelBreakdowns)
         }
     }
+
+    /// Bucket label for rows whose local `modelID` is missing or blank.
+    private static let unknownModelName = "unknown"
 
     private static func percent(used: Double, limit: Double) -> Double {
         guard used.isFinite, limit > 0 else { return 0 }

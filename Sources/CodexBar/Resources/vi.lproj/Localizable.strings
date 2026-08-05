@@ -1379,3 +1379,13 @@
 "Resets" = "Lần đặt lại";
 "Finish now" = "Hoàn tất ngay";
 "Continue in background" = "Tiếp tục trong nền";
+
+"Cumulative" = "Tích lũy";
+"Token activity" = "Hoạt động token";
+"View" = "Chế độ xem";
+"in the last year" = "trong năm qua";
+"No activity in the last 12 months" = "Không có hoạt động trong 12 tháng qua";
+"Each column = 1 week" = "Mỗi cột = 1 tuần";
+"Running total" = "Tổng lũy kế";
+"Less" = "Ít";
+"More" = "Nhiều";

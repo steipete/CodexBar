@@ -440,7 +440,7 @@ extension UsageStore {
     }
 
     func clearSessionQuotaTransitionState(provider: UsageProvider) {
-        let removedState = self.sessionQuotaTransitionStates.removeValue(forKey: provider)
+        let removedState = self.sessionQuotaTransitionStates.removeValue(forKey: provider.instanceID)
         // Generic provider cleanup can run while Codex is disabled or temporarily unavailable. Preserve
         // an already-depleted baseline across recovery so depletion cannot refire, but let a newly depleted
         // account notify after a positive baseline was discarded.

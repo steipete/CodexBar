@@ -13,7 +13,7 @@ extension StatusItemController {
         AccountMenuLayoutPlanner.plan(
             accounts: accounts,
             expandedAccountIDs: self.compactAccountExpandedIDs,
-            healthyTailExpanded: self.compactAccountExpandedHealthyTailProviders.contains(provider))
+            healthyTailExpanded: self.compactAccountExpandedHealthyTailProviders.contains(provider.instanceID))
     }
 
     struct CompactAccountMenuRendering {
@@ -285,7 +285,7 @@ extension StatusItemController {
 
     private func expandCompactAccountHealthyTail(for provider: UsageProvider, menu: NSMenu?) {
         self.advanceMenuInteraction(for: menu)
-        self.compactAccountExpandedHealthyTailProviders.insert(provider)
+        self.compactAccountExpandedHealthyTailProviders.insert(provider.instanceID)
         self.invalidateMenus(refreshOpenMenus: true)
     }
 

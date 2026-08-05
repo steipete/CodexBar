@@ -18,30 +18,30 @@ extension UsageStore {
 
     /// Cancels and retires in-flight work without clearing the provider's current presentation state.
     func invalidateProviderRefreshRequests(_ provider: UsageProvider) {
-        self.providerRefreshCoordinator.invalidateRequests(for: provider)
+        self.providerRefreshCoordinator.invalidateRequests(for: provider.instanceID)
     }
 
     /// The active refresh uses this when it discovers its own provider is disabled. Its replacing
     /// request already invalidated predecessors, so canceling the current coordinator state here
     /// would make it cancel itself before its waiters can drain.
     func clearProviderRuntimeState(_ provider: UsageProvider) {
-        self.providerCleanupRevisions[provider, default: 0] &+= 1
-        self.refreshingProviders.remove(provider)
-        self.snapshots.removeValue(forKey: provider)
-        self.lastKnownResetSnapshots.removeValue(forKey: provider)
-        self.errors[provider] = nil
-        self.diagnostics[provider] = nil
+        self.providerCleanupRevisions[provider.instanceID, default: 0] &+= 1
+        self.refreshingProviders.remove(provider.instanceID)
+        self.snapshots.removeValue(forKey: provider.instanceID)
+        self.lastKnownResetSnapshots.removeValue(forKey: provider.instanceID)
+        self.errors[provider.instanceID] = nil
+        self.diagnostics[provider.instanceID] = nil
         if provider == .deepseek {
             self.clearDeepSeekProfileTransition()
         }
         if provider == .gemini {
             self.clearGeminiConsumerTierDeprecationObservation()
         }
-        self.knownLimitsAvailabilityByProvider.removeValue(forKey: provider)
-        self.lastSourceLabels.removeValue(forKey: provider)
-        self.lastFetchAttempts.removeValue(forKey: provider)
-        self.accountSnapshots.removeValue(forKey: provider)
-        self.tokenAccountLiveStateProviders.remove(provider)
+        self.knownLimitsAvailabilityByProvider.removeValue(forKey: provider.instanceID)
+        self.lastSourceLabels.removeValue(forKey: provider.instanceID)
+        self.lastFetchAttempts.removeValue(forKey: provider.instanceID)
+        self.accountSnapshots.removeValue(forKey: provider.instanceID)
+        self.tokenAccountLiveStateProviders.remove(provider.instanceID)
         if provider == .codex {
             self.codexAccountSnapshots = []
             self.lastCodexUsagePublicationGuard = nil
@@ -50,26 +50,26 @@ extension UsageStore {
             self.kiloScopeSnapshots = []
         }
         if provider == .claude {
-            self.widgetUsagePreservationBlockedProviders.insert(provider)
+            self.widgetUsagePreservationBlockedProviders.insert(provider.instanceID)
             self.clearClaudeSwapAccountState()
         }
         self.clearTokenSnapshot(for: provider)
-        self.tokenErrors[provider] = nil
-        self.providerStorageFootprints.removeValue(forKey: provider)
-        self.failureGates[provider]?.reset()
-        self.tokenFailureGates[provider]?.reset()
-        self.statuses.removeValue(forKey: provider)
-        self.statusComponents.removeValue(forKey: provider)
+        self.tokenErrors[provider.instanceID] = nil
+        self.providerStorageFootprints.removeValue(forKey: provider.instanceID)
+        self.failureGates[provider.instanceID]?.reset()
+        self.tokenFailureGates[provider.instanceID]?.reset()
+        self.statuses.removeValue(forKey: provider.instanceID)
+        self.statusComponents.removeValue(forKey: provider.instanceID)
         self.clearSessionQuotaTransitionState(provider: provider)
         self.predictivePaceWarningNotifiedKeys = Set(
             self.predictivePaceWarningNotifiedKeys.filter { $0.provider != provider })
         self.quotaWarningState = self.quotaWarningState.filter { $0.key.provider != provider }
-        self.lastTokenFetchAt.removeValue(forKey: provider)
-        self.lastTokenFetchScope.removeValue(forKey: provider)
+        self.lastTokenFetchAt.removeValue(forKey: provider.instanceID)
+        self.lastTokenFetchScope.removeValue(forKey: provider.instanceID)
     }
 
     func providerCleanupRevision(for provider: UsageProvider) -> UInt64 {
-        self.providerCleanupRevisions[provider, default: 0]
+        self.providerCleanupRevisions[provider.instanceID, default: 0]
     }
 
     func providerCleanupRevisionIsCurrent(_ revision: UInt64, for provider: UsageProvider) -> Bool {
@@ -90,21 +90,28 @@ extension UsageStore {
             revision.enablementRevision == self.settings.providerEnablementRevision(for: provider)
     }
 
-    func clearDisabledProviderState(enabledProviders: Set<UsageProvider>) {
-        for provider in UsageProvider.allCases where !enabledProviders.contains(provider) {
+    func clearDisabledProviderState(enabledProviders: Set<ProviderInstanceID>) {
+        for provider in UsageProvider.allCases where !enabledProviders.contains(provider.instanceID) {
             if self.currentProviderRefreshAllowsDisabledPublication(provider) {
                 self.clearProviderRuntimeState(provider)
             } else {
                 self.clearProviderState(provider)
             }
         }
+        let dynamicIDs = Set(self.snapshots.keys).union(self.errors.keys).filter { $0.firstPartyProvider == nil }
+        for instanceID in dynamicIDs where !enabledProviders.contains(instanceID) {
+            self.snapshots.removeValue(forKey: instanceID)
+            self.errors.removeValue(forKey: instanceID)
+            self.lastSourceLabels.removeValue(forKey: instanceID)
+        }
     }
 
     func clearUnavailableProviderState(
-        displayEnabledProviders: Set<UsageProvider>,
-        availableProviders: Set<UsageProvider>)
+        displayEnabledProviders: Set<ProviderInstanceID>,
+        availableProviders: Set<ProviderInstanceID>)
     {
-        for provider in displayEnabledProviders where !availableProviders.contains(provider) {
+        for instanceID in displayEnabledProviders where !availableProviders.contains(instanceID) {
+            guard let provider = instanceID.firstPartyProvider else { continue }
             self.clearProviderState(provider)
         }
     }

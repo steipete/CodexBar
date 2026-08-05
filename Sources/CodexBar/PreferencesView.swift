@@ -12,15 +12,19 @@ enum SettingsPane: Hashable {
     case menu
     case advanced
     case hooks
+    case plugins
     case about
     case debug
-    case provider(UsageProvider)
+    case provider(ProviderInstanceID)
 
     static let windowWidth: CGFloat = 880
     static let windowHeight: CGFloat = 620
     static let windowMinWidth: CGFloat = 800
     static let windowMinHeight: CGFloat = 540
     static let sidebarWidth: CGFloat = 260
+    static let sidebarMinWidth: CGFloat = 200
+    static let sidebarMaxWidth: CGFloat = 380
+    static let sidebarWidthDefaultsKey = "settingsSidebarWidth"
     static let detailMaxWidth: CGFloat = 780
 
     var title: String {
@@ -33,10 +37,13 @@ enum SettingsPane: Hashable {
         case .menu: L("tab_menu")
         case .advanced: L("tab_advanced")
         case .hooks: L("tab_hooks")
+        case .plugins: L("Plugins")
         case .about: L("tab_about")
         case .debug: L("tab_debug")
-        case let .provider(provider):
-            ProviderDescriptorRegistry.descriptor(for: provider).metadata.displayName
+        case let .provider(instanceID):
+            instanceID.firstPartyProvider
+                .map { ProviderDescriptorRegistry.descriptor(for: $0).metadata.displayName }
+                ?? instanceID.rawValue
         }
     }
 }
@@ -52,6 +59,13 @@ struct PreferencesView: View {
     let codexAccountPromotionCoordinator: CodexAccountPromotionCoordinator
     let runProviderLoginFlow: @MainActor (UsageProvider) async -> Void
     @Environment(\.colorScheme) private var colorScheme
+    @AppStorage(SettingsPane.sidebarWidthDefaultsKey) private var sidebarWidth: Double = SettingsPane.sidebarWidth
+
+    /// The persisted width, guarded against out-of-range values (edited defaults,
+    /// bounds that shrank in an update) so a bad stored value can't wreck the layout.
+    private var clampedSidebarWidth: CGFloat {
+        min(max(self.sidebarWidth, SettingsPane.sidebarMinWidth), SettingsPane.sidebarMaxWidth)
+    }
 
     init(
         settings: SettingsStore,
@@ -81,9 +95,10 @@ struct PreferencesView: View {
         HStack(spacing: 0) {
             // Golden Gate-style sidebar: edge-to-edge material with a hairline separator,
             // no floating card chrome. The material ignores the safe area so it runs up
-            // behind the transparent titlebar.
+            // behind the transparent titlebar. The width is user-resizable via the
+            // input-only drag strip overlaid on the detail pane's leading edge.
             SettingsSidebarView(settings: self.settings, store: self.store, selection: self.$selection.pane)
-                .frame(width: SettingsPane.sidebarWidth)
+                .frame(width: self.clampedSidebarWidth)
                 .background {
                     SettingsSidebarMaterial()
                         .ignoresSafeArea()
@@ -98,6 +113,9 @@ struct PreferencesView: View {
                     maxHeight: .infinity,
                     alignment: .topLeading)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                .overlay(alignment: .leading) {
+                    self.sidebarResizeHandle
+                }
         }
         .frame(
             minWidth: SettingsPane.windowMinWidth,
@@ -124,6 +142,21 @@ struct PreferencesView: View {
     }
 
     @ViewBuilder
+    private var sidebarResizeHandle: some View {
+        let handle = SidebarResizeHandle(
+            width: self.$sidebarWidth,
+            minWidth: SettingsPane.sidebarMinWidth,
+            maxWidth: SettingsPane.sidebarMaxWidth)
+            .frame(width: SidebarResizeHandleView.grabWidth)
+            .ignoresSafeArea()
+        if #available(macOS 15.0, *) {
+            handle.pointerStyle(.columnResize)
+        } else {
+            handle
+        }
+    }
+
+    @ViewBuilder
     private var detailView: some View {
         switch self.selection.pane {
         case .general:
@@ -142,19 +175,23 @@ struct PreferencesView: View {
             AdvancedPane(settings: self.settings, store: self.store)
         case .hooks:
             HooksPane(settings: self.settings)
+        case .plugins:
+            PluginsPane(settings: self.settings, store: self.store)
         case .about:
             AboutPane(updater: self.updater)
         case .debug:
             DebugPane(settings: self.settings, store: self.store)
-        case let .provider(provider):
-            ProvidersPane(
-                provider: provider,
-                settings: self.settings,
-                store: self.store,
-                managedCodexAccountCoordinator: self.managedCodexAccountCoordinator,
-                codexAccountPromotionCoordinator: self.codexAccountPromotionCoordinator,
-                runProviderLoginFlow: self.runProviderLoginFlow)
-                .id(provider)
+        case let .provider(instanceID):
+            if let provider = instanceID.firstPartyProvider {
+                ProvidersPane(
+                    provider: provider,
+                    settings: self.settings,
+                    store: self.store,
+                    managedCodexAccountCoordinator: self.managedCodexAccountCoordinator,
+                    codexAccountPromotionCoordinator: self.codexAccountPromotionCoordinator,
+                    runProviderLoginFlow: self.runProviderLoginFlow)
+                    .id(instanceID)
+            }
         }
     }
 

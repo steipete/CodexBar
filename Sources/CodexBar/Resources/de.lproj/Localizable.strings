@@ -1379,3 +1379,13 @@
 "Resets" = "Zurücksetzungen";
 "Finish now" = "Jetzt abschließen";
 "Continue in background" = "Im Hintergrund fortfahren";
+
+"Cumulative" = "Kumulativ";
+"Token activity" = "Token-Aktivität";
+"View" = "Ansicht";
+"in the last year" = "im letzten Jahr";
+"No activity in the last 12 months" = "Keine Aktivität in den letzten 12 Monaten";
+"Each column = 1 week" = "Jede Spalte = 1 Woche";
+"Running total" = "Laufende Summe";
+"Less" = "Weniger";
+"More" = "Mehr";

@@ -40,6 +40,7 @@ struct SettingsSidebarView: View {
             SettingsSidebarPaneRow(pane: .menu, systemImage: "filemenu.and.selection", color: .teal)
             SettingsSidebarPaneRow(pane: .advanced, systemImage: "slider.horizontal.3", color: .purple)
             SettingsSidebarPaneRow(pane: .hooks, systemImage: "bolt.horizontal.circle.fill", color: .orange)
+            SettingsSidebarPaneRow(pane: .plugins, systemImage: "puzzlepiece.extension.fill", color: .indigo)
             SettingsSidebarAboutRow()
             if self.settings.debugMenuEnabled {
                 SettingsSidebarPaneRow(pane: .debug, systemImage: "ladybug.fill", color: .red)
@@ -54,7 +55,7 @@ struct SettingsSidebarView: View {
                     provider: provider,
                     store: self.store,
                     isEnabled: self.enabledBinding(for: provider))
-                    .tag(SettingsPane.provider(provider))
+                    .tag(SettingsPane.provider(provider.instanceID))
                     .moveDisabled(!self.canReorderProviders)
             }
             .onMove { fromOffsets, toOffset in
@@ -97,7 +98,7 @@ struct SettingsSidebarView: View {
 
     private var orderedProviders: [UsageProvider] {
         guard self.settings.providersSortedAlphabetically else {
-            return self.settings.orderedProviders()
+            return self.settings.orderedProviders().compactMap(\.firstPartyProvider)
         }
         return CodexBarConfig.alphabeticalProviderOrder(enablement: { provider in
             self.settings.isProviderEnabled(provider: provider, metadata: self.store.metadata(for: provider))
@@ -181,7 +182,7 @@ private struct SettingsSidebarProviderRow: View {
 
             Spacer(minLength: 4)
 
-            if self.store.refreshingProviders.contains(self.provider) {
+            if self.store.refreshingProviders.contains(self.provider.instanceID) {
                 ProgressView()
                     .controlSize(.mini)
             }

@@ -135,7 +135,7 @@ struct ProviderDetailView<SupplementaryContent: View>: View {
                     model: self.model,
                     openAIWebDiagnostic: self.openAIWebDiagnostic,
                     isEnabled: self.isEnabled,
-                    isRefreshing: self.store.refreshingProviders.contains(self.provider))
+                    isRefreshing: self.store.refreshingProviders.contains(self.provider.instanceID))
             } header: {
                 Text(L("Usage"))
             }
@@ -304,7 +304,7 @@ private struct ProviderDetailInfoRows: View {
         }
 
         if self.provider == .kiro,
-           let authMethod = self.store.snapshot(for: self.provider)?.loginMethod(for: .kiro),
+           let authMethod = self.store.snapshot(for: self.provider.instanceID)?.loginMethod(for: .kiro),
            !authMethod.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         {
             ProviderDetailInfoRow(label: L("Auth"), value: authMethod)
@@ -319,10 +319,10 @@ private struct ProviderDetailInfoRows: View {
     }
 
     private var updatedText: String {
-        if let updated = self.store.snapshot(for: self.provider)?.updatedAt {
+        if let updated = self.store.snapshot(for: self.provider.instanceID)?.updatedAt {
             return UsageFormatter.updatedString(from: updated)
         }
-        if self.store.refreshingProviders.contains(self.provider) {
+        if self.store.refreshingProviders.contains(self.provider.instanceID) {
             return L("Refreshing")
         }
         if self.store.unavailableMessage(for: self.provider) != nil {

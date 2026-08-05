@@ -21,6 +21,16 @@ public struct ProviderPluginSetting: Equatable, Sendable {
     }
 }
 
+public struct ProviderPluginIcon: Equatable, Sendable {
+    public let monogram: String
+    public let tint: String
+
+    public init(monogram: String, tint: String) {
+        self.monogram = monogram
+        self.tint = tint
+    }
+}
+
 public struct ProviderPluginAuth: Equatable, Sendable {
     public enum Kind: String, Sendable {
         case bearer
@@ -52,13 +62,14 @@ public enum ProviderPluginEndpoint: Equatable, Hashable, Sendable {
     case setting(key: String, policy: Policy)
 }
 
-public enum ProviderPluginCapability: String, Sendable {
+public enum ProviderPluginCapability: String, Hashable, Sendable {
     case browserCookies = "browser-cookies"
 }
 
 public struct ProviderPluginManifest: @unchecked Sendable {
-    public let id: UsageProvider
+    public let id: ProviderInstanceID
     public let name: String
+    public let icon: ProviderPluginIcon
     public let endpoints: Set<ProviderPluginEndpoint>
     public let auth: ProviderPluginAuth?
     public let settings: [ProviderPluginSetting]
@@ -68,26 +79,31 @@ public struct ProviderPluginManifest: @unchecked Sendable {
     let fetchUsage: JSValue
 
     // Manifest parsing validates the complete security surface in one pass.
-    // swiftlint:disable:next cyclomatic_complexity
-    init(definition: JSValue) throws {
+    // swiftlint:disable:next cyclomatic_complexity function_body_length
+    init(definition: JSValue, allowsDynamicID: Bool = false) throws {
         guard definition.isObject else {
             throw ProviderPluginError.invalidManifest("defineProvider(...) requires an object")
         }
 
         let rawID = try Self.requiredString(definition, property: "id")
-        guard let id = UsageProvider(rawValue: rawID) else {
+        guard let id = ProviderInstanceID(rawValue: rawID) else {
+            throw ProviderPluginError.invalidManifest(
+                "provider id must contain 1-64 lowercase ASCII letters, digits, or hyphens")
+        }
+        guard allowsDynamicID || id.firstPartyProvider != nil else {
             throw ProviderPluginError.invalidManifest(
                 "provider id '\(rawID)' must match an existing UsageProvider raw value")
         }
         self.id = id
         self.name = try Self.boundedString(definition, property: "name", maximumLength: 80)
+        self.icon = try Self.parseIcon(definition.forProperty("icon"), fallbackName: self.name)
 
         let endpointValue = definition.forProperty("endpoints")
         guard let endpointValue, endpointValue.isArray else {
             throw ProviderPluginError.invalidManifest("'endpoints' must be a non-empty array of HTTPS origins")
         }
         let endpointCount = Int(endpointValue.forProperty("length")?.toInt32() ?? 0)
-        guard endpointCount > 0 else {
+        guard (1...16).contains(endpointCount) else {
             throw ProviderPluginError.invalidManifest("'endpoints' must not be empty")
         }
         var endpoints: Set<ProviderPluginEndpoint> = []
@@ -116,6 +132,9 @@ public struct ProviderPluginManifest: @unchecked Sendable {
             throw ProviderPluginError.invalidManifest("'settings' must be an array")
         }
         let settingCount = Int(settingsValue.forProperty("length")?.toInt32() ?? 0)
+        guard settingCount <= 32 else {
+            throw ProviderPluginError.invalidManifest("'settings' exceeds 32 entries")
+        }
         var settings: [ProviderPluginSetting] = []
         var settingKeys: Set<String> = []
         for index in 0..<settingCount {
@@ -123,6 +142,11 @@ public struct ProviderPluginManifest: @unchecked Sendable {
                 throw ProviderPluginError.invalidManifest("setting at index \(index) must be an object")
             }
             let key = try Self.requiredString(setting, property: "key")
+            guard Self.isValidSettingKey(key) else {
+                throw ProviderPluginError.invalidManifest(
+                    "setting key '\(key)' must contain 1-64 ASCII letters, digits, " +
+                        "or underscores and start with a letter")
+            }
             guard settingKeys.insert(key).inserted else {
                 throw ProviderPluginError.invalidManifest("duplicate setting key '\(key)'")
             }
@@ -279,6 +303,40 @@ public struct ProviderPluginManifest: @unchecked Sendable {
         value.utf8.count <= 32 && self.isValidHeaderName(value)
     }
 
+    private static func isValidSettingKey(_ value: String) -> Bool {
+        guard (1...64).contains(value.utf8.count), let first = value.utf8.first,
+              (65...90).contains(first) || (97...122).contains(first)
+        else { return false }
+        return value.utf8.allSatisfy { byte in
+            (48...57).contains(byte) || (65...90).contains(byte) || (97...122).contains(byte) || byte == 95
+        }
+    }
+
+    private static func parseIcon(_ value: JSValue?, fallbackName: String) throws -> ProviderPluginIcon {
+        let fallback = String(fallbackName.prefix(1)).uppercased()
+        guard let value, !value.isUndefined, !value.isNull else {
+            return ProviderPluginIcon(monogram: fallback, tint: "#6B7280")
+        }
+        guard value.isObject else {
+            throw ProviderPluginError.invalidManifest("'icon' must be an object when present")
+        }
+        let monogram = try Self.optionalString(value, property: "monogram")?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? fallback
+        guard (1...3).contains(monogram.count), monogram.utf8.count <= 12 else {
+            throw ProviderPluginError.invalidManifest("icon monogram must contain 1-3 characters")
+        }
+        let tint = try Self.optionalString(value, property: "tint") ?? "#6B7280"
+        guard tint.utf8.count == 7,
+              tint.utf8.first == UInt8(ascii: "#"),
+              tint.utf8.dropFirst().allSatisfy({ byte in
+                  (48...57).contains(byte) || (65...70).contains(byte) || (97...102).contains(byte)
+              })
+        else {
+            throw ProviderPluginError.invalidManifest("icon tint must be a #RRGGBB color")
+        }
+        return ProviderPluginIcon(monogram: monogram, tint: tint.uppercased())
+    }
+
     private static func normalizedCookieDomain(_ rawValue: String) throws -> String {
         let value = rawValue.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         guard !value.isEmpty, value.utf8.count <= 253,
@@ -314,7 +372,7 @@ enum ProviderPluginOrigin {
             throw ProviderPluginError.invalidManifest("endpoint '\(rawValue)' must be an HTTPS origin")
         }
         let port = components.port
-        return "https://\(host)\(port == nil || port == 443 ? "" : ":\(port!)")"
+        return "https://\(self.formattedHost(host))\(port == nil || port == 443 ? "" : ":\(port!)")"
     }
 
     static func normalizedOrigin(of url: URL) throws -> String {
@@ -337,7 +395,11 @@ enum ProviderPluginOrigin {
         }
         let port = validated.port
         let defaultPort = scheme == "https" ? 443 : 80
-        return "\(scheme)://\(host)\(port == nil || port == defaultPort ? "" : ":\(port!)")"
+        return "\(scheme)://\(self.formattedHost(host))\(port == nil || port == defaultPort ? "" : ":\(port!)")"
+    }
+
+    private static func formattedHost(_ host: String) -> String {
+        host.contains(":") ? "[\(host)]" : host
     }
 }
 

@@ -5,7 +5,7 @@ import Foundation
 extension SettingsStore {
     func tokenAccountsData(for provider: UsageProvider) -> ProviderTokenAccountData? {
         guard TokenAccountSupportCatalog.support(for: provider) != nil else { return nil }
-        return self.configSnapshot.providerConfig(for: provider)?.tokenAccounts
+        return self.configSnapshot.providerConfig(for: provider.instanceID)?.tokenAccounts
     }
 
     func tokenAccounts(for provider: UsageProvider) -> [ProviderTokenAccount] {
@@ -227,8 +227,10 @@ extension SettingsStore {
         do {
             guard let loaded = try self.configStore.load() else { return }
             accounts = Dictionary(uniqueKeysWithValues: loaded.providers.compactMap { entry in
-                guard let data = entry.tokenAccounts else { return nil }
-                return (entry.id, data)
+                guard let provider = entry.id.firstPartyProvider,
+                      let data = entry.tokenAccounts
+                else { return nil }
+                return (provider, data)
             })
         } catch {
             log.error("Failed to reload token accounts: \(error)")

@@ -5,7 +5,7 @@ import Foundation
 enum ProviderPluginSnapshotMapper {
     private static let maximumStringBytes = 256
 
-    static func map(_ value: JSValue, provider: UsageProvider, now: Date = Date()) throws -> UsageSnapshot {
+    static func map(_ value: JSValue, provider: ProviderInstanceID, now: Date = Date()) throws -> UsageSnapshot {
         guard value.isObject, !value.isArray, !value.isNull else {
             throw ProviderPluginError.invalidSnapshot("fetchUsage must resolve to an object")
         }
@@ -207,7 +207,7 @@ enum ProviderPluginSnapshotMapper {
             updatedAt: now)
     }
 
-    private static func identity(_ root: JSValue, provider: UsageProvider) throws -> ProviderIdentitySnapshot? {
+    private static func identity(_ root: JSValue, provider: ProviderInstanceID) throws -> ProviderIdentitySnapshot? {
         guard let value = root.forProperty("identity"), !value.isUndefined, !value.isNull else { return nil }
         guard value.isObject, !value.isArray else {
             throw ProviderPluginError.invalidSnapshot("identity must be an object")

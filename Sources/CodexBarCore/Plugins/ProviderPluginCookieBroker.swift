@@ -146,4 +146,35 @@ private struct PluginCookieSettings: ProviderCookieSettings {
         self.init(cookieSource: settings.cookieSource, manualCookieHeader: settings.manualCookieHeader)
     }
 }
+
+public enum UserProviderPluginCookieBroker {
+    public static func resolver(
+        browserDetection: BrowserDetection) -> ProviderPluginRuntime.InstanceCookieResolver
+    {
+        { _, domain in
+            #if os(macOS)
+            let query = BrowserCookieQuery(domains: [domain])
+            let client = BrowserCookieClient()
+            for browser in [Browser.chrome].cookieImportCandidates(using: browserDetection) {
+                do {
+                    let sources = try client.codexBarRecords(matching: query, in: browser)
+                    for source in sources where !source.records.isEmpty {
+                        let cookies = BrowserCookieClient.makeHTTPCookies(source.records, origin: query.origin)
+                        let rawHeader = cookies.map { "\($0.name)=\($0.value)" }.joined(separator: "; ")
+                        if let header = CookieHeaderNormalizer.normalize(rawHeader) {
+                            return header
+                        }
+                    }
+                } catch {
+                    BrowserCookieAccessGate.recordIfNeeded(error)
+                }
+            }
+            throw ProviderPluginError.secretAccess("no Chrome browser session cookies were found")
+            #else
+            _ = domain
+            throw ProviderPluginError.secretAccess("browser cookie import is unavailable on this platform")
+            #endif
+        }
+    }
+}
 #endif

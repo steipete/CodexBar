@@ -1378,3 +1378,13 @@
 "Resets" = "Resets";
 "Finish now" = "Nu voltooien";
 "Continue in background" = "Doorgaan op de achtergrond";
+
+"Cumulative" = "Cumulatief";
+"Token activity" = "Token-activiteit";
+"View" = "Weergave";
+"in the last year" = "in het afgelopen jaar";
+"No activity in the last 12 months" = "Geen activiteit in de afgelopen 12 maanden";
+"Each column = 1 week" = "Elke kolom = 1 week";
+"Running total" = "Lopend totaal";
+"Less" = "Minder";
+"More" = "Meer";

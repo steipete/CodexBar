@@ -4,6 +4,80 @@ import Testing
 
 struct CostUsageFetcherCacheSnapshotTests {
     @Test
+    func `cached token activity derives buckets and partial coverage from the shared scan cache`() async throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+
+        let now = try env.makeLocalNoon(year: 2026, month: 4, day: 8)
+        let options = CostUsageScanner.Options(
+            codexSessionsRoot: env.codexSessionsRoot,
+            cacheRoot: env.cacheRoot)
+        var cache = CostUsageCache()
+        cache.scanSinceKey = "2026-04-06"
+        cache.scanUntilKey = "2026-04-08"
+        cache.roots = CostUsageScanner.codexRootsFingerprint(options: options)
+        let fixtureDays = [
+            "2026-04-06": ["gpt-5.4": [10, 4, 2]],
+            "2026-04-08": [
+                "gpt-5.4": [20, 7, 3],
+                "gpt-5.3-codex": [5, 1, 1],
+            ],
+        ]
+        cache.files[env.codexSessionsRoot.appendingPathComponent("fixture.jsonl").path] =
+            CostUsageScanner.makeFileUsage(
+                mtimeUnixMs: Int64(now.timeIntervalSince1970 * 1000),
+                size: 1,
+                days: fixtureDays,
+                parsedBytes: 1,
+                codexScanComplete: true)
+        cache.days = fixtureDays
+        CostUsageCacheIO.save(
+            provider: .codex,
+            cache: cache,
+            cacheRoot: env.cacheRoot,
+            calendar: options.calendar)
+
+        let activity = await CostUsageFetcher.loadCachedCodexTokenActivity(
+            now: now,
+            maximumDays: 365,
+            scannerOptions: options)
+
+        #expect(activity?.coverageSinceKey == "2026-04-06")
+        #expect(activity?.coverageUntilKey == "2026-04-08")
+        #expect(activity?.daily.map(\.date) == ["2026-04-06", "2026-04-08"])
+        #expect(activity?.daily.map(\.totalTokens) == [12, 29])
+    }
+
+    @Test
+    func `empty shared scan cache preserves established coverage`() async throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+
+        let now = try env.makeLocalNoon(year: 2026, month: 4, day: 8)
+        let options = CostUsageScanner.Options(
+            codexSessionsRoot: env.codexSessionsRoot,
+            cacheRoot: env.cacheRoot)
+        var cache = CostUsageCache()
+        cache.scanSinceKey = "2026-04-08"
+        cache.scanUntilKey = "2026-04-08"
+        cache.roots = CostUsageScanner.codexRootsFingerprint(options: options)
+        CostUsageCacheIO.save(
+            provider: .codex,
+            cache: cache,
+            cacheRoot: env.cacheRoot,
+            calendar: options.calendar)
+
+        let activity = await CostUsageFetcher.loadCachedCodexTokenActivity(
+            now: now,
+            maximumDays: 365,
+            scannerOptions: options)
+
+        #expect(activity?.coverageSinceKey == "2026-04-08")
+        #expect(activity?.coverageUntilKey == "2026-04-08")
+        #expect(activity?.daily.isEmpty == true)
+    }
+
+    @Test
     func `cached codex token snapshot loads from existing cache without rescanning`() async throws {
         let env = try CostUsageTestEnvironment()
         defer { env.cleanup() }

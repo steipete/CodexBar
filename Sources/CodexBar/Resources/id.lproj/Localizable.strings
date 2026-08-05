@@ -1382,3 +1382,13 @@
 "Resets" = "Reset";
 "Finish now" = "Selesaikan sekarang";
 "Continue in background" = "Lanjutkan di latar belakang";
+
+"Cumulative" = "Kumulatif";
+"Token activity" = "Aktivitas token";
+"View" = "Tampilan";
+"in the last year" = "dalam setahun terakhir";
+"No activity in the last 12 months" = "Tidak ada aktivitas dalam 12 bulan terakhir";
+"Each column = 1 week" = "Setiap kolom = 1 minggu";
+"Running total" = "Total berjalan";
+"Less" = "Sedikit";
+"More" = "Banyak";

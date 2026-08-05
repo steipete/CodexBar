@@ -86,6 +86,18 @@ public struct CostUsageFetcher: Sendable {
             scannerOptions: self.scannerOptionsOverride())
     }
 
+    package func loadCachedCodexTokenActivity(
+        now: Date = Date(),
+        codexHomePath: String? = nil,
+        maximumDays: Int = 365) async -> CostUsageTokenActivityCache?
+    {
+        await Self.loadCachedCodexTokenActivity(
+            now: now,
+            codexHomePath: codexHomePath,
+            maximumDays: maximumDays,
+            scannerOptions: self.scannerOptionsOverride())
+    }
+
     package func loadCachedCodexTokenSnapshotResult(
         now: Date = Date(),
         codexHomePath: String? = nil,
@@ -333,6 +345,13 @@ public struct CostUsageFetcher: Sendable {
             staleSnapshotUpdatedAt: pending ? cache.codexPreviousReport?.updatedAt : nil)
     }
 
+    private static func codexHistoryCoverageIsEstablished(
+        options: CostUsageScanner.Options) -> Bool
+    {
+        let status = self.codexScanCatchUpStatus(options: options)
+        return !status.pending && status.progressKey != "scope-mismatch"
+    }
+
     private static func resolvedScannerOptions(
         _ override: CostUsageScanner.Options?,
         provider: UsageProvider,
@@ -464,6 +483,7 @@ public struct CostUsageFetcher: Sendable {
             now: now,
             historyDays: clampedHistoryDays,
             calendar: scanOptions.calendar,
+            historyCoverageIsEstablished: scanResult.historyCoverageIsEstablished,
             projects: scanResult.projects,
             sessions: scanResult.sessions,
             updatedAt: scanResult.staleSnapshotUpdatedAt)
@@ -474,6 +494,7 @@ public struct CostUsageFetcher: Sendable {
         let projects: [CostUsageProjectBreakdown]
         let sessions: [CostUsageSessionBreakdown]
         let staleSnapshotUpdatedAt: Date?
+        let historyCoverageIsEstablished: Bool
     }
 
     private struct LocalTokenScanOptions: Sendable {
@@ -576,7 +597,9 @@ public struct CostUsageFetcher: Sendable {
                 daily: daily,
                 projects: projects,
                 sessions: sessions,
-                staleSnapshotUpdatedAt: staleSnapshotUpdatedAt)
+                staleSnapshotUpdatedAt: staleSnapshotUpdatedAt,
+                historyCoverageIsEstablished: provider != .codex
+                    || Self.codexHistoryCoverageIsEstablished(options: options.scanOptions))
         }
     }
 
@@ -684,6 +707,70 @@ public struct CostUsageFetcher: Sendable {
             includePiSessions: includePiSessions,
             includeProjectAndSessionBreakdowns: includeProjectAndSessionBreakdowns,
             scannerOptions: overrideScannerOptions)?.snapshot
+    }
+
+    static func loadCachedCodexTokenActivity(
+        now: Date = Date(),
+        codexHomePath: String? = nil,
+        maximumDays: Int = 365,
+        scannerOptions overrideScannerOptions: CostUsageScanner.Options? = nil) async
+        -> CostUsageTokenActivityCache?
+    {
+        let cachedActivity: CostUsageTokenActivityCache?? = try? await CostUsageScanExecutor.run { _ in
+            let options = Self.resolvedScannerOptions(
+                overrideScannerOptions,
+                provider: .codex,
+                codexHomePath: codexHomePath)
+            let days = max(1, min(365, maximumDays))
+            let since = options.calendar.date(byAdding: .day, value: -(days - 1), to: now) ?? now
+            let requestedRange = CostUsageScanner.CostUsageDayRange(
+                since: since,
+                until: now,
+                calendar: options.calendar)
+            let roots = CostUsageScanner.codexSessionsRoots(options: options)
+            let rootsFingerprint = CostUsageScanner.codexRootsFingerprint(options: options)
+            let cache = CostUsageScanner.codexCache(
+                CostUsageCacheIO.loadCodexForMigration(
+                    cacheRoot: options.cacheRoot,
+                    calendar: options.calendar).cache,
+                scopedTo: roots)
+            guard cache.timeZoneIdentifier == options.calendar.timeZone.identifier,
+                  cache.roots == rootsFingerprint,
+                  cache.codexScanCatchUpPending != true,
+                  !cache.files.values.contains(where: { $0.codexScanComplete == false }),
+                  let cachedSince = cache.scanSinceKey,
+                  let cachedUntil = cache.scanUntilKey
+            else { return nil }
+
+            let coverageSince = max(cachedSince, requestedRange.scanSinceKey)
+            let coverageUntil = min(cachedUntil, requestedRange.scanUntilKey)
+            guard coverageSince <= coverageUntil else { return nil }
+            let daily = cache.days.keys
+                .filter { $0 >= coverageSince && $0 <= coverageUntil }
+                .sorted()
+                .map { day -> CostUsageDailyReport.Entry in
+                    var total = 0
+                    for packed in cache.days[day, default: [:]].values {
+                        for value in [packed[safe: 0] ?? 0, packed[safe: 2] ?? 0] {
+                            let addition = total.addingReportingOverflow(max(0, value))
+                            total = addition.overflow ? Int.max : addition.partialValue
+                        }
+                    }
+                    return CostUsageDailyReport.Entry(
+                        date: day,
+                        inputTokens: nil,
+                        outputTokens: nil,
+                        totalTokens: total,
+                        costUSD: nil,
+                        modelsUsed: nil,
+                        modelBreakdowns: nil)
+                }
+            return CostUsageTokenActivityCache(
+                daily: daily,
+                coverageSinceKey: coverageSince,
+                coverageUntilKey: coverageUntil)
+        }
+        return cachedActivity.flatMap(\.self)
     }
 
     static func loadCachedCodexTokenSnapshotResult(
@@ -832,6 +919,7 @@ public struct CostUsageFetcher: Sendable {
                     now: now,
                     historyDays: clampedHistoryDays,
                     calendar: options.calendar,
+                    historyCoverageIsEstablished: Self.codexHistoryCoverageIsEstablished(options: options),
                     projects: Self.mergedProjectBreakdowns(projects),
                     sessions: sessions,
                     updatedAt: scanTimes.min()),
@@ -986,6 +1074,7 @@ public struct CostUsageFetcher: Sendable {
         historyDays: Int = 30,
         useCurrentLocalDayForSession: Bool = true,
         calendar: Calendar = .current,
+        historyCoverageIsEstablished: Bool = true,
         meteredCostUSD: Double? = nil,
         credentialScopeFingerprint: String? = nil,
         historyLabel: String? = nil,
@@ -1025,6 +1114,7 @@ public struct CostUsageFetcher: Sendable {
             last30DaysTokens: last30DaysTokens,
             last30DaysCostUSD: last30DaysCostUSD,
             historyDays: historyDays,
+            historyCoverageIsEstablished: historyCoverageIsEstablished,
             historyLabel: historyLabel,
             meteredCostUSD: meteredCostUSD,
             credentialScopeFingerprint: credentialScopeFingerprint,

@@ -49,6 +49,27 @@ struct ProviderDiagnosticExportTests {
     }
 
     @Test
+    func `diagnostic export carries copilot credits counter`() throws {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let snapshot = UsageSnapshot(
+            primary: nil,
+            secondary: nil,
+            copilotCredits: CopilotCreditsSnapshot(
+                creditsUsed: 31,
+                quotaResetDate: now.addingTimeInterval(86400)),
+            updatedAt: now)
+        let summary = ProviderDiagnosticUsageSummary(from: snapshot)
+
+        #expect(summary.copilotCredits?.creditsUsed == 31)
+        #expect(summary.copilotCredits?.quotaResetDate != nil)
+        #expect(summary.providerSpecificData.contains("copilotCredits"))
+
+        let json = try self.json(summary)
+        #expect(json.contains("\"copilotCredits\""))
+        #expect(json.contains("31"))
+    }
+
+    @Test
     func `diagnostic export decodes legacy schema without platform metadata`() throws {
         let export = ProviderDiagnosticExport(
             timestamp: Date(timeIntervalSince1970: 1_700_000_000),

@@ -71,6 +71,10 @@ public struct CopilotUsageFetcher: Sendable {
         let chatSnapshot = usage.quotaSnapshots.chat
         let premium = Self.makeRateWindow(from: premiumSnapshot, resetsAt: resetsAt)
         let chat = Self.makeRateWindow(from: chatSnapshot, resetsAt: resetsAt)
+        let creditsUsed = premiumSnapshot?.creditsUsed ?? chatSnapshot?.creditsUsed
+        let copilotCredits = creditsUsed.map {
+            CopilotCreditsSnapshot(creditsUsed: $0, quotaResetDate: resetsAt)
+        }
         let hasUnlimitedQuota = premiumSnapshot?.unlimited == true || chatSnapshot?.unlimited == true
 
         let primary: RateWindow?
@@ -102,6 +106,7 @@ public struct CopilotUsageFetcher: Sendable {
             secondary: secondary,
             tertiary: nil,
             providerCost: nil,
+            copilotCredits: copilotCredits,
             updatedAt: Date(),
             identity: identity)
     }

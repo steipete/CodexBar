@@ -101,7 +101,7 @@ public final class ScriptFetchStrategy: ProviderFetchStrategy, @unchecked Sendab
             throw ProviderPluginError.secretAccess("required provider secret is unavailable")
         }
         let runtime = try self.loadedRuntime()
-        guard runtime.manifest.id == self.provider else {
+        guard runtime.manifest.id == self.provider.instanceID else {
             throw ProviderPluginError.invalidManifest(
                 "bundled plugin id '\(runtime.manifest.id.rawValue)' does not match '\(self.provider.rawValue)'")
         }

@@ -1026,7 +1026,7 @@ extension CodexSessionQuotaFalseRestoreTests {
             secondary: nil,
             updatedAt: updatedAt,
             identity: ProviderIdentitySnapshot(
-                providerID: provider,
+                providerID: provider.instanceID,
                 accountEmail: email,
                 accountOrganization: nil,
                 loginMethod: "test"))

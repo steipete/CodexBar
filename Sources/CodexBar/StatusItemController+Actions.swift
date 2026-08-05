@@ -6,7 +6,7 @@ extension StatusItemController {
     /// of each other and of the all-providers refresh.
     enum ManualRefreshScope: Hashable {
         case global
-        case provider(UsageProvider)
+        case provider(ProviderInstanceID)
     }
 }
 
@@ -168,10 +168,11 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
     }
 
     private func startManualRefresh(
-        for provider: UsageProvider?,
+        for provider: ProviderInstanceID?,
         originatingMenuID: ObjectIdentifier?,
         originatingMenuInteractionGeneration: Int?)
     {
+        let firstPartyProvider = provider?.firstPartyProvider
         let scope: ManualRefreshScope = provider.map(ManualRefreshScope.provider) ?? .global
         let scopedRefreshInFlight = provider.map { self.store.refreshingProviders.contains($0) }
             ?? !self.store.refreshingProviders.isEmpty
@@ -197,7 +198,7 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
             var completed = false
             defer {
                 self.manualRefreshTasks[scope] = nil
-                self.menuCardRefreshMonitor.endManualRefresh(for: provider)
+                self.menuCardRefreshMonitor.endManualRefresh(for: firstPartyProvider)
                 self.updatePersistentRefreshItemsEnabled()
                 if completed {
                     self.scheduleCompletedManualRefreshViewportRestore(viewportRestoreRequests)
@@ -216,7 +217,7 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
                 return
             }
             #endif
-            if let provider {
+            if let provider = firstPartyProvider {
                 await self.performStoreRefresh(
                     for: provider,
                     refreshOpenMenusWhenComplete: true,
@@ -231,16 +232,16 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
             completed = true
         }
         self.manualRefreshTasks[scope] = task
-        self.menuCardRefreshMonitor.beginManualRefresh(frozenModels: frozenModels, provider: provider)
+        self.menuCardRefreshMonitor.beginManualRefresh(frozenModels: frozenModels, provider: firstPartyProvider)
         self.updatePersistentRefreshItemsEnabled()
     }
 
-    private func manualRefreshProvider(for menu: NSMenu?) -> UsageProvider? {
+    private func manualRefreshProvider(for menu: NSMenu?) -> ProviderInstanceID? {
         guard let menu else { return nil }
         if self.shouldMergeIcons {
             guard self.mergedMenu == nil || menu === self.mergedMenu else { return nil }
             guard !self.isMergedOverviewSelected(in: menu) else { return nil }
-            return self.resolvedMenuProvider()
+            return self.resolvedMenuProvider()?.instanceID
         }
         return self.menuProviders[ObjectIdentifier(menu)]
     }
@@ -253,13 +254,14 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
             providers.append(lastMenuProvider)
         }
         if providers.isEmpty,
-           let defaultProvider = self.settings.orderedProviders().first ?? UsageProvider.allCases.first
+           let defaultProvider = self.settings.orderedFirstPartyProviders().first ?? UsageProvider.allCases.first
         {
-            providers.append(defaultProvider)
+            providers.append(defaultProvider.instanceID)
         }
 
         var models: [UsageProvider: UsageMenuCardView.Model] = [:]
-        for provider in providers {
+        for instanceID in providers {
+            guard let provider = instanceID.firstPartyProvider else { continue }
             models[provider] = self.menuCardModel(for: provider)
         }
         return models
@@ -322,8 +324,8 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
     }
 
     @objc func openDashboard() {
-        let preferred = self.lastMenuProvider
-            ?? (self.store.isEnabled(.codex) ? .codex : self.store.enabledProviders().first)
+        let preferred = self.lastMenuProvider?.firstPartyProvider
+            ?? (self.store.isEnabled(.codex) ? .codex : self.store.enabledFirstPartyProviders().first)
 
         let provider = preferred ?? .codex
         guard let url = self.dashboardURL(for: provider) else { return }
@@ -431,15 +433,15 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
     }
 
     @objc func openStatusPage() {
-        let preferred = self.lastMenuProvider
-            ?? (self.store.isEnabled(.codex) ? .codex : self.store.enabledProviders().first)
+        let preferred = self.lastMenuProvider?.firstPartyProvider
+            ?? (self.store.isEnabled(.codex) ? .codex : self.store.enabledFirstPartyProviders().first)
 
         self.openStatusPage(for: preferred ?? .codex)
     }
 
     @objc func openStatusPageFromMenuItem(_ sender: NSMenuItem) {
         let provider = (sender.identifier?.rawValue).flatMap(UsageProvider.init(rawValue:))
-            ?? self.lastMenuProvider
+            ?? self.lastMenuProvider?.firstPartyProvider
             ?? .codex
         self.openStatusPage(for: provider)
     }
@@ -452,8 +454,8 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
     }
 
     @objc func openChangelog() {
-        let preferred = self.lastMenuProvider
-            ?? (self.store.isEnabled(.codex) ? .codex : self.store.enabledProviders().first)
+        let preferred = self.lastMenuProvider?.firstPartyProvider
+            ?? (self.store.isEnabled(.codex) ? .codex : self.store.enabledFirstPartyProviders().first)
 
         let provider = preferred ?? .codex
         let meta = self.store.metadata(for: provider)
@@ -523,7 +525,9 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
         }
 
         let rawProvider = sender.representedObject as? String
-        let provider = rawProvider.flatMap(UsageProvider.init(rawValue:)) ?? self.lastMenuProvider ?? .codex
+        let provider = rawProvider.flatMap(UsageProvider.init(rawValue:))
+            ?? self.lastMenuProvider?.firstPartyProvider
+            ?? .codex
         self.loginLogger.info("Switch Account tapped", metadata: ["provider": provider.rawValue])
         self.startLoginFlow(provider: provider)
     }
@@ -579,7 +583,7 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
     func celebrationOriginPoint(for provider: UsageProvider?) -> CGPoint? {
         let item: NSStatusItem = if self.shouldMergeIcons {
             self.statusItem
-        } else if let provider, let existing = self.statusItems[provider], existing.isVisible {
+        } else if let provider, let existing = self.statusItems[provider.instanceID], existing.isVisible {
             existing
         } else {
             self.lazyStatusItem(for: provider ?? .codex)
@@ -680,10 +684,10 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
     }
 
     private func resolvedShortcutProvider() -> UsageProvider {
-        if let last = self.lastMenuProvider, self.isEnabled(last) {
+        if let last = self.lastMenuProvider?.firstPartyProvider, self.isEnabled(last) {
             return last
         }
-        if let first = self.store.enabledProviders().first {
+        if let first = self.store.enabledFirstPartyProviders().first {
             return first
         }
         return .codex

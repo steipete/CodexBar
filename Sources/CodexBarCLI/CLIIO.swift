@@ -49,6 +49,8 @@ extension CodexBarCLI {
             print(Self.diagnoseHelp(version: version))
         case "guard":
             print(Self.guardHelp(version: version))
+        case "plugins":
+            print(Self.pluginsHelp(version: version))
         default:
             print(Self.rootHelp(version: version))
         }

@@ -87,12 +87,12 @@ extension UsageStore {
             return
         }
 
-        let wasOutage = self.providerStatusHadIssue[provider] ?? false
+        let wasOutage = self.providerStatusHadIssue[provider.instanceID] ?? false
         if isOutage, !wasOutage {
-            self.providerStatusHadIssue[provider] = true
+            self.providerStatusHadIssue[provider.instanceID] = true
             self.emitHook(.providerUnavailable, provider: provider, status: indicator.rawValue)
         } else if !isOutage, wasOutage {
-            self.providerStatusHadIssue[provider] = false
+            self.providerStatusHadIssue[provider.instanceID] = false
             self.emitHook(.providerRecovered, provider: provider, status: indicator.rawValue)
         }
     }

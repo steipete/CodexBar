@@ -3,18 +3,24 @@
 ## 0.47.1 — Unreleased
 
 ### Added
+- CLI: expose Codex cost-history completeness in JSON and add an experimental provider-native-only scan mode (#2520). Thanks @NickGuAI!
+- Usage & Spend: add an accessible daily, weekly, and cumulative token-activity heatmap backed by the existing persistent cost scan cache (#2548). Thanks @Yuxin-Qiao!
+- Settings: the sidebar is now resizable — drag the divider between 200–380pt; the width persists across launches.
 - z.ai/GLM: route BigModel aliases and relay-file keys only to China endpoints, reject canonical cross-region overrides before bearer auth, and keep Kimi browser import disabled when Cookie Source is Off (#2351). Thanks @Leehow!
 - Kimi: enrich Code API and CLI usage with the monthly membership pool from a signed-in Kimi Desktop session, using WAL-safe read-only cookie access (#2351). Thanks @Leehow!
 - Sessions: discover live pi and OMP sessions through one Pi-family scanner, with dialect-aware metadata, PID-only startup rows, and mixed-version CLI/remote support (#2529). Thanks @wdmitchelluk!
 - Kimi/GLM: distinguish Kimi Code from the regional Open Platform, bind China and international keys to their issuing hosts, and show GLM Coding Plan's 5-hour window as primary with MCP separate (#2351). Thanks @Leehow!
 - Provider plugins: declarative detail rows/charts plus bundled JavaScript conversions for OpenAI, z.ai, OpenRouter, Poe, and ClawRouter behind `CODEXBAR_JS_PROVIDERS=1`.
+- Provider plugins: install local JavaScript or TypeScript providers with manifest-driven settings and generic menu cards, approval-bound network/cookie access, and sandboxed Sucrase transpilation.
 
 ### Changed
+- Settings: refresh the Plugins pane to match the other panes — labeled install and directory rows with a Show in Finder affordance, a tilde-abbreviated path, a properly sized empty state, and consistent section footers.
 - Menu: move each usage window's used percentage and reset time into its title row, with all pace detail on one line (#2182). Thanks @jack24254029!
 - Codex: define Fast cost as estimated API Fast USD, resolve it models.dev-first with model-specific API ratios, and refresh GPT-5.6 Terra/Luna fallback rates (refs #2175). Thanks @iam-brain!
 
 ### Fixed
 - Command Code: parse and display 5-hour and weekly rolling limits alongside monthly credits and reset times (#2466). Thanks @derekszen!
+- OpenCode Go: include Zen balance in CLI usage reads without waiting beyond five seconds (#2583). Thanks @Yuxin-Qiao!
 - Usage & Spend: keep validated Codex totals visible while the local scanner catches up, with refresh indicators in the dashboard and menu cost rows (#2397). Thanks @hhh2210!
 - ZoomMate: preserve browser cookie scope so parent-domain sessions reach both API hosts without leaking host-only cookies (fixes #2507). Thanks @weddle!
 - Sync: propagate provider configuration edits made by the CLI or directly in `config.json` to the iCloud fleet without echoing remotely applied writes.

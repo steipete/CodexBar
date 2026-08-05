@@ -122,6 +122,7 @@ public struct OpenCodeGoUsageFetcher: Sendable {
         now: Date = Date(),
         workspaceIDOverride: String? = nil,
         includeZenBalance: Bool = true,
+        waitForZenBalance: Bool = false,
         session: URLSession? = nil) async throws -> OpenCodeGoUsageSnapshot
     {
         let session = session ?? self.redirectGuardSession
@@ -148,6 +149,7 @@ public struct OpenCodeGoUsageFetcher: Sendable {
                 timeout: timeout,
                 session: session)
         }
+        let zenBalanceStart = ContinuousClock.now
         let zenBalanceTask = includeZenBalance ? Task {
             try await Task.sleep(for: self.optionalZenBalanceStartDelay)
             return try await self.fetchZenBalance(
@@ -194,7 +196,11 @@ public struct OpenCodeGoUsageFetcher: Sendable {
         guard let zenBalanceTask else {
             return snapshot
         }
-        let zenBalance = try await self.completedOptionalZenBalance(from: zenBalanceTask)
+        let zenBalance = try await self.completedOptionalZenBalance(
+            from: zenBalanceTask,
+            timeout: self.optionalZenBalanceJoinTimeout(
+                since: zenBalanceStart,
+                waitForZenBalance: waitForZenBalance))
         return snapshot.withZenBalanceUSD(zenBalance)
     }
 
@@ -236,18 +242,19 @@ public struct OpenCodeGoUsageFetcher: Sendable {
         guard let requestCookieHeader = OpenCodeWebCookieSupport.requestCookieHeader(from: cookieHeader) else {
             throw OpenCodeGoUsageError.invalidCredentials
         }
+        let requestTimeout = min(timeout, self.optionalZenBalanceTimeout)
         let workspaceID: String = if let override = self.normalizeWorkspaceID(workspaceIDOverride) {
             override
         } else {
             try await self.fetchWorkspaceID(
                 cookieHeader: requestCookieHeader,
-                timeout: timeout,
+                timeout: requestTimeout,
                 session: session)
         }
         return try await self.fetchOptionalZenBalance(
             workspaceID: workspaceID,
             cookieHeader: requestCookieHeader,
-            timeout: min(timeout, self.optionalZenBalanceTimeout),
+            timeout: requestTimeout,
             session: session)
     }
 

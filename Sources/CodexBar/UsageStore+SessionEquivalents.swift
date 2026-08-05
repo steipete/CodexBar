@@ -179,7 +179,7 @@ extension UsageStore {
     {
         guard ![UsageProvider.codex, .claude, .antigravity].contains(provider) else { return true }
         guard let historyIdentity else { return false }
-        let persistedIdentity = self.planUtilizationHistory[provider]?
+        let persistedIdentity = self.planUtilizationHistory[provider.instanceID]?
             .sessionEquivalentWindowPairIdentity(for: accountKey)
         return (persistedIdentity ?? self.legacySessionEquivalentHistoryIdentity(
             provider: provider,

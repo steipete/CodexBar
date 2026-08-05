@@ -125,7 +125,7 @@ extension StatusItemController {
         guard self.shouldMergeIcons, self.settings.menuBarShowsHighestUsage else {
             return false
         }
-        let activeProviders = self.store.enabledProvidersForDisplay()
+        let activeProviders = self.store.enabledFirstPartyProvidersForDisplay()
         return self.settings.resolvedMergedOverviewProviders(
             activeProviders: activeProviders,
             maxVisibleProviders: SettingsStore.mergedOverviewProviderLimit).contains(.codex)

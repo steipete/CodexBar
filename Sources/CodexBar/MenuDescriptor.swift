@@ -112,7 +112,7 @@ struct MenuDescriptor {
         } else {
             var addedUsage = false
 
-            for enabledProvider in store.enabledProviders() {
+            for enabledProvider in store.enabledFirstPartyProviders() {
                 sections.append(Self.usageSection(for: enabledProvider, store: store, settings: settings))
                 addedUsage = true
             }
@@ -234,7 +234,7 @@ struct MenuDescriptor {
         }()
         entries.append(.text(headlineText, .headline))
 
-        if let snap = store.snapshot(for: provider) {
+        if let snap = store.snapshot(for: provider.instanceID) {
             let resetStyle = settings.resetTimeDisplayStyle
             let labels = Self.rateWindowLabels(provider: provider, metadata: meta, snapshot: snap)
             let crofShowsCreditsOnly = provider == .crof && snap.secondary == nil
@@ -360,7 +360,7 @@ struct MenuDescriptor {
             store: store,
             settings: settings,
             metadata: meta,
-            snapshot: store.snapshot(for: provider))
+            snapshot: store.snapshot(for: provider.instanceID))
         ProviderCatalog.implementation(for: provider)?
             .appendUsageMenuEntries(context: usageContext, entries: &entries)
 
@@ -460,7 +460,7 @@ struct MenuDescriptor {
         settings: SettingsStore,
         account: AccountInfo) -> Section?
     {
-        let snapshot = store.snapshot(for: provider)
+        let snapshot = store.snapshot(for: provider.instanceID)
         let metadata = store.metadata(for: provider)
         let entries = Self.accountEntries(
             provider: provider,
@@ -574,9 +574,9 @@ struct MenuDescriptor {
     }
 
     private static func accountProviderForCombined(store: UsageStore) -> UsageProvider? {
-        for provider in store.enabledProviders() {
+        for provider in store.enabledFirstPartyProviders() {
             let metadata = store.metadata(for: provider)
-            if store.snapshot(for: provider)?.identity(for: provider) != nil {
+            if store.snapshot(for: provider.instanceID)?.identity(for: provider.instanceID) != nil {
                 return provider
             }
             if metadata.usesAccountFallback {
@@ -594,7 +594,7 @@ struct MenuDescriptor {
         codexAccountPromotionCoordinator: CodexAccountPromotionCoordinator?) -> Section
     {
         var entries: [Entry] = []
-        let targetProvider = provider ?? store.enabledProviders().first
+        let targetProvider = provider ?? store.enabledFirstPartyProviders().first
         let metadata = targetProvider.map { store.metadata(for: $0) }
         let fallbackAccount = targetProvider.map { store.accountInfo(for: $0) } ?? account
         let hasAccount = self.hasAccount(for: targetProvider, store: store, account: fallbackAccount)
@@ -667,7 +667,7 @@ struct MenuDescriptor {
     }
 
     private static func statusLine(for provider: UsageProvider?, store: UsageStore) -> String? {
-        let target = provider ?? store.enabledProviders().first
+        let target = provider ?? store.enabledFirstPartyProviders().first
         guard let target,
               let status = store.status(for: target),
               status.indicator != .none else { return nil }
@@ -685,15 +685,15 @@ struct MenuDescriptor {
         if let provider {
             return .switchAccount(provider)
         }
-        if let enabled = store.enabledProviders().first {
+        if let enabled = store.enabledFirstPartyProviders().first {
             return .switchAccount(enabled)
         }
         return .switchAccount(.codex)
     }
 
     private static func hasAccount(for provider: UsageProvider?, store: UsageStore, account: AccountInfo) -> Bool {
-        let target = provider ?? store.enabledProviders().first ?? .codex
-        let snapshot = store.snapshot(for: target)
+        let target = provider ?? store.enabledFirstPartyProviders().first ?? .codex
+        let snapshot = store.snapshot(for: target.instanceID)
         if let email = snapshot?.accountEmail(for: target),
            !email.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         {

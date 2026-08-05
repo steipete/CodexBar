@@ -324,7 +324,7 @@ struct CLIServeRawHTTPTests {
         let store = testConfigStore(suiteName: "CLIServeRawHTTPTests-\(UUID().uuidString)")
         defer { try? store.deleteIfPresent() }
         try store.save(CodexBarConfig(providers: UsageProvider.allCases.map {
-            ProviderConfig(id: $0, enabled: false)
+            ProviderConfig(id: $0.instanceID, enabled: false)
         }))
         let runtime = ServeRuntime(
             configStore: store,
@@ -370,7 +370,7 @@ struct CLIServeRawHTTPTests {
         let store = testConfigStore(suiteName: "CLIServeRawHTTPTests-\(UUID().uuidString)")
         defer { try? store.deleteIfPresent() }
         try store.save(CodexBarConfig(providers: UsageProvider.allCases.map {
-            ProviderConfig(id: $0, enabled: false)
+            ProviderConfig(id: $0.instanceID, enabled: false)
         }))
         if let rawConfigJSON {
             try Data(rawConfigJSON.utf8).write(to: store.fileURL)

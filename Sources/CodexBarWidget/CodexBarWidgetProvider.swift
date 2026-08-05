@@ -195,8 +195,8 @@ struct CodexBarSwitcherTimelineProvider: TimelineProvider {
         let snapshot = WidgetSnapshotStore.load() ?? WidgetPreviewData.emptySnapshot()
         let providers = self.availableProviders(from: snapshot)
         let stored = WidgetSelectionStore.loadSelectedProvider()
-        let selected = providers.first { $0 == stored } ?? providers.first ?? .codex
-        if selected != stored {
+        let selected = providers.first { $0.instanceID == stored } ?? providers.first ?? .codex
+        if selected.instanceID != stored {
             WidgetSelectionStore.saveSelectedProvider(selected)
         }
         return CodexBarSwitcherEntry(
@@ -212,8 +212,13 @@ struct CodexBarSwitcherTimelineProvider: TimelineProvider {
 
     static func supportedProviders(from snapshot: WidgetSnapshot) -> [UsageProvider] {
         let enabled = snapshot.enabledProviders
-        let providers = enabled.isEmpty ? snapshot.entries.map(\.provider) : enabled
-        let supported = providers.filter { ProviderChoice(provider: $0) != nil }
+        let instanceIDs = enabled.isEmpty ? snapshot.entries.map(\.provider) : enabled
+        let supported = instanceIDs.compactMap { instanceID -> UsageProvider? in
+            guard let provider = instanceID.firstPartyProvider, ProviderChoice(provider: provider) != nil else {
+                return nil
+            }
+            return provider
+        }
         return supported.isEmpty ? [.codex] : supported
     }
 }

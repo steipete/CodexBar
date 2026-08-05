@@ -40,13 +40,13 @@ extension StatusItemController {
 
     func warmMergedSwitcherSiblingContent(in menu: NSMenu) {
         guard menu.items.first?.view is ProviderSwitcherView else { return }
-        let enabledProviders = self.store.enabledProvidersForDisplay()
+        let enabledProviders = self.store.enabledFirstPartyProvidersForDisplay()
         guard enabledProviders.count > 1 else { return }
         let includesOverview = self.includesOverviewTab(enabledProviders: enabledProviders)
         let currentSelection = self.resolvedSwitcherSelection(
             enabledProviders: enabledProviders,
             includesOverview: includesOverview)
-        var selections: [ProviderSwitcherSelection] = enabledProviders.map { .provider($0) }
+        var selections: [ProviderSwitcherSelection] = enabledProviders.map { .provider($0.instanceID) }
         if includesOverview {
             selections.insert(.overview, at: 0)
         }

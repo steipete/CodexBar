@@ -8,7 +8,7 @@ extension StatusItemController {
                 self?.menuCardModel(for: provider)
             },
             isProviderRefreshActive: { [weak self] provider in
-                self?.store.refreshingProviders.contains(provider) == true
+                self?.store.refreshingProviders.contains(provider.instanceID) == true
             })
     }
 
@@ -22,7 +22,7 @@ extension StatusItemController {
         planOverride: String? = nil,
         subtitleOverride: String? = nil) -> UsageMenuCardView.Model?
     {
-        let target = provider ?? self.store.enabledProvidersForDisplay().first ?? .codex
+        let target = provider ?? self.store.enabledFirstPartyProvidersForDisplay().first ?? .codex
         let metadata = self.store.metadata(for: target)
 
         let usesOverrideCard = forceOverrideCard || snapshotOverride != nil || errorOverride != nil

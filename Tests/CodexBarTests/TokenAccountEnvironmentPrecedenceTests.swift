@@ -1178,7 +1178,7 @@ extension TokenAccountEnvironmentPrecedenceTests {
             usageDetails: [ZaiUsageDetail(modelCode: "glm-4", usage: 40)],
             nextResetTime: reset)
         let identity = ProviderIdentitySnapshot(
-            providerID: provider,
+            providerID: provider.instanceID,
             accountEmail: nil,
             accountOrganization: "Org",
             loginMethod: "Pro")

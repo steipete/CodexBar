@@ -26,7 +26,7 @@ public enum ProviderIntentSecretField: String, CaseIterable, Sendable {
 /// representation in this type, so untrusted sync payloads cannot change them.
 public struct ProviderIntentPayload: Codable, Sendable {
     public let schemaVersion: Int
-    public let provider: UsageProvider
+    public let provider: ProviderInstanceID
     public var enabled: Bool?
     public var extrasEnabled: Bool?
     public var region: String?
@@ -65,9 +65,10 @@ public struct ProviderIntentPayload: Codable, Sendable {
         canEnable: (UsageProvider, ProviderConfig) -> Bool) throws -> ProviderConfig
     {
         precondition(local.id == self.provider)
+        guard let firstPartyProvider = self.provider.firstPartyProvider else { return local }
         var result = local
         if self.enabled == true {
-            if canEnable(self.provider, local) {
+            if canEnable(firstPartyProvider, local) {
                 result.enabled = true
             }
         } else {
@@ -126,8 +127,8 @@ public struct ProviderIntentPayload: Codable, Sendable {
         return fields
     }
 
-    public static func recordName(for provider: UsageProvider) -> String {
-        "intent-\(provider.rawValue)"
+    public static func recordName(for instanceID: ProviderInstanceID) -> String {
+        "intent-\(instanceID.rawValue)"
     }
 }
 
@@ -162,7 +163,7 @@ public struct DeviceSyncPayload: Codable, Sendable {
 
 public struct AccountSnapshotSyncPayload: Codable, Sendable {
     public let schemaVersion: Int
-    public let provider: UsageProvider
+    public let provider: ProviderInstanceID
     public let deviceID: String
     public let accountKey: String
     public let fetchedAt: Date
@@ -170,7 +171,7 @@ public struct AccountSnapshotSyncPayload: Codable, Sendable {
     public let usage: UsageSnapshot
 
     public init(
-        provider: UsageProvider,
+        provider: ProviderInstanceID,
         deviceID: String,
         accountIdentity: String?,
         displayLabel: String,
@@ -187,7 +188,7 @@ public struct AccountSnapshotSyncPayload: Codable, Sendable {
     }
 
     public init(
-        provider: UsageProvider,
+        provider: ProviderInstanceID,
         deviceID: String,
         accountKey: String,
         fetchedAt: Date,

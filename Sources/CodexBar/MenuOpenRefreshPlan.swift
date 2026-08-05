@@ -3,11 +3,11 @@ import CodexBarCore
 struct MenuOpenRefreshPlan: Equatable {
     struct Inputs {
         let refreshAllOnOpen: Bool
-        let enabledProviders: [UsageProvider]
-        let visibleProviders: [UsageProvider]
-        let refreshingProviders: Set<UsageProvider>
-        let staleProviders: Set<UsageProvider>
-        let missingProviders: Set<UsageProvider>
+        let enabledProviders: [ProviderInstanceID]
+        let visibleProviders: [ProviderInstanceID]
+        let refreshingProviders: Set<ProviderInstanceID>
+        let staleProviders: Set<ProviderInstanceID>
+        let missingProviders: Set<ProviderInstanceID>
     }
 
     enum Scheduling: Equatable {
@@ -15,7 +15,7 @@ struct MenuOpenRefreshPlan: Equatable {
         case concurrent
     }
 
-    let providers: [UsageProvider]
+    let providers: [ProviderInstanceID]
     let scheduling: Scheduling
     let refreshCodexDashboard: Bool
 

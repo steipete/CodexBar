@@ -38,6 +38,7 @@ extension CodexBarCLI {
 
         let format = output.format
         let forceRefresh = values.flags.contains("refresh")
+        let includePiSessions = Self.decodeCostIncludePiSessions(from: values)
         let useColor = Self.shouldUseColor(noColor: values.flags.contains("noColor"), format: format)
         let historyDays = Self.decodeCostHistoryDays(from: values)
         // Cursor cost reuses the same cookie-source policy as usage fetches: reject the fetch when the
@@ -91,7 +92,8 @@ extension CodexBarCLI {
                     forceRefresh: forceRefresh,
                     historyDays: historyDays,
                     cursorCookieHeaderOverride: Self.cursorCostHeaderOverride(provider, settings: cursorCookieSettings),
-                    refreshPricingInBackground: false)
+                    refreshPricingInBackground: false,
+                    includePiSessions: includePiSessions)
                 switch format {
                 case .text:
                     sections.append(Self.renderCostText(
@@ -256,6 +258,7 @@ extension CodexBarCLI {
             sessionTokens: snapshot?.sessionTokens,
             sessionCostUSD: snapshot?.sessionCostUSD,
             historyDays: snapshot?.historyDays,
+            historyCoverageIsEstablished: snapshot?.historyCoverageIsEstablished,
             last30DaysTokens: snapshot?.last30DaysTokens,
             last30DaysCostUSD: snapshot?.last30DaysCostUSD,
             meteredCostUSD: snapshot?.meteredCostUSD,
@@ -355,6 +358,10 @@ extension CodexBarCLI {
               let parsed = Int(raw)
         else { return 30 }
         return max(1, min(365, parsed))
+    }
+
+    static func decodeCostIncludePiSessions(from values: ParsedValues) -> Bool {
+        !values.flags.contains("providerNativeOnly")
     }
 
     private static func decodeCostGroupBy(from values: ParsedValues) -> CostGroupBy {
@@ -464,6 +471,11 @@ struct CostOptions: CommanderParsable {
     @Flag(name: .long("refresh"), help: "Force refresh by ignoring cached scans")
     var refresh: Bool = false
 
+    @Flag(
+        name: .long("provider-native-only"),
+        help: "Experimental: exclude pi and OMP session mirrors from Claude/Codex cost history")
+    var providerNativeOnly: Bool = false
+
     @Option(name: .long("days"), help: "Cost history window in days (1...365)")
     var days: Int?
 
@@ -479,6 +491,7 @@ struct CostPayload: Encodable, Sendable {
     let sessionTokens: Int?
     let sessionCostUSD: Double?
     let historyDays: Int?
+    let historyCoverageIsEstablished: Bool?
     let last30DaysTokens: Int?
     let last30DaysCostUSD: Double?
     let meteredCostUSD: Double?
@@ -495,6 +508,7 @@ struct CostPayload: Encodable, Sendable {
         sessionTokens: Int?,
         sessionCostUSD: Double?,
         historyDays: Int?,
+        historyCoverageIsEstablished: Bool? = nil,
         last30DaysTokens: Int?,
         last30DaysCostUSD: Double?,
         meteredCostUSD: Double? = nil,
@@ -510,6 +524,7 @@ struct CostPayload: Encodable, Sendable {
         self.sessionTokens = sessionTokens
         self.sessionCostUSD = sessionCostUSD
         self.historyDays = historyDays
+        self.historyCoverageIsEstablished = historyCoverageIsEstablished
         self.last30DaysTokens = last30DaysTokens
         self.last30DaysCostUSD = last30DaysCostUSD
         self.meteredCostUSD = meteredCostUSD

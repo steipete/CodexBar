@@ -17,6 +17,17 @@ struct CLICostTests {
     }
 
     @Test
+    func `provider native only excludes pi and OMP session mirrors`() throws {
+        let parser = CommandParser(signature: CodexBarCLI._costSignatureForTesting())
+
+        let defaultValues = try parser.parse(arguments: [])
+        #expect(CodexBarCLI.decodeCostIncludePiSessions(from: defaultValues))
+
+        let nativeOnlyValues = try parser.parse(arguments: ["--provider-native-only"])
+        #expect(!CodexBarCLI.decodeCostIncludePiSessions(from: nativeOnlyValues))
+    }
+
+    @Test
     func `renders cost text snapshot`() {
         let snap = CostUsageTokenSnapshot(
             sessionTokens: 1200,
@@ -155,6 +166,26 @@ struct CLICostTests {
         #expect(json.contains("\"totalCost\""))
         #expect(json.contains("\"totalTokens\":15"))
         #expect(json.contains("1700000000"))
+    }
+
+    @Test
+    func `cost JSON exposes history coverage as a boolean`() throws {
+        for coverage in [false, true] {
+            let snapshot = CostUsageTokenSnapshot(
+                sessionTokens: 10,
+                sessionCostUSD: 0.01,
+                last30DaysTokens: 40,
+                last30DaysCostUSD: 0.04,
+                historyCoverageIsEstablished: coverage,
+                daily: [],
+                updatedAt: Date(timeIntervalSince1970: 1_700_000_000))
+            let payload = CodexBarCLI.makeCostPayload(provider: .codex, snapshot: snapshot, error: nil)
+            let data = try JSONEncoder().encode(payload)
+            let object = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
+
+            #expect(object.keys.contains("historyCoverageIsEstablished"))
+            #expect(object["historyCoverageIsEstablished"] as? Bool == coverage)
+        }
     }
 
     @Test

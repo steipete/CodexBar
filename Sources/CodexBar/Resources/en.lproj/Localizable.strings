@@ -1383,3 +1383,13 @@
 "%dm ago" = "%dm ago";
 "%dh ago" = "%dh ago";
 "%dd ago" = "%dd ago";
+
+"Cumulative" = "Cumulative";
+"Token activity" = "Token activity";
+"View" = "View";
+"in the last year" = "in the last year";
+"No activity in the last 12 months" = "No activity in the last 12 months";
+"Each column = 1 week" = "Each column = 1 week";
+"Running total" = "Running total";
+"Less" = "Less";
+"More" = "More";

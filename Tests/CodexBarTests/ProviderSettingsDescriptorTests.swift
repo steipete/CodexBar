@@ -93,11 +93,11 @@ struct ProviderSettingsDescriptorTests {
                         provider: provider,
                         cookieHeader: "new-test-cookie",
                         sourceLabel: "Test new")
-                    fixture.store.snapshots[provider] = UsageSnapshot(
+                    fixture.store.snapshots[provider.instanceID] = UsageSnapshot(
                         primary: nil,
                         secondary: nil,
                         updatedAt: Date())
-                    fixture.store.lastSourceLabels[provider] = "web"
+                    fixture.store.lastSourceLabels[provider.instanceID] = "web"
                 }
                 defer { fixture.store._test_providerRefreshOverride = nil }
 
@@ -151,11 +151,11 @@ struct ProviderSettingsDescriptorTests {
                         provider: provider,
                         cookieHeader: "invalid-test-cookie",
                         sourceLabel: "Test invalid")
-                    fixture.store.snapshots[provider] = UsageSnapshot(
+                    fixture.store.snapshots[provider.instanceID] = UsageSnapshot(
                         primary: nil,
                         secondary: nil,
                         updatedAt: Date())
-                    fixture.store.lastSourceLabels[provider] = "local"
+                    fixture.store.lastSourceLabels[provider.instanceID] = "local"
                 }
                 defer { fixture.store._test_providerRefreshOverride = nil }
 
@@ -191,7 +191,7 @@ struct ProviderSettingsDescriptorTests {
                         provider: provider,
                         cookieHeader: "unvalidated-test-cookie",
                         sourceLabel: "Test unvalidated")
-                    fixture.store.snapshots.removeValue(forKey: provider)
+                    fixture.store.snapshots.removeValue(forKey: provider.instanceID)
                 }
                 defer { fixture.store._test_providerRefreshOverride = nil }
 

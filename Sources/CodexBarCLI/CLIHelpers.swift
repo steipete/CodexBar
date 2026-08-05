@@ -12,7 +12,9 @@ import Foundation
 extension CodexBarCLI {
     static func decodeProvider(from values: ParsedValues, config: CodexBarConfig) -> ProviderSelection {
         let rawOverride = values.options["provider"]?.last
-        return Self.providerSelection(rawOverride: rawOverride, enabled: config.enabledProviders())
+        return Self.providerSelection(
+            rawOverride: rawOverride,
+            enabled: config.enabledProviders().compactMap(\.firstPartyProvider))
     }
 
     static func providerSelection(rawOverride: String?, enabled: [UsageProvider]) -> ProviderSelection {

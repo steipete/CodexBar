@@ -19,6 +19,7 @@ public struct CopilotUsageResponse: Sendable, Decodable {
     public struct QuotaSnapshot: Sendable, Decodable {
         public let entitlement: Double
         public let remaining: Double
+        public let creditsUsed: Double?
         public let percentRemaining: Double
         public let quotaId: String
         public let hasPercentRemaining: Bool
@@ -55,9 +56,17 @@ public struct CopilotUsageResponse: Sendable, Decodable {
                 .remaining == 0
         }
 
+        /// Whether the snapshot carries a real absolute credit counter, even when
+        /// it lacks a usable percentage window. Such snapshots stay accessible in
+        /// the decoded response without ever becoming a fake percentage bar.
+        public var carriesCreditsCounter: Bool {
+            self.creditsUsed != nil
+        }
+
         private enum CodingKeys: String, CodingKey {
             case entitlement
             case remaining
+            case creditsUsed = "credits_used"
             case percentRemaining = "percent_remaining"
             case quotaId = "quota_id"
             case unlimited
@@ -68,11 +77,13 @@ public struct CopilotUsageResponse: Sendable, Decodable {
             remaining: Double,
             percentRemaining: Double,
             quotaId: String,
+            creditsUsed: Double? = nil,
             hasPercentRemaining: Bool = true,
             unlimited: Bool = false)
         {
             self.entitlement = entitlement
             self.remaining = remaining
+            self.creditsUsed = creditsUsed
             self.percentRemaining = unlimited ? 100 : percentRemaining
             self.quotaId = quotaId
             self.hasPercentRemaining = unlimited || hasPercentRemaining
@@ -89,6 +100,7 @@ public struct CopilotUsageResponse: Sendable, Decodable {
             self.remaining = decodedRemaining ?? 0
             self.entitlementWasDecoded = decodedEntitlement != nil
             self.remainingWasDecoded = decodedRemaining != nil
+            self.creditsUsed = Self.decodeNumberIfPresent(container: container, key: .creditsUsed)
             let decodedUnlimited = try container.decodeIfPresent(Bool.self, forKey: .unlimited) ?? false
             let decodedPercent = Self.decodeNumberIfPresent(container: container, key: .percentRemaining)
             if decodedUnlimited {
@@ -111,6 +123,43 @@ public struct CopilotUsageResponse: Sendable, Decodable {
             }
             self.quotaId = try container.decodeIfPresent(String.self, forKey: .quotaId) ?? ""
             self.unlimited = decodedUnlimited
+        }
+
+        private init(
+            entitlement: Double,
+            remaining: Double,
+            creditsUsed: Double?,
+            percentRemaining: Double,
+            quotaId: String,
+            hasPercentRemaining: Bool,
+            unlimited: Bool,
+            entitlementWasDecoded: Bool,
+            remainingWasDecoded: Bool)
+        {
+            self.entitlement = entitlement
+            self.remaining = remaining
+            self.creditsUsed = creditsUsed
+            self.percentRemaining = percentRemaining
+            self.quotaId = quotaId
+            self.hasPercentRemaining = hasPercentRemaining
+            self.unlimited = unlimited
+            self.entitlementWasDecoded = entitlementWasDecoded
+            self.remainingWasDecoded = remainingWasDecoded
+        }
+
+        /// Returns a copy carrying `creditsUsed`, preserving the decoded-flag
+        /// semantics that placeholder classification depends on.
+        fileprivate func withCreditsUsed(_ creditsUsed: Double?) -> QuotaSnapshot {
+            QuotaSnapshot(
+                entitlement: self.entitlement,
+                remaining: self.remaining,
+                creditsUsed: creditsUsed,
+                percentRemaining: self.percentRemaining,
+                quotaId: self.quotaId,
+                hasPercentRemaining: self.hasPercentRemaining,
+                unlimited: self.unlimited,
+                entitlementWasDecoded: self.entitlementWasDecoded,
+                remainingWasDecoded: self.remainingWasDecoded)
         }
 
         private static func decodeNumberIfPresent(
@@ -185,10 +234,10 @@ public struct CopilotUsageResponse: Sendable, Decodable {
             let container = try decoder.container(keyedBy: CodingKeys.self)
             var premium = try container.decodeIfPresent(QuotaSnapshot.self, forKey: .premiumInteractions)
             var chat = try container.decodeIfPresent(QuotaSnapshot.self, forKey: .chat)
-            if premium?.isPlaceholder == true {
+            if premium?.isPlaceholder == true, premium?.carriesCreditsCounter != true {
                 premium = nil
             }
-            if chat?.isPlaceholder == true {
+            if chat?.isPlaceholder == true, chat?.carriesCreditsCounter != true {
                 chat = nil
             }
 
@@ -204,7 +253,7 @@ public struct CopilotUsageResponse: Sendable, Decodable {
                         guard let decoded = try dynamic.decodeIfPresent(QuotaSnapshot.self, forKey: key) else {
                             continue
                         }
-                        guard !decoded.isPlaceholder else { continue }
+                        guard !decoded.isPlaceholder || decoded.carriesCreditsCounter else { continue }
                         value = decoded
                     } catch {
                         continue
@@ -348,8 +397,35 @@ public struct CopilotUsageResponse: Sendable, Decodable {
         fallback: QuotaSnapshot?) -> QuotaSnapshot?
     {
         if direct?.unlimited == true, let fallback = usableQuotaSnapshot(from: fallback) {
-            return fallback
+            // The direct snapshot's absolute credit counter is real consumption
+            // even though its unlimited marker makes it ineligible for a
+            // percentage window; keep the counter on the selected fallback.
+            return fallback.withCreditsUsed(direct?.creditsUsed)
         }
-        return self.usableQuotaSnapshot(from: direct) ?? self.usableQuotaSnapshot(from: fallback)
+        if let directWindow = self.usableQuotaSnapshot(from: direct) {
+            return directWindow
+        }
+        guard let fallback = self.usableQuotaSnapshot(from: fallback) else {
+            return nil
+        }
+        // A zero-entitlement placeholder can still carry a real absolute
+        // counter; keep it on the selected fallback instead of dropping it.
+        if direct?.carriesCreditsCounter == true {
+            return fallback.withCreditsUsed(direct?.creditsUsed)
+        }
+        return fallback
+    }
+}
+
+/// Token-billed Copilot seats report consumption as an absolute credit counter
+/// rather than a percentage window. Carried separately from rate windows so the
+/// value stays accessible without inventing a fake quota denominator.
+public struct CopilotCreditsSnapshot: Sendable, Codable, Equatable {
+    public let creditsUsed: Double
+    public let quotaResetDate: Date?
+
+    public init(creditsUsed: Double, quotaResetDate: Date? = nil) {
+        self.creditsUsed = creditsUsed
+        self.quotaResetDate = quotaResetDate
     }
 }

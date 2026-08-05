@@ -8,10 +8,18 @@ read_when:
 
 # JavaScript provider-plugin prototype
 
+This document describes the bundled first-party conversion prototype. User-installed files use the production path in
+[`plugins.md`](plugins.md); they do not depend on `CODEXBAR_JS_PROVIDERS`.
+
 This prototype proves that an existing first-party `UsageProvider` can define its manifest, HTTP requests, response
 parsing, and generic `UsageSnapshot` projection in one bundled JavaScript file. It is deliberately not a user-plugin
 system: IDs remain compile-time `UsageProvider` cases, scripts ship inside CodexBar, and the normal Swift path remains
 the default.
+
+Plugin manifests and their projected snapshots now carry a validated `ProviderInstanceID`. The prototype still maps
+that instance ID to an existing first-party `UsageProvider` before using browser-cookie brokerage or other bespoke
+provider paths; provider-specific snapshot payloads remain enum-typed, and the widget's `AppEnum` still lists only
+first-party cases. User-installed plugins without an enum case therefore remain out of scope for this prototype.
 
 ## Enable and test
 
@@ -163,11 +171,12 @@ runtime needs a public interrupt API or a killable helper-process boundary befor
 
 ## Current limitations
 
-The runtime is macOS-only and compiled out when JavaScriptCore is unavailable. It supports bundled first-party IDs and
-the generic snapshot and declarative details only: no runtime identities, user-installed files, install UI,
-TypeScript/Sucrase, provider-specific Swift payloads, OAuth/refresh broker, local files or databases, subprocesses,
+The bundled-conversion flag is macOS-only and compiled out when JavaScriptCore is unavailable. It supports bundled
+first-party IDs and the generic snapshot and declarative details only: no provider-specific Swift payloads,
+OAuth/refresh broker, local files or databases, subprocesses,
 arbitrary/form POST bodies, PTY, WebView, binary/protobuf responses, private-network HTTP, or unvalidated dynamic
-origins. Browser cookies are restricted to bundled manifests and declared domains. See
+origins. The separate user-plugin path adds local `.js`/`.ts` discovery, approval, and settings without changing these
+first-party flag semantics. Browser cookies remain restricted to declared domains. See
 [`plugin-conversion-matrix.md`](plugin-conversion-matrix.md) for the provider-by-provider impact.
 
 ## Future work

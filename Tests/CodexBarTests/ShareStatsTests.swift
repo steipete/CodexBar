@@ -333,7 +333,7 @@ struct ShareStatsTests {
         accountOrganization: String? = nil) -> UsageSnapshot
     {
         let identity = ProviderIdentitySnapshot(
-            providerID: provider,
+            providerID: provider.instanceID,
             accountEmail: nil,
             accountOrganization: accountOrganization,
             loginMethod: rawName)

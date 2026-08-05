@@ -11,6 +11,11 @@ read_when:
 Status: accepted design boundary. This document defines a bounded MVP; it does not authorize runtime networking or
 implement the feature.
 
+Implementation status: the `ProviderInstanceID` runtime identity seam has landed. By owner decision, the local
+JavaScript/TypeScript plugin path now supersedes this document's declarative dot-path MVP. The network, secret,
+approval, redirect, response-bound, and runtime-identity requirements in the threat-model table remain binding for
+plugins.
+
 Issue: [#1735](https://github.com/steipete/CodexBar/issues/1735)
 
 ## Decision summary

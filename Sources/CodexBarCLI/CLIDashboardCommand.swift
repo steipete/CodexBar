@@ -41,7 +41,7 @@ struct DashboardSnapshotProducer: Sendable {
     {
         let selection = CodexBarCLI.providerSelection(
             rawOverride: nil,
-            enabled: config.enabledProviders())
+            enabled: config.enabledProviders().compactMap(\.firstPartyProvider))
         let usageOutput = try await self.collectUsage(selection.asList)
         let costPayloads = await self.collectCost(
             CodexBarCLI.costProviders(from: selection),

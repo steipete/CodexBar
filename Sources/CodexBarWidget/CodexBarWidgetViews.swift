@@ -11,7 +11,7 @@ struct CodexBarUsageWidgetView: View {
     let entry: CodexBarWidgetEntry
 
     var body: some View {
-        let providerEntry = self.entry.snapshot.entries.first { $0.provider == self.entry.provider }
+        let providerEntry = self.entry.snapshot.entries.first { $0.provider == self.entry.provider.instanceID }
         Group {
             if let providerEntry {
                 self.content(providerEntry: providerEntry)
@@ -54,7 +54,7 @@ struct CodexBarHistoryWidgetView: View {
     let entry: CodexBarWidgetEntry
 
     var body: some View {
-        let providerEntry = self.entry.snapshot.entries.first { $0.provider == self.entry.provider }
+        let providerEntry = self.entry.snapshot.entries.first { $0.provider == self.entry.provider.instanceID }
         Group {
             if let providerEntry {
                 HistoryView(entry: providerEntry, isLarge: self.family == .systemLarge)
@@ -83,7 +83,7 @@ struct CodexBarCompactWidgetView: View {
     let entry: CodexBarCompactEntry
 
     var body: some View {
-        let providerEntry = self.entry.snapshot.entries.first { $0.provider == self.entry.provider }
+        let providerEntry = self.entry.snapshot.entries.first { $0.provider == self.entry.provider.instanceID }
         Group {
             if let providerEntry {
                 CompactMetricView(entry: providerEntry, metric: self.entry.metric)
@@ -113,7 +113,7 @@ struct CodexBarSwitcherWidgetView: View {
     let entry: CodexBarSwitcherEntry
 
     var body: some View {
-        let providerEntry = self.entry.snapshot.entries.first { $0.provider == self.entry.provider }
+        let providerEntry = self.entry.snapshot.entries.first { $0.provider == self.entry.provider.instanceID }
         VStack(alignment: .leading, spacing: 10) {
             ProviderSwitcherRow(
                 providers: self.entry.availableProviders,
@@ -228,7 +228,7 @@ enum CompactMetricFormatter {
         }
     }
 
-    static func costMetricLabel(_ label: String, provider: UsageProvider) -> String {
+    static func costMetricLabel(_ label: String, provider: ProviderInstanceID) -> String {
         guard provider == .codex else { return "\(label) cost" }
         // Existing widget timelines may predate the estimate labels. Do not leave a bare
         // dollar value until the app next republishes it.
@@ -270,7 +270,7 @@ private struct ProviderSwitchChip: View {
     var body: some View {
         let label = self.compact ? self.shortLabel : self.longLabel
         let background = self.selected
-            ? WidgetColors.color(for: self.provider).opacity(0.2)
+            ? WidgetColors.color(for: self.provider.instanceID).opacity(0.2)
             : Color.primary.opacity(0.08)
 
         if let choice = ProviderChoice(provider: self.provider) {
@@ -631,7 +631,7 @@ struct WidgetUsageRow: Identifiable, Equatable {
                 provider: entry.provider,
                 now: now)
         } else {
-            let metadata = ProviderDefaults.metadata[entry.provider]
+            let metadata = entry.provider.firstPartyProvider.flatMap { ProviderDefaults.metadata[$0] }
             var defaultRows = [
                 WidgetUsageRow(
                     id: "primary",
@@ -685,7 +685,7 @@ struct WidgetUsageRow: Identifiable, Equatable {
     private static func applyingCodexWeeklyCap(
         _ rows: [WidgetUsageRow],
         snapshots: [WidgetSnapshot.WidgetUsageRowSnapshot],
-        provider: UsageProvider,
+        provider: ProviderInstanceID,
         now: Date) -> [WidgetUsageRow]
     {
         guard provider == .codex,
@@ -812,12 +812,13 @@ private struct HistoryView: View {
 }
 
 private struct HeaderView: View {
-    let provider: UsageProvider
+    let provider: ProviderInstanceID
     let updatedAt: Date
 
     var body: some View {
         HStack(alignment: .firstTextBaseline) {
-            Text(ProviderDefaults.metadata[self.provider]?.displayName ?? self.provider.rawValue.capitalized)
+            Text(self.provider.firstPartyProvider.flatMap { ProviderDefaults.metadata[$0]?.displayName }
+                ?? self.provider.rawValue.capitalized)
                 .font(.body)
                 .fontWeight(.semibold)
             Spacer()
@@ -931,8 +932,9 @@ enum UsageHistoryChartMode {
 
 enum WidgetColors {
     // swiftlint:disable:next cyclomatic_complexity
-    static func color(for provider: UsageProvider) -> Color {
-        switch provider {
+    static func color(for instanceID: ProviderInstanceID) -> Color {
+        guard let provider = instanceID.firstPartyProvider else { return .secondary }
+        return switch provider {
         case .codex:
             Color(red: 73 / 255, green: 163 / 255, blue: 176 / 255)
         case .openai:

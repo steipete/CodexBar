@@ -1382,3 +1382,13 @@
 "Resets" = "Resety";
 "Finish now" = "Zakończ teraz";
 "Continue in background" = "Kontynuuj w tle";
+
+"Cumulative" = "Łącznie";
+"Token activity" = "Aktywność tokenów";
+"View" = "Widok";
+"in the last year" = "w ciągu ostatniego roku";
+"No activity in the last 12 months" = "Brak aktywności w ciągu ostatnich 12 miesięcy";
+"Each column = 1 week" = "Każda kolumna = 1 tydzień";
+"Running total" = "Suma narastająca";
+"Less" = "Mniej";
+"More" = "Więcej";

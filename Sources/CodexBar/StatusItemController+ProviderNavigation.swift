@@ -40,13 +40,13 @@ extension StatusItemController {
         menu: NSMenu? = nil)
     {
         guard self.shouldMergeIcons else { return }
-        let enabledProviders = self.store.enabledProvidersForDisplay()
+        let enabledProviders = self.store.enabledFirstPartyProvidersForDisplay()
         guard enabledProviders.count > 1 else { return }
 
         let includesOverview = !self.settings.resolvedMergedOverviewProviders(
             activeProviders: enabledProviders,
             maxVisibleProviders: SettingsStore.mergedOverviewProviderLimit).isEmpty
-        var selections = enabledProviders.map(ProviderSwitcherSelection.provider)
+        var selections = enabledProviders.map { ProviderSwitcherSelection.provider($0.instanceID) }
         if includesOverview {
             selections.insert(.overview, at: 0)
         }
@@ -56,7 +56,7 @@ extension StatusItemController {
         {
             .overview
         } else {
-            .provider(self.navigationResolvedProvider(enabledProviders: enabledProviders) ?? .codex)
+            .provider((self.navigationResolvedProvider(enabledProviders: enabledProviders) ?? .codex).instanceID)
         }
         guard let currentIndex = selections.firstIndex(of: current) else { return }
 
@@ -66,14 +66,15 @@ extension StatusItemController {
         let menuProvider: UsageProvider = switch selection {
         case .overview:
             self.navigationResolvedProvider(enabledProviders: enabledProviders) ?? .codex
-        case let .provider(provider):
-            provider
+        case let .provider(instanceID):
+            instanceID.firstPartyProvider ?? .codex
         }
         self.preservingMergedSwitcherContentCachesDuringInvalidation {
             switch selection {
             case .overview:
                 self.settings.mergedMenuLastSelectedWasOverview = true
-                self.lastMenuProvider = self.navigationResolvedProvider(enabledProviders: enabledProviders) ?? .codex
+                self.lastMenuProvider =
+                    (self.navigationResolvedProvider(enabledProviders: enabledProviders) ?? .codex).instanceID
             case let .provider(provider):
                 self.settings.mergedMenuLastSelectedWasOverview = false
                 self.selectedMenuProvider = provider
@@ -94,7 +95,7 @@ extension StatusItemController {
         if enabledProviders.isEmpty {
             return .codex
         }
-        if let selected = self.selectedMenuProvider, enabledProviders.contains(selected) {
+        if let selected = self.selectedMenuProvider?.firstPartyProvider, enabledProviders.contains(selected) {
             return selected
         }
         return enabledProviders.first(where: { self.store.isProviderAvailable($0) }) ?? enabledProviders.first

@@ -160,6 +160,7 @@ struct OpenCodeGoLocalUsageFetchStrategy: ProviderFetchStrategy {
         }
         let workspaceOverride = context.settings?.opencodego?.workspaceID
             ?? context.env["CODEXBAR_OPENCODEGO_WORKSPACE_ID"]
+        let zenBalanceStart = ContinuousClock.now
         let zenBalanceTask = Task<Double?, Error> {
             do {
                 return try await OpenCodeGoUsageFetcher.fetchOptionalZenBalance(
@@ -172,7 +173,11 @@ struct OpenCodeGoLocalUsageFetchStrategy: ProviderFetchStrategy {
                 return nil
             }
         }
-        let zenBalance = try await OpenCodeGoUsageFetcher.completedOptionalZenBalance(from: zenBalanceTask)
+        let zenBalance = try await OpenCodeGoUsageFetcher.completedOptionalZenBalance(
+            from: zenBalanceTask,
+            timeout: OpenCodeGoUsageFetcher.optionalZenBalanceJoinTimeout(
+                since: zenBalanceStart,
+                waitForZenBalance: OpenCodeGoUsageFetchStrategy.shouldWaitForZenBalance(context: context)))
         return (snapshot.withZenBalanceUSD(zenBalance), false)
     }
 
@@ -187,7 +192,8 @@ struct OpenCodeGoLocalUsageFetchStrategy: ProviderFetchStrategy {
                 cookieHeader: cookieHeader,
                 timeout: context.webTimeout,
                 workspaceIDOverride: workspaceOverride,
-                includeZenBalance: context.includeOptionalUsage)
+                includeZenBalance: context.includeOptionalUsage,
+                waitForZenBalance: OpenCodeGoUsageFetchStrategy.shouldWaitForZenBalance(context: context))
         } catch OpenCodeGoUsageError.invalidCredentials {
             throw OpenCodeGoUsageError.invalidCredentials
         } catch is CancellationError {
@@ -226,6 +232,14 @@ struct OpenCodeGoUsageFetchStrategy: ProviderFetchStrategy {
     let id: String = "opencodego.web"
     let kind: ProviderFetchKind = .web
 
+    /// Usage-snapshot reads (`codexbar usage`, `codexbar serve`) are foreground commands, so a
+    /// Zen balance that is merely slower than the subscription page is worth waiting for, bounded
+    /// by the optional-balance timeout. Guard and diagnostic commands keep the short optional join
+    /// grace so a slow balance cannot consume their deadline.
+    static func shouldWaitForZenBalance(context: ProviderFetchContext) -> Bool {
+        context.requiresOptionalUsageCompleteness
+    }
+
     func isAvailable(_ context: ProviderFetchContext) async -> Bool {
         guard context.settings?.opencodego?.cookieSource != .off else { return false }
         return true
@@ -241,7 +255,8 @@ struct OpenCodeGoUsageFetchStrategy: ProviderFetchStrategy {
                 cookieHeader: cookieHeader,
                 timeout: context.webTimeout,
                 workspaceIDOverride: workspaceOverride,
-                includeZenBalance: context.includeOptionalUsage)
+                includeZenBalance: context.includeOptionalUsage,
+                waitForZenBalance: Self.shouldWaitForZenBalance(context: context))
             return self.makeResult(
                 usage: snapshot.toUsageSnapshot(),
                 sourceLabel: "web")
@@ -253,7 +268,8 @@ struct OpenCodeGoUsageFetchStrategy: ProviderFetchStrategy {
                 cookieHeader: cookieHeader,
                 timeout: context.webTimeout,
                 workspaceIDOverride: workspaceOverride,
-                includeZenBalance: context.includeOptionalUsage)
+                includeZenBalance: context.includeOptionalUsage,
+                waitForZenBalance: Self.shouldWaitForZenBalance(context: context))
             return self.makeResult(
                 usage: snapshot.toUsageSnapshot(),
                 sourceLabel: "web")

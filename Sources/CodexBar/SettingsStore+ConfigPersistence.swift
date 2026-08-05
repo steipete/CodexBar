@@ -47,7 +47,7 @@ extension SettingsStore {
         watcher.start()
     }
 
-    private func updateConfig(
+    func updateConfig(
         reason: String,
         affectsBackgroundWork: Bool,
         mutate: (inout CodexBarConfig) -> Void)
@@ -63,12 +63,12 @@ extension SettingsStore {
 
     func updateProviderConfig(provider: UsageProvider, mutate: (inout ProviderConfig) -> Void) {
         self.updateConfig(reason: "provider-\(provider.rawValue)", affectsBackgroundWork: true) { config in
-            if let index = config.providers.firstIndex(where: { $0.id == provider }) {
+            if let index = config.providers.firstIndex(where: { $0.id == provider.instanceID }) {
                 var entry = config.providers[index]
                 mutate(&entry)
                 config.providers[index] = entry
             } else {
-                var entry = ProviderConfig(id: provider)
+                var entry = ProviderConfig(id: provider.instanceID)
                 mutate(&entry)
                 config.providers.append(entry)
             }
@@ -94,12 +94,12 @@ extension SettingsStore {
     {
         guard !self.configLoading else { return }
         var config = self.config
-        if let index = config.providers.firstIndex(where: { $0.id == provider }) {
+        if let index = config.providers.firstIndex(where: { $0.id == provider.instanceID }) {
             var entry = config.providers[index]
             mutate(&entry)
             config.providers[index] = entry
         } else {
-            var entry = ProviderConfig(id: provider)
+            var entry = ProviderConfig(id: provider.instanceID)
             mutate(&entry)
             config.providers.append(entry)
         }
@@ -121,22 +121,23 @@ extension SettingsStore {
                 "summary": summary,
             ])
         self.updateConfig(reason: "token-accounts", affectsBackgroundWork: true) { config in
-            var seen: Set<UsageProvider> = []
+            var seen: Set<ProviderInstanceID> = []
             for index in config.providers.indices {
-                let provider = config.providers[index].id
-                config.providers[index].tokenAccounts = accounts[provider]
-                seen.insert(provider)
+                let instanceID = config.providers[index].id
+                let provider = instanceID.firstPartyProvider
+                config.providers[index].tokenAccounts = provider.flatMap { accounts[$0] }
+                seen.insert(instanceID)
             }
-            for (provider, data) in accounts where !seen.contains(provider) {
-                config.providers.append(ProviderConfig(id: provider, tokenAccounts: data))
+            for (provider, data) in accounts where !seen.contains(provider.instanceID) {
+                config.providers.append(ProviderConfig(id: provider.instanceID, tokenAccounts: data))
             }
         }
     }
 
-    func setProviderOrder(_ order: [UsageProvider]) {
+    func setProviderOrder(_ order: [ProviderInstanceID]) {
         self.updateConfig(reason: "order", affectsBackgroundWork: false) { config in
             let configsByID = Dictionary(uniqueKeysWithValues: config.providers.map { ($0.id, $0) })
-            var seen: Set<UsageProvider> = []
+            var seen: Set<ProviderInstanceID> = []
             var ordered: [ProviderConfig] = []
             ordered.reserveCapacity(max(order.count, config.providers.count))
 
@@ -146,8 +147,8 @@ extension SettingsStore {
                 ordered.append(configsByID[provider] ?? ProviderConfig(id: provider))
             }
 
-            for provider in UsageProvider.allCases where !seen.contains(provider) {
-                ordered.append(configsByID[provider] ?? ProviderConfig(id: provider))
+            for provider in UsageProvider.allCases where !seen.contains(provider.instanceID) {
+                ordered.append(configsByID[provider.instanceID] ?? ProviderConfig(id: provider.instanceID))
             }
 
             config.providers = ordered
