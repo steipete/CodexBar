@@ -119,6 +119,7 @@ extension SpendDashboardModel {
     }
 
     static func canRetainTokenOnlyModelHistory(_ summary: InputSummary) -> Bool {
+        guard summary.input.provider != .codex else { return false }
         var sawTokenOnlyModel = false
         for windowEntry in summary.entries {
             let entry = windowEntry.entry
