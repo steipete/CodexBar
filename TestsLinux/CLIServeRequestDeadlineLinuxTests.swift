@@ -1,10 +1,14 @@
+// `TestsLinux` is declared unconditionally in Package.swift, so this file is also
+// compiled on macOS. The raw socket calls below are Linux-only, so gate the whole
+// file the same way the other syscall suites here do.
+#if canImport(Glibc) || canImport(Musl)
 import Foundation
-import Testing
 #if canImport(Glibc)
 import Glibc
 #elseif canImport(Musl)
 import Musl
 #endif
+import Testing
 @testable import CodexBarCLI
 
 /// `readRequest` bounds each `recv` but not the request as a whole.
@@ -181,3 +185,5 @@ struct CLIServeRequestDeadlineLinuxTests {
             """)
     }
 }
+
+#endif
