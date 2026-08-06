@@ -94,6 +94,7 @@ struct MenuBarLayoutRendererTests {
             scopedWeekly: nil,
             scopedWeeklyTitle: nil,
             automatic: nil,
+            automaticFallbackUsedPercent: nil,
             sessionPace: nil,
             weeklyPace: nil,
             automaticPace: nil,
@@ -159,6 +160,7 @@ struct MenuBarLayoutRendererTests {
             scopedWeekly: nil,
             scopedWeeklyTitle: nil,
             automatic: nil,
+            automaticFallbackUsedPercent: nil,
             // Pace is suppressed below 3% of window elapsed; the percent token must survive that.
             sessionPace: nil,
             weeklyPace: nil,
@@ -295,6 +297,33 @@ struct MenuBarLayoutRendererTests {
     }
 
     @Test
+    func `automatic percentage uses quota fallback in either display direction`() {
+        let renderer = MenuBarLayoutRenderer()
+        let data = self.data(automaticUsedPercent: 100, automaticFallbackUsedPercent: 3)
+        let layout = MenuBarLayout(lines: [[
+            .percent(window: .automatic),
+            .separatorDot,
+            .percent(window: .session),
+        ]])
+
+        let used = renderer.render(layout: layout, data: data, icon: nil, options: self.options())
+        let remaining = renderer.render(
+            layout: layout,
+            data: data,
+            icon: nil,
+            options: MenuBarLayoutRenderOptions(
+                size: .regular,
+                highContrast: false,
+                showUsed: false,
+                appearanceName: "aqua",
+                isDebugApp: false,
+                now: self.now))
+
+        #expect(used.attributedTitle.string == "3%\u{2009}·\u{2009}5h 25%")
+        #expect(remaining.attributedTitle.string == "97%\u{2009}·\u{2009}5h 75%")
+    }
+
+    @Test
     func `absolute reset falls back to provider text`() {
         let renderer = MenuBarLayoutRenderer()
         let textOnlyWindow = MenuBarLayoutRenderWindow(RateWindow(
@@ -311,6 +340,7 @@ struct MenuBarLayoutRendererTests {
             scopedWeekly: nil,
             scopedWeeklyTitle: nil,
             automatic: textOnlyWindow,
+            automaticFallbackUsedPercent: nil,
             sessionPace: nil,
             weeklyPace: nil,
             automaticPace: nil,
@@ -351,7 +381,11 @@ struct MenuBarLayoutRendererTests {
             .attribute(.foregroundColor, at: textIndex, effectiveRange: nil) as? NSColor == .labelColor)
     }
 
-    private func data(automaticUsedPercent: Double = 50) -> MenuBarLayoutRenderData {
+    private func data(
+        automaticUsedPercent: Double? = 50,
+        automaticFallbackUsedPercent: Double? = nil)
+        -> MenuBarLayoutRenderData
+    {
         MenuBarLayoutRenderData(
             iconKey: "codex",
             providerName: "Codex",
@@ -372,11 +406,14 @@ struct MenuBarLayoutRendererTests {
                 resetsAt: self.now.addingTimeInterval(24 * 60 * 60),
                 resetDescription: nil)),
             scopedWeeklyTitle: "Fable only",
-            automatic: MenuBarLayoutRenderWindow(RateWindow(
-                usedPercent: automaticUsedPercent,
-                windowMinutes: 300,
-                resetsAt: self.now.addingTimeInterval(2 * 60 * 60),
-                resetDescription: nil)),
+            automatic: automaticUsedPercent.flatMap {
+                MenuBarLayoutRenderWindow(RateWindow(
+                    usedPercent: $0,
+                    windowMinutes: 300,
+                    resetsAt: self.now.addingTimeInterval(2 * 60 * 60),
+                    resetDescription: nil))
+            },
+            automaticFallbackUsedPercent: automaticFallbackUsedPercent,
             sessionPace: "-8%",
             weeklyPace: "+11%",
             automaticPace: "0%",
