@@ -6,6 +6,7 @@
 - Currency: Korean won (KRW) in the preferred-currency picker, with correct zero-decimal formatting (#2669, refs #2449). Thanks @kes02!
 - Dashboard v1 snapshot: Claude rows now include all claude-swap accounts (windows, pace, active flag, redacted identity) when the integration is enabled.
 - CLI: add a built-in auto-refreshing web dashboard at `/` to `codexbar serve`.
+- CLI: `codexbar dashboard --output <path>` atomically writes the snapshot to a file (temp file + fsync + rename, `0644`) instead of stdout, so static-webroot publishers no longer need a shell wrapper.
 - CLI: expose Codex cost-history completeness in JSON and add an experimental provider-native-only scan mode (#2520). Thanks @NickGuAI!
 - Usage & Spend: add an accessible daily, weekly, and cumulative token-activity heatmap backed by the existing persistent cost scan cache (#2548). Thanks @Yuxin-Qiao!
 - Settings: the sidebar is now resizable — drag the divider between 200–380pt; the width persists across launches.

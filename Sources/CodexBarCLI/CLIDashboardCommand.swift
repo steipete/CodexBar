@@ -1,3 +1,10 @@
+#if canImport(Darwin)
+import Darwin
+#elseif canImport(Glibc)
+import Glibc
+#elseif canImport(Musl)
+import Musl
+#endif
 import CodexBarCore
 import Commander
 import Foundation
@@ -24,6 +31,11 @@ struct DashboardOptions: CommanderParsable {
         name: .long("identity"),
         help: "Account identity detail: redacted (default) or full. The HTTP serve transport is always redacted; full is for one-shot snapshots consumed on trusted, private surfaces.")
     var identity: String?
+
+    @Option(
+        name: .long("output"),
+        help: "Write the snapshot atomically to this file (0644) instead of stdout. The parent directory must already exist; it is not created.")
+    var output: String?
 }
 
 struct DashboardSnapshotResult {
@@ -157,6 +169,12 @@ extension CodexBarCLI {
                 message: "--identity must be redacted or full.",
                 kind: .args)
         }
+        guard let outputDestination = decodeDashboardOutputDestination(from: values) else {
+            exit(
+                code: .failure,
+                message: "--output requires a non-empty file path.",
+                kind: .args)
+        }
 
         let configSnapshot: CLIServeConfigSnapshot
         do {
@@ -219,7 +237,92 @@ extension CodexBarCLI {
         guard let json = Self.encodeJSON(result.payload, pretty: values.flags.contains("pretty")) else {
             Self.exit(code: .failure, message: "Could not encode dashboard snapshot.")
         }
-        print(json)
+        switch outputDestination {
+        case .stdout:
+            print(json)
+        case let .file(path):
+            do {
+                // Match stdout shape: the published document ends with a newline.
+                try Self.writeDashboardSnapshotAtomically(Data((json + "\n").utf8), toPath: path)
+            } catch {
+                Self.exit(code: .failure, message: error.localizedDescription)
+            }
+        }
+    }
+
+    enum DashboardOutputDestination: Equatable {
+        case stdout
+        case file(String)
+    }
+
+    /// `nil` means the flag was given with an empty path (an args error);
+    /// an absent flag keeps the historical stdout behavior.
+    static func decodeDashboardOutputDestination(from values: ParsedValues) -> DashboardOutputDestination? {
+        guard let raw = values.options["output"]?.last else { return .stdout }
+        guard !raw.isEmpty else { return nil }
+        return .file(raw)
+    }
+
+    /// Atomically publish the snapshot: stage a temp file in the destination
+    /// directory, fsync, then `rename(2)` over the target so readers (e.g. a
+    /// static webroot) never observe a partial document. The file is world-
+    /// readable (`0644`) — dashboard snapshots are meant to be served. The
+    /// parent directory must already exist; it is deliberately not created.
+    static func writeDashboardSnapshotAtomically(_ data: Data, toPath path: String) throws {
+        let url = URL(fileURLWithPath: path)
+        let directory = url.deletingLastPathComponent()
+        var isDirectory: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: directory.path, isDirectory: &isDirectory),
+              isDirectory.boolValue
+        else {
+            throw NSError(
+                domain: NSPOSIXErrorDomain,
+                code: Int(ENOENT),
+                userInfo: [
+                    NSFilePathErrorKey: path,
+                    NSLocalizedDescriptionKey:
+                        "--output directory does not exist: \(directory.path) (parent directories are not created)",
+                ])
+        }
+
+        let staged = directory.appendingPathComponent(
+            ".\(url.lastPathComponent).codexbar-dashboard-\(UUID().uuidString)", isDirectory: false)
+        let descriptor = staged.path.withCString {
+            open($0, O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC, mode_t(0o644))
+        }
+        guard descriptor >= 0 else { throw Self.dashboardOutputPOSIXError(errno, path: staged.path) }
+
+        let handle = FileHandle(fileDescriptor: descriptor, closeOnDealloc: true)
+        var handleOpen = true
+        do {
+            // Force 0644 even if umask narrowed the O_CREAT mode.
+            guard fchmod(descriptor, mode_t(0o644)) == 0 else {
+                throw Self.dashboardOutputPOSIXError(errno, path: staged.path)
+            }
+            try handle.write(contentsOf: data)
+            try handle.synchronize()
+            try handle.close()
+            handleOpen = false
+
+            let renamed = staged.path.withCString { src in
+                url.path.withCString { dst in rename(src, dst) }
+            }
+            guard renamed == 0 else { throw Self.dashboardOutputPOSIXError(errno, path: url.path) }
+        } catch {
+            if handleOpen { try? handle.close() }
+            try? FileManager.default.removeItem(at: staged)
+            throw error
+        }
+    }
+
+    private static func dashboardOutputPOSIXError(_ code: Int32, path: String) -> Error {
+        NSError(
+            domain: NSPOSIXErrorDomain,
+            code: Int(code),
+            userInfo: [
+                NSFilePathErrorKey: path,
+                NSLocalizedDescriptionKey: "Could not write --output file \(path): \(String(cString: strerror(code)))",
+            ])
     }
 
     /// `.none` is deliberately not accepted: the flag chooses between the safe

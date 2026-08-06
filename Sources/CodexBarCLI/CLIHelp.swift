@@ -158,7 +158,7 @@ extension CodexBarCLI {
         CodexBar \(version)
 
         Usage:
-          codexbar dashboard [--pretty] [--timeout <seconds>]
+          codexbar dashboard [--pretty] [--timeout <seconds>] [--output <path>]
                              [--json-output] [--log-level <trace|verbose|debug|info|warning|error|critical>]
                              [-v|--verbose]
 
@@ -168,6 +168,9 @@ extension CodexBarCLI {
           failures as row-level errors without dropping healthy rows.
           Stdout contains only the JSON document; diagnostics are written to stderr.
           --timeout accepts 0...86400 seconds and defaults to 30; 0 disables the deadline.
+          --output atomically writes the snapshot to a file (0644) instead of stdout;
+          the parent directory must already exist (it is not created), and nothing is
+          printed to stdout on success.
 
         Global flags:
           -h, --help      Show help
@@ -180,6 +183,7 @@ extension CodexBarCLI {
           codexbar dashboard
           codexbar dashboard --pretty
           codexbar dashboard --timeout 60
+          codexbar dashboard --output /var/www/dashboard/snapshot.json
         """
     }
 
@@ -452,7 +456,7 @@ extension CodexBarCLI {
                        [--days <days>] [--group-by project]
           codexbar sessions [--json|--json-v2] [--pretty]
           codexbar sessions focus <id>
-          codexbar dashboard [--pretty] [--timeout <seconds>]
+          codexbar dashboard [--pretty] [--timeout <seconds>] [--output <path>]
           codexbar serve [--host <host>] [--port <port>] [--refresh-interval <seconds>]
                        [--request-timeout <seconds>]
                        [--dashboard-token <token>] [--allow-plain-http]

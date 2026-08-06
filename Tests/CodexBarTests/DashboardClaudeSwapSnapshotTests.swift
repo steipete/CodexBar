@@ -71,6 +71,23 @@ struct DashboardClaudeSwapSnapshotTests {
     }
 
     @Test
+    func `dashboard output flag decodes stdout default file paths and rejects empty`() {
+        #expect(CodexBarCLI.decodeDashboardOutputDestination(from: self.parsedValues(output: nil)) == .stdout)
+        #expect(CodexBarCLI.decodeDashboardOutputDestination(from: self.parsedValues(output: "/tmp/snapshot.json"))
+            == .file("/tmp/snapshot.json"))
+        #expect(CodexBarCLI.decodeDashboardOutputDestination(from: self.parsedValues(output: "relative.json"))
+            == .file("relative.json"))
+        #expect(CodexBarCLI.decodeDashboardOutputDestination(from: self.parsedValues(output: "")) == nil)
+    }
+
+    private func parsedValues(output: String?) -> ParsedValues {
+        ParsedValues(
+            positional: [],
+            options: output.map { ["output": [$0]] } ?? [:],
+            flags: [])
+    }
+
+    @Test
     func `per account failure keeps healthy siblings and ambient row intact`() throws {
         let list = ClaudeSwapAccountList(
             activeAccountNumber: 1,
