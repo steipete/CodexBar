@@ -48,10 +48,11 @@ public enum CommandCodeCookieHeader {
             return nil
         }
 
-        // Bare token — assume the production cookie name.
+        // Bare token — assume the established production cookie name. Keep the
+        // legacy better-auth default until a renamed production cookie is proven live.
         if !raw.contains("="), !raw.contains(";") {
             return CommandCodeCookieOverride(
-                name: "__Secure-commandcode_prod_.session_token",
+                name: "__Secure-better-auth.session_token",
                 token: raw)
         }
 
