@@ -274,6 +274,11 @@ extension CodexBarCLI {
                 }
             }
         }
+        // Match non-project renderer: partial/deferred scans must not look like complete totals.
+        if snapshot.historyIsIncomplete {
+            lines.append(
+                "Note: history incomplete — some session logs were only partially scanned (size/budget limits).")
+        }
         lines.append(Self.costEstimateHint(provider: provider))
         return lines.joined(separator: "\n")
     }

@@ -210,6 +210,47 @@ struct CLICostTests {
     }
 
     @Test
+    func `renders grok project grouped cost text with incomplete history warning`() {
+        let snap = CostUsageTokenSnapshot(
+            sessionTokens: 3400,
+            sessionCostUSD: 0.42,
+            last30DaysTokens: 12_000,
+            last30DaysCostUSD: 1.8,
+            historyDays: 30,
+            historyIsIncomplete: true,
+            daily: [],
+            projects: [
+                CostUsageProjectBreakdown(
+                    name: "demo",
+                    path: "/work/demo",
+                    totalTokens: 8000,
+                    totalCostUSD: 1.1,
+                    daily: [],
+                    modelBreakdowns: nil),
+            ],
+            updatedAt: Date(timeIntervalSince1970: 0))
+
+        let output = CodexBarCLI.renderCostText(
+            provider: .grok,
+            snapshot: snap,
+            groupBy: .project,
+            useColor: false)
+
+        #expect(output.contains("Projects (Last 30 days):"))
+        #expect(output.contains("demo:"))
+        #expect(output.contains(
+            "Note: history incomplete — some session logs were only partially scanned (size/budget limits)."))
+        #expect(output.contains("Local Grok session logs (turn_completed). Cost only when reported."))
+        // Warning must appear before the source hint so partial totals are qualified.
+        let warningIdx = output.range(of: "Note: history incomplete")?.lowerBound
+        let hintIdx = output.range(of: "Local Grok session logs")?.lowerBound
+        #expect(warningIdx != nil && hintIdx != nil)
+        if let warningIdx, let hintIdx {
+            #expect(warningIdx < hintIdx)
+        }
+    }
+
+    @Test
     func `encodes cost payload JSON`() throws {
         let payload = CostPayload(
             provider: "claude",
