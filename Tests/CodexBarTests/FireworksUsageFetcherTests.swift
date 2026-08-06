@@ -102,8 +102,8 @@ struct FireworksUsageFetcherTests {
     }
 
     @Test
-    func `summary url carries account slug and iso window`() {
-        let url = FireworksUsageFetcher.resolveSummaryURL(
+    func `summary url carries account slug and iso window`() throws {
+        let url = try FireworksUsageFetcher.resolveSummaryURL(
             accountSlug: "x0mh0x",
             startTime: Date(timeIntervalSince1970: 0),
             endTime: Date(timeIntervalSince1970: 86_400))
@@ -111,6 +111,26 @@ struct FireworksUsageFetcherTests {
         #expect(url.absoluteString.hasPrefix("https://api.fireworks.ai/v1/accounts/x0mh0x/billing/summary?"))
         #expect(url.absoluteString.contains("startTime=1970-01-01T00:00:00Z"))
         #expect(url.absoluteString.contains("endTime=1970-01-02T00:00:00Z"))
+    }
+
+    @Test
+    func `malformed account slugs fail with a config error instead of misrouting`() async {
+        // A slug with reserved/invalid URL characters must surface as a config error
+        // (never widen the path, inject a query, or crash on URL construction).
+        for badSlug in ["sp ace", "has/slash", "has?query", "has#fragment", "percent%2F", "col\u{00e9}on"] {
+            await #expect {
+                _ = try FireworksUsageFetcher.resolveSummaryURL(accountSlug: badSlug)
+            } throws: { error in
+                guard case FireworksUsageError.invalidAccountSlug = error else { return false }
+                return true
+            }
+        }
+
+        // Permitted slug characters still produce the exact billing-summary path.
+        for goodSlug in ["x0mh0x", "acct-1_x.d"] {
+            let url = try? FireworksUsageFetcher.resolveSummaryURL(accountSlug: goodSlug)
+            #expect(url?.path == "/v1/accounts/\(goodSlug)/billing/summary", "\(goodSlug) should resolve")
+        }
     }
 
     @Test

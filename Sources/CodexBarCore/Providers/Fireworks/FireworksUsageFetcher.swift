@@ -58,6 +58,7 @@ public struct FireworksUsageSummary: Sendable {
 public enum FireworksUsageError: LocalizedError, Sendable, Equatable {
     case missingCredentials
     case missingAccountSlug
+    case invalidAccountSlug(String)
     case authenticationRejected
     case rateLimited
     case apiError(Int)
@@ -69,6 +70,8 @@ public enum FireworksUsageError: LocalizedError, Sendable, Equatable {
             "Missing Fireworks API key. Add one in Settings or set FIREWORKS_API_KEY."
         case .missingAccountSlug:
             "Missing Fireworks account slug. Set FIREWORKS_ACCOUNT_SLUG or the slug field in Settings."
+        case let .invalidAccountSlug(slug):
+            "Invalid Fireworks account slug '\(slug)'. Please double-check the account slug in Settings."
         case .authenticationRejected:
             "Fireworks rejected the API key. Create a new key at app.fireworks.ai and update Settings."
         case .rateLimited:
@@ -105,7 +108,7 @@ public struct FireworksUsageFetcher: Sendable {
 
         let startTime = now.addingTimeInterval(-TimeInterval(self.lookbackDays * 24 * 60 * 60))
         var request = URLRequest(
-            url: Self.resolveSummaryURL(accountSlug: cleanedSlug, startTime: startTime, endTime: now))
+            url: try Self.resolveSummaryURL(accountSlug: cleanedSlug, startTime: startTime, endTime: now))
         request.httpMethod = "GET"
         request.setValue("Bearer \(cleanedKey)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
@@ -134,15 +137,32 @@ public struct FireworksUsageFetcher: Sendable {
         return FireworksUsageSnapshot(summary: summary)
     }
 
+    /// Characters permitted in a Fireworks account slug. Fireworks slugs are simple
+    /// lower-case ASCII path segments (alnum plus `-`, `_`, `.`); restricting to this explicit
+    /// ASCII set means a misconfigured slug can never widen the request path, inject a query,
+    /// or crash on URL construction, and every allowed character is already URL-safe in a
+    /// single path segment (no encoding needed).
+    private static let accountSlugAllowedCharacters = CharacterSet(
+        charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._-")
+
     /// `https://api.fireworks.ai/v1/accounts/<slug>/billing/summary` with an explicit
     /// 30-day `startTime`/`endTime` window.
+    /// - Throws: `FireworksUsageError.invalidAccountSlug` if the slug cannot be embedded
+    ///   safely, so a bad slug surfaces as a config error rather than a URL-construction crash.
     public static func resolveSummaryURL(
         accountSlug: String,
         startTime: Date? = nil,
-        endTime: Date? = nil) -> URL
+        endTime: Date? = nil) throws -> URL
     {
-        var components = URLComponents(
-            string: "https://api.fireworks.ai/v1/accounts/\(accountSlug)/billing/summary")!
+        guard accountSlug.rangeOfCharacter(from: Self.accountSlugAllowedCharacters.inverted) == nil else {
+            throw FireworksUsageError.invalidAccountSlug(accountSlug)
+        }
+        guard let components = URLComponents(
+            string: "https://api.fireworks.ai/v1/accounts/\(accountSlug)/billing/summary")
+        else {
+            throw FireworksUsageError.invalidAccountSlug(accountSlug)
+        }
+        var built = components
         var query: [URLQueryItem] = []
         if let startTime {
             query.append(URLQueryItem(name: "startTime", value: Self.isoString(startTime)))
@@ -150,8 +170,11 @@ public struct FireworksUsageFetcher: Sendable {
         if let endTime {
             query.append(URLQueryItem(name: "endTime", value: Self.isoString(endTime)))
         }
-        components.queryItems = query.isEmpty ? nil : query
-        return components.url!
+        built.queryItems = query.isEmpty ? nil : query
+        guard let url = built.url else {
+            throw FireworksUsageError.invalidAccountSlug(accountSlug)
+        }
+        return url
     }
 
     static func _parseSummaryForTesting(_ data: Data, now: Date = Date()) throws -> FireworksUsageSummary {
