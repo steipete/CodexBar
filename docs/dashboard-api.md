@@ -172,6 +172,50 @@ The snapshot is a stable display contract, not a raw dump of provider internals.
 }
 ```
 
+### Multi-account providers (claude-swap)
+
+When the claude-swap integration is enabled, the Claude provider row additionally includes an `accounts` array. This
+is an additive schema-v1 extension: other provider rows and Claude rows without the integration keep their existing
+shape. Account identity follows the dashboard's always-redacted policy. A failure limited to one account stays in that
+account's `error`; a failure of the whole adapter sets `accountsError` while leaving the ambient Claude row intact.
+
+```json
+{
+  "id": "claude",
+  "identity": { "accountEmail": "redacted@example.com", "plan": "Max" },
+  "windows": [{ "kind": "session", "label": "Session", "usedPercent": 20, "remainingPercent": 80, "resetAt": "2026-07-16T17:00:00Z" }],
+  "accounts": [
+    {
+      "id": "claude-swap:2",
+      "label": "Account 2",
+      "active": true,
+      "identity": { "accountEmail": "redacted@personal.example", "plan": null },
+      "windows": [
+        { "kind": "session", "label": "Session", "usedPercent": 40, "remainingPercent": 60, "resetAt": "2026-07-16T17:00:00Z" },
+        { "kind": "weekly", "label": "Weekly", "usedPercent": 60, "remainingPercent": 40, "resetAt": "2026-07-18T12:00:00Z" },
+        { "kind": "claude-weekly-scoped-fable", "label": "Fable only", "usedPercent": 33, "remainingPercent": 67, "resetAt": "2026-07-18T12:00:00Z" }
+      ],
+      "pace": {
+        "primary": { "stage": "ahead", "deltaPercent": 20, "expectedUsedPercent": 20, "willLastToReset": true, "etaSeconds": null, "runOutProbability": null, "summary": "20% in deficit | Expected 20% used | Lasts to reset" },
+        "secondary": { "stage": "ahead", "deltaPercent": 31, "expectedUsedPercent": 29, "willLastToReset": false, "etaSeconds": 144000, "runOutProbability": null, "summary": "31% in deficit | Expected 29% used | Runs out in 1d 16h" }
+      },
+      "error": null,
+      "updatedAt": "2026-07-16T12:00:00Z"
+    },
+    {
+      "id": "claude-swap:1",
+      "label": "Account 1",
+      "active": false,
+      "identity": null,
+      "windows": [],
+      "pace": null,
+      "error": "Token expired. Switch to this account in claude-swap to refresh it.",
+      "updatedAt": null
+    }
+  ]
+}
+```
+
 ## Fields
 
 - `schemaVersion`: Dashboard API schema version.
@@ -191,3 +235,16 @@ The snapshot is a stable display contract, not a raw dump of provider internals.
 - `providers[].display`: UI hints for ordering and coloring.
 - `providers[].error`: Provider error payload when the latest fetch failed.
 - `providers[].updatedAt`: Best-known update timestamp for the provider row.
+- `providers[].accounts`: Ordered local multi-account entries when an integration supplies them; an enabled source
+  with no accounts emits `[]`.
+  - `id`: Stable source and slot identifier, such as `claude-swap:2`.
+  - `label`: Stable, non-sensitive display key, such as `Account 2`.
+  - `active`: Whether this is the source's active account.
+  - `identity`: Dashboard-redacted account email with a `null` plan, or `null`.
+  - `windows`: Account-local session, weekly, and scoped windows in the same shape as `providers[].windows`.
+  - `pace`: Account-local primary, secondary, and tertiary pace values when computable. Each pace value contains
+    `stage`, `deltaPercent`, `expectedUsedPercent`, `willLastToReset`, `etaSeconds`, `runOutProbability`, and `summary`.
+  - `error`: Account-local diagnostic, or `null`.
+  - `updatedAt`: Account snapshot update timestamp, or `null`.
+- `providers[].accountsError`: Whole-adapter diagnostic when account collection fails; `accounts` is then absent and
+  the ambient provider data remains available.
