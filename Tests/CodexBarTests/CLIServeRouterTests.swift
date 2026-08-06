@@ -548,8 +548,12 @@ struct CLIServeRouterTests {
             requestTimeout: 0.01)
         {
             _ = await counter.increment()
-            try? await Task.sleep(nanoseconds: 200_000_000)
-            return Self.response("[{\"provider\":\"codex\",\"call\":1}]")
+            do {
+                try await Task.sleep(nanoseconds: 200_000_000)
+                return Self.response("[{\"provider\":\"codex\",\"call\":1}]")
+            } catch {
+                return CodexBarCLI.serveTimeoutResponse()
+            }
         }
 
         #expect(timeout.status == .gatewayTimeout)

@@ -3,8 +3,9 @@ import Foundation
 /// Owns at most one running source operation for each logical serve key.
 ///
 /// Cancellation is advisory in Swift. Timed-out work therefore remains owned
-/// until its source body actually exits. A config successor can wait behind it,
-/// but can never overlap it.
+/// until its source body actually exits, then still commits through `accept`.
+/// A same-fingerprint successor receives that late result without restarting
+/// the source; a changed-config successor waits behind it but can never overlap.
 actor CLIServeOperationCoordinator<Value: Sendable> {
     typealias Instant = ContinuousClock.Instant
     typealias Now = @Sendable () -> Instant
@@ -446,8 +447,31 @@ actor CLIServeOperationCoordinator<Value: Sendable> {
         guard var operation = slot.active, operation.generation == generation else { return }
 
         if operation.phase == .timedOut {
-            slot.active = nil
-            self.store(slot, for: key)
+            // Keep ownership through the commit so a newer generation cannot
+            // start and then be overwritten by this older result.
+            let acceptedValue = await operation.acceptValue(value)
+
+            guard var refreshed = self.slots[key],
+                  let completed = refreshed.active,
+                  completed.generation == generation
+            else {
+                return
+            }
+
+            refreshed.active = nil
+            if let pending = refreshed.pending,
+               pending.fingerprint == completed.fingerprint
+            {
+                pending.deadlineTask?.cancel()
+                refreshed.pending = nil
+                self.store(refreshed, for: key)
+                for waiter in pending.waiters {
+                    waiter.continuation.resume(returning: acceptedValue)
+                }
+                return
+            }
+
+            self.store(refreshed, for: key)
             self.promotePending(for: key)
             return
         }

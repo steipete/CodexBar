@@ -27,6 +27,7 @@
 - Codex: define Fast cost as estimated API Fast USD, resolve it models.dev-first with model-specific API ratios, and refresh GPT-5.6 Terra/Luna fallback rates (refs #2175). Thanks @iam-brain!
 
 ### Fixed
+- CLI: stop discarding slow dashboard-snapshot builds after serve request deadlines, so the web dashboard's first load self-heals instead of returning 504 forever.
 - Codex: apply a manual reset immediately — a redeemed reset credit now exempts the weekly-boundary confirmation guard, so fresh quota shows without waiting out the old boundary (#2710). Thanks @endless7!
 - Antigravity: wait for `agy` keyring readiness on cold start (bounded 15s) instead of falling through to the degraded OAuth placeholder (#2665, refs #2427). Thanks @Yuxin-Qiao!
 - CLI: `codexbar serve` bounds the entire request head (16 KB / 10 s total) instead of only each read, closing a pre-auth slow-trickle hold (#2684). Thanks @OfficialAbhinavSingh!

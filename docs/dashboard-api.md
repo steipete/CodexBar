@@ -119,6 +119,7 @@ Snapshot requests share the serve cache and coordination machinery used by `/usa
 
 - Responses are cached for `--refresh-interval` seconds, keyed by the loaded provider config, so toggling providers does not require a restart.
 - Concurrent cache misses coalesce into one fetch; `--request-timeout` bounds each request with `504 Gateway Timeout`.
+- Slow builds keep running past the request deadline; the finished result is committed to the response cache and handed to any same-config request already waiting, so a 504 first load self-heals on retry (the built-in web UI retries automatically).
 - Authorization is checked before the cache, so unauthenticated requests can neither warm nor read it.
 
 ## Payload

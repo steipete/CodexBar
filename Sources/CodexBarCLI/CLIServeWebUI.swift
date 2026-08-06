@@ -735,6 +735,12 @@ enum CLIServeWebUI {
               showTokenForm();
               return;
             }
+            if (response.status === 504) {
+              throw new Error(
+                "The server is still building the first snapshot — this can take a minute or two " +
+                "on large local histories. Retrying automatically."
+              );
+            }
             if (!response.ok) throw new Error(`Server returned HTTP ${response.status}`);
             renderSnapshot(await response.json());
           } catch (error) {
