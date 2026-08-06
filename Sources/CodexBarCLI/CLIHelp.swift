@@ -195,6 +195,7 @@ extension CodexBarCLI {
           codexbar serve [--host <host>] [--port <port>] [--refresh-interval <seconds>]
                          [--request-timeout <seconds>]
                          [--dashboard-token <token>] [--allow-plain-http]
+                         [--identity <redacted|full>]
                          [--json-output] [--log-level <trace|verbose|debug|info|warning|error|critical>]
                          [-v|--verbose]
 
@@ -212,6 +213,9 @@ extension CodexBarCLI {
           non-loopback host the token also gates /usage and /cost (account data);
           / and /health are always open. Use a TLS-terminating reverse proxy for anything
           beyond a trusted network segment.
+          Snapshot identity defaults to redacted emails; --identity full exposes real
+          account emails to every authorized dashboard client. Reserve it for trusted,
+          private networks (e.g. a tailnet-only reverse proxy).
 
         Endpoints:
           GET /                    Built-in web dashboard

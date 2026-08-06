@@ -324,6 +324,50 @@ enum CLIServeWebUI {
           gap: 12px;
         }
 
+        .accounts {
+          display: grid;
+          gap: 12px;
+        }
+
+        .account {
+          padding: 11px 12px;
+          border: 1px solid var(--line);
+          border-radius: 10px;
+          background: var(--surface-muted);
+        }
+
+        .account.active {
+          border-color: color-mix(in srgb, var(--ok), var(--line) 45%);
+        }
+
+        .account-head {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          gap: 10px;
+          margin-bottom: 9px;
+        }
+
+        .account-name {
+          overflow: hidden;
+          font-size: 13px;
+          font-weight: 650;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+
+        .account-badge {
+          flex: none;
+          padding: 1px 8px;
+          border: 1px solid color-mix(in srgb, var(--ok), transparent 45%);
+          border-radius: 999px;
+          color: var(--ok);
+          font-size: 10px;
+          font-weight: 650;
+          letter-spacing: 0.04em;
+          text-transform: uppercase;
+        }
+
         .window-head {
           justify-content: space-between;
           gap: 10px;
@@ -611,6 +655,27 @@ enum CLIServeWebUI {
           return item;
         }
 
+        function renderAccount(account) {
+          const section = node("section", "account");
+          if (account.active) section.classList.add("active");
+
+          const head = node("div", "account-head");
+          const name = account.identity?.accountEmail || account.label || "Account";
+          head.append(node("span", "account-name", name));
+          if (account.active) head.append(node("span", "account-badge", "active"));
+          section.append(head);
+
+          if (account.error) {
+            section.append(node("p", "error-message", account.error));
+            return section;
+          }
+
+          const windows = node("div", "windows");
+          for (const window of account.windows || []) windows.append(renderWindow(window));
+          section.append(windows);
+          return section;
+        }
+
         function renderProvider(provider) {
           const card = node("article", "card");
           card.style.setProperty("--accent", accentColor(provider.display?.accentColor));
@@ -646,9 +711,21 @@ enum CLIServeWebUI {
             card.append(node("p", "error-message", provider.error.message || "Provider data is unavailable."));
           }
 
-          const windows = node("div", "windows");
-          for (const window of provider.windows || []) windows.append(renderWindow(window));
-          card.append(windows);
+          const accounts = Array.isArray(provider.accounts) ? provider.accounts : [];
+          if (accounts.length) {
+            // Multi-account providers (claude-swap): per-account sections replace
+            // the ambient windows, which describe only the active slot.
+            const list = node("div", "accounts");
+            for (const account of accounts) list.append(renderAccount(account));
+            card.append(list);
+          } else {
+            const windows = node("div", "windows");
+            for (const window of provider.windows || []) windows.append(renderWindow(window));
+            card.append(windows);
+          }
+          if (provider.accountsError) {
+            card.append(node("p", "error-message", provider.accountsError));
+          }
 
           const metrics = node("div", "metrics");
           if (provider.credits?.remaining !== null && provider.credits?.remaining !== undefined) {
