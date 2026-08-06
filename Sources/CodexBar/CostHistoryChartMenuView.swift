@@ -354,9 +354,9 @@ struct CostHistoryChartMenuView: View {
     }
 
     static func chartMetric(for provider: UsageProvider, daily: [DailyEntry]) -> ChartMetric {
-        // Grok subscription paths often omit cost on many days; plot tokens so the chart
-        // still reflects activity. Fall back to tokens for any provider when every day lacks cost.
+        // Provider-specific by design: Grok often omits cost ticks; plot tokens so activity remains visible.
         if provider == .grok { return .tokens }
+        // Fall back to tokens for any provider when every day lacks cost.
         let hasAnyCost = daily.contains { ($0.costUSD ?? 0) > 0 }
         return hasAnyCost ? .cost : .tokens
     }
@@ -1053,6 +1053,7 @@ extension CostHistoryChartMenuView {
     }
 
     private static func barColor(for provider: UsageProvider) -> Color {
+        // Provider-specific by design: Grok cost charts share the Codex teal palette.
         if provider == .grok {
             return self.chartBarColor
         }
@@ -1158,6 +1159,7 @@ extension CostHistoryChartMenuView {
         from snapshot: CostUsageTokenSnapshot,
         provider: UsageProvider) -> RenderFingerprint
     {
+        // Provider-specific by design: project/session lists only for local session providers.
         let projects = (provider == .codex || provider == .grok) ? snapshot.projects : []
         let sessions = (provider == .codex || provider == .grok) ? snapshot.sessions : []
         let metric = self.chartMetric(for: provider, daily: snapshot.daily)

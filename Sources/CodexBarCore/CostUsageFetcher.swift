@@ -522,7 +522,7 @@ public struct CostUsageFetcher: Sendable {
         // These synchronous scans can run for minutes on large archives. The dedicated queue keeps
         // them off the cooperative pool and bridges task cancellation into scanner-level checks.
         return try await CostUsageScanExecutor.run { checkCancellation in
-            // Grok: single-pass local session scan (daily + projects + sessions).
+            // Provider-specific by design: Grok uses a single-pass local session-log scanner.
             if provider == .grok {
                 var grokOptions = GrokTurnUsageScanner.Options()
                 if let override = options.scanOptions.grokSessionsRoot {

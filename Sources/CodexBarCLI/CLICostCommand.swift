@@ -147,8 +147,9 @@ extension CodexBarCLI {
             "\(name) Cost (API-rate estimate)"
         }
         let header = Self.costHeaderLine(title, useColor: useColor)
+        // Provider-specific by design: project grouping is available for Codex and Grok local session data.
         if groupBy == .project, provider == .codex || provider == .grok {
-            return Self.renderProjectCostText(header: header, snapshot: snapshot)
+            return Self.renderProjectCostText(provider: provider, header: header, snapshot: snapshot)
         }
 
         let todayCost = snapshot.sessionCostUSD
@@ -177,6 +178,7 @@ extension CodexBarCLI {
             extraLines.append(
                 "Note: history incomplete — some session logs were only partially scanned (size/budget limits).")
         }
+        // Provider-specific by design: Grok prints token/model/project detail from local session logs.
         if provider == .grok {
             let input = snapshot.daily.compactMap(\.inputTokens).reduce(0, +)
             let cache = snapshot.daily.compactMap(\.cacheReadTokens).reduce(0, +)
@@ -238,13 +240,17 @@ extension CodexBarCLI {
             .joined(separator: "\n")
     }
 
-    private static func renderProjectCostText(header: String, snapshot: CostUsageTokenSnapshot) -> String {
+    private static func renderProjectCostText(
+        provider: UsageProvider,
+        header: String,
+        snapshot: CostUsageTokenSnapshot) -> String
+    {
         let historyLabel = snapshot.historyLabel
             ?? (snapshot.historyDays == 1 ? "Today" : "Last \(snapshot.historyDays) days")
         var lines = [header, "Projects (\(historyLabel)):"]
         guard !snapshot.projects.isEmpty else {
             lines.append("—")
-            lines.append(Self.costEstimateHint(provider: .codex))
+            lines.append(Self.costEstimateHint(provider: provider))
             return lines.joined(separator: "\n")
         }
         for project in snapshot.projects {
@@ -267,11 +273,12 @@ extension CodexBarCLI {
                 }
             }
         }
-        lines.append(Self.costEstimateHint(provider: .codex))
+        lines.append(Self.costEstimateHint(provider: provider))
         return lines.joined(separator: "\n")
     }
 
     private static func costEstimateHint(provider: UsageProvider) -> String {
+        // Provider-specific by design: Codex is an API-rate estimate; Grok reports session ticks.
         switch provider {
         case .codex:
             "Not a subscription bill or plan value · local usage × public API prices"
@@ -297,6 +304,7 @@ extension CodexBarCLI {
         error: Error?) -> CostPayload
     {
         let daily = snapshot?.daily.map(Self.costDailyPayload(from:)) ?? []
+        // Provider-specific by design: project rollups only for local session providers.
         let projects = (provider == .codex || provider == .grok)
             ? snapshot?.projects.map { project in
                 CostProjectPayload(

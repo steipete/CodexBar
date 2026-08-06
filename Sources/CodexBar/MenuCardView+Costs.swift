@@ -229,7 +229,7 @@ extension UsageMenuCardView.Model {
                     sourceCurrencyCode: snapshot.currencyCode)
             })
         }
-        // Grok: surface token composition + model mix on the Cost card (not just $ / total).
+        // Provider-specific by design: Grok surfaces token composition on the Cost card.
         if provider == .grok {
             comparisonLines.append(contentsOf: Self.grokTokenDetailLines(snapshot: snapshot))
         }

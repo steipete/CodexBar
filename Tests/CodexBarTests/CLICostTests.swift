@@ -112,6 +112,60 @@ struct CLICostTests {
     }
 
     @Test
+    func `renders grok project grouped cost text with reported-cost semantics`() {
+        let snap = CostUsageTokenSnapshot(
+            sessionTokens: 3400,
+            sessionCostUSD: 0.42,
+            last30DaysTokens: 12_000,
+            last30DaysCostUSD: 1.8,
+            historyDays: 30,
+            daily: [],
+            projects: [
+                CostUsageProjectBreakdown(
+                    name: "demo",
+                    path: "/work/demo",
+                    totalTokens: 8000,
+                    totalCostUSD: 1.1,
+                    daily: [],
+                    modelBreakdowns: nil,
+                    sources: [
+                        CostUsageProjectSourceBreakdown(
+                            name: "demo",
+                            path: "/work/demo",
+                            totalTokens: 8000,
+                            totalCostUSD: 1.1,
+                            daily: [],
+                            modelBreakdowns: nil),
+                    ]),
+                CostUsageProjectBreakdown(
+                    name: CostUsageProjectBreakdown.unknownProjectName,
+                    path: nil,
+                    totalTokens: 4000,
+                    totalCostUSD: 0.7,
+                    daily: [],
+                    modelBreakdowns: nil),
+            ],
+            updatedAt: Date(timeIntervalSince1970: 0))
+
+        let output = CodexBarCLI.renderCostText(
+            provider: .grok,
+            snapshot: snap,
+            groupBy: .project,
+            useColor: false)
+            .replacingOccurrences(of: "\u{00A0}", with: " ")
+            .replacingOccurrences(of: "$ ", with: "$")
+
+        #expect(output.contains("Grok Cost (local session logs)"))
+        #expect(output.contains("Projects (Last 30 days):"))
+        #expect(output.contains("demo: $1.10 · 8K tokens"))
+        #expect(output.contains("/work/demo"))
+        #expect(output.contains("Unknown project: $0.70 · 4K tokens"))
+        #expect(output.contains("Local Grok session logs (turn_completed). Cost only when reported."))
+        #expect(!output.contains("local usage × public API prices"))
+        #expect(!output.contains("API-equivalent estimate"))
+    }
+
+    @Test
     func `encodes cost payload JSON`() throws {
         let payload = CostPayload(
             provider: "claude",

@@ -87,7 +87,7 @@ extension UsageMenuCardView.Model {
     /// Provider branding color for the inline usage bars, matching the provider's switcher tab and
     /// detailed cost-history chart.
     static func inlineDashboardBarColor(for provider: UsageProvider) -> Color {
-        // Grok cost/token history uses Codex teal so it matches Credits/Codex charts.
+        // Provider-specific by design: Grok cost/token history uses Codex teal.
         if provider == .grok {
             return self.codexStyleChartBarColor
         }
@@ -219,6 +219,7 @@ extension UsageMenuCardView.Model {
         if let topModel = Self.topCostModel(from: snapshot.daily) {
             details.append("\(L("Top model")): \(Self.shortModelName(topModel))")
         }
+        // Provider-specific by design: Grok adds token composition and project notes on the cost card.
         if provider == .grok {
             details.append(contentsOf: Self.grokCostHistoryDetailLines(snapshot: snapshot))
         }
@@ -260,6 +261,7 @@ extension UsageMenuCardView.Model {
                     .map(convertedString) ?? "—",
                 emphasis: false),
         ]
+        // Provider-specific by design: Grok leads with today's tokens to match token bars.
         if provider == .grok {
             let todayTokens = snapshot.sessionTokens.map(UsageFormatter.tokenCountString) ?? "—"
             kpis.insert(
@@ -292,6 +294,7 @@ extension UsageMenuCardView.Model {
             kpis: kpis,
             points: points,
             detailLines: details)
+        // Provider-specific by design: Grok cost chart bars use Codex teal.
         if provider == .grok {
             model.barColor = self.codexStyleChartBarColor
         }
@@ -330,6 +333,7 @@ extension UsageMenuCardView.Model {
         provider: UsageProvider,
         snapshot: CostUsageTokenSnapshot) -> Bool
     {
+        // Provider-specific by design: Grok subscription days often omit cost ticks.
         if provider == .grok { return true }
         let days = snapshot.daily
         guard !days.isEmpty else { return false }
