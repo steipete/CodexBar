@@ -517,10 +517,9 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
                         error: error,
                         oauthKeychainPromptCooldownEnabled: self.fetcher.oauthKeychainPromptCooldownEnabled,
                         delegatedOutcome: delegatedOutcome))
-                throw ClaudeUsageError.oauthFailed(
-                    ClaudeUsageFetcher.delegatedRefreshFailureMessage(
-                        for: delegatedResult,
-                        retryError: error))
+                throw ClaudeUsageFetcher.delegatedRefreshFailureError(
+                    for: delegatedResult,
+                    retryError: error)
             }
         }
 

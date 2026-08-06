@@ -699,6 +699,11 @@ struct ClaudeOAuthFetchStrategy: ProviderFetchStrategy {
         guard !Task.isCancelled, !ClaudeOAuthFetchError.isCancellation(error) else {
             return false
         }
+        // The unreadable terminal state (#2634): Claude Code's Keychain item is closed to us (no consent)
+        // and no credentials file exists. OAuth cannot recover, so hand off to the owner CLI usage fallback.
+        if context.runtime == .app, error is ClaudeOAuthUnreadableCredentialsError {
+            return true
+        }
         if context.runtime == .app,
            context.sourceMode == .oauth,
            let credentialsError = error as? ClaudeOAuthCredentialsError
@@ -715,7 +720,10 @@ struct ClaudeOAuthFetchStrategy: ProviderFetchStrategy {
         return context.runtime == .app && context.sourceMode == .auto
     }
 
-    fileprivate static func snapshot(from usage: ClaudeUsageSnapshot) -> UsageSnapshot {
+    fileprivate static func snapshot(
+        from usage: ClaudeUsageSnapshot,
+        dataConfidence: UsageDataConfidence = .unknown) -> UsageSnapshot
+    {
         let identity = ProviderIdentitySnapshot(
             providerID: .claude,
             accountEmail: usage.accountEmail,
@@ -729,11 +737,15 @@ struct ClaudeOAuthFetchStrategy: ProviderFetchStrategy {
             extraRateWindows: usage.extraRateWindows.isEmpty ? nil : usage.extraRateWindows,
             providerCost: usage.providerCost,
             updatedAt: usage.updatedAt,
-            identity: identity)
+            identity: identity,
+            dataConfidence: dataConfidence)
     }
 
-    static func _snapshotForTesting(from usage: ClaudeUsageSnapshot) -> UsageSnapshot {
-        self.snapshot(from: usage)
+    static func _snapshotForTesting(
+        from usage: ClaudeUsageSnapshot,
+        dataConfidence: UsageDataConfidence = .unknown) -> UsageSnapshot
+    {
+        self.snapshot(from: usage, dataConfidence: dataConfidence)
     }
 }
 
@@ -1017,7 +1029,9 @@ struct ClaudeCLIFetchStrategy: ProviderFetchStrategy {
             ClaudeCLIBackgroundAvailability.establish(backgroundAvailabilityMarker)
         }
         return self.makeResult(
-            usage: ClaudeOAuthFetchStrategy.snapshot(from: usage),
+            // The PTY /usage panel exposes rendered percentages only, so CLI-sourced data carries an
+            // explicit degraded-fidelity marker that the card surfaces as "via Claude CLI".
+            usage: ClaudeOAuthFetchStrategy.snapshot(from: usage, dataConfidence: .percentOnly),
             sourceLabel: "claude")
     }
 

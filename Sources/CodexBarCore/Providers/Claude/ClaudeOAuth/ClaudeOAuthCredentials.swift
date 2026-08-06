@@ -2865,9 +2865,12 @@ public enum ClaudeOAuthCredentialsStore {
         }
         #endif
         // Claude Code owns `Claude Code-credentials` and rewrites the item during token refreshes. That rewrite
-        // replaces its ACL, so any permission granted to CodexBar is inherently temporary and causes recurring
-        // macOS password dialogs. Production CodexBar therefore never reads the foreign item, with or without UI.
-        return false
+        // replaces its ACL, so any permission granted to CodexBar is inherently temporary and can cause recurring
+        // macOS password dialogs. Production CodexBar therefore reads the foreign item only after the user
+        // explicitly opted in (#2634); without consent every direct-read path stays closed, including the
+        // freshness sync and delegated-refresh verification that route through this same gate.
+        guard !KeychainAccessGate.isDisabled else { return false }
+        return ClaudeOAuthDirectKeychainReadConsent.isGranted()
     }
 
     #if DEBUG
