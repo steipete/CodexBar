@@ -44,6 +44,7 @@ struct ServeOptions: CommanderParsable {
 
 enum CLIServeRoute: Equatable {
     case webUI
+    case providerIcon(name: String)
     case health
     case usage(provider: String?)
     case cost(provider: String?)
@@ -67,6 +68,10 @@ enum CLIServeRouter {
         switch path {
         case "/":
             return .webUI
+        case let path where path.hasPrefix("/icons/") && path.hasSuffix(".svg"):
+            // Static brand art; the name is validated against the embedded set
+            // in the handler, so traversal or unknown names 404 there.
+            return .providerIcon(name: String(path.dropFirst("/icons/".count).dropLast(".svg".count)))
         case "/health":
             return .health
         case "/usage":
@@ -847,6 +852,9 @@ extension CodexBarCLI {
         switch route {
         case .webUI:
             return CLIServeWebUI.response()
+        case let .providerIcon(name):
+            return CLIServeWebUI.iconResponse(name: name)
+                ?? Self.serveError(status: .notFound, message: "not found")
         case .health:
             return Self.serveHealthResponse(version: runtime.healthVersion)
         case let .usage(provider):

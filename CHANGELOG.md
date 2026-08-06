@@ -5,6 +5,7 @@
 ### Added
 - CLI: add a built-in auto-refreshing web dashboard at `/` to `codexbar serve`.
 - CLI: the serve web dashboard renders per-account sections for claude-swap providers, and `codexbar serve --identity full` opts authorized dashboard clients into real account emails on trusted, private networks.
+- CLI: the serve web dashboard gains daily spend bar charts from local cost history, real provider brand icons served from an embedded `/icons/` route, and a grouped vertical layout — multi-account providers render one card per account under a titled section.
 - CLI: `codexbar dashboard --output <path>` atomically writes the snapshot to a file (temp file + fsync + rename, `0644`) instead of stdout, so static-webroot publishers no longer need a shell wrapper.
 - Dashboard v1 snapshot: Claude rows now include all claude-swap accounts (windows, pace, active flag, redacted identity) when the integration is enabled.
 - Usage & Spend: add an accessible daily, weekly, and cumulative token-activity heatmap backed by the existing persistent cost scan cache (#2548). Thanks @Yuxin-Qiao!

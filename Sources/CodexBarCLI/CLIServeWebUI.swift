@@ -1,13 +1,49 @@
+import CodexBarCore
 import Foundation
 
 enum CLIServeWebUI {
     static func response() -> CLILocalHTTPResponse {
         CLILocalHTTPResponse(
             status: .ok,
-            body: Data(self.html.utf8),
+            body: Data(self.renderedHTML.utf8),
             contentType: "text/html; charset=utf-8",
             extraHeaders: [("Cache-Control", "no-store")])
     }
+
+    /// Serves an embedded provider brand icon for the web dashboard. Icons are
+    /// static brand art without account data, so the route needs no auth; they
+    /// are immutable per binary, so clients may cache them aggressively.
+    static func iconResponse(name: String) -> CLILocalHTTPResponse? {
+        guard let base64 = CLIServeProviderIcons.base64ByResourceName[name],
+              let data = Data(base64Encoded: base64)
+        else {
+            return nil
+        }
+        return CLILocalHTTPResponse(
+            status: .ok,
+            body: data,
+            contentType: "image/svg+xml",
+            extraHeaders: [("Cache-Control", "public, max-age=86400, immutable")])
+    }
+
+    /// Provider-id → icon URL map injected into the page. Only providers whose
+    /// descriptor icon is actually embedded appear; the UI falls back to a
+    /// neutral dot for the rest.
+    private static let renderedHTML: String = {
+        var icons: [String: String] = [:]
+        for provider in UsageProvider.allCases {
+            let resource = ProviderDescriptorRegistry.descriptor(for: provider).branding.iconResourceName
+            if CLIServeProviderIcons.base64ByResourceName[resource] != nil {
+                icons[provider.rawValue] = "/icons/\(resource).svg"
+            }
+        }
+        let encoder = JSONEncoder()
+        // Sorted for deterministic output; unescaped slashes keep the inline
+        // script readable and the URLs greppable in tests.
+        encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+        let json = (try? encoder.encode(icons)).map { String(decoding: $0, as: UTF8.self) } ?? "{}"
+        return html.replacingOccurrences(of: "__PROVIDER_ICON_URLS__", with: json)
+    }()
 
     static let html = #"""
     <!doctype html>
@@ -241,11 +277,58 @@ enum CLIServeWebUI {
           overflow: hidden;
           padding: 17px;
           border: 1px solid var(--line);
-          border-top: 3px solid var(--accent);
           border-radius: 12px;
           background: var(--surface);
           box-shadow: var(--shadow);
         }
+
+        .card.active-account {
+          border-color: color-mix(in srgb, var(--ok), var(--line) 45%);
+        }
+
+        .group {
+          margin-bottom: 26px;
+        }
+
+        .group-title {
+          margin: 0 0 10px;
+          color: var(--muted);
+          font-size: 12px;
+          font-weight: 700;
+          letter-spacing: 0.08em;
+          text-transform: uppercase;
+        }
+
+        .provider-icon {
+          flex: none;
+          width: 18px;
+          height: 18px;
+          background: var(--accent);
+          -webkit-mask: var(--icon) center / contain no-repeat;
+          mask: var(--icon) center / contain no-repeat;
+        }
+
+        .provider-dot {
+          flex: none;
+          width: 10px;
+          height: 10px;
+          border-radius: 50%;
+          background: var(--accent);
+        }
+
+        .pill {
+          flex: none;
+          padding: 2px 9px;
+          border: 1px solid;
+          border-radius: 999px;
+          font-size: 11px;
+          font-weight: 650;
+        }
+
+        .pill.ok { color: var(--ok); border-color: color-mix(in srgb, var(--ok), transparent 45%); }
+        .pill.warning { color: var(--warning); border-color: color-mix(in srgb, var(--warning), transparent 45%); }
+        .pill.critical { color: var(--critical); border-color: color-mix(in srgb, var(--critical), transparent 45%); }
+        .pill.active { color: var(--ok); border-color: color-mix(in srgb, var(--ok), transparent 45%); }
 
         .card.disabled {
           opacity: 0.55;
@@ -431,6 +514,36 @@ enum CLIServeWebUI {
           white-space: nowrap;
         }
 
+        .chart-wrap {
+          margin-top: 14px;
+        }
+
+        .chart {
+          display: block;
+          width: 100%;
+          height: 44px;
+        }
+
+        .chart rect {
+          fill: color-mix(in srgb, var(--accent), transparent 25%);
+        }
+
+        .chart rect:hover {
+          fill: var(--accent);
+        }
+
+        .chart-caption {
+          display: flex;
+          justify-content: space-between;
+          gap: 10px;
+          margin-top: 4px;
+          color: var(--muted);
+          font-size: 10px;
+          font-weight: 650;
+          letter-spacing: 0.04em;
+          text-transform: uppercase;
+        }
+
         .error-message {
           margin: 4px 0 0;
           padding: 10px 11px;
@@ -503,18 +616,20 @@ enum CLIServeWebUI {
           <button id="retry" type="button">Retry now</button>
         </section>
 
-        <section id="providers" class="grid" aria-live="polite"></section>
+        <section id="providers" aria-live="polite"></section>
       </main>
 
       <script>
         "use strict";
 
         const tokenKey = "codexbar.dashboardToken";
+        const providerIconURLs = __PROVIDER_ICON_URLS__;
         const state = {
           snapshot: null,
           timer: null,
           fetching: false,
-          refreshSeconds: 15
+          refreshSeconds: 15,
+          costHistories: {}
         };
 
         const elements = {
@@ -655,25 +770,111 @@ enum CLIServeWebUI {
           return item;
         }
 
-        function renderAccount(account) {
-          const section = node("section", "account");
-          if (account.active) section.classList.add("active");
+        function renderCostChart(history) {
+          // Daily spend as an inline SVG bar chart: one thin accent bar per day,
+          // 2px gaps, no dual axes, native tooltips per bar. Height is scaled to
+          // the busiest day; a zero-spend range renders nothing.
+          const days = history.slice(-30);
+          const max = Math.max(...days.map(day => day.cost), 0);
+          if (!(max > 0) || days.length < 2) return null;
 
-          const head = node("div", "account-head");
+          const width = 100;
+          const height = 36;
+          const gap = 1;
+          const barWidth = Math.max((width - gap * (days.length - 1)) / days.length, 0.5);
+          const svgNS = "http://www.w3.org/2000/svg";
+          const svg = document.createElementNS(svgNS, "svg");
+          svg.setAttribute("viewBox", `0 0 ${width} ${height}`);
+          svg.setAttribute("preserveAspectRatio", "none");
+          svg.classList.add("chart");
+          svg.setAttribute("role", "img");
+          svg.setAttribute("aria-label", `Daily spend, last ${days.length} days`);
+
+          days.forEach((day, index) => {
+            const barHeight = Math.max((day.cost / max) * height, day.cost > 0 ? 1 : 0);
+            const rect = document.createElementNS(svgNS, "rect");
+            rect.setAttribute("x", String(index * (barWidth + gap)));
+            rect.setAttribute("y", String(height - barHeight));
+            rect.setAttribute("width", String(barWidth));
+            rect.setAttribute("height", String(barHeight));
+            rect.setAttribute("rx", "0.5");
+            const title = document.createElementNS(svgNS, "title");
+            title.textContent = `${day.date} · ${dollars(day.cost)}`;
+            rect.append(title);
+            svg.append(rect);
+          });
+
+          const wrap = node("div", "chart-wrap");
+          wrap.append(svg);
+          const caption = node("div", "chart-caption");
+          caption.append(node("span", "", `Daily spend · ${days.length}d`));
+          caption.append(node("span", "", `peak ${dollars(max)}`));
+          wrap.append(caption);
+          return wrap;
+        }
+
+        function providerGlyph(provider) {
+          const url = providerIconURLs[provider.id];
+          if (url) {
+            const icon = node("span", "provider-icon");
+            icon.style.setProperty("--icon", `url("${url}")`);
+            icon.setAttribute("aria-hidden", "true");
+            return icon;
+          }
+          const dot = node("span", "provider-dot");
+          dot.setAttribute("aria-hidden", "true");
+          return dot;
+        }
+
+        function worstWindowLevel(windows) {
+          const worst = Math.max(...(windows || []).map(w => finiteNumber(w.usedPercent)), -1);
+          if (worst < 0) return null;
+          if (worst >= 95) return "critical";
+          if (worst >= 80) return "warning";
+          return "ok";
+        }
+
+        function pill(level, label) {
+          const el = node("span", `pill ${level}`, label);
+          return el;
+        }
+
+        function renderAccountCard(provider, account) {
+          // Each claude-swap account gets a full card in the group grid — the
+          // vertical structure reads better than rows nested inside one card.
+          const card = node("article", "card");
+          card.style.setProperty("--accent", accentColor(provider.display?.accentColor));
+          if (account.active) card.classList.add("active-account");
+
+          const head = node("div", "card-head");
+          const title = node("div", "provider-title");
+          title.append(providerGlyph(provider));
           const name = account.identity?.accountEmail || account.label || "Account";
-          head.append(node("span", "account-name", name));
-          if (account.active) head.append(node("span", "account-badge", "active"));
-          section.append(head);
+          title.append(node("span", "provider-name", name));
+          head.append(title);
+          if (account.active) {
+            head.append(pill("active", "active"));
+          } else {
+            const level = worstWindowLevel(account.windows);
+            if (level) head.append(pill(level, level === "ok" ? "ok" : level === "warning" ? "high" : "critical"));
+          }
+          card.append(head);
+
+          if (account.updatedAt) {
+            const identity = node("div", "identity");
+            identity.append(node("span", "", `updated ${relativeTime(account.updatedAt)}`));
+            card.append(identity);
+          }
 
           if (account.error) {
-            section.append(node("p", "error-message", account.error));
-            return section;
+            card.append(node("p", "error-message", account.error));
+            return card;
           }
 
           const windows = node("div", "windows");
           for (const window of account.windows || []) windows.append(renderWindow(window));
-          section.append(windows);
-          return section;
+          card.append(windows);
+          return card;
         }
 
         function renderProvider(provider) {
@@ -684,6 +885,7 @@ enum CLIServeWebUI {
 
           const head = node("div", "card-head");
           const title = node("div", "provider-title");
+          title.append(providerGlyph(provider));
           title.append(node("span", "provider-name", provider.name || provider.id || "Provider"));
           head.append(title);
 
@@ -711,18 +913,9 @@ enum CLIServeWebUI {
             card.append(node("p", "error-message", provider.error.message || "Provider data is unavailable."));
           }
 
-          const accounts = Array.isArray(provider.accounts) ? provider.accounts : [];
-          if (accounts.length) {
-            // Multi-account providers (claude-swap): per-account sections replace
-            // the ambient windows, which describe only the active slot.
-            const list = node("div", "accounts");
-            for (const account of accounts) list.append(renderAccount(account));
-            card.append(list);
-          } else {
-            const windows = node("div", "windows");
-            for (const window of provider.windows || []) windows.append(renderWindow(window));
-            card.append(windows);
-          }
+          const windows = node("div", "windows");
+          for (const window of provider.windows || []) windows.append(renderWindow(window));
+          card.append(windows);
           if (provider.accountsError) {
             card.append(node("p", "error-message", provider.accountsError));
           }
@@ -739,6 +932,12 @@ enum CLIServeWebUI {
             metrics.append(metric("Last 30 days", dollars(provider.cost.last30DaysUSD)));
           }
           if (metrics.childElementCount) card.append(metrics);
+
+          const history = state.costHistories[provider.id];
+          if (Array.isArray(history)) {
+            const chart = renderCostChart(history);
+            if (chart) card.append(chart);
+          }
           return card;
         }
 
@@ -767,9 +966,36 @@ enum CLIServeWebUI {
           providers.sort((left, right) => {
             return finiteNumber(left.display?.sortKey) - finiteNumber(right.display?.sortKey);
           });
-          const cards = providers.map(renderProvider);
-          if (!cards.length) cards.push(node("div", "empty", "No providers are configured."));
-          elements.providers.replaceChildren(...cards);
+
+          // Vertical grouping: multi-account providers get their own titled
+          // group with one card per account; everything else lands in a
+          // second group below.
+          const sections = [];
+          const rest = [];
+          for (const provider of providers) {
+            const accounts = Array.isArray(provider.accounts) ? provider.accounts : [];
+            if (accounts.length) {
+              const group = node("section", "group");
+              group.append(node("h2", "group-title", `${provider.name || provider.id} accounts`));
+              const grid = node("div", "grid");
+              for (const account of accounts) grid.append(renderAccountCard(provider, account));
+              if (provider.accountsError) grid.append(node("p", "error-message", provider.accountsError));
+              group.append(grid);
+              sections.push(group);
+            } else {
+              rest.push(provider);
+            }
+          }
+          if (rest.length) {
+            const group = node("section", "group");
+            if (sections.length) group.append(node("h2", "group-title", "Other providers"));
+            const grid = node("div", "grid");
+            for (const provider of rest) grid.append(renderProvider(provider));
+            group.append(grid);
+            sections.push(group);
+          }
+          if (!sections.length) sections.push(node("div", "empty", "No providers are configured."));
+          elements.providers.replaceChildren(...sections);
           updateFreshness();
         }
 
@@ -797,6 +1023,28 @@ enum CLIServeWebUI {
           state.timer = setTimeout(refresh, state.refreshSeconds * 1000);
         }
 
+        async function refreshCostHistory(headers) {
+          // Daily spend history rides the /cost route. Failures never block the
+          // snapshot render: charts simply stay hidden until the next refresh.
+          try {
+            const response = await fetch("/cost", { headers, cache: "no-store" });
+            if (!response.ok) return;
+            const rows = await response.json();
+            if (!Array.isArray(rows)) return;
+            const histories = {};
+            for (const row of rows) {
+              if (!row || typeof row.provider !== "string") continue;
+              if (!Array.isArray(row.daily) || row.daily.length < 2) continue;
+              histories[row.provider] = row.daily
+                .filter(day => day && typeof day.date === "string")
+                .map(day => ({ date: day.date, cost: finiteNumber(day.totalCost) }));
+            }
+            state.costHistories = histories;
+          } catch (error) {
+            // Keep the last good histories.
+          }
+        }
+
         async function refresh(overrideToken) {
           if (state.fetching) return;
           state.fetching = true;
@@ -804,10 +1052,10 @@ enum CLIServeWebUI {
           try {
             const token = overrideToken || storedToken();
             const headers = token ? { Authorization: `Bearer ${token}` } : {};
-            const response = await fetch("/dashboard/v1/snapshot", {
-              headers,
-              cache: "no-store"
-            });
+            const [response] = await Promise.all([
+              fetch("/dashboard/v1/snapshot", { headers, cache: "no-store" }),
+              refreshCostHistory(headers)
+            ]);
             if (response.status === 401) {
               showTokenForm();
               return;
