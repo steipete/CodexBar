@@ -127,6 +127,33 @@ struct CLIServeRawHTTPTests {
     // MARK: - Dashboard snapshot auth (production handler)
 
     @Test
+    func `web UI returns HTML with no-store`() async throws {
+        try await Self.withServeRuntime(token: nil, body: { port in
+            let response = try await Self.rawExchange(
+                port: port,
+                request: "GET / HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n")
+
+            #expect(response.statusLine == "HTTP/1.1 200 OK")
+            #expect(response.headerValue("Content-Type") == "text/html; charset=utf-8")
+            #expect(response.headerValue("Cache-Control") == "no-store")
+            #expect(response.body.contains("CodexBar Dashboard"))
+            #expect(response.body.contains("/dashboard/v1/snapshot"))
+        })
+    }
+
+    @Test
+    func `web UI stays open when a dashboard token is configured`() async throws {
+        try await Self.withServeRuntime(token: "secret", bindHost: "0.0.0.0", body: { port in
+            let response = try await Self.rawExchange(
+                port: port,
+                request: "GET / HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n")
+
+            #expect(response.statusLine == "HTTP/1.1 200 OK")
+            #expect(response.headerValue("Content-Type") == "text/html; charset=utf-8")
+        })
+    }
+
+    @Test
     func `snapshot without credentials returns 401 with challenge and no-store`() async throws {
         try await Self.withServeRuntime(token: "secret", body: { port in
             let response = try await Self.rawExchange(

@@ -26,7 +26,13 @@ Both transports use the same producer and schema-v1 payload. The one-shot comman
 
 The HTTP route is gated by a static bearer token and **fails closed**: without a configured token every request answers `401`. The token is only ever read from the `Authorization` header — a query-string parameter named `token` is never accepted. Every response on the dashboard route — including all `401`s and error responses — carries `Cache-Control: no-store`.
 
-On the default loopback bind, `/usage` and `/cost` are unchanged and unauthenticated. On a **non-loopback** bind the same token gates **all data routes**: `/usage`, `/cost`, and `/dashboard/v1/snapshot` each require `Authorization: Bearer YOUR_TOKEN`, so account data never leaves the machine unauthenticated. `/health` is always open (it carries only a status and version string, useful for liveness probes).
+On the default loopback bind, `/usage` and `/cost` are unchanged and unauthenticated. On a **non-loopback** bind the same token gates **all data routes**: `/usage`, `/cost`, and `/dashboard/v1/snapshot` each require `Authorization: Bearer YOUR_TOKEN`, so account data never leaves the machine unauthenticated. `/` and `/health` are always open; neither response contains account data.
+
+## Built-in web UI
+
+`GET /` serves a self-contained web dashboard that polls `/dashboard/v1/snapshot`. The static HTML is always unauthenticated, including on non-loopback binds, because it contains no account data. When the snapshot route returns `401`, the page asks for the dashboard token, stores it in the browser under the localStorage key `codexbar.dashboardToken`, and sends it in the `Authorization` header on each snapshot request. The token is never added to the URL.
+
+The UI does not change the transport threat model: `codexbar serve` is plain HTTP. Off-loopback, a token typed into the page transits the network in cleartext like every other request unless a TLS-terminating reverse proxy protects the connection.
 
 ## One-shot command semantics
 
@@ -65,7 +71,7 @@ Transport is **plain HTTP**. There is no TLS in `codexbar serve`, which means:
 
 - The bearer token crosses the network **in cleartext on every request**. Anyone who can observe the path (same Wi-Fi, ARP spoofing, a compromised switch, your ISP on a routed path) can capture the token and replay it until the server restarts with a new one.
 - The response bodies — plan labels, usage percentages, email domains, cost figures — cross the network in cleartext too.
-- Because non-loopback binds gate `/usage`, `/cost`, and `/dashboard/v1/snapshot` behind the same token, a passive observer sees your account data but an active client without the token gets `401` on every data route. `/health` is the only unauthenticated route off-loopback.
+- Because non-loopback binds gate `/usage`, `/cost`, and `/dashboard/v1/snapshot` behind the same token, a passive observer sees your account data but an active client without the token gets `401` on every data route. Only the account-free static UI at `/` and `/health` are unauthenticated off-loopback.
 
 Deployments, from safest to least safe:
 
