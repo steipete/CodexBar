@@ -598,6 +598,14 @@ extension SettingsStore {
         }
     }
 
+    var claudeOAuthPromptExplanationEnabled: Bool {
+        get { self.defaultsState.claudeOAuthPromptExplanationEnabled }
+        set {
+            self.defaultsState.claudeOAuthPromptExplanationEnabled = newValue
+            self.userDefaults.set(newValue, forKey: ClaudeOAuthPromptExplanationPreference.userDefaultsKey)
+        }
+    }
+
     var claudeOAuthKeychainReadStrategy: ClaudeOAuthKeychainReadStrategy {
         get {
             guard let raw = self.defaultsState.claudeOAuthKeychainReadStrategyRaw else {

@@ -1,4 +1,5 @@
 import CodexBarCore
+import Foundation
 import Testing
 @testable import CodexBar
 
@@ -64,5 +65,27 @@ struct KeychainPromptCoordinatorTests {
         #expect(model.message.contains("Claude Code OAuth token"))
         #expect(model.message.contains("fetch your Claude usage"))
         #expect(model.learnMoreButtonTitle == "Learn More…")
+    }
+
+    @Test
+    func `Claude explanation follows its setting while other prompts remain unchanged`() throws {
+        let suite = "KeychainPromptCoordinatorTests-explanation"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+
+        let claudeContext = KeychainPromptContext(
+            kind: .claudeOAuth,
+            service: "Claude Code-credentials",
+            account: nil)
+        let codexContext = KeychainPromptContext(
+            kind: .codexCookie,
+            service: "Chrome Safe Storage",
+            account: nil)
+
+        #expect(!KeychainPromptCoordinator.shouldPresentExplanation(for: claudeContext, userDefaults: defaults))
+        #expect(KeychainPromptCoordinator.shouldPresentExplanation(for: codexContext, userDefaults: defaults))
+
+        defaults.set(true, forKey: ClaudeOAuthPromptExplanationPreference.userDefaultsKey)
+        #expect(KeychainPromptCoordinator.shouldPresentExplanation(for: claudeContext, userDefaults: defaults))
     }
 }

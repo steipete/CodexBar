@@ -553,6 +553,28 @@ struct SettingsStoreCoverageTests {
     }
 
     @Test
+    func `claude keychain prompt explanation is disabled by default`() {
+        let settings = Self.makeSettingsStore()
+        #expect(!settings.claudeOAuthPromptExplanationEnabled)
+    }
+
+    @Test
+    func `claude keychain prompt explanation persists across store reload`() throws {
+        let suite = "SettingsStoreCoverageTests-claude-keychain-prompt-explanation"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        let configStore = testConfigStore(suiteName: suite)
+
+        let first = Self.makeSettingsStore(userDefaults: defaults, configStore: configStore)
+        first.claudeOAuthPromptExplanationEnabled = true
+        #expect(
+            defaults.bool(forKey: ClaudeOAuthPromptExplanationPreference.userDefaultsKey))
+
+        let second = Self.makeSettingsStore(userDefaults: defaults, configStore: configStore)
+        #expect(second.claudeOAuthPromptExplanationEnabled)
+    }
+
+    @Test
     func `claude keychain prompt mode persists across store reload`() throws {
         let suite = "SettingsStoreCoverageTests-claude-keychain-prompt-mode"
         let defaults = try #require(UserDefaults(suiteName: suite))

@@ -59,6 +59,14 @@ struct KeychainPromptAlertModel: Equatable {
     let documentationURL: String
 }
 
+enum ClaudeOAuthPromptExplanationPreference {
+    static let userDefaultsKey = "claudeOAuthPromptExplanationEnabled"
+
+    static func isEnabled(in userDefaults: UserDefaults = .standard) -> Bool {
+        userDefaults.object(forKey: self.userDefaultsKey) as? Bool ?? false
+    }
+}
+
 @MainActor
 private final class KeychainPromptLearnMoreTarget: NSObject {
     private let documentationURL: String
@@ -117,9 +125,25 @@ enum KeychainPromptCoordinator {
     }
 
     private static func presentKeychainPrompt(_ context: KeychainPromptContext) {
+        guard self.shouldPresentExplanation(for: context) else {
+            self.log.info("Keychain prompt explanation suppressed", metadata: ["kind": "claudeOAuth"])
+            return
+        }
         let model = self.alertModel(for: context)
         self.log.info("Keychain prompt requested", metadata: ["kind": "\(context.kind)"])
         self.presentAlert(model)
+    }
+
+    static func shouldPresentExplanation(
+        for context: KeychainPromptContext,
+        userDefaults: UserDefaults = .standard) -> Bool
+    {
+        switch context.kind {
+        case .claudeOAuth:
+            ClaudeOAuthPromptExplanationPreference.isEnabled(in: userDefaults)
+        default:
+            true
+        }
     }
 
     private static func presentBrowserCookiePrompt(_ context: BrowserCookieKeychainPromptContext) {

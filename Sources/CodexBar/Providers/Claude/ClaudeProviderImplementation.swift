@@ -23,6 +23,7 @@ struct ClaudeProviderImplementation: ProviderImplementation {
         _ = settings.claudeCookieSource
         _ = settings.claudeCookieHeader
         _ = settings.claudeOAuthKeychainPromptMode
+        _ = settings.claudeOAuthPromptExplanationEnabled
         _ = settings.claudeOAuthKeychainReadStrategy
         _ = settings.claudeWebExtrasEnabled
         _ = settings.claudeSwapEnabled
@@ -116,6 +117,19 @@ struct ClaudeProviderImplementation: ProviderImplementation {
                 actions: [],
                 isVisible: nil,
                 isEnabled: { !context.settings.debugDisableKeychainAccess },
+                onChange: nil,
+                onAppDidBecomeActive: nil,
+                onAppearWhenEnabled: nil),
+            ProviderSettingsToggleDescriptor(
+                id: "claude-oauth-prompt-explanation",
+                title: "Show Keychain access explanation",
+                subtitle: "Shows CodexBar's explanation before macOS asks for Claude OAuth Keychain access. " +
+                    "This does not change the macOS prompt or OAuth behavior.",
+                binding: context.boolBinding(\.claudeOAuthPromptExplanationEnabled),
+                statusText: nil,
+                actions: [],
+                isVisible: nil,
+                isEnabled: nil,
                 onChange: nil,
                 onAppDidBecomeActive: nil,
                 onAppearWhenEnabled: nil),
