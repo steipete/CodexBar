@@ -1,4 +1,5 @@
 import CodexBarCore
+import Commander
 import Foundation
 import Testing
 @testable import CodexBarCLI
@@ -36,6 +37,37 @@ struct DashboardClaudeSwapSnapshotTests {
         #expect(pace["primary"] is [String: Any])
         #expect(pace["secondary"] is [String: Any])
         #expect(active["updatedAt"] as? String == "2027-01-15T08:00:00Z")
+    }
+
+    @Test
+    func `full identity mode keeps real account emails`() throws {
+        let accounts = ClaudeSwapAccountProjection.accountSnapshots(
+            from: self.threeAccountList(),
+            now: self.generatedAt)
+        let providers = try self.providers(
+            identityMode: .full,
+            claudeSwap: DashboardClaudeSwapInput(accounts: accounts, adapterError: nil, weeklyWorkDays: nil))
+        let claude = try #require(providers.first { $0["id"] as? String == "claude" })
+        let rows = try #require(claude["accounts"] as? [[String: Any]])
+        let emails = rows.compactMap { ($0["identity"] as? [String: Any])?["accountEmail"] as? String }
+        #expect(emails == ["personal@personal.example", "work@example.com", "third@example.net"])
+    }
+
+    @Test
+    func `dashboard identity flag decodes redacted full and rejects others`() {
+        #expect(CodexBarCLI.decodeDashboardIdentityMode(from: self.parsedValues(identity: nil)) == .redacted)
+        #expect(CodexBarCLI.decodeDashboardIdentityMode(from: self.parsedValues(identity: "redacted")) == .redacted)
+        #expect(CodexBarCLI.decodeDashboardIdentityMode(from: self.parsedValues(identity: "full")) == .full)
+        #expect(CodexBarCLI.decodeDashboardIdentityMode(from: self.parsedValues(identity: "FULL")) == .full)
+        #expect(CodexBarCLI.decodeDashboardIdentityMode(from: self.parsedValues(identity: "none")) == nil)
+        #expect(CodexBarCLI.decodeDashboardIdentityMode(from: self.parsedValues(identity: "bogus")) == nil)
+    }
+
+    private func parsedValues(identity: String?) -> ParsedValues {
+        ParsedValues(
+            positional: [],
+            options: identity.map { ["identity": [$0]] } ?? [:],
+            flags: [])
     }
 
     @Test

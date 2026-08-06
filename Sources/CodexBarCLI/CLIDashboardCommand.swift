@@ -19,6 +19,11 @@ struct DashboardOptions: CommanderParsable {
         name: .long("timeout"),
         help: "Overall fetch timeout in seconds, 0...86400 (default 30; 0 disables)")
     var timeout: Double?
+
+    @Option(
+        name: .long("identity"),
+        help: "Account identity detail: redacted (default) or full. The HTTP serve transport is always redacted; full is for one-shot snapshots consumed on trusted, private surfaces.")
+    var identity: String?
 }
 
 struct DashboardSnapshotResult {
@@ -44,7 +49,8 @@ struct DashboardSnapshotProducer: Sendable {
     func collect(
         config: CodexBarConfig,
         refreshInterval: TimeInterval,
-        codexBarVersion: String?) async throws -> DashboardSnapshotResult
+        codexBarVersion: String?,
+        identityMode: DashboardIdentityMode = .redacted) async throws -> DashboardSnapshotResult
     {
         let selection = CodexBarCLI.providerSelection(
             rawOverride: nil,
@@ -60,7 +66,7 @@ struct DashboardSnapshotProducer: Sendable {
             usagePayloads: usageOutput.payload,
             costPayloads: costPayloads,
             config: config,
-            identityMode: .redacted,
+            identityMode: identityMode,
             generatedAt: generatedAt,
             refreshInterval: refreshInterval,
             codexBarVersion: codexBarVersion,
@@ -145,6 +151,12 @@ extension CodexBarCLI {
                 message: "--timeout must be a finite number of seconds from 0 through 86400.",
                 kind: .args)
         }
+        guard let identityMode = decodeDashboardIdentityMode(from: values) else {
+            exit(
+                code: .failure,
+                message: "--identity must be redacted or full.",
+                kind: .args)
+        }
 
         let configSnapshot: CLIServeConfigSnapshot
         do {
@@ -191,7 +203,8 @@ extension CodexBarCLI {
             result = try await DashboardSnapshotProducer.live(context: context).collect(
                 config: context.config,
                 refreshInterval: context.usage.refreshInterval,
-                codexBarVersion: context.codexBarVersion)
+                codexBarVersion: context.codexBarVersion,
+                identityMode: identityMode)
         } catch {
             await Self.shutdownDashboardRuntime(
                 providerOperations: providerOperations,
@@ -207,6 +220,21 @@ extension CodexBarCLI {
             Self.exit(code: .failure, message: "Could not encode dashboard snapshot.")
         }
         print(json)
+    }
+
+    /// `.none` is deliberately not accepted: the flag chooses between the safe
+    /// default and full identity for trusted local consumers; suppressing
+    /// identity entirely is not a supported dashboard shape.
+    static func decodeDashboardIdentityMode(from values: ParsedValues) -> DashboardIdentityMode? {
+        guard let raw = values.options["identity"]?.last else { return .redacted }
+        switch raw.lowercased() {
+        case DashboardIdentityMode.redacted.rawValue:
+            return .redacted
+        case DashboardIdentityMode.full.rawValue:
+            return .full
+        default:
+            return nil
+        }
     }
 
     static func decodeDashboardTimeout(from values: ParsedValues) -> TimeInterval? {
