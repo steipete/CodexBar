@@ -10,12 +10,16 @@ import Testing
 
 /// Provider architecture drift tripwire for honest mistakes by future contributors and AI agents.
 ///
-/// This is deliberately not an adversarially complete analyzer. It lexically scans shipped Swift in `Sources/**`
-/// and `WidgetExtension/**` for dotted provider cases, raw-ID literals in policy contexts, and labeled or positional
-/// arguments. String concatenation, reflection, and dynamic lookups are out of scope because they defeat lexical
-/// analysis and adversarial insiders are not the threat. `Tests/**` is out of scope because fixtures legitimately name
-/// providers; `Scripts/**` and non-Swift files are out of scope because this tripwire guards shipped Swift
-/// architecture.
+/// This lexical scanner detects dotted provider cases, including qualified, labeled, and multiline statements, plus
+/// lowercase raw provider-ID string literals in every single-statement position, including assignments, bare function
+/// arguments, dictionary keys and values, array elements, and returns. It scans shipped Swift under `Sources/**` and
+/// `WidgetExtension/**` and applies suppressions to exact provider tokens rather than whole statements.
+///
+/// Dotted provider cases that require real expression parsing, including implicit closure returns and closure-body
+/// dataflow, are intentionally out of scope. String concatenation, reflection, and dynamic lookup are also out of
+/// scope, as are `Tests/**` and non-Swift files. This test is a lexical drift tripwire for honest mistakes, not an
+/// adversarially complete analyzer. If in-the-wild drift starts slipping past it, the concrete upgrade path is a
+/// SwiftSyntax-based implementation that can model expressions and dataflow instead of extending these heuristics.
 @MainActor
 // swiftlint:disable:next type_body_length
 struct ProviderArchitectureGatekeeperTests {
@@ -333,6 +337,32 @@ struct ProviderArchitectureGatekeeperTests {
     }
 
     @Test
+    func `provider reference scanner catches raw IDs in every single statement position`() {
+        let source = #"""
+        let choice = "claude"
+        choose("claude")
+        let aliases = ["primary": "claude"]
+        """#
+        let references = Self.providerReferences(in: source, providerIDs: ["claude"])
+
+        #expect(references.map(\.providerIDs) == [["claude"], ["claude"], ["claude"]])
+    }
+
+    @Test
+    func `provider reference scanner catches labeled dotted case on continuation line`() {
+        let source = """
+        choose(
+            provider:
+                .claude)
+        """
+        let references = Self.providerReferences(in: source, providerIDs: ["claude"])
+
+        #expect(references.count == 1)
+        #expect(references.first?.providerIDs == ["claude"])
+        #expect(references.first?.newlyRecognizedProviderIDs == ["claude"])
+    }
+
+    @Test
     func `provider reference scanner catches raw IDs in multiline policy statements`() {
         let source = #"""
         let handlers = [
@@ -365,14 +395,11 @@ struct ProviderArchitectureGatekeeperTests {
         let source = #"""
         let url = "https://example.com/claude/status"
         if endpoint == "https://chat.openai.com" { return }
-        let category = "codex"
+        let log = Logger(subsystem: "com.example.fixture", category: "codex")
         logger.info("claude request completed")
         logger.info(
             "codex request completed"
         )
-        let labels = [
-            "claude",
-        ]
         """#
 
         #expect(Self.providerReferences(in: source, providerIDs: ["claude", "codex", "openai"]).isEmpty)
@@ -387,6 +414,35 @@ struct ProviderArchitectureGatekeeperTests {
         let references = Self.providerReferences(in: source, providerIDs: ["claude", "codex"])
 
         #expect(references.map(\.providerIDs) == [["codex"], ["codex"]])
+    }
+
+    @Test
+    func `log suppression is scoped to the enclosing call argument`() {
+        let source = #"""
+        logger.info(
+            "codex",
+            metadata: ["provider": selectedProvider])
+        selectProvider("claude", logger: logger.shared)
+        selectProvider(
+            "claude",
+            logger: logger.shared)
+        """#
+        let references = Self.providerReferences(in: source, providerIDs: ["claude", "codex"])
+
+        #expect(references.map(\.providerIDs) == [["claude"], ["claude"]])
+    }
+
+    @Test
+    func `category suppression requires a log category constructor`() {
+        let source = #"""
+        let providerLog = OSLog(
+            subsystem: "com.example.fixture",
+            category: "codex")
+        ProviderRule(category: "claude")
+        """#
+        let references = Self.providerReferences(in: source, providerIDs: ["claude", "codex"])
+
+        #expect(references.map(\.providerIDs) == [["claude"]])
     }
 
     @Test
@@ -425,6 +481,25 @@ struct ProviderArchitectureGatekeeperTests {
 
         #expect(failures.count == 1)
         #expect(failures.first?.contains("references: 1") == true)
+    }
+
+    @Test
+    func `exact suppression can justify a raw provider ID literal`() {
+        let path = "Sources/App/Shared.swift"
+        let anchor = "let upstreamStorageDirectory = \"opencode\""
+        let suppression = SuppressedProviderReference(
+            path: path,
+            line: 1,
+            anchor: anchor,
+            expectedProviderIDs: ["opencode"],
+            reason: "The fixture models an exact upstream storage contract.")
+        let failures = Self.analyze(
+            file: SourceFile(path: path, source: anchor),
+            providerIDs: ["opencode"],
+            allowedConstructs: [],
+            suppressedReferences: [suppression])
+
+        #expect(failures.isEmpty)
     }
 
     @Test
@@ -610,10 +685,10 @@ struct ProviderArchitectureGatekeeperTests {
         }
 
         mutating func suppressOneOccurrence(of providerID: String) -> Bool {
-            guard let newlyRecognizedIndex = self.newlyRecognizedProviderOccurrences.firstIndex(of: providerID),
-                  let occurrenceIndex = self.providerOccurrences.firstIndex(of: providerID)
-            else { return false }
-            self.newlyRecognizedProviderOccurrences.remove(at: newlyRecognizedIndex)
+            guard let occurrenceIndex = self.providerOccurrences.firstIndex(of: providerID) else { return false }
+            if let newlyRecognizedIndex = self.newlyRecognizedProviderOccurrences.firstIndex(of: providerID) {
+                self.newlyRecognizedProviderOccurrences.remove(at: newlyRecognizedIndex)
+            }
             self.providerOccurrences.remove(at: occurrenceIndex)
             return true
         }
@@ -692,9 +767,9 @@ struct ProviderArchitectureGatekeeperTests {
     private static let allowlistAnchorTolerance = 2
 
     // swiftlint:disable line_length
-    /// Newly recognized labeled/positional arguments and fully qualified cases may be suppressed only at an exact
-    /// source line and for an exact provider set. Each entry documents why that token is ownership data rather than
-    /// shared provider-selection policy.
+    /// Provider references may be suppressed only at an exact source line and for an exact provider set. Each entry
+    /// documents why that token is an external contract or ownership data rather than shared provider-selection
+    /// policy.
     private static let suppressedProviderReferences: [SuppressedProviderReference] = [
         SuppressedProviderReference(
             path: "Sources/CodexBar/CodexAccountUsageSnapshotStore.swift",
@@ -1441,6 +1516,132 @@ struct ProviderArchitectureGatekeeperTests {
             anchor: "let url = self.cacheFileURL(provider: .codex, cacheRoot: cacheRoot)",
             expectedProviderIDs: ["codex"],
             reason: "This provider-specific core branch passes its already-selected identity to a shared helper."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBar/GeminiLoginRunner.swift",
+            line: 7,
+            anchor: ".appendingPathComponent(\".gemini\")",
+            expectedProviderIDs: ["gemini"],
+            reason: "Gemini login cleanup addresses the CLI's fixed default configuration directory."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBar/UsageStore+OpenAIWeb.swift",
+            line: 1518,
+            anchor: "&& (lower.contains(\"about\") || lower.contains(\"openai\") || lower.contains(\"chatgpt\"))",
+            expectedProviderIDs: ["openai"],
+            reason: "This logged-out-page classifier matches OpenAI's public landing-page brand token."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBarCore/AgentSession.swift",
+            line: 389,
+            anchor: ".appendingPathComponent(\".claude\", isDirectory: true)",
+            expectedProviderIDs: ["claude"],
+            reason: "The Claude transcript locator follows Claude Code's fixed default projects directory."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBarCore/AgentSession.swift",
+            line: 463,
+            anchor: ".appendingPathComponent(\".claude\", isDirectory: true)",
+            expectedProviderIDs: ["claude"],
+            reason: "The budgeted Claude transcript locator follows Claude Code's fixed default projects directory."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBarCore/AgentSession.swift",
+            line: 570,
+            anchor: "if value.contains(\"ide\") || value.contains(\"vscode\") || value.contains(\"cursor\") || value.contains(\"zed\") {",
+            expectedProviderIDs: ["cursor", "zed"],
+            reason: "This session-source classifier recognizes editor-origin strings emitted by upstream clients."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBarCore/DarwinProcessEnumerator.swift",
+            line: 9,
+            anchor: "if lowercasedPath.contains(\"antigravity\") {",
+            expectedProviderIDs: ["antigravity"],
+            reason: "This argv privacy prefilter recognizes Antigravity's fixed executable-path signature."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBarCore/Providers/Antigravity/AntigravityStatusProbe.swift",
+            line: 211,
+            anchor: "matching: { $0.lowercased().contains(\"gemini\") },",
+            expectedProviderIDs: ["gemini"],
+            reason: "Antigravity quota payloads use this token to identify a model family, not a CodexBar provider."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBarCore/Providers/Antigravity/AntigravityStatusProbe.swift",
+            line: 214,
+            anchor: "matching: { $0.lowercased().contains(\"claude\") || $0.lowercased().contains(\"gpt\") },",
+            expectedProviderIDs: ["claude"],
+            reason: "Antigravity quota payloads use this token to identify a model family, not a CodexBar provider."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBarCore/Providers/Antigravity/AntigravityStatusProbe.swift",
+            line: 303,
+            anchor: "if lowercasedTitle.contains(\"gemini\") {",
+            expectedProviderIDs: ["gemini"],
+            reason: "Antigravity quota titles use this token to identify a model family for display."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBarCore/Providers/Antigravity/AntigravityStatusProbe.swift",
+            line: 306,
+            anchor: "if lowercasedTitle.contains(\"claude\") || lowercasedTitle.contains(\"gpt\") {",
+            expectedProviderIDs: ["claude"],
+            reason: "Antigravity quota titles use this token to identify a model family for display."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBarCore/Providers/Antigravity/AntigravityStatusProbe.swift",
+            line: 342,
+            anchor: "if title.contains(\"gemini\") {",
+            expectedProviderIDs: ["gemini"],
+            reason: "Antigravity quota titles use this token to rank a model family."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBarCore/Providers/Antigravity/AntigravityStatusProbe.swift",
+            line: 345,
+            anchor: "if title.contains(\"claude\") || title.contains(\"gpt\") {",
+            expectedProviderIDs: ["claude"],
+            reason: "Antigravity quota titles use this token to rank a model family."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBarCore/Providers/Antigravity/AntigravityStatusProbe.swift",
+            line: 706,
+            anchor: "if text.contains(\"claude\") {",
+            expectedProviderIDs: ["claude"],
+            reason: "Antigravity model identifiers use this token to classify a model family."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBarCore/Providers/Antigravity/AntigravityStatusProbe.swift",
+            line: 709,
+            anchor: "if text.contains(\"gpt\") || text.contains(\"openai\") {",
+            expectedProviderIDs: ["openai"],
+            reason: "Antigravity model identifiers use this token to classify a model family."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBarCore/Providers/Antigravity/AntigravityStatusProbe.swift",
+            line: 712,
+            anchor: "if text.contains(\"gemini\"), text.contains(\"pro\") {",
+            expectedProviderIDs: ["gemini"],
+            reason: "Antigravity model identifiers use this token to classify a model family."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBarCore/Providers/Antigravity/AntigravityStatusProbe.swift",
+            line: 715,
+            anchor: "if text.contains(\"gemini\"), text.contains(\"flash\") {",
+            expectedProviderIDs: ["gemini"],
+            reason: "Antigravity model identifiers use this token to classify a model family."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBarCore/Providers/AzureOpenAI/AzureOpenAIUsageFetcher.swift",
+            line: 171,
+            anchor: "let base = self.apiRoot(endpoint: endpoint, pathComponents: [\"openai\", \"v1\"])",
+            expectedProviderIDs: ["openai"],
+            reason: "Azure OpenAI's v1 REST route requires this fixed service path component."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBarCore/Providers/AzureOpenAI/AzureOpenAIUsageFetcher.swift",
+            line: 180,
+            anchor: "let base = self.apiRoot(endpoint: endpoint, pathComponents: [\"openai\"])",
+            expectedProviderIDs: ["openai"],
+            reason: "Azure OpenAI's deployment REST route requires this fixed service path component."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBarCore/Providers/Gemini/GeminiStatusProbe.swift",
+            line: 143,
+            anchor: "if normalized.contains(\"migrate\"), normalized.contains(\"antigravity\"), normalized.contains(\"gemini\") {",
+            expectedProviderIDs: ["antigravity"],
+            reason: "Gemini's upstream deprecation response names the Antigravity migration destination."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBarCore/Providers/OpenCodeGo/OpenCodeGoLocalUsageReader.swift",
+            line: 39,
+            anchor: ".appendingPathComponent(\"opencode\", isDirectory: true)",
+            expectedProviderIDs: ["opencode"],
+            reason: "OpenCode Go reads the upstream OpenCode shared storage directory by contract."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBarCore/Providers/ProviderVersionDetector.swift",
+            line: 147,
+            anchor: "? self.whichHook!(\"claude\")",
+            expectedProviderIDs: ["claude"],
+            reason: "The Claude version detector asks its injected locator for the fixed Claude executable name."),
         SuppressedProviderReference(
             path: "Sources/CodexBarWidget/BurnDownWidgetProvider.swift",
             line: 180,
@@ -3245,8 +3446,8 @@ struct ProviderArchitectureGatekeeperTests {
             line: 93,
             anchor: "guard AgentPSOutputParser.provider(for: process) == .codex else { return nil }",
             expectedProviderIDs: ["codex"],
-            expectedReferenceCount: 1,
-            expectedReferenceFingerprint: ["codex@0"],
+            expectedReferenceCount: 2,
+            expectedReferenceFingerprint: ["codex@0", "codex@5"],
             reason: "This exact host integration maps a provider-owned process, path, or window contract."),
         AllowedProviderConstruct(
             path: "Sources/CodexBarCore/LocalAgentSessionScanner.swift",
@@ -3329,19 +3530,30 @@ struct ProviderArchitectureGatekeeperTests {
             expectedReferenceFingerprint: ["minimax@0"],
             reason: "This exact error branch renders the MiniMax-specific endpoint validation failure."),
         AllowedProviderConstruct(
+            path: "Sources/CodexBarCore/PathEnvironment.swift",
+            line: 536,
+            anchor: ".appendingPathComponent(\"codex\")",
+            expectedProviderIDs: ["codex"],
+            expectedReferenceCount: 2,
+            expectedReferenceFingerprint: ["codex@0", "codex@1"],
+            reason: "This exact binary locator follows the npm Codex package's fixed nested executable path."),
+        AllowedProviderConstruct(
             path: "Sources/CodexBarCore/ProviderStorageFootprint.swift",
             line: 309,
             anchor: "case .codex:",
             expectedProviderIDs: ["claude", "codex", "copilot", "cursor", "gemini", "opencode", "opencodego"],
-            expectedReferenceCount: 7,
+            expectedReferenceCount: 10,
             expectedReferenceFingerprint: [
                 "codex@0",
                 "claude@3",
+                "claude@5",
                 "gemini@11",
+                "gemini@13",
                 "opencode@16",
                 "opencodego@16",
                 "copilot@20",
                 "cursor@24",
+                "cursor@28",
             ],
             reason: "This exact shared provider integration dispatches a capability owned by the provider descriptor or adapter."),
         AllowedProviderConstruct(
@@ -3365,8 +3577,8 @@ struct ProviderArchitectureGatekeeperTests {
             line: 426,
             anchor: "case let .minimax(details):",
             expectedProviderIDs: ["minimax"],
-            expectedReferenceCount: 1,
-            expectedReferenceFingerprint: ["minimax@0"],
+            expectedReferenceCount: 2,
+            expectedReferenceFingerprint: ["minimax@0", "minimax@1"],
             reason: "This exact Codable branch writes the stable MiniMax diagnostic-detail wire discriminator."),
         AllowedProviderConstruct(
             path: "Sources/CodexBarCore/Providers/ProviderDiagnosticExport.swift",
@@ -3610,7 +3822,7 @@ struct ProviderArchitectureGatekeeperTests {
                 continue
             }
             guard let referenceIndex = references.firstIndex(where: {
-                $0.line == line && $0.newlyRecognizedProviderIDs.isSuperset(of: suppression.expectedProviderIDs)
+                $0.line == line && $0.providerIDs.isSuperset(of: suppression.expectedProviderIDs)
             }) else {
                 failures.append(
                     "\(file.path):\(suppression.line) suppressed provider reference no longer matches " +
@@ -3746,7 +3958,11 @@ struct ProviderArchitectureGatekeeperTests {
             var matches: [String] = []
             var newlyRecognizedMatches: [String] = []
             for providerID in providerIDs {
-                for strength in self.dottedProviderReferenceStrengths(providerID, in: code) {
+                for strength in self.dottedProviderReferenceStrengths(
+                    providerID,
+                    in: code,
+                    statement: statementContexts[index])
+                {
                     matches.append(providerID)
                     if strength != .strong {
                         newlyRecognizedMatches.append(providerID)
@@ -3780,7 +3996,8 @@ struct ProviderArchitectureGatekeeperTests {
 
     private static func dottedProviderReferenceStrengths(
         _ rawValue: String,
-        in line: String) -> [ProviderReferenceStrength]
+        in line: String,
+        statement: StatementContext) -> [ProviderReferenceStrength]
     {
         let needle = ".\(rawValue)"
         let plainStringRanges = self.quotedStringLiterals(in: line).compactMap { literal -> Range<String.Index>? in
@@ -3794,7 +4011,11 @@ struct ProviderArchitectureGatekeeperTests {
                 continue
             }
             if range.upperBound == line.endIndex || !Self.isIdentifierCharacter(line[range.upperBound]),
-               let strength = self.providerPolicyPosition(rawValue, range: range, line: line)
+               let strength = self.providerPolicyPosition(
+                   rawValue,
+                   range: range,
+                   line: line,
+                   statement: statement)
             {
                 found.append(strength)
             }
@@ -3806,7 +4027,8 @@ struct ProviderArchitectureGatekeeperTests {
     private static func providerPolicyPosition(
         _ rawValue: String,
         range: Range<String.Index>,
-        line: String) -> ProviderReferenceStrength?
+        line: String,
+        statement: StatementContext) -> ProviderReferenceStrength?
     {
         let trimmed = line.trimmingCharacters(in: .whitespaces)
         let prefix = String(line[..<range.lowerBound]).trimmingCharacters(in: .whitespaces)
@@ -3839,7 +4061,19 @@ struct ProviderArchitectureGatekeeperTests {
         if prefix.hasSuffix(":") || prefix.hasSuffix("(") {
             return .weakArgument
         }
+        if prefix.isEmpty {
+            let statementPrefix = statement.prefixBeforeLine
+            if self.unmatchedOpeningParentheses(in: statementPrefix).reversed().contains(where: {
+                self.currentArgumentLabel(openingParenthesis: $0, in: statementPrefix) != nil
+            }) {
+                return .weakArgument
+            }
+        }
         return suffix.hasPrefix(":") ? .strong : nil
+    }
+
+    private struct StatementContext {
+        let prefixBeforeLine: String
     }
 
     private static func isProviderIDLiteral(
@@ -3847,19 +4081,16 @@ struct ProviderArchitectureGatekeeperTests {
         literal: String,
         range: Range<String.Index>,
         line: String,
-        statement: String) -> Bool
+        statement: StatementContext) -> Bool
     {
         let lowercasedLiteral = literal.lowercased()
         guard self.containsWord(providerID, in: lowercasedLiteral) else { return false }
-        let lowercasedStatement = statement.lowercased()
         if self.containsSuppressionToken("http://", in: lowercasedLiteral) ||
             self.containsSuppressionToken("https://", in: lowercasedLiteral)
         {
             return false
         }
-        if self.isLogLiteral(range: range, in: line) ||
-            (statement.contains("\n") && self.isLogStatement(lowercasedStatement))
-        {
+        if self.isLogLiteral(range: range, in: line, statement: statement) {
             return false
         }
         if literal != lowercasedLiteral {
@@ -3867,42 +4098,183 @@ struct ProviderArchitectureGatekeeperTests {
         }
         let normalizedLiteral = lowercasedLiteral.trimmingCharacters(in: CharacterSet(charactersIn: "."))
         guard normalizedLiteral == providerID else { return false }
-        let policyKeywords = [
-            "provider", "rawvalue", "representedobject", "fallback", "default", "selected",
-            "case ", "return ", "command", "route", "routing", "tool", "binary", "executable",
-        ]
-        let suffix = line[range.upperBound...].trimmingCharacters(in: .whitespaces)
-        return suffix.hasPrefix(":") || lowercasedStatement.contains("==") || lowercasedStatement.contains("!=") ||
-            policyKeywords.contains(where: lowercasedStatement.contains)
+        return true
     }
 
-    private static func isLogLiteral(range: Range<String.Index>, in line: String) -> Bool {
-        let prefix = line[..<range.lowerBound].lowercased()
-        let statement = prefix.split(separator: ";", omittingEmptySubsequences: false).last ?? prefix[...]
-        let trimmed = statement.trimmingCharacters(in: .whitespaces)
-        return self.containsSuppressionToken("logger.", in: statement) ||
-            self.containsSuppressionToken("log.", in: statement) ||
-            trimmed.hasSuffix("category:") && self.containsSuppressionToken("category:", in: trimmed)
+    private static func isLogLiteral(
+        range: Range<String.Index>,
+        in line: String,
+        statement: StatementContext) -> Bool
+    {
+        let prefix = statement.prefixBeforeLine + line[..<range.lowerBound]
+        let activePrefix = prefix.split(separator: ";", omittingEmptySubsequences: false).last
+            .map(String.init) ?? prefix
+        let openingParentheses = self.unmatchedOpeningParentheses(in: activePrefix)
+        if openingParentheses.reversed().contains(where: {
+            self.isLoggingCall(openingParenthesis: $0, in: activePrefix)
+        }) {
+            return true
+        }
+        guard let openingParenthesis = openingParentheses.last,
+              self.currentArgumentLabel(openingParenthesis: openingParenthesis, in: activePrefix) == "category"
+        else {
+            return false
+        }
+        return self.isLogCategoryConstructor(openingParenthesis: openingParenthesis, in: activePrefix)
     }
 
-    private static func isLogStatement(_ lowercasedStatement: String) -> Bool {
-        let trimmed = lowercasedStatement.trimmingCharacters(in: .whitespacesAndNewlines)
-        return self.containsSuppressionToken("logger.", in: trimmed) ||
-            self.containsSuppressionToken("log.", in: trimmed) ||
-            self.containsSuppressionToken("category:", in: trimmed)
+    private static func unmatchedOpeningParentheses(in text: String) -> [String.Index] {
+        var openingParentheses: [String.Index] = []
+        var previous: Character?
+        var isInsideString = false
+        for index in text.indices {
+            let character = text[index]
+            if character == "\"", previous != "\\" {
+                isInsideString.toggle()
+            } else if !isInsideString {
+                if character == "(" {
+                    openingParentheses.append(index)
+                } else if character == ")" {
+                    _ = openingParentheses.popLast()
+                }
+            }
+            previous = character
+        }
+        return openingParentheses
     }
 
-    private static func statementContexts(for lines: [String]) -> [String] {
-        var contexts = Array(repeating: "", count: lines.count)
+    private static func isLoggingCall(openingParenthesis: String.Index, in text: String) -> Bool {
+        let identifiers = self.callIdentifiers(openingParenthesis: openingParenthesis, in: text)
+        guard let callName = identifiers.last else { return false }
+        if callName == "log" || callName == "logger" || callName.hasSuffix("Logger") {
+            return true
+        }
+        let loggingMethods: Set = ["debug", "error", "fault", "info", "log", "notice", "trace", "verbose", "warning"]
+        guard loggingMethods.contains(callName.lowercased()) else { return false }
+        return identifiers.dropLast().contains { identifier in
+            identifier == "log" || identifier == "logger" || identifier == "CodexBarLog" ||
+                identifier.hasSuffix("Logger")
+        }
+    }
+
+    private static func isLogCategoryConstructor(openingParenthesis: String.Index, in text: String) -> Bool {
+        let identifiers = self.callIdentifiers(openingParenthesis: openingParenthesis, in: text)
+        guard let callName = identifiers.last else { return false }
+        return callName == "OSLog" || callName == "Logger" || callName == "logger" ||
+            callName.hasSuffix("LogCategory") || callName.hasSuffix("LogCategories")
+    }
+
+    private static func callIdentifiers(openingParenthesis: String.Index, in text: String) -> [String] {
+        let expression = self.callExpression(openingParenthesis: openingParenthesis, in: text)
+        var identifiers: [String] = []
+        var identifier = ""
+        var depth = 0
+        for character in expression {
+            if character == "(" {
+                depth += 1
+            } else if character == ")" {
+                depth = max(0, depth - 1)
+            } else if depth == 0, self.isIdentifierCharacter(character) {
+                identifier.append(character)
+            } else if depth == 0, !identifier.isEmpty {
+                identifiers.append(identifier)
+                identifier = ""
+            }
+        }
+        if !identifier.isEmpty {
+            identifiers.append(identifier)
+        }
+        return identifiers
+    }
+
+    private static func callExpression(openingParenthesis: String.Index, in text: String) -> Substring {
+        var start = openingParenthesis
+        while start > text.startIndex {
+            let previous = text.index(before: start)
+            let character = text[previous]
+            if character.isWhitespace || self.isIdentifierCharacter(character) || character == "." {
+                start = previous
+            } else if character == ")", let matchingOpening = self.matchingOpeningParenthesis(
+                for: previous,
+                in: text)
+            {
+                start = matchingOpening
+            } else {
+                break
+            }
+        }
+        return text[start..<openingParenthesis]
+    }
+
+    private static func matchingOpeningParenthesis(
+        for closingParenthesis: String.Index,
+        in text: String) -> String.Index?
+    {
+        var openingParentheses: [String.Index] = []
+        var previous: Character?
+        var isInsideString = false
+        for index in text.indices where index <= closingParenthesis {
+            let character = text[index]
+            if character == "\"", previous != "\\" {
+                isInsideString.toggle()
+            } else if !isInsideString {
+                if character == "(" {
+                    openingParentheses.append(index)
+                } else if character == ")" {
+                    guard let opening = openingParentheses.popLast() else { return nil }
+                    if index == closingParenthesis {
+                        return opening
+                    }
+                }
+            }
+            previous = character
+        }
+        return nil
+    }
+
+    private static func currentArgumentLabel(openingParenthesis: String.Index, in text: String) -> String? {
+        let argumentStart = text.index(after: openingParenthesis)
+        var currentStart = argumentStart
+        var delimiterDepth = 0
+        var previous: Character?
+        var isInsideString = false
+        var index = argumentStart
+        while index < text.endIndex {
+            let character = text[index]
+            if character == "\"", previous != "\\" {
+                isInsideString.toggle()
+            } else if !isInsideString {
+                if character == "(" || character == "[" || character == "{" {
+                    delimiterDepth += 1
+                } else if character == ")" || character == "]" || character == "}" {
+                    delimiterDepth -= 1
+                } else if character == ",", delimiterDepth == 0 {
+                    currentStart = text.index(after: index)
+                }
+            }
+            previous = character
+            index = text.index(after: index)
+        }
+        let argumentPrefix = text[currentStart...].trimmingCharacters(in: .whitespacesAndNewlines)
+        guard argumentPrefix.hasSuffix(":") else { return nil }
+        let label = argumentPrefix.dropLast().trimmingCharacters(in: .whitespacesAndNewlines)
+        return label.allSatisfy(self.isIdentifierCharacter) ? label : nil
+    }
+
+    private static func statementContexts(for lines: [String]) -> [StatementContext] {
+        var contexts = Array(
+            repeating: StatementContext(prefixBeforeLine: ""),
+            count: lines.count)
         var statementLines: [Int] = []
         var fragments: [String] = []
         var delimiterDepth = 0
 
         func finishStatement() {
             guard !fragments.isEmpty else { return }
-            let statement = fragments.joined(separator: "\n")
-            for line in statementLines {
-                contexts[line] = statement
+            var prefix = ""
+            for (offset, line) in statementLines.enumerated() {
+                contexts[line] = StatementContext(prefixBeforeLine: prefix)
+                prefix += fragments[offset] + "\n"
             }
             statementLines.removeAll(keepingCapacity: true)
             fragments.removeAll(keepingCapacity: true)

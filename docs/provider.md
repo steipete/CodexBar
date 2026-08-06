@@ -58,16 +58,24 @@ contribution, so the app, CLI, and plugin cookie broker consume the same provide
 ### Provider architecture gatekeeper threat model
 
 `ProviderArchitectureGatekeeperTests` is a drift tripwire against honest architecture mistakes by future contributors
-and AI agents. It is not an adversarially complete analyzer. In scope are dotted provider cases, raw provider-ID
-literals in policy contexts, and labeled or positional arguments in shipped Swift under `Sources/**` and
-`WidgetExtension/**`.
+and AI agents. Its scope is deliberately narrower than a Swift parser's: the lexical scanner detects dotted provider
+case literals, including qualified, labeled, and multiline statements, and lowercase raw provider-ID string literals
+in every single-statement position (including assignments, bare function arguments, dictionary keys and values, array
+elements, and returns). It scans shipped Swift under `Sources/**` and `WidgetExtension/**`, with suppressions applied to
+exact provider tokens rather than whole statements.
 
 The following are out of scope by design:
 
-- String concatenation, reflection, and dynamic lookups: these defeat lexical analysis, and adversarial insiders are
-  not the threat.
-- `Tests/**`: test fixtures legitimately name providers.
-- `Scripts/**` and non-Swift files: this tripwire guards shipped Swift architecture, not tooling or documentation.
+- Dotted provider cases whose role requires real expression parsing, including implicit closure returns and
+  closure-body dataflow. A line-and-statement lexical scan cannot model those positions honestly.
+- String concatenation, reflection, and dynamic lookup. Their runtime values are not recoverable from literal-token
+  matching.
+- `Tests/**`, where fixtures legitimately name providers, and non-Swift files, because this tripwire is scoped to
+  shipped Swift architecture.
+
+This is engineering scoping, not a claim of adversarial completeness: the gatekeeper is a lexical drift tripwire for
+honest mistakes. If in-the-wild drift is ever observed slipping past it, the concrete upgrade path is to replace the
+lexical policy scan with a SwiftSyntax-based implementation that can model expressions and dataflow.
 
 ## Provider descriptor (source of truth)
 
