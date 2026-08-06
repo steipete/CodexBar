@@ -889,15 +889,20 @@ enum CLIServeWebUI {
           title.append(node("span", "provider-name", provider.name || provider.id || "Provider"));
           head.append(title);
 
-          const knownStatusLevels = ["ok", "warning", "critical", "unknown"];
-          const requestedStatusLevel = provider.status?.level || "unknown";
-          const statusLevel = knownStatusLevels.includes(requestedStatusLevel) ? requestedStatusLevel : "unknown";
-          const statusLabel = provider.status?.label || statusLevel;
-          const status = node("div", "status");
-          const dot = node("span", `dot ${statusLevel}`);
-          dot.setAttribute("aria-hidden", "true");
-          status.append(dot, node("span", "status-label", statusLabel));
-          head.append(status);
+          // Service-health status rides the snapshot only when the collector
+          // fetched provider status pages; serve does not, so hide the chip
+          // entirely instead of rendering a meaningless "unknown".
+          if (provider.status) {
+            const knownStatusLevels = ["ok", "warning", "critical", "unknown"];
+            const requestedStatusLevel = provider.status.level || "unknown";
+            const statusLevel = knownStatusLevels.includes(requestedStatusLevel) ? requestedStatusLevel : "unknown";
+            const statusLabel = provider.status.label || statusLevel;
+            const status = node("div", "status");
+            const dot = node("span", `dot ${statusLevel}`);
+            dot.setAttribute("aria-hidden", "true");
+            status.append(dot, node("span", "status-label", statusLabel));
+            head.append(status);
+          }
           card.append(head);
 
           if (provider.identity) {
