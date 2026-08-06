@@ -262,7 +262,8 @@ extension CodexBarCLI {
             if let path = project.path {
                 lines.append("  \(path)")
             }
-            for source in project.sources {
+            // Match menu: omit sole same-path self-sources so Grok project rows are not duplicated.
+            for source in project.visibleSourcesForDisplay {
                 let sourceCost = source.totalCostUSD
                     .map { UsageFormatter.currencyString($0, currencyCode: snapshot.currencyCode) } ?? "—"
                 let sourceTokens = source.totalTokens.map { UsageFormatter.tokenCountString($0) }

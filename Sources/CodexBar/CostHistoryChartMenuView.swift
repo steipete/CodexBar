@@ -582,9 +582,7 @@ struct CostHistoryChartMenuView: View {
     static func visibleProjectSources(
         _ project: CostUsageProjectBreakdown) -> [CostUsageProjectSourceBreakdown]
     {
-        guard project.sources.count == 1 else { return project.sources }
-        guard let source = project.sources.first, source.path != project.path else { return [] }
-        return [source]
+        project.visibleSourcesForDisplay
     }
 
     private static func defaultSelectedDateKey(model: Model) -> String? {

@@ -159,10 +159,54 @@ struct CLICostTests {
         #expect(output.contains("Projects (Last 30 days):"))
         #expect(output.contains("demo: $1.10 · 8K tokens"))
         #expect(output.contains("/work/demo"))
+        // Sole same-path self-source must not duplicate the project row.
+        #expect(!output.contains("  - demo:"))
         #expect(output.contains("Unknown project: $0.70 · 4K tokens"))
         #expect(output.contains("Local Grok session logs (turn_completed). Cost only when reported."))
         #expect(!output.contains("local usage × public API prices"))
         #expect(!output.contains("API-equivalent estimate"))
+    }
+
+    @Test
+    func `renders grok project sources when path differs from parent`() {
+        let snap = CostUsageTokenSnapshot(
+            sessionTokens: 1000,
+            sessionCostUSD: 0.1,
+            last30DaysTokens: 1000,
+            last30DaysCostUSD: 0.1,
+            historyDays: 30,
+            daily: [],
+            projects: [
+                CostUsageProjectBreakdown(
+                    name: "demo",
+                    path: "/work/demo",
+                    totalTokens: 1000,
+                    totalCostUSD: 0.1,
+                    daily: [],
+                    modelBreakdowns: nil,
+                    sources: [
+                        CostUsageProjectSourceBreakdown(
+                            name: "nested",
+                            path: "/work/demo/packages/nested",
+                            totalTokens: 1000,
+                            totalCostUSD: 0.1,
+                            daily: [],
+                            modelBreakdowns: nil),
+                    ]),
+            ],
+            updatedAt: Date(timeIntervalSince1970: 0))
+
+        let output = CodexBarCLI.renderCostText(
+            provider: .grok,
+            snapshot: snap,
+            groupBy: .project,
+            useColor: false)
+            .replacingOccurrences(of: "\u{00A0}", with: " ")
+            .replacingOccurrences(of: "$ ", with: "$")
+
+        #expect(output.contains("demo: $0.10 · 1K tokens"))
+        #expect(output.contains("  - nested: $0.10 · 1K tokens"))
+        #expect(output.contains("/work/demo/packages/nested"))
     }
 
     @Test

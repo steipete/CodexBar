@@ -263,6 +263,17 @@ public struct CostUsageProjectBreakdown: Sendable, Equatable {
         self.modelBreakdowns = modelBreakdowns
         self.sources = sources
     }
+
+    /// Sources to show under a project row in menus/CLI.
+    ///
+    /// When a project has a single source that is the project itself (same path),
+    /// omit it so totals are not listed twice. Keep multi-source rows and sources
+    /// with a distinct path (for example Codex worktrees).
+    public var visibleSourcesForDisplay: [CostUsageProjectSourceBreakdown] {
+        guard self.sources.count == 1 else { return self.sources }
+        guard let source = self.sources.first, source.path != self.path else { return [] }
+        return [source]
+    }
 }
 
 public struct CostUsageProjectSourceBreakdown: Sendable, Equatable {
