@@ -322,7 +322,7 @@ public enum GrokTurnUsageScanner {
         let staleCutoff = since
         var byEventID: [String: TurnRecord] = [:]
         var cwdBySession: [String: String] = [:]
-        var cache = GrokTurnUsageCacheIO.load(cacheRoot: options.cacheRoot)
+        let cache = GrokTurnUsageCacheIO.load(cacheRoot: options.cacheRoot)
         var nextCache = GrokTurnUsageCache(version: cache.version)
         var cacheDirty = false
         var historyIsIncomplete = false
@@ -520,6 +520,19 @@ public enum GrokTurnUsageScanner {
                 }
                 try consumeLine(lineData)
             }
+
+            // Short read means the file ended inside this budget window.
+            if chunk.count < chunkSize {
+                reachedEOF = true
+                break
+            }
+        }
+        // When the allowed window exactly matches the remaining file bytes, the final read
+        // returns a full chunk and never observes EOF. Probe one extra byte so a trailing
+        // line without a newline is still flushed (and still dropped when more data exists).
+        if !reachedEOF {
+            let probe = try handle.read(upToCount: 1) ?? Data()
+            reachedEOF = probe.isEmpty
         }
         // Flush trailing line only when the whole slice reached EOF (avoid partial last line).
         if reachedEOF, !pending.isEmpty, !discardPartialLead {
@@ -557,7 +570,10 @@ public enum GrokTurnUsageScanner {
 
         let modelUsages = self.parseModelUsages(from: usage["modelUsage"] as? [String: Any])
 
-        let meta = params["_meta"] as? [String: Any] ?? [:]
+        // Real Grok session logs put `_meta` at the root; keep nested `params._meta` as a fallback.
+        let meta = (root["_meta"] as? [String: Any])
+            ?? (params["_meta"] as? [String: Any])
+            ?? [:]
         let promptID = update["prompt_id"] as? String
         let eventID: String = {
             if let id = meta["eventId"] as? String, !id.isEmpty { return id }

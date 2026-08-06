@@ -101,6 +101,25 @@ struct GrokTurnUsageScannerTests {
     }
 
     @Test
+    func `reads nested params meta when root meta is absent`() throws {
+        let line = """
+        {"timestamp":1784626073,"params":{"sessionId":"session-nested","update":{\
+        "sessionUpdate":"turn_completed","prompt_id":"p-nested","usage":{"inputTokens":10,\
+        "cachedReadTokens":0,"outputTokens":1,"totalTokens":11,"modelCalls":1}},\
+        "_meta":{"eventId":"nested-event-1","agentTimestampMs":1784626073000}}}
+        """
+
+        let record = try #require(GrokTurnUsageScanner.parseTurnLine(
+            line,
+            sessionID: "session-nested",
+            cwd: nil))
+
+        #expect(record.eventID == "nested-event-1")
+        #expect(record.inputTokens == 10)
+        #expect(record.outputTokens == 1)
+    }
+
+    @Test
     func `daily report aggregates tokens and partial costs`() throws {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("grok-cost-test-\(UUID().uuidString)", isDirectory: true)
@@ -137,7 +156,10 @@ struct GrokTurnUsageScannerTests {
         """
         try Data(updates.utf8).write(to: sessionDir.appendingPathComponent("updates.jsonl"))
 
-        let options = GrokTurnUsageScanner.Options(sessionsRoot: root)
+        let cacheRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent("grok-cost-cache-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: cacheRoot) }
+        let options = GrokTurnUsageScanner.Options(sessionsRoot: root, cacheRoot: cacheRoot)
         let since = Date(timeIntervalSince1970: 1_700_000_000)
         let until = Date(timeIntervalSince1970: 1_900_000_000)
         let report = try GrokTurnUsageScanner.loadDailyReport(
@@ -247,10 +269,11 @@ struct GrokTurnUsageScannerTests {
 
         let now = Date()
         let ts = Int(now.timeIntervalSince1970)
+        // Root-level `_meta` (real Grok log shape); keep JSON fully closed.
         let line = """
         {"timestamp":\(ts),"params":{"sessionId":"big-session","update":{"sessionUpdate":\
         "turn_completed","prompt_id":"p","usage":{"inputTokens":10,"cachedReadTokens":0,\
-        "outputTokens":1,"totalTokens":11,"modelCalls":1,"costUsdTicks":100000000}},"_meta":{\
+        "outputTokens":1,"totalTokens":11,"modelCalls":1,"costUsdTicks":100000000}}},"_meta":{\
         "eventId":"e-big","agentTimestampMs":\(ts)000}}
         """
         let lineData = Data((line + "\n").utf8)
@@ -309,7 +332,7 @@ struct GrokTurnUsageScannerTests {
             let line = """
             {"timestamp":\(ts),"params":{"sessionId":"\(id)","update":{"sessionUpdate":\
             "turn_completed","prompt_id":"p","usage":{"inputTokens":\(tokens),"cachedReadTokens":0,\
-            "outputTokens":1,"totalTokens":\(tokens + 1),"modelCalls":1,"costUsdTicks":100000000}},\
+            "outputTokens":1,"totalTokens":\(tokens + 1),"modelCalls":1,"costUsdTicks":100000000}}},\
             "_meta":{"eventId":"\(eventID)","agentTimestampMs":\(ts)000}}
             """
             let url = sessionDir.appendingPathComponent("updates.jsonl")
@@ -386,7 +409,7 @@ struct GrokTurnUsageScannerTests {
             let line = """
             {"timestamp":\(ts),"params":{"sessionId":"\(id)","update":{"sessionUpdate":\
             "turn_completed","prompt_id":"p","usage":{"inputTokens":\(tokens),"cachedReadTokens":0,\
-            "outputTokens":1,"totalTokens":\(tokens + 1),"modelCalls":1,"costUsdTicks":100000000}},\
+            "outputTokens":1,"totalTokens":\(tokens + 1),"modelCalls":1,"costUsdTicks":100000000}}},\
             "_meta":{"eventId":"\(eventID)","agentTimestampMs":\(ts)000}}
             """
             let url = sessionDir.appendingPathComponent("updates.jsonl")
@@ -472,7 +495,7 @@ struct GrokTurnUsageScannerTests {
         let line = """
         {"timestamp":\(ts),"params":{"sessionId":"stale","update":{"sessionUpdate":\
         "turn_completed","prompt_id":"p","usage":{"inputTokens":10,"cachedReadTokens":0,\
-        "outputTokens":1,"totalTokens":11,"modelCalls":1}},"_meta":{"eventId":"e-stale",\
+        "outputTokens":1,"totalTokens":11,"modelCalls":1}}},"_meta":{"eventId":"e-stale",\
         "agentTimestampMs":\(ts)000}}
         """
         let url = sessionDir.appendingPathComponent("updates.jsonl")
