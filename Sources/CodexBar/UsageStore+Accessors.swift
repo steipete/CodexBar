@@ -30,14 +30,17 @@ extension UsageStore {
     }
 
     var codexSnapshot: UsageSnapshot? {
+        // Provider-specific by design: dedicated Codex consumers require the reconciled primary-account snapshot.
         self.snapshots[.codex]
     }
 
     var claudeSnapshot: UsageSnapshot? {
+        // Provider-specific by design: Claude swap/account consumers require the active Claude snapshot directly.
         self.snapshots[.claude]
     }
 
     func presentationSnapshot(for provider: UsageProvider) -> UsageSnapshot? {
+        // Provider-specific by design: DeepSeek profile transitions and Codex dashboard attachment overlay live state.
         if provider == .deepseek,
            let transition = self.deepseekProfileTransition,
            transition.accountID == self.settings.selectedTokenAccount(for: .deepseek)?.id
@@ -116,6 +119,7 @@ extension UsageStore {
     }
 
     var lastCodexError: String? {
+        // Provider-specific by design: Codex dashboard and credits surfaces expose separate app-owned error lanes.
         self.errors[.codex]
     }
 
@@ -132,6 +136,7 @@ extension UsageStore {
     }
 
     var lastClaudeError: String? {
+        // Provider-specific by design: Claude swap/account surfaces consume the active Claude error lane directly.
         self.errors[.claude]
     }
 
@@ -205,6 +210,7 @@ extension UsageStore {
         }
 
         let account: AccountInfo
+        // Provider-specific by design: Codex account info must be loaded through its selected filesystem scope.
         if provider == .codex {
             let env = ProviderRegistry.makeEnvironment(
                 base: self.environmentBase,

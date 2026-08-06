@@ -44,6 +44,7 @@ extension UsageStore {
         now: Date) -> RateWindow?
     {
         let effectivePreference = self.settings.menuBarMetricPreference(for: provider, snapshot: snapshot)
+        // Provider-specific by design: these paths depend on live Codex projection and Antigravity user policy.
         if provider == .antigravity,
            effectivePreference == .automatic,
            !self.settings.antigravityPrioritizeExhaustedQuotas
@@ -71,6 +72,7 @@ extension UsageStore {
     {
         let effectivePreference = self.settings.menuBarMetricPreference(for: provider, snapshot: snapshot)
         guard metricPercent >= 100 else { return false }
+        // Provider-specific by design: exclusion mirrors each provider's multi-lane resolver and optional quotas.
         if provider == .codex || provider == .claude, effectivePreference == .primaryAndSecondary {
             if provider == .codex,
                self.codexConsumerProjection(

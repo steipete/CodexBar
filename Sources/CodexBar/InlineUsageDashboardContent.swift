@@ -164,7 +164,8 @@ extension UsageMenuCardView.Model {
                 : historyDays == 30
                 ? "30d"
                 : String(format: L("Last %d days"), historyDays))
-        let historyTitle = provider == .codex ? codexHistoryPeriod : defaultHistoryTitle
+        let tokenCost = ProviderDescriptorRegistry.descriptor(for: provider).tokenCost
+        let historyTitle = tokenCost.historyTitleStyle == .compact ? codexHistoryPeriod : defaultHistoryTitle
         let tokenHistoryTitle = snapshot.historyLabel.map { "\($0) \(L("tokens"))" }
             ?? (historyDays == 1
                 ? L("Today tokens")
@@ -193,7 +194,7 @@ extension UsageMenuCardView.Model {
                 accessibilityValue: "\(entry.date): \(convertedString(cost))")
         }
         let latest = CostUsageTokenSnapshot.latestEntry(in: snapshot.daily)
-        let usesLatestPrimary = provider == .bedrock || provider == .mistral
+        let usesLatestPrimary = tokenCost.primaryValue == .latestDaily
         let primaryCostUSD = usesLatestPrimary ? latest?.costUSD : snapshot.sessionCostUSD
         var details: [String] = []
         if comparisonPeriodsEnabled {
@@ -211,16 +212,16 @@ extension UsageMenuCardView.Model {
         if let topModel = Self.topCostModel(from: snapshot.daily) {
             details.append("\(L("Top model")): \(Self.shortModelName(topModel))")
         }
-        if provider == .codex {
-            details.append(L("codex_api_estimate_hint"))
+        let hintLines = Self.tokenUsageHintLines(provider: provider)
+        if tokenCost.hintPlacement == .beforeRequestHistory {
+            details.append(contentsOf: hintLines)
         }
-        if provider != .groq {
+        if tokenCost.showsRequestHistory {
             if let requestCount = snapshot.last30DaysRequests {
                 details
                     .append("\(requestHistoryTitle): \(UsageFormatter.tokenCountString(requestCount)) \(L("requests"))")
             }
-            if provider != .codex {
-                let hintLines = Self.tokenUsageHintLines(provider: provider)
+            if tokenCost.hintPlacement == .afterRequestHistory {
                 if hintLines.isEmpty == false {
                     details.append(contentsOf: hintLines)
                 } else {

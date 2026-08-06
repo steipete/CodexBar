@@ -22,6 +22,7 @@ extension StatusItemController {
         planOverride: String? = nil,
         subtitleOverride: String? = nil) -> UsageMenuCardView.Model?
     {
+        // Provider-specific by design: Codex is the historical card fallback when no enabled provider is available.
         let target = provider ?? self.store.enabledFirstPartyProvidersForDisplay().first ?? .codex
         let metadata = self.store.metadata(for: target)
 
@@ -87,6 +88,7 @@ extension StatusItemController {
         }
 
         let sourceLabel = surface == .liveCard ? self.store.sourceLabel(for: target) : nil
+        // Provider-specific by design: Kilo's automatic source mode is surfaced as card fallback context.
         let kiloAutoMode = target == .kilo && self.settings.kiloUsageDataSource == .auto
         let (weeklyPace, sessionEquivalentForecast) = self.resolvePaceAndForecast(
             target: target,
@@ -135,7 +137,8 @@ extension StatusItemController {
             // provider-derived snapshot sourcing) and gain members for reasons that have nothing to
             // do with whether this row should show, silently disabling the Cost row for those
             // providers too (e.g. groq's addition to the inline-dashboard set previously did this).
-            tokenCostMenuSectionEnabled: target != .mistral && target != .openai &&
+            tokenCostMenuSectionEnabled: ProviderDescriptorRegistry.descriptor(for: target).tokenCost
+                .showsCostMenuSection &&
                 self.settings.costSummaryShowsSubmenu(for: target),
             costComparisonPeriodsEnabled: self.settings.costComparisonPeriodsEnabled,
             showOptionalCreditsAndExtraUsage: self.settings.showOptionalCreditsAndExtraUsage,
@@ -177,6 +180,7 @@ extension StatusItemController {
         provider: UsageProvider,
         surface: CodexConsumerProjection.Surface) -> UsageSnapshot?
     {
+        // Provider-specific by design: OpenAI dashboard cache metadata attaches only to the live Codex account.
         guard provider == .codex,
               surface == .liveCard,
               let snapshot,
@@ -202,8 +206,9 @@ extension StatusItemController {
         now: Date)
         -> (weeklyPace: UsagePace?, sessionEquivalentForecast: SessionEquivalentForecast?)
     {
-        let paceWindow = target == .abacus || target == .kimi
-            ? snapshot?.primary : snapshot?.secondary
+        let paceWindow = snapshot.flatMap {
+            ProviderDescriptorRegistry.descriptor(for: target).presentation.semanticWindows(snapshot: $0).weekly
+        }
         let historySelection = self.sessionEquivalentHistorySelection(
             provider: target,
             snapshot: snapshot,

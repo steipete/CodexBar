@@ -67,7 +67,12 @@ public enum CodexProviderDescriptor {
                 supportsTokenCost: true,
                 noDataMessage: self.noDataMessage,
                 menuHintLines: [.localized("codex_api_estimate_hint")],
-                supportsTokenSnapshot: true),
+                supportsTokenSnapshot: true,
+                settingsStatusOrder: 1,
+                showsHintInProviderDetails: true,
+                historyTitleStyle: .compact,
+                hintPlacement: .beforeRequestHistory,
+                chartEstimateDisclaimer: .localized("codex_api_estimate_hint")),
             pace: ProviderPaceCapability(
                 primary: .session(maximumMinutes: 300),
                 secondary: .weekly,
@@ -107,6 +112,9 @@ public enum CodexProviderDescriptor {
                 name: "codex",
                 binaryLocator: { BinaryLocator.resolveCodexBinary() },
                 versionDetector: { _ in ProviderVersionDetector.codexVersion() },
+                supportsCostCommand: true,
+                prefersBinaryLocatorForWhich: true,
+                ttyStatusCommand: "/status",
                 browserSupportExemption: { sourceMode, _, _ in sourceMode == .auto }))
     }
 

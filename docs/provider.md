@@ -55,6 +55,32 @@ diagnose classification, validation, and missing-credential messaging; a missing
 credential behavior. Typed settings-section registrations optionally expose cookie settings and a CLI credential
 contribution, so the app, CLI, and plugin cookie broker consume the same provider-owned settings shape.
 
+### Provider architecture gatekeeper threat model
+
+`ProviderArchitectureGatekeeperTests` is a drift tripwire against honest architecture mistakes by future contributors
+and AI agents. Its scope is deliberately narrower than a Swift parser's: the lexical scanner detects dotted provider
+case literals, including qualified, labeled, and multiline statements, and lowercase raw provider-ID string literals
+in every single-statement position (including assignments, bare function arguments, dictionary keys and values, array
+elements, and returns). It scans shipped Swift under `Sources/**` and `WidgetExtension/**`, with suppressions applied to
+exact provider tokens rather than whole statements.
+
+The following are out of scope by design:
+
+- Dotted provider cases whose role requires real expression parsing, including implicit closure returns and
+  closure-body dataflow. A line-and-statement lexical scan cannot model those positions honestly.
+- String concatenation, reflection, and dynamic lookup. Their runtime values are not recoverable from literal-token
+  matching.
+- Provider literals nested inside the arguments of a suppressed call (for example a routing call passed into a logging
+  call). Attributing a literal to the inner rather than the outer call requires expression-tree parsing.
+- Multi-line block comments interleaved with an expression. Single-line `/* ... */` comments are blanked before
+  scanning; comments spanning statement lines are treated as ending the scanned code for that line.
+- `Tests/**`, where fixtures legitimately name providers, and non-Swift files, because this tripwire is scoped to
+  shipped Swift architecture.
+
+This is engineering scoping, not a claim of adversarial completeness: the gatekeeper is a lexical drift tripwire for
+honest mistakes. If in-the-wild drift is ever observed slipping past it, the concrete upgrade path is to replace the
+lexical policy scan with a SwiftSyntax-based implementation that can model expressions and dataflow.
+
 ## Provider descriptor (source of truth)
 
 Introduce a single descriptor per provider:

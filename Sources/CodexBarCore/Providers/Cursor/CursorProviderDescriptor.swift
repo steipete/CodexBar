@@ -9,7 +9,8 @@ public enum CursorProviderDescriptor {
         placeholder: "Cookie: …",
         injection: .cookieHeader,
         requiresManualCookieSource: true,
-        cookieName: nil))
+        cookieName: nil,
+        selectedAccountRequiresManualCookieSource: true))
 
     /// Active Cursor sessions often live only in Safari; Chromium profiles may carry stale tokens.
     private static var browserCookieOrder: BrowserCookieImportOrder? {
@@ -69,7 +70,10 @@ public enum CursorProviderDescriptor {
                 supportsTokenCost: true,
                 noDataMessage: { "No Cursor cost usage found. Sign in to Cursor in your browser or the Cursor app." },
                 menuHintLines: [.estimate],
-                supportsTokenSnapshot: self.supportsTokenSnapshot),
+                supportsTokenSnapshot: self.supportsTokenSnapshot,
+                settingsStatusOrder: 2,
+                estimateDisclaimer: "From Cursor's usage dashboard at vendor token rates; may differ from your " +
+                    "invoice."),
             pace: ProviderPaceCapability(resetWindowPace: .windowDurationPresent),
             presentation: ProviderUsagePresentation(
                 requestedMenuBarLaneOrders: [
@@ -87,6 +91,7 @@ public enum CursorProviderDescriptor {
             cli: ProviderCLIConfig(
                 name: "cursor",
                 versionDetector: nil,
+                supportsCostCommand: self.supportsCostCommand,
                 browserSupportExemption: { _, _, settings in
                     #if os(Linux)
                     // Linux uses Cursor app auth and manual cookies; browser import remains macOS-only.
@@ -95,6 +100,14 @@ public enum CursorProviderDescriptor {
                     false
                     #endif
                 }))
+    }
+
+    private static var supportsCostCommand: Bool {
+        #if os(macOS)
+        true
+        #else
+        false
+        #endif
     }
 
     private static func menuBarWindow(

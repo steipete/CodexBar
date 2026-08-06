@@ -27,7 +27,7 @@ struct ClaudeLoginRunner {
 
     static func run(
         timeout: TimeInterval = 120,
-        binary: String = "claude",
+        binary: String = ClaudeProviderDescriptor.descriptor.cli.name,
         environment: [String: String]? = nil,
         onPhaseChange: @escaping @Sendable (Phase) -> Void) async -> Result
     {

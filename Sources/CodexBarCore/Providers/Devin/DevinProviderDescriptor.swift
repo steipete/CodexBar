@@ -65,7 +65,8 @@ public enum DevinProviderDescriptor {
                         balances: [ProviderCostPresentation.Balance(
                             label: "Extra usage",
                             amount: cost.used,
-                            currencyCode: cost.currencyCode)])
+                            currencyCode: cost.currencyCode)],
+                        menuCardStyle: .extraUsageBalance)
                 },
                 menuCard: ProviderMenuCardPresentation(costVisibilityResolver: { $0.showOptionalUsage })),
             fetchPlan: ProviderFetchPlan(

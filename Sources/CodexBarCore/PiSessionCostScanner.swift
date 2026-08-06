@@ -107,6 +107,7 @@ enum PiSessionCostScanner {
         options: Options = Options(),
         checkCancellation: CostUsageScanner.CancellationCheck?) throws -> CostUsageDailyReport
     {
+        // Provider-specific by design: Pi records only OpenAI Codex and Anthropic sessions with distinct pricing.
         guard provider == .codex || provider == .claude else {
             return CostUsageDailyReport(data: [], summary: nil)
         }
@@ -711,6 +712,7 @@ enum PiSessionCostScanner {
     private static func normalizeModelName(_ raw: String, provider: UsageProvider) -> String? {
         let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return nil }
+        // Provider-specific by design: Pi model IDs require the vendor-specific Codex/Claude pricing normalizers.
         return switch provider {
         case .codex:
             CostUsagePricing.normalizeCodexModel(trimmed)

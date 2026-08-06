@@ -11,7 +11,8 @@ public enum ZaiProviderDescriptor {
             placeholder: "Paste token…",
             injection: .environment(key: ZaiSettingsReader.apiTokenKey),
             requiresManualCookieSource: false,
-            cookieName: nil),
+            cookieName: nil,
+            showsTeamModeControls: true),
         usesRegion: true,
         configValidator: { config in
             var issues = ProviderCredentialAdapter.regionValidator(
@@ -126,7 +127,7 @@ public enum ZaiProviderDescriptor {
             pipeline: ProviderFetchPipeline(resolveStrategies: { context in
                 let swift = APITokenFetchStrategy(
                     id: "zai.api",
-                    resolveToken: { ProviderTokenResolver.zaiToken(environment: $0) },
+                    resolveToken: { ProviderTokenResolver.token(for: .zai, environment: $0) },
                     missingCredentialsError: { ZaiSettingsError.missingToken },
                     loadUsage: loadUsage)
                 guard ProviderPluginPrototype.isEnabled(environment: context.env) else { return [swift] }
@@ -161,7 +162,7 @@ public enum ZaiProviderDescriptor {
         #else
         return .apiToken(
             strategyID: "zai.api",
-            resolveToken: { ProviderTokenResolver.zaiToken(environment: $0) },
+            resolveToken: { ProviderTokenResolver.token(for: .zai, environment: $0) },
             missingCredentialsError: { ZaiSettingsError.missingToken },
             loadUsage: loadUsage)
         #endif

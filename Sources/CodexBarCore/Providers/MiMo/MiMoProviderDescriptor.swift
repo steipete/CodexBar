@@ -64,7 +64,8 @@ public enum MiMoProviderDescriptor {
                 menuCard: ProviderMenuCardPresentation(
                     showsPrimaryBalanceDescription: true,
                     hidesPrimaryResetWithoutDate: true),
-                menu: ProviderMenuDescriptorPresentation(primaryDescriptionIsDetail: { _ in true })),
+                menu: ProviderMenuDescriptorPresentation(primaryDescriptionIsDetail: { _ in true }),
+                planRow: ProviderPlanRowPresentation(stripsBalancePrefix: true)),
             fetchPlan: ProviderFetchPlan(
                 sourceModes: [.auto, .web],
                 pipeline: ProviderFetchPipeline(resolveStrategies: { context in

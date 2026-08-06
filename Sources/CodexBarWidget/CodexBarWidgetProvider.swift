@@ -26,6 +26,7 @@ enum ProviderChoice: String, AppEnum {
 
     /// AppIntents extracts this metadata statically; it must stay a literal, exhaustive
     /// dictionary. WidgetProviderChoiceTests pins these titles to the descriptor registry.
+    /// Provider-specific by design: AppIntents requires a compile-time provider display inventory.
     static let caseDisplayRepresentations: [ProviderChoice: DisplayRepresentation] = [
         .codex: DisplayRepresentation(title: "Codex"),
         .claude: DisplayRepresentation(title: "Claude"),

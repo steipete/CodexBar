@@ -150,14 +150,14 @@ struct DeepSeekProviderTokenResolverTests {
     @Test
     func `resolves from environment`() {
         let env = ["DEEPSEEK_API_KEY": "sk-resolve-test"]
-        let resolution = ProviderTokenResolver.deepseekResolution(environment: env)
+        let resolution = ProviderTokenResolver.resolution(for: .deepseek, environment: env)
         #expect(resolution?.token == "sk-resolve-test")
         #expect(resolution?.source == .environment)
     }
 
     @Test
     func `returns nil when key absent`() {
-        let resolution = ProviderTokenResolver.deepseekResolution(environment: [:])
+        let resolution = ProviderTokenResolver.resolution(for: .deepseek, environment: [:])
         #expect(resolution == nil)
     }
 }

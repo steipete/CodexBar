@@ -60,7 +60,8 @@ public enum BedrockProviderDescriptor {
                     + "or profile, and that the AWS CLI is installed for profile auth."
                 },
                 menuHintLines: [.literal("AWS Cost Explorer billing can lag.")],
-                supportsTokenSnapshot: true),
+                supportsTokenSnapshot: true,
+                primaryValue: .latestDaily),
             presentation: ProviderUsagePresentation(menuCard: ProviderMenuCardPresentation(
                 supportsInlineTokenCostDashboard: true)),
             fetchPlan: ProviderFetchPlan(

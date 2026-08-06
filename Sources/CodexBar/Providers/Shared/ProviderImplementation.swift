@@ -62,6 +62,10 @@ protocol ProviderImplementation: Sendable {
     @MainActor
     func settingsSnapshot(context: ProviderSettingsSnapshotContext) -> ProviderSettingsSnapshotContribution?
 
+    /// Optional primary action for the shared token-account editor.
+    @MainActor
+    func runTokenAccountPrimaryAction(context: ProviderSettingsContext) async
+
     /// Optional hook to update provider settings when token accounts change.
     @MainActor
     func applyTokenAccountCookieSource(settings: SettingsStore)
@@ -162,6 +166,9 @@ extension ProviderImplementation {
     func settingsSnapshot(context _: ProviderSettingsSnapshotContext) -> ProviderSettingsSnapshotContribution? {
         ProviderDescriptorRegistry.descriptor(for: self.id).settingsSection.defaultContribution
     }
+
+    @MainActor
+    func runTokenAccountPrimaryAction(context _: ProviderSettingsContext) async {}
 
     @MainActor
     func applyTokenAccountCookieSource(settings _: SettingsStore) {}

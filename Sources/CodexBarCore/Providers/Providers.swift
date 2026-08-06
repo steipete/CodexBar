@@ -110,7 +110,7 @@ public struct IconStyle: RawRepresentable, Hashable, Sendable, CaseIterable, Cus
         UsageProvider.allCases.map(Self.init(provider:)) + [.combined]
     }
 
-    // Named styles below carry renderer behavior or preserve source-compatible call sites.
+    // Provider-specific by design: named styles preserve source-compatible renderer entry points.
     public static let codex = Self(provider: .codex)
     public static let claude = Self(provider: .claude)
     public static let gemini = Self(provider: .gemini)

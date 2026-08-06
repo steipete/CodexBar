@@ -107,7 +107,8 @@ extension UsageStore {
                 lines.append("Auto source selected.")
                 return lines.joined(separator: "\n")
             case .api:
-                let hasAdminKey = ProviderTokenResolver.claudeAdminAPIToken(
+                let hasAdminKey = ProviderTokenResolver.token(
+                    for: .claude,
                     environment: configuration.environment) != nil
                 lines.append("Admin API source selected.")
                 lines.append("hasAdminAPIKey=\(hasAdminKey)")

@@ -103,7 +103,7 @@ struct CrofPluginGoldenTests {
     func `settings and credential adapter preserve Crof precedence`() {
         let key = CrofSettingsReader.apiKeyEnvironmentKeys[0]
         #expect(CrofSettingsReader.apiKey(environment: [key: "  crof-token  "]) == "crof-token")
-        #expect(ProviderTokenResolver.crofResolution(environment: [key: "crof-token"])?.token == "crof-token")
+        #expect(ProviderTokenResolver.resolution(for: .crof, environment: [key: "crof-token"])?.token == "crof-token")
 
         let config = ProviderConfig(id: .crof, apiKey: "config-token")
         let configured = ProviderConfigEnvironment.applyAPIKeyOverride(base: [:], provider: .crof, config: config)

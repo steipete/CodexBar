@@ -21,6 +21,8 @@ struct GeminiProviderImplementation: ProviderImplementation {
                         style: .bordered,
                         isVisible: nil,
                         perform: {
+                            // Provider-specific by design: Gemini migration explicitly enables its Antigravity
+                            // successor.
                             context.settings.setProviderEnabled(
                                 provider: .antigravity,
                                 metadata: ProviderDescriptorRegistry.descriptor(for: .antigravity).metadata,

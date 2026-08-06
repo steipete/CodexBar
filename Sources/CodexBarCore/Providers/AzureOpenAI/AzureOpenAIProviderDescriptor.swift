@@ -4,6 +4,7 @@ public enum AzureOpenAIProviderDescriptor {
     public static let descriptor: ProviderDescriptor = Self.makeDescriptor()
     private static let credentials = ProviderCredentialAdapter.apiKey(
         environmentKey: AzureOpenAISettingsReader.apiKeyEnvironmentKey,
+        apiKeyDebugLabel: AzureOpenAISettingsReader.apiKeyEnvironmentKey,
         additionalProjections: [
             .enterpriseHost(AzureOpenAISettingsReader.endpointEnvironmentKey),
             .workspaceID(AzureOpenAISettingsReader.deploymentNameEnvironmentKey),
@@ -36,6 +37,7 @@ public enum AzureOpenAIProviderDescriptor {
                 statusPageURL: nil,
                 statusLinkURL: "https://azure.status.microsoft/en-us/status"),
             branding: ProviderBranding(
+                // Provider-specific by design: Azure OpenAI deliberately shares OpenAI's icon rendering style.
                 iconStyle: .init(provider: .openai),
                 iconResourceName: "ProviderIcon-codex",
                 color: ProviderColor(red: 0, green: 120 / 255, blue: 212 / 255),
@@ -97,7 +99,7 @@ struct AzureOpenAIAPIFetchStrategy: ProviderFetchStrategy {
     }
 
     private static func resolveAPIKey(environment: [String: String]) -> String? {
-        ProviderTokenResolver.azureOpenAIToken(environment: environment)
+        ProviderTokenResolver.token(for: .azureopenai, environment: environment)
     }
 
     private static func resolveEndpoint(environment: [String: String]) -> URL? {

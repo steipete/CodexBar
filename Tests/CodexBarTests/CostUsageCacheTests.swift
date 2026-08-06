@@ -229,6 +229,41 @@ struct CostUsageCacheTests {
     }
 
     @Test
+    func `current codex cache accepts calendar normalization predecessors`() throws {
+        let root = try self.makeTemporaryCacheRoot()
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        // Caches persisted by builds since the bounded-cost-cache work stay loadable: the
+        // catch-up report calendar normalization did not change stored totals or cache
+        // layout, so upgrading must not force a rebuild.
+        for (index, producerKey) in [
+            "codex:cu:paa27d287348e79b5",
+            "codex:cu:p6c0f1fa950e63467",
+            "codex:cu:p37aedd661c4272a8",
+            "codex:cu:p1cd29792d9ca2b11",
+        ].enumerated() {
+            let root = root.appendingPathComponent("case-\(index)", isDirectory: true)
+            try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+            var cache = CostUsageCache()
+            cache.lastScanUnixMs = 456
+            cache.days = ["2026-07-02": ["gpt-5.5": [1, 2, 3]]]
+            CostUsageCacheIO.save(
+                provider: .codex,
+                cache: cache,
+                cacheRoot: root,
+                producerKey: producerKey)
+
+            let loaded = CostUsageCacheIO.load(provider: .codex, cacheRoot: root)
+            let migration = CostUsageCacheIO.loadCodexForMigration(cacheRoot: root)
+
+            #expect(loaded.lastScanUnixMs == 456)
+            #expect(loaded.days["2026-07-02"]?["gpt-5.5"] == [1, 2, 3])
+            #expect(migration.cache.lastScanUnixMs == 456)
+            #expect(migration.incompatibleCache == nil)
+        }
+    }
+
+    @Test
     func `non codex cache does not require producer key`() throws {
         let root = try self.makeTemporaryCacheRoot()
         defer { try? FileManager.default.removeItem(at: root) }
@@ -1491,11 +1526,101 @@ struct CostUsageCacheTests {
     }
 
     @Test
-    func `codex load cap keeps headroom over the save budget`() {
+    func `codex load cap keeps headroom over the save budget with a real save load round trip`() throws {
         // `save` bounds the artifact to `maxCacheFileBytes`; the load cap must stay above it
         // (with slack for enforcement overshoot) or every persisted artifact near the budget
         // would be refused and rebuilt on the next launch.
         #expect(CostUsageCacheIO.maxCacheLoadBytes > CostUsageCacheIO.maxCacheFileBytes)
+
+        let root = try self.makeTemporaryCacheRoot()
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let url = CostUsageCacheIO.cacheFileURL(provider: .codex, cacheRoot: root)
+        var cache = CostUsageCache()
+        cache.scanSinceKey = "2026-06-01"
+        cache.scanUntilKey = "2026-07-01"
+        // A resuming entry cannot be pruned, trimmed, or stripped, so the encoded payload
+        // stays above the save budget; the overshoot must still fit the load cap and the
+        // artifact must remain readable instead of entering a rebuild loop.
+        var resuming = CostUsageFileUsage(
+            mtimeUnixMs: 1,
+            size: 100,
+            days: ["2026-06-20": ["gpt-5.5": [1, 0, 0]]])
+        resuming.codexScanComplete = false
+        resuming.codexBufferedSubagentLines = (0..<20).map { index in
+            CostUsageScanner.CodexBufferedFastLine(
+                lineIndex: index,
+                ordinal: nil,
+                line: .taskStarted(turnID: "turn-\(index)-\(String(repeating: "x", count: 300))"))
+        }
+        cache.files = ["/sessions/resuming.jsonl": resuming]
+        cache.days = ["2026-06-20": ["gpt-5.5": [1, 0, 0]]]
+
+        CostUsageCacheIO.save(
+            provider: .codex,
+            cache: cache,
+            cacheRoot: root,
+            producerKey: "codex:cu:p1111111111111111",
+            requestedScanWindow: (sinceKey: "2026-06-01", untilKey: "2026-07-01"),
+            maxCacheBytes: 1024,
+            maxCacheEntries: 100,
+            maxCacheLoadBytes: 50000)
+
+        let artifactBytes = (try? FileManager.default.attributesOfItem(atPath: url.path)[.size] as? NSNumber)?
+            .int64Value ?? 0
+        #expect(artifactBytes > 1024)
+        #expect(artifactBytes <= 50000)
+
+        let loaded = CostUsageCacheIO.load(
+            provider: .codex,
+            cacheRoot: root,
+            producerKey: "codex:cu:p1111111111111111")
+        #expect(loaded.files["/sessions/resuming.jsonl"]?.codexBufferedSubagentLines?.count == 20)
+    }
+
+    @Test
+    func `catch up report honors a non-gregorian system calendar`() throws {
+        let root = try self.makeTemporaryCacheRoot()
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        var calendar = Calendar(identifier: .buddhist)
+        calendar.timeZone = try #require(TimeZone(secondsFromGMT: 0))
+
+        var cache = CostUsageCache()
+        cache.scanSinceKey = "2026-06-01"
+        cache.scanUntilKey = "2026-07-01"
+        var entry = CostUsageFileUsage(
+            mtimeUnixMs: 1,
+            size: 1_000_000,
+            days: ["2026-06-05": ["gpt-5.5": [1, 0, 0]]])
+        entry.sessionId = "in-window-session"
+        entry.codexTokenSnapshots = (0..<500).map { index in
+            CostUsageCodexTokenSnapshot(
+                timestamp: "2026-06-05T00:00:0\(index % 10)Z",
+                last: nil,
+                total: CostUsageCodexTotals(input: index, cached: 0, output: 0))
+        }
+        cache.files = ["/sessions/in-window.jsonl": entry]
+        cache.days = ["2026-06-05": ["gpt-5.5": [1, 0, 0]]]
+
+        CostUsageCacheIO.save(
+            provider: .codex,
+            cache: cache,
+            cacheRoot: root,
+            producerKey: "codex:cu:p1111111111111111",
+            calendar: calendar,
+            requestedScanWindow: (sinceKey: "2026-06-01", untilKey: "2026-07-01"),
+            reportWindow: (sinceKey: "2026-06-01", untilKey: "2026-07-01"),
+            maxCacheBytes: 30000,
+            maxCacheEntries: 100)
+
+        let loaded = CostUsageCacheIO.load(
+            provider: .codex,
+            cacheRoot: root,
+            producerKey: "codex:cu:p1111111111111111")
+        let previous = try #require(loaded.codexPreviousReport)
+        #expect(previous.data.contains { $0.date == "2026-06-05" })
+        #expect(previous.data.contains { $0.date == "1483-06-05" } == false)
     }
 
     @Test

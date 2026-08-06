@@ -339,6 +339,8 @@ extension StatusItemController {
             parts.append(self.providerIdentitySignature(
                 self.store.snapshot(for: target.instanceID)?.identity(for: target.instanceID)))
 
+            // Provider-specific by design: Codex managed profiles and Claude swap accounts contribute extra identity
+            // sources beyond the generic provider snapshot/account fallback.
             if target != .codex, self.store.metadata(for: target).usesAccountFallback {
                 let account = self.store.accountInfo(for: target)
                 parts.append(Self.menuIdentityField(account.email))

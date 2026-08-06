@@ -392,6 +392,7 @@ struct CommandCodeUsageFetcherTests {
     @Test
     func `plan catalog covers known plans`() {
         #expect(CommandCodePlanCatalog.plan(forID: "individual-go")?.monthlyCreditsUSD == 10)
+        #expect(CommandCodePlanCatalog.plan(forID: "individual-goat")?.monthlyCreditsUSD == 70)
         #expect(CommandCodePlanCatalog.plan(forID: "individual-pro")?.monthlyCreditsUSD == 30)
         #expect(CommandCodePlanCatalog.plan(forID: "individual-max")?.monthlyCreditsUSD == 150)
         #expect(CommandCodePlanCatalog.plan(forID: "individual-ultra")?.monthlyCreditsUSD == 300)
@@ -405,6 +406,15 @@ struct CommandCodeUsageFetcherTests {
         #expect(override.name == "__Secure-better-auth.session_token")
         #expect(override.token == "abc123")
         #expect(override.headerValue == "__Secure-better-auth.session_token=abc123")
+    }
+
+    @Test
+    func `cookie header extracts renamed commandcode session cookie`() throws {
+        let raw = "_ga=GA1.2.123; __Secure-commandcode_prod_.session_token=abc123; foo=bar"
+        let override = try #require(CommandCodeCookieHeader.override(from: raw))
+        #expect(override.name == "__Secure-commandcode_prod_.session_token")
+        #expect(override.token == "abc123")
+        #expect(override.headerValue == "__Secure-commandcode_prod_.session_token=abc123")
     }
 
     @Test

@@ -65,6 +65,12 @@ public enum FactoryProviderDescriptor {
                         tertiary: "Monthly",
                         showsTertiary: true)
                 },
+                costPresenter: { snapshot in
+                    let style: ProviderCostMenuCardStyle = snapshot.providerCost?.period == "Extra usage balance"
+                        ? .extraUsageBalance
+                        : .generic
+                    return ProviderCostPresentation(menuCardStyle: style)
+                },
                 iconDecorations: [.factory],
                 menuBarWindowResolver: self.secondaryFirstMenuBarWindow,
                 menuCard: ProviderMenuCardPresentation(costVisibilityResolver: { $0.showOptionalUsage })),

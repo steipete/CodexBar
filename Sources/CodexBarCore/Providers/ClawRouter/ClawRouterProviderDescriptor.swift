@@ -42,7 +42,7 @@ public enum ClawRouterProviderDescriptor {
                 supportsTokenCost: false,
                 noDataMessage: { "ClawRouter spend is reported by its usage API." }),
             presentation: ProviderUsagePresentation(costPresenter: { _ in
-                ProviderCostPresentation(showsGenericFallback: false)
+                ProviderCostPresentation(showsGenericFallback: false, menuCardStyle: .clawRouter)
             }),
             fetchPlan: self.fetchPlan(),
             cli: ProviderCLIConfig(
@@ -93,11 +93,11 @@ struct ClawRouterAPIFetchStrategy: ProviderFetchStrategy {
     let kind: ProviderFetchKind = .apiToken
 
     func isAvailable(_ context: ProviderFetchContext) async -> Bool {
-        ProviderTokenResolver.clawRouterToken(environment: context.env) != nil
+        ProviderTokenResolver.token(for: .clawrouter, environment: context.env) != nil
     }
 
     func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
-        guard let apiKey = ProviderTokenResolver.clawRouterToken(environment: context.env) else {
+        guard let apiKey = ProviderTokenResolver.token(for: .clawrouter, environment: context.env) else {
             throw ClawRouterUsageError.missingCredentials
         }
         try ClawRouterSettingsReader.validateEndpointOverride(environment: context.env)

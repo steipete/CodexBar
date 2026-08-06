@@ -36,6 +36,7 @@ enum BurnWindowChoice: String, AppEnum {
 }
 
 struct BurnDownSelectionIntent: AppIntent, WidgetConfigurationIntent {
+    // Provider-specific by design: the original burn-down widget defaults to Codex session usage.
     static let title: LocalizedStringResource = "Burn Down"
     static let description = IntentDescription("Select the provider and usage window to display.")
 
@@ -52,6 +53,7 @@ struct BurnDownSelectionIntent: AppIntent, WidgetConfigurationIntent {
 }
 
 struct BurnProviderSelectionIntent: AppIntent, WidgetConfigurationIntent {
+    // Provider-specific by design: the provider-only burn-down widget also defaults to Codex.
     static let title: LocalizedStringResource = "Burn Down Provider"
     static let description = IntentDescription("Select the provider to display.")
 

@@ -184,6 +184,7 @@ enum CLICardsRenderer {
             : sanitizedLabel
         let problem = account.error.map(CLIClaudeSwapText.sanitizeDiagnostic)
         if let snapshot = account.snapshot {
+            // Provider-specific by design: claude-swap subprocess records render as Claude account cards.
             let base = Self.makeCard(CLICardBuildInput(
                 provider: .claude,
                 snapshot: snapshot,
@@ -576,7 +577,9 @@ enum CLICardsRenderer {
     private static func truncatePlain(_ text: String, width: Int) -> String {
         guard width > 0 else { return "" }
         guard text.count > width else { return text }
-        if width <= 1 { return String(text.prefix(width)) }
+        if width <= 1 {
+            return String(text.prefix(width))
+        }
         return String(text.prefix(width - 1)) + "…"
     }
 
@@ -647,11 +650,21 @@ enum CLICardsRenderer {
 
     private static func normalizedSourceLabel(_ source: String) -> String {
         let trimmed = source.trimmingCharacters(in: .whitespacesAndNewlines)
-        if trimmed.isEmpty { return "auto" }
-        if trimmed.contains("oauth") { return "oauth" }
-        if trimmed.contains("web") || trimmed.contains("openai-web") { return "web" }
-        if trimmed.contains("api") { return "api" }
-        if trimmed.contains("cli") { return "cli" }
+        if trimmed.isEmpty {
+            return "auto"
+        }
+        if trimmed.contains("oauth") {
+            return "oauth"
+        }
+        if trimmed.contains("web") || trimmed.contains("openai-web") {
+            return "web"
+        }
+        if trimmed.contains("api") {
+            return "api"
+        }
+        if trimmed.contains("cli") {
+            return "cli"
+        }
         return trimmed
     }
 }

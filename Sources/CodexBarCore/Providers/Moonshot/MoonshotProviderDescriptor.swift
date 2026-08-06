@@ -58,6 +58,7 @@ public enum MoonshotProviderDescriptor {
                 dashboardURL: "https://platform.moonshot.ai/console/account",
                 statusPageURL: nil),
             branding: ProviderBranding(
+                // Provider-specific by design: Moonshot's Open Platform product deliberately uses Kimi branding.
                 iconStyle: .init(provider: .kimi),
                 iconResourceName: "ProviderIcon-kimi",
                 color: ProviderColor(red: 32 / 255, green: 93 / 255, blue: 235 / 255),
@@ -69,6 +70,8 @@ public enum MoonshotProviderDescriptor {
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
                 noDataMessage: { "Moonshot / Kimi Open Platform cost summary is not available." }),
+            presentation: ProviderUsagePresentation(
+                planRow: ProviderPlanRowPresentation(label: "Balance", stripsBalancePrefix: true)),
             fetchPlan: ProviderFetchPlan(
                 sourceModes: [.auto, .api],
                 pipeline: ProviderFetchPipeline(resolveStrategies: { _ in [MoonshotAPIFetchStrategy()] })),

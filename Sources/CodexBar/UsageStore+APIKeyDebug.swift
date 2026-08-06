@@ -10,64 +10,20 @@ extension UsageStore {
         let hasTokenAccount: Bool
     }
 
-    func openAIAPIKeyDebugContext(processEnvironment: [String: String]) -> APIKeyDebugContext {
-        self.apiKeyDebugContext(
-            provider: .openai,
-            label: "OPENAI_API_KEY",
-            processEnvironment: processEnvironment,
-            resolution: ProviderTokenResolver.openAIAPIResolution,
-            hasEnvToken: { OpenAIAPISettingsReader.apiKey(environment: $0) != nil })
-    }
-
-    func azureOpenAIAPIKeyDebugContext(processEnvironment: [String: String]) -> APIKeyDebugContext {
-        let config = self.settings.providerConfig(for: .azureopenai)
-        let environment = ProviderConfigEnvironment.applyProviderConfigOverrides(
-            base: processEnvironment,
-            provider: .azureopenai,
-            config: config)
-        return APIKeyDebugContext(
-            label: "AZURE_OPENAI_API_KEY",
-            resolution: ProviderTokenResolver.azureOpenAIResolution(environment: environment),
-            configToken: config?.sanitizedAPIKey,
-            hasEnvToken: AzureOpenAISettingsReader.apiKey(environment: processEnvironment) != nil,
-            hasTokenAccount: false)
-    }
-
-    func openRouterAPIKeyDebugContext(processEnvironment: [String: String]) -> APIKeyDebugContext {
-        self.apiKeyDebugContext(
-            provider: .openrouter,
-            label: "OPENROUTER_API_KEY",
-            processEnvironment: processEnvironment,
-            resolution: ProviderTokenResolver.openRouterResolution,
-            hasEnvToken: { OpenRouterSettingsReader.apiToken(environment: $0) != nil })
-    }
-
-    func elevenLabsAPIKeyDebugContext(processEnvironment: [String: String]) -> APIKeyDebugContext {
-        self.apiKeyDebugContext(
-            provider: .elevenlabs,
-            label: "ELEVENLABS_API_KEY",
-            processEnvironment: processEnvironment,
-            resolution: ProviderTokenResolver.elevenLabsResolution,
-            hasEnvToken: { ElevenLabsSettingsReader.apiKey(environment: $0) != nil })
-    }
-
     func apiKeyDebugContext(
         provider: UsageProvider,
-        label: String,
-        processEnvironment: [String: String],
-        resolution: ([String: String]) -> ProviderTokenResolution?,
-        hasEnvToken: ([String: String]) -> Bool) -> APIKeyDebugContext
+        processEnvironment: [String: String]) -> APIKeyDebugContext?
     {
+        guard let adapter = ProviderDescriptorRegistry.descriptor(for: provider).credentials,
+              let label = adapter.apiKeyDebugLabel
+        else { return nil }
         let config = self.settings.providerConfig(for: provider)
-        let environment = ProviderConfigEnvironment.applyAPIKeyOverride(
-            base: processEnvironment,
-            provider: provider,
-            config: config)
+        let environment = adapter.applyConfig(base: processEnvironment, config: config)
         return APIKeyDebugContext(
             label: label,
-            resolution: resolution(environment),
+            resolution: adapter.resolveToken(environment: environment),
             configToken: config?.sanitizedAPIKey,
-            hasEnvToken: hasEnvToken(processEnvironment),
+            hasEnvToken: adapter.resolveToken(environment: processEnvironment) != nil,
             hasTokenAccount: false)
     }
 

@@ -35,9 +35,16 @@ struct ServeOptions: CommanderParsable {
         name: .long("allow-plain-http"),
         help: "Accept sending the dashboard token over cleartext HTTP on a non-loopback host")
     var allowPlainHTTP: Bool = false
+
+    @Option(
+        name: .long("identity"),
+        help: "Dashboard snapshot identity detail: redacted (default) or full. Full exposes real account emails to every authorized dashboard client; use it only on trusted, private networks.")
+    var identity: String?
 }
 
 enum CLIServeRoute: Equatable {
+    case webUI
+    case providerIcon(name: String)
     case health
     case usage(provider: String?)
     case cost(provider: String?)
@@ -59,6 +66,12 @@ enum CLIServeRouter {
         let normalizedProvider = provider?.isEmpty == false ? provider : nil
 
         switch path {
+        case "/":
+            return .webUI
+        case let path where path.hasPrefix("/icons/") && path.hasSuffix(".svg"):
+            // Static brand art; the name is validated against the embedded set
+            // in the handler, so traversal or unknown names 404 there.
+            return .providerIcon(name: String(path.dropFirst("/icons/".count).dropLast(".svg".count)))
         case "/health":
             return .health
         case "/usage":
@@ -107,9 +120,13 @@ struct ServeRuntime {
     let requestTimeout: TimeInterval
     let healthVersion: String?
     let dashboardAuth: CLIServeDashboardAuth
+    /// Identity detail for dashboard snapshots. Defaults to `.redacted`; the
+    /// `--identity full` startup opt-in exposes real account emails to every
+    /// authorized dashboard client on trusted, private networks.
+    let dashboardIdentityMode: DashboardIdentityMode
     /// True for non-loopback binds: every data route (`/usage`, `/cost`,
     /// `/dashboard/v1/snapshot`) then requires the bearer token, so account data
-    /// is never exposed to the network unauthenticated. `/health` stays open.
+    /// is never exposed to the network unauthenticated. `/` and `/health` stay open.
     /// Resolved once at startup from the bind host.
     let dataRoutesRequireAuth: Bool
 
@@ -122,6 +139,7 @@ struct ServeRuntime {
         requestTimeout: TimeInterval,
         healthVersion: String?,
         dashboardAuth: CLIServeDashboardAuth,
+        dashboardIdentityMode: DashboardIdentityMode = .redacted,
         bindHost: String)
     {
         self.configStore = configStore
@@ -132,6 +150,7 @@ struct ServeRuntime {
         self.requestTimeout = requestTimeout
         self.healthVersion = healthVersion
         self.dashboardAuth = dashboardAuth
+        self.dashboardIdentityMode = dashboardIdentityMode
         self.dataRoutesRequireAuth = !CLIServeSecurity.isLoopbackHost(bindHost)
     }
 }
@@ -652,6 +671,13 @@ extension CodexBarCLI {
 
         let bindHost = CLIServeSecurity.bindHost(host)
         let allowPlainHTTP = Self.decodeServeAllowPlainHTTP(from: values)
+        guard let dashboardIdentityMode = Self.decodeDashboardIdentityMode(from: values) else {
+            Self.exit(
+                code: .failure,
+                message: "--identity must be redacted or full.",
+                output: output,
+                kind: .args)
+        }
         if let startupError = Self.validateServeStartup(
             host: bindHost,
             hasConfiguredBearer: dashboardBearer != nil,
@@ -677,6 +703,7 @@ extension CodexBarCLI {
             requestTimeout: requestTimeout,
             healthVersion: Self.currentVersion(),
             dashboardAuth: CLIServeDashboardAuth(bearer: dashboardBearer),
+            dashboardIdentityMode: dashboardIdentityMode,
             bindHost: bindHost)
         let server = CLILocalHTTPServer(
             host: bindHost,
@@ -823,6 +850,11 @@ extension CodexBarCLI {
         }
 
         switch route {
+        case .webUI:
+            return CLIServeWebUI.response()
+        case let .providerIcon(name):
+            return CLIServeWebUI.iconResponse(name: name)
+                ?? Self.serveError(status: .notFound, message: "not found")
         case .health:
             return Self.serveHealthResponse(version: runtime.healthVersion)
         case let .usage(provider):
@@ -932,7 +964,8 @@ extension CodexBarCLI {
                                 now: { ContinuousClock().now },
                                 providerOperations: runtime.costOperations),
                             costRefreshesPricingInBackground: Self.serveCostRefreshesPricingInBackground,
-                            codexBarVersion: runtime.healthVersion))
+                            codexBarVersion: runtime.healthVersion),
+                        identityMode: runtime.dashboardIdentityMode)
                 }))
         }
     }
@@ -1164,13 +1197,17 @@ extension CodexBarCLI {
     /// Adapts the shared dashboard snapshot producer to the authenticated HTTP
     /// route. Auth, response caching, and `Cache-Control: no-store` remain owned
     /// by the surrounding serve request path.
-    private static func serveDashboardSnapshot(context: DashboardSnapshotContext) async -> CLILocalHTTPResponse {
+    private static func serveDashboardSnapshot(
+        context: DashboardSnapshotContext,
+        identityMode: DashboardIdentityMode) async -> CLILocalHTTPResponse
+    {
         let result: DashboardSnapshotResult
         do {
             result = try await DashboardSnapshotProducer.live(context: context).collect(
                 config: context.config,
                 refreshInterval: context.usage.refreshInterval,
-                codexBarVersion: context.codexBarVersion)
+                codexBarVersion: context.codexBarVersion,
+                identityMode: identityMode)
         } catch {
             return Self.serveError(status: .internalServerError, message: error.localizedDescription)
         }

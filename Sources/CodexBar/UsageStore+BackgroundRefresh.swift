@@ -31,6 +31,7 @@ extension UsageStore {
         self.lastKnownResetSnapshots.removeValue(forKey: provider.instanceID)
         self.errors[provider.instanceID] = nil
         self.diagnostics[provider.instanceID] = nil
+        // Provider-specific by design: disabling clears each provider's app-owned transient account/session state.
         if provider == .deepseek {
             self.clearDeepSeekProfileTransition()
         }

@@ -104,7 +104,7 @@ public enum KimiProviderDescriptor {
                 browserSupportExemption: { sourceMode, environment, _ in
                     guard sourceMode == .auto else { return false }
                     return environment.map { environment in
-                        ProviderTokenResolver.kimiAPIToken(environment: environment) != nil ||
+                        ProviderTokenResolver.token(for: .kimi, kind: .secondary, environment: environment) != nil ||
                             KimiSettingsReader.hasKimiCodeCredential(environment: environment)
                     } == true
                 }))
@@ -359,7 +359,7 @@ struct KimiWebFetchStrategy: ProviderFetchStrategy {
     }
 
     private static func resolveToken(environment: [String: String]) -> String? {
-        ProviderTokenResolver.kimiAuthToken(environment: environment)
+        ProviderTokenResolver.token(for: .kimi, environment: environment)
     }
 }
 

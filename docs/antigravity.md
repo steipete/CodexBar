@@ -15,12 +15,26 @@ the Antigravity app or run `agy`, sign in, then refresh. See `docs/gemini.md` fo
 provider migration notes. CodexBar offers the handoff only after an observed Google migration
 signal and never enables or falls back to Antigravity automatically.
 
+To use the `agy` CLI source without keeping the desktop app open, install the CLI first
+(`brew install --cask antigravity-cli`; use `ANTIGRAVITY_CLI_PATH` when it is not on PATH), then
+run `agy` once and sign in. CodexBar keeps the signed-in `agy` local HTTPS server alive briefly
+after each refresh and stops it when idle.
+
 Antigravity supports four usage data sources:
 
 1. The Antigravity 2.0 app's local `language_server` (preferred when the app is open).
 2. The `agy` CLI's embedded HTTPS localhost server (preferred over the IDE because it exposes richer quota data).
 3. The Antigravity IDE extension `language_server` (used after `agy` CLI because current IDE local payloads only expose session/model quota data).
 4. Google OAuth-backed remote usage (explicit OAuth mode, and the account-scoped fallback used for multi-account switching). The OAuth path can store multiple Google accounts through the shared token-account switcher.
+
+## When the Antigravity app is closed
+
+The app-local `language_server` exists only while Antigravity.app is running. With the app closed,
+CodexBar relies on the `agy` CLI HTTPS source or the Google OAuth fallback. Without a signed-in
+`agy`, the OAuth fallback can only prove model availability, so the menu shows an all-100%
+placeholder instead of real quota numbers. A freshly spawned `agy` needs a few seconds for macOS
+keyring authentication before its quota endpoints answer, so the first refresh after a cold start
+can take a few extra seconds while CodexBar waits for readiness; later refreshes reuse the warmed session.
 
 The local and CLI paths both prefer Antigravity's internal `RetrieveUserQuotaSummary` quota payload and may fall back to
 `GetUserStatus`, then `GetCommandModelConfigs`; CodexBar never scrapes the desktop UI or the `agy` TUI.

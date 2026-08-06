@@ -32,7 +32,7 @@ struct PoeProviderImplementation: ProviderImplementation {
 
     @MainActor
     func isAvailable(context: ProviderAvailabilityContext) -> Bool {
-        ProviderTokenResolver.poeToken(environment: context.environment) != nil ||
+        ProviderTokenResolver.token(for: .poe, environment: context.environment) != nil ||
             !context.settings[providerConfig: .poe, field: .apiKey].trimmingCharacters(in: .whitespacesAndNewlines)
             .isEmpty
     }

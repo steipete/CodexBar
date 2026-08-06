@@ -113,6 +113,7 @@ public struct ProviderStorageRecommendation: Sendable, Equatable, Identifiable {
     }
 
     public static func recommendations(for footprint: ProviderStorageFootprint) -> [ProviderStorageRecommendation] {
+        // Provider-specific by design: Codex and Claude publish different component names and cleanup consequences.
         let candidates: [ProviderStorageRecommendation] = footprint.components.compactMap { component in
             switch footprint.provider {
             case .claude:

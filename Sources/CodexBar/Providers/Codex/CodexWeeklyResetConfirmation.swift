@@ -143,7 +143,12 @@ struct CodexWeeklyResetConfirmation: Sendable {
                previousWeekly,
                capturedAt: previous.updatedAt)
         {
-            if confirmation.updatedAt < previousBoundary.addingTimeInterval(-2 * 60) {
+            let confirmsManualReset = Self.confirmsManualResetCreditRedemption(
+                previous: previous,
+                confirmation: confirmation)
+            if confirmation.updatedAt < previousBoundary.addingTimeInterval(-2 * 60),
+               !confirmsManualReset
+            {
                 return .preservePrevious
             }
             guard initialBoundary.timeIntervalSince(previousBoundary) >= Self.resetEquivalenceToleranceSeconds,
@@ -153,6 +158,27 @@ struct CodexWeeklyResetConfirmation: Sendable {
             }
         }
         return .publishConfirmation
+    }
+
+    private static func confirmsManualResetCreditRedemption(
+        previous: UsageSnapshot,
+        confirmation: UsageSnapshot) -> Bool
+    {
+        guard let previousCredits = previous.codexResetCredits,
+              let confirmationCredits = confirmation.codexResetCredits,
+              self.isFinite(previousCredits.updatedAt),
+              self.isFinite(confirmationCredits.updatedAt),
+              confirmationCredits.updatedAt >= previousCredits.updatedAt
+        else {
+            return false
+        }
+        let previouslyAvailableIDs = Set(previousCredits.credits.lazy
+            .filter { $0.status == .available }
+            .map(\.id))
+        guard !previouslyAvailableIDs.isEmpty else { return false }
+        return confirmationCredits.credits.contains { credit in
+            previouslyAvailableIDs.contains(credit.id) && credit.status == .redeemed
+        }
     }
 
     private static func initialDecisionWithoutWeeklyBaseline(

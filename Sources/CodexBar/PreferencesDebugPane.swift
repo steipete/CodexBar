@@ -7,6 +7,7 @@ struct DebugPane: View {
     @Bindable var settings: SettingsStore
     @Bindable var store: UsageStore
     @AppStorage("debugFileLoggingEnabled") private var debugFileLoggingEnabled = false
+    // Provider-specific by design: debug probe, fetch, and error pickers historically start on Codex.
     @State private var currentLogProvider: UsageProvider = .codex
     @State private var currentFetchProvider: UsageProvider = .codex
     @State private var isLoadingLog = false
@@ -126,6 +127,7 @@ struct DebugPane: View {
                         }
                         .disabled(self.isLoadingLog && self.logText.isEmpty)
 
+                        // Provider-specific by design: only Claude exposes the raw parser dump diagnostic.
                         if self.currentLogProvider == .claude {
                             Button { self.loadClaudeDump() } label: {
                                 Label(L("load_parse_dump"), systemImage: "doc.text.magnifyingglass")

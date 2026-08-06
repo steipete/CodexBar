@@ -18,6 +18,7 @@ extension UsageStore {
         let notificationsEnabled = self.settings.sessionQuotaNotificationsEnabled
         let hooksActive = self.hasQuotaHookRule(event: .quotaReached, provider: provider)
         let detectionEnabled = notificationsEnabled || hooksActive
+        // Provider-specific by design: Codex owner-scoped baselines reject stale observations across account switches.
         if provider == .codex, !detectionEnabled {
             self.requireFreshCodexSessionQuotaBaseline(observedAt: snapshot.updatedAt)
             self.sessionQuotaLogger.debug("Codex session notifications disabled; cleared notification baseline")

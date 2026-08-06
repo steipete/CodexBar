@@ -63,6 +63,12 @@ public enum OpenCodeGoProviderDescriptor {
             pace: .calendarMonthResetWindow,
             history: .alwaysTracked,
             presentation: ProviderUsagePresentation(
+                costPresenter: { snapshot in
+                    let style: ProviderCostMenuCardStyle = snapshot.providerCost?.period == "Zen balance"
+                        ? .zenBalance
+                        : .generic
+                    return ProviderCostPresentation(menuCardStyle: style)
+                },
                 planUtilizationSeriesResolver: { snapshot in
                     var series: Set<ProviderPlanUtilizationSeries> = []
                     if snapshot.primary != nil {

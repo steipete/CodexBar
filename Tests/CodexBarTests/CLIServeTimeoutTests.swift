@@ -90,6 +90,177 @@ struct CLIServeTimeoutTests {
     }
 
     @Test
+    func `late source completion feeds a queued same fingerprint successor`() async {
+        let clock = ServeManualDeadlineClock()
+        let source = ServeFetchGate<Int>()
+        let acceptance = ServeAcceptanceProbe<Int>()
+        let coordinator: CLIServeOperationCoordinator<Int> = self.makeCoordinator(clock: clock)
+        let firstDeadline = clock.now().advanced(by: .seconds(30))
+
+        let first = Task {
+            await coordinator.value(
+                for: "usage:",
+                fingerprint: "config-a",
+                deadline: firstDeadline,
+                timeoutValue: -1,
+                accept: { await acceptance.accept($0) },
+                operation: { await source.run(7) })
+        }
+        await source.waitForStarts(1)
+        await clock.waitForPendingSleeps(1)
+        await clock.fireAll()
+        #expect(await first.value == -1)
+
+        let successor = Task {
+            await coordinator.value(
+                for: "usage:",
+                fingerprint: "config-a",
+                deadline: firstDeadline.advanced(by: .seconds(30)),
+                timeoutValue: -2,
+                operation: { await source.run(9) })
+        }
+        await self.waitForOperationCount(2, coordinator: coordinator)
+        await clock.waitForPendingSleeps(1)
+        await source.releaseAll()
+
+        #expect(await successor.value == 7)
+        #expect(await source.startCount() == 1)
+        #expect(await acceptance.callCount() == 1)
+        await clock.waitForCancellations(1)
+        await self.waitForOperationCount(0, coordinator: coordinator)
+    }
+
+    @Test
+    func `late source completion promotes a different fingerprint successor`() async {
+        let clock = ServeManualDeadlineClock()
+        let source = ServeFetchGate<Int>()
+        let acceptance = ServeAcceptanceProbe<Int>()
+        let coordinator: CLIServeOperationCoordinator<Int> = self.makeCoordinator(clock: clock)
+        let firstDeadline = clock.now().advanced(by: .seconds(30))
+
+        let first = Task {
+            await coordinator.value(
+                for: "usage:",
+                fingerprint: "config-a",
+                deadline: firstDeadline,
+                timeoutValue: -1,
+                accept: { await acceptance.accept($0) },
+                operation: { await source.run(7) })
+        }
+        await source.waitForStarts(1)
+        await clock.waitForPendingSleeps(1)
+        await clock.fireAll()
+        #expect(await first.value == -1)
+
+        let successor = Task {
+            await coordinator.value(
+                for: "usage:",
+                fingerprint: "config-b",
+                deadline: firstDeadline.advanced(by: .seconds(30)),
+                timeoutValue: -2,
+                operation: { await source.run(9) })
+        }
+        await self.waitForOperationCount(2, coordinator: coordinator)
+        await source.releaseAll()
+
+        #expect(await successor.value == 9)
+        #expect(await source.startCount() == 2)
+        #expect(await source.peakCount() == 1)
+        #expect(await acceptance.callCount() == 1)
+        await self.waitForOperationCount(0, coordinator: coordinator)
+    }
+
+    @Test
+    func `late acceptance after shutdown resumes nobody and releases the slot`() async {
+        let clock = ServeManualDeadlineClock()
+        let source = ServeFetchGate<Int>()
+        let acceptance = ServeFetchGate<Int>()
+        let coordinator: CLIServeOperationCoordinator<Int> = self.makeCoordinator(clock: clock)
+        let firstDeadline = clock.now().advanced(by: .seconds(30))
+
+        let first = Task {
+            await coordinator.value(
+                for: "usage:",
+                fingerprint: "config-a",
+                deadline: firstDeadline,
+                timeoutValue: -1,
+                accept: { await acceptance.run($0) },
+                operation: { await source.run(7) })
+        }
+        await source.waitForStarts(1)
+        await clock.waitForPendingSleeps(1)
+        await clock.fireAll()
+        #expect(await first.value == -1)
+
+        let successor = Task {
+            await coordinator.value(
+                for: "usage:",
+                fingerprint: "config-a",
+                deadline: firstDeadline.advanced(by: .seconds(30)),
+                timeoutValue: -2,
+                operation: { await source.run(9) })
+        }
+        await self.waitForOperationCount(2, coordinator: coordinator)
+        await source.releaseAll()
+        await acceptance.waitForStarts(1)
+        await coordinator.shutdown()
+
+        #expect(await successor.value == -2)
+        #expect(await source.startCount() == 1)
+        await acceptance.releaseAll()
+        await self.waitForOperationCount(0, coordinator: coordinator)
+        #expect(await coordinator.snapshot() == .init(
+            operationCount: 0,
+            waiterCount: 0,
+            timerCount: 0,
+            isShutDown: true))
+    }
+
+    @Test
+    func `late response warms the cache for the next same config request`() async {
+        let clock = ServeManualDeadlineClock()
+        let source = ServeFetchGate<CLILocalHTTPResponse>()
+        let operations: CLIServeOperationCoordinator<CLIServeCoordinatedResponse> = self.makeCoordinator(clock: clock)
+        let cache = CLIServeResponseCache(operations: operations)
+        let built = CLILocalHTTPResponse(
+            status: .ok,
+            body: Data(#"{"schemaVersion":1}"#.utf8))
+
+        let first = Task {
+            await CodexBarCLI.cachedServeResponse(
+                key: "dashboard:v1:snapshot:",
+                cache: cache,
+                refreshInterval: 60,
+                requestTimeout: 30)
+            {
+                await source.run(built)
+            }
+        }
+        await source.waitForStarts(1)
+        await clock.waitForPendingSleeps(1)
+        await clock.fireAll()
+        #expect(await first.value.status == .gatewayTimeout)
+
+        await source.releaseAll()
+        await self.waitForOperationCount(0, coordinator: operations)
+        let next = await CodexBarCLI.cachedServeResponse(
+            key: "dashboard:v1:snapshot:",
+            cache: cache,
+            refreshInterval: 60,
+            requestTimeout: 30)
+        {
+            await source.run(CLILocalHTTPResponse(
+                status: .ok,
+                body: Data(#"{"schemaVersion":2}"#.utf8)))
+        }
+
+        #expect(next.status == .ok)
+        #expect(next.body == built.body)
+        #expect(await source.startCount() == 1)
+        #expect(await operations.snapshot().operationCount == 0)
+    }
+
+    @Test
     func `earlier follower tightens the shared absolute budget`() async {
         let clock = ServeManualDeadlineClock()
         let gate = ServeFetchGate<Int>()
@@ -157,7 +328,7 @@ struct CLIServeTimeoutTests {
         await gate.releaseAll()
 
         #expect(await result.value == -1)
-        #expect(await acceptance.callCount() == 0)
+        #expect(await acceptance.callCount() == 1)
         await clock.waitForCancellations(1)
         await self.waitForOperationCount(0, coordinator: coordinator)
     }

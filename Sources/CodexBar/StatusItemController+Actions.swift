@@ -83,6 +83,7 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
             guard !Task.isCancelled, !self.hasPreparedForAppShutdown else { return }
             await self.store.refreshTokenUsageNow(for: provider, force: true)
             guard !Task.isCancelled, !self.hasPreparedForAppShutdown else { return }
+            // Provider-specific by design: Codex refresh also owns OpenAI dashboard and reset-credit enrichment.
             if provider == .codex {
                 await self.store.refreshCreditsNow(minimumSnapshotUpdatedAt: refreshStartedAt)
                 guard !Task.isCancelled, !self.hasPreparedForAppShutdown else { return }
@@ -324,6 +325,7 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
     }
 
     @objc func openDashboard() {
+        // Provider-specific by design: Codex remains the historical action fallback when no provider is selected.
         let preferred = self.lastMenuProvider?.firstPartyProvider
             ?? (self.store.isEnabled(.codex) ? .codex : self.store.enabledFirstPartyProviders().first)
 
@@ -336,6 +338,7 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
         for provider: UsageProvider,
         environment: [String: String] = ProcessInfo.processInfo.environment) -> URL?
     {
+        // Provider-specific by design: these dashboards depend on region, source label, scope, or subscription plan.
         if provider == .alibaba {
             return self.settings.alibabaCodingPlanAPIRegion.dashboardURL
         }
@@ -383,6 +386,7 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
     }
 
     @objc func openCreditsPurchase() {
+        // Provider-specific by design: codexResetCredits payload supplies the validated ChatGPT purchase URL.
         let preferred = self.lastMenuProvider
             ?? (self.store.isEnabled(.codex) ? .codex : self.store.enabledProviders().first)
         let provider = preferred ?? .codex
@@ -464,6 +468,7 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
     }
 
     @objc func openTerminalCommand(_ sender: NSMenuItem) {
+        // Provider-specific by design: legacy terminal menu items without a command payload open Claude.
         let command = sender.representedObject as? String ?? "claude"
         self.openTerminal(command: command)
     }

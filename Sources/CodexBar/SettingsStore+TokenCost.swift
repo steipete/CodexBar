@@ -3,7 +3,7 @@ import Foundation
 
 extension SettingsStore {
     func costSummaryShowsInlineDashboard(for provider: UsageProvider) -> Bool {
-        // DeepSeek has no cost submenu, so any enabled cost-summary style falls back to inline.
+        // Provider-specific by design: DeepSeek's API exposes a balance card but no token-cost submenu data.
         if provider == .deepseek {
             return self.costUsageEnabled
         }
@@ -39,6 +39,7 @@ extension SettingsStore {
         homeDirectory: URL? = nil,
         workingDirectory: URL? = nil) -> Bool
     {
+        // Provider-specific by design: only Codex and Claude have local JSONL scanners that can auto-enable token cost.
         let home = homeDirectory ?? fileManager.homeDirectoryForCurrentUser
 
         func hasAnyJsonl(in root: URL) -> Bool {

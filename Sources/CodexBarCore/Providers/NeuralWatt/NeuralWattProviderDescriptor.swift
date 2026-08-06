@@ -53,13 +53,14 @@ public enum NeuralWattProviderDescriptor {
                 supportsTokenCost: false,
                 noDataMessage: { "Neuralwatt token cost history is not available via the quota API." }),
             presentation: ProviderUsagePresentation(
+                costPresenter: { _ in ProviderCostPresentation(menuCardStyle: .payAsYouGoBalance) },
                 menuCard: ProviderMenuCardPresentation(
                     showsPrimaryBalanceDescription: true,
                     hidesPrimaryResetWithoutDate: true),
                 menu: ProviderMenuDescriptorPresentation(primaryDescriptionIsDetail: { _ in true })),
             fetchPlan: .apiToken(
                 strategyID: "neuralwatt.api",
-                resolveToken: { ProviderTokenResolver.neuralWattToken(environment: $0) },
+                resolveToken: { ProviderTokenResolver.token(for: .neuralwatt, environment: $0) },
                 missingCredentialsError: { NeuralWattUsageError.missingCredentials },
                 loadUsage: { apiKey, context in
                     try await NeuralWattUsageFetcher.fetchUsage(

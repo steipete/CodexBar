@@ -51,9 +51,11 @@ public enum ManusProviderDescriptor {
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
                 noDataMessage: { "Manus cost summary is not supported." }),
-            presentation: ProviderUsagePresentation(menuCard: ProviderMenuCardPresentation(
-                showsPrimaryBalanceDescription: true,
-                clearsPrimaryReset: true)),
+            presentation: ProviderUsagePresentation(
+                costPresenter: { _ in ProviderCostPresentation(menuCardStyle: .hidden) },
+                menuCard: ProviderMenuCardPresentation(
+                    showsPrimaryBalanceDescription: true,
+                    clearsPrimaryReset: true)),
             fetchPlan: self.fetchPlan(),
             cli: ProviderCLIConfig(
                 name: "manus",

@@ -7,6 +7,7 @@ enum ClaudeSwapMenuPrecedence {
         accountCount: Int,
         showSingleAccount: Bool) -> Bool
     {
+        // Provider-specific by design: claude-swap subprocess discovery owns Claude account presentation.
         provider == .claude && ClaudeSwapAccountProjection.shouldPresentAccounts(
             accountCount: accountCount,
             showSingleAccount: showSingleAccount)
@@ -97,6 +98,7 @@ extension StatusItemController {
     }
 
     func codexAccountMenuDisplay(for provider: UsageProvider) -> CodexAccountMenuDisplay? {
+        // Provider-specific by design: managed Codex profiles use reconciled visible-account projection state.
         guard provider == .codex else { return nil }
         guard let projection = self.settings.codexVisibleAccountProjectionForMenuDisplay else { return nil }
         guard projection.visibleAccounts.count > 1 else { return nil }

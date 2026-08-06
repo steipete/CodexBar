@@ -50,6 +50,12 @@ public enum LiteLLMProviderDescriptor {
                 supportsTokenCost: false,
                 noDataMessage: { "LiteLLM spend is reported by the provider API." }),
             presentation: ProviderUsagePresentation(
+                costPresenter: { snapshot in
+                    let style: ProviderCostMenuCardStyle = (snapshot.providerCost?.limit ?? 1) <= 0
+                        ? .apiSpend
+                        : .hidden
+                    return ProviderCostPresentation(menuCardStyle: style)
+                },
                 menuBarWindowResolver: { context in
                     guard context.metric == .automatic else { return .unhandled }
                     return .resolved(
@@ -75,12 +81,12 @@ struct LiteLLMAPIFetchStrategy: ProviderFetchStrategy {
     let kind: ProviderFetchKind = .apiToken
 
     func isAvailable(_ context: ProviderFetchContext) async -> Bool {
-        ProviderTokenResolver.liteLLMToken(environment: context.env) != nil &&
+        ProviderTokenResolver.token(for: .litellm, environment: context.env) != nil &&
             LiteLLMSettingsReader.hasBaseURLOverride(environment: context.env)
     }
 
     func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
-        guard let apiKey = ProviderTokenResolver.liteLLMToken(environment: context.env) else {
+        guard let apiKey = ProviderTokenResolver.token(for: .litellm, environment: context.env) else {
             throw LiteLLMUsageError.missingCredentials
         }
         guard let baseURL = LiteLLMSettingsReader.baseURL(environment: context.env) else {

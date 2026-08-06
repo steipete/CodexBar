@@ -36,6 +36,35 @@ public struct ProviderIdentityPresentation: Sendable, Equatable {
     }
 }
 
+public struct ProviderPlanRowPresentation: Sendable, Equatable {
+    public let label: String
+    public let balancePrefixedLabel: String
+    public let stripsBalancePrefix: Bool
+
+    public init(
+        label: String = "Plan",
+        balancePrefixedLabel: String = "Balance",
+        stripsBalancePrefix: Bool = false)
+    {
+        self.label = label
+        self.balancePrefixedLabel = balancePrefixedLabel
+        self.stripsBalancePrefix = stripsBalancePrefix
+    }
+}
+
+public enum ProviderCostMenuCardStyle: Sendable, Equatable {
+    case generic
+    case hidden
+    case extraUsageBalance
+    case zenBalance
+    case pointsBalance
+    case prepaidCredits
+    case payAsYouGoBalance
+    case claude
+    case apiSpend
+    case clawRouter
+}
+
 public struct ProviderCostPresentation: Sendable, Equatable {
     public struct Balance: Sendable, Equatable {
         public let label: String
@@ -51,10 +80,29 @@ public struct ProviderCostPresentation: Sendable, Equatable {
 
     public let showsGenericFallback: Bool
     public let balances: [Balance]
+    public let menuCardStyle: ProviderCostMenuCardStyle
 
-    public init(showsGenericFallback: Bool = true, balances: [Balance] = []) {
+    public init(
+        showsGenericFallback: Bool = true,
+        balances: [Balance] = [],
+        menuCardStyle: ProviderCostMenuCardStyle = .generic)
+    {
         self.showsGenericFallback = showsGenericFallback
         self.balances = balances
+        self.menuCardStyle = menuCardStyle
+    }
+}
+
+public struct ProviderOptionalDetailsPresentation: Sendable, Equatable {
+    public let hidesAllWithoutOptionalUsage: Bool
+    public let hiddenTitlesWithoutOptionalUsage: Set<String>
+
+    public init(
+        hidesAllWithoutOptionalUsage: Bool = false,
+        hiddenTitlesWithoutOptionalUsage: Set<String> = [])
+    {
+        self.hidesAllWithoutOptionalUsage = hidesAllWithoutOptionalUsage
+        self.hiddenTitlesWithoutOptionalUsage = hiddenTitlesWithoutOptionalUsage
     }
 }
 
@@ -377,6 +425,8 @@ public struct ProviderUsagePresentation: Sendable {
     public let secondaryGloballyCapsPrimary: Bool
     public let menuCard: ProviderMenuCardPresentation
     public let menu: ProviderMenuDescriptorPresentation
+    public let planRow: ProviderPlanRowPresentation
+    public let optionalDetails: ProviderOptionalDetailsPresentation
 
     public init(
         rateWindowLabeler: RateWindowLabeler? = nil,
@@ -400,7 +450,9 @@ public struct ProviderUsagePresentation: Sendable {
         widgetRowLimitResolver: @escaping WidgetRowLimitResolver = { _, _ in nil },
         secondaryGloballyCapsPrimary: Bool = false,
         menuCard: ProviderMenuCardPresentation = ProviderMenuCardPresentation(),
-        menu: ProviderMenuDescriptorPresentation = ProviderMenuDescriptorPresentation())
+        menu: ProviderMenuDescriptorPresentation = ProviderMenuDescriptorPresentation(),
+        planRow: ProviderPlanRowPresentation = ProviderPlanRowPresentation(),
+        optionalDetails: ProviderOptionalDetailsPresentation = ProviderOptionalDetailsPresentation())
     {
         self.rateWindowLabeler = rateWindowLabeler
         self.identityPresenter = identityPresenter
@@ -422,6 +474,8 @@ public struct ProviderUsagePresentation: Sendable {
         self.secondaryGloballyCapsPrimary = secondaryGloballyCapsPrimary
         self.menuCard = menuCard
         self.menu = menu
+        self.planRow = planRow
+        self.optionalDetails = optionalDetails
     }
 
     public func rateWindowLabels(

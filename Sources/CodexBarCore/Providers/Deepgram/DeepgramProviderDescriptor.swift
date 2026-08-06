@@ -143,15 +143,11 @@ struct DeepgramAPIFetchStrategy: ProviderFetchStrategy {
     }
 
     private static func resolveAPIKey(_ context: ProviderFetchContext) -> String? {
-        ProviderTokenResolver.deepgramResolution(
-            type: .apiKey,
-            environment: context.env)
+        ProviderTokenResolver.token(for: .deepgram, environment: context.env)
     }
 
     private static func resolveProjectID(_ context: ProviderFetchContext) -> String? {
-        ProviderTokenResolver.deepgramResolution(
-            type: .projectID,
-            environment: context.env)
+        ProviderTokenResolver.token(for: .deepgram, kind: .projectID, environment: context.env)
     }
 }
 #endif

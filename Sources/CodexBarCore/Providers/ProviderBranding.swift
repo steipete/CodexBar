@@ -20,12 +20,18 @@ public struct ProviderColor: Sendable, Equatable {
 }
 
 public struct ProviderBranding: Sendable {
+    public enum ProgressColorStyle: Sendable {
+        case brand
+        case label
+    }
+
     public let iconStyle: IconStyle
     public let iconResourceName: String
     public let color: ProviderColor
     public let widgetColor: ProviderColor
     public let burnDownWidgetColor: ProviderColor
     public let confettiPalette: [ProviderColor]
+    public let progressColorStyle: ProgressColorStyle
 
     /// Source-compatible fallback for external CodexBarCore clients. Registered descriptors must provide
     /// a curated palette; registry tests reject this duplicated-color fallback.
@@ -44,7 +50,8 @@ public struct ProviderBranding: Sendable {
         color: ProviderColor,
         confettiPalette: [ProviderColor],
         widgetColor: ProviderColor? = nil,
-        burnDownWidgetColor: ProviderColor = ProviderColor(red: 0.60, green: 0.60, blue: 0.60))
+        burnDownWidgetColor: ProviderColor = ProviderColor(red: 0.60, green: 0.60, blue: 0.60),
+        progressColorStyle: ProgressColorStyle = .brand)
     {
         precondition((2...3).contains(confettiPalette.count), "Provider confetti palettes require 2–3 colors.")
         self.iconStyle = iconStyle
@@ -53,5 +60,6 @@ public struct ProviderBranding: Sendable {
         self.widgetColor = widgetColor ?? color
         self.burnDownWidgetColor = burnDownWidgetColor
         self.confettiPalette = confettiPalette
+        self.progressColorStyle = progressColorStyle
     }
 }

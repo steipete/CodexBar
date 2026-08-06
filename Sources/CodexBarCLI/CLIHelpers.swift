@@ -29,8 +29,12 @@ extension CodexBarCLI {
             }
             return .custom(enabled)
         }
-        if enabled.count >= 3 { return .custom(enabled) }
-        if let first = enabled.first { return ProviderSelection(provider: first) }
+        if enabled.count >= 3 {
+            return .custom(enabled)
+        }
+        if let first = enabled.first {
+            return ProviderSelection(provider: first)
+        }
         return .custom([])
     }
 
@@ -60,9 +64,13 @@ extension CodexBarCLI {
 
     static func shouldUseColor(noColor: Bool, format: OutputFormat) -> Bool {
         guard format == .text else { return false }
-        if noColor { return false }
+        if noColor {
+            return false
+        }
         let env = ProcessInfo.processInfo.environment
-        if env["TERM"]?.lowercased() == "dumb" { return false }
+        if env["TERM"]?.lowercased() == "dumb" {
+            return false
+        }
         return isatty(STDOUT_FILENO) == 1
     }
 
@@ -105,6 +113,7 @@ extension CodexBarCLI {
         sourceMode: ProviderSourceMode,
         resolvedSourceLabel: String) -> [String]
     {
+        // Provider-specific by design: Kilo automatic mode reports when its CLI fallback won strategy selection.
         guard provider == .kilo,
               sourceMode == .auto,
               resolvedSourceLabel.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == "cli"
@@ -119,6 +128,7 @@ extension CodexBarCLI {
         sourceMode: ProviderSourceMode,
         attempts: [ProviderFetchAttempt]) -> String?
     {
+        // Provider-specific by design: Kilo exposes its ordered API-to-CLI fallback attempts in verbose output.
         guard provider == .kilo, sourceMode == .auto, !attempts.isEmpty else { return nil }
         let parts = attempts.map { attempt in
             let label = Self.fetchKindLabel(attempt.kind)

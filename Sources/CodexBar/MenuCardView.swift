@@ -911,7 +911,8 @@ extension UsageMenuCardView.Model {
         let openAIAPIUsage = input.snapshot?.openAIAPIUsage
         let inlineUsageDashboard = Self.inlineUsageDashboard(input: input)
         let usageNotes = Self.usageNotes(input: input)
-        let menuCard = ProviderDescriptorRegistry.descriptor(for: input.provider).presentation.menuCard
+        let presentation = ProviderDescriptorRegistry.descriptor(for: input.provider).presentation
+        let menuCard = presentation.menuCard
         let rawCreditsText: String? = if !menuCard.showsCreditsSection ||
             !input.showOptionalCreditsAndExtraUsage
         {
@@ -932,12 +933,15 @@ extension UsageMenuCardView.Model {
         let showsProviderCost = menuCard.showsProviderCost(context: ProviderCostVisibilityContext(
             snapshot: input.snapshot,
             showOptionalUsage: input.showOptionalCreditsAndExtraUsage))
+        let providerCostStyle = input.snapshot.map {
+            presentation.cost(snapshot: $0).menuCardStyle
+        } ?? .generic
         let providerCost: ProviderCostSection? = if !showsProviderCost {
             nil
         } else {
             Self.providerCostSection(
-                provider: input.provider,
                 cost: input.snapshot?.providerCost,
+                style: providerCostStyle,
                 isClaudeAdminAPI: isClaudeAdminAPI,
                 preferredCurrencyCode: input.preferredCurrencyCode)
         }
@@ -989,10 +993,13 @@ extension UsageMenuCardView.Model {
     private static func visibleProviderDetails(input: Input) -> [ProviderDetailSection] {
         var details = input.snapshot?.details ?? []
         if !input.showOptionalCreditsAndExtraUsage {
-            if input.provider == .sakana {
+            let policy = ProviderDescriptorRegistry.descriptor(for: input.provider).presentation.optionalDetails
+            if policy.hidesAllWithoutOptionalUsage {
                 details = []
-            } else if input.provider == .minimax {
-                details.removeAll { $0.title == "Billing history" }
+            } else if !policy.hiddenTitlesWithoutOptionalUsage.isEmpty {
+                details.removeAll { section in
+                    section.title.map(policy.hiddenTitlesWithoutOptionalUsage.contains) == true
+                }
             }
         }
         guard input.hidePersonalInfo else { return details }

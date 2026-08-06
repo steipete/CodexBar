@@ -38,9 +38,11 @@ public enum ZenMuxProviderDescriptor {
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
                 noDataMessage: { "ZenMux cost history is not exposed by the Management API." }),
-            presentation: ProviderUsagePresentation(menuCard: ProviderMenuCardPresentation(
-                primaryDescriptionPlacement: .detailLeft,
-                hidesPrimaryResetWithoutDate: true)),
+            presentation: ProviderUsagePresentation(
+                costPresenter: { _ in ProviderCostPresentation(menuCardStyle: .payAsYouGoBalance) },
+                menuCard: ProviderMenuCardPresentation(
+                    primaryDescriptionPlacement: .detailLeft,
+                    hidesPrimaryResetWithoutDate: true)),
             fetchPlan: ProviderFetchPlan(
                 sourceModes: [.auto, .api],
                 pipeline: ProviderFetchPipeline(resolveStrategies: { _ in [ZenMuxAPIFetchStrategy()] })),

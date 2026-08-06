@@ -42,6 +42,13 @@ enum MenuSwitchFlickerProbe {
         }
     }
 
+    /// In-flight sessions must be strongly owned here: an unretained
+    /// `ProbeSession(...).begin()` temporary lets the release-mode optimizer
+    /// deallocate the session at creation ("weak reference will always be nil"),
+    /// so the driving timer's `[weak self]` never fires and the probe records
+    /// nothing. Sessions unregister themselves in `finish()`.
+    private(set) static var activeSessions: [ProbeSession] = []
+
     static func startIfRequested(controller: StatusItemController) {
         guard let dir = ProcessInfo.processInfo.environment["CODEXBAR_FLICKER_PROBE_DIR"],
               !dir.isEmpty else { return }
@@ -53,15 +60,34 @@ enum MenuSwitchFlickerProbe {
         // carried-over state such as the stable-height session floor).
         let holdMode = ProcessInfo.processInfo.environment["CODEXBAR_FLICKER_PROBE_MODE"] == "hold"
         DispatchQueue.main.asyncAfter(deadline: .now() + 4) {
-            ProbeSession(controller: controller, directory: directory, holdMode: holdMode).begin()
+            self.beginRetainedSession(controller: controller, directory: directory, holdMode: holdMode)
             guard !holdMode else { return }
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-                ProbeSession(
+                self.beginRetainedSession(
                     controller: controller,
                     directory: directory.appendingPathComponent("second"),
-                    holdMode: false).begin()
+                    holdMode: false)
             }
         }
+    }
+
+    static func beginRetainedSession(
+        controller: StatusItemController,
+        directory: URL,
+        holdMode: Bool,
+        configuration: ProbeSession.Configuration = ProbeSession.Configuration())
+    {
+        let session = ProbeSession(
+            controller: controller,
+            directory: directory,
+            holdMode: holdMode,
+            configuration: configuration)
+        self.activeSessions.append(session)
+        session.begin()
+    }
+
+    static func endSession(_ session: ProbeSession) {
+        self.activeSessions.removeAll { $0 === session }
     }
 
     /// Background frame grabber: samples the window's WindowServer composite and
@@ -152,10 +178,27 @@ enum MenuSwitchFlickerProbe {
 
     @MainActor
     final class ProbeSession {
+        /// Timing and menu-opening seams. Production uses the defaults; tests
+        /// shorten the schedule and substitute a non-blocking menu opener so the
+        /// session can run against a synthetic menu without NSMenu tracking.
+        struct Configuration {
+            /// Three away/back cycles give slower external captures several chances
+            /// to land on any transient artifact. Always ends on the original segment.
+            var switchScheduleMs: [Int] = [400, 1000, 1600, 2200, 2800, 3400]
+            var sessionEndMs = 4200
+            var holdSessionEndMs = 30000
+            /// Replaces `controller.openMenuFromShortcut()`, which blocks in
+            /// NSMenu's synchronous tracking loop until the session cancels it.
+            /// A substitute must likewise pump the main run loop until the
+            /// session's timer stops, then return.
+            var openMenu: (@MainActor () -> Void)?
+        }
+
         private let controller: StatusItemController
         private let directory: URL
         private let holdMode: Bool
-        private var timer: Timer?
+        private let configuration: Configuration
+        private(set) var timer: Timer?
         private var log: [String] = []
         private var startedAt: DispatchTime?
         private var switchScheduleIndex = 0
@@ -165,10 +208,16 @@ enum MenuSwitchFlickerProbe {
         private var originalSegment: Int?
         private var targetSegment: Int?
 
-        init(controller: StatusItemController, directory: URL, holdMode: Bool = false) {
+        init(
+            controller: StatusItemController,
+            directory: URL,
+            holdMode: Bool = false,
+            configuration: Configuration = Configuration())
+        {
             self.controller = controller
             self.directory = directory
             self.holdMode = holdMode
+            self.configuration = configuration
         }
 
         func begin() {
@@ -183,20 +232,20 @@ enum MenuSwitchFlickerProbe {
             RunLoop.main.add(timer, forMode: .common)
             self.timer = timer
             // Blocks in menu tracking until `cancelTracking()`; the timer keeps firing.
-            self.controller.openMenuFromShortcut()
+            if let openMenu = self.configuration.openMenu {
+                openMenu()
+            } else {
+                self.controller.openMenuFromShortcut()
+            }
             self.finish()
         }
-
-        /// Three away/back cycles give slower external captures several chances
-        /// to land on any transient artifact. Always ends on the original segment.
-        private static let switchScheduleMs = [400, 1000, 1600, 2200, 2800, 3400]
-        private static let sessionEndMs = 4200
-        private static let holdSessionEndMs = 30000
 
         private func tick() {
             guard let startedAt = self.startedAtOrLocateMenu() else { return }
             let now = Int((DispatchTime.now().uptimeNanoseconds - startedAt.uptimeNanoseconds) / 1_000_000)
-            let endMs = self.holdMode ? Self.holdSessionEndMs : Self.sessionEndMs
+            let endMs = self.holdMode
+                ? self.configuration.holdSessionEndMs
+                : self.configuration.sessionEndMs
             if now >= endMs {
                 self.timer?.invalidate()
                 self.timer = nil
@@ -204,8 +253,8 @@ enum MenuSwitchFlickerProbe {
                 return
             }
             guard !self.holdMode,
-                  self.switchScheduleIndex < Self.switchScheduleMs.count,
-                  now >= Self.switchScheduleMs[self.switchScheduleIndex] else { return }
+                  self.switchScheduleIndex < self.configuration.switchScheduleMs.count,
+                  now >= self.configuration.switchScheduleMs[self.switchScheduleIndex] else { return }
             let switchIndex = self.switchScheduleIndex
             self.switchScheduleIndex += 1
             // Cycle through overview (segment 0) too so full-rebuild transitions
@@ -308,6 +357,7 @@ enum MenuSwitchFlickerProbe {
                 to: self.directory.appendingPathComponent("probe-log.txt"),
                 atomically: true,
                 encoding: .utf8)
+            MenuSwitchFlickerProbe.endSession(self)
         }
     }
 

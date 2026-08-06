@@ -10,9 +10,8 @@ extension UsageStore {
         guard window.remainingPercent > 0 else { return nil }
         let resolved: UsagePace?
         let workDays = self.settings.weeklyProgressWorkDays
-        // Codex can refine pace with historical samples because its dashboard exposes enough weekly history to build
-        // an account-scoped usage curve. Other providers should not need a hard-coded allowlist: if their RateWindow
-        // includes a reset time and window duration, the generic linear pace calculation is already defensible.
+        // Provider-specific by design: only Codex's dashboard yields an account-scoped daily curve for learned pace;
+        // other providers use the generic linear window calculation.
         if provider == .codex, self.settings.historicalTrackingEnabled, workDays == nil {
             let codexAccountKey = self.codexOwnershipContext().canonicalKey
             if self.codexHistoricalDatasetAccountKey == codexAccountKey,

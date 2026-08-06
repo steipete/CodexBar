@@ -390,10 +390,13 @@ struct MenuDescriptor {
                 usage: mistralUsage,
                 preferredCurrencyCode: preferredCurrencyCode)
         }
-        if provider != .sakana || showOptionalUsage {
-            let details = provider == .minimax && !showOptionalUsage
-                ? snapshot.details.filter { $0.title != "Billing history" }
-                : snapshot.details
+        let policy = ProviderDescriptorRegistry.descriptor(for: provider).presentation.optionalDetails
+        if !policy.hidesAllWithoutOptionalUsage || showOptionalUsage {
+            let details = showOptionalUsage || policy.hiddenTitlesWithoutOptionalUsage.isEmpty
+                ? snapshot.details
+                : snapshot.details.filter { section in
+                    section.title.map(policy.hiddenTitlesWithoutOptionalUsage.contains) != true
+                }
             for section in details {
                 for row in section.rows {
                     let value = [row.value, row.secondaryValue].compactMap(\.self).joined(separator: " · ")

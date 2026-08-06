@@ -31,7 +31,7 @@ public struct AntigravityModelQuota: Sendable {
 }
 
 private enum AntigravityModelFamily {
-    case claude
+    case claudeModels
     case gpt
     case geminiPro
     case geminiFlash
@@ -39,26 +39,26 @@ private enum AntigravityModelFamily {
 }
 
 private enum AntigravityUsagePool: Hashable {
-    case gemini
+    case geminiAI
     case claudeGPT
 
     var id: String {
         switch self {
-        case .gemini: "antigravity-gemini"
+        case .geminiAI: "antigravity-gemini"
         case .claudeGPT: "antigravity-claude-gpt"
         }
     }
 
     var title: String {
         switch self {
-        case .gemini: "Gemini Models"
+        case .geminiAI: "Gemini Models"
         case .claudeGPT: "Claude and GPT models"
         }
     }
 
     var sortRank: Int {
         switch self {
-        case .gemini: 0
+        case .geminiAI: 0
         case .claudeGPT: 1
         }
     }
@@ -137,7 +137,7 @@ public struct AntigravityStatusSnapshot: Sendable {
 
         let normalized = Self.normalizedModels(self.modelQuotas)
         let summaryCandidates = normalized.filter(Self.isSummaryCandidate)
-        let primaryQuota = Self.representative(for: .gemini, in: summaryCandidates)
+        let primaryQuota = Self.representative(for: .geminiAI, in: summaryCandidates)
         let secondaryQuota = Self.representative(for: .claudeGPT, in: summaryCandidates)
         let fallbackQuota: AntigravityModelQuota? = if primaryQuota == nil, secondaryQuota == nil {
             switch self.source {
@@ -161,7 +161,7 @@ public struct AntigravityStatusSnapshot: Sendable {
             summaryCandidates: summaryCandidates,
             compactFallbackModelID: fallbackQuota?.modelId,
             representedPools: Set([
-                primaryQuota.map { _ in AntigravityUsagePool.gemini },
+                primaryQuota.map { _ in AntigravityUsagePool.geminiAI },
                 secondaryQuota.map { _ in AntigravityUsagePool.claudeGPT },
             ].compactMap(\.self)))
 
@@ -490,7 +490,7 @@ public struct AntigravityStatusSnapshot: Sendable {
 
     private static func familyRank(_ family: AntigravityModelFamily) -> Int {
         switch family {
-        case .claude: 0
+        case .claudeModels: 0
         case .gpt: 1
         case .geminiPro: 2
         case .geminiFlash: 3
@@ -524,7 +524,7 @@ public struct AntigravityStatusSnapshot: Sendable {
             || (label.contains("pro") && label.contains("low"))
 
         let selectionPriority: Int? = switch family {
-        case .claude, .gpt:
+        case .claudeModels, .gpt:
             0
         case .geminiPro:
             if isLowPriorityGeminiPro, isSelectableTextModel {
@@ -622,7 +622,7 @@ public struct AntigravityStatusSnapshot: Sendable {
         compactFallbackModelID: String?,
         representedPools: Set<AntigravityUsagePool>) -> [NamedRateWindow]
     {
-        let resetOnlyPoolWindows = [AntigravityUsagePool.gemini, .claudeGPT].compactMap { pool -> NamedRateWindow? in
+        let resetOnlyPoolWindows = [AntigravityUsagePool.geminiAI, .claudeGPT].compactMap { pool -> NamedRateWindow? in
             guard !representedPools.contains(pool) else { return nil }
             let candidates = summaryCandidates.filter { Self.usagePool(for: $0) == pool }
             guard let resetOnly = candidates.first(where: { model in
@@ -677,7 +677,7 @@ public struct AntigravityStatusSnapshot: Sendable {
 
     private static func pool(forExtraWindowID id: String) -> AntigravityUsagePool? {
         switch id {
-        case AntigravityUsagePool.gemini.id: .gemini
+        case AntigravityUsagePool.geminiAI.id: .geminiAI
         case AntigravityUsagePool.claudeGPT.id: .claudeGPT
         default: nil
         }
@@ -686,8 +686,8 @@ public struct AntigravityStatusSnapshot: Sendable {
     private static func usagePool(for model: AntigravityNormalizedModel) -> AntigravityUsagePool? {
         switch model.family {
         case .geminiPro, .geminiFlash:
-            .gemini
-        case .claude, .gpt:
+            .geminiAI
+        case .claudeModels, .gpt:
             .claudeGPT
         case .unknown:
             nil
@@ -704,7 +704,7 @@ public struct AntigravityStatusSnapshot: Sendable {
 
     private static func family(from text: String) -> AntigravityModelFamily {
         if text.contains("claude") {
-            return .claude
+            return .claudeModels
         }
         if text.contains("gpt") || text.contains("openai") {
             return .gpt

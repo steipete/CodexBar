@@ -76,7 +76,7 @@ public enum VeniceProviderDescriptor {
         // Linux compatibility only. JavaScriptCore platforms use the bundled plugin above.
         .apiToken(
             strategyID: "venice.api",
-            resolveToken: { ProviderTokenResolver.veniceToken(environment: $0) },
+            resolveToken: { ProviderTokenResolver.token(for: .venice, environment: $0) },
             missingCredentialsError: { VeniceUsageError.missingCredentials },
             loadUsage: { apiKey, _ in
                 try await VeniceUsageFetcher.fetchUsage(apiKey: apiKey).toUsageSnapshot()

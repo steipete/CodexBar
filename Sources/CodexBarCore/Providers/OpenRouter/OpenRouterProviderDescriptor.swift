@@ -4,6 +4,7 @@ public enum OpenRouterProviderDescriptor {
     public static let descriptor: ProviderDescriptor = Self.makeDescriptor()
     private static let credentials = ProviderCredentialAdapter.apiKey(
         environmentKey: OpenRouterSettingsReader.envKey,
+        apiKeyDebugLabel: OpenRouterSettingsReader.envKey,
         additionalProjections: [.enterpriseHost(OpenRouterSettingsReader.apiURLEnvironmentKey)],
         resolve: OpenRouterSettingsReader.apiToken,
         tokenAccountSupport: TokenAccountSupport(
@@ -64,9 +65,11 @@ public enum OpenRouterProviderDescriptor {
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
                 noDataMessage: { "OpenRouter cost summary is not yet supported." }),
-            presentation: ProviderUsagePresentation(menuCard: ProviderMenuCardPresentation(
-                showsCreditsSection: false,
-                primaryDescriptionPlacement: .reset)),
+            presentation: ProviderUsagePresentation(
+                menuCard: ProviderMenuCardPresentation(
+                    showsCreditsSection: false,
+                    primaryDescriptionPlacement: .reset),
+                planRow: ProviderPlanRowPresentation(label: "Balance", stripsBalancePrefix: true)),
             fetchPlan: self.fetchPlan(),
             cli: ProviderCLIConfig(
                 name: "openrouter",
@@ -111,7 +114,7 @@ public enum OpenRouterProviderDescriptor {
         // Linux compatibility only. JavaScriptCore platforms use the bundled OpenRouter plugin above.
         .apiToken(
             strategyID: "openrouter.api",
-            resolveToken: { ProviderTokenResolver.openRouterToken(environment: $0) },
+            resolveToken: { ProviderTokenResolver.token(for: .openrouter, environment: $0) },
             missingCredentialsError: { OpenRouterSettingsError.missingToken },
             loadUsage: { apiKey, context in
                 try await OpenRouterUsageFetcher.fetchUsage(

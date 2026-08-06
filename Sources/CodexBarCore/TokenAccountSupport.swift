@@ -14,6 +14,11 @@ public struct TokenAccountSupport: Sendable {
     public let cookieName: String?
     public let environmentKeysToScrub: [String]
     public let minimumDelayBetweenAccountRefreshes: Duration?
+    public let selectedAccountRequiresManualCookieSource: Bool
+    public let clearsAPIKeyOnMutation: Bool
+    public let showsOrganizationField: Bool
+    public let showsTeamModeControls: Bool
+    public let primaryAddActionTitle: String?
     private let environmentOverride: @Sendable (String) -> [String: String]?
     private let environmentScrubber: @Sendable (inout [String: String], String) -> Void
     private let cookieHeaderNormalizer: @Sendable (String) -> String
@@ -27,6 +32,11 @@ public struct TokenAccountSupport: Sendable {
         cookieName: String?,
         environmentKeysToScrub: [String] = [],
         minimumDelayBetweenAccountRefreshes: Duration? = nil,
+        selectedAccountRequiresManualCookieSource: Bool = false,
+        clearsAPIKeyOnMutation: Bool = false,
+        showsOrganizationField: Bool = false,
+        showsTeamModeControls: Bool = false,
+        primaryAddActionTitle: String? = nil,
         environmentOverride: (@Sendable (String) -> [String: String]?)? = nil,
         environmentScrubber: (@Sendable (inout [String: String], String) -> Void)? = nil,
         cookieHeaderNormalizer: (@Sendable (String) -> String)? = nil)
@@ -39,6 +49,11 @@ public struct TokenAccountSupport: Sendable {
         self.cookieName = cookieName
         self.environmentKeysToScrub = environmentKeysToScrub
         self.minimumDelayBetweenAccountRefreshes = minimumDelayBetweenAccountRefreshes
+        self.selectedAccountRequiresManualCookieSource = selectedAccountRequiresManualCookieSource
+        self.clearsAPIKeyOnMutation = clearsAPIKeyOnMutation
+        self.showsOrganizationField = showsOrganizationField
+        self.showsTeamModeControls = showsTeamModeControls
+        self.primaryAddActionTitle = primaryAddActionTitle
         self.environmentOverride = environmentOverride ?? { token in
             guard case let .environment(key) = injection else { return nil }
             return [key: token]

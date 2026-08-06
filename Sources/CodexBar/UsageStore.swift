@@ -110,6 +110,7 @@ extension UsageStore {
     /// Returns true if the Claude account appears to be a subscription (Max, Pro, Ultra, Team).
     /// Returns false for API users or when plan cannot be determined.
     func isClaudeSubscription() -> Bool {
+        // Provider-specific by design: Claude subscription plans choose its consumer dashboard account action.
         Self.isSubscriptionPlan(self.loginMethod(for: .claude))
     }
 
@@ -313,6 +314,7 @@ final class UsageStore {
     @ObservationIgnored let pluginApprovalStore = ProviderPluginApprovalStore()
     @ObservationIgnored let sessionQuotaNotifier: any SessionQuotaNotifying
     @ObservationIgnored let sessionQuotaLogger = CodexBarLog.logger(LogCategories.sessionQuota)
+    // Provider-specific by design: OpenAI web and Augment runtime diagnostics have dedicated app-owned log streams.
     @ObservationIgnored let openAIWebLogger = CodexBarLog.logger(LogCategories.provider(.openai, scope: "web"))
     @ObservationIgnored private let tokenCostLogger = CodexBarLog.logger(LogCategories.tokenCost)
     @ObservationIgnored let augmentLogger = CodexBarLog.logger(LogCategories.provider(.augment))
@@ -547,6 +549,7 @@ final class UsageStore {
         if let provider = enabled.first?.firstPartyProvider {
             return self.style(for: provider)
         }
+        // Provider-specific by design: Codex is the historical empty-enabled-set icon fallback.
         return .codex
     }
 
@@ -788,6 +791,7 @@ final class UsageStore {
             }
 
             if enrichmentMode == .forcedForeground, self.openAIDashboardRequiresLogin {
+                // Provider-specific by design: failed OpenAI attachment retries Codex usage before credits enrichment.
                 await self.refreshProvider(.codex)
                 await self.refreshCreditsNow(minimumSnapshotUpdatedAt: refreshStartedAt)
             }
@@ -956,6 +960,7 @@ final class UsageStore {
 
 extension UsageStore {
     func debugDumpClaude() async {
+        // Provider-specific by design: Claude's debug command owns a raw CLI/web probe artifact and error lane.
         let fetcher = ClaudeUsageFetcher(
             browserDetection: self.browserDetection,
             keepCLISessionsAlive: self.settings.debugKeepCLISessionsAlive)
@@ -1019,10 +1024,9 @@ extension UsageStore {
         let notionCookieHeader = self.settings.notionCookieHeader
         let notionWorkspaceID = self.settings.notionWorkspaceID
         let processEnvironment = self.environmentBase
-        let openAIDebugContext = self.openAIAPIKeyDebugContext(processEnvironment: processEnvironment)
-        let azureOpenAIDebugContext = self.azureOpenAIAPIKeyDebugContext(processEnvironment: processEnvironment)
-        let openRouterDebugContext = self.openRouterAPIKeyDebugContext(processEnvironment: processEnvironment)
-        let elevenLabsDebugContext = self.elevenLabsAPIKeyDebugContext(processEnvironment: processEnvironment)
+        let apiKeyDebugContext = self.apiKeyDebugContext(
+            provider: provider,
+            processEnvironment: processEnvironment)
         let deepSeekHasEnvToken = DeepSeekSettingsReader.apiKey(environment: processEnvironment) != nil
         let deepSeekHasTokenAccount = self.settings.selectedTokenAccount(for: .deepseek) != nil
         let deepSeekEnvironment = ProviderRegistry.makeEnvironment(
@@ -1036,13 +1040,12 @@ extension UsageStore {
         let text = await Task.detached(priority: .utility) { () -> String in
             // Provider-specific by design: implemented logs capture app-only settings and execution contexts.
             let buildText = {
+                if let apiKeyDebugContext {
+                    return Self.apiKeyDebugLine(apiKeyDebugContext)
+                }
                 switch provider {
                 case .codex:
                     return await codexFetcher.debugRawRateLimits()
-                // Folded into one case: both read the same helper, and keeping them apart pushed this
-                // switch past the cyclomatic-complexity cap when the Notion case was added.
-                case .openai, .azureopenai:
-                    return Self.apiKeyDebugLine(provider == .openai ? openAIDebugContext : azureOpenAIDebugContext)
                 case .claude:
                     guard let claudeDebugConfiguration else {
                         return "Claude debug log configuration unavailable"
@@ -1053,12 +1056,12 @@ extension UsageStore {
                             configuration: claudeDebugConfiguration)
                     }
                 case .zai:
-                    let resolution = ProviderTokenResolver.zaiResolution()
+                    let resolution = ProviderTokenResolver.resolution(for: .zai)
                     let hasAny = resolution != nil
                     let source = resolution?.source.rawValue ?? "none"
                     return "Z_AI_API_KEY=\(hasAny ? "present" : "missing") source=\(source)"
                 case .synthetic:
-                    let resolution = ProviderTokenResolver.syntheticResolution()
+                    let resolution = ProviderTokenResolver.resolution(for: .synthetic)
                     let hasAny = resolution != nil
                     let source = resolution?.source.rawValue ?? "none"
                     return "SYNTHETIC_API_KEY=\(hasAny ? "present" : "missing") source=\(source)"
@@ -1068,15 +1071,15 @@ extension UsageStore {
                         cursorCookieSource: cursorCookieSource,
                         cursorCookieHeader: cursorCookieHeader)
                 case .minimax:
-                    let tokenResolution = ProviderTokenResolver.minimaxTokenResolution()
-                    let cookieResolution = ProviderTokenResolver.minimaxCookieResolution()
+                    let tokenResolution = ProviderTokenResolver.resolution(for: .minimax)
+                    let cookieResolution = ProviderTokenResolver.resolution(for: .minimax, kind: .secondary)
                     let tokenSource = tokenResolution?.source.rawValue ?? "none"
                     let cookieSource = cookieResolution?.source.rawValue ?? "none"
                     return "MINIMAX_API_KEY=\(tokenResolution == nil ? "missing" : "present") " +
                         "source=\(tokenSource) MINIMAX_COOKIE=\(cookieResolution == nil ? "missing" : "present") " +
                         "source=\(cookieSource)"
                 case .alibaba:
-                    let resolution = ProviderTokenResolver.alibabaTokenResolution()
+                    let resolution = ProviderTokenResolver.resolution(for: .alibaba)
                     let hasAny = resolution != nil
                     let source = resolution?.source.rawValue ?? "none"
                     return "ALIBABA_CODING_PLAN_API_KEY=\(hasAny ? "present" : "missing") source=\(source)"
@@ -1098,19 +1101,15 @@ extension UsageStore {
                         notionCookieSource: notionCookieSource,
                         notionCookieHeader: notionCookieHeader,
                         notionWorkspaceID: notionWorkspaceID)
-                case .openrouter:
-                    return Self.apiKeyDebugLine(openRouterDebugContext)
-                case .elevenlabs:
-                    return Self.apiKeyDebugLine(elevenLabsDebugContext)
                 case .warp:
-                    let resolution = ProviderTokenResolver.warpResolution()
+                    let resolution = ProviderTokenResolver.resolution(for: .warp)
                     let hasAny = resolution != nil
                     let source = resolution?.source.rawValue ?? "none"
                     return "WARP_API_KEY=\(hasAny ? "present" : "missing") source=\(source)"
                 case .deepseek:
                     return Self.apiKeyDebugLine(
                         label: "DEEPSEEK_API_KEY",
-                        resolution: ProviderTokenResolver.deepseekResolution(environment: deepSeekEnvironment),
+                        resolution: ProviderTokenResolver.resolution(for: .deepseek, environment: deepSeekEnvironment),
                         configToken: nil,
                         hasEnvToken: deepSeekHasEnvToken,
                         hasTokenAccount: deepSeekHasTokenAccount)
@@ -1419,6 +1418,7 @@ extension UsageStore {
             return
         }
 
+        // Provider-specific by design: Cursor cost shares the dashboard-cookie source policy with status fetching.
         // Cursor cost honors the same cookie policy as status: when the user set the cookie source
         // to Off, skip the network fetch entirely (mirrors CursorProviderDescriptor.checkStatus).
         if provider == .cursor, self.settings.cursorCookieSource == .off {
@@ -1559,6 +1559,7 @@ extension UsageStore {
     }
 
     private func resetTokenUsageState(for provider: UsageProvider) {
+        // Provider-specific by design: resetting Codex token state also cancels its two ledger catch-up workflows.
         if provider == .codex {
             self.cancelCodexCostCatchUp()
             self.cancelSpendDashboardCodexCostCatchUp()

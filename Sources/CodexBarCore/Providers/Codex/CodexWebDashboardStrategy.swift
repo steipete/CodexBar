@@ -135,6 +135,7 @@ private final class WebLogBuffer {
     private var lines: [String] = []
     private let maxCount: Int
     private let verbose: Bool
+    /// Provider-specific by design: The Codex dashboard strategy logs its OpenAI web integration separately.
     private let logger = CodexBarLog.logger(LogCategories.provider(.openai, scope: "web"))
 
     init(maxCount: Int = 300, verbose: Bool) {
