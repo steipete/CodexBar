@@ -520,5 +520,108 @@ struct GrokTurnUsageScannerTests {
         #expect(budget.skippedStaleFileCount == 1)
         #expect(budget.bytesConsumed == 0)
     }
+
+    @Test
+    func `refuses oversized Grok cache artifacts before decoding`() throws {
+        let cacheRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent("grok-cache-load-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: cacheRoot) }
+        let url = GrokTurnUsageCacheIO.cacheFileURL(cacheRoot: cacheRoot)
+        try FileManager.default.createDirectory(
+            at: url.deletingLastPathComponent(),
+            withIntermediateDirectories: true)
+        // Write a small payload but enforce a tiny maxLoadBytes so load skips decode.
+        try Data(#"{"version":2,"files":{}}"#.utf8).write(to: url)
+        let loaded = GrokTurnUsageCacheIO.load(cacheRoot: cacheRoot, maxLoadBytes: 4)
+        #expect(loaded.files.isEmpty)
+        #expect(loaded.version == 2)
+    }
+
+    @Test
+    func `prunes oldest Grok cache files to honor entry and byte budgets`() throws {
+        let cacheRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent("grok-cache-save-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: cacheRoot) }
+
+        var cache = GrokTurnUsageCache(version: 2)
+        for index in 0..<20 {
+            let path = "/tmp/session-\(index)/updates.jsonl"
+            let turn = GrokTurnUsageCachedTurn(
+                from: GrokTurnUsageScanner.TurnRecord(
+                    eventID: "e-\(index)",
+                    sessionID: "s-\(index)",
+                    dayKey: "2026-08-01",
+                    timestamp: Date(timeIntervalSince1970: TimeInterval(1_700_000_000 + index)),
+                    cwd: "/tmp/project-\(index)",
+                    inputTokens: 10,
+                    cacheReadTokens: 0,
+                    outputTokens: 1,
+                    reasoningTokens: 0,
+                    totalTokens: 11,
+                    modelCalls: 1,
+                    costUSD: 0.01,
+                    modelUsages: []))
+            cache.files[path] = GrokTurnUsageCachedFile(
+                mtimeUnixMs: Int64(index),
+                size: 100,
+                sessionID: "s-\(index)",
+                cwd: "/tmp/project-\(index)",
+                isPartial: false,
+                turns: [turn])
+        }
+
+        GrokTurnUsageCacheIO.save(
+            cache: cache,
+            cacheRoot: cacheRoot,
+            maxFileBytes: 256 * 1024 * 1024,
+            maxFileEntries: 5)
+        let loaded = GrokTurnUsageCacheIO.load(cacheRoot: cacheRoot)
+        #expect(loaded.files.count == 5)
+        // Newest mtimes retained.
+        #expect(loaded.files.keys.contains("/tmp/session-19/updates.jsonl"))
+        #expect(loaded.files.keys.contains("/tmp/session-15/updates.jsonl"))
+        #expect(!loaded.files.keys.contains("/tmp/session-0/updates.jsonl"))
+
+        // Byte budget: force pruning by encoding size.
+        var fat = GrokTurnUsageCache(version: 2)
+        for index in 0..<30 {
+            let padding = String(repeating: "x", count: 200)
+            let path = "/tmp/fat-\(index)-\(padding)/updates.jsonl"
+            let turn = GrokTurnUsageCachedTurn(
+                from: GrokTurnUsageScanner.TurnRecord(
+                    eventID: "fat-\(index)-\(padding)",
+                    sessionID: "fat-\(index)",
+                    dayKey: "2026-08-01",
+                    timestamp: Date(timeIntervalSince1970: TimeInterval(1_700_000_000 + index)),
+                    cwd: "/tmp/fat-\(index)",
+                    inputTokens: 10,
+                    cacheReadTokens: 0,
+                    outputTokens: 1,
+                    reasoningTokens: 0,
+                    totalTokens: 11,
+                    modelCalls: 1,
+                    costUSD: nil,
+                    modelUsages: []))
+            fat.files[path] = GrokTurnUsageCachedFile(
+                mtimeUnixMs: Int64(index),
+                size: 1000,
+                sessionID: "fat-\(index)",
+                cwd: "/tmp/fat-\(index)",
+                isPartial: false,
+                turns: [turn])
+        }
+        let encodedAll = try JSONEncoder().encode(fat)
+        #expect(encodedAll.count > 2_000)
+        GrokTurnUsageCacheIO.save(
+            cache: fat,
+            cacheRoot: cacheRoot,
+            maxFileBytes: 2_000,
+            maxFileEntries: 100)
+        let afterBytePrune = GrokTurnUsageCacheIO.load(cacheRoot: cacheRoot)
+        let encodedKept = try JSONEncoder().encode(afterBytePrune)
+        #expect(encodedKept.count <= 2_000)
+        #expect(afterBytePrune.files.count < 30)
+        #expect(!afterBytePrune.files.isEmpty)
+    }
 }
 

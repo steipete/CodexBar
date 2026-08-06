@@ -5,6 +5,13 @@ import Foundation
 enum GrokTurnUsageCacheIO {
     private static let artifactVersion = 2
 
+    /// Match shared cost-cache safety budgets: decode/encode is whole-document JSON, so an
+    /// unbounded local history can otherwise grow the artifact without limit and spike memory.
+    static let maxCacheFileBytes: Int = 256 * 1024 * 1024
+    static let maxCacheLoadBytes: Int = 320 * 1024 * 1024
+    /// Soft cap on cached session files; oldest (by mtime) are dropped first when over budget.
+    static let maxCacheFileEntries: Int = 10_000
+
     private static func defaultCacheRoot() -> URL {
         let root = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first!
         return root.appendingPathComponent("CodexBar", isDirectory: true)
@@ -17,9 +24,19 @@ enum GrokTurnUsageCacheIO {
             .appendingPathComponent("grok-turns-v\(Self.artifactVersion).json", isDirectory: false)
     }
 
-    static func load(cacheRoot: URL? = nil) -> GrokTurnUsageCache {
+    static func load(
+        cacheRoot: URL? = nil,
+        maxLoadBytes: Int = GrokTurnUsageCacheIO.maxCacheLoadBytes) -> GrokTurnUsageCache
+    {
         let url = self.cacheFileURL(cacheRoot: cacheRoot)
+        let fileSize = (try? FileManager.default.attributesOfItem(atPath: url.path)[.size] as? NSNumber)?
+            .int64Value ?? 0
+        // Refuse oversized artifacts before materializing them (same pattern as CostUsageCacheIO).
+        guard fileSize > 0, fileSize <= Int64(max(0, maxLoadBytes)) else {
+            return GrokTurnUsageCache(version: Self.artifactVersion)
+        }
         guard let data = try? Data(contentsOf: url),
+              data.count <= maxLoadBytes,
               let decoded = try? JSONDecoder().decode(GrokTurnUsageCache.self, from: data),
               decoded.version == Self.artifactVersion
         else {
@@ -28,13 +45,76 @@ enum GrokTurnUsageCacheIO {
         return decoded
     }
 
-    static func save(cache: GrokTurnUsageCache, cacheRoot: URL? = nil) {
+    static func save(
+        cache: GrokTurnUsageCache,
+        cacheRoot: URL? = nil,
+        maxFileBytes: Int = GrokTurnUsageCacheIO.maxCacheFileBytes,
+        maxFileEntries: Int = GrokTurnUsageCacheIO.maxCacheFileEntries)
+    {
         let url = self.cacheFileURL(cacheRoot: cacheRoot)
         let dir = url.deletingLastPathComponent()
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
 
+        var cache = cache
+        cache.version = Self.artifactVersion
+        Self.pruneForBudget(
+            &cache,
+            maxFileBytes: maxFileBytes,
+            maxFileEntries: maxFileEntries)
+
         let tmp = dir.appendingPathComponent(".tmp-grok-\(UUID().uuidString).json", isDirectory: false)
-        let data = (try? JSONEncoder().encode(cache)) ?? Data()
+        guard let data = try? JSONEncoder().encode(cache), !data.isEmpty else { return }
+        // Last-resort: if still over budget after entry pruning, do not persist an oversized artifact.
+        guard data.count <= max(0, maxFileBytes) else {
+            // Drop half the oldest files and try once more; give up rather than write unbounded.
+            Self.dropOldestFiles(&cache, keepCount: max(1, cache.files.count / 2))
+            guard let retry = try? JSONEncoder().encode(cache),
+                  retry.count <= max(0, maxFileBytes)
+            else { return }
+            self.writeAtomically(retry, to: url, temporary: tmp)
+            return
+        }
+        self.writeAtomically(data, to: url, temporary: tmp)
+    }
+
+    /// Prefer newest session files; drop oldest when over entry or encoded-size budget.
+    static func pruneForBudget(
+        _ cache: inout GrokTurnUsageCache,
+        maxFileBytes: Int,
+        maxFileEntries: Int)
+    {
+        if maxFileEntries > 0, cache.files.count > maxFileEntries {
+            Self.dropOldestFiles(&cache, keepCount: maxFileEntries)
+        }
+        // Estimate before encoding when possible; encode only if still large after entry trim.
+        guard maxFileBytes > 0 else { return }
+        guard let data = try? JSONEncoder().encode(cache) else { return }
+        guard data.count > maxFileBytes else { return }
+
+        // Binary-search-ish: drop oldest files until under budget or nearly empty.
+        var keep = max(1, cache.files.count / 2)
+        while cache.files.count > 1 {
+            Self.dropOldestFiles(&cache, keepCount: keep)
+            guard let trimmed = try? JSONEncoder().encode(cache) else { return }
+            if trimmed.count <= maxFileBytes { return }
+            keep = max(1, cache.files.count / 2)
+            if keep >= cache.files.count { break }
+        }
+    }
+
+    static func dropOldestFiles(_ cache: inout GrokTurnUsageCache, keepCount: Int) {
+        guard keepCount >= 0, cache.files.count > keepCount else { return }
+        let ordered = cache.files.sorted { lhs, rhs in
+            if lhs.value.mtimeUnixMs != rhs.value.mtimeUnixMs {
+                return lhs.value.mtimeUnixMs > rhs.value.mtimeUnixMs // newest first
+            }
+            return lhs.key < rhs.key
+        }
+        let kept = ordered.prefix(keepCount)
+        cache.files = Dictionary(uniqueKeysWithValues: kept.map { ($0.key, $0.value) })
+    }
+
+    private static func writeAtomically(_ data: Data, to url: URL, temporary tmp: URL) {
         do {
             try data.write(to: tmp, options: [.atomic])
             if FileManager.default.fileExists(atPath: url.path) {
