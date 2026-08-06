@@ -128,7 +128,8 @@ struct CLIServeRouterTests {
     }
 
     @Test
-    func `routes health usage and cost endpoints`() throws {
+    func `routes web UI health usage cost and dashboard endpoints`() throws {
+        #expect(try CLIServeRouter.route(method: "GET", path: "/", queryItems: [:]) == .webUI)
         #expect(try CLIServeRouter.route(method: "GET", path: "/health", queryItems: [:]) == .health)
         #expect(try CLIServeRouter.route(method: "GET", path: "/usage", queryItems: [:]) == .usage(provider: nil))
         #expect(
@@ -152,6 +153,18 @@ struct CLIServeRouterTests {
     func `rejects non get methods`() {
         do {
             _ = try CLIServeRouter.route(method: "POST", path: "/usage", queryItems: [:])
+            Issue.record("Expected methodNotAllowed")
+        } catch let error as CLIServeRouteError {
+            #expect(error == .methodNotAllowed)
+        } catch {
+            Issue.record("Unexpected error: \(error)")
+        }
+    }
+
+    @Test
+    func `rejects post to web UI`() {
+        do {
+            _ = try CLIServeRouter.route(method: "POST", path: "/", queryItems: [:])
             Issue.record("Expected methodNotAllowed")
         } catch let error as CLIServeRouteError {
             #expect(error == .methodNotAllowed)

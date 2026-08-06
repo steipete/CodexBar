@@ -3,6 +3,9 @@
 ## 0.47.1 — Unreleased
 
 ### Added
+- Currency: Korean won (KRW) in the preferred-currency picker, with correct zero-decimal formatting (#2669, refs #2449). Thanks @kes02!
+- Dashboard v1 snapshot: Claude rows now include all claude-swap accounts (windows, pace, active flag, redacted identity) when the integration is enabled.
+- CLI: add a built-in auto-refreshing web dashboard at `/` to `codexbar serve`.
 - CLI: expose Codex cost-history completeness in JSON and add an experimental provider-native-only scan mode (#2520). Thanks @NickGuAI!
 - Usage & Spend: add an accessible daily, weekly, and cumulative token-activity heatmap backed by the existing persistent cost scan cache (#2548). Thanks @Yuxin-Qiao!
 - Settings: the sidebar is now resizable — drag the divider between 200–380pt; the width persists across launches.
@@ -24,6 +27,11 @@
 - Codex: define Fast cost as estimated API Fast USD, resolve it models.dev-first with model-specific API ratios, and refresh GPT-5.6 Terra/Luna fallback rates (refs #2175). Thanks @iam-brain!
 
 ### Fixed
+- Codex: apply a manual reset immediately — a redeemed reset credit now exempts the weekly-boundary confirmation guard, so fresh quota shows without waiting out the old boundary (#2710). Thanks @endless7!
+- Antigravity: wait for `agy` keyring readiness on cold start (bounded 15s) instead of falling through to the degraded OAuth placeholder (#2665, refs #2427). Thanks @Yuxin-Qiao!
+- CLI: `codexbar serve` bounds the entire request head (16 KB / 10 s total) instead of only each read, closing a pre-auth slow-trickle hold (#2684). Thanks @OfficialAbhinavSingh!
+- Command Code: recognize the Individual GOAT plan ($70/mo credits) and the new production cookie names while keeping the legacy bare-token fallback (#2706). Thanks @KronixDev!
+- Codex: document the real cost-cache overshoot contract, fix day-key parsing under non-Gregorian system calendars, and accept all shipped predecessor cache keys so mid-window builds skip pointless rebuilds (#2703). Thanks @Yuxin-Qiao!
 - Overview: stop the infinite menu flicker when hovering between provider chart submenus with Agent Sessions enabled — no-op session rescans no longer invalidate menus, submenu hovers no longer trigger rescans, and session updates defer tracked-parent rebuilds like other data refreshes (#2652). Thanks @qazi0!
 - Widgets: bound widget-snapshot file I/O with a defensive timeout and skip further container access once it wedges, so a blocked macOS 26 app-group open() can no longer beachball the app or hang the widget (#2267 follow-up).
 - Command Code: parse and display 5-hour and weekly rolling limits alongside monthly credits and reset times (#2466). Thanks @derekszen!

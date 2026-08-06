@@ -294,6 +294,15 @@ struct ProviderArchitectureGatekeeperTests {
     }
 
     @Test
+    func `provider reference scanner sees through inline block comments`() {
+        let assignment = "let provider: UsageProvider = /* fallback */ .claude"
+        let labeled = "choose(provider: /* fallback */ .claude)"
+
+        #expect(Self.providerReferences(in: assignment, providerIDs: ["claude"]).count == 1)
+        #expect(Self.providerReferences(in: labeled, providerIDs: ["claude"]).count == 1)
+    }
+
+    @Test
     func `single provider argument remains an architecture finding`() {
         let failures = Self.analyze(
             file: SourceFile(path: "Sources/App/Shared.swift", source: "makeRow(provider: .claude)"),
@@ -1512,7 +1521,7 @@ struct ProviderArchitectureGatekeeperTests {
             reason: "This provider-specific core branch passes its already-selected identity to a shared helper."),
         SuppressedProviderReference(
             path: "Sources/CodexBarCore/Vendored/CostUsage/CostUsageCache.swift",
-            line: 91,
+            line: 98,
             anchor: "let url = self.cacheFileURL(provider: .codex, cacheRoot: cacheRoot)",
             expectedProviderIDs: ["codex"],
             reason: "This provider-specific core branch passes its already-selected identity to a shared helper."),
@@ -3622,7 +3631,7 @@ struct ProviderArchitectureGatekeeperTests {
             reason: "This exact shared construct dispatches a provider-owned capability at the generic integration boundary."),
         AllowedProviderConstruct(
             path: "Sources/CodexBarCore/Vendored/CostUsage/CostUsageCache.swift",
-            line: 99,
+            line: 106,
             anchor: "let expectedProducerKey = producerKey ?? self.currentProducerKey(provider: .codex)",
             expectedProviderIDs: ["codex"],
             expectedReferenceCount: 1,
@@ -3630,7 +3639,7 @@ struct ProviderArchitectureGatekeeperTests {
             reason: "This exact cost scanner dispatch selects a provider-owned transcript, cache, or pricing format."),
         AllowedProviderConstruct(
             path: "Sources/CodexBarCore/Vendored/CostUsage/CostUsageCache.swift",
-            line: 162,
+            line: 169,
             anchor: "if provider == .codex {",
             expectedProviderIDs: ["codex"],
             expectedReferenceCount: 1,
@@ -3638,7 +3647,7 @@ struct ProviderArchitectureGatekeeperTests {
             reason: "This exact cost scanner dispatch selects a provider-owned transcript, cache, or pricing format."),
         AllowedProviderConstruct(
             path: "Sources/CodexBarCore/Vendored/CostUsage/CostUsageCache.swift",
-            line: 190,
+            line: 197,
             anchor: "if provider == .codex, data.count > maxCacheBytes {",
             expectedProviderIDs: ["codex"],
             expectedReferenceCount: 1,
@@ -3646,7 +3655,7 @@ struct ProviderArchitectureGatekeeperTests {
             reason: "This exact cost scanner dispatch selects a provider-owned transcript, cache, or pricing format."),
         AllowedProviderConstruct(
             path: "Sources/CodexBarCore/Vendored/CostUsage/CostUsageCache.swift",
-            line: 215,
+            line: 226,
             anchor: "if provider == .codex, data.count > maxCacheLoadBytes {",
             expectedProviderIDs: ["codex"],
             expectedReferenceCount: 1,
@@ -4420,21 +4429,38 @@ struct ProviderArchitectureGatekeeperTests {
     private static func codeBeforeLineComment(_ line: String) -> String {
         var previous: Character?
         var isInsideString = false
-        var index = line.startIndex
-        while index < line.endIndex {
-            let character = line[index]
+        var characters = Array(line)
+        var index = 0
+        while index < characters.count {
+            let character = characters[index]
             if character == "\"", previous != "\\" {
                 isInsideString.toggle()
-            } else if character == "/", !isInsideString {
-                let next = line.index(after: index)
-                if next < line.endIndex, line[next] == "/" {
-                    return String(line[..<index])
+            } else if character == "/", !isInsideString, index + 1 < characters.count {
+                if characters[index + 1] == "/" {
+                    return String(characters[..<index])
+                }
+                if characters[index + 1] == "*" {
+                    // Blank single-line block comments with spaces so punctuation adjacency stays
+                    // visible to position heuristics while every character index is preserved.
+                    var end = index + 2
+                    while end + 1 < characters.count, !(characters[end] == "*" && characters[end + 1] == "/") {
+                        end += 1
+                    }
+                    guard end + 1 < characters.count else {
+                        return String(characters[..<index])
+                    }
+                    for blank in index...(end + 1) {
+                        characters[blank] = " "
+                    }
+                    previous = " "
+                    index = end + 2
+                    continue
                 }
             }
             previous = character
-            index = line.index(after: index)
+            index += 1
         }
-        return line
+        return String(characters)
     }
 
     private static func isIdentifierCharacter(_ character: Character) -> Bool {

@@ -1,6 +1,12 @@
 import CodexBarCore
 import Foundation
 
+struct DashboardClaudeSwapInput {
+    let accounts: [ProviderAccountUsageSnapshot]?
+    let adapterError: String?
+    let weeklyWorkDays: Int?
+}
+
 /// Projects the CLI's provider usage and cost payloads into the stable,
 /// display-oriented `/dashboard/v1/snapshot` contract.
 enum DashboardSnapshotBuilder {
@@ -12,7 +18,8 @@ enum DashboardSnapshotBuilder {
         identityMode: DashboardIdentityMode,
         generatedAt: Date,
         refreshInterval: TimeInterval,
-        codexBarVersion: String?) -> DashboardSnapshotPayload
+        codexBarVersion: String?,
+        claudeSwap: DashboardClaudeSwapInput? = nil) -> DashboardSnapshotPayload
     {
         var costByProvider: [String: CostPayload] = [:]
         for cost in costPayloads {
@@ -24,14 +31,22 @@ enum DashboardSnapshotBuilder {
             sortKeys[provider.rawValue] = index * 10
         }
 
+        var attachedClaudeSwap = false
         let providers = usagePayloads.enumerated().map { index, payload in
-            self.makeProvider(
+            var rowClaudeSwap: DashboardClaudeSwapInput?
+            // Provider-specific by design: claude-swap account data belongs only on the first Claude row.
+            if !attachedClaudeSwap, UsageProvider(rawValue: payload.provider) == .claude {
+                rowClaudeSwap = claudeSwap
+                attachedClaudeSwap = true
+            }
+            return self.makeProvider(
                 payload: payload,
                 cost: costByProvider[payload.provider],
                 enabledProviders: enabledProviders,
                 sortKey: sortKeys[payload.provider] ?? (10000 + index),
                 identityMode: identityMode,
-                generatedAt: generatedAt)
+                generatedAt: generatedAt,
+                claudeSwap: rowClaudeSwap)
         }
 
         let refreshSeconds = self.dashboardRefreshSeconds(refreshInterval)
@@ -52,13 +67,23 @@ enum DashboardSnapshotBuilder {
         enabledProviders: Set<UsageProvider>,
         sortKey: Int,
         identityMode: DashboardIdentityMode,
-        generatedAt: Date) -> DashboardProviderPayload
+        generatedAt: Date,
+        claudeSwap: DashboardClaudeSwapInput?) -> DashboardProviderPayload
     {
         let provider = UsageProvider(rawValue: payload.provider)
         let descriptor = provider.map { ProviderDescriptorRegistry.descriptor(for: $0) }
         let metadata = descriptor?.metadata
 
         let error = payload.error ?? cost?.error
+        let accounts = claudeSwap?.adapterError == nil
+            ? claudeSwap?.accounts?.map { account in
+                self.makeClaudeSwapAccount(
+                    account,
+                    identityMode: identityMode,
+                    weeklyWorkDays: claudeSwap?.weeklyWorkDays,
+                    generatedAt: generatedAt)
+            }
+            : nil
         return DashboardProviderPayload(
             id: payload.provider,
             name: metadata?.displayName ?? payload.provider,
@@ -78,7 +103,39 @@ enum DashboardSnapshotBuilder {
                 payload: payload,
                 cost: cost,
                 error: error,
-                generatedAt: generatedAt))
+                generatedAt: generatedAt),
+            accounts: accounts,
+            accountsError: claudeSwap?.adapterError)
+    }
+
+    private static func makeClaudeSwapAccount(
+        _ account: ProviderAccountUsageSnapshot,
+        identityMode: DashboardIdentityMode,
+        weeklyWorkDays: Int?,
+        generatedAt: Date) -> DashboardAccountPayload
+    {
+        let email = account.snapshot?.identity?.accountEmail
+        let redactedEmail = identityMode != .none && email?.contains("@") == true
+            ? self.dashboardEmail(email, mode: identityMode)
+            : nil
+        let identity = redactedEmail.map { DashboardIdentityPayload(accountEmail: $0, plan: nil) }
+        // Provider-specific by design: claude-swap account windows and pace use Claude's presentation semantics.
+        let metadata = ProviderDescriptorRegistry.descriptor(for: UsageProvider.claude).metadata
+        return DashboardAccountPayload(
+            id: "\(account.id.source):\(account.id.opaqueID)",
+            label: "Account \(account.id.opaqueID)",
+            active: account.isActive,
+            identity: identity,
+            windows: self.makeWindows(provider: .claude, metadata: metadata, usage: account.snapshot),
+            pace: account.snapshot.flatMap {
+                CLIRenderer.providerPacePayload(
+                    provider: .claude,
+                    snapshot: $0,
+                    weeklyWorkDays: weeklyWorkDays,
+                    now: generatedAt)
+            },
+            error: account.error,
+            updatedAt: account.snapshot?.updatedAt)
     }
 
     private static func dashboardSource(from source: String) -> String {

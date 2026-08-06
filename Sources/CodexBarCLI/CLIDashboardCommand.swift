@@ -26,6 +26,11 @@ struct DashboardSnapshotResult {
     let usageCacheKeys: [String?]
 }
 
+struct DashboardClaudeSwapCollection: Sendable {
+    let accounts: [ProviderAccountUsageSnapshot]?
+    let adapterError: String?
+}
+
 /// Collects the stable dashboard-v1 payload independently of its transport.
 /// The CLI command encodes it directly while `codexbar serve` wraps it in the
 /// existing authenticated HTTP cache.
@@ -33,6 +38,8 @@ struct DashboardSnapshotProducer: Sendable {
     let collectUsage: @Sendable ([UsageProvider]) async throws -> UsageCommandOutput
     let collectCost: @Sendable ([UsageProvider], CodexBarConfig) async -> [CostPayload]
     let now: @Sendable () -> Date
+    var collectClaudeSwapAccounts: @Sendable (CodexBarConfig) async -> DashboardClaudeSwapCollection? = { _ in nil }
+    var weeklyWorkDays: @Sendable () -> Int? = { nil }
 
     func collect(
         config: CodexBarConfig,
@@ -46,15 +53,23 @@ struct DashboardSnapshotProducer: Sendable {
         let costPayloads = await self.collectCost(
             CodexBarCLI.costProviders(from: selection),
             config)
+        let claudeSwap = await self.collectClaudeSwapAccounts(config)
+        let generatedAt = self.now()
 
         let payload = DashboardSnapshotBuilder.makeSnapshot(
             usagePayloads: usageOutput.payload,
             costPayloads: costPayloads,
             config: config,
             identityMode: .redacted,
-            generatedAt: self.now(),
+            generatedAt: generatedAt,
             refreshInterval: refreshInterval,
-            codexBarVersion: codexBarVersion)
+            codexBarVersion: codexBarVersion,
+            claudeSwap: claudeSwap.map {
+                DashboardClaudeSwapInput(
+                    accounts: $0.accounts,
+                    adapterError: $0.adapterError,
+                    weeklyWorkDays: self.weeklyWorkDays())
+            })
         return DashboardSnapshotResult(
             payload: payload,
             usageCacheKeys: usageOutput.payload.map(\.cacheAccountKey))
@@ -86,12 +101,42 @@ struct DashboardSnapshotProducer: Sendable {
                     }
                 }
             },
-            now: { Date() })
+            now: { Date() },
+            collectClaudeSwapAccounts: { config in
+                // Provider-specific by design: the dashboard opts into Claude's local multi-account adapter.
+                guard CodexBarCLI.dashboardClaudeSwapIsEligible(config: config) else { return nil }
+                let path = config.providerConfig(for: .claude)?.sanitizedClaudeSwapExecutablePath ?? ""
+                let timeout = min(
+                    ClaudeSwapAccountReader.defaultTimeout,
+                    context.usage.providerTimeout ?? ClaudeSwapAccountReader.defaultTimeout)
+                do {
+                    let list = try await ClaudeSwapAccountReader.readAccountList(
+                        executablePath: path,
+                        timeout: timeout)
+                    return DashboardClaudeSwapCollection(
+                        accounts: ClaudeSwapAccountProjection.accountSnapshots(from: list),
+                        adapterError: nil)
+                } catch {
+                    let diagnostic = CLIClaudeSwapText.sanitizeDiagnostic(error.localizedDescription)
+                    return DashboardClaudeSwapCollection(
+                        accounts: nil,
+                        adapterError: diagnostic.isEmpty ? "claude-swap list failed." : diagnostic)
+                }
+            },
+            weeklyWorkDays: { CodexBarCLI.weeklyProgressWorkDaysFromDefaults() })
     }
 }
 
 extension CodexBarCLI {
     static let dashboardCostRefreshesPricingInBackground = false
+
+    /// Dashboard-only claude-swap eligibility: Claude enabled and the integration switched on.
+    /// (Cards have their own eligibility in CLIClaudeSwapCards; serve /usage stays untouched.)
+    static func dashboardClaudeSwapIsEligible(config: CodexBarConfig) -> Bool {
+        // Provider-specific by design: only enabled Claude rows can expose claude-swap accounts.
+        config.enabledProviders().compactMap(\.firstPartyProvider).contains(.claude)
+            && config.providerConfig(for: .claude)?.claudeSwapEnabled == true
+    }
 
     static func runDashboard(_ values: ParsedValues) async {
         guard let timeout = decodeDashboardTimeout(from: values) else {

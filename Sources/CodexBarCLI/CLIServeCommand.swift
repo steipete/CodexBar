@@ -38,6 +38,7 @@ struct ServeOptions: CommanderParsable {
 }
 
 enum CLIServeRoute: Equatable {
+    case webUI
     case health
     case usage(provider: String?)
     case cost(provider: String?)
@@ -59,6 +60,8 @@ enum CLIServeRouter {
         let normalizedProvider = provider?.isEmpty == false ? provider : nil
 
         switch path {
+        case "/":
+            return .webUI
         case "/health":
             return .health
         case "/usage":
@@ -109,7 +112,7 @@ struct ServeRuntime {
     let dashboardAuth: CLIServeDashboardAuth
     /// True for non-loopback binds: every data route (`/usage`, `/cost`,
     /// `/dashboard/v1/snapshot`) then requires the bearer token, so account data
-    /// is never exposed to the network unauthenticated. `/health` stays open.
+    /// is never exposed to the network unauthenticated. `/` and `/health` stay open.
     /// Resolved once at startup from the bind host.
     let dataRoutesRequireAuth: Bool
 
@@ -823,6 +826,8 @@ extension CodexBarCLI {
         }
 
         switch route {
+        case .webUI:
+            return CLIServeWebUI.response()
         case .health:
             return Self.serveHealthResponse(version: runtime.healthVersion)
         case let .usage(provider):

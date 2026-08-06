@@ -524,7 +524,8 @@ struct AntigravityCLIHTTPSFetchStrategy: ProviderFetchStrategy {
                 try await self.fetchBySpawning(
                     binary: binary,
                     idleWindow: idleWindow,
-                    resetAfterFetch: resetAfterFetch)
+                    resetAfterFetch: resetAfterFetch,
+                    expectedAccountEmail: expectedAccountEmail)
             })
     }
 
@@ -576,17 +577,23 @@ struct AntigravityCLIHTTPSFetchStrategy: ProviderFetchStrategy {
     private func fetchBySpawning(
         binary: String,
         idleWindow: TimeInterval?,
-        resetAfterFetch: Bool) async throws -> ProviderFetchResult
+        resetAfterFetch: Bool,
+        expectedAccountEmail: String?) async throws -> ProviderFetchResult
     {
         let session = AntigravityCLISession.shared
         let pid = try await session.beginProbe(binary: binary, idleWindow: idleWindow)
-        let deadline = Date().addingTimeInterval(5.0)
+        // Fresh `agy` processes take a few seconds to complete macOS keyring
+        // authentication, then more time before quota endpoints answer. A 5s
+        // window reliably missed that cold-start window in live tests, so keep
+        // the readiness deadline long enough for a cold spawn.
+        let deadline = Date().addingTimeInterval(15.0)
         let snap: AntigravityStatusSnapshot
         let usage: UsageSnapshot
         do {
             snap = try await Self.waitForSnapshot(
                 pid: pid,
                 deadline: deadline,
+                expectedAccountEmail: expectedAccountEmail,
                 dependencies: SnapshotWaitDependencies(
                     pollIntervalNanoseconds: 200_000_000,
                     listeningPorts: { pid, timeout in
@@ -628,6 +635,7 @@ struct AntigravityCLIHTTPSFetchStrategy: ProviderFetchStrategy {
     static func waitForSnapshot(
         pid: pid_t,
         deadline: Date,
+        expectedAccountEmail: String? = nil,
         dependencies: SnapshotWaitDependencies) async throws -> AntigravityStatusSnapshot
     {
         var lastFetchError: Error?
@@ -662,7 +670,24 @@ struct AntigravityCLIHTTPSFetchStrategy: ProviderFetchStrategy {
                 }
                 if let readySnapshot {
                     try await Self.checkAuthenticationPrompt(dependencies)
-                    return readySnapshot
+                    if AntigravitySelectedAccountGuard.matches(
+                        snapshotAccountEmail: readySnapshot.accountEmail,
+                        expectedAccountEmail: expectedAccountEmail)
+                    {
+                        return readySnapshot
+                    }
+                    // Fresh `agy` processes can answer quota endpoints before the
+                    // signed-in account email is available; keep polling so the
+                    // account guard does not reject the cold-start snapshot.
+                    lastFetchError = AntigravityStatusProbeError.accountMismatch(
+                        expected: expectedAccountEmail,
+                        found: readySnapshot.accountEmail)
+                    Self.log.debug(
+                        "Antigravity CLI HTTPS snapshot account not ready yet",
+                        metadata: [
+                            "pid": "\(pid)",
+                            "ports": ports.map(String.init).joined(separator: ","),
+                        ])
                 }
             }
 

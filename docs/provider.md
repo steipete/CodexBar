@@ -70,6 +70,10 @@ The following are out of scope by design:
   closure-body dataflow. A line-and-statement lexical scan cannot model those positions honestly.
 - String concatenation, reflection, and dynamic lookup. Their runtime values are not recoverable from literal-token
   matching.
+- Provider literals nested inside the arguments of a suppressed call (for example a routing call passed into a logging
+  call). Attributing a literal to the inner rather than the outer call requires expression-tree parsing.
+- Multi-line block comments interleaved with an expression. Single-line `/* ... */` comments are blanked before
+  scanning; comments spanning statement lines are treated as ending the scanned code for that line.
 - `Tests/**`, where fixtures legitimately name providers, and non-Swift files, because this tripwire is scoped to
   shipped Swift architecture.
 

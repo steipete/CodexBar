@@ -196,8 +196,9 @@ extension CodexBarCLI {
 
         Description:
           Start a foreground HTTP server that exposes existing CLI JSON payloads and a
-          token-gated dashboard snapshot. The server binds to 127.0.0.1 by default;
-          `localhost` is normalized to 127.0.0.1.
+          token-gated dashboard snapshot, with a built-in web UI at /. The static web UI
+          is always open; it sends a browser-entered token only when fetching snapshot data.
+          The server binds to 127.0.0.1 by default; `localhost` is normalized to 127.0.0.1.
           GET /dashboard/v1/snapshot requires "Authorization: Bearer YOUR_TOKEN" and fails
           closed (401) when no token is configured. Set the token with --dashboard-token or,
           preferably, the CODEXBAR_DASHBOARD_TOKEN environment variable (argv leaks via ps).
@@ -205,10 +206,11 @@ extension CodexBarCLI {
           request. A non-loopback --host therefore requires both a dashboard token and
           --allow-plain-http, which records that you accept that trade-off. On a
           non-loopback host the token also gates /usage and /cost (account data);
-          /health is always open. Use a TLS-terminating reverse proxy for anything
+          / and /health are always open. Use a TLS-terminating reverse proxy for anything
           beyond a trusted network segment.
 
         Endpoints:
+          GET /                    Built-in web dashboard
           GET /health
           GET /usage
           GET /usage?provider=claude
