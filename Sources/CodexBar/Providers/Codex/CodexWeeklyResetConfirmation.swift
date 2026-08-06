@@ -143,8 +143,9 @@ struct CodexWeeklyResetConfirmation: Sendable {
                previousWeekly,
                capturedAt: previous.updatedAt)
         {
-            let confirmsManualReset = Self.confirmsManualResetCreditRedemption(
+            let confirmsManualReset = Self.confirmsManualResetCreditConsumption(
                 previous: previous,
+                initial: initial,
                 confirmation: confirmation)
             if confirmation.updatedAt < previousBoundary.addingTimeInterval(-2 * 60),
                !confirmsManualReset
@@ -160,15 +161,19 @@ struct CodexWeeklyResetConfirmation: Sendable {
         return .publishConfirmation
     }
 
-    private static func confirmsManualResetCreditRedemption(
+    private static func confirmsManualResetCreditConsumption(
         previous: UsageSnapshot,
+        initial: UsageSnapshot,
         confirmation: UsageSnapshot) -> Bool
     {
         guard let previousCredits = previous.codexResetCredits,
+              let initialCredits = initial.codexResetCredits,
               let confirmationCredits = confirmation.codexResetCredits,
               self.isFinite(previousCredits.updatedAt),
+              self.isFinite(initialCredits.updatedAt),
               self.isFinite(confirmationCredits.updatedAt),
-              confirmationCredits.updatedAt >= previousCredits.updatedAt
+              initialCredits.updatedAt >= previousCredits.updatedAt,
+              confirmationCredits.updatedAt >= initialCredits.updatedAt
         else {
             return false
         }
@@ -176,9 +181,29 @@ struct CodexWeeklyResetConfirmation: Sendable {
             .filter { $0.status == .available }
             .map(\.id))
         guard !previouslyAvailableIDs.isEmpty else { return false }
-        return confirmationCredits.credits.contains { credit in
-            previouslyAvailableIDs.contains(credit.id) && credit.status == .redeemed
+        return previouslyAvailableIDs.contains { creditID in
+            Self.inventoryConfirmsConsumption(
+                creditID: creditID,
+                current: initialCredits,
+                previousAvailableCount: previousCredits.availableCount) &&
+                Self.inventoryConfirmsConsumption(
+                    creditID: creditID,
+                    current: confirmationCredits,
+                    previousAvailableCount: previousCredits.availableCount)
         }
+    }
+
+    private static func inventoryConfirmsConsumption(
+        creditID: String,
+        current: CodexRateLimitResetCreditsSnapshot,
+        previousAvailableCount: Int) -> Bool
+    {
+        if let credit = current.credits.first(where: { $0.id == creditID }) {
+            return credit.status == .redeeming || credit.status == .redeemed
+        }
+        // The live provider omits a consumed credit instead of retaining a redeemed row.
+        // Require the successful inventory's aggregate count to corroborate the disappearance.
+        return current.availableCount < previousAvailableCount
     }
 
     private static func initialDecisionWithoutWeeklyBaseline(
