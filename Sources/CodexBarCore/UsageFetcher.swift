@@ -852,7 +852,7 @@ private final class CodexRPCClient: @unchecked Sendable {
     }
 
     init(
-        executable: String = "codex",
+        executable: String = "codex", // Provider-specific by design: this RPC client launches Codex app-server.
         arguments: [String] = ["-s", "read-only", "-a", "untrusted", "app-server"],
         environment: [String: String] = ProcessInfo.processInfo.environment,
         initializeTimeoutSeconds: TimeInterval = 8.0,

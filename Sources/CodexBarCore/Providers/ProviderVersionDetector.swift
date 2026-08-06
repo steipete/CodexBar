@@ -111,7 +111,7 @@ public enum ProviderVersionDetector {
                         timeout: 5.0,
                         extraArgs: ["--version"],
                         initialDelay: 0.0,
-                        useClaudeProbeWorkingDirectory: true))
+                        useProviderProbeWorkingDirectory: true))
             } catch {
                 commandResult = nil
             }
@@ -125,7 +125,7 @@ public enum ProviderVersionDetector {
                     timeout: 5.0,
                     extraArgs: ["--version"],
                     initialDelay: 0.0,
-                    useClaudeProbeWorkingDirectory: true))
+                    useProviderProbeWorkingDirectory: true))
         } catch {
             commandResult = nil
         }

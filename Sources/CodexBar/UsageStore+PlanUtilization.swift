@@ -1278,7 +1278,7 @@ extension UsageStore {
         snapshot: UsageSnapshot,
         providerBuckets: inout PlanUtilizationHistoryBuckets) -> String
     {
-        guard provider == .claude,
+        guard provider == .claude, // Provider-specific by design: only Claude has this legacy email-key history.
               let legacyAccountKey = Self.legacyClaudePlanUtilizationEmailAccountKey(snapshot: snapshot),
               legacyAccountKey != accountKey,
               let legacyHistories = providerBuckets.accounts[legacyAccountKey],

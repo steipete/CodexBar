@@ -234,9 +234,13 @@ struct ProviderArchitectureGatekeeperTests {
         let providerFolderNames = Set(providerIDs.map { $0.lowercased() })
         var failures: [String] = []
         var constructsByPath: [String: [AllowedProviderConstruct]] = [:]
+        var suppressionsByPath: [String: [SuppressedProviderReference]] = [:]
 
         for construct in Self.allowedProviderConstructs {
             constructsByPath[construct.path, default: []].append(construct)
+        }
+        for suppression in Self.suppressedProviderReferences {
+            suppressionsByPath[suppression.path, default: []].append(suppression)
         }
 
         for file in files {
@@ -246,12 +250,16 @@ struct ProviderArchitectureGatekeeperTests {
             let result = Self.analyze(
                 file: file,
                 providerIDs: providerIDs,
-                allowedConstructs: constructsByPath.removeValue(forKey: file.path) ?? [])
+                allowedConstructs: constructsByPath.removeValue(forKey: file.path) ?? [],
+                suppressedReferences: suppressionsByPath.removeValue(forKey: file.path) ?? [])
             failures.append(contentsOf: result)
         }
 
         for constructs in constructsByPath.values.flatMap(\.self) {
             failures.append("\(constructs.path): allowlisted construct file does not exist in a shipped Swift target")
+        }
+        for suppression in suppressionsByPath.values.flatMap(\.self) {
+            failures.append("\(suppression.path): suppressed reference file does not exist in a shipped Swift target")
         }
 
         #expect(failures.isEmpty, Comment(rawValue: failures.joined(separator: "\n")))
@@ -273,6 +281,34 @@ struct ProviderArchitectureGatekeeperTests {
 
         #expect(references.count == 1)
         #expect(references.first?.providerIDs == ["claude", "codex"])
+    }
+
+    @Test
+    func `single provider argument remains an architecture finding`() {
+        let failures = Self.analyze(
+            file: SourceFile(path: "Sources/App/Shared.swift", source: "makeRow(provider: .claude)"),
+            providerIDs: ["claude"],
+            allowedConstructs: [])
+
+        #expect(failures.count == 1)
+    }
+
+    @Test
+    func `provider reference scanner catches fully qualified cases`() {
+        let source = "let provider = UsageProvider.claude"
+        let references = Self.providerReferences(in: source, providerIDs: ["claude"])
+
+        #expect(references.count == 1)
+        #expect(references.first?.providerIDs == ["claude"])
+    }
+
+    @Test
+    func `provider instance aliases are derived only when names match`() {
+        let derived = "public static let claude = UsageProvider.claude.instanceID"
+        let policy = "public static let defaultProvider = UsageProvider.claude.instanceID"
+
+        #expect(Self.providerReferences(in: derived, providerIDs: ["claude"]).isEmpty)
+        #expect(Self.providerReferences(in: policy, providerIDs: ["claude"]).count == 1)
     }
 
     @Test
@@ -338,24 +374,10 @@ struct ProviderArchitectureGatekeeperTests {
 
     @Test
     func `one marker cannot justify two provider clusters`() {
-        let source = """
-        // Provider-specific by design: first fallback.
-        let first = .codex
-
-
-
-
-
-
-
-
-
-
-
-
-
-        let second = .claude
-        """
+        let source = ([
+            "// Provider-specific by design: first fallback.",
+            "let first = .codex",
+        ] + Array(repeating: "", count: 13) + ["let second = .claude"]).joined(separator: "\n")
         let failures = Self.analyze(
             file: SourceFile(path: "Sources/App/Shared.swift", source: source),
             providerIDs: ["claude", "codex"],
@@ -387,12 +409,7 @@ struct ProviderArchitectureGatekeeperTests {
 
     @Test
     func `allowlist anchors tolerate at most two lines before a cluster`() {
-        let source = """
-        let anchor = true
-
-
-        let fallback = .codex
-        """
+        let source = ["let anchor = true", "", "", "let fallback = .codex"].joined(separator: "\n")
         let construct = AllowedProviderConstruct(
             path: "Sources/App/Shared.swift",
             line: 1,
@@ -439,14 +456,8 @@ struct ProviderArchitectureGatekeeperTests {
 
     private struct ProviderReference: Equatable {
         let line: Int
-        let providerIDs: Set<String>
-        let isWeakArgumentReference: Bool
-
-        init(line: Int, providerIDs: Set<String>, isWeakArgumentReference: Bool = false) {
-            self.line = line
-            self.providerIDs = providerIDs
-            self.isWeakArgumentReference = isWeakArgumentReference
-        }
+        var providerIDs: Set<String>
+        var newlyRecognizedProviderIDs: Set<String> = []
     }
 
     private struct ProviderReferenceCluster {
@@ -469,6 +480,22 @@ struct ProviderArchitectureGatekeeperTests {
                 reference.providerIDs.sorted().map { "\($0)@\(reference.line - self.lineRange.lowerBound)" }
             }
         }
+
+        var newlyRecognizedFingerprint: [String] {
+            self.references.flatMap { reference in
+                reference.newlyRecognizedProviderIDs.sorted().map {
+                    "\($0)@\(reference.line - self.lineRange.lowerBound)"
+                }
+            }
+        }
+    }
+
+    private struct SuppressedProviderReference {
+        let path: String
+        let line: Int
+        let anchor: String
+        let expectedProviderIDs: Set<String>
+        let reason: String
     }
 
     private struct AllowedProviderConstruct {
@@ -505,10 +532,815 @@ struct ProviderArchitectureGatekeeperTests {
     private static let providerCaseClusterWindow = 40
     private static let allowlistAnchorTolerance = 2
 
-    // Each entry names one uniquely anchored construct and pins its complete provider-reference fingerprint.
-    // Adding or removing a reference invalidates the entry instead of silently expanding an exemption.
-    // Anchor literals must remain byte-for-byte single lines for exact source verification.
     // swiftlint:disable line_length
+    /// Newly recognized labeled/positional arguments and fully qualified cases may be suppressed only at an exact
+    /// source line and for an exact provider set. Each entry documents why that token is ownership data rather than
+    /// shared provider-selection policy.
+    private static let suppressedProviderReferences: [SuppressedProviderReference] = [
+        SuppressedProviderReference(
+            path: "Sources/CodexBar/CodexAccountUsageSnapshotStore.swift",
+            line: 118,
+            anchor: "let identity = snapshot.identity(for: .codex)",
+            expectedProviderIDs: ["codex"],
+            reason: "This provider-owned integration passes its fixed identity to a shared helper."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBar/CodexAccountUsageSnapshotStore.swift",
+            line: 120,
+            anchor: "providerID: .codex,",
+            expectedProviderIDs: ["codex"],
+            reason: "This provider-owned integration passes its fixed identity to a shared helper."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBar/CodexOwnershipContext.swift",
+            line: 54,
+            anchor: ".toUsageSnapshot(provider: .codex, accountEmail: normalizedEmail)",
+            expectedProviderIDs: ["codex"],
+            reason: "This provider-owned integration passes its fixed identity to a shared helper."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBar/CopilotTokenStore.swift",
+            line: 25,
+            anchor: "private static let log = CodexBarLog.logger(LogCategories.provider(.copilot, scope: \"token-store\"))",
+            expectedProviderIDs: ["copilot"],
+            reason: "This provider-owned adapter passes its fixed identity to shared logging or cache infrastructure."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBar/CursorLoginRunner.swift",
+            line: 126,
+            anchor: "private let logger = CodexBarLog.logger(LogCategories.provider(.cursor, scope: \"login\"))",
+            expectedProviderIDs: ["cursor"],
+            reason: "This provider-owned adapter passes its fixed identity to shared logging or cache infrastructure."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBar/CursorLoginRunner.swift",
+            line: 213,
+            anchor: "let cacheMutationGate = CookieHeaderCache.beginConditionalMutationGate(provider: .cursor)",
+            expectedProviderIDs: ["cursor"],
+            reason: "This provider-owned adapter passes its fixed identity to shared logging or cache infrastructure."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBar/KimiTokenStore.swift",
+            line: 25,
+            anchor: "private static let log = CodexBarLog.logger(LogCategories.provider(.kimi, scope: \"token-store\"))",
+            expectedProviderIDs: ["kimi"],
+            reason: "This provider-owned adapter passes its fixed identity to shared logging or cache infrastructure."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBar/MenuBarMetricWindowResolver.swift",
+            line: 128,
+            anchor: "provider: .antigravity,",
+            expectedProviderIDs: ["antigravity"],
+            reason: "This named provider resolver supplies its fixed provider identity to the shared presentation helper."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBar/MenuBarMetricWindowResolver.swift",
+            line: 239,
+            anchor: "let presentation = ProviderDescriptorRegistry.descriptor(for: .claude).presentation",
+            expectedProviderIDs: ["claude"],
+            reason: "This named provider resolver supplies its fixed provider identity to the shared presentation helper."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBar/MiniMaxAPITokenStore.swift",
+            line: 25,
+            anchor: "private static let log = CodexBarLog.logger(LogCategories.provider(.minimax, scope: \"api-token-store\"))",
+            expectedProviderIDs: ["minimax"],
+            reason: "This provider-owned adapter passes its fixed identity to shared logging or cache infrastructure."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBar/MiniMaxCookieStore.swift",
+            line: 25,
+            anchor: "private static let log = CodexBarLog.logger(LogCategories.provider(.minimax, scope: \"cookie-store\"))",
+            expectedProviderIDs: ["minimax"],
+            reason: "This provider-owned adapter passes its fixed identity to shared logging or cache infrastructure."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBar/PredictivePaceWarnings.swift",
+            line: 206,
+            anchor: "preferredEmail: snapshot.accountEmail(for: .codex),",
+            expectedProviderIDs: ["codex"],
+            reason: "This exact provider-owned construct passes a fixed identity to shared infrastructure."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBar/PreferencesProvidersPane+Testing.swift",
+            line: 83,
+            anchor: "self.codexAccountsSectionState(for: .codex)",
+            expectedProviderIDs: ["codex"],
+            reason: "This test-only app seam pins Codex fixture data and does not make production routing policy."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBar/PreferencesProvidersPane+Testing.swift",
+            line: 160,
+            anchor: "let model = pane._test_menuCardModel(for: .codex)",
+            expectedProviderIDs: ["codex"],
+            reason: "This test-only app seam pins Codex fixture data and does not make production routing policy."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBar/PreferencesProvidersPane+Testing.swift",
+            line: 165,
+            anchor: "provider: .codex,",
+            expectedProviderIDs: ["codex"],
+            reason: "This test-only app seam pins Codex fixture data and does not make production routing policy."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBar/PreferencesProvidersPane+Testing.swift",
+            line: 170,
+            anchor: "openAIWebDiagnostic: pane._test_openAIWebDiagnostic(for: .codex),",
+            expectedProviderIDs: ["codex"],
+            reason: "This test-only app seam pins Codex fixture data and does not make production routing policy."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBar/PreferencesProvidersPane+Testing.swift",
+            line: 250,
+            anchor: "provider: .codex,",
+            expectedProviderIDs: ["codex"],
+            reason: "This test-only app seam pins Codex fixture data and does not make production routing policy."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBar/SessionQuotaNotifications.swift",
+            line: 460,
+            anchor: "let removedState = self.sessionQuotaTransitionStates.removeValue(forKey: .codex)",
+            expectedProviderIDs: ["codex"],
+            reason: "This exact provider-owned construct passes a fixed identity to shared infrastructure."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBar/SettingsStore+MenuObservation.swift",
+            line: 94,
+            anchor: "_ = self[providerConfig: .synthetic, field: .apiKey]",
+            expectedProviderIDs: ["synthetic"],
+            reason: "This observation touchpoint reads a fixed provider field so UI invalidation tracks that setting."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBar/SettingsStore+MenuObservation.swift",
+            line: 113,
+            anchor: "_ = self[providerConfig: .warp, field: .apiKey]",
+            expectedProviderIDs: ["warp"],
+            reason: "This observation touchpoint reads a fixed provider field so UI invalidation tracks that setting."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBar/SpendDashboardController.swift",
+            line: 321,
+            anchor: "provider: .codex,",
+            expectedProviderIDs: ["codex"],
+            reason: "This Codex account projection passes its fixed provider identity to shared spend infrastructure."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBar/SpendDashboardController.swift",
+            line: 323,
+            anchor: "modelProviderName: ProviderDescriptorRegistry.descriptor(for: .codex).metadata.displayName,",
+            expectedProviderIDs: ["codex"],
+            reason: "This Codex account projection passes its fixed provider identity to shared spend infrastructure."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBar/SpendDashboardController.swift",
+            line: 378,
+            anchor: "provider: .codex,",
+            expectedProviderIDs: ["codex"],
+            reason: "This Codex account projection passes its fixed provider identity to shared spend infrastructure."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBar/SpendDashboardController.swift",
+            line: 380,
+            anchor: "modelProviderName: ProviderDescriptorRegistry.descriptor(for: .codex).metadata.displayName,",
+            expectedProviderIDs: ["codex"],
+            reason: "This Codex account projection passes its fixed provider identity to shared spend infrastructure."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBar/SpendDashboardController.swift",
+            line: 411,
+            anchor: "provider: .codex,",
+            expectedProviderIDs: ["codex"],
+            reason: "This Codex account projection passes its fixed provider identity to shared spend infrastructure."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBar/SpendDashboardController.swift",
+            line: 440,
+            anchor: "let providerName = store.metadata(for: .codex).displayName",
+            expectedProviderIDs: ["codex"],
+            reason: "This Codex account projection passes its fixed provider identity to shared spend infrastructure."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBar/StatusItemController+CodexStackedMenu.swift",
+            line: 26,
+            anchor: "for: .codex,",
+            expectedProviderIDs: ["codex"],
+            reason: "This provider-owned integration passes its fixed identity to a shared helper."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBar/StatusItemController+CompactAccountMenu.swift",
+            line: 72,
+            anchor: "let plan = self.compactAccountPlan(for: .codex, accounts: projected)",
+            expectedProviderIDs: ["codex"],
+            reason: "This provider-specific app branch passes its already-selected identity to a shared helper."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBar/StatusItemController+CompactAccountMenu.swift",
+            line: 89,
+            anchor: "for: .codex,",
+            expectedProviderIDs: ["codex"],
+            reason: "This provider-specific app branch passes its already-selected identity to a shared helper."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBar/StatusItemController+CompactAccountMenu.swift",
+            line: 264,
+            anchor: "provider: .codex,",
+            expectedProviderIDs: ["codex"],
+            reason: "This provider-specific app branch passes its already-selected identity to a shared helper."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBar/StatusItemController+MemoryPressure.swift",
+            line: 45,
+            anchor: ".provider(.codex): cacheEntry,",
+            expectedProviderIDs: ["codex"],
+            reason: "The memory-pressure debug fixture installs its synthetic entry in the Codex cache slot."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBar/StatusItemController+Menu.swift",
+            line: 1087,
+            anchor: "controller.refreshOpenMenuIfStillVisible(menu, provider: .codex)",
+            expectedProviderIDs: ["codex"],
+            reason: "This provider-specific app branch passes its already-selected identity to a shared helper."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBar/SyntheticTokenStore.swift",
+            line: 25,
+            anchor: "private static let log = CodexBarLog.logger(LogCategories.provider(.synthetic, scope: \"token-store\"))",
+            expectedProviderIDs: ["synthetic"],
+            reason: "This provider-owned adapter passes its fixed identity to shared logging or cache infrastructure."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBar/UsageStore+Accessors.swift",
+            line: 95,
+            anchor: "accountID: self.settings.selectedTokenAccount(for: .deepseek)?.id,",
+            expectedProviderIDs: ["deepseek"],
+            reason: "This provider-specific app branch passes its already-selected identity to a shared helper."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBar/UsageStore+ClaudeDebug.swift",
+            line: 111,
+            anchor: "for: .claude,",
+            expectedProviderIDs: ["claude"],
+            reason: "This provider-owned integration passes its fixed identity to a shared helper."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBar/UsageStore+CodexCostCatchUp.swift",
+            line: 20,
+            anchor: "let scope = self.tokenCostScope(for: .codex)",
+            expectedProviderIDs: ["codex"],
+            reason: "This provider-owned integration passes its fixed identity to a shared helper."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBar/UsageStore+CodexCostCatchUp.swift",
+            line: 21,
+            anchor: "let scopeSignature = self.tokenSnapshotScopeSignature(for: .codex)",
+            expectedProviderIDs: ["codex"],
+            reason: "This provider-owned integration passes its fixed identity to a shared helper."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBar/UsageStore+CodexCostCatchUp.swift",
+            line: 41,
+            anchor: "providerConfigRevision: self.settings.providerConfigRevision(for: .codex),",
+            expectedProviderIDs: ["codex"],
+            reason: "This provider-owned integration passes its fixed identity to a shared helper."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBar/UsageStore+CodexCostCatchUp.swift",
+            line: 242,
+            anchor: "provider: .codex,",
+            expectedProviderIDs: ["codex"],
+            reason: "This provider-owned integration passes its fixed identity to a shared helper."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBar/UsageStore+CodexCostCatchUp.swift",
+            line: 255,
+            anchor: "self.publishConfirmedEmptyTokenSnapshot(for: .codex)",
+            expectedProviderIDs: ["codex"],
+            reason: "This provider-owned integration passes its fixed identity to a shared helper."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBar/UsageStore+CodexCostCatchUp.swift",
+            line: 258,
+            anchor: "self.publishTokenSnapshot(snapshot, for: .codex)",
+            expectedProviderIDs: ["codex"],
+            reason: "This provider-owned integration passes its fixed identity to a shared helper."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBar/UsageStore+CodexCostCatchUp.swift",
+            line: 278,
+            anchor: "&& self.settings.isCostUsageEffectivelyEnabled(for: .codex)",
+            expectedProviderIDs: ["codex"],
+            reason: "This provider-owned integration passes its fixed identity to a shared helper."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBar/UsageStore+CodexCostCatchUp.swift",
+            line: 279,
+            anchor: "&& self.isEnabled(.codex)",
+            expectedProviderIDs: ["codex"],
+            reason: "This provider-owned integration passes its fixed identity to a shared helper."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBar/UsageStore+HighestUsage.swift",
+            line: 161,
+            anchor: "let windows = IconRemainingResolver.resolvedWindows(snapshot: snapshot, style: .antigravity)",
+            expectedProviderIDs: ["antigravity"],
+            reason: "This named provider resolver supplies its fixed provider identity to the shared presentation helper."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBar/UsageStore+HistoricalPace.swift",
+            line: 74,
+            anchor: "let ownership = self.codexOwnershipContext(preferredEmail: snapshot.accountEmail(for: .codex))",
+            expectedProviderIDs: ["codex"],
+            reason: "This provider-specific app branch passes its already-selected identity to a shared helper."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBar/UsageStore+HistoricalPace.swift",
+            line: 133,
+            anchor: "provider: .codex,",
+            expectedProviderIDs: ["codex"],
+            reason: "This provider-specific app branch passes its already-selected identity to a shared helper."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBar/UsageStore+PlanUtilization.swift",
+            line: 177,
+            anchor: "self.sessionEquivalentBurnCache.removeValue(forKey: .codex)",
+            expectedProviderIDs: ["codex"],
+            reason: "This provider-specific app branch passes its already-selected identity to a shared helper."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBar/UsageStore+Refresh.swift",
+            line: 436,
+            anchor: "usage: result.usage.scoped(to: .codex))",
+            expectedProviderIDs: ["codex"],
+            reason: "This provider-specific app branch passes its already-selected identity to a shared helper."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBar/UsageStore+Refresh.swift",
+            line: 460,
+            anchor: "usage: result.usage.scoped(to: .codex))",
+            expectedProviderIDs: ["codex"],
+            reason: "This provider-specific app branch passes its already-selected identity to a shared helper."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBar/UsageStore+Refresh.swift",
+            line: 921,
+            anchor: "let snapshotEmail = CodexIdentityResolver.normalizeEmail(snapshot.accountEmail(for: .codex)),",
+            expectedProviderIDs: ["codex"],
+            reason: "This provider-specific app branch passes its already-selected identity to a shared helper."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBar/UsageStore+Refresh.swift",
+            line: 929,
+            anchor: "let identity = snapshot.identity(for: .codex)",
+            expectedProviderIDs: ["codex"],
+            reason: "This provider-specific app branch passes its already-selected identity to a shared helper."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBar/UsageStore+Refresh.swift",
+            line: 931,
+            anchor: "providerID: .codex,",
+            expectedProviderIDs: ["codex"],
+            reason: "This provider-specific app branch passes its already-selected identity to a shared helper."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBar/UsageStore+Refresh.swift",
+            line: 1462,
+            anchor: "let currentAccount = self.uniqueTokenAccount(provider: .claude, accountID: fetchedAccount.id),",
+            expectedProviderIDs: ["claude"],
+            reason: "This provider-specific app branch passes its already-selected identity to a shared helper."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBar/UsageStore+RefreshEnrichment.swift",
+            line: 279,
+            anchor: "await self.refreshProvider(.codex, coalesceIfRefreshing: true)",
+            expectedProviderIDs: ["codex"],
+            reason: "This provider-specific app branch passes its already-selected identity to a shared helper."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBar/UsageStore+RefreshEnrichment.swift",
+            line: 296,
+            anchor: "accessEnabled: self.isEnabled(.codex) &&",
+            expectedProviderIDs: ["codex"],
+            reason: "This provider-specific app branch passes its already-selected identity to a shared helper."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBar/UsageStore+SpendDashboardCodexCostCatchUp.swift",
+            line: 27,
+            anchor: "self.settings.isCostUsageEffectivelyEnabled(for: .codex),",
+            expectedProviderIDs: ["codex"],
+            reason: "This Codex account projection passes its fixed provider identity to shared spend infrastructure."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBar/UsageStore+SpendDashboardCodexCostCatchUp.swift",
+            line: 28,
+            anchor: "self.isEnabled(.codex)",
+            expectedProviderIDs: ["codex"],
+            reason: "This Codex account projection passes its fixed provider identity to shared spend infrastructure."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBar/UsageStore+SpendDashboardCodexCostCatchUp.swift",
+            line: 56,
+            anchor: "providerConfigRevision: self.settings.providerConfigRevision(for: .codex),",
+            expectedProviderIDs: ["codex"],
+            reason: "This Codex account projection passes its fixed provider identity to shared spend infrastructure."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBar/UsageStore+SpendDashboardCodexCostCatchUp.swift",
+            line: 248,
+            anchor: "&& self.settings.isCostUsageEffectivelyEnabled(for: .codex)",
+            expectedProviderIDs: ["codex"],
+            reason: "This Codex account projection passes its fixed provider identity to shared spend infrastructure."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBar/UsageStore+SpendDashboardCodexCostCatchUp.swift",
+            line: 249,
+            anchor: "&& self.isEnabled(.codex)",
+            expectedProviderIDs: ["codex"],
+            reason: "This Codex account projection passes its fixed provider identity to shared spend infrastructure."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBar/UsageStore+TokenAccounts.swift",
+            line: 823,
+            anchor: ".descriptor(for: .codex)",
+            expectedProviderIDs: ["codex"],
+            reason: "This provider-specific app branch passes its already-selected identity to a shared helper."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBar/UsageStore+TokenAccounts.swift",
+            line: 825,
+            anchor: "provider: .codex,",
+            expectedProviderIDs: ["codex"],
+            reason: "This provider-specific app branch passes its already-selected identity to a shared helper."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBar/UsageStore+TokenAccounts.swift",
+            line: 1291,
+            anchor: "let scoped = result.usage.scoped(to: .codex)",
+            expectedProviderIDs: ["codex"],
+            reason: "This provider-specific app branch passes its already-selected identity to a shared helper."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBar/UsageStore+TokenAccounts.swift",
+            line: 1379,
+            anchor: "provider: .codex,",
+            expectedProviderIDs: ["codex"],
+            reason: "This provider-specific app branch passes its already-selected identity to a shared helper."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBar/UsageStore+TokenAccounts.swift",
+            line: 1383,
+            anchor: "provider: .codex,",
+            expectedProviderIDs: ["codex"],
+            reason: "This provider-specific app branch passes its already-selected identity to a shared helper."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBar/UsageStore+TokenAccounts.swift",
+            line: 1386,
+            anchor: "self.handlePredictivePaceWarningTransitions(provider: .codex, snapshot: snapshot)",
+            expectedProviderIDs: ["codex"],
+            reason: "This provider-specific app branch passes its already-selected identity to a shared helper."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBar/UsageStore+TokenAccounts.swift",
+            line: 1396,
+            anchor: "self.rememberLiveSystemCodexEmailIfNeeded(snapshot.accountEmail(for: .codex))",
+            expectedProviderIDs: ["codex"],
+            reason: "This provider-specific app branch passes its already-selected identity to a shared helper."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBar/UsageStore+TokenAccounts.swift",
+            line: 1399,
+            anchor: "provider: .codex,",
+            expectedProviderIDs: ["codex"],
+            reason: "This provider-specific app branch passes its already-selected identity to a shared helper."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBar/UsageStore+TokenAccounts.swift",
+            line: 1419,
+            anchor: "self.snapshots.removeValue(forKey: .codex)",
+            expectedProviderIDs: ["codex"],
+            reason: "This provider-specific app branch passes its already-selected identity to a shared helper."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBar/UsageStore+TokenAccounts.swift",
+            line: 1453,
+            anchor: "from: self.presentationSnapshot(for: .deepseek))",
+            expectedProviderIDs: ["deepseek"],
+            reason: "This provider-specific app branch passes its already-selected identity to a shared helper."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBar/UsageStore+TokenCost.swift",
+            line: 73,
+            anchor: "allowVertexClaudeFallback: !self.isEnabled(.claude),",
+            expectedProviderIDs: ["claude"],
+            reason: "The local transcript scan permits Vertex fallback only when Claude is disabled to avoid " +
+                "double-counting the same logs."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBar/UsageStore+TokenCost.swift",
+            line: 209,
+            anchor: "let scope = self.tokenCostScope(for: .codex)",
+            expectedProviderIDs: ["codex"],
+            reason: "The Codex-only cache hydration path passes its fixed provider identity to shared state helpers."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBar/UsageStore+TokenCost.swift",
+            line: 211,
+            anchor: "let publicationRevision = self.providerPublicationRevision(for: .codex)",
+            expectedProviderIDs: ["codex"],
+            reason: "The Codex-only cache hydration path passes its fixed provider identity to shared state helpers."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBar/UsageStore+TokenCost.swift",
+            line: 212,
+            anchor: "let providerConfigRevision = self.settings.providerConfigRevision(for: .codex)",
+            expectedProviderIDs: ["codex"],
+            reason: "The Codex-only cache hydration path passes its fixed provider identity to shared state helpers."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBar/UsageStore+TokenCost.swift",
+            line: 214,
+            anchor: "let tokenSnapshotScopeSignature = self.tokenSnapshotScopeSignature(for: .codex)",
+            expectedProviderIDs: ["codex"],
+            reason: "The Codex-only cache hydration path passes its fixed provider identity to shared state helpers."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBar/UsageStore+TokenCost.swift",
+            line: 215,
+            anchor: "let tokenSnapshotPublicationRevision = self.tokenSnapshotPublicationRevision(for: .codex)",
+            expectedProviderIDs: ["codex"],
+            reason: "The Codex-only cache hydration path passes its fixed provider identity to shared state helpers."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBar/UsageStore+TokenCost.swift",
+            line: 244,
+            anchor: "self.settings.isCostUsageEffectivelyEnabled(for: .codex),",
+            expectedProviderIDs: ["codex"],
+            reason: "This provider-specific app branch passes its already-selected identity to a shared helper."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBar/UsageStore+TokenCost.swift",
+            line: 245,
+            anchor: "self.isEnabled(.codex),",
+            expectedProviderIDs: ["codex"],
+            reason: "This provider-specific app branch passes its already-selected identity to a shared helper."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBar/UsageStore+TokenCost.swift",
+            line: 254,
+            anchor: "self.installCachedTokenSnapshot(result.snapshot, for: .codex)",
+            expectedProviderIDs: ["codex"],
+            reason: "This provider-specific app branch passes its already-selected identity to a shared helper."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBar/UsageStore+TokenCost.swift",
+            line: 335,
+            anchor: "let credentialFingerprint = CookieHeaderCache.loadForDisplay(provider: .cursor)",
+            expectedProviderIDs: ["cursor"],
+            reason: "This provider-specific app branch passes its already-selected identity to a shared helper."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBar/UsageStore+TokenCost.swift",
+            line: 348,
+            anchor: "let scope = self.tokenCostScope(for: .cursor)",
+            expectedProviderIDs: ["cursor"],
+            reason: "This provider-specific app branch passes its already-selected identity to a shared helper."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBar/UsageStore+WidgetSnapshot.swift",
+            line: 281,
+            anchor: "return self.tokenAccountSnapshotCacheKey(provider: .claude, account: account)",
+            expectedProviderIDs: ["claude"],
+            reason: "Claude widget quota ownership uses the selected Claude account's isolated snapshot key."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBar/UsageStore+WidgetSnapshot.swift",
+            line: 285,
+            anchor: "provider: .claude,",
+            expectedProviderIDs: ["claude"],
+            reason: "Claude widget quota ownership uses the selected Claude account's isolated snapshot key."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBar/UsageStore.swift",
+            line: 1034,
+            anchor: "provider: .deepseek,",
+            expectedProviderIDs: ["deepseek"],
+            reason: "This provider-specific app branch passes its already-selected identity to a shared helper."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBar/UsageStore.swift",
+            line: 1136,
+            anchor: "let sourceMode = self.sourceMode(for: .claude)",
+            expectedProviderIDs: ["claude"],
+            reason: "This provider-specific app branch passes its already-selected identity to a shared helper."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBar/UsageStore.swift",
+            line: 1140,
+            anchor: "provider: .claude,",
+            expectedProviderIDs: ["claude"],
+            reason: "This provider-specific app branch passes its already-selected identity to a shared helper."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBar/ZaiTokenStore.swift",
+            line: 25,
+            anchor: "private static let log = CodexBarLog.logger(LogCategories.provider(.zai, scope: \"token-store\"))",
+            expectedProviderIDs: ["zai"],
+            reason: "This provider-owned adapter passes its fixed identity to shared logging or cache infrastructure."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBarCLI/CLICardsRenderer.swift",
+            line: 221,
+            anchor: "provider: .claude,",
+            expectedProviderIDs: ["claude"],
+            reason: "This provider-specific app branch passes its already-selected identity to a shared helper."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBarCLI/CLICardsRenderer.swift",
+            line: 222,
+            anchor: "title: ProviderDescriptorRegistry.descriptor(for: .claude).metadata.displayName,",
+            expectedProviderIDs: ["claude"],
+            reason: "This provider-specific app branch passes its already-selected identity to a shared helper."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBarCLI/CLICostCommand.swift",
+            line: 180,
+            anchor: "lines.append(Self.costEstimateHint(provider: .codex))",
+            expectedProviderIDs: ["codex"],
+            reason: "This provider-specific app branch passes its already-selected identity to a shared helper."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBarCLI/CLICostCommand.swift",
+            line: 203,
+            anchor: "lines.append(Self.costEstimateHint(provider: .codex))",
+            expectedProviderIDs: ["codex"],
+            reason: "This provider-specific app branch passes its already-selected identity to a shared helper."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBarCLI/CLICostCommand.swift",
+            line: 390,
+            anchor: "let account = try context.resolvedAccounts(for: .cursor).first",
+            expectedProviderIDs: ["cursor"],
+            reason: "The Cursor-only cookie-settings resolver passes its fixed identity to token-account helpers."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBarCLI/CLICostCommand.swift",
+            line: 391,
+            anchor: "return context.settingsSnapshot(for: .cursor, account: account)?.cursor",
+            expectedProviderIDs: ["cursor"],
+            reason: "The Cursor-only cookie-settings resolver passes its fixed identity to token-account helpers."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBarCore/CodexLocalProjectUsageIndexer.swift",
+            line: 64,
+            anchor: "provider: .codex,",
+            expectedProviderIDs: ["codex"],
+            reason: "This provider-owned integration passes its fixed identity to a shared helper."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBarCore/CodexLocalProjectUsageIndexer.swift",
+            line: 73,
+            anchor: "provider: .codex,",
+            expectedProviderIDs: ["codex"],
+            reason: "This provider-owned integration passes its fixed identity to a shared helper."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBarCore/CodexLocalProjectUsageIndexer.swift",
+            line: 162,
+            anchor: "provider: .codex,",
+            expectedProviderIDs: ["codex"],
+            reason: "This provider-owned integration passes its fixed identity to a shared helper."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBarCore/CostUsageFetcher.swift",
+            line: 278,
+            anchor: "provider: .codex,",
+            expectedProviderIDs: ["codex"],
+            reason: "This provider-specific core branch passes its already-selected identity to a shared helper."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBarCore/CostUsageFetcher.swift",
+            line: 291,
+            anchor: "provider: .codex,",
+            expectedProviderIDs: ["codex"],
+            reason: "This provider-specific core branch passes its already-selected identity to a shared helper."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBarCore/CostUsageFetcher.swift",
+            line: 556,
+            anchor: "CostUsageCacheIO.load(provider: .codex, cacheRoot: options.scanOptions.cacheRoot),",
+            expectedProviderIDs: ["codex"],
+            reason: "This provider-specific core branch passes its already-selected identity to a shared helper."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBarCore/CostUsageFetcher.swift",
+            line: 727,
+            anchor: "provider: .codex,",
+            expectedProviderIDs: ["codex"],
+            reason: "This provider-specific core branch passes its already-selected identity to a shared helper."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBarCore/CostUsageFetcher.swift",
+            line: 802,
+            anchor: "provider: .codex,",
+            expectedProviderIDs: ["codex"],
+            reason: "This provider-specific core branch passes its already-selected identity to a shared helper."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBarCore/CostUsageFetcher.swift",
+            line: 896,
+            anchor: "provider: .codex,",
+            expectedProviderIDs: ["codex"],
+            reason: "This provider-specific core branch passes its already-selected identity to a shared helper."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBarCore/LocalAgentSessionScanner.swift",
+            line: 258,
+            anchor: "provider: .codex,",
+            expectedProviderIDs: ["codex"],
+            reason: "This provider-specific core branch passes its already-selected identity to a shared helper."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBarCore/OpenAIWeb/OpenAIDashboardBrowserCookieImporter.swift",
+            line: 150,
+            anchor: "CookieHeaderCache.loadSerialized(provider: .codex, scope: cacheScope)",
+            expectedProviderIDs: ["codex"],
+            reason: "This provider-owned adapter passes its fixed identity to shared logging or cache infrastructure."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBarCore/OpenAIWeb/OpenAIDashboardBrowserCookieImporter.swift",
+            line: 169,
+            anchor: "CookieHeaderCache.clear(provider: .codex, scope: cacheScope)",
+            expectedProviderIDs: ["codex"],
+            reason: "This provider-owned adapter passes its fixed identity to shared logging or cache infrastructure."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBarCore/OpenAIWeb/OpenAIDashboardBrowserCookieImporter.swift",
+            line: 881,
+            anchor: "provider: .codex,",
+            expectedProviderIDs: ["codex"],
+            reason: "This provider-owned adapter passes its fixed identity to shared logging or cache infrastructure."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBarCore/OpenAIWeb/OpenAIDashboardWebViewCache.swift",
+            line: 16,
+            anchor: "fileprivate static let log = CodexBarLog.logger(LogCategories.provider(.openai, scope: \"webview\"))",
+            expectedProviderIDs: ["openai"],
+            reason: "This provider-owned adapter passes its fixed identity to shared logging or cache infrastructure."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBarCore/ProviderStorageFootprint.swift",
+            line: 146,
+            anchor: "provider: .claude,",
+            expectedProviderIDs: ["claude"],
+            reason: "This inventory row records the provider that owns its static storage location."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBarCore/ProviderStorageFootprint.swift",
+            line: 153,
+            anchor: "provider: .claude,",
+            expectedProviderIDs: ["claude"],
+            reason: "This inventory row records the provider that owns its static storage location."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBarCore/ProviderStorageFootprint.swift",
+            line: 160,
+            anchor: "provider: .claude,",
+            expectedProviderIDs: ["claude"],
+            reason: "This inventory row records the provider that owns its static storage location."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBarCore/ProviderStorageFootprint.swift",
+            line: 167,
+            anchor: "provider: .claude,",
+            expectedProviderIDs: ["claude"],
+            reason: "This inventory row records the provider that owns its static storage location."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBarCore/ProviderStorageFootprint.swift",
+            line: 174,
+            anchor: "provider: .claude,",
+            expectedProviderIDs: ["claude"],
+            reason: "This inventory row records the provider that owns its static storage location."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBarCore/ProviderStorageFootprint.swift",
+            line: 181,
+            anchor: "provider: .claude,",
+            expectedProviderIDs: ["claude"],
+            reason: "This inventory row records the provider that owns its static storage location."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBarCore/ProviderStorageFootprint.swift",
+            line: 188,
+            anchor: "provider: .claude,",
+            expectedProviderIDs: ["claude"],
+            reason: "This inventory row records the provider that owns its static storage location."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBarCore/ProviderStorageFootprint.swift",
+            line: 195,
+            anchor: "provider: .claude,",
+            expectedProviderIDs: ["claude"],
+            reason: "This inventory row records the provider that owns its static storage location."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBarCore/ProviderStorageFootprint.swift",
+            line: 215,
+            anchor: "provider: .codex,",
+            expectedProviderIDs: ["codex"],
+            reason: "This inventory row records the provider that owns its static storage location."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBarCore/ProviderStorageFootprint.swift",
+            line: 222,
+            anchor: "provider: .codex,",
+            expectedProviderIDs: ["codex"],
+            reason: "This inventory row records the provider that owns its static storage location."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBarCore/ProviderStorageFootprint.swift",
+            line: 229,
+            anchor: "provider: .codex,",
+            expectedProviderIDs: ["codex"],
+            reason: "This inventory row records the provider that owns its static storage location."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBarCore/ProviderStorageFootprint.swift",
+            line: 236,
+            anchor: "provider: .codex,",
+            expectedProviderIDs: ["codex"],
+            reason: "This inventory row records the provider that owns its static storage location."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBarCore/ProviderStorageFootprint.swift",
+            line: 243,
+            anchor: "provider: .codex,",
+            expectedProviderIDs: ["codex"],
+            reason: "This inventory row records the provider that owns its static storage location."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBarCore/ProviderStorageFootprint.swift",
+            line: 250,
+            anchor: "provider: .codex,",
+            expectedProviderIDs: ["codex"],
+            reason: "This inventory row records the provider that owns its static storage location."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBarCore/ProviderStorageFootprint.swift",
+            line: 257,
+            anchor: "provider: .codex,",
+            expectedProviderIDs: ["codex"],
+            reason: "This inventory row records the provider that owns its static storage location."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBarCore/Providers/ProviderDiagnosticExport.swift",
+            line: 414,
+            anchor: "self = try .minimax(container.decode(MiniMaxDiagnosticDetails.self, forKey: .minimax))",
+            expectedProviderIDs: ["minimax"],
+            reason: "This tagged diagnostic payload decodes its matching MiniMax detail type and key."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBarCore/Providers/ProviderDiagnosticExport.swift",
+            line: 428,
+            anchor: "try container.encode(details, forKey: .minimax)",
+            expectedProviderIDs: ["minimax"],
+            reason: "This tagged diagnostic payload encodes MiniMax details under the matching wire key."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBarCore/UsageFetcher.swift",
+            line: 1479,
+            anchor: "providerID: .codex,",
+            expectedProviderIDs: ["codex"],
+            reason: "This provider-specific core branch passes its already-selected identity to a shared helper."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBarCore/Vendored/CostUsage/CostUsageCache.swift",
+            line: 91,
+            anchor: "let url = self.cacheFileURL(provider: .codex, cacheRoot: cacheRoot)",
+            expectedProviderIDs: ["codex"],
+            reason: "This provider-specific core branch passes its already-selected identity to a shared helper."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBarWidget/BurnDownWidgetProvider.swift",
+            line: 180,
+            anchor: "provider: .codex,",
+            expectedProviderIDs: ["codex"],
+            reason: "This WidgetKit default or preview pins the established Codex sample provider."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBarWidget/BurnDownWidgetProvider.swift",
+            line: 211,
+            anchor: "provider: .codex,",
+            expectedProviderIDs: ["codex"],
+            reason: "This WidgetKit default or preview pins the established Codex sample provider."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBarWidget/CodexBarWidgetProvider.swift",
+            line: 78,
+            anchor: "@Parameter(title: \"Provider\", default: .codex)",
+            expectedProviderIDs: ["codex"],
+            reason: "This WidgetKit default or preview pins the established Codex sample provider."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBarWidget/CodexBarWidgetProvider.swift",
+            line: 110,
+            anchor: "@Parameter(title: \"Provider\", default: .codex)",
+            expectedProviderIDs: ["codex"],
+            reason: "This WidgetKit default or preview pins the established Codex sample provider."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBarWidget/CodexBarWidgetProvider.swift",
+            line: 146,
+            anchor: "provider: .codex,",
+            expectedProviderIDs: ["codex"],
+            reason: "This WidgetKit default or preview pins the established Codex sample provider."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBarWidget/CodexBarWidgetProvider.swift",
+            line: 231,
+            anchor: "provider: .codex,",
+            expectedProviderIDs: ["codex"],
+            reason: "This WidgetKit default or preview pins the established Codex sample provider."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBarWidget/CodexBarWidgetProvider.swift",
+            line: 276,
+            anchor: "provider: .codex,",
+            expectedProviderIDs: ["codex"],
+            reason: "This WidgetKit default or preview pins the established Codex sample provider."),
+    ]
+
+    /// Each entry names one uniquely anchored construct and pins its complete provider-reference fingerprint.
+    /// Adding or removing a reference invalidates the entry instead of silently expanding an exemption.
+    /// Anchor literals must remain byte-for-byte single lines for exact source verification.
     private static let allowedProviderConstructs: [AllowedProviderConstruct] = [
         AllowedProviderConstruct(
             path: "Sources/CodexBar/CodexOwnershipContext.swift",
@@ -1922,7 +2754,8 @@ struct ProviderArchitectureGatekeeperTests {
             expectedProviderIDs: ["claude", "codex"],
             expectedReferenceCount: 2,
             expectedReferenceFingerprint: ["codex@0", "claude@1"],
-            reason: "This exact app-runtime bridge coordinates provider-owned state through the shared controller."),
+            reason: "This debug cache-clear action preserves its legacy Codex/Claude-only failure-gate reset; " +
+                "including Vertex AI's shared transcript scanner would change its error-surfacing behavior."),
         AllowedProviderConstruct(
             path: "Sources/CodexBar/UsageStore+WidgetSnapshot.swift",
             line: 189,
@@ -2575,13 +3408,50 @@ struct ProviderArchitectureGatekeeperTests {
     private static func analyze(
         file: SourceFile,
         providerIDs: Set<String>,
-        allowedConstructs: [AllowedProviderConstruct]) -> [String]
+        allowedConstructs: [AllowedProviderConstruct],
+        suppressedReferences: [SuppressedProviderReference] = []) -> [String]
     {
         let lines = file.source.components(separatedBy: .newlines)
-        let references = self.providerReferences(in: file.source, providerIDs: providerIDs)
+        var references = self.providerReferences(in: file.source, providerIDs: providerIDs)
+        var failures: [String] = []
+        var usedSuppressions: Set<String> = []
+        for suppression in suppressedReferences {
+            guard suppression.path == file.path else {
+                failures.append("\(suppression.path): suppressed reference was assigned to the wrong file")
+                continue
+            }
+            guard !suppression.reason.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                failures.append("\(file.path): suppressed reference '\(suppression.anchor)' has no written reason")
+                continue
+            }
+            let line = suppression.line - 1
+            guard lines.indices.contains(line),
+                  lines[line].trimmingCharacters(in: .whitespaces) == suppression.anchor
+            else {
+                failures.append(
+                    "\(file.path):\(suppression.line) suppressed reference anchor no longer matches " +
+                        "'\(suppression.anchor)'")
+                continue
+            }
+            let key = "\(line):\(suppression.expectedProviderIDs.sorted())"
+            guard usedSuppressions.insert(key).inserted else {
+                failures.append("\(file.path):\(suppression.line) duplicate suppressed provider reference")
+                continue
+            }
+            guard let referenceIndex = references.firstIndex(where: {
+                $0.line == line && $0.newlyRecognizedProviderIDs.isSuperset(of: suppression.expectedProviderIDs)
+            }) else {
+                failures.append(
+                    "\(file.path):\(suppression.line) suppressed provider reference no longer matches " +
+                        "\(suppression.expectedProviderIDs.sorted())")
+                continue
+            }
+            references[referenceIndex].providerIDs.subtract(suppression.expectedProviderIDs)
+            references[referenceIndex].newlyRecognizedProviderIDs.subtract(suppression.expectedProviderIDs)
+        }
+        references.removeAll { $0.providerIDs.isEmpty }
         let clusters = self.providerReferenceClusters(references)
         let markerLines = lines.indices.filter { self.providerMarkerReason(in: lines[$0]) != nil }
-        var failures: [String] = []
         var allowedClusterIndices: Set<Int> = []
 
         for construct in allowedConstructs {
@@ -2650,7 +3520,8 @@ struct ProviderArchitectureGatekeeperTests {
                 failures.append(
                     "\(file.path):\(cluster.lineRange.lowerBound + 1) has an unjustified provider-specific " +
                         "construct (\(cluster.providerIDs.sorted().joined(separator: ", ")); " +
-                        "references: \(cluster.referenceCount)); derive it or add " +
+                        "references: \(cluster.referenceCount); fingerprint: \(cluster.referenceFingerprint)); " +
+                        "newly recognized: \(cluster.newlyRecognizedFingerprint); derive it or add " +
                         "'// Provider-specific by design: <specific reason>' immediately before this cluster.")
             }
             previousClusterEnd = cluster.lineRange.upperBound
@@ -2662,11 +3533,7 @@ struct ProviderArchitectureGatekeeperTests {
     private static func providerReferenceClusters(
         _ references: [ProviderReference]) -> [ProviderReferenceCluster]
     {
-        self.unfilteredProviderReferenceClusters(references).flatMap { cluster in
-            guard cluster.providerIDs.count == 1 else { return [cluster] }
-            return self.unfilteredProviderReferenceClusters(
-                cluster.references.filter { !$0.isWeakArgumentReference })
-        }
+        self.unfilteredProviderReferenceClusters(references)
     }
 
     private static func unfilteredProviderReferenceClusters(
@@ -2700,10 +3567,12 @@ struct ProviderArchitectureGatekeeperTests {
             guard !code.trimmingCharacters(in: .whitespaces).isEmpty else { return [] }
             var strongMatches: Set<String> = []
             var weakMatches: Set<String> = []
+            var qualifiedMatches: Set<String> = []
             for providerID in providerIDs {
                 switch self.dottedProviderReferenceStrength(providerID, in: code) {
                 case .strong: strongMatches.insert(providerID)
                 case .weakArgument: weakMatches.insert(providerID)
+                case .fullyQualified: qualifiedMatches.insert(providerID)
                 case nil: break
                 }
             }
@@ -2717,17 +3586,20 @@ struct ProviderArchitectureGatekeeperTests {
                     strongMatches.insert(providerID)
                 }
             }
-            if !strongMatches.isEmpty {
-                return [ProviderReference(line: index, providerIDs: strongMatches.union(weakMatches))]
-            }
-            guard !weakMatches.isEmpty else { return [] }
-            return [ProviderReference(line: index, providerIDs: weakMatches, isWeakArgumentReference: true)]
+            let newlyRecognizedMatches = weakMatches.union(qualifiedMatches).subtracting(strongMatches)
+            let matches = strongMatches.union(newlyRecognizedMatches)
+            guard !matches.isEmpty else { return [] }
+            return [ProviderReference(
+                line: index,
+                providerIDs: matches,
+                newlyRecognizedProviderIDs: newlyRecognizedMatches)]
         }
     }
 
     private enum ProviderReferenceStrength {
         case strong
         case weakArgument
+        case fullyQualified
     }
 
     private static func dottedProviderReferenceStrength(
@@ -2744,7 +3616,7 @@ struct ProviderArchitectureGatekeeperTests {
                 if strength == .strong {
                     return .strong
                 }
-                found = .weakArgument
+                found = strength
             }
             searchStart = range.upperBound
         }
@@ -2775,6 +3647,14 @@ struct ProviderArchitectureGatekeeperTests {
         }
         if prefix.hasSuffix("=") || prefix.hasSuffix("[") || prefix.hasSuffix(",") {
             return .strong
+        }
+        let qualifier = prefix.split(whereSeparator: { !Self.isIdentifierCharacter($0) }).last.map(String.init)
+        if qualifier == "UsageProvider" {
+            let derivedInstanceAlias = "public static let \(rawValue) = UsageProvider.\(rawValue).instanceID"
+            if trimmed == derivedInstanceAlias {
+                return nil
+            }
+            return .fullyQualified
         }
         if prefix.hasSuffix(":") || prefix.hasSuffix("(") {
             return .weakArgument

@@ -724,6 +724,7 @@ public enum CodexRolloutFirstLineParser {
     {
         guard pid != nil || now.timeIntervalSince(modifiedAt) <= config.fileOnlyWindow else { return nil }
         let cwd = metadata.cwd
+        // Provider-specific by design: Codex rollout metadata constructs Codex-owned local agent sessions.
         return AgentSession(
             id: metadata.sessionID,
             provider: .codex,

@@ -2,6 +2,20 @@ import Foundation
 
 public enum ClaudeProviderDescriptor {
     public static let descriptor: ProviderDescriptor = Self.makeDescriptor()
+    private static let ttyLaunch = ProviderTTYLaunchConfig(
+        executableOverrideEnvironmentKey: "CLAUDE_CLI_PATH",
+        bundledWatchdogHelperName: "CodexBarClaudeWatchdog",
+        probeWorkingDirectory: { ClaudeStatusProbe.preparedProbeWorkingDirectoryURL() })
+    private static let cli = ProviderCLIConfig(
+        name: "claude",
+        binaryLocator: { BinaryLocator.resolveClaudeBinary() },
+        versionDetector: { browserDetection in
+            ClaudeUsageFetcher(browserDetection: browserDetection).detectVersion()
+        },
+        supportsCostCommand: true,
+        prefersBinaryLocatorForWhich: true,
+        ttyLaunch: Self.ttyLaunch,
+        browserSupportExemption: { sourceMode, _, _ in sourceMode == .auto })
     private static let credentials = ProviderCredentialAdapter(
         supportsAPIKeyOverride: true,
         environmentProjections: [.apiKey(ClaudeAdminAPISettingsReader.adminAPIKeyEnvironmentKey)],
@@ -190,15 +204,7 @@ public enum ClaudeProviderDescriptor {
             fetchPlan: ProviderFetchPlan(
                 sourceModes: [.auto, .api, .web, .cli, .oauth],
                 pipeline: ProviderFetchPipeline(resolveStrategies: self.resolveStrategies)),
-            cli: ProviderCLIConfig(
-                name: "claude",
-                binaryLocator: { BinaryLocator.resolveClaudeBinary() },
-                versionDetector: { browserDetection in
-                    ClaudeUsageFetcher(browserDetection: browserDetection).detectVersion()
-                },
-                supportsCostCommand: true,
-                prefersBinaryLocatorForWhich: true,
-                browserSupportExemption: { sourceMode, _, _ in sourceMode == .auto }))
+            cli: self.cli)
     }
 
     private static func menuBarWindow(

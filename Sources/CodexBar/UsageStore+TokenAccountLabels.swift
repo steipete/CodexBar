@@ -20,6 +20,7 @@ extension UsageStore {
         return snapshot.withIdentity(identity)
     }
 
+    /// Provider-specific by design: Codex's visible account supplies workspace identity absent from token accounts.
     func applyCodexVisibleAccountLabel(_ snapshot: UsageSnapshot, account: CodexVisibleAccount) -> UsageSnapshot {
         let existing = snapshot.identity(for: .codex)
         let email = existing?.accountEmail?.trimmingCharacters(in: .whitespacesAndNewlines)

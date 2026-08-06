@@ -1,5 +1,21 @@
 import Foundation
 
+public struct ProviderTTYLaunchConfig: Sendable {
+    public let executableOverrideEnvironmentKey: String?
+    public let bundledWatchdogHelperName: String?
+    public let probeWorkingDirectory: (@Sendable () -> URL)?
+
+    public init(
+        executableOverrideEnvironmentKey: String? = nil,
+        bundledWatchdogHelperName: String? = nil,
+        probeWorkingDirectory: (@Sendable () -> URL)? = nil)
+    {
+        self.executableOverrideEnvironmentKey = executableOverrideEnvironmentKey
+        self.bundledWatchdogHelperName = bundledWatchdogHelperName
+        self.probeWorkingDirectory = probeWorkingDirectory
+    }
+}
+
 public struct ProviderCLIConfig: Sendable {
     public typealias BrowserSupportExemption = @Sendable (
         _ sourceMode: ProviderSourceMode,
@@ -13,6 +29,7 @@ public struct ProviderCLIConfig: Sendable {
     public let supportsCostCommand: Bool
     public let prefersBinaryLocatorForWhich: Bool
     public let ttyStatusCommand: String?
+    public let ttyLaunch: ProviderTTYLaunchConfig?
     private let browserSupportExemption: BrowserSupportExemption
 
     public init(
@@ -23,6 +40,7 @@ public struct ProviderCLIConfig: Sendable {
         supportsCostCommand: Bool = false,
         prefersBinaryLocatorForWhich: Bool = false,
         ttyStatusCommand: String? = nil,
+        ttyLaunch: ProviderTTYLaunchConfig? = nil,
         browserSupportExemption: @escaping BrowserSupportExemption = { _, _, _ in false })
     {
         self.name = name
@@ -32,6 +50,7 @@ public struct ProviderCLIConfig: Sendable {
         self.supportsCostCommand = supportsCostCommand
         self.prefersBinaryLocatorForWhich = prefersBinaryLocatorForWhich
         self.ttyStatusCommand = ttyStatusCommand
+        self.ttyLaunch = ttyLaunch
         self.browserSupportExemption = browserSupportExemption
     }
 
