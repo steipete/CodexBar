@@ -110,6 +110,7 @@ extension SettingsStore {
             return true
         }
 
+        // Provider-specific by design: Grok local cost auto-enablement scans ~/.grok/sessions.
         let grokRoot: URL = {
             let raw = env["GROK_HOME"]?.trimmingCharacters(in: .whitespacesAndNewlines)
             if let raw, !raw.isEmpty {
