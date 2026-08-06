@@ -25,7 +25,7 @@ extension GeminiStatusProbe {
                 guard Self.isURLSessionTimeout(error) else {
                     throw error
                 }
-                CodexBarLog.logger(LogCategories.geminiProbe)
+                CodexBarLog.logger(LogCategories.provider(.gemini, scope: "probe"))
                     .warning("Gemini URLSession timed out; retrying with curl")
                 return try await fallback(request)
             }

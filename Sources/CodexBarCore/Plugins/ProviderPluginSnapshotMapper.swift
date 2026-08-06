@@ -19,6 +19,7 @@ enum ProviderPluginSnapshotMapper {
         let identity = try self.identity(value, provider: provider)
         let subscriptionRenewsAt = try self.optionalDate(value, property: "subscriptionRenewsAt")
         let subscriptionExpiresAt = try self.optionalDate(value, property: "subscriptionExpiresAt")
+        let dataConfidence = try self.dataConfidence(value)
 
         guard primary != nil || secondary != nil || tertiary != nil || !(extraRateWindows?.isEmpty ?? true)
             || providerCost != nil
@@ -37,7 +38,19 @@ enum ProviderPluginSnapshotMapper {
             subscriptionExpiresAt: subscriptionExpiresAt,
             subscriptionRenewsAt: subscriptionRenewsAt,
             updatedAt: now,
-            identity: identity)
+            identity: identity,
+            dataConfidence: dataConfidence)
+    }
+
+    private static func dataConfidence(_ root: JSValue) throws -> UsageDataConfidence {
+        guard let value = root.forProperty("dataConfidence"), !value.isUndefined, !value.isNull else {
+            return .unknown
+        }
+        guard value.isString, let confidence = UsageDataConfidence(rawValue: value.toString()) else {
+            throw ProviderPluginError.invalidSnapshot(
+                "dataConfidence must be 'exact', 'estimated', 'percentOnly', or 'unknown'")
+        }
+        return confidence
     }
 
     private static func details(_ root: JSValue) throws -> [ProviderDetailSection] {

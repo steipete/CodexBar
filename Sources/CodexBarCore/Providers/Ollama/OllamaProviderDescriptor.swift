@@ -2,10 +2,25 @@ import Foundation
 
 public enum OllamaProviderDescriptor {
     public static let descriptor: ProviderDescriptor = Self.makeDescriptor()
+    private static let credentials = ProviderCredentialAdapter.apiKey(
+        environmentKey: OllamaAPISettingsReader.apiKeyEnvironmentKeys[0],
+        resolve: OllamaAPISettingsReader.apiKey,
+        tokenAccountSupport: TokenAccountSupport(
+            title: "Session tokens",
+            subtitle: "Store multiple Ollama Cookie headers or session values.",
+            placeholder: "Cookie header or bare session value",
+            injection: .cookieHeader,
+            requiresManualCookieSource: true,
+            cookieName: ollamaDefaultSessionCookieName,
+            cookieHeaderNormalizer: {
+                normalizedOllamaTokenAccountHeader($0, defaultCookieName: ollamaDefaultSessionCookieName)
+            }))
 
     static func makeDescriptor() -> ProviderDescriptor {
         ProviderDescriptor(
             id: .ollama,
+            settingsSection: .init(OllamaProviderSettingsKey.self, cookieSettings: OllamaProviderSettings.self),
+            credentials: self.credentials,
             metadata: ProviderMetadata(
                 id: .ollama,
                 displayName: "Ollama",
@@ -21,6 +36,7 @@ public enum OllamaProviderDescriptor {
                 widgetSelectable: false,
                 isPrimaryProvider: false,
                 usesAccountFallback: false,
+                debugPane: ProviderDebugPaneCapabilities(probeLogOrder: 5, errorSimulationOrder: 8),
                 browserCookieOrder: ProviderBrowserCookieDefaults.defaultImportOrder,
                 dashboardURL: "https://ollama.com/settings",
                 statusPageURL: nil),
@@ -31,16 +47,35 @@ public enum OllamaProviderDescriptor {
                 confettiPalette: [
                     ProviderColor(hex: 0x000000),
                     ProviderColor(hex: 0xFFFFFF),
-                ]),
+                ],
+                widgetColor: ProviderColor(red: 32 / 255, green: 32 / 255, blue: 32 / 255)),
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
                 noDataMessage: { "Ollama cost summary is not supported." }),
+            pace: ProviderPaceCapability(
+                primary: .session(maximumMinutes: 300, requiresDuration: true),
+                secondary: .weeklyWithDuration,
+                sessionPaceWindowRule: .windowDurationPresent),
+            presentation: ProviderUsagePresentation(menuCard: ProviderMenuCardPresentation(
+                usageNotesResolver: { context in
+                    guard context.snapshot?.identity?.loginMethod == "API key" else { return .unhandled }
+                    return .localized([
+                        "API key verified. Cloud quotas need browser cookies. Sign in to Ollama.",
+                    ])
+                })),
             fetchPlan: ProviderFetchPlan(
                 sourceModes: [.auto, .web, .api],
                 pipeline: ProviderFetchPipeline(resolveStrategies: self.resolveStrategies)),
             cli: ProviderCLIConfig(
                 name: "ollama",
-                versionDetector: nil))
+                versionDetector: nil,
+                browserSupportExemption: { sourceMode, environment, settings in
+                    guard sourceMode == .auto else { return false }
+                    let hasEnvironmentToken = environment.map {
+                        ProviderTokenResolver.ollamaToken(environment: $0) != nil
+                    } == true
+                    return settings?.ollama?.cookieSource == .off || hasEnvironmentToken
+                }))
     }
 
     private static func resolveStrategies(context: ProviderFetchContext) async -> [any ProviderFetchStrategy] {
@@ -78,7 +113,7 @@ struct OllamaStatusFetchStrategy: ProviderFetchStrategy {
         let manual = Self.manualCookieHeader(from: context)
         let isManualMode = context.settings?.ollama?.cookieSource == .manual
         let logger: ((String) -> Void)? = context.verbose
-            ? { msg in CodexBarLog.logger(LogCategories.ollama).verbose(msg) }
+            ? { msg in CodexBarLog.logger(LogCategories.provider(.ollama)).verbose(msg) }
             : nil
         let snap: OllamaUsageSnapshot = if isManualMode {
             try await fetcher.fetch(

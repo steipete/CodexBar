@@ -222,15 +222,82 @@ extension ZaiUsageSnapshot {
             accountEmail: nil,
             accountOrganization: nil,
             loginMethod: loginMethod)
+        var quotaRows: [ProviderDetailSection.Row] = []
+        if let tokenLimit = self.tokenLimit {
+            quotaRows.append(Self.detailRow(label: "Token quota", limit: tokenLimit))
+        }
+        if let sessionTokenLimit = self.sessionTokenLimit {
+            quotaRows.append(Self.detailRow(label: "Session token quota", limit: sessionTokenLimit))
+        }
+        if let timeLimit = self.timeLimit {
+            quotaRows.append(Self.detailRow(label: "MCP quota", limit: timeLimit))
+            quotaRows.append(contentsOf: timeLimit.usageDetails.prefix(20).map {
+                .makeRow(label: $0.modelCode, value: "\($0.usage)")
+            })
+        }
+        var details: [ProviderDetailSection] = [
+            .makeSection(title: "Quota details", rows: quotaRows),
+        ]
+        if let modelUsage = self.modelUsage {
+            details.append(Self.modelUsageSection(title: "Hourly tokens", data: modelUsage))
+        }
+        if let dailyModelUsage = self.dailyModelUsage {
+            details.append(Self.modelUsageSection(title: "Daily tokens", data: dailyModelUsage))
+        }
         return UsageSnapshot(
             primary: primary,
             secondary: secondary,
             tertiary: nil,
             extraRateWindows: extraRateWindows,
             providerCost: nil,
-            zaiUsage: self,
+            details: details,
             updatedAt: self.updatedAt,
             identity: identity)
+    }
+
+    private static func detailRow(label: String, limit: ZaiLimitEntry) -> ProviderDetailSection.Row {
+        let secondary = [
+            limit.usage.map { "\($0) limit" },
+            limit.remaining.map { "\($0) remaining" },
+        ].compactMap(\.self).joined(separator: " · ")
+        return .makeRow(
+            label: label,
+            value: Self.percentString(limit.usedPercent),
+            secondaryValue: secondary.isEmpty ? nil : secondary)
+    }
+
+    private static func modelUsageSection(title: String, data: ZaiModelUsageData) -> ProviderDetailSection {
+        var totals: [(name: String, tokens: Int)] = []
+        for item in data.modelDataList {
+            let tokens = item.tokensUsage.compactMap(\.self).filter { $0 > 0 }.reduce(0, +)
+            if tokens > 0 {
+                totals.append((item.modelName ?? "Unknown", tokens))
+            }
+        }
+        totals.sort {
+            $0.tokens == $1.tokens ? $0.name < $1.name : $0.tokens > $1.tokens
+        }
+        let points = data.xTime.enumerated().compactMap { index, label -> (String, Double)? in
+            let total = data.modelDataList.reduce(0) { partial, item in
+                guard index < item.tokensUsage.count, let value = item.tokensUsage[index], value > 0 else {
+                    return partial
+                }
+                return partial + value
+            }
+            return total > 0 ? (label, Double(total)) : nil
+        }
+        return .makeSection(
+            title: title,
+            rows: totals.prefix(20).map {
+                ProviderDetailSection.Row.makeRow(label: $0.name, value: "\($0.tokens)")
+            },
+            chart: .makeChart(title: title, unit: "tokens", points: points))
+    }
+
+    private static func percentString(_ value: Double) -> String {
+        value == value.rounded()
+            ? String(format: "%.0f%% used", value)
+            : String(format: "%.1f%% used", value)
     }
 
     private static func rateWindow(for limit: ZaiLimitEntry) -> RateWindow {
@@ -333,7 +400,7 @@ private struct ZaiLimitRaw: Codable {
 
 /// Fetches usage stats from the z.ai API
 public struct ZaiUsageFetcher: Sendable {
-    private static let log = CodexBarLog.logger(LogCategories.zaiUsage)
+    private static let log = CodexBarLog.logger(LogCategories.provider(.zai, scope: "usage"))
 
     /// Path for z.ai quota API
     private static let quotaAPIPath = "api/monitor/usage/quota/limit"

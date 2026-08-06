@@ -175,7 +175,12 @@ struct CodexConsumerProjection {
     enum RateLane: String {
         case session
         case weekly
+        case monthly
     }
+
+    static let sessionWindowMinutes = 5 * 60
+    static let weeklyWindowMinutes = 7 * 24 * 60
+    static let monthlyWindowMinutes = 30 * 24 * 60
 
     enum SupplementalMetric: String {
         case codeReview
@@ -311,7 +316,7 @@ struct CodexConsumerProjection {
                 session: window,
                 weekly: self.rateWindowsByLane[.weekly],
                 evaluationTime: self.evaluationTime)
-        case .weekly:
+        case .weekly, .monthly:
             return window
         }
     }
@@ -333,6 +338,47 @@ struct CodexConsumerProjection {
             return window
         }
         return nil
+    }
+
+    /// Automatic keeps the standard session window unless a longer window (e.g. a 30-day
+    /// primary) would hide a genuine weekly quota from the menu bar.
+    func automaticMenuBarWindow() -> RateWindow? {
+        let windows = self.visibleRateLanes.compactMap {
+            self.menuBarSelectableRateWindow(for: $0)
+        }
+        guard let weekly = self.menuBarSelectableRateWindow(for: .weekly),
+              windows.contains(where: {
+                  $0.windowMinutes.map { $0 > Self.weeklyWindowMinutes } ?? false
+              })
+        else {
+            return windows.first
+        }
+        return weekly
+    }
+
+    static func rateTitle(
+        lane: RateLane,
+        windowMinutes: Int?,
+        sessionLabel: String,
+        weeklyLabel: String) -> String
+    {
+        switch windowMinutes {
+        case self.sessionWindowMinutes:
+            L(sessionLabel)
+        case self.weeklyWindowMinutes:
+            L(weeklyLabel)
+        case self.monthlyWindowMinutes:
+            L("Monthly")
+        default:
+            switch lane {
+            case .session:
+                L(sessionLabel)
+            case .weekly:
+                L(weeklyLabel)
+            case .monthly:
+                L("Monthly")
+            }
+        }
     }
 
     var nextMenuBarStateChangeAt: Date? {
@@ -407,7 +453,7 @@ struct CodexConsumerProjection {
     }
 
     private static func planUtilizationLanes(from rateWindowsByLane: [RateLane: RateWindow]) -> [PlanUtilizationLane] {
-        let semanticOrder: [RateLane] = [.session, .weekly]
+        let semanticOrder: [RateLane] = [.session, .weekly, .monthly]
         return semanticOrder.compactMap { lane in
             guard let window = rateWindowsByLane[lane] else { return nil }
             return PlanUtilizationLane(role: self.planUtilizationRole(for: lane), window: window)
@@ -420,7 +466,13 @@ struct CodexConsumerProjection {
             .session
         case .weekly:
             .weekly
+        case .monthly:
+            .monthly
         }
+    }
+
+    static func planUtilizationSeriesNames(snapshot: UsageSnapshot) -> Set<PlanUtilizationSeriesName> {
+        Set(self.rateWindowsByLane(snapshot: snapshot).keys.map { self.planUtilizationRole(for: $0) })
     }
 
     private enum SnapshotSlot {
@@ -432,10 +484,12 @@ struct CodexConsumerProjection {
         guard let window else { return nil }
 
         let lane: RateLane = switch window.windowMinutes {
-        case 300:
+        case Self.sessionWindowMinutes:
             .session
-        case 10080:
+        case Self.weeklyWindowMinutes:
             .weekly
+        case Self.monthlyWindowMinutes:
+            .monthly
         default:
             switch slot {
             case .primary:
@@ -591,7 +645,9 @@ extension UsageStore {
                 usedPercent: usedPercent, windowMinutes: nil, resetsAt: nil, resetDescription: nil)
         case .primaryAndSecondary:
             return windows.prefix(2).max(by: { $0.usedPercent < $1.usedPercent })
-        case .automatic, .primary, .monthlyPlan:
+        case .automatic:
+            return projection.automaticMenuBarWindow()
+        case .primary, .monthlyPlan:
             return first
         }
     }

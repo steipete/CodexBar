@@ -2,10 +2,22 @@ import Foundation
 
 public enum FactoryProviderDescriptor {
     public static let descriptor: ProviderDescriptor = Self.makeDescriptor()
+    private static let credentials = ProviderCredentialAdapter.apiKey(
+        environmentKey: FactorySettingsReader.apiTokenKey,
+        resolve: { FactorySettingsReader.apiKey(environment: $0) },
+        tokenAccountSupport: TokenAccountSupport(
+            title: "Session tokens",
+            subtitle: "Store multiple Factory Cookie or Authorization headers.",
+            placeholder: "Cookie: … or Authorization: Bearer …",
+            injection: .cookieHeader,
+            requiresManualCookieSource: true,
+            cookieName: nil))
 
     static func makeDescriptor() -> ProviderDescriptor {
         ProviderDescriptor(
             id: .factory,
+            settingsSection: .init(FactoryProviderSettingsKey.self, cookieSettings: FactoryProviderSettings.self),
+            credentials: self.credentials,
             metadata: ProviderMetadata(
                 id: .factory,
                 displayName: "Droid",
@@ -21,6 +33,7 @@ public enum FactoryProviderDescriptor {
                 widgetSelectable: false,
                 isPrimaryProvider: false,
                 usesAccountFallback: false,
+                debugLogUnavailableMessage: "Droid debug log not yet implemented",
                 browserCookieOrder: ProviderBrowserCookieDefaults.defaultImportOrder,
                 dashboardURL: "https://app.factory.ai/settings/billing",
                 statusPageURL: "https://status.factory.ai",
@@ -37,6 +50,30 @@ public enum FactoryProviderDescriptor {
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
                 noDataMessage: { "Droid cost summary is not supported." }),
+            presentation: ProviderUsagePresentation(
+                rateWindowLabeler: { metadata, snapshot, _ in
+                    guard snapshot.tertiary != nil else {
+                        return ProviderRateWindowLabels(
+                            primary: metadata.sessionLabel,
+                            secondary: metadata.weeklyLabel,
+                            tertiary: metadata.opusLabel ?? "Sonnet",
+                            showsTertiary: metadata.supportsOpus)
+                    }
+                    return ProviderRateWindowLabels(
+                        primary: "5-hour",
+                        secondary: "Weekly",
+                        tertiary: "Monthly",
+                        showsTertiary: true)
+                },
+                costPresenter: { snapshot in
+                    let style: ProviderCostMenuCardStyle = snapshot.providerCost?.period == "Extra usage balance"
+                        ? .extraUsageBalance
+                        : .generic
+                    return ProviderCostPresentation(menuCardStyle: style)
+                },
+                iconDecorations: [.factory],
+                menuBarWindowResolver: self.secondaryFirstMenuBarWindow,
+                menuCard: ProviderMenuCardPresentation(costVisibilityResolver: { $0.showOptionalUsage })),
             fetchPlan: ProviderFetchPlan(
                 // `.cli` remains as an Auto compatibility alias for persisted configs from older builds
                 // that advertised `[.auto, .cli]` while only implementing the web strategy.
@@ -44,7 +81,21 @@ public enum FactoryProviderDescriptor {
                 pipeline: ProviderFetchPipeline(resolveStrategies: self.resolveStrategies)),
             cli: ProviderCLIConfig(
                 name: "factory",
-                versionDetector: nil))
+                versionDetector: nil,
+                browserSupportExemption: { sourceMode, environment, _ in
+                    guard sourceMode == .auto || sourceMode == .cli else { return false }
+                    return environment.map { FactorySettingsReader.apiKey(environment: $0) != nil } == true
+                }))
+    }
+
+    private static func secondaryFirstMenuBarWindow(
+        context: ProviderMenuBarWindowContext) -> ProviderMenuBarWindowResolution
+    {
+        guard context.metric == .automatic else { return .unhandled }
+        return .resolved(
+            ProviderUsagePresentation.exhausted(context.snapshot.primary, context.snapshot.secondary)
+                ?? context.snapshot.secondary
+                ?? context.snapshot.primary)
     }
 
     private static func resolveStrategies(context: ProviderFetchContext) async -> [any ProviderFetchStrategy] {

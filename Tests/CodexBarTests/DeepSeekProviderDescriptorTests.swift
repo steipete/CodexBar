@@ -95,7 +95,7 @@ struct DeepSeekProviderDescriptorTests {
             operations: operations)
 
         #expect(snapshot.primary?.resetDescription?.contains("$8.06") == true)
-        #expect(snapshot.deepseekUsage == nil)
+        #expect(snapshot.details.isEmpty)
         #expect(snapshot.deepseekDetailedUsageState == .unavailable)
         #expect(startedAt.duration(to: .now) < .seconds(1))
         let cancellationDeadline = ContinuousClock.now.advanced(by: .milliseconds(200))
@@ -135,7 +135,7 @@ struct DeepSeekProviderDescriptorTests {
             operations: operations)
 
         #expect(snapshot.primary?.resetDescription?.contains("$8.06") == true)
-        #expect(snapshot.deepseekUsage?.todayTokens == 123)
+        #expect(snapshot.detailRow(label: "Today")?.value.contains("123") == true)
         #expect(snapshot.deepseekDetailedUsageState == .available)
         #expect(snapshot.deepseekPlatformProfiles.map(\.id) == ["chrome:Default"])
     }
@@ -316,7 +316,7 @@ struct DeepSeekProviderDescriptorTests {
             operations: operations)
 
         #expect(snapshot.primary?.resetDescription?.contains("$8.06") == true)
-        #expect(snapshot.deepseekUsage == summary)
+        #expect(snapshot.detailRow(label: "Today")?.value.contains("123") == true)
         #expect(snapshot.deepseekDetailedUsageState == .available)
         #expect(snapshot.deepseekPlatformProfiles.map(\.id) == ["chrome:Default"])
         #expect(await probe.profileID == nil)
@@ -392,7 +392,7 @@ struct DeepSeekProviderDescriptorTests {
             operations: operations)
 
         #expect(snapshot.primary != nil)
-        #expect(snapshot.deepseekUsage == nil)
+        #expect(snapshot.details.isEmpty)
         #expect(snapshot.deepseekDetailedUsageState == .notRequested)
         #expect(await probe.includesPlatformBalance)
         #expect(await probe.includesOptionalUsage == false)

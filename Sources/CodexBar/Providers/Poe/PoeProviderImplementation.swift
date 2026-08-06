@@ -11,7 +11,7 @@ struct PoeProviderImplementation: ProviderImplementation {
 
     @MainActor
     func observeSettings(_ settings: SettingsStore) {
-        _ = settings.poeAPIKey
+        _ = settings[providerConfig: .poe, field: .apiKey]
     }
 
     @MainActor
@@ -23,7 +23,7 @@ struct PoeProviderImplementation: ProviderImplementation {
                 subtitle: "Stored in ~/.codexbar/config.json. Get your key from poe.com/api/keys.",
                 kind: .secure,
                 placeholder: nil,
-                binding: context.stringBinding(\.poeAPIKey),
+                binding: context.providerConfigBinding(.apiKey),
                 actions: [],
                 isVisible: nil,
                 onActivate: nil),
@@ -33,6 +33,7 @@ struct PoeProviderImplementation: ProviderImplementation {
     @MainActor
     func isAvailable(context: ProviderAvailabilityContext) -> Bool {
         ProviderTokenResolver.poeToken(environment: context.environment) != nil ||
-            !context.settings.poeAPIKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            !context.settings[providerConfig: .poe, field: .apiKey].trimmingCharacters(in: .whitespacesAndNewlines)
+            .isEmpty
     }
 }

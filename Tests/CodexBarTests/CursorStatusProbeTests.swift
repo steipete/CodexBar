@@ -554,11 +554,7 @@ struct CursorStatusProbeTests {
 
         let usageSnapshot = snapshot.toUsageSnapshot()
 
-        #expect(usageSnapshot.cursorRequests != nil)
-        #expect(usageSnapshot.cursorRequests?.used == 500)
-        #expect(usageSnapshot.cursorRequests?.limit == 500)
-        #expect(usageSnapshot.cursorRequests?.usedPercent == 100.0)
-        #expect(usageSnapshot.cursorRequests?.remainingPercent == 0.0)
+        #expect(usageSnapshot.detailRow(label: "Request quota")?.value == "500 / 500")
 
         // Primary RateWindow should use request-based percentage for legacy plans
         #expect(usageSnapshot.primary?.usedPercent == 100.0)
@@ -589,7 +585,7 @@ struct CursorStatusProbeTests {
 
         // Primary should reflect request usage (50%), not dollar usage (0%)
         #expect(usageSnapshot.primary?.usedPercent == 50.0)
-        #expect(usageSnapshot.cursorRequests?.usedPercent == 50.0)
+        #expect(usageSnapshot.detailRow(label: "Request quota")?.value == "250 / 500")
     }
 
     @Test
@@ -644,7 +640,7 @@ struct CursorStatusProbeTests {
         #expect(snapshot.requestsLimit == nil)
 
         let usageSnapshot = snapshot.toUsageSnapshot()
-        #expect(usageSnapshot.cursorRequests == nil)
+        #expect(usageSnapshot.detailRow(label: "Request quota") == nil)
     }
 
     // MARK: - Session Store Serialization

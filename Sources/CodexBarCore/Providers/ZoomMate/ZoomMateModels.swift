@@ -120,12 +120,48 @@ public struct ZoomMateUsageSnapshot: Sendable {
             accountOrganization: nil,
             loginMethod: accountEmail != nil ? "Cookie" : nil)
 
+        let breakdown = history?.dailyBreakdown(now: self.updatedAt) ?? []
+        var detailRows: [ProviderDetailSection.Row] = []
+        if let history {
+            let today = history.todayCreditsUsed(now: self.updatedAt) ?? 0
+            let total = breakdown.reduce(0) { $0 + $1.totalCreditsUsed }
+            detailRows.append(.makeRow(label: "Today", value: Self.creditsString(today)))
+            detailRows.append(.makeRow(label: "30d credits", value: Self.creditsString(total)))
+            if let pace = history.pacingVerdict(now: self.updatedAt) {
+                detailRows.append(.makeRow(label: "Pace", value: Self.paceString(pace)))
+            }
+        }
+
         return UsageSnapshot(
             primary: primary,
             secondary: nil,
-            zoommateCreditsHistory: history,
+            details: history.map { _ in
+                [.makeSection(
+                    title: "Credit history",
+                    rows: detailRows,
+                    chart: breakdown.isEmpty ? nil : .makeChart(
+                        title: "Daily credits",
+                        unit: "credits",
+                        points: breakdown.map { ($0.day, $0.totalCreditsUsed) }))]
+            } ?? [],
             updatedAt: self.updatedAt,
             identity: identity)
+    }
+
+    private static func creditsString(_ value: Double) -> String {
+        value.formatted(.number.precision(.fractionLength(0...2)))
+    }
+
+    private static func paceString(_ pace: UsagePace) -> String {
+        let delta = Int(abs(pace.deltaPercent).rounded())
+        switch pace.stage {
+        case .onTrack:
+            return "On track"
+        case .slightlyAhead, .ahead, .farAhead:
+            return delta == 0 ? "Ahead of budget" : "\(delta)% ahead of budget"
+        case .slightlyBehind, .behind, .farBehind:
+            return delta == 0 ? "Behind budget" : "\(delta)% behind budget"
+        }
     }
 
     /// Pacing verdict (design.md D3), delegated to `ZoomMateCreditStatus.pacingVerdict` so both

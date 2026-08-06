@@ -6,6 +6,20 @@ import Testing
 
 struct ShareStatsTests {
     @Test
+    func `descriptor share plan labels preserve the legacy central table`() throws {
+        var fingerprint: UInt64 = 1_469_598_103_934_665_603
+        for descriptor in ProviderDescriptorRegistry.all where !descriptor.metadata.sharePlanLabels.isEmpty {
+            Self.hash(descriptor.id.rawValue, into: &fingerprint)
+            for key in descriptor.metadata.sharePlanLabels.keys.sorted() {
+                Self.hash(key, into: &fingerprint)
+                try Self.hash(#require(descriptor.metadata.sharePlanLabels[key]), into: &fingerprint)
+            }
+        }
+
+        #expect(fingerprint == 2_500_333_924_415_227_190)
+    }
+
+    @Test
     func `builder preserves native currencies and unavailable spend`() throws {
         let subscriptionNames = try [
             "codex:one": #require(Self.subscriptionName(provider: .codex, rawName: "pro")),
@@ -313,6 +327,13 @@ struct ShareStatsTests {
     }
 
     private static let date = Date(timeIntervalSince1970: 1_783_382_400)
+
+    private static func hash(_ value: String, into fingerprint: inout UInt64) {
+        for byte in value.utf8 {
+            fingerprint = (fingerprint ^ UInt64(byte)) &* 1_099_511_628_211
+        }
+        fingerprint = (fingerprint ^ 0xFF) &* 1_099_511_628_211
+    }
 
     private static func subscriptionName(
         provider: UsageProvider,

@@ -21,6 +21,7 @@ public enum KiroProviderDescriptor {
                 widgetSelectable: false,
                 isPrimaryProvider: false,
                 usesAccountFallback: false,
+                debugLogUnavailableMessage: "Kiro debug log not yet implemented",
                 dashboardURL: "https://app.kiro.dev/account/usage",
                 statusPageURL: nil,
                 statusLinkURL: "https://health.aws.amazon.com/health/status"),
@@ -36,6 +37,8 @@ public enum KiroProviderDescriptor {
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
                 noDataMessage: { "Kiro cost summary is not supported." }),
+            presentation: ProviderUsagePresentation(menuCard: ProviderMenuCardPresentation(
+                primaryDetailKind: .kiroCredits)),
             fetchPlan: ProviderFetchPlan(
                 sourceModes: [.auto, .cli],
                 pipeline: ProviderFetchPipeline(resolveStrategies: { _ in [KiroCLIFetchStrategy()] })),

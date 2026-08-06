@@ -29,7 +29,7 @@ struct WayfinderProviderTests {
             configStore: testConfigStore(suiteName: suite),
             zaiTokenStore: NoopZaiTokenStore(),
             syntheticTokenStore: NoopSyntheticTokenStore())
-        settings.wayfinderGatewayURL = "http://localhost:9191/wayfinder"
+        settings[providerConfig: .wayfinder, field: .endpoint] = "http://localhost:9191/wayfinder"
 
         #expect(WayfinderProviderImplementation.dashboardURL(
             settings: settings,

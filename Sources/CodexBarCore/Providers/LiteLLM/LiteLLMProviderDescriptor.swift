@@ -2,10 +2,23 @@ import Foundation
 
 public enum LiteLLMProviderDescriptor {
     public static let descriptor: ProviderDescriptor = Self.makeDescriptor()
+    private static let credentials = ProviderCredentialAdapter.apiKey(
+        environmentKey: LiteLLMSettingsReader.apiKeyEnvironmentKey,
+        additionalProjections: [.enterpriseHost(LiteLLMSettingsReader.baseURLEnvironmentKey)],
+        resolve: LiteLLMSettingsReader.apiKey,
+        tokenAccountSupport: TokenAccountSupport(
+            title: "API keys",
+            subtitle: "Store multiple LiteLLM API keys.",
+            placeholder: "Paste LiteLLM API key…",
+            injection: .environment(key: LiteLLMSettingsReader.apiKeyEnvironmentKey),
+            requiresManualCookieSource: false,
+            cookieName: nil))
 
     static func makeDescriptor() -> ProviderDescriptor {
         ProviderDescriptor(
             id: .litellm,
+            credentials: self.credentials,
+            config: ProviderConfigCapabilities(supportsEnterpriseHost: true),
             metadata: ProviderMetadata(
                 id: .litellm,
                 displayName: "LiteLLM",
@@ -21,6 +34,7 @@ public enum LiteLLMProviderDescriptor {
                 widgetSelectable: false,
                 isPrimaryProvider: false,
                 usesAccountFallback: false,
+                debugLogUnavailableMessage: "LiteLLM debug log not yet implemented",
                 dashboardURL: nil,
                 statusPageURL: nil),
             branding: ProviderBranding(
@@ -35,6 +49,23 @@ public enum LiteLLMProviderDescriptor {
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
                 noDataMessage: { "LiteLLM spend is reported by the provider API." }),
+            presentation: ProviderUsagePresentation(
+                costPresenter: { snapshot in
+                    let style: ProviderCostMenuCardStyle = (snapshot.providerCost?.limit ?? 1) <= 0
+                        ? .apiSpend
+                        : .hidden
+                    return ProviderCostPresentation(menuCardStyle: style)
+                },
+                menuBarWindowResolver: { context in
+                    guard context.metric == .automatic else { return .unhandled }
+                    return .resolved(
+                        ProviderUsagePresentation.exhausted(context.snapshot.primary, context.snapshot.secondary)
+                            ?? context.snapshot.secondary
+                            ?? context.snapshot.primary)
+                },
+                menuCard: ProviderMenuCardPresentation(
+                    showsPrimaryBalanceDescription: true,
+                    hidesPrimaryResetWithoutDate: true)),
             fetchPlan: ProviderFetchPlan(
                 sourceModes: [.auto, .api],
                 pipeline: ProviderFetchPipeline(resolveStrategies: { _ in [LiteLLMAPIFetchStrategy()] })),

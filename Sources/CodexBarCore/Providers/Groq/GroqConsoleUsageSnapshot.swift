@@ -111,7 +111,37 @@ public struct GroqConsoleUsageSnapshot: Codable, Equatable, Sendable {
     }
 
     public func toUsageSnapshot() -> UsageSnapshot {
-        UsageSnapshot(
+        let tokenSnapshot = self.toCostUsageTokenSnapshot()
+        var summaryRows: [ProviderDetailSection.Row] = [
+            .makeRow(
+                label: "Spend",
+                value: UsageFormatter.usdString(tokenSnapshot.last30DaysCostUSD ?? 0),
+                secondaryValue: self.historyWindowPeriodLabel),
+            .makeRow(label: "Requests", value: Self.countString(tokenSnapshot.last30DaysRequests ?? 0)),
+            .makeRow(
+                label: "Tokens",
+                value: Self.countString(tokenSnapshot.last30DaysTokens ?? 0)),
+        ]
+        let cached = self.daily.reduce(0) { $0 + $1.cachedInputTokens }
+        if cached > 0 {
+            summaryRows.append(.makeRow(label: "Cached input", value: Self.countString(cached)))
+        }
+        var details: [ProviderDetailSection] = [.makeSection(
+            title: "Usage summary",
+            rows: summaryRows,
+            chart: self.daily.isEmpty ? nil : .makeChart(
+                title: "Daily spend",
+                unit: "USD",
+                points: self.daily.map { ($0.day, $0.costUSD) }))]
+        if !self.topModels.isEmpty {
+            details.append(.makeSection(title: "Models", rows: self.topModels.prefix(20).map {
+                .makeRow(
+                    label: $0.name,
+                    value: "\(Self.countString($0.totalTokens)) tokens",
+                    secondaryValue: "\(Self.countString($0.requests)) requests")
+            }))
+        }
+        return UsageSnapshot(
             primary: nil,
             secondary: nil,
             providerCost: ProviderCostSnapshot(
@@ -120,13 +150,17 @@ public struct GroqConsoleUsageSnapshot: Codable, Equatable, Sendable {
                 currencyCode: "USD",
                 period: self.historyWindowPeriodLabel,
                 updatedAt: self.updatedAt),
-            groqConsoleUsage: self,
+            details: details,
             updatedAt: self.updatedAt,
             identity: ProviderIdentitySnapshot(
                 providerID: .groq,
                 accountEmail: self.accountEmail,
                 accountOrganization: self.organizationName,
                 loginMethod: self.loginMethod))
+    }
+
+    private static func countString(_ value: Int) -> String {
+        value.formatted(.number.grouping(.automatic).locale(Locale(identifier: "en_US")))
     }
 
     public func toCostUsageTokenSnapshot() -> CostUsageTokenSnapshot {

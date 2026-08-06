@@ -12,7 +12,7 @@ struct SakanaProviderImplementation: ProviderImplementation {
 
     @MainActor
     func observeSettings(_ settings: SettingsStore) {
-        _ = settings.sakanaCookieHeader
+        _ = settings[providerConfig: .sakana, field: .cookieHeader]
     }
 
     @MainActor
@@ -31,7 +31,7 @@ struct SakanaProviderImplementation: ProviderImplementation {
                 subtitle: subtitle,
                 kind: .secure,
                 placeholder: "Cookie: ...",
-                binding: context.stringBinding(\.sakanaCookieHeader),
+                binding: context.providerConfigBinding(.cookieHeader),
                 actions: [
                     ProviderSettingsActionDescriptor(
                         id: "sakana-open-dashboard",

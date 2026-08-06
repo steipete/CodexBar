@@ -1,3 +1,4 @@
+#if !canImport(JavaScriptCore)
 import Foundation
 import Testing
 @testable import CodexBarCore
@@ -61,3 +62,4 @@ struct CrofCreditsOnlyLinuxTests {
         #expect(CrofProviderDescriptor.primaryLabel(snapshot: usage) != "Credits")
     }
 }
+#endif

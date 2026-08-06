@@ -2,10 +2,33 @@ import Foundation
 
 public enum OpenCodeGoProviderDescriptor {
     public static let descriptor: ProviderDescriptor = Self.makeDescriptor()
+    private static let credentials = ProviderCredentialAdapter(tokenAccountSupport: TokenAccountSupport(
+        title: "Session tokens",
+        subtitle: "Store multiple OpenCode Go Cookie headers.",
+        placeholder: "Cookie: …",
+        injection: .cookieHeader,
+        requiresManualCookieSource: true,
+        cookieName: nil))
 
     static func makeDescriptor() -> ProviderDescriptor {
         ProviderDescriptor(
             id: .opencodego,
+            settingsSection: .init(
+                OpenCodeGoProviderSettingsKey.self,
+                cookieSettings: { settings in
+                    CookieProviderSettings(
+                        cookieSource: settings.cookieSource,
+                        manualCookieHeader: settings.manualCookieHeader)
+                },
+                credentialSettings: { context in
+                    let settings = context.cookieSettings(for: .opencodego)
+                    return OpenCodeProviderSettings(
+                        cookieSource: settings.cookieSource,
+                        manualCookieHeader: settings.manualCookieHeader,
+                        workspaceID: context.config?.workspaceID)
+                }),
+            credentials: self.credentials,
+            config: ProviderConfigCapabilities(workspaceIDValidationOrder: 3),
             metadata: ProviderMetadata(
                 id: .opencodego,
                 displayName: "OpenCode Go",
@@ -38,12 +61,44 @@ public enum OpenCodeGoProviderDescriptor {
                     "No OpenCode Go local usage history found in ~/.local/share/opencode/opencode.db."
                 }),
             pace: .calendarMonthResetWindow,
+            history: .alwaysTracked,
+            presentation: ProviderUsagePresentation(
+                costPresenter: { snapshot in
+                    let style: ProviderCostMenuCardStyle = snapshot.providerCost?.period == "Zen balance"
+                        ? .zenBalance
+                        : .generic
+                    return ProviderCostPresentation(menuCardStyle: style)
+                },
+                planUtilizationSeriesResolver: { snapshot in
+                    var series: Set<ProviderPlanUtilizationSeries> = []
+                    if snapshot.primary != nil {
+                        series.insert(.session)
+                    }
+                    if snapshot.secondary != nil {
+                        series.insert(.weekly)
+                    }
+                    if snapshot.tertiary != nil {
+                        series.insert(.monthly)
+                    }
+                    return series
+                },
+                menuCard: ProviderMenuCardPresentation(
+                    costVisibilityResolver: { context in
+                        context.showOptionalUsage ||
+                            (context.snapshot?.primary == nil &&
+                                context.snapshot?.secondary == nil &&
+                                context.snapshot?.providerCost?.period == "Zen balance")
+                    },
+                    supportsInlineTokenCostDashboard: true)),
             fetchPlan: ProviderFetchPlan(
                 sourceModes: [.auto, .web],
                 pipeline: ProviderFetchPipeline(resolveStrategies: self.resolveStrategies)),
             cli: ProviderCLIConfig(
                 name: "opencodego",
-                versionDetector: nil))
+                versionDetector: nil,
+                browserSupportExemption: { sourceMode, _, settings in
+                    sourceMode == .auto || settings?.opencodego?.cookieSource == .manual
+                }))
     }
 
     private static func resolveStrategies(context: ProviderFetchContext) async -> [any ProviderFetchStrategy] {
@@ -64,9 +119,15 @@ public enum OpenCodeGoProviderDescriptor {
 
     private static func requiresScopedWebStrategy(context: ProviderFetchContext) -> Bool {
         guard context.sourceMode == .auto else { return false }
-        if context.selectedTokenAccountID != nil { return true }
-        if context.settings?.opencodego?.cookieSource == .manual { return true }
-        if self.normalizedWorkspaceID(context.settings?.opencodego?.workspaceID) != nil { return true }
+        if context.selectedTokenAccountID != nil {
+            return true
+        }
+        if context.settings?.opencodego?.cookieSource == .manual {
+            return true
+        }
+        if self.normalizedWorkspaceID(context.settings?.opencodego?.workspaceID) != nil {
+            return true
+        }
         return self.normalizedWorkspaceID(context.env["CODEXBAR_OPENCODEGO_WORKSPACE_ID"]) != nil
     }
 

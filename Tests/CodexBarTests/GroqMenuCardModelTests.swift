@@ -60,6 +60,7 @@ extension StatusMenuTests {
         // row's gate briefly reused `usesProviderCostHistoryAsPrimaryDashboard`.
         let model = try #require(controller.menuCardModel(for: .groq))
         #expect(model.tokenUsage == nil)
-        #expect(model.inlineUsageDashboard != nil)
+        #expect(model.inlineUsageDashboard == nil)
+        #expect(model.providerDetails.first?.chart?.title == "Daily spend")
     }
 }

@@ -16,8 +16,10 @@ enum CLIRenderer {
         context: RenderContext,
         now: Date = Date()) -> String
     {
-        let meta = ProviderDescriptorRegistry.descriptor(for: provider).metadata
-        let labels = self.rateWindowLabels(provider: provider, metadata: meta, snapshot: snapshot)
+        let descriptor = ProviderDescriptorRegistry.descriptor(for: provider)
+        let labels = descriptor.presentation.rateWindowLabels(
+            metadata: descriptor.metadata,
+            snapshot: snapshot)
         var lines: [String] = []
         lines.append(self.headerLine(context.header, useColor: context.useColor))
         self.appendPrimaryLines(
@@ -41,25 +43,14 @@ enum CLIRenderer {
             context: context,
             now: now,
             lines: &lines)
-        self.appendZaiExtraRateWindows(
+        self.appendExtraRateWindows(
             provider: provider,
             snapshot: snapshot,
             context: context,
             now: now,
             lines: &lines)
-        self.appendMiMoBalanceLine(snapshot: snapshot, useColor: context.useColor, lines: &lines)
-        self.appendClawRouterUsageLines(snapshot: snapshot, useColor: context.useColor, lines: &lines)
-        self.appendSub2APIUsageLines(snapshot: snapshot, useColor: context.useColor, lines: &lines)
-        self.appendWayfinderUsageLines(snapshot: snapshot, useColor: context.useColor, lines: &lines)
-        self.appendDeepgramLines(snapshot: snapshot, useColor: context.useColor, lines: &lines)
-        self.appendAmpBalanceLines(snapshot: snapshot, useColor: context.useColor, lines: &lines)
-        self.appendXAIUsageLines(snapshot: snapshot, useColor: context.useColor, lines: &lines)
-        self.appendDevinOverageBalanceLine(
-            provider: provider,
-            snapshot: snapshot,
-            useColor: context.useColor,
-            lines: &lines)
-        self.appendClaudeExtraUsageBalanceLine(
+        self.appendProviderDetails(snapshot.details, useColor: context.useColor, lines: &lines)
+        self.appendPresentationCostLines(
             provider: provider,
             snapshot: snapshot,
             useColor: context.useColor,
@@ -98,8 +89,10 @@ enum CLIRenderer {
         includeIdentity: Bool,
         now: Date = Date()) -> [String]
     {
-        let meta = ProviderDescriptorRegistry.descriptor(for: provider).metadata
-        let labels = self.rateWindowLabels(provider: provider, metadata: meta, snapshot: snapshot)
+        let descriptor = ProviderDescriptorRegistry.descriptor(for: provider)
+        let labels = descriptor.presentation.rateWindowLabels(
+            metadata: descriptor.metadata,
+            snapshot: snapshot)
         var lines: [String] = []
         self.appendPrimaryLines(
             provider: provider,
@@ -122,25 +115,14 @@ enum CLIRenderer {
             context: context,
             now: now,
             lines: &lines)
-        self.appendZaiExtraRateWindows(
+        self.appendExtraRateWindows(
             provider: provider,
             snapshot: snapshot,
             context: context,
             now: now,
             lines: &lines)
-        self.appendMiMoBalanceLine(snapshot: snapshot, useColor: context.useColor, lines: &lines)
-        self.appendClawRouterUsageLines(snapshot: snapshot, useColor: context.useColor, lines: &lines)
-        self.appendSub2APIUsageLines(snapshot: snapshot, useColor: context.useColor, lines: &lines)
-        self.appendWayfinderUsageLines(snapshot: snapshot, useColor: context.useColor, lines: &lines)
-        self.appendDeepgramLines(snapshot: snapshot, useColor: context.useColor, lines: &lines)
-        self.appendAmpBalanceLines(snapshot: snapshot, useColor: context.useColor, lines: &lines)
-        self.appendXAIUsageLines(snapshot: snapshot, useColor: context.useColor, lines: &lines)
-        self.appendDevinOverageBalanceLine(
-            provider: provider,
-            snapshot: snapshot,
-            useColor: context.useColor,
-            lines: &lines)
-        self.appendClaudeExtraUsageBalanceLine(
+        self.appendProviderDetails(snapshot.details, useColor: context.useColor, lines: &lines)
+        self.appendPresentationCostLines(
             provider: provider,
             snapshot: snapshot,
             useColor: context.useColor,
@@ -174,26 +156,10 @@ enum CLIRenderer {
     }
 
     static func planBadgeText(provider: UsageProvider, snapshot: UsageSnapshot) -> String? {
-        if let usage = snapshot.mimoUsage {
-            return usage.balanceDetail
-        }
-        if provider == .kilo {
-            let kiloLogin = self.kiloLoginParts(snapshot: snapshot)
-            if let pass = kiloLogin.pass {
-                return UsageFormatter.cleanPlanName(pass)
-            }
-            return nil
-        }
-        guard let plan = snapshot.loginMethod(for: provider),
-              !plan.isEmpty,
-              provider != .mimo || !plan.localizedCaseInsensitiveContains("balance:")
-        else {
-            return nil
-        }
-        if provider == .codex {
-            return CodexPlanFormatting.displayName(plan) ?? plan
-        }
-        return self.nonCodexPlanDisplay(provider: provider, plan: plan)
+        ProviderDescriptorRegistry.descriptor(for: provider)
+            .presentation
+            .identity(provider: provider, snapshot: snapshot)
+            .badge
     }
 
     static func colorizeAccentBold(_ text: String) -> String {
@@ -435,8 +401,10 @@ enum CLIRenderer {
         resetStyle: ResetTimeDisplayStyle,
         now: Date = Date()) -> [CLICardMetric]
     {
-        let meta = ProviderDescriptorRegistry.descriptor(for: provider).metadata
-        let labels = self.rateWindowLabels(provider: provider, metadata: meta, snapshot: snapshot)
+        let descriptor = ProviderDescriptorRegistry.descriptor(for: provider)
+        let labels = descriptor.presentation.rateWindowLabels(
+            metadata: descriptor.metadata,
+            snapshot: snapshot)
         var metrics: [CLICardMetric] = []
         if let primary = snapshot.primary, !primary.isSyntheticPlaceholder {
             metrics.append(self.makeCardMetric(
@@ -462,15 +430,13 @@ enum CLIRenderer {
                 resetStyle: resetStyle,
                 now: now))
         }
-        if provider == .zai {
-            for extra in snapshot.extraRateWindows ?? [] where extra.id == "zai-mcp" {
-                metrics.append(self.makeCardMetric(
-                    provider: provider,
-                    label: extra.title,
-                    window: extra.window,
-                    resetStyle: resetStyle,
-                    now: now))
-            }
+        for extra in descriptor.presentation.extraRateWindows(snapshot: snapshot) {
+            metrics.append(self.makeCardMetric(
+                provider: provider,
+                label: extra.title,
+                window: extra.window,
+                resetStyle: resetStyle,
+                now: now))
         }
         return metrics
     }
@@ -484,13 +450,17 @@ enum CLIRenderer {
         now: Date = Date()) -> [String]
     {
         var lines: [String] = []
+        // Provider-specific by design: codexResetCredits is a behavioral Codex payload, not presentation metadata.
         if provider == .codex, let resetCredits = snapshot.codexResetCredits {
             let inventory = resetCredits.availableInventory(at: now)
             let value = inventory.count == 1 ? "1 available" : "\(inventory.count) available"
             lines.append(self.labelValueLine("Limit Reset Credits", value: value, useColor: useColor))
         }
-        if provider == .codex, let credits {
-            let remaining = credits.codexCreditLimit?.remaining ?? credits.remaining
+        if let credits,
+           let remaining = ProviderDescriptorRegistry.descriptor(for: provider)
+               .presentation
+               .creditRemaining(credits)
+        {
             lines.append(self.labelValueLine(
                 "Credits",
                 value: UsageFormatter.creditsString(from: remaining),
@@ -513,32 +483,19 @@ enum CLIRenderer {
     {
         var lines: [String] = []
         if snapshot.primary == nil {
+            let descriptor = ProviderDescriptorRegistry.descriptor(for: provider)
             self.appendPrimaryLines(
                 provider: provider,
                 snapshot: snapshot,
-                labels: self.rateWindowLabels(
-                    provider: provider,
-                    metadata: ProviderDescriptorRegistry.descriptor(for: provider).metadata,
+                labels: descriptor.presentation.rateWindowLabels(
+                    metadata: descriptor.metadata,
                     snapshot: snapshot),
                 context: context,
                 now: now,
                 lines: &lines)
         }
-        if snapshot.mimoUsage != nil {
-            self.appendMiMoBalanceLine(snapshot: snapshot, useColor: context.useColor, lines: &lines)
-        }
-        self.appendClawRouterUsageLines(snapshot: snapshot, useColor: context.useColor, lines: &lines)
-        self.appendSub2APIUsageLines(snapshot: snapshot, useColor: context.useColor, lines: &lines)
-        self.appendWayfinderUsageLines(snapshot: snapshot, useColor: context.useColor, lines: &lines)
-        self.appendDeepgramLines(snapshot: snapshot, useColor: context.useColor, lines: &lines)
-        self.appendAmpBalanceLines(snapshot: snapshot, useColor: context.useColor, lines: &lines)
-        self.appendXAIUsageLines(snapshot: snapshot, useColor: context.useColor, lines: &lines)
-        self.appendDevinOverageBalanceLine(
-            provider: provider,
-            snapshot: snapshot,
-            useColor: context.useColor,
-            lines: &lines)
-        self.appendClaudeExtraUsageBalanceLine(
+        self.appendProviderDetails(snapshot.details, useColor: context.useColor, lines: &lines)
+        self.appendPresentationCostLines(
             provider: provider,
             snapshot: snapshot,
             useColor: context.useColor,
@@ -548,11 +505,11 @@ enum CLIRenderer {
             snapshot: snapshot,
             useColor: context.useColor,
             lines: &lines)
-        if provider == .kilo {
-            let kiloLogin = self.kiloLoginParts(snapshot: snapshot)
-            for detail in kiloLogin.details {
-                lines.append(self.labelValueLine("Activity", value: detail, useColor: context.useColor))
-            }
+        let identity = ProviderDescriptorRegistry.descriptor(for: provider)
+            .presentation
+            .identity(provider: provider, snapshot: snapshot)
+        for detail in identity.details {
+            lines.append(self.labelValueLine(detail.label, value: detail.value, useColor: context.useColor))
         }
         return lines
     }
@@ -599,7 +556,7 @@ enum CLIRenderer {
             self.pacePayload(
                 provider: provider,
                 window: $0,
-                kind: self.paceKind(provider: provider, fallback: .session),
+                slot: .primary,
                 weeklyWorkDays: weeklyWorkDays,
                 now: now)
         }
@@ -607,7 +564,7 @@ enum CLIRenderer {
             self.pacePayload(
                 provider: provider,
                 window: $0,
-                kind: self.paceKind(provider: provider, fallback: .weekly),
+                slot: .secondary,
                 weeklyWorkDays: weeklyWorkDays,
                 now: now)
         }
@@ -615,7 +572,7 @@ enum CLIRenderer {
             self.pacePayload(
                 provider: provider,
                 window: $0,
-                kind: self.paceKind(provider: provider, fallback: .weekly),
+                slot: .tertiary,
                 weeklyWorkDays: weeklyWorkDays,
                 now: now)
         }
@@ -637,7 +594,7 @@ enum CLIRenderer {
     private static func appendPrimaryLines(
         provider: UsageProvider,
         snapshot: UsageSnapshot,
-        labels: RateWindowLabels,
+        labels: ProviderRateWindowLabels,
         context: RenderContext,
         now: Date,
         lines: inout [String])
@@ -647,22 +604,15 @@ enum CLIRenderer {
                 provider: provider,
                 title: labels.primary,
                 window: primary,
-                paceKind: self.paceKind(provider: provider, fallback: .session),
+                paceSlot: .primary,
                 context: context,
                 now: now,
                 lines: &lines)
             return
         }
 
-        guard
-            provider != .clawrouter,
-            let cost = snapshot.providerCost,
-            !(provider == .devin && cost.period == "Extra usage balance"),
-            !(provider == .claude && cost.used == 0 && cost.limit == 0 && cost.balance != nil),
-            // xAI's providerCost carries the prepaid balance, not a spend/limit
-            // pair; the dedicated balance line renders it instead.
-            !(provider == .xai && cost.period == "Prepaid credits")
-        else { return }
+        let presentation = ProviderDescriptorRegistry.descriptor(for: provider).presentation.cost(snapshot: snapshot)
+        guard presentation.showsGenericFallback, let cost = snapshot.providerCost else { return }
         // Fallback to cost/quota display if no primary rate window.
         let label = cost.currencyCode == "Quota" ? "Quota" : "Cost"
         let value = "\(String(format: "%.1f", cost.used)) / \(String(format: "%.1f", cost.limit))"
@@ -673,7 +623,7 @@ enum CLIRenderer {
     private static func appendSecondaryLines(
         provider: UsageProvider,
         snapshot: UsageSnapshot,
-        labels: RateWindowLabels,
+        labels: ProviderRateWindowLabels,
         context: RenderContext,
         now: Date,
         lines: inout [String])
@@ -683,146 +633,47 @@ enum CLIRenderer {
             provider: provider,
             title: labels.secondary,
             window: weekly,
-            paceKind: self.paceKind(provider: provider, fallback: .weekly),
+            paceSlot: .secondary,
             context: context,
             now: now,
             lines: &lines)
     }
 
-    private static func appendMiMoBalanceLine(
-        snapshot: UsageSnapshot,
+    private static func appendProviderDetails(
+        _ sections: [ProviderDetailSection],
         useColor: Bool,
         lines: inout [String])
     {
-        guard let usage = snapshot.mimoUsage else { return }
-        lines.append(self.labelValueLine("Balance", value: usage.balanceDetail, useColor: useColor))
+        for section in sections {
+            for row in section.rows {
+                let value = [row.value, row.secondaryValue]
+                    .compactMap(\.self)
+                    .joined(separator: " · ")
+                lines.append(self.labelValueLine(row.label, value: value, useColor: useColor))
+            }
+            if let chart = section.chart {
+                let unit = chart.unit.map { " \($0)" } ?? ""
+                for point in chart.points {
+                    let label = chart.title.map { "\($0) · \(point.label)" } ?? point.label
+                    lines.append(self.labelValueLine(
+                        label,
+                        value: "\(point.value.formatted())\(unit)",
+                        useColor: useColor))
+                }
+            }
+        }
     }
 
-    private static func appendDevinOverageBalanceLine(
+    private static func appendPresentationCostLines(
         provider: UsageProvider,
         snapshot: UsageSnapshot,
         useColor: Bool,
         lines: inout [String])
     {
-        guard provider == .devin,
-              let cost = snapshot.providerCost,
-              cost.period == "Extra usage balance"
-        else { return }
-        let balance = UsageFormatter.currencyString(cost.used, currencyCode: cost.currencyCode)
-        lines.append(self.labelValueLine("Extra usage", value: balance, useColor: useColor))
-    }
-
-    private static func appendClaudeExtraUsageBalanceLine(
-        provider: UsageProvider,
-        snapshot: UsageSnapshot,
-        useColor: Bool,
-        lines: inout [String])
-    {
-        guard provider == .claude,
-              let cost = snapshot.providerCost,
-              let balance = cost.balance
-        else { return }
-        let value = UsageFormatter.currencyString(balance, currencyCode: cost.currencyCode)
-        lines.append(self.labelValueLine("Extra usage balance", value: value, useColor: useColor))
-    }
-
-    private static func appendXAIUsageLines(
-        snapshot: UsageSnapshot,
-        useColor: Bool,
-        lines: inout [String])
-    {
-        guard let usage = snapshot.xaiUsage else { return }
-        let balance = UsageFormatter.currencyString(usage.balanceUSD, currencyCode: "USD")
-        lines.append(self.labelValueLine("Balance", value: balance, useColor: useColor))
-        guard !usage.daily.isEmpty else { return }
-        let spend = UsageFormatter.currencyString(usage.windowCostUSD, currencyCode: "USD")
-        lines.append(self.labelValueLine(usage.historyWindowPeriodLabel, value: spend, useColor: useColor))
-    }
-
-    private static func appendClawRouterUsageLines(
-        snapshot: UsageSnapshot,
-        useColor: Bool,
-        lines: inout [String])
-    {
-        guard let usage = snapshot.clawRouterUsage else { return }
-
-        let spend = usage.budgetSpentUSD ?? usage.actualCostUSD
-        let spendValue = UsageFormatter.currencyString(spend, currencyCode: "USD")
-        if let limit = usage.budgetLimitUSD, limit > 0 {
-            let limitValue = UsageFormatter.currencyString(limit, currencyCode: "USD")
-            lines.append(self.labelValueLine("Spend", value: "\(spendValue) / \(limitValue)", useColor: useColor))
-        } else {
-            lines.append(self.labelValueLine("Spend", value: spendValue, useColor: useColor))
-        }
-
-        let requests = UsageFormatter.tokenCountString(usage.requestCount)
-        let tokens = UsageFormatter.tokenCountString(usage.totalTokens)
-        lines.append(self.labelValueLine("Usage", value: "\(requests) requests · \(tokens) tokens", useColor: useColor))
-
-        if usage.errorCount > 0 {
-            lines.append(self.labelValueLine(
-                "Results",
-                value: "\(usage.successCount) succeeded · \(usage.errorCount) failed",
-                useColor: useColor))
-        }
-
-        if !usage.providers.isEmpty {
-            let providerMix = usage.providers.prefix(5)
-                .map { "\($0.provider): \(UsageFormatter.tokenCountString($0.requestCount))" }
-                .joined(separator: " · ")
-            lines.append(self.labelValueLine("Routed providers", value: providerMix, useColor: useColor))
-        }
-    }
-
-    private static func appendSub2APIUsageLines(
-        snapshot: UsageSnapshot,
-        useColor: Bool,
-        lines: inout [String])
-    {
-        guard let usage = snapshot.sub2APIUsage else { return }
-        if let balance = usage.balance {
-            lines.append(self.labelValueLine(
-                "Balance",
-                value: UsageFormatter.currencyString(balance, currencyCode: usage.unit),
-                useColor: useColor))
-        }
-        if let today = usage.today {
-            lines.append(self.labelValueLine(
-                "Today",
-                value: self.sub2APITotalsText(today, unit: usage.unit),
-                useColor: useColor))
-        }
-        if let total = usage.total {
-            lines.append(self.labelValueLine(
-                "Total",
-                value: self.sub2APITotalsText(total, unit: usage.unit),
-                useColor: useColor))
-        }
-    }
-
-    private static func sub2APITotalsText(_ totals: Sub2APIUsageDetails.Totals, unit: String) -> String {
-        "\(UsageFormatter.tokenCountString(totals.requests)) requests · " +
-            "\(UsageFormatter.tokenCountString(totals.totalTokens)) tokens · " +
-            UsageFormatter.currencyString(totals.actualCostUSD, currencyCode: unit)
-    }
-
-    private static func appendWayfinderUsageLines(
-        snapshot: UsageSnapshot,
-        useColor: Bool,
-        lines: inout [String])
-    {
-        guard let usage = snapshot.wayfinderUsage else { return }
-
-        lines.append(self.labelValueLine("Gateway", value: usage.gatewaySummary, useColor: useColor))
-
-        if let routed = usage.routedSummary {
-            lines.append(self.labelValueLine("Routed", value: routed, useColor: useColor))
-        }
-        if let saved = usage.savedSummary {
-            lines.append(self.labelValueLine("Saved", value: saved, useColor: useColor))
-        }
-        if let avgDecision = usage.avgDecisionSummary {
-            lines.append(self.labelValueLine("Avg decision", value: avgDecision, useColor: useColor))
+        let presentation = ProviderDescriptorRegistry.descriptor(for: provider).presentation.cost(snapshot: snapshot)
+        for balance in presentation.balances {
+            let value = UsageFormatter.currencyString(balance.amount, currencyCode: balance.currencyCode)
+            lines.append(self.labelValueLine(balance.label, value: value, useColor: useColor))
         }
     }
 
@@ -830,7 +681,7 @@ enum CLIRenderer {
     private static func appendTertiaryLines(
         provider: UsageProvider,
         snapshot: UsageSnapshot,
-        labels: RateWindowLabels,
+        labels: ProviderRateWindowLabels,
         context: RenderContext,
         now: Date,
         lines: inout [String])
@@ -840,7 +691,7 @@ enum CLIRenderer {
         if let pace = self.paceLine(
             provider: provider,
             window: tertiary,
-            kind: self.paceKind(provider: provider, fallback: .weekly),
+            slot: .tertiary,
             weeklyWorkDays: context.weeklyWorkDays,
             useColor: context.useColor,
             now: now)
@@ -852,101 +703,22 @@ enum CLIRenderer {
         }
     }
 
-    private static func appendZaiExtraRateWindows(
+    private static func appendExtraRateWindows(
         provider: UsageProvider,
         snapshot: UsageSnapshot,
         context: RenderContext,
         now: Date,
         lines: inout [String])
     {
-        guard provider == .zai else { return }
-        for extra in snapshot.extraRateWindows ?? [] where extra.id == "zai-mcp" {
+        let extras = ProviderDescriptorRegistry.descriptor(for: provider)
+            .presentation
+            .extraRateWindows(snapshot: snapshot)
+        for extra in extras {
             lines.append(self.rateLine(title: extra.title, window: extra.window, useColor: context.useColor))
             if let reset = self.resetLine(for: extra.window, style: context.resetStyle, now: now) {
                 lines.append(self.subtleLine(reset, useColor: context.useColor))
             }
         }
-    }
-
-    private static func appendDeepgramLines(
-        snapshot: UsageSnapshot,
-        useColor: Bool,
-        lines: inout [String])
-    {
-        guard let usage = snapshot.deepgramUsage else { return }
-        for line in usage.displayLines {
-            let parts = line.split(separator: ":", maxSplits: 1).map(String.init)
-            if parts.count == 2 {
-                lines.append(self.labelValueLine(
-                    parts[0].trimmingCharacters(in: .whitespacesAndNewlines),
-                    value: parts[1].trimmingCharacters(in: .whitespacesAndNewlines),
-                    useColor: useColor))
-            } else {
-                lines.append(self.labelValueLine("Usage", value: line, useColor: useColor))
-            }
-        }
-    }
-
-    private static func appendAmpBalanceLines(
-        snapshot: UsageSnapshot,
-        useColor: Bool,
-        lines: inout [String])
-    {
-        guard let usage = snapshot.ampUsage else { return }
-        if let individualCredits = usage.individualCredits {
-            lines.append(self.labelValueLine(
-                "Individual credits",
-                value: UsageFormatter.currencyString(individualCredits, currencyCode: "USD"),
-                useColor: useColor))
-        }
-        for workspace in usage.workspaceBalances {
-            lines.append(self.labelValueLine(
-                "Workspace \(workspace.name)",
-                value: UsageFormatter.currencyString(workspace.remaining, currencyCode: "USD"),
-                useColor: useColor))
-        }
-    }
-
-    private struct RateWindowLabels {
-        let primary: String
-        let secondary: String
-        let tertiary: String
-        let showsTertiary: Bool
-    }
-
-    private static func rateWindowLabels(
-        provider: UsageProvider,
-        metadata: ProviderMetadata,
-        snapshot: UsageSnapshot) -> RateWindowLabels
-    {
-        if provider == .factory, snapshot.tertiary != nil {
-            return RateWindowLabels(
-                primary: "5-hour",
-                secondary: "Weekly",
-                tertiary: "Monthly",
-                showsTertiary: true)
-        }
-        let primaryLabel = if provider == .grok {
-            GrokProviderDescriptor.primaryLabel(window: snapshot.primary) ?? metadata.sessionLabel
-        } else if provider == .crof {
-            CrofProviderDescriptor.primaryLabel(snapshot: snapshot)
-        } else if provider == .sub2api {
-            Sub2APIProviderDescriptor.primaryLabel(details: snapshot.sub2APIUsage) ?? metadata.sessionLabel
-        } else if provider == .amp {
-            AmpProviderDescriptor.primaryLabel(details: snapshot.ampUsage) ?? metadata.sessionLabel
-        } else {
-            metadata.sessionLabel
-        }
-        let secondaryLabel = if provider == .amp {
-            AmpProviderDescriptor.secondaryLabel(details: snapshot.ampUsage) ?? metadata.weeklyLabel
-        } else {
-            metadata.weeklyLabel
-        }
-        return RateWindowLabels(
-            primary: primaryLabel,
-            secondary: secondaryLabel,
-            tertiary: metadata.opusLabel ?? "Sonnet",
-            showsTertiary: metadata.supportsOpus)
     }
 
     private static func appendCreditsLine(
@@ -955,8 +727,11 @@ enum CLIRenderer {
         useColor: Bool,
         lines: inout [String])
     {
-        guard provider == .codex, let credits else { return }
-        let remaining = credits.codexCreditLimit?.remaining ?? credits.remaining
+        guard let credits,
+              let remaining = ProviderDescriptorRegistry.descriptor(for: provider)
+                  .presentation
+                  .creditRemaining(credits)
+        else { return }
         lines.append(self.labelValueLine(
             "Credits",
             value: UsageFormatter.creditsString(from: remaining),
@@ -970,6 +745,7 @@ enum CLIRenderer {
         useColor: Bool,
         lines: inout [String])
     {
+        // Provider-specific by design: codexResetCredits is a behavioral Codex payload, not presentation metadata.
         guard provider == .codex, let resetCredits = snapshot.codexResetCredits else { return }
         let inventory = resetCredits.availableInventory(at: now)
         let value = if inventory.count == 1 {
@@ -1006,30 +782,14 @@ enum CLIRenderer {
             lines.append(self.labelValueLine("Account", value: email, useColor: context.useColor))
         }
 
-        if provider == .kilo {
-            let kiloLogin = self.kiloLoginParts(snapshot: snapshot)
-            if let pass = kiloLogin.pass {
-                let cleaned = UsageFormatter.cleanPlanName(pass)
-                lines.append(self.labelValueLine("Plan", value: cleaned, useColor: context.useColor))
-            }
-            for detail in kiloLogin.details {
-                lines.append(self.labelValueLine("Activity", value: detail, useColor: context.useColor))
-            }
-        } else if let plan = snapshot.loginMethod(for: provider),
-                  !plan.isEmpty,
-                  provider != .mimo || !plan.localizedCaseInsensitiveContains("balance:")
-        {
-            let displayPlan = if provider == .codex {
-                CodexPlanFormatting.displayName(plan) ?? plan
-            } else if provider == .claude,
-                      plan.hasPrefix("Claude "),
-                      ClaudePlan.fromCompatibilityLoginMethod(plan) != nil
-            {
-                plan
-            } else {
-                self.nonCodexPlanDisplay(provider: provider, plan: plan)
-            }
-            lines.append(self.labelValueLine("Plan", value: displayPlan, useColor: context.useColor))
+        let identity = ProviderDescriptorRegistry.descriptor(for: provider)
+            .presentation
+            .identity(provider: provider, snapshot: snapshot)
+        if let plan = identity.plan {
+            lines.append(self.labelValueLine("Plan", value: plan, useColor: context.useColor))
+        }
+        for detail in identity.details {
+            lines.append(self.labelValueLine(detail.label, value: detail.value, useColor: context.useColor))
         }
 
         for note in context.notes {
@@ -1039,34 +799,24 @@ enum CLIRenderer {
         }
     }
 
-    private static func nonCodexPlanDisplay(provider: UsageProvider, plan: String) -> String {
-        // cleanPlanName preserves acronyms ("Management API"); `.capitalized`
-        // would mangle them into "Management Api".
-        if provider == .gemini || provider == .mimo || provider == .xai {
-            return UsageFormatter.cleanPlanName(plan)
-        }
-        return plan.capitalized
-    }
-
     // swiftlint:disable:next function_parameter_count
     private static func appendRateWindowLines(
         provider: UsageProvider,
         title: String,
         window: RateWindow,
-        paceKind: PaceKind?,
+        paceSlot: ProviderPaceSlot,
         context: RenderContext,
         now: Date,
         lines: inout [String])
     {
         lines.append(self.rateLine(title: title, window: window, useColor: context.useColor))
-        if let paceKind,
-           let pace = self.paceLine(
-               provider: provider,
-               window: window,
-               kind: paceKind,
-               weeklyWorkDays: context.weeklyWorkDays,
-               useColor: context.useColor,
-               now: now)
+        if let pace = self.paceLine(
+            provider: provider,
+            window: window,
+            slot: paceSlot,
+            weeklyWorkDays: context.weeklyWorkDays,
+            useColor: context.useColor,
+            now: now)
         {
             lines.append(pace)
         }
@@ -1105,12 +855,7 @@ enum CLIRenderer {
     }
 
     private static func usesDetailBackedWindow(provider: UsageProvider) -> Bool {
-        switch provider {
-        case .warp, .kilo, .mistral, .deepseek, .deepinfra, .qoder, .crof, .chutes:
-            true
-        default:
-            false
-        }
+        ProviderDescriptorRegistry.descriptor(for: provider).metadata.usesDetailBackedWindow
     }
 
     private static func resetLineForDetailBackedWindow(
@@ -1133,29 +878,6 @@ enum CLIRenderer {
         guard let desc = window.resetDescription else { return nil }
         let trimmed = desc.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? nil : trimmed
-    }
-
-    private static func kiloLoginParts(snapshot: UsageSnapshot) -> (pass: String?, details: [String]) {
-        guard let loginMethod = snapshot.loginMethod(for: .kilo) else {
-            return (nil, [])
-        }
-        let parts = loginMethod
-            .components(separatedBy: "·")
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
-        guard !parts.isEmpty else {
-            return (nil, [])
-        }
-        let first = parts[0]
-        if self.isKiloActivitySegment(first) {
-            return (nil, parts)
-        }
-        return (first, Array(parts.dropFirst()))
-    }
-
-    private static func isKiloActivitySegment(_ text: String) -> Bool {
-        let normalized = text.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        return normalized.hasPrefix("auto top-up:")
     }
 
     private static func headerLine(_ header: String, useColor: Bool) -> String {
@@ -1194,80 +916,24 @@ enum CLIRenderer {
     /// so the baseline matches the menu bar when the setting is configured. Descriptor-backed reset windows
     /// also use .weekly wording. Codex historical refinement is not applied, so it can still differ from the
     /// menu for Codex accounts.
-    private enum PaceKind {
-        case session
-        case weekly
-
-        var defaultWindowMinutes: Int {
-            switch self {
-            case .session: 300
-            case .weekly: 10080
-            }
-        }
-
-        func supportsStandardPace(provider: UsageProvider) -> Bool {
-            switch self {
-            case .session:
-                provider == .codex || provider == .claude || provider == .ollama || provider == .kimi ||
-                    provider == .notion
-            case .weekly:
-                provider == .codex || provider == .claude || provider == .opencode || provider == .ollama ||
-                    provider == .kimi
-            }
-        }
-    }
-
     private struct PaceComputation {
         let pace: UsagePace
-        let kind: PaceKind
-    }
-
-    private static func paceKind(provider: UsageProvider, fallback: PaceKind) -> PaceKind {
-        guard provider == .kimi else { return fallback }
-        // Kimi stores weekly in primary and its rate limit in secondary, opposite the legacy CLI slot convention.
-        switch fallback {
-        case .session:
-            return .weekly
-        case .weekly:
-            return .session
-        }
+        let kind: ProviderPaceKind
     }
 
     private static func computePace(
         provider: UsageProvider,
         window: RateWindow,
-        kind: PaceKind,
+        slot: ProviderPaceSlot,
         weeklyWorkDays: Int? = nil,
         now: Date) -> PaceComputation?
     {
         let capability = ProviderDescriptorRegistry.descriptor(for: provider).pace
-        let paceWindow: RateWindow
-        let resolvedKind: PaceKind
-        if capability.supportsResetWindowPace(window: window, now: now) {
-            paceWindow = capability.resolvedResetWindowForPace(window)
-            resolvedKind = .weekly
+        guard let resolvedKind = capability.resolvedKind(slot: slot, window: window, now: now) else { return nil }
+        let paceWindow: RateWindow = if capability.supportsResetWindowPace(window: window, now: now) {
+            capability.resolvedResetWindowForPace(window)
         } else {
-            guard kind.supportsStandardPace(provider: provider) else { return nil }
-            paceWindow = window
-            resolvedKind = kind
-        }
-        if provider == .kimi {
-            let supportsWindow = switch resolvedKind {
-            case .session:
-                paceWindow.windowMinutes == KimiProviderDescriptor.sessionWindowMinutes
-            case .weekly:
-                capability.supportsResetWindowPace(window: paceWindow, now: now)
-            }
-            guard supportsWindow else { return nil }
-        }
-        // Only pace a real session window here; Claude w/o 5-hour data falls a 7-day window into primary.
-        // Notion's rolling allowance is a 6-hour window, so it needs the wider ceiling to match the card.
-        let sessionCeilingMinutes = provider == .notion ? NotionProviderDescriptor.rollingWindowMaxMinutes : 300
-        if case .session = resolvedKind, let minutes = paceWindow.windowMinutes, minutes > sessionCeilingMinutes {
-            return nil
-        }
-        if provider == .ollama, paceWindow.windowMinutes == nil {
-            return nil
+            window
         }
         guard paceWindow.remainingPercent > 0 else { return nil }
         // workDays applies only to the weekly (10 080-min) window; UsagePace.weekly ignores it for other durations.
@@ -1284,7 +950,7 @@ enum CLIRenderer {
     private static func paceSummary(
         provider: UsageProvider,
         for pace: UsagePace,
-        kind: PaceKind,
+        kind: ProviderPaceKind,
         now: Date) -> String
     {
         let expected = Int(pace.expectedUsedPercent.rounded())
@@ -1300,7 +966,7 @@ enum CLIRenderer {
     private static func paceLine(
         provider: UsageProvider,
         window: RateWindow,
-        kind: PaceKind,
+        slot: ProviderPaceSlot,
         weeklyWorkDays: Int? = nil,
         useColor: Bool,
         now: Date) -> String?
@@ -1308,7 +974,7 @@ enum CLIRenderer {
         guard let computation = self.computePace(
             provider: provider,
             window: window,
-            kind: kind,
+            slot: slot,
             weeklyWorkDays: weeklyWorkDays,
             now: now) else { return nil }
         let label = self.label("Pace", useColor: useColor)
@@ -1323,14 +989,14 @@ enum CLIRenderer {
     private static func pacePayload(
         provider: UsageProvider,
         window: RateWindow,
-        kind: PaceKind,
+        slot: ProviderPaceSlot,
         weeklyWorkDays: Int? = nil,
         now: Date) -> PacePayload?
     {
         guard let computation = self.computePace(
             provider: provider,
             window: window,
-            kind: kind,
+            slot: slot,
             weeklyWorkDays: weeklyWorkDays,
             now: now) else { return nil }
         return PacePayload(
@@ -1374,7 +1040,7 @@ enum CLIRenderer {
     private static func paceRightLabel(
         provider: UsageProvider,
         for pace: UsagePace,
-        kind: PaceKind,
+        kind: ProviderPaceKind,
         now: Date) -> String?
     {
         if pace.willLastToReset {
@@ -1391,7 +1057,9 @@ enum CLIRenderer {
     }
 
     private static func combinedLastsLabel(for pace: UsagePace, provider: UsageProvider) -> String {
-        guard provider == .codex else { return "Lasts until reset" }
+        guard ProviderDescriptorRegistry.descriptor(for: provider).pace.showsHeadroomHint else {
+            return "Lasts until reset"
+        }
         guard let speedLabel = speedHintLabel(for: pace) else {
             return "Lasts until reset"
         }

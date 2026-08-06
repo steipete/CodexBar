@@ -1,11 +1,30 @@
 import Foundation
+import SweetCookieKit
 
 public enum QoderProviderDescriptor {
     public static let descriptor: ProviderDescriptor = Self.makeDescriptor()
+    private static let credentials = ProviderCredentialAdapter(tokenAccountSupport: TokenAccountSupport(
+        title: "Session tokens",
+        subtitle: "Store multiple Qoder Cookie headers.",
+        placeholder: "Cookie: …",
+        injection: .cookieHeader,
+        requiresManualCookieSource: true,
+        cookieName: nil))
+
+    /// Qoder documents Chrome cookie import; avoid probing unrelated browser keychains.
+    private static var browserCookieOrder: BrowserCookieImportOrder? {
+        #if os(macOS)
+        [.chrome]
+        #else
+        nil
+        #endif
+    }
 
     static func makeDescriptor() -> ProviderDescriptor {
         ProviderDescriptor(
             id: .qoder,
+            settingsSection: .init(QoderProviderSettingsKey.self, cookieSettings: QoderProviderSettings.self),
+            credentials: self.credentials,
             metadata: ProviderMetadata(
                 id: .qoder,
                 displayName: "Qoder",
@@ -21,7 +40,9 @@ public enum QoderProviderDescriptor {
                 widgetSelectable: false,
                 isPrimaryProvider: false,
                 usesAccountFallback: false,
-                browserCookieOrder: ProviderBrowserCookieDefaults.qoderCookieImportOrder,
+                debugLogUnavailableMessage: "Qoder debug log not yet implemented",
+                usesDetailBackedWindow: true,
+                browserCookieOrder: self.browserCookieOrder,
                 dashboardURL: QoderWebSite.international.dashboardURL.absoluteString,
                 statusPageURL: nil,
                 statusLinkURL: nil),
@@ -37,11 +58,19 @@ public enum QoderProviderDescriptor {
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
                 noDataMessage: { "Qoder cost summary is not supported." }),
+            presentation: ProviderUsagePresentation(
+                menuCard: ProviderMenuCardPresentation(
+                    showsPrimaryBalanceDescription: true,
+                    hidesPrimaryResetWithoutDate: true),
+                menu: ProviderMenuDescriptorPresentation(primaryDescriptionIsDetail: { _ in true })),
             fetchPlan: self.fetchPlan(),
             cli: ProviderCLIConfig(
                 name: "qoder",
                 aliases: [],
-                versionDetector: nil))
+                versionDetector: nil,
+                browserSupportExemption: { _, _, settings in
+                    settings?.qoder?.cookieSource == .manual
+                }))
     }
 
     private static func fetchPlan() -> ProviderFetchPlan {

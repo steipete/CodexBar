@@ -67,7 +67,17 @@ public struct SakanaUsageSnapshot: Sendable {
             secondary: secondary,
             tertiary: nil,
             providerCost: nil,
-            sakanaPayAsYouGo: self.payAsYouGo,
+            details: self.payAsYouGo.map { usage in
+                [.makeSection(title: "Extra usage", rows: [
+                    .makeRow(label: "Balance", value: usage.balanceDetail),
+                    usage.periodUsageTotal.map {
+                        .makeRow(
+                            label: "Usage",
+                            value: UsageFormatter.usdString($0),
+                            secondaryValue: usage.periodLabel)
+                    },
+                ].compactMap(\.self))]
+            } ?? [],
             updatedAt: self.updatedAt,
             identity: identity)
     }

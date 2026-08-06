@@ -126,7 +126,7 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
     }
 
     private let configuration: Configuration
-    private static let log = CodexBarLog.logger(LogCategories.claudeUsage)
+    private static let log = CodexBarLog.logger(LogCategories.provider(.claude, scope: "usage"))
     private static var isClaudeOAuthFlowDebugEnabled: Bool {
         ProcessInfo.processInfo.environment["CODEXBAR_DEBUG_CLAUDE_OAUTH_FLOW"] == "1"
     }
@@ -405,12 +405,14 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
                 policy: delegatedPromptPolicy,
                 allowBackgroundDelegatedRefresh: self.fetcher.allowBackgroundDelegatedRefresh)
 
-            let delegatedOutcome = await ClaudeUsageFetcher.attemptDelegatedRefresh(
+            let delegatedResult = await ClaudeUsageFetcher.attemptDelegatedRefresh(
                 environment: self.fetcher.environment)
+            let delegatedOutcome = delegatedResult.outcome
             ClaudeUsageFetcher.log.info(
                 "Claude OAuth delegated refresh attempted",
                 metadata: [
                     "outcome": ClaudeUsageFetcher.delegatedRefreshOutcomeLabel(delegatedOutcome),
+                    "unreadableAfterRefresh": "\(delegatedResult.isUnreadableAfterRefresh)",
                 ])
 
             do {
@@ -517,7 +519,7 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
                         delegatedOutcome: delegatedOutcome))
                 throw ClaudeUsageError.oauthFailed(
                     ClaudeUsageFetcher.delegatedRefreshFailureMessage(
-                        for: delegatedOutcome,
+                        for: delegatedResult,
                         retryError: error))
             }
         }
@@ -951,63 +953,17 @@ extension ClaudeUsageFetcher {
         now: Date = Date(),
         timeout: TimeInterval = 15,
         environment: [String: String] = ProcessInfo.processInfo.environment)
-        async -> ClaudeOAuthDelegatedRefreshCoordinator.Outcome
+        async -> ClaudeOAuthDelegatedRefreshCoordinator.AttemptResult
     {
         #if DEBUG
         if let override = delegatedRefreshAttemptOverride {
-            return await override(now, timeout, environment)
+            return await .init(override(now, timeout, environment))
         }
         #endif
-        return await ClaudeOAuthDelegatedRefreshCoordinator.attempt(
+        return await ClaudeOAuthDelegatedRefreshCoordinator.attemptDetailed(
             now: now,
             timeout: timeout,
             environment: environment)
-    }
-
-    private static func delegatedRefreshOutcomeLabel(
-        _ outcome: ClaudeOAuthDelegatedRefreshCoordinator.Outcome) -> String
-    {
-        switch outcome {
-        case .skippedByCooldown:
-            "skippedByCooldown"
-        case .skippedByPromptPolicy:
-            "skippedByPromptPolicy"
-        case .cliUnavailable:
-            "cliUnavailable"
-        case .attemptedSucceeded:
-            "attemptedSucceeded"
-        case .attemptedFailed:
-            "attemptedFailed"
-        }
-    }
-
-    private static func delegatedRefreshFailureMessage(
-        for outcome: ClaudeOAuthDelegatedRefreshCoordinator.Outcome,
-        retryError: Error) -> String
-    {
-        if let oauthError = retryError as? ClaudeOAuthFetchError,
-           case .rateLimited = oauthError
-        {
-            return oauthError.localizedDescription
-        }
-
-        switch outcome {
-        case .skippedByCooldown:
-            return "Claude OAuth token expired and delegated refresh is cooling down. "
-                + "Please retry shortly, or run `claude login`."
-        case .skippedByPromptPolicy:
-            return "Claude OAuth token expired; background refresh is disabled by the Keychain prompt policy. "
-                + "Refresh CodexBar manually or run `claude login`."
-        case .cliUnavailable:
-            return "Claude OAuth token expired and Claude CLI is not available for delegated refresh. "
-                + "Install/configure `claude`, or run `claude login`."
-        case .attemptedSucceeded:
-            return "Claude OAuth token is still unavailable after delegated Claude CLI refresh. "
-                + "Run `claude login`, then retry."
-        case let .attemptedFailed(message):
-            return "Claude OAuth token expired and delegated Claude CLI refresh failed: \(message). "
-                + "Run `claude login`, then retry."
-        }
     }
 
     private static func delegatedRetryFailureMetadata(

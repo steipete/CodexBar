@@ -19,11 +19,11 @@ struct BoundedChildProcessProofTests {
 
         let pidURL = directory.appendingPathComponent("child.pid")
         let scriptURL = directory.appendingPathComponent("overflow-child.sh")
+        // Keep one unbounded block writer in the tracked process so PTY pipeline behavior cannot affect the proof.
         let script = """
         #!/bin/sh
         printf '%s\\n' "$$" > "$CODEXBAR_PROOF_PID_FILE"
-        /usr/bin/yes x | /usr/bin/head -c 1100000
-        /bin/sleep 30
+        exec /bin/dd if=/dev/zero bs=1048576
         """
         try script.write(to: scriptURL, atomically: true, encoding: .utf8)
         try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: scriptURL.path)
@@ -31,6 +31,7 @@ struct BoundedChildProcessProofTests {
         var environment = ProcessInfo.processInfo.environment
         environment["CODEXBAR_PROOF_PID_FILE"] = pidURL.path
         let runner = TTYCommandRunner()
+        let start = ContinuousClock.now
         do {
             _ = try runner.run(
                 binary: scriptURL.path,
@@ -42,6 +43,7 @@ struct BoundedChildProcessProofTests {
         } catch {
             Issue.record("Unexpected overflow error: \(error)")
         }
+        #expect(start.duration(to: .now) < .seconds(10))
 
         let pidText = try String(contentsOf: pidURL, encoding: .utf8)
             .trimmingCharacters(in: .whitespacesAndNewlines)

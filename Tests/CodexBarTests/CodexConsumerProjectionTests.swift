@@ -470,6 +470,82 @@ struct CodexConsumerProjectionTests {
         #expect(session.resetsAt == sessionReset)
     }
 
+    @Test
+    func `thirty day primary window maps to a monthly lane instead of session`() {
+        let store = self.makeStore(suite: "CodexConsumerProjectionTests-30day-primary")
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+
+        store._setSnapshotForTesting(
+            UsageSnapshot(
+                primary: RateWindow(
+                    usedPercent: 55,
+                    windowMinutes: 43200,
+                    resetsAt: now.addingTimeInterval(24 * 86400),
+                    resetDescription: nil),
+                secondary: RateWindow(
+                    usedPercent: 5,
+                    windowMinutes: 10080,
+                    resetsAt: now.addingTimeInterval(7 * 86400),
+                    resetDescription: nil),
+                updatedAt: now),
+            provider: .codex)
+
+        let projection = store.codexConsumerProjection(surface: .liveCard, now: now)
+
+        #expect(projection.visibleRateLanes == [.monthly, .weekly])
+        #expect(projection.rateWindow(for: .session) == nil)
+        #expect(projection.rateWindow(for: .monthly)?.windowMinutes == 43200)
+        #expect(projection.planUtilizationLanes.map(\.role.rawValue) == ["weekly", "monthly"])
+    }
+
+    @Test
+    func `automatic menu bar metric prefers the weekly window over a thirty day primary`() {
+        let store = self.makeStore(suite: "CodexConsumerProjectionTests-30day-automatic")
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(
+                usedPercent: 55,
+                windowMinutes: 43200,
+                resetsAt: now.addingTimeInterval(24 * 86400),
+                resetDescription: nil),
+            secondary: RateWindow(
+                usedPercent: 5,
+                windowMinutes: 10080,
+                resetsAt: now.addingTimeInterval(7 * 86400),
+                resetDescription: nil),
+            updatedAt: now)
+
+        let projection = store.codexConsumerProjection(
+            surface: .menuBar,
+            snapshotOverride: snapshot,
+            now: now)
+
+        #expect(projection.automaticMenuBarWindow()?.windowMinutes == 10080)
+        #expect(store.codexMenuBarMetricWindow(snapshot: snapshot, now: now)?.windowMinutes == 10080)
+    }
+
+    @Test
+    func `automatic menu bar metric keeps the standard five hour session primary`() {
+        let store = self.makeStore(suite: "CodexConsumerProjectionTests-standard-automatic")
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(
+                usedPercent: 55,
+                windowMinutes: 300,
+                resetsAt: now.addingTimeInterval(3 * 3600),
+                resetDescription: nil),
+            secondary: RateWindow(
+                usedPercent: 5,
+                windowMinutes: 10080,
+                resetsAt: now.addingTimeInterval(7 * 86400),
+                resetDescription: nil),
+            updatedAt: now)
+
+        let window = store.codexMenuBarMetricWindow(snapshot: snapshot, now: now)
+
+        #expect(window?.windowMinutes == 300)
+    }
+
     private func makeStore(suite: String) -> UsageStore {
         let defaults = UserDefaults(suiteName: suite)!
         defaults.removePersistentDomain(forName: suite)

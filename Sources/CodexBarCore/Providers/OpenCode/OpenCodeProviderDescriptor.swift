@@ -1,11 +1,44 @@
 import Foundation
+import SweetCookieKit
 
 public enum OpenCodeProviderDescriptor {
     public static let descriptor: ProviderDescriptor = Self.makeDescriptor()
+    private static let credentials = ProviderCredentialAdapter(tokenAccountSupport: TokenAccountSupport(
+        title: "Session tokens",
+        subtitle: "Store multiple OpenCode Cookie headers.",
+        placeholder: "Cookie: …",
+        injection: .cookieHeader,
+        requiresManualCookieSource: true,
+        cookieName: nil))
+
+    /// Auto stays Chrome-only by default, with Dia as the bounded exception for a confirmed reporter need.
+    private static var browserCookieOrder: BrowserCookieImportOrder? {
+        #if os(macOS)
+        [.chrome, .dia]
+        #else
+        nil
+        #endif
+    }
 
     static func makeDescriptor() -> ProviderDescriptor {
         ProviderDescriptor(
             id: .opencode,
+            settingsSection: .init(
+                OpenCodeProviderSettingsKey.self,
+                cookieSettings: { settings in
+                    CookieProviderSettings(
+                        cookieSource: settings.cookieSource,
+                        manualCookieHeader: settings.manualCookieHeader)
+                },
+                credentialSettings: { context in
+                    let settings = context.cookieSettings(for: .opencode)
+                    return OpenCodeProviderSettings(
+                        cookieSource: settings.cookieSource,
+                        manualCookieHeader: settings.manualCookieHeader,
+                        workspaceID: context.config?.workspaceID)
+                }),
+            credentials: self.credentials,
+            config: ProviderConfigCapabilities(workspaceIDValidationOrder: 2),
             metadata: ProviderMetadata(
                 id: .opencode,
                 displayName: "OpenCode",
@@ -20,7 +53,8 @@ public enum OpenCodeProviderDescriptor {
                 defaultEnabled: false,
                 isPrimaryProvider: false,
                 usesAccountFallback: false,
-                browserCookieOrder: ProviderBrowserCookieDefaults.opencodeCookieImportOrder,
+                debugLogUnavailableMessage: "OpenCode debug log not yet implemented",
+                browserCookieOrder: self.browserCookieOrder,
                 dashboardURL: "https://opencode.ai/auth",
                 statusPageURL: nil),
             branding: ProviderBranding(
@@ -35,6 +69,7 @@ public enum OpenCodeProviderDescriptor {
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
                 noDataMessage: { "OpenCode cost summary is not supported." }),
+            pace: ProviderPaceCapability(secondary: .weekly),
             fetchPlan: ProviderFetchPlan(
                 sourceModes: [.auto, .web],
                 pipeline: ProviderFetchPipeline(resolveStrategies: { _ in [OpenCodeUsageFetchStrategy()] })),

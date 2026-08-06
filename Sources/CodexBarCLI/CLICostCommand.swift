@@ -3,15 +3,8 @@ import Commander
 import Foundation
 
 extension CodexBarCLI {
-    private static let costSupportedProviders: Set<UsageProvider> = {
-        #if os(macOS)
-        [.claude, .codex, .cursor, .grok]
-        #else
-        // Cursor cost relies on the macOS-only dashboard fetch path; `supportsTokenSnapshot(.cursor)`
-        // is false elsewhere, so don't advertise Cursor cost where it can only fail.
-        [.claude, .codex, .grok]
-        #endif
-    }()
+    private static let costSupportedProviders = Set(
+        ProviderDescriptorRegistry.all.filter(\.cli.supportsCostCommand).map(\.id))
 
     static func runCost(_ values: ParsedValues) async {
         let output = CLIOutputPreferences.from(values: values)
@@ -55,6 +48,7 @@ extension CodexBarCLI {
         }
         let groupBy = Self.decodeCostGroupBy(from: values)
         if groupBy == .project {
+            // Codex and Grok both expose local project attribution from session logs.
             let unsupportedProjectProviders = providers.filter { $0 != .codex && $0 != .grok }
             if !unsupportedProjectProviders.isEmpty, !output.jsonOnly {
                 let names = unsupportedProjectProviders
@@ -142,7 +136,8 @@ extension CodexBarCLI {
         useColor: Bool) -> String
     {
         let name = ProviderDescriptorRegistry.descriptor(for: provider).metadata.displayName
-        let title = switch provider {
+        // Provider-specific by design: Codex is an API-equivalent estimate; Grok reports local session ticks.
+        let title: String = switch provider {
         case .codex:
             "\(name) API-equivalent estimate (not billed)"
         case .grok:
@@ -324,6 +319,7 @@ extension CodexBarCLI {
 
         return CostPayload(
             provider: provider.rawValue,
+            // Provider-specific by design: Cursor cost comes from its authenticated dashboard, not local logs.
             source: provider == .cursor ? "web" : "local",
             updatedAt: snapshot?.updatedAt ?? (error == nil ? nil : Date()),
             currencyCode: snapshot?.currencyCode,
@@ -459,6 +455,7 @@ extension CodexBarCLI {
         config: CodexBarConfig,
         providers: [UsageProvider]) throws -> ProviderSettingsSnapshot.CursorProviderSettings?
     {
+        // Provider-specific by design: Cursor cost fetches must resolve its selected dashboard-cookie account.
         guard providers.contains(.cursor) else { return nil }
         let selection = TokenAccountCLISelection(label: nil, index: nil, allAccounts: false)
         let context = try TokenAccountCLIContext(selection: selection, config: config, verbose: false)

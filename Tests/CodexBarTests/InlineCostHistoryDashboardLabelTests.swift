@@ -369,7 +369,7 @@ struct InlineCostHistoryDashboardLabelTests {
     }
 
     @Test
-    func `token-only inline dashboard leaves currencyCode nil`() throws {
+    func `token-only provider details use token chart units`() throws {
         let now = Date(timeIntervalSince1970: 1_700_179_200)
         let metadata = try #require(ProviderDefaults.metadata[.zai])
         let modelUsage = ZaiModelUsageData(
@@ -377,22 +377,12 @@ struct InlineCostHistoryDashboardLabelTests {
             modelDataList: [
                 ZaiModelDataItem(modelName: "glm-test", tokensUsage: [123]),
             ])
-        let snapshot = UsageSnapshot(
-            primary: nil,
-            secondary: nil,
-            tertiary: nil,
-            zaiUsage: ZaiUsageSnapshot(
-                tokenLimit: nil,
-                timeLimit: nil,
-                planName: nil,
-                modelUsage: modelUsage,
-                updatedAt: now),
-            updatedAt: now,
-            identity: ProviderIdentitySnapshot(
-                providerID: .zai,
-                accountEmail: nil,
-                accountOrganization: nil,
-                loginMethod: nil))
+        let snapshot = ZaiUsageSnapshot(
+            tokenLimit: nil,
+            timeLimit: nil,
+            planName: nil,
+            modelUsage: modelUsage,
+            updatedAt: now).toUsageSnapshot()
 
         let model = UsageMenuCardView.Model.make(.init(
             provider: .zai,
@@ -413,7 +403,7 @@ struct InlineCostHistoryDashboardLabelTests {
             showOptionalCreditsAndExtraUsage: true,
             hidePersonalInfo: false,
             now: now))
-        let dashboard = try #require(model.inlineUsageDashboard)
-        #expect(dashboard.currencyCode == nil)
+        #expect(model.inlineUsageDashboard == nil)
+        #expect(model.providerDetails.last?.chart?.unit == "tokens")
     }
 }

@@ -2,10 +2,67 @@ import Foundation
 
 public enum ZaiProviderDescriptor {
     public static let descriptor: ProviderDescriptor = Self.makeDescriptor()
+    private static let credentials = ProviderCredentialAdapter.apiKey(
+        environmentKey: ZaiSettingsReader.apiTokenKey,
+        resolve: ZaiSettingsReader.apiToken,
+        tokenAccountSupport: TokenAccountSupport(
+            title: "API tokens",
+            subtitle: "Stored in the CodexBar config file.",
+            placeholder: "Paste token…",
+            injection: .environment(key: ZaiSettingsReader.apiTokenKey),
+            requiresManualCookieSource: false,
+            cookieName: nil,
+            showsTeamModeControls: true),
+        usesRegion: true,
+        configValidator: { config in
+            var issues = ProviderCredentialAdapter.regionValidator(
+                displayName: "z.ai",
+                isValid: { ZaiAPIRegion(rawValue: $0) != nil })(config)
+            if let accounts = config.tokenAccounts?.accounts,
+               accounts.contains(where: {
+                   $0.sanitizedUsageScope?.lowercased() == ZaiUsageScope.team.rawValue &&
+                       ($0.sanitizedOrganizationID == nil || $0.sanitizedWorkspaceID == nil)
+               })
+            {
+                issues.append(CodexBarConfigIssue(
+                    severity: .warning,
+                    provider: .zai,
+                    field: "tokenAccounts",
+                    code: "zai_team_context_missing",
+                    message: "z.ai Team mode requires both organizationID and workspaceID."))
+            }
+            return issues
+        },
+        missingCredentialMessage: { _ in ZaiSettingsError.missingToken.errorDescription },
+        accountEnvironmentOverride: { environment, account in
+            let rawScope = account.sanitizedUsageScope?.lowercased()
+            let scope = rawScope.flatMap(ZaiUsageScope.init(rawValue:)) ?? .personal
+            environment.removeValue(forKey: ZaiSettingsReader.bigModelOrganizationKey)
+            environment.removeValue(forKey: ZaiSettingsReader.bigModelProjectKey)
+            guard scope == .team else { return }
+            if let organizationID = account.sanitizedOrganizationID {
+                environment[ZaiSettingsReader.bigModelOrganizationKey] = organizationID
+            }
+            if let projectID = account.sanitizedWorkspaceID {
+                environment[ZaiSettingsReader.bigModelProjectKey] = projectID
+            }
+        })
 
     static func makeDescriptor() -> ProviderDescriptor {
         ProviderDescriptor(
             id: .zai,
+            settingsSection: .init(ZaiProviderSettingsKey.self, credentialSettings: { context in
+                let region = context.config?.sanitizedRegion.flatMap(ZaiAPIRegion.init(rawValue:)) ?? .global
+                let rawScope = context.account?.sanitizedUsageScope?.lowercased()
+                let scope = rawScope.flatMap(ZaiUsageScope.init(rawValue:)) ?? .personal
+                let teamContext: ZaiBigModelTeamContext? = scope == .team
+                    ? ZaiBigModelTeamContext(
+                        organizationID: context.account?.sanitizedOrganizationID,
+                        projectID: context.account?.sanitizedWorkspaceID)
+                    : nil
+                return ZaiProviderSettings(apiRegion: region, usageScope: scope, teamContext: teamContext)
+            }),
+            credentials: self.credentials,
             metadata: ProviderMetadata(
                 id: .zai,
                 displayName: "z.ai / GLM",
@@ -20,6 +77,7 @@ public enum ZaiProviderDescriptor {
                 defaultEnabled: false,
                 isPrimaryProvider: false,
                 usesAccountFallback: false,
+                sharePlanLabels: ["free": "Free", "pro": "Pro", "max": "Max", "team": "Team"],
                 dashboardURL: ZaiAPIRegion.global.dashboardURL.absoluteString,
                 statusPageURL: nil),
             branding: ProviderBranding(
@@ -34,6 +92,17 @@ public enum ZaiProviderDescriptor {
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
                 noDataMessage: { "z.ai cost summary is not supported." }),
+            presentation: ProviderUsagePresentation(
+                extraRateWindowSelector: { snapshot in
+                    (snapshot.extraRateWindows ?? []).filter { $0.id == "zai-mcp" }
+                },
+                automaticSelectionPrioritizesExhaustedWindow: false,
+                menuBarWindowResolver: { context in
+                    guard context.metric == .automatic else { return .unhandled }
+                    return .resolved(ProviderUsagePresentation.mostConstrained(
+                        context.snapshot.primary,
+                        context.snapshot.secondary))
+                }),
             fetchPlan: self.fetchPlan(),
             cli: ProviderCLIConfig(
                 name: "zai",

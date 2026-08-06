@@ -237,13 +237,10 @@ struct MenuDescriptor {
         if let snap = store.snapshot(for: provider.instanceID) {
             let resetStyle = settings.resetTimeDisplayStyle
             let labels = Self.rateWindowLabels(provider: provider, metadata: meta, snapshot: snap)
-            let crofShowsCreditsOnly = provider == .crof && snap.secondary == nil
+            let presentation = ProviderDescriptorRegistry.descriptor(for: provider).presentation
             if let primary = snap.primary {
                 let primaryDetail = primary.resetDescription?.trimmingCharacters(in: .whitespacesAndNewlines)
-                let primaryDescriptionIsDetail = provider == .warp || provider == .kilo || provider == .abacus ||
-                    provider == .deepseek || provider == .deepinfra || provider == .neuralwatt ||
-                    provider == .azureopenai || provider == .mimo || provider == .qoder || provider == .sub2api ||
-                    crofShowsCreditsOnly || provider == .chutes
+                let primaryDescriptionIsDetail = presentation.menu.usesPrimaryDescriptionAsDetail(snapshot: snap)
                 let primaryWindow = if primaryDescriptionIsDetail {
                     // Some providers use resetDescription for non-reset detail
                     // (e.g., "Unlimited", "X/Y credits"). Avoid rendering it as a "Resets ..." line.
@@ -267,14 +264,14 @@ struct MenuDescriptor {
                 {
                     entries.append(.text(primaryDetail, .secondary))
                 }
-                if provider == .crof,
+                if presentation.menu.duplicatesPrimaryDetailWhenResetDatePresent,
                    primary.resetsAt != nil,
                    let primaryDetail,
                    !primaryDetail.isEmpty
                 {
                     entries.append(.text(primaryDetail, .secondary))
                 }
-                if provider == .abacus,
+                if presentation.menu.showsPrimaryWeeklyPace,
                    let pace = store.weeklyPace(provider: provider, window: primary)
                 {
                     let paceSummary = UsagePaceText.weeklySummary(provider: provider, pace: pace)
@@ -286,15 +283,16 @@ struct MenuDescriptor {
             }
             if let weekly = snap.secondary {
                 let weeklyResetOverride: String? = {
-                    guard provider == .warp || provider == .kilo || provider == .perplexity || provider == .crof ||
-                        provider == .sub2api || provider == .chutes
-                    else { return nil }
                     let detail = weekly.resetDescription?.trimmingCharacters(in: .whitespacesAndNewlines)
                     guard let detail, !detail.isEmpty else { return nil }
-                    if [.kilo, .chutes].contains(provider), weekly.resetsAt != nil {
+                    switch presentation.menu.secondaryDescriptionMode {
+                    case .standard:
                         return nil
+                    case .resetOverride:
+                        return detail
+                    case .detailWhenResetDatePresent:
+                        return weekly.resetsAt == nil ? detail : nil
                     }
-                    return detail
                 }()
                 Self.appendRateWindow(
                     entries: &entries,
@@ -303,7 +301,7 @@ struct MenuDescriptor {
                     resetStyle: resetStyle,
                     showUsed: settings.usageBarsShowUsed,
                     resetOverride: weeklyResetOverride)
-                if [.kilo, .chutes].contains(provider),
+                if presentation.menu.secondaryDescriptionMode == .detailWhenResetDatePresent,
                    weekly.resetsAt != nil,
                    let detail = weekly.resetDescription?.trimmingCharacters(in: .whitespacesAndNewlines),
                    !detail.isEmpty
@@ -317,7 +315,7 @@ struct MenuDescriptor {
             }
             if labels.showsTertiary, let opus = snap.tertiary {
                 // Perplexity purchased credits don't reset; show the balance as plain text.
-                let opusResetOverride: String? = provider == .perplexity || provider == .sub2api
+                let opusResetOverride: String? = presentation.menu.tertiaryDescriptionOverridesReset
                     ? opus.resetDescription?.trimmingCharacters(in: .whitespacesAndNewlines)
                     : nil
                 Self.appendRateWindow(
@@ -328,19 +326,18 @@ struct MenuDescriptor {
                     showUsed: settings.usageBarsShowUsed,
                     resetOverride: opusResetOverride)
             }
-            if provider == .zai {
-                for extra in snap.extraRateWindows ?? [] where extra.id == "zai-mcp" {
-                    Self.appendRateWindow(
-                        entries: &entries,
-                        title: extra.title,
-                        window: extra.window,
-                        resetStyle: resetStyle,
-                        showUsed: settings.usageBarsShowUsed)
-                }
+            for extra in presentation.extraRateWindows(snapshot: snap) {
+                Self.appendRateWindow(
+                    entries: &entries,
+                    title: extra.title,
+                    window: extra.window,
+                    resetStyle: resetStyle,
+                    showUsed: settings.usageBarsShowUsed)
             }
 
             Self.appendProviderUsageSummaries(
                 entries: &entries,
+                provider: provider,
                 snapshot: snap,
                 showOptionalUsage: settings.showOptionalCreditsAndExtraUsage,
                 preferredCurrencyCode: settings.preferredCurrencyCode)
@@ -369,6 +366,7 @@ struct MenuDescriptor {
 
     private static func appendProviderUsageSummaries(
         entries: inout [Entry],
+        provider: UsageProvider,
         snapshot: UsageSnapshot,
         showOptionalUsage: Bool,
         preferredCurrencyCode: String = "auto")
@@ -386,70 +384,24 @@ struct MenuDescriptor {
                 usage: openAIAPIUsage,
                 preferredCurrencyCode: preferredCurrencyCode)
         }
-        if let claudeAdminAPIUsage = snapshot.claudeAdminAPIUsage {
-            Self.appendClaudeAdminAPIUsageSummary(
-                entries: &entries,
-                usage: claudeAdminAPIUsage,
-                preferredCurrencyCode: preferredCurrencyCode)
-        }
-        if let openRouterUsage = snapshot.openRouterUsage {
-            Self.appendOpenRouterUsageSummary(
-                entries: &entries,
-                usage: openRouterUsage,
-                preferredCurrencyCode: preferredCurrencyCode)
-        }
-        if let clawRouterUsage = snapshot.clawRouterUsage {
-            entries.append(.text(
-                "\(UsageFormatter.tokenCountString(clawRouterUsage.requestCount)) \(L("requests")) · " +
-                    "\(UsageFormatter.tokenCountString(clawRouterUsage.totalTokens)) \(L("tokens"))",
-                .secondary))
-            if !clawRouterUsage.providers.isEmpty {
-                let mix = clawRouterUsage.providers.prefix(5)
-                    .map { "\($0.provider): \(UsageFormatter.tokenCountString($0.requestCount))" }
-                    .joined(separator: " · ")
-                entries.append(.text("Routed providers: \(mix)", .secondary))
-            }
-        }
-        if let wayfinderUsage = snapshot.wayfinderUsage {
-            Self.appendWayfinderUsageSummary(entries: &entries, usage: wayfinderUsage)
-        }
-        if let poeUsage = snapshot.poeUsage, !poeUsage.daily.isEmpty {
-            Self.appendPoeUsageSummary(
-                entries: &entries,
-                usage: poeUsage,
-                preferredCurrencyCode: preferredCurrencyCode)
-        }
         if let mistralUsage = snapshot.mistralUsage, !mistralUsage.daily.isEmpty {
             Self.appendMistralUsageSummary(
                 entries: &entries,
                 usage: mistralUsage,
                 preferredCurrencyCode: preferredCurrencyCode)
         }
-        if let mimoUsage = snapshot.mimoUsage {
-            entries.append(.text("\(L("Balance")): \(mimoUsage.balanceDetail)", .primary))
-        }
-        if let xaiUsage = snapshot.xaiUsage {
-            entries.append(.text("\(L("Balance")): \(UsageFormatter.usdString(xaiUsage.balanceUSD))", .primary))
-            if !xaiUsage.daily.isEmpty {
-                entries.append(.text(
-                    "\(xaiUsage.historyWindowPeriodLabel): \(UsageFormatter.usdString(xaiUsage.windowCostUSD))",
-                    .secondary))
-            }
-        }
-        // Sakana pay-as-you-go is optional data gated by "Show optional credits and extra usage".
-        // Gate the render on the setting too, not just the fetch: toggling the setting off only
-        // rebuilds the menu, it does not immediately refetch, so a previously-populated
-        // sakanaPayAsYouGo would otherwise linger in the cached snapshot until the next refresh.
-        if showOptionalUsage, let sakanaPayAsYouGo = snapshot.sakanaPayAsYouGo {
-            entries.append(.text("\(L("Balance")): \(sakanaPayAsYouGo.balanceDetail)", .primary))
-            if let periodUsageTotal = sakanaPayAsYouGo.periodUsageTotal {
-                let cost = UsageFormatter.convertedCostString(
-                    periodUsageTotal,
-                    preferredCurrency: preferredCurrencyCode,
-                    providerCurrency: "USD")
-                entries.append(.text(
-                    "\(L("Usage")): \(cost)",
-                    .secondary))
+        let policy = ProviderDescriptorRegistry.descriptor(for: provider).presentation.optionalDetails
+        if !policy.hidesAllWithoutOptionalUsage || showOptionalUsage {
+            let details = showOptionalUsage || policy.hiddenTitlesWithoutOptionalUsage.isEmpty
+                ? snapshot.details
+                : snapshot.details.filter { section in
+                    section.title.map(policy.hiddenTitlesWithoutOptionalUsage.contains) != true
+                }
+            for section in details {
+                for row in section.rows {
+                    let value = [row.value, row.secondaryValue].compactMap(\.self).joined(separator: " · ")
+                    entries.append(.text("\(row.label): \(value)", .secondary))
+                }
             }
         }
     }
@@ -490,7 +442,7 @@ struct MenuDescriptor {
             entries.append(.text("\(L("Account")): \(redactedEmail)", .secondary))
         }
         if provider == .kiro {
-            if let plan = snapshot?.kiroUsage?.displayPlanName,
+            if let plan = snapshot?.detailRow(label: "Plan")?.value,
                !plan.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             {
                 entries.append(.text("\(L("Plan")): \(plan)", .secondary))
@@ -498,7 +450,7 @@ struct MenuDescriptor {
             if let loginMethodText, !loginMethodText.isEmpty {
                 entries.append(.text("\(L("Auth")): \(loginMethodText)", .secondary))
             }
-            if let overages = snapshot?.kiroUsage?.overagesStatus,
+            if let overages = snapshot?.detailRow(label: "Overages")?.value,
                !overages.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             {
                 entries.append(.text("\(L("Overages")): \(overages)", .secondary))
@@ -723,23 +675,35 @@ struct MenuDescriptor {
         if provider == .factory, snapshot.tertiary != nil {
             return ("5-hour", L("Weekly"), L("Monthly"), true)
         }
-        let primaryLabel = if provider == .grok {
+        let primaryLabel = if provider == .codex {
+            CodexConsumerProjection.rateTitle(
+                lane: .session,
+                windowMinutes: snapshot.primary?.windowMinutes,
+                sessionLabel: metadata.sessionLabel,
+                weeklyLabel: metadata.weeklyLabel)
+        } else if provider == .grok {
             GrokProviderDescriptor.primaryLabel(window: snapshot.primary) ?? metadata.sessionLabel
         } else if provider == .crof {
             CrofProviderDescriptor.primaryLabel(snapshot: snapshot)
         } else if provider == .doubao {
             DoubaoProviderDescriptor.primaryLabel(window: snapshot.primary) ?? metadata.sessionLabel
         } else if provider == .sub2api {
-            Sub2APIProviderDescriptor.primaryLabel(details: snapshot.sub2APIUsage) ?? metadata.sessionLabel
+            Sub2APIProviderDescriptor.primaryLabel(snapshot: snapshot) ?? metadata.sessionLabel
         } else if provider == .amp {
-            AmpProviderDescriptor.primaryLabel(details: snapshot.ampUsage) ?? metadata.sessionLabel
+            AmpProviderDescriptor.primaryLabel(snapshot: snapshot) ?? metadata.sessionLabel
         } else if provider == .alibabatokenplan {
             AlibabaTokenPlanProviderDescriptor.primaryLabel(window: snapshot.primary) ?? metadata.sessionLabel
         } else {
             metadata.sessionLabel
         }
-        let secondaryLabel = if provider == .amp {
-            AmpProviderDescriptor.secondaryLabel(details: snapshot.ampUsage) ?? metadata.weeklyLabel
+        let secondaryLabel = if provider == .codex {
+            CodexConsumerProjection.rateTitle(
+                lane: .weekly,
+                windowMinutes: snapshot.secondary?.windowMinutes,
+                sessionLabel: metadata.sessionLabel,
+                weeklyLabel: metadata.weeklyLabel)
+        } else if provider == .amp {
+            AmpProviderDescriptor.secondaryLabel(snapshot: snapshot) ?? metadata.weeklyLabel
         } else if provider == .alibabatokenplan {
             AlibabaTokenPlanProviderDescriptor.secondaryLabel(window: snapshot.secondary) ?? metadata.weeklyLabel
         } else {

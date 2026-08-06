@@ -183,9 +183,11 @@ struct ProviderInlineDashboardModelTests {
             hidePersonalInfo: false,
             now: now))
 
-        #expect(model.inlineUsageDashboard?.kpis.first?.value == "$60.00")
-        #expect(model.inlineUsageDashboard?.points.map(\.label) == ["Today", "Week", "Month"])
-        #expect(model.inlineUsageDashboard?.detailLines.contains("Rate limit: 100 / 10s") == true)
+        #expect(model.inlineUsageDashboard == nil)
+        #expect(model.providerDetails.first?.rows.first?.value == "$60.00")
+        #expect(model.providerDetails.last?.chart?.points.map(\.label) == ["Today", "This week", "This month"])
+        #expect(model.providerDetails.flatMap(\.rows).first { $0.label == "Rate limit" }?.value ==
+            "100 requests / 10s")
     }
 
     @Test
@@ -414,10 +416,9 @@ struct ProviderInlineDashboardModelTests {
             hidePersonalInfo: false,
             now: now))
 
-        #expect(model.inlineUsageDashboard?.kpis.first?.value == "300")
-        #expect(model.inlineUsageDashboard?.points.map(\.label) == ["12", "12"])
-        #expect(Set(model.inlineUsageDashboard?.points.map(\.id) ?? []).count == 2)
-        #expect(model.inlineUsageDashboard?.detailLines.contains("Top model: glm-4.5") == true)
+        #expect(model.inlineUsageDashboard == nil)
+        #expect(model.providerDetails.last?.chart?.points.map(\.value) == [100, 200])
+        #expect(model.providerDetails.last?.rows.first?.label == "glm-4.5")
     }
 
     private static func zaiDate(_ text: String) -> Date? {
@@ -584,16 +585,7 @@ struct MiniMaxMenuCardModelTests {
                     resetsAt: now.addingTimeInterval(3600),
                     resetDescription: "Resets in 1 hour"),
             ])
-        let snapshot = UsageSnapshot(
-            primary: RateWindow(usedPercent: 20, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
-            secondary: nil,
-            minimaxUsage: minimax,
-            updatedAt: now,
-            identity: ProviderIdentitySnapshot(
-                providerID: .minimax,
-                accountEmail: nil,
-                accountOrganization: nil,
-                loginMethod: "Max"))
+        let snapshot = minimax.toUsageSnapshot()
         let metadata = try #require(ProviderDefaults.metadata[.minimax])
 
         let used = UsageMenuCardView.Model.make(.init(
@@ -616,12 +608,9 @@ struct MiniMaxMenuCardModelTests {
             hidePersonalInfo: false,
             now: now))
 
-        #expect(used.metrics.first?.title == "Text Generation")
-        #expect(used.metrics.first?.detailLeftText == "Usage: 2 / 10")
-        #expect(used.metrics.first?.detailRightText == nil)
-        #expect(used.metrics.first?.detailText == nil)
-        #expect(used.metrics.first?.percent == 20)
-        #expect(used.metrics.first?.cardStyle == false)
+        #expect(used.providerDetails.first?.rows.first?.label == "Text Generation")
+        #expect(used.providerDetails.first?.rows.first?.value == "2 / 10")
+        #expect(used.providerDetails.first?.rows.first?.secondaryValue == "20% used · Resets in 1 hour")
     }
 
     @Test
@@ -656,16 +645,7 @@ struct MiniMaxMenuCardModelTests {
                     resetsAt: now.addingTimeInterval(7200),
                     resetDescription: "Resets in 2 hours"),
             ])
-        let snapshot = UsageSnapshot(
-            primary: RateWindow(usedPercent: 20, windowMinutes: 1440, resetsAt: nil, resetDescription: nil),
-            secondary: nil,
-            minimaxUsage: minimax,
-            updatedAt: now,
-            identity: ProviderIdentitySnapshot(
-                providerID: .minimax,
-                accountEmail: nil,
-                accountOrganization: nil,
-                loginMethod: "Max"))
+        let snapshot = minimax.toUsageSnapshot()
         let metadata = try #require(ProviderDefaults.metadata[.minimax])
 
         let model = UsageMenuCardView.Model.make(.init(
@@ -688,9 +668,10 @@ struct MiniMaxMenuCardModelTests {
             hidePersonalInfo: false,
             now: now))
 
-        #expect(model.metrics.count == 2)
-        #expect(model.metrics[0].title == "Text Generation · Today")
-        #expect(model.metrics[1].title == "Text Generation · Weekly")
+        #expect(model.providerDetails.first?.rows.map(\.label) == [
+            "Text Generation · Today",
+            "Text Generation · Weekly",
+        ])
     }
 
     @Test
@@ -751,16 +732,11 @@ struct MiniMaxMenuCardModelTests {
             now: now))
 
         #expect(model.planText == "Plus")
-        #expect(model.metrics[0].title == "Text Generation · 5h")
-        #expect(model.metrics[1].title == "Text Generation · Weekly")
-        #expect(model.metrics[0].detailLeftText == "Usage: 4 / 100")
-        #expect(model.metrics[1].detailLeftText == "Usage: 1 / 100")
-        #expect(model.metrics[0].detailRightText == nil)
-        #expect(model.metrics[1].detailRightText == nil)
-        #expect(model.metrics[0].detailText == nil)
-        #expect(model.metrics[1].detailText == nil)
-        #expect(model.metrics[0].cardStyle == false)
-        #expect(model.metrics[1].cardStyle == false)
+        #expect(model.providerDetails.first?.rows.map(\.label) == [
+            "Text Generation · 5 hours",
+            "Text Generation · Weekly",
+        ])
+        #expect(model.providerDetails.first?.rows.map(\.value) == ["4 / 100", "1 / 100"])
         #expect(model.providerCost?.title == "Credits")
         #expect(model.providerCost?.spendLine == "Balance: 14000")
         #expect(model.usageNotes == [String(format: L("Renews: %@"), minimaxRenewDate(1_810_569_600))])
@@ -1069,7 +1045,8 @@ struct MenuCardModelTests {
             provider: .openrouter,
             metric: metric)
         #expect(popupTitle == "API key limit")
-        #expect(metric.resetText == "$19.50/$20.00 left")
+        #expect(metric.resetText == nil)
+        #expect(model.providerDetails.flatMap(\.rows).first { $0.label == "API key budget" }?.value == "$20.00")
         #expect(metric.detailRightText == nil)
     }
 
@@ -1111,7 +1088,9 @@ struct MenuCardModelTests {
         #expect(model.metrics.isEmpty)
         #expect(model.creditsText == nil)
         #expect(model.placeholder == nil)
-        #expect(model.usageNotes == ["No limit set for the API key"])
+        #expect(model.usageNotes.isEmpty)
+        #expect(model.providerDetails.flatMap(\.rows).first { $0.label == "API key budget" }?.value ==
+            "No limit configured")
     }
 
     @Test
@@ -1150,7 +1129,9 @@ struct MenuCardModelTests {
             now: now))
 
         #expect(model.metrics.isEmpty)
-        #expect(model.usageNotes == ["API key limit unavailable right now"])
+        #expect(model.usageNotes.isEmpty)
+        #expect(model.providerDetails.flatMap(\.rows).first { $0.label == "API key budget" }?.value ==
+            "Unavailable right now")
     }
 
     @Test

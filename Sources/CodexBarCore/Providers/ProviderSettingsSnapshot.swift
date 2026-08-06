@@ -1,783 +1,207 @@
 import Foundation
 
-public protocol ProviderCookieSettings: Sendable {
-    var cookieSource: ProviderCookieSource { get }
-    var manualCookieHeader: String? { get }
+/// Associates one provider instance with its concrete runtime settings payload.
+public protocol ProviderSettingsSectionKey: Sendable {
+    associatedtype Section: Sendable
 
-    init(cookieSource: ProviderCookieSource, manualCookieHeader: String?)
+    static var providerID: ProviderInstanceID { get }
 }
 
 public struct ProviderSettingsSnapshot: Sendable {
-    public static func make(
-        debugMenuEnabled: Bool = false,
-        debugKeepCLISessionsAlive: Bool = false,
-        codex: CodexProviderSettings? = nil,
-        claude: ClaudeProviderSettings? = nil,
-        cursor: CursorProviderSettings? = nil,
-        opencode: OpenCodeProviderSettings? = nil,
-        opencodego: OpenCodeProviderSettings? = nil,
-        alibaba: AlibabaCodingPlanProviderSettings? = nil,
-        alibabaTokenPlan: AlibabaTokenPlanProviderSettings? = nil,
-        qwenCloud: QwenCloudProviderSettings? = nil,
-        factory: FactoryProviderSettings? = nil,
-        minimax: MiniMaxProviderSettings? = nil,
-        manus: ManusProviderSettings? = nil,
-        zai: ZaiProviderSettings? = nil,
-        copilot: CopilotProviderSettings? = nil,
-        kilo: KiloProviderSettings? = nil,
-        kimi: KimiProviderSettings? = nil,
-        longcat: LongCatProviderSettings? = nil,
-        augment: AugmentProviderSettings? = nil,
-        moonshot: MoonshotProviderSettings? = nil,
-        amp: AmpProviderSettings? = nil,
-        t3chat: T3ChatProviderSettings? = nil,
-        zoommate: ZoomMateProviderSettings? = nil,
-        notion: NotionProviderSettings? = nil,
-        devin: DevinProviderSettings? = nil,
-        commandcode: CommandCodeProviderSettings? = nil,
-        ollama: OllamaProviderSettings? = nil,
-        jetbrains: JetBrainsProviderSettings? = nil,
-        windsurf: WindsurfProviderSettings? = nil,
-        perplexity: PerplexityProviderSettings? = nil,
-        mimo: MiMoProviderSettings? = nil,
-        abacus: AbacusProviderSettings? = nil,
-        mistral: MistralProviderSettings? = nil,
-        qoder: QoderProviderSettings? = nil,
-        stepfun: StepFunProviderSettings? = nil) -> ProviderSettingsSnapshot
-    {
-        ProviderSettingsSnapshot(
-            debugMenuEnabled: debugMenuEnabled,
-            debugKeepCLISessionsAlive: debugKeepCLISessionsAlive,
-            codex: codex,
-            claude: claude,
-            cursor: cursor,
-            opencode: opencode,
-            opencodego: opencodego,
-            alibaba: alibaba,
-            alibabaTokenPlan: alibabaTokenPlan,
-            qwenCloud: qwenCloud,
-            factory: factory,
-            minimax: minimax,
-            manus: manus,
-            zai: zai,
-            copilot: copilot,
-            kilo: kilo,
-            kimi: kimi,
-            longcat: longcat,
-            augment: augment,
-            moonshot: moonshot,
-            amp: amp,
-            t3chat: t3chat,
-            zoommate: zoommate,
-            notion: notion,
-            devin: devin,
-            commandcode: commandcode,
-            ollama: ollama,
-            jetbrains: jetbrains,
-            windsurf: windsurf,
-            perplexity: perplexity,
-            mimo: mimo,
-            abacus: abacus,
-            mistral: mistral,
-            qoder: qoder,
-            stepfun: stepfun)
-    }
-
-    public struct CodexProviderSettings: Sendable {
-        public let usageDataSource: CodexUsageDataSource
-        public let cookieSource: ProviderCookieSource
-        public let manualCookieHeader: String?
-        public let managedAccountStoreUnreadable: Bool
-        public let managedAccountTargetUnavailable: Bool
-        public let profileAccountTargetUnavailable: Bool
-        public let openAIWebCacheScope: CookieHeaderCache.Scope?
-        public let dashboardAuthorityKnownOwners: [CodexDashboardKnownOwnerCandidate]
-
-        public init(
-            usageDataSource: CodexUsageDataSource,
-            cookieSource: ProviderCookieSource,
-            manualCookieHeader: String?,
-            managedAccountStoreUnreadable: Bool = false,
-            managedAccountTargetUnavailable: Bool = false,
-            profileAccountTargetUnavailable: Bool = false,
-            openAIWebCacheScope: CookieHeaderCache.Scope? = nil,
-            dashboardAuthorityKnownOwners: [CodexDashboardKnownOwnerCandidate] = [])
-        {
-            self.usageDataSource = usageDataSource
-            self.cookieSource = cookieSource
-            self.manualCookieHeader = manualCookieHeader
-            self.managedAccountStoreUnreadable = managedAccountStoreUnreadable
-            self.managedAccountTargetUnavailable = managedAccountTargetUnavailable
-            self.profileAccountTargetUnavailable = profileAccountTargetUnavailable
-            self.openAIWebCacheScope = openAIWebCacheScope
-            self.dashboardAuthorityKnownOwners = dashboardAuthorityKnownOwners
-        }
-    }
-
-    public struct ClaudeProviderSettings: Sendable {
-        public let usageDataSource: ClaudeUsageDataSource
-        public let webExtrasEnabled: Bool
-        public let cookieSource: ProviderCookieSource
-        public let manualCookieHeader: String?
-        public let organizationID: String?
-
-        public init(
-            usageDataSource: ClaudeUsageDataSource,
-            webExtrasEnabled: Bool,
-            cookieSource: ProviderCookieSource,
-            manualCookieHeader: String?,
-            organizationID: String? = nil)
-        {
-            self.usageDataSource = usageDataSource
-            self.webExtrasEnabled = webExtrasEnabled
-            self.cookieSource = cookieSource
-            self.manualCookieHeader = manualCookieHeader
-            self.organizationID = organizationID
-        }
-    }
-
-    public struct CookieProviderSettings: ProviderCookieSettings {
-        public let cookieSource: ProviderCookieSource
-        public let manualCookieHeader: String?
-
-        public init(cookieSource: ProviderCookieSource = .auto, manualCookieHeader: String? = nil) {
-            self.cookieSource = cookieSource
-            self.manualCookieHeader = manualCookieHeader
-        }
-    }
-
-    public struct CursorProviderSettings: ProviderCookieSettings {
-        public let cookieSource: ProviderCookieSource
-        public let manualCookieHeader: String?
-
-        public init(cookieSource: ProviderCookieSource, manualCookieHeader: String?) {
-            self.cookieSource = cookieSource
-            self.manualCookieHeader = manualCookieHeader
-        }
-    }
-
-    public struct OpenCodeProviderSettings: Sendable {
-        public let cookieSource: ProviderCookieSource
-        public let manualCookieHeader: String?
-        public let workspaceID: String?
-
-        public init(cookieSource: ProviderCookieSource, manualCookieHeader: String?, workspaceID: String?) {
-            self.cookieSource = cookieSource
-            self.manualCookieHeader = manualCookieHeader
-            self.workspaceID = workspaceID
-        }
-    }
-
-    public struct AlibabaCodingPlanProviderSettings: Sendable {
-        public let cookieSource: ProviderCookieSource
-        public let manualCookieHeader: String?
-        public let apiRegion: AlibabaCodingPlanAPIRegion
-
-        public init(
-            cookieSource: ProviderCookieSource = .auto,
-            manualCookieHeader: String? = nil,
-            apiRegion: AlibabaCodingPlanAPIRegion = .international)
-        {
-            self.cookieSource = cookieSource
-            self.manualCookieHeader = manualCookieHeader
-            self.apiRegion = apiRegion
-        }
-    }
-
-    public struct AlibabaTokenPlanProviderSettings: ProviderCookieSettings {
-        public let cookieSource: ProviderCookieSource
-        public let manualCookieHeader: String?
-        public let apiRegion: AlibabaTokenPlanAPIRegion
-
-        public init(
-            cookieSource: ProviderCookieSource = .auto,
-            manualCookieHeader: String? = nil,
-            apiRegion: AlibabaTokenPlanAPIRegion = .international)
-        {
-            self.cookieSource = cookieSource
-            self.manualCookieHeader = manualCookieHeader
-            self.apiRegion = apiRegion
-        }
-
-        public init(cookieSource: ProviderCookieSource, manualCookieHeader: String?) {
-            self.init(cookieSource: cookieSource, manualCookieHeader: manualCookieHeader, apiRegion: .international)
-        }
-    }
-
-    public struct QwenCloudProviderSettings: ProviderCookieSettings {
-        public let cookieSource: ProviderCookieSource
-        public let manualCookieHeader: String?
-
-        public init(cookieSource: ProviderCookieSource = .auto, manualCookieHeader: String? = nil) {
-            self.cookieSource = cookieSource
-            self.manualCookieHeader = manualCookieHeader
-        }
-    }
-
-    public struct FactoryProviderSettings: ProviderCookieSettings {
-        public let cookieSource: ProviderCookieSource
-        public let manualCookieHeader: String?
-
-        public init(cookieSource: ProviderCookieSource, manualCookieHeader: String?) {
-            self.cookieSource = cookieSource
-            self.manualCookieHeader = manualCookieHeader
-        }
-    }
-
-    public struct MiniMaxProviderSettings: Sendable {
-        public let cookieSource: ProviderCookieSource
-        public let manualCookieHeader: String?
-        public let apiRegion: MiniMaxAPIRegion
-
-        public init(
-            cookieSource: ProviderCookieSource,
-            manualCookieHeader: String?,
-            apiRegion: MiniMaxAPIRegion = .global)
-        {
-            self.cookieSource = cookieSource
-            self.manualCookieHeader = manualCookieHeader
-            self.apiRegion = apiRegion
-        }
-    }
-
-    public struct ManusProviderSettings: ProviderCookieSettings {
-        public let cookieSource: ProviderCookieSource
-        public let manualCookieHeader: String?
-
-        public init(cookieSource: ProviderCookieSource, manualCookieHeader: String?) {
-            self.cookieSource = cookieSource
-            self.manualCookieHeader = manualCookieHeader
-        }
-    }
-
-    public struct ZaiProviderSettings: Sendable {
-        public let apiRegion: ZaiAPIRegion
-        public let usageScope: ZaiUsageScope
-        public let teamContext: ZaiBigModelTeamContext?
-
-        public init(
-            apiRegion: ZaiAPIRegion = .global,
-            usageScope: ZaiUsageScope = .personal,
-            teamContext: ZaiBigModelTeamContext? = nil)
-        {
-            self.apiRegion = apiRegion
-            self.usageScope = usageScope
-            self.teamContext = teamContext
-        }
-    }
-
-    public struct CopilotProviderSettings: Sendable {
-        public let apiToken: String?
-        public let enterpriseHost: String?
-        public let selectedAccountExternalIdentifier: String?
-        public let budgetExtrasEnabled: Bool
-        public let budgetCookieSource: ProviderCookieSource
-        public let manualBudgetCookieHeader: String?
-
-        public init(
-            apiToken: String? = nil,
-            enterpriseHost: String? = nil,
-            selectedAccountExternalIdentifier: String? = nil,
-            budgetExtrasEnabled: Bool = false,
-            budgetCookieSource: ProviderCookieSource = .auto,
-            manualBudgetCookieHeader: String? = nil)
-        {
-            self.apiToken = apiToken
-            self.enterpriseHost = enterpriseHost
-            self.selectedAccountExternalIdentifier = selectedAccountExternalIdentifier
-            self.budgetExtrasEnabled = budgetExtrasEnabled
-            self.budgetCookieSource = budgetCookieSource
-            self.manualBudgetCookieHeader = manualBudgetCookieHeader
-        }
-    }
-
-    public struct KiloProviderSettings: Sendable {
-        public let usageDataSource: KiloUsageDataSource
-        public let extrasEnabled: Bool
-
-        public init(usageDataSource: KiloUsageDataSource, extrasEnabled: Bool) {
-            self.usageDataSource = usageDataSource
-            self.extrasEnabled = extrasEnabled
-        }
-    }
-
-    public struct KimiProviderSettings: ProviderCookieSettings {
-        public let cookieSource: ProviderCookieSource
-        public let manualCookieHeader: String?
-
-        public init(cookieSource: ProviderCookieSource, manualCookieHeader: String?) {
-            self.cookieSource = cookieSource
-            self.manualCookieHeader = manualCookieHeader
-        }
-    }
-
-    public struct LongCatProviderSettings: ProviderCookieSettings {
-        public let cookieSource: ProviderCookieSource
-        public let manualCookieHeader: String?
-
-        public init(cookieSource: ProviderCookieSource, manualCookieHeader: String?) {
-            self.cookieSource = cookieSource
-            self.manualCookieHeader = manualCookieHeader
-        }
-    }
-
-    public struct AugmentProviderSettings: ProviderCookieSettings {
-        public let cookieSource: ProviderCookieSource
-        public let manualCookieHeader: String?
-
-        public init(cookieSource: ProviderCookieSource, manualCookieHeader: String?) {
-            self.cookieSource = cookieSource
-            self.manualCookieHeader = manualCookieHeader
-        }
-    }
-
-    public struct MoonshotProviderSettings: Sendable {
-        public let region: MoonshotRegion?
-
-        public init(region: MoonshotRegion? = nil) {
-            self.region = region
-        }
-    }
-
-    public struct JetBrainsProviderSettings: Sendable {
-        public let ideBasePath: String?
-
-        public init(ideBasePath: String?) {
-            self.ideBasePath = ideBasePath
-        }
-    }
-
-    public struct AmpProviderSettings: ProviderCookieSettings {
-        public let cookieSource: ProviderCookieSource
-        public let manualCookieHeader: String?
-
-        public init(cookieSource: ProviderCookieSource, manualCookieHeader: String?) {
-            self.cookieSource = cookieSource
-            self.manualCookieHeader = manualCookieHeader
-        }
-    }
-
-    public struct T3ChatProviderSettings: ProviderCookieSettings {
-        public let cookieSource: ProviderCookieSource
-        public let manualCookieHeader: String?
-
-        public init(cookieSource: ProviderCookieSource, manualCookieHeader: String?) {
-            self.cookieSource = cookieSource
-            self.manualCookieHeader = manualCookieHeader
-        }
-    }
-
-    public struct ZoomMateProviderSettings: ProviderCookieSettings {
-        public let cookieSource: ProviderCookieSource
-        public let manualCookieHeader: String?
-
-        public init(cookieSource: ProviderCookieSource, manualCookieHeader: String?) {
-            self.cookieSource = cookieSource
-            self.manualCookieHeader = manualCookieHeader
-        }
-    }
-
-    /// Deliberately not a `ProviderCookieSettings`: that protocol's initializer takes only the two
-    /// cookie fields, so conforming would hand every generic construction path a way to build this
-    /// type with `workspaceID` silently dropped. Build it through the one initializer below.
-    public struct NotionProviderSettings: Sendable {
-        public let cookieSource: ProviderCookieSource
-        public let manualCookieHeader: String?
-        /// Optional space id override for accounts that belong to more than one workspace.
-        public let workspaceID: String?
-
-        public init(cookieSource: ProviderCookieSource, manualCookieHeader: String?, workspaceID: String?) {
-            self.cookieSource = cookieSource
-            self.manualCookieHeader = manualCookieHeader
-            self.workspaceID = workspaceID
-        }
-    }
-
-    public struct DevinProviderSettings: Sendable {
-        public let cookieSource: ProviderCookieSource
-        public let manualBearerToken: String?
-        public let organization: String?
-
-        public init(cookieSource: ProviderCookieSource, manualBearerToken: String?, organization: String?) {
-            self.cookieSource = cookieSource
-            self.manualBearerToken = manualBearerToken
-            self.organization = organization
-        }
-    }
-
-    public struct CommandCodeProviderSettings: ProviderCookieSettings {
-        public let cookieSource: ProviderCookieSource
-        public let manualCookieHeader: String?
-
-        public init(cookieSource: ProviderCookieSource, manualCookieHeader: String?) {
-            self.cookieSource = cookieSource
-            self.manualCookieHeader = manualCookieHeader
-        }
-    }
-
-    public struct OllamaProviderSettings: ProviderCookieSettings {
-        public let cookieSource: ProviderCookieSource
-        public let manualCookieHeader: String?
-
-        public init(cookieSource: ProviderCookieSource, manualCookieHeader: String?) {
-            self.cookieSource = cookieSource
-            self.manualCookieHeader = manualCookieHeader
-        }
-    }
-
-    public struct WindsurfProviderSettings: Sendable {
-        public let usageDataSource: WindsurfUsageDataSource
-        public let cookieSource: ProviderCookieSource
-        public let manualCookieHeader: String?
-
-        public init(
-            usageDataSource: WindsurfUsageDataSource,
-            cookieSource: ProviderCookieSource,
-            manualCookieHeader: String?)
-        {
-            self.usageDataSource = usageDataSource
-            self.cookieSource = cookieSource
-            self.manualCookieHeader = manualCookieHeader
-        }
-    }
-
-    public struct PerplexityProviderSettings: ProviderCookieSettings {
-        public let cookieSource: ProviderCookieSource
-        public let manualCookieHeader: String?
-
-        public init(cookieSource: ProviderCookieSource, manualCookieHeader: String?) {
-            self.cookieSource = cookieSource
-            self.manualCookieHeader = manualCookieHeader
-        }
-    }
-
-    public struct MiMoProviderSettings: ProviderCookieSettings {
-        public let cookieSource: ProviderCookieSource
-        public let manualCookieHeader: String?
-
-        public init(cookieSource: ProviderCookieSource, manualCookieHeader: String?) {
-            self.cookieSource = cookieSource
-            self.manualCookieHeader = manualCookieHeader
-        }
-    }
-
-    public struct AbacusProviderSettings: ProviderCookieSettings {
-        public let cookieSource: ProviderCookieSource
-        public let manualCookieHeader: String?
-
-        public init(cookieSource: ProviderCookieSource, manualCookieHeader: String?) {
-            self.cookieSource = cookieSource
-            self.manualCookieHeader = manualCookieHeader
-        }
-    }
-
-    public struct MistralProviderSettings: ProviderCookieSettings {
-        public let cookieSource: ProviderCookieSource
-        public let manualCookieHeader: String?
-
-        public init(cookieSource: ProviderCookieSource, manualCookieHeader: String?) {
-            self.cookieSource = cookieSource
-            self.manualCookieHeader = manualCookieHeader
-        }
-    }
-
-    public struct QoderProviderSettings: ProviderCookieSettings {
-        public let cookieSource: ProviderCookieSource
-        public let manualCookieHeader: String?
-
-        public init(cookieSource: ProviderCookieSource, manualCookieHeader: String?) {
-            self.cookieSource = cookieSource
-            self.manualCookieHeader = manualCookieHeader
-        }
-    }
-
-    public struct StepFunProviderSettings: Sendable {
-        public let cookieSource: ProviderCookieSource
-        public let manualToken: String
-        public let username: String
-        public let password: String
-
-        public init(
-            cookieSource: ProviderCookieSource = .auto,
-            manualToken: String = "",
-            username: String = "",
-            password: String = "")
-        {
-            self.cookieSource = cookieSource
-            self.manualToken = manualToken
-            self.username = username
-            self.password = password
-        }
-    }
+    private let sections: [ProviderInstanceID: any Sendable]
 
     public let debugMenuEnabled: Bool
     public let debugKeepCLISessionsAlive: Bool
-    public let codex: CodexProviderSettings?
-    public let claude: ClaudeProviderSettings?
-    public let cursor: CursorProviderSettings?
-    public let opencode: OpenCodeProviderSettings?
-    public let opencodego: OpenCodeProviderSettings?
-    public let alibaba: AlibabaCodingPlanProviderSettings?
-    public let alibabaTokenPlan: AlibabaTokenPlanProviderSettings?
-    public let qwenCloud: QwenCloudProviderSettings?
-    public let factory: FactoryProviderSettings?
-    public let minimax: MiniMaxProviderSettings?
-    public let manus: ManusProviderSettings?
-    public let zai: ZaiProviderSettings?
-    public let copilot: CopilotProviderSettings?
-    public let kilo: KiloProviderSettings?
-    public let kimi: KimiProviderSettings?
-    public let longcat: LongCatProviderSettings?
-    public let augment: AugmentProviderSettings?
-    public let moonshot: MoonshotProviderSettings?
-    public let amp: AmpProviderSettings?
-    public let t3chat: T3ChatProviderSettings?
-    public let zoommate: ZoomMateProviderSettings?
-    public let notion: NotionProviderSettings?
-    public let devin: DevinProviderSettings?
-    public let commandcode: CommandCodeProviderSettings?
-    public let ollama: OllamaProviderSettings?
-    public let jetbrains: JetBrainsProviderSettings?
-    public let windsurf: WindsurfProviderSettings?
-    public let perplexity: PerplexityProviderSettings?
-    public let mimo: MiMoProviderSettings?
-    public let abacus: AbacusProviderSettings?
-    public let mistral: MistralProviderSettings?
-    public let qoder: QoderProviderSettings?
-    public let stepfun: StepFunProviderSettings?
-
-    public var jetbrainsIDEBasePath: String? {
-        self.jetbrains?.ideBasePath
-    }
 
     public init(
-        debugMenuEnabled: Bool,
-        debugKeepCLISessionsAlive: Bool,
-        codex: CodexProviderSettings?,
-        claude: ClaudeProviderSettings?,
-        cursor: CursorProviderSettings?,
-        opencode: OpenCodeProviderSettings?,
-        opencodego: OpenCodeProviderSettings?,
-        alibaba: AlibabaCodingPlanProviderSettings?,
-        alibabaTokenPlan: AlibabaTokenPlanProviderSettings? = nil,
-        qwenCloud: QwenCloudProviderSettings? = nil,
-        factory: FactoryProviderSettings?,
-        minimax: MiniMaxProviderSettings?,
-        manus: ManusProviderSettings?,
-        zai: ZaiProviderSettings?,
-        copilot: CopilotProviderSettings?,
-        kilo: KiloProviderSettings?,
-        kimi: KimiProviderSettings?,
-        longcat: LongCatProviderSettings? = nil,
-        augment: AugmentProviderSettings?,
-        moonshot: MoonshotProviderSettings? = nil,
-        amp: AmpProviderSettings?,
-        t3chat: T3ChatProviderSettings? = nil,
-        zoommate: ZoomMateProviderSettings? = nil,
-        notion: NotionProviderSettings? = nil,
-        devin: DevinProviderSettings? = nil,
-        commandcode: CommandCodeProviderSettings? = nil,
-        ollama: OllamaProviderSettings?,
-        jetbrains: JetBrainsProviderSettings? = nil,
-        windsurf: WindsurfProviderSettings? = nil,
-        perplexity: PerplexityProviderSettings? = nil,
-        mimo: MiMoProviderSettings? = nil,
-        abacus: AbacusProviderSettings? = nil,
-        mistral: MistralProviderSettings? = nil,
-        qoder: QoderProviderSettings? = nil,
-        stepfun: StepFunProviderSettings? = nil)
+        debugMenuEnabled: Bool = false,
+        debugKeepCLISessionsAlive: Bool = false,
+        contributions: [ProviderSettingsSnapshotContribution] = [])
     {
         self.debugMenuEnabled = debugMenuEnabled
         self.debugKeepCLISessionsAlive = debugKeepCLISessionsAlive
-        self.codex = codex
-        self.claude = claude
-        self.cursor = cursor
-        self.opencode = opencode
-        self.opencodego = opencodego
-        self.alibaba = alibaba
-        self.alibabaTokenPlan = alibabaTokenPlan
-        self.qwenCloud = qwenCloud
-        self.factory = factory
-        self.minimax = minimax
-        self.manus = manus
-        self.zai = zai
-        self.copilot = copilot
-        self.kilo = kilo
-        self.kimi = kimi
-        self.longcat = longcat
-        self.augment = augment
-        self.moonshot = moonshot
-        self.amp = amp
-        self.t3chat = t3chat
-        self.zoommate = zoommate
-        self.notion = notion
-        self.devin = devin
-        self.commandcode = commandcode
-        self.ollama = ollama
-        self.jetbrains = jetbrains
-        self.windsurf = windsurf
-        self.perplexity = perplexity
-        self.mimo = mimo
-        self.abacus = abacus
-        self.mistral = mistral
-        self.qoder = qoder
-        self.stepfun = stepfun
+        self.sections = Dictionary(
+            contributions.map { ($0.providerID, $0.section) },
+            uniquingKeysWith: { _, new in new })
+    }
+
+    public init<Key: ProviderSettingsSectionKey>(
+        _ section: Key.Section,
+        for key: Key.Type,
+        debugMenuEnabled: Bool = false,
+        debugKeepCLISessionsAlive: Bool = false)
+    {
+        self.init(
+            debugMenuEnabled: debugMenuEnabled,
+            debugKeepCLISessionsAlive: debugKeepCLISessionsAlive,
+            contributions: [ProviderSettingsSnapshotContribution(section, for: key)])
+    }
+
+    public static func make<Key: ProviderSettingsSectionKey>(
+        _ section: Key.Section?,
+        for key: Key.Type) -> ProviderSettingsSnapshot
+    {
+        guard let section else { return ProviderSettingsSnapshot() }
+        return ProviderSettingsSnapshot(section, for: key)
+    }
+
+    public static func make() -> ProviderSettingsSnapshot {
+        ProviderSettingsSnapshot()
+    }
+
+    public subscript<Key: ProviderSettingsSectionKey>(key: Key.Type) -> Key.Section? {
+        self.sections[key.providerID] as? Key.Section
+    }
+
+    func contains(_ registration: ProviderSettingsSectionRegistration) -> Bool {
+        guard let section = self.sections[registration.providerID] else { return false }
+        return ObjectIdentifier(type(of: section)) == registration.sectionTypeID
     }
 }
 
-public enum ProviderSettingsSnapshotContribution: Sendable {
-    case codex(ProviderSettingsSnapshot.CodexProviderSettings)
-    case claude(ProviderSettingsSnapshot.ClaudeProviderSettings)
-    case cursor(ProviderSettingsSnapshot.CursorProviderSettings)
-    case opencode(ProviderSettingsSnapshot.OpenCodeProviderSettings)
-    case opencodego(ProviderSettingsSnapshot.OpenCodeProviderSettings)
-    case alibaba(ProviderSettingsSnapshot.AlibabaCodingPlanProviderSettings)
-    case alibabaTokenPlan(ProviderSettingsSnapshot.AlibabaTokenPlanProviderSettings)
-    case qwenCloud(ProviderSettingsSnapshot.QwenCloudProviderSettings)
-    case factory(ProviderSettingsSnapshot.FactoryProviderSettings)
-    case minimax(ProviderSettingsSnapshot.MiniMaxProviderSettings)
-    case manus(ProviderSettingsSnapshot.ManusProviderSettings)
-    case zai(ProviderSettingsSnapshot.ZaiProviderSettings)
-    case copilot(ProviderSettingsSnapshot.CopilotProviderSettings)
-    case kilo(ProviderSettingsSnapshot.KiloProviderSettings)
-    case kimi(ProviderSettingsSnapshot.KimiProviderSettings)
-    case longcat(ProviderSettingsSnapshot.LongCatProviderSettings)
-    case augment(ProviderSettingsSnapshot.AugmentProviderSettings)
-    case moonshot(ProviderSettingsSnapshot.MoonshotProviderSettings)
-    case amp(ProviderSettingsSnapshot.AmpProviderSettings)
-    case t3chat(ProviderSettingsSnapshot.T3ChatProviderSettings)
-    case zoommate(ProviderSettingsSnapshot.ZoomMateProviderSettings)
-    case notion(ProviderSettingsSnapshot.NotionProviderSettings)
-    case devin(ProviderSettingsSnapshot.DevinProviderSettings)
-    case commandcode(ProviderSettingsSnapshot.CommandCodeProviderSettings)
-    case ollama(ProviderSettingsSnapshot.OllamaProviderSettings)
-    case jetbrains(ProviderSettingsSnapshot.JetBrainsProviderSettings)
-    case windsurf(ProviderSettingsSnapshot.WindsurfProviderSettings)
-    case perplexity(ProviderSettingsSnapshot.PerplexityProviderSettings)
-    case mimo(ProviderSettingsSnapshot.MiMoProviderSettings)
-    case abacus(ProviderSettingsSnapshot.AbacusProviderSettings)
-    case mistral(ProviderSettingsSnapshot.MistralProviderSettings)
-    case qoder(ProviderSettingsSnapshot.QoderProviderSettings)
-    case stepfun(ProviderSettingsSnapshot.StepFunProviderSettings)
+public struct ProviderSettingsSnapshotContribution: Sendable {
+    public let providerID: ProviderInstanceID
+    let section: any Sendable
+    let sectionTypeID: ObjectIdentifier
+
+    public init<Key: ProviderSettingsSectionKey>(_ section: Key.Section, for key: Key.Type) {
+        self.providerID = key.providerID
+        self.section = section
+        self.sectionTypeID = ObjectIdentifier(Key.Section.self)
+    }
+
+    init(providerID: ProviderInstanceID, section: some Sendable) {
+        self.providerID = providerID
+        self.section = section
+        self.sectionTypeID = ObjectIdentifier(type(of: section))
+    }
+}
+
+public struct ProviderSettingsSectionRegistration: Sendable {
+    public let providerID: ProviderInstanceID
+    let sectionTypeID: ObjectIdentifier
+    public let defaultContribution: ProviderSettingsSnapshotContribution?
+    private let cookieSettingsReader: @Sendable (ProviderSettingsSnapshot) -> CookieProviderSettings?
+    private let credentialContributionReader: @Sendable (
+        ProviderCredentialSettingsContext) -> ProviderSettingsSnapshotContribution?
+
+    public init<Key: ProviderSettingsSectionKey>(_ key: Key.Type) {
+        self.providerID = key.providerID
+        self.sectionTypeID = ObjectIdentifier(Key.Section.self)
+        self.defaultContribution = nil
+        self.cookieSettingsReader = { _ in nil }
+        self.credentialContributionReader = { _ in nil }
+    }
+
+    public init<Key: ProviderSettingsSectionKey>(
+        _ key: Key.Type,
+        cookieSettings: @escaping @Sendable (Key.Section) -> CookieProviderSettings?,
+        credentialSettings: @escaping @Sendable (ProviderCredentialSettingsContext) -> Key.Section? = { _ in nil })
+    {
+        self.providerID = key.providerID
+        self.sectionTypeID = ObjectIdentifier(Key.Section.self)
+        self.defaultContribution = nil
+        self.cookieSettingsReader = { snapshot in
+            snapshot[key].flatMap(cookieSettings)
+        }
+        self.credentialContributionReader = { context in
+            credentialSettings(context).map { ProviderSettingsSnapshotContribution($0, for: key) }
+        }
+    }
+
+    public init<Key: ProviderSettingsSectionKey>(
+        _ key: Key.Type,
+        credentialSettings: @escaping @Sendable (ProviderCredentialSettingsContext) -> Key.Section?)
+    {
+        self.init(key, cookieSettings: { _ in nil }, credentialSettings: credentialSettings)
+    }
+
+    public init<Key: ProviderSettingsSectionKey>(
+        _ key: Key.Type,
+        cookieSettings _: Key.Section.Type) where Key.Section: ProviderCookieSettings
+    {
+        self.init(
+            key,
+            cookieSettings: { settings in
+                CookieProviderSettings(
+                    cookieSource: settings.cookieSource,
+                    manualCookieHeader: settings.manualCookieHeader)
+            },
+            credentialSettings: { context in
+                guard let provider = key.providerID.firstPartyProvider else { return nil }
+                let settings = context.cookieSettings(for: provider)
+                return Key.Section(
+                    cookieSource: settings.cookieSource,
+                    manualCookieHeader: settings.manualCookieHeader)
+            })
+    }
+
+    static func empty(for providerID: ProviderInstanceID) -> Self {
+        let contribution = ProviderSettingsSnapshotContribution(
+            providerID: providerID,
+            section: EmptyProviderSettingsSection())
+        return Self(
+            providerID: providerID,
+            sectionTypeID: contribution.sectionTypeID,
+            defaultContribution: contribution,
+            cookieSettingsReader: { _ in nil },
+            credentialContributionReader: { _ in nil })
+    }
+
+    private init(
+        providerID: ProviderInstanceID,
+        sectionTypeID: ObjectIdentifier,
+        defaultContribution: ProviderSettingsSnapshotContribution?,
+        cookieSettingsReader: @escaping @Sendable (ProviderSettingsSnapshot) -> CookieProviderSettings?,
+        credentialContributionReader: @escaping @Sendable (
+            ProviderCredentialSettingsContext) -> ProviderSettingsSnapshotContribution?)
+    {
+        self.providerID = providerID
+        self.sectionTypeID = sectionTypeID
+        self.defaultContribution = defaultContribution
+        self.cookieSettingsReader = cookieSettingsReader
+        self.credentialContributionReader = credentialContributionReader
+    }
+
+    public func accepts(_ contribution: ProviderSettingsSnapshotContribution) -> Bool {
+        contribution.providerID == self.providerID && contribution.sectionTypeID == self.sectionTypeID
+    }
+
+    public func canRead(from snapshot: ProviderSettingsSnapshot) -> Bool {
+        snapshot.contains(self)
+    }
+
+    public func cookieSettings(from snapshot: ProviderSettingsSnapshot) -> CookieProviderSettings? {
+        self.cookieSettingsReader(snapshot)
+    }
+
+    public func credentialContribution(
+        context: ProviderCredentialSettingsContext) -> ProviderSettingsSnapshotContribution?
+    {
+        self.credentialContributionReader(context)
+    }
 }
 
 public struct ProviderSettingsSnapshotBuilder: Sendable {
     public var debugMenuEnabled: Bool
     public var debugKeepCLISessionsAlive: Bool
-    public var codex: ProviderSettingsSnapshot.CodexProviderSettings?
-    public var claude: ProviderSettingsSnapshot.ClaudeProviderSettings?
-    public var cursor: ProviderSettingsSnapshot.CursorProviderSettings?
-    public var opencode: ProviderSettingsSnapshot.OpenCodeProviderSettings?
-    public var opencodego: ProviderSettingsSnapshot.OpenCodeProviderSettings?
-    public var alibaba: ProviderSettingsSnapshot.AlibabaCodingPlanProviderSettings?
-    public var alibabaTokenPlan: ProviderSettingsSnapshot.AlibabaTokenPlanProviderSettings?
-    public var qwenCloud: ProviderSettingsSnapshot.QwenCloudProviderSettings?
-    public var factory: ProviderSettingsSnapshot.FactoryProviderSettings?
-    public var minimax: ProviderSettingsSnapshot.MiniMaxProviderSettings?
-    public var manus: ProviderSettingsSnapshot.ManusProviderSettings?
-    public var zai: ProviderSettingsSnapshot.ZaiProviderSettings?
-    public var copilot: ProviderSettingsSnapshot.CopilotProviderSettings?
-    public var kilo: ProviderSettingsSnapshot.KiloProviderSettings?
-    public var kimi: ProviderSettingsSnapshot.KimiProviderSettings?
-    public var longcat: ProviderSettingsSnapshot.LongCatProviderSettings?
-    public var augment: ProviderSettingsSnapshot.AugmentProviderSettings?
-    public var moonshot: ProviderSettingsSnapshot.MoonshotProviderSettings?
-    public var amp: ProviderSettingsSnapshot.AmpProviderSettings?
-    public var t3chat: ProviderSettingsSnapshot.T3ChatProviderSettings?
-    public var zoommate: ProviderSettingsSnapshot.ZoomMateProviderSettings?
-    public var notion: ProviderSettingsSnapshot.NotionProviderSettings?
-    public var devin: ProviderSettingsSnapshot.DevinProviderSettings?
-    public var commandcode: ProviderSettingsSnapshot.CommandCodeProviderSettings?
-    public var ollama: ProviderSettingsSnapshot.OllamaProviderSettings?
-    public var jetbrains: ProviderSettingsSnapshot.JetBrainsProviderSettings?
-    public var windsurf: ProviderSettingsSnapshot.WindsurfProviderSettings?
-    public var perplexity: ProviderSettingsSnapshot.PerplexityProviderSettings?
-    public var mimo: ProviderSettingsSnapshot.MiMoProviderSettings?
-    public var abacus: ProviderSettingsSnapshot.AbacusProviderSettings?
-    public var mistral: ProviderSettingsSnapshot.MistralProviderSettings?
-    public var qoder: ProviderSettingsSnapshot.QoderProviderSettings?
-    public var stepfun: ProviderSettingsSnapshot.StepFunProviderSettings?
+    private var contributions: [ProviderSettingsSnapshotContribution] = []
 
     public init(debugMenuEnabled: Bool = false, debugKeepCLISessionsAlive: Bool = false) {
         self.debugMenuEnabled = debugMenuEnabled
         self.debugKeepCLISessionsAlive = debugKeepCLISessionsAlive
     }
 
-    // swiftlint:disable:next cyclomatic_complexity
     public mutating func apply(_ contribution: ProviderSettingsSnapshotContribution) {
-        switch contribution {
-        case let .codex(value): self.codex = value
-        case let .claude(value): self.claude = value
-        case let .cursor(value): self.cursor = value
-        case let .opencode(value): self.opencode = value
-        case let .opencodego(value): self.opencodego = value
-        case let .alibaba(value): self.alibaba = value
-        case let .alibabaTokenPlan(value): self.alibabaTokenPlan = value
-        case let .qwenCloud(value): self.qwenCloud = value
-        case let .factory(value): self.factory = value
-        case let .minimax(value): self.minimax = value
-        case let .manus(value): self.manus = value
-        case let .zai(value): self.zai = value
-        case let .copilot(value): self.copilot = value
-        case let .kilo(value): self.kilo = value
-        case let .kimi(value): self.kimi = value
-        case let .longcat(value): self.longcat = value
-        case let .augment(value): self.augment = value
-        case let .moonshot(value): self.moonshot = value
-        case let .amp(value): self.amp = value
-        case let .t3chat(value): self.t3chat = value
-        case let .zoommate(value): self.zoommate = value
-        case let .notion(value): self.notion = value
-        case let .devin(value): self.devin = value
-        case let .commandcode(value): self.commandcode = value
-        case let .ollama(value): self.ollama = value
-        case let .jetbrains(value): self.jetbrains = value
-        case let .windsurf(value): self.windsurf = value
-        case let .perplexity(value): self.perplexity = value
-        case let .mimo(value): self.mimo = value
-        case let .abacus(value): self.abacus = value
-        case let .mistral(value): self.mistral = value
-        case let .qoder(value): self.qoder = value
-        case let .stepfun(value): self.stepfun = value
-        }
+        self.contributions.append(contribution)
     }
 
     public func build() -> ProviderSettingsSnapshot {
         ProviderSettingsSnapshot(
             debugMenuEnabled: self.debugMenuEnabled,
             debugKeepCLISessionsAlive: self.debugKeepCLISessionsAlive,
-            codex: self.codex,
-            claude: self.claude,
-            cursor: self.cursor,
-            opencode: self.opencode,
-            opencodego: self.opencodego,
-            alibaba: self.alibaba,
-            alibabaTokenPlan: self.alibabaTokenPlan,
-            qwenCloud: self.qwenCloud,
-            factory: self.factory,
-            minimax: self.minimax,
-            manus: self.manus,
-            zai: self.zai,
-            copilot: self.copilot,
-            kilo: self.kilo,
-            kimi: self.kimi,
-            longcat: self.longcat,
-            augment: self.augment,
-            moonshot: self.moonshot,
-            amp: self.amp,
-            t3chat: self.t3chat,
-            zoommate: self.zoommate,
-            notion: self.notion,
-            devin: self.devin,
-            commandcode: self.commandcode,
-            ollama: self.ollama,
-            jetbrains: self.jetbrains,
-            windsurf: self.windsurf,
-            perplexity: self.perplexity,
-            mimo: self.mimo,
-            abacus: self.abacus,
-            mistral: self.mistral,
-            qoder: self.qoder,
-            stepfun: self.stepfun)
+            contributions: self.contributions)
     }
 }
+
+private struct EmptyProviderSettingsSection: Sendable {}

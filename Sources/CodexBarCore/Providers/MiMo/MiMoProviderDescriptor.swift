@@ -1,11 +1,22 @@
 import Foundation
+import SweetCookieKit
 
 public enum MiMoProviderDescriptor {
     public static let descriptor: ProviderDescriptor = Self.makeDescriptor()
 
+    /// Safari first, the existing Chrome family, then Firefox/Edge; other Chromium forks remain manual-only.
+    private static var browserCookieOrder: BrowserCookieImportOrder? {
+        #if os(macOS)
+        [.safari, .chrome, .chromeBeta, .chromeCanary, .firefox, .edge]
+        #else
+        nil
+        #endif
+    }
+
     static func makeDescriptor() -> ProviderDescriptor {
         ProviderDescriptor(
             id: .mimo,
+            settingsSection: .init(MiMoProviderSettingsKey.self, cookieSettings: MiMoProviderSettings.self),
             metadata: ProviderMetadata(
                 id: .mimo,
                 displayName: "Xiaomi MiMo",
@@ -22,7 +33,8 @@ public enum MiMoProviderDescriptor {
                 widgetSelectable: false,
                 isPrimaryProvider: false,
                 usesAccountFallback: false,
-                browserCookieOrder: ProviderBrowserCookieDefaults.mimoCookieImportOrder,
+                debugLogUnavailableMessage: "Xiaomi MiMo debug log not yet implemented",
+                browserCookieOrder: self.browserCookieOrder,
                 dashboardURL: "https://platform.xiaomimimo.com/#/console/balance",
                 statusPageURL: nil),
             branding: ProviderBranding(
@@ -37,6 +49,23 @@ public enum MiMoProviderDescriptor {
                 supportsTokenCost: false,
                 noDataMessage: { "Xiaomi MiMo cost summary is not supported." }),
             pace: .calendarMonthResetWindow,
+            presentation: ProviderUsagePresentation(
+                identityPresenter: { provider, snapshot in
+                    let balance = snapshot.detailRow(label: "Balance")?.value
+                    guard let plan = snapshot.loginMethod(for: provider),
+                          !plan.isEmpty,
+                          !plan.localizedCaseInsensitiveContains("balance:")
+                    else {
+                        return ProviderIdentityPresentation(badge: balance, plan: nil)
+                    }
+                    let display = UsageFormatter.cleanPlanName(plan)
+                    return ProviderIdentityPresentation(badge: balance ?? display, plan: display)
+                },
+                menuCard: ProviderMenuCardPresentation(
+                    showsPrimaryBalanceDescription: true,
+                    hidesPrimaryResetWithoutDate: true),
+                menu: ProviderMenuDescriptorPresentation(primaryDescriptionIsDetail: { _ in true }),
+                planRow: ProviderPlanRowPresentation(stripsBalancePrefix: true)),
             fetchPlan: ProviderFetchPlan(
                 sourceModes: [.auto, .web],
                 pipeline: ProviderFetchPipeline(resolveStrategies: { context in
@@ -48,7 +77,11 @@ public enum MiMoProviderDescriptor {
             cli: ProviderCLIConfig(
                 name: "mimo",
                 aliases: ["xiaomi-mimo"],
-                versionDetector: nil))
+                versionDetector: nil,
+                browserSupportExemption: { sourceMode, environment, _ in
+                    guard sourceMode == .auto, let environment else { return false }
+                    return MiMoLocalUsageFallback.cacheExists(environment: environment)
+                }))
     }
 }
 
@@ -127,7 +160,9 @@ struct MiMoWebFetchStrategy: ProviderFetchStrategy {
 
         let sessions = try MiMoCookieImporter.importSessions(browserDetection: context.browserDetection)
         guard !sessions.isEmpty else {
-            if let lastError { throw lastError }
+            if let lastError {
+                throw lastError
+            }
             throw MiMoSettingsError.missingCookie()
         }
 
@@ -150,7 +185,9 @@ struct MiMoWebFetchStrategy: ProviderFetchStrategy {
             }
         }
 
-        if let lastError { throw lastError }
+        if let lastError {
+            throw lastError
+        }
         throw MiMoSettingsError.missingCookie()
         #else
         throw MiMoSettingsError.missingCookie()

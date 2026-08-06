@@ -1,7 +1,17 @@
 import Foundation
+import SweetCookieKit
 
 public enum GrokProviderDescriptor {
     public static let descriptor: ProviderDescriptor = Self.makeDescriptor()
+
+    /// Grok is normally signed in through Chrome; avoid touching unrelated browser keychains.
+    private static var browserCookieOrder: BrowserCookieImportOrder? {
+        #if os(macOS)
+        [.chrome]
+        #else
+        nil
+        #endif
+    }
 
     static func makeDescriptor() -> ProviderDescriptor {
         ProviderDescriptor(
@@ -21,7 +31,8 @@ public enum GrokProviderDescriptor {
                 widgetSelectable: false,
                 isPrimaryProvider: false,
                 usesAccountFallback: false,
-                browserCookieOrder: ProviderBrowserCookieDefaults.grokCookieImportOrder,
+                debugLogUnavailableMessage: "Grok debug log not yet implemented",
+                browserCookieOrder: self.browserCookieOrder,
                 dashboardURL: "https://grok.com/?_s=usage",
                 changelogURL: "https://x.ai/news",
                 statusPageURL: nil,
@@ -37,7 +48,17 @@ public enum GrokProviderDescriptor {
                 ]),
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: true,
-                noDataMessage: { "No local Grok session usage found yet." }),
+                noDataMessage: { "No local Grok session usage found yet." },
+                menuHintLines: [
+                    .literal("Local Grok session logs (turn_completed)."),
+                    .literal("Chart uses daily tokens; $ only when ticks reported."),
+                ],
+                supportsTokenSnapshot: true,
+                showsHintInProviderDetails: true,
+                historyTitleStyle: .compact,
+                hintPlacement: .beforeRequestHistory,
+                chartEstimateDisclaimer: .literal(
+                    "Bars show daily tokens. Cost only when Grok reported ticks.")),
             pace: ProviderPaceCapability(resetWindowPace: .custom { window, now in
                 guard Self.primaryLabel(window: window, now: now) == "Weekly",
                       let resetsAt = window.resetsAt
@@ -48,12 +69,24 @@ public enum GrokProviderDescriptor {
                     && timeUntilReset > 0
                     && timeUntilReset <= TimeInterval(windowMinutes) * 60
             }),
+            presentation: ProviderUsagePresentation(
+                rateWindowLabeler: { metadata, snapshot, now in
+                    ProviderRateWindowLabels(
+                        primary: Self.primaryLabel(window: snapshot.primary, now: now) ?? metadata.sessionLabel,
+                        secondary: metadata.weeklyLabel,
+                        tertiary: metadata.opusLabel ?? "Sonnet",
+                        showsTertiary: metadata.supportsOpus)
+                },
+                menuCard: ProviderMenuCardPresentation(
+                    supportsInlineTokenCostDashboard: true)),
             fetchPlan: ProviderFetchPlan(
                 sourceModes: [.auto, .cli, .web],
                 pipeline: ProviderFetchPipeline(resolveStrategies: self.resolveStrategies)),
             cli: ProviderCLIConfig(
                 name: "grok",
-                versionDetector: { _ in GrokStatusProbe.detectVersion() }))
+                versionDetector: { _ in GrokStatusProbe.detectVersion() },
+                supportsCostCommand: true,
+                browserSupportExemption: { _, _, _ in true }))
     }
 
     private static func resolveStrategies(context: ProviderFetchContext) async -> [any ProviderFetchStrategy] {

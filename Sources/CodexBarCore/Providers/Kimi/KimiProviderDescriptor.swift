@@ -4,10 +4,39 @@ public enum KimiProviderDescriptor {
     public static let sessionWindowMinutes = 5 * 60
     public static let weeklyWindowMinutes = 7 * 24 * 60
     public static let descriptor: ProviderDescriptor = Self.makeDescriptor()
+    private static let credentials = ProviderCredentialAdapter(
+        supportsAPIKeyOverride: true,
+        environmentProjections: [
+            .apiKey(KimiSettingsReader.apiKeyEnvironmentKeys[0]),
+            .enterpriseHost(KimiSettingsReader.codeAPIBaseURLEnvironmentKey),
+        ],
+        tokenResolver: { kind, environment, _ in
+            let token: String? = switch kind {
+            case .primary: KimiSettingsReader.authToken(environment: environment)
+            case .secondary: KimiSettingsReader.apiKey(environment: environment)
+            case .projectID: nil
+            }
+            guard let token else { return nil }
+            return ProviderTokenResolution(token: token, source: .environment)
+        },
+        authDetector: { environment, _ in
+            var modes: [String] = []
+            if KimiSettingsReader.apiKey(environment: environment) != nil {
+                modes.append("api")
+            }
+            if KimiSettingsReader.authToken(environment: environment) != nil {
+                modes.append("web")
+            }
+            return modes
+        },
+        missingCredentialMessage: { _ in KimiAPIError.missingToken.errorDescription })
 
     static func makeDescriptor() -> ProviderDescriptor {
         ProviderDescriptor(
             id: .kimi,
+            settingsSection: .init(KimiProviderSettingsKey.self, cookieSettings: KimiProviderSettings.self),
+            credentials: self.credentials,
+            config: ProviderConfigCapabilities(supportsEnterpriseHost: true),
             metadata: ProviderMetadata(
                 id: .kimi,
                 displayName: "Kimi Code",
@@ -22,6 +51,7 @@ public enum KimiProviderDescriptor {
                 defaultEnabled: false,
                 isPrimaryProvider: false,
                 usesAccountFallback: false,
+                debugLogUnavailableMessage: "Kimi debug log not yet implemented",
                 browserCookieOrder: nil,
                 dashboardURL: "https://www.kimi.com/code/console",
                 statusPageURL: nil),
@@ -38,14 +68,56 @@ public enum KimiProviderDescriptor {
                 supportsTokenCost: false,
                 noDataMessage: { "Kimi Code cost summary is not supported." }),
             pace: ProviderPaceCapability(
-                resetWindowPace: .windowDuration(minutes: self.weeklyWindowMinutes)),
+                resetWindowPace: .windowDuration(minutes: self.weeklyWindowMinutes),
+                primary: .exact(kind: .weekly, minutes: self.weeklyWindowMinutes),
+                secondary: .exact(kind: .session, minutes: self.sessionWindowMinutes),
+                tertiary: .exact(kind: .session, minutes: self.sessionWindowMinutes),
+                sessionPaceWindowRule: .windowDuration(minutes: self.sessionWindowMinutes)),
+            presentation: ProviderUsagePresentation(
+                semanticWindowResolver: { snapshot in
+                    let candidates = [snapshot.primary, snapshot.secondary, snapshot.tertiary]
+                        + (snapshot.extraRateWindows ?? []).map(\.window)
+                    let usable = candidates.compactMap { window -> RateWindow? in
+                        guard let window, !window.isSyntheticPlaceholder else { return nil }
+                        return window
+                    }
+                    let session = usable.first { window in
+                        guard let minutes = window.windowMinutes else { return false }
+                        return (60...(12 * 60)).contains(minutes)
+                    }
+                    let cadenceWeekly = usable.first { $0.windowMinutes == 7 * 24 * 60 }
+                    let primary = snapshot.primary.flatMap { $0.isSyntheticPlaceholder ? nil : $0 }
+                    return ProviderSemanticWindows(session: session, weekly: primary ?? cadenceWeekly)
+                },
+                primarySemanticWindow: .weekly,
+                secondarySemanticWindow: .session,
+                menuBarWindowResolver: self.menuBarWindow,
+                widgetRowLimitResolver: { _, _ in 3 },
+                menuCard: ProviderMenuCardPresentation(resetWindowUsesWeeklyPace: true)),
             fetchPlan: ProviderFetchPlan(
                 sourceModes: [.auto, .api, .web],
                 pipeline: ProviderFetchPipeline(resolveStrategies: self.resolveStrategies)),
             cli: ProviderCLIConfig(
                 name: "kimi",
                 aliases: ["kimi-ai"],
-                versionDetector: nil))
+                versionDetector: nil,
+                browserSupportExemption: { sourceMode, environment, _ in
+                    guard sourceMode == .auto else { return false }
+                    return environment.map { environment in
+                        ProviderTokenResolver.kimiAPIToken(environment: environment) != nil ||
+                            KimiSettingsReader.hasKimiCodeCredential(environment: environment)
+                    } == true
+                }))
+    }
+
+    private static func menuBarWindow(
+        context: ProviderMenuBarWindowContext) -> ProviderMenuBarWindowResolution
+    {
+        guard context.metric == .automatic else { return .unhandled }
+        return .resolved(
+            ProviderUsagePresentation.exhausted(context.snapshot.primary, context.snapshot.secondary)
+                ?? context.snapshot.secondary
+                ?? context.snapshot.primary)
     }
 
     private static func resolveStrategies(context: ProviderFetchContext) async -> [any ProviderFetchStrategy] {
@@ -212,7 +284,7 @@ private enum KimiCodeAPIFallbackPolicy {
 struct KimiWebFetchStrategy: ProviderFetchStrategy {
     let id: String = "kimi.web"
     let kind: ProviderFetchKind = .web
-    private static let log = CodexBarLog.logger(LogCategories.kimiWeb)
+    private static let log = CodexBarLog.logger(LogCategories.provider(.kimi, scope: "web"))
 
     func isAvailable(_ context: ProviderFetchContext) async -> Bool {
         if KimiCookieHeader.resolveCookieOverride(context: context) != nil {

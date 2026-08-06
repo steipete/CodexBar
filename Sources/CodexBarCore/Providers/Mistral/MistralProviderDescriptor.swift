@@ -1,11 +1,31 @@
 import Foundation
+import SweetCookieKit
 
 public enum MistralProviderDescriptor {
     public static let descriptor: ProviderDescriptor = Self.makeDescriptor()
+    private static let credentials = ProviderCredentialAdapter(tokenAccountSupport: TokenAccountSupport(
+        title: "Session tokens",
+        subtitle: "Store multiple Mistral Cookie headers.",
+        placeholder: "Cookie: …",
+        injection: .cookieHeader,
+        requiresManualCookieSource: true,
+        cookieName: nil))
+
+    /// Preserve Chrome-first behavior, then Firefox and Safari; other Chromium forks remain manual-only.
+    private static var browserCookieOrder: BrowserCookieImportOrder? {
+        #if os(macOS)
+        [.chrome, .firefox, .safari]
+        #else
+        nil
+        #endif
+    }
 
     static func makeDescriptor() -> ProviderDescriptor {
         ProviderDescriptor(
             id: .mistral,
+            menuBarMetrics: ProviderMenuBarMetricCapabilities(supported: [.automatic, .monthlyPlan]),
+            settingsSection: .init(MistralProviderSettingsKey.self, cookieSettings: MistralProviderSettings.self),
+            credentials: self.credentials,
             metadata: ProviderMetadata(
                 id: .mistral,
                 displayName: "Mistral",
@@ -20,7 +40,9 @@ public enum MistralProviderDescriptor {
                 defaultEnabled: false,
                 isPrimaryProvider: false,
                 usesAccountFallback: false,
-                browserCookieOrder: ProviderBrowserCookieDefaults.mistralCookieImportOrder,
+                balanceOnly: true,
+                usesDetailBackedWindow: true,
+                browserCookieOrder: self.browserCookieOrder,
                 dashboardURL: "https://admin.mistral.ai/organization/usage",
                 statusPageURL: nil,
                 statusLinkURL: "https://status.mistral.ai"),
@@ -35,7 +57,25 @@ public enum MistralProviderDescriptor {
                 ]),
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: true,
-                noDataMessage: { "Mistral cost history needs a billing web session." }),
+                noDataMessage: { "Mistral cost history needs a billing web session." },
+                menuHintLines: [.literal("Reported by Mistral billing usage.")],
+                showsCostMenuSection: false,
+                primaryValue: .latestDaily),
+            presentation: ProviderUsagePresentation(menuBarWindowResolver: { context in
+                guard context.metric == .monthlyPlan else { return .unhandled }
+                return .resolved(context.snapshot.extraRateWindows?.first {
+                    $0.id == "mistral-monthly-plan"
+                }?.window)
+            }, menuCard: ProviderMenuCardPresentation(
+                usesProviderCostHistoryAsPrimaryDashboard: true,
+                primaryCostHistoryResolver: { snapshot, tokenSnapshot in
+                    if let projected = snapshot?.mistralUsage?.toCostUsageTokenSnapshot() {
+                        return projected
+                    }
+                    return snapshot == nil ? tokenSnapshot : nil
+                },
+                showsPrimaryBalanceDescription: true,
+                hidesPrimaryResetWithoutDate: true)),
             fetchPlan: ProviderFetchPlan(
                 sourceModes: [.auto, .web],
                 pipeline: ProviderFetchPipeline(resolveStrategies: { _ in [MistralWebFetchStrategy()] })),

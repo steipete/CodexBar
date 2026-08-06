@@ -13,22 +13,24 @@ This document describes the bundled first-party conversion prototype. User-insta
 
 This prototype proves that an existing first-party `UsageProvider` can define its manifest, HTTP requests, response
 parsing, and generic `UsageSnapshot` projection in one bundled JavaScript file. It is deliberately not a user-plugin
-system: IDs remain compile-time `UsageProvider` cases, scripts ship inside CodexBar, and the normal Swift path remains
-the default.
+system: IDs remain compile-time `UsageProvider` cases and scripts ship inside CodexBar. Crof, Venice, OpenRouter,
+ClawRouter, Deepgram, and sub2api have cut over to the bundled script on JavaScriptCore platforms; their native fetch
+cores remain compiled only for the Linux CLI.
 
 Plugin manifests and their projected snapshots now carry a validated `ProviderInstanceID`. The prototype still maps
 that instance ID to an existing first-party `UsageProvider` before using browser-cookie brokerage or other bespoke
-provider paths; provider-specific snapshot payloads remain enum-typed, and the widget's `AppEnum` still lists only
-first-party cases. User-installed plugins without an enum case therefore remain out of scope for this prototype.
+provider paths, and the widget's `AppEnum` still lists only first-party cases. User-installed plugins without an enum
+case therefore remain out of scope for this prototype.
 
 ## Enable and test
 
-Set `CODEXBAR_JS_PROVIDERS=1` in CodexBar's environment. Synthetic, Venice, Crof, OpenAI, z.ai, OpenRouter, Poe,
-ClawRouter, Deepgram, sub2api, xAI, Manus, Perplexity, T3 Chat, and Qoder then prepend a script strategy to their
-existing pipeline. A missing required secret or disabled cookie source leaves the script
+Set `CODEXBAR_JS_PROVIDERS=1` in CodexBar's environment. Synthetic, OpenAI, z.ai, Poe, xAI, Manus,
+Perplexity, T3 Chat, and Qoder then prepend a script strategy to their existing pipeline.
+A missing required secret or disabled cookie source leaves the script
 strategy unavailable and permits the Swift strategy to run; a loaded script that fails does not fall back, so parity
 defects stay visible. Without the variable, the resolver returns the original Swift strategy only and does not load
-JavaScriptCore or a plugin resource.
+JavaScriptCore or a plugin resource for those providers. Crof, Venice, OpenRouter, ClawRouter, Deepgram, and sub2api
+always resolve only their script strategy on JavaScriptCore platforms; `CODEXBAR_JS_PROVIDERS` does not affect them.
 
 Run the focused proof with:
 
@@ -38,9 +40,9 @@ swift test --filter ProviderPluginParityTests
 swift test --filter ProviderPluginDetailsParityTests
 ```
 
-The parity suites send the same canned responses through an injected `ProviderHTTPTransport` to both implementations
-and compare core windows, percentages, reset dates, cost, subscription dates, and identity fields. Details-provider
-fixtures additionally characterize the complete declarative section output.
+The parity suites send canned responses through an injected `ProviderHTTPTransport`. Flag-gated providers compare the
+Swift and JavaScript implementations, while cut-over providers use JavaScript goldens for windows, percentages, reset
+dates, cost, subscription dates, identity, and complete declarative detail output.
 
 ## Manifest
 
@@ -92,10 +94,14 @@ built-ins, but no browser or Node host environment. Tests assert that `fetch`, `
 - `await ctx.http.get(url, opts?)` performs a GET and returns `{status, headers, bodyText}`.
 - `await ctx.http.postJSON(url, {body, headers?})` performs a POST and returns `{status, headers, json}`. `body` must be
   JSON-serializable. The serialized body is passed directly to the broker and is never logged.
-- `opts.headers` may contain string header values. Requests have a 15-second timeout, responses are capped at 5 MiB,
-  and transport uses `ProviderHTTPClient`, including its same-origin HTTPS redirect policy.
+- `opts.headers` may contain string header values. `opts.timeoutSeconds` sets a hard deadline from 1 through 30 seconds
+  (default 15), responses are capped at 5 MiB, and transport uses `ProviderHTTPClient`, including its same-origin HTTPS
+  redirect policy.
 - `ctx.settings.get(key)` reads only a declared `plain` setting; `ctx.settings.getSecret(key)` reads only a declared
   `secure` setting. Kind mismatches and undeclared keys throw. Only secure values are tracked for redaction.
+- `ctx.fail` creates typed host failures for authentication, missing credentials, permission, rate limiting, provider
+  availability, parsing, network, and API errors. Plugins throw the returned error; ordinary exceptions retain the
+  generic script-error mapping.
 - `await ctx.browser.cookieHeader(domain)` returns a Cookie header only for a declared domain and only when the
   `browser-cookies` capability is present. The broker honors the provider's auto/manual/off setting, cache, and browser
   priority order. Cookie headers and individual cookie values are secret-equivalent and redacted at the bridge.
@@ -123,7 +129,8 @@ be positive integers.
 `nextRegenAmount`, and `balance` are optional. A missing limit maps to zero. `identity` accepts bounded, trimmed `email`,
 `organization`, `loginMethod`, and `accountID` strings; Swift always scopes it to the manifest provider ID.
 `subscriptionRenewsAt` and `subscriptionExpiresAt` accept a JavaScript `Date` or ISO-8601 string. Missing optionals are
-fine, while a present value of the wrong type fails the entire fetch with its property path.
+fine. `dataConfidence` accepts `exact`, `estimated`, `percentOnly`, or `unknown` and defaults to `unknown`; a present
+value of the wrong type fails the entire fetch with its property path.
 
 ### Declarative details
 
@@ -169,9 +176,12 @@ new context on a fresh executor, which the hung-script recovery test proves. Thi
 cannot interrupt the abandoned JavaScriptCore thread, which may remain alive until process exit. A production plugin
 runtime needs a public interrupt API or a killable helper-process boundary before accepting untrusted scripts.
 
+The same watchdog is production-default for first-party cut-over providers. It is part of the shared runtime, not the
+prototype flag, so cut-over providers retain timeout and fresh-context recovery without `CODEXBAR_JS_PROVIDERS`.
+
 ## Current limitations
 
-The bundled-conversion flag is macOS-only and compiled out when JavaScriptCore is unavailable. It supports bundled
+The remaining bundled-conversion flag is macOS-only and compiled out when JavaScriptCore is unavailable. It supports bundled
 first-party IDs and the generic snapshot and declarative details only: no provider-specific Swift payloads,
 OAuth/refresh broker, local files or databases, subprocesses,
 arbitrary/form POST bodies, PTY, WebView, binary/protobuf responses, private-network HTTP, or unvalidated dynamic
@@ -179,8 +189,9 @@ origins. The separate user-plugin path adds local `.js`/`.ts` discovery, approva
 first-party flag semantics. Browser cookies remain restricted to declared domains. See
 [`plugin-conversion-matrix.md`](plugin-conversion-matrix.md) for the provider-by-provider impact.
 
-## Future work
+## Remaining native-only payloads
 
-Migrating existing Swift providers' roughly 25 bespoke `UsageSnapshot` payload fields onto the details model is
-intentionally not part of this prototype slice. Those fields and their current views remain intact for the flag-off
-path and for providers not yet converted.
+Display-only provider payloads now use `details` on both the Swift and JavaScript paths. The remaining bespoke
+`UsageSnapshot` fields drive behavior rather than presentation: Codex reset-credit actions, Command Code refresh
+stabilization, DeepSeek profile selection/transition state, and provider-derived token-cost pipelines for OpenAI API,
+Mistral, and OpenCode Go. They are not plugin compatibility shims.

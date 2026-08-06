@@ -8,9 +8,7 @@ struct CrofMenuCardTests {
     func `model shows credit balance without request quota`() throws {
         let now = Date()
         let metadata = try #require(ProviderDefaults.metadata[.crof])
-        let snapshot = CrofUsageSnapshot(
-            credits: 10,
-            updatedAt: now).toUsageSnapshot()
+        let snapshot = CrofTestSnapshots.credits(10, updatedAt: now)
 
         let model = UsageMenuCardView.Model.make(.init(
             provider: .crof,
@@ -44,11 +42,11 @@ struct CrofMenuCardTests {
     func `model keeps request quota rows when the API returns them`() throws {
         let now = Date()
         let metadata = try #require(ProviderDefaults.metadata[.crof])
-        let snapshot = CrofUsageSnapshot(
+        let snapshot = CrofTestSnapshots.requestQuota(
             credits: 10,
-            requestsPlan: 1000,
-            usableRequests: 998,
-            updatedAt: now).toUsageSnapshot()
+            plan: 1000,
+            remaining: 998,
+            updatedAt: now)
 
         let model = UsageMenuCardView.Model.make(.init(
             provider: .crof,

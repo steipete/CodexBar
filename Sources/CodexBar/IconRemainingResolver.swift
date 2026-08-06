@@ -3,67 +3,6 @@ import Foundation
 
 enum IconRemainingResolver {
     private static let visibleZeroPercent = 0.0001
-    private static let antigravityQuotaSummaryWindowIDPrefix = "antigravity-quota-summary-"
-    // Antigravity quota summaries expose exact 5-hour session and weekly buckets for the compact icon.
-    private static let sessionWindowMinutes = 5 * 60
-    private static let weeklyWindowMinutes = 7 * 24 * 60
-
-    private static func codexProjection(snapshot: UsageSnapshot, now: Date) -> CodexConsumerProjection {
-        CodexConsumerProjection.make(
-            surface: .menuBar,
-            context: CodexConsumerProjection.Context(
-                snapshot: snapshot,
-                rawUsageError: nil,
-                liveCredits: nil,
-                rawCreditsError: nil,
-                liveDashboard: nil,
-                rawDashboardError: nil,
-                dashboardAttachmentAuthorized: false,
-                dashboardRequiresLogin: false,
-                now: now))
-    }
-
-    private static func codexVisibleWindows(snapshot: UsageSnapshot, now: Date) -> [RateWindow] {
-        let projection = self.codexProjection(snapshot: snapshot, now: now)
-        return projection.visibleRateLanes.compactMap { projection.menuBarSelectableRateWindow(for: $0) }
-    }
-
-    private static func antigravityQuotaSummaryWindows(
-        snapshot: UsageSnapshot)
-        -> (primary: RateWindow?, secondary: RateWindow?)?
-    {
-        let quotaSummaryWindows = snapshot.extraRateWindows?
-            .filter {
-                $0.id.hasPrefix(Self.antigravityQuotaSummaryWindowIDPrefix)
-            } ?? []
-        guard !quotaSummaryWindows.isEmpty else { return nil }
-
-        return self.antigravityQuotaSummaryPair(in: quotaSummaryWindows.filter(\.usageKnown))
-    }
-
-    private static func antigravityQuotaSummaryPair(
-        in windows: [NamedRateWindow])
-        -> (primary: RateWindow?, secondary: RateWindow?)?
-    {
-        let session = self.mostConstrainedWindow(in: windows, windowMinutes: Self.sessionWindowMinutes)
-        let weekly = self.mostConstrainedWindow(in: windows, windowMinutes: Self.weeklyWindowMinutes)
-        guard session != nil || weekly != nil else { return nil }
-        return (primary: session, secondary: weekly)
-    }
-
-    /// Returns the highest-usage window for an exact Antigravity compact-icon cadence.
-    private static func mostConstrainedWindow(in windows: [NamedRateWindow], windowMinutes: Int) -> RateWindow? {
-        windows
-            .filter { $0.window.windowMinutes == windowMinutes }
-            .max { lhs, rhs in
-                if lhs.window.usedPercent != rhs.window.usedPercent {
-                    return lhs.window.usedPercent < rhs.window.usedPercent
-                }
-                // max(by:) keeps the right-hand element when this returns true; use `>` so the smallest id wins ties.
-                return lhs.id > rhs.id
-            }?
-            .window
-    }
 
     static func resolvedWindows(
         snapshot: UsageSnapshot,
@@ -72,34 +11,15 @@ enum IconRemainingResolver {
         now: Date = Date())
         -> (primary: RateWindow?, secondary: RateWindow?)
     {
-        if style == .perplexity {
-            let windows = snapshot.orderedPerplexityDisplayWindows()
-            return (
-                primary: windows.first,
-                secondary: windows.dropFirst().first)
+        guard let provider = UsageProvider(rawValue: style.rawValue) else {
+            return (primary: snapshot.primary, secondary: snapshot.secondary)
         }
-        if style == .antigravity {
-            // Only current quota-summary buckets define the fixed session/weekly icon lanes.
-            return self.antigravityQuotaSummaryWindows(snapshot: snapshot)
-                ?? (primary: nil, secondary: nil)
-        }
-        if style == .codex {
-            let windows = self.codexVisibleWindows(snapshot: snapshot, now: now)
-            return (
-                primary: windows.first,
-                secondary: windows.dropFirst().first)
-        }
-        if style == .copilot,
-           let secondaryOverrideWindowID,
-           let extraWindow = snapshot.extraRateWindows?.first(where: { $0.id == secondaryOverrideWindowID })?.window
-        {
-            return (
-                primary: snapshot.primary,
-                secondary: extraWindow)
-        }
-        return (
-            primary: snapshot.primary,
-            secondary: snapshot.secondary)
+        let windows = ProviderDescriptorRegistry.descriptor(for: provider).presentation.iconWindows(
+            context: ProviderIconWindowContext(
+                snapshot: snapshot,
+                secondaryOverrideWindowID: secondaryOverrideWindowID,
+                now: now))
+        return (primary: windows.primary, secondary: windows.secondary)
     }
 
     static func resolvedRemaining(
@@ -138,7 +58,13 @@ enum IconRemainingResolver {
             secondary: showUsed ? windows.secondary?.usedPercent : windows.secondary?.remainingPercent)
         // Provider style chooses the usage lanes; rendering style controls renderer-specific layout sentinels.
         // Merged icons still resolve Warp's lanes, but render as `.combined` and must keep the real percentage.
-        if showUsed, style == .warp, (renderingStyle ?? style) == .warp, let secondary = windows.secondary {
+        let presentation = UsageProvider(rawValue: style.rawValue)
+            .map { ProviderDescriptorRegistry.descriptor(for: $0).presentation }
+        if showUsed,
+           presentation?.treatsExhaustedSecondaryIconWindowAsMissing == true,
+           (renderingStyle ?? style) == style,
+           let secondary = windows.secondary
+        {
             if secondary.remainingPercent <= 0 {
                 // Preserve Warp's exhausted/no-bonus layout even though used percent is 100.
                 percents.secondary = 0

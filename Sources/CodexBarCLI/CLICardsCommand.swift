@@ -66,6 +66,7 @@ struct CardsOptions: CommanderParsable {
 }
 
 extension CodexBarCLI {
+    // swiftlint:disable:next function_body_length
     static func runCards(_ values: ParsedValues) async {
         let output = CLIOutputPreferences.from(values: values)
         let config = Self.loadConfig(output: output)
@@ -97,6 +98,7 @@ extension CodexBarCLI {
         let resetStyle = Self.resetTimeDisplayStyleFromDefaults()
         let weeklyWorkDays = Self.weeklyProgressWorkDaysFromDefaults()
         let providerList = provider.asList
+        // Provider-specific by design: claude-swap cards need Claude's integration configuration and subprocess.
         let claudeConfig = config.providerConfig(for: .claude)
 
         let tokenSelection: TokenAccountCLISelection
@@ -122,6 +124,7 @@ extension CodexBarCLI {
                     output: output,
                     kind: .args)
             }
+            // Provider-specific by design: --all-accounts includes reconciled Codex live and managed profiles.
             let supportsAllCodexAccounts = providerList[0] == .codex
                 && tokenSelection.allAccounts
                 && tokenSelection.label == nil
@@ -196,7 +199,9 @@ extension CodexBarCLI {
                             command: command)
                     }
                 })
-            if result.exitCode != .success { exitCode = result.exitCode }
+            if result.exitCode != .success {
+                exitCode = result.exitCode
+            }
             cards.append(contentsOf: result.cards)
             failures.append(contentsOf: result.cardFailures)
         }

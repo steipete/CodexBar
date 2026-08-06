@@ -12,11 +12,6 @@ extension StatusItemController {
         {
             return submenu
         }
-        if provider == .zai,
-           let submenu = self.makeZaiUsageDetailsSubmenu(snapshot: self.store.snapshot(for: provider.instanceID))
-        {
-            return submenu
-        }
         // Mistral's top usage pane has no rate-limit bars of its own, so its Overview row always
         // prioritizes cost history too. Other `tokenCostRequiresProviderSnapshot` providers (e.g.
         // opencodego) show real rate-limit bars and should fall through to the settings-gated

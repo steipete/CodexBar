@@ -279,6 +279,25 @@ struct UsagePaceTextTests {
     }
 
     @Test
+    func `Codex session pace suppressed for weekly and monthly durations but kept for fallback shapes`() {
+        let now = Date(timeIntervalSince1970: 0)
+        func window(minutes: Int?) -> RateWindow {
+            RateWindow(
+                usedPercent: 50,
+                windowMinutes: minutes,
+                resetsAt: now.addingTimeInterval(2 * 3600),
+                resetDescription: nil)
+        }
+
+        #expect(UsagePaceText.sessionPace(provider: .codex, window: window(minutes: 10080), now: now) == nil)
+        #expect(UsagePaceText.sessionPace(provider: .codex, window: window(minutes: 43200), now: now) == nil)
+        // Unknown durations fall back to the session lane and must keep their pre-existing pace.
+        #expect(UsagePaceText.sessionPace(provider: .codex, window: window(minutes: 540), now: now) != nil)
+        #expect(UsagePaceText.sessionPace(provider: .codex, window: window(minutes: nil), now: now) != nil)
+        #expect(UsagePaceText.sessionPace(provider: .codex, window: window(minutes: 300), now: now) != nil)
+    }
+
+    @Test
     func `session pace summary formats single line text`() {
         let now = Date(timeIntervalSince1970: 0)
         let window = RateWindow(

@@ -138,6 +138,7 @@ extension UsageStore {
             insert(account.externalIdentifier)
             insert(account.id.uuidString)
         }
+        // Provider-specific by design: Claude swap subprocesses and Codex managed profiles own extra account IDs.
         if provider == .claude {
             for accountSnapshot in self.claudeSwapAccountSnapshots {
                 insert(accountSnapshot.snapshot?.identity?.accountID)
@@ -367,12 +368,11 @@ extension UsageStore {
                 now: now)
             return projection.visibleRateLanes.compactMap { lane in
                 guard let window = projection.sourceRateWindow(for: lane) else { return nil }
-                let title = switch lane {
-                case .session:
-                    metadata?.sessionLabel ?? "Session"
-                case .weekly:
-                    metadata?.weeklyLabel ?? "Weekly"
-                }
+                let title = CodexConsumerProjection.rateTitle(
+                    lane: lane,
+                    windowMinutes: window.windowMinutes,
+                    sessionLabel: metadata?.sessionLabel ?? "Session",
+                    weeklyLabel: metadata?.weeklyLabel ?? "Weekly")
                 return WidgetSnapshot.WidgetUsageRowSnapshot(
                     id: lane.rawValue,
                     title: title,
@@ -410,7 +410,7 @@ extension UsageStore {
 
         let primaryTitle: String = {
             // Legacy request-based Cursor plans track a request quota, not the token-based "Total" pool.
-            if provider == .cursor, snapshot.cursorRequests != nil {
+            if provider == .cursor, snapshot.detailRow(label: "Request quota") != nil {
                 return "Requests"
             }
             if provider == .grok,
@@ -424,7 +424,7 @@ extension UsageStore {
                 return dyn
             }
             if provider == .amp,
-               let dyn = AmpProviderDescriptor.primaryLabel(details: snapshot.ampUsage)
+               let dyn = AmpProviderDescriptor.primaryLabel(snapshot: snapshot)
             {
                 return dyn
             }
@@ -439,7 +439,7 @@ extension UsageStore {
             return metadata?.sessionLabel ?? "Session"
         }()
         let secondaryTitle = if provider == .amp {
-            AmpProviderDescriptor.secondaryLabel(details: snapshot.ampUsage) ?? metadata?.weeklyLabel ?? "Weekly"
+            AmpProviderDescriptor.secondaryLabel(snapshot: snapshot) ?? metadata?.weeklyLabel ?? "Weekly"
         } else if provider == .alibabatokenplan {
             AlibabaTokenPlanProviderDescriptor.secondaryLabel(window: snapshot.secondary) ??
                 metadata?.weeklyLabel ?? "Weekly"

@@ -85,7 +85,7 @@ public struct ClaudeStatusProbe: Sendable {
     // Claude's interactive process binds account state at launch. Cross-refresh reuse is permitted only because the
     // session actor also requires the hashed config-root + active-account scope to match.
     static let accountScopedSessionReuseEnabled = true
-    private static let log = CodexBarLog.logger(LogCategories.claudeProbe)
+    private static let log = CodexBarLog.logger(LogCategories.provider(.claude, scope: "probe"))
     #if DEBUG
     public typealias FetchOverride = @Sendable (String, TimeInterval, Bool) async throws -> ClaudeStatusSnapshot
     @TaskLocal static var fetchOverride: FetchOverride?

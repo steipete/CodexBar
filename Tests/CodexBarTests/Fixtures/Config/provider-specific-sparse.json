@@ -1,0 +1,48 @@
+{
+  "providers" : [
+    {
+      "claudeSwapEnabled" : false,
+      "claudeSwapExecutablePath" : "",
+      "claudeSwapShowSingleAccount" : true,
+      "id" : "claude"
+    },
+    {
+      "codexActiveSource" : {
+        "accountID" : "00000000-0000-0000-0000-000000000042",
+        "kind" : "managedAccount"
+      },
+      "codexProfileHomePaths" : [
+
+      ],
+      "id" : "codex"
+    },
+    {
+      "antigravityPrioritizeExhaustedQuotas" : false,
+      "id" : "antigravity"
+    },
+    {
+      "id" : "kilo",
+      "kiloEnabledOrganizationIDs" : [
+
+      ],
+      "kiloKnownOrganizations" : [
+
+      ]
+    },
+    {
+      "awsAuthMode" : "keys",
+      "awsProfile" : "",
+      "id" : "bedrock"
+    },
+    {
+      "deepseekProfileID" : "",
+      "deepseekProfileScope" : "",
+      "id" : "deepseek"
+    },
+    {
+      "apiKeyRegion" : "international",
+      "id" : "moonshot"
+    }
+  ],
+  "version" : 1
+}

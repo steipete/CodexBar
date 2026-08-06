@@ -10,7 +10,7 @@ struct MenuDescriptorSakanaTests {
         let lines = try Self.menuLines(showOptionalUsage: true)
 
         #expect(lines.contains("Balance: $12.34"))
-        #expect(lines.contains("Usage: $5.67"))
+        #expect(lines.contains("Usage: $5.67 · Jun 02, 2026 - Jul 01, 2026"))
     }
 
     @Test
@@ -77,10 +77,9 @@ struct SakanaMenuCardModelTests {
     func `pay as you go renders in the live menu card`() throws {
         let model = try Self.model(showOptionalUsage: true)
 
-        #expect(model.providerCost?.title == "Extra usage")
-        #expect(model.providerCost?.spendLine == "Balance: $12.34")
-        #expect(model.providerCost?.percentLine == "Usage: $5.67")
-        #expect(model.providerCost?.percentUsed == nil)
+        #expect(model.providerDetails.first?.title == "Extra usage")
+        #expect(model.providerDetails.first?.rows.first?.value == "$12.34")
+        #expect(model.providerDetails.first?.rows.last?.value == "$5.67")
     }
 
     @Test
@@ -88,6 +87,7 @@ struct SakanaMenuCardModelTests {
         let model = try Self.model(showOptionalUsage: false)
 
         #expect(model.providerCost == nil)
+        #expect(model.providerDetails.isEmpty)
         #expect(model.metrics.map(\.title) == ["5-hour", "Weekly"])
     }
 

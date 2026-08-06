@@ -1,11 +1,40 @@
 import Foundation
+import SweetCookieKit
 
 public enum CopilotProviderDescriptor {
     public static let descriptor: ProviderDescriptor = Self.makeDescriptor()
+    private static let credentials = ProviderCredentialAdapter.apiKey(
+        environmentKey: "COPILOT_API_TOKEN",
+        resolve: { ProviderConfig.clean($0["COPILOT_API_TOKEN"]) },
+        tokenAccountSupport: TokenAccountSupport(
+            title: "GitHub accounts",
+            subtitle: "Sign in with multiple GitHub accounts via OAuth.",
+            placeholder: "Paste GitHub token…",
+            injection: .environment(key: "COPILOT_API_TOKEN"),
+            requiresManualCookieSource: false,
+            cookieName: nil,
+            clearsAPIKeyOnMutation: true,
+            primaryAddActionTitle: "Add Account"))
+
+    /// Budget imports stay Chrome-only to avoid prompting unrelated browsers.
+    private static var browserCookieOrder: BrowserCookieImportOrder? {
+        #if os(macOS)
+        [.chrome]
+        #else
+        nil
+        #endif
+    }
 
     static func makeDescriptor() -> ProviderDescriptor {
         ProviderDescriptor(
             id: .copilot,
+            settingsSection: .init(CopilotProviderSettingsKey.self, cookieSettings: { settings in
+                CookieProviderSettings(
+                    cookieSource: settings.budgetCookieSource,
+                    manualCookieHeader: settings.manualBudgetCookieHeader)
+            }),
+            credentials: self.credentials,
+            config: ProviderConfigCapabilities(supportsEnterpriseHost: true),
             metadata: ProviderMetadata(
                 id: .copilot,
                 displayName: "Copilot",
@@ -20,7 +49,12 @@ public enum CopilotProviderDescriptor {
                 defaultEnabled: false,
                 isPrimaryProvider: false,
                 usesAccountFallback: false,
-                browserCookieOrder: ProviderBrowserCookieDefaults.copilotCookieImportOrder,
+                sharePlanLabels: [
+                    "free": "Free", "individual": "Individual", "pro": "Individual",
+                    "business": "Business", "enterprise": "Enterprise",
+                ],
+                debugLogUnavailableMessage: "Copilot debug log not yet implemented",
+                browserCookieOrder: self.browserCookieOrder,
                 dashboardURL: "https://github.com/settings/copilot",
                 statusPageURL: "https://www.githubstatus.com/"),
             branding: ProviderBranding(
@@ -38,6 +72,26 @@ public enum CopilotProviderDescriptor {
             pace: ProviderPaceCapability(
                 resetWindowPace: .resetDatePresent,
                 inferredMonthlyDuration: .windowDurationMissing),
+            presentation: ProviderUsagePresentation(
+                iconWindowResolver: { context in
+                    guard let id = context.secondaryOverrideWindowID,
+                          let extra = context.snapshot.extraRateWindows?.first(where: { $0.id == id })?.window
+                    else {
+                        return ProviderUsageWindowPair(
+                            primary: context.snapshot.primary,
+                            secondary: context.snapshot.secondary)
+                    }
+                    return ProviderUsageWindowPair(primary: context.snapshot.primary, secondary: extra)
+                },
+                automaticSelectionPrioritizesExhaustedWindow: false,
+                menuBarWindowResolver: { context in
+                    guard context.metric == .automatic,
+                          let primary = context.snapshot.primary,
+                          let secondary = context.snapshot.secondary
+                    else { return .unhandled }
+                    return .resolved(primary.usedPercent >= secondary.usedPercent ? primary : secondary)
+                },
+                menuCard: ProviderMenuCardPresentation(primaryDescriptionPlacement: .detailLeft)),
             fetchPlan: ProviderFetchPlan(
                 sourceModes: [.auto, .api],
                 pipeline: ProviderFetchPipeline(resolveStrategies: { _ in [CopilotAPIFetchStrategy()] })),

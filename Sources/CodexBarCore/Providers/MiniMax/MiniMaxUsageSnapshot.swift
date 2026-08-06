@@ -133,7 +133,7 @@ extension MiniMaxUsageSnapshot {
                 secondary: secondaryWindow,
                 tertiary: tertiaryWindow,
                 providerCost: self.pointsBalanceSnapshot(),
-                minimaxUsage: self,
+                details: self.detailSections(),
                 subscriptionExpiresAt: self.subscriptionExpiresAt,
                 subscriptionRenewsAt: self.subscriptionRenewsAt,
                 updatedAt: self.updatedAt,
@@ -162,11 +162,64 @@ extension MiniMaxUsageSnapshot {
             secondary: nil,
             tertiary: nil,
             providerCost: self.pointsBalanceSnapshot(),
-            minimaxUsage: self,
+            details: self.detailSections(),
             subscriptionExpiresAt: self.subscriptionExpiresAt,
             subscriptionRenewsAt: self.subscriptionRenewsAt,
             updatedAt: self.updatedAt,
             identity: identity)
+    }
+
+    private func detailSections() -> [ProviderDetailSection] {
+        var sections: [ProviderDetailSection] = []
+        let services = self.orderedQuotaServices
+        if !services.isEmpty {
+            let nameCounts = Dictionary(grouping: services.map(\.displayName), by: { $0 }).mapValues(\.count)
+            sections.append(.makeSection(title: "Quota services", rows: services.map { service in
+                let label = (nameCounts[service.displayName] ?? 0) > 1
+                    ? "\(service.displayName) · \(service.windowType)"
+                    : service.displayName
+                let value = service.isUnlimited
+                    ? "Unlimited"
+                    : "\(service.usage.formatted()) / \(service.limit.formatted())"
+                return .makeRow(
+                    label: label,
+                    value: value,
+                    secondaryValue: "\(Self.percentString(service.percent)) · \(service.resetDescription)")
+            }))
+        }
+        if let billing = self.billingSummary {
+            var rows: [ProviderDetailSection.Row] = [
+                .makeRow(label: "Today tokens", value: billing.todayTokens.formatted()),
+                .makeRow(label: "30d tokens", value: billing.last30DaysTokens.formatted()),
+                .makeRow(label: "Today cash", value: billing.todayCash.map(Self.cashString) ?? "—"),
+                .makeRow(label: "Models", value: "\(billing.topModels.count)"),
+            ]
+            if let topModel = billing.topModels.first {
+                rows.append(.makeRow(label: "Top model", value: topModel.name))
+            }
+            if let topMethod = billing.topMethods.first {
+                rows.append(.makeRow(label: "Top method", value: topMethod.name))
+            }
+            if let cash = billing.last30DaysCash {
+                rows.append(.makeRow(label: "30d cash", value: Self.cashString(cash)))
+            }
+            sections.append(.makeSection(
+                title: "Billing history",
+                rows: rows,
+                chart: billing.daily.isEmpty ? nil : .makeChart(
+                    title: "Daily tokens",
+                    unit: "tokens",
+                    points: billing.daily.map { ($0.day, Double($0.tokens)) })))
+        }
+        return sections
+    }
+
+    private static func percentString(_ value: Double) -> String {
+        value == value.rounded() ? String(format: "%.0f%% used", value) : String(format: "%.1f%% used", value)
+    }
+
+    private static func cashString(_ value: Double) -> String {
+        String(format: "%.2f", max(0, value))
     }
 
     private func rateWindow(for service: MiniMaxServiceUsage?) -> RateWindow? {

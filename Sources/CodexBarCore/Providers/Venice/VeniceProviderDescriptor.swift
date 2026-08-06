@@ -2,10 +2,21 @@ import Foundation
 
 public enum VeniceProviderDescriptor {
     public static let descriptor: ProviderDescriptor = Self.makeDescriptor()
+    private static let credentials = ProviderCredentialAdapter.apiKey(
+        environmentKey: VeniceSettingsReader.apiKeyEnvironmentKey,
+        resolve: VeniceSettingsReader.apiKey,
+        tokenAccountSupport: TokenAccountSupport(
+            title: "API tokens",
+            subtitle: "Store multiple Venice API keys.",
+            placeholder: "Paste API key…",
+            injection: .environment(key: VeniceSettingsReader.apiKeyEnvironmentKey),
+            requiresManualCookieSource: false,
+            cookieName: nil))
 
     static func makeDescriptor() -> ProviderDescriptor {
         ProviderDescriptor(
             id: .venice,
+            credentials: self.credentials,
             metadata: ProviderMetadata(
                 id: .venice,
                 displayName: "Venice",
@@ -21,6 +32,7 @@ public enum VeniceProviderDescriptor {
                 widgetSelectable: false,
                 isPrimaryProvider: false,
                 usesAccountFallback: false,
+                debugLogUnavailableMessage: "Venice debug log not yet implemented",
                 browserCookieOrder: nil,
                 dashboardURL: "https://venice.ai/settings/api",
                 statusPageURL: nil,
@@ -46,18 +58,22 @@ public enum VeniceProviderDescriptor {
 
     private static func fetchPlan() -> ProviderFetchPlan {
         #if canImport(JavaScriptCore)
-        .scriptPrototypeAPI(
-            configuration: .init(
-                provider: .venice,
-                plugin: "venice",
-                secretKey: VeniceSettingsReader.apiKeyEnvironmentKey,
-                strategyID: "venice.api"),
-            resolveToken: { ProviderTokenResolver.veniceToken(environment: $0) },
-            missingCredentialsError: { VeniceUsageError.missingCredentials },
-            loadUsage: { apiKey, _ in
-                try await VeniceUsageFetcher.fetchUsage(apiKey: apiKey).toUsageSnapshot()
-            })
+        ProviderFetchPlan(
+            sourceModes: [.auto, .api],
+            pipeline: ProviderFetchPipeline(resolveStrategies: { _ in
+                [ScriptFetchStrategy(
+                    id: "venice.js",
+                    provider: .venice,
+                    bundledPlugin: "venice",
+                    secretKey: VeniceSettingsReader.apiKeyEnvironmentKey,
+                    sourceLabel: "api",
+                    resolveSecret: { environment in
+                        self.credentials.resolveToken(environment: environment)?.token
+                    },
+                    isEnabled: { _ in true })]
+            }))
         #else
+        // Linux compatibility only. JavaScriptCore platforms use the bundled plugin above.
         .apiToken(
             strategyID: "venice.api",
             resolveToken: { ProviderTokenResolver.veniceToken(environment: $0) },

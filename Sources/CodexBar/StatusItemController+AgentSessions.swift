@@ -2,6 +2,8 @@ import AppKit
 
 extension StatusItemController {
     func wireAgentSessionUpdates() {
+        // `onUpdate` only fires when the session content actually changed (the store dedupes
+        // no-op rescans); an unconditional per-scan invalidation was half of the #2652 loop.
         self.agentSessions.onUpdate = { [weak self] in
             guard let self else { return }
             if let latestActivityAt = self.agentSessions.latestLocalActivityAt {
@@ -10,7 +12,14 @@ extension StatusItemController {
                 self.store.clearCodingActivityObservation()
             }
             if self.settings.agentSessionsEnabled {
-                self.invalidateMenus(refreshOpenMenus: true)
+                // Match the store-observation path (`handleObservedStoreMenuChange`): mark menus
+                // stale but never rebuild a tracked parent in place. Rebuilding the Overview
+                // parent mid-hover replaces the hovered row and force-closes its hosted chart
+                // submenu, which is the other half of the #2652 flicker loop.
+                self.invalidateMenus(
+                    refreshOpenMenus: true,
+                    deferOpenParentMenuRebuild: true,
+                    allowStaleContentDuringDataRefresh: true)
             }
         }
     }

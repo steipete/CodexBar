@@ -52,6 +52,65 @@ struct ProviderPluginRuntimeTests {
     }
 
     @Test
+    func `HTTP request deadline defaults to fifteen seconds and accepts bounded override`() async throws {
+        let requests = RequestRecorder()
+        let runtime = try ProviderPluginRuntime(
+            source: Self.plugin(fetchBody: """
+            await ctx.http.getJSON("https://api.example.test/default");
+            const response = await ctx.http.getJSON("https://api.example.test/override", { timeoutSeconds: 7.5 });
+            return { primary: { usedPercent: response.json.used } };
+            """),
+            transport: Self.transport(recorder: requests, body: #"{"used":11}"#))
+
+        let snapshot = try await runtime.fetchUsage(secrets: ["TEST_KEY": "secret-value"])
+
+        #expect(snapshot.primary?.usedPercent == 11)
+        let recorded = await requests.all
+        #expect(recorded.map(\.timeoutInterval) == [15, 7.5])
+    }
+
+    @Test(arguments: ["0", "0.5", "31", #""slow""#])
+    func `HTTP request deadline rejects values outside one through thirty seconds`(value: String) async throws {
+        let requests = RequestRecorder()
+        let runtime = try ProviderPluginRuntime(
+            source: Self.plugin(fetchBody: """
+            await ctx.http.getJSON("https://api.example.test/usage", { timeoutSeconds: \(value) });
+            return { primary: { usedPercent: 1 } };
+            """),
+            transport: Self.transport(recorder: requests))
+
+        await #expect(throws: ProviderPluginError.self) {
+            _ = try await runtime.fetchUsage(secrets: ["TEST_KEY": "secret-value"])
+        }
+        #expect(await requests.isEmpty)
+    }
+
+    @Test
+    func `HTTP request deadline cancels a transport that exceeds it`() async throws {
+        let runtime = try ProviderPluginRuntime(
+            source: Self.plugin(fetchBody: """
+            await ctx.http.getJSON("https://api.example.test/slow", { timeoutSeconds: 1 });
+            return { primary: { usedPercent: 1 } };
+            """),
+            transport: ProviderHTTPTransportHandler { request in
+                try await Task.sleep(for: .seconds(5))
+                let response = try #require(HTTPURLResponse(
+                    url: request.url!,
+                    statusCode: 200,
+                    httpVersion: nil,
+                    headerFields: ["Content-Type": "application/json"]))
+                return (Data(#"{"used":1}"#.utf8), response)
+            })
+        let startedAt = ContinuousClock.now
+
+        await #expect(throws: ProviderPluginError.self) {
+            _ = try await runtime.fetchUsage(secrets: ["TEST_KEY": "secret-value"])
+        }
+
+        #expect(ContinuousClock.now - startedAt < .seconds(2))
+    }
+
+    @Test
     func `settings split enforces kind and only secrets are redacted`() async throws {
         let runtime = try ProviderPluginRuntime(source: Self.plugin(
             settings: """
@@ -256,6 +315,33 @@ struct ProviderPluginRuntimeTests {
         }
     }
 
+    @Test(arguments: [
+        ("exact", UsageDataConfidence.exact),
+        ("estimated", .estimated),
+        ("percentOnly", .percentOnly),
+        ("unknown", .unknown),
+    ])
+    func `data confidence maps validated values`(rawValue: String, expected: UsageDataConfidence) async throws {
+        let runtime = try ProviderPluginRuntime(source: Self.plugin(fetchBody: """
+        return { primary: { usedPercent: 1 }, dataConfidence: "\(rawValue)" };
+        """))
+
+        let snapshot = try await runtime.fetchUsage(secrets: ["TEST_KEY": "secret"])
+
+        #expect(snapshot.dataConfidence == expected)
+    }
+
+    @Test(arguments: [#""certain""#, "42"])
+    func `invalid data confidence fails the snapshot`(value: String) async throws {
+        let runtime = try ProviderPluginRuntime(source: Self.plugin(fetchBody: """
+        return { primary: { usedPercent: 1 }, dataConfidence: \(value) };
+        """))
+
+        await #expect(throws: ProviderPluginError.self) {
+            _ = try await runtime.fetchUsage(secrets: ["TEST_KEY": "secret"])
+        }
+    }
+
     @Test
     func `details map strictly and trim display strings`() async throws {
         let runtime = try ProviderPluginRuntime(source: Self.plugin(fetchBody: """
@@ -320,6 +406,49 @@ struct ProviderPluginRuntimeTests {
             Issue.record("Expected rejection")
         } catch {
             #expect(error.localizedDescription.contains("fixture rejected"))
+        }
+    }
+
+    @Test(arguments: ProviderFetchClassifiedError.Kind.allCases)
+    func `classified failures preserve kind and message`(kind: ProviderFetchClassifiedError.Kind) async throws {
+        let apiName = switch kind {
+        case .authenticationExpired: "authenticationExpired"
+        case .missingCredential: "missingCredential"
+        case .permissionDenied: "permissionDenied"
+        case .rateLimited: "rateLimited"
+        case .providerUnavailable: "providerUnavailable"
+        case .parseFailure: "parseFailure"
+        case .networkFailure: "networkFailure"
+        case .apiFailure: "apiFailure"
+        }
+        let runtime = try ProviderPluginRuntime(source: Self.plugin(fetchBody: """
+        throw ctx.fail.\(apiName)("classified fixture");
+        """))
+
+        do {
+            _ = try await runtime.fetchUsage(secrets: ["TEST_KEY": "secret"])
+            Issue.record("Expected classified failure")
+        } catch let error as ProviderFetchClassifiedError {
+            #expect(error.kind == kind)
+            #expect(error.message == "classified fixture")
+        } catch {
+            Issue.record("Unexpected error: \(error)")
+        }
+    }
+
+    @Test
+    func `unclassified failures retain generic script mapping`() async throws {
+        let runtime = try ProviderPluginRuntime(source: Self.plugin(fetchBody: """
+        throw new Error("ordinary fixture");
+        """))
+
+        do {
+            _ = try await runtime.fetchUsage(secrets: ["TEST_KEY": "secret"])
+            Issue.record("Expected script failure")
+        } catch let error as ProviderPluginError {
+            #expect(error == .script("ordinary fixture"))
+        } catch {
+            Issue.record("Unexpected error: \(error)")
         }
     }
 
@@ -419,6 +548,10 @@ private actor RequestRecorder {
 
     var first: URLRequest? {
         self.requests.first
+    }
+
+    var all: [URLRequest] {
+        self.requests
     }
 
     func append(_ request: URLRequest) {

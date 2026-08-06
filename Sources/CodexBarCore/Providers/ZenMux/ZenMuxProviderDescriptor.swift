@@ -2,10 +2,14 @@ import Foundation
 
 public enum ZenMuxProviderDescriptor {
     public static let descriptor: ProviderDescriptor = Self.makeDescriptor()
+    private static let credentials = ProviderCredentialAdapter.apiKey(
+        environmentKey: ZenMuxSettingsReader.managementAPIKeyEnvironmentKey,
+        resolve: ZenMuxSettingsReader.managementAPIKey)
 
     static func makeDescriptor() -> ProviderDescriptor {
         ProviderDescriptor(
             id: .zenmux,
+            credentials: self.credentials,
             metadata: ProviderMetadata(
                 id: .zenmux,
                 displayName: "ZenMux",
@@ -19,6 +23,7 @@ public enum ZenMuxProviderDescriptor {
                 cliName: "zenmux",
                 defaultEnabled: false,
                 widgetSelectable: false,
+                debugLogUnavailableMessage: "ZenMux debug log not yet implemented",
                 dashboardURL: "https://zenmux.ai/platform/management",
                 statusPageURL: nil),
             branding: ProviderBranding(
@@ -33,6 +38,11 @@ public enum ZenMuxProviderDescriptor {
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
                 noDataMessage: { "ZenMux cost history is not exposed by the Management API." }),
+            presentation: ProviderUsagePresentation(
+                costPresenter: { _ in ProviderCostPresentation(menuCardStyle: .payAsYouGoBalance) },
+                menuCard: ProviderMenuCardPresentation(
+                    primaryDescriptionPlacement: .detailLeft,
+                    hidesPrimaryResetWithoutDate: true)),
             fetchPlan: ProviderFetchPlan(
                 sourceModes: [.auto, .api],
                 pipeline: ProviderFetchPipeline(resolveStrategies: { _ in [ZenMuxAPIFetchStrategy()] })),

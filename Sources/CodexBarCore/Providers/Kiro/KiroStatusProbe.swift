@@ -94,29 +94,62 @@ public struct KiroUsageSnapshot: Sendable {
             accountOrganization: nil,
             loginMethod: self.authMethod)
 
-        let kiroUsage = KiroUsageDetails(
-            planName: self.planName,
-            displayPlanName: self.displayPlanName,
-            creditsUsed: self.creditsUsed,
-            creditsTotal: self.creditsTotal,
-            creditsRemaining: self.creditsRemaining,
-            bonusCreditsUsed: self.bonusCreditsUsed,
-            bonusCreditsTotal: self.bonusCreditsTotal,
-            bonusCreditsRemaining: self.bonusCreditsRemaining,
-            bonusExpiryDays: self.bonusExpiryDays,
-            overagesStatus: self.overagesStatus,
-            overageCreditsUsed: self.overageCreditsUsed,
-            estimatedOverageCostUSD: self.estimatedOverageCostUSD,
-            manageURL: self.manageURL,
-            contextUsage: self.contextUsage)
+        var detailRows: [ProviderDetailSection.Row] = [
+            .makeRow(label: "Plan", value: self.displayPlanName),
+            .makeRow(label: "Credits left", value: UsageFormatter.kiroCreditNumber(self.creditsRemaining)),
+            .makeRow(label: "Credits used", value: UsageFormatter.kiroCreditNumber(self.creditsUsed)),
+            .makeRow(label: "Credits total", value: UsageFormatter.kiroCreditNumber(self.creditsTotal)),
+        ]
+        if let remaining = self.bonusCreditsRemaining, let total = self.bonusCreditsTotal {
+            detailRows.append(.makeRow(
+                label: "Bonus credits left",
+                value: UsageFormatter.kiroCreditNumber(remaining),
+                secondaryValue: [
+                    "of \(UsageFormatter.kiroCreditNumber(total))",
+                    self.bonusExpiryDays.map { "expires in \($0)d" },
+                ].compactMap(\.self).joined(separator: " · ")))
+        }
+        if let overagesStatus = self.overagesStatus {
+            detailRows.append(.makeRow(label: "Overages", value: overagesStatus))
+        }
+        let overagesEnabled = self.overagesStatus?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+            .hasPrefix("enabled") == true
+        if overagesEnabled, let overageCreditsUsed = self.overageCreditsUsed {
+            detailRows.append(.makeRow(
+                label: "Overage usage",
+                value: "\(UsageFormatter.kiroCreditNumber(overageCreditsUsed)) credits"))
+        }
+        if overagesEnabled, let estimatedOverageCostUSD = self.estimatedOverageCostUSD {
+            detailRows.append(.makeRow(
+                label: "Overage cost",
+                value: UsageFormatter.usdString(estimatedOverageCostUSD)))
+        }
+        if let contextUsage = self.contextUsage {
+            detailRows.append(.makeRow(
+                label: "Context used",
+                value: String(format: "%.1f%%", contextUsage.totalPercentUsed)))
+            let contextParts: [(String, Double?)] = [
+                ("Context files", contextUsage.contextFilesPercent),
+                ("Tools", contextUsage.toolsPercent),
+                ("Kiro responses", contextUsage.kiroResponsesPercent),
+                ("Prompts", contextUsage.promptsPercent),
+            ]
+            detailRows.append(contentsOf: contextParts.compactMap { label, value in
+                value.map { .makeRow(label: label, value: String(format: "%.1f%%", $0)) }
+            })
+        }
+        if let manageURL = self.manageURL {
+            detailRows.append(.makeRow(label: "Manage", value: manageURL))
+        }
 
         return UsageSnapshot(
             primary: primary,
             secondary: secondary,
             tertiary: nil,
-            kiroUsage: kiroUsage,
             providerCost: nil,
-            zaiUsage: nil,
+            details: [.makeSection(title: "Usage", rows: detailRows)],
             updatedAt: self.updatedAt,
             identity: identity)
     }
@@ -150,55 +183,6 @@ public struct KiroContextUsageSnapshot: Codable, Equatable, Sendable {
         self.toolsPercent = toolsPercent
         self.kiroResponsesPercent = kiroResponsesPercent
         self.promptsPercent = promptsPercent
-    }
-}
-
-public struct KiroUsageDetails: Codable, Equatable, Sendable {
-    public let planName: String
-    public let displayPlanName: String
-    public let creditsUsed: Double
-    public let creditsTotal: Double
-    public let creditsRemaining: Double
-    public let bonusCreditsUsed: Double?
-    public let bonusCreditsTotal: Double?
-    public let bonusCreditsRemaining: Double?
-    public let bonusExpiryDays: Int?
-    public let overagesStatus: String?
-    public let overageCreditsUsed: Double?
-    public let estimatedOverageCostUSD: Double?
-    public let manageURL: String?
-    public let contextUsage: KiroContextUsageSnapshot?
-
-    public init(
-        planName: String,
-        displayPlanName: String,
-        creditsUsed: Double,
-        creditsTotal: Double,
-        creditsRemaining: Double,
-        bonusCreditsUsed: Double?,
-        bonusCreditsTotal: Double?,
-        bonusCreditsRemaining: Double?,
-        bonusExpiryDays: Int?,
-        overagesStatus: String?,
-        overageCreditsUsed: Double?,
-        estimatedOverageCostUSD: Double?,
-        manageURL: String?,
-        contextUsage: KiroContextUsageSnapshot?)
-    {
-        self.planName = planName
-        self.displayPlanName = displayPlanName
-        self.creditsUsed = creditsUsed
-        self.creditsTotal = creditsTotal
-        self.creditsRemaining = creditsRemaining
-        self.bonusCreditsUsed = bonusCreditsUsed
-        self.bonusCreditsTotal = bonusCreditsTotal
-        self.bonusCreditsRemaining = bonusCreditsRemaining
-        self.bonusExpiryDays = bonusExpiryDays
-        self.overagesStatus = overagesStatus
-        self.overageCreditsUsed = overageCreditsUsed
-        self.estimatedOverageCostUSD = estimatedOverageCostUSD
-        self.manageURL = manageURL
-        self.contextUsage = contextUsage
     }
 }
 
@@ -279,7 +263,7 @@ public struct KiroStatusProbe: Sendable {
         self.pipeProcessRegistry = pipeProcessRegistry
     }
 
-    private static let logger = CodexBarLog.logger(LogCategories.kiro)
+    private static let logger = CodexBarLog.logger(LogCategories.provider(.kiro))
 
     public static func detectVersion() -> String? {
         guard let path = TTYCommandRunner.which("kiro-cli"),

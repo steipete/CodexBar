@@ -2,10 +2,22 @@ import Foundation
 
 public enum DeepInfraProviderDescriptor {
     public static let descriptor: ProviderDescriptor = Self.makeDescriptor()
+    private static let credentials = ProviderCredentialAdapter.apiKey(
+        environmentKey: DeepInfraSettingsReader.apiKeyEnvironmentKey,
+        resolve: DeepInfraSettingsReader.apiKey,
+        tokenAccountSupport: TokenAccountSupport(
+            title: "API tokens",
+            subtitle: "Store multiple DeepInfra API keys.",
+            placeholder: "Paste API key…",
+            injection: .environment(key: DeepInfraSettingsReader.apiKeyEnvironmentKey),
+            requiresManualCookieSource: false,
+            cookieName: nil),
+        missingCredentialMessage: { _ in DeepInfraUsageError.missingCredentials.errorDescription })
 
     static func makeDescriptor() -> ProviderDescriptor {
         ProviderDescriptor(
             id: .deepinfra,
+            credentials: self.credentials,
             metadata: ProviderMetadata(
                 id: .deepinfra,
                 displayName: "DeepInfra",
@@ -21,6 +33,9 @@ public enum DeepInfraProviderDescriptor {
                 widgetSelectable: false,
                 isPrimaryProvider: false,
                 usesAccountFallback: false,
+                debugLogUnavailableMessage: "DeepInfra debug log not yet implemented",
+                balanceOnly: true,
+                usesDetailBackedWindow: true,
                 browserCookieOrder: nil,
                 dashboardURL: "https://deepinfra.com/dash",
                 statusPageURL: nil,
@@ -37,6 +52,12 @@ public enum DeepInfraProviderDescriptor {
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
                 noDataMessage: { "DeepInfra per-request cost history is not available in CodexBar." }),
+            presentation: ProviderUsagePresentation(
+                menuCard: ProviderMenuCardPresentation(
+                    showsPrimaryBalanceDescription: true,
+                    hidesPrimaryResetWithoutDate: true,
+                    movePrimaryDetailToStatus: { _ in true }),
+                menu: ProviderMenuDescriptorPresentation(primaryDescriptionIsDetail: { _ in true })),
             fetchPlan: .apiToken(
                 strategyID: "deepinfra.api",
                 resolveToken: { ProviderTokenResolver.deepInfraToken(environment: $0) },

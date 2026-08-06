@@ -176,7 +176,7 @@ struct ClaudeAdminAPIUsageTests {
         #expect(usage.providerCost?.used == 8.5)
         #expect(usage.providerCost?.limit == 0)
         #expect(usage.providerCost?.period == "Last 30 days")
-        #expect(usage.claudeAdminAPIUsage?.last30Days.totalTokens == 1950)
+        #expect(usage.detailRow(label: "30d tokens")?.value == "1,950")
         #expect(usage.identity?.providerID == .claude)
         #expect(usage.identity?.loginMethod == "Admin API")
     }

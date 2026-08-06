@@ -1,3 +1,5 @@
+// Linux compatibility only. JavaScriptCore platforms use the bundled ClawRouter plugin.
+#if !canImport(JavaScriptCore)
 import Foundation
 #if canImport(FoundationNetworking)
 import FoundationNetworking
@@ -80,6 +82,46 @@ public struct ClawRouterUsageSnapshot: Codable, Sendable, Equatable {
             nil
         }
 
+        var usageRows: [ProviderDetailSection.Row] = [
+            .makeRow(
+                label: "Requests",
+                value: "\(self.requestCount)",
+                secondaryValue: "\(self.successCount) succeeded · \(self.errorCount) failed"),
+            .makeRow(
+                label: "Tokens",
+                value: "\(self.totalTokens)",
+                secondaryValue: "\(self.inputTokens) input · \(self.outputTokens) output"),
+            .makeRow(label: "Actual cost", value: String(format: "$%.6f", self.actualCostUSD)),
+            .makeRow(label: "Budget ledger", value: self.budgetLedger),
+        ]
+        if let spent = self.budgetSpentUSD, let limit = self.budgetLimitUSD {
+            usageRows.append(.makeRow(
+                label: "Monthly budget",
+                value: String(format: "$%.6f / $%.2f", spent, limit),
+                secondaryValue: self.budgetRemainingUSD.map { String(format: "$%.6f remaining", $0) }))
+        }
+        var details: [ProviderDetailSection] = [
+            .makeSection(title: "Usage", rows: usageRows),
+        ]
+        if !self.providers.isEmpty {
+            let visibleProviders = Array(self.providers.prefix(ProviderDetailSection.maximumPointsPerChart))
+            details.append(ProviderDetailSection.makeSection(
+                title: "Routed providers",
+                rows: self.providers.prefix(20).map { provider in
+                    .makeRow(
+                        label: provider.provider,
+                        value: "\(provider.requestCount) requests",
+                        secondaryValue: String(
+                            format: "$%.6f · %d tokens",
+                            provider.actualCostUSD,
+                            provider.totalTokens))
+                },
+                chart: .makeChart(
+                    title: "Provider cost",
+                    unit: "USD",
+                    points: visibleProviders.map { ($0.provider, $0.actualCostUSD) })))
+        }
+
         return UsageSnapshot(
             primary: usedPercent.map {
                 RateWindow(
@@ -90,7 +132,7 @@ public struct ClawRouterUsageSnapshot: Codable, Sendable, Equatable {
             },
             secondary: nil,
             providerCost: providerCost,
-            clawRouterUsage: self,
+            details: details,
             updatedAt: self.updatedAt,
             identity: ProviderIdentitySnapshot(
                 providerID: .clawrouter,
@@ -210,8 +252,12 @@ public enum ClawRouterUsageFetcher {
                         totalTokens: $0.totalTokens,
                         actualCostUSD: self.dollars($0.actualCostMicros))
                 }.sorted {
-                    if $0.actualCostUSD != $1.actualCostUSD { return $0.actualCostUSD > $1.actualCostUSD }
-                    if $0.requestCount != $1.requestCount { return $0.requestCount > $1.requestCount }
+                    if $0.actualCostUSD != $1.actualCostUSD {
+                        return $0.actualCostUSD > $1.actualCostUSD
+                    }
+                    if $0.requestCount != $1.requestCount {
+                        return $0.requestCount > $1.requestCount
+                    }
                     return $0.provider < $1.provider
                 },
                 updatedAt: updatedAt)
@@ -253,3 +299,4 @@ public enum ClawRouterUsageFetcher {
             day: 1).date
     }
 }
+#endif

@@ -6,6 +6,14 @@ import SweetCookieKit
 
 public enum AlibabaTokenPlanProviderDescriptor {
     public static let descriptor: ProviderDescriptor = Self.makeDescriptor()
+    private static let credentials = ProviderCredentialAdapter(
+        usesRegion: true,
+        authDetector: { environment, _ in
+            AlibabaTokenPlanSettingsReader.cookieHeader(environment: environment) == nil ? [] : ["web"]
+        },
+        configValidator: ProviderCredentialAdapter.regionValidator(
+            displayName: "Alibaba Token Plan",
+            isValid: { AlibabaTokenPlanAPIRegion(rawValue: $0) != nil }))
 
     public static func primaryLabel(window: RateWindow?) -> String? {
         window?.windowMinutes == 5 * 60 ? "5-hour" : nil
@@ -32,6 +40,23 @@ public enum AlibabaTokenPlanProviderDescriptor {
 
         return ProviderDescriptor(
             id: .alibabatokenplan,
+            settingsSection: .init(
+                AlibabaTokenPlanProviderSettingsKey.self,
+                cookieSettings: { settings in
+                    CookieProviderSettings(
+                        cookieSource: settings.cookieSource,
+                        manualCookieHeader: settings.manualCookieHeader)
+                },
+                credentialSettings: { context in
+                    let settings = context.cookieSettings(for: .alibabatokenplan)
+                    let region = context.config?.sanitizedRegion
+                        .flatMap(AlibabaTokenPlanAPIRegion.init(rawValue:)) ?? .chinaMainland
+                    return AlibabaTokenPlanProviderSettings(
+                        cookieSource: settings.cookieSource,
+                        manualCookieHeader: settings.manualCookieHeader,
+                        apiRegion: region)
+                }),
+            credentials: self.credentials,
             metadata: ProviderMetadata(
                 id: .alibabatokenplan,
                 displayName: "Alibaba Token Plan",
@@ -47,6 +72,11 @@ public enum AlibabaTokenPlanProviderDescriptor {
                 defaultEnabled: false,
                 isPrimaryProvider: false,
                 usesAccountFallback: false,
+                sharePlanLabels: [
+                    "token plan": "Token Plan", "token plan pro": "Token Plan Pro",
+                    "token plan plus": "Token Plan Plus",
+                ],
+                debugLogUnavailableMessage: "Alibaba Token Plan debug log not yet implemented",
                 browserCookieOrder: browserOrder,
                 dashboardURL: AlibabaTokenPlanUsageFetcher.dashboardURL.absoluteString,
                 statusPageURL: nil,
@@ -64,13 +94,19 @@ public enum AlibabaTokenPlanProviderDescriptor {
                 supportsTokenCost: false,
                 noDataMessage: { "Alibaba Token Plan cost summary is not supported." }),
             pace: .calendarMonthResetWindow,
+            presentation: ProviderUsagePresentation(menuCard: ProviderMenuCardPresentation(
+                showsPrimaryBalanceDescription: true)),
             fetchPlan: ProviderFetchPlan(
                 sourceModes: [.auto, .web],
                 pipeline: ProviderFetchPipeline(resolveStrategies: self.resolveStrategies)),
             cli: ProviderCLIConfig(
                 name: "alibaba-token-plan",
                 aliases: ["alibaba-token", "bailian-token-plan"],
-                versionDetector: nil))
+                versionDetector: nil,
+                browserSupportExemption: { _, _, settings in
+                    // Manual cookies use plain URLSession; only browser import is platform-bound.
+                    settings?.alibabaTokenPlan?.cookieSource == .manual
+                }))
     }
 
     private static func resolveStrategies(context: ProviderFetchContext) async -> [any ProviderFetchStrategy] {

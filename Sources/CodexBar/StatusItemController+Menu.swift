@@ -64,9 +64,16 @@ extension StatusItemController {
     }
 
     func menuWillOpen(_ menu: NSMenu) {
-        // Records interaction and may bring an adaptive timer forward; never refreshes synchronously.
-        self.store.noteMenuOpened()
-        self.agentSessions.refreshOnMenuOpen()
+        if menu.supermenu == nil {
+            // Records interaction and may bring an adaptive timer forward; never refreshes
+            // synchronously. Root opens only: hover-opening a hosted chart submenu must not kick
+            // off an agent-session rescan — the scan completion invalidates the tracked parent
+            // while its submenu is open, and on the Overview tab the resulting structural parent
+            // rebuild force-closes the hovered submenu. Each reopen then triggered another rescan,
+            // producing an infinite open/close/rebuild flicker loop (#2652).
+            self.store.noteMenuOpened()
+            self.agentSessions.refreshOnMenuOpen()
+        }
 
         let trace = self.beginMenuOperationTrace("menuWillOpen", breadcrumb: "menuWillOpen")
         defer { self.endMenuOperationTrace(trace, menu: menu, provider: self.menuProvider(for: menu)) }
@@ -106,6 +113,7 @@ extension StatusItemController {
 
         var provider: UsageProvider?
         if self.shouldMergeIcons {
+            // Provider-specific by design: Codex is the persisted menu identity fallback when selection is empty.
             let resolvedProvider = self.resolvedMenuProvider()
             self.lastMenuProvider = (resolvedProvider ?? .codex).instanceID
             provider = resolvedProvider
@@ -250,6 +258,7 @@ extension StatusItemController {
         } else {
             switcherSelection?.provider ?? provider
         }
+        // Provider-specific by design: Codex remains the empty merged-menu selection fallback.
         let currentProvider = selectedProvider ?? enabledProviders.first ?? .codex
         let rawCodexAccountDisplay = isOverviewSelected ? nil : self.codexAccountMenuDisplay(for: currentProvider)
         let codexAccountDisplay = isOverviewSelected
@@ -671,6 +680,7 @@ extension StatusItemController {
             return false
         }
 
+        // Provider-specific by design: Kilo organization scopes render as stacked account-like cards.
         if context.currentProvider == .kilo, self.store.kiloScopeSnapshots.count > 1 {
             let cards = self.store.kiloScopeSnapshots.compactMap { scope in
                 self.menuCardModel(
@@ -773,13 +783,6 @@ extension StatusItemController {
                 context: context.openAIContext,
                 addedOpenAIWebItems: addedOpenAIWebItems)
             self.addUsageHistoryClusterIfNeeded(to: menu, context: context)
-            if self.addZaiHourlyUsageMenuItemIfNeeded(
-                to: menu,
-                provider: context.currentProvider,
-                width: context.menuWidth)
-            {
-                menu.addItem(.separator())
-            }
         }
         self.addUserPluginMenuCards(to: menu, width: context.menuWidth)
     }
@@ -987,6 +990,7 @@ extension StatusItemController {
                     }
                     switch selection {
                     case .overview:
+                        // Provider-specific by design: Codex is the persisted fallback for an empty overview.
                         self.lastMenuProvider = (provider ?? .codex).instanceID
                     case let .provider(provider):
                         self.lastMenuProvider = provider
@@ -1061,6 +1065,7 @@ extension StatusItemController {
 
     @discardableResult
     private func handleCodexVisibleAccountSelection(_ account: CodexVisibleAccount, menu: NSMenu?) -> Bool {
+        // Provider-specific by design: managed Codex selection rebuilds after account-scoped reconciliation.
         let visibleAccountID = account.id
         self.advanceMenuInteraction(for: menu)
         self.settings.selectDisplayedCodexVisibleAccount(account)
@@ -1472,6 +1477,7 @@ extension StatusItemController {
         if webItems.hasUsageBreakdown {
             return self.makeUsageBreakdownSubmenu(width: width)
         }
+        // Provider-specific by design: OpenAI and Mistral attach cost history to their provider usage row.
         if provider == .openai {
             return self.makeOpenAIAPIUsageSubmenu(provider: provider, width: width)
         }
@@ -1482,49 +1488,7 @@ extension StatusItemController {
         if provider == .mistral {
             return self.makeCostHistorySubmenu(provider: provider, width: width)
         }
-        if provider == .zai {
-            return self.makeZaiUsageDetailsSubmenu(snapshot: snapshot)
-        }
         return nil
-    }
-
-    func makeZaiUsageDetailsSubmenu(snapshot: UsageSnapshot?) -> NSMenu? {
-        guard let timeLimit = snapshot?.zaiUsage?.timeLimit else { return nil }
-        guard !timeLimit.usageDetails.isEmpty else { return nil }
-
-        let submenu = NSMenu()
-        submenu.delegate = self
-        let titleItem = NSMenuItem(title: L("MCP details"), action: nil, keyEquivalent: "")
-        titleItem.isEnabled = false
-        submenu.addItem(titleItem)
-
-        if let window = timeLimit.windowLabel {
-            let item = NSMenuItem(title: String(format: L("mcp_window"), window), action: nil, keyEquivalent: "")
-            item.isEnabled = false
-            submenu.addItem(item)
-        }
-        if let resetTime = timeLimit.nextResetTime {
-            let reset = self.settings.resetTimeDisplayStyle == .absolute
-                ? UsageFormatter.resetDescription(from: resetTime)
-                : UsageFormatter.resetCountdownDescription(from: resetTime)
-            let item = NSMenuItem(title: String(format: L("mcp_resets"), reset), action: nil, keyEquivalent: "")
-            item.isEnabled = false
-            submenu.addItem(item)
-        }
-        submenu.addItem(.separator())
-
-        let sortedDetails = timeLimit.usageDetails.sorted {
-            $0.modelCode.localizedCaseInsensitiveCompare($1.modelCode) == .orderedAscending
-        }
-        for detail in sortedDetails {
-            let usage = UsageFormatter.tokenCountString(detail.usage)
-            let item = NSMenuItem(
-                title: String(format: L("mcp_model_usage"), detail.modelCode, usage),
-                action: nil,
-                keyEquivalent: "")
-            submenu.addItem(item)
-        }
-        return submenu
     }
 
     private func makeUsageBreakdownSubmenu(width: CGFloat? = nil) -> NSMenu? {
@@ -1573,6 +1537,7 @@ extension StatusItemController {
     }
 
     private func hasOpenAIAPIUsageSubmenu(provider: UsageProvider) -> Bool {
+        // Provider-specific by design: OpenAI Admin API daily data gates its native usage submenu.
         provider == .openai && self.tokenSnapshotForCostHistorySubmenu(provider: provider)?.daily.isEmpty == false
     }
 
@@ -1602,6 +1567,7 @@ extension StatusItemController {
     /// Providers that surface the live component list as a native submenu. Every other provider
     /// keeps the plain "Status Page" link that opens the website. Kept deliberately small: these
     /// are the statuspage.io/incident.io feeds we actively curate and trust to render well.
+    /// Provider-specific by design: these four curated status feeds expose component trees rendered by the app.
     static let statusComponentsSubmenuProviders: Set<UsageProvider> = [.claude, .codex, .augment, .zoommate]
 
     /// Filters `components` down to a provider's descriptor-owned named allowlist, if configured;

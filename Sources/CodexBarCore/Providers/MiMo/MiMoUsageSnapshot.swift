@@ -89,7 +89,9 @@ extension MiMoUsageSnapshot {
             primary: tokenWindow,
             secondary: nil,
             tertiary: nil,
-            mimoUsage: includeBalance ? self : nil,
+            details: includeBalance ? [.makeSection(title: "Credits", rows: [
+                .makeRow(label: "Balance", value: self.balanceDetail),
+            ])] : [],
             updatedAt: self.updatedAt,
             identity: identity)
     }

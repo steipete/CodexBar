@@ -343,13 +343,13 @@ struct CostHistoryChartMenuView: View {
     }
 
     static func estimateDisclaimer(provider: UsageProvider) -> String? {
-        switch provider {
-        case .codex:
-            L("codex_api_estimate_hint")
-        case .grok:
-            L("Bars show daily tokens. Cost only when Grok reported ticks.")
-        default:
-            nil
+        guard let hint = ProviderDescriptorRegistry.descriptor(for: provider).tokenCost.chartEstimateDisclaimer else {
+            return nil
+        }
+        return switch hint {
+        case let .localized(key): L(key)
+        case .estimate: UsageFormatter.costEstimateHint(provider: provider)
+        case let .literal(text): L(text)
         }
     }
 

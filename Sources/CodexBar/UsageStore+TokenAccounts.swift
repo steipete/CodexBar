@@ -88,7 +88,9 @@ extension UsageStore {
         snapshot: UsageSnapshot,
         sourceLabel: String?)
     {
-        guard provider != .cursor || self.settings.cursorCookieSource != .auto else { return }
+        let support = TokenAccountSupportCatalog.support(for: provider)
+        let cookieSource = self.settings.providerConfig(for: provider)?.cookieSource ?? .auto
+        guard support?.selectedAccountRequiresManualCookieSource != true || cookieSource != .auto else { return }
         let cached = TokenAccountUsageSnapshot(
             account: account,
             snapshot: snapshot,
@@ -278,6 +280,7 @@ extension UsageStore {
             }
         }
 
+        // Provider-specific by design: Codex multi-account results reconcile against the post-fetch visible projection.
         let currentProjection = self.freshCodexVisibleAccountProjectionForAccountRefresh(
             requireLiveManagedAuthFor: managedAccountIDsWithReadableAuthAtStart)
         guard self.isCurrentProviderRefreshGeneration(.codex, generation: generation) else { return }
@@ -481,6 +484,7 @@ extension UsageStore {
         _ snapshot: UsageSnapshot?,
         account: CodexVisibleAccount) -> UsageSnapshot?
     {
+        // Provider-specific by design: Codex managed profiles relabel fetched identity from reconciled workspace data.
         guard let snapshot else { return nil }
         let existing = snapshot.identity(for: .codex)
         return snapshot.withIdentity(ProviderIdentitySnapshot(
@@ -655,6 +659,7 @@ extension UsageStore {
         _ outcome: ProviderFetchOutcome,
         account: CodexVisibleAccount) -> Bool
     {
+        // Provider-specific by design: Codex account refresh rejects successful payloads for a different email owner.
         guard case let .success(result) = outcome.result else { return true }
         guard let resultEmail = CodexIdentityResolver.normalizeEmail(
             result.usage.scoped(to: .codex).accountEmail(for: .codex))
@@ -1200,87 +1205,6 @@ extension UsageStore {
         return trimmed
     }
 
-    nonisolated static func codexBackfillingResetWindows(
-        _ snapshot: UsageSnapshot,
-        from cached: UsageSnapshot) -> UsageSnapshot
-    {
-        let primary = self.codexBackfillingResetWindow(
-            CodexConsumerProjection.sourceRateWindow(for: .session, snapshot: snapshot),
-            from: CodexConsumerProjection.sourceRateWindow(for: .session, snapshot: cached))
-        let secondary = self.codexBackfillingResetWindow(
-            CodexConsumerProjection.sourceRateWindow(for: .weekly, snapshot: snapshot),
-            from: CodexConsumerProjection.sourceRateWindow(for: .weekly, snapshot: cached))
-        guard primary != snapshot.primary || secondary != snapshot.secondary else { return snapshot }
-        return snapshot.with(primary: primary, secondary: secondary)
-    }
-
-    nonisolated static func codexMergedResetBackfillSnapshot(
-        _ snapshots: [UsageSnapshot],
-        now: Date = Date()) -> UsageSnapshot?
-    {
-        let primary = self.codexPreferredResetBackfillWindow(
-            snapshots.enumerated().compactMap { index, snapshot in
-                CodexConsumerProjection.sourceRateWindow(for: .session, snapshot: snapshot)
-                    .map { (window: $0, updatedAt: snapshot.updatedAt, priority: index) }
-            },
-            now: now)
-        let secondary = self.codexPreferredResetBackfillWindow(
-            snapshots.enumerated().compactMap { index, snapshot in
-                CodexConsumerProjection.sourceRateWindow(for: .weekly, snapshot: snapshot)
-                    .map { (window: $0, updatedAt: snapshot.updatedAt, priority: index) }
-            },
-            now: now)
-        guard primary != nil || secondary != nil else { return nil }
-        return UsageSnapshot(
-            primary: primary,
-            secondary: secondary,
-            updatedAt: snapshots.map(\.updatedAt).max() ?? now)
-    }
-
-    private nonisolated static func codexPreferredResetBackfillWindow(
-        _ windows: [(window: RateWindow, updatedAt: Date, priority: Int)],
-        now: Date) -> RateWindow?
-    {
-        windows
-            .filter { ($0.window.resetsAt ?? .distantPast) > now }
-            .max { lhs, rhs in
-                if lhs.updatedAt != rhs.updatedAt {
-                    return lhs.updatedAt < rhs.updatedAt
-                }
-                if lhs.priority != rhs.priority {
-                    return lhs.priority < rhs.priority
-                }
-                let lhsReset = lhs.window.resetsAt ?? .distantPast
-                let rhsReset = rhs.window.resetsAt ?? .distantPast
-                if lhsReset != rhsReset {
-                    return lhsReset < rhsReset
-                }
-                return (lhs.window.windowMinutes ?? 0) < (rhs.window.windowMinutes ?? 0)
-            }
-            .map(\.window)
-    }
-
-    private nonisolated static func codexBackfillingResetWindow(
-        _ window: RateWindow?,
-        from cached: RateWindow?) -> RateWindow?
-    {
-        guard let cached,
-              let resetsAt = cached.resetsAt,
-              resetsAt > Date()
-        else {
-            return window
-        }
-        if let window {
-            return window.backfillingResetTime(from: cached)
-        }
-        guard let windowMinutes = cached.windowMinutes, windowMinutes > 0 else { return nil }
-        return RateWindow(
-            usedPercent: cached.usedPercent,
-            windowMinutes: windowMinutes,
-            resetsAt: resetsAt,
-            resetDescription: cached.resetDescription)
-    }
-
     func recordFetchedTokenAccountPlanUtilizationHistory(
         provider: UsageProvider,
         samples: [(account: ProviderTokenAccount, snapshot: UsageSnapshot)],
@@ -1330,6 +1254,7 @@ extension UsageStore {
                 // produces visually duplicate cards with no useful data.
                 return ResolvedAccountOutcome(snapshot: nil, usage: nil, freshUsage: nil)
             }
+            // Provider-specific by design: Claude OAuth rate limits preserve a matching prior OAuth account snapshot.
             if provider == .claude,
                ClaudeUsageError.isClaudeOAuthUsageRateLimit(error),
                let priorSnapshot,

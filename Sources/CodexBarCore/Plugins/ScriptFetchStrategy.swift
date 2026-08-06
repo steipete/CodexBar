@@ -22,6 +22,7 @@ public final class ScriptFetchStrategy: ProviderFetchStrategy, @unchecked Sendab
     }
 
     public typealias ValuesResolver = @Sendable (ProviderFetchContext) -> Values?
+    public typealias ContextValidator = @Sendable (ProviderFetchContext) throws -> Void
     public typealias EnabledResolver = @Sendable ([String: String]) -> Bool
 
     public let id: String
@@ -29,8 +30,10 @@ public final class ScriptFetchStrategy: ProviderFetchStrategy, @unchecked Sendab
 
     private let provider: UsageProvider
     private let bundledPlugin: String
+    private let sourceLabel: String
     private let secretKey: String?
     private let resolveValues: ValuesResolver
+    private let validateContext: ContextValidator
     private let isEnabled: EnabledResolver
     private let transport: any ProviderHTTPTransport
     private let timeout: TimeInterval
@@ -42,19 +45,23 @@ public final class ScriptFetchStrategy: ProviderFetchStrategy, @unchecked Sendab
         provider: UsageProvider,
         bundledPlugin: String,
         secretKey: String,
+        sourceLabel: String = "js",
         kind: ProviderFetchKind = .apiToken,
         transport: any ProviderHTTPTransport = ProviderHTTPClient.shared,
         timeout: TimeInterval = ProviderPluginRuntime.defaultTimeout,
+        validateContext: @escaping ContextValidator = { _ in },
         resolveSecret: @escaping SecretResolver,
         isEnabled: @escaping EnabledResolver = { ProviderPluginPrototype.isEnabled(environment: $0) })
     {
         self.id = id
         self.provider = provider
         self.bundledPlugin = bundledPlugin
+        self.sourceLabel = sourceLabel
         self.kind = kind
         self.secretKey = secretKey
         self.transport = transport
         self.timeout = timeout
+        self.validateContext = validateContext
         self.resolveValues = { context in
             guard let secret = resolveSecret(context.env) else { return nil }
             return Values(secrets: [secretKey: secret])
@@ -67,19 +74,23 @@ public final class ScriptFetchStrategy: ProviderFetchStrategy, @unchecked Sendab
         provider: UsageProvider,
         bundledPlugin: String,
         secretKey: String? = nil,
+        sourceLabel: String = "js",
         kind: ProviderFetchKind = .apiToken,
         transport: any ProviderHTTPTransport = ProviderHTTPClient.shared,
         timeout: TimeInterval = ProviderPluginRuntime.defaultTimeout,
+        validateContext: @escaping ContextValidator = { _ in },
         resolveValues: @escaping ValuesResolver,
         isEnabled: @escaping EnabledResolver = { ProviderPluginPrototype.isEnabled(environment: $0) })
     {
         self.id = id
         self.provider = provider
         self.bundledPlugin = bundledPlugin
+        self.sourceLabel = sourceLabel
         self.kind = kind
         self.secretKey = secretKey
         self.transport = transport
         self.timeout = timeout
+        self.validateContext = validateContext
         self.resolveValues = resolveValues
         self.isEnabled = isEnabled
     }
@@ -94,6 +105,7 @@ public final class ScriptFetchStrategy: ProviderFetchStrategy, @unchecked Sendab
         guard self.isEnabled(context.env) else {
             throw ProviderPluginError.load("JavaScript provider prototype is disabled")
         }
+        try self.validateContext(context)
         guard let values = self.resolveValues(context) else {
             throw ProviderPluginError.secretAccess("required provider secret is unavailable")
         }
@@ -109,7 +121,7 @@ public final class ScriptFetchStrategy: ProviderFetchStrategy, @unchecked Sendab
             settings: values.settings,
             secrets: values.secrets,
             cookieResolver: ProviderPluginCookieBroker.resolver(context: context))
-        return self.makeResult(usage: usage, sourceLabel: "js")
+        return self.makeResult(usage: usage, sourceLabel: self.sourceLabel)
     }
 
     public func shouldFallback(on _: Error, context _: ProviderFetchContext) -> Bool {
@@ -160,6 +172,8 @@ extension ProviderFetchPlan {
     static func scriptPrototypeAPI(
         configuration: ScriptPrototypeAPIConfiguration,
         resolveToken: @escaping APITokenFetchStrategy.TokenResolver,
+        resolveSettings: @escaping @Sendable ([String: String]) -> [String: String] = { _ in [:] },
+        validateContext: @escaping ScriptFetchStrategy.ContextValidator = { _ in },
         missingCredentialsError: @escaping APITokenFetchStrategy.MissingCredentialsError,
         loadUsage: @escaping APITokenFetchStrategy.UsageLoader) -> ProviderFetchPlan
     {
@@ -182,7 +196,13 @@ extension ProviderFetchPlan {
                         provider: configuration.provider,
                         bundledPlugin: configuration.plugin,
                         secretKey: configuration.secretKey,
-                        resolveSecret: resolveToken),
+                        validateContext: validateContext,
+                        resolveValues: { context in
+                            guard let token = resolveToken(context.env) else { return nil }
+                            return ScriptFetchStrategy.Values(
+                                settings: resolveSettings(context.env),
+                                secrets: [configuration.secretKey: token])
+                        }),
                     swift,
                 ]
             }))

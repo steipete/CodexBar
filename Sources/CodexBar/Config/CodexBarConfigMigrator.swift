@@ -102,6 +102,7 @@ struct CodexBarConfigMigrator {
         config: inout CodexBarConfig,
         state: inout MigrationState)
     {
+        // Provider-specific by design: this one-shot migration names the retired per-provider secret stores.
         self.migrateTokenProviders(
             [
                 (.zai, stores.zaiTokenStore.loadToken),
@@ -133,6 +134,7 @@ struct CodexBarConfigMigrator {
         config: inout CodexBarConfig,
         state: inout MigrationState)
     {
+        // Provider-specific by design: these are the historical UserDefaults keys shipped before unified config.
         let sources: [(UsageProvider, String)] = [
             (.codex, "codexCookieSource"),
             (.claude, "claudeCookieSource"),
@@ -157,6 +159,7 @@ struct CodexBarConfigMigrator {
         }
 
         if userDefaults.object(forKey: "openAIWebAccessEnabled") as? Bool == false {
+            // Provider-specific by design: the retired OpenAI web toggle controlled Codex dashboard cookies.
             self.updateProvider(.codex, config: &config, state: &state) { entry in
                 guard entry.cookieSource == nil else { return false }
                 entry.cookieSource = .off
@@ -169,6 +172,7 @@ struct CodexBarConfigMigrator {
         config: inout CodexBarConfig,
         state: inout MigrationState)
     {
+        // Provider-specific by design: old Moonshot API keys stored region separately from the unified config.
         self.updateProvider(.moonshot, config: &config, state: &state) { entry in
             guard entry.sanitizedAPIKey != nil, entry.sanitizedAPIKeyRegion == nil else { return false }
             entry.apiKeyRegion = entry.sanitizedRegion ?? MoonshotRegion.international.rawValue
@@ -214,6 +218,7 @@ struct CodexBarConfigMigrator {
         config: inout CodexBarConfig,
         state: inout MigrationState)
     {
+        // Provider-specific by design: MiniMax formerly split API token, region, and cookie across legacy stores.
         let token = try? stores.minimaxAPITokenStore.loadToken()
         let header = try? stores.minimaxCookieStore.loadCookieHeader()
         if token != nil || header != nil {
@@ -238,6 +243,7 @@ struct CodexBarConfigMigrator {
         config: inout CodexBarConfig,
         state: inout MigrationState)
     {
+        // Provider-specific by design: Kimi's legacy cookie could live in Keychain or kimiManualCookieHeader.
         var token = try? stores.kimiTokenStore.loadToken()
         if token?.isEmpty ?? true {
             token = userDefaults.string(forKey: "kimiManualCookieHeader")
@@ -256,6 +262,7 @@ struct CodexBarConfigMigrator {
         config: inout CodexBarConfig,
         state: inout MigrationState)
     {
+        // Provider-specific by design: OpenCode's retired store paired its cookie with opencodeWorkspaceID.
         let header = try? stores.opencodeCookieStore.loadCookieHeader()
         if header != nil {
             state.sawLegacySecrets = true

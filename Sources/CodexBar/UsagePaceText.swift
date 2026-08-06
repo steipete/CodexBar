@@ -118,7 +118,8 @@ enum UsagePaceText {
     }
 
     private static func combinedLastsLabel(for pace: UsagePace, provider: UsageProvider) -> String {
-        guard provider == .codex else { return L("Lasts until reset") }
+        let paceCapability = ProviderDescriptorRegistry.descriptor(for: provider).pace
+        guard paceCapability.showsHeadroomHint else { return L("Lasts until reset") }
         guard let speedLabel = self.speedHintLabel(for: pace) else {
             return L("Lasts until reset")
         }
@@ -152,26 +153,8 @@ enum UsagePaceText {
     }
 
     static func sessionPace(provider: UsageProvider, window: RateWindow, now: Date) -> UsagePace? {
-        guard provider == .codex || provider == .claude || provider == .ollama || provider == .antigravity ||
-            provider == .kimi || provider == .notion
-        else { return nil }
-        if provider == .ollama, window.windowMinutes == nil {
-            return nil
-        }
-        if provider == .antigravity, let windowMinutes = window.windowMinutes, windowMinutes != 300 {
-            return nil
-        }
-        if provider == .kimi, window.windowMinutes != KimiProviderDescriptor.sessionWindowMinutes {
-            return nil
-        }
-        if provider == .notion {
-            // Notion parses its rolling length from an API token (`6h`), so the shape is not guaranteed.
-            // Only a real rolling allowance may be paced here; anything longer is a billing period and
-            // belongs on the descriptor's reset-window pace instead.
-            guard let minutes = window.windowMinutes,
-                  minutes <= NotionProviderDescriptor.rollingWindowMaxMinutes
-            else { return nil }
-        }
+        let paceCapability = ProviderDescriptorRegistry.descriptor(for: provider).pace
+        guard paceCapability.supportsSessionPace(window: window, now: now) else { return nil }
         guard window.remainingPercent > 0 else { return nil }
         guard let pace = UsagePace.weekly(window: window, now: now, defaultWindowMinutes: 300) else { return nil }
         guard pace.expectedUsedPercent >= 3 else { return nil }

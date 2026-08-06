@@ -218,7 +218,8 @@ extension UsageMenuCardView.Model {
     }
 
     private static func resolveInlineUsageDashboard(input: Input) -> InlineUsageDashboardModel? {
-        if self.usesProviderCostHistoryAsPrimaryDashboard(input.provider),
+        let menuCard = ProviderDescriptorRegistry.descriptor(for: input.provider).presentation.menuCard
+        if menuCard.usesProviderCostHistoryAsPrimaryDashboard,
            let tokenSnapshot = primaryCostHistorySnapshot(input: input),
            !tokenSnapshot.daily.isEmpty
         {
@@ -275,7 +276,7 @@ extension UsageMenuCardView.Model {
         {
             return Self.zoommateInlineDashboard(history)
         }
-        if [.codex, .claude, .vertexai, .bedrock, .cursor, .opencodego, .grok].contains(input.provider),
+        if menuCard.supportsInlineTokenCostDashboard,
            input.tokenCostInlineDashboardEnabled,
            let tokenSnapshot = input.tokenSnapshot,
            !tokenSnapshot.daily.isEmpty || tokenSnapshot.meteredCostUSD != nil
@@ -341,34 +342,14 @@ extension UsageMenuCardView.Model {
     }
 
     static func usesProviderCostHistoryAsPrimaryDashboard(_ provider: UsageProvider) -> Bool {
-        provider == .openai || provider == .mistral || provider == .groq || provider == .xai
+        ProviderDescriptorRegistry.descriptor(for: provider).presentation.menuCard
+            .usesProviderCostHistoryAsPrimaryDashboard
     }
 
     static func primaryCostHistorySnapshot(input: Input) -> CostUsageTokenSnapshot? {
-        switch input.provider {
-        case .openai:
-            if let projected = input.snapshot?.openAIAPIUsage?.toCostUsageTokenSnapshot() {
-                return projected
-            }
-            return input.snapshot == nil ? input.tokenSnapshot : nil
-        case .mistral:
-            if let projected = input.snapshot?.mistralUsage?.toCostUsageTokenSnapshot() {
-                return projected
-            }
-            return input.snapshot == nil ? input.tokenSnapshot : nil
-        case .groq:
-            if let projected = input.snapshot?.groqConsoleUsage?.toCostUsageTokenSnapshot() {
-                return projected
-            }
-            return input.snapshot == nil ? input.tokenSnapshot : nil
-        case .xai:
-            if let projected = input.snapshot?.xaiUsage?.costHistorySnapshot() {
-                return projected
-            }
-            return input.snapshot == nil ? input.tokenSnapshot : nil
-        default:
-            return input.tokenSnapshot
-        }
+        ProviderDescriptorRegistry.descriptor(for: input.provider).presentation.menuCard.primaryCostHistory(
+            snapshot: input.snapshot,
+            tokenSnapshot: input.tokenSnapshot)
     }
 
     static func poeInlineDashboard(

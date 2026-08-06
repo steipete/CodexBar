@@ -112,6 +112,6 @@ struct GroqConsoleFetcherTests {
         #expect(snapshot.identity?.providerID == .groq)
         #expect(snapshot.identity?.loginMethod == "Console")
         #expect(snapshot.providerCost?.used == 0.5)
-        #expect(snapshot.groqConsoleUsage?.daily.count == 1)
+        #expect(snapshot.details.first?.chart?.points.count == 1)
     }
 }

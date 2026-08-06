@@ -2,10 +2,16 @@ import Foundation
 
 public enum XAIProviderDescriptor {
     public static let descriptor: ProviderDescriptor = Self.makeDescriptor()
+    private static let credentials = ProviderCredentialAdapter.apiKey(
+        environmentKey: XAISettingsReader.apiKeyEnvironmentKey,
+        additionalProjections: [.workspaceID(XAISettingsReader.teamIDEnvironmentKey)],
+        resolve: XAISettingsReader.apiKey)
 
     static func makeDescriptor() -> ProviderDescriptor {
         ProviderDescriptor(
             id: .xai,
+            credentials: self.credentials,
+            config: ProviderConfigCapabilities(workspaceIDValidationOrder: 6),
             metadata: ProviderMetadata(
                 id: .xai,
                 displayName: "xAI",
@@ -19,6 +25,7 @@ public enum XAIProviderDescriptor {
                 cliName: "xai",
                 defaultEnabled: false,
                 widgetSelectable: false,
+                debugLogUnavailableMessage: "xAI debug log not yet implemented",
                 dashboardURL: "https://console.x.ai",
                 statusPageURL: nil,
                 statusLinkURL: "https://status.x.ai"),
@@ -34,6 +41,19 @@ public enum XAIProviderDescriptor {
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
                 noDataMessage: { "xAI spend history comes from the Management API billing endpoints." }),
+            presentation: ProviderUsagePresentation(
+                identityPresenter: { provider, snapshot in
+                    guard let plan = snapshot.loginMethod(for: provider), !plan.isEmpty else {
+                        return ProviderIdentityPresentation(badge: nil, plan: nil)
+                    }
+                    let display = UsageFormatter.cleanPlanName(plan)
+                    return ProviderIdentityPresentation(badge: display, plan: display)
+                },
+                costPresenter: { snapshot in
+                    let showsFallback = snapshot.providerCost?.period != "Prepaid credits"
+                    let style: ProviderCostMenuCardStyle = showsFallback ? .generic : .prepaidCredits
+                    return ProviderCostPresentation(showsGenericFallback: showsFallback, menuCardStyle: style)
+                }),
             fetchPlan: self.fetchPlan(),
             cli: ProviderCLIConfig(
                 name: "xai",

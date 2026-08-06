@@ -2,10 +2,15 @@ import Foundation
 
 public enum SyntheticProviderDescriptor {
     public static let descriptor: ProviderDescriptor = Self.makeDescriptor()
+    private static let credentials = ProviderCredentialAdapter.apiKey(
+        environmentKey: SyntheticSettingsReader.apiKeyKey,
+        resolve: SyntheticSettingsReader.apiKey,
+        missingCredentialMessage: { _ in SyntheticSettingsError.missingToken.errorDescription })
 
     static func makeDescriptor() -> ProviderDescriptor {
         ProviderDescriptor(
             id: .synthetic,
+            credentials: self.credentials,
             metadata: ProviderMetadata(
                 id: .synthetic,
                 displayName: "Synthetic",
@@ -21,6 +26,7 @@ public enum SyntheticProviderDescriptor {
                 widgetSelectable: false,
                 isPrimaryProvider: false,
                 usesAccountFallback: false,
+                sharePlanLabels: ["starter": "Starter", "pro": "Pro", "team": "Team", "enterprise": "Enterprise"],
                 dashboardURL: nil,
                 statusPageURL: nil),
             branding: ProviderBranding(
@@ -35,6 +41,9 @@ public enum SyntheticProviderDescriptor {
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
                 noDataMessage: { "Synthetic cost summary is not supported." }),
+            presentation: ProviderUsagePresentation(
+                costPresenter: { _ in ProviderCostPresentation(menuCardStyle: .hidden) },
+                menuCard: ProviderMenuCardPresentation(usesSyntheticRollingRegen: true)),
             fetchPlan: self.fetchPlan(),
             cli: ProviderCLIConfig(
                 name: "synthetic",

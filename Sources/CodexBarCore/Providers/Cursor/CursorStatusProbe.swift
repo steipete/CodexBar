@@ -660,7 +660,8 @@ public struct CursorStatusSnapshot: Sendable {
             usedPercent: primaryUsedPercent,
             windowMinutes: billingCycleWindowMinutes,
             resetsAt: self.billingCycleEnd,
-            resetDescription: self.billingCycleEnd.map { Self.formatResetDate($0) })
+            resetDescription: cursorRequests.map { "\($0.used) / \($0.limit) requests" }
+                ?? self.billingCycleEnd.map { Self.formatResetDate($0) })
 
         // Secondary: Auto + Composer usage (shown as its own bar below Total).
         // Legacy request-based plans don't have the token-based Auto/API breakdown — those percentages
@@ -732,7 +733,11 @@ public struct CursorStatusSnapshot: Sendable {
             secondary: secondary,
             tertiary: tertiary,
             providerCost: providerCost,
-            cursorRequests: cursorRequests,
+            details: cursorRequests.map { requests in
+                [.makeSection(title: "Usage", rows: [
+                    .makeRow(label: "Request quota", value: "\(requests.used) / \(requests.limit)"),
+                ])]
+            } ?? [],
             updatedAt: Date(),
             identity: identity)
     }

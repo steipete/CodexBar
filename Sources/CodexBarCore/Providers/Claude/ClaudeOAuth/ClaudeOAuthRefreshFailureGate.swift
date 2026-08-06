@@ -51,7 +51,7 @@ public enum ClaudeOAuthRefreshFailureGate {
     private static let transientFailureCountKey = "claudeOAuthRefreshTransientFailureCountV1"
     private static let profileKeySeparator = ".profile."
 
-    private static let log = CodexBarLog.logger(LogCategories.claudeUsage)
+    private static let log = CodexBarLog.logger(LogCategories.provider(.claude, scope: "usage"))
     private static let minimumCredentialsRecheckInterval: TimeInterval = 15
     private static let unknownFingerprint = AuthFingerprint(credentialsFile: nil)
     private static let transientBaseInterval: TimeInterval = 60 * 5

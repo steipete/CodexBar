@@ -37,21 +37,26 @@ struct CLIOutputTests {
 
     @Test
     func `text renderer includes deepgram usage metrics`() {
-        let deepgram = DeepgramUsageSnapshot(
-            projectID: "project-123",
-            start: "2026-05-10",
-            end: "2026-05-17",
-            hours: 12.5,
-            totalHours: 14,
-            agentHours: 1.25,
-            tokensIn: 100,
-            tokensOut: 50,
-            ttsCharacters: 1200,
-            requests: 42,
-            updatedAt: Date(timeIntervalSince1970: 0))
+        let deepgram = UsageSnapshot(
+            primary: nil,
+            secondary: nil,
+            details: [.makeSection(title: "Usage summary", rows: [
+                .makeRow(label: "Requests", value: "42"),
+                .makeRow(label: "Audio", value: "12.5 hours", secondaryValue: "14 billable hours"),
+                .makeRow(label: "Agent hours", value: "1.2"),
+                .makeRow(label: "Tokens", value: "150"),
+                .makeRow(label: "TTS characters", value: "1,200"),
+                .makeRow(label: "Period", value: "2026-05-10 to 2026-05-17"),
+            ])],
+            updatedAt: Date(timeIntervalSince1970: 0),
+            identity: ProviderIdentitySnapshot(
+                providerID: .deepgram,
+                accountEmail: nil,
+                accountOrganization: nil,
+                loginMethod: "Project: project-123"))
         let text = CLIRenderer.renderText(
             provider: .deepgram,
-            snapshot: deepgram.toUsageSnapshot(),
+            snapshot: deepgram,
             credits: nil,
             context: RenderContext(
                 header: "Deepgram (api)",
@@ -60,8 +65,10 @@ struct CLIOutputTests {
                 resetStyle: .countdown))
 
         #expect(text.contains("Requests: 42"))
-        #expect(text.contains("Usage: 12.5 audio hours · 14 billable hours"))
-        #expect(text.contains("Usage: 1.2 agent hours · 150 tokens · 1,200 TTS chars"))
+        #expect(text.contains("Audio: 12.5 hours · 14 billable hours"))
+        #expect(text.contains("Agent hours: 1.2"))
+        #expect(text.contains("Tokens: 150"))
+        #expect(text.contains("TTS characters: 1,200"))
         #expect(text.contains("Period: 2026-05-10 to 2026-05-17"))
     }
 

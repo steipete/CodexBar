@@ -416,16 +416,3 @@ public struct CopilotUsageResponse: Sendable, Decodable {
         return fallback
     }
 }
-
-/// Token-billed Copilot seats report consumption as an absolute credit counter
-/// rather than a percentage window. Carried separately from rate windows so the
-/// value stays accessible without inventing a fake quota denominator.
-public struct CopilotCreditsSnapshot: Sendable, Codable, Equatable {
-    public let creditsUsed: Double
-    public let quotaResetDate: Date?
-
-    public init(creditsUsed: Double, quotaResetDate: Date? = nil) {
-        self.creditsUsed = creditsUsed
-        self.quotaResetDate = quotaResetDate
-    }
-}

@@ -11,7 +11,7 @@ struct GroqProviderImplementation: ProviderImplementation {
 
     @MainActor
     func observeSettings(_ settings: SettingsStore) {
-        _ = settings.groqAPIKey
+        _ = settings[providerConfig: .groq, field: .apiKey]
     }
 
     // No `isAvailable` override: when Groq is enabled, the fetch pipeline resolves
@@ -28,7 +28,7 @@ struct GroqProviderImplementation: ProviderImplementation {
                     "An API key is optional and only adds Enterprise Prometheus metrics.",
                 kind: .secure,
                 placeholder: "gsk_...",
-                binding: context.stringBinding(\.groqAPIKey),
+                binding: context.providerConfigBinding(.apiKey),
                 actions: [],
                 isVisible: nil,
                 onActivate: nil),

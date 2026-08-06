@@ -70,7 +70,7 @@ struct SakanaUsageFetcherTests {
         #expect(payAsYouGoRequest?.cookie == "session=abc")
 
         let usage = snapshot.toUsageSnapshot()
-        #expect(usage.sakanaPayAsYouGo?.balanceDetail == "$12.34")
+        #expect(usage.detailRow(label: "Balance")?.value == "$12.34")
     }
 
     @Test
@@ -358,8 +358,7 @@ struct SakanaUsageFetcherTests {
 
         let usage = snapshot.toUsageSnapshot()
 
-        #expect(usage.sakanaPayAsYouGo?.creditBalance == 9)
-        #expect(usage.sakanaPayAsYouGo?.balanceDetail == "$9.00")
+        #expect(usage.detailRow(label: "Balance")?.value == "$9.00")
     }
 
     private static func date(year: Int, month: Int, day: Int, hour: Int, minute: Int) -> Date? {

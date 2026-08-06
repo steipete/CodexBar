@@ -2,10 +2,87 @@ import Foundation
 
 public enum ClaudeProviderDescriptor {
     public static let descriptor: ProviderDescriptor = Self.makeDescriptor()
+    private static let credentials = ProviderCredentialAdapter(
+        supportsAPIKeyOverride: true,
+        environmentProjections: [.apiKey(ClaudeAdminAPISettingsReader.adminAPIKeyEnvironmentKey)],
+        tokenResolver: { kind, environment, _ in
+            guard kind == .primary,
+                  let token = ClaudeAdminAPISettingsReader.apiKey(environment: environment)
+            else { return nil }
+            return ProviderTokenResolution(token: token, source: .environment)
+        },
+        tokenAccountSupport: TokenAccountSupport(
+            title: "Claude credentials",
+            subtitle: "Store Claude sessionKey cookies, OAuth tokens, or Anthropic Admin API keys.",
+            placeholder: "Paste sessionKey, OAuth token, or sk-ant-admin…",
+            injection: .cookieHeader,
+            requiresManualCookieSource: true,
+            cookieName: "sessionKey",
+            showsOrganizationField: true,
+            environmentOverride: { token in
+                switch ClaudeCredentialRouting.resolve(tokenAccountToken: token, manualCookieHeader: nil) {
+                case let .oauth(accessToken):
+                    [ClaudeOAuthCredentialsStore.environmentTokenKey: accessToken]
+                case let .adminAPIKey(apiKey):
+                    [ClaudeAdminAPISettingsReader.adminAPIKeyEnvironmentKey: apiKey]
+                case .none, .webCookie:
+                    nil
+                }
+            },
+            environmentScrubber: { environment, _ in
+                environment.removeValue(forKey: ClaudeOAuthCredentialsStore.environmentTokenKey)
+                for key in ClaudeAdminAPISettingsReader.apiKeyEnvironmentKeys {
+                    environment.removeValue(forKey: key)
+                }
+            }),
+        authDetector: { environment, _ in
+            ClaudeAdminAPISettingsReader.apiKey(environment: environment) == nil ? [] : ["api"]
+        },
+        selectedAccountSourceModeResolver: { base, account, _ in
+            guard let account else { return base }
+            return switch ClaudeCredentialRouting.resolve(tokenAccountToken: account.token, manualCookieHeader: nil) {
+            case .adminAPIKey: .api
+            case .oauth: .oauth
+            case .webCookie: .web
+            case .none: base
+            }
+        })
 
     static func makeDescriptor() -> ProviderDescriptor {
         ProviderDescriptor(
             id: .claude,
+            menuBarMetrics: ProviderMenuBarMetricCapabilities(
+                supported: [.automatic, .primary, .secondary, .primaryAndSecondary, .extraUsage]),
+            settingsSection: .init(ClaudeProviderSettingsKey.self, credentialSettings: { context in
+                let manualCookieHeader = context.account == nil ? context.config?.sanitizedCookieHeader : nil
+                let routing = ClaudeCredentialRouting.resolve(
+                    tokenAccountToken: context.account?.token,
+                    manualCookieHeader: manualCookieHeader)
+                let source: ClaudeUsageDataSource = if context.account != nil {
+                    switch routing {
+                    case .adminAPIKey: .api
+                    case .oauth: .oauth
+                    case .webCookie: .web
+                    case .none: .auto
+                    }
+                } else if routing.adminAPIKey != nil {
+                    .api
+                } else if routing.isOAuth {
+                    .oauth
+                } else {
+                    .auto
+                }
+                let cookieSource: ProviderCookieSource = routing.isOAuth || routing.adminAPIKey != nil
+                    ? .off
+                    : context.cookieSettings(for: .claude).cookieSource
+                return ClaudeProviderSettings(
+                    usageDataSource: source,
+                    webExtrasEnabled: false,
+                    cookieSource: cookieSource,
+                    manualCookieHeader: routing.manualCookieHeader,
+                    organizationID: context.account?.sanitizedOrganizationID)
+            }),
+            credentials: self.credentials,
             metadata: ProviderMetadata(
                 id: .claude,
                 displayName: "Claude",
@@ -20,6 +97,18 @@ public enum ClaudeProviderDescriptor {
                 defaultEnabled: false,
                 isPrimaryProvider: true,
                 usesAccountFallback: false,
+                sharePlanLabels: [
+                    "free": "Free", "claude free": "Free", "pro": "Pro", "claude pro": "Pro",
+                    "max": "Max", "claude max": "Max", "max 5x": "Max 5x", "claude max 5x": "Max 5x",
+                    "max 20x": "Max 20x", "claude max 20x": "Max 20x", "team": "Team",
+                    "claude team": "Team", "claude team standard": "Team Standard",
+                    "claude team premium": "Team Premium", "enterprise": "Enterprise",
+                    "claude enterprise": "Enterprise", "ultra": "Ultra", "claude ultra": "Ultra",
+                ],
+                debugPane: ProviderDebugPaneCapabilities(
+                    probeLogOrder: 1,
+                    notificationSimulationOrder: 1,
+                    errorSimulationOrder: 1),
                 browserCookieOrder: ProviderBrowserCookieDefaults.defaultImportOrder,
                 dashboardURL: "https://console.anthropic.com/settings/billing",
                 subscriptionDashboardURL: "https://claude.ai/settings/usage",
@@ -33,18 +122,99 @@ public enum ClaudeProviderDescriptor {
                     ProviderColor(hex: 0xD97757),
                     ProviderColor(hex: 0xF0EEE6),
                     ProviderColor(hex: 0x141413),
-                ]),
+                ],
+                burnDownWidgetColor: ProviderColor(red: 0.880, green: 0.580, blue: 0.180)),
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: true,
-                noDataMessage: self.noDataMessage),
+                noDataMessage: self.noDataMessage,
+                menuHintLines: [.estimate],
+                supportsTokenSnapshot: true,
+                estimateDisclaimer: "Estimated from local Claude logs at API rates; token totals include cache " +
+                    "read/write tokens and may differ from Claude Code /status."),
+            pace: ProviderPaceCapability(
+                primary: .session(maximumMinutes: 300),
+                secondary: .weekly,
+                tertiary: .weekly,
+                sessionPaceWindowRule: .custom { _, _ in true }),
+            history: .alwaysTracked,
+            presentation: ProviderUsagePresentation(
+                identityPresenter: { provider, snapshot in
+                    guard let plan = snapshot.loginMethod(for: provider), !plan.isEmpty else {
+                        return ProviderIdentityPresentation(badge: nil, plan: nil)
+                    }
+                    let display = if plan.hasPrefix("Claude "),
+                                     ClaudePlan.fromCompatibilityLoginMethod(plan) != nil
+                    {
+                        plan
+                    } else {
+                        plan.capitalized
+                    }
+                    return ProviderIdentityPresentation(badge: display, plan: display)
+                },
+                costPresenter: { snapshot in
+                    guard let cost = snapshot.providerCost else { return ProviderCostPresentation() }
+                    let balances = cost.balance.map {
+                        [ProviderCostPresentation.Balance(
+                            label: "Extra usage balance",
+                            amount: $0,
+                            currencyCode: cost.currencyCode)]
+                    } ?? []
+                    return ProviderCostPresentation(
+                        showsGenericFallback: !(cost.used == 0 && cost.limit == 0 && cost.balance != nil),
+                        balances: balances,
+                        menuCardStyle: .claude)
+                },
+                iconDecorations: [.notches],
+                automaticSelectionPrioritizesExhaustedWindow: false,
+                menuBarWindowResolver: self.menuBarWindow,
+                planUtilizationSeriesResolver: { snapshot in
+                    var series: Set<ProviderPlanUtilizationSeries> = []
+                    if snapshot.primary != nil {
+                        series.insert(.session)
+                    }
+                    if snapshot.secondary != nil {
+                        series.insert(.weekly)
+                    }
+                    if snapshot.tertiary != nil {
+                        series.insert(.tertiary)
+                    }
+                    return series
+                },
+                secondaryGloballyCapsPrimary: true,
+                menuCard: ProviderMenuCardPresentation(
+                    costVisibilityResolver: { context in
+                        context.showOptionalUsage || context.snapshot?.loginMethod(for: .claude) == "Admin API"
+                    },
+                    supportsInlineTokenCostDashboard: true)),
             fetchPlan: ProviderFetchPlan(
                 sourceModes: [.auto, .api, .web, .cli, .oauth],
                 pipeline: ProviderFetchPipeline(resolveStrategies: self.resolveStrategies)),
             cli: ProviderCLIConfig(
                 name: "claude",
+                binaryLocator: { BinaryLocator.resolveClaudeBinary() },
                 versionDetector: { browserDetection in
                     ClaudeUsageFetcher(browserDetection: browserDetection).detectVersion()
-                }))
+                },
+                supportsCostCommand: true,
+                browserSupportExemption: { sourceMode, _, _ in sourceMode == .auto }))
+    }
+
+    private static func menuBarWindow(
+        context: ProviderMenuBarWindowContext) -> ProviderMenuBarWindowResolution
+    {
+        guard context.metric == .automatic || context.metric == .primaryAndSecondary,
+              let cost = context.snapshot.providerCost,
+              cost.limit > 0,
+              context.snapshot.secondary == nil,
+              context.snapshot.tertiary == nil,
+              context.snapshot.primary == nil || context.snapshot.primary?.isSyntheticPlaceholder == true
+        else { return .unhandled }
+        let usedPercent = max(0, min(100, (cost.used / cost.limit) * 100))
+        return .resolved(RateWindow(
+            usedPercent: usedPercent,
+            windowMinutes: nil,
+            resetsAt: cost.resetsAt,
+            resetDescription: nil))
     }
 
     private static func resolveStrategies(context: ProviderFetchContext) async -> [any ProviderFetchStrategy] {

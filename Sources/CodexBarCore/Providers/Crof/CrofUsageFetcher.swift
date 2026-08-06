@@ -1,3 +1,5 @@
+// Linux compatibility only. JavaScriptCore platforms use the bundled Crof plugin.
+#if !canImport(JavaScriptCore)
 import Foundation
 #if canImport(FoundationNetworking)
 import FoundationNetworking
@@ -87,3 +89,4 @@ public enum CrofUsageFetcher {
             updatedAt: Date())
     }
 }
+#endif

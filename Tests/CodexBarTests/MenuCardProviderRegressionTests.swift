@@ -77,7 +77,9 @@ struct MenuCardProviderRegressionTests {
             hidePersonalInfo: false,
             now: now))
 
-        #expect(model.usageNotes == ["Today: $0.12 · This week: $0.74"])
+        let apiKeyRows = try #require(model.providerDetails.first { $0.title == "API key" }?.rows)
+        #expect(apiKeyRows.first { $0.label == "Today" }?.value == "$0.12")
+        #expect(apiKeyRows.first { $0.label == "This week" }?.value == "$0.74")
     }
 
     private static func contrastRatio(_ color: ProviderColor, againstLuminance background: Double) -> Double {
@@ -169,11 +171,13 @@ struct MenuCardProviderRegressionTests {
             hidePersonalInfo: false,
             now: now))
 
-        #expect(model.usageNotes == [
-            "Gateway: ok · 2 models · dry run",
-            "Routed: local: 10 · cloud: 4",
-            "Saved: <$0.01 · 61.5% vs highest-cost route",
-            "Avg decision: 0.1 ms",
+        let rows = try #require(model.providerDetails.first?.rows)
+        #expect(rows.map(\.label) == ["Gateway", "Routed", "Saved", "Avg decision"])
+        #expect(rows.map(\.value) == [
+            "ok · 2 models · dry run",
+            "local: 10 · cloud: 4",
+            "<$0.01 · 61.5% vs highest-cost route",
+            "0.1 ms",
         ])
     }
 

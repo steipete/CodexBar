@@ -660,9 +660,7 @@ private struct MenuBarLayoutPreview: View {
         {
             session = projection.menuBarSelectableRateWindow(for: .session)
             weekly = projection.menuBarSelectableRateWindow(for: .weekly)
-            automatic = projection.visibleRateLanes.lazy
-                .compactMap { projection.menuBarSelectableRateWindow(for: $0) }
-                .first
+            automatic = projection.automaticMenuBarWindow()
         } else {
             let semanticWindows = MenuBarLayoutSemanticWindowResolver.windows(
                 provider: provider,

@@ -52,7 +52,7 @@ public struct VertexAIUsageResponse: Sendable {
 }
 
 public enum VertexAIUsageFetcher {
-    private static let log = CodexBarLog.logger(LogCategories.vertexAIFetcher)
+    private static let log = CodexBarLog.logger(LogCategories.provider(.vertexai, scope: "fetcher"))
 
     // Cloud Monitoring API endpoint for time series
     private static let monitoringEndpoint = "https://monitoring.googleapis.com/v3/projects"

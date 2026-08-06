@@ -72,9 +72,14 @@ public struct CopilotUsageFetcher: Sendable {
         let premium = Self.makeRateWindow(from: premiumSnapshot, resetsAt: resetsAt)
         let chat = Self.makeRateWindow(from: chatSnapshot, resetsAt: resetsAt)
         let creditsUsed = premiumSnapshot?.creditsUsed ?? chatSnapshot?.creditsUsed
-        let copilotCredits = creditsUsed.map {
-            CopilotCreditsSnapshot(creditsUsed: $0, quotaResetDate: resetsAt)
-        }
+        let details: [ProviderDetailSection] = creditsUsed.map { creditsUsed in
+            [.makeSection(title: "Credits", rows: [
+                .makeRow(
+                    label: "Credits used",
+                    value: UsageFormatter.creditsNumberString(from: creditsUsed),
+                    secondaryValue: resetsAt.map { UsageFormatter.resetDescription(from: $0) }),
+            ])]
+        } ?? []
         let hasUnlimitedQuota = premiumSnapshot?.unlimited == true || chatSnapshot?.unlimited == true
 
         let primary: RateWindow?
@@ -106,7 +111,7 @@ public struct CopilotUsageFetcher: Sendable {
             secondary: secondary,
             tertiary: nil,
             providerCost: nil,
-            copilotCredits: copilotCredits,
+            details: details,
             updatedAt: Date(),
             identity: identity)
     }

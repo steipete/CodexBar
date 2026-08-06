@@ -82,15 +82,6 @@ struct ProviderEndpointOverrideSecurityTests {
         let insecureURL = "http://attacker.test/v1"
 
         do {
-            _ = try await OpenRouterUsageFetcher.fetchUsage(
-                apiKey: "openrouter-test",
-                environment: ["OPENROUTER_API_URL": insecureURL])
-            Issue.record("Expected OpenRouterSettingsError.invalidEndpointOverride")
-        } catch {
-            #expect(error as? OpenRouterSettingsError == .invalidEndpointOverride("OPENROUTER_API_URL"))
-        }
-
-        do {
             _ = try await CodebuffUsageFetcher.fetchUsage(
                 apiKey: "codebuff-test",
                 environment: ["CODEBUFF_API_URL": insecureURL])

@@ -30,6 +30,7 @@ extension UsageStore {
     private nonisolated static let unresolvedSessionEquivalentComponentIdentity = "__unresolved__"
 
     func planUtilizationWeeklyWindow(provider: UsageProvider, snapshot: UsageSnapshot) -> RateWindow? {
+        // Provider-specific by design: Antigravity session equivalents aggregate named model-family quota windows.
         if provider == .antigravity {
             let namedWeeklyWindows = snapshot.extraRateWindows?
                 .filter {
@@ -64,6 +65,8 @@ extension UsageStore {
     func sessionEquivalentWindows(provider: UsageProvider, snapshot: UsageSnapshot)
         -> (session: RateWindow, weekly: RateWindow, weeklyWindowID: String?, historyIdentity: String?)?
     {
+        // Provider-specific by design: Antigravity family identity and Claude's fixed session/weekly pair preserve
+        // established burn-history identities across refreshes.
         if provider == .antigravity {
             return Self.antigravitySessionEquivalentWindows(snapshot: snapshot)
         }

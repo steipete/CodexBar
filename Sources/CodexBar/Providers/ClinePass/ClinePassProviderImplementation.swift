@@ -11,7 +11,7 @@ struct ClinePassProviderImplementation: ProviderImplementation {
 
     @MainActor
     func observeSettings(_ settings: SettingsStore) {
-        _ = settings.clinePassAPIKey
+        _ = settings[providerConfig: .clinepass, field: .apiKey]
     }
 
     @MainActor
@@ -19,7 +19,8 @@ struct ClinePassProviderImplementation: ProviderImplementation {
         if ClinePassSettingsReader.apiKey(environment: context.environment) != nil {
             return true
         }
-        return !context.settings.clinePassAPIKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        return !context.settings[providerConfig: .clinepass, field: .apiKey]
+            .trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     @MainActor
@@ -31,7 +32,7 @@ struct ClinePassProviderImplementation: ProviderImplementation {
                 subtitle: "Stored in ~/.codexbar/config.json. Paste a ClinePass API key.",
                 kind: .secure,
                 placeholder: "ClinePass API key...",
-                binding: context.stringBinding(\.clinePassAPIKey),
+                binding: context.providerConfigBinding(.apiKey),
                 actions: [],
                 isVisible: nil,
                 onActivate: nil),

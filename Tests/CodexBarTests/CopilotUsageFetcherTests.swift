@@ -69,8 +69,8 @@ struct CopilotUsageFetcherTests {
 
         #expect(snapshot.primary == nil)
         #expect(snapshot.secondary == nil)
-        #expect(snapshot.copilotCredits?.creditsUsed == 31)
-        #expect(snapshot.copilotCredits?.quotaResetDate != nil)
+        #expect(snapshot.detailRow(label: "Credits used")?.value == "31")
+        #expect(snapshot.detailRow(label: "Credits used")?.secondaryValue != nil)
         #expect(snapshot.identity?.loginMethod == "Business")
     }
 
@@ -109,7 +109,7 @@ struct CopilotUsageFetcherTests {
         let snapshot = try await fetcher.fetch()
 
         #expect(snapshot.primary?.usedPercent == 75)
-        #expect(snapshot.copilotCredits?.creditsUsed == 31)
+        #expect(snapshot.detailRow(label: "Credits used")?.value == "31")
     }
 
     @Test
@@ -156,7 +156,7 @@ struct CopilotUsageFetcherTests {
         let snapshot = try await fetcher.fetch()
 
         #expect(snapshot.primary?.usedPercent == 75)
-        #expect(snapshot.copilotCredits?.creditsUsed == 31)
+        #expect(snapshot.detailRow(label: "Credits used")?.value == "31")
     }
 
     @Test

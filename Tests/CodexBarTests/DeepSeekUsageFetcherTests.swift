@@ -469,7 +469,7 @@ struct DeepSeekUsageFetcherTests {
         """
         let snapshot = try DeepSeekUsageFetcher._parseSnapshotForTesting(Data(json.utf8))
         let usage = snapshot.toUsageSnapshot()
-        #expect(usage.deepseekUsage == nil)
+        #expect(usage.details.isEmpty)
     }
 
     @Test

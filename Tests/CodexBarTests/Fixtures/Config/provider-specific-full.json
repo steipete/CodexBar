@@ -1,0 +1,61 @@
+{
+  "providers" : [
+    {
+      "claudeSwapEnabled" : true,
+      "claudeSwapExecutablePath" : "\/opt\/homebrew\/bin\/claude-swap",
+      "claudeSwapShowSingleAccount" : false,
+      "enabled" : true,
+      "id" : "claude"
+    },
+    {
+      "codexActiveSource" : {
+        "homePath" : "\/Users\/fixture\/.codex-work",
+        "kind" : "liveSystem"
+      },
+      "codexProfileHomePaths" : [
+        "\/Users\/fixture\/.codex-work",
+        "\/tmp\/codex-profile"
+      ],
+      "id" : "codex"
+    },
+    {
+      "antigravityPrioritizeExhaustedQuotas" : true,
+      "id" : "antigravity"
+    },
+    {
+      "id" : "kilo",
+      "kiloEnabledOrganizationIDs" : [
+        "org_alpha"
+      ],
+      "kiloKnownOrganizations" : [
+        {
+          "id" : "org_alpha",
+          "name" : "Alpha",
+          "role" : "owner"
+        },
+        {
+          "id" : "org_beta",
+          "name" : "Beta"
+        }
+      ]
+    },
+    {
+      "awsAuthMode" : "profile",
+      "awsProfile" : "fixture-work",
+      "id" : "bedrock",
+      "region" : "us-west-2"
+    },
+    {
+      "deepseekProfileID" : "chrome:Profile 2",
+      "deepseekProfileScope" : "fixture@example.com",
+      "id" : "deepseek"
+    },
+    {
+      "apiKey" : "fixture-moonshot-key",
+      "apiKeyRegion" : "china",
+      "id" : "moonshot",
+      "region" : "china"
+    }
+  ],
+  "version" : 1
+}

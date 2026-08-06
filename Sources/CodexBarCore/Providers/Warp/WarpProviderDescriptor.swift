@@ -2,10 +2,14 @@ import Foundation
 
 public enum WarpProviderDescriptor {
     public static let descriptor: ProviderDescriptor = Self.makeDescriptor()
+    private static let credentials = ProviderCredentialAdapter.apiKey(
+        environmentKey: WarpSettingsReader.apiKeyEnvironmentKeys[0],
+        resolve: WarpSettingsReader.apiKey)
 
     static func makeDescriptor() -> ProviderDescriptor {
         ProviderDescriptor(
             id: .warp,
+            credentials: self.credentials,
             metadata: ProviderMetadata(
                 id: .warp,
                 displayName: "Warp",
@@ -21,6 +25,7 @@ public enum WarpProviderDescriptor {
                 widgetSelectable: false,
                 isPrimaryProvider: false,
                 usesAccountFallback: false,
+                usesDetailBackedWindow: true,
                 browserCookieOrder: nil,
                 dashboardURL: "https://docs.warp.dev/reference/cli/api-keys",
                 statusPageURL: nil),
@@ -36,6 +41,15 @@ public enum WarpProviderDescriptor {
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
                 noDataMessage: { "Warp cost summary is not available." }),
+            presentation: ProviderUsagePresentation(
+                iconDecorations: [.warp],
+                treatsExhaustedSecondaryIconWindowAsMissing: true,
+                menuCard: ProviderMenuCardPresentation(
+                    showsPrimaryBalanceDescription: true,
+                    hidesPrimaryResetWithoutDate: true),
+                menu: ProviderMenuDescriptorPresentation(
+                    primaryDescriptionIsDetail: { _ in true },
+                    secondaryDescriptionMode: .resetOverride)),
             fetchPlan: .apiToken(
                 strategyID: "warp.api",
                 resolveToken: { ProviderTokenResolver.warpToken(environment: $0) },

@@ -660,25 +660,27 @@ extension StatusMenuPersistentRefreshTests {
     func `refresh monitor preserves multiline workspace credit text`() throws {
         let settings = self.makeSettings()
         let controller = self.makeController(settings: settings)
-        controller.store.snapshots[.amp] = UsageSnapshot(
-            primary: nil,
-            secondary: nil,
-            ampUsage: AmpUsageDetails(
-                individualCredits: 12,
-                workspaceBalances: [AmpWorkspaceBalance(name: "Team", remaining: 7)]),
-            updatedAt: Date())
+        controller.store.snapshots[.amp] = AmpUsageSnapshot(
+            freeQuota: nil,
+            freeUsed: nil,
+            hourlyReplenishment: nil,
+            windowHours: nil,
+            individualCredits: 12,
+            workspaceBalances: [AmpWorkspaceBalance(name: "Team", remaining: 7)],
+            updatedAt: Date()).toUsageSnapshot()
         let fallback = try #require(controller.menuCardModel(for: .amp))
 
-        controller.store.snapshots[.amp] = UsageSnapshot(
-            primary: nil,
-            secondary: nil,
-            ampUsage: AmpUsageDetails(
-                individualCredits: 10,
-                workspaceBalances: [AmpWorkspaceBalance(name: "Team", remaining: 3)]),
-            updatedAt: Date())
+        controller.store.snapshots[.amp] = AmpUsageSnapshot(
+            freeQuota: nil,
+            freeUsed: nil,
+            hourlyReplenishment: nil,
+            windowHours: nil,
+            individualCredits: 10,
+            workspaceBalances: [AmpWorkspaceBalance(name: "Team", remaining: 3)],
+            updatedAt: Date()).toUsageSnapshot()
         let refreshed = controller.menuCardRefreshMonitor.model(for: .amp, fallback: fallback)
 
-        #expect(refreshed.creditsText == fallback.creditsText)
+        #expect(refreshed.providerDetails == fallback.providerDetails)
     }
 
     @Test

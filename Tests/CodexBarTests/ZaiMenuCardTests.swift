@@ -64,9 +64,12 @@ struct ZaiMenuCardTests {
             now: now))
 
         #expect(model.metrics.map(\.title) == ["5-hour", "Weekly", "MCP"])
-        let session = try #require(model.metrics.first(where: { $0.title == "5-hour" }))
-        #expect(session.detailText == "750 / 1K (250 remaining)")
-        let mcp = try #require(model.metrics.first(where: { $0.title == "MCP" }))
-        #expect(mcp.detailText == "50 / 100 (50 remaining)")
+        let rows = try #require(model.providerDetails.first?.rows)
+        let session = try #require(rows.first(where: { $0.label == "Session token quota" }))
+        #expect(session.value == "75% used")
+        #expect(session.secondaryValue == "1000 limit · 250 remaining")
+        let mcp = try #require(rows.first(where: { $0.label == "MCP quota" }))
+        #expect(mcp.value == "50% used")
+        #expect(mcp.secondaryValue == "100 limit · 50 remaining")
     }
 }

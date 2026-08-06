@@ -169,14 +169,20 @@ public struct WayfinderUsageSnapshot: Codable, Sendable, Equatable {
     }
 
     public func toUsageSnapshot() -> UsageSnapshot {
+        let detailRows: [ProviderDetailSection.Row] = [
+            .makeRow(label: "Gateway", value: self.gatewaySummary),
+            self.routedSummary.map { .makeRow(label: "Routed", value: $0) },
+            self.savedSummary.map { .makeRow(label: "Saved", value: $0) },
+            self.avgDecisionSummary.map { .makeRow(label: "Avg decision", value: $0) },
+        ].compactMap(\.self)
         // No rate window and no providerCost: the gateway has no quota semantics, and
         // sub-cent realized spend would render as a meaningless cost meter. Savings are
         // surfaced through the dedicated Wayfinder lines instead.
-        UsageSnapshot(
+        return UsageSnapshot(
             primary: nil,
             secondary: nil,
             providerCost: nil,
-            wayfinderUsage: self,
+            details: [.makeSection(title: "Usage", rows: detailRows)],
             updatedAt: self.updatedAt,
             identity: ProviderIdentitySnapshot(
                 providerID: .wayfinder,

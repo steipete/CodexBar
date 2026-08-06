@@ -15,21 +15,19 @@ extension UsageStore {
     private nonisolated static let claudeOAuthPlanUtilizationAccountKeyPrefix = "__claude_oauth__:"
 
     func supportsPlanUtilizationHistory(for provider: UsageProvider) -> Bool {
-        switch provider {
-        case .codex, .claude, .antigravity, .opencodego:
-            true
-        default:
-            if self.planUtilizationHistory[provider.instanceID]?.isEmpty == false {
-                true
-            } else if self.settings.historicalTrackingEnabled, let snapshot = self.snapshots[provider.instanceID] {
-                !self.planUtilizationSeriesSamples(
-                    provider: provider,
-                    snapshot: snapshot,
-                    capturedAt: snapshot.updatedAt).isEmpty
-            } else {
-                false
-            }
+        if ProviderDescriptorRegistry.descriptor(for: provider).history.alwaysTracksPlanUtilization {
+            return true
         }
+        if self.planUtilizationHistory[provider.instanceID]?.isEmpty == false {
+            return true
+        }
+        guard self.settings.historicalTrackingEnabled, let snapshot = self.snapshots[provider.instanceID] else {
+            return false
+        }
+        return !self.planUtilizationSeriesSamples(
+            provider: provider,
+            snapshot: snapshot,
+            capturedAt: snapshot.updatedAt).isEmpty
     }
 
     private nonisolated static let planUtilizationMinSampleIntervalSeconds: TimeInterval = 60 * 60
@@ -64,6 +62,7 @@ extension UsageStore {
             return PlanUtilizationHistorySelection(accountKey: nil, histories: providerBuckets.histories(for: nil))
         }
         var providerBuckets = self.planUtilizationHistory[provider.instanceID] ?? PlanUtilizationHistoryBuckets()
+        // Provider-specific by design: Claude OAuth provenance can outrank configured token-account selection.
         if provider == .claude,
            providerBuckets.preferredAccountKey == Self.planUtilizationUnscopedPreferredKey
            || Self.isClaudeOAuthPlanUtilizationAccountKey(providerBuckets.preferredAccountKey)
@@ -339,12 +338,8 @@ extension UsageStore {
     }
 
     private func shouldRecordPlanUtilizationHistory(for provider: UsageProvider) -> Bool {
-        switch provider {
-        case .codex, .claude, .antigravity, .opencodego:
-            true
-        default:
+        ProviderDescriptorRegistry.descriptor(for: provider).history.alwaysTracksPlanUtilization ||
             self.settings.historicalTrackingEnabled
-        }
     }
 
     private nonisolated static func updatedPlanUtilizationHistories(
@@ -475,6 +470,7 @@ extension UsageStore {
         context: LimitResetDetectionContext,
         samples: [PlanUtilizationSeriesSample])
     {
+        // Provider-specific by design: Codex reset celebration confirmation uses owner-scoped session observations.
         let sessionObservation: LimitResetObservation? = if context.provider == .codex {
             samples.last(where: { $0.name == .session }).map {
                 LimitResetObservation(
@@ -575,6 +571,7 @@ extension UsageStore {
             }
         }
 
+        // Provider-specific by design: payload shapes project different semantic lanes into history series.
         switch provider {
         case .codex:
             let projection = self.codexConsumerProjection(
@@ -812,6 +809,7 @@ extension UsageStore {
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .lowercased()
         if let normalizedEmail, !normalizedEmail.isEmpty {
+            // Provider-specific by design: Codex hashes email ownership; Claude also binds organization and plan.
             if provider == .codex {
                 return CodexHistoryOwnership.canonicalEmailHashKey(for: normalizedEmail)
             }
@@ -1095,6 +1093,7 @@ extension UsageStore {
         shouldAdoptUnscopedHistory: Bool = true,
         providerBuckets: inout PlanUtilizationHistoryBuckets) -> String?
     {
+        // Provider-specific by design: Codex reconciliation and Claude OAuth use distinct persisted owner migrations.
         if provider == .codex {
             return self.resolveCodexPlanUtilizationAccountKey(
                 snapshot: snapshot,
@@ -1252,6 +1251,7 @@ extension UsageStore {
         for rawKey in legacyRawKeysToRemove {
             providerBuckets.accounts.removeValue(forKey: rawKey)
         }
+        // Provider-specific by design: legacy Codex email/workspace buckets merge only after ambiguity checks.
         let mergedHistory = Self.mergedPlanUtilizationHistories(provider: .codex, histories: historiesToMerge)
         providerBuckets.setHistories(mergedHistory, for: canonicalKey)
         return canonicalKey

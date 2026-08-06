@@ -161,7 +161,7 @@ struct CursorMenuCardModelTests {
         let cycleMinutes = 30 * 24 * 60
         // A legacy snapshot, as produced by CursorStatusSnapshot.toUsageSnapshot(): only the request
         // window survives, Auto/API are dropped, and the request count rides along.
-        let snapshot = UsageSnapshot(
+        let snapshot = try UsageSnapshot(
             primary: RateWindow(
                 usedPercent: 69.4,
                 windowMinutes: cycleMinutes,
@@ -169,7 +169,9 @@ struct CursorMenuCardModelTests {
                 resetDescription: nil),
             secondary: nil,
             tertiary: nil,
-            cursorRequests: CursorRequestUsage(used: 347, limit: 500),
+            details: [ProviderDetailSection(rows: [
+                ProviderDetailSection.Row(label: "Request quota", value: "347 / 500"),
+            ])],
             updatedAt: now,
             identity: nil)
         let metadata = try #require(ProviderDefaults.metadata[.cursor])

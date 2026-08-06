@@ -10,8 +10,8 @@ struct OpenAIAPIProjectScopeTests {
     @MainActor
     func `token account strips configured project in app environment builder`() {
         let settings = Self.makeSettingsStore(suite: "OpenAIAPIProjectScopeTests-app")
-        settings.openAIAPIKey = "config-token"
-        settings.openAIAPIProjectID = "proj_config"
+        settings[providerConfig: .openai, field: .apiKey] = "config-token"
+        settings[providerConfig: .openai, field: .secretWorkspace(logField: "projectID")] = "proj_config"
         settings.addTokenAccount(provider: .openai, label: "Configured account", token: "first-account-token")
         settings.addTokenAccount(provider: .openai, label: "Selected account", token: "selected-account-token")
         let selectedAccount = settings.tokenAccounts(for: .openai)[1]
@@ -62,8 +62,8 @@ struct OpenAIAPIProjectScopeTests {
     @MainActor
     func `configured app project scopes admin usage strategy`() async throws {
         let settings = Self.makeSettingsStore(suite: "OpenAIAPIProjectScopeTests-configured-project")
-        settings.openAIAPIKey = "config-token"
-        settings.openAIAPIProjectID = "proj_config"
+        settings[providerConfig: .openai, field: .apiKey] = "config-token"
+        settings[providerConfig: .openai, field: .secretWorkspace(logField: "projectID")] = "proj_config"
         let env = ProviderRegistry.makeEnvironment(
             base: [:],
             provider: .openai,

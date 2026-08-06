@@ -1481,8 +1481,8 @@ extension KiroStatusProbeTests {
         #expect(usage.secondary?.usedPercent == 25.0) // 5/20 * 100
         #expect(usage.loginMethod(for: .kiro) == nil)
         #expect(usage.accountOrganization(for: .kiro) == nil)
-        #expect(usage.kiroUsage?.displayPlanName == "Kiro Pro")
-        #expect(usage.kiroUsage?.creditsRemaining == 75)
+        #expect(usage.detailRow(label: "Plan")?.value == "Kiro Pro")
+        #expect(usage.detailRow(label: "Credits left")?.value == "75")
     }
 
     @Test

@@ -11,8 +11,8 @@ struct LLMProxyProviderImplementation: ProviderImplementation {
 
     @MainActor
     func observeSettings(_ settings: SettingsStore) {
-        _ = settings.llmProxyAPIKey
-        _ = settings.llmProxyBaseURL
+        _ = settings[providerConfig: .llmproxy, field: .apiKey]
+        _ = settings[providerConfig: .llmproxy, field: .endpoint]
     }
 
     @MainActor
@@ -30,7 +30,7 @@ struct LLMProxyProviderImplementation: ProviderImplementation {
                 subtitle: "Stored in ~/.codexbar/config.json. Used for /v1/quota-stats.",
                 kind: .secure,
                 placeholder: "proxy key…",
-                binding: context.stringBinding(\.llmProxyAPIKey),
+                binding: context.providerConfigBinding(.apiKey),
                 actions: [],
                 isVisible: nil,
                 onActivate: nil),
@@ -40,7 +40,7 @@ struct LLMProxyProviderImplementation: ProviderImplementation {
                 subtitle: "Base URL for the LLM-API-Key-Proxy instance.",
                 kind: .plain,
                 placeholder: "https://proxy.example.com",
-                binding: context.stringBinding(\.llmProxyBaseURL),
+                binding: context.providerConfigBinding(.endpoint),
                 actions: [],
                 isVisible: nil,
                 onActivate: nil),

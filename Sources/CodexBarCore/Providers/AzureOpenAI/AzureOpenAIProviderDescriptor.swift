@@ -2,10 +2,20 @@ import Foundation
 
 public enum AzureOpenAIProviderDescriptor {
     public static let descriptor: ProviderDescriptor = Self.makeDescriptor()
+    private static let credentials = ProviderCredentialAdapter.apiKey(
+        environmentKey: AzureOpenAISettingsReader.apiKeyEnvironmentKey,
+        additionalProjections: [
+            .enterpriseHost(AzureOpenAISettingsReader.endpointEnvironmentKey),
+            .workspaceID(AzureOpenAISettingsReader.deploymentNameEnvironmentKey),
+        ],
+        resolve: AzureOpenAISettingsReader.apiKey,
+        missingCredentialMessage: { _ in AzureOpenAISettingsError.missingAPIKey.errorDescription })
 
     static func makeDescriptor() -> ProviderDescriptor {
         ProviderDescriptor(
             id: .azureopenai,
+            credentials: self.credentials,
+            config: ProviderConfigCapabilities(workspaceIDValidationOrder: 0, supportsEnterpriseHost: true),
             metadata: ProviderMetadata(
                 id: .azureopenai,
                 displayName: "Azure OpenAI",
@@ -37,6 +47,8 @@ public enum AzureOpenAIProviderDescriptor {
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
                 noDataMessage: { "Azure OpenAI usage history is not exposed by the deployment validation probe." }),
+            presentation: ProviderUsagePresentation(menu: ProviderMenuDescriptorPresentation(
+                primaryDescriptionIsDetail: { _ in true })),
             fetchPlan: ProviderFetchPlan(
                 sourceModes: [.auto, .api],
                 pipeline: ProviderFetchPipeline(resolveStrategies: { _ in [AzureOpenAIAPIFetchStrategy()] })),

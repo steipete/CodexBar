@@ -120,6 +120,7 @@ extension CodexBarCLI {
     }
 
     static func unsupportedAPIKeyErrorMessage(for provider: UsageProvider, rawProvider: String) -> String {
+        // Provider-specific by design: Codex users are redirected to the separate OpenAI Platform provider ID.
         if provider == .codex {
             "\(rawProvider) does not support config API keys. For OpenAI Platform API keys, use '--provider openai'."
         } else {
@@ -251,6 +252,7 @@ extension CodexBarCLI {
             return updated
         }
         providerConfig.apiKey = apiKey
+        // Provider-specific by design: legacy Moonshot config binds a newly set key to its existing/default region.
         if provider == .moonshot {
             providerConfig.apiKeyRegion = providerConfig.sanitizedRegion ?? MoonshotRegion.international.rawValue
         }
@@ -282,6 +284,7 @@ extension CodexBarCLI {
             cleanedWorkspaceID != nil
         guard hasAccountOptions else { return nil }
 
+        // Provider-specific by design: z.ai team tokens alone accept organization, workspace, and usage-scope fields.
         guard provider == .zai else {
             throw CLIArgumentError("Token-account options are only supported for --provider zai.")
         }

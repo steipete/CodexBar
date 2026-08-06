@@ -178,7 +178,7 @@ struct WayfinderProviderLinuxTests {
         let encoded = try JSONEncoder().encode(snapshot.toUsageSnapshot())
         let decoded = try JSONDecoder().decode(UsageSnapshot.self, from: encoded)
 
-        #expect(decoded.wayfinderUsage == snapshot)
+        #expect(decoded.details == snapshot.toUsageSnapshot().details)
         #expect(decoded.identity?.providerID == .wayfinder)
     }
 

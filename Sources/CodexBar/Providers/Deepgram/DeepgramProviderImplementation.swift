@@ -11,8 +11,8 @@ struct DeepgramProviderImplementation: ProviderImplementation {
 
     @MainActor
     func observeSettings(_ settings: SettingsStore) {
-        _ = settings.deepgramAPIKey
-        _ = settings.deepgramProjectID
+        _ = settings[providerConfig: .deepgram, field: .apiKey]
+        _ = settings[providerConfig: .deepgram, field: .workspace]
     }
 
     @MainActor
@@ -20,7 +20,8 @@ struct DeepgramProviderImplementation: ProviderImplementation {
         if DeepgramSettingsReader.apiKey(environment: context.environment) != nil {
             return true
         }
-        return !context.settings.deepgramAPIKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        return !context.settings[providerConfig: .deepgram, field: .apiKey]
+            .trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     @MainActor
@@ -32,7 +33,7 @@ struct DeepgramProviderImplementation: ProviderImplementation {
                 subtitle: "Stored in ~/.codexbar/config.json. Get your key from console.deepgram.com.",
                 kind: .secure,
                 placeholder: "dg_...",
-                binding: context.stringBinding(\.deepgramAPIKey),
+                binding: context.providerConfigBinding(.apiKey),
                 actions: [],
                 isVisible: nil,
                 onActivate: nil),
@@ -42,7 +43,7 @@ struct DeepgramProviderImplementation: ProviderImplementation {
                 subtitle: "Optional. Leave blank to discover and aggregate projects visible to the API key.",
                 kind: .plain,
                 placeholder: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
-                binding: context.stringBinding(\.deepgramProjectID),
+                binding: context.providerConfigBinding(.workspace),
                 actions: [],
                 isVisible: nil,
                 onActivate: nil),

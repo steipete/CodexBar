@@ -171,6 +171,8 @@ enum SessionQuotaTransitionReducer {
                 state: self.baselineState(observation: observation))
         }
 
+        // Provider-specific by design: Codex restore detection is owner- and reset-boundary-scoped to reject stale
+        // account observations after a switch.
         let ownerChanged = observation.provider == .codex && previous.codexOwnerKey != observation.codexOwnerKey
         guard previous.source == observation.source, !ownerChanged else {
             return SessionQuotaTransitionEvaluation(
@@ -407,6 +409,8 @@ extension UsageStore {
         provider: UsageProvider,
         snapshot: UsageSnapshot) -> (window: RateWindow, source: SessionQuotaWindowSource)?
     {
+        // Provider-specific by design: MiMo/Qoder balances, Crof PAYG, Antigravity families, and Copilot chat
+        // fallback encode distinct session-quota payload semantics.
         // MiMo/Qoder balances are never session quotas. Crof is handled below so quota-backed
         // Crof snapshots can still participate when a real request-quota window is present.
         guard provider != .mimo, provider != .qoder else { return nil }

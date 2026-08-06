@@ -175,7 +175,7 @@ public struct GeminiStatusProbe: Sendable {
     public var timeout: TimeInterval = 10.0
     public var homeDirectory: String
     public var dataLoader: @Sendable (URLRequest) async throws -> (Data, URLResponse)
-    private static let log = CodexBarLog.logger(LogCategories.geminiProbe)
+    private static let log = CodexBarLog.logger(LogCategories.provider(.gemini, scope: "probe"))
     private static let quotaEndpoint = "https://cloudcode-pa.googleapis.com/v1internal:retrieveUserQuota"
     private static let loadCodeAssistEndpoint = "https://cloudcode-pa.googleapis.com/v1internal:loadCodeAssist"
     private static let projectsEndpoint = "https://cloudresourcemanager.googleapis.com/v1/projects"

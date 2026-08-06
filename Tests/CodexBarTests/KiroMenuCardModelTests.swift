@@ -57,9 +57,15 @@ struct KiroMenuCardModelTests {
         #expect(model.metrics.first?.detailLeftText == "49.83 of 50 credits left")
         #expect(model.metrics.dropFirst().first?.detailLeftText == "1954.47 of 2000 bonus credits left")
         #expect(model.usageNotes.contains("Auth: Google"))
-        #expect(model.usageNotes.contains("Overages: Enabled billed at $0.04 per request"))
-        #expect(model.usageNotes.contains("Overage usage: 40.29 credits"))
-        #expect(model.usageNotes.contains("Overage cost: $1.61"))
+        #expect(model.providerDetails.flatMap(\.rows).contains {
+            $0.label == "Overages" && $0.value == "Enabled billed at $0.04 per request"
+        })
+        #expect(model.providerDetails.flatMap(\.rows).contains {
+            $0.label == "Overage usage" && $0.value == "40.29 credits"
+        })
+        #expect(model.providerDetails.flatMap(\.rows).contains {
+            $0.label == "Overage cost" && $0.value == "$1.61"
+        })
         #expect(model.usageNotes.contains { $0.localizedCaseInsensitiveContains("Context window") } == false)
     }
 
@@ -101,8 +107,8 @@ struct KiroMenuCardModelTests {
             hidePersonalInfo: false,
             now: now))
 
-        #expect(model.usageNotes.contains("Overages: Disabled"))
-        #expect(model.usageNotes.contains("Overage usage: 40.29 credits") == false)
-        #expect(model.usageNotes.contains("Overage cost: $1.61") == false)
+        #expect(model.providerDetails.flatMap(\.rows).contains { $0.label == "Overages" && $0.value == "Disabled" })
+        #expect(model.providerDetails.flatMap(\.rows).contains { $0.label == "Overage usage" } == false)
+        #expect(model.providerDetails.flatMap(\.rows).contains { $0.label == "Overage cost" } == false)
     }
 }

@@ -301,10 +301,6 @@ struct StatusMenuHostedSubmenuRefreshTests {
             chartID: StatusItemController.storageBreakdownID,
             provider: .claude,
             seed: Self.seedStorageFootprint)
-        try self.assertHostedSubmenuPreservesIdentity(
-            chartID: StatusItemController.zaiHourlyUsageChartID,
-            provider: .zai,
-            seed: Self.seedZaiHourlyUsage)
     }
 
     @Test
@@ -330,29 +326,6 @@ struct StatusMenuHostedSubmenuRefreshTests {
         { controller, submenu, width in
             controller.appendStorageBreakdownItem(to: submenu, provider: .claude, width: width)
         }
-    }
-
-    @Test
-    func `zai chart render signature follows time range boundaries`() throws {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd HH:mm"
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        let beforeMidnight = try #require(formatter.date(from: "2026-01-01 23:30"))
-        let afterMidnight = try #require(formatter.date(from: "2026-01-02 00:30"))
-        let modelUsage = ZaiModelUsageData(
-            xTime: ["2026-01-01 23:00"],
-            modelDataList: [
-                ZaiModelDataItem(modelName: "glm-4.5", tokensUsage: [100]),
-            ])
-
-        let before = StatusItemController.zaiHourlyUsageRenderSignature(
-            modelUsage: modelUsage,
-            now: beforeMidnight)
-        let after = StatusItemController.zaiHourlyUsageRenderSignature(
-            modelUsage: modelUsage,
-            now: afterMidnight)
-
-        #expect(before != after)
     }
 
     @Test
@@ -498,13 +471,6 @@ struct StatusMenuHostedSubmenuRefreshTests {
         #expect(hydratedItem.view != nil)
         #expect(hydratedItem.title != "No data available")
         let hydratedView = hydratedItem.view
-        let inflatedHeight = hydratedView.map { view -> CGFloat in
-            let inflatedHeight = view.frame.height + 100
-            if chartID == StatusItemController.zaiHourlyUsageChartID {
-                view.frame.size.height = inflatedHeight
-            }
-            return inflatedHeight
-        }
 
         controller.refreshHostedSubviewMenu(submenu)
 
@@ -514,9 +480,6 @@ struct StatusMenuHostedSubmenuRefreshTests {
         #expect(refreshedItem.view != nil)
         #expect(refreshedItem.title != "No data available")
         #expect(refreshedItem.view === hydratedView)
-        if chartID == StatusItemController.zaiHourlyUsageChartID {
-            #expect(refreshedItem.view?.frame.height != inflatedHeight)
-        }
 
         if chartID == StatusItemController.costHistoryChartID, provider == .claude {
             store._setTokenSnapshotForTesting(Self.makeTokenSnapshot(dailyCost: 2.34), provider: .claude)
@@ -628,31 +591,6 @@ struct StatusMenuHostedSubmenuRefreshTests {
             unreadablePaths: [],
             components: [.init(path: "\(root)/projects", totalBytes: 1024)],
             updatedAt: Date(timeIntervalSince1970: 1_700_000_000))
-    }
-
-    private static func seedZaiHourlyUsage(in store: UsageStore) {
-        let modelUsage = ZaiModelUsageData(
-            xTime: ["2026-05-26 00:00"],
-            modelDataList: [
-                ZaiModelDataItem(modelName: "glm-4.5", tokensUsage: [512]),
-            ])
-        let snapshot = UsageSnapshot(
-            primary: nil,
-            secondary: nil,
-            tertiary: nil,
-            zaiUsage: ZaiUsageSnapshot(
-                tokenLimit: nil,
-                timeLimit: nil,
-                planName: "Pro",
-                modelUsage: modelUsage,
-                updatedAt: Date(timeIntervalSince1970: 1_700_000_000)),
-            updatedAt: Date(timeIntervalSince1970: 1_700_000_000),
-            identity: ProviderIdentitySnapshot(
-                providerID: .zai,
-                accountEmail: "zai@example.com",
-                accountOrganization: nil,
-                loginMethod: "OAuth"))
-        store._setSnapshotForTesting(snapshot, provider: .zai)
     }
 
     private static func makeTokenSnapshot(

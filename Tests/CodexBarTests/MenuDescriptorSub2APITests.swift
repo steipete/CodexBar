@@ -20,7 +20,7 @@ struct MenuDescriptorSub2APITests {
             fetcher: UsageFetcher(environment: [:]),
             browserDetection: BrowserDetection(cacheTTL: 0),
             settings: settings)
-        let snapshot = UsageSnapshot(
+        let snapshot = try UsageSnapshot(
             primary: RateWindow(usedPercent: 10, windowMinutes: 1440, resetsAt: nil, resetDescription: "$1 / $10"),
             secondary: RateWindow(
                 usedPercent: 20,
@@ -32,12 +32,16 @@ struct MenuDescriptorSub2APITests {
                 windowMinutes: 43200,
                 resetsAt: nil,
                 resetDescription: "$3 / $10"),
-            sub2APIUsage: Sub2APIUsageDetails(
-                kind: .subscription,
-                balance: 42.5,
-                unit: "USD",
-                today: .init(requests: 4, totalTokens: 1200, actualCostUSD: 1.25),
-                total: .init(requests: 40, totalTokens: 12000, actualCostUSD: 25)),
+            details: [ProviderDetailSection(title: "Usage summary", rows: [
+                ProviderDetailSection.Row(label: "Balance", value: "$42.50"),
+                ProviderDetailSection.Row(label: "Today requests", value: "4"),
+                ProviderDetailSection.Row(label: "Today tokens", value: "1,200", secondaryValue: "$1.25"),
+                ProviderDetailSection.Row(label: "All time requests", value: "40"),
+                ProviderDetailSection.Row(
+                    label: "All time tokens",
+                    value: "12,000",
+                    secondaryValue: "$25.00"),
+            ])],
             updatedAt: Date(timeIntervalSince1970: 1),
             identity: ProviderIdentitySnapshot(
                 providerID: .sub2api,
@@ -62,8 +66,10 @@ struct MenuDescriptorSub2APITests {
         #expect(lines.contains(where: { $0.hasPrefix("Weekly quota:") }))
         #expect(lines.contains(where: { $0.hasPrefix("Monthly quota:") }))
         #expect(lines.contains("Balance: $42.50"))
-        #expect(lines.contains("Today: 4 requests · 1.2K tokens · $1.25"))
-        #expect(lines.contains("Total: 40 requests · 12K tokens · $25.00"))
+        #expect(lines.contains("Today requests: 4"))
+        #expect(lines.contains("Today tokens: 1,200 · $1.25"))
+        #expect(lines.contains("All time requests: 40"))
+        #expect(lines.contains("All time tokens: 12,000 · $25.00"))
         #expect(lines.contains("Plan: Enterprise"))
     }
 }

@@ -47,6 +47,51 @@ struct CodexPresentationCharacterizationTests {
     }
 
     @Test
+    func `monthly Codex primary submenu omits session pace text`() {
+        let settings = self.makeSettingsStore(suite: "CodexPresentationCharacterizationTests-monthly-primary")
+        settings.statusChecksEnabled = false
+
+        let fetcher = UsageFetcher()
+        let store = UsageStore(
+            fetcher: fetcher,
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings,
+            startupBehavior: .testing)
+        let now = Date()
+        store._setSnapshotForTesting(
+            UsageSnapshot(
+                primary: RateWindow(
+                    usedPercent: 90,
+                    windowMinutes: 43200,
+                    resetsAt: now.addingTimeInterval(2 * 3600),
+                    resetDescription: nil),
+                secondary: RateWindow(
+                    usedPercent: 5,
+                    windowMinutes: 10080,
+                    resetsAt: now.addingTimeInterval(7 * 86400),
+                    resetDescription: nil),
+                updatedAt: now,
+                identity: ProviderIdentitySnapshot(
+                    providerID: .codex,
+                    accountEmail: "codex@example.com",
+                    accountOrganization: nil,
+                    loginMethod: "plus")),
+            provider: .codex)
+
+        let descriptor = MenuDescriptor.build(
+            provider: .codex,
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updateReady: false,
+            includeContextualActions: false)
+
+        let lines = self.textLines(from: descriptor)
+        #expect(lines.contains(where: { $0.hasPrefix("Monthly:") }))
+        #expect(!lines.contains(where: { $0.hasPrefix("Pace:") }))
+    }
+
+    @Test
     func `Codex menu does not surface identity from another provider snapshot`() {
         let settings = self.makeSettingsStore(suite: "CodexPresentationCharacterizationTests-provider-silo")
         settings.statusChecksEnabled = false

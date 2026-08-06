@@ -132,8 +132,7 @@ struct ZaiUsageSnapshotTests {
         #expect(usage.extraRateWindows?.first?.window.usedPercent == 20)
         #expect(usage.extraRateWindows?.first?.window.windowMinutes == nil)
         #expect(usage.extraRateWindows?.first?.window.resetDescription == "MCP")
-        #expect(usage.zaiUsage?.tokenLimit?.usage == 100)
-        #expect(usage.zaiUsage?.sessionTokenLimit == nil)
+        #expect(usage.detailRow(label: "Token quota")?.secondaryValue == "100 limit · 80 remaining")
     }
 
     @Test
@@ -161,7 +160,7 @@ struct ZaiUsageSnapshotTests {
         #expect(usage.primary?.windowMinutes == 300)
         #expect(usage.primary?.resetsAt == reset)
         #expect(usage.primary?.resetDescription == "5-hour")
-        #expect(usage.zaiUsage?.tokenLimit?.usage == nil)
+        #expect(usage.detailRow(label: "Token quota")?.secondaryValue == nil)
     }
 
     @Test

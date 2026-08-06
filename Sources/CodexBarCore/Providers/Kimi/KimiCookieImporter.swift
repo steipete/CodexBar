@@ -8,7 +8,7 @@ public enum KimiCookieImporter {
         KimiDesktopAuthToken.load()
     }
 
-    private static let log = CodexBarLog.logger(LogCategories.kimiCookie)
+    private static let log = CodexBarLog.logger(LogCategories.provider(.kimi, scope: "cookie"))
     private static let cookieClient = BrowserCookieClient()
     private static let cookieDomains = ["www.kimi.com", "kimi.com"]
     private static let cookieImportOrder: BrowserCookieImportOrder =

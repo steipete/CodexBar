@@ -7,6 +7,7 @@ struct DebugPane: View {
     @Bindable var settings: SettingsStore
     @Bindable var store: UsageStore
     @AppStorage("debugFileLoggingEnabled") private var debugFileLoggingEnabled = false
+    // Provider-specific by design: debug probe, fetch, and error pickers historically start on Codex.
     @State private var currentLogProvider: UsageProvider = .codex
     @State private var currentFetchProvider: UsageProvider = .codex
     @State private var isLoadingLog = false
@@ -102,12 +103,10 @@ struct DebugPane: View {
                     caption: L("probe_logs_caption"))
                 {
                     Picker(L("Provider"), selection: self.$currentLogProvider) {
-                        Text("Codex").tag(UsageProvider.codex)
-                        Text("Claude").tag(UsageProvider.claude)
-                        Text("Cursor").tag(UsageProvider.cursor)
-                        Text("Augment").tag(UsageProvider.augment)
-                        Text("Amp").tag(UsageProvider.amp)
-                        Text("Ollama").tag(UsageProvider.ollama)
+                        ForEach(Self.probeLogProviders, id: \.self) { provider in
+                            Text(ProviderDescriptorRegistry.descriptor(for: provider).metadata.displayName)
+                                .tag(provider)
+                        }
                     }
                     .pickerStyle(.segmented)
                     .frame(width: 460)
@@ -128,6 +127,7 @@ struct DebugPane: View {
                         }
                         .disabled(self.isLoadingLog && self.logText.isEmpty)
 
+                        // Provider-specific by design: only Claude exposes the raw parser dump diagnostic.
                         if self.currentLogProvider == .claude {
                             Button { self.loadClaudeDump() } label: {
                                 Label(L("load_parse_dump"), systemImage: "doc.text.magnifyingglass")
@@ -223,6 +223,7 @@ struct DebugPane: View {
                     title: L("section_caches"),
                     caption: L("caches_caption"))
                 {
+                    // Provider-specific by design: cache activity currently tracks the Codex/Claude scanners.
                     let isTokenRefreshActive = self.store.isTokenRefreshInFlight(for: .codex)
                         || self.store.isTokenRefreshInFlight(for: .claude)
 
@@ -261,8 +262,10 @@ struct DebugPane: View {
                     caption: L("notifications_caption"))
                 {
                     Picker(L("Provider"), selection: self.$currentLogProvider) {
-                        Text("Codex").tag(UsageProvider.codex)
-                        Text("Claude").tag(UsageProvider.claude)
+                        ForEach(Self.notificationSimulationProviders, id: \.self) { provider in
+                            Text(ProviderDescriptorRegistry.descriptor(for: provider).metadata.displayName)
+                                .tag(provider)
+                        }
                     }
                     .pickerStyle(.segmented)
                     .frame(width: 240)
@@ -309,15 +312,10 @@ struct DebugPane: View {
                     caption: L("error_simulation_caption"))
                 {
                     Picker(L("Provider"), selection: self.$currentErrorProvider) {
-                        Text("Codex").tag(UsageProvider.codex)
-                        Text("Claude").tag(UsageProvider.claude)
-                        Text("Gemini").tag(UsageProvider.gemini)
-                        Text("Antigravity").tag(UsageProvider.antigravity)
-                        Text("Augment").tag(UsageProvider.augment)
-                        Text("Amp").tag(UsageProvider.amp)
-                        Text("T3 Chat").tag(UsageProvider.t3chat)
-                        Text("ZoomMate").tag(UsageProvider.zoommate)
-                        Text("Ollama").tag(UsageProvider.ollama)
+                        ForEach(Self.errorSimulationProviders, id: \.self) { provider in
+                            Text(ProviderDescriptorRegistry.descriptor(for: provider).metadata.displayName)
+                                .tag(provider)
+                        }
                     }
                     .pickerStyle(.segmented)
                     .frame(width: 360)
@@ -343,6 +341,7 @@ struct DebugPane: View {
                         .controlSize(.small)
                     }
 
+                    // Provider-specific by design: only Codex/Claude expose scanner-owned token errors here.
                     let supportsTokenError = self.currentErrorProvider == .codex || self.currentErrorProvider == .claude
                     HStack(spacing: 12) {
                         Button {
@@ -370,6 +369,7 @@ struct DebugPane: View {
                     title: L("section_cli_paths"),
                     caption: L("cli_paths_caption"))
                 {
+                    // Provider-specific by design: PathDebugInfo only records the Codex and Claude binaries.
                     self.binaryRow(title: L("codex_binary"), value: self.store.pathDebugInfo.codexBinary)
                     self.binaryRow(title: L("claude_binary"), value: self.store.pathDebugInfo.claudeBinary)
 
@@ -417,6 +417,21 @@ struct DebugPane: View {
 
     private var fileLogPath: String {
         CodexBarLog.fileLogURL.path
+    }
+
+    private static let probeLogProviders = Self.providers { $0.probeLogOrder }
+    private static let notificationSimulationProviders = Self.providers { $0.notificationSimulationOrder }
+    #if DEBUG
+    private static let errorSimulationProviders = Self.providers { $0.errorSimulationOrder }
+    #endif
+
+    private static func providers(order: (ProviderDebugPaneCapabilities) -> Int?) -> [UsageProvider] {
+        ProviderDescriptorRegistry.all.compactMap { descriptor -> (UsageProvider, Int)? in
+            guard let rank = order(descriptor.metadata.debugPane) else { return nil }
+            return (descriptor.id, rank)
+        }
+        .sorted { $0.1 < $1.1 }
+        .map(\.0)
     }
 
     private var animationPatternBinding: Binding<LoadingPattern?> {

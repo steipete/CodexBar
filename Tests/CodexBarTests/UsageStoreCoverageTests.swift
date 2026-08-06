@@ -204,29 +204,28 @@ struct UsageStoreCoverageTests {
         let store = Self.makeUsageStore(settings: settings)
         let now = Date()
 
-        store._setSnapshotForTesting(
-            UsageSnapshot(
-                primary: RateWindow(
-                    usedPercent: 51.4,
-                    windowMinutes: 1440,
-                    resetsAt: now.addingTimeInterval(12 * 3600),
-                    resetDescription: nil),
-                secondary: nil,
-                ampUsage: AmpUsageDetails(
-                    individualCredits: 25.64,
-                    workspaceBalances: [AmpWorkspaceBalance(name: "billing@example.test", remaining: 10.22)]),
-                updatedAt: now),
-            provider: .amp)
+        let snapshot = AmpUsageSnapshot(
+            freeQuota: 100,
+            freeUsed: 51.4,
+            hourlyReplenishment: nil,
+            windowHours: 24,
+            individualCredits: 25.64,
+            workspaceBalances: [AmpWorkspaceBalance(name: "billing@example.test", remaining: 10.22)],
+            updatedAt: now).toUsageSnapshot(now: now)
+        store._setSnapshotForTesting(snapshot, provider: .amp)
         let model = ProvidersPane(settings: settings, store: store)._test_menuCardModel(for: .amp)
 
         #expect(model.metrics.map(\.title) == ["Amp Free"])
         #expect(model.metrics.allSatisfy { $0.pacePercent == nil })
-        #expect(model.creditsText == "Individual credits: $25.64\nWorkspace billing@example.test: $10.22")
+        #expect(model.creditsText == nil)
+        #expect(model.providerDetails.first?.rows.map(\.label) == [
+            "Individual credits", "Workspace billing@example.test",
+        ])
         #expect(model.creditsRemaining == nil)
 
         settings.hidePersonalInfo = true
         let redactedModel = ProvidersPane(settings: settings, store: store)._test_menuCardModel(for: .amp)
-        #expect(redactedModel.creditsText == "Individual credits: $25.64\nWorkspace: $10.22")
+        #expect(redactedModel.providerDetails.first?.rows.last?.label == "Workspace")
     }
 
     @Test
@@ -247,11 +246,12 @@ struct UsageStoreCoverageTests {
                     windowMinutes: ProviderPaceCapability.monthlyWindowSentinelMinutes,
                     resetsAt: now.addingTimeInterval(29 * 24 * 60 * 60),
                     resetDescription: "renews in 29 days"),
-                ampUsage: AmpUsageDetails(
-                    individualCredits: nil,
-                    workspaceBalances: [],
-                    subscriptionPlan: "Megawatt"),
-                updatedAt: now),
+                updatedAt: now,
+                identity: ProviderIdentitySnapshot(
+                    providerID: .amp,
+                    accountEmail: nil,
+                    accountOrganization: nil,
+                    loginMethod: "Megawatt")),
             provider: .amp)
 
         let model = ProvidersPane(settings: settings, store: store)._test_menuCardModel(for: .amp)
@@ -544,10 +544,10 @@ extension UsageStoreCoverageTests {
         }
 
         let store = Self.makeUsageStore(settings: settings)
-        #expect(store.unavailableMessage(for: .sub2api) == Sub2APIUsageError.missingCredentials.errorDescription)
+        #expect(store.unavailableMessage(for: .sub2api) == Sub2APISettingsReader.missingCredentialsMessage)
 
-        settings.sub2APIAPIKey = "group-key"
-        #expect(store.unavailableMessage(for: .sub2api) == Sub2APIUsageError.missingBaseURL.errorDescription)
+        settings[providerConfig: .sub2api, field: .apiKey] = "group-key"
+        #expect(store.unavailableMessage(for: .sub2api) == Sub2APISettingsReader.missingBaseURLMessage)
     }
 
     @Test

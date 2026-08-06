@@ -33,23 +33,9 @@ enum MenuBarLayoutSemanticWindowResolver {
         -> (session: RateWindow?, weekly: RateWindow?)
     {
         guard let snapshot else { return (nil, nil) }
-        let candidates = [
-            snapshot.primary,
-            snapshot.secondary,
-            snapshot.tertiary,
-        ] + (snapshot.extraRateWindows ?? []).map(\.window)
-        let usable = candidates.compactMap { window -> RateWindow? in
-            guard let window, !window.isSyntheticPlaceholder else { return nil }
-            return window
-        }
-        let session = usable.first { window in
-            guard let minutes = window.windowMinutes else { return false }
-            return (60...(12 * 60)).contains(minutes)
-        }
-        let cadenceWeekly = usable.first { $0.windowMinutes == 7 * 24 * 60 }
-        let kimiWeekly = snapshot.primary.flatMap { $0.isSyntheticPlaceholder ? nil : $0 }
-        let weekly = provider == .kimi ? kimiWeekly ?? cadenceWeekly : cadenceWeekly
-        return (session, weekly)
+        let windows = ProviderDescriptorRegistry.descriptor(for: provider).presentation
+            .semanticWindows(snapshot: snapshot)
+        return (windows.session, windows.weekly)
     }
 
     /// The active model-scoped weekly carve-out (e.g. Claude's `claude-weekly-scoped-fable`
@@ -263,11 +249,20 @@ extension MenuBarLayout {
     {
         switch preference {
         case .primary:
-            provider == .kimi ? .weekly : .session
+            self.percentWindow(
+                ProviderDescriptorRegistry.descriptor(for: provider ?? .codex).presentation.primarySemanticWindow)
         case .secondary:
-            provider == .kimi ? .session : .weekly
+            self.percentWindow(
+                ProviderDescriptorRegistry.descriptor(for: provider ?? .codex).presentation.secondarySemanticWindow)
         case .automatic, .primaryAndSecondary, .tertiary, .extraUsage, .average, .monthlyPlan:
             .automatic
+        }
+    }
+
+    private static func percentWindow(_ window: ProviderSemanticWindow) -> PercentWindow {
+        switch window {
+        case .session: .session
+        case .weekly: .weekly
         }
     }
 }

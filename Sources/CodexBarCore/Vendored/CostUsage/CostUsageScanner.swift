@@ -731,6 +731,7 @@ enum CostUsageScanner {
         private let homeCodexWorktreesPrefix: String
 
         init(homeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser) {
+            // Provider-specific by design: Codex worktree sessions canonicalize to their source project path.
             self.homeCodexWorktreesPrefix = homeDirectory
                 .appendingPathComponent(".codex/worktrees", isDirectory: true)
                 .standardizedFileURL
@@ -1706,6 +1707,7 @@ enum CostUsageScanner {
         let emptyReport = CostUsageDailyReport(data: [], summary: nil)
         try checkCancellation?()
 
+        // Provider-specific by design: Codex JSONL and Claude/Vertex transcripts have distinct parsers and caches.
         switch provider {
         case .codex:
             return try self.loadCodexDaily(
@@ -1805,6 +1807,7 @@ enum CostUsageScanner {
     // MARK: - Codex
 
     private static func defaultCodexSessionsRoot(options: Options) -> URL {
+        // Provider-specific by design: Codex session discovery honors CODEX_HOME before ~/.codex.
         if let override = options.codexSessionsRoot {
             return override
         }
@@ -4478,8 +4481,8 @@ enum CostUsageScanner {
         guard cache.codexScanCatchUpPending == true,
               let previous = cache.codexPreviousReport,
               previous.matches(
-                  scanSinceKey: range.scanSinceKey,
-                  scanUntilKey: range.scanUntilKey,
+                  scanSinceKey: range.sinceKey,
+                  scanUntilKey: range.untilKey,
                   timeZoneIdentifier: range.calendar.timeZone.identifier,
                   roots: rootsFingerprint)
         else { return nil }
@@ -4487,11 +4490,14 @@ enum CostUsageScanner {
     }
 
     private static func saveCodexCache(_ cache: CostUsageCache, options: Options, range: CostUsageDayRange) {
+        // Provider-specific by design: Codex scans persist resume and report-window metadata.
         CostUsageCacheIO.save(
             provider: .codex,
             cache: cache,
             cacheRoot: options.cacheRoot,
-            calendar: range.calendar)
+            calendar: range.calendar,
+            requestedScanWindow: (sinceKey: range.scanSinceKey, untilKey: range.scanUntilKey),
+            reportWindow: (sinceKey: range.sinceKey, untilKey: range.untilKey))
     }
 
     // swiftlint:disable:next function_body_length

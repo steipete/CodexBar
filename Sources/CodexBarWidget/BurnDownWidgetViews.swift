@@ -511,12 +511,8 @@ struct BurnTheme {
     }
 
     private static func brandDotColor(_ provider: UsageProvider) -> Color {
-        switch provider {
-        case .claude: BurnPalette.claudeDot
-        case .codex: BurnPalette.codexDot
-        case .gemini: BurnPalette.geminiDot
-        default: BurnPalette.genericDot
-        }
+        let color = ProviderDescriptorRegistry.descriptor(for: provider).branding.burnDownWidgetColor
+        return Color(red: color.red, green: color.green, blue: color.blue)
     }
 }
 
@@ -533,12 +529,6 @@ enum BurnPalette {
     // oklch(0.72 0.19 26) / oklch(0.60 0.19 26) — red-orange
     static let behindDark = Color(red: 0.922, green: 0.420, blue: 0.227)
     static let behindLight = Color(red: 0.762, green: 0.294, blue: 0.137)
-
-    // Brand identity dots — always the LLM's hue
-    static let claudeDot = Color(red: 0.880, green: 0.580, blue: 0.180) // clay/amber, hue 48
-    static let codexDot = Color(red: 0.120, green: 0.780, blue: 0.598) // teal, hue 168
-    static let geminiDot = Color(red: 0.420, green: 0.440, blue: 0.900) // indigo, hue 268
-    static let genericDot = Color(white: 0.60)
 
     // Backgrounds
     static let darkBgTop = Color(red: 0.108, green: 0.108, blue: 0.132)
@@ -615,9 +605,13 @@ struct BurnGeom {
 
 func burnWindowLabel(_ windowMinutes: Int?) -> String {
     guard let mins = windowMinutes else { return "Usage limit" }
-    if mins < 60 { return "\(mins)-minute limit" }
+    if mins < 60 {
+        return "\(mins)-minute limit"
+    }
     let hours = mins / 60
-    if hours < 24 { return "\(hours)-hour limit" }
+    if hours < 24 {
+        return "\(hours)-hour limit"
+    }
     return "\(hours / 24)-day limit"
 }
 
@@ -644,9 +638,13 @@ func burnAxisDateRange(
 
 func burnCompactWindowLabel(_ windowMinutes: Int?, fallback: String) -> String {
     guard let minutes = windowMinutes else { return fallback }
-    if minutes < 60 { return "\(minutes)M" }
+    if minutes < 60 {
+        return "\(minutes)M"
+    }
     let hours = minutes / 60
-    if hours < 24 { return "\(hours)H" }
+    if hours < 24 {
+        return "\(hours)H"
+    }
     return "\(hours / 24)D"
 }
 
@@ -659,7 +657,9 @@ func burnFmtDuration(_ minutes: Double) -> String {
     }
     let h = Int(minutes / 60)
     let m = Int(minutes) % 60
-    if h <= 0 { return "\(max(1, m))m" }
+    if h <= 0 {
+        return "\(max(1, m))m"
+    }
     return "\(h)h \(String(format: "%02d", m))m"
 }
 

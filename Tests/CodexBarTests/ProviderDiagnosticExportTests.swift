@@ -49,23 +49,23 @@ struct ProviderDiagnosticExportTests {
     }
 
     @Test
-    func `diagnostic export carries copilot credits counter`() throws {
+    func `diagnostic export carries copilot credits detail`() throws {
         let now = Date(timeIntervalSince1970: 1_700_000_000)
         let snapshot = UsageSnapshot(
             primary: nil,
             secondary: nil,
-            copilotCredits: CopilotCreditsSnapshot(
-                creditsUsed: 31,
-                quotaResetDate: now.addingTimeInterval(86400)),
+            details: [.makeSection(title: "Credits", rows: [
+                .makeRow(label: "Credits used", value: "31", secondaryValue: "Resets in 1d"),
+            ])],
             updatedAt: now)
         let summary = ProviderDiagnosticUsageSummary(from: snapshot)
 
-        #expect(summary.copilotCredits?.creditsUsed == 31)
-        #expect(summary.copilotCredits?.quotaResetDate != nil)
-        #expect(summary.providerSpecificData.contains("copilotCredits"))
+        #expect(summary.detailSections == snapshot.details)
+        #expect(!summary.providerSpecificData.contains("copilotCredits"))
 
         let json = try self.json(summary)
-        #expect(json.contains("\"copilotCredits\""))
+        #expect(json.contains("\"detailSections\""))
+        #expect(json.contains("\"Credits used\""))
         #expect(json.contains("31"))
     }
 
@@ -322,6 +322,25 @@ struct ProviderDiagnosticExportTests {
         #expect(diagParse.category == "parse")
     }
 
+    @Test(arguments: [
+        (ProviderFetchClassifiedError.Kind.authenticationExpired, "auth"),
+        (.missingCredential, "auth"),
+        (.permissionDenied, "auth"),
+        (.rateLimited, "api"),
+        (.providerUnavailable, "api"),
+        (.apiFailure, "api"),
+        (.parseFailure, "parse"),
+        (.networkFailure, "network"),
+    ])
+    func `diagnostic error maps classified plugin failures`(kind: ProviderFetchClassifiedError.Kind, category: String) {
+        let error = ProviderFetchClassifiedError(kind: kind, message: "fixture detail")
+
+        let diagnostic = ProviderDiagnosticError(from: error, authConfigured: true)
+
+        #expect(diagnostic.category == category)
+        #expect(!diagnostic.safeDescription.contains("fixture detail"))
+    }
+
     @Test
     func `diagnostic error maps Alibaba invalid endpoint override to configuration`() {
         let error = ProviderEndpointOverrideError.alibabaCodingPlan("ALIBABA_CODING_PLAN_QUOTA_URL")
@@ -558,16 +577,7 @@ struct ProviderDiagnosticExportTests {
             updatedAt: now)
 
         let result = ProviderFetchResult(
-            usage: UsageSnapshot(
-                primary: RateWindow(
-                    usedPercent: 25,
-                    windowMinutes: 300,
-                    resetsAt: now.addingTimeInterval(18000),
-                    resetDescription: nil),
-                secondary: nil,
-                tertiary: nil,
-                minimaxUsage: snapshot,
-                updatedAt: now),
+            usage: snapshot.toUsageSnapshot(),
             credits: nil,
             dashboard: nil,
             sourceLabel: "api",
@@ -598,11 +608,8 @@ struct ProviderDiagnosticExportTests {
         #expect(diag.usage != nil)
         #expect(diag.error == nil)
 
-        guard case let .minimax(details) = diag.details else {
-            Issue.record("Expected MiniMax diagnostic details")
-            return
-        }
-        #expect(details.planName == "Max")
+        #expect(diag.details == nil)
+        #expect(diag.usage?.detailSections == snapshot.toUsageSnapshot().details)
     }
 
     private func json(_ value: some Encodable) throws -> String {

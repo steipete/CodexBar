@@ -1,12 +1,14 @@
 import CodexBarCore
 
 extension CodexConsumerProjection.RateLane {
-    var quotaWarningWindow: QuotaWarningWindow {
+    var quotaWarningWindow: QuotaWarningWindow? {
         switch self {
         case .session:
             .session
         case .weekly:
             .weekly
+        case .monthly:
+            nil
         }
     }
 }

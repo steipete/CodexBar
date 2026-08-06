@@ -2,10 +2,24 @@ import Foundation
 
 public enum OpenAIAPIProviderDescriptor {
     public static let descriptor: ProviderDescriptor = Self.makeDescriptor()
+    private static let credentials = ProviderCredentialAdapter.apiKey(
+        environmentKey: OpenAIAPISettingsReader.adminAPIKeyEnvironmentKey,
+        additionalProjections: [.workspaceID(OpenAIAPISettingsReader.projectIDEnvironmentKey)],
+        resolve: OpenAIAPISettingsReader.apiKey,
+        tokenAccountSupport: TokenAccountSupport(
+            title: "API keys",
+            subtitle: "Store multiple OpenAI API keys.",
+            placeholder: "sk-admin-...",
+            injection: .environment(key: OpenAIAPISettingsReader.adminAPIKeyEnvironmentKey),
+            requiresManualCookieSource: false,
+            cookieName: nil,
+            environmentKeysToScrub: [OpenAIAPISettingsReader.projectIDEnvironmentKey]))
 
     static func makeDescriptor() -> ProviderDescriptor {
         ProviderDescriptor(
             id: .openai,
+            credentials: self.credentials,
+            config: ProviderConfigCapabilities(workspaceIDValidationOrder: 1),
             metadata: ProviderMetadata(
                 id: .openai,
                 displayName: "OpenAI",
@@ -31,10 +45,32 @@ public enum OpenAIAPIProviderDescriptor {
                     ProviderColor(hex: 0x000000),
                     ProviderColor(hex: 0x808080),
                     ProviderColor(hex: 0xFFFFFF),
-                ]),
+                ],
+                widgetColor: ProviderColor(red: 15 / 255, green: 130 / 255, blue: 110 / 255)),
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: true,
-                noDataMessage: { "OpenAI usage needs an Admin API key for organization usage." }),
+                noDataMessage: { "OpenAI usage needs an Admin API key for organization usage." },
+                menuHintLines: [.literal("Reported by OpenAI Admin API organization usage.")],
+                showsCostMenuSection: false),
+            presentation: ProviderUsagePresentation(
+                costPresenter: { snapshot in
+                    let style: ProviderCostMenuCardStyle = (snapshot.providerCost?.limit ?? 1) <= 0
+                        ? .apiSpend
+                        : .generic
+                    return ProviderCostPresentation(menuCardStyle: style)
+                },
+                menuCard: ProviderMenuCardPresentation(
+                    usageNotesResolver: { context in
+                        context.snapshot?.openAIAPIUsage.map(ProviderUsageNotesResolution.openAIAPI) ?? .unhandled
+                    },
+                    costVisibilityResolver: { $0.snapshot?.openAIAPIUsage == nil },
+                    usesProviderCostHistoryAsPrimaryDashboard: true,
+                    primaryCostHistoryResolver: { snapshot, tokenSnapshot in
+                        if let projected = snapshot?.openAIAPIUsage?.toCostUsageTokenSnapshot() {
+                            return projected
+                        }
+                        return snapshot == nil ? tokenSnapshot : nil
+                    })),
             fetchPlan: self.fetchPlan(),
             cli: ProviderCLIConfig(
                 name: "openai",

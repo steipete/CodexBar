@@ -4,7 +4,7 @@ import Foundation
 import SweetCookieKit
 
 public enum QoderCookieImporter {
-    private static let log = CodexBarLog.logger(LogCategories.qoderCookie)
+    private static let log = CodexBarLog.logger(LogCategories.provider(.qoder, scope: "cookie"))
     private static let cookieClient = BrowserCookieClient()
     private static let cookieImportOrder: BrowserCookieImportOrder =
         ProviderDefaults.metadata[.qoder]?.browserCookieOrder ?? Browser.defaultImportOrder

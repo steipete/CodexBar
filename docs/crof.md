@@ -37,6 +37,7 @@ and displays the returned dollar credit balance plus request quota fields when a
 
 ## Related files
 
-- `Sources/CodexBarCore/Providers/Crof/`
+- `Sources/CodexBarCore/Resources/Plugins/crof.js` (macOS implementation)
+- `Sources/CodexBarCore/Providers/Crof/` (descriptor/settings plus Linux compatibility fetcher)
 - `Sources/CodexBar/Providers/Crof/`
-- `Tests/CodexBarTests/CrofUsageFetcherTests.swift`
+- `Tests/CodexBarTests/CrofUsageFetcherTests.swift` (JavaScript goldens)

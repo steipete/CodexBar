@@ -693,12 +693,14 @@ struct UsageStoreWidgetSnapshotTests {
             fetcher: UsageFetcher(environment: [:]),
             browserDetection: BrowserDetection(cacheTTL: 0),
             settings: settings)
-        store._setSnapshotForTesting(
+        try store._setSnapshotForTesting(
             UsageSnapshot(
                 primary: RateWindow(usedPercent: 40, windowMinutes: 43200, resetsAt: nil, resetDescription: nil),
                 secondary: nil,
                 tertiary: nil,
-                cursorRequests: CursorRequestUsage(used: 200, limit: 500),
+                details: [ProviderDetailSection(rows: [
+                    ProviderDetailSection.Row(label: "Request quota", value: "200 / 500"),
+                ])],
                 updatedAt: Date()),
             provider: .cursor)
 

@@ -213,28 +213,130 @@ public struct WidgetSnapshot: Codable, Sendable {
 }
 
 public enum WidgetSnapshotStore {
-    private static let filename = AppGroupSupport.widgetSnapshotFilename
+    @usableFromInline
+    static let defaultLoadTimeout: TimeInterval = 2.0
 
-    public static func load(bundleID: String? = Bundle.main.bundleIdentifier) -> WidgetSnapshot? {
-        self.load(from: self.snapshotURL(bundleID: bundleID))
+    @usableFromInline
+    static let defaultSaveTimeout: TimeInterval = 10.0
+
+    private static let filename = AppGroupSupport.widgetSnapshotFilename
+    private static let boundedIOExecutionLock = NSLock()
+    private static let boundedIOStateLock = NSLock()
+    private nonisolated(unsafe) static var boundedIOCircuitBreakerTripped = false
+    private static let log = CodexBarLog.logger("widget-snapshot")
+
+    /// Access is synchronized by `lock`, so detached worker threads can safely publish a result.
+    private final class BoundedResultBox<Value: Sendable>: @unchecked Sendable {
+        private let lock = NSLock()
+        private var value: Value?
+
+        func set(_ value: Value?) {
+            self.lock.lock()
+            self.value = value
+            self.lock.unlock()
+        }
+
+        func get() -> Value? {
+            self.lock.lock()
+            defer { self.lock.unlock() }
+            return self.value
+        }
     }
 
-    public static func load(from url: URL) -> WidgetSnapshot? {
-        guard let data = try? Data(contentsOf: url) else { return nil }
+    public static func load(bundleID: String? = Bundle.main.bundleIdentifier) -> WidgetSnapshot? {
+        guard !self.isBoundedIOCircuitBreakerTripped() else { return nil }
+        return self.load(from: self.snapshotURL(bundleID: bundleID))
+    }
+
+    public static func load(
+        from url: URL,
+        timeout: TimeInterval = WidgetSnapshotStore.defaultLoadTimeout) -> WidgetSnapshot?
+    {
+        guard let data: Data = self.performBounded(label: "load", timeout: timeout, operation: {
+            try? Data(contentsOf: url)
+        }) else { return nil }
         return try? self.decoder.decode(WidgetSnapshot.self, from: data)
     }
 
     public static func save(_ snapshot: WidgetSnapshot, bundleID: String? = Bundle.main.bundleIdentifier) {
+        guard !self.isBoundedIOCircuitBreakerTripped() else { return }
         self.save(snapshot, to: self.snapshotURL(bundleID: bundleID))
     }
 
-    public static func save(_ snapshot: WidgetSnapshot, to url: URL) {
-        do {
-            let data = try self.encoder.encode(snapshot)
-            try data.write(to: url, options: [.atomic])
-        } catch {
-            return
+    public static func save(
+        _ snapshot: WidgetSnapshot,
+        to url: URL,
+        timeout: TimeInterval = WidgetSnapshotStore.defaultSaveTimeout)
+    {
+        guard !self.isBoundedIOCircuitBreakerTripped(),
+              let data = try? self.encoder.encode(snapshot)
+        else { return }
+
+        _ = self.performBounded(label: "save", timeout: timeout) {
+            do {
+                try data.write(to: url, options: [.atomic])
+                return true
+            } catch {
+                return nil
+            }
         }
+    }
+
+    static func _test_performBounded<T: Sendable>(
+        timeout: TimeInterval,
+        operation: @escaping @Sendable () -> T?) -> T?
+    {
+        self.performBounded(label: "test", timeout: timeout, operation: operation)
+    }
+
+    static func _test_resetBoundedIOState() {
+        self.boundedIOStateLock.lock()
+        self.boundedIOCircuitBreakerTripped = false
+        self.boundedIOStateLock.unlock()
+    }
+
+    private static func performBounded<T: Sendable>(
+        label: String,
+        timeout: TimeInterval,
+        operation: @escaping @Sendable () -> T?) -> T?
+    {
+        guard !self.isBoundedIOCircuitBreakerTripped() else { return nil }
+        self.boundedIOExecutionLock.lock()
+        defer { self.boundedIOExecutionLock.unlock() }
+        guard !self.isBoundedIOCircuitBreakerTripped() else { return nil }
+
+        let result = BoundedResultBox<T>()
+        let completion = DispatchSemaphore(value: 0)
+        let thread = Thread {
+            result.set(operation())
+            completion.signal()
+        }
+        thread.name = "CodexBar.widget-snapshot.\(label)"
+        thread.start()
+
+        guard completion.wait(timeout: .now() + timeout) == .success else {
+            self.tripBoundedIOCircuitBreaker(label: label, timeout: timeout)
+            return nil
+        }
+        return result.get()
+    }
+
+    private static func isBoundedIOCircuitBreakerTripped() -> Bool {
+        self.boundedIOStateLock.lock()
+        defer { self.boundedIOStateLock.unlock() }
+        return self.boundedIOCircuitBreakerTripped
+    }
+
+    private static func tripBoundedIOCircuitBreaker(label: String, timeout: TimeInterval) {
+        self.boundedIOStateLock.lock()
+        let didTrip = !self.boundedIOCircuitBreakerTripped
+        self.boundedIOCircuitBreakerTripped = true
+        self.boundedIOStateLock.unlock()
+
+        guard didTrip else { return }
+        self.log.warning(
+            "Widget snapshot I/O timed out; disabling container access for this process",
+            metadata: ["operation": label, "timeoutSeconds": String(timeout)])
     }
 
     private static func snapshotURL(bundleID: String?) -> URL {

@@ -43,6 +43,18 @@ Provider behavior is descriptor-driven. Two flat first-party manifests form the 
 `ProviderManifest` lists core descriptors and `ProviderImplementationManifest` lists app implementations. The registries
 retain thread-safe `register(_:)` methods for future dynamic providers.
 
+Runtime settings follow the same boundary. A provider owns its `ProviderSettingsSectionKey` and section payload in its
+core folder, registers that key on its descriptor, and contributes the payload from its app implementation. The generic
+`ProviderSettingsSnapshot` container performs the sole type-erased cast behind its constrained subscript; provider-local
+accessors keep fetch strategies fully typed. Providers that share a payload type still declare a distinct key for each
+`ProviderInstanceID`, while providers with no runtime settings receive an empty section from the descriptor default.
+
+Credential and config behavior follows the descriptor boundary too. Providers with credentials register a Sendable
+`ProviderCredentialAdapter` that owns config-to-environment projection, token resolution, token-account support,
+diagnose classification, validation, and missing-credential messaging; a missing adapter means the provider has no
+credential behavior. Typed settings-section registrations optionally expose cookie settings and a CLI credential
+contribution, so the app, CLI, and plugin cookie broker consume the same provider-owned settings shape.
+
 ## Provider descriptor (source of truth)
 
 Introduce a single descriptor per provider:
@@ -179,24 +191,39 @@ An integration can be restored when missing operator or authorization evidence b
 
 ## Adding a new provider
 
-The mandatory registration checklist is intentionally short:
+Adding a first-party provider currently requires all of these registration points:
 
-1. Create `Sources/CodexBarCore/Providers/<Name>/` with the descriptor and fetch strategies.
-2. Create `Sources/CodexBar/Providers/<Name>/` with the app implementation and optional settings extension.
-3. Add one stable case to `UsageProvider` in `Sources/CodexBarCore/Providers/Providers.swift`.
-4. Add one `ProviderIcon-<id>.svg` resource under `Sources/CodexBar/Resources` and reference it from branding.
-5. Add one descriptor line to `ProviderManifest.allDescriptors`.
-6. Add one implementation factory line to `ProviderImplementationManifest.makeImplementations`.
-7. Add one case to the WidgetKit `ProviderChoice` `AppEnum`. New descriptors are widget-selectable by default; set
-   `widgetSelectable: false` in the provider's descriptor only when the provider genuinely cannot appear in widgets.
+1. Create `Sources/CodexBarCore/Providers/<Name>/` with the descriptor, fetch strategies, and core settings or
+   credential types.
+2. Create `Sources/CodexBar/Providers/<Name>/` with the app implementation and any app settings contribution or UI.
+3. Add one stable case, in the intended bootstrap order, to `UsageProvider` in
+   `Sources/CodexBarCore/Providers/Providers.swift`.
+4. Run `Scripts/regenerate-provider-manifests.sh`. Do not edit `ProviderManifest.swift`,
+   `ProviderImplementationManifest.swift`, or `ProviderInstanceIDAliases.generated.swift` directly. The generator also
+   refreshes `docs/provider-ids.md`, which is linked from `docs/configuration.md`.
+5. Add `Sources/CodexBar/Resources/ProviderIcon-<id>.svg` and reference it from the descriptor's branding.
+6. Unless the descriptor sets `widgetSelectable: false`, add the matching case and literal
+   `caseDisplayRepresentations` entry to the WidgetKit `ProviderChoice` `AppEnum`. AppIntents extracts this table
+   statically, so widget display representations cannot be derived at runtime. `WidgetProviderChoiceTests` keeps the
+   literal table synchronized with selectable descriptor metadata and display names.
+7. Add focused tests for the provider's parser/snapshot mapping, strategy availability and fallback, credential or
+   settings projection, and CLI aliases/source validation as applicable.
+8. Add or update the user-facing provider entry in `docs/providers.md`, including authentication and data-source
+   guidance. Add a dedicated provider document when the integration needs more detail.
 
-Everything else is derived from the descriptor: icon-style identity, log-category construction, display and compact
-labels, default enablement, fetch/CLI metadata, icon validation, and widget display representations. The provider
-architecture gatekeeper test reports missing descriptor, implementation, icon, or widget registrations by provider ID.
+If the provider has runtime settings, add its section key and payload beside the descriptor, pass the key as the
+descriptor's `settingsSection`, and return a typed contribution from the app implementation. No central settings file
+or builder switch changes are needed.
 
-Provider-specific behavior still deserves focused tests—for example snapshot mapping, strategy availability/fallback,
-CLI aliases/source validation, and parser fixtures. Add a section to `docs/providers.md` when users need data-source or
-authentication guidance.
+If the provider has credential behavior, define its credential adapter beside the descriptor. Register token-account
+metadata and config validation there, and register any cookie/settings projection through the descriptor's typed
+settings section; do not add provider cases to the generic config, diagnose, CLI, or plugin broker consumers.
+
+Descriptor-owned metadata derives icon-style identity, log-category construction, display and compact labels, default
+enablement, fetch/CLI metadata, config capabilities, menu-bar metric capabilities, and icon validation. Generated
+manifests derive their order from `UsageProvider`; the provider architecture gatekeeper reports missing descriptor,
+implementation, icon, settings-section, or widget registrations by provider ID. The WidgetKit case and display table
+remain deliberate literal exceptions because AppIntents requires statically extractable declarations.
 
 ## UI notes (Providers settings)
 Current: checkboxes per provider.

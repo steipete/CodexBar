@@ -2,10 +2,60 @@ import Foundation
 
 public enum MiniMaxProviderDescriptor {
     public static let descriptor: ProviderDescriptor = Self.makeDescriptor()
+    private static let credentials = ProviderCredentialAdapter(
+        supportsAPIKeyOverride: true,
+        usesRegion: true,
+        environmentProjections: [.apiKey(MiniMaxAPISettingsReader.apiTokenKey)],
+        tokenResolver: { kind, environment, _ in
+            let token: String? = switch kind {
+            case .primary: MiniMaxAPISettingsReader.apiToken(environment: environment)
+            case .secondary: MiniMaxSettingsReader.cookieHeader(environment: environment)
+            case .projectID: nil
+            }
+            guard let token else { return nil }
+            return ProviderTokenResolution(token: token, source: .environment)
+        },
+        tokenAccountSupport: TokenAccountSupport(
+            title: "Session tokens",
+            subtitle: "Store multiple MiniMax Cookie headers.",
+            placeholder: "Cookie: …",
+            injection: .cookieHeader,
+            requiresManualCookieSource: true,
+            cookieName: nil),
+        diagnosticSummary: { _, _, environment, settings in
+            let apiToken = MiniMaxAPISettingsReader.apiToken(environment: environment)
+            let cookie = MiniMaxSettingsReader.cookieHeader(environment: environment)
+                ?? CookieHeaderNormalizer.normalize(settings?.minimax?.manualCookieHeader)
+            let mode = MiniMaxAuthMode.resolve(apiToken: apiToken, cookieHeader: cookie)
+            return ProviderDiagnosticAuthSummary(
+                configured: mode.usesAPIToken || mode.usesCookie,
+                modes: mode == .none ? [] : [mode.description])
+        },
+        configValidator: ProviderCredentialAdapter.regionValidator(
+            displayName: "MiniMax",
+            isValid: { MiniMaxAPIRegion(rawValue: $0) != nil }),
+        missingCredentialMessage: { _ in MiniMaxAPISettingsError.missingToken.errorDescription })
 
     static func makeDescriptor() -> ProviderDescriptor {
         ProviderDescriptor(
             id: .minimax,
+            settingsSection: .init(
+                MiniMaxProviderSettingsKey.self,
+                cookieSettings: { settings in
+                    CookieProviderSettings(
+                        cookieSource: settings.cookieSource,
+                        manualCookieHeader: settings.manualCookieHeader)
+                },
+                credentialSettings: { context in
+                    let settings = context.cookieSettings(for: .minimax)
+                    let region = context.config?.sanitizedRegion
+                        .flatMap(MiniMaxAPIRegion.init(rawValue:)) ?? .global
+                    return MiniMaxProviderSettings(
+                        cookieSource: settings.cookieSource,
+                        manualCookieHeader: settings.manualCookieHeader,
+                        apiRegion: region)
+                }),
+            credentials: self.credentials,
             metadata: ProviderMetadata(
                 id: .minimax,
                 displayName: "MiniMax",
@@ -20,6 +70,13 @@ public enum MiniMaxProviderDescriptor {
                 defaultEnabled: false,
                 isPrimaryProvider: false,
                 usesAccountFallback: false,
+                sharePlanLabels: [
+                    "free": "Free", "pro": "Pro", "plus": "Plus", "max": "Max", "ultra": "Ultra",
+                    "minimax star": "MiniMax Star", "combo star": "Combo Star", "coding plan pro": "Coding Plan Pro",
+                    "token plan pro": "Token Plan Pro", "token plan · tokenplanplus-年度会员": "Token Plan Plus",
+                    "tokenplanplus-年度会员": "Token Plan Plus", "tokenplanmax-年度会员": "Token Plan Max",
+                    "tokenplanultra-年度会员": "Token Plan Ultra",
+                ],
                 browserCookieOrder: ProviderBrowserCookieDefaults.defaultImportOrder,
                 dashboardURL: "https://platform.minimax.io/user-center/payment/coding-plan?cycle_type=3",
                 statusPageURL: nil),
@@ -35,13 +92,36 @@ public enum MiniMaxProviderDescriptor {
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
                 noDataMessage: { "MiniMax cost summary is not supported." }),
+            presentation: ProviderUsagePresentation(
+                costPresenter: { snapshot in
+                    let style: ProviderCostMenuCardStyle = snapshot.providerCost?.period == "MiniMax points balance"
+                        ? .pointsBalance
+                        : .generic
+                    return ProviderCostPresentation(menuCardStyle: style)
+                },
+                automaticSelectionPrioritizesExhaustedWindow: false,
+                menuBarWindowResolver: { context in
+                    guard context.metric == .automatic else { return .unhandled }
+                    return .resolved(ProviderUsagePresentation.mostConstrained(
+                        context.snapshot.primary,
+                        context.snapshot.secondary,
+                        context.snapshot.tertiary))
+                },
+                optionalDetails: ProviderOptionalDetailsPresentation(
+                    hiddenTitlesWithoutOptionalUsage: ["Billing history"])),
             fetchPlan: ProviderFetchPlan(
                 sourceModes: [.auto, .web, .api],
                 pipeline: ProviderFetchPipeline(resolveStrategies: self.resolveStrategies)),
             cli: ProviderCLIConfig(
                 name: "minimax",
                 aliases: ["mini-max"],
-                versionDetector: nil))
+                versionDetector: nil,
+                browserSupportExemption: { sourceMode, environment, _ in
+                    // Standard sk-api keys select the Coding Plan web strategy; other tokens use HTTPS directly.
+                    guard sourceMode == .auto, let environment,
+                          MiniMaxAPISettingsReader.apiToken(environment: environment) != nil else { return false }
+                    return MiniMaxAPISettingsReader.apiKeyKind(environment: environment) != .standard
+                }))
     }
 
     private static func resolveStrategies(context: ProviderFetchContext) async -> [any ProviderFetchStrategy] {
@@ -113,7 +193,7 @@ struct MiniMaxAPIFetchStrategy: ProviderFetchStrategy {
 struct MiniMaxCodingPlanFetchStrategy: ProviderFetchStrategy {
     let id: String = "minimax.web"
     let kind: ProviderFetchKind = .web
-    private static let log = CodexBarLog.logger(LogCategories.minimaxWeb)
+    private static let log = CodexBarLog.logger(LogCategories.provider(.minimax, scope: "web"))
 
     func isAvailable(_ context: ProviderFetchContext) async -> Bool {
         if Self.resolveCookieOverride(context: context) != nil {
@@ -182,14 +262,18 @@ struct MiniMaxCodingPlanFetchStrategy: ProviderFetchStrategy {
         }
 
         guard Self.allowsBrowserCookieImport(context: context) else {
-            if let lastError { throw lastError }
+            if let lastError {
+                throw lastError
+            }
             throw MiniMaxSettingsError.missingCookie
         }
 
         let sessions = (try? MiniMaxCookieImporter.importSessions(
             browserDetection: context.browserDetection)) ?? []
         guard !sessions.isEmpty else {
-            if let lastError { throw lastError }
+            if let lastError {
+                throw lastError
+            }
             throw MiniMaxSettingsError.missingCookie
         }
 
@@ -323,7 +407,9 @@ struct MiniMaxCodingPlanFetchStrategy: ProviderFetchStrategy {
         for token in attempts {
             let tokenLabel: String = {
                 guard let token else { return "" }
-                if token == cookieToken { return " + HERTZ-SESSION bearer" }
+                if token == cookieToken {
+                    return " + HERTZ-SESSION bearer"
+                }
                 return " + access token"
             }()
             Self.log.debug("Trying MiniMax \(prefix)cookies from \(sourceLabel)\(tokenLabel)")
@@ -363,8 +449,12 @@ struct MiniMaxCodingPlanFetchStrategy: ProviderFetchStrategy {
     }
 
     private static func shouldTryNextBrowser(for error: Error) -> Bool {
-        if case MiniMaxUsageError.invalidCredentials = error { return true }
-        if case MiniMaxUsageError.parseFailed = error { return true }
+        if case MiniMaxUsageError.invalidCredentials = error {
+            return true
+        }
+        if case MiniMaxUsageError.parseFailed = error {
+            return true
+        }
         return false
     }
 }

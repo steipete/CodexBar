@@ -9,54 +9,136 @@ defineProvider({
     { key: "DEEPGRAM_API_URL", title: "API URL", type: "plain" },
   ],
   async fetchUsage(ctx) {
-    const base = (ctx.settings.get("DEEPGRAM_API_URL") || "https://api.deepgram.com/v1").replace(/\/$/, "");
+    const base = (ctx.settings.get("DEEPGRAM_API_URL") || "https://api.deepgram.com/v1").replace(/\/+$/, "");
+
+    function classifyStatus(status) {
+      if (status === 401) return ctx.fail.authenticationExpired("Deepgram API key is invalid or expired.");
+      if (status === 403) {
+        return ctx.fail.permissionDenied(
+          "Deepgram rejected access: The API key may not have access to the project or the Management API. HTTP 403");
+      }
+      if (status === 429) return ctx.fail.rateLimited("Deepgram API error: HTTP 429");
+      if (status >= 500) return ctx.fail.providerUnavailable(`Deepgram API error: HTTP ${status}`);
+      return ctx.fail.apiFailure(`Deepgram API error: HTTP ${status}`);
+    }
+
+    async function getJSON(url) {
+      let response;
+      try {
+        response = await ctx.http.get(url);
+      } catch (error) {
+        throw ctx.fail.networkFailure(`Deepgram network error: ${error && error.message || error}`);
+      }
+      if (response.status !== 200) throw classifyStatus(response.status);
+      try {
+        return JSON.parse(response.bodyText);
+      } catch (_) {
+        throw ctx.fail.parseFailure("Deepgram parse error: response was not valid JSON");
+      }
+    }
+
+    function optionalNumber(value, field, integer) {
+      if (value === null || value === undefined) return 0;
+      if (typeof value !== "number" || !Number.isFinite(value) || (integer && !Number.isInteger(value))) {
+        throw ctx.fail.parseFailure(`Deepgram parse error: ${field} has an invalid number`);
+      }
+      return value;
+    }
+
+    function optionalString(value, field) {
+      if (value === null || value === undefined) return null;
+      if (typeof value !== "string") {
+        throw ctx.fail.parseFailure(`Deepgram parse error: ${field} must be a string`);
+      }
+      return value;
+    }
+
+    function usagePayload(payload) {
+      if (!payload || typeof payload !== "object" || Array.isArray(payload) || !Array.isArray(payload.results)) {
+        throw ctx.fail.parseFailure("Deepgram parse error: usage results must be an array");
+      }
+      const result = {
+        start: optionalString(payload.start, "start"),
+        end: optionalString(payload.end, "end"),
+        hours: 0,
+        totalHours: 0,
+        agentHours: 0,
+        tokensIn: 0,
+        tokensOut: 0,
+        tts: 0,
+        requests: 0,
+      };
+      if (payload.resolution !== null && payload.resolution !== undefined) {
+        if (!payload.resolution || typeof payload.resolution !== "object" || Array.isArray(payload.resolution)) {
+          throw ctx.fail.parseFailure("Deepgram parse error: resolution must be an object");
+        }
+        optionalString(payload.resolution.units, "resolution.units");
+        optionalNumber(payload.resolution.amount, "resolution.amount", true);
+      }
+      for (const row of payload.results) {
+        if (!row || typeof row !== "object" || Array.isArray(row)) {
+          throw ctx.fail.parseFailure("Deepgram parse error: usage result must be an object");
+        }
+        result.hours += optionalNumber(row.hours, "hours", false);
+        result.totalHours += optionalNumber(row.total_hours, "total_hours", false);
+        result.agentHours += optionalNumber(row.agent_hours, "agent_hours", false);
+        result.tokensIn += optionalNumber(row.tokens_in, "tokens_in", true);
+        result.tokensOut += optionalNumber(row.tokens_out, "tokens_out", true);
+        result.tts += optionalNumber(row.tts_characters, "tts_characters", true);
+        result.requests += optionalNumber(row.requests, "requests", true);
+      }
+      return result;
+    }
+
     const configuredProject = ctx.settings.get("DEEPGRAM_PROJECT_ID");
     let projects;
     if (configuredProject) {
-      projects = [{ project_id: configuredProject }];
+      projects = [{ project_id: configuredProject, name: null }];
     } else {
-      const response = await ctx.http.getJSON(`${base}/projects`);
-      if (response.status !== 200 || !response.json || !Array.isArray(response.json.projects)) {
-        throw new Error(`Deepgram projects API error: HTTP ${response.status}`);
+      const payload = await getJSON(`${base}/projects`);
+      if (!payload || typeof payload !== "object" || !Array.isArray(payload.projects)) {
+        throw ctx.fail.parseFailure("Deepgram parse error: projects must be an array");
       }
-      projects = response.json.projects;
+      projects = payload.projects.map((project, index) => {
+        if (!project || typeof project !== "object" || typeof project.project_id !== "string") {
+          throw ctx.fail.parseFailure(`Deepgram parse error: projects[${index}].project_id must be a string`);
+        }
+        const name = optionalString(project.name, `projects[${index}].name`);
+        return { project_id: project.project_id, name };
+      });
     }
-    if (!projects.length) throw new Error("Deepgram returned no projects");
+    if (!projects.length) {
+      throw ctx.fail.apiFailure("Deepgram project ID is invalid or no projects were returned for this API key.");
+    }
 
     const totals = { hours: 0, totalHours: 0, agentHours: 0, tokensIn: 0, tokensOut: 0, tts: 0, requests: 0 };
     let start = null;
     let end = null;
     for (const project of projects) {
-      const response = await ctx.http.getJSON(
-        `${base}/projects/${encodeURIComponent(project.project_id)}/usage/breakdown`);
-      if (response.status !== 200 || !response.json || !Array.isArray(response.json.results)) {
-        throw new Error(`Deepgram usage API error: HTTP ${response.status}`);
-      }
-      start = !start || (response.json.start && response.json.start < start) ? response.json.start : start;
-      end = !end || (response.json.end && response.json.end > end) ? response.json.end : end;
-      for (const row of response.json.results) {
-        totals.hours += Number(row.hours || 0);
-        totals.totalHours += Number(row.total_hours || 0);
-        totals.agentHours += Number(row.agent_hours || 0);
-        totals.tokensIn += Number(row.tokens_in || 0);
-        totals.tokensOut += Number(row.tokens_out || 0);
-        totals.tts += Number(row.tts_characters || 0);
-        totals.requests += Number(row.requests || 0);
-      }
+      const payload = usagePayload(await getJSON(
+        `${base}/projects/${encodeURIComponent(project.project_id)}/usage/breakdown`));
+      if (payload.start && (!start || payload.start < start)) start = payload.start;
+      if (payload.end && (!end || payload.end > end)) end = payload.end;
+      for (const field of Object.keys(totals)) totals[field] += payload[field];
     }
-    const number = value => new Intl.NumberFormat("en-US", { maximumFractionDigits: 1 }).format(value);
-    const rows = [{ label: "Requests", value: new Intl.NumberFormat("en-US").format(totals.requests) }];
+
+    const decimal = value => new Intl.NumberFormat("en-US", {
+      minimumFractionDigits: value === Math.floor(value) ? 0 : 1,
+      maximumFractionDigits: 1,
+    }).format(value);
+    const integer = value => new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 }).format(value);
+    const rows = [{ label: "Requests", value: integer(totals.requests) }];
     if (totals.hours || totals.totalHours) rows.push({
       label: "Audio",
-      value: `${number(totals.hours)} hours`,
-      secondaryValue: `${number(totals.totalHours)} billable hours`,
+      value: `${decimal(totals.hours)} hours`,
+      secondaryValue: `${decimal(totals.totalHours)} billable hours`,
     });
-    if (totals.agentHours) rows.push({ label: "Agent hours", value: number(totals.agentHours) });
+    if (totals.agentHours) rows.push({ label: "Agent hours", value: decimal(totals.agentHours) });
     if (totals.tokensIn || totals.tokensOut) rows.push({
       label: "Tokens",
-      value: new Intl.NumberFormat("en-US").format(totals.tokensIn + totals.tokensOut),
+      value: integer(totals.tokensIn + totals.tokensOut),
     });
-    if (totals.tts) rows.push({ label: "TTS characters", value: new Intl.NumberFormat("en-US").format(totals.tts) });
+    if (totals.tts) rows.push({ label: "TTS characters", value: integer(totals.tts) });
     if (start && end) rows.push({ label: "Period", value: `${start} to ${end}` });
     const loginMethod = projects.length > 1
       ? `${projects.length} projects`

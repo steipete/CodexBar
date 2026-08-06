@@ -47,7 +47,7 @@ struct PopupLocalizationTests {
     }
 
     @Test
-    func `inline dashboard labels use selected localization`() throws {
+    func `generic provider details keep canonical labels alongside localized core metrics`() throws {
         try CodexBarLocalizationOverride.$appLanguage.withValue("zh-Hant") {
             let now = Date(timeIntervalSince1970: 1_700_179_200)
             let metadata = try #require(ProviderDefaults.metadata[.openrouter])
@@ -58,6 +58,8 @@ struct PopupLocalizationTests {
                 usedPercent: 40,
                 keyDataFetched: true,
                 keyLimit: 25,
+                keyLimitRemaining: 15,
+                keyLimitReset: "monthly",
                 keyUsage: 10,
                 keyUsageDaily: 1.25,
                 keyUsageWeekly: 7.5,
@@ -85,12 +87,14 @@ struct PopupLocalizationTests {
                 hidePersonalInfo: false,
                 now: now))
 
-            let dashboard = try #require(model.inlineUsageDashboard)
-
-            #expect(dashboard.kpis.map(\.title) == ["餘額", "今天", "週", "月"])
-            #expect(dashboard.points.map(\.label) == ["今天", "週", "月"])
-            #expect(dashboard.detailLines.contains("速率限制：100 / 10s"))
-            #expect(dashboard.detailLines.contains("金鑰剩餘額度：$15.00"))
+            #expect(model.metrics.first?.title == "額度")
+            let apiKey = try #require(model.providerDetails.first { $0.title == "API key" })
+            #expect(apiKey.rows.map(\.label) == [
+                "API key budget", "API key remaining", "API key used", "Reset window",
+                "Today", "This week", "This month", "Rate limit",
+            ])
+            #expect(apiKey.chart?.points.map(\.label) == ["Today", "This week", "This month"])
+            #expect(apiKey.rows.last?.value == "100 requests / 10s")
         }
     }
 

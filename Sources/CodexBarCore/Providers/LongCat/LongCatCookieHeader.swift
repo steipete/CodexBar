@@ -14,7 +14,7 @@ public struct LongCatCookieOverride: Sendable {
 }
 
 public enum LongCatCookieHeader {
-    private static let log = CodexBarLog.logger(LogCategories.longcatCookie)
+    private static let log = CodexBarLog.logger(LogCategories.provider(.longcat, scope: "cookie"))
     private static let headerPatterns: [String] = [
         #"(?i)-H\s*'Cookie:\s*([^']+)'"#,
         #"(?i)-H\s*"Cookie:\s*([^"]+)""#,

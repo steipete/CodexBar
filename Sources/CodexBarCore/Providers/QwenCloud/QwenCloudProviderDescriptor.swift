@@ -6,6 +6,9 @@ import SweetCookieKit
 
 public enum QwenCloudProviderDescriptor {
     public static let descriptor: ProviderDescriptor = Self.makeDescriptor()
+    private static let credentials = ProviderCredentialAdapter(authDetector: { environment, _ in
+        QwenCloudSettingsReader.cookieHeader(environment: environment) == nil ? [] : ["web"]
+    })
 
     static func makeDescriptor() -> ProviderDescriptor {
         #if os(macOS)
@@ -16,6 +19,8 @@ public enum QwenCloudProviderDescriptor {
 
         return ProviderDescriptor(
             id: .qwencloud,
+            settingsSection: .init(QwenCloudProviderSettingsKey.self, cookieSettings: QwenCloudProviderSettings.self),
+            credentials: self.credentials,
             metadata: ProviderMetadata(
                 id: .qwencloud,
                 displayName: "Qwen Cloud",
@@ -30,6 +35,7 @@ public enum QwenCloudProviderDescriptor {
                 defaultEnabled: false,
                 isPrimaryProvider: false,
                 usesAccountFallback: false,
+                debugLogUnavailableMessage: "Qwen Cloud debug log not yet implemented",
                 browserCookieOrder: browserOrder,
                 dashboardURL: QwenCloudUsageFetcher.dashboardURL.absoluteString,
                 statusPageURL: nil,
@@ -52,7 +58,17 @@ public enum QwenCloudProviderDescriptor {
             cli: ProviderCLIConfig(
                 name: "qwen-cloud",
                 aliases: ["qwencloud", "qwen", "qwen-token-plan"],
-                versionDetector: nil))
+                versionDetector: nil,
+                browserSupportExemption: { sourceMode, environment, settings in
+                    guard sourceMode == .auto || sourceMode == .web,
+                          settings?.qwenCloud?.cookieSource != .off else { return false }
+                    let hasEnvironmentCookie = environment.map {
+                        QwenCloudSettingsReader.cookieHeader(environment: $0) != nil
+                    } == true
+                    let hasManualCookie = settings?.qwenCloud?.cookieSource == .manual &&
+                        CookieHeaderNormalizer.normalize(settings?.qwenCloud?.manualCookieHeader) != nil
+                    return hasEnvironmentCookie || hasManualCookie
+                }))
     }
 
     private static func resolveStrategies(context: ProviderFetchContext) async -> [any ProviderFetchStrategy] {

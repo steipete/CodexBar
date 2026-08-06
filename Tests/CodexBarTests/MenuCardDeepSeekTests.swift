@@ -145,8 +145,11 @@ struct MenuCardDeepSeekTests {
             hidePersonalInfo: false,
             now: now))
 
-        #expect(model.inlineUsageDashboard?.accessibilityLabel == "DeepSeek this month token usage trend")
-        #expect(model.usageNotes.contains { $0.contains("Today:") })
+        let details = try #require(model.providerDetails.first)
+        #expect(details.chart?.title == "Daily tokens")
+        #expect(details.chart?.points.map(\.value) == [456])
+        #expect(details.rows.first { $0.label == "Today" }?.value == "¥0.0123 · 123 tokens")
+        #expect(details.rows.first { $0.label == "This month" }?.value == "¥0.0456 · 456 tokens")
     }
 
     @Test

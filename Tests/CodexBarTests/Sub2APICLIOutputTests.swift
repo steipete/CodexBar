@@ -5,8 +5,8 @@ import Testing
 
 struct Sub2APICLIOutputTests {
     @Test
-    func `subscription labels and per key totals reach CLI output`() {
-        let snapshot = UsageSnapshot(
+    func `subscription labels and per key totals reach CLI output`() throws {
+        let snapshot = try UsageSnapshot(
             primary: RateWindow(usedPercent: 10, windowMinutes: 1440, resetsAt: nil, resetDescription: "$1 / $10"),
             secondary: RateWindow(
                 usedPercent: 20,
@@ -18,12 +18,16 @@ struct Sub2APICLIOutputTests {
                 windowMinutes: 43200,
                 resetsAt: nil,
                 resetDescription: "$3 / $10"),
-            sub2APIUsage: Sub2APIUsageDetails(
-                kind: .subscription,
-                balance: 42.5,
-                unit: "USD",
-                today: .init(requests: 4, totalTokens: 1200, actualCostUSD: 1.25),
-                total: .init(requests: 40, totalTokens: 12000, actualCostUSD: 25)),
+            details: [ProviderDetailSection(title: "Usage summary", rows: [
+                ProviderDetailSection.Row(label: "Balance", value: "$42.50"),
+                ProviderDetailSection.Row(label: "Today requests", value: "4"),
+                ProviderDetailSection.Row(label: "Today tokens", value: "1,200", secondaryValue: "$1.25"),
+                ProviderDetailSection.Row(label: "All time requests", value: "40"),
+                ProviderDetailSection.Row(
+                    label: "All time tokens",
+                    value: "12,000",
+                    secondaryValue: "$25.00"),
+            ])],
             updatedAt: Date(timeIntervalSince1970: 1),
             identity: ProviderIdentitySnapshot(
                 providerID: .sub2api,
@@ -45,8 +49,10 @@ struct Sub2APICLIOutputTests {
         #expect(output.contains("Weekly quota:"))
         #expect(output.contains("Monthly quota:"))
         #expect(output.contains("Balance: $42.50"))
-        #expect(output.contains("Today: 4 requests · 1.2K tokens · $1.25"))
-        #expect(output.contains("Total: 40 requests · 12K tokens · $25.00"))
+        #expect(output.contains("Today requests: 4"))
+        #expect(output.contains("Today tokens: 1,200 · $1.25"))
+        #expect(output.contains("All time requests: 40"))
+        #expect(output.contains("All time tokens: 12,000 · $25.00"))
         #expect(output.contains("Plan: Enterprise"))
     }
 }

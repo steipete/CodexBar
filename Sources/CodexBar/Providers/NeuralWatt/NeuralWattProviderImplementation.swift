@@ -11,7 +11,7 @@ struct NeuralWattProviderImplementation: ProviderImplementation {
 
     @MainActor
     func observeSettings(_ settings: SettingsStore) {
-        _ = settings.neuralWattAPIKey
+        _ = settings[providerConfig: .neuralwatt, field: .apiKey]
         _ = settings.tokenAccountsData(for: .neuralwatt)
     }
 
@@ -20,7 +20,9 @@ struct NeuralWattProviderImplementation: ProviderImplementation {
         if NeuralWattSettingsReader.apiKey(environment: context.environment) != nil {
             return true
         }
-        if !context.settings.neuralWattAPIKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+        if !context.settings[providerConfig: .neuralwatt, field: .apiKey]
+            .trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        {
             return true
         }
         return !context.settings.tokenAccounts(for: .neuralwatt).isEmpty
@@ -35,7 +37,7 @@ struct NeuralWattProviderImplementation: ProviderImplementation {
                 subtitle: "Stored in the CodexBar config file. Manage keys from the Neuralwatt dashboard.",
                 kind: .secure,
                 placeholder: "sk-...",
-                binding: context.stringBinding(\.neuralWattAPIKey),
+                binding: context.providerConfigBinding(.apiKey),
                 actions: [],
                 isVisible: nil,
                 onActivate: nil),

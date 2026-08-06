@@ -2,10 +2,30 @@ import Foundation
 
 public enum CodebuffProviderDescriptor {
     public static let descriptor: ProviderDescriptor = Self.makeDescriptor()
+    private static let credentials = ProviderCredentialAdapter(
+        supportsAPIKeyOverride: true,
+        environmentProjections: [
+            .apiKey(
+                CodebuffSettingsReader.apiTokenKey,
+                precedence: .environment,
+                environmentHasValue: { CodebuffSettingsReader.apiKey(environment: $0) != nil }),
+        ],
+        tokenResolver: { kind, environment, authFileURL in
+            guard kind == .primary else { return nil }
+            if let token = CodebuffSettingsReader.apiKey(environment: environment) {
+                return ProviderTokenResolution(token: token, source: .environment)
+            }
+            guard let token = CodebuffSettingsReader.authToken(authFileURL: authFileURL) else { return nil }
+            return ProviderTokenResolution(token: token, source: .authFile)
+        },
+        authDetector: { environment, _ in
+            CodebuffSettingsReader.apiKey(environment: environment) == nil ? [] : ["api"]
+        })
 
     static func makeDescriptor() -> ProviderDescriptor {
         ProviderDescriptor(
             id: .codebuff,
+            credentials: self.credentials,
             metadata: ProviderMetadata(
                 id: .codebuff,
                 displayName: "Codebuff",

@@ -49,7 +49,10 @@ defineProvider({
         title: "Billing summary",
         rows: [
           { label: "Prepaid balance", value: `$${balance.toFixed(2)}` },
-          { label: "History", value: partial ? "Last 30 days (partial)" : "Last 30 days" },
+          {
+            label: partial ? "Last 30 days (partial)" : "Last 30 days",
+            value: `$${daily.reduce((sum, point) => sum + point.value, 0).toFixed(2)}`,
+          },
         ],
         chart: daily.length ? { kind: "bars", title: "Daily spend", unit: "USD", points: daily } : undefined,
       }],

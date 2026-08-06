@@ -60,7 +60,7 @@ final class ResetTimeBackfillTests: XCTestCase {
         XCTAssertNil(result.resetDescription)
     }
 
-    func test_snapshotBackfillPreservesCurrentSnapshotFields() {
+    func test_snapshotBackfillPreservesCurrentSnapshotFields() throws {
         let now = Date(timeIntervalSince1970: 1_800_000_000)
         let reset = now.addingTimeInterval(3600)
         let identity = ProviderIdentitySnapshot(
@@ -82,7 +82,7 @@ final class ResetTimeBackfillTests: XCTestCase {
                 resetsAt: nil,
                 resetDescription: nil,
                 nextRegenPercent: 2))
-        let fresh = UsageSnapshot(
+        let fresh = try UsageSnapshot(
             primary: RateWindow(
                 usedPercent: 66,
                 windowMinutes: nil,
@@ -91,7 +91,9 @@ final class ResetTimeBackfillTests: XCTestCase {
                 nextRegenPercent: 7),
             secondary: nil,
             extraRateWindows: [extra],
-            cursorRequests: CursorRequestUsage(used: 10, limit: 50),
+            details: [ProviderDetailSection(rows: [
+                ProviderDetailSection.Row(label: "Request quota", value: "10 / 50"),
+            ])],
             subscriptionExpiresAt: reset.addingTimeInterval(86400),
             subscriptionRenewsAt: reset.addingTimeInterval(43200),
             updatedAt: now,
@@ -104,7 +106,7 @@ final class ResetTimeBackfillTests: XCTestCase {
         XCTAssertEqual(result.primary?.nextRegenPercent, 7)
         XCTAssertEqual(result.extraRateWindows?.first?.id, "overflow")
         XCTAssertEqual(result.extraRateWindows?.first?.window.nextRegenPercent, 2)
-        XCTAssertEqual(result.cursorRequests?.used, 10)
+        XCTAssertEqual(result.detailRow(label: "Request quota")?.value, "10 / 50")
         XCTAssertEqual(result.subscriptionExpiresAt, reset.addingTimeInterval(86400))
         XCTAssertEqual(result.subscriptionRenewsAt, reset.addingTimeInterval(43200))
         XCTAssertEqual(result.identity?.accountEmail, "peter@example.com")

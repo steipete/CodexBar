@@ -143,6 +143,7 @@ enum DashboardSnapshotBuilder {
             return nil
         }
 
+        // Provider-specific by design: Codex plan aliases and Kilo's auto-top-up suffix require distinct cleanup.
         if provider == .codex {
             return CodexPlanFormatting.displayName(raw) ?? UsageFormatter.cleanPlanName(raw)
         }
@@ -164,7 +165,8 @@ enum DashboardSnapshotBuilder {
         guard let usage else { return [] }
         let labels = self.rateWindowLabels(provider: provider, metadata: metadata, usage: usage)
         var windows: [DashboardWindowPayload] = []
-        let isAmpSubscription = provider == .amp && usage.ampUsage?.subscriptionPlan != nil
+        // Provider-specific by design: Amp subscription payloads model balance and orb as non-time-window kinds.
+        let isAmpSubscription = provider == .amp && usage.secondary != nil
 
         if let primary = usage.primary {
             let kind = isAmpSubscription ? "other" : "session"
@@ -195,26 +197,18 @@ enum DashboardSnapshotBuilder {
         metadata: ProviderMetadata?,
         usage: UsageSnapshot) -> RateWindowLabels
     {
-        if provider == .factory, usage.tertiary != nil {
-            return RateWindowLabels(primary: "5-hour", secondary: "Weekly", tertiary: "Monthly")
+        guard let provider else {
+            return RateWindowLabels(
+                primary: metadata?.sessionLabel ?? "Session",
+                secondary: metadata?.weeklyLabel ?? "Weekly",
+                tertiary: metadata?.opusLabel ?? "Tertiary")
         }
-
-        let primaryLabel = if provider == .amp {
-            AmpProviderDescriptor.primaryLabel(details: usage.ampUsage) ?? metadata?.sessionLabel ?? "Session"
-        } else if provider == .crof {
-            CrofProviderDescriptor.primaryLabel(snapshot: usage)
-        } else {
-            metadata?.sessionLabel ?? "Session"
-        }
-        let secondaryLabel = if provider == .amp {
-            AmpProviderDescriptor.secondaryLabel(details: usage.ampUsage) ?? metadata?.weeklyLabel ?? "Weekly"
-        } else {
-            metadata?.weeklyLabel ?? "Weekly"
-        }
+        let descriptor = ProviderDescriptorRegistry.descriptor(for: provider)
+        let labels = descriptor.presentation.rateWindowLabels(metadata: descriptor.metadata, snapshot: usage)
         return RateWindowLabels(
-            primary: primaryLabel,
-            secondary: secondaryLabel,
-            tertiary: metadata?.opusLabel ?? "Tertiary")
+            primary: labels.primary,
+            secondary: labels.secondary,
+            tertiary: labels.tertiary)
     }
 
     private static func makeWindow(kind: String, label: String, window: RateWindow) -> DashboardWindowPayload {

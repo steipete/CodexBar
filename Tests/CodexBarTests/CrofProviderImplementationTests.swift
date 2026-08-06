@@ -21,7 +21,7 @@ struct CrofProviderImplementationTests {
     @Test
     func `availability uses stored crof API token`() throws {
         let settings = try Self.makeSettings(suite: "CrofProviderImplementationTests-settings")
-        settings.crofAPIToken = "stored-token"
+        settings[providerConfig: .crof, field: .apiKey] = "stored-token"
         let implementation = CrofProviderImplementation()
 
         let context = ProviderAvailabilityContext(provider: .crof, settings: settings, environment: [:])
@@ -32,7 +32,7 @@ struct CrofProviderImplementationTests {
     @Test
     func `availability rejects missing crof API token`() throws {
         let settings = try Self.makeSettings(suite: "CrofProviderImplementationTests-missing")
-        settings.crofAPIToken = "   "
+        settings[providerConfig: .crof, field: .apiKey] = "   "
         let implementation = CrofProviderImplementation()
 
         let context = ProviderAvailabilityContext(provider: .crof, settings: settings, environment: [:])

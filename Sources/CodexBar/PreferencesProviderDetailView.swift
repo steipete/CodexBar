@@ -86,8 +86,9 @@ struct ProviderDetailView<SupplementaryContent: View>: View {
         else {
             return nil
         }
-        guard provider == .openrouter || provider == .mimo || provider == .moonshot || provider == .poe else {
-            return (label: L("Plan"), value: rawPlan)
+        let presentation = ProviderDescriptorRegistry.descriptor(for: provider).presentation.planRow
+        guard presentation.stripsBalancePrefix else {
+            return (label: L(presentation.label), value: rawPlan)
         }
 
         let prefix = "Balance:"
@@ -95,13 +96,10 @@ struct ProviderDetailView<SupplementaryContent: View>: View {
             let valueStart = rawPlan.index(rawPlan.startIndex, offsetBy: prefix.count)
             let trimmedValue = rawPlan[valueStart...].trimmingCharacters(in: .whitespacesAndNewlines)
             if !trimmedValue.isEmpty {
-                return (label: L("Balance"), value: trimmedValue)
+                return (label: L(presentation.balancePrefixedLabel), value: trimmedValue)
             }
         }
-        if provider == .mimo {
-            return (label: L("Plan"), value: rawPlan)
-        }
-        return (label: L("Balance"), value: rawPlan)
+        return (label: L(presentation.label), value: rawPlan)
     }
 
     private var menuBarSettingsPickers: [ProviderSettingsPickerDescriptor] {
@@ -303,6 +301,7 @@ private struct ProviderDetailInfoRows: View {
             ProviderDetailInfoRow(label: L("Account"), value: self.model.email)
         }
 
+        // Provider-specific by design: Kiro reports an auth method as a separate identity field, not a plan.
         if self.provider == .kiro,
            let authMethod = self.store.snapshot(for: self.provider.instanceID)?.loginMethod(for: .kiro),
            !authMethod.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -431,7 +430,10 @@ struct ProviderMetricsInlineView: View {
                     title: L("Cost"),
                     value: tokenUsage.sessionLine)
                 ProviderMetricInlineTextRow(title: "", value: tokenUsage.monthLine)
-                if self.model.provider == .codex, let hint = tokenUsage.hintLine, !hint.isEmpty {
+                if ProviderDescriptorRegistry.descriptor(for: self.model.provider).tokenCost.showsHintInProviderDetails,
+                   let hint = tokenUsage.hintLine,
+                   !hint.isEmpty
+                {
                     ProviderMetricInlineTextRow(title: "", value: hint)
                 }
             }

@@ -216,4 +216,9 @@ struct CopilotProviderImplementation: ProviderImplementation {
         await CopilotLoginFlow.run(settings: context.controller.settings)
         return true
     }
+
+    @MainActor
+    func runTokenAccountPrimaryAction(context: ProviderSettingsContext) async {
+        await CopilotLoginFlow.run(settings: context.settings)
+    }
 }

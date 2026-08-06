@@ -7,7 +7,7 @@ struct CodebuffProviderImplementation: ProviderImplementation {
 
     @MainActor
     func observeSettings(_ settings: SettingsStore) {
-        _ = settings.codebuffAPIToken
+        _ = settings[providerConfig: .codebuff, field: .apiKey]
     }
 
     @MainActor
@@ -20,7 +20,7 @@ struct CodebuffProviderImplementation: ProviderImplementation {
                     "CodexBar read ~/.config/manicode/credentials.json (created by `codebuff login`).",
                 kind: .secure,
                 placeholder: "cb_...",
-                binding: context.stringBinding(\.codebuffAPIToken),
+                binding: context.providerConfigBinding(.apiKey),
                 actions: [
                     ProviderSettingsActionDescriptor(
                         id: "codebuff-open-dashboard",

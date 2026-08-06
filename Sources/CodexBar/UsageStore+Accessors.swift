@@ -30,14 +30,17 @@ extension UsageStore {
     }
 
     var codexSnapshot: UsageSnapshot? {
+        // Provider-specific by design: dedicated Codex consumers require the reconciled primary-account snapshot.
         self.snapshots[.codex]
     }
 
     var claudeSnapshot: UsageSnapshot? {
+        // Provider-specific by design: Claude swap/account consumers require the active Claude snapshot directly.
         self.snapshots[.claude]
     }
 
     func presentationSnapshot(for provider: UsageProvider) -> UsageSnapshot? {
+        // Provider-specific by design: DeepSeek profile transitions and Codex dashboard attachment overlay live state.
         if provider == .deepseek,
            let transition = self.deepseekProfileTransition,
            transition.accountID == self.settings.selectedTokenAccount(for: .deepseek)?.id
@@ -116,6 +119,7 @@ extension UsageStore {
     }
 
     var lastCodexError: String? {
+        // Provider-specific by design: Codex dashboard and credits surfaces expose separate app-owned error lanes.
         self.errors[.codex]
     }
 
@@ -132,6 +136,7 @@ extension UsageStore {
     }
 
     var lastClaudeError: String? {
+        // Provider-specific by design: Claude swap/account surfaces consume the active Claude error lane directly.
         self.errors[.claude]
     }
 
@@ -167,42 +172,18 @@ extension UsageStore {
             return nil
         }
 
-        switch provider {
-        case .synthetic:
-            return SyntheticSettingsError.missingToken.errorDescription
-        case .zai:
-            return ZaiSettingsError.missingToken.errorDescription
-        case .openrouter:
-            return OpenRouterSettingsError.missingToken.errorDescription
-        case .clawrouter:
-            return ClawRouterUsageError.missingCredentials.errorDescription
-        case .sub2api:
+        if let adapter = ProviderDescriptorRegistry.descriptor(for: provider).credentials {
             let environment = ProviderRegistry.makeEnvironment(
                 base: self.environmentBase,
                 provider: provider,
                 settings: self.settings,
                 tokenOverride: nil)
-            if Sub2APISettingsReader.apiKey(environment: environment) == nil {
-                return Sub2APIUsageError.missingCredentials.errorDescription
+            if let message = adapter.unavailableMessage(environment: environment) {
+                return message
             }
-            return Sub2APIUsageError.missingBaseURL.errorDescription
-        case .azureopenai:
-            return AzureOpenAISettingsError.missingAPIKey.errorDescription
-        case .elevenlabs:
-            return ElevenLabsUsageError.missingCredentials.errorDescription
-        case .deepseek:
-            return DeepSeekUsageError.missingCredentials.errorDescription
-        case .deepinfra:
-            return DeepInfraUsageError.missingCredentials.errorDescription
-        case .perplexity:
-            return PerplexityAPIError.missingToken.errorDescription
-        case .minimax:
-            return MiniMaxAPISettingsError.missingToken.errorDescription
-        case .kimi:
-            return KimiAPIError.missingToken.errorDescription
-        default:
-            return "\(self.metadata(for: provider).displayName) is unavailable in the current environment."
         }
+
+        return "\(self.metadata(for: provider).displayName) is unavailable in the current environment."
     }
 
     func status(for provider: UsageProvider) -> ProviderStatus? {
@@ -229,6 +210,7 @@ extension UsageStore {
         }
 
         let account: AccountInfo
+        // Provider-specific by design: Codex account info must be loaded through its selected filesystem scope.
         if provider == .codex {
             let env = ProviderRegistry.makeEnvironment(
                 base: self.environmentBase,

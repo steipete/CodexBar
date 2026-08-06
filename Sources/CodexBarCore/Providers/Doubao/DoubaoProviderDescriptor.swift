@@ -2,6 +2,20 @@ import Foundation
 
 public enum DoubaoProviderDescriptor {
     public static let descriptor: ProviderDescriptor = Self.makeDescriptor()
+    private static let credentials = ProviderCredentialAdapter(
+        supportsAPIKeyOverride: true,
+        usesRegion: true,
+        usesSecretKey: true,
+        environmentOverride: Self.applyCredentialConfig,
+        tokenResolver: { kind, environment, _ in
+            guard kind == .primary, let token = DoubaoSettingsReader.apiKey(environment: environment) else {
+                return nil
+            }
+            return ProviderTokenResolution(token: token, source: .environment)
+        },
+        authDetector: { environment, _ in
+            DoubaoSettingsReader.apiKey(environment: environment) == nil ? [] : ["api"]
+        })
 
     public static func primaryLabel(window: RateWindow?) -> String? {
         guard window?.windowMinutes == nil,
@@ -15,6 +29,7 @@ public enum DoubaoProviderDescriptor {
     static func makeDescriptor() -> ProviderDescriptor {
         ProviderDescriptor(
             id: .doubao,
+            credentials: self.credentials,
             metadata: ProviderMetadata(
                 id: .doubao,
                 displayName: "Doubao",
@@ -30,6 +45,7 @@ public enum DoubaoProviderDescriptor {
                 widgetSelectable: false,
                 isPrimaryProvider: false,
                 usesAccountFallback: false,
+                debugLogUnavailableMessage: "Doubao debug log not yet implemented",
                 browserCookieOrder: nil,
                 dashboardURL: "https://console.volcengine.com/ark/region:ark+cn-beijing/openManagement?LLM=%7B%7D&advancedActiveKey=subscribe",
                 statusPageURL: nil),
@@ -41,7 +57,8 @@ public enum DoubaoProviderDescriptor {
                     ProviderColor(hex: 0x0057FF),
                     ProviderColor(hex: 0xEFC5BA),
                     ProviderColor(hex: 0x493530),
-                ]),
+                ],
+                widgetColor: ProviderColor(red: 45 / 255, green: 136 / 255, blue: 255 / 255)),
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
                 noDataMessage: { "Doubao cost summary is not available." }),
@@ -53,6 +70,45 @@ public enum DoubaoProviderDescriptor {
                 name: "doubao",
                 aliases: ["volcengine", "ark", "bytedance"],
                 versionDetector: nil))
+    }
+
+    private static func applyCredentialConfig(
+        base: [String: String],
+        config: ProviderConfig?) -> [String: String]
+    {
+        guard let config else { return base }
+        var environment = base
+        let apiKey = config.sanitizedAPIKey
+        if let apiKey, !apiKey.hasPrefix("AKLT") {
+            for key in DoubaoSettingsReader.accessKeyIDEnvironmentKeys
+                + DoubaoSettingsReader.secretAccessKeyEnvironmentKeys
+            {
+                environment.removeValue(forKey: key)
+            }
+            environment[DoubaoSettingsReader.apiKeyEnvironmentKeys[0]] = apiKey
+            if let region = config.sanitizedRegion {
+                environment[DoubaoSettingsReader.regionEnvironmentKeys[0]] = region
+            }
+            return environment
+        }
+        let accessKeyID = (apiKey?.hasPrefix("AKLT") == true ? apiKey : nil)
+            ?? DoubaoSettingsReader.accessKeyID(environment: base)
+        let secretAccessKey = config.sanitizedSecretKey ?? DoubaoSettingsReader.secretAccessKey(environment: base)
+        if let accessKeyID, let secretAccessKey {
+            environment[DoubaoSettingsReader.accessKeyIDEnvironmentKeys[0]] = accessKeyID
+            environment[DoubaoSettingsReader.secretAccessKeyEnvironmentKeys[0]] = secretAccessKey
+            let region = config.sanitizedRegion ?? DoubaoSettingsReader.regionEnvironmentKeys.lazy
+                .compactMap { DoubaoSettingsReader.cleaned(base[$0]) }
+                .first
+            if let region {
+                environment[DoubaoSettingsReader.regionEnvironmentKeys[0]] = region
+            }
+            return environment
+        }
+        if let region = config.sanitizedRegion {
+            environment[DoubaoSettingsReader.regionEnvironmentKeys[0]] = region
+        }
+        return environment
     }
 
     static func resolveStrategies(context: ProviderFetchContext) async -> [any ProviderFetchStrategy] {

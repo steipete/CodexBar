@@ -2,10 +2,17 @@ import Foundation
 
 public enum WayfinderProviderDescriptor {
     public static let descriptor: ProviderDescriptor = Self.makeDescriptor()
+    private static let credentials = ProviderCredentialAdapter(
+        requiresAPIKeyForAPISource: false,
+        environmentProjections: [
+            .enterpriseHost(WayfinderSettingsReader.baseURLEnvironmentKey),
+        ])
 
     static func makeDescriptor() -> ProviderDescriptor {
         ProviderDescriptor(
             id: .wayfinder,
+            credentials: self.credentials,
+            config: ProviderConfigCapabilities(supportsEnterpriseHost: true),
             metadata: ProviderMetadata(
                 id: .wayfinder,
                 displayName: "Wayfinder",
@@ -19,6 +26,7 @@ public enum WayfinderProviderDescriptor {
                 cliName: "wayfinder",
                 defaultEnabled: false,
                 widgetSelectable: false,
+                debugLogUnavailableMessage: "Wayfinder debug log not yet implemented",
                 dashboardURL: WayfinderSettingsReader.dashboardURL(environment: [:]).absoluteString,
                 statusPageURL: nil),
             branding: ProviderBranding(

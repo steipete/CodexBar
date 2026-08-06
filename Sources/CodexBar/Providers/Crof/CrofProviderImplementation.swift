@@ -12,7 +12,7 @@ struct CrofProviderImplementation: ProviderImplementation {
 
     @MainActor
     func observeSettings(_ settings: SettingsStore) {
-        _ = settings.crofAPIToken
+        _ = settings[providerConfig: .crof, field: .apiKey]
     }
 
     @MainActor
@@ -20,7 +20,8 @@ struct CrofProviderImplementation: ProviderImplementation {
         if CrofSettingsReader.apiKey(environment: context.environment) != nil {
             return true
         }
-        return !context.settings.crofAPIToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        return !context.settings[providerConfig: .crof, field: .apiKey].trimmingCharacters(in: .whitespacesAndNewlines)
+            .isEmpty
     }
 
     @MainActor
@@ -32,7 +33,7 @@ struct CrofProviderImplementation: ProviderImplementation {
                 subtitle: "Stored in ~/.codexbar/config.json. You can also provide CROF_API_KEY.",
                 kind: .secure,
                 placeholder: "crof_...",
-                binding: context.stringBinding(\.crofAPIToken),
+                binding: context.providerConfigBinding(.apiKey),
                 actions: [
                     ProviderSettingsActionDescriptor(
                         id: "crof-open-dashboard",

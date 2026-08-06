@@ -167,162 +167,12 @@ extension CodexBarCLI {
         environment: [String: String],
         settings: ProviderSettingsSnapshot?) -> ProviderDiagnosticAuthSummary
     {
-        if provider == .minimax {
-            let authMode = self.resolveMiniMaxAuthMode(environment: environment, settings: settings)
-            return ProviderDiagnosticAuthSummary(
-                configured: authMode.usesAPIToken || authMode.usesCookie,
-                modes: authMode == .none ? [] : [authMode.description])
-        }
-
-        var modes: [String] = []
-        if account != nil {
-            modes.append("tokenAccount")
-        }
-        let hasConfigAPIAuth = if provider == .bedrock {
-            config?.sanitizedAPIKey != nil && config?.sanitizedSecretKey != nil
-        } else {
-            config?.sanitizedAPIKey != nil || config?.sanitizedSecretKey != nil
-        }
-        if hasConfigAPIAuth {
-            modes.append("api")
-        }
-        if Self.environmentAPIAuthConfigured(provider: provider, environment: environment), !modes.contains("api") {
-            modes.append("api")
-        }
-        if config?.sanitizedCookieHeader != nil {
-            modes.append("web")
-        }
-        if Self.environmentWebAuthConfigured(provider: provider, environment: environment), !modes.contains("web") {
-            modes.append("web")
-        }
-        return ProviderDiagnosticAuthSummary(
-            configured: !modes.isEmpty,
-            modes: modes)
-    }
-
-    private static func environmentAPIAuthConfigured(
-        provider: UsageProvider,
-        environment: [String: String]) -> Bool
-    {
-        self.environmentCoreAPIAuthConfigured(provider: provider, environment: environment) ||
-            self.environmentExtendedAPIAuthConfigured(provider: provider, environment: environment)
-    }
-
-    private static func environmentCoreAPIAuthConfigured(
-        provider: UsageProvider,
-        environment: [String: String]) -> Bool
-    {
-        switch provider {
-        case .alibaba:
-            AlibabaCodingPlanSettingsReader.apiToken(environment: environment) != nil
-        case .azureopenai:
-            AzureOpenAISettingsReader.apiKey(environment: environment) != nil
-        case .bedrock:
-            BedrockSettingsReader.hasCredentials(environment: environment)
-        case .claude:
-            ClaudeAdminAPISettingsReader.apiKey(environment: environment) != nil
-        case .clinepass:
-            ClinePassSettingsReader.apiKey(environment: environment) != nil
-        case .codebuff:
-            CodebuffSettingsReader.apiKey(environment: environment) != nil
-        case .chutes:
-            ChutesSettingsReader.apiKey(environment: environment) != nil
-        case .zenmux:
-            ZenMuxSettingsReader.managementAPIKey(environment: environment) != nil
-        case .aiand:
-            AiAndSettingsReader.apiKey(environment: environment) != nil
-        case .crof:
-            CrofSettingsReader.apiKey(environment: environment) != nil
-        case .deepgram:
-            DeepgramSettingsReader.apiKey(environment: environment) != nil
-        case .deepseek:
-            DeepSeekSettingsReader.apiKey(environment: environment) != nil
-        case .deepinfra:
-            DeepInfraSettingsReader.apiKey(environment: environment) != nil
-        case .doubao:
-            DoubaoSettingsReader.apiKey(environment: environment) != nil
-        case .elevenlabs:
-            ElevenLabsSettingsReader.apiKey(environment: environment) != nil
-        case .groq:
-            GroqSettingsReader.apiKey(environment: environment) != nil
-        case .kilo:
-            KiloSettingsReader.apiKey(environment: environment) != nil
-        case .factory:
-            FactorySettingsReader.apiKey(environment: environment) != nil
-        case .neuralwatt:
-            NeuralWattSettingsReader.apiKey(environment: environment) != nil
-        default:
-            false
-        }
-    }
-
-    private static func environmentExtendedAPIAuthConfigured(
-        provider: UsageProvider,
-        environment: [String: String]) -> Bool
-    {
-        switch provider {
-        case .kimi:
-            KimiSettingsReader.apiKey(environment: environment) != nil
-        case .llmproxy:
-            LLMProxySettingsReader.apiKey(environment: environment) != nil
-        case .clawrouter:
-            ClawRouterSettingsReader.apiKey(environment: environment) != nil
-        case .sub2api:
-            Sub2APISettingsReader.apiKey(environment: environment) != nil
-        case .moonshot:
-            MoonshotSettingsReader.apiKey(environment: environment) != nil
-        case .ollama:
-            OllamaAPISettingsReader.apiKey(environment: environment) != nil
-        case .openai:
-            OpenAIAPISettingsReader.apiKey(environment: environment) != nil
-        case .openrouter:
-            OpenRouterSettingsReader.apiToken(environment: environment) != nil
-        case .stepfun:
-            StepFunSettingsReader.token(environment: environment) != nil
-        case .synthetic:
-            SyntheticSettingsReader.apiKey(environment: environment) != nil
-        case .venice:
-            VeniceSettingsReader.apiKey(environment: environment) != nil
-        case .warp:
-            WarpSettingsReader.apiKey(environment: environment) != nil
-        case .xai:
-            XAISettingsReader.apiKey(environment: environment) != nil
-        case .zai:
-            ZaiSettingsReader.apiToken(environment: environment) != nil
-        default:
-            false
-        }
-    }
-
-    private static func environmentWebAuthConfigured(
-        provider: UsageProvider,
-        environment: [String: String]) -> Bool
-    {
-        switch provider {
-        case .alibabatokenplan:
-            AlibabaTokenPlanSettingsReader.cookieHeader(environment: environment) != nil
-        case .qwencloud:
-            QwenCloudSettingsReader.cookieHeader(environment: environment) != nil
-        case .kimi:
-            KimiSettingsReader.authToken(environment: environment) != nil
-        case .manus:
-            ManusSettingsReader.sessionToken(environment: environment) != nil
-        case .perplexity:
-            PerplexitySettingsReader.sessionToken(environment: environment) != nil
-        default:
-            false
-        }
-    }
-
-    static func resolveMiniMaxAuthMode(
-        environment: [String: String],
-        settings: ProviderSettingsSnapshot?) -> MiniMaxAuthMode
-    {
-        let apiToken = ProviderTokenResolver.minimaxToken(environment: environment)
-        let envCookieHeader = ProviderTokenResolver.minimaxCookie(environment: environment)
-        let settingsCookieHeader = CookieHeaderNormalizer.normalize(settings?.minimax?.manualCookieHeader)
-        let cookieHeader = envCookieHeader ?? settingsCookieHeader
-        return MiniMaxAuthMode.resolve(apiToken: apiToken, cookieHeader: cookieHeader)
+        let adapter = ProviderDescriptorRegistry.descriptor(for: provider).credentials ?? ProviderCredentialAdapter()
+        return adapter.diagnosticAuthSummary(
+            account: account,
+            config: config,
+            environment: environment,
+            settings: settings)
     }
 }
 
@@ -341,13 +191,6 @@ extension CodexBarCLI {
             config: config,
             environment: environment,
             settings: settings)
-    }
-
-    static func _resolveMiniMaxAuthModeForTesting(
-        environment: [String: String],
-        settings: ProviderSettingsSnapshot?) -> MiniMaxAuthMode
-    {
-        self.resolveMiniMaxAuthMode(environment: environment, settings: settings)
     }
 }
 #endif

@@ -15,6 +15,7 @@ struct ProviderEndpointOverrideSecurityLinuxTests {
         #expect(MiMoWebFetchStrategy.shouldFallbackToLocal(error: MiMoSettingsError.invalidCookie) == true)
     }
 
+    #if !canImport(JavaScriptCore)
     @Test
     func deepgramRejectsInsecureOverrideBeforeSendingToken() async {
         let transport = FailingTransport()
@@ -30,6 +31,7 @@ struct ProviderEndpointOverrideSecurityLinuxTests {
             Issue.record("Expected DeepgramUsageError.invalidEndpointOverride, got \(error)")
         }
     }
+    #endif
 
     @Test
     func zaiRejectsInsecureQuotaOverrideBeforeSendingToken() async {
@@ -111,9 +113,11 @@ struct ProviderEndpointOverrideSecurityLinuxTests {
 
     @Test
     func affectedProviderOverridesAcceptHTTPSAndBareHosts() throws {
+        #if !canImport(JavaScriptCore)
         try DeepgramUsageFetcher.validateEndpointOverrides(environment: [
             DeepgramUsageFetcher.apiURLKey: "deepgram-proxy.test/v1",
         ])
+        #endif
         try ZaiSettingsReader
             .validateEndpointOverrides(environment: [ZaiSettingsReader.quotaURLKey: "https://zai-proxy.test/quota"])
         try ZaiSettingsReader.validateEndpointOverrides(environment: [ZaiSettingsReader.apiHostKey: "localhost:9443"])

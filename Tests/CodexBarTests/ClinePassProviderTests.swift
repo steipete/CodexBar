@@ -57,7 +57,7 @@ struct ClinePassProviderTests {
 
         field.binding.wrappedValue = "clinepass-test-key"
 
-        #expect(settings.clinePassAPIKey == "clinepass-test-key")
+        #expect(settings[providerConfig: .clinepass, field: .apiKey] == "clinepass-test-key")
         #expect(settings.providerConfig(for: .clinepass)?.sanitizedAPIKey == "clinepass-test-key")
         #expect(implementation.isAvailable(context: ProviderAvailabilityContext(
             provider: .clinepass,

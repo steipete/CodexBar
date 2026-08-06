@@ -23,6 +23,7 @@
       }
       const hostOptions = { bodyJSON };
       if (opts.headers !== undefined) hostOptions.headers = opts.headers;
+      if (opts.timeoutSeconds !== undefined) hostOptions.timeoutSeconds = opts.timeoutSeconds;
       return new Promise((resolve, reject) => host.http(String(url), hostOptions, "POST", true, resolve, reject));
     },
   });
@@ -35,6 +36,21 @@
       return host.settingGet(String(key), true);
     },
   });
+
+  const failureKinds = Object.freeze({
+    authenticationExpired: "authentication-expired",
+    missingCredential: "missing-credential",
+    permissionDenied: "permission-denied",
+    rateLimited: "rate-limited",
+    providerUnavailable: "provider-unavailable",
+    parseFailure: "parse-failure",
+    networkFailure: "network-failure",
+    apiFailure: "api-failure",
+  });
+  const classifiedFailure = kind => message =>
+    new Error(`__CODEXBAR_FAILURE__:${kind}:${String(message)}`);
+  ctx.fail = Object.freeze(Object.fromEntries(
+    Object.entries(failureKinds).map(([name, kind]) => [name, classifiedFailure(kind)])));
 
   ctx.browser = Object.freeze({
     cookieHeader(domain) {

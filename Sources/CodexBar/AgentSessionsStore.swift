@@ -181,8 +181,17 @@ final class AgentSessionsStore {
     }
 
     func applyLocalScanResult(_ sessions: [AgentSession], updatedAt: Date = Date()) {
-        self.latestLocalActivityAt = Self.latestActivityAt(in: sessions)
-        self.localSessions = self.settings.agentSessionsEnabled ? sessions : []
+        let latestActivityAt = Self.latestActivityAt(in: sessions)
+        let effectiveSessions = self.settings.agentSessionsEnabled ? sessions : []
+        // Rescans that reproduce the current content must not publish: `onUpdate` invalidates
+        // menus, and a redundant invalidation landing while the user hovers an Overview row's
+        // chart submenu fed the open/close rebuild flicker loop in #2652.
+        if latestActivityAt == self.latestLocalActivityAt, effectiveSessions == self.localSessions {
+            self.lastUpdatedAt = updatedAt
+            return
+        }
+        self.latestLocalActivityAt = latestActivityAt
+        self.localSessions = effectiveSessions
         self.lastUpdatedAt = updatedAt
         self.onUpdate?()
     }
@@ -196,7 +205,7 @@ final class AgentSessionsStore {
             let results = await self.remoteFetcher.fetch(hosts: hosts)
             let outcome = self.remoteRefreshGate.finish(generation: generation)
             guard !Task.isCancelled, self.settings.agentSessionsEnabled else { return }
-            if outcome.shouldPublish {
+            if outcome.shouldPublish, results != self.remoteHosts {
                 self.remoteHosts = results
                 self.lastUpdatedAt = Date()
                 self.onUpdate?()

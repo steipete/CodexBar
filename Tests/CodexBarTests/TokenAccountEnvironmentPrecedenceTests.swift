@@ -626,12 +626,10 @@ struct TokenAccountEnvironmentPrecedenceTests {
                 lastAuthenticatedAt: nil),
         ])
         try FileManagedCodexAccountStore(fileURL: storeURL).storeAccounts(accounts)
-        let config = CodexBarConfig(providers: [
-            ProviderConfig(
-                id: .codex,
-                codexActiveSource: .managedAccount(id: secondID),
-                codexProfileHomePaths: [profileHome.path]),
-        ])
+        var providerConfig = ProviderConfig(id: .codex)
+        providerConfig.codexActiveSource = .managedAccount(id: secondID)
+        providerConfig.codexProfileHomePaths = [profileHome.path]
+        let config = CodexBarConfig(providers: [providerConfig])
         let context = try TokenAccountCLIContext(
             selection: TokenAccountCLISelection(label: nil, index: nil, allAccounts: true),
             config: config,
@@ -705,12 +703,10 @@ struct TokenAccountEnvironmentPrecedenceTests {
         defer { try? FileManager.default.removeItem(at: root) }
         try FileManager.default.createDirectory(at: ambientHome, withIntermediateDirectories: true)
 
-        let config = CodexBarConfig(providers: [
-            ProviderConfig(
-                id: .codex,
-                codexActiveSource: .profileHome(path: "relative-codex-home"),
-                codexProfileHomePaths: ["relative-codex-home"]),
-        ])
+        var providerConfig = ProviderConfig(id: .codex)
+        providerConfig.codexActiveSource = .profileHome(path: "relative-codex-home")
+        providerConfig.codexProfileHomePaths = ["relative-codex-home"]
+        let config = CodexBarConfig(providers: [providerConfig])
         let context = try TokenAccountCLIContext(
             selection: TokenAccountCLISelection(label: nil, index: nil, allAccounts: false),
             config: config,
@@ -864,10 +860,10 @@ struct TokenAccountEnvironmentPrecedenceTests {
     }
 
     @Test
-    func `apply account label in app preserves snapshot fields`() {
+    func `apply account label in app preserves snapshot fields`() throws {
         let settings = Self.makeSettingsStore(suite: "TokenAccountEnvironmentPrecedenceTests-apply-app")
         let store = Self.makeUsageStore(settings: settings)
-        let snapshot = Self.makeSnapshotWithAllFields(provider: .zai)
+        let snapshot = try Self.makeSnapshotWithAllFields(provider: .zai)
         let account = ProviderTokenAccount(
             id: UUID(),
             label: "Team Account",
@@ -888,7 +884,7 @@ struct TokenAccountEnvironmentPrecedenceTests {
             selection: TokenAccountCLISelection(label: nil, index: nil, allAccounts: false),
             config: CodexBarConfig(providers: []),
             verbose: false)
-        let snapshot = Self.makeSnapshotWithAllFields(provider: .zai)
+        let snapshot = try Self.makeSnapshotWithAllFields(provider: .zai)
         let account = ProviderTokenAccount(
             id: UUID(),
             label: "CLI Account",
@@ -1164,26 +1160,16 @@ extension TokenAccountEnvironmentPrecedenceTests {
         return try operation(managedStoreURL)
     }
 
-    fileprivate static func makeSnapshotWithAllFields(provider: UsageProvider) -> UsageSnapshot {
+    fileprivate static func makeSnapshotWithAllFields(provider: UsageProvider) throws -> UsageSnapshot {
         let now = Date(timeIntervalSince1970: 1_700_000_000)
         let reset = Date(timeIntervalSince1970: 1_700_003_600)
-        let tokenLimit = ZaiLimitEntry(
-            type: .tokensLimit,
-            unit: .hours,
-            number: 6,
-            usage: 200,
-            currentValue: 40,
-            remaining: 160,
-            percentage: 20,
-            usageDetails: [ZaiUsageDetail(modelCode: "glm-4", usage: 40)],
-            nextResetTime: reset)
         let identity = ProviderIdentitySnapshot(
             providerID: provider.instanceID,
             accountEmail: nil,
             accountOrganization: "Org",
             loginMethod: "Pro")
 
-        return UsageSnapshot(
+        return try UsageSnapshot(
             primary: RateWindow(usedPercent: 21, windowMinutes: 60, resetsAt: reset, resetDescription: "primary"),
             secondary: RateWindow(usedPercent: 42, windowMinutes: 1440, resetsAt: nil, resetDescription: "secondary"),
             tertiary: RateWindow(usedPercent: 7, windowMinutes: nil, resetsAt: nil, resetDescription: "tertiary"),
@@ -1194,28 +1180,10 @@ extension TokenAccountEnvironmentPrecedenceTests {
                 period: "Monthly",
                 resetsAt: reset,
                 updatedAt: now),
-            zaiUsage: ZaiUsageSnapshot(
-                tokenLimit: tokenLimit,
-                timeLimit: nil,
-                planName: "Z.ai Pro",
-                updatedAt: now),
-            minimaxUsage: MiniMaxUsageSnapshot(
-                planName: "MiniMax",
-                availablePrompts: 500,
-                currentPrompts: 120,
-                remainingPrompts: 380,
-                windowMinutes: 1440,
-                usedPercent: 24,
-                resetsAt: reset,
-                updatedAt: now),
-            openRouterUsage: OpenRouterUsageSnapshot(
-                totalCredits: 50,
-                totalUsage: 10,
-                balance: 40,
-                usedPercent: 20,
-                rateLimit: nil,
-                updatedAt: now),
-            cursorRequests: CursorRequestUsage(used: 7, limit: 70),
+            details: [ProviderDetailSection(rows: [
+                ProviderDetailSection.Row(label: "Remaining", value: "$40.00"),
+                ProviderDetailSection.Row(label: "Request quota", value: "7 / 70"),
+            ])],
             subscriptionExpiresAt: reset.addingTimeInterval(86400),
             subscriptionRenewsAt: reset.addingTimeInterval(43200),
             updatedAt: now,
@@ -1229,14 +1197,7 @@ extension TokenAccountEnvironmentPrecedenceTests {
         #expect(after.providerCost?.used == before.providerCost?.used)
         #expect(after.providerCost?.limit == before.providerCost?.limit)
         #expect(after.providerCost?.currencyCode == before.providerCost?.currencyCode)
-        #expect(after.zaiUsage?.planName == before.zaiUsage?.planName)
-        #expect(after.zaiUsage?.tokenLimit?.usage == before.zaiUsage?.tokenLimit?.usage)
-        #expect(after.minimaxUsage?.planName == before.minimaxUsage?.planName)
-        #expect(after.minimaxUsage?.availablePrompts == before.minimaxUsage?.availablePrompts)
-        #expect(after.openRouterUsage?.balance == before.openRouterUsage?.balance)
-        #expect(after.openRouterUsage?.rateLimit?.requests == before.openRouterUsage?.rateLimit?.requests)
-        #expect(after.cursorRequests?.used == before.cursorRequests?.used)
-        #expect(after.cursorRequests?.limit == before.cursorRequests?.limit)
+        #expect(after.details == before.details)
         #expect(after.subscriptionExpiresAt == before.subscriptionExpiresAt)
         #expect(after.subscriptionRenewsAt == before.subscriptionRenewsAt)
         #expect(after.updatedAt == before.updatedAt)

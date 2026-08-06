@@ -11,7 +11,7 @@ struct ElevenLabsProviderImplementation: ProviderImplementation {
 
     @MainActor
     func observeSettings(_ settings: SettingsStore) {
-        _ = settings.elevenLabsAPIKey
+        _ = settings[providerConfig: .elevenlabs, field: .apiKey]
     }
 
     @MainActor
@@ -19,7 +19,9 @@ struct ElevenLabsProviderImplementation: ProviderImplementation {
         if ElevenLabsSettingsReader.apiKey(environment: context.environment) != nil {
             return true
         }
-        if !context.settings.elevenLabsAPIKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+        if !context.settings[providerConfig: .elevenlabs, field: .apiKey]
+            .trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        {
             return true
         }
         return !context.settings.tokenAccounts(for: .elevenlabs).isEmpty
@@ -34,7 +36,7 @@ struct ElevenLabsProviderImplementation: ProviderImplementation {
                 subtitle: "Stored in ~/.codexbar/config.json. Get your key from elevenlabs.io/app/settings/api-keys.",
                 kind: .secure,
                 placeholder: "xi-...",
-                binding: context.stringBinding(\.elevenLabsAPIKey),
+                binding: context.providerConfigBinding(.apiKey),
                 actions: [],
                 isVisible: nil,
                 onActivate: nil),

@@ -161,3 +161,75 @@ public struct ProviderDetailSection: Codable, Equatable, Sendable {
         return value.isEmpty ? nil : value
     }
 }
+
+extension ProviderDetailSection {
+    static func makeRow(label: String, value: String, secondaryValue: String? = nil) -> Row {
+        do {
+            return try Row(
+                label: self.boundedRequired(label),
+                value: self.boundedRequired(value),
+                secondaryValue: self.boundedOptional(secondaryValue))
+        } catch {
+            preconditionFailure("Bounded provider detail row failed validation: \(error)")
+        }
+    }
+
+    static func makeChart(
+        kind: Chart.Kind = .bars,
+        title: String? = nil,
+        unit: String? = nil,
+        points: [(label: String, value: Double)]) -> Chart
+    {
+        do {
+            return try Chart(
+                kind: kind,
+                title: self.boundedOptional(title),
+                unit: self.boundedOptional(unit),
+                points: points.prefix(self.maximumPointsPerChart).compactMap { point in
+                    guard point.value.isFinite else { return nil }
+                    return try? Chart.Point(label: self.boundedRequired(point.label), value: point.value)
+                })
+        } catch {
+            preconditionFailure("Bounded provider detail chart failed validation: \(error)")
+        }
+    }
+
+    static func makeSection(title: String? = nil, rows: [Row], chart: Chart? = nil) -> Self {
+        do {
+            return try Self(
+                title: self.boundedOptional(title),
+                rows: Array(rows.prefix(self.maximumRowsPerSection)),
+                chart: chart)
+        } catch {
+            preconditionFailure("Bounded provider detail section failed validation: \(error)")
+        }
+    }
+
+    private static func boundedRequired(_ value: String) -> String {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        return String((trimmed.isEmpty ? "—" : trimmed).prefix(self.maximumStringLength))
+    }
+
+    private static func boundedOptional(_ value: String?) -> String? {
+        guard let value else { return nil }
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : String(trimmed.prefix(self.maximumStringLength))
+    }
+}
+
+extension ProviderDetailSection.Row {
+    static func makeRow(label: String, value: String, secondaryValue: String? = nil) -> Self {
+        ProviderDetailSection.makeRow(label: label, value: value, secondaryValue: secondaryValue)
+    }
+}
+
+extension ProviderDetailSection.Chart {
+    static func makeChart(
+        kind: Kind = .bars,
+        title: String? = nil,
+        unit: String? = nil,
+        points: [(label: String, value: Double)]) -> Self
+    {
+        ProviderDetailSection.makeChart(kind: kind, title: title, unit: unit, points: points)
+    }
+}

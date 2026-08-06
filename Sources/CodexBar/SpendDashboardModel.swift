@@ -160,7 +160,7 @@ struct SpendDashboardModel: Equatable, Sendable {
         let costMultiplier: Double
     }
 
-    private struct InputSummary {
+    struct InputSummary {
         let input: ProviderInput
         let costMultiplier: Double
         let entries: [WindowEntry]
@@ -171,31 +171,9 @@ struct SpendDashboardModel: Equatable, Sendable {
         let hasInvalidCostHistory: Bool
     }
 
-    private struct WindowEntry {
+    struct WindowEntry {
         let day: Date
         let entry: CostUsageDailyReport.Entry
-    }
-
-    private struct ModelKey: Hashable {
-        let provider: UsageProvider
-        let modelName: String
-    }
-
-    private struct ModelAccumulator {
-        let providerName: String
-        var tokens: Int?
-        var cost: Double?
-        var sawTokens = false
-        var sawCost = false
-        var invalidTokens = false
-        var invalidCost = false
-        var overflowedTokens = false
-        var overflowedCost = false
-    }
-
-    private struct ModelSummary {
-        let rows: [ModelRow]
-        let completeness: ModelHistoryCompleteness
     }
 
     private struct DailyKey: Hashable {
@@ -246,12 +224,17 @@ struct SpendDashboardModel: Equatable, Sendable {
                 calendar: calendar)
         }
         let providers = Self.providerRows(summaries)
-        let completeModelSummaries = summaries.filter { summary in
+        let modelSummaries = summaries.filter { summary in
             guard summary.totalCost != nil else { return false }
-            return Self.modelSummary(summaries: [summary]).completeness == .complete
+            let summaryModelHistory = Self.modelSummary(summaries: [summary])
+            return summaryModelHistory.completeness == .complete ||
+                Self.canRetainPartialCodexModelHistory(summary)
         }
-        let modelSummary = Self.modelSummary(summaries: completeModelSummaries)
-        let modelHistoryCompleteness = completeModelSummaries.count == summaries.count
+        // A Codex session can have valid priced rows alongside model-less or unpriced rows.
+        // Keep only the directly priced portion, but mark the aggregate partial and remove ranking.
+        let modelSummary = Self.modelSummary(summaries: modelSummaries)
+        let modelHistoryCompleteness = modelSummaries.count == summaries.count &&
+            modelSummary.completeness == .complete
             ? ModelHistoryCompleteness.complete
             : ModelHistoryCompleteness.incomplete
         let dailyPoints = Self.dailyPoints(summaries: summaries)
@@ -346,95 +329,12 @@ struct SpendDashboardModel: Equatable, Sendable {
             }
     }
 
-    private static func modelSummary(summaries: [InputSummary]) -> ModelSummary {
-        var aggregates: [ModelKey: ModelAccumulator] = [:]
-        var completeness = ModelHistoryCompleteness.complete
-        for summary in summaries {
-            let input = summary.input
-            let hasCompleteTokenHistory = summary.totalTokens != nil && summary.entries.allSatisfy {
-                Self.hasCompleteModelTokenCoverage($0.entry)
-            }
-            for windowEntry in summary.entries {
-                let entry = windowEntry.entry
-                let breakdowns = entry.modelBreakdowns ?? []
-                if !Self.hasCompleteModelCostCoverage(entry) {
-                    completeness = .incomplete
-                }
-                for breakdown in breakdowns {
-                    let name = breakdown.modelName.trimmingCharacters(in: .whitespacesAndNewlines)
-                    guard !name.isEmpty else { continue }
-                    let key = ModelKey(provider: input.provider, modelName: name)
-                    var aggregate = aggregates[key] ?? ModelAccumulator(
-                        providerName: input.modelProviderName,
-                        tokens: 0,
-                        cost: 0)
-                    if hasCompleteTokenHistory,
-                       let tokens = Self.nonnegative(breakdown.totalTokens)
-                    {
-                        aggregate.sawTokens = true
-                        aggregate.tokens = Self.add(
-                            tokens,
-                            to: aggregate.tokens,
-                            overflowed: &aggregate.overflowedTokens)
-                    } else {
-                        aggregate.invalidTokens = true
-                    }
-                    if let cost = Self.validCost(breakdown.costUSD).map({ $0 * summary.costMultiplier }) {
-                        aggregate.sawCost = true
-                        aggregate.cost = Self.add(cost, to: aggregate.cost, overflowed: &aggregate.overflowedCost)
-                    } else {
-                        aggregate.invalidCost = true
-                    }
-                    aggregates[key] = aggregate
-                }
-            }
-        }
-        if aggregates.values.contains(where: {
-            !$0.sawCost || $0.invalidCost || $0.overflowedCost || $0.cost == nil
-        }) {
-            completeness = .incomplete
-        }
-
-        let rows = aggregates.map { key, value in
-            ModelRow(
-                rank: 0,
-                provider: key.provider,
-                providerName: value.providerName,
-                modelName: key.modelName,
-                totalTokens: value.sawTokens && !value.invalidTokens && !value.overflowedTokens ? value.tokens : nil,
-                totalCost: value.sawCost && !value.invalidCost && !value.overflowedCost ? value.cost : nil)
-        }
-        .sorted { lhs, rhs in
-            switch (lhs.totalCost, rhs.totalCost) {
-            case let (left?, right?) where left != right: return left > right
-            case (_?, nil): return true
-            case (nil, _?): return false
-            default:
-                if lhs.providerName != rhs.providerName {
-                    return lhs.providerName < rhs.providerName
-                }
-                return lhs.modelName < rhs.modelName
-            }
-        }
-        .enumerated()
-        .map { rank, row in
-            ModelRow(
-                rank: rank + 1,
-                provider: row.provider,
-                providerName: row.providerName,
-                modelName: row.modelName,
-                totalTokens: row.totalTokens,
-                totalCost: row.totalCost)
-        }
-        return ModelSummary(rows: rows, completeness: completeness)
-    }
-
-    private static func hasProvenZeroCost(_ entry: CostUsageDailyReport.Entry) -> Bool {
+    static func hasProvenZeroCost(_ entry: CostUsageDailyReport.Entry) -> Bool {
         self.validCost(entry.costUSD) == 0
             && (entry.modelBreakdowns?.allSatisfy(self.hasProvenZeroCost) ?? true)
     }
 
-    private static func hasProvenZeroCost(_ breakdown: CostUsageDailyReport.ModelBreakdown) -> Bool {
+    static func hasProvenZeroCost(_ breakdown: CostUsageDailyReport.ModelBreakdown) -> Bool {
         let optionalCosts = [breakdown.standardCostUSD, breakdown.priorityCostUSD]
         return Self.validCost(breakdown.costUSD) == 0
             && optionalCosts.allSatisfy { value in
@@ -442,7 +342,7 @@ struct SpendDashboardModel: Equatable, Sendable {
             }
     }
 
-    private static func hasProvenZeroTokens(_ entry: CostUsageDailyReport.Entry) -> Bool {
+    static func hasProvenZeroTokens(_ entry: CostUsageDailyReport.Entry) -> Bool {
         let optionalTokens = [
             entry.inputTokens,
             entry.cacheReadTokens,
@@ -454,54 +354,13 @@ struct SpendDashboardModel: Equatable, Sendable {
             && (entry.modelBreakdowns?.allSatisfy(Self.hasProvenZeroTokens) ?? true)
     }
 
-    private static func hasProvenZeroTokens(_ breakdown: CostUsageDailyReport.ModelBreakdown) -> Bool {
+    static func hasProvenZeroTokens(_ breakdown: CostUsageDailyReport.ModelBreakdown) -> Bool {
         let optionalTokens = [breakdown.standardTokens, breakdown.priorityTokens]
         return Self.nonnegative(breakdown.totalTokens) == 0
             && optionalTokens.allSatisfy { $0 == nil || Self.nonnegative($0) == 0 }
     }
 
-    private static func hasCompleteModelCostCoverage(_ entry: CostUsageDailyReport.Entry) -> Bool {
-        var totalCost = 0.0
-        var sawNamedBreakdown = false
-        for breakdown in entry.modelBreakdowns ?? [] {
-            let name = breakdown.modelName.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !name.isEmpty else {
-                guard Self.hasProvenZeroCost(breakdown) else { return false }
-                continue
-            }
-            sawNamedBreakdown = true
-            guard let cost = Self.validCost(breakdown.costUSD) else { return false }
-            totalCost += cost
-            guard totalCost.isFinite else { return false }
-        }
-
-        guard sawNamedBreakdown else { return Self.hasProvenZeroCost(entry) }
-        guard let entryCost = Self.validCost(entry.costUSD) else { return false }
-        return Self.costsMatch(entryCost, totalCost)
-    }
-
-    private static func hasCompleteModelTokenCoverage(_ entry: CostUsageDailyReport.Entry) -> Bool {
-        var totalTokens = 0
-        var sawNamedBreakdown = false
-        for breakdown in entry.modelBreakdowns ?? [] {
-            let name = breakdown.modelName.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !name.isEmpty else {
-                guard Self.hasProvenZeroTokens(breakdown) else { return false }
-                continue
-            }
-            sawNamedBreakdown = true
-            guard let tokens = Self.nonnegative(breakdown.totalTokens) else { return false }
-            let addition = totalTokens.addingReportingOverflow(tokens)
-            guard !addition.overflow else { return false }
-            totalTokens = addition.partialValue
-        }
-
-        guard sawNamedBreakdown else { return Self.hasProvenZeroTokens(entry) }
-        guard let entryTokens = Self.nonnegative(entry.totalTokens) else { return false }
-        return entryTokens == totalTokens
-    }
-
-    private static func costsMatch(_ lhs: Double, _ rhs: Double) -> Bool {
+    static func costsMatch(_ lhs: Double, _ rhs: Double) -> Bool {
         let scaledTolerance = max(abs(lhs), abs(rhs)) * 1e-12
         let tolerance = min(1e-6, max(1e-9, scaledTolerance))
         return abs(lhs - rhs) <= tolerance
@@ -788,12 +647,12 @@ struct SpendDashboardModel: Equatable, Sendable {
         return value.isEmpty || value == "XXX" ? nil : value
     }
 
-    private static func validCost(_ value: Double?) -> Double? {
+    static func validCost(_ value: Double?) -> Double? {
         guard let value, value.isFinite, value >= 0 else { return nil }
         return value
     }
 
-    private static func nonnegative(_ value: Int?) -> Int? {
+    static func nonnegative(_ value: Int?) -> Int? {
         guard let value, value >= 0 else { return nil }
         return value
     }
@@ -829,7 +688,7 @@ struct SpendDashboardModel: Equatable, Sendable {
         return self.safeIntSum(values.compactMap(\.self))
     }
 
-    private static func add(_ value: Int, to current: Int?, overflowed: inout Bool) -> Int? {
+    static func add(_ value: Int, to current: Int?, overflowed: inout Bool) -> Int? {
         guard !overflowed, let current else { return nil }
         let addition = current.addingReportingOverflow(value)
         if addition.overflow {
@@ -839,7 +698,7 @@ struct SpendDashboardModel: Equatable, Sendable {
         return addition.partialValue
     }
 
-    private static func add(_ value: Double, to current: Double?, overflowed: inout Bool) -> Double? {
+    static func add(_ value: Double, to current: Double?, overflowed: inout Bool) -> Double? {
         guard !overflowed, let current else { return nil }
         let result = current + value
         guard result.isFinite else {

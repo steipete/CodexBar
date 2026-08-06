@@ -132,10 +132,7 @@ extension StatusItemController {
         {
             let session = projection.menuBarSelectableRateWindow(for: .session)
             let weekly = projection.menuBarSelectableRateWindow(for: .weekly)
-            let automatic = projection.visibleRateLanes
-                .lazy
-                .compactMap { projection.menuBarSelectableRateWindow(for: $0) }
-                .first
+            let automatic = projection.automaticMenuBarWindow()
             return (session, weekly, automatic)
         }
 

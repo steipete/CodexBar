@@ -134,7 +134,7 @@ extension StatusMenuTests {
     }
 
     @Test
-    func `overview row submenu action does not switch provider detail`() throws {
+    func `overview row uses declarative details without bespoke submenu`() throws {
         self.disableMenuCardsForTesting()
         let settings = self.makeSettings()
         settings.statusChecksEnabled = false
@@ -184,11 +184,11 @@ extension StatusMenuTests {
         let zaiRow = try #require(menu.items.first {
             ($0.representedObject as? String) == "overviewRow-zai"
         })
-        #expect(zaiRow.submenu != nil)
-
-        let action = try #require(zaiRow.action)
-        let target = try #require(zaiRow.target as? StatusItemController)
-        _ = target.perform(action, with: zaiRow)
+        #expect(zaiRow.submenu == nil)
+        let details = try #require(store.snapshot(for: .zai)?.details.first)
+        #expect(details.title == "Quota details")
+        #expect(details.rows.contains { $0.label == "MCP quota" && $0.value == "50% used" })
+        #expect(details.rows.contains { $0.label == "glm-4.5" && $0.value == "512" })
 
         #expect(settings.mergedMenuLastSelectedWasOverview)
         #expect(settings.selectedMenuProvider == .claude)

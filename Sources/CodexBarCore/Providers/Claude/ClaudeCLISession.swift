@@ -52,7 +52,7 @@ private actor ClaudeCLISessionOperationGate {
 
 actor ClaudeCLISession {
     static let shared = ClaudeCLISession()
-    private static let log = CodexBarLog.logger(LogCategories.claudeCLI)
+    private static let log = CodexBarLog.logger(LogCategories.provider(.claude, scope: "cli"))
     private static let probeSessionIDFilename = ".codexbar-session-id"
     private static let fallbackProbeSessionID = UUID()
     #if DEBUG

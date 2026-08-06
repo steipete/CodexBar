@@ -6,6 +6,13 @@ import SweetCookieKit
 
 public enum AlibabaCodingPlanProviderDescriptor {
     public static let descriptor: ProviderDescriptor = Self.makeDescriptor()
+    private static let credentials = ProviderCredentialAdapter.apiKey(
+        environmentKey: AlibabaCodingPlanSettingsReader.apiTokenKey,
+        resolve: AlibabaCodingPlanSettingsReader.apiToken,
+        usesRegion: true,
+        configValidator: ProviderCredentialAdapter.regionValidator(
+            displayName: "Alibaba Coding Plan",
+            isValid: { AlibabaCodingPlanAPIRegion(rawValue: $0) != nil }))
 
     static func makeDescriptor() -> ProviderDescriptor {
         #if os(macOS)
@@ -24,6 +31,23 @@ public enum AlibabaCodingPlanProviderDescriptor {
 
         return ProviderDescriptor(
             id: .alibaba,
+            settingsSection: .init(
+                AlibabaCodingPlanProviderSettingsKey.self,
+                cookieSettings: { settings in
+                    CookieProviderSettings(
+                        cookieSource: settings.cookieSource,
+                        manualCookieHeader: settings.manualCookieHeader)
+                },
+                credentialSettings: { context in
+                    let settings = context.cookieSettings(for: .alibaba)
+                    let region = context.config?.sanitizedRegion
+                        .flatMap(AlibabaCodingPlanAPIRegion.init(rawValue:)) ?? .international
+                    return AlibabaCodingPlanProviderSettings(
+                        cookieSource: settings.cookieSource,
+                        manualCookieHeader: settings.manualCookieHeader,
+                        apiRegion: region)
+                }),
+            credentials: self.credentials,
             metadata: ProviderMetadata(
                 id: .alibaba,
                 displayName: "Alibaba",
@@ -38,6 +62,11 @@ public enum AlibabaCodingPlanProviderDescriptor {
                 defaultEnabled: false,
                 isPrimaryProvider: false,
                 usesAccountFallback: false,
+                sharePlanLabels: [
+                    "lite": "Lite", "coding plan lite": "Lite", "pro": "Pro", "active pro": "Pro",
+                    "alibaba coding plan pro": "Pro", "starter": "Starter", "enterprise": "Enterprise",
+                ],
+                debugLogUnavailableMessage: "Alibaba Coding Plan debug log not yet implemented",
                 browserCookieOrder: browserOrder,
                 dashboardURL: AlibabaCodingPlanAPIRegion.international.dashboardURL.absoluteString,
                 statusPageURL: nil,
@@ -55,6 +84,8 @@ public enum AlibabaCodingPlanProviderDescriptor {
                 supportsTokenCost: false,
                 noDataMessage: { "Alibaba Coding Plan cost summary is not supported." }),
             pace: .calendarMonthResetWindow,
+            presentation: ProviderUsagePresentation(menuCard: ProviderMenuCardPresentation(
+                showsPrimaryBalanceDescription: true)),
             fetchPlan: ProviderFetchPlan(
                 sourceModes: [.auto, .web, .api],
                 pipeline: ProviderFetchPipeline(resolveStrategies: self.resolveStrategies)),

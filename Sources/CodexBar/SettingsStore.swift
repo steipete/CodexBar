@@ -410,6 +410,7 @@ extension SettingsStore {
         config: CodexBarConfig,
         hadExistingConfig: Bool) -> Bool
     {
+        // Provider-specific by design: the legacy OpenAI web-access flag was inferred from Codex's cookie config.
         guard let codex = config.providerConfig(for: .codex) else { return false }
         if let cookieSource = codex.cookieSource {
             return cookieSource.isEnabled
@@ -732,6 +733,7 @@ extension SettingsStore {
 
         // Tagged builds through v0.35 used primary=Claude, secondary=Gemini Pro,
         // and tertiary=Gemini Flash. Remap those meanings once to the two-pool schema.
+        // Provider-specific by design: this one-time migration rewrites Antigravity's historical persisted lanes.
         var migrated = preferences
         switch MenuBarMetricPreference(rawValue: migrated[UsageProvider.antigravity.rawValue] ?? "") {
         case .primary:

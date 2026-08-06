@@ -2,10 +2,21 @@ import Foundation
 
 public enum GroqProviderDescriptor {
     public static let descriptor: ProviderDescriptor = Self.makeDescriptor()
+    private static let credentials = ProviderCredentialAdapter.apiKey(
+        environmentKey: GroqSettingsReader.apiKeyEnvironmentKey,
+        resolve: GroqSettingsReader.apiKey,
+        tokenAccountSupport: TokenAccountSupport(
+            title: "API keys",
+            subtitle: "Store multiple Groq API keys.",
+            placeholder: "Paste Groq API key…",
+            injection: .environment(key: GroqSettingsReader.apiKeyEnvironmentKey),
+            requiresManualCookieSource: false,
+            cookieName: nil))
 
     static func makeDescriptor() -> ProviderDescriptor {
         ProviderDescriptor(
             id: .groq,
+            credentials: self.credentials,
             metadata: ProviderMetadata(
                 id: .groq,
                 displayName: "Groq",
@@ -21,6 +32,7 @@ public enum GroqProviderDescriptor {
                 widgetSelectable: false,
                 isPrimaryProvider: false,
                 usesAccountFallback: false,
+                debugLogUnavailableMessage: "Groq debug log not yet implemented",
                 browserCookieOrder: nil,
                 dashboardURL: "https://console.groq.com/dashboard/usage",
                 statusPageURL: nil,
@@ -36,7 +48,9 @@ public enum GroqProviderDescriptor {
                 ]),
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
-                noDataMessage: { "Sign in at console.groq.com to show Groq spend and token usage." }),
+                noDataMessage: { "Sign in at console.groq.com to show Groq spend and token usage." },
+                showsRequestHistory: false,
+                hintPlacement: .hidden),
             fetchPlan: ProviderFetchPlan(
                 sourceModes: [.auto, .web, .api],
                 pipeline: ProviderFetchPipeline(resolveStrategies: { context in
