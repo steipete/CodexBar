@@ -45,7 +45,7 @@ defineProvider({
           !Number.isInteger(raw.number) || !Number.isInteger(raw.percentage)) {
         throw new Error("Failed to parse z.ai limit entry");
       }
-      if (raw.type !== "TOKENS_LIMIT" && raw.type !== "TIME_LIMIT") return null;
+      if (raw.type !== "TOKENS_LIMIT" && raw.type !== "TIME_LIMIT" && raw.type !== "CREDIT_LIMIT") return null;
       const usage = optionalInteger(raw.usage, "limit.usage");
       const current = optionalInteger(raw.currentValue, "limit.currentValue");
       const remaining = optionalInteger(raw.remaining, "limit.remaining");
@@ -66,7 +66,7 @@ defineProvider({
     }
     function window(limit) {
       const result = { usedPercent: limit.percent };
-      if (limit.raw.type === "TOKENS_LIMIT" && limit.windowMinutes !== null) {
+      if ((limit.raw.type === "TOKENS_LIMIT" || limit.raw.type === "CREDIT_LIMIT") && limit.windowMinutes !== null) {
         result.windowMinutes = limit.windowMinutes;
       }
       if (limit.reset !== null) result.resetsAt = ctx.date.unixMillis(limit.reset);
@@ -87,7 +87,7 @@ defineProvider({
     }
 
     const limits = root.data.limits.map(parseLimit).filter(Boolean);
-    const tokenLimits = limits.filter(item => item.raw.type === "TOKENS_LIMIT")
+    const tokenLimits = limits.filter(item => item.raw.type === "TOKENS_LIMIT" || item.raw.type === "CREDIT_LIMIT")
       .sort((a, b) => (a.windowMinutes || Number.MAX_SAFE_INTEGER) - (b.windowMinutes || Number.MAX_SAFE_INTEGER));
     const timeLimit = limits.filter(item => item.raw.type === "TIME_LIMIT").pop() || null;
     const tokenLimit = tokenLimits.length ? tokenLimits[tokenLimits.length - 1] : null;
@@ -102,8 +102,8 @@ defineProvider({
     if ((tokenLimit || sessionLimit) && timeLimit) {
       result.extraWindows = [{ id: "zai-mcp", title: "MCP", window: window(timeLimit) }];
     }
-    if (tokenLimit) result.details[0].rows.push(limitRow("Token quota", tokenLimit));
-    if (sessionLimit) result.details[0].rows.push(limitRow("Session token quota", sessionLimit));
+    if (tokenLimit) result.details[0].rows.push(limitRow(tokenLimit.raw.type === "CREDIT_LIMIT" ? "Credit quota" : "Token quota", tokenLimit));
+    if (sessionLimit) result.details[0].rows.push(limitRow(sessionLimit.raw.type === "CREDIT_LIMIT" ? "Session credit quota" : "Session token quota", sessionLimit));
     if (timeLimit) {
       result.details[0].rows.push(limitRow("MCP quota", timeLimit));
       for (const detail of timeLimit.details.slice(0, 20)) {
