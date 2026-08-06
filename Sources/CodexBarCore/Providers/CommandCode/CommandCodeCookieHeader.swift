@@ -28,6 +28,9 @@ public enum CommandCodeCookieHeader {
     /// Cookie names used by better-auth in production (HTTPS) and dev (HTTP).
     /// The `__Secure-` variant is the standard production deployment.
     public static let supportedSessionCookieNames = [
+        "__Secure-commandcode_prod_.session_token",
+        "commandcode_prod_.session_token",
+        "__Host-commandcode_prod_.session_token",
         "__Host-better-auth.session_token",
         "__Secure-better-auth.session_token",
         "better-auth.session_token",
@@ -48,7 +51,7 @@ public enum CommandCodeCookieHeader {
         // Bare token — assume the production cookie name.
         if !raw.contains("="), !raw.contains(";") {
             return CommandCodeCookieOverride(
-                name: "__Secure-better-auth.session_token",
+                name: "__Secure-commandcode_prod_.session_token",
                 token: raw)
         }
 
