@@ -27,6 +27,7 @@ public struct ProviderTokenCostConfig: Sendable {
     public let noDataMessage: @Sendable () -> String
     public let menuHintLines: [ProviderTokenCostHint]
     public let supportsTokenSnapshot: Bool
+    public let settingsStatusOrder: Int?
     public let showsHintInProviderDetails: Bool
     public let showsCostMenuSection: Bool
     public let estimateDisclaimer: String
@@ -41,6 +42,7 @@ public struct ProviderTokenCostConfig: Sendable {
         noDataMessage: @escaping @Sendable () -> String,
         menuHintLines: [ProviderTokenCostHint] = [],
         supportsTokenSnapshot: Bool = false,
+        settingsStatusOrder: Int? = nil,
         showsHintInProviderDetails: Bool = false,
         showsCostMenuSection: Bool = true,
         estimateDisclaimer: String = "Estimated from local logs · may differ from your bill",
@@ -54,6 +56,7 @@ public struct ProviderTokenCostConfig: Sendable {
         self.noDataMessage = noDataMessage
         self.menuHintLines = menuHintLines
         self.supportsTokenSnapshot = supportsTokenSnapshot
+        self.settingsStatusOrder = settingsStatusOrder
         self.showsHintInProviderDetails = showsHintInProviderDetails
         self.showsCostMenuSection = showsCostMenuSection
         self.estimateDisclaimer = estimateDisclaimer

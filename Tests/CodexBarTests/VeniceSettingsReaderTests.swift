@@ -60,14 +60,14 @@ struct VeniceProviderTokenResolverTests {
     @Test
     func `resolves from environment`() {
         let env = ["VENICE_API_KEY": "ven-resolve-test"]
-        let resolution = ProviderTokenResolver.veniceResolution(environment: env)
+        let resolution = ProviderTokenResolver.resolution(for: .venice, environment: env)
         #expect(resolution?.token == "ven-resolve-test")
         #expect(resolution?.source == .environment)
     }
 
     @Test
     func `returns nil when key absent`() {
-        let resolution = ProviderTokenResolver.veniceResolution(environment: [:])
+        let resolution = ProviderTokenResolver.resolution(for: .venice, environment: [:])
         #expect(resolution == nil)
     }
 }

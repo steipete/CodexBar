@@ -4,6 +4,7 @@ public enum ElevenLabsProviderDescriptor {
     public static let descriptor: ProviderDescriptor = Self.makeDescriptor()
     private static let credentials = ProviderCredentialAdapter.apiKey(
         environmentKey: ElevenLabsSettingsReader.apiKeyEnvironmentKey,
+        apiKeyDebugLabel: ElevenLabsSettingsReader.apiKeyEnvironmentKey,
         resolve: ElevenLabsSettingsReader.apiKey,
         tokenAccountSupport: TokenAccountSupport(
             title: "API keys",
@@ -59,7 +60,7 @@ public enum ElevenLabsProviderDescriptor {
                 noDataMessage: { "ElevenLabs cost history is not available via API yet." }),
             fetchPlan: .apiToken(
                 strategyID: "elevenlabs.api",
-                resolveToken: { ProviderTokenResolver.elevenLabsToken(environment: $0) },
+                resolveToken: { ProviderTokenResolver.token(for: .elevenlabs, environment: $0) },
                 missingCredentialsError: { ElevenLabsUsageError.missingCredentials },
                 loadUsage: { apiKey, context in
                     try await ElevenLabsUsageFetcher.fetchUsage(

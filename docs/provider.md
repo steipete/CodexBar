@@ -55,6 +55,20 @@ diagnose classification, validation, and missing-credential messaging; a missing
 credential behavior. Typed settings-section registrations optionally expose cookie settings and a CLI credential
 contribution, so the app, CLI, and plugin cookie broker consume the same provider-owned settings shape.
 
+### Provider architecture gatekeeper threat model
+
+`ProviderArchitectureGatekeeperTests` is a drift tripwire against honest architecture mistakes by future contributors
+and AI agents. It is not an adversarially complete analyzer. In scope are dotted provider cases, raw provider-ID
+literals in policy contexts, and labeled or positional arguments in shipped Swift under `Sources/**` and
+`WidgetExtension/**`.
+
+The following are out of scope by design:
+
+- String concatenation, reflection, and dynamic lookups: these defeat lexical analysis, and adversarial insiders are
+  not the threat.
+- `Tests/**`: test fixtures legitimately name providers.
+- `Scripts/**` and non-Swift files: this tripwire guards shipped Swift architecture, not tooling or documentation.
+
 ## Provider descriptor (source of truth)
 
 Introduce a single descriptor per provider:

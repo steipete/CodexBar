@@ -123,7 +123,7 @@ actor HistoricalUsageHistoryStore {
 
         let sample = HistoricalUsageRecord(
             v: Self.schemaVersion,
-            provider: .codex,
+            provider: .codex, // Provider-specific by design: this store persists live Codex weekly-window samples.
             windowKind: .secondary,
             source: .live,
             accountKey: accountKey,
@@ -250,7 +250,7 @@ actor HistoricalUsageHistoryStore {
                 let usedPercent = Self.clamp((cumulativeCredits / estimatedCreditsAtLimit) * 100, lower: 0, upper: 100)
                 synthesized.append(HistoricalUsageRecord(
                     v: Self.schemaVersion,
-                    provider: .codex,
+                    provider: .codex, // Provider-specific by design: this path backfills Codex weekly history.
                     windowKind: .secondary,
                     source: .backfill,
                     accountKey: accountKey,

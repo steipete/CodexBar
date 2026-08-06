@@ -71,6 +71,7 @@ public enum CursorProviderDescriptor {
                 noDataMessage: { "No Cursor cost usage found. Sign in to Cursor in your browser or the Cursor app." },
                 menuHintLines: [.estimate],
                 supportsTokenSnapshot: self.supportsTokenSnapshot,
+                settingsStatusOrder: 2,
                 estimateDisclaimer: "From Cursor's usage dashboard at vendor token rates; may differ from your " +
                     "invoice."),
             pace: ProviderPaceCapability(resetWindowPace: .windowDurationPresent),

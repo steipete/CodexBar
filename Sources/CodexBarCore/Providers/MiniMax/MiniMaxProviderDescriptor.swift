@@ -135,11 +135,11 @@ public enum MiniMaxProviderDescriptor {
         case .auto:
             break
         }
-        let apiToken = ProviderTokenResolver.minimaxToken(environment: context.env)
+        let apiToken = ProviderTokenResolver.token(for: .minimax, environment: context.env)
         let apiKeyKind = MiniMaxAPISettingsReader.apiKeyKind(token: apiToken)
         let authMode = MiniMaxAuthMode.resolve(
             apiToken: apiToken,
-            cookieHeader: ProviderTokenResolver.minimaxCookie(environment: context.env))
+            cookieHeader: ProviderTokenResolver.token(for: .minimax, kind: .secondary, environment: context.env))
         if authMode.usesAPIToken {
             if apiKeyKind == .standard {
                 return [MiniMaxCodingPlanFetchStrategy()]
@@ -156,8 +156,8 @@ struct MiniMaxAPIFetchStrategy: ProviderFetchStrategy {
 
     func isAvailable(_ context: ProviderFetchContext) async -> Bool {
         let authMode = MiniMaxAuthMode.resolve(
-            apiToken: ProviderTokenResolver.minimaxToken(environment: context.env),
-            cookieHeader: ProviderTokenResolver.minimaxCookie(environment: context.env))
+            apiToken: ProviderTokenResolver.token(for: .minimax, environment: context.env),
+            cookieHeader: ProviderTokenResolver.token(for: .minimax, kind: .secondary, environment: context.env))
         if let kind = MiniMaxAPISettingsReader.apiKeyKind(environment: context.env),
            kind == .standard
         {
@@ -167,7 +167,7 @@ struct MiniMaxAPIFetchStrategy: ProviderFetchStrategy {
     }
 
     func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
-        guard let apiToken = ProviderTokenResolver.minimaxToken(environment: context.env) else {
+        guard let apiToken = ProviderTokenResolver.token(for: .minimax, environment: context.env) else {
             throw MiniMaxAPISettingsError.missingToken
         }
         let region = context.settings?.minimax?.apiRegion ?? .global
@@ -340,7 +340,7 @@ struct MiniMaxCodingPlanFetchStrategy: ProviderFetchStrategy {
             guard settings.cookieSource == .manual else { return nil }
             return MiniMaxCookieHeader.override(from: settings.manualCookieHeader)
         }
-        guard let raw = ProviderTokenResolver.minimaxCookie(environment: context.env) else {
+        guard let raw = ProviderTokenResolver.token(for: .minimax, kind: .secondary, environment: context.env) else {
             return nil
         }
         return MiniMaxCookieHeader.override(from: raw)

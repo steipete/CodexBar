@@ -58,6 +58,7 @@ public enum AntigravityProviderDescriptor {
             history: .alwaysTracked,
             presentation: ProviderUsagePresentation(
                 iconWindowResolver: self.iconWindows,
+                // Provider-specific by design: Antigravity decorates its mixed-model usage with the Gemini badge.
                 iconDecorations: [.gemini, .antigravity],
                 requestedMenuBarLaneOrders: [
                     .primary: [.primary, .secondary, .tertiary],

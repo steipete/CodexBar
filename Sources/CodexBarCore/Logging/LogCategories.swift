@@ -1,5 +1,6 @@
 public enum LogCategories {
     public static func providerInstance(_ instanceID: ProviderInstanceID, scope: String? = nil) -> String {
+        // Provider-specific by design: preserve OpenCode Go's established hyphenated log category.
         let base = instanceID.firstPartyProvider == .opencodego ? "opencode-go" : instanceID.rawValue
         return scope.map { "\(base)-\($0)" } ?? base
     }

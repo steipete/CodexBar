@@ -298,6 +298,6 @@ struct AlibabaCodingPlanAPIFetchStrategy: ProviderFetchStrategy {
     }
 
     private static func resolveToken(environment: [String: String]) -> String? {
-        ProviderTokenResolver.alibabaToken(environment: environment)
+        ProviderTokenResolver.token(for: .alibaba, environment: environment)
     }
 }

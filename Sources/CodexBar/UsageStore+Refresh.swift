@@ -1011,6 +1011,7 @@ extension UsageStore {
                 return true
             }
             let normalizedPriorSource = priorSourceLabel?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            // Provider-specific by design: Claude's legacy CLI source label is part of refresh continuity.
             return normalizedPriorSource == "claude" || normalizedPriorSource == "cli"
         }
     }
@@ -1057,6 +1058,7 @@ extension UsageStore {
         case oauth
 
         init?(sourceLabel: String?) {
+            // Provider-specific by design: Claude CLI results historically used both provider and transport labels.
             switch sourceLabel?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
             case "claude", "cli":
                 self = .cli

@@ -355,6 +355,7 @@ extension UsageStore {
         let grouped = Dictionary(grouping: namedWindows) { window in
             Self.antigravityQuotaFamilyKey(window.id)
         }
+        // Provider-specific by design: Antigravity's Gemini family is the only complete session/weekly pair.
         let completeGeminiFamilies: [(session: NamedRateWindow, weekly: NamedRateWindow)] = grouped.keys
             .filter { $0 == "gemini" }.compactMap { family in
                 guard let windows = grouped[family] else { return nil }

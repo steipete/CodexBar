@@ -2,6 +2,20 @@ import Foundation
 
 public enum ClaudeProviderDescriptor {
     public static let descriptor: ProviderDescriptor = Self.makeDescriptor()
+    private static let ttyLaunch = ProviderTTYLaunchConfig(
+        executableOverrideEnvironmentKey: "CLAUDE_CLI_PATH",
+        bundledWatchdogHelperName: "CodexBarClaudeWatchdog",
+        probeWorkingDirectory: { ClaudeStatusProbe.preparedProbeWorkingDirectoryURL() })
+    private static let cli = ProviderCLIConfig(
+        name: "claude",
+        binaryLocator: { BinaryLocator.resolveClaudeBinary() },
+        versionDetector: { browserDetection in
+            ClaudeUsageFetcher(browserDetection: browserDetection).detectVersion()
+        },
+        supportsCostCommand: true,
+        prefersBinaryLocatorForWhich: true,
+        ttyLaunch: Self.ttyLaunch,
+        browserSupportExemption: { sourceMode, _, _ in sourceMode == .auto })
     private static let credentials = ProviderCredentialAdapter(
         supportsAPIKeyOverride: true,
         environmentProjections: [.apiKey(ClaudeAdminAPISettingsReader.adminAPIKeyEnvironmentKey)],
@@ -129,6 +143,7 @@ public enum ClaudeProviderDescriptor {
                 noDataMessage: self.noDataMessage,
                 menuHintLines: [.estimate],
                 supportsTokenSnapshot: true,
+                settingsStatusOrder: 0,
                 estimateDisclaimer: "Estimated from local Claude logs at API rates; token totals include cache " +
                     "read/write tokens and may differ from Claude Code /status."),
             pace: ProviderPaceCapability(
@@ -189,14 +204,7 @@ public enum ClaudeProviderDescriptor {
             fetchPlan: ProviderFetchPlan(
                 sourceModes: [.auto, .api, .web, .cli, .oauth],
                 pipeline: ProviderFetchPipeline(resolveStrategies: self.resolveStrategies)),
-            cli: ProviderCLIConfig(
-                name: "claude",
-                binaryLocator: { BinaryLocator.resolveClaudeBinary() },
-                versionDetector: { browserDetection in
-                    ClaudeUsageFetcher(browserDetection: browserDetection).detectVersion()
-                },
-                supportsCostCommand: true,
-                browserSupportExemption: { sourceMode, _, _ in sourceMode == .auto }))
+            cli: self.cli)
     }
 
     private static func menuBarWindow(
@@ -509,7 +517,7 @@ struct ClaudeAdminAPIFetchStrategy: ProviderFetchStrategy {
     }
 
     private static func resolveToken(environment: [String: String]) -> String? {
-        ProviderTokenResolver.claudeAdminAPIToken(environment: environment)
+        ProviderTokenResolver.token(for: .claude, environment: environment)
     }
 }
 

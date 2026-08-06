@@ -4,6 +4,7 @@ public enum OpenAIAPIProviderDescriptor {
     public static let descriptor: ProviderDescriptor = Self.makeDescriptor()
     private static let credentials = ProviderCredentialAdapter.apiKey(
         environmentKey: OpenAIAPISettingsReader.adminAPIKeyEnvironmentKey,
+        apiKeyDebugLabel: OpenAIAPISettingsReader.apiKeyEnvironmentKey,
         additionalProjections: [.workspaceID(OpenAIAPISettingsReader.projectIDEnvironmentKey)],
         resolve: OpenAIAPISettingsReader.apiKey,
         tokenAccountSupport: TokenAccountSupport(

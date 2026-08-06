@@ -64,6 +64,7 @@ extension CodexBarCLI {
         var payload: [CostPayload] = []
         var exitCode: ExitCode = .success
 
+        // Provider-specific by design: project grouping is available for Codex and Grok local session data.
         for provider in providers
             where groupBy != .project || provider == .codex || provider == .grok || format == .json
         {

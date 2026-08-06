@@ -33,7 +33,8 @@ struct DeepInfraSettingsReaderTests {
 struct DeepInfraProviderTokenResolverTests {
     @Test
     func `resolves DeepInfra key from environment`() {
-        let resolution = ProviderTokenResolver.deepInfraResolution(
+        let resolution = ProviderTokenResolver.resolution(
+            for: .deepinfra,
             environment: ["DEEPINFRA_API_KEY": "di-resolve"])
         #expect(resolution?.token == "di-resolve")
         #expect(resolution?.source == .environment)

@@ -38,6 +38,7 @@ public enum AlibabaTokenPlanProviderDescriptor {
         let browserOrder: BrowserCookieImportOrder? = nil
         #endif
 
+        // Provider-specific by design: The Alibaba folder co-locates the distinct Alibaba Token Plan descriptor.
         return ProviderDescriptor(
             id: .alibabatokenplan,
             settingsSection: .init(
@@ -180,6 +181,7 @@ struct AlibabaTokenPlanWebFetchStrategy: ProviderFetchStrategy {
             where error.isCredentialFailure && cookieSource != .manual
         {
             #if os(macOS)
+            // Provider-specific by design: This strategy clears the co-located Token Plan variant's cookie cache.
             CookieHeaderCache.clear(provider: .alibabatokenplan, scope: region.cookieCacheScope)
             let refreshedHeaders = try Self.resolveCookieHeaders(context: context, allowCached: false, region: region)
             let usage = try await self.fetchUsage(refreshedHeaders, region, context.env)
@@ -270,6 +272,7 @@ struct AlibabaTokenPlanWebFetchStrategy: ProviderFetchStrategy {
                 throw AlibabaTokenPlanSettingsError.missingCookie(
                     details: "No Alibaba Token Plan browser cookies were available after import.")
             }
+            // Provider-specific by design: This strategy stores cookies for the co-located Token Plan variant.
             CookieHeaderCache.store(
                 provider: .alibabatokenplan,
                 scope: region.cookieCacheScope,
@@ -301,6 +304,7 @@ struct AlibabaTokenPlanWebFetchStrategy: ProviderFetchStrategy {
     /// The former unscoped cache only ever represented the China gateway. Never expose it to
     /// International requests; migrate it into the China scope after a successful scoped write.
     private static func cachedCookieEntry(region: AlibabaTokenPlanAPIRegion) -> CookieHeaderCache.Entry? {
+        // Provider-specific by design: This migration is scoped to the co-located Token Plan variant's cache.
         if let scoped = CookieHeaderCache.load(provider: .alibabatokenplan, scope: region.cookieCacheScope) {
             return scoped
         }

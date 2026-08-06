@@ -75,7 +75,7 @@ public enum GroqProviderDescriptor {
         APITokenFetchStrategy(
             id: "groq.api",
             sourceLabel: "metrics",
-            resolveToken: { ProviderTokenResolver.groqToken(environment: $0) },
+            resolveToken: { ProviderTokenResolver.token(for: .groq, environment: $0) },
             missingCredentialsError: { GroqUsageError.missingCredentials },
             loadUsage: { apiKey, context in
                 try await GroqUsageFetcher.fetchUsage(

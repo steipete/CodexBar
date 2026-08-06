@@ -64,6 +64,7 @@ public enum BinaryLocator {
         fileManager: FileManager = .default,
         home: String = NSHomeDirectory()) -> String?
     {
+        // Provider-specific by design: This named resolver supplies Claude's actual CLI executable name.
         self.resolveBinary(
             name: "claude",
             overrideKey: "CLAUDE_CLI_PATH",
@@ -151,6 +152,7 @@ public enum BinaryLocator {
         fileManager: FileManager = .default,
         home: String = NSHomeDirectory()) -> String?
     {
+        // Provider-specific by design: This named resolver supplies Codex's actual CLI executable name.
         self.resolveBinary(
             name: "codex",
             overrideKey: "CODEX_CLI_PATH",
@@ -193,6 +195,7 @@ public enum BinaryLocator {
         {
             return override
         }
+        // Provider-specific by design: This named resolver supplies Gemini's actual CLI executable name.
         return self.resolveBinary(
             name: "gemini",
             overrideKey: "GEMINI_CLI_PATH",
@@ -213,6 +216,7 @@ public enum BinaryLocator {
         fileManager: FileManager = .default,
         home: String = NSHomeDirectory()) -> String?
     {
+        // Provider-specific by design: This named resolver supplies Grok's actual CLI executable name.
         self.resolveBinary(
             name: "grok",
             overrideKey: "GROK_CLI_PATH",
@@ -234,6 +238,7 @@ public enum BinaryLocator {
         fileManager: FileManager = .default,
         home: String = NSHomeDirectory()) -> String?
     {
+        // Provider-specific by design: This named resolver supplies Amp's actual CLI executable name.
         self.resolveBinary(
             name: "amp",
             overrideKey: "AMP_CLI_PATH",

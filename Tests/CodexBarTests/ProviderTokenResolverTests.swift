@@ -6,7 +6,7 @@ struct ProviderTokenResolverTests {
     @Test
     func `zai resolution uses environment token`() {
         let env = [ZaiSettingsReader.apiTokenKey: "token"]
-        let resolution = ProviderTokenResolver.zaiResolution(environment: env)
+        let resolution = ProviderTokenResolver.resolution(for: .zai, environment: env)
         #expect(resolution?.token == "token")
         #expect(resolution?.source == .environment)
     }
@@ -14,14 +14,14 @@ struct ProviderTokenResolverTests {
     @Test
     func `copilot resolution trims token`() {
         let env = ["COPILOT_API_TOKEN": "  token  "]
-        let resolution = ProviderTokenResolver.copilotResolution(environment: env)
+        let resolution = ProviderTokenResolver.resolution(for: .copilot, environment: env)
         #expect(resolution?.token == "token")
     }
 
     @Test
     func `warp resolution uses environment token`() {
         let env = ["WARP_API_KEY": "wk-test-token"]
-        let resolution = ProviderTokenResolver.warpResolution(environment: env)
+        let resolution = ProviderTokenResolver.resolution(for: .warp, environment: env)
         #expect(resolution?.token == "wk-test-token")
         #expect(resolution?.source == .environment)
     }
@@ -29,21 +29,21 @@ struct ProviderTokenResolverTests {
     @Test
     func `warp resolution trims token`() {
         let env = ["WARP_API_KEY": "  wk-token  "]
-        let resolution = ProviderTokenResolver.warpResolution(environment: env)
+        let resolution = ProviderTokenResolver.resolution(for: .warp, environment: env)
         #expect(resolution?.token == "wk-token")
     }
 
     @Test
     func `warp resolution returns nil when missing`() {
         let env: [String: String] = [:]
-        let resolution = ProviderTokenResolver.warpResolution(environment: env)
+        let resolution = ProviderTokenResolver.resolution(for: .warp, environment: env)
         #expect(resolution == nil)
     }
 
     @Test
     func `doubao resolution uses first supported environment token`() {
         let env = ["ARK_API_KEY": "ark-token"]
-        let resolution = ProviderTokenResolver.doubaoResolution(environment: env)
+        let resolution = ProviderTokenResolver.resolution(for: .doubao, environment: env)
         #expect(resolution?.token == "ark-token")
         #expect(resolution?.source == .environment)
     }
@@ -60,7 +60,7 @@ struct ProviderTokenResolverTests {
         defer { try? FileManager.default.removeItem(at: fileURL.deletingLastPathComponent()) }
 
         let env = [KiloSettingsReader.apiTokenKey: "env-token"]
-        let resolution = ProviderTokenResolver.kiloResolution(environment: env, authFileURL: fileURL)
+        let resolution = ProviderTokenResolver.resolution(for: .kilo, environment: env, authFileURL: fileURL)
 
         #expect(resolution?.token == "env-token")
         #expect(resolution?.source == .environment)
@@ -71,7 +71,7 @@ struct ProviderTokenResolverTests {
         let fileURL = try self.makeKiloAuthFile(contents: #"{"kilo":{"access":"file-token"}}"#)
         defer { try? FileManager.default.removeItem(at: fileURL.deletingLastPathComponent()) }
 
-        let resolution = ProviderTokenResolver.kiloResolution(environment: [:], authFileURL: fileURL)
+        let resolution = ProviderTokenResolver.resolution(for: .kilo, environment: [:], authFileURL: fileURL)
 
         #expect(resolution?.token == "file-token")
         #expect(resolution?.source == .authFile)
@@ -82,7 +82,7 @@ struct ProviderTokenResolverTests {
         let fileURL = try self.makeKiloAuthFile(contents: #"{not-json}"#)
         defer { try? FileManager.default.removeItem(at: fileURL.deletingLastPathComponent()) }
 
-        let resolution = ProviderTokenResolver.kiloResolution(environment: [:], authFileURL: fileURL)
+        let resolution = ProviderTokenResolver.resolution(for: .kilo, environment: [:], authFileURL: fileURL)
         #expect(resolution == nil)
     }
 
@@ -102,7 +102,8 @@ struct ProviderTokenResolverTests {
         defer { try? FileManager.default.removeItem(at: fileURL.deletingLastPathComponent()) }
 
         let env = [CodebuffSettingsReader.apiTokenKey: "env-token"]
-        let resolution = ProviderTokenResolver.codebuffResolution(
+        let resolution = ProviderTokenResolver.resolution(
+            for: .codebuff,
             environment: env,
             authFileURL: fileURL)
 
@@ -116,7 +117,8 @@ struct ProviderTokenResolverTests {
             contents: #"{"authToken":"file-token","fingerprintId":"fp"}"#)
         defer { try? FileManager.default.removeItem(at: fileURL.deletingLastPathComponent()) }
 
-        let resolution = ProviderTokenResolver.codebuffResolution(
+        let resolution = ProviderTokenResolver.resolution(
+            for: .codebuff,
             environment: [:],
             authFileURL: fileURL)
 
@@ -129,7 +131,8 @@ struct ProviderTokenResolverTests {
         let fileURL = try self.makeCodebuffCredentialsFile(contents: #"{not-json}"#)
         defer { try? FileManager.default.removeItem(at: fileURL.deletingLastPathComponent()) }
 
-        let resolution = ProviderTokenResolver.codebuffResolution(
+        let resolution = ProviderTokenResolver.resolution(
+            for: .codebuff,
             environment: [:],
             authFileURL: fileURL)
         #expect(resolution == nil)
@@ -138,7 +141,7 @@ struct ProviderTokenResolverTests {
     @Test
     func `poe resolution uses manual api key`() {
         let env = [PoeSettingsReader.apiKeyEnvironmentKey: "manual-key"]
-        let resolution = ProviderTokenResolver.poeResolution(environment: env)
+        let resolution = ProviderTokenResolver.resolution(for: .poe, environment: env)
         #expect(resolution?.token == "manual-key")
         #expect(resolution?.source == .environment)
     }

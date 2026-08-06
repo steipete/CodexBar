@@ -30,6 +30,7 @@ public enum CodexHomeScope {
         if let raw = env["CODEX_HOME"]?.trimmingCharacters(in: .whitespacesAndNewlines), !raw.isEmpty {
             return URL(fileURLWithPath: raw, isDirectory: true)
         }
+        // Provider-specific by design: `.codex` is the CLI's default on-disk home contract.
         return fileManager.homeDirectoryForCurrentUser.appendingPathComponent(".codex", isDirectory: true)
     }
 

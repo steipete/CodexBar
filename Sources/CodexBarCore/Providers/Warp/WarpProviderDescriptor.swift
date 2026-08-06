@@ -52,7 +52,7 @@ public enum WarpProviderDescriptor {
                     secondaryDescriptionMode: .resetOverride)),
             fetchPlan: .apiToken(
                 strategyID: "warp.api",
-                resolveToken: { ProviderTokenResolver.warpToken(environment: $0) },
+                resolveToken: { ProviderTokenResolver.token(for: .warp, environment: $0) },
                 missingCredentialsError: { WarpUsageError.missingCredentials },
                 loadUsage: { apiKey, _ in
                     try await WarpUsageFetcher.fetchUsage(apiKey: apiKey).toUsageSnapshot()

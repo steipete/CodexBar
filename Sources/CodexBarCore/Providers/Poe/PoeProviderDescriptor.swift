@@ -60,7 +60,7 @@ public enum PoeProviderDescriptor {
                 plugin: "poe",
                 secretKey: PoeSettingsReader.apiKeyEnvironmentKey,
                 strategyID: "poe.api"),
-            resolveToken: { ProviderTokenResolver.poeToken(environment: $0) },
+            resolveToken: { ProviderTokenResolver.token(for: .poe, environment: $0) },
             missingCredentialsError: { PoeUsageError.missingCredentials },
             loadUsage: { apiKey, _ in
                 try await PoeUsageFetcher.fetchUsage(apiKey: apiKey).toUsageSnapshot()
@@ -96,6 +96,6 @@ struct PoeAPIFetchStrategy: ProviderFetchStrategy {
     }
 
     private static func resolveToken(environment: [String: String]) -> String? {
-        ProviderTokenResolver.poeToken(environment: environment)
+        ProviderTokenResolver.token(for: .poe, environment: environment)
     }
 }

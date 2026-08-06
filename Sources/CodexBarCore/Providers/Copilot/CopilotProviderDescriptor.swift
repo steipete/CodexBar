@@ -128,8 +128,8 @@ struct CopilotAPIFetchStrategy: ProviderFetchStrategy {
     }
 
     private static func resolveToken(context: ProviderFetchContext) -> String? {
-        ProviderTokenResolver.copilotToken(environment: context.env)
-            ?? ProviderTokenResolver.copilotResolution(environment: [
+        ProviderTokenResolver.token(for: .copilot, environment: context.env)
+            ?? ProviderTokenResolver.resolution(for: .copilot, environment: [
                 "COPILOT_API_TOKEN": context.settings?.copilot?.apiToken ?? "",
             ])?.token
     }

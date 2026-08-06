@@ -1,6 +1,7 @@
 import CodexBarCore
 import Foundation
 
+/// Provider-specific by design: The Alibaba folder co-locates settings for the distinct Token Plan variant.
 extension SettingsStore {
     var alibabaTokenPlanCookieHeader: String {
         get { self.configSnapshot.providerConfig(for: .alibabatokenplan)?.sanitizedCookieHeader ?? "" }

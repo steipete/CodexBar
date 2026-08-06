@@ -120,7 +120,7 @@ struct AmpAPIFetchStrategy: ProviderFetchStrategy {
     }
 
     func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
-        guard let token = ProviderTokenResolver.ampToken(environment: context.env) else {
+        guard let token = ProviderTokenResolver.token(for: .amp, environment: context.env) else {
             throw AmpUsageError.missingAPIToken
         }
         let logger: ((String) -> Void)? = context.verbose

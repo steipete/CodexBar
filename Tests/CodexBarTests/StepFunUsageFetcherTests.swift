@@ -65,14 +65,14 @@ struct StepFunProviderTokenResolverTests {
     @Test
     func `resolves token from environment`() {
         let env = ["STEPFUN_TOKEN": "my-test-token"]
-        let resolution = ProviderTokenResolver.stepfunResolution(environment: env)
+        let resolution = ProviderTokenResolver.resolution(for: .stepfun, environment: env)
         #expect(resolution?.token == "my-test-token")
         #expect(resolution?.source == .environment)
     }
 
     @Test
     func `returns nil when token absent`() {
-        let resolution = ProviderTokenResolver.stepfunResolution(environment: [:])
+        let resolution = ProviderTokenResolver.resolution(for: .stepfun, environment: [:])
         #expect(resolution == nil)
     }
 }

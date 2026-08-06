@@ -17,7 +17,7 @@ struct ClawRouterProviderImplementation: ProviderImplementation {
 
     @MainActor
     func isAvailable(context: ProviderAvailabilityContext) -> Bool {
-        ProviderTokenResolver.clawRouterToken(environment: context.environment) != nil
+        ProviderTokenResolver.token(for: .clawrouter, environment: context.environment) != nil
     }
 
     @MainActor

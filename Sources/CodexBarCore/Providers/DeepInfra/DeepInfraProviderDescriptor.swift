@@ -60,7 +60,7 @@ public enum DeepInfraProviderDescriptor {
                 menu: ProviderMenuDescriptorPresentation(primaryDescriptionIsDetail: { _ in true })),
             fetchPlan: .apiToken(
                 strategyID: "deepinfra.api",
-                resolveToken: { ProviderTokenResolver.deepInfraToken(environment: $0) },
+                resolveToken: { ProviderTokenResolver.token(for: .deepinfra, environment: $0) },
                 missingCredentialsError: { DeepInfraUsageError.missingCredentials },
                 loadUsage: { apiKey, _ in
                     try await DeepInfraUsageFetcher.fetchUsage(apiKey: apiKey).toUsageSnapshot()

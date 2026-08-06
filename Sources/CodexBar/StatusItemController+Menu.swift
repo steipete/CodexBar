@@ -1094,7 +1094,7 @@ extension StatusItemController {
     func resolvedMenuProvider(enabledProviders: [UsageProvider]? = nil) -> UsageProvider? {
         let enabled = enabledProviders ?? self.store.enabledFirstPartyProvidersForDisplay()
         if enabled.isEmpty {
-            return .codex
+            return .codex // Provider-specific by design: an empty first-party menu preserves the Codex default.
         }
         if let selected = self.selectedMenuProvider?.firstPartyProvider, enabled.contains(selected) {
             return selected

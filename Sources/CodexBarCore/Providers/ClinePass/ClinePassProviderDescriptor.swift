@@ -44,7 +44,7 @@ public enum ClinePassProviderDescriptor {
                 noDataMessage: { "ClinePass cost history is not available via the usage-limits API." }),
             fetchPlan: .apiToken(
                 strategyID: "clinepass.api",
-                resolveToken: { ProviderTokenResolver.clinePassToken(environment: $0) },
+                resolveToken: { ProviderTokenResolver.token(for: .clinepass, environment: $0) },
                 missingCredentialsError: { ClinePassUsageError.missingCredentials },
                 loadUsage: { apiKey, _ in
                     try await ClinePassUsageFetcher.fetchUsage(apiKey: apiKey).toUsageSnapshot()

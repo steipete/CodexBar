@@ -4,6 +4,7 @@ public enum OpenRouterProviderDescriptor {
     public static let descriptor: ProviderDescriptor = Self.makeDescriptor()
     private static let credentials = ProviderCredentialAdapter.apiKey(
         environmentKey: OpenRouterSettingsReader.envKey,
+        apiKeyDebugLabel: OpenRouterSettingsReader.envKey,
         additionalProjections: [.enterpriseHost(OpenRouterSettingsReader.apiURLEnvironmentKey)],
         resolve: OpenRouterSettingsReader.apiToken,
         tokenAccountSupport: TokenAccountSupport(
@@ -113,7 +114,7 @@ public enum OpenRouterProviderDescriptor {
         // Linux compatibility only. JavaScriptCore platforms use the bundled OpenRouter plugin above.
         .apiToken(
             strategyID: "openrouter.api",
-            resolveToken: { ProviderTokenResolver.openRouterToken(environment: $0) },
+            resolveToken: { ProviderTokenResolver.token(for: .openrouter, environment: $0) },
             missingCredentialsError: { OpenRouterSettingsError.missingToken },
             loadUsage: { apiKey, context in
                 try await OpenRouterUsageFetcher.fetchUsage(

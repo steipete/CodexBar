@@ -72,7 +72,7 @@ public enum OllamaProviderDescriptor {
                 browserSupportExemption: { sourceMode, environment, settings in
                     guard sourceMode == .auto else { return false }
                     let hasEnvironmentToken = environment.map {
-                        ProviderTokenResolver.ollamaToken(environment: $0) != nil
+                        ProviderTokenResolver.token(for: .ollama, environment: $0) != nil
                     } == true
                     return settings?.ollama?.cookieSource == .off || hasEnvironmentToken
                 }))
@@ -92,7 +92,7 @@ public enum OllamaProviderDescriptor {
         if context.settings?.ollama?.cookieSource == .off {
             return [OllamaAPIFetchStrategy()]
         }
-        if ProviderTokenResolver.ollamaToken(environment: context.env) != nil {
+        if ProviderTokenResolver.token(for: .ollama, environment: context.env) != nil {
             return [OllamaStatusFetchStrategy(), OllamaAPIFetchStrategy()]
         }
         return [OllamaStatusFetchStrategy()]
@@ -149,7 +149,7 @@ struct OllamaStatusFetchStrategy: ProviderFetchStrategy {
 
     func shouldFallback(on _: Error, context: ProviderFetchContext) -> Bool {
         context.sourceMode == .auto
-            && ProviderTokenResolver.ollamaToken(environment: context.env) != nil
+            && ProviderTokenResolver.token(for: .ollama, environment: context.env) != nil
     }
 
     static func manualCookieHeader(from context: ProviderFetchContext) -> String? {
@@ -232,6 +232,6 @@ struct OllamaAPIFetchStrategy: ProviderFetchStrategy {
     }
 
     private static func resolveToken(environment: [String: String]) -> String? {
-        ProviderTokenResolver.ollamaToken(environment: environment)
+        ProviderTokenResolver.token(for: .ollama, environment: environment)
     }
 }

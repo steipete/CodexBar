@@ -68,6 +68,7 @@ public enum CodexProviderDescriptor {
                 noDataMessage: self.noDataMessage,
                 menuHintLines: [.localized("codex_api_estimate_hint")],
                 supportsTokenSnapshot: true,
+                settingsStatusOrder: 1,
                 showsHintInProviderDetails: true,
                 historyTitleStyle: .compact,
                 hintPlacement: .beforeRequestHistory,
@@ -112,6 +113,8 @@ public enum CodexProviderDescriptor {
                 binaryLocator: { BinaryLocator.resolveCodexBinary() },
                 versionDetector: { _ in ProviderVersionDetector.codexVersion() },
                 supportsCostCommand: true,
+                prefersBinaryLocatorForWhich: true,
+                ttyStatusCommand: "/status",
                 browserSupportExemption: { sourceMode, _, _ in sourceMode == .auto }))
     }
 

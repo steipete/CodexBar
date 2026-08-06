@@ -99,6 +99,7 @@ public struct ProviderCredentialAdapter: Sendable {
     public let requiresAPIKeyForAPISource: Bool
     public let usesRegion: Bool
     public let usesSecretKey: Bool
+    public let apiKeyDebugLabel: String?
     public let environmentProjections: [ProviderCredentialEnvironmentProjection]
     public let tokenAccountSupport: TokenAccountSupport?
     private let environmentOverride: EnvironmentOverride?
@@ -116,6 +117,7 @@ public struct ProviderCredentialAdapter: Sendable {
         requiresAPIKeyForAPISource: Bool = true,
         usesRegion: Bool = false,
         usesSecretKey: Bool = false,
+        apiKeyDebugLabel: String? = nil,
         environmentProjections: [ProviderCredentialEnvironmentProjection] = [],
         environmentOverride: EnvironmentOverride? = nil,
         tokenResolver: @escaping TokenResolver = { _, _, _ in nil },
@@ -132,6 +134,7 @@ public struct ProviderCredentialAdapter: Sendable {
         self.requiresAPIKeyForAPISource = requiresAPIKeyForAPISource
         self.usesRegion = usesRegion
         self.usesSecretKey = usesSecretKey
+        self.apiKeyDebugLabel = apiKeyDebugLabel
         self.environmentProjections = environmentProjections
         self.environmentOverride = environmentOverride
         self.tokenResolver = tokenResolver
@@ -273,6 +276,7 @@ extension ProviderCredentialAdapter {
 
     public static func apiKey(
         environmentKey: String,
+        apiKeyDebugLabel: String? = nil,
         additionalProjections: [ProviderCredentialEnvironmentProjection] = [],
         precedence: ProviderCredentialEnvironmentProjection.Precedence = .config,
         environmentHasValue: @escaping @Sendable ([String: String]) -> Bool = { _ in false },
@@ -286,6 +290,7 @@ extension ProviderCredentialAdapter {
         Self(
             supportsAPIKeyOverride: true,
             usesRegion: usesRegion,
+            apiKeyDebugLabel: apiKeyDebugLabel,
             environmentProjections: [
                 .apiKey(
                     environmentKey,

@@ -81,12 +81,12 @@ struct LiteLLMAPIFetchStrategy: ProviderFetchStrategy {
     let kind: ProviderFetchKind = .apiToken
 
     func isAvailable(_ context: ProviderFetchContext) async -> Bool {
-        ProviderTokenResolver.liteLLMToken(environment: context.env) != nil &&
+        ProviderTokenResolver.token(for: .litellm, environment: context.env) != nil &&
             LiteLLMSettingsReader.hasBaseURLOverride(environment: context.env)
     }
 
     func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
-        guard let apiKey = ProviderTokenResolver.liteLLMToken(environment: context.env) else {
+        guard let apiKey = ProviderTokenResolver.token(for: .litellm, environment: context.env) else {
             throw LiteLLMUsageError.missingCredentials
         }
         guard let baseURL = LiteLLMSettingsReader.baseURL(environment: context.env) else {
