@@ -106,20 +106,9 @@ extension SettingsStore {
             ] + ClaudeDesktopProjectsLocator.roots(homeDirectory: ownerHome, fileManager: fileManager)
         }()
 
-        if claudeRoots.contains(where: hasAnyJsonl(in:)) {
-            return true
-        }
-
-        // Provider-specific by design: Grok local cost auto-enablement scans ~/.grok/sessions.
-        let grokRoot: URL = {
-            let raw = env["GROK_HOME"]?.trimmingCharacters(in: .whitespacesAndNewlines)
-            if let raw, !raw.isEmpty {
-                return URL(fileURLWithPath: raw).appendingPathComponent("sessions", isDirectory: true)
-            }
-            return home
-                .appendingPathComponent(".grok", isDirectory: true)
-                .appendingPathComponent("sessions", isDirectory: true)
-        }()
-        return hasAnyJsonl(in: grokRoot)
+        // Grok session logs are not auto-enable sources: an absent `tokenCostUsageEnabled`
+        // preference must stay off on upgrade so existing Grok-only installs remain opt-in.
+        // Users enable Cost tracking explicitly; Grok scanning then runs via the descriptor.
+        return claudeRoots.contains(where: hasAnyJsonl(in:))
     }
 }

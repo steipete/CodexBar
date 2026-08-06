@@ -502,6 +502,24 @@ struct SettingsStoreCoverageTests {
             env: [:],
             fileManager: fileManager,
             homeDirectory: desktopCodeHome))
+
+        // Grok-only local logs must not auto-enable global Cost tracking on upgrade.
+        let grokHome = fileManager.temporaryDirectory.appendingPathComponent(
+            "grok-home-\(UUID().uuidString)",
+            isDirectory: true)
+        let grokSessions = grokHome
+            .appendingPathComponent("sessions", isDirectory: true)
+            .appendingPathComponent("session-a", isDirectory: true)
+        try fileManager.createDirectory(at: grokSessions, withIntermediateDirectories: true)
+        let grokFile = grokSessions.appendingPathComponent("updates.jsonl")
+        fileManager.createFile(atPath: grokFile.path, contents: Data("{}\n".utf8))
+
+        #expect(!SettingsStore.hasAnyTokenCostUsageSources(
+            env: ["GROK_HOME": grokHome.path],
+            fileManager: fileManager,
+            homeDirectory: fileManager.temporaryDirectory.appendingPathComponent(
+                "empty-home-\(UUID().uuidString)",
+                isDirectory: true)))
     }
 
     @Test
