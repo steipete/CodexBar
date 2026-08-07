@@ -73,6 +73,22 @@ struct MenuBarLayoutTests {
     }
 
     @Test
+    func `semantic windows map Notion rolling and monthly lanes`() {
+        let rolling = RateWindow(usedPercent: 25, windowMinutes: 360, resetsAt: nil, resetDescription: nil)
+        let monthly = RateWindow(
+            usedPercent: 50,
+            windowMinutes: ProviderPaceCapability.monthlyWindowSentinelMinutes,
+            resetsAt: nil,
+            resetDescription: nil)
+        let windows = MenuBarLayoutSemanticWindowResolver.windows(
+            provider: .notion,
+            snapshot: UsageSnapshot(primary: rolling, secondary: monthly, updatedAt: Date()))
+
+        #expect(windows.session == rolling)
+        #expect(windows.weekly == monthly)
+    }
+
+    @Test
     func `semantic windows leave unsupported lanes missing`() {
         let snapshot = UsageSnapshot(
             primary: RateWindow(usedPercent: 25, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
