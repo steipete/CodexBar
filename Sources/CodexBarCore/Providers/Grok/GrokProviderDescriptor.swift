@@ -48,7 +48,8 @@ public enum GrokProviderDescriptor {
                 ]),
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
-                noDataMessage: { "Grok cost summary is not supported yet." }),
+                noDataMessage: { "Grok cost summary is not supported yet." },
+                supportsTokenSnapshot: true),
             pace: ProviderPaceCapability(resetWindowPace: .custom { window, now in
                 guard Self.primaryLabel(window: window, now: now) == "Weekly",
                       let resetsAt = window.resetsAt
@@ -72,6 +73,7 @@ public enum GrokProviderDescriptor {
             cli: ProviderCLIConfig(
                 name: "grok",
                 versionDetector: { _ in GrokStatusProbe.detectVersion() },
+                supportsCostCommand: true,
                 browserSupportExemption: { _, _, _ in true }))
     }
 

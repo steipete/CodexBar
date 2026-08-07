@@ -53,6 +53,58 @@ struct CostUsageFetcherTests {
         #expect(ambient.sessionTokens == 100)
         #expect(managed.sessionTokens == 10)
     }
+
+    @Test
+    func `fetcher suppresses pi session merge for scoped codex home`() async throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+
+        let day = try env.makeLocalNoon(year: 2026, month: 4, day: 8)
+        let otherHome = env.root.appendingPathComponent("other-codex-home", isDirectory: true)
+        try Self.writeCodexSessionFile(
+            homeRoot: env.codexHomeRoot,
+            env: env,
+            day: day,
+            filename: "ambient.jsonl",
+            tokens: 100)
+        _ = try env.writePiSessionFile(
+            relativePath: "2026-04-08T10-00-00-000Z_ambient.jsonl",
+            contents: env.jsonl([[
+                "type": "message",
+                "timestamp": env.isoString(for: day),
+                "message": [
+                    "role": "assistant",
+                    "provider": "openai-codex",
+                    "model": "openai/gpt-5.4",
+                    "timestamp": Int(day.timeIntervalSince1970 * 1000),
+                    "usage": ["input": 50, "output": 5, "totalTokens": 55],
+                ],
+            ]]))
+
+        let options = CostUsageScanner.Options(
+            codexSessionsRoot: env.codexSessionsRoot,
+            cacheRoot: env.cacheRoot)
+        let piOptions = PiSessionCostScanner.Options(
+            piSessionsRoot: env.piSessionsRoot,
+            cacheRoot: env.cacheRoot,
+            refreshMinIntervalSeconds: 0)
+        let ambient = try await CostUsageFetcher.loadTokenSnapshot(
+            provider: .codex,
+            now: day,
+            scannerOptions: options,
+            piScannerOptions: piOptions)
+        let scoped = try await CostUsageFetcher.loadTokenSnapshot(
+            provider: .codex,
+            now: day,
+            codexHomePath: otherHome.path,
+            scannerOptions: options,
+            piScannerOptions: piOptions)
+
+        // Ambient scan (no custom home) merges Pi sessions because it owns the default Pi root.
+        #expect(ambient.sessionTokens == 155)
+        // Scoped scan (custom home) must not merge default Pi sessions into an unrelated Codex home.
+        #expect(scoped.sessionTokens == nil)
+    }
 }
 
 extension CostUsageFetcherTests {
