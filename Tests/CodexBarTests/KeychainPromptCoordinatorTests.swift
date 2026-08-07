@@ -3,6 +3,7 @@ import Testing
 @testable import CodexBar
 @testable import CodexBarCore
 
+@Suite(.serialized)
 struct KeychainPromptCoordinatorTests {
     @Test
     func `detects raw SwiftPM debug executable`() {
@@ -101,5 +102,25 @@ struct KeychainPromptCoordinatorTests {
         }
 
         #expect(!result)
+    }
+
+    @Test
+    func `legacy prompt handler takes precedence over result handler`() {
+        let context = KeychainPromptContext(
+            kind: .claudeOAuth,
+            service: "Claude Code-credentials",
+            account: nil)
+
+        let previousHandler = KeychainPromptHandler.handler
+        let previousResultHandler = KeychainPromptHandler.resultHandler
+        defer {
+            KeychainPromptHandler.handler = previousHandler
+            KeychainPromptHandler.resultHandler = previousResultHandler
+        }
+        KeychainPromptHandler.handler = { _ in }
+        KeychainPromptHandler.resultHandler = { _ in false }
+        let result = KeychainPromptHandler.notifyIfHandled(context)
+
+        #expect(result)
     }
 }

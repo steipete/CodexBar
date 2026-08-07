@@ -88,9 +88,6 @@ enum KeychainPromptCoordinator {
         "https://github.com/steipete/CodexBar/blob/main/docs/keychain-prompts.md"
 
     static func install() {
-        KeychainPromptHandler.handler = { context in
-            _ = self.presentKeychainPrompt(context)
-        }
         KeychainPromptHandler.resultHandler = { context in
             self.presentKeychainPrompt(context)
         }

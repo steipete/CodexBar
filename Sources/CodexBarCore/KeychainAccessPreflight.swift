@@ -59,12 +59,12 @@ public enum KeychainPromptHandler {
         if let taskHandlerStore {
             return taskHandlerStore.handler(context)
         }
-        if let resultHandler {
-            return resultHandler(context)
+        if let handler {
+            handler(context)
+            return true
         }
-        guard let handler else { return false }
-        handler(context)
-        return true
+        if let resultHandler { return resultHandler(context) }
+        return false
     }
 
     #if DEBUG
@@ -117,6 +117,7 @@ public enum KeychainPromptHandler {
             try await operation()
         }
     }
+
     #endif
 }
 

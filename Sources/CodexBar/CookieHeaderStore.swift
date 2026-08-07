@@ -72,7 +72,7 @@ struct KeychainCookieHeaderStore: CookieHeaderStoring {
         if case .interactionRequired = KeychainAccessPreflight
             .checkGenericPassword(service: self.service, account: self.account)
         {
-            KeychainPromptHandler.handler?(KeychainPromptContext(
+            KeychainPromptHandler.notify(KeychainPromptContext(
                 kind: self.promptKind,
                 service: self.service,
                 account: self.account))
