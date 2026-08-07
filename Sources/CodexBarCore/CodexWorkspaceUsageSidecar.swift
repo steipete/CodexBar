@@ -11,9 +11,42 @@ import CSQLite3
 /// never attaches to or writes Codex's state database; it only imports typed
 /// catalog/cache values after those sources have been read successfully.
 struct CodexWorkspaceUsageSidecar: Sendable {
-    private static let schemaVersion = 5
+    private static let schemaVersion = 6
     private static let snapshotPayloadFormatVersion = 3
     private let cacheRoot: URL?
+    private let usageRowReadRecorder: CostUsageCodexUsageRowStore.RowReadRecorder?
+    private let usageCacheWorkRecorder: UsageCacheWorkRecorder?
+
+    struct UsageCacheWorkMetrics: Equatable {
+        let eventRowsDecoded: Int
+        let eventRowGroupWritebacks: Int
+    }
+
+    final class UsageCacheWorkRecorder: @unchecked Sendable {
+        private let lock = NSLock()
+        private var eventRowsDecoded = 0
+        private var eventRowGroupWritebacks = 0
+
+        func snapshot() -> UsageCacheWorkMetrics {
+            self.lock.lock()
+            defer { self.lock.unlock() }
+            return UsageCacheWorkMetrics(
+                eventRowsDecoded: self.eventRowsDecoded,
+                eventRowGroupWritebacks: self.eventRowGroupWritebacks)
+        }
+
+        fileprivate func recordEventRowDecoded() {
+            self.lock.lock()
+            self.eventRowsDecoded += 1
+            self.lock.unlock()
+        }
+
+        fileprivate func recordEventRowGroupWriteback() {
+            self.lock.lock()
+            self.eventRowGroupWritebacks += 1
+            self.lock.unlock()
+        }
+    }
 
     private struct RolloutSourceIdentity: Equatable {
         let mtimeUnixMs: Int64
@@ -66,8 +99,42 @@ struct CodexWorkspaceUsageSidecar: Sendable {
         }
     }
 
-    init(cacheRoot: URL? = nil) {
+    private struct UsageRowPublication: Equatable {
+        let generation: String
+        let rowCount: Int
+        let prefixDigest: String
+
+        init(generation: String, rowCount: Int, prefixDigest: String) {
+            self.generation = generation
+            self.rowCount = rowCount
+            self.prefixDigest = prefixDigest
+        }
+
+        init(_ state: CostUsageCodexUsageRowSidecarState) {
+            self.init(
+                generation: state.generation,
+                rowCount: state.rowCount,
+                prefixDigest: state.prefixDigest)
+        }
+
+        func hasSameContent(as other: Self) -> Bool {
+            self.rowCount == other.rowCount && self.prefixDigest == other.prefixDigest
+        }
+    }
+
+    private struct PersistedRollout {
+        let identity: RolloutSourceIdentity
+        let usageRowPublication: UsageRowPublication?
+    }
+
+    init(
+        cacheRoot: URL? = nil,
+        usageRowReadRecorder: CostUsageCodexUsageRowStore.RowReadRecorder? = nil,
+        usageCacheWorkRecorder: UsageCacheWorkRecorder? = nil)
+    {
         self.cacheRoot = cacheRoot
+        self.usageRowReadRecorder = usageRowReadRecorder
+        self.usageCacheWorkRecorder = usageCacheWorkRecorder
     }
 
     func loadLatestSnapshot(
@@ -294,14 +361,33 @@ struct CodexWorkspaceUsageSidecar: Sendable {
         """
         guard let eventStatement = Self.prepare(db, eventSQL) else { throw SidecarError.statementFailed }
         defer { sqlite3_finalize(eventStatement) }
+        var currentEventPath: String?
+        var currentEventRows: [CostUsageScanner.CodexUsageRow] = []
+        func publishCurrentEventRows() {
+            guard let currentEventPath,
+                  !currentEventRows.isEmpty,
+                  var usage = cache.files[currentEventPath]
+            else { return }
+            usage.codexRows = currentEventRows
+            cache.files[currentEventPath] = usage
+            self.usageCacheWorkRecorder?.recordEventRowGroupWriteback()
+        }
         while sqlite3_step(eventStatement) == SQLITE_ROW {
             guard let path = Self.columnString(eventStatement, at: 0),
-                  var usage = cache.files[path],
-                  let day = Self.columnString(eventStatement, at: 1),
+                  cache.files[path] != nil
+            else { continue }
+            if currentEventPath != path {
+                publishCurrentEventRows()
+                currentEventPath = path
+                // The just-published array now shares storage with the cache entry. Drop the
+                // local reference instead of asking Array to preserve capacity and copy it.
+                currentEventRows = []
+            }
+            guard let day = Self.columnString(eventStatement, at: 1),
                   let canonicalModel = Self.columnString(eventStatement, at: 2)
             else { continue }
-            var rows = usage.codexRows ?? []
-            rows.append(CostUsageScanner.CodexUsageRow(
+            self.usageCacheWorkRecorder?.recordEventRowDecoded()
+            currentEventRows.append(CostUsageScanner.CodexUsageRow(
                 day: day,
                 model: canonicalModel,
                 rawModel: Self.columnString(eventStatement, at: 3),
@@ -316,9 +402,8 @@ struct CodexWorkspaceUsageSidecar: Sendable {
                 unpricedTokens: Self.columnInt64(eventStatement, at: 11).map(Int.init),
                 pricingModel: Self.columnString(eventStatement, at: 12),
                 pricingMode: Self.columnString(eventStatement, at: 13)))
-            usage.codexRows = rows
-            cache.files[path] = usage
         }
+        publishCurrentEventRows()
         return cache
         #else
         _ = roots
@@ -367,8 +452,22 @@ struct CodexWorkspaceUsageSidecar: Sendable {
 
     private static func ensureSchema(_ db: OpaquePointer?) throws {
         let current = Self.userVersion(db)
-        guard current == 0 || current == Self.schemaVersion else {
+        guard current == 0 || current == 5 || current == Self.schemaVersion else {
             throw SidecarError.incompatibleSchema
+        }
+        if current == 5 {
+            try Self.begin(db)
+            do {
+                try Self.execute(db, "ALTER TABLE usage_rollouts ADD COLUMN row_sidecar_generation TEXT")
+                try Self.execute(db, "ALTER TABLE usage_rollouts ADD COLUMN row_sidecar_row_count INTEGER")
+                try Self.execute(db, "ALTER TABLE usage_rollouts ADD COLUMN row_sidecar_prefix_digest TEXT")
+                try Self.execute(db, "PRAGMA user_version = \(Self.schemaVersion)")
+                try Self.commit(db)
+            } catch {
+                Self.rollback(db)
+                throw error
+            }
+            return
         }
         guard current == 0 else { return }
         try Self.execute(db, """
@@ -410,6 +509,9 @@ struct CodexWorkspaceUsageSidecar: Sendable {
             source_producer_key TEXT,
             source_pricing_key TEXT,
             content_fingerprint TEXT,
+            row_sidecar_generation TEXT,
+            row_sidecar_row_count INTEGER,
+            row_sidecar_prefix_digest TEXT,
             event_detail_complete INTEGER NOT NULL DEFAULT 0,
             is_present INTEGER NOT NULL DEFAULT 1,
             last_seen_generation TEXT NOT NULL
@@ -540,7 +642,10 @@ struct CodexWorkspaceUsageSidecar: Sendable {
         generation: String,
         db: OpaquePointer?) throws
     {
-        let existing = try Self.existingRolloutSourceIdentities(db: db)
+        let existing = try Self.existingRollouts(db: db)
+        let usageRowStore = CostUsageCodexUsageRowStore(
+            cacheRoot: self.cacheRoot,
+            rowReadRecorder: self.usageRowReadRecorder)
         guard let touchStatement = Self.prepare(
             db,
             "UPDATE usage_rollouts SET is_present = 1, last_seen_generation = ? WHERE rollout_path = ?")
@@ -549,23 +654,191 @@ struct CodexWorkspaceUsageSidecar: Sendable {
 
         for (path, usage) in cache.files {
             let identity = RolloutSourceIdentity(usage: usage, cache: cache)
-            if existing[path] == identity {
-                try Self.touchRollout(path: path, generation: generation, statement: touchStatement)
-                continue
-            }
+            let persisted = existing[path]
+            let incomingPublication = usage.codexUsageRowSidecarState.map { UsageRowPublication($0) }
             let catalogEntry = catalog.entry(
                 sessionId: usage.codexSession?.sessionId ?? usage.sessionId,
                 rolloutPath: path)
+
+            // Source growth can publish no new usage rows, and crash recovery can republish the
+            // same content under another generation. In both cases the normalized events are
+            // already exact; update only rollout/source metadata and the published reference.
+            if let persisted,
+               let persistedPublication = persisted.usageRowPublication,
+               let incomingPublication,
+               persistedPublication.hasSameContent(as: incomingPublication)
+            {
+                // A generation-only republish can reuse the normalized events, but the new JSON
+                // reference must still be readable. This keeps missing/corrupt replacement
+                // generations on the transactional failure path instead of accepting them based
+                // on digest text alone.
+                if persistedPublication.generation != incomingPublication.generation {
+                    guard let reference = try Self.publishedUsageRowReference(
+                        path: path,
+                        usage: usage,
+                        cache: cache)
+                    else { throw SidecarError.invalidPublishedUsageRowReference }
+                    try Self.requirePublishedUsageRowReference(
+                        usageRowStore.validatePublishedReference(reference))
+                }
+                if persisted.identity == identity, persistedPublication == incomingPublication {
+                    try Self.touchRollout(path: path, generation: generation, statement: touchStatement)
+                } else {
+                    try Self.upsertRollout(
+                        path: path,
+                        usage: usage,
+                        catalogEntry: catalogEntry,
+                        identity: identity,
+                        usageRowPublication: incomingPublication,
+                        eventDetailComplete: true,
+                        generation: generation,
+                        db: db)
+                }
+                continue
+            }
+
+            if persisted?.identity == identity,
+               persisted?.usageRowPublication == nil,
+               incomingPublication == nil
+            {
+                try Self.touchRollout(path: path, generation: generation, statement: touchStatement)
+                continue
+            }
+
+            if let persisted,
+               let persistedPublication = persisted.usageRowPublication,
+               let incomingPublication,
+               persistedPublication.generation == incomingPublication.generation,
+               incomingPublication.rowCount > persistedPublication.rowCount
+            {
+                guard let reference = try Self.publishedUsageRowReference(
+                    path: path,
+                    usage: usage,
+                    cache: cache)
+                else { throw SidecarError.invalidPublishedUsageRowReference }
+                let boundary = CostUsageCodexUsageRowPrefixBoundary(
+                    generation: persistedPublication.generation,
+                    rowCount: persistedPublication.rowCount,
+                    prefixDigest: persistedPublication.prefixDigest)
+                let records = try Self.publishedUsageRows(
+                    usageRowStore.loadSuffix(reference, after: boundary))
+                let rows = records.map(\.usageRow)
+                guard rows.count == incomingPublication.rowCount - persistedPublication.rowCount,
+                      Self.hasCompleteEventDetail(rows)
+                else { throw SidecarError.invalidPublishedUsageRowReference }
+                try Self.upsertRollout(
+                    path: path,
+                    usage: usage,
+                    catalogEntry: catalogEntry,
+                    identity: identity,
+                    usageRowPublication: incomingPublication,
+                    eventDetailComplete: true,
+                    generation: generation,
+                    db: db)
+                try Self.insertDaily(path: path, usage: usage, db: db)
+                try Self.insertEvents(path: path, rows: rows, db: db)
+                continue
+            }
+
+            let eventUsage = try Self.usageForEventImport(
+                path: path,
+                usage: usage,
+                cache: cache,
+                store: usageRowStore)
+
+            // A new content generation (or any non-monotonic state in the same generation) is a
+            // replacement. Delete and rebuild inside this transaction so load/import failures
+            // leave the last complete Workspace snapshot untouched.
             try Self.deleteUsage(path: path, db: db)
             try Self.upsertRollout(
                 path: path,
-                usage: usage,
+                usage: eventUsage,
                 catalogEntry: catalogEntry,
                 identity: identity,
+                usageRowPublication: incomingPublication,
+                eventDetailComplete: Self.hasCompleteEventDetail(eventUsage),
                 generation: generation,
                 db: db)
-            try Self.insertDaily(path: path, usage: usage, db: db)
-            try Self.insertEvents(path: path, usage: usage, db: db)
+            try Self.insertDaily(path: path, usage: eventUsage, db: db)
+            try Self.insertEvents(path: path, usage: eventUsage, db: db)
+        }
+    }
+
+    /// Hydrates scanner-owned rows only through the compact reference published in JSON. SQLite
+    /// may contain a later, unpublished append after a crash, so querying the latest generation by
+    /// path would make Workspaces observe data that the cost cache has not committed yet.
+    private static func usageForEventImport(
+        path: String,
+        usage: CostUsageFileUsage,
+        cache: CostUsageCache,
+        store: CostUsageCodexUsageRowStore) throws -> CostUsageFileUsage
+    {
+        guard let reference = try publishedUsageRowReference(
+            path: path,
+            usage: usage,
+            cache: cache)
+        else { return usage }
+        let records = try Self.publishedUsageRows(store.load(reference))
+        var hydrated = usage
+        hydrated.codexRows = records.map(\.usageRow)
+        return hydrated
+    }
+
+    private static func publishedUsageRowReference(
+        path: String,
+        usage: CostUsageFileUsage,
+        cache: CostUsageCache) throws -> CostUsageCodexUsageRowReference?
+    {
+        guard let state = usage.codexUsageRowSidecarState else { return nil }
+        guard let fileId = usage.codexScanFileId,
+              let anchor = usage.codexTokenIndexAnchor,
+              let producerKey = usage.codexUsageRowProducerKey ?? cache.producerKey,
+              !producerKey.isEmpty,
+              let timeZoneIdentifier = cache.timeZoneIdentifier,
+              !timeZoneIdentifier.isEmpty,
+              anchor.indexedBytes == (usage.parsedBytes ?? usage.size)
+        else { throw SidecarError.invalidPublishedUsageRowReference }
+
+        return CostUsageCodexUsageRowReference(
+            source: CostUsageCodexUsageRowSource(
+                path: CostUsageCodexUsageRowStore.sourcePath(for: URL(fileURLWithPath: path)),
+                fileId: fileId,
+                indexedBytes: anchor.indexedBytes,
+                anchor: anchor,
+                isComplete: usage.codexScanComplete != false,
+                changeUnixNs: usage.codexScanChangeUnixNs,
+                sessionId: usage.codexSession?.sessionId ?? usage.sessionId,
+                forkedFromId: usage.forkedFromId,
+                forkDependencyKey: usage.forkBaselineDependencyKey,
+                producerKey: producerKey,
+                timeZoneIdentifier: timeZoneIdentifier),
+            state: state)
+    }
+
+    private static func publishedUsageRows(
+        _ lookup: CostUsageCodexUsageRowsLookup<[CostUsageCodexUsageRowRecord]>) throws ->
+        [CostUsageCodexUsageRowRecord]
+    {
+        switch lookup {
+        case let .ready(records):
+            return records
+        case .needsRebuild:
+            throw SidecarError.publishedUsageRowsNeedRebuild
+        case .temporarilyUnavailable:
+            throw SidecarError.publishedUsageRowsTemporarilyUnavailable
+        }
+    }
+
+    private static func requirePublishedUsageRowReference(
+        _ lookup: CostUsageCodexUsageRowsLookup<Void>) throws
+    {
+        switch lookup {
+        case .ready:
+            return
+        case .needsRebuild:
+            throw SidecarError.publishedUsageRowsNeedRebuild
+        case .temporarilyUnavailable:
+            throw SidecarError.publishedUsageRowsTemporarilyUnavailable
         }
     }
 
@@ -639,6 +912,8 @@ struct CodexWorkspaceUsageSidecar: Sendable {
         usage: CostUsageFileUsage,
         catalogEntry: CodexThreadCatalogEntry?,
         identity: RolloutSourceIdentity,
+        usageRowPublication: UsageRowPublication?,
+        eventDetailComplete: Bool,
         generation: String,
         db: OpaquePointer?) throws
     {
@@ -648,8 +923,9 @@ struct CodexWorkspaceUsageSidecar: Sendable {
             rollout_path, fingerprint, session_id, cwd, title, started_at_ms, latest_activity_ms, last_model,
             project_path, canonical_project_path, forked_from_id,
             source_mtime_ms, source_size, source_parsed_bytes, source_session_id, source_producer_key,
-            source_pricing_key, content_fingerprint, event_detail_complete, is_present, last_seen_generation
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)
+            source_pricing_key, content_fingerprint, row_sidecar_generation, row_sidecar_row_count,
+            row_sidecar_prefix_digest, event_detail_complete, is_present, last_seen_generation
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)
         ON CONFLICT(rollout_path) DO UPDATE SET
             fingerprint = excluded.fingerprint,
             session_id = COALESCE(excluded.session_id, usage_rollouts.session_id),
@@ -668,6 +944,9 @@ struct CodexWorkspaceUsageSidecar: Sendable {
             source_producer_key = excluded.source_producer_key,
             source_pricing_key = excluded.source_pricing_key,
             content_fingerprint = excluded.content_fingerprint,
+            row_sidecar_generation = excluded.row_sidecar_generation,
+            row_sidecar_row_count = excluded.row_sidecar_row_count,
+            row_sidecar_prefix_digest = excluded.row_sidecar_prefix_digest,
             event_detail_complete = excluded.event_detail_complete,
             is_present = 1,
             last_seen_generation = excluded.last_seen_generation
@@ -695,8 +974,11 @@ struct CodexWorkspaceUsageSidecar: Sendable {
         Self.bind(identity.producerKey, to: statement, at: 16)
         Self.bind(identity.pricingKey, to: statement, at: 17)
         Self.bind(identity.contentFingerprint, to: statement, at: 18)
-        sqlite3_bind_int(statement, 19, Self.hasCompleteEventDetail(usage) ? 1 : 0)
-        Self.bind(generation, to: statement, at: 20)
+        Self.bind(usageRowPublication?.generation, to: statement, at: 19)
+        Self.bind(usageRowPublication?.rowCount, to: statement, at: 20)
+        Self.bind(usageRowPublication?.prefixDigest, to: statement, at: 21)
+        sqlite3_bind_int(statement, 22, eventDetailComplete ? 1 : 0)
+        Self.bind(generation, to: statement, at: 23)
         guard sqlite3_step(statement) == SQLITE_DONE else { throw SidecarError.writeFailed }
     }
 
@@ -706,6 +988,16 @@ struct CodexWorkspaceUsageSidecar: Sendable {
             rollout_path, day, model, input_tokens, cached_input_tokens, output_tokens, cost_nanos,
             standard_tokens, priority_tokens, standard_cost_nanos, priority_cost_nanos, priority_surcharge_nanos
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(rollout_path, day, model) DO UPDATE SET
+            input_tokens = excluded.input_tokens,
+            cached_input_tokens = excluded.cached_input_tokens,
+            output_tokens = excluded.output_tokens,
+            cost_nanos = excluded.cost_nanos,
+            standard_tokens = excluded.standard_tokens,
+            priority_tokens = excluded.priority_tokens,
+            standard_cost_nanos = excluded.standard_cost_nanos,
+            priority_cost_nanos = excluded.priority_cost_nanos,
+            priority_surcharge_nanos = excluded.priority_surcharge_nanos
         """
         guard let statement = Self.prepare(db, sql) else { throw SidecarError.statementFailed }
         defer { sqlite3_finalize(statement) }
@@ -732,6 +1024,14 @@ struct CodexWorkspaceUsageSidecar: Sendable {
 
     private static func insertEvents(path: String, usage: CostUsageFileUsage, db: OpaquePointer?) throws {
         guard self.hasCompleteEventDetail(usage), let rows = usage.codexRows else { return }
+        try self.insertEvents(path: path, rows: rows, db: db)
+    }
+
+    private static func insertEvents(
+        path: String,
+        rows: [CostUsageScanner.CodexUsageRow],
+        db: OpaquePointer?) throws
+    {
         let sql = """
         INSERT INTO usage_events (
             rollout_path, event_index, timestamp_ms, day, canonical_model, raw_model, turn_id,
@@ -776,7 +1076,13 @@ struct CodexWorkspaceUsageSidecar: Sendable {
 
     private static func hasCompleteEventDetail(_ usage: CostUsageFileUsage) -> Bool {
         guard let rows = usage.codexRows, !rows.isEmpty else { return usage.days.isEmpty }
-        return rows.allSatisfy { $0.eventIndex != nil && $0.timestampUnixMs != nil }
+        return self.hasCompleteEventDetail(rows)
+    }
+
+    private static func hasCompleteEventDetail(
+        _ rows: [CostUsageScanner.CodexUsageRow]) -> Bool
+    {
+        rows.allSatisfy { $0.eventIndex != nil && $0.timestampUnixMs != nil }
     }
 
     private static func touchRollout(path: String, generation: String, statement: OpaquePointer?) throws {
@@ -787,25 +1093,26 @@ struct CodexWorkspaceUsageSidecar: Sendable {
         guard sqlite3_step(statement) == SQLITE_DONE else { throw SidecarError.writeFailed }
     }
 
-    private static func existingRolloutSourceIdentities(
-        db: OpaquePointer?) throws -> [String: RolloutSourceIdentity]
+    private static func existingRollouts(
+        db: OpaquePointer?) throws -> [String: PersistedRollout]
     {
         guard let statement = prepare(
             db,
             """
             SELECT rollout_path, source_mtime_ms, source_size, source_parsed_bytes, source_session_id,
-                   source_producer_key, source_pricing_key, content_fingerprint
+                   source_producer_key, source_pricing_key, content_fingerprint,
+                   row_sidecar_generation, row_sidecar_row_count, row_sidecar_prefix_digest
             FROM usage_rollouts
             WHERE event_detail_complete = 1
             """)
         else { throw SidecarError.statementFailed }
         defer { sqlite3_finalize(statement) }
-        var identities: [String: RolloutSourceIdentity] = [:]
+        var rollouts: [String: PersistedRollout] = [:]
         while sqlite3_step(statement) == SQLITE_ROW {
             guard let path = Self.columnString(statement, at: 0),
                   let contentFingerprint = Self.columnString(statement, at: 7)
             else { continue }
-            identities[path] = RolloutSourceIdentity(
+            let identity = RolloutSourceIdentity(
                 mtimeUnixMs: Self.columnInt64(statement, at: 1) ?? Int64.min,
                 size: Self.columnInt64(statement, at: 2) ?? Int64.min,
                 parsedBytes: Self.columnInt64(statement, at: 3) ?? Int64.min,
@@ -813,8 +1120,24 @@ struct CodexWorkspaceUsageSidecar: Sendable {
                 producerKey: Self.columnString(statement, at: 5) ?? "",
                 pricingKey: Self.columnString(statement, at: 6) ?? "",
                 contentFingerprint: contentFingerprint)
+            let publication: UsageRowPublication? = if let generation = Self.columnString(statement, at: 8),
+                                                       let storedRowCount = Self.columnInt64(statement, at: 9),
+                                                       let rowCount = Int(exactly: storedRowCount),
+                                                       rowCount >= 0,
+                                                       let prefixDigest = Self.columnString(statement, at: 10)
+            {
+                UsageRowPublication(
+                    generation: generation,
+                    rowCount: rowCount,
+                    prefixDigest: prefixDigest)
+            } else {
+                nil
+            }
+            rollouts[path] = PersistedRollout(
+                identity: identity,
+                usageRowPublication: publication)
         }
-        return identities
+        return rollouts
     }
 
     private static func cacheFingerprint(_ cache: CostUsageCache) -> String {
@@ -960,6 +1283,9 @@ struct CodexWorkspaceUsageSidecar: Sendable {
         case incompatibleSchema
         case statementFailed
         case writeFailed
+        case invalidPublishedUsageRowReference
+        case publishedUsageRowsNeedRebuild
+        case publishedUsageRowsTemporarilyUnavailable
     }
     #endif
 }

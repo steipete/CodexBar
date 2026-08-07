@@ -4,6 +4,75 @@ import Testing
 
 struct CostUsageFetcherCacheSnapshotTests {
     @Test
+    func `settled deferred fork is quiescent but cached snapshot coverage remains incomplete`() async throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+
+        let now = try env.makeLocalNoon(year: 2026, month: 4, day: 8)
+        let dayKey = "2026-04-08"
+        let options = CostUsageScanner.Options(
+            codexSessionsRoot: env.codexSessionsRoot,
+            claudeProjectsRoots: nil,
+            cacheRoot: env.cacheRoot)
+        let range = CostUsageScanner.CostUsageDayRange(
+            since: now,
+            until: now,
+            calendar: options.calendar)
+        let fixtureDays = [dayKey: ["gpt-5.4": [42, 0, 0]]]
+        var cache = CostUsageCache()
+        cache.scanSinceKey = range.scanSinceKey
+        cache.scanUntilKey = range.scanUntilKey
+        cache.timeZoneIdentifier = options.calendar.timeZone.identifier
+        cache.roots = CostUsageScanner.codexRootsFingerprint(options: options)
+        cache.lastScanUnixMs = Int64(now.timeIntervalSince1970 * 1000)
+        cache.codexScanCatchUpPending = false
+        cache.days = fixtureDays
+        cache.files[env.codexSessionsRoot.appendingPathComponent("complete.jsonl").path] =
+            CostUsageScanner.makeFileUsage(
+                mtimeUnixMs: cache.lastScanUnixMs,
+                size: 1,
+                days: fixtureDays,
+                parsedBytes: 1,
+                sessionId: "complete-session",
+                codexScanComplete: true)
+        cache.files[env.codexSessionsRoot.appendingPathComponent("settled-child.jsonl").path] =
+            CostUsageScanner.makeFileUsage(
+                mtimeUnixMs: cache.lastScanUnixMs,
+                size: 1,
+                days: [:],
+                parsedBytes: 1,
+                sessionId: "settled-child",
+                forkedFromId: "missing-parent",
+                forkBaselineDependencyKey: "missing|settled",
+                codexScanComplete: false,
+                codexDeferredForkScan: true)
+        CostUsageCacheIO.save(
+            provider: .codex,
+            cache: cache,
+            cacheRoot: env.cacheRoot,
+            calendar: options.calendar)
+
+        let fetcher = CostUsageFetcher(scannerOptions: options)
+        let status = await fetcher.codexScanCatchUpStatus()
+        let cached = await CostUsageFetcher.loadCachedCodexTokenSnapshotResult(
+            now: now,
+            historyDays: 1,
+            includePiSessions: false,
+            scannerOptions: options)
+        let activity = await CostUsageFetcher.loadCachedCodexTokenActivity(
+            now: now,
+            maximumDays: 1,
+            scannerOptions: options)
+
+        #expect(status.pending == false)
+        #expect(status.historyCoverageIsEstablished == false)
+        #expect(cached?.snapshot.sessionTokens == 42)
+        #expect(cached?.snapshot.historyCoverageIsEstablished == false)
+        #expect(cached?.lastRefreshAt == nil)
+        #expect(activity == nil)
+    }
+
+    @Test
     func `cached token activity derives buckets and partial coverage from the shared scan cache`() async throws {
         let env = try CostUsageTestEnvironment()
         defer { env.cleanup() }

@@ -22,6 +22,7 @@ struct CodexWorkspaceUsageFingerprintPayload: Encodable {
     let priorityCostNanos: [String: [String: Int64]]?
     let standardTokens: [String: [String: Int]]?
     let priorityTokens: [String: [String: Int]]?
+    let rowSidecarContent: CodexWorkspaceUsageRowContentIdentity?
     let rows: [CostUsageScanner.CodexUsageRow]?
 
     init(usage: CostUsageFileUsage) {
@@ -38,7 +39,33 @@ struct CodexWorkspaceUsageFingerprintPayload: Encodable {
         self.priorityCostNanos = usage.codexPriorityCostNanos
         self.standardTokens = usage.codexStandardTokens
         self.priorityTokens = usage.codexPriorityTokens
-        self.rows = usage.codexRows
+        self.rowSidecarContent = usage.codexUsageRowSidecarState.map(CodexWorkspaceUsageRowContentIdentity.init)
+        // Legacy inline rows remain part of the identity until they are migrated. Sidecar-backed
+        // entries use their compact, content-addressed published state instead of re-encoding the
+        // entire historical prefix on every bounded refresh.
+        self.rows = usage.codexUsageRowSidecarState == nil ? usage.codexRows : nil
+    }
+}
+
+/// Semantic row identity only. Generation and parser cursors are deliberately excluded so a
+/// zero-row suffix or crash-recovery republish does not force Workspace event replacement.
+struct CodexWorkspaceUsageRowContentIdentity: Encodable {
+    let rowCount: Int
+    let prefixDigest: String
+    let coverageSinceKey: String
+    let coverageUntilKey: String
+    let ownershipKey: String?
+    let pricingKey: String
+    let priorityMetadataKey: String
+
+    init(_ state: CostUsageCodexUsageRowSidecarState) {
+        self.rowCount = state.rowCount
+        self.prefixDigest = state.prefixDigest
+        self.coverageSinceKey = state.coverageSinceKey
+        self.coverageUntilKey = state.coverageUntilKey
+        self.ownershipKey = state.ownershipKey
+        self.pricingKey = state.pricingKey
+        self.priorityMetadataKey = state.priorityMetadataKey
     }
 }
 

@@ -30,6 +30,12 @@ public enum CostUsageError: LocalizedError, Sendable {
 public struct CostUsageFetcher: Sendable {
     private static let codexAutomaticScanDurationPerRefresh: TimeInterval = 2
 
+    package enum CostUsageCacheClearOutcome: Sendable, Equatable {
+        case cleared
+        case nothingToClear
+        case deferredByConcurrentWriter
+    }
+
     package struct CachedCodexTokenSnapshotResult: Sendable {
         package let snapshot: CostUsageTokenSnapshot
         package let lastRefreshAt: Date?
@@ -37,6 +43,9 @@ public struct CostUsageFetcher: Sendable {
     }
 
     package struct CodexScanCatchUpStatus: Sendable, Equatable {
+        package static let refreshLockUnavailableErrorMessage =
+            "Codex cost refresh lock is unavailable. Check the cache directory and try again."
+
         package let pending: Bool
         package let progressKey: String
         package let processedBytes: Int64
@@ -44,6 +53,9 @@ public struct CostUsageFetcher: Sendable {
         package let completedFiles: Int
         package let totalFiles: Int
         package let staleSnapshotUpdatedAt: Date?
+        package let historyCoverageIsEstablished: Bool
+        package let deferredByConcurrentWriter: Bool
+        package let refreshLockUnavailable: Bool
 
         package init(
             pending: Bool,
@@ -52,7 +64,10 @@ public struct CostUsageFetcher: Sendable {
             totalBytes: Int64 = 0,
             completedFiles: Int = 0,
             totalFiles: Int = 0,
-            staleSnapshotUpdatedAt: Date? = nil)
+            staleSnapshotUpdatedAt: Date? = nil,
+            historyCoverageIsEstablished: Bool? = nil,
+            deferredByConcurrentWriter: Bool = false,
+            refreshLockUnavailable: Bool = false)
         {
             self.pending = pending
             self.progressKey = progressKey
@@ -61,13 +76,93 @@ public struct CostUsageFetcher: Sendable {
             self.completedFiles = max(0, completedFiles)
             self.totalFiles = max(0, totalFiles)
             self.staleSnapshotUpdatedAt = staleSnapshotUpdatedAt
+            self.historyCoverageIsEstablished = historyCoverageIsEstablished ?? !pending
+            self.deferredByConcurrentWriter = deferredByConcurrentWriter
+            self.refreshLockUnavailable = refreshLockUnavailable
+        }
+
+        package var requiresTransientRetry: Bool {
+            self.deferredByConcurrentWriter || self.refreshLockUnavailable
+        }
+
+        package func deferringConcurrentWriter() -> Self {
+            Self(
+                // The published cache can still say complete while the lock owner is preparing
+                // its first pending update. Contention itself is retryable work.
+                pending: true,
+                progressKey: self.progressKey,
+                processedBytes: self.processedBytes,
+                totalBytes: self.totalBytes,
+                completedFiles: self.completedFiles,
+                totalFiles: self.totalFiles,
+                staleSnapshotUpdatedAt: self.staleSnapshotUpdatedAt,
+                historyCoverageIsEstablished: false,
+                deferredByConcurrentWriter: true,
+                refreshLockUnavailable: self.refreshLockUnavailable)
+        }
+
+        package func deferringUnavailableRefreshLock() -> Self {
+            Self(
+                pending: true,
+                progressKey: self.progressKey,
+                processedBytes: self.processedBytes,
+                totalBytes: self.totalBytes,
+                completedFiles: self.completedFiles,
+                totalFiles: self.totalFiles,
+                staleSnapshotUpdatedAt: self.staleSnapshotUpdatedAt,
+                historyCoverageIsEstablished: false,
+                deferredByConcurrentWriter: self.deferredByConcurrentWriter,
+                refreshLockUnavailable: true)
+        }
+
+        package func requiringTransientRetry() -> Self {
+            if self.deferredByConcurrentWriter {
+                return self.deferringConcurrentWriter()
+            }
+            if self.refreshLockUnavailable {
+                return self.deferringUnavailableRefreshLock()
+            }
+            return self
         }
     }
 
     private let scannerOptions: CostUsageScanner.Options?
 
-    public init(cacheRoot: URL? = nil) {
-        self.scannerOptions = cacheRoot.map { CostUsageScanner.Options(cacheRoot: $0) }
+    public init(cacheRoot: URL? = nil, codexRefreshLockRoot: URL? = nil) {
+        self.scannerOptions = if cacheRoot != nil || codexRefreshLockRoot != nil {
+            CostUsageScanner.Options(
+                cacheRoot: cacheRoot,
+                codexRefreshLockRoot: codexRefreshLockRoot)
+        } else {
+            nil
+        }
+    }
+
+    /// Clears every cost-usage artifact only while owning the same stable lease as Codex scans.
+    /// The lease lives outside the removed directory so unlinking cannot create a second lock inode.
+    package static func clearCostUsageCache(
+        cacheRoot: URL? = nil,
+        fileManager: FileManager = .default) throws -> CostUsageCacheClearOutcome
+    {
+        switch try CostUsageCodexRefreshLock.tryAcquireForClear(
+            cacheRoot: cacheRoot,
+            lockDomainRoot: cacheRoot,
+            fileManager: fileManager)
+        {
+        case .contended:
+            return .deferredByConcurrentWriter
+        case let .acquired(lease):
+            defer { lease.release() }
+            let cacheDirectory = CostUsageCacheIO.cacheFileURL(
+                provider: .codex,
+                cacheRoot: cacheRoot)
+                .deletingLastPathComponent()
+            guard fileManager.fileExists(atPath: cacheDirectory.path) else {
+                return .nothingToClear
+            }
+            try fileManager.removeItem(at: cacheDirectory)
+            return .cleared
+        }
     }
 
     init(scannerOptions: CostUsageScanner.Options) {
@@ -264,8 +359,13 @@ public struct CostUsageFetcher: Sendable {
             codexHomePath: codexHomePath)
         return await (try? CostUsageScanExecutor.run { checkCancellation in
             try checkCancellation()
-            return Self.codexScanCatchUpStatus(options: options)
-        }) ?? CodexScanCatchUpStatus(pending: false, progressKey: "unavailable")
+            let status = Self.codexScanCatchUpStatusRespectingRefreshLock(options: options)
+            try checkCancellation()
+            return status
+        }) ?? CodexScanCatchUpStatus(
+            pending: true,
+            progressKey: "unavailable",
+            historyCoverageIsEstablished: false)
     }
 
     package func advanceCodexScanCatchUp(
@@ -287,15 +387,22 @@ public struct CostUsageFetcher: Sendable {
             to: now) ?? now
         let scanOptions = options
         return try await CostUsageScanExecutor.run { checkCancellation in
-            _ = try CostUsageScanner.loadDailyReportCancellable(
-                provider: .codex,
+            let outcome = try CostUsageScanner.loadCodexDailyReportCancellable(
                 since: since,
                 until: now,
                 now: now,
                 options: scanOptions,
                 checkCancellation: checkCancellation)
             try checkCancellation()
-            return Self.codexScanCatchUpStatus(options: scanOptions)
+            let status = Self.codexScanCatchUpStatusRespectingRefreshLock(options: scanOptions)
+            switch outcome.disposition {
+            case .ownedRefresh:
+                return status
+            case .deferredByConcurrentWriter:
+                return status.deferringConcurrentWriter()
+            case .refreshLockUnavailable:
+                return status.deferringUnavailableRefreshLock()
+            }
         }
     }
 
@@ -320,9 +427,13 @@ public struct CostUsageFetcher: Sendable {
                 return CodexScanCatchUpStatus(
                     pending: true,
                     progressKey: "producer-upgrade",
-                    staleSnapshotUpdatedAt: staleSnapshotUpdatedAt)
+                    staleSnapshotUpdatedAt: staleSnapshotUpdatedAt,
+                    historyCoverageIsEstablished: false)
             }
-            return CodexScanCatchUpStatus(pending: false, progressKey: "scope-mismatch")
+            return CodexScanCatchUpStatus(
+                pending: false,
+                progressKey: "scope-mismatch",
+                historyCoverageIsEstablished: false)
         }
 
         let scoped = CostUsageScanner.codexCache(cache, scopedTo: roots)
@@ -333,9 +444,23 @@ public struct CostUsageFetcher: Sendable {
             progressHasher.combine(usage.parsedBytes)
             progressHasher.combine(usage.size)
             progressHasher.combine(usage.codexScanComplete)
+            if let replay = usage.codexDeferredReplayState {
+                progressHasher.combine(String(describing: replay.phase))
+                progressHasher.combine(String(describing: replay.mode))
+                progressHasher.combine(replay.replayStarted)
+                progressHasher.combine(replay.restartIndexingFromByteZero)
+                progressHasher.combine(replay.ownedSuffixStartOffset)
+            }
         }
-        let hasIncompleteFile = scoped.files.values.contains { $0.codexScanComplete == false }
-        let pending = cache.codexScanCatchUpPending == true || hasIncompleteFile
+        Self.combineCodexMetadataProgress(cache, into: &progressHasher)
+        let hasAnyIncompleteFile = scoped.files.values.contains { $0.codexScanComplete == false }
+        let hasActionableIncompleteFile = scoped.files.values.contains {
+            $0.codexScanComplete == false
+                && !$0.hasSettledDeferredCodexFork
+                && !$0.hasSettledDeferredCodexReplay
+        }
+        let pending = cache.codexScanCatchUpPending == true || hasActionableIncompleteFile
+        let historyCoverageIsEstablished = cache.codexScanCatchUpPending != true && !hasAnyIncompleteFile
         return CodexScanCatchUpStatus(
             pending: pending,
             progressKey: "\(scoped.files.count):\(progressHasher.finalize())",
@@ -343,14 +468,88 @@ public struct CostUsageFetcher: Sendable {
             totalBytes: cache.codexScanTotalBytes ?? 0,
             completedFiles: cache.codexScanCompletedFiles ?? 0,
             totalFiles: cache.codexScanTotalFiles ?? 0,
-            staleSnapshotUpdatedAt: pending ? cache.codexPreviousReport?.updatedAt : nil)
+            staleSnapshotUpdatedAt: pending ? cache.codexPreviousReport?.updatedAt : nil,
+            historyCoverageIsEstablished: historyCoverageIsEstablished)
+    }
+
+    /// Status reads use the same cross-process lease as scanner writes. A contended or unavailable
+    /// lease can expose an older complete cache, so neither state is proof of complete coverage.
+    private static func codexScanCatchUpStatusRespectingRefreshLock(
+        options: CostUsageScanner.Options) -> CodexScanCatchUpStatus
+    {
+        let acquisition: CostUsageCodexRefreshLock.Acquisition
+        do {
+            acquisition = try CostUsageCodexRefreshLock.tryAcquire(
+                cacheRoot: options.cacheRoot,
+                lockDomainRoot: options.codexRefreshLockRoot)
+        } catch {
+            return self.codexScanCatchUpStatus(options: options)
+                .deferringUnavailableRefreshLock()
+        }
+
+        switch acquisition {
+        case let .acquired(lease):
+            defer { lease.release() }
+            return self.codexScanCatchUpStatus(options: options)
+        case .contended:
+            return self.codexScanCatchUpStatus(options: options)
+                .deferringConcurrentWriter()
+        }
+    }
+
+    /// Metadata discovery and active-lookback passes can make durable progress without
+    /// changing a session file's parsed offset. Include their resumable cursors so Finish Now
+    /// does not misclassify two productive metadata-only passes as a stall.
+    private static func combineCodexMetadataProgress(
+        _ cache: CostUsageCache,
+        into hasher: inout Hasher)
+    {
+        hasher.combine(cache.codexScanProcessedBytes)
+        hasher.combine(cache.codexScanCompletedFiles)
+
+        if let discovery = cache.codexSessionDiscovery {
+            hasher.combine("discovery")
+            hasher.combine(discovery.generation)
+            hasher.combine(discovery.directoryPaths.count)
+            hasher.combine(discovery.nextDirectoryIndex)
+            hasher.combine(discovery.filePaths.count)
+            hasher.combine(discovery.nextFileIndex)
+            hasher.combine(discovery.filePathBySessionId.count)
+            hasher.combine(discovery.missingSessionIds)
+            hasher.combine(discovery.pendingSessionIds)
+            hasher.combine(discovery.validationDirectoryIndex)
+            hasher.combine(discovery.validationFileIndex)
+            hasher.combine(discovery.isComplete)
+            if let head = discovery.headScan {
+                hasher.combine(head.path)
+                hasher.combine(head.offset)
+                hasher.combine(head.resumeState?.offset)
+                hasher.combine(head.sourceStamp?.mtimeUnixMs)
+                hasher.combine(head.sourceStamp?.size)
+                hasher.combine(head.sourceStamp?.fileId)
+                hasher.combine(head.sourceStamp?.changeUnixNs)
+            }
+        }
+
+        if let lookback = cache.codexActiveLookbackState {
+            hasher.combine("lookback")
+            hasher.combine(lookback.scanSinceKey)
+            hasher.combine(lookback.rootPaths)
+            for (root, nextDay) in lookback.nextDayKeyByRoot.sorted(by: { $0.key < $1.key }) {
+                hasher.combine(root)
+                hasher.combine(nextDay)
+            }
+            hasher.combine(lookback.completedRootPaths)
+            hasher.combine(lookback.pendingFilePaths)
+            hasher.combine(lookback.legacyRecursivePendingRootPaths)
+        }
     }
 
     private static func codexHistoryCoverageIsEstablished(
         options: CostUsageScanner.Options) -> Bool
     {
-        let status = self.codexScanCatchUpStatus(options: options)
-        return !status.pending && status.progressKey != "scope-mismatch"
+        self.codexScanCatchUpStatusRespectingRefreshLock(options: options)
+            .historyCoverageIsEstablished
     }
 
     private static func resolvedScannerOptions(
@@ -520,13 +719,28 @@ public struct CostUsageFetcher: Sendable {
         // These synchronous scans can run for minutes on large archives. The dedicated queue keeps
         // them off the cooperative pool and bridges task cancellation into scanner-level checks.
         return try await CostUsageScanExecutor.run { checkCancellation in
-            var daily = try CostUsageScanner.loadDailyReportCancellable(
-                provider: provider,
-                since: since,
-                until: now,
-                now: now,
-                options: options.scanOptions,
-                checkCancellation: checkCancellation)
+            var codexRefreshOwned = provider != .codex
+            var daily: CostUsageDailyReport
+            if provider == .codex {
+                let outcome = try CostUsageScanner.loadCodexDailyReportCancellable(
+                    since: since,
+                    until: now,
+                    now: now,
+                    options: options.scanOptions,
+                    checkCancellation: checkCancellation)
+                daily = outcome.report
+                if case .ownedRefresh = outcome.disposition {
+                    codexRefreshOwned = true
+                }
+            } else {
+                daily = try CostUsageScanner.loadDailyReportCancellable(
+                    provider: provider,
+                    since: since,
+                    until: now,
+                    now: now,
+                    options: options.scanOptions,
+                    checkCancellation: checkCancellation)
+            }
             try checkCancellation()
 
             if provider == .vertexai,
@@ -604,7 +818,8 @@ public struct CostUsageFetcher: Sendable {
                 sessions: sessions,
                 staleSnapshotUpdatedAt: staleSnapshotUpdatedAt,
                 historyCoverageIsEstablished: provider != .codex
-                    || Self.codexHistoryCoverageIsEstablished(options: options.scanOptions))
+                    || (codexRefreshOwned
+                        && Self.codexHistoryCoverageIsEstablished(options: options.scanOptions)))
         }
     }
 
@@ -918,17 +1133,20 @@ public struct CostUsageFetcher: Sendable {
             // would let stale token rows inherit app-start freshness (#1964). lastRefreshAt
             // drives TTL suppression and stays native-only: a merged load must never delay a
             // rescan on the strength of another source's scan.
+            let historyCoverageIsEstablished = Self.codexHistoryCoverageIsEstablished(options: options)
             return CachedCodexTokenSnapshotResult(
                 snapshot: Self.tokenSnapshot(
                     from: CostUsageDailyReport.merged(reports),
                     now: now,
                     historyDays: clampedHistoryDays,
                     calendar: options.calendar,
-                    historyCoverageIsEstablished: Self.codexHistoryCoverageIsEstablished(options: options),
+                    historyCoverageIsEstablished: historyCoverageIsEstablished,
                     projects: Self.mergedProjectBreakdowns(projects),
                     sessions: sessions,
                     updatedAt: scanTimes.min()),
-                lastRefreshAt: piMerged || staleSnapshotUpdatedAt != nil ? nil : nativeScanAt,
+                lastRefreshAt: historyCoverageIsEstablished && !piMerged && staleSnapshotUpdatedAt == nil
+                    ? nativeScanAt
+                    : nil,
                 staleSnapshotUpdatedAt: staleSnapshotUpdatedAt)
         }
         return cachedSnapshot.flatMap(\.self)
