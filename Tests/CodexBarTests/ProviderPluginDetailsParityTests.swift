@@ -289,6 +289,44 @@ struct ProviderPluginDetailsParityTests {
     }
 
     @Test
+    func `zai CREDIT_LIMIT fixture has Swift core parity and stable details`() async throws {
+        let transport = Self.transport { request in
+            if request.url?.path.hasSuffix("/quota/limit") == true {
+                return Self.zaiCreditQuota
+            }
+            if request.url?.path.hasSuffix("/model-usage") == true {
+                return Self.zaiModelUsage
+            }
+            throw FixtureError.unexpectedURL(request.url)
+        }
+        let now = Date(timeIntervalSince1970: 1_786_073_946)
+        let swift = try await ZaiUsageFetcher.fetchUsage(apiKey: "fixture-key", environment: [:], transport: transport)
+            .toUsageSnapshot()
+        let script = try await ProviderPluginRuntime(bundledPlugin: "zai", transport: transport)
+            .fetchUsage(
+                settings: [
+                    "Z_AI_REGION": "global",
+                    "Z_AI_USAGE_SCOPE": "personal",
+                ],
+                secrets: ["Z_AI_API_KEY": "fixture-key"],
+                now: now)
+
+        Self.expectCoreParity(swift, script)
+        #expect(swift.primary?.usedPercent == 3)
+        #expect(swift.primary?.windowMinutes == 300)
+        #expect(swift.primary?.resetDescription == "5-hour")
+        #expect(swift.secondary?.usedPercent == 1)
+        #expect(swift.secondary?.windowMinutes == 10080)
+        #expect(script.identity?.loginMethod == "lite")
+        #expect(try script.details == [
+            Self.section("Quota details", rows: [
+                Self.row("Credit quota", "3% used", "2000 limit · 1929 remaining"),
+                Self.row("Session credit quota", "1% used", "10000 limit · 9929 remaining"),
+            ]),
+        ])
+    }
+
+    @Test
     func `OpenAI fixture has Swift core parity and stable details`() async throws {
         let transport = Self.transport { request in
             if request.url?.path.hasSuffix("/organization/costs") == true {
@@ -467,6 +505,14 @@ struct ProviderPluginDetailsParityTests {
       {"type":"TIME_LIMIT","unit":5,"number":1,"usage":1000,"currentValue":224,"remaining":776,
        "percentage":22,"usageDetails":[{"modelCode":"search-prime","usage":210},
        {"modelCode":"web-reader","usage":14}]}
+    ]}}
+    """#
+    private static let zaiCreditQuota = #"""
+    {"code":200,"msg":"success","success":true,"data":{"level":"lite","limits":[
+      {"type":"CREDIT_LIMIT","unit":3,"number":5,"usage":2000,"currentValue":71,"remaining":1929,
+       "percentage":3,"nextResetTime":1786073946574},
+      {"type":"CREDIT_LIMIT","unit":6,"number":1,"usage":10000,"currentValue":71,"remaining":9929,
+       "percentage":1,"nextResetTime":1786660486998}
     ]}}
     """#
     private static let zaiModelUsage = #"""
