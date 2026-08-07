@@ -148,7 +148,7 @@ struct CopilotMenuCardModelTests {
         let metric = try #require(model.metrics.first { $0.id == "copilot-seat-credits" })
         #expect(metric.title == "AI credits")
         #expect(metric.statusText == nil)
-        #expect(metric.detailLeftText == "31 / 3,000")
+        #expect(metric.detailLeftText == "31 / 3000")
     }
 
     @Test

@@ -897,7 +897,7 @@ extension UsageMenuCardView.Model {
                 style: input.resetTimeDisplayStyle,
                 now: input.now)
         }
-        let usedLabel = Self.formatCredits(lane.creditsUsed)
+        let usedLabel = UsageFormatter.creditsNumberString(from: lane.creditsUsed)
         guard let usedPercent = lane.usedPercent, let entitlement = lane.entitlement else {
             // No denominator: GitHub does not publish the included-credit ceiling, so show the raw
             // count rather than a bar that would imply a limit we do not know.
@@ -924,28 +924,10 @@ extension UsageMenuCardView.Model {
             statusText: nil,
             resetText: resetText,
             detailText: nil,
-            detailLeftText: "\(usedLabel) / \(Self.formatCredits(entitlement))",
+            detailLeftText: "\(usedLabel) / \(UsageFormatter.creditsNumberString(from: entitlement))",
             detailRightText: nil,
             pacePercent: nil,
             paceOnTop: true)
-    }
-
-    private static func formatCredits(_ value: Double) -> String {
-        let formatter = NumberFormatter()
-        // Pinned rather than left to the current locale: this string feeds directly into a test
-        // assertion (and user-facing display) that expects a fixed "," grouping separator. Locale
-        // alone is not enough here — `en_US_POSIX` (the usual "deterministic" choice) disables
-        // grouping entirely (`usesGroupingSeparator == false`), so pinning locale but leaving
-        // grouping to its default still produces "3000" instead of "3,000" on this very machine.
-        // Set every formatting property explicitly so the output is identical on every locale.
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.numberStyle = .decimal
-        formatter.usesGroupingSeparator = true
-        formatter.groupingSeparator = ","
-        formatter.decimalSeparator = "."
-        formatter.maximumFractionDigits = value < 10 ? 1 : 0
-        formatter.minimumFractionDigits = 0
-        return formatter.string(from: NSNumber(value: value)) ?? String(Int(value))
     }
 
     private static func isCodexSparkRateWindow(_ namedWindow: NamedRateWindow) -> Bool {
