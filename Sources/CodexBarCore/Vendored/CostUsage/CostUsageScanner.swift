@@ -46,6 +46,7 @@ enum CostUsageScanner {
     struct Options {
         var codexSessionsRoot: URL?
         var claudeProjectsRoots: [URL]?
+        var grokSessionsRoot: URL?
         var cacheRoot: URL?
         var codexTraceDatabaseURL: URL?
         var calendar: Calendar
@@ -68,6 +69,7 @@ enum CostUsageScanner {
         init(
             codexSessionsRoot: URL? = nil,
             claudeProjectsRoots: [URL]? = nil,
+            grokSessionsRoot: URL? = nil,
             cacheRoot: URL? = nil,
             codexTraceDatabaseURL: URL? = nil,
             calendar: Calendar = .current,
@@ -80,6 +82,7 @@ enum CostUsageScanner {
         {
             self.codexSessionsRoot = codexSessionsRoot
             self.claudeProjectsRoots = claudeProjectsRoots
+            self.grokSessionsRoot = grokSessionsRoot
             self.cacheRoot = cacheRoot
             self.codexTraceDatabaseURL = codexTraceDatabaseURL
             self.calendar = calendar
@@ -1730,9 +1733,36 @@ enum CostUsageScanner {
                 now: now,
                 options: filtered,
                 checkCancellation: checkCancellation)
+        case .grok:
+            return try self.loadGrokDaily(
+                since: since,
+                until: until,
+                now: now,
+                options: options,
+                checkCancellation: checkCancellation)
         default:
             return emptyReport
         }
+    }
+
+    private static func loadGrokDaily(
+        since: Date,
+        until: Date,
+        now: Date,
+        options: Options,
+        checkCancellation: CancellationCheck?) throws -> CostUsageDailyReport
+    {
+        var scannerOptions = GrokTurnUsageScanner.Options()
+        if let override = options.grokSessionsRoot {
+            scannerOptions.sessionsRoot = override
+        }
+        scannerOptions.cacheRoot = options.cacheRoot
+        return try GrokTurnUsageScanner.loadDailyReport(
+            since: since,
+            until: until,
+            now: now,
+            options: scannerOptions,
+            checkCancellation: checkCancellation)
     }
 
     // MARK: - Day keys

@@ -1,11 +1,26 @@
 import SwiftUI
 
+private struct MenuItemHighlightedKey: EnvironmentKey {
+    static let defaultValue: Bool = false
+}
+
+private struct MenuCardRefreshMonitorKey: EnvironmentKey {
+    static let defaultValue: MenuCardRefreshMonitor? = nil
+}
+
 extension EnvironmentValues {
-    @Entry var menuItemHighlighted: Bool = false
+    var menuItemHighlighted: Bool {
+        get { self[MenuItemHighlightedKey.self] }
+        set { self[MenuItemHighlightedKey.self] = newValue }
+    }
+
     /// Optional live-refresh monitor injected into menu card views so the provider card
     /// subtitle can reflect the in-flight "Refreshing…" state in place while the NSMenu
     /// stays open, without rebuilding the menu during AppKit tracking.
-    @Entry var menuCardRefreshMonitor: MenuCardRefreshMonitor?
+    var menuCardRefreshMonitor: MenuCardRefreshMonitor? {
+        get { self[MenuCardRefreshMonitorKey.self] }
+        set { self[MenuCardRefreshMonitorKey.self] = newValue }
+    }
 }
 
 enum MenuHighlightStyle {

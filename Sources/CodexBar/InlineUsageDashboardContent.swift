@@ -87,9 +87,16 @@ extension UsageMenuCardView.Model {
     /// Provider branding color for the inline usage bars, matching the provider's switcher tab and
     /// detailed cost-history chart.
     static func inlineDashboardBarColor(for provider: UsageProvider) -> Color {
+        // Provider-specific by design: Grok cost/token history uses Codex teal.
+        if provider == .grok {
+            return self.codexStyleChartBarColor
+        }
         let color = ProviderDescriptorRegistry.descriptor(for: provider).branding.color
         return Color(red: color.red, green: color.green, blue: color.blue)
     }
+
+    /// Codex brand teal — shared cost-chart palette (matches Credits/Codex cost bars).
+    static let codexStyleChartBarColor = Color(red: 73 / 255, green: 163 / 255, blue: 176 / 255)
 
     private static func resolveInlineUsageDashboard(input: Input) -> InlineUsageDashboardModel? {
         let menuCard = ProviderDescriptorRegistry.descriptor(for: input.provider).presentation.menuCard
@@ -185,14 +192,14 @@ extension UsageMenuCardView.Model {
         } else {
             L("%@ cost", historyDays == 1 ? L("Today") : String(format: L("Last %d days"), historyDays))
         }
-        let points = snapshot.daily.suffix(historyDays).compactMap { entry -> InlineUsageDashboardModel.Point? in
-            guard let cost = entry.costUSD else { return nil }
-            return InlineUsageDashboardModel.Point(
-                id: entry.date,
-                label: Self.shortDayLabel(entry.date),
-                value: convertedValue(cost),
-                accessibilityValue: "\(entry.date): \(convertedString(cost))")
-        }
+        // Grok (and sparse-cost histories) plot daily tokens so subscription days without
+        // costUsdTicks still appear. Cost remains in KPIs/details.
+        let plotTokens = Self.shouldPlotTokensOnInlineCostChart(provider: provider, snapshot: snapshot)
+        let points = Self.inlineChartPoints(
+            snapshot: snapshot,
+            historyDays: historyDays,
+            plotTokens: plotTokens,
+            preferredCurrencyCode: preferredCurrencyCode)
         let latest = CostUsageTokenSnapshot.latestEntry(in: snapshot.daily)
         let usesLatestPrimary = tokenCost.primaryValue == .latestDaily
         let primaryCostUSD = usesLatestPrimary ? latest?.costUSD : snapshot.sessionCostUSD
@@ -211,6 +218,13 @@ extension UsageMenuCardView.Model {
         }
         if let topModel = Self.topCostModel(from: snapshot.daily) {
             details.append("\(L("Top model")): \(Self.shortModelName(topModel))")
+        }
+        // Provider-specific by design: Grok adds token composition and project notes on the cost card.
+        if provider == .grok {
+            details.append(contentsOf: Self.grokCostHistoryDetailLines(snapshot: snapshot))
+        }
+        if snapshot.historyIsIncomplete {
+            details.append(L("History incomplete: some large session logs were only partially scanned."))
         }
         let hintLines = Self.tokenUsageHintLines(provider: provider)
         if tokenCost.hintPlacement == .beforeRequestHistory {
@@ -233,7 +247,9 @@ extension UsageMenuCardView.Model {
         let accessibilityLabel = L(
             "%@: %@",
             providerName,
-            accessibilityCostLabel)
+            plotTokens
+                ? (snapshot.historyLabel.map { "\($0) tokens" } ?? L("token usage"))
+                : accessibilityCostLabel)
         var kpis = [
             InlineUsageDashboardModel.KPI(
                 title: usesLatestPrimary ? L("Latest") : L("Today"),
@@ -245,6 +261,13 @@ extension UsageMenuCardView.Model {
                     .map(convertedString) ?? "—",
                 emphasis: false),
         ]
+        // Provider-specific by design: Grok leads with today's tokens to match token bars.
+        if provider == .grok {
+            let todayTokens = snapshot.sessionTokens.map(UsageFormatter.tokenCountString) ?? "—"
+            kpis.insert(
+                .init(title: L("Today tokens"), value: todayTokens, emphasis: true),
+                at: 0)
+        }
         let tokenHistoryKPI = InlineUsageDashboardModel.KPI(
             title: tokenHistoryTitle,
             value: snapshot.last30DaysTokens.map(UsageFormatter.tokenCountString) ?? "—",
@@ -267,12 +290,164 @@ extension UsageMenuCardView.Model {
         }
         var model = InlineUsageDashboardModel(
             accessibilityLabel: accessibilityLabel,
-            valueStyle: Self.costValueStyle(currencyCode: displayCurrencyCode),
+            valueStyle: plotTokens ? .tokens : Self.costValueStyle(currencyCode: displayCurrencyCode),
             kpis: kpis,
             points: points,
             detailLines: details)
-        model.currencyCode = displayCurrencyCode
+        // Provider-specific by design: Grok cost chart bars use Codex teal.
+        if provider == .grok {
+            model.barColor = self.codexStyleChartBarColor
+        }
+        if !plotTokens {
+            model.currencyCode = displayCurrencyCode
+        }
         return model
+    }
+
+    private static func grokCostHistoryDetailLines(snapshot: CostUsageTokenSnapshot) -> [String] {
+        var details: [String] = []
+        let input = snapshot.daily.compactMap(\.inputTokens).reduce(0, +)
+        let cache = snapshot.daily.compactMap(\.cacheReadTokens).reduce(0, +)
+        let output = snapshot.daily.compactMap(\.outputTokens).reduce(0, +)
+        if input + cache + output > 0 {
+            details.append(String(
+                format: L("Uncached %@ · Cache %@ · Output %@"),
+                UsageFormatter.tokenCountString(input),
+                UsageFormatter.tokenCountString(cache),
+                UsageFormatter.tokenCountString(output)))
+        }
+        let daysWithCost = snapshot.daily.count(where: { ($0.costUSD ?? 0) > 0 })
+        details.append(String(
+            format: L("Cost reported on %d/%d days"),
+            daysWithCost,
+            snapshot.daily.count))
+        if let topProject = snapshot.projects.first {
+            let tokens = topProject.totalTokens.map(UsageFormatter.tokenCountString) ?? "—"
+            details.append(String(format: L("Top project: %@ · %@"), topProject.name, tokens))
+        }
+        return details
+    }
+
+    /// Prefer token bars when cost history is incomplete (Grok subscription) or absent.
+    static func shouldPlotTokensOnInlineCostChart(
+        provider: UsageProvider,
+        snapshot: CostUsageTokenSnapshot) -> Bool
+    {
+        // Provider-specific by design: Grok subscription days often omit cost ticks.
+        if provider == .grok { return true }
+        let days = snapshot.daily
+        guard !days.isEmpty else { return false }
+        let withCost = days.count(where: { ($0.costUSD ?? 0) > 0 })
+        return withCost == 0
+    }
+
+    /// Continuous daily points for the main-menu mini chart (zero-fill gaps like Codex).
+    static func inlineChartPoints(
+        snapshot: CostUsageTokenSnapshot,
+        historyDays: Int,
+        plotTokens: Bool,
+        preferredCurrencyCode: String = "auto") -> [InlineUsageDashboardModel.Point]
+    {
+        let sorted = snapshot.daily.sorted { $0.date < $1.date }
+        guard let lastKey = sorted.last?.date else { return [] }
+        guard let end = Self.dateFromDayKey(lastKey) else {
+            return sorted.suffix(historyDays).compactMap { entry in
+                self.inlinePoint(
+                    for: entry,
+                    plotTokens: plotTokens,
+                    providerCurrencyCode: snapshot.currencyCode,
+                    preferredCurrencyCode: preferredCurrencyCode)
+            }
+        }
+        let calendar = Calendar.current
+        let start = calendar.date(byAdding: .day, value: -(historyDays - 1), to: calendar.startOfDay(for: end))
+            ?? calendar.startOfDay(for: end)
+        var byDay: [String: CostUsageDailyReport.Entry] = [:]
+        for entry in sorted {
+            byDay[entry.date] = entry
+        }
+        var points: [InlineUsageDashboardModel.Point] = []
+        var cursor = calendar.startOfDay(for: start)
+        let endDay = calendar.startOfDay(for: end)
+        while cursor <= endDay {
+            let key = Self.dayKey(from: cursor)
+            if let entry = byDay[key],
+               let point = self.inlinePoint(
+                   for: entry,
+                   plotTokens: plotTokens,
+                   providerCurrencyCode: snapshot.currencyCode,
+                   preferredCurrencyCode: preferredCurrencyCode)
+            {
+                points.append(point)
+            } else {
+                points.append(InlineUsageDashboardModel.Point(
+                    id: key,
+                    label: Self.shortDayLabel(key),
+                    value: 0,
+                    accessibilityValue: "\(key): —"))
+            }
+            guard let next = calendar.date(byAdding: .day, value: 1, to: cursor) else { break }
+            cursor = next
+        }
+        return points
+    }
+
+    private static func inlinePoint(
+        for entry: CostUsageDailyReport.Entry,
+        plotTokens: Bool,
+        providerCurrencyCode: String,
+        preferredCurrencyCode: String) -> InlineUsageDashboardModel.Point?
+    {
+        if plotTokens {
+            let tokens = entry.totalTokens ?? 0
+            let costNote: String = {
+                guard let cost = entry.costUSD else { return "" }
+                let formatted = UsageFormatter.convertedCostString(
+                    cost,
+                    preferredCurrency: preferredCurrencyCode,
+                    providerCurrency: providerCurrencyCode)
+                return " · \(formatted)"
+            }()
+            return InlineUsageDashboardModel.Point(
+                id: entry.date,
+                label: Self.shortDayLabel(entry.date),
+                value: Double(tokens),
+                accessibilityValue: "\(entry.date): \(UsageFormatter.tokenCountString(tokens)) tokens\(costNote)")
+        }
+        guard let cost = entry.costUSD else { return nil }
+        let converted = UsageFormatter.convertedCost(
+            cost,
+            preferredCurrency: preferredCurrencyCode,
+            providerCurrency: providerCurrencyCode)
+        let costString = UsageFormatter.convertedCostString(
+            cost,
+            preferredCurrency: preferredCurrencyCode,
+            providerCurrency: providerCurrencyCode)
+        return InlineUsageDashboardModel.Point(
+            id: entry.date,
+            label: Self.shortDayLabel(entry.date),
+            value: converted.value,
+            accessibilityValue: "\(entry.date): \(costString)")
+    }
+
+    private static func dateFromDayKey(_ key: String) -> Date? {
+        let parts = key.split(separator: "-")
+        guard parts.count == 3,
+              let year = Int(parts[0]),
+              let month = Int(parts[1]),
+              let day = Int(parts[2]) else { return nil }
+        var comps = DateComponents()
+        comps.calendar = Calendar.current
+        comps.year = year
+        comps.month = month
+        comps.day = day
+        comps.hour = 12
+        return comps.date
+    }
+
+    private static func dayKey(from date: Date) -> String {
+        let comps = Calendar.current.dateComponents([.year, .month, .day], from: date)
+        return String(format: "%04d-%02d-%02d", comps.year ?? 1970, comps.month ?? 1, comps.day ?? 1)
     }
 
     private static func costHistoryTrailingKPIs(
