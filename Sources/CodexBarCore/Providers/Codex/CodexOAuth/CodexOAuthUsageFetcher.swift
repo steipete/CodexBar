@@ -62,6 +62,11 @@ public struct CodexUsageResponse: Decodable, Sendable {
         return (try? container.decodeNil(forKey: key)) == false
     }
 
+    /// Credit-limit source precedence: response root, then `rate_limit`, then `spend_control`.
+    public var resolvedIndividualLimit: SpendControlLimitSnapshot? {
+        self.individualLimit ?? self.rateLimit?.individualLimit ?? self.spendControlIndividualLimit
+    }
+
     private static func decodeSpendControlIndividualLimit(
         container: KeyedDecodingContainer<CodingKeys>) -> SpendControlLimitSnapshot?
     {
