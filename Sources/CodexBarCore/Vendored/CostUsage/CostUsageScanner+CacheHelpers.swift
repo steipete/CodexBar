@@ -1,6 +1,11 @@
 // swiftlint:disable file_length
 
 import Foundation
+#if canImport(CryptoKit)
+import CryptoKit
+#else
+import Crypto
+#endif
 #if canImport(Musl)
 import Musl
 #elseif canImport(Glibc)
@@ -289,6 +294,7 @@ extension CostUsageScanner {
         lastCodexTurnID: String? = nil,
         sessionId: String? = nil,
         forkedFromId: String? = nil,
+        codexForkTimestamp: String? = nil,
         forkBaselineDependencyKey: String? = nil,
         projectPath: String? = nil,
         canonicalProjectPath: String? = nil,
@@ -306,13 +312,21 @@ extension CostUsageScanner {
         codexTokenCheckpoints: [CostUsageCodexTokenCheckpoint]? = nil,
         codexTokenTimestampsMonotonic: Bool? = nil,
         codexTokenIndexAnchor: CostUsageCodexTokenIndexAnchor? = nil,
+        codexTokenSidecarState: CostUsageCodexTokenSidecarState? = nil,
+        codexUsageRowSidecarState: CostUsageCodexUsageRowSidecarState? = nil,
+        codexUsageRowProducerKey: String? = nil,
+        codexForkAccountingState: CostUsageCodexForkAccountingState? = nil,
         claudeRows: [ClaudeUsageRow]? = nil,
         codexScanFileId: String? = nil,
+        codexScanChangeUnixNs: Int64? = nil,
         codexScanTargetSize: Int64? = nil,
         codexScanComplete: Bool? = nil,
         codexJSONLResumeState: CostUsageJsonl.ResumeState? = nil,
         codexBufferedSubagentLines: [CodexBufferedFastLine]? = nil,
-        codexBufferedUnresolvedForkLines: [CodexBufferedFastLine]? = nil) -> CostUsageFileUsage
+        codexSubagentResumeState: CostUsageCodexSubagentResumeState? = nil,
+        codexDeferredReplayState: CostUsageCodexDeferredReplayState? = nil,
+        codexBufferedUnresolvedForkLines: [CodexBufferedFastLine]? = nil,
+        codexDeferredForkScan: Bool? = nil) -> CostUsageFileUsage
     {
         CostUsageFileUsage(
             mtimeUnixMs: mtimeUnixMs,
@@ -330,6 +344,7 @@ extension CostUsageScanner {
             lastCodexTurnID: lastCodexTurnID,
             sessionId: sessionId,
             forkedFromId: forkedFromId,
+            codexForkTimestamp: codexForkTimestamp,
             forkBaselineDependencyKey: forkBaselineDependencyKey,
             projectPath: projectPath,
             canonicalProjectPath: canonicalProjectPath,
@@ -347,13 +362,21 @@ extension CostUsageScanner {
             codexTokenCheckpoints: codexTokenCheckpoints,
             codexTokenTimestampsMonotonic: codexTokenTimestampsMonotonic,
             codexTokenIndexAnchor: codexTokenIndexAnchor,
+            codexTokenSidecarState: codexTokenSidecarState,
+            codexUsageRowSidecarState: codexUsageRowSidecarState,
+            codexUsageRowProducerKey: codexUsageRowProducerKey,
+            codexForkAccountingState: codexForkAccountingState,
             claudeRows: claudeRows,
             codexScanFileId: codexScanFileId,
+            codexScanChangeUnixNs: codexScanChangeUnixNs,
             codexScanTargetSize: codexScanTargetSize,
             codexScanComplete: codexScanComplete,
             codexJSONLResumeState: codexJSONLResumeState,
             codexBufferedSubagentLines: codexBufferedSubagentLines,
-            codexBufferedUnresolvedForkLines: codexBufferedUnresolvedForkLines)
+            codexSubagentResumeState: codexSubagentResumeState,
+            codexDeferredReplayState: codexDeferredReplayState,
+            codexBufferedUnresolvedForkLines: codexBufferedUnresolvedForkLines,
+            codexDeferredForkScan: codexDeferredForkScan)
     }
 
     static func needsCodexCostCache(_ usage: CostUsageFileUsage) -> Bool {
@@ -678,6 +701,9 @@ extension CostUsageScanner {
     }
 
     static func cachedCodexRowsNeedIdentityRescan(_ usage: CostUsageFileUsage) -> Bool {
+        if usage.codexUsageRowSidecarState != nil {
+            return false
+        }
         let rows = usage.codexRows ?? []
         return (!usage.days.isEmpty && rows.isEmpty) || Self.codexRowsNeedIdentityRescan(rows)
     }
@@ -710,9 +736,17 @@ extension CostUsageScanner {
     static func uniqueCodexRows(
         rows: [CodexUsageRow],
         sessionId: String?,
+        forkedFromId: String?,
         fileIdentity: String,
         state: inout CodexScanState) -> [CodexUsageRow]
     {
+        if self.codexNonForkSourceIsSuppressed(
+            sessionId: sessionId,
+            forkedFromId: forkedFromId,
+            state: state)
+        {
+            return []
+        }
         var unique: [CodexUsageRow] = []
         var acceptedKeys = Set<String>()
         for row in rows {
@@ -724,6 +758,15 @@ extension CostUsageScanner {
         }
         state.seenCodexUsageRowKeys.formUnion(acceptedKeys)
         return unique
+    }
+
+    static func codexNonForkSourceIsSuppressed(
+        sessionId: String?,
+        forkedFromId: String?,
+        state: CodexScanState) -> Bool
+    {
+        guard let sessionId, forkedFromId == nil else { return false }
+        return state.authoritativeForkSessionIds.contains(sessionId)
     }
 
     static func rememberCodexRows(
@@ -788,9 +831,11 @@ extension CostUsageScanner {
             lastCodexTurnID: usage.lastCodexTurnID,
             sessionId: usage.sessionId,
             forkedFromId: usage.forkedFromId,
+            codexForkTimestamp: usage.codexForkTimestamp,
             forkBaselineDependencyKey: usage.forkBaselineDependencyKey,
             projectPath: usage.projectPath,
             canonicalProjectPath: usage.canonicalProjectPath,
+            codexSession: usage.codexSession,
             codexCostNanos: Self.mergeCostMaps(
                 Self.costMapOutsideScanWindow(usage.codexCostNanos, range: context.range),
                 Self.codexCostNanos(
@@ -824,12 +869,20 @@ extension CostUsageScanner {
             codexTokenCheckpoints: usage.codexTokenCheckpoints,
             codexTokenTimestampsMonotonic: usage.codexTokenTimestampsMonotonic,
             codexTokenIndexAnchor: usage.codexTokenIndexAnchor,
+            codexTokenSidecarState: usage.codexTokenSidecarState,
+            codexUsageRowSidecarState: usage.codexUsageRowSidecarState,
+            codexUsageRowProducerKey: usage.codexUsageRowProducerKey,
+            codexForkAccountingState: usage.codexForkAccountingState,
             codexScanFileId: usage.codexScanFileId,
+            codexScanChangeUnixNs: usage.codexScanChangeUnixNs,
             codexScanTargetSize: usage.codexScanTargetSize,
             codexScanComplete: usage.codexScanComplete,
             codexJSONLResumeState: usage.codexJSONLResumeState,
             codexBufferedSubagentLines: usage.codexBufferedSubagentLines,
-            codexBufferedUnresolvedForkLines: usage.codexBufferedUnresolvedForkLines)
+            codexSubagentResumeState: usage.codexSubagentResumeState,
+            codexDeferredReplayState: usage.codexDeferredReplayState,
+            codexBufferedUnresolvedForkLines: usage.codexBufferedUnresolvedForkLines,
+            codexDeferredForkScan: usage.codexDeferredForkScan)
             .refreshingCodexWorkspaceUsageFingerprint()
     }
 
@@ -912,6 +965,21 @@ extension CostUsageScanner {
         let mtimeUnixMs: Int64
         let size: Int64
         let fileId: String?
+        let changeUnixNs: Int64?
+
+        init(
+            path: String,
+            mtimeUnixMs: Int64,
+            size: Int64,
+            fileId: String?,
+            changeUnixNs: Int64? = nil)
+        {
+            self.path = path
+            self.mtimeUnixMs = mtimeUnixMs
+            self.size = size
+            self.fileId = fileId
+            self.changeUnixNs = changeUnixNs
+        }
     }
 
     struct CodexFileScanInput {
@@ -924,20 +992,104 @@ extension CostUsageScanner {
         let path = fileURL.path
         var info = stat()
         guard path.withCString({ fstatat(AT_FDCWD, $0, &info, 0) }) == 0 else {
-            return CodexFileMetadata(path: path, mtimeUnixMs: 0, size: 0, fileId: nil)
+            return CodexFileMetadata(
+                path: path,
+                mtimeUnixMs: 0,
+                size: 0,
+                fileId: nil,
+                changeUnixNs: nil)
         }
         #if os(Linux)
         let modifiedSeconds = Int64(info.st_mtim.tv_sec)
         let modifiedNanoseconds = Int64(info.st_mtim.tv_nsec)
+        let changedSeconds = Int64(info.st_ctim.tv_sec)
+        let changedNanoseconds = Int64(info.st_ctim.tv_nsec)
         #else
         let modifiedSeconds = Int64(info.st_mtimespec.tv_sec)
         let modifiedNanoseconds = Int64(info.st_mtimespec.tv_nsec)
+        let changedSeconds = Int64(info.st_ctimespec.tv_sec)
+        let changedNanoseconds = Int64(info.st_ctimespec.tv_nsec)
         #endif
+        let (changedBase, changedOverflow) = changedSeconds.multipliedReportingOverflow(by: 1_000_000_000)
+        let (changeUnixNs, changedAddOverflow) = changedBase.addingReportingOverflow(changedNanoseconds)
         return CodexFileMetadata(
             path: path,
             mtimeUnixMs: modifiedSeconds * 1000 + modifiedNanoseconds / 1_000_000,
             size: Int64(info.st_size),
-            fileId: "\(info.st_dev):\(info.st_ino)")
+            fileId: "\(info.st_dev):\(info.st_ino)",
+            changeUnixNs: changedOverflow || changedAddOverflow ? nil : changeUnixNs)
+    }
+
+    static func codexFileMetadataMatches(
+        _ expected: CodexFileMetadata,
+        _ actual: CodexFileMetadata) -> Bool
+    {
+        guard let expectedFileId = expected.fileId else { return false }
+        return expected.path == actual.path
+            && actual.fileId == expectedFileId
+            && expected.mtimeUnixMs == actual.mtimeUnixMs
+            && expected.size == actual.size
+            && expected.changeUnixNs == actual.changeUnixNs
+    }
+
+    struct CodexFileSourceGuard {
+        let metadata: CodexFileMetadata
+        let prefixAnchor: CostUsageCodexTokenIndexAnchor?
+    }
+
+    struct CodexFileSourceObservation {
+        let metadata: CodexFileMetadata
+        let appended: Bool
+    }
+
+    /// Captures an immutable scan target before parsing. The parser is already bounded to this
+    /// metadata size; the anchor lets a later pure append preserve the verified prefix instead of
+    /// discarding a whole slice. Codex session writers are append-only; same-size stamp changes,
+    /// truncation, replacement, and anchor changes remain invalid source mutations.
+    static func codexFileSourceGuard(
+        input: CodexFileScanInput) -> CodexFileSourceGuard?
+    {
+        guard self.codexFileMetadataMatches(
+            input.metadata,
+            self.codexFileMetadata(fileURL: input.fileURL))
+        else { return nil }
+        let prefixAnchor: CostUsageCodexTokenIndexAnchor?
+        if input.metadata.size > 0 {
+            guard let anchor = Self.codexTokenIndexAnchor(
+                fileURL: input.fileURL,
+                indexedBytes: input.metadata.size)
+            else { return nil }
+            prefixAnchor = anchor
+        } else {
+            prefixAnchor = nil
+        }
+        guard Self.codexFileMetadataMatches(
+            input.metadata,
+            Self.codexFileMetadata(fileURL: input.fileURL))
+        else { return nil }
+        return CodexFileSourceGuard(metadata: input.metadata, prefixAnchor: prefixAnchor)
+    }
+
+    static func observeCodexFileSource(
+        sourceGuard: CodexFileSourceGuard,
+        fileURL: URL) -> CodexFileSourceObservation?
+    {
+        let actual = Self.codexFileMetadata(fileURL: fileURL)
+        if Self.codexFileMetadataMatches(sourceGuard.metadata, actual) {
+            return CodexFileSourceObservation(metadata: actual, appended: false)
+        }
+        guard let expectedFileId = sourceGuard.metadata.fileId,
+              actual.path == sourceGuard.metadata.path,
+              actual.fileId == expectedFileId,
+              actual.size > sourceGuard.metadata.size,
+              let prefixAnchor = sourceGuard.prefixAnchor,
+              prefixAnchor.indexedBytes <= sourceGuard.metadata.size,
+              Self.codexTokenIndexAnchorMatches(
+                  prefixAnchor,
+                  fileURL: fileURL,
+                  metadata: actual)
+        else { return nil }
+        return CodexFileSourceObservation(metadata: actual, appended: true)
     }
 
     static func dropCachedCodexFile(
@@ -974,97 +1126,905 @@ extension CostUsageScanner {
         }
     }
 
+    /// Binds an effective-row projection to the complete set of physical sources that can
+    /// contribute the same logical session. A filtered projection can be reused without touching
+    /// JSONL while this signature is stable; a deleted, replaced, appended, or newly classified
+    /// sibling changes it and forces the rare reconciliation path.
+    static func codexUsageRowOwnershipKey(
+        sessionId: String?,
+        forkedFromId: String?,
+        input: CodexFileScanInput,
+        cache: CostUsageCache) -> String?
+    {
+        guard let sessionId, !sessionId.isEmpty else { return nil }
+        var descriptors: Set<String> = []
+        for (path, usage) in cache.files where path != input.metadata.path && usage.sessionId == sessionId {
+            let metadata = Self.codexFileMetadata(fileURL: URL(fileURLWithPath: path))
+            guard let fileId = metadata.fileId else { continue }
+            descriptors.insert([
+                fileId,
+                String(metadata.size),
+                String(metadata.mtimeUnixMs),
+                String(metadata.changeUnixNs ?? -1),
+                usage.forkedFromId ?? "independent",
+            ].joined(separator: "\u{1F}"))
+        }
+        guard let currentFileId = input.metadata.fileId else { return nil }
+        descriptors.insert([
+            currentFileId,
+            String(input.metadata.size),
+            String(input.metadata.mtimeUnixMs),
+            String(input.metadata.changeUnixNs ?? -1),
+            forkedFromId ?? "independent",
+        ].joined(separator: "\u{1F}"))
+        let payload = descriptors.sorted().joined(separator: "\u{1E}")
+        let digest = SHA256.hash(data: Data(payload.utf8))
+            .map { String(format: "%02x", $0) }
+            .joined()
+        return "ownership:v1:\(sessionId):\(digest)"
+    }
+
+    static func codexUsageRowOwnershipIsCurrent(
+        cached: CostUsageFileUsage,
+        input: CodexFileScanInput,
+        cache: CostUsageCache) -> Bool
+    {
+        guard let published = cached.codexUsageRowSidecarState?.ownershipKey else { return true }
+        return published == Self.codexUsageRowOwnershipKey(
+            sessionId: cached.sessionId,
+            forkedFromId: cached.forkedFromId,
+            input: input,
+            cache: cache)
+    }
+
+    /// A cache intentionally retains the union of previously requested windows. When a narrower
+    /// view appends to an active rollout, parse the suffix against that retained row coverage so a
+    /// back-dated event cannot create a hole in the wider published generation.
+    static func codexContextRetainingPublishedRowCoverage(
+        cached: CostUsageFileUsage?,
+        context: CodexFileScanContext) -> CodexFileScanContext
+    {
+        guard let state = cached?.codexUsageRowSidecarState else { return context }
+        let retainedRange = context.range.retainingScanCoverage(
+            sinceKey: state.coverageSinceKey,
+            untilKey: state.coverageUntilKey)
+        guard retainedRange.scanSinceKey != context.range.scanSinceKey
+            || retainedRange.scanUntilKey != context.range.scanUntilKey
+        else { return context }
+        return CodexFileScanContext(
+            range: retainedRange,
+            forceFullScan: context.forceFullScan,
+            dropDeferredCodexRows: context.dropDeferredCodexRows,
+            requiresTurnIDCache: context.requiresTurnIDCache,
+            changedPriorityTurnIDs: context.changedPriorityTurnIDs,
+            resources: context.resources,
+            checkCancellation: context.checkCancellation,
+            scanBudget: context.scanBudget)
+    }
+
+    /// Keeps an already-published cache entry visible after the caller has successfully claimed
+    /// fork ownership. Keeping that transaction in its own frame avoids nesting its rollback
+    /// snapshot beneath the row-projection temporaries here.
+    @inline(never)
+    static func retainCachedCodexFileDuringDeferralAfterOwnershipClaim(
+        input: CodexFileScanInput,
+        cached: CostUsageFileUsage,
+        context: CodexFileScanContext,
+        cache: inout CostUsageCache,
+        state: inout CodexScanState)
+    {
+        let sessionAlreadyContributed = cached.sessionId.map {
+            state.contributingSessionIds.contains($0)
+        } ?? false
+        guard sessionAlreadyContributed else {
+            Self.rememberScannedCodexFile(
+                input: input,
+                session: CodexScannedSession(id: cached.sessionId, days: cached.days),
+                rows: cached.codexUsageRowSidecarState == nil ? cached.codexRows ?? [] : [],
+                context: context,
+                state: &state)
+            return
+        }
+
+        guard Self.prepareCodexSessionRowIdentity(
+            sessionId: cached.sessionId,
+            excludingPath: input.metadata.path,
+            cache: &cache,
+            context: context,
+            state: &state)
+        else {
+            Self.rememberScannedCodexFile(
+                input: input,
+                session: CodexScannedSession(id: cached.sessionId, days: cached.days),
+                rows: [],
+                context: context,
+                state: &state)
+            return
+        }
+        let cachedRows: [CodexUsageRow]
+        switch Self.codexUsageRows(
+            usage: cached,
+            fileURL: input.fileURL,
+            context: context)
+        {
+        case let .ready(rows):
+            cachedRows = rows
+        case .needsRebuild:
+            cache.files[input.metadata.path] = Self.codexUsageRequiringUsageRowIndexRebuild(cached)
+            context.scanBudget?.recordPersistenceDeferral()
+            return
+        case .temporarilyUnavailable:
+            context.scanBudget?.recordPersistenceDeferral()
+            return
+        }
+        let uniqueRows = Self.uniqueCodexRows(
+            rows: cachedRows,
+            sessionId: cached.sessionId,
+            forkedFromId: cached.forkedFromId,
+            fileIdentity: input.metadata.path,
+            state: &state)
+        let projected = Self.codexFileUsageByFilteringRows(
+            cached,
+            rows: uniqueRows,
+            context: context)
+        guard let filtered = Self.persistingCodexUsageRowProjection(
+            projected,
+            rows: uniqueRows,
+            fileURL: input.fileURL,
+            ownershipKey: Self.codexUsageRowOwnershipKey(
+                sessionId: cached.sessionId,
+                forkedFromId: cached.forkedFromId,
+                input: input,
+                cache: cache),
+            context: context)
+        else {
+            context.scanBudget?.recordPersistenceDeferral()
+            return
+        }
+        Self.applyFileDays(cache: &cache, fileDays: cached.days, sign: -1)
+        cache.files[input.metadata.path] = filtered
+        Self.applyFileDays(cache: &cache, fileDays: filtered.days, sign: 1)
+        Self.rememberScannedCodexFile(
+            input: input,
+            session: CodexScannedSession(id: filtered.sessionId, days: filtered.days),
+            rows: uniqueRows,
+            context: context,
+            state: &state)
+    }
+
+    /// Holds a claim's working cache and state off the caller's stack. Publication is transactional:
+    /// the caller-visible values are replaced only after every sidecar projection and row-identity
+    /// reconciliation succeeds.
+    private final class CodexForkOwnershipClaimTransaction {
+        let input: CodexFileScanInput
+        let sessionId: String
+        let forkedFromId: String?
+        let context: CodexFileScanContext
+        var cache: CostUsageCache
+        var state: CodexScanState
+        var nonForkPaths: [String] = []
+        var updates: [CodexForkOwnershipClaimUpdate] = []
+
+        init(
+            input: CodexFileScanInput,
+            sessionId: String,
+            forkedFromId: String?,
+            context: CodexFileScanContext,
+            cache: CostUsageCache,
+            state: CodexScanState)
+        {
+            self.input = input
+            self.sessionId = sessionId
+            self.forkedFromId = forkedFromId
+            self.context = context
+            self.cache = cache
+            self.state = state
+        }
+    }
+
+    /// One physical source being removed from the claimed scan window. Intermediate row and usage
+    /// values live on the heap so debug builds do not reserve all reconciliation temporaries in the
+    /// ownership entry point's frame.
+    private final class CodexForkOwnershipClaimUpdate {
+        let path: String
+        let oldUsage: CostUsageFileUsage
+        var retainedRows: [CodexUsageRow]?
+        var projectedUsage: CostUsageFileUsage?
+        var replacementUsage: CostUsageFileUsage?
+
+        init(path: String, oldUsage: CostUsageFileUsage) {
+            self.path = path
+            self.oldUsage = oldUsage
+        }
+    }
+
+    /// A copy can be scanned without fork metadata and interpret inherited totals as new usage.
+    /// Once trustworthy fork metadata is available, make that source authoritative for this scan
+    /// window in both file orders. Clear non-fork contributions while preserving their cursors,
+    /// sidecars, and out-of-window rows; then rebuild row identity for already visited sources.
+    @inline(never)
+    // swiftlint:disable:next function_parameter_count
+    static func claimCodexForkSessionOwnership(
+        input: CodexFileScanInput,
+        sessionId: String?,
+        forkedFromId: String?,
+        context: CodexFileScanContext,
+        cache: inout CostUsageCache,
+        state: inout CodexScanState) -> Bool
+    {
+        guard let sessionId,
+              !sessionId.isEmpty,
+              forkedFromId?.isEmpty == false
+        else { return true }
+        let transaction = CodexForkOwnershipClaimTransaction(
+            input: input,
+            sessionId: sessionId,
+            forkedFromId: forkedFromId,
+            context: context,
+            cache: cache,
+            state: state)
+        guard Self.stageCodexForkOwnershipClaim(transaction),
+              Self.publishCodexForkOwnershipClaim(transaction)
+        else { return false }
+        cache = transaction.cache
+        state = transaction.state
+        return true
+    }
+
+    @inline(never)
+    private static func stageCodexForkOwnershipClaim(
+        _ transaction: CodexForkOwnershipClaimTransaction) -> Bool
+    {
+        transaction.nonForkPaths = self.codexNonForkPathsForOwnershipClaim(
+            cache: transaction.cache,
+            sessionId: transaction.sessionId,
+            excludingPath: transaction.input.metadata.path,
+            range: transaction.context.range)
+        for path in transaction.nonForkPaths {
+            guard let earlier = transaction.cache.files[path] else { continue }
+            let update = CodexForkOwnershipClaimUpdate(path: path, oldUsage: earlier)
+            guard Self.loadCodexForkOwnershipRetainedRows(
+                update,
+                context: transaction.context),
+                Self.projectCodexForkOwnershipUsage(update, context: transaction.context),
+                Self.persistCodexForkOwnershipUsage(update, transaction: transaction)
+            else { return false }
+            transaction.updates.append(update)
+        }
+        return true
+    }
+
+    @inline(never)
+    private static func codexNonForkPathsForOwnershipClaim(
+        cache: CostUsageCache,
+        sessionId: String,
+        excludingPath: String,
+        range: CostUsageDayRange) -> [String]
+    {
+        var paths: [String] = []
+        for (path, usage) in cache.files {
+            guard path != excludingPath,
+                  usage.sessionId == sessionId,
+                  usage.forkedFromId == nil,
+                  Self.codexUsageHasDayInScanRange(usage, range: range)
+            else { continue }
+            paths.append(path)
+        }
+        return paths
+    }
+
+    @inline(never)
+    private static func codexUsageHasDayInScanRange(
+        _ usage: CostUsageFileUsage,
+        range: CostUsageDayRange) -> Bool
+    {
+        for dayKey in usage.days.keys where CostUsageDayRange.isInRange(
+            dayKey: dayKey,
+            since: range.scanSinceKey,
+            until: range.scanUntilKey)
+        {
+            return true
+        }
+        return false
+    }
+
+    @inline(never)
+    private static func loadCodexForkOwnershipRetainedRows(
+        _ update: CodexForkOwnershipClaimUpdate,
+        context: CodexFileScanContext) -> Bool
+    {
+        switch codexUsageRows(
+            usage: update.oldUsage,
+            fileURL: URL(fileURLWithPath: update.path),
+            context: context)
+        {
+        case let .ready(rows):
+            update.retainedRows = Self.codexRowsOutsideScanRange(rows, range: context.range)
+            return true
+        case .needsRebuild, .temporarilyUnavailable:
+            context.scanBudget?.recordPersistenceDeferral()
+            return false
+        }
+    }
+
+    @inline(never)
+    private static func codexRowsOutsideScanRange(
+        _ rows: [CodexUsageRow],
+        range: CostUsageDayRange) -> [CodexUsageRow]
+    {
+        var retainedRows: [CodexUsageRow] = []
+        retainedRows.reserveCapacity(rows.count)
+        for row in rows where !CostUsageDayRange.isInRange(
+            dayKey: row.day,
+            since: range.scanSinceKey,
+            until: range.scanUntilKey)
+        {
+            retainedRows.append(row)
+        }
+        return retainedRows
+    }
+
+    @inline(never)
+    private static func projectCodexForkOwnershipUsage(
+        _ update: CodexForkOwnershipClaimUpdate,
+        context: CodexFileScanContext) -> Bool
+    {
+        guard let retainedRows = update.retainedRows else { return false }
+        update.projectedUsage = Self.codexFileUsageByFilteringRows(
+            update.oldUsage,
+            rows: retainedRows,
+            context: context)
+        return true
+    }
+
+    @inline(never)
+    private static func persistCodexForkOwnershipUsage(
+        _ update: CodexForkOwnershipClaimUpdate,
+        transaction: CodexForkOwnershipClaimTransaction) -> Bool
+    {
+        guard let retainedRows = update.retainedRows,
+              let projectedUsage = update.projectedUsage
+        else { return false }
+        update.replacementUsage = Self.persistingCodexUsageRowProjection(
+            projectedUsage,
+            rows: retainedRows,
+            fileURL: URL(fileURLWithPath: update.path),
+            ownershipKey: Self.codexUsageRowOwnershipKey(
+                sessionId: transaction.sessionId,
+                forkedFromId: transaction.forkedFromId,
+                input: transaction.input,
+                cache: transaction.cache),
+            context: transaction.context)
+        guard update.replacementUsage != nil else {
+            transaction.context.scanBudget?.recordPersistenceDeferral()
+            return false
+        }
+        update.projectedUsage = nil
+        update.retainedRows = nil
+        return true
+    }
+
+    @inline(never)
+    private static func publishCodexForkOwnershipClaim(
+        _ transaction: CodexForkOwnershipClaimTransaction) -> Bool
+    {
+        guard self.applyCodexForkOwnershipUpdates(transaction) else { return false }
+        guard !transaction.nonForkPaths.isEmpty else {
+            transaction.state.authoritativeForkSessionIds.insert(transaction.sessionId)
+            return true
+        }
+        self.clearCodexUsageRowIdentity(
+            sessionId: transaction.sessionId,
+            state: &transaction.state)
+        guard prepareCodexSessionRowIdentity(
+            sessionId: transaction.sessionId,
+            excludingPath: transaction.input.metadata.path,
+            cache: &transaction.cache,
+            context: transaction.context,
+            state: &transaction.state)
+        else { return false }
+        transaction.state.authoritativeForkSessionIds.insert(transaction.sessionId)
+        return true
+    }
+
+    @inline(never)
+    private static func applyCodexForkOwnershipUpdates(
+        _ transaction: CodexForkOwnershipClaimTransaction) -> Bool
+    {
+        for update in transaction.updates {
+            guard let replacementUsage = update.replacementUsage else { return false }
+            Self.applyFileDays(cache: &transaction.cache, fileDays: update.oldUsage.days, sign: -1)
+            transaction.cache.files[update.path] = replacementUsage
+            Self.applyFileDays(cache: &transaction.cache, fileDays: replacementUsage.days, sign: 1)
+        }
+        return true
+    }
+
+    @inline(never)
+    private static func clearCodexUsageRowIdentity(
+        sessionId: String,
+        state: inout CodexScanState)
+    {
+        let sessionPrefix = "session:\(sessionId)\u{1F}"
+        var retainedKeys = Set<String>()
+        retainedKeys.reserveCapacity(state.seenCodexUsageRowKeys.count)
+        for key in state.seenCodexUsageRowKeys where !key.hasPrefix(sessionPrefix) {
+            retainedKeys.insert(key)
+        }
+        state.seenCodexUsageRowKeys = retainedKeys
+    }
+
+    private final class CodexCachedReuseRequest {
+        let input: CodexFileScanInput
+        let context: CodexFileScanContext
+        let cached: CostUsageFileUsage
+
+        init(
+            input: CodexFileScanInput,
+            context: CodexFileScanContext,
+            cached: CostUsageFileUsage)
+        {
+            self.input = input
+            self.context = context
+            self.cached = cached
+        }
+    }
+
+    private enum CodexCachedReusePreparation {
+        case notApplicable
+        case handled
+        case ready(CodexCachedReuseRequest)
+    }
+
+    /// Cache reuse crosses source validation, an ownership transaction, and row projection.
+    /// Keep those phases in sequential frames: Swift debug builds reserve stack for every local
+    /// in a function even when the branches are mutually exclusive.
     static func keepCachedCodexFileIfFresh(
         input: CodexFileScanInput,
         context: CodexFileScanContext,
         cache: inout CostUsageCache,
         state: inout CodexScanState) throws -> Bool
     {
-        guard let cached = input.cached else { return false }
-        let needsSessionId = cached.sessionId == nil
-        guard cached.mtimeUnixMs == input.metadata.mtimeUnixMs,
+        let preparation = Self.prepareCachedCodexFileReuse(
+            input: input,
+            context: context,
+            cache: &cache,
+            state: &state)
+        switch preparation {
+        case .notApplicable:
+            return false
+        case .handled:
+            return true
+        case let .ready(request):
+            guard Self.claimCachedCodexFileReuseOwnership(
+                request,
+                cache: &cache,
+                state: &state)
+            else { return true }
+            return try Self.finishCachedCodexFileReuse(
+                request,
+                cache: &cache,
+                state: &state)
+        }
+    }
+
+    /// Branches mirror the mutually exclusive cache migration and fork-validation states.
+    @inline(never)
+    private static func prepareCachedCodexFileReuse(
+        input: CodexFileScanInput,
+        context: CodexFileScanContext,
+        cache: inout CostUsageCache,
+        state: inout CodexScanState) -> CodexCachedReusePreparation
+    {
+        guard let cached = input.cached else { return .notApplicable }
+        guard !context.resources.inheritedResolver.requiresTokenIndexRebuild(fileURL: input.fileURL)
+        else { return .notApplicable }
+        // A current-producer nil is authoritative: some valid JSONL files simply contain no
+        // session metadata. Compatible predecessor caches still rescan once because their parser
+        // may have missed metadata required by the exact-session and parent indexes. Saving that
+        // result under the current producer makes subsequent unchanged refreshes metadata-only.
+        let needsSessionIdMigration = cached.sessionId == nil
+            && cache.producerKey != context.resources.currentProducerKey
+        guard let currentFileId = input.metadata.fileId,
+              cached.codexScanFileId == currentFileId,
+              cached.mtimeUnixMs == input.metadata.mtimeUnixMs,
               cached.size == input.metadata.size,
               cached.codexScanComplete != false,
-              !needsSessionId,
+              cached.codexDeferredReplayState == nil,
+              !needsSessionIdMigration,
               !context.forceFullScan
-        else { return false }
+        else { return .notApplicable }
 
-        guard !Self.cachedCodexFileNeedsPriorityRescan(cached, context: context) else { return false }
+        let indexedBytes = cached.parsedBytes ?? cached.size
+        if let cachedChangeUnixNs = cached.codexScanChangeUnixNs,
+           let currentChangeUnixNs = input.metadata.changeUnixNs
+        {
+            guard cachedChangeUnixNs == currentChangeUnixNs else { return .notApplicable }
+        } else if indexedBytes > 0 {
+            // Older cache artifacts do not carry ctime. Validate their content anchor once while
+            // publishing the current stamp; subsequent unchanged refreshes stay metadata-only.
+            guard let anchor = cached.codexTokenIndexAnchor,
+                  anchor.indexedBytes == indexedBytes,
+                  Self.codexTokenIndexAnchorMatches(
+                      anchor,
+                      fileURL: input.fileURL,
+                      metadata: input.metadata)
+            else { return .notApplicable }
+        }
 
+        let needsPriorityRefresh = Self.cachedCodexFileNeedsPriorityRescan(
+            cached,
+            fileURL: input.fileURL,
+            context: context)
+        guard Self.codexUsageRowOwnershipIsCurrent(cached: cached, input: input, cache: cache)
+        else { return .notApplicable }
+        if needsPriorityRefresh, cached.codexUsageRowSidecarState != nil {
+            switch Self.codexUsageRows(
+                usage: cached,
+                fileURL: input.fileURL,
+                context: context)
+            {
+            case let .ready(rows):
+                let pricedRows = Self.pricedCodexUsageRows(rows, context: context)
+                let projected = Self.codexFileUsageByFilteringRows(
+                    cached,
+                    rows: pricedRows,
+                    context: context)
+                guard let refreshed = Self.persistingCodexUsageRowProjection(
+                    projected,
+                    rows: pricedRows,
+                    fileURL: input.fileURL,
+                    ownershipKey: cached.codexUsageRowSidecarState?.ownershipKey,
+                    context: context)
+                else {
+                    context.scanBudget?.recordPersistenceDeferral()
+                    Self.rememberScannedCodexFile(
+                        input: input,
+                        session: CodexScannedSession(id: cached.sessionId, days: cached.days),
+                        rows: [],
+                        context: context,
+                        state: &state)
+                    return .handled
+                }
+                Self.applyFileDays(cache: &cache, fileDays: cached.days, sign: -1)
+                cache.files[input.metadata.path] = refreshed
+                Self.applyFileDays(cache: &cache, fileDays: refreshed.days, sign: 1)
+                Self.rememberScannedCodexFile(
+                    input: input,
+                    session: CodexScannedSession(id: refreshed.sessionId, days: refreshed.days),
+                    rows: pricedRows,
+                    context: context,
+                    state: &state)
+                return .handled
+            case .needsRebuild:
+                cache.files[input.metadata.path] = Self.codexUsageRequiringUsageRowIndexRebuild(cached)
+                context.scanBudget?.recordPersistenceDeferral()
+                return .handled
+            case .temporarilyUnavailable:
+                context.scanBudget?.recordPersistenceDeferral()
+                Self.rememberScannedCodexFile(
+                    input: input,
+                    session: CodexScannedSession(id: cached.sessionId, days: cached.days),
+                    rows: [],
+                    context: context,
+                    state: &state)
+                return .handled
+            }
+        }
+        guard !needsPriorityRefresh else { return .notApplicable }
+        return .ready(CodexCachedReuseRequest(
+            input: input,
+            context: context,
+            cached: cached))
+    }
+
+    @inline(never)
+    private static func claimCachedCodexFileReuseOwnership(
+        _ request: CodexCachedReuseRequest,
+        cache: inout CostUsageCache,
+        state: inout CodexScanState) -> Bool
+    {
+        guard self.claimCodexForkSessionOwnership(
+            input: request.input,
+            sessionId: request.cached.sessionId,
+            forkedFromId: request.cached.forkedFromId,
+            context: request.context,
+            cache: &cache,
+            state: &state)
+        else {
+            self.rememberScannedCodexFile(
+                input: request.input,
+                session: CodexScannedSession(
+                    id: request.cached.sessionId,
+                    days: request.cached.days),
+                rows: [],
+                context: request.context,
+                state: &state)
+            return false
+        }
+        return true
+    }
+
+    @inline(never)
+    // swiftlint:disable:next cyclomatic_complexity function_body_length
+    private static func finishCachedCodexFileReuse(
+        _ request: CodexCachedReuseRequest,
+        cache: inout CostUsageCache,
+        state: inout CodexScanState) throws -> Bool
+    {
+        let input = request.input
+        let context = request.context
+        let cached = request.cached
         let sessionAlreadyContributed = cached.sessionId.map { state.contributingSessionIds.contains($0) } ?? false
-        let cachedRows = cached.codexRows ?? []
+        let suppressedByAuthoritativeFork = Self.codexNonForkSourceIsSuppressed(
+            sessionId: cached.sessionId,
+            forkedFromId: cached.forkedFromId,
+            state: state)
         if Self.cachedCodexRowsNeedIdentityRescan(cached) {
             return false
         }
+        if Self.isValidatedSameSizeBufferedCodexForkCache(
+            metadata: input.metadata,
+            cached: cached),
+            let preparation = try Self.prepareBufferedForkDependency(
+                usage: cached,
+                inheritedResolver: context.resources.inheritedResolver)
+        {
+            // A ready buffer still represents unpublished usage. Force the zero-byte append path
+            // to replay it even if an older cache accidentally persisted a matching parent key.
+            if preparation.isReady {
+                return false
+            }
+            var waiting = cached
+            waiting.codexForkTimestamp = preparation.cutoffTimestamp
+            waiting.forkBaselineDependencyKey = cached.codexUsageRowSidecarState == nil
+                ? preparation.stableDependencyKey
+                : cached.forkBaselineDependencyKey
+            let current = if Self.needsCodexCostCache(waiting, range: context.range) {
+                Self.codexFileUsageWithCostCache(waiting, context: context)
+            } else {
+                waiting
+            }
+            let migratedCurrent = Self.migratingCodexTokenIndexForCachedReuse(
+                current,
+                request: request)
+            cache.files[input.metadata.path] = migratedCurrent
+            Self.rememberScannedCodexFile(
+                input: input,
+                session: CodexScannedSession(id: migratedCurrent.sessionId, days: migratedCurrent.days),
+                rows: migratedCurrent.codexRows ?? [],
+                context: context,
+                state: &state)
+            return true
+        }
+        var reboundForkDependencyKey: String?
         if let parentSessionId = cached.forkedFromId {
             guard let cachedDependencyKey = cached.forkBaselineDependencyKey else { return false }
             if cachedDependencyKey != Self.codexForkDependencyNotRequiredKey {
                 guard let currentDependencyKey = try context.resources.inheritedResolver
                     .currentDependencyKey(for: parentSessionId)
                 else { return false }
-                guard cachedDependencyKey == currentDependencyKey else { return false }
+                guard Self.codexResolvedForkDependencyKeysMatch(cachedDependencyKey, currentDependencyKey)
+                else { return false }
+                reboundForkDependencyKey = currentDependencyKey
             }
         }
 
-        if sessionAlreadyContributed {
-            guard !cachedRows.isEmpty else { return false }
-            let uniqueRows = Self.uniqueCodexRows(
-                rows: cachedRows,
-                sessionId: cached.sessionId,
-                fileIdentity: input.metadata.path,
-                state: &state)
-            guard !uniqueRows.isEmpty else {
-                Self.dropCachedCodexFile(path: input.metadata.path, cached: cached, cache: &cache)
-                return true
-            }
-            Self.applyFileDays(cache: &cache, fileDays: cached.days, sign: -1)
-            let filtered = Self.codexFileUsageByFilteringRows(cached, rows: uniqueRows, context: context)
-            cache.files[input.metadata.path] = filtered
-            Self.applyFileDays(cache: &cache, fileDays: filtered.days, sign: 1)
+        if sessionAlreadyContributed || suppressedByAuthoritativeFork,
+           cached.codexUsageRowSidecarState?.ownershipKey != nil,
+           Self.codexUsageRowOwnershipIsCurrent(cached: cached, input: input, cache: cache)
+        {
+            // This generation already represents the deterministic projection over the complete
+            // unchanged sibling set. Rebuilding it would load every historical row and publish a
+            // fresh UUID on every stable refresh even though neither the bytes nor ownership
+            // changed. Later stale/new siblings still materialize row identity lazily via the
+            // seen file IDs registered here.
+            let migratedCurrent = Self.migratingCodexTokenIndexForCachedReuse(
+                cached,
+                request: request)
+            cache.files[input.metadata.path] = migratedCurrent
             Self.rememberScannedCodexFile(
                 input: input,
-                session: CodexScannedSession(id: cached.sessionId, days: filtered.days),
-                rows: uniqueRows,
+                session: CodexScannedSession(id: migratedCurrent.sessionId, days: migratedCurrent.days),
+                rows: [],
                 context: context,
                 state: &state)
             return true
         }
 
-        let current = if Self.needsCodexCostCache(cached, range: context.range) {
+        let needsCachedRows = cached.codexUsageRowSidecarState == nil
+            || sessionAlreadyContributed
+            || suppressedByAuthoritativeFork
+        let cachedRows: [CodexUsageRow]
+        if needsCachedRows {
+            switch Self.codexUsageRows(
+                usage: cached,
+                fileURL: input.fileURL,
+                context: context)
+            {
+            case let .ready(rows):
+                cachedRows = rows
+            case .needsRebuild:
+                cache.files[input.metadata.path] = Self.codexUsageRequiringUsageRowIndexRebuild(cached)
+                context.scanBudget?.recordPersistenceDeferral()
+                return true
+            case .temporarilyUnavailable:
+                context.scanBudget?.recordPersistenceDeferral()
+                Self.rememberScannedCodexFile(
+                    input: input,
+                    session: CodexScannedSession(id: cached.sessionId, days: cached.days),
+                    rows: [],
+                    context: context,
+                    state: &state)
+                return true
+            }
+        } else {
+            cachedRows = []
+        }
+
+        if sessionAlreadyContributed || suppressedByAuthoritativeFork {
+            if sessionAlreadyContributed,
+               !Self.prepareCodexSessionRowIdentity(
+                   sessionId: cached.sessionId,
+                   excludingPath: input.metadata.path,
+                   cache: &cache,
+                   context: context,
+                   state: &state)
+            {
+                Self.rememberScannedCodexFile(
+                    input: input,
+                    session: CodexScannedSession(id: cached.sessionId, days: cached.days),
+                    rows: [],
+                    context: context,
+                    state: &state)
+                return true
+            }
+            let selectedRows = if suppressedByAuthoritativeFork {
+                cachedRows.filter {
+                    !CostUsageDayRange.isInRange(
+                        dayKey: $0.day,
+                        since: context.range.scanSinceKey,
+                        until: context.range.scanUntilKey)
+                }
+            } else {
+                Self.uniqueCodexRows(
+                    rows: cachedRows,
+                    sessionId: cached.sessionId,
+                    forkedFromId: cached.forkedFromId,
+                    fileIdentity: input.metadata.path,
+                    state: &state)
+            }
+            var projected = Self.codexFileUsageByFilteringRows(
+                cached,
+                rows: selectedRows,
+                context: context)
+            if let reboundForkDependencyKey {
+                projected.forkBaselineDependencyKey = reboundForkDependencyKey
+            }
+            guard let filtered = Self.persistingCodexUsageRowProjection(
+                projected,
+                rows: selectedRows,
+                fileURL: input.fileURL,
+                ownershipKey: Self.codexUsageRowOwnershipKey(
+                    sessionId: cached.sessionId,
+                    forkedFromId: cached.forkedFromId,
+                    input: input,
+                    cache: cache),
+                context: context)
+            else {
+                context.scanBudget?.recordPersistenceDeferral()
+                Self.rememberScannedCodexFile(
+                    input: input,
+                    session: CodexScannedSession(id: cached.sessionId, days: cached.days),
+                    rows: [],
+                    context: context,
+                    state: &state)
+                return true
+            }
+            let migratedFiltered = Self.migratingCodexTokenIndexForCachedReuse(
+                filtered,
+                request: request)
+            Self.applyFileDays(cache: &cache, fileDays: cached.days, sign: -1)
+            cache.files[input.metadata.path] = migratedFiltered
+            Self.applyFileDays(cache: &cache, fileDays: migratedFiltered.days, sign: 1)
+            Self.rememberScannedCodexFile(
+                input: input,
+                session: CodexScannedSession(id: cached.sessionId, days: migratedFiltered.days),
+                rows: selectedRows,
+                context: context,
+                state: &state)
+            return true
+        }
+
+        var current = if Self.needsCodexCostCache(cached, range: context.range) {
             Self.codexFileUsageWithCostCache(cached, context: context)
         } else {
             cached
         }
-        cache.files[input.metadata.path] = current
+        if let reboundForkDependencyKey, current.codexUsageRowSidecarState == nil {
+            current.forkBaselineDependencyKey = reboundForkDependencyKey
+        }
+        var migratedCurrent = Self.migratingCodexTokenIndexForCachedReuse(
+            current,
+            request: request)
+        if migratedCurrent.codexUsageRowSidecarState == nil,
+           let inlineRows = migratedCurrent.codexRows,
+           let rowMigrated = Self.persistingCodexUsageRowProjection(
+               migratedCurrent,
+               rows: inlineRows,
+               fileURL: input.fileURL,
+               ownershipKey: nil,
+               context: context)
+        {
+            migratedCurrent = rowMigrated
+        }
+        cache.files[input.metadata.path] = migratedCurrent
         Self.rememberScannedCodexFile(
             input: input,
-            session: CodexScannedSession(id: current.sessionId, days: current.days),
+            session: CodexScannedSession(id: migratedCurrent.sessionId, days: migratedCurrent.days),
             rows: cachedRows,
             context: context,
             state: &state)
         return true
     }
 
+    @inline(never)
+    private static func migratingCodexTokenIndexForCachedReuse(
+        _ usage: CostUsageFileUsage,
+        request: CodexCachedReuseRequest) -> CostUsageFileUsage
+    {
+        var usage = usage
+        usage.codexScanChangeUnixNs = request.input.metadata.changeUnixNs
+        return Self.migratingInlineCodexTokenIndexIfPossible(
+            usage: usage,
+            fileURL: request.input.fileURL,
+            metadata: request.input.metadata,
+            store: request.context.resources.tokenIndexStore)
+    }
+
     static func cachedCodexFileNeedsPriorityRescan(
         _ cached: CostUsageFileUsage,
+        fileURL: URL,
         context: CodexFileScanContext) -> Bool
     {
-        if cached.codexTurnIDs == nil {
+        if let rowState = cached.codexUsageRowSidecarState,
+           rowState.priorityMetadataKey != context.resources.priorityMetadataKey
+        {
+            return true
+        }
+        if cached.codexUsageRowSidecarState == nil, cached.codexTurnIDs == nil {
             return context.requiresTurnIDCache
         }
         guard !context.changedPriorityTurnIDs.isEmpty else { return false }
-        return !(Set(cached.codexTurnIDs ?? []).isDisjoint(with: context.changedPriorityTurnIDs))
+        if let turnIDs = cached.codexTurnIDs {
+            return !Set(turnIDs).isDisjoint(with: context.changedPriorityTurnIDs)
+        }
+        guard let reference = Self.codexPublishedUsageRowReference(
+            usage: cached,
+            fileURL: fileURL,
+            context: context)
+        else { return true }
+        switch context.resources.usageRowStore.pathsContaining(
+            turnIDs: context.changedPriorityTurnIDs,
+            references: [reference])
+        {
+        case let .ready(paths):
+            return paths.contains(reference.source.path)
+        case .needsRebuild, .temporarilyUnavailable:
+            // A false negative would leave stale standard/priority attribution published. Let the
+            // normal rebuild/deferral machinery fail closed instead.
+            return true
+        }
     }
 
-    /// Replays any compact fork buffer without reading JSONL when the indexed file is unchanged.
-    /// This remains safe for subagents because no appended lineage can change their classification.
-    static func isValidatedSameSizeBufferedCodexForkRetry(
+    /// Validates a completed buffered fork without reading JSONL. Dependency readiness is checked
+    /// separately so a rotated missing-parent key never forces an identical buffer replay.
+    static func isValidatedSameSizeBufferedCodexForkCache(
         metadata: CodexFileMetadata,
         cached: CostUsageFileUsage) -> Bool
     {
         let startOffset = cached.parsedBytes ?? cached.size
         guard cached.forkedFromId != nil,
-              cached.forkBaselineDependencyKey == nil,
               cached.hasBufferedCodexForkRetryLines,
               cached.codexScanComplete != false,
               cached.codexJSONLResumeState == nil,
@@ -1079,6 +2039,15 @@ extension CostUsageScanner {
                 fileURL: URL(fileURLWithPath: metadata.path),
                 metadata: metadata)
         } == true
+    }
+
+    /// Replays any compact fork buffer without reading JSONL when the indexed file is unchanged.
+    /// This remains safe for subagents because no appended lineage can change their classification.
+    static func isValidatedSameSizeBufferedCodexForkRetry(
+        metadata: CodexFileMetadata,
+        cached: CostUsageFileUsage) -> Bool
+    {
+        self.isValidatedSameSizeBufferedCodexForkCache(metadata: metadata, cached: cached)
     }
 
     /// Reuses compact ordinary-fork events for a validated appended suffix.
@@ -1107,7 +2076,175 @@ extension CostUsageScanner {
         } == true
     }
 
-    // swiftlint:disable:next function_body_length
+    /// Resumes an ordinary non-fork only when the cached bytes are still the exact prefix of the
+    /// same file. Size growth alone is insufficient: a same-path replacement can be larger and
+    /// would otherwise combine rows and token-index state from two different inodes.
+    static func isAppendSafeCodexNonForkResume(
+        metadata: CodexFileMetadata,
+        cached: CostUsageFileUsage) -> Bool
+    {
+        let startOffset = cached.parsedBytes ?? cached.size
+        guard cached.codexScanComplete != false,
+              cached.forkedFromId == nil,
+              cached.codexJSONLResumeState == nil,
+              let cachedFileId = cached.codexScanFileId,
+              cachedFileId == metadata.fileId,
+              startOffset > 0,
+              startOffset == cached.size,
+              metadata.size > cached.size,
+              cached.codexTokenIndexAnchor?.indexedBytes == startOffset
+        else { return false }
+        return cached.codexTokenIndexAnchor.map {
+            Self.codexTokenIndexAnchorMatches(
+                $0,
+                fileURL: URL(fileURLWithPath: metadata.path),
+                metadata: metadata)
+        } == true
+    }
+
+    /// A protocol ordinal is an immutable local ownership boundary. After its compact semantic
+    /// cursor has been published, a grown file can resume at the validated prefix even when the
+    /// session is a fork/subagent; later lineage cannot reclassify already-owned bytes.
+    static func isAppendSafeCodexOrdinalSubagentResume(
+        metadata: CodexFileMetadata,
+        cached: CostUsageFileUsage) -> Bool
+    {
+        let startOffset = cached.parsedBytes ?? cached.size
+        guard cached.codexScanComplete != false,
+              cached.codexSubagentResumeState != nil,
+              cached.codexBufferedSubagentLines?.isEmpty != false,
+              cached.codexJSONLResumeState == nil,
+              let cachedFileId = cached.codexScanFileId,
+              cachedFileId == metadata.fileId,
+              startOffset > 0,
+              startOffset == cached.size,
+              metadata.size > cached.size,
+              cached.codexTokenIndexAnchor?.indexedBytes == startOffset
+        else { return false }
+        return cached.codexTokenIndexAnchor.map {
+            Self.codexTokenIndexAnchorMatches(
+                $0,
+                fileURL: URL(fileURLWithPath: metadata.path),
+                metadata: metadata)
+        } == true
+    }
+
+    /// A post-parse publication may reuse cached rows and aggregates only when they came from
+    /// the same source and their complete indexed prefix is still present. A matching path (or
+    /// even matching size/mtime) is not identity: atomic replacement keeps the path while
+    /// changing the inode, and an in-place rewrite can keep the inode while changing the prefix.
+    /// Forks and grown files are also excluded: a later lineage/subagent boundary can change the
+    /// attribution of the old prefix, which makes retaining its out-of-window rows unsound.
+    static func codexCachedUsageBelongsToCurrentSource(
+        _ cached: CostUsageFileUsage,
+        input: CodexFileScanInput) -> Bool
+    {
+        let indexedBytes = cached.parsedBytes ?? cached.size
+        guard let cachedFileId = cached.codexScanFileId,
+              cachedFileId == input.metadata.fileId,
+              cached.forkedFromId == nil,
+              input.metadata.size == cached.size,
+              indexedBytes > 0,
+              let anchor = cached.codexTokenIndexAnchor,
+              anchor.indexedBytes == indexedBytes
+        else { return false }
+        return Self.codexTokenIndexAnchorMatches(
+            anchor,
+            fileURL: input.fileURL,
+            metadata: input.metadata)
+    }
+
+    // swiftlint:disable function_parameter_count
+    /// Revalidates the exact parent generation used to normalize a fork immediately before the
+    /// child JSON cursor is published. Only a resolved `file|` dependency can affect published
+    /// accounting; stable-missing markers contain no normalized rows and may advance normally.
+    /// Publication rollback needs the complete before/after scan transaction state.
+    static func deferCodexForkPublicationIfDependencyChanged(
+        parentSessionId: String?,
+        dependsOnParentTotals: Bool,
+        dependencyKeyUsed: String?,
+        input: CodexFileScanInput,
+        cached: CostUsageFileUsage?,
+        context: CodexFileScanContext,
+        cache: inout CostUsageCache,
+        state: inout CodexScanState,
+        stateBeforePublication: CodexScanState) throws -> Bool
+    {
+        guard dependsOnParentTotals,
+              let parentSessionId,
+              !parentSessionId.isEmpty,
+              let dependencyKeyUsed,
+              dependencyKeyUsed.hasPrefix("file|")
+        else { return false }
+
+        let currentDependencyKey = try context.resources.inheritedResolver
+            .currentDependencyKey(for: parentSessionId)
+        guard let currentDependencyKey,
+              Self.codexResolvedForkDependencyKeysMatch(dependencyKeyUsed, currentDependencyKey)
+        else {
+            Self.log.info(
+                "Codex fork parent changed before child cursor publication; deferring child",
+                metadata: [
+                    "path": input.metadata.path,
+                    "parentSessionId": parentSessionId,
+                ])
+            // This counter participates in the persisted catch-up decision. A dependency is a
+            // source of the child calculation, so use the same transient-mutation lane rather
+            // than classifying the condition as a structural sidecar failure.
+            context.scanBudget?.recordSourceMutationDeferral()
+            state = stateBeforePublication
+            if let cached {
+                cache.files[input.metadata.path] = cached
+                Self.rememberScannedCodexFile(
+                    input: input,
+                    session: CodexScannedSession(id: cached.sessionId, days: cached.days),
+                    rows: cached.codexRows ?? [],
+                    context: context,
+                    state: &state)
+            } else if var marker = cache.files[input.metadata.path],
+                      marker.codexDeferredForkScan == true
+            {
+                // A byte-zero ordinary-fork preflight installs an empty marker before parsing.
+                // Bind that marker to the now-stale key so the same refresh does not immediately
+                // retry and publish after this explicit transient deferral. The next refresh
+                // compares it with the new parent key and restarts cleanly.
+                marker.forkBaselineDependencyKey = dependencyKeyUsed
+                cache.files[input.metadata.path] = marker
+            }
+            return true
+        }
+        return false
+    }
+
+    // swiftlint:enable function_parameter_count
+
+    private struct CodexAppendFileParseRequest {
+        let input: CodexFileScanInput
+        let context: CodexFileScanContext
+        let cached: CostUsageFileUsage
+        let startOffset: Int64
+        let sourceGuard: CodexFileSourceGuard
+        let scanByteLimit: Int64
+        let initialCountedTotals: CostUsageCodexTotals?
+        let initialRawTotalsBaseline: CostUsageCodexTotals?
+        let initialHasDivergentTotals: Bool
+        let ordinaryForkContext: CodexOrdinaryForkResumeContext?
+        let ordinalSubagentContext: CodexOrdinalSubagentResumeContext?
+        let deferredReplayContext: CodexDeferredReplayContext?
+        let isResumablePartial: Bool
+        let isBufferedForkResume: Bool
+        let isOrdinalSubagentAppendResume: Bool
+    }
+
+    private enum CodexAppendFilePreparation {
+        case notApplicable
+        case handled
+        case ready(CodexAppendFileParseRequest)
+    }
+
+    /// Keep the parser off the large preflight and publication frames. Swift debug builds reserve
+    /// stack for all temporaries in a function, so calling the parser directly from either phase
+    /// can overflow the relatively small Swift Testing worker stack even when no data is corrupt.
     static func appendCodexFileIncrementIfPossible(
         input: CodexFileScanInput,
         context: CodexFileScanContext,
@@ -1115,11 +2252,76 @@ extension CostUsageScanner {
         state: inout CodexScanState,
         maxBytesToRead: Int64? = nil) throws -> Bool
     {
-        try context.checkCancellation?()
-        guard let cached = input.cached, cached.sessionId != nil, !context.forceFullScan else { return false }
-        guard !Self.cachedCodexFileNeedsPriorityRescan(cached, context: context) else { return false }
-        if Self.cachedCodexRowsNeedIdentityRescan(cached) {
+        let preparation = try Self.prepareCodexFileIncrement(
+            input: input,
+            context: context,
+            cache: &cache,
+            state: &state,
+            maxBytesToRead: maxBytesToRead)
+        switch preparation {
+        case .notApplicable:
             return false
+        case .handled:
+            return true
+        case let .ready(request):
+            let delta = try Self.parsePreparedCodexFileIncrement(request)
+            return try Self.publishPreparedCodexFileIncrement(
+                request,
+                delta: delta,
+                cache: &cache,
+                state: &state)
+        }
+    }
+
+    /// The branches preserve explicit resume-safety gates for each cache shape.
+    @inline(never)
+    // swiftlint:disable:next function_body_length
+    private static func prepareCodexFileIncrement(
+        input: CodexFileScanInput,
+        context: CodexFileScanContext,
+        cache: inout CostUsageCache,
+        state: inout CodexScanState,
+        maxBytesToRead: Int64?) throws -> CodexAppendFilePreparation
+    {
+        try context.checkCancellation?()
+        let context = Self.codexContextRetainingPublishedRowCoverage(
+            cached: input.cached,
+            context: context)
+        guard let cached = input.cached, !context.forceFullScan else {
+            return .notApplicable
+        }
+        // A bounded current-producer prefix can be authoritative even when the source contains no
+        // session metadata. Resume that verified prefix so large metadata-free JSONL files still
+        // converge. Compatible predecessor producers must rescan once: their nil may mean that an
+        // older parser missed metadata needed by exact-session and parent indexes.
+        let canResumeCurrentProducerWithoutSessionId = cached.sessionId == nil
+            && cached.codexScanComplete == false
+            && cache.producerKey == context.resources.currentProducerKey
+        guard cached.sessionId != nil || canResumeCurrentProducerWithoutSessionId else {
+            return .notApplicable
+        }
+        guard cached.codexDeferredForkScan != true else { return .notApplicable }
+        if cached.codexDeferredReplayState?.restartIndexingFromByteZero == true {
+            return .notApplicable
+        }
+        if let replay = cached.codexDeferredReplayState,
+           replay.phase == .replaying,
+           replay.replayStarted != true
+        {
+            // `parsedBytes` still describes the completed raw-index pass, even if the source has
+            // since grown. The first classified pass must start at byte zero; treating the old EOF
+            // as a resumable cursor would count only the append and permanently omit history.
+            return .notApplicable
+        }
+        guard !Self.cachedCodexFileNeedsPriorityRescan(
+            cached,
+            fileURL: input.fileURL,
+            context: context)
+        else { return .notApplicable }
+        guard Self.codexUsageRowOwnershipIsCurrent(cached: cached, input: input, cache: cache)
+        else { return .notApplicable }
+        if Self.cachedCodexRowsNeedIdentityRescan(cached) {
+            return .notApplicable
         }
         // Subagent shape depends on the complete lineage prefix. Appended metadata can change an
         // independent counter into a copied-prefix rollout, so a tail-only parse is not sound.
@@ -1147,14 +2349,32 @@ extension CostUsageScanner {
                 metadata: input.metadata,
                 cached: cached)
         let isBufferedForkResume = isBufferedForkRetry || isOrdinaryUnresolvedForkResume
+        let isNonForkAppendResume = Self.isAppendSafeCodexNonForkResume(
+            metadata: input.metadata,
+            cached: cached)
+        let isOrdinalSubagentAppendResume = Self.isAppendSafeCodexOrdinalSubagentResume(
+            metadata: input.metadata,
+            cached: cached)
         if cached.codexScanComplete == false, !isResumablePartial {
-            return false
+            return .notApplicable
         }
-        if !isResumablePartial, !isBufferedForkResume, try Self.codexFileIsSubagentThread(
-            fileURL: input.fileURL,
-            checkCancellation: context.checkCancellation)
+        // A non-empty parsed prefix with no snapshots is a legacy or stripped index. Treating it
+        // as an empty prefix would persist a suffix-only parent index under a full-prefix anchor.
+        // Rebuild once from byte zero instead of silently under-resolving future fork baselines.
+        if startOffset > 0,
+           cached.codexTokenSnapshots == nil,
+           cached.codexTokenSidecarState == nil
         {
-            return false
+            return .notApplicable
+        }
+        if !isResumablePartial,
+           !isBufferedForkResume,
+           !isOrdinalSubagentAppendResume,
+           try Self.codexFileIsSubagentThread(
+               fileURL: input.fileURL,
+               checkCancellation: context.checkCancellation)
+        {
+            return .notApplicable
         }
         let initialCountedTotals = cached.lastCountedTotals ?? cached.lastTotals
         let initialRawTotalsBaseline = cached.lastRawTotalsBaseline ?? cached.lastTotals
@@ -1169,38 +2389,357 @@ extension CostUsageScanner {
             && startOffset <= input.metadata.size
             && (isResumablePartial
                 || isBufferedForkResume
-                || (input.metadata.size > cached.size
+                || isOrdinalSubagentAppendResume
+                || (isNonForkAppendResume
                     && initialCountedTotals != nil
-                    && cached.forkedFromId == nil
                     && !hasIncompleteInterleaveState))
-        guard canIncremental else { return false }
+        guard canIncremental else { return .notApplicable }
 
+        let ordinalSubagentContext: CodexOrdinalSubagentResumeContext? = if isResumablePartial
+            || isOrdinalSubagentAppendResume,
+            let resumeState = cached.codexSubagentResumeState
+        {
+            CodexOrdinalSubagentResumeContext(
+                sessionId: cached.sessionId,
+                parentSessionId: cached.forkedFromId,
+                forkTimestamp: cached.codexForkTimestamp,
+                projectPath: cached.projectPath,
+                codexSession: cached.codexSession,
+                state: resumeState)
+        } else {
+            nil
+        }
+        let deferredReplayContext: CodexDeferredReplayContext? = if isResumablePartial,
+                                                                    let replayState = cached
+                                                                        .codexDeferredReplayState
+        {
+            CodexDeferredReplayContext(
+                sessionId: cached.sessionId,
+                parentSessionId: cached.forkedFromId,
+                forkTimestamp: cached.codexForkTimestamp,
+                projectPath: cached.projectPath,
+                codexSession: cached.codexSession,
+                state: replayState)
+        } else {
+            nil
+        }
+        let ordinaryForkContext: CodexOrdinaryForkResumeContext? = if isResumablePartial,
+                                                                      ordinalSubagentContext == nil,
+                                                                      deferredReplayContext == nil,
+                                                                      let parentSessionId = cached.forkedFromId,
+                                                                      let forkTimestamp = cached.codexForkTimestamp,
+                                                                      let accountingState = cached
+                                                                          .codexForkAccountingState,
+                                                                          cached.codexBufferedSubagentLines?
+                                                                              .isEmpty != false
+        {
+            CodexOrdinaryForkResumeContext(
+                sessionId: cached.sessionId,
+                parentSessionId: parentSessionId,
+                forkTimestamp: forkTimestamp,
+                projectPath: cached.projectPath,
+                codexSession: cached.codexSession,
+                accountingState: accountingState)
+        } else {
+            nil
+        }
+        // Legacy partial ordinary forks do not carry enough state to distinguish a fully
+        // consumed inherited `last` budget from one that was never applied. Rebuild them once.
+        if isResumablePartial,
+           cached.forkedFromId != nil,
+           ordinalSubagentContext == nil,
+           deferredReplayContext == nil,
+           cached.codexBufferedSubagentLines?.isEmpty != false,
+           ordinaryForkContext == nil
+        {
+            return .notApplicable
+        }
+
+        guard let sourceGuard = Self.codexFileSourceGuard(input: input) else {
+            context.scanBudget?.recordSourceMutationDeferral()
+            cache.files[input.metadata.path] = cached
+            Self.rememberScannedCodexFile(
+                input: input,
+                session: CodexScannedSession(id: cached.sessionId, days: cached.days),
+                rows: cached.codexRows ?? [],
+                context: context,
+                state: &state)
+            return .handled
+        }
+        // `input.metadata.size` is this slice's immutable high-water mark. A live writer may
+        // append while we parse, but those bytes belong to a later slice and cannot expand this
+        // refresh's budget or make completion timing-dependent.
+        let remainingAtStart = max(0, input.metadata.size - startOffset)
+        let scanByteLimit = min(max(0, maxBytesToRead ?? remainingAtStart), remainingAtStart)
+        return .ready(CodexAppendFileParseRequest(
+            input: input,
+            context: context,
+            cached: cached,
+            startOffset: startOffset,
+            sourceGuard: sourceGuard,
+            scanByteLimit: scanByteLimit,
+            initialCountedTotals: initialCountedTotals,
+            initialRawTotalsBaseline: initialRawTotalsBaseline,
+            initialHasDivergentTotals: initialHasDivergentTotals,
+            ordinaryForkContext: ordinaryForkContext,
+            ordinalSubagentContext: ordinalSubagentContext,
+            deferredReplayContext: deferredReplayContext,
+            isResumablePartial: isResumablePartial,
+            isBufferedForkResume: isBufferedForkResume,
+            isOrdinalSubagentAppendResume: isOrdinalSubagentAppendResume))
+    }
+
+    /// This thunk intentionally owns no preflight or publication locals while the parser runs.
+    @inline(never)
+    private static func parsePreparedCodexFileIncrement(
+        _ request: CodexAppendFileParseRequest) throws -> CodexParseResult
+    {
+        let input = request.input
+        let context = request.context
+        let cached = request.cached
+        context.scanBudget?.recordFileParseInvocation()
         let delta = try Self.parseCodexFileCancellable(
             fileURL: input.fileURL,
             range: context.range,
-            startOffset: startOffset,
+            startOffset: request.startOffset,
             initialModel: cached.lastModel,
-            initialTotals: initialCountedTotals,
-            initialRawTotalsBaseline: initialRawTotalsBaseline,
+            initialTotals: request.initialCountedTotals,
+            initialRawTotalsBaseline: request.initialRawTotalsBaseline,
             initialRawTotalsWatermark: cached.lastRawTotalsWatermark,
             initialSeenRawTotals: cached.seenRawTotals ?? [],
-            initialHasDivergentTotals: initialHasDivergentTotals,
+            initialHasDivergentTotals: request.initialHasDivergentTotals,
             initialHasInterleavedTotals: cached.hasInterleavedTotals ?? false,
             initialCodexTurnID: cached.lastCodexTurnID,
-            initialCodexUsageRowIndex: Self.nextCodexUsageRowIndex(cached.codexRows),
+            initialCodexUsageRowIndex: cached.codexTokenSidecarState?.nextUsageRowIndex
+                ?? cached.codexUsageRowSidecarState?.nextUsageRowIndex
+                ?? Self.nextCodexUsageRowIndex(cached.codexRows),
             initialBufferedSubagentLines: cached.codexBufferedSubagentLines,
             initialBufferedUnresolvedForkLines: cached.codexBufferedUnresolvedForkLines,
+            initialOrdinaryForkContext: request.ordinaryForkContext,
+            initialOrdinalSubagentContext: request.ordinalSubagentContext,
+            initialDeferredReplayContext: request.deferredReplayContext,
             initialJSONLResumeState: cached.codexJSONLResumeState,
-            maxBytesToRead: maxBytesToRead,
+            maxBytesToRead: request.scanByteLimit,
             shouldStopReading: context.scanBudget.map { budget in
                 { bytesRead in budget.shouldYield(additionalBytes: bytesRead) }
             },
-            inheritedTotalsResolver: context.resources.inheritedResolver.inheritedTotals(for:atOrBefore:),
+            inheritedTotalsResolver: { parentSessionId, cutoffTimestamp in
+                try Self.codexInheritedTotalsForParsing(
+                    parentSessionId: parentSessionId,
+                    cutoffTimestamp: cutoffTimestamp)
+                {
+                    try context.resources.inheritedResolver.inheritedTotals(
+                        for: parentSessionId,
+                        atOrBefore: cutoffTimestamp)
+                }
+            },
             checkCancellation: context.checkCancellation)
-        if delta.forkedFromId != nil, !isResumablePartial, !isBufferedForkResume {
+        context.scanBudget?.recordUsageRowWork(deltaProcessed: delta.rows.count)
+        Self.notifyCodexAfterFileParseForTesting(fileURL: input.fileURL)
+        return delta
+    }
+
+    private final class CodexAppendPublicationTransaction {
+        let request: CodexAppendFileParseRequest
+        let delta: CodexParseResult
+        var cache: CostUsageCache
+        var state: CodexScanState
+        var stateBeforeMerge: CodexScanState
+        var result = true
+        var requestedScanIsComplete = false
+        var sourceObservation: CodexFileSourceObservation?
+        var tokenIndex: CodexTokenIndexPersistence?
+        var scanIsComplete = false
+        var migrated: CostUsageFileUsage?
+        var codexSession: CostUsageCodexSessionMetadata?
+        var sessionId: String?
+        var projectPath: String?
+        var canonicalProjectPath: String?
+        var forkBaselineDependencyKey: String?
+        var sourceForkedFromId: String?
+        var publishedForkDependencyKey: String?
+        var rowSourceSemanticsAreAppendCompatible = false
+        var sessionAlreadyContributed = false
+        var suppressedByAuthoritativeFork = false
+        var needsCachedRows = false
+        var appendsUsageRows = false
+        var cachedRows: [CodexUsageRow] = []
+        var retainedCachedRows: [CodexUsageRow] = []
+        var uniqueRows: [CodexUsageRow] = []
+        var pricedDeltaRows: [CodexUsageRow] = []
+        var replacementPricedRows: [CodexUsageRow] = []
+        var migratedCached: CostUsageFileUsage?
+        var uniqueDays: [String: [String: [Int]]] = [:]
+        var mergedDays: [String: [String: [Int]]] = [:]
+        var standardCostNanos: [String: [String: Int64]]?
+        var priorityCostNanos: [String: [String: Int64]]?
+        var standardTokens: [String: [String: Int]]?
+        var priorityTokens: [String: [String: Int]]?
+        var codexCostNanos: [String: [String: Int64]]?
+        var codexPrioritySurchargeNanos: [String: [String: Int64]]?
+        var publishedRowState: CostUsageCodexUsageRowSidecarState?
+        var publishedInlineRows: [CodexUsageRow]?
+        var publishedTurnIDs: [String]?
+        var finalUsage: CostUsageFileUsage?
+
+        init(
+            request: CodexAppendFileParseRequest,
+            delta: CodexParseResult,
+            cache: CostUsageCache,
+            state: CodexScanState)
+        {
+            self.request = request
+            self.delta = delta
+            self.cache = cache
+            self.state = state
+            self.stateBeforeMerge = state
+        }
+    }
+
+    /// Publication deliberately crosses two durable sidecars before the JSON cache can advance.
+    /// Keep every large value in a heap transaction, and run validation, reconciliation, and
+    /// persistence as sequential frames so Swift Testing's worker stack never contains them all.
+    @inline(never)
+    private static func publishPreparedCodexFileIncrement(
+        _ request: CodexAppendFileParseRequest,
+        delta: CodexParseResult,
+        cache: inout CostUsageCache,
+        state: inout CodexScanState) throws -> Bool
+    {
+        let transaction = CodexAppendPublicationTransaction(
+            request: request,
+            delta: delta,
+            cache: cache,
+            state: state)
+        do {
+            let result = try Self.executeCodexAppendPublication(transaction)
+            cache = transaction.cache
+            state = transaction.state
+            return result
+        } catch {
+            // The former inout implementation exposed any already-completed ownership work when a
+            // dependency lookup threw. Preserve that behavior while the sidecars remain ahead of
+            // the JSON publication cursor.
+            cache = transaction.cache
+            state = transaction.state
+            throw error
+        }
+    }
+
+    @inline(never)
+    private static func executeCodexAppendPublication(
+        _ transaction: CodexAppendPublicationTransaction) throws -> Bool
+    {
+        guard self.prepareCodexAppendPublicationSource(transaction),
+              self.persistCodexAppendPublicationTokenIndex(transaction),
+              self.deriveCodexAppendPublicationMetadata(transaction),
+              try self.validateCodexAppendPublicationOwnership(transaction),
+              self.prepareCodexAppendPublicationRowIdentity(transaction),
+              self.loadCodexAppendPublicationCachedRows(transaction),
+              self.reconcileCodexAppendPublicationRows(transaction),
+              self.priceCodexAppendPublicationRows(transaction),
+              self.persistCodexAppendPublicationRows(transaction),
+              try self.revalidateCodexAppendPublication(transaction),
+              self.computeCodexAppendPublicationAggregates(transaction),
+              self.buildCodexAppendPublicationUsage(transaction)
+        else { return transaction.result }
+        self.commitCodexAppendPublication(transaction)
+        return transaction.result
+    }
+
+    @inline(never)
+    private static func prepareCodexAppendPublicationSource(
+        _ transaction: CodexAppendPublicationTransaction) -> Bool
+    {
+        let request = transaction.request
+        let delta = transaction.delta
+        if delta.forkedFromId != nil,
+           !request.isResumablePartial,
+           !request.isBufferedForkResume,
+           !request.isOrdinalSubagentAppendResume,
+           request.deferredReplayContext == nil
+        {
+            transaction.result = false
             return false
         }
-        let migrated = Self.codexFileUsageWithCostCache(cached, context: context)
+        // A transient second parent lookup cannot safely publish a suffix-only cursor.
+        if request.ordinaryForkContext != nil, delta.forkAccountingState == nil {
+            Self.retainCodexAppendPublicationUsage(
+                transaction,
+                usage: request.cached,
+                remember: true)
+            return false
+        }
+        let parsedSnapshotComplete = delta.parsedBytes >= request.input.metadata.size
+            && delta.jsonlResumeState == nil
+        guard let sourceObservation = Self.observeCodexFileSource(
+            sourceGuard: request.sourceGuard,
+            fileURL: request.input.fileURL),
+            delta.parsedBytes <= sourceObservation.metadata.size,
+            !sourceObservation.appended || !parsedSnapshotComplete
+        else {
+            request.context.scanBudget?.recordSourceMutationDeferral()
+            Self.retainCodexAppendPublicationUsage(
+                transaction,
+                usage: request.cached,
+                remember: true)
+            return false
+        }
+        transaction.requestedScanIsComplete = parsedSnapshotComplete
+        transaction.sourceObservation = sourceObservation
+        return true
+    }
+
+    @inline(never)
+    private static func persistCodexAppendPublicationTokenIndex(
+        _ transaction: CodexAppendPublicationTransaction) -> Bool
+    {
+        let request = transaction.request
+        let delta = transaction.delta
+        guard let sourceObservation = transaction.sourceObservation else { return false }
+        let reusesUnchangedTokenPrefix = request.isBufferedForkResume
+            && request.startOffset == request.input.metadata.size
+        let appendedTokenSnapshots = reusesUnchangedTokenPrefix ? [] : delta.tokenSnapshots
+        switch Self.appendingCodexTokenIndex(
+            cached: request.cached,
+            deltaEvents: appendedTokenSnapshots,
+            nextUsageRowIndex: delta.nextUsageRowIndex,
+            fileURL: request.input.fileURL,
+            fileId: sourceObservation.metadata.fileId,
+            indexedBytes: delta.parsedBytes,
+            isComplete: transaction.requestedScanIsComplete,
+            store: request.context.resources.tokenIndexStore)
+        {
+        case let .persisted(tokenIndex):
+            transaction.tokenIndex = tokenIndex
+            transaction.scanIsComplete = transaction.requestedScanIsComplete
+                && tokenIndex.isComplete
+                && delta.deferredReplayState == nil
+            return true
+        case .retryLater:
+            request.context.scanBudget?.recordPersistenceDeferral()
+            Self.retainCodexAppendPublicationUsage(
+                transaction,
+                usage: request.cached,
+                remember: true)
+            return false
+        case .rebuildNextPass:
+            request.context.scanBudget?.recordPersistenceDeferral()
+            Self.retainCodexAppendPublicationUsage(
+                transaction,
+                usage: Self.codexUsageRequiringTokenIndexRebuild(request.cached),
+                remember: true)
+            return false
+        }
+    }
+
+    @inline(never)
+    private static func deriveCodexAppendPublicationMetadata(
+        _ transaction: CodexAppendPublicationTransaction) -> Bool
+    {
+        let request = transaction.request
+        let delta = transaction.delta
+        let migrated = Self.codexFileUsageWithCostCache(request.cached, context: request.context)
         let cachedSessionMetadata = migrated.codexSession ?? CostUsageCodexSessionMetadata(
             sessionId: migrated.sessionId,
             forkedFromId: migrated.forkedFromId,
@@ -1209,70 +2748,418 @@ extension CostUsageScanner {
             startedAtUnixMs: nil,
             latestActivityUnixMs: nil)
         let codexSession = cachedSessionMetadata.merging(delta.codexSession)
-        let sessionId = codexSession.sessionId ?? delta.sessionId ?? cached.sessionId
-        let projectPath = delta.projectPath ?? cached.projectPath
+        let sessionId = codexSession.sessionId ?? delta.sessionId ?? request.cached.sessionId
+        let projectPath = delta.projectPath ?? request.cached.projectPath
         let forkBaselineDependencyKey = Self.codexForkBaselineDependencyKey(
             parentSessionId: delta.forkedFromId,
             dependsOnParentTotals: delta.dependsOnParentTotals,
-            inheritedResolver: context.resources.inheritedResolver)
+            inheritedResolver: request.context.resources.inheritedResolver)
         let canonicalProjectPath = delta.projectPath.map {
-            context.resources.projectPathResolver.canonicalProjectPath(for: $0)
-        } ?? cached.canonicalProjectPath ?? context.resources.projectPathResolver.canonicalProjectPath(for: projectPath)
-        let sessionAlreadyContributed = sessionId.map { state.contributingSessionIds.contains($0) } ?? false
-        let cachedRows = cached.codexRows ?? []
-        let retainedCachedRows: [CodexUsageRow]
-        if sessionAlreadyContributed {
-            retainedCachedRows = Self.uniqueCodexRows(
+            request.context.resources.projectPathResolver.canonicalProjectPath(for: $0)
+        } ?? request.cached.canonicalProjectPath
+            ?? request.context.resources.projectPathResolver.canonicalProjectPath(for: projectPath)
+        let sourceForkedFromId = codexSession.forkedFromId
+            ?? delta.forkedFromId
+            ?? request.cached.forkedFromId
+        let publishedForkDependencyKey = request.isBufferedForkResume
+            ? forkBaselineDependencyKey
+            : forkBaselineDependencyKey ?? request.cached.forkBaselineDependencyKey
+
+        transaction.migrated = migrated
+        transaction.codexSession = codexSession
+        transaction.sessionId = sessionId
+        transaction.projectPath = projectPath
+        transaction.forkBaselineDependencyKey = forkBaselineDependencyKey
+        transaction.canonicalProjectPath = canonicalProjectPath
+        transaction.stateBeforeMerge = transaction.state
+        transaction.sourceForkedFromId = sourceForkedFromId
+        transaction.publishedForkDependencyKey = publishedForkDependencyKey
+        transaction.rowSourceSemanticsAreAppendCompatible =
+            request.cached.sessionId == sessionId
+                && request.cached.forkedFromId == sourceForkedFromId
+                && request.cached.forkBaselineDependencyKey == publishedForkDependencyKey
+                && (request.cached.codexUsageRowProducerKey
+                    ?? request.context.resources.publishedProducerKey)
+                == request.context.resources.currentProducerKey
+        return true
+    }
+
+    @inline(never)
+    private static func validateCodexAppendPublicationOwnership(
+        _ transaction: CodexAppendPublicationTransaction) throws -> Bool
+    {
+        let request = transaction.request
+        let delta = transaction.delta
+        guard let sourceObservation = transaction.sourceObservation,
+              let tokenIndex = transaction.tokenIndex
+        else { return false }
+        Self.notifyCodexBeforeFileUsagePublicationForTesting(fileURL: request.input.fileURL)
+        let finalSourceGuard = CodexFileSourceGuard(
+            metadata: sourceObservation.metadata,
+            prefixAnchor: tokenIndex.anchor)
+        guard let finalSourceObservation = Self.observeCodexFileSource(
+            sourceGuard: finalSourceGuard,
+            fileURL: request.input.fileURL),
+            finalSourceObservation.metadata.size >= delta.parsedBytes,
+            !finalSourceObservation.appended || !tokenIndex.isComplete
+        else {
+            request.context.scanBudget?.recordSourceMutationDeferral()
+            transaction.state = transaction.stateBeforeMerge
+            Self.retainCodexAppendPublicationUsage(
+                transaction,
+                usage: request.cached,
+                remember: true)
+            return false
+        }
+        transaction.sourceObservation = finalSourceObservation
+        if finalSourceObservation.appended {
+            transaction.scanIsComplete = false
+        }
+        if try Self.deferCodexForkPublicationIfDependencyChanged(
+            parentSessionId: delta.forkedFromId,
+            dependsOnParentTotals: delta.dependsOnParentTotals,
+            dependencyKeyUsed: transaction.forkBaselineDependencyKey,
+            input: request.input,
+            cached: request.cached,
+            context: request.context,
+            cache: &transaction.cache,
+            state: &transaction.state,
+            stateBeforePublication: transaction.stateBeforeMerge)
+        {
+            return false
+        }
+        guard Self.claimCodexForkSessionOwnership(
+            input: request.input,
+            sessionId: transaction.sessionId,
+            forkedFromId: transaction.sourceForkedFromId,
+            context: request.context,
+            cache: &transaction.cache,
+            state: &transaction.state)
+        else {
+            transaction.state = transaction.stateBeforeMerge
+            transaction.cache.files[request.input.metadata.path] = request.cached
+            return false
+        }
+        return true
+    }
+
+    @inline(never)
+    private static func prepareCodexAppendPublicationRowIdentity(
+        _ transaction: CodexAppendPublicationTransaction) -> Bool
+    {
+        let request = transaction.request
+        let sessionAlreadyContributed = transaction.sessionId.map {
+            transaction.state.contributingSessionIds.contains($0)
+        } ?? false
+        let suppressedByAuthoritativeFork = Self.codexNonForkSourceIsSuppressed(
+            sessionId: transaction.sessionId,
+            forkedFromId: transaction.sourceForkedFromId,
+            state: transaction.state)
+        transaction.sessionAlreadyContributed = sessionAlreadyContributed
+        transaction.suppressedByAuthoritativeFork = suppressedByAuthoritativeFork
+        transaction.needsCachedRows = request.cached.codexUsageRowSidecarState == nil
+            || sessionAlreadyContributed
+            || suppressedByAuthoritativeFork
+            || !transaction.rowSourceSemanticsAreAppendCompatible
+
+        if sessionAlreadyContributed,
+           !Self.prepareCodexSessionRowIdentity(
+               sessionId: transaction.sessionId,
+               excludingPath: request.input.metadata.path,
+               cache: &transaction.cache,
+               context: request.context,
+               state: &transaction.state)
+        {
+            transaction.state = transaction.stateBeforeMerge
+            transaction.cache.files[request.input.metadata.path] = request.cached
+            return false
+        }
+        return true
+    }
+
+    @inline(never)
+    private static func loadCodexAppendPublicationCachedRows(
+        _ transaction: CodexAppendPublicationTransaction) -> Bool
+    {
+        guard transaction.needsCachedRows else {
+            transaction.cachedRows = []
+            return true
+        }
+        let request = transaction.request
+        switch Self.codexUsageRows(
+            usage: request.cached,
+            fileURL: request.input.fileURL,
+            context: request.context)
+        {
+        case let .ready(rows):
+            transaction.cachedRows = rows
+            return true
+        case .needsRebuild:
+            request.context.scanBudget?.recordPersistenceDeferral()
+            transaction.state = transaction.stateBeforeMerge
+            transaction.cache.files[request.input.metadata.path] =
+                Self.codexUsageRequiringUsageRowIndexRebuild(request.cached)
+            return false
+        case .temporarilyUnavailable:
+            request.context.scanBudget?.recordPersistenceDeferral()
+            transaction.state = transaction.stateBeforeMerge
+            transaction.cache.files[request.input.metadata.path] = request.cached
+            return false
+        }
+    }
+
+    @inline(never)
+    private static func reconcileCodexAppendPublicationRows(
+        _ transaction: CodexAppendPublicationTransaction) -> Bool
+    {
+        let request = transaction.request
+        let cachedRows = transaction.cachedRows
+        if transaction.suppressedByAuthoritativeFork {
+            transaction.retainedCachedRows = Self.codexRowsOutsideScanRange(
+                cachedRows,
+                range: request.context.range)
+        } else if transaction.sessionAlreadyContributed {
+            transaction.retainedCachedRows = Self.uniqueCodexRows(
                 rows: cachedRows,
-                sessionId: sessionId,
-                fileIdentity: input.metadata.path,
-                state: &state)
+                sessionId: transaction.sessionId,
+                forkedFromId: request.cached.forkedFromId,
+                fileIdentity: request.input.metadata.path,
+                state: &transaction.state)
         } else {
             Self.rememberCodexRows(
                 cachedRows,
-                sessionId: sessionId,
-                fileIdentity: input.metadata.path,
-                state: &state)
-            retainedCachedRows = cachedRows
+                sessionId: transaction.sessionId,
+                fileIdentity: request.input.metadata.path,
+                state: &transaction.state)
+            transaction.retainedCachedRows = cachedRows
         }
-        let uniqueRows = Self.uniqueCodexRows(
-            rows: delta.rows,
-            sessionId: sessionId,
-            fileIdentity: input.metadata.path,
-            state: &state)
+        transaction.uniqueRows = Self.uniqueCodexRows(
+            rows: transaction.delta.rows,
+            sessionId: transaction.sessionId,
+            forkedFromId: transaction.sourceForkedFromId,
+            fileIdentity: request.input.metadata.path,
+            state: &transaction.state)
 
-        let migratedCached = sessionAlreadyContributed
-            ? Self.codexFileUsageByFilteringRows(migrated, rows: retainedCachedRows, context: context)
-            : migrated
-        if sessionAlreadyContributed, migratedCached.days.isEmpty, uniqueRows.isEmpty {
-            Self.dropCachedCodexFile(path: input.metadata.path, cached: cached, cache: &cache)
-            return true
-        }
-        let uniqueDays = Self.codexFileDays(rows: uniqueRows)
+        guard let migrated = transaction.migrated else { return false }
+        transaction.migratedCached =
+            transaction.sessionAlreadyContributed || transaction.suppressedByAuthoritativeFork
+                ? Self.codexFileUsageByFilteringRows(
+                    migrated,
+                    rows: transaction.retainedCachedRows,
+                    context: request.context)
+                : migrated
+        guard let migratedCached = transaction.migratedCached else { return false }
+        transaction.uniqueDays = Self.codexFileDays(rows: transaction.uniqueRows)
+        transaction.mergedDays = migratedCached.days
+        Self.mergeFileDays(
+            existing: &transaction.mergedDays,
+            delta: transaction.uniqueDays)
+        return true
+    }
 
-        if sessionAlreadyContributed {
-            Self.applyFileDays(cache: &cache, fileDays: cached.days, sign: -1)
-            Self.applyFileDays(cache: &cache, fileDays: migratedCached.days, sign: 1)
-        }
-        if !uniqueDays.isEmpty {
-            Self.applyFileDays(cache: &cache, fileDays: uniqueDays, sign: 1)
-        }
-
-        var mergedDays = migratedCached.days
-        Self.mergeFileDays(existing: &mergedDays, delta: uniqueDays)
+    @inline(never)
+    private static func priceCodexAppendPublicationRows(
+        _ transaction: CodexAppendPublicationTransaction) -> Bool
+    {
+        let request = transaction.request
         let splitMaps = Self.codexModeSplitMaps(
-            rows: uniqueRows,
-            range: context.range,
-            priorityTurns: context.resources.priorityTurns,
-            modelsDevCatalog: context.resources.modelsDevCatalog,
-            modelsDevCacheRoot: context.resources.modelsDevCacheRoot)
-        let mergedTokenSnapshots = isBufferedForkResume && startOffset == input.metadata.size
-            ? (migratedCached.codexTokenSnapshots ?? [])
-            : (migratedCached.codexTokenSnapshots ?? []) + delta.tokenSnapshots
-        cache.files[input.metadata.path] = Self.makeFileUsage(
-            mtimeUnixMs: input.metadata.mtimeUnixMs,
-            size: input.metadata.size,
-            days: mergedDays,
+            rows: transaction.uniqueRows,
+            range: request.context.range,
+            priorityTurns: request.context.resources.priorityTurns,
+            modelsDevCatalog: request.context.resources.modelsDevCatalog,
+            modelsDevCacheRoot: request.context.resources.modelsDevCacheRoot)
+        transaction.standardCostNanos = splitMaps.standardCostNanos
+        transaction.priorityCostNanos = splitMaps.priorityCostNanos
+        transaction.standardTokens = splitMaps.standardTokens
+        transaction.priorityTokens = splitMaps.priorityTokens
+        transaction.pricedDeltaRows = Self.pricedCodexUsageRows(
+            transaction.uniqueRows,
+            context: request.context)
+        transaction.appendsUsageRows = request.cached.codexUsageRowSidecarState != nil
+            && transaction.rowSourceSemanticsAreAppendCompatible
+            && !transaction.sessionAlreadyContributed
+            && !transaction.suppressedByAuthoritativeFork
+        guard !transaction.appendsUsageRows else { return true }
+        let mergedRows = Self.mergeCodexRows(
+            transaction.retainedCachedRows,
+            rows: transaction.uniqueRows,
+            sessionId: transaction.sessionId) ?? []
+        transaction.replacementPricedRows = Self.pricedCodexUsageRows(
+            mergedRows,
+            context: request.context)
+        return true
+    }
+
+    @inline(never)
+    private static func persistCodexAppendPublicationRows(
+        _ transaction: CodexAppendPublicationTransaction) -> Bool
+    {
+        let request = transaction.request
+        let delta = transaction.delta
+        guard let sourceObservation = transaction.sourceObservation,
+              let tokenIndex = transaction.tokenIndex,
+              let codexSession = transaction.codexSession,
+              let migratedCached = transaction.migratedCached
+        else { return false }
+        let forkedFromId = codexSession.forkedFromId
+            ?? delta.forkedFromId
+            ?? migratedCached.forkedFromId
+        let rowPersistence: CodexUsageRowPersistenceOutcome = if transaction.appendsUsageRows {
+            Self.appendingCodexUsageRows(
+                cached: request.cached,
+                deltaRows: transaction.pricedDeltaRows,
+                nextUsageRowIndex: delta.nextUsageRowIndex,
+                fileURL: request.input.fileURL,
+                fileId: sourceObservation.metadata.fileId,
+                indexedBytes: delta.parsedBytes,
+                anchor: tokenIndex.anchor,
+                isComplete: transaction.scanIsComplete,
+                changeUnixNs: sourceObservation.metadata.changeUnixNs,
+                sessionId: transaction.sessionId,
+                forkedFromId: forkedFromId,
+                forkDependencyKey: transaction.publishedForkDependencyKey,
+                context: request.context)
+        } else {
+            Self.replacingCodexUsageRows(
+                rows: transaction.replacementPricedRows,
+                nextUsageRowIndex: delta.nextUsageRowIndex,
+                fileURL: request.input.fileURL,
+                fileId: sourceObservation.metadata.fileId,
+                indexedBytes: delta.parsedBytes,
+                anchor: tokenIndex.anchor,
+                isComplete: transaction.scanIsComplete,
+                changeUnixNs: sourceObservation.metadata.changeUnixNs,
+                sessionId: transaction.sessionId,
+                forkedFromId: forkedFromId,
+                forkDependencyKey: transaction.publishedForkDependencyKey,
+                ownershipKey: transaction.sessionAlreadyContributed
+                    || transaction.suppressedByAuthoritativeFork
+                    ? Self.codexUsageRowOwnershipKey(
+                        sessionId: transaction.sessionId,
+                        forkedFromId: transaction.sourceForkedFromId,
+                        input: request.input,
+                        cache: transaction.cache)
+                    : nil,
+                context: request.context)
+        }
+        switch rowPersistence {
+        case let .persisted(sidecarState):
+            transaction.publishedRowState = sidecarState
+            transaction.publishedInlineRows = nil
+            return true
+        case let .inline(rows):
+            transaction.publishedRowState = nil
+            transaction.publishedInlineRows = rows
+            return true
+        case .retryLater:
+            request.context.scanBudget?.recordPersistenceDeferral()
+            transaction.state = transaction.stateBeforeMerge
+            transaction.cache.files[request.input.metadata.path] = request.cached
+            return false
+        case .rebuildNextPass:
+            request.context.scanBudget?.recordPersistenceDeferral()
+            transaction.state = transaction.stateBeforeMerge
+            transaction.cache.files[request.input.metadata.path] =
+                Self.codexUsageRequiringUsageRowIndexRebuild(request.cached)
+            return false
+        }
+    }
+
+    @inline(never)
+    private static func revalidateCodexAppendPublication(
+        _ transaction: CodexAppendPublicationTransaction) throws -> Bool
+    {
+        let request = transaction.request
+        let delta = transaction.delta
+        guard let sourceObservation = transaction.sourceObservation,
+              let tokenIndex = transaction.tokenIndex
+        else { return false }
+        guard Self.observeCodexFileSource(
+            sourceGuard: CodexFileSourceGuard(
+                metadata: sourceObservation.metadata,
+                prefixAnchor: tokenIndex.anchor),
+            fileURL: request.input.fileURL) != nil
+        else {
+            request.context.scanBudget?.recordSourceMutationDeferral()
+            transaction.state = transaction.stateBeforeMerge
+            transaction.cache.files[request.input.metadata.path] = request.cached
+            return false
+        }
+        if try Self.deferCodexForkPublicationIfDependencyChanged(
+            parentSessionId: delta.forkedFromId,
+            dependsOnParentTotals: delta.dependsOnParentTotals,
+            dependencyKeyUsed: transaction.forkBaselineDependencyKey,
+            input: request.input,
+            cached: request.cached,
+            context: request.context,
+            cache: &transaction.cache,
+            state: &transaction.state,
+            stateBeforePublication: transaction.stateBeforeMerge)
+        {
+            return false
+        }
+        guard let migratedCached = transaction.migratedCached else { return false }
+        if transaction.sessionAlreadyContributed,
+           migratedCached.days.isEmpty,
+           transaction.uniqueRows.isEmpty,
+           !transaction.suppressedByAuthoritativeFork,
+           transaction.sourceForkedFromId == nil
+        {
+            Self.dropCachedCodexFile(
+                path: request.input.metadata.path,
+                cached: request.cached,
+                cache: &transaction.cache)
+            return false
+        }
+        return true
+    }
+
+    @inline(never)
+    private static func computeCodexAppendPublicationAggregates(
+        _ transaction: CodexAppendPublicationTransaction) -> Bool
+    {
+        guard let migratedCached = transaction.migratedCached else { return false }
+        let context = transaction.request.context
+        transaction.codexCostNanos = Self.codexMergedCostMap(
+            migratedCached.codexCostNanos,
+            deltaRows: transaction.uniqueRows,
+            context: context)
+        transaction.codexPrioritySurchargeNanos = Self.codexMergedPrioritySurchargeMap(
+            migratedCached.codexPrioritySurchargeNanos,
+            deltaRows: transaction.uniqueRows,
+            context: context)
+        transaction.standardCostNanos = Self.mergeCostMaps(
+            migratedCached.codexStandardCostNanos,
+            transaction.standardCostNanos)
+        transaction.priorityCostNanos = Self.mergeCostMaps(
+            migratedCached.codexPriorityCostNanos,
+            transaction.priorityCostNanos)
+        transaction.standardTokens = Self.mergeIntMaps(
+            migratedCached.codexStandardTokens,
+            transaction.standardTokens)
+        transaction.priorityTokens = Self.mergeIntMaps(
+            migratedCached.codexPriorityTokens,
+            transaction.priorityTokens)
+        transaction.publishedTurnIDs = transaction.publishedRowState == nil
+            ? Self.codexTurnIDs(rows: transaction.publishedInlineRows ?? [])
+            : nil
+        return true
+    }
+
+    @inline(never)
+    private static func buildCodexAppendPublicationUsage(
+        _ transaction: CodexAppendPublicationTransaction) -> Bool
+    {
+        let delta = transaction.delta
+        guard let sourceObservation = transaction.sourceObservation,
+              let tokenIndex = transaction.tokenIndex,
+              let migratedCached = transaction.migratedCached,
+              let codexSession = transaction.codexSession
+        else { return false }
+        transaction.finalUsage = Self.makeFileUsage(
+            mtimeUnixMs: sourceObservation.metadata.mtimeUnixMs,
+            size: sourceObservation.metadata.size,
+            days: transaction.mergedDays,
             parsedBytes: delta.parsedBytes,
             lastModel: delta.lastModel,
             lastTotals: delta.lastTotals,
@@ -1283,66 +3170,117 @@ extension CostUsageScanner {
             hasDivergentTotals: delta.hasDivergentTotals,
             hasInterleavedTotals: delta.hasInterleavedTotals,
             lastCodexTurnID: delta.lastCodexTurnID,
-            sessionId: sessionId,
-            forkedFromId: codexSession.forkedFromId ?? delta.forkedFromId ?? migratedCached.forkedFromId,
-            // A buffered fork replay can discover that its previous dependency is no longer
-            // usable while the replacement parent is still queued for this refresh. Preserve
-            // that nil so the post-parent retry runs; retaining the old missing-parent key would
-            // incorrectly mark the child reusable and leave its buffered usage unpublished.
-            forkBaselineDependencyKey: isBufferedForkResume
-                ? forkBaselineDependencyKey
-                : forkBaselineDependencyKey ?? migratedCached.forkBaselineDependencyKey,
-            projectPath: projectPath,
-            canonicalProjectPath: canonicalProjectPath,
+            sessionId: transaction.sessionId,
+            forkedFromId: codexSession.forkedFromId
+                ?? delta.forkedFromId
+                ?? migratedCached.forkedFromId,
+            codexForkTimestamp: delta.forkTimestamp ?? migratedCached.codexForkTimestamp,
+            forkBaselineDependencyKey: transaction.publishedForkDependencyKey,
+            projectPath: transaction.projectPath,
+            canonicalProjectPath: transaction.canonicalProjectPath,
             codexSession: codexSession.isEmpty ? nil : codexSession,
-            codexCostNanos: Self.codexMergedCostMap(
-                migratedCached.codexCostNanos,
-                deltaRows: uniqueRows,
-                context: context),
-            codexPrioritySurchargeNanos: Self.codexMergedPrioritySurchargeMap(
-                migratedCached.codexPrioritySurchargeNanos,
-                deltaRows: uniqueRows,
-                context: context),
-            codexStandardCostNanos: Self.mergeCostMaps(
-                migratedCached.codexStandardCostNanos,
-                splitMaps.standardCostNanos),
-            codexPriorityCostNanos: Self.mergeCostMaps(
-                migratedCached.codexPriorityCostNanos,
-                splitMaps.priorityCostNanos),
-            codexStandardTokens: Self.mergeIntMaps(
-                migratedCached.codexStandardTokens,
-                splitMaps.standardTokens),
-            codexPriorityTokens: Self.mergeIntMaps(
-                migratedCached.codexPriorityTokens,
-                splitMaps.priorityTokens),
-            codexTurnIDs: Self.mergeCodexTurnIDs(migratedCached.codexTurnIDs, rows: uniqueRows),
-            codexRows: Self.codexRowsWithPricingAudit(
-                Self.mergeCodexRows(retainedCachedRows, rows: uniqueRows, sessionId: sessionId) ?? [],
-                priorityTurns: context.resources.priorityTurns,
-                modelsDevCatalog: context.resources.modelsDevCatalog,
-                modelsDevCacheRoot: context.resources.modelsDevCacheRoot),
-            codexTokenSnapshots: mergedTokenSnapshots,
-            codexTokenCheckpoints: Self.codexTokenCheckpoints(for: mergedTokenSnapshots),
-            codexTokenTimestampsMonotonic: Self.codexTokenTimestampsAreMonotonic(mergedTokenSnapshots),
-            codexTokenIndexAnchor: Self.codexTokenIndexAnchor(
-                fileURL: input.fileURL,
-                indexedBytes: delta.parsedBytes),
-            codexScanFileId: input.metadata.fileId,
-            codexScanTargetSize: input.metadata.size,
-            codexScanComplete: delta.parsedBytes >= input.metadata.size && delta.jsonlResumeState == nil,
+            codexCostNanos: transaction.codexCostNanos,
+            codexPrioritySurchargeNanos: transaction.codexPrioritySurchargeNanos,
+            codexStandardCostNanos: transaction.standardCostNanos,
+            codexPriorityCostNanos: transaction.priorityCostNanos,
+            codexStandardTokens: transaction.standardTokens,
+            codexPriorityTokens: transaction.priorityTokens,
+            codexTurnIDs: transaction.publishedTurnIDs,
+            codexRows: transaction.publishedInlineRows,
+            codexTokenSnapshots: tokenIndex.snapshots,
+            codexTokenCheckpoints: tokenIndex.checkpoints,
+            codexTokenTimestampsMonotonic: tokenIndex.timestampsMonotonic,
+            codexTokenIndexAnchor: tokenIndex.anchor,
+            codexTokenSidecarState: tokenIndex.sidecarState,
+            codexUsageRowSidecarState: transaction.publishedRowState,
+            codexUsageRowProducerKey: transaction.publishedRowState == nil
+                ? nil
+                : transaction.request.context.resources.currentProducerKey,
+            codexForkAccountingState: delta.forkAccountingState,
+            codexScanFileId: sourceObservation.metadata.fileId,
+            codexScanChangeUnixNs: sourceObservation.metadata.changeUnixNs,
+            codexScanTargetSize: sourceObservation.metadata.size,
+            codexScanComplete: transaction.scanIsComplete,
             codexJSONLResumeState: delta.jsonlResumeState,
             codexBufferedSubagentLines: delta.bufferedSubagentLines,
+            codexSubagentResumeState: delta.subagentResumeState,
+            codexDeferredReplayState: delta.deferredReplayState,
             codexBufferedUnresolvedForkLines: delta.bufferedUnresolvedForkLines)
             .refreshingCodexWorkspaceUsageFingerprint()
-        Self.rememberScannedCodexFile(
-            input: input,
-            session: CodexScannedSession(id: sessionId, days: mergedDays),
-            rows: uniqueRows,
-            context: context,
-            state: &state)
         return true
     }
 
+    @inline(never)
+    private static func commitCodexAppendPublication(
+        _ transaction: CodexAppendPublicationTransaction)
+    {
+        let request = transaction.request
+        guard let migratedCached = transaction.migratedCached,
+              let finalUsage = transaction.finalUsage
+        else { return }
+        if transaction.sessionAlreadyContributed || transaction.suppressedByAuthoritativeFork {
+            Self.applyFileDays(
+                cache: &transaction.cache,
+                fileDays: request.cached.days,
+                sign: -1)
+            Self.applyFileDays(
+                cache: &transaction.cache,
+                fileDays: migratedCached.days,
+                sign: 1)
+        }
+        if !transaction.uniqueDays.isEmpty {
+            Self.applyFileDays(
+                cache: &transaction.cache,
+                fileDays: transaction.uniqueDays,
+                sign: 1)
+        }
+        transaction.cache.files[request.input.metadata.path] = finalUsage
+        Self.rememberScannedCodexFile(
+            input: request.input,
+            session: CodexScannedSession(
+                id: transaction.sessionId,
+                days: transaction.mergedDays),
+            rows: transaction.uniqueRows,
+            context: request.context,
+            state: &transaction.state)
+    }
+
+    @inline(never)
+    private static func retainCodexAppendPublicationUsage(
+        _ transaction: CodexAppendPublicationTransaction,
+        usage: CostUsageFileUsage,
+        remember: Bool)
+    {
+        let request = transaction.request
+        transaction.cache.files[request.input.metadata.path] = usage
+        guard remember else { return }
+        Self.rememberScannedCodexFile(
+            input: request.input,
+            session: CodexScannedSession(id: usage.sessionId, days: usage.days),
+            rows: usage.codexRows ?? [],
+            context: request.context,
+            state: &transaction.state)
+    }
+
+    private struct CodexRescanFileParseRequest {
+        let input: CodexFileScanInput
+        let context: CodexFileScanContext
+        let retainedCached: CostUsageFileUsage?
+        let discardedCachedSourceDetail: Bool
+        let preservesLegacyOutsideProjection: Bool
+        let usageDays: [String: [String: [Int]]]
+        let sourceGuard: CodexFileSourceGuard
+        let scanByteLimit: Int64
+        let deferredReplayContext: CodexDeferredReplayContext?
+    }
+
+    private enum CodexRescanFilePreparation {
+        case handled
+        case ready(CodexRescanFileParseRequest)
+    }
+
+    /// Keep parse, final source validation, and cache publication in one transaction while
+    /// ensuring their debug stack frames are sequential rather than nested.
     static func rescanCodexFile(
         input: CodexFileScanInput,
         context: CodexFileScanContext,
@@ -1350,69 +3288,652 @@ extension CostUsageScanner {
         state: inout CodexScanState,
         maxBytesToRead: Int64? = nil) throws
     {
-        try context.checkCancellation?()
-        if let cached = input.cached {
-            self.applyFileDays(cache: &cache, fileDays: cached.days, sign: -1)
+        let preparation = try Self.prepareCodexFileRescan(
+            input: input,
+            context: context,
+            cache: &cache,
+            state: &state,
+            maxBytesToRead: maxBytesToRead)
+        switch preparation {
+        case .handled:
+            return
+        case let .ready(request):
+            let parsed = try Self.parsePreparedCodexFileRescan(request)
+            try Self.publishPreparedCodexFileRescan(
+                request,
+                parsed: parsed,
+                cache: &cache,
+                state: &state)
         }
-        let migratedCached = input.cached.map { Self.codexFileUsageWithCostCache($0, context: context) }
-        var usageDays = context.dropDeferredCodexRows
-            ? [:]
-            : Self.fileDaysOutsideScanWindow(migratedCached?.days ?? [:], range: context.range)
+    }
 
+    @inline(never)
+    private static func prepareCodexFileRescan(
+        input: CodexFileScanInput,
+        context: CodexFileScanContext,
+        cache: inout CostUsageCache,
+        state: inout CodexScanState,
+        maxBytesToRead: Int64?) throws -> CodexRescanFilePreparation
+    {
+        try context.checkCancellation?()
+        let context = Self.codexContextRetainingPublishedRowCoverage(
+            cached: input.cached,
+            context: context)
+        let retainedCached = input.cached.flatMap { cached -> CostUsageFileUsage? in
+            guard Self.codexCachedUsageBelongsToCurrentSource(cached, input: input) else {
+                return nil
+            }
+            return Self.codexFileUsageWithCostCache(cached, context: context)
+        }
+        let discardedCachedSourceDetail = input.cached != nil && retainedCached == nil
+        // A sidecar generation is tied to one verified byte prefix. Never splice rows from a
+        // later old prefix into a bounded byte-zero rebuild: doing so publishes event indexes
+        // beyond the new cursor and makes the next pass reset to zero. The previous-report cache
+        // keeps the UI stable while this replacement prefix catches up.
+        let preservesLegacyOutsideProjection = !context.dropDeferredCodexRows
+            && retainedCached?.codexUsageRowSidecarState == nil
+        let usageDays = preservesLegacyOutsideProjection
+            ? Self.fileDaysOutsideScanWindow(retainedCached?.days ?? [:], range: context.range)
+            : [:]
+
+        guard let sourceGuard = Self.codexFileSourceGuard(input: input) else {
+            context.scanBudget?.recordSourceMutationDeferral()
+            if let cached = input.cached {
+                cache.files[input.metadata.path] = cached
+                Self.rememberScannedCodexFile(
+                    input: input,
+                    session: CodexScannedSession(id: cached.sessionId, days: cached.days),
+                    rows: cached.codexRows ?? [],
+                    context: context,
+                    state: &state)
+            }
+            return .handled
+        }
+        let scanByteLimit = min(
+            max(0, maxBytesToRead ?? input.metadata.size),
+            max(0, input.metadata.size))
+
+        let deferredReplayContext = input.cached.flatMap { cached in
+            cached.codexDeferredReplayState.map { replayState in
+                CodexDeferredReplayContext(
+                    sessionId: cached.sessionId,
+                    parentSessionId: cached.forkedFromId,
+                    forkTimestamp: cached.codexForkTimestamp,
+                    projectPath: cached.projectPath,
+                    codexSession: cached.codexSession,
+                    state: replayState)
+            }
+        }
+        return .ready(CodexRescanFileParseRequest(
+            input: input,
+            context: context,
+            retainedCached: retainedCached,
+            discardedCachedSourceDetail: discardedCachedSourceDetail,
+            preservesLegacyOutsideProjection: preservesLegacyOutsideProjection,
+            usageDays: usageDays,
+            sourceGuard: sourceGuard,
+            scanByteLimit: scanByteLimit,
+            deferredReplayContext: deferredReplayContext))
+    }
+
+    /// This thunk intentionally owns no preflight or publication locals while the parser runs.
+    @inline(never)
+    private static func parsePreparedCodexFileRescan(
+        _ request: CodexRescanFileParseRequest) throws -> CodexParseResult
+    {
+        let input = request.input
+        let context = request.context
+        context.scanBudget?.recordFileParseInvocation()
         let parsed = try Self.parseCodexFileCancellable(
             fileURL: input.fileURL,
             range: context.range,
-            maxBytesToRead: maxBytesToRead,
+            initialDeferredReplayContext: request.deferredReplayContext,
+            maxBytesToRead: request.scanByteLimit,
             shouldStopReading: context.scanBudget.map { budget in
                 { bytesRead in budget.shouldYield(additionalBytes: bytesRead) }
             },
-            inheritedTotalsResolver: context.resources.inheritedResolver.inheritedTotals(for:atOrBefore:),
+            inheritedTotalsResolver: { parentSessionId, cutoffTimestamp in
+                try Self.codexInheritedTotalsForParsing(
+                    parentSessionId: parentSessionId,
+                    cutoffTimestamp: cutoffTimestamp)
+                {
+                    try context.resources.inheritedResolver.inheritedTotals(
+                        for: parentSessionId,
+                        atOrBefore: cutoffTimestamp)
+                }
+            },
             checkCancellation: context.checkCancellation)
+        context.scanBudget?.recordUsageRowWork(deltaProcessed: parsed.rows.count)
+        Self.notifyCodexAfterFileParseForTesting(fileURL: input.fileURL)
+        return parsed
+    }
+
+    private final class CodexRescanPublicationTransaction {
+        let request: CodexRescanFileParseRequest
+        let parsed: CodexParseResult
+        var cache: CostUsageCache
+        var state: CodexScanState
+        var stateBeforeMerge: CodexScanState
+        var requestedScanIsComplete = false
+        var sourceObservation: CodexFileSourceObservation?
+        var tokenIndex: CodexTokenIndexPersistence?
+        var scanIsComplete = false
+        var forkBaselineDependencyKey: String?
+        var codexSession: CostUsageCodexSessionMetadata?
+        var sessionId: String?
+        var sourceForkedFromId: String?
+        var projectPath: String?
+        var canonicalProjectPath: String?
+        var suppressedByAuthoritativeFork = false
+        var sessionAlreadyContributed = false
+        var usageDays: [String: [String: [Int]]]
+        var uniqueRows: [CodexUsageRow] = []
+        var uniqueDays: [String: [String: [Int]]] = [:]
+        var retainedRows: [CodexUsageRow] = []
+        var pricedRows: [CodexUsageRow] = []
+        var standardCostNanos: [String: [String: Int64]]?
+        var priorityCostNanos: [String: [String: Int64]]?
+        var standardTokens: [String: [String: Int]]?
+        var priorityTokens: [String: [String: Int]]?
+        var codexCostNanos: [String: [String: Int64]]?
+        var codexPrioritySurchargeNanos: [String: [String: Int64]]?
+        var publishedRowState: CostUsageCodexUsageRowSidecarState?
+        var publishedInlineRows: [CodexUsageRow]?
+        var publishedTurnIDs: [String]?
+        var finalUsage: CostUsageFileUsage?
+
+        init(
+            request: CodexRescanFileParseRequest,
+            parsed: CodexParseResult,
+            cache: CostUsageCache,
+            state: CodexScanState)
+        {
+            self.request = request
+            self.parsed = parsed
+            self.cache = cache
+            self.state = state
+            self.stateBeforeMerge = state
+            self.usageDays = request.usageDays
+        }
+    }
+
+    @inline(never)
+    private static func publishPreparedCodexFileRescan(
+        _ request: CodexRescanFileParseRequest,
+        parsed: CodexParseResult,
+        cache: inout CostUsageCache,
+        state: inout CodexScanState) throws
+    {
+        let transaction = CodexRescanPublicationTransaction(
+            request: request,
+            parsed: parsed,
+            cache: cache,
+            state: state)
+        do {
+            try Self.executeCodexRescanPublication(transaction)
+            cache = transaction.cache
+            state = transaction.state
+        } catch {
+            cache = transaction.cache
+            state = transaction.state
+            throw error
+        }
+    }
+
+    @inline(never)
+    private static func executeCodexRescanPublication(
+        _ transaction: CodexRescanPublicationTransaction) throws
+    {
+        guard self.prepareCodexRescanPublicationSource(transaction),
+              self.persistCodexRescanPublicationTokenIndex(transaction),
+              self.deriveCodexRescanPublicationMetadata(transaction),
+              try self.validateCodexRescanPublicationOwnership(transaction),
+              self.prepareCodexRescanPublicationRowIdentity(transaction),
+              self.computeCodexRescanPublicationUsageRows(transaction),
+              self.loadCodexRescanPublicationRetainedRows(transaction),
+              self.priceCodexRescanPublicationRows(transaction),
+              self.persistCodexRescanPublicationRows(transaction),
+              try self.revalidateCodexRescanPublication(transaction),
+              self.computeCodexRescanPublicationAggregates(transaction),
+              self.buildCodexRescanPublicationUsage(transaction)
+        else { return }
+        self.commitCodexRescanPublication(transaction)
+    }
+
+    @inline(never)
+    private static func prepareCodexRescanPublicationSource(
+        _ transaction: CodexRescanPublicationTransaction) -> Bool
+    {
+        let request = transaction.request
+        let parsed = transaction.parsed
+        let parsedSnapshotComplete = parsed.parsedBytes >= request.input.metadata.size
+            && parsed.jsonlResumeState == nil
+        guard let sourceObservation = Self.observeCodexFileSource(
+            sourceGuard: request.sourceGuard,
+            fileURL: request.input.fileURL),
+            parsed.parsedBytes <= sourceObservation.metadata.size,
+            !sourceObservation.appended || !parsedSnapshotComplete
+        else {
+            request.context.scanBudget?.recordSourceMutationDeferral()
+            if let cached = request.input.cached {
+                Self.retainCodexRescanPublicationUsage(
+                    transaction,
+                    usage: cached,
+                    remember: true)
+            }
+            return false
+        }
+        transaction.requestedScanIsComplete = parsedSnapshotComplete
+        transaction.sourceObservation = sourceObservation
+        return true
+    }
+
+    @inline(never)
+    private static func persistCodexRescanPublicationTokenIndex(
+        _ transaction: CodexRescanPublicationTransaction) -> Bool
+    {
+        let request = transaction.request
+        let parsed = transaction.parsed
+        guard let sourceObservation = transaction.sourceObservation else { return false }
+        let tokenIndex = Self.replacingCodexTokenIndex(
+            events: parsed.tokenSnapshots,
+            nextUsageRowIndex: parsed.nextUsageRowIndex,
+            fileURL: request.input.fileURL,
+            fileId: sourceObservation.metadata.fileId,
+            indexedBytes: parsed.parsedBytes,
+            isComplete: transaction.requestedScanIsComplete,
+            store: request.context.resources.tokenIndexStore)
+        transaction.tokenIndex = tokenIndex
+        transaction.scanIsComplete = transaction.requestedScanIsComplete
+            && tokenIndex.isComplete
+            && parsed.deferredReplayState == nil
+        return true
+    }
+
+    @inline(never)
+    private static func deriveCodexRescanPublicationMetadata(
+        _ transaction: CodexRescanPublicationTransaction) -> Bool
+    {
+        let request = transaction.request
+        let parsed = transaction.parsed
         let forkBaselineDependencyKey = Self.codexForkBaselineDependencyKey(
             parentSessionId: parsed.forkedFromId,
             dependsOnParentTotals: parsed.dependsOnParentTotals,
-            inheritedResolver: context.resources.inheritedResolver)
-        let cachedSessionMetadata = input.cached?.codexSession ?? CostUsageCodexSessionMetadata(
-            sessionId: input.cached?.sessionId,
-            forkedFromId: input.cached?.forkedFromId,
-            cwd: nil,
-            title: nil,
-            startedAtUnixMs: nil,
-            latestActivityUnixMs: nil)
-        let parsedCodexSession = cachedSessionMetadata.merging(parsed.codexSession)
-        let sessionId = parsedCodexSession.sessionId ?? parsed.sessionId ?? input.cached?.sessionId
-        let projectPath = parsed.projectPath ?? input.cached?.projectPath
+            inheritedResolver: request.context.resources.inheritedResolver)
+        let cachedSessionMetadata = request.retainedCached?.codexSession
+            ?? CostUsageCodexSessionMetadata(
+                sessionId: request.retainedCached?.sessionId,
+                forkedFromId: request.retainedCached?.forkedFromId,
+                cwd: nil,
+                title: nil,
+                startedAtUnixMs: nil,
+                latestActivityUnixMs: nil)
+        let codexSession = cachedSessionMetadata.merging(parsed.codexSession)
+        let sessionId = codexSession.sessionId
+            ?? parsed.sessionId
+            ?? request.retainedCached?.sessionId
+        let projectPath = parsed.projectPath ?? request.retainedCached?.projectPath
         let canonicalProjectPath = parsed.projectPath.map {
-            context.resources.projectPathResolver.canonicalProjectPath(for: $0)
-        } ?? input.cached?.canonicalProjectPath ?? context.resources.projectPathResolver
-            .canonicalProjectPath(for: projectPath)
-        let uniqueRows = Self.uniqueCodexRows(
-            rows: parsed.rows,
-            sessionId: sessionId,
-            fileIdentity: input.metadata.path,
-            state: &state)
-        if let sessionId,
-           state.contributingSessionIds.contains(sessionId),
-           uniqueRows.isEmpty,
-           usageDays.isEmpty,
-           parsed.bufferedSubagentLines == nil
-        {
-            cache.files.removeValue(forKey: input.metadata.path)
-            return
-        }
-        let uniqueDays = Self.codexFileDays(rows: uniqueRows)
-        Self.mergeFileDays(existing: &usageDays, delta: uniqueDays)
-        let splitMaps = Self.codexModeSplitMaps(
-            rows: uniqueRows,
-            range: context.range,
-            priorityTurns: context.resources.priorityTurns,
-            modelsDevCatalog: context.resources.modelsDevCatalog,
-            modelsDevCacheRoot: context.resources.modelsDevCacheRoot)
+            request.context.resources.projectPathResolver.canonicalProjectPath(for: $0)
+        } ?? request.retainedCached?.canonicalProjectPath
+            ?? request.context.resources.projectPathResolver.canonicalProjectPath(for: projectPath)
 
-        cache.files[input.metadata.path] = Self.makeFileUsage(
-            mtimeUnixMs: input.metadata.mtimeUnixMs,
-            size: input.metadata.size,
-            days: usageDays,
+        transaction.forkBaselineDependencyKey = forkBaselineDependencyKey
+        transaction.codexSession = codexSession
+        transaction.sessionId = sessionId
+        transaction.sourceForkedFromId = codexSession.forkedFromId ?? parsed.forkedFromId
+        transaction.projectPath = projectPath
+        transaction.canonicalProjectPath = canonicalProjectPath
+        transaction.stateBeforeMerge = transaction.state
+        return true
+    }
+
+    @inline(never)
+    private static func validateCodexRescanPublicationOwnership(
+        _ transaction: CodexRescanPublicationTransaction) throws -> Bool
+    {
+        let request = transaction.request
+        let parsed = transaction.parsed
+        guard let sourceObservation = transaction.sourceObservation,
+              let tokenIndex = transaction.tokenIndex
+        else { return false }
+        Self.notifyCodexBeforeFileUsagePublicationForTesting(fileURL: request.input.fileURL)
+        let finalSourceGuard = CodexFileSourceGuard(
+            metadata: sourceObservation.metadata,
+            prefixAnchor: tokenIndex.anchor)
+        guard let finalSourceObservation = Self.observeCodexFileSource(
+            sourceGuard: finalSourceGuard,
+            fileURL: request.input.fileURL),
+            finalSourceObservation.metadata.size >= parsed.parsedBytes,
+            !finalSourceObservation.appended || !tokenIndex.isComplete
+        else {
+            request.context.scanBudget?.recordSourceMutationDeferral()
+            transaction.state = transaction.stateBeforeMerge
+            if let cached = request.input.cached {
+                Self.retainCodexRescanPublicationUsage(
+                    transaction,
+                    usage: cached,
+                    remember: true)
+            }
+            return false
+        }
+        transaction.sourceObservation = finalSourceObservation
+        if finalSourceObservation.appended {
+            transaction.scanIsComplete = false
+        }
+        if try Self.deferCodexForkPublicationIfDependencyChanged(
+            parentSessionId: parsed.forkedFromId,
+            dependsOnParentTotals: parsed.dependsOnParentTotals,
+            dependencyKeyUsed: transaction.forkBaselineDependencyKey,
+            input: request.input,
+            cached: request.input.cached,
+            context: request.context,
+            cache: &transaction.cache,
+            state: &transaction.state,
+            stateBeforePublication: transaction.stateBeforeMerge)
+        {
+            return false
+        }
+        guard Self.claimCodexForkSessionOwnership(
+            input: request.input,
+            sessionId: transaction.sessionId,
+            forkedFromId: transaction.sourceForkedFromId,
+            context: request.context,
+            cache: &transaction.cache,
+            state: &transaction.state)
+        else {
+            transaction.state = transaction.stateBeforeMerge
+            if let cached = request.input.cached {
+                transaction.cache.files[request.input.metadata.path] = cached
+            }
+            return false
+        }
+        return true
+    }
+
+    @inline(never)
+    private static func prepareCodexRescanPublicationRowIdentity(
+        _ transaction: CodexRescanPublicationTransaction) -> Bool
+    {
+        let request = transaction.request
+        transaction.suppressedByAuthoritativeFork = Self.codexNonForkSourceIsSuppressed(
+            sessionId: transaction.sessionId,
+            forkedFromId: transaction.sourceForkedFromId,
+            state: transaction.state)
+        transaction.sessionAlreadyContributed = transaction.sessionId.map {
+            transaction.state.contributingSessionIds.contains($0)
+        } ?? false
+        if transaction.sessionAlreadyContributed,
+           !Self.prepareCodexSessionRowIdentity(
+               sessionId: transaction.sessionId,
+               excludingPath: request.input.metadata.path,
+               cache: &transaction.cache,
+               context: request.context,
+               state: &transaction.state)
+        {
+            transaction.state = transaction.stateBeforeMerge
+            if let cached = request.input.cached {
+                transaction.cache.files[request.input.metadata.path] = cached
+            }
+            return false
+        }
+        return true
+    }
+
+    @inline(never)
+    private static func computeCodexRescanPublicationUsageRows(
+        _ transaction: CodexRescanPublicationTransaction) -> Bool
+    {
+        let request = transaction.request
+        transaction.uniqueRows = Self.uniqueCodexRows(
+            rows: transaction.parsed.rows,
+            sessionId: transaction.sessionId,
+            forkedFromId: transaction.sourceForkedFromId,
+            fileIdentity: request.input.metadata.path,
+            state: &transaction.state)
+        transaction.uniqueDays = Self.codexFileDays(rows: transaction.uniqueRows)
+        Self.mergeFileDays(
+            existing: &transaction.usageDays,
+            delta: transaction.uniqueDays)
+        let splitMaps = Self.codexModeSplitMaps(
+            rows: transaction.uniqueRows,
+            range: request.context.range,
+            priorityTurns: request.context.resources.priorityTurns,
+            modelsDevCatalog: request.context.resources.modelsDevCatalog,
+            modelsDevCacheRoot: request.context.resources.modelsDevCacheRoot)
+        transaction.standardCostNanos = splitMaps.standardCostNanos
+        transaction.priorityCostNanos = splitMaps.priorityCostNanos
+        transaction.standardTokens = splitMaps.standardTokens
+        transaction.priorityTokens = splitMaps.priorityTokens
+        return true
+    }
+
+    @inline(never)
+    private static func loadCodexRescanPublicationRetainedRows(
+        _ transaction: CodexRescanPublicationTransaction) -> Bool
+    {
+        let request = transaction.request
+        guard request.preservesLegacyOutsideProjection,
+              let retainedCached = request.retainedCached
+        else {
+            transaction.retainedRows = []
+            return true
+        }
+        switch Self.codexUsageRows(
+            usage: retainedCached,
+            fileURL: request.input.fileURL,
+            context: request.context)
+        {
+        case let .ready(rows):
+            transaction.retainedRows = transaction.suppressedByAuthoritativeFork
+                ? Self.codexRowsOutsideScanRange(rows, range: request.context.range)
+                : rows
+            return true
+        case .needsRebuild:
+            request.context.scanBudget?.recordPersistenceDeferral()
+            transaction.state = transaction.stateBeforeMerge
+            if let cached = request.input.cached {
+                transaction.cache.files[request.input.metadata.path] =
+                    Self.codexUsageRequiringUsageRowIndexRebuild(cached)
+            }
+            return false
+        case .temporarilyUnavailable:
+            request.context.scanBudget?.recordPersistenceDeferral()
+            transaction.state = transaction.stateBeforeMerge
+            if let cached = request.input.cached {
+                transaction.cache.files[request.input.metadata.path] = cached
+            }
+            return false
+        }
+    }
+
+    @inline(never)
+    private static func priceCodexRescanPublicationRows(
+        _ transaction: CodexRescanPublicationTransaction) -> Bool
+    {
+        let mergedRows = Self.mergeCodexRows(
+            transaction.retainedRows,
+            rows: transaction.uniqueRows,
+            sessionId: transaction.sessionId) ?? []
+        transaction.pricedRows = Self.pricedCodexUsageRows(
+            mergedRows,
+            context: transaction.request.context)
+        return true
+    }
+
+    @inline(never)
+    private static func persistCodexRescanPublicationRows(
+        _ transaction: CodexRescanPublicationTransaction) -> Bool
+    {
+        let request = transaction.request
+        let parsed = transaction.parsed
+        guard let sourceObservation = transaction.sourceObservation,
+              let tokenIndex = transaction.tokenIndex,
+              let codexSession = transaction.codexSession
+        else { return false }
+        let rowPersistence = Self.replacingCodexUsageRows(
+            rows: transaction.pricedRows,
+            nextUsageRowIndex: parsed.nextUsageRowIndex,
+            fileURL: request.input.fileURL,
+            fileId: sourceObservation.metadata.fileId,
+            indexedBytes: parsed.parsedBytes,
+            anchor: tokenIndex.anchor,
+            isComplete: transaction.scanIsComplete,
+            changeUnixNs: sourceObservation.metadata.changeUnixNs,
+            sessionId: transaction.sessionId,
+            forkedFromId: codexSession.forkedFromId ?? parsed.forkedFromId,
+            forkDependencyKey: transaction.forkBaselineDependencyKey,
+            ownershipKey: transaction.sessionAlreadyContributed
+                || transaction.suppressedByAuthoritativeFork
+                ? Self.codexUsageRowOwnershipKey(
+                    sessionId: transaction.sessionId,
+                    forkedFromId: transaction.sourceForkedFromId,
+                    input: request.input,
+                    cache: transaction.cache)
+                : nil,
+            context: request.context)
+        switch rowPersistence {
+        case let .persisted(sidecarState):
+            transaction.publishedRowState = sidecarState
+            transaction.publishedInlineRows = nil
+            return true
+        case let .inline(rows):
+            transaction.publishedRowState = nil
+            transaction.publishedInlineRows = rows
+            return true
+        case .retryLater:
+            request.context.scanBudget?.recordPersistenceDeferral()
+            transaction.state = transaction.stateBeforeMerge
+            if let cached = request.input.cached {
+                transaction.cache.files[request.input.metadata.path] = cached
+            }
+            return false
+        case .rebuildNextPass:
+            request.context.scanBudget?.recordPersistenceDeferral()
+            transaction.state = transaction.stateBeforeMerge
+            if let cached = request.input.cached {
+                transaction.cache.files[request.input.metadata.path] =
+                    Self.codexUsageRequiringUsageRowIndexRebuild(cached)
+            }
+            return false
+        }
+    }
+
+    @inline(never)
+    private static func revalidateCodexRescanPublication(
+        _ transaction: CodexRescanPublicationTransaction) throws -> Bool
+    {
+        let request = transaction.request
+        let parsed = transaction.parsed
+        guard let sourceObservation = transaction.sourceObservation,
+              let tokenIndex = transaction.tokenIndex
+        else { return false }
+        guard Self.observeCodexFileSource(
+            sourceGuard: CodexFileSourceGuard(
+                metadata: sourceObservation.metadata,
+                prefixAnchor: tokenIndex.anchor),
+            fileURL: request.input.fileURL) != nil
+        else {
+            request.context.scanBudget?.recordSourceMutationDeferral()
+            transaction.state = transaction.stateBeforeMerge
+            if let cached = request.input.cached {
+                transaction.cache.files[request.input.metadata.path] = cached
+            }
+            return false
+        }
+        if try Self.deferCodexForkPublicationIfDependencyChanged(
+            parentSessionId: parsed.forkedFromId,
+            dependsOnParentTotals: parsed.dependsOnParentTotals,
+            dependencyKeyUsed: transaction.forkBaselineDependencyKey,
+            input: request.input,
+            cached: request.input.cached,
+            context: request.context,
+            cache: &transaction.cache,
+            state: &transaction.state,
+            stateBeforePublication: transaction.stateBeforeMerge)
+        {
+            return false
+        }
+        return true
+    }
+
+    @inline(never)
+    private static func computeCodexRescanPublicationAggregates(
+        _ transaction: CodexRescanPublicationTransaction) -> Bool
+    {
+        let request = transaction.request
+        let retainedCached = request.retainedCached
+        let context = request.context
+        let outsideCostNanos = request.preservesLegacyOutsideProjection
+            ? Self.costMapOutsideScanWindow(retainedCached?.codexCostNanos, range: context.range)
+            : nil
+        transaction.codexCostNanos = Self.mergeCostMaps(
+            outsideCostNanos,
+            Self.codexCostNanos(
+                rows: transaction.uniqueRows,
+                range: context.range,
+                modelsDevCatalog: context.resources.modelsDevCatalog,
+                modelsDevCacheRoot: context.resources.modelsDevCacheRoot))
+        let outsideSurcharge = request.preservesLegacyOutsideProjection
+            ? Self.costMapOutsideScanWindow(
+                retainedCached?.codexPrioritySurchargeNanos,
+                range: context.range)
+            : nil
+        transaction.codexPrioritySurchargeNanos = Self.mergeCostMaps(
+            outsideSurcharge,
+            Self.codexPrioritySurchargeNanos(
+                rows: transaction.uniqueRows,
+                range: context.range,
+                priorityTurns: context.resources.priorityTurns,
+                modelsDevCatalog: context.resources.modelsDevCatalog,
+                modelsDevCacheRoot: context.resources.modelsDevCacheRoot))
+        transaction.standardCostNanos = Self.mergeCostMaps(
+            request.preservesLegacyOutsideProjection
+                ? Self.costMapOutsideScanWindow(
+                    retainedCached?.codexStandardCostNanos,
+                    range: context.range)
+                : nil,
+            transaction.standardCostNanos)
+        transaction.priorityCostNanos = Self.mergeCostMaps(
+            request.preservesLegacyOutsideProjection
+                ? Self.costMapOutsideScanWindow(
+                    retainedCached?.codexPriorityCostNanos,
+                    range: context.range)
+                : nil,
+            transaction.priorityCostNanos)
+        transaction.standardTokens = Self.mergeIntMaps(
+            request.preservesLegacyOutsideProjection
+                ? Self.intMapOutsideScanWindow(
+                    retainedCached?.codexStandardTokens,
+                    range: context.range)
+                : nil,
+            transaction.standardTokens)
+        transaction.priorityTokens = Self.mergeIntMaps(
+            request.preservesLegacyOutsideProjection
+                ? Self.intMapOutsideScanWindow(
+                    retainedCached?.codexPriorityTokens,
+                    range: context.range)
+                : nil,
+            transaction.priorityTokens)
+        transaction.publishedTurnIDs = transaction.publishedRowState == nil
+            ? Self.codexTurnIDs(rows: transaction.publishedInlineRows ?? [])
+            : nil
+        return true
+    }
+
+    @inline(never)
+    private static func buildCodexRescanPublicationUsage(
+        _ transaction: CodexRescanPublicationTransaction) -> Bool
+    {
+        let parsed = transaction.parsed
+        guard let sourceObservation = transaction.sourceObservation,
+              let tokenIndex = transaction.tokenIndex,
+              let codexSession = transaction.codexSession
+        else { return false }
+        transaction.finalUsage = Self.makeFileUsage(
+            mtimeUnixMs: sourceObservation.metadata.mtimeUnixMs,
+            size: sourceObservation.metadata.size,
+            days: transaction.usageDays,
             parsedBytes: parsed.parsedBytes,
             lastModel: parsed.lastModel,
             lastTotals: parsed.lastTotals,
@@ -1423,81 +3944,87 @@ extension CostUsageScanner {
             hasDivergentTotals: parsed.hasDivergentTotals,
             hasInterleavedTotals: parsed.hasInterleavedTotals,
             lastCodexTurnID: parsed.lastCodexTurnID,
-            sessionId: sessionId,
-            forkedFromId: parsedCodexSession.forkedFromId ?? parsed.forkedFromId,
-            forkBaselineDependencyKey: forkBaselineDependencyKey,
-            projectPath: projectPath,
-            canonicalProjectPath: canonicalProjectPath,
-            codexSession: parsedCodexSession.isEmpty ? nil : parsedCodexSession,
-            codexCostNanos: Self.mergeCostMaps(
-                context.dropDeferredCodexRows
-                    ? nil
-                    : Self.costMapOutsideScanWindow(migratedCached?.codexCostNanos, range: context.range),
-                Self.codexCostNanos(
-                    rows: uniqueRows,
-                    range: context.range,
-                    modelsDevCatalog: context.resources.modelsDevCatalog,
-                    modelsDevCacheRoot: context.resources.modelsDevCacheRoot)),
-            codexPrioritySurchargeNanos: Self.mergeCostMaps(
-                context.dropDeferredCodexRows
-                    ? nil
-                    : Self.costMapOutsideScanWindow(migratedCached?.codexPrioritySurchargeNanos, range: context.range),
-                Self.codexPrioritySurchargeNanos(
-                    rows: uniqueRows,
-                    range: context.range,
-                    priorityTurns: context.resources.priorityTurns,
-                    modelsDevCatalog: context.resources.modelsDevCatalog,
-                    modelsDevCacheRoot: context.resources.modelsDevCacheRoot)),
-            codexStandardCostNanos: Self.mergeCostMaps(
-                context.dropDeferredCodexRows
-                    ? nil
-                    : Self.costMapOutsideScanWindow(migratedCached?.codexStandardCostNanos, range: context.range),
-                splitMaps.standardCostNanos),
-            codexPriorityCostNanos: Self.mergeCostMaps(
-                context.dropDeferredCodexRows
-                    ? nil
-                    : Self.costMapOutsideScanWindow(migratedCached?.codexPriorityCostNanos, range: context.range),
-                splitMaps.priorityCostNanos),
-            codexStandardTokens: Self.mergeIntMaps(
-                context.dropDeferredCodexRows
-                    ? nil
-                    : Self.intMapOutsideScanWindow(migratedCached?.codexStandardTokens, range: context.range),
-                splitMaps.standardTokens),
-            codexPriorityTokens: Self.mergeIntMaps(
-                context.dropDeferredCodexRows
-                    ? nil
-                    : Self.intMapOutsideScanWindow(migratedCached?.codexPriorityTokens, range: context.range),
-                splitMaps.priorityTokens),
-            codexTurnIDs: context.dropDeferredCodexRows
-                ? Self.codexTurnIDs(rows: uniqueRows)
-                : Self.mergeCodexTurnIDs(migratedCached?.codexTurnIDs, rows: uniqueRows),
-            codexRows: context.dropDeferredCodexRows
+            sessionId: transaction.sessionId,
+            forkedFromId: codexSession.forkedFromId ?? parsed.forkedFromId,
+            codexForkTimestamp: parsed.forkTimestamp,
+            forkBaselineDependencyKey: transaction.forkBaselineDependencyKey,
+            projectPath: transaction.projectPath,
+            canonicalProjectPath: transaction.canonicalProjectPath,
+            codexSession: codexSession.isEmpty ? nil : codexSession,
+            codexCostNanos: transaction.codexCostNanos,
+            codexPrioritySurchargeNanos: transaction.codexPrioritySurchargeNanos,
+            codexStandardCostNanos: transaction.standardCostNanos,
+            codexPriorityCostNanos: transaction.priorityCostNanos,
+            codexStandardTokens: transaction.standardTokens,
+            codexPriorityTokens: transaction.priorityTokens,
+            codexTurnIDs: transaction.publishedTurnIDs,
+            codexRows: transaction.publishedInlineRows,
+            codexTokenSnapshots: tokenIndex.snapshots,
+            codexTokenCheckpoints: tokenIndex.checkpoints,
+            codexTokenTimestampsMonotonic: tokenIndex.timestampsMonotonic,
+            codexTokenIndexAnchor: tokenIndex.anchor,
+            codexTokenSidecarState: tokenIndex.sidecarState,
+            codexUsageRowSidecarState: transaction.publishedRowState,
+            codexUsageRowProducerKey: transaction.publishedRowState == nil
                 ? nil
-                : Self.codexRowsWithPricingAudit(
-                    Self.mergeCodexRows(migratedCached?.codexRows, rows: uniqueRows, sessionId: sessionId) ?? [],
-                    priorityTurns: context.resources.priorityTurns,
-                    modelsDevCatalog: context.resources.modelsDevCatalog,
-                    modelsDevCacheRoot: context.resources.modelsDevCacheRoot),
-            codexTokenSnapshots: parsed.tokenSnapshots,
-            codexTokenCheckpoints: Self.codexTokenCheckpoints(for: parsed.tokenSnapshots),
-            codexTokenTimestampsMonotonic: Self.codexTokenTimestampsAreMonotonic(parsed.tokenSnapshots),
-            codexTokenIndexAnchor: Self.codexTokenIndexAnchor(
-                fileURL: input.fileURL,
-                indexedBytes: parsed.parsedBytes),
-            codexScanFileId: input.metadata.fileId,
-            codexScanTargetSize: input.metadata.size,
-            codexScanComplete: parsed.parsedBytes >= input.metadata.size && parsed.jsonlResumeState == nil,
+                : transaction.request.context.resources.currentProducerKey,
+            codexForkAccountingState: parsed.forkAccountingState,
+            codexScanFileId: sourceObservation.metadata.fileId,
+            codexScanChangeUnixNs: sourceObservation.metadata.changeUnixNs,
+            codexScanTargetSize: sourceObservation.metadata.size,
+            codexScanComplete: transaction.scanIsComplete,
             codexJSONLResumeState: parsed.jsonlResumeState,
             codexBufferedSubagentLines: parsed.bufferedSubagentLines,
+            codexSubagentResumeState: parsed.subagentResumeState,
+            codexDeferredReplayState: parsed.deferredReplayState,
             codexBufferedUnresolvedForkLines: parsed.bufferedUnresolvedForkLines)
             .refreshingCodexWorkspaceUsageFingerprint()
-        Self.applyFileDays(cache: &cache, fileDays: cache.files[input.metadata.path]?.days ?? [:], sign: 1)
+        return true
+    }
+
+    @inline(never)
+    private static func commitCodexRescanPublication(
+        _ transaction: CodexRescanPublicationTransaction)
+    {
+        let request = transaction.request
+        guard let finalUsage = transaction.finalUsage else { return }
+        if request.discardedCachedSourceDetail {
+            transaction.cache.scanSinceKey = nil
+            transaction.cache.scanUntilKey = nil
+        }
+        if let cached = request.input.cached {
+            Self.applyFileDays(cache: &transaction.cache, fileDays: cached.days, sign: -1)
+        }
+        transaction.cache.files[request.input.metadata.path] = finalUsage
+        Self.applyFileDays(
+            cache: &transaction.cache,
+            fileDays: finalUsage.days,
+            sign: 1)
         Self.rememberScannedCodexFile(
-            input: input,
-            session: CodexScannedSession(id: sessionId, days: usageDays),
-            rows: uniqueRows,
-            context: context,
-            state: &state)
+            input: request.input,
+            session: CodexScannedSession(
+                id: transaction.sessionId,
+                days: transaction.usageDays),
+            rows: transaction.uniqueRows,
+            context: request.context,
+            state: &transaction.state)
+    }
+
+    @inline(never)
+    private static func retainCodexRescanPublicationUsage(
+        _ transaction: CodexRescanPublicationTransaction,
+        usage: CostUsageFileUsage,
+        remember: Bool)
+    {
+        let request = transaction.request
+        transaction.cache.files[request.input.metadata.path] = usage
+        guard remember else { return }
+        Self.rememberScannedCodexFile(
+            input: request.input,
+            session: CodexScannedSession(id: usage.sessionId, days: usage.days),
+            rows: usage.codexRows ?? [],
+            context: request.context,
+            state: &transaction.state)
     }
 
     static func codexForkBaselineDependencyKey(

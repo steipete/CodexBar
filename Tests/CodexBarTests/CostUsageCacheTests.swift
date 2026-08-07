@@ -1,3 +1,4 @@
+// swiftlint:disable file_length
 import Foundation
 import Testing
 @testable import CodexBarCore
@@ -150,6 +151,72 @@ struct CostUsageCacheTests {
     }
 
     @Test
+    func `published usage row generations ignore report compatibility filters`() throws {
+        let root = try self.makeTemporaryCacheRoot()
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        func sidecarState(_ generation: String) -> CostUsageCodexUsageRowSidecarState {
+            CostUsageCodexUsageRowSidecarState(
+                generation: generation,
+                rowCount: 1,
+                nextUsageRowIndex: 1,
+                prefixDigest: String(repeating: "0", count: 64),
+                coverageSinceKey: "2026-05-01",
+                coverageUntilKey: "2026-05-31",
+                pricingKey: "pricing-v1",
+                priorityMetadataKey: "priority-v1")
+        }
+
+        var first = CostUsageFileUsage(mtimeUnixMs: 1, size: 10, days: [:])
+        first.codexUsageRowSidecarState = sidecarState("generation-first")
+        var second = CostUsageFileUsage(mtimeUnixMs: 2, size: 20, days: [:])
+        second.codexUsageRowSidecarState = sidecarState("generation-second")
+        var cache = CostUsageCache()
+        cache.files = [
+            "/sessions/first.jsonl": first,
+            "/sessions/second.jsonl": second,
+            "/sessions/inline.jsonl": CostUsageFileUsage(mtimeUnixMs: 3, size: 30, days: [:]),
+        ]
+        var foreignCalendar = Calendar(identifier: .gregorian)
+        foreignCalendar.timeZone = try #require(TimeZone(identifier: "Asia/Tokyo"))
+        CostUsageCacheIO.save(
+            provider: .codex,
+            cache: cache,
+            cacheRoot: root,
+            producerKey: "codex:cu:pincompatible",
+            calendar: foreignCalendar)
+
+        let generations = CostUsageCacheIO.loadPublishedCodexUsageRowGenerationIDs(cacheRoot: root)
+        #expect(generations == Set(["generation-first", "generation-second"]))
+    }
+
+    @Test
+    func `published usage row generation load fails closed`() throws {
+        let root = try self.makeTemporaryCacheRoot()
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        #expect(CostUsageCacheIO.loadPublishedCodexUsageRowGenerationIDs(cacheRoot: root) == Set<String>())
+
+        let url = CostUsageCacheIO.cacheFileURL(provider: .codex, cacheRoot: root)
+        try FileManager.default.createDirectory(
+            at: url.deletingLastPathComponent(),
+            withIntermediateDirectories: true)
+        try Data("{not-json".utf8).write(to: url)
+        #expect(CostUsageCacheIO.loadPublishedCodexUsageRowGenerationIDs(cacheRoot: root) == nil)
+
+        var unsupported = CostUsageCache()
+        unsupported.version = 2
+        try JSONEncoder().encode(unsupported).write(to: url)
+        #expect(CostUsageCacheIO.loadPublishedCodexUsageRowGenerationIDs(cacheRoot: root) == nil)
+
+        let validData = try JSONEncoder().encode(CostUsageCache())
+        try validData.write(to: url)
+        #expect(CostUsageCacheIO.loadPublishedCodexUsageRowGenerationIDs(
+            cacheRoot: root,
+            maxCacheBytes: validData.count - 1) == nil)
+    }
+
+    @Test
     func `legacy cache without producer key is ignored`() throws {
         let root = try self.makeTemporaryCacheRoot()
         defer { try? FileManager.default.removeItem(at: root) }
@@ -206,26 +273,33 @@ struct CostUsageCacheTests {
     }
 
     @Test
-    func `current codex cache accepts the append resume predecessor`() throws {
+    func `current codex cache accepts append resume and sidecar predecessors`() throws {
         let root = try self.makeTemporaryCacheRoot()
         defer { try? FileManager.default.removeItem(at: root) }
 
-        var cache = CostUsageCache()
-        cache.lastScanUnixMs = 123
-        cache.days = ["2026-05-18": ["gpt-5.5": [1, 2, 3]]]
-        CostUsageCacheIO.save(
-            provider: .codex,
-            cache: cache,
-            cacheRoot: root,
-            producerKey: "codex:cu:p843ca061c36bbea1")
+        for producerKey in [
+            "codex:cu:p843ca061c36bbea1",
+            "codex:cu:p6c0f1fa950e63467",
+            "codex:cu:p89e80f722cad05c8",
+            "codex:cu:pcdc205df2dba1a53",
+        ] {
+            var cache = CostUsageCache()
+            cache.lastScanUnixMs = 123
+            cache.days = ["2026-05-18": ["gpt-5.5": [1, 2, 3]]]
+            CostUsageCacheIO.save(
+                provider: .codex,
+                cache: cache,
+                cacheRoot: root,
+                producerKey: producerKey)
 
-        let loaded = CostUsageCacheIO.load(provider: .codex, cacheRoot: root)
-        let migration = CostUsageCacheIO.loadCodexForMigration(cacheRoot: root)
+            let loaded = CostUsageCacheIO.load(provider: .codex, cacheRoot: root)
+            let migration = CostUsageCacheIO.loadCodexForMigration(cacheRoot: root)
 
-        #expect(loaded.lastScanUnixMs == 123)
-        #expect(loaded.days["2026-05-18"]?["gpt-5.5"] == [1, 2, 3])
-        #expect(migration.cache.lastScanUnixMs == 123)
-        #expect(migration.incompatibleCache == nil)
+            #expect(loaded.lastScanUnixMs == 123)
+            #expect(loaded.days["2026-05-18"]?["gpt-5.5"] == [1, 2, 3])
+            #expect(migration.cache.lastScanUnixMs == 123)
+            #expect(migration.incompatibleCache == nil)
+        }
     }
 
     @Test
@@ -547,7 +621,7 @@ struct CostUsageCacheTests {
             days: ["2026-04-13": ["gpt-5.5": [1, 0, 0]]])
         completedWithScanID.codexScanFileId = "scan-id"
         completedWithScanID.codexScanComplete = true
-        var settled = CostUsageFileUsage(
+        let settled = CostUsageFileUsage(
             mtimeUnixMs: 1,
             size: 100,
             days: ["2026-04-12": ["gpt-5.5": [1, 0, 0]]])
@@ -631,7 +705,7 @@ struct CostUsageCacheTests {
         var cache = CostUsageCache()
         cache.scanSinceKey = "2026-06-01"
         cache.scanUntilKey = "2026-07-01"
-        var inWindow = CostUsageFileUsage(
+        let inWindow = CostUsageFileUsage(
             mtimeUnixMs: 1,
             size: 100,
             days: ["2026-06-20": ["gpt-5.5": [1, 0, 0]]])
@@ -1252,7 +1326,7 @@ struct CostUsageCacheTests {
     }
 
     @Test
-    func `save clears the active lookback queue when it keeps the artifact over budget`() throws {
+    func `save rewinds active lookback body work when it keeps the artifact over budget`() throws {
         let root = try self.makeTemporaryCacheRoot()
         defer { try? FileManager.default.removeItem(at: root) }
 
@@ -1290,9 +1364,12 @@ struct CostUsageCacheTests {
             producerKey: "codex:cu:p1111111111111111")
         let lookback = try #require(loaded.codexActiveLookbackState)
         #expect(lookback.pendingFilePaths.isEmpty)
-        #expect(lookback.legacyRecursivePendingRootPaths == ["/sessions/archive"])
-        #expect(loaded.codexSessionDiscovery?.filePaths.contains("/sessions/pending-0.jsonl") == true)
-        #expect(loaded.codexSessionDiscovery?.directoryPaths.isEmpty == true)
+        #expect(lookback.completedRootPaths.isEmpty)
+        #expect(lookback.nextDayKeyByRoot.isEmpty)
+        #expect(lookback.legacyRecursivePendingRootPaths == ["/sessions", "/sessions/archive"])
+        #expect(loaded.codexSessionDiscovery == nil)
+        #expect(loaded.codexScanCatchUpPending == true)
+        #expect(loaded.lastScanUnixMs == 0)
         #expect(loaded.files["/sessions/in-window.jsonl"] != nil)
     }
 
@@ -1624,15 +1701,24 @@ struct CostUsageCacheTests {
     }
 
     @Test
-    func `save removes the artifact when enforcement cannot fit the load cap`() throws {
+    func `save preserves the published artifact when a candidate cannot fit the load cap`() throws {
         let root = try self.makeTemporaryCacheRoot()
         defer { try? FileManager.default.removeItem(at: root) }
 
         let url = CostUsageCacheIO.cacheFileURL(provider: .codex, cacheRoot: root)
-        try FileManager.default.createDirectory(
-            at: url.deletingLastPathComponent(),
-            withIntermediateDirectories: true)
-        try Data(repeating: 0x20, count: 128).write(to: url)
+        var published = CostUsageCache()
+        published.scanSinceKey = "2026-06-01"
+        published.scanUntilKey = "2026-07-01"
+        published.days = ["2026-06-10": ["gpt-5.5": [7, 0, 0]]]
+        CostUsageCacheIO.save(
+            provider: .codex,
+            cache: published,
+            cacheRoot: root,
+            producerKey: "codex:cu:p1111111111111111",
+            requestedScanWindow: (sinceKey: "2026-06-01", untilKey: "2026-07-01"),
+            maxCacheBytes: 1024 * 1024,
+            maxCacheEntries: 100)
+        let publishedData = try Data(contentsOf: url)
 
         var cache = CostUsageCache()
         cache.scanSinceKey = "2026-06-01"
@@ -1663,9 +1749,14 @@ struct CostUsageCacheTests {
             maxCacheEntries: 100,
             maxCacheLoadBytes: 50000)
 
-        // Persisting an artifact the loader refuses would decode-and-discard it on every
-        // launch; the stale artifact must be gone so the bounded scanner rebuilds instead.
-        #expect(!FileManager.default.fileExists(atPath: url.path))
+        // Refusing this writer's oversized candidate must not delete a valid artifact that a
+        // concurrent process may already have published.
+        #expect(try Data(contentsOf: url) == publishedData)
+        let loaded = CostUsageCacheIO.load(
+            provider: .codex,
+            cacheRoot: root,
+            producerKey: "codex:cu:p1111111111111111")
+        #expect(loaded.days == published.days)
     }
 
     private func makeTemporaryCacheRoot() throws -> URL {

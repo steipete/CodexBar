@@ -20,16 +20,20 @@ enum CostUsageCacheIO {
     static let maxCacheLoadBytes: Int = 320 * 1024 * 1024
 
     /// Producer keys from older parser hashes whose caches are still valid under the current
-    /// delta semantics. #2037 invalidated earlier keys; every rotation since #2632 (append-safe
-    /// fork resume, bounded persistence, provider-special-case refactors, catch-up report
-    /// calendar normalization) preserved stored totals and cache layout, so all shipped
-    /// predecessors back to #2632 remain reusable.
+    /// delta semantics. #2037 invalidated earlier keys; every rotation since #2632 preserved
+    /// stored totals and cache layout. Pre-sidecar producers remain safe to admit because the
+    /// migration revalidates any fork child published against an incomplete parent first.
     private static let compatibleCodexProducerKeys: Set<String> = [
         "codex:cu:p1cd29792d9ca2b11",
         "codex:cu:p37aedd661c4272a8",
         "codex:cu:p6c0f1fa950e63467",
         "codex:cu:paa27d287348e79b5",
         "codex:cu:p843ca061c36bbea1",
+        "codex:cu:p89e80f722cad05c8",
+        // The first sidecar producer already committed append-safe JSON/SQLite cursors. Path
+        // alias normalization only rebinds their dependency keys; discarding these caches would
+        // unnecessarily restart an in-progress multi-gigabyte catch-up from byte zero.
+        "codex:cu:pcdc205df2dba1a53",
     ]
 
     /// Parsing and attribution changes rotate the Codex parser producer key.
@@ -120,6 +124,43 @@ enum CostUsageCacheIO {
         return CostUsageCodexCacheLoadResult(cache: CostUsageCache(), incompatibleCache: decoded)
     }
 
+    /// Reads the generation IDs protected by the JSON artifact currently published on disk.
+    /// Maintenance must ignore producer and time-zone compatibility: either can make the cache
+    /// unusable to the current report without revoking the SQLite references it still publishes.
+    /// A missing artifact protects nothing; every other metadata, read, size, version, or decode
+    /// failure returns `nil` so callers can conservatively skip destructive maintenance.
+    static func loadPublishedCodexUsageRowGenerationIDs(
+        cacheRoot: URL? = nil,
+        maxCacheBytes: Int = CostUsageCacheIO.maxCacheLoadBytes) -> Set<String>?
+    {
+        guard maxCacheBytes >= 0 else { return nil }
+        let url = self.cacheFileURL(provider: .codex, cacheRoot: cacheRoot)
+        let attributes: [FileAttributeKey: Any]
+        do {
+            attributes = try FileManager.default.attributesOfItem(atPath: url.path)
+        } catch let error as CocoaError
+            where error.code == .fileNoSuchFile || error.code == .fileReadNoSuchFile
+        {
+            return []
+        } catch {
+            return nil
+        }
+        guard attributes[.type] as? FileAttributeType == .typeRegular,
+              let size = (attributes[.size] as? NSNumber)?.int64Value,
+              size >= 0,
+              size <= Int64(maxCacheBytes)
+        else { return nil }
+        guard let data = try? Data(contentsOf: url),
+              data.count == Int(size),
+              data.count <= maxCacheBytes,
+              let decoded = try? JSONDecoder().decode(CostUsageCache.self, from: data),
+              decoded.version == 1
+        else { return nil }
+        return Set(decoded.files.values.compactMap {
+            $0.codexUsageRowSidecarState?.generation
+        })
+    }
+
     private static func loadCache(
         at url: URL,
         expectedProducerKey: String?,
@@ -177,7 +218,7 @@ enum CostUsageCacheIO {
             // Estimate before materializing the document so a refresh that grew the cache
             // stays bounded even when the previous artifact was within budget.
             if Self.estimatedCodexCacheBytes(cache) > maxCacheBytes {
-                Self.pruneCodexCacheForBudget(
+                _ = Self.pruneCodexCacheForBudget(
                     &cache,
                     requestedScanWindow: requestedScanWindow,
                     calendar: calendar,
@@ -225,12 +266,15 @@ enum CostUsageCacheIO {
         }
         if provider == .codex, data.count > maxCacheLoadBytes {
             // Enforcement could not shrink the payload below what `load` accepts (e.g. the
-            // bulk lives in unstrippable resume/buffered state). Persisting it would make
-            // every launch decode a multi-GiB document just to refuse it; drop the artifact
-            // instead so the bounded scanner rebuilds from scratch.
-            try? FileManager.default.removeItem(at: url)
+            // bulk lives in unstrippable resume/buffered state). Do not replace or delete a
+            // previously published artifact: another process may have advanced it while this
+            // writer was scanning, and a non-destructive refusal is always recoverable.
             return
         }
+        // Sidecar rows are deliberately not garbage-collected here. A second app/CLI process may
+        // have committed SQLite before publishing its JSON cursor; deleting unreferenced rows in
+        // this save window could invalidate that newer cursor. Conservative maintenance can clean
+        // stale rows later without participating in the commit protocol.
         try? data.write(to: url, options: [.atomic])
     }
 
@@ -419,9 +463,11 @@ enum CostUsageCacheIO {
             Self.estimatedFileUsageBytes(lhs.usage) > Self.estimatedFileUsageBytes(rhs.usage)
         }
         for candidate in protectedBySize where estimated > target {
+            let before = Self.estimatedFileUsageBytes(candidate.usage)
             Self.stripFileUsageDetail(&cache, key: candidate.key)
             stripped = true
-            estimated -= Self.estimatedFileUsageBytes(candidate.usage)
+            let after = cache.files[candidate.key].map(Self.estimatedFileUsageBytes) ?? 0
+            estimated -= max(0, before - after)
         }
         // A sole in-window entry can still exceed the budget alone. Strip its rebuildable
         // detail (keeping identity, day aggregates, totals, and cost data) and force a
@@ -552,6 +598,7 @@ enum CostUsageCacheIO {
         discovery.nextFileIndex = 0
         discovery.nextDirectoryIndex = 0
         discovery.validationDirectoryIndex = 0
+        discovery.validationFileIndex = nil
         // A compacted discovery is no longer complete; the scanner re-enqueues current files
         // under its bounded budget instead of trusting stale coverage.
         discovery.isComplete = false
@@ -569,7 +616,25 @@ enum CostUsageCacheIO {
         usage.codexTokenSnapshots = nil
         usage.codexTokenCheckpoints = nil
         usage.codexTokenTimestampsMonotonic = nil
+        if usage.codexTokenSidecarState != nil,
+           usage.codexUsageRowSidecarState != nil,
+           usage.codexTokenIndexAnchor != nil,
+           usage.codexScanFileId != nil
+        {
+            // Both growing indexes are external and the compact JSON entry is still a complete,
+            // independently verifiable publication cursor. Never turn cache-size pruning into a
+            // byte-zero rescan of a multi-gigabyte rollout.
+            usage.seenRawTotals = nil
+            cache.files[key] = usage
+            return
+        }
         usage.codexTokenIndexAnchor = nil
+        usage.codexTokenSidecarState = nil
+        usage.codexUsageRowSidecarState = nil
+        usage.codexUsageRowProducerKey = nil
+        usage.codexForkAccountingState = nil
+        usage.codexSubagentResumeState = nil
+        usage.codexDeferredReplayState = nil
         usage.seenRawTotals = nil
         usage.hasDivergentTotals = nil
         usage.hasInterleavedTotals = nil
@@ -620,44 +685,21 @@ enum CostUsageCacheIO {
         return bytes
     }
 
-    /// Compacts the persisted active-lookback state when it keeps the artifact over budget.
-    /// Pending file paths are moved into the discovery queue (so no queued scan work is
-    /// lost). Legacy recursive roots are left untouched: the discovery directory queue is
-    /// only consumed by fork-parent lookup, not by the ordinary refresh file list, so
-    /// migrating them there would silently skip recently modified archived sessions.
+    /// Compacts active-lookback paths by rewinding discovery rather than moving body work into
+    /// the session-ID queue, which only scans JSONL heads. The next refresh rediscovers these
+    /// paths as ordinary body work; legacy roots are conservatively replayed for nonstandard files.
     private static func clearActiveLookbackForBudget(_ cache: inout CostUsageCache) -> Bool {
         guard var lookback = cache.codexActiveLookbackState,
               !lookback.pendingFilePaths.isEmpty
         else { return false }
-        let pendingPaths = lookback.pendingFilePaths
-        if !pendingPaths.isEmpty {
-            var discovery = cache.codexSessionDiscovery
-            if discovery == nil {
-                discovery = CostUsageCodexSessionDiscovery(
-                    roots: lookback.rootPaths,
-                    generation: nil,
-                    directoryStamps: [:],
-                    directoryPaths: [],
-                    nextDirectoryIndex: 0,
-                    filePaths: [],
-                    nextFileIndex: 0,
-                    fileStamps: [:],
-                    headScan: nil,
-                    filePathBySessionId: [:],
-                    missingSessionIds: [],
-                    pendingSessionIds: [],
-                    validationDirectoryIndex: 0,
-                    isComplete: false)
-            }
-            var seen = Set(discovery?.filePaths ?? [])
-            for path in pendingPaths where !seen.contains(path) {
-                discovery?.filePaths.append(path)
-                seen.insert(path)
-            }
-            cache.codexSessionDiscovery = discovery
-        }
         lookback.pendingFilePaths = []
+        lookback.completedRootPaths = []
+        lookback.nextDayKeyByRoot = [:]
+        lookback.legacyRecursivePendingRootPaths = Array(
+            Set(lookback.legacyRecursivePendingRootPaths).union(lookback.rootPaths)).sorted()
         cache.codexActiveLookbackState = lookback
+        cache.codexScanCatchUpPending = true
+        cache.lastScanUnixMs = 0
         return true
     }
 
@@ -795,6 +837,10 @@ struct CostUsageCache: Codable {
     var codexSessionDiscovery: CostUsageCodexSessionDiscovery?
     /// Resumable bounded discovery for recently modified rollouts in older date partitions.
     var codexActiveLookbackState: CostUsageCodexActiveLookbackState?
+    /// Alternates the first admitted lane when both recent work and fork dependencies exist.
+    var codexDependencyLaneStartsNext: Bool?
+    /// Rotates foreground admission so one giant rollout cannot hide a newly discovered child.
+    var codexForegroundScheduleCursor: Int?
 
     /// filePath -> file usage
     var files: [String: CostUsageFileUsage] = [:]
@@ -825,12 +871,16 @@ struct CostUsageCodexSessionDiscovery: Codable {
         var mtimeUnixMs: Int64
         var size: Int64
         var fileId: String?
+        /// inode status-change time catches same-size rewrites whose mtime was restored.
+        var changeUnixNs: Int64?
     }
 
     struct HeadScan: Codable {
         var path: String
         var offset: Int64
         var resumeState: CostUsageJsonl.ResumeState?
+        /// Stamp of the exact source whose prefix produced `offset` and `resumeState`.
+        var sourceStamp: FileStamp?
     }
 
     var roots: [String]
@@ -846,6 +896,7 @@ struct CostUsageCodexSessionDiscovery: Codable {
     var missingSessionIds: [String]
     var pendingSessionIds: [String]
     var validationDirectoryIndex: Int
+    var validationFileIndex: Int?
     var isComplete: Bool
 }
 
@@ -1016,6 +1067,8 @@ struct CostUsageFileUsage: Codable {
     var lastCodexTurnID: String?
     var sessionId: String?
     var forkedFromId: String?
+    /// Exact cutoff used to resolve inherited parent totals without replaying a buffered child.
+    var codexForkTimestamp: String?
     var forkBaselineDependencyKey: String?
     var projectPath: String?
     var canonicalProjectPath: String?
@@ -1039,20 +1092,72 @@ struct CostUsageFileUsage: Codable {
     var codexTokenTimestampsMonotonic: Bool?
     /// Validates that the indexed JSONL prefix was not rewritten before an append.
     var codexTokenIndexAnchor: CostUsageCodexTokenIndexAnchor?
+    /// Small commit cursor for token events persisted outside the monolithic JSON cache.
+    var codexTokenSidecarState: CostUsageCodexTokenSidecarState?
+    /// Published generation for effective usage rows persisted outside the monolithic JSON cache.
+    /// The JSON entry remains the publication authority; SQLite may be ahead after a crash.
+    var codexUsageRowSidecarState: CostUsageCodexUsageRowSidecarState?
+    /// Producer that wrote the published usage-row generation. This is entry-scoped because a
+    /// compatible cache migration can retain old immutable generations while new or appended
+    /// entries are written by the current parser producer.
+    var codexUsageRowProducerKey: String?
+    /// Exists only after an ordinary fork prefix was normalized against a resolved parent.
+    /// A nil remaining total means that the inherited `last` budget was fully consumed; the
+    /// enclosing optional is therefore required to distinguish that state from legacy caches.
+    var codexForkAccountingState: CostUsageCodexForkAccountingState?
     var claudeRows: [CostUsageScanner.ClaudeUsageRow]?
     /// Identity and latest observed size for an in-progress bounded Codex parse.
     var codexScanFileId: String?
+    /// inode status-change time captured with the published source cursor.
+    var codexScanChangeUnixNs: Int64?
     var codexScanTargetSize: Int64?
     var codexScanComplete: Bool?
     var codexJSONLResumeState: CostUsageJsonl.ResumeState?
     /// Compact relevant events retained while a subagent rollout awaits full-shape classification.
     var codexBufferedSubagentLines: [CostUsageScanner.CodexBufferedFastLine]?
+    /// Constant-size protocol boundary state for subagents that declare
+    /// `subagent_history_start_ordinal`. Once present, the copied prefix is never decoded again:
+    /// bounded scans and later appends continue from `parsedBytes` using this state.
+    var codexSubagentResumeState: CostUsageCodexSubagentResumeState?
+    /// Bounded-buffer overflow state. Indexing consumes the source once without publishing usage;
+    /// replaying consumes it at most once more after semantics/dependencies are known.
+    var codexDeferredReplayState: CostUsageCodexDeferredReplayState?
     /// Parsed events retained when an ordinary fork is waiting for its parent baseline.
     var codexBufferedUnresolvedForkLines: [CostUsageScanner.CodexBufferedFastLine]?
+    /// Ordinary fork body intentionally left unread until its exact parent baseline is ready.
+    var codexDeferredForkScan: Bool?
 
     var hasBufferedCodexForkRetryLines: Bool {
         self.codexBufferedSubagentLines?.isEmpty == false
             || self.codexBufferedUnresolvedForkLines?.isEmpty == false
+    }
+
+    /// Buffered fork work is retryable only while its parent dependency is unresolved. A stable
+    /// missing-parent key deliberately leaves the buffer persisted for future invalidation, but it
+    /// must not keep the catch-up UI active or trigger identical work on every refresh.
+    var hasRetryableBufferedCodexFork: Bool {
+        self.forkedFromId != nil
+            && self.forkBaselineDependencyKey == nil
+            && (self.hasBufferedCodexForkRetryLines || self.codexDeferredForkScan == true)
+    }
+
+    var hasSettledDeferredCodexFork: Bool {
+        self.codexDeferredForkScan == true && self.forkBaselineDependencyKey != nil
+    }
+
+    /// A replay that needs a parent is quiescent once discovery has authoritatively established
+    /// that the parent is absent for the current inventory generation. Keep the replay plan so a
+    /// later generation can reactivate it, but do not leave Finish Now spinning in the meantime.
+    var hasSettledDeferredCodexReplay: Bool {
+        self.deferredCodexReplayRequiresParent
+            && self.forkBaselineDependencyKey?.hasPrefix("missing|") == true
+    }
+
+    var deferredCodexReplayRequiresParent: Bool {
+        guard let replay = self.codexDeferredReplayState, replay.phase == .replaying else { return false }
+        return replay.mode == .unresolvedFork
+            || replay.mode == .inheritedSubagentFork
+            || replay.mode == .parentConfirmedSubagentCandidate
     }
 }
 
@@ -1116,6 +1221,76 @@ struct CostUsageCodexTotals: Codable, Equatable {
     }
 }
 
+enum CostUsageCodexSubagentResumePhase: String, Codable, Equatable {
+    /// The scanner is folding copied-prefix token observations into the compact accumulator.
+    case copiedPrefix
+    /// The ordinal boundary was crossed without a prefix total. Non-token owned context can be
+    /// applied immediately; the first owned token establishes the best local baseline.
+    case awaitingOwnedBaseline
+    /// The inherited prefix has been excluded and all subsequent lines are child-owned.
+    case ownedSuffix
+}
+
+/// Persisted semantic cursor for the protocol-defined subagent boundary. This deliberately stores
+/// accumulator state rather than parsed lines, keeping cache work constant as a rollout grows.
+struct CostUsageCodexSubagentResumeState: Codable, Equatable {
+    var historyStartOrdinal: Int
+    var phase: CostUsageCodexSubagentResumePhase
+    var copiedPrefixAccumulatorState: CostUsageCodexTokenAccumulatorState?
+}
+
+enum CostUsageCodexDeferredReplayPhase: String, Codable, Equatable {
+    case indexing
+    case replaying
+}
+
+enum CostUsageCodexDeferredReplayMode: String, Codable, Equatable {
+    case unresolvedFork
+    case legacySubagentClassification
+    case independentSubagent
+    case localSubagentSuffix
+    case parentConfirmedSubagentCandidate
+    case inheritedSubagentFork
+}
+
+/// Constant-size legacy-subagent classifier carried only after its one-pass event buffer reaches
+/// the hard cap. The fields mirror the streaming state machine in `CodexSubagentRolloutShape`.
+struct CostUsageCodexLegacySubagentShapeState: Codable, Equatable {
+    var leafSessionId: String?
+    var observedAuthoritativeMetadata: Bool
+    var hasEmbeddedAncestor: Bool
+    var ancestorSessionIds: [String]
+    var lastRawTotals: CostUsageCodexTotals?
+    var pendingTurnContextLineIndex: Int?
+    var pendingTurnContextStartOffset: Int64?
+    var pendingTurnContextBaseline: CostUsageCodexTotals?
+    var ownedSuffixStartLineIndex: Int?
+    var ownedSuffixStartOffset: Int64?
+    var ownedSuffixBaseline: CostUsageCodexTotals?
+    var parentTotalsAtBoundary: CostUsageCodexTotals?
+    var locallyConfirmedBoundary: Bool
+    var inspectedOwnedSuffixFirstTotal: Bool
+    var observedTurnContext: Bool
+    var nextLineIndex: Int
+    var bufferedApproximateBytes: Int
+}
+
+struct CostUsageCodexDeferredReplayState: Codable, Equatable {
+    var phase: CostUsageCodexDeferredReplayPhase
+    var mode: CostUsageCodexDeferredReplayMode
+    var ownedSuffixStartOffset: Int64?
+    var rawTotalsBaseline: CostUsageCodexTotals?
+    var parentTotalsAtBoundary: CostUsageCodexTotals?
+    var legacySubagentShape: CostUsageCodexLegacySubagentShapeState?
+    /// Distinguishes the raw-index EOF cursor from a classified replay cursor. Missing means the
+    /// byte-zero replay has not started, preserving compatibility with caches written before this
+    /// field existed.
+    var replayStarted: Bool?
+    /// A legacy classification was invalidated by source growth/rewrite and must rebuild from byte
+    /// zero once. The parser clears this after publishing the first new indexing prefix.
+    var restartIndexingFromByteZero: Bool?
+}
+
 struct CostUsageCodexTokenSnapshot: Codable, Equatable {
     var timestamp: String
     var last: CostUsageCodexTotals?
@@ -1142,6 +1317,28 @@ struct CostUsageCodexTokenAccumulatorState: Codable, Equatable {
     var rawTotalsWatermark: CostUsageCodexTotals?
     var seenRawTotals: [CostUsageCodexTotals]
     var sawInterleavedTotals: Bool
+}
+
+struct CostUsageCodexForkAccountingState: Codable, Equatable {
+    var remainingInheritedTotals: CostUsageCodexTotals?
+}
+
+struct CostUsageCodexTokenSidecarState: Codable, Equatable {
+    var eventCount: Int
+    var accumulatorState: CostUsageCodexTokenAccumulatorState
+    /// Parser event ordinal after the indexed prefix. This cannot be derived from cached rows
+    /// because out-of-window and zero-delta token events intentionally do not produce rows.
+    var nextUsageRowIndex: Int?
+
+    init(
+        eventCount: Int,
+        accumulatorState: CostUsageCodexTokenAccumulatorState,
+        nextUsageRowIndex: Int? = nil)
+    {
+        self.eventCount = eventCount
+        self.accumulatorState = accumulatorState
+        self.nextUsageRowIndex = nextUsageRowIndex
+    }
 }
 
 struct CostUsageCodexTokenCheckpoint: Codable, Equatable {

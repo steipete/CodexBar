@@ -793,6 +793,8 @@ struct CostUsageScannerBreakdownTests {
                 cached: 0,
                 output: 0),
         ]
+        cachedUsage.codexUsageRowSidecarState = nil
+        cachedUsage.codexTokenSidecarState?.nextUsageRowIndex = 2
         cache.files[path] = cachedUsage
         CostUsageCacheIO.save(provider: .codex, cache: cache, cacheRoot: env.cacheRoot)
         let savedUsage = try #require(CostUsageCacheIO.load(provider: .codex, cacheRoot: env.cacheRoot).files[path])
@@ -821,8 +823,12 @@ struct CostUsageScannerBreakdownTests {
 
         var migratedCache = CostUsageCacheIO.load(provider: .codex, cacheRoot: env.cacheRoot)
         let migratedUsage = try #require(migratedCache.files[path])
-        #expect(migratedUsage.codexRows?.map(\.day) == [olderDayKey, dayKey, dayKey])
-        #expect(migratedUsage.codexRows?.map(\.eventIndex) == [0, 1, 2])
+        let migratedRows = try CodexPublishedUsageRowsTestSupport.load(
+            path: path,
+            usage: migratedUsage,
+            cacheRoot: env.cacheRoot)
+        #expect(migratedRows.map(\.day) == [olderDayKey, dayKey, dayKey])
+        #expect(migratedRows.map(\.eventIndex) == [0, 1, 2])
         #expect(migratedUsage.codexCostNanos?[dayKey] != nil)
 
         let parsedBytes = migratedUsage.parsedBytes
@@ -902,7 +908,11 @@ struct CostUsageScannerBreakdownTests {
         #expect(appendedReport.summary?.totalTokens == 15)
 
         cache = CostUsageCacheIO.load(provider: .codex, cacheRoot: env.cacheRoot)
-        let activeRows = try #require(cache.files[path]?.codexRows)
+        let activeUsage = try #require(cache.files[path])
+        let activeRows = try CodexPublishedUsageRowsTestSupport.load(
+            path: path,
+            usage: activeUsage,
+            cacheRoot: env.cacheRoot)
         #expect(activeRows.map(\.eventIndex) == [0, 1])
 
         _ = try env.writeCodexArchivedSessionFile(
@@ -982,6 +992,8 @@ struct CostUsageScannerBreakdownTests {
                 cached: 0,
                 output: 0),
         ]
+        cachedUsage.codexUsageRowSidecarState = nil
+        cachedUsage.codexTokenSidecarState?.nextUsageRowIndex = 2
         cachedUsage.codexStandardCostNanos = nil
         cachedUsage.codexPriorityCostNanos = nil
         cachedUsage.codexStandardTokens = nil
@@ -1000,7 +1012,11 @@ struct CostUsageScannerBreakdownTests {
         let expectedCost = 10.0 * 2.5e-6
         #expect(abs((report.summary?.totalCostUSD ?? 0) - expectedCost) < 0.000_000_001)
         let migratedUsage = try #require(CostUsageCacheIO.load(provider: .codex, cacheRoot: env.cacheRoot).files[path])
-        #expect(migratedUsage.codexRows?.map(\.eventIndex) == [0, 1])
+        let migratedRows = try CodexPublishedUsageRowsTestSupport.load(
+            path: path,
+            usage: migratedUsage,
+            cacheRoot: env.cacheRoot)
+        #expect(migratedRows.map(\.eventIndex) == [0, 1])
         #expect(migratedUsage.codexCostNanos?[dayKey]?[normalizedModel] == originalCostNanos)
         #expect(migratedUsage.codexCostNanos?[dayKey]?[addedModel] == Int64((10.0 * 5e-6 * 1_000_000_000).rounded()))
         #expect(migratedUsage.codexStandardTokens?[dayKey]?[normalizedModel] == 10)
@@ -1118,7 +1134,14 @@ struct CostUsageScannerBreakdownTests {
 
         var cache = CostUsageCacheIO.load(provider: .codex, cacheRoot: env.cacheRoot)
         let path = try #require(cache.files.keys.first)
-        cache.files[path]?.codexTurnIDs = nil
+        var legacyUsage = try #require(cache.files[path])
+        legacyUsage.codexRows = try CodexPublishedUsageRowsTestSupport.load(
+            path: path,
+            usage: legacyUsage,
+            cacheRoot: env.cacheRoot)
+        legacyUsage.codexUsageRowSidecarState = nil
+        legacyUsage.codexTurnIDs = nil
+        cache.files[path] = legacyUsage
         CostUsageCacheIO.save(provider: .codex, cache: cache, cacheRoot: env.cacheRoot)
 
         try env.jsonl([
@@ -3440,6 +3463,149 @@ struct CostUsageScannerBreakdownTests {
     }
 
     @Test
+    func `codex complete rowless file without session metadata stays at EOF`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+
+        let day = try env.makeLocalNoon(year: 2026, month: 6, day: 27)
+        let fileURL = try env.writeCodexSessionFile(
+            day: day,
+            filename: "rowless-no-session.jsonl",
+            contents: env.jsonl([[
+                "type": "event_msg",
+                "timestamp": env.isoString(for: day),
+                "payload": [
+                    "type": "agent_message",
+                    "message": "no usage event",
+                ],
+            ]]))
+        try FileManager.default.setAttributes([.modificationDate: day], ofItemAtPath: fileURL.path)
+
+        var options = CostUsageScanner.Options(
+            codexSessionsRoot: env.codexSessionsRoot,
+            claudeProjectsRoots: nil,
+            cacheRoot: env.cacheRoot)
+        options.refreshMinIntervalSeconds = 0
+
+        _ = CostUsageScanner.loadDailyReport(
+            provider: .codex,
+            since: day,
+            until: day,
+            now: day,
+            options: options)
+        let firstCache = CostUsageCacheIO.load(provider: .codex, cacheRoot: env.cacheRoot)
+        let firstUsage = try #require(firstCache.files.values.first)
+        let firstRowState = try #require(firstUsage.codexUsageRowSidecarState)
+        #expect(firstUsage.sessionId == nil)
+        #expect(firstUsage.codexScanComplete == true)
+        #expect(firstRowState.rowCount == 0)
+
+        let recorder = CostUsageScanner.CodexScanWorkRecorder()
+        options.codexScanWorkRecorderForTesting = recorder
+        _ = CostUsageScanner.loadDailyReport(
+            provider: .codex,
+            since: day,
+            until: day,
+            now: day.addingTimeInterval(1),
+            options: options)
+        let metrics = recorder.snapshot()
+        let stableCache = CostUsageCacheIO.load(provider: .codex, cacheRoot: env.cacheRoot)
+        let stableUsage = try #require(stableCache.files.values.first)
+
+        #expect(metrics.fileBodyBudgetBytesConsumed == 0)
+        #expect(metrics.fileParseInvocations == 0)
+        #expect(metrics.usageRowsRead == 0)
+        #expect(metrics.usageRowsWritten == 0)
+        #expect(stableUsage.codexUsageRowSidecarState == firstRowState)
+        #expect(stableUsage.parsedBytes == firstUsage.parsedBytes)
+    }
+
+    @Test
+    func `codex predecessor rowless file without session metadata migrates exactly once`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+
+        let day = try env.makeLocalNoon(year: 2026, month: 6, day: 27)
+        let fileURL = try env.writeCodexSessionFile(
+            day: day,
+            filename: "predecessor-rowless-no-session.jsonl",
+            contents: env.jsonl([[
+                "type": "event_msg",
+                "timestamp": env.isoString(for: day),
+                "payload": [
+                    "type": "agent_message",
+                    "message": "no usage event",
+                ],
+            ]]))
+        try FileManager.default.setAttributes([.modificationDate: day], ofItemAtPath: fileURL.path)
+
+        var options = CostUsageScanner.Options(
+            codexSessionsRoot: env.codexSessionsRoot,
+            claudeProjectsRoots: nil,
+            cacheRoot: env.cacheRoot)
+        options.refreshMinIntervalSeconds = 0
+
+        _ = CostUsageScanner.loadDailyReport(
+            provider: .codex,
+            since: day,
+            until: day,
+            now: day,
+            options: options)
+        let firstCache = CostUsageCacheIO.load(provider: .codex, cacheRoot: env.cacheRoot)
+        let firstUsage = try #require(firstCache.files.values.first)
+        #expect(firstUsage.sessionId == nil)
+        #expect(firstUsage.codexScanComplete == true)
+
+        // This is the accepted sidecar predecessor producer. Its complete offsets remain valid,
+        // but a nil session ID must be revalidated once under the current parser semantics.
+        let predecessorProducerKey = "codex:cu:pcdc205df2dba1a53"
+        CostUsageCacheIO.save(
+            provider: .codex,
+            cache: firstCache,
+            cacheRoot: env.cacheRoot,
+            producerKey: predecessorProducerKey)
+        let compatibleLoad = CostUsageCacheIO.loadCodexForMigration(cacheRoot: env.cacheRoot)
+        #expect(compatibleLoad.cache.producerKey == predecessorProducerKey)
+        #expect(compatibleLoad.incompatibleCache == nil)
+
+        let migrationRecorder = CostUsageScanner.CodexScanWorkRecorder()
+        options.codexScanWorkRecorderForTesting = migrationRecorder
+        _ = CostUsageScanner.loadDailyReport(
+            provider: .codex,
+            since: day,
+            until: day,
+            now: day.addingTimeInterval(1),
+            options: options)
+        let migrationMetrics = migrationRecorder.snapshot()
+        let migratedCache = CostUsageCacheIO.load(provider: .codex, cacheRoot: env.cacheRoot)
+        let migratedUsage = try #require(migratedCache.files.values.first)
+
+        #expect(migrationMetrics.fileParseInvocations == 1)
+        #expect(migrationMetrics.fileBodyBudgetBytesConsumed > 0)
+        #expect(migratedCache.producerKey == CostUsageCacheIO.currentProducerKey(provider: .codex))
+        #expect(migratedUsage.sessionId == nil)
+        let migratedRowState = try #require(migratedUsage.codexUsageRowSidecarState)
+
+        let stableRecorder = CostUsageScanner.CodexScanWorkRecorder()
+        options.codexScanWorkRecorderForTesting = stableRecorder
+        _ = CostUsageScanner.loadDailyReport(
+            provider: .codex,
+            since: day,
+            until: day,
+            now: day.addingTimeInterval(2),
+            options: options)
+        let stableMetrics = stableRecorder.snapshot()
+        let stableCache = CostUsageCacheIO.load(provider: .codex, cacheRoot: env.cacheRoot)
+        let stableUsage = try #require(stableCache.files.values.first)
+
+        #expect(stableMetrics.fileBodyBudgetBytesConsumed == 0)
+        #expect(stableMetrics.fileParseInvocations == 0)
+        #expect(stableMetrics.usageRowsRead == 0)
+        #expect(stableMetrics.usageRowsWritten == 0)
+        #expect(stableUsage.codexUsageRowSidecarState == migratedRowState)
+    }
+
+    @Test
     func `codex warm cache rechecks active archive row overlap`() throws {
         let env = try CostUsageTestEnvironment()
         defer { env.cleanup() }
@@ -3552,7 +3718,15 @@ struct CostUsageScannerBreakdownTests {
 
         var cache = CostUsageCacheIO.load(provider: .codex, cacheRoot: env.cacheRoot)
         for path in cache.files.keys where cache.files[path]?.sessionId == "sess-warm-cache-active-archive" {
-            cache.files[path]?.codexRows = nil
+            var rowlessUsage = try #require(cache.files[path])
+            let publishedRows = try CodexPublishedUsageRowsTestSupport.load(
+                path: path,
+                usage: rowlessUsage,
+                cacheRoot: env.cacheRoot)
+            rowlessUsage.codexRows = nil
+            rowlessUsage.codexUsageRowSidecarState = nil
+            rowlessUsage.codexTurnIDs = CostUsageScanner.codexTurnIDs(rows: publishedRows)
+            cache.files[path] = rowlessUsage
         }
         CostUsageCacheIO.save(provider: .codex, cache: cache, cacheRoot: env.cacheRoot)
 
@@ -3740,7 +3914,15 @@ struct CostUsageScannerBreakdownTests {
         let archivePath = try #require(cache.files.keys.first {
             URL(fileURLWithPath: $0).lastPathComponent == archiveURL.lastPathComponent
         })
-        cache.files[archivePath]?.codexRows = nil
+        var rowlessArchive = try #require(cache.files[archivePath])
+        let publishedRows = try CodexPublishedUsageRowsTestSupport.load(
+            path: archivePath,
+            usage: rowlessArchive,
+            cacheRoot: env.cacheRoot)
+        rowlessArchive.codexRows = nil
+        rowlessArchive.codexUsageRowSidecarState = nil
+        rowlessArchive.codexTurnIDs = CostUsageScanner.codexTurnIDs(rows: publishedRows)
+        cache.files[archivePath] = rowlessArchive
         CostUsageCacheIO.save(provider: .codex, cache: cache, cacheRoot: env.cacheRoot)
 
         let narrow = CostUsageScanner.loadDailyReport(
@@ -4390,6 +4572,100 @@ struct CostUsageScannerBreakdownTests {
         #expect(parsedDependencyKey != nil)
         #expect(try resolver.currentDependencyKey(for: parentSessionId) != parsedDependencyKey)
         #expect(resolver.dependencyKeyUsed(for: parentSessionId) == parsedDependencyKey)
+    }
+
+    @Test
+    func `codex parent dependency key ignores path aliases for the same source`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+
+        let parentDay = try env.makeLocalNoon(year: 2026, month: 2, day: 1)
+        let parentSessionId = "sess-parent-path-alias"
+        let parentURL = try env.writeCodexSessionFile(
+            day: parentDay,
+            filename: "rollout-2026-02-01T12-00-00-\(parentSessionId).jsonl",
+            contents: env.jsonl([
+                [
+                    "type": "session_meta",
+                    "payload": ["id": parentSessionId],
+                ],
+                self.codexTurnContext(
+                    timestamp: env.isoString(for: parentDay),
+                    model: "openai/gpt-5.2-codex"),
+                self.codexTokenCount(
+                    timestamp: env.isoString(for: parentDay.addingTimeInterval(1)),
+                    model: "openai/gpt-5.2-codex",
+                    total: (input: 20, cached: 5, output: 2)),
+            ]))
+        let aliasDirectory = env.root.appendingPathComponent("parent-alias", isDirectory: true)
+        try FileManager.default.createDirectory(at: aliasDirectory, withIntermediateDirectories: true)
+        let aliasURL = aliasDirectory.appendingPathComponent("parent.jsonl")
+        try FileManager.default.createSymbolicLink(at: aliasURL, withDestinationURL: parentURL)
+
+        func dependencyKey(for fileURL: URL) throws -> String? {
+            let fileIndex = CostUsageScanner.CodexSessionFileIndex(files: [fileURL], roots: [])
+            let resolver = CostUsageScanner.CodexInheritedTotalsResolver(
+                fileIndex: fileIndex,
+                checkCancellation: nil)
+            return try resolver.currentDependencyKey(for: parentSessionId)
+        }
+
+        let directKey = try #require(try dependencyKey(for: parentURL))
+        let aliasKey = try #require(try dependencyKey(for: aliasURL))
+        #expect(directKey == aliasKey)
+        #expect(directKey.hasPrefix("file|\(parentSessionId)|"))
+
+        let metadata = CostUsageScanner.codexFileMetadata(fileURL: parentURL)
+        let legacyAliasKey = try [
+            "file",
+            parentSessionId,
+            aliasURL.standardizedFileURL.path,
+            #require(metadata.fileId),
+            String(metadata.mtimeUnixMs),
+            String(metadata.size),
+            metadata.changeUnixNs.map(String.init) ?? "unknown",
+        ].joined(separator: "|")
+        #expect(CostUsageScanner.codexResolvedForkDependencyKeysMatch(directKey, legacyAliasKey))
+        let appendResumePredecessorKey = try [
+            "file",
+            parentSessionId,
+            aliasURL.standardizedFileURL.path,
+            #require(metadata.fileId),
+            String(metadata.mtimeUnixMs),
+            String(metadata.size),
+        ].joined(separator: "|")
+        #expect(!CostUsageScanner.codexResolvedForkDependencyKeysMatch(
+            directKey,
+            appendResumePredecessorKey))
+
+        var options = CostUsageScanner.Options(
+            codexSessionsRoot: env.codexSessionsRoot,
+            claudeProjectsRoots: nil,
+            cacheRoot: env.cacheRoot)
+        options.refreshMinIntervalSeconds = 0
+        _ = CostUsageScanner.loadDailyReport(
+            provider: .codex,
+            since: parentDay,
+            until: parentDay,
+            now: parentDay.addingTimeInterval(2),
+            options: options)
+        let cache = CostUsageCacheIO.load(provider: .codex, cacheRoot: env.cacheRoot)
+        let aliasIndex = CostUsageScanner.CodexSessionFileIndex(files: [aliasURL], roots: [])
+        let aliasResolver = CostUsageScanner.CodexInheritedTotalsResolver(
+            fileIndex: aliasIndex,
+            checkCancellation: nil,
+            tokenIndexStore: CostUsageCodexTokenIndexStore(cacheRoot: env.cacheRoot),
+            cachedFiles: cache.files)
+        guard case let .resolved(totals) = try aliasResolver.inheritedTotals(
+            for: parentSessionId,
+            atOrBefore: env.isoString(for: parentDay.addingTimeInterval(2)))
+        else {
+            Issue.record("A path alias must reuse the complete cached parent index")
+            return
+        }
+        #expect(totals?.input == 20)
+        #expect(totals?.cached == 5)
+        #expect(totals?.output == 2)
     }
 
     @Test
