@@ -86,9 +86,9 @@ Admin API key setup:
   provider preview. The global optional credits and extra usage setting is its master switch. The Claude-specific
   setting does not change fetching, history, notifications, widgets, model-scoped weekly limits, hooks, or CLI output.
 - Preferences → Providers → Claude → Show model-specific weekly usage in widgets controls model-scoped weekly quota
-  rows in desktop widgets. It is on by default and displays every known Claude window with a
-  `claude-weekly-scoped-` identifier (for example, Fable). It does not change fetching, the menu, history,
-  notifications, hooks, or CLI output.
+  rows in desktop widgets. It is off by default; turning it on displays every known Claude window with a
+  `claude-weekly-scoped-` identifier (for example, Fable). Turning it back off also drops scoped rows that a previous
+  snapshot persisted. It does not change fetching, the menu, history, notifications, hooks, or CLI output.
 - Successful OAuth login enables Claude and preserves the selected usage source. With the default Auto source, OAuth
   remains preferred when readable, while CLI/Web fallback stays available when OAuth credentials are not usable.
 - Plan inference: `subscriptionType` is preferred when present; `rate_limit_tier` falls back to

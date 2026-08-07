@@ -202,7 +202,8 @@ extension UsageStore {
         {
             Self.preservedClaudeWidgetUsage(
                 from: previousEntry,
-                expectedQuotaOwnerKey: claudeQuotaOwnerKey)
+                expectedQuotaOwnerKey: claudeQuotaOwnerKey,
+                includesModelScopedWeeklyRows: self.settings.claudeModelScopedWeeklyUsageVisible)
         } else {
             nil
         }
@@ -290,7 +291,8 @@ extension UsageStore {
 
     private nonisolated static func preservedClaudeWidgetUsage(
         from entry: WidgetSnapshot.ProviderEntry?,
-        expectedQuotaOwnerKey: String?) -> PreservedClaudeWidgetUsage?
+        expectedQuotaOwnerKey: String?,
+        includesModelScopedWeeklyRows: Bool) -> PreservedClaudeWidgetUsage?
     {
         guard let entry, entry.provider == .claude else { return nil }
         guard let expectedQuotaOwnerKey,
@@ -305,6 +307,13 @@ extension UsageStore {
         let tertiary = entry.tertiary?.isSyntheticPlaceholder == true ? nil : entry.tertiary
         let usageRows = entry.usageRows?.filter { row in
             guard row.window?.isSyntheticPlaceholder != true else { return false }
+            // Rows persisted while the setting was on must not outlive it: without a live snapshot
+            // this preserved list is what widgets render, so re-apply the visibility filter here.
+            guard includesModelScopedWeeklyRows ||
+                !row.id.hasPrefix(Self.claudeModelScopedWeeklyWindowIDPrefix)
+            else {
+                return false
+            }
             return switch row.id {
             case "primary": primary != nil
             case "secondary": secondary != nil
@@ -467,7 +476,9 @@ extension UsageStore {
             // Claude fetchers place model-scoped weekly quotas (for example, Fable) in extraRateWindows.
             // Keep the widget projection generic so newly surfaced Claude model quotas appear without UI changes.
             rows.append(contentsOf: (snapshot.extraRateWindows ?? []).compactMap { namedWindow in
-                guard namedWindow.id.hasPrefix("claude-weekly-scoped-"), namedWindow.usageKnown else { return nil }
+                guard namedWindow.id.hasPrefix(Self.claudeModelScopedWeeklyWindowIDPrefix),
+                      namedWindow.usageKnown
+                else { return nil }
                 return WidgetSnapshot.WidgetUsageRowSnapshot(
                     id: namedWindow.id,
                     title: namedWindow.title,
@@ -489,6 +500,9 @@ extension UsageStore {
         }
         return rows.filter { $0.percentLeft != nil }
     }
+
+    /// Identifier prefix Claude fetchers use for model-scoped weekly carve-outs (for example, Fable).
+    private nonisolated static let claudeModelScopedWeeklyWindowIDPrefix = "claude-weekly-scoped-"
 
     private nonisolated static let antigravityQuotaSummaryWindowIDPrefix = "antigravity-quota-summary-"
     private nonisolated static let antigravityCompactFallbackWindowIDPrefix = "antigravity-compact-fallback-"
