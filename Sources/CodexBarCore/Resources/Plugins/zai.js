@@ -112,7 +112,7 @@ defineProvider({
         }
       }
     }
-    const plan = [root.data.planName, root.data.plan, root.data.plan_type, root.data.packageName]
+    const plan = [root.data.planName, root.data.plan, root.data.plan_type, root.data.packageName, root.data.level]
       .find(value => typeof value === "string" && value.trim());
     if (plan) result.identity.loginMethod = plan.trim();
 

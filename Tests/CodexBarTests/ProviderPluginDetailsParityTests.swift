@@ -291,11 +291,10 @@ struct ProviderPluginDetailsParityTests {
     @Test
     func `zai CREDIT_LIMIT fixture has Swift core parity and stable details`() async throws {
         let transport = Self.transport { request in
+            // Quota only: model-usage is intentionally unserved so the plugin's non-fatal
+            // model-usage fetch fails and both paths produce only Quota details.
             if request.url?.path.hasSuffix("/quota/limit") == true {
                 return Self.zaiCreditQuota
-            }
-            if request.url?.path.hasSuffix("/model-usage") == true {
-                return Self.zaiModelUsage
             }
             throw FixtureError.unexpectedURL(request.url)
         }
@@ -312,16 +311,17 @@ struct ProviderPluginDetailsParityTests {
                 now: now)
 
         Self.expectCoreParity(swift, script)
-        #expect(swift.primary?.usedPercent == 3)
+        #expect(swift.details == script.details)
+        #expect(swift.primary?.usedPercent == 5)
         #expect(swift.primary?.windowMinutes == 300)
         #expect(swift.primary?.resetDescription == "5-hour")
-        #expect(swift.secondary?.usedPercent == 1)
+        #expect(swift.secondary?.usedPercent == 10)
         #expect(swift.secondary?.windowMinutes == 10080)
-        #expect(script.identity?.loginMethod == "lite")
+        #expect(swift.identity?.loginMethod == "lite")
         #expect(try script.details == [
             Self.section("Quota details", rows: [
-                Self.row("Credit quota", "3% used", "2000 limit · 1929 remaining"),
-                Self.row("Session credit quota", "1% used", "10000 limit · 9929 remaining"),
+                Self.row("Credit quota", "10% used", "10000 limit · 9000 remaining"),
+                Self.row("Session credit quota", "5% used", "2000 limit · 1900 remaining"),
             ]),
         ])
     }
@@ -509,10 +509,10 @@ struct ProviderPluginDetailsParityTests {
     """#
     private static let zaiCreditQuota = #"""
     {"code":200,"msg":"success","success":true,"data":{"level":"lite","limits":[
-      {"type":"CREDIT_LIMIT","unit":3,"number":5,"usage":2000,"currentValue":71,"remaining":1929,
-       "percentage":3,"nextResetTime":1786073946574},
-      {"type":"CREDIT_LIMIT","unit":6,"number":1,"usage":10000,"currentValue":71,"remaining":9929,
-       "percentage":1,"nextResetTime":1786660486998}
+      {"type":"CREDIT_LIMIT","unit":3,"number":5,"usage":2000,"currentValue":100,"remaining":1900,
+       "percentage":5,"nextResetTime":1786073946574},
+      {"type":"CREDIT_LIMIT","unit":6,"number":1,"usage":10000,"currentValue":1000,"remaining":9000,
+       "percentage":10,"nextResetTime":1786660486998}
     ]}}
     """#
     private static let zaiModelUsage = #"""
