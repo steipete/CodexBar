@@ -27,7 +27,6 @@ extension StatusItemController {
             snapshot: snapshot,
             warningFlash: warningFlash,
             now: now)
-        let minute = Date(timeIntervalSince1970: floor(now.timeIntervalSince1970 / 60) * 60)
         let appearanceName = button.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua])?.rawValue ?? "default"
         let options = MenuBarLayoutRenderOptions(
             size: self.settings.menuBarLayoutSize,
@@ -35,7 +34,7 @@ extension StatusItemController {
             showUsed: self.settings.usageBarsShowUsed,
             appearanceName: appearanceName,
             isDebugApp: Self.isDebugApp(bundleIdentifier: Bundle.main.bundleIdentifier),
-            now: minute)
+            now: now)
         let rendered = self.menuBarLayoutRenderer.render(
             layout: resolution.layout,
             data: data,

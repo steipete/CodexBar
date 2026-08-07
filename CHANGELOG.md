@@ -2,6 +2,9 @@
 
 ## 0.48.1 — Unreleased
 
+### Fixed
+- Menu bar: keep custom reset countdowns aligned with the opened menu instead of rounding their clock back to the start of the wall minute.
+
 ## 0.48.0 — 2026-08-06
 
 ### Added
