@@ -1,3 +1,4 @@
+import CodexBarCore
 import CoreTransferable
 import Foundation
 import Testing
@@ -5,6 +6,19 @@ import UniformTypeIdentifiers
 @testable import CodexBar
 
 struct MenuBarLayoutEditorTests {
+    @Test
+    func `Notion secondary editor labels use monthly cadence`() {
+        let percent = MenuBarLayoutToken.percent(window: .weekly)
+        let pace = MenuBarLayoutToken.pace(window: .weekly)
+        let monthlyPace = L("%@ %@", L("Monthly"), L("display_mode_pace").lowercased())
+
+        #expect(percent.editorLabel(provider: .notion) == L("%@ %@", L("Monthly"), "%"))
+        #expect(pace.editorLabel(provider: .notion) == monthlyPace)
+        #expect(pace.editorAccessibilityLabel(provider: .notion) == monthlyPace)
+        #expect(percent.editorLabel(provider: .codex) == L("menu_bar_layout_token_weekly"))
+        #expect(pace.editorLabel(provider: .codex) == L("menu_bar_layout_token_weekly_pace"))
+    }
+
     @Test
     func `palette tokens append and insert at a drop index`() {
         let initial = MenuBarLayout(lines: [[.icon, .resetCountdown]])
