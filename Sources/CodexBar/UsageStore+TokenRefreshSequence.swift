@@ -39,13 +39,25 @@ extension UsageStore {
         self.startTokenRefreshSequence(force: false, scope: .all)
     }
 
+    /// Minimum spacing between forced all-provider cost scans. Menu open may bypass the fetch TTL,
+    /// but rapid open/close cycles must not hammer the scanner more than once a minute.
+    static let forcedTokenRefreshMinInterval: TimeInterval = 60
+
     /// Menu-open parity with the manual Refresh action: cost must rescan past the fetch TTL, but
     /// without awaiting (AppKit menu tracking is modal) and without preempting an in-flight
     /// sequence or forced-refresh enrichment tail. The enrichment tail and a forced all-provider
     /// pass already end in fresh cost data, so re-requests coalesce into them. Any other active
     /// sequence may skip TTL-fresh providers, so the request stays pending and one forced pass
-    /// runs once that sequence completes.
-    func scheduleForcedTokenRefresh() {
+    /// runs once that sequence completes. The TTL bypass is floored: a forced pass that started
+    /// less than `forcedTokenRefreshMinInterval` ago already delivered fresh cost data, so the
+    /// request is dropped instead of queued.
+    func scheduleForcedTokenRefresh(now: Date = Date()) {
+        if let last = self.lastForcedTokenRefreshStartedAt,
+           now.timeIntervalSince(last) >= 0,
+           now.timeIntervalSince(last) < Self.forcedTokenRefreshMinInterval
+        {
+            return
+        }
         guard !self.hasForcedRefreshEnrichmentInFlight else { return }
         if self.tokenRefreshSequenceTask != nil {
             if !self.tokenRefreshSequenceIsForcedAllPass {
@@ -118,6 +130,8 @@ extension UsageStore {
         if self.tokenRefreshSequenceIsForcedAllPass {
             // A forced all-provider pass delivers everything a coalesced menu-open request wants.
             self.pendingForcedTokenRefresh = false
+            // Manual Refresh lands here too, so a menu open right after it also honors the floor.
+            self.lastForcedTokenRefreshStartedAt = Date()
         }
         let task = Task(priority: .utility) { @MainActor [weak self] in
             guard let self else { return }
