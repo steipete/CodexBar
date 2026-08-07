@@ -399,11 +399,12 @@ struct CodexOAuthCreditLimitTests {
         let response = try CodexOAuthUsageFetcher._decodeUsageResponseForTesting(
             Data(self.teamSpendControlJSON().utf8))
 
+        #expect(response.individualLimit == nil)
         #expect(response.rateLimit?.individualLimit == nil)
-        #expect(response.individualLimit?.limit == 1000)
-        #expect(response.individualLimit?.used == 36.79748725891113)
-        #expect(response.individualLimit?.remainingPercent == 96)
-        #expect(response.individualLimit?.resetsAt == 1_788_220_800)
+        #expect(response.spendControlIndividualLimit?.limit == 1000)
+        #expect(response.spendControlIndividualLimit?.used == 36.79748725891113)
+        #expect(response.spendControlIndividualLimit?.remainingPercent == 96)
+        #expect(response.spendControlIndividualLimit?.resetsAt == 1_788_220_800)
     }
 
     @Test
@@ -419,6 +420,19 @@ struct CodexOAuthCreditLimitTests {
         #expect(result.sourceLabel == "oauth")
     }
 
+    private func spendControlBlockJSON() -> String {
+        """
+        "spend_control": {
+          "individual_limit": {
+            "limit": "1000",
+            "used": "36.79748725891113",
+            "remaining_percent": 96,
+            "reset_at": 1788220800
+          }
+        }
+        """
+    }
+
     @Test
     func `root individual limit still wins over spend control`() throws {
         let json = """
@@ -430,19 +444,45 @@ struct CodexOAuthCreditLimitTests {
             "remaining_percent": 80,
             "resets_at": 1782864000
           },
-          "spend_control": {
+          \(self.spendControlBlockJSON())
+        }
+        """
+        let result = try CodexOAuthFetchStrategy._mapResultForTesting(
+            Data(json.utf8),
+            credentials: self.makeCredentials())
+
+        #expect(result.credits?.codexCreditLimit?.limit == 500)
+        #expect(result.credits?.codexCreditLimit?.resetsAt == Date(timeIntervalSince1970: 1_782_864_000))
+    }
+
+    @Test
+    func `rate limit individual limit still wins over spend control`() throws {
+        let json = """
+        {
+          "plan_type": "team",
+          "rate_limit": {
+            "primary_window": null,
+            "secondary_window": null,
             "individual_limit": {
-              "limit": "1000",
-              "used": "36.79748725891113",
-              "remaining_percent": 96,
-              "reset_at": 1788220800
+              "limit": 100000,
+              "used": 7761,
+              "remaining_percent": 92.239,
+              "resets_at": 1782864000
             }
-          }
+          },
+          \(self.spendControlBlockJSON())
         }
         """
         let response = try CodexOAuthUsageFetcher._decodeUsageResponseForTesting(Data(json.utf8))
+        #expect(response.rateLimit?.individualLimit?.limit == 100_000)
+        #expect(response.spendControlIndividualLimit?.limit == 1000)
 
-        #expect(response.individualLimit?.limit == 500)
-        #expect(response.individualLimit?.resetsAt == 1_782_864_000)
+        let result = try CodexOAuthFetchStrategy._mapResultForTesting(
+            Data(json.utf8),
+            credentials: self.makeCredentials())
+
+        #expect(result.credits?.codexCreditLimit?.limit == 100_000)
+        #expect(result.credits?.codexCreditLimit?.remaining == 92239)
+        #expect(result.credits?.codexCreditLimit?.resetsAt == Date(timeIntervalSince1970: 1_782_864_000))
     }
 }

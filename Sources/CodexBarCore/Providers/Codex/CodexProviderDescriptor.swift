@@ -385,7 +385,9 @@ struct CodexOAuthFetchStrategy: ProviderFetchStrategy {
         updatedAt: Date) -> CreditsSnapshot?
     {
         let balance = response.credits?.balance
-        let creditLimit = (response.individualLimit ?? response.rateLimit?.individualLimit)?
+        let creditLimit = (response.individualLimit
+            ?? response.rateLimit?.individualLimit
+            ?? response.spendControlIndividualLimit)?
             .codexCreditLimitSnapshot(updatedAt: updatedAt)
         guard balance != nil || creditLimit != nil else { return nil }
         return CreditsSnapshot(

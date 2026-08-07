@@ -8,6 +8,10 @@ public struct CodexUsageResponse: Decodable, Sendable {
     public let rateLimit: RateLimitDetails?
     public let credits: CreditDetails?
     public let individualLimit: SpendControlLimitSnapshot?
+    /// Team/enterprise workspaces report the monthly credit pool here instead of at the response root.
+    /// Kept separate from `individualLimit` so the established root → `rate_limit` precedence is preserved;
+    /// consumers select this only when both of those are absent.
+    public let spendControlIndividualLimit: SpendControlLimitSnapshot?
     /// Model-specific limits (e.g. GPT-5.3-Codex-Spark) that sit alongside the primary/weekly windows.
     public let additionalRateLimits: [AdditionalRateLimit]?
     let additionalRateLimitsDecodeFailed: Bool
@@ -32,7 +36,7 @@ public struct CodexUsageResponse: Decodable, Sendable {
             SpendControlLimitSnapshot.self,
             forKey: .individualLimit))
             ?? (try? container.decodeIfPresent(SpendControlLimitSnapshot.self, forKey: .individualLimitCamel))
-            ?? Self.decodeSpendControlIndividualLimit(container: container)
+        self.spendControlIndividualLimit = Self.decodeSpendControlIndividualLimit(container: container)
         // Optional and additive: missing/malformed extra limits must never disturb primary/weekly mapping.
         // Decode per element so a single malformed entry cannot discard its valid siblings; a non-array
         // value (or absent field) leaves `additionalRateLimits` nil and primary/weekly mapping untouched.
@@ -58,9 +62,6 @@ public struct CodexUsageResponse: Decodable, Sendable {
         return (try? container.decodeNil(forKey: key)) == false
     }
 
-    /// Team/enterprise workspaces return the monthly credit pool under `spend_control.individual_limit`
-    /// instead of at the response root. Purely additive: only consulted when the root/rate-limit
-    /// spellings are absent.
     private static func decodeSpendControlIndividualLimit(
         container: KeyedDecodingContainer<CodingKeys>) -> SpendControlLimitSnapshot?
     {
