@@ -18,6 +18,8 @@ public struct CodexUsageResponse: Decodable, Sendable {
         case credits
         case individualLimit = "individual_limit"
         case individualLimitCamel = "individualLimit"
+        case spendControl = "spend_control"
+        case spendControlCamel = "spendControl"
         case additionalRateLimits = "additional_rate_limits"
     }
 
@@ -30,6 +32,7 @@ public struct CodexUsageResponse: Decodable, Sendable {
             SpendControlLimitSnapshot.self,
             forKey: .individualLimit))
             ?? (try? container.decodeIfPresent(SpendControlLimitSnapshot.self, forKey: .individualLimitCamel))
+            ?? Self.decodeSpendControlIndividualLimit(container: container)
         // Optional and additive: missing/malformed extra limits must never disturb primary/weekly mapping.
         // Decode per element so a single malformed entry cannot discard its valid siblings; a non-array
         // value (or absent field) leaves `additionalRateLimits` nil and primary/weekly mapping untouched.
@@ -53,6 +56,35 @@ public struct CodexUsageResponse: Decodable, Sendable {
     {
         guard container.contains(key) else { return false }
         return (try? container.decodeNil(forKey: key)) == false
+    }
+
+    /// Team/enterprise workspaces return the monthly credit pool under `spend_control.individual_limit`
+    /// instead of at the response root. Purely additive: only consulted when the root/rate-limit
+    /// spellings are absent.
+    private static func decodeSpendControlIndividualLimit(
+        container: KeyedDecodingContainer<CodingKeys>) -> SpendControlLimitSnapshot?
+    {
+        let details = (try? container.decodeIfPresent(SpendControlDetails.self, forKey: .spendControl))
+            ?? (try? container.decodeIfPresent(SpendControlDetails.self, forKey: .spendControlCamel))
+        return details?.individualLimit
+    }
+
+    /// `spend_control` wrapper from `wham/usage`; only the individual limit is consumed today.
+    public struct SpendControlDetails: Decodable, Sendable {
+        public let individualLimit: SpendControlLimitSnapshot?
+
+        enum CodingKeys: String, CodingKey {
+            case individualLimit = "individual_limit"
+            case individualLimitCamel = "individualLimit"
+        }
+
+        public init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            self.individualLimit = (try? container.decodeIfPresent(
+                SpendControlLimitSnapshot.self,
+                forKey: .individualLimit))
+                ?? (try? container.decodeIfPresent(SpendControlLimitSnapshot.self, forKey: .individualLimitCamel))
+        }
     }
 
     public enum PlanType: Sendable, Decodable, Equatable {
@@ -244,6 +276,7 @@ public struct CodexUsageResponse: Decodable, Sendable {
             case remainingPercentSnake = "remaining_percent"
             case resetsAt
             case resetsAtSnake = "resets_at"
+            case resetAtSnake = "reset_at"
         }
 
         public init(from decoder: Decoder) throws {
@@ -252,8 +285,10 @@ public struct CodexUsageResponse: Decodable, Sendable {
             self.used = Self.decodeFlexibleDouble(container, forKey: .used)
             self.remainingPercent = Self.decodeFlexibleDouble(container, forKey: .remainingPercent)
                 ?? Self.decodeFlexibleDouble(container, forKey: .remainingPercentSnake)
+            // `wham/usage` spells this `reset_at` (matching `WindowSnapshot`), other shapes use `resets_at`.
             self.resetsAt = Self.decodeFlexibleInt(container, forKey: .resetsAt)
                 ?? Self.decodeFlexibleInt(container, forKey: .resetsAtSnake)
+                ?? Self.decodeFlexibleInt(container, forKey: .resetAtSnake)
         }
 
         private static func decodeFlexibleDouble(
