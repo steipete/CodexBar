@@ -249,13 +249,9 @@ final class MenuBarLayoutRenderer {
                 prefix = Self.sessionPrefix(rateWindow)
                 accessibilityPrefix = L("Session")
             case .weekly:
-                if data.provider == .notion {
-                    prefix = "M"
-                    accessibilityPrefix = L("Monthly")
-                } else {
-                    prefix = "W"
-                    accessibilityPrefix = L("Weekly")
-                }
+                let secondaryLabel = Self.secondaryLabel(data: data)
+                prefix = secondaryLabel.flatMap(\.first).map { String($0).uppercased() } ?? "W"
+                accessibilityPrefix = secondaryLabel ?? L("Weekly")
             case .scopedWeekly:
                 prefix = data.scopedWeeklyTitle.map { String($0.prefix(1)).uppercased() } ?? "F"
                 accessibilityPrefix = data.scopedWeeklyTitle ?? L("Scoped weekly")
@@ -409,14 +405,18 @@ final class MenuBarLayoutRenderer {
         switch percentWindow {
         case .session: L("menu_bar_layout_token_session_pace")
         case .weekly:
-            if data.provider == .notion {
-                L("%@ %@", L("Monthly"), L("display_mode_pace").lowercased())
+            if let secondaryLabel = secondaryLabel(data: data) {
+                L("%@ %@", secondaryLabel, L("display_mode_pace").lowercased())
             } else {
                 L("menu_bar_layout_token_weekly_pace")
             }
         case .scopedWeekly: L("menu_bar_layout_token_weekly_pace")
         case .automatic: L("menu_bar_layout_token_auto_pace")
         }
+    }
+
+    private static func secondaryLabel(data: MenuBarLayoutRenderData) -> String? {
+        ProviderDescriptorRegistry.descriptor(for: data.provider).presentation.menuBarLayoutSecondaryLabel.map(L)
     }
 
     private static func sessionPrefix(_ window: MenuBarLayoutRenderWindow?) -> String {

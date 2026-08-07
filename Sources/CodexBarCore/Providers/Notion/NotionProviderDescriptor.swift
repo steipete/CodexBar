@@ -96,7 +96,8 @@ public enum NotionProviderDescriptor {
                         return window
                     }
                     return ProviderSemanticWindows(session: rolling, weekly: monthly)
-                }),
+                },
+                menuBarLayoutSecondaryLabel: "Monthly"),
             fetchPlan: ProviderFetchPlan(
                 sourceModes: [.auto, .web],
                 pipeline: ProviderFetchPipeline(resolveStrategies: { _ in [NotionWebFetchStrategy()] })),

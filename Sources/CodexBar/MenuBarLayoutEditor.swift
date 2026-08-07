@@ -796,16 +796,21 @@ extension MenuBarLayoutGap {
 
 extension MenuBarLayoutToken {
     func editorLabel(provider: UsageProvider?) -> String {
-        if provider == .notion, let notionLabel = self.notionEditorLabel {
-            return notionLabel
+        if let providerLabel = self.providerEditorLabel(provider: provider) {
+            return providerLabel
         }
         return self.defaultEditorLabel
     }
 
-    private var notionEditorLabel: String? {
-        switch self {
-        case .percent(window: .weekly): L("%@ %@", L("Monthly"), "%")
-        case .pace(window: .weekly): L("%@ %@", L("Monthly"), L("display_mode_pace").lowercased())
+    private func providerEditorLabel(provider: UsageProvider?) -> String? {
+        guard let provider,
+              let secondaryLabel = ProviderDescriptorRegistry.descriptor(for: provider).presentation
+                  .menuBarLayoutSecondaryLabel
+        else { return nil }
+        let localizedLabel = L(secondaryLabel)
+        return switch self {
+        case .percent(window: .weekly): L("%@ %@", localizedLabel, "%")
+        case .pace(window: .weekly): L("%@ %@", localizedLabel, L("display_mode_pace").lowercased())
         default: nil
         }
     }
