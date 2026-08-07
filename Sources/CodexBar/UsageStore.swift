@@ -346,6 +346,7 @@ final class UsageStore {
     @ObservationIgnored var tokenRefreshSequenceProvider: ProviderInstanceID?
     @ObservationIgnored var tokenRefreshSequenceIsForcedAllPass = false
     @ObservationIgnored var pendingForcedTokenRefresh = false
+    @ObservationIgnored var lastForcedTokenRefreshStartedAt: Date?
     @ObservationIgnored var tokenRefreshRetryProviders: Set<ProviderInstanceID> = []
     @ObservationIgnored var codexCostCatchUpTask: Task<Void, Never>?
     @ObservationIgnored var codexCostCatchUpToken: UUID?
