@@ -22,6 +22,7 @@ struct MenuBarLayoutRenderWindow: Hashable {
 }
 
 struct MenuBarLayoutRenderData: Hashable {
+    let provider: UsageProvider
     let iconKey: String
     let providerName: String?
     let accountLabel: String?
@@ -248,8 +249,13 @@ final class MenuBarLayoutRenderer {
                 prefix = Self.sessionPrefix(rateWindow)
                 accessibilityPrefix = L("Session")
             case .weekly:
-                prefix = "W"
-                accessibilityPrefix = L("Weekly")
+                if data.provider == .notion {
+                    prefix = "M"
+                    accessibilityPrefix = L("Monthly")
+                } else {
+                    prefix = "W"
+                    accessibilityPrefix = L("Weekly")
+                }
             case .scopedWeekly:
                 prefix = data.scopedWeeklyTitle.map { String($0.prefix(1)).uppercased() } ?? "F"
                 accessibilityPrefix = data.scopedWeeklyTitle ?? L("Scoped weekly")

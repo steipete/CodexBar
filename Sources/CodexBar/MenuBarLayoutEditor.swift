@@ -683,6 +683,7 @@ private struct MenuBarLayoutPreview: View {
         let cost = self.store.tokenSnapshotForCurrentProviderConfig(for: provider)?.snapshot
         let costToday = MenuBarLayoutCostResolver.todayCostUSD(snapshot: cost, now: now)
         return MenuBarLayoutRenderData(
+            provider: provider,
             iconKey: provider.rawValue,
             providerName: L(self.store.metadata(for: provider).displayName),
             accountLabel: self.settings.hidePersonalInfo ? nil : snapshot.accountEmail(for: provider),
@@ -726,6 +727,7 @@ private struct MenuBarLayoutPreview: View {
             MenuBarDisplayText.paceText(pace: UsagePace.weekly(window: window, now: now))
         }
         return MenuBarLayoutRenderData(
+            provider: provider,
             iconKey: "\(provider.rawValue)-representative",
             providerName: L(self.store.metadata(for: provider).displayName),
             accountLabel: self.settings.hidePersonalInfo ? nil : L("menu_bar_layout_sample_account"),
