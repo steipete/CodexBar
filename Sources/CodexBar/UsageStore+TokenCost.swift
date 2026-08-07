@@ -253,10 +253,12 @@ extension UsageStore {
             }
             self.installCachedTokenSnapshot(result.snapshot, for: .codex)
             self.tokenErrors[.codex] = nil
-            if result.staleSnapshotUpdatedAt != nil {
+            let needsCatchUp = !result.snapshot.historyCoverageIsEstablished
+            if result.staleSnapshotUpdatedAt != nil || needsCatchUp {
                 self.startCodexCostCatchUpIfNeeded()
             }
-            if let tokenFetchTTL = self.tokenFetchTTL,
+            if !needsCatchUp,
+               let tokenFetchTTL = self.tokenFetchTTL,
                let lastRefreshAt = result.lastRefreshAt,
                now.timeIntervalSince(lastRefreshAt) >= 0,
                now.timeIntervalSince(lastRefreshAt) < tokenFetchTTL
@@ -456,22 +458,16 @@ extension UsageStore {
 
     func clearCostUsageCache() async -> String? {
         let errorMessage: String? = await Task.detached(priority: .utility) {
-            let fm = FileManager.default
-            let cacheDirs = [
-                Self.costUsageCacheDirectory(fileManager: fm),
-            ]
-
-            for cacheDir in cacheDirs {
-                do {
-                    try fm.removeItem(at: cacheDir)
-                } catch let error as NSError {
-                    if error.domain == NSCocoaErrorDomain, error.code == NSFileNoSuchFileError {
-                        continue
-                    }
-                    return error.localizedDescription
+            do {
+                switch try CostUsageFetcher.clearCostUsageCache() {
+                case .cleared, .nothingToClear:
+                    return nil
+                case .deferredByConcurrentWriter:
+                    return "Codex cost refresh is in progress. Try clearing the cache again shortly."
                 }
+            } catch {
+                return error.localizedDescription
             }
-            return nil
         }.value
 
         guard errorMessage == nil else { return errorMessage }

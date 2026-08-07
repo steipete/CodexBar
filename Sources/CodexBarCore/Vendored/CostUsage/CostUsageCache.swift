@@ -134,6 +134,7 @@ enum CostUsageCacheIO {
         maxCacheBytes: Int = CostUsageCacheIO.maxCacheLoadBytes) -> Set<String>?
     {
         guard maxCacheBytes >= 0 else { return nil }
+        // Provider-specific by design: only Codex publishes SQLite usage-row generations through this artifact.
         let url = self.cacheFileURL(provider: .codex, cacheRoot: cacheRoot)
         let attributes: [FileAttributeKey: Any]
         do {

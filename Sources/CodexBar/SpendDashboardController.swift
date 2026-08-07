@@ -115,6 +115,7 @@ struct CodexSpendSnapshotLoadContext: Sendable {
     let historyDays: Int
     let refreshPricingInBackground: Bool
     let includePiSessions: Bool
+    let bypassScannerDebounce: Bool
 }
 
 enum SpendDashboardSource {
@@ -274,7 +275,9 @@ enum SpendDashboardSource {
             request,
             cacheRootResolver: cacheRootResolver,
             cachedCodexSnapshotLoader: { context in
-                await CostUsageFetcher(cacheRoot: context.cacheRoot)
+                await CostUsageFetcher(
+                    cacheRoot: context.cacheRoot,
+                    codexRefreshLockRoot: self.codexCacheFamilyRoot())
                     .loadCachedCodexTokenSnapshotForScopedHome(
                         now: context.now,
                         codexHomePath: context.account.homePath,
@@ -311,7 +314,8 @@ enum SpendDashboardSource {
                 force: false,
                 historyDays: Self.scanDays,
                 refreshPricingInBackground: false,
-                includePiSessions: false))
+                includePiSessions: false,
+                bypassScannerDebounce: false))
             guard !Task.isCancelled,
                   let snapshot,
                   self.currentAuthFingerprint(for: account) == account.authFingerprint
@@ -357,7 +361,8 @@ enum SpendDashboardSource {
                     force: request.force,
                     historyDays: Self.scanDays,
                     refreshPricingInBackground: false,
-                    includePiSessions: false))
+                    includePiSessions: false,
+                    bypassScannerDebounce: true))
                 try Task.checkCancellation()
                 let tokenActivityCache = await codexActivityLoader(CodexSpendSnapshotLoadContext(
                     account: account,
@@ -366,7 +371,8 @@ enum SpendDashboardSource {
                     force: false,
                     historyDays: Self.activityDays,
                     refreshPricingInBackground: false,
-                    includePiSessions: false))
+                    includePiSessions: false,
+                    bypassScannerDebounce: false))
                 try Task.checkCancellation()
                 guard self.codexAuthFingerprintMatches(account) else {
                     failedSourceIDs.insert(sourceID)
@@ -407,7 +413,9 @@ enum SpendDashboardSource {
     private static func loadCodexSnapshot(
         _ context: CodexSpendSnapshotLoadContext) async throws -> CostUsageTokenSnapshot
     {
-        try await CostUsageFetcher(cacheRoot: context.cacheRoot).loadTokenSnapshot(
+        try await CostUsageFetcher(
+            cacheRoot: context.cacheRoot,
+            codexRefreshLockRoot: self.codexCacheFamilyRoot()).loadTokenSnapshot(
             provider: .codex,
             environment: CodexHomeScope.scopedEnvironment(base: [:], codexHome: context.account.homePath),
             now: context.now,
@@ -415,13 +423,16 @@ enum SpendDashboardSource {
             codexHomePath: context.account.homePath,
             historyDays: context.historyDays,
             refreshPricingInBackground: context.refreshPricingInBackground,
-            includePiSessions: context.includePiSessions)
+            includePiSessions: context.includePiSessions,
+            bypassScannerDebounce: context.bypassScannerDebounce)
     }
 
     private static func loadCodexActivity(
         _ context: CodexSpendSnapshotLoadContext) async -> CostUsageTokenActivityCache?
     {
-        await CostUsageFetcher(cacheRoot: context.cacheRoot).loadCachedCodexTokenActivity(
+        await CostUsageFetcher(
+            cacheRoot: context.cacheRoot,
+            codexRefreshLockRoot: self.codexCacheFamilyRoot()).loadCachedCodexTokenActivity(
             now: context.now,
             codexHomePath: context.account.homePath,
             maximumDays: context.historyDays)
@@ -603,6 +614,10 @@ enum SpendDashboardSource {
         return costUsageDirectory
             .appendingPathComponent("accounts", isDirectory: true)
             .appendingPathComponent(request.cacheIdentity, isDirectory: true)
+    }
+
+    static func codexCacheFamilyRoot() -> URL {
+        UsageStore.costUsageCacheDirectory().deletingLastPathComponent()
     }
 
     static func codexAuthFingerprintMatches(_ request: CodexSpendScanRequest) -> Bool {

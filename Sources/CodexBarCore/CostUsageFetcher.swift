@@ -153,6 +153,7 @@ public struct CostUsageFetcher: Sendable {
             return .deferredByConcurrentWriter
         case let .acquired(lease):
             defer { lease.release() }
+            // Provider-specific by design: Codex owns the shared cost-usage cache directory and refresh lease.
             let cacheDirectory = CostUsageCacheIO.cacheFileURL(
                 provider: .codex,
                 cacheRoot: cacheRoot)
@@ -743,6 +744,7 @@ public struct CostUsageFetcher: Sendable {
             }
             try checkCancellation()
 
+            // Provider-specific by design: Vertex AI can fall back from its filtered Claude transcript view.
             if provider == .vertexai,
                !options.allowVertexClaudeFallback,
                options.scanOptions.claudeLogProviderFilter == .vertexAIOnly,

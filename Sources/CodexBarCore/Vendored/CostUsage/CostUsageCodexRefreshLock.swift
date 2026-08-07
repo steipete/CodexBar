@@ -45,6 +45,7 @@ enum CostUsageCodexRefreshLock {
     }
 
     static func lockFileURL(cacheRoot: URL? = nil) -> URL {
+        // Provider-specific by design: only Codex has the cross-process bounded-scan refresh lease.
         CostUsageCacheIO.cacheFileURL(provider: .codex, cacheRoot: cacheRoot)
             .deletingLastPathComponent()
             .deletingLastPathComponent()
@@ -60,6 +61,7 @@ enum CostUsageCodexRefreshLock {
         cacheRoot: URL? = nil,
         lockDomainRoot: URL? = nil) -> URL
     {
+        // Provider-specific by design: only Codex nests account caches under the shared clear-barrier domain.
         let localRoot = CostUsageCacheIO.cacheFileURL(provider: .codex, cacheRoot: cacheRoot)
             .deletingLastPathComponent()
             .deletingLastPathComponent()

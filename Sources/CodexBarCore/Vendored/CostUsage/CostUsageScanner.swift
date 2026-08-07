@@ -6759,6 +6759,7 @@ enum CostUsageScanner {
                 scanBudget: scanBudget,
                 tokenIndexStore: tokenIndexStore,
                 cachedFiles: cache.files)
+            // Provider-specific by design: Codex sidecar generations are keyed by its parser producer.
             let resources = CodexScanResources(
                 fileIndex: fileIndex,
                 inheritedResolver: inheritedResolver,

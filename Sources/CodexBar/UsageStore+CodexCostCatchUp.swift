@@ -98,15 +98,21 @@ extension UsageStore {
         self.codexCostCatchUpScopeSignature = nil
     }
 
+    // This is an intentional async state machine: keeping cancellation, pause, retry, and
+    // publication transitions together makes their ordering explicit.
+    // swiftlint:disable:next cyclomatic_complexity function_body_length
     private func runCodexCostCatchUp(context: CodexCostCatchUpContext) async {
         while self.codexCostCatchUpContextIsCurrent(context) {
             var status = await self.loadCodexCostCatchUpStatus(codexHomePath: context.codexHomePath)
+            status = status.requiringTransientRetry()
             self.publishCodexCostCatchUpActivity(
                 status: status,
                 context: context,
                 phase: status.pending ? .indexing : .complete)
             var didAdvance = false
             var previousActiveDuration: TimeInterval?
+            var transientNoProgressKey: String?
+            var unavailableRefreshLockRetryCount = 0
             while status.pending {
                 do {
                     guard self.codexCostCatchUpContextIsCurrent(context) else { return }
@@ -152,9 +158,9 @@ extension UsageStore {
 
                     let passStartedAt = ContinuousClock.now
                     self.codexCostCatchUpPassIsRunning = true
-                    let nextStatus: CostUsageFetcher.CodexScanCatchUpStatus
+                    let loadedStatus: CostUsageFetcher.CodexScanCatchUpStatus
                     do {
-                        nextStatus = try await self.advanceCodexCostCatchUp(
+                        loadedStatus = try await self.advanceCodexCostCatchUp(
                             now: Date(),
                             codexHomePath: context.codexHomePath,
                             historyDays: context.historyDays)
@@ -163,6 +169,9 @@ extension UsageStore {
                         self.codexCostCatchUpPassIsRunning = false
                         throw error
                     }
+                    let nextStatus = loadedStatus.requiresTransientRetry
+                        ? loadedStatus.requiringTransientRetry()
+                        : loadedStatus
                     let passDuration = ContinuousClock.now - passStartedAt
                     let durationComponents = passDuration.components
                     previousActiveDuration = max(
@@ -183,16 +192,51 @@ extension UsageStore {
                             pauseReason: .user)
                         return
                     }
-                    if nextStatus.pending, nextStatus.progressKey == status.progressKey {
-                        self.publishCodexCostCatchUpActivity(
-                            status: nextStatus,
-                            context: context,
-                            phase: .paused,
-                            pauseReason: .noProgress)
-                        CodexBarLog.logger(LogCategories.tokenCost).warning(
-                            "Codex cost catch-up stopped because a bounded pass made no progress")
-                        return
+                    if nextStatus.refreshLockUnavailable {
+                        if unavailableRefreshLockRetryCount >= 1 {
+                            self.publishCodexCostCatchUpActivity(
+                                status: nextStatus,
+                                context: context,
+                                phase: .paused,
+                                pauseReason: .error(
+                                    CostUsageFetcher.CodexScanCatchUpStatus
+                                        .refreshLockUnavailableErrorMessage))
+                            return
+                        }
+                        unavailableRefreshLockRetryCount += 1
+                        transientNoProgressKey = nil
+                        status = nextStatus
+                        try await self.sleepBetweenCodexCostCatchUpPasses(seconds: 1)
+                        continue
                     }
+                    unavailableRefreshLockRetryCount = 0
+                    if nextStatus.deferredByConcurrentWriter {
+                        transientNoProgressKey = nil
+                        status = nextStatus
+                        try await self.sleepBetweenCodexCostCatchUpPasses(seconds: 1)
+                        continue
+                    }
+                    if nextStatus.pending, nextStatus.progressKey == status.progressKey {
+                        if transientNoProgressKey == nextStatus.progressKey {
+                            self.publishCodexCostCatchUpActivity(
+                                status: nextStatus,
+                                context: context,
+                                phase: .paused,
+                                pauseReason: .noProgress)
+                            CodexBarLog.logger(LogCategories.tokenCost).warning(
+                                "Codex cost catch-up stopped because repeated bounded passes made no progress")
+                            return
+                        }
+                        // A source can change while it is being parsed, or SQLite can be briefly
+                        // unavailable after the JSON suffix was read. Both intentionally preserve
+                        // the published cursor, so one unchanged pass is a retry signal rather than
+                        // proof that catch-up is permanently stalled.
+                        transientNoProgressKey = nextStatus.progressKey
+                        status = nextStatus
+                        try await self.sleepBetweenCodexCostCatchUpPasses(seconds: 1)
+                        continue
+                    }
+                    transientNoProgressKey = nil
                     status = nextStatus
                 } catch is CancellationError {
                     return
@@ -262,6 +306,7 @@ extension UsageStore {
         self.persistWidgetSnapshot(reason: "token-usage-catch-up")
 
         let status = await self.loadCodexCostCatchUpStatus(codexHomePath: context.codexHomePath)
+            .requiringTransientRetry()
         self.publishCodexCostCatchUpActivity(
             status: status,
             context: context,

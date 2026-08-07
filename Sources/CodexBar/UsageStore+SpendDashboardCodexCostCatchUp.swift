@@ -105,10 +105,14 @@ extension UsageStore {
         self.spendDashboardCodexCostCatchUpActivity = nil
     }
 
+    // This is an intentional async state machine: account fairness, cancellation, retry, and
+    // publication transitions share ordering-sensitive state across each bounded pass.
+    // swiftlint:disable:next cyclomatic_complexity function_body_length
     private func runSpendDashboardCodexCostCatchUp(
         context: SpendDashboardCodexCostCatchUpContext) async
     {
         var statuses = await self.loadSpendDashboardCodexCostCatchUpStatuses(context.accounts)
+            .mapValues { $0.requiringTransientRetry() }
         guard self.spendDashboardCodexCostCatchUpContextIsCurrent(context) else { return }
         self.publishSpendDashboardCodexCostCatchUpActivity(
             statuses: statuses,
@@ -118,6 +122,11 @@ extension UsageStore {
         var didChangeCache = false
         var previousActiveDuration: TimeInterval?
         var stalledCacheIdentities: Set<String> = []
+        var transientNoProgressKeys: [String: String] = [:]
+        var deferredCacheIdentitiesThisSweep: Set<String> = []
+        var attemptedCacheIdentitiesThisSweep: Set<String> = []
+        var unavailableRefreshLockRetryCounts: [String: Int] = [:]
+        var terminalUnavailableRefreshLockCacheIdentities: Set<String> = []
         while Self.spendDashboardCodexCatchUpIsPending(statuses) {
             do {
                 guard self.spendDashboardCodexCostCatchUpContextIsCurrent(context) else { return }
@@ -134,15 +143,46 @@ extension UsageStore {
                 guard let account = context.accounts.first(where: {
                     statuses[$0.cacheIdentity]?.pending == true
                         && !stalledCacheIdentities.contains($0.cacheIdentity)
+                        && !terminalUnavailableRefreshLockCacheIdentities.contains($0.cacheIdentity)
+                        && !deferredCacheIdentitiesThisSweep.contains($0.cacheIdentity)
+                        && !attemptedCacheIdentitiesThisSweep.contains($0.cacheIdentity)
                 }) else {
+                    let hasRunnablePendingAccount = context.accounts.contains {
+                        statuses[$0.cacheIdentity]?.pending == true
+                            && !stalledCacheIdentities.contains($0.cacheIdentity)
+                            && !terminalUnavailableRefreshLockCacheIdentities.contains($0.cacheIdentity)
+                    }
+                    if hasRunnablePendingAccount {
+                        // Every pending account gets one turn per sweep, including healthy
+                        // accounts that remain pending for many slices. Back off once when a
+                        // sweep observed transient contention or no progress.
+                        attemptedCacheIdentitiesThisSweep.removeAll(keepingCapacity: true)
+                        let needsBackoff = !deferredCacheIdentitiesThisSweep.isEmpty
+                        deferredCacheIdentitiesThisSweep.removeAll(keepingCapacity: true)
+                        if needsBackoff {
+                            try await self.sleepBetweenSpendDashboardCodexCostCatchUpPasses(seconds: 1)
+                        }
+                        continue
+                    }
+                    let pauseReason: CodexCostCatchUpPauseReason =
+                        terminalUnavailableRefreshLockCacheIdentities.isEmpty
+                            ? .noProgress
+                            : .error(
+                                CostUsageFetcher.CodexScanCatchUpStatus
+                                    .refreshLockUnavailableErrorMessage)
                     self.publishSpendDashboardCodexCostCatchUpActivity(
                         statuses: statuses,
                         context: context,
                         phase: .paused,
-                        pauseReason: .noProgress)
+                        pauseReason: pauseReason)
                     self.publishSpendDashboardCodexCostCatchUpRevisionIfNeeded(didChangeCache)
-                    CodexBarLog.logger(LogCategories.tokenCost).warning(
-                        "Spend Dashboard Codex cost catch-up stopped because all pending account caches stalled")
+                    if terminalUnavailableRefreshLockCacheIdentities.isEmpty {
+                        CodexBarLog.logger(LogCategories.tokenCost).warning(
+                            "Spend Dashboard Codex cost catch-up stopped because all pending account caches stalled")
+                    } else {
+                        CodexBarLog.logger(LogCategories.tokenCost).warning(
+                            "Spend Dashboard Codex cost catch-up stopped after refresh-lock errors")
+                    }
                     return
                 }
 
@@ -181,9 +221,9 @@ extension UsageStore {
                 let previousStatus = statuses[account.cacheIdentity]
                 let passStartedAt = ContinuousClock.now
                 self.spendDashboardCodexCostCatchUpPassIsRunning = true
-                let nextStatus: CostUsageFetcher.CodexScanCatchUpStatus
+                let loadedStatus: CostUsageFetcher.CodexScanCatchUpStatus
                 do {
-                    nextStatus = try await self.advanceSpendDashboardCodexCostCatchUp(
+                    loadedStatus = try await self.advanceSpendDashboardCodexCostCatchUp(
                         account: account,
                         now: Date(),
                         historyDays: context.historyDays)
@@ -192,16 +232,64 @@ extension UsageStore {
                     self.spendDashboardCodexCostCatchUpPassIsRunning = false
                     throw error
                 }
+                let nextStatus = loadedStatus.requiresTransientRetry
+                    ? loadedStatus.requiringTransientRetry()
+                    : loadedStatus
                 previousActiveDuration = Self.spendDashboardCodexCatchUpDuration(
                     since: passStartedAt)
+                attemptedCacheIdentitiesThisSweep.insert(account.cacheIdentity)
                 didChangeCache = didChangeCache || nextStatus.progressKey != previousStatus?.progressKey
                 statuses[account.cacheIdentity] = nextStatus
-                if nextStatus.pending,
-                   nextStatus.progressKey == previousStatus?.progressKey
-                {
-                    stalledCacheIdentities.insert(account.cacheIdentity)
-                } else {
+                var shouldDeferUntilNextSweep = false
+                if nextStatus.refreshLockUnavailable {
+                    let retryCount = unavailableRefreshLockRetryCounts[account.cacheIdentity, default: 0]
+                    if retryCount >= 1 {
+                        // This account cannot create its refresh-lock domain. Stop retrying it
+                        // for this run, but let independent sibling caches finish before the
+                        // dashboard publishes the terminal error.
+                        unavailableRefreshLockRetryCounts.removeValue(forKey: account.cacheIdentity)
+                        terminalUnavailableRefreshLockCacheIdentities.insert(account.cacheIdentity)
+                        transientNoProgressKeys.removeValue(forKey: account.cacheIdentity)
+                        stalledCacheIdentities.remove(account.cacheIdentity)
+                    } else {
+                        unavailableRefreshLockRetryCounts[account.cacheIdentity] = retryCount + 1
+                        terminalUnavailableRefreshLockCacheIdentities.remove(account.cacheIdentity)
+                        transientNoProgressKeys.removeValue(forKey: account.cacheIdentity)
+                        stalledCacheIdentities.remove(account.cacheIdentity)
+                        shouldDeferUntilNextSweep = true
+                    }
+                } else if nextStatus.deferredByConcurrentWriter {
+                    unavailableRefreshLockRetryCounts.removeValue(forKey: account.cacheIdentity)
+                    terminalUnavailableRefreshLockCacheIdentities.remove(account.cacheIdentity)
+                    transientNoProgressKeys.removeValue(forKey: account.cacheIdentity)
                     stalledCacheIdentities.remove(account.cacheIdentity)
+                    shouldDeferUntilNextSweep = true
+                } else if nextStatus.pending,
+                          nextStatus.progressKey == previousStatus?.progressKey
+                {
+                    unavailableRefreshLockRetryCounts.removeValue(forKey: account.cacheIdentity)
+                    terminalUnavailableRefreshLockCacheIdentities.remove(account.cacheIdentity)
+                    if transientNoProgressKeys[account.cacheIdentity] == nextStatus.progressKey {
+                        transientNoProgressKeys.removeValue(forKey: account.cacheIdentity)
+                        stalledCacheIdentities.insert(account.cacheIdentity)
+                    } else {
+                        // Source mutation and transient sidecar persistence failures deliberately
+                        // keep the published progress key unchanged. Retry one bounded pass after
+                        // a short backoff before declaring this account permanently stalled.
+                        transientNoProgressKeys[account.cacheIdentity] = nextStatus.progressKey
+                        stalledCacheIdentities.remove(account.cacheIdentity)
+                        shouldDeferUntilNextSweep = true
+                    }
+                } else {
+                    unavailableRefreshLockRetryCounts.removeValue(forKey: account.cacheIdentity)
+                    terminalUnavailableRefreshLockCacheIdentities.remove(account.cacheIdentity)
+                    transientNoProgressKeys.removeValue(forKey: account.cacheIdentity)
+                    stalledCacheIdentities.remove(account.cacheIdentity)
+                }
+                if shouldDeferUntilNextSweep {
+                    deferredCacheIdentitiesThisSweep.insert(account.cacheIdentity)
+                } else {
+                    deferredCacheIdentitiesThisSweep.remove(account.cacheIdentity)
                 }
 
                 guard self.spendDashboardCodexCostCatchUpContextIsCurrent(context) else { return }
@@ -259,7 +347,8 @@ extension UsageStore {
                 statuses[account.cacheIdentity] = await override(account)
             } else {
                 statuses[account.cacheIdentity] = await CostUsageFetcher(
-                    cacheRoot: SpendDashboardSource.codexCacheRoot(for: account))
+                    cacheRoot: SpendDashboardSource.codexCacheRoot(for: account),
+                    codexRefreshLockRoot: SpendDashboardSource.codexCacheFamilyRoot())
                     .codexScanCatchUpStatus(codexHomePath: account.homePath)
             }
         }
@@ -274,7 +363,9 @@ extension UsageStore {
         if let override = self._test_spendDashboardCodexCostCatchUpAdvanceOverride {
             return try await override(account, now, historyDays)
         }
-        return try await CostUsageFetcher(cacheRoot: SpendDashboardSource.codexCacheRoot(for: account))
+        return try await CostUsageFetcher(
+            cacheRoot: SpendDashboardSource.codexCacheRoot(for: account),
+            codexRefreshLockRoot: SpendDashboardSource.codexCacheFamilyRoot())
             .advanceCodexScanCatchUp(
                 now: now,
                 codexHomePath: account.homePath,

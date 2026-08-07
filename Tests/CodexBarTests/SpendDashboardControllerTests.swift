@@ -51,6 +51,7 @@ struct SpendDashboardControllerTests {
         #expect(contexts.first?.historyDays == 30)
         #expect(contexts.first?.refreshPricingInBackground == false)
         #expect(contexts.first?.includePiSessions == false)
+        #expect(contexts.first?.bypassScannerDebounce == true)
     }
 
     @Test

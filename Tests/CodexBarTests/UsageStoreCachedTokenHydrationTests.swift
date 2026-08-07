@@ -192,6 +192,54 @@ struct UsageStoreCachedTokenHydrationTests {
     }
 
     @Test
+    func `fresh incomplete cached hydration resumes catch-up without installing freshness TTL`() async throws {
+        let now = Date()
+        let settings = Self.makeCodexOnlySettings(historyDays: 1)
+        let store = UsageStore(
+            fetcher: UsageFetcher(),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings,
+            startupBehavior: .testing,
+            environmentBase: [:])
+        var statusLoadCount = 0
+        var tokenRefreshCount = 0
+        store._test_cachedCodexTokenSnapshotLoaderOverride = { _, _, _ in
+            (
+                CostUsageTokenSnapshot(
+                    sessionTokens: 42,
+                    sessionCostUSD: 1,
+                    last30DaysTokens: 42,
+                    last30DaysCostUSD: 1,
+                    historyCoverageIsEstablished: false,
+                    daily: [],
+                    updatedAt: now),
+                now,
+                nil)
+        }
+        store._test_codexCostCatchUpStatusOverride = { _ in
+            statusLoadCount += 1
+            return CostUsageFetcher.CodexScanCatchUpStatus(
+                pending: false,
+                progressKey: "complete")
+        }
+        store._test_tokenUsageRefreshOverride = { _, _ in tokenRefreshCount += 1 }
+
+        let hydration = store.hydrateCachedTokenSnapshots(now: now)
+        await hydration?.value
+        for _ in 0..<1000 where statusLoadCount == 0 || store.codexCostCatchUpTask != nil {
+            try await Task.sleep(for: .milliseconds(1))
+        }
+
+        #expect(store.tokenSnapshot(for: .codex)?.sessionTokens == 42)
+        #expect(statusLoadCount == 1)
+        #expect(store.codexCostCatchUpTask == nil)
+        #expect(store.tokenLastAttemptAt(for: .codex) == nil)
+
+        await store.refreshTokenUsageNow(for: .codex, force: false)
+        #expect(tokenRefreshCount == 1)
+    }
+
+    @Test
     func `incompatible cached hydration remains visible and starts marked catch-up`() async throws {
         let staleAt = Date(timeIntervalSince1970: 1_775_000_000)
         let settings = Self.makeCodexOnlySettings(historyDays: 1)
