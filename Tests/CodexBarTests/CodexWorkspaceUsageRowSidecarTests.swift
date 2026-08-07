@@ -216,7 +216,7 @@ struct CodexWorkspaceUsageRowSidecarTests {
 
         var database: OpaquePointer?
         #expect(sqlite3_open(fixture.store.databaseURL().path, &database) == SQLITE_OK)
-        #expect(sqlite3_exec(database, "PRAGMA user_version = 2", nil, nil, nil) == SQLITE_OK)
+        #expect(sqlite3_exec(database, "PRAGMA user_version = 3", nil, nil, nil) == SQLITE_OK)
         sqlite3_close(database)
 
         #expect(throws: (any Error).self) {

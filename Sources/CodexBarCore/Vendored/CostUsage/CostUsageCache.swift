@@ -34,6 +34,9 @@ enum CostUsageCacheIO {
         // alias normalization only rebinds their dependency keys; discarding these caches would
         // unnecessarily restart an in-progress multi-gigabyte catch-up from byte zero.
         "codex:cu:pcdc205df2dba1a53",
+        // Generation retirement changes only sidecar lifecycle metadata. Schema v1 migrates in
+        // place, so the previously published JSON cursors and parser totals remain reusable.
+        "codex:cu:pb078d50efbec1a2b",
     ]
 
     /// Parsing and attribution changes rotate the Codex parser producer key.

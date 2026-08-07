@@ -422,21 +422,167 @@ struct CostUsageCodexUsageRowStoreTests {
 
         // Memoization removes only the full-table quick check. A later pass still opens the
         // database and rejects a schema it cannot safely understand.
-        try Self.setUserVersion(databaseURL: fixture.store.databaseURL(), version: 2)
+        try Self.setUserVersion(databaseURL: fixture.store.databaseURL(), version: 3)
         do {
             try nextPassStore.validateDatabaseHealth(requireExistingDatabase: true)
             Issue.record("Expected the repeated health check to reject a newer schema")
         } catch let CostUsageCodexUsageRowStore.StoreError.incompatibleSchema(version) {
-            #expect(version == 2)
+            #expect(version == 3)
         }
         #expect(recorder.snapshot().fullHealthScanCount == 1)
 
         // Any structural store failure rearms the complete check for the next owned refresh.
-        try Self.setUserVersion(databaseURL: fixture.store.databaseURL(), version: 1)
+        try Self.setUserVersion(databaseURL: fixture.store.databaseURL(), version: 2)
         nextPassStore.recordDatabaseFailure(
             CostUsageCodexUsageRowStore.StoreError.sqlite(code: SQLITE_CORRUPT))
         try nextPassStore.validateDatabaseHealth(requireExistingDatabase: true)
         #expect(recorder.snapshot().fullHealthScanCount == 2)
+        #else
+        #expect(Bool(true))
+        #endif
+    }
+
+    @Test
+    func `version one schema migrates in place before health validation`() throws {
+        #if canImport(SQLite3) || canImport(CSQLite3)
+        let fixture = try Self.makeFixture()
+        defer { fixture.cleanup() }
+        let source = try Self.source(
+            fileURL: fixture.fileURL,
+            indexedBytes: 2048,
+            isComplete: true)
+        let rows = [Self.record(eventIndex: 0, input: 100, turnID: "migration-turn")]
+        let reference = try fixture.store.createGeneration(
+            source: source,
+            records: rows,
+            nextUsageRowIndex: 1,
+            coverageSinceKey: "2026-01-01",
+            coverageUntilKey: "2026-01-07",
+            pricingKey: "pricing-v1",
+            priorityMetadataKey: "priority-v1",
+            generation: "generation-schema-migration")
+        try Self.downgradeToVersionOneSchema(databaseURL: fixture.store.databaseURL())
+
+        let migratedStore = CostUsageCodexUsageRowStore(cacheRoot: fixture.cacheRoot)
+        try migratedStore.validateDatabaseHealth(requireExistingDatabase: true)
+
+        #expect(try Self.userVersion(databaseURL: fixture.store.databaseURL()) == 2)
+        #expect(try Self.readyRows(store: migratedStore, reference: reference) == rows)
+        let result = try migratedStore.garbageCollect(
+            publishedGenerationIDs: [reference.state.generation],
+            gracePeriod: 24 * 60 * 60,
+            now: Date(timeIntervalSince1970: 2_000_000_000))
+        #expect(result.deletedGenerationCount == 0)
+        #else
+        #expect(Bool(true))
+        #endif
+    }
+
+    @Test
+    func `garbage collection starts grace when a selected generation becomes unreferenced`() throws {
+        #if canImport(SQLite3) || canImport(CSQLite3)
+        let fixture = try Self.makeFixture()
+        defer { fixture.cleanup() }
+        let source = try Self.source(
+            fileURL: fixture.fileURL,
+            indexedBytes: 2048,
+            isComplete: true)
+        let rows = [Self.record(eventIndex: 0, input: 100, turnID: "gc-reader-turn")]
+        let selected = try fixture.store.createGeneration(
+            source: source,
+            records: rows,
+            nextUsageRowIndex: 1,
+            coverageSinceKey: "2026-01-01",
+            coverageUntilKey: "2026-01-07",
+            pricingKey: "pricing-v1",
+            priorityMetadataKey: "priority-v1",
+            generation: "generation-gc-reader-selected")
+        try Self.setGenerationCreatedAt(
+            databaseURL: fixture.store.databaseURL(),
+            generation: selected.state.generation,
+            unixMs: 0)
+
+        // Model a second process publishing a replacement after this reader selected the old
+        // JSON reference but before it opened the SQLite generation.
+        let writer = CostUsageCodexUsageRowStore(cacheRoot: fixture.cacheRoot)
+        let replacement = try writer.createGeneration(
+            source: source,
+            records: rows,
+            nextUsageRowIndex: 1,
+            coverageSinceKey: "2026-01-01",
+            coverageUntilKey: "2026-01-07",
+            pricingKey: "pricing-v1",
+            priorityMetadataKey: "priority-v1",
+            generation: "generation-gc-reader-replacement")
+        let now = Date(timeIntervalSince1970: 2_000_000_000)
+        let retired = try writer.garbageCollect(
+            publishedGenerationIDs: [replacement.state.generation],
+            gracePeriod: 24 * 60 * 60,
+            now: now)
+
+        #expect(retired.deletedGenerationCount == 0)
+        #expect(try Self.readyRows(store: fixture.store, reference: selected) == rows)
+
+        let expired = try writer.garbageCollect(
+            publishedGenerationIDs: [replacement.state.generation],
+            gracePeriod: 24 * 60 * 60,
+            now: now.addingTimeInterval(24 * 60 * 60 + 1))
+        #expect(expired.deletedGenerationCount == 1)
+        #expect(Self.needsRebuild(fixture.store.load(selected)))
+        #else
+        #expect(Bool(true))
+        #endif
+    }
+
+    @Test
+    func `republishing a retired generation restarts grace before the next sweep`() throws {
+        #if canImport(SQLite3) || canImport(CSQLite3)
+        let fixture = try Self.makeFixture()
+        defer { fixture.cleanup() }
+        let source = try Self.source(
+            fileURL: fixture.fileURL,
+            indexedBytes: 2048,
+            isComplete: true)
+        let rows = [Self.record(eventIndex: 0, input: 100, turnID: "gc-republish-turn")]
+        let generation = "generation-gc-republished"
+        let reference = try fixture.store.createGeneration(
+            source: source,
+            records: rows,
+            nextUsageRowIndex: 1,
+            coverageSinceKey: "2026-01-01",
+            coverageUntilKey: "2026-01-07",
+            pricingKey: "pricing-v1",
+            priorityMetadataKey: "priority-v1",
+            generation: generation)
+        let now = Date(timeIntervalSince1970: 2_000_000_000)
+        let retired = try fixture.store.garbageCollect(
+            publishedGenerationIDs: [],
+            gracePeriod: 24 * 60 * 60,
+            now: now)
+        #expect(retired.deletedGenerationCount == 0)
+
+        _ = try fixture.store.createGeneration(
+            source: source,
+            records: rows,
+            nextUsageRowIndex: 1,
+            coverageSinceKey: "2026-01-01",
+            coverageUntilKey: "2026-01-07",
+            pricingKey: "pricing-v1",
+            priorityMetadataKey: "priority-v1",
+            generation: generation)
+        let firstPostRepublishSweep = try fixture.store.garbageCollect(
+            publishedGenerationIDs: [],
+            gracePeriod: 24 * 60 * 60,
+            now: now.addingTimeInterval(24 * 60 * 60 + 1))
+        #expect(firstPostRepublishSweep.deletedGenerationCount == 0)
+        #expect(try Self.readyRows(store: fixture.store, reference: reference) == rows)
+
+        let expired = try fixture.store.garbageCollect(
+            publishedGenerationIDs: [],
+            gracePeriod: 24 * 60 * 60,
+            now: now.addingTimeInterval(2 * 24 * 60 * 60 + 2))
+        #expect(expired.deletedGenerationCount == 1)
+        #expect(Self.needsRebuild(fixture.store.load(reference)))
         #else
         #expect(Bool(true))
         #endif
@@ -483,13 +629,13 @@ struct CostUsageCodexUsageRowStoreTests {
             unixMs: nowUnixMs)
 
         let first = try fixture.store.garbageCollect(
-            publishedGenerationIDs: [published.state.generation],
+            publishedGenerationIDs: [published.state.generation, recent.state.generation],
             gracePeriod: 3600,
             now: now)
-        #expect(first.deletedGenerationCount == 1)
-        #expect(first.deletedRowCount == 1)
+        #expect(first.deletedGenerationCount == 0)
+        #expect(first.deletedRowCount == 0)
         #expect(try Self.readyRows(store: fixture.store, reference: published) == rows)
-        #expect(Self.needsRebuild(fixture.store.load(expired)))
+        #expect(try Self.readyRows(store: fixture.store, reference: expired) == rows)
         #expect(try Self.readyRows(store: fixture.store, reference: recent) == rows)
 
         let second = try fixture.store.garbageCollect(
@@ -499,6 +645,15 @@ struct CostUsageCodexUsageRowStoreTests {
         #expect(second.deletedGenerationCount == 1)
         #expect(second.deletedRowCount == 1)
         #expect(try Self.readyRows(store: fixture.store, reference: published) == rows)
+        #expect(Self.needsRebuild(fixture.store.load(expired)))
+        #expect(try Self.readyRows(store: fixture.store, reference: recent) == rows)
+
+        let third = try fixture.store.garbageCollect(
+            publishedGenerationIDs: [published.state.generation],
+            gracePeriod: 3600,
+            now: now.addingTimeInterval(14400))
+        #expect(third.deletedGenerationCount == 1)
+        #expect(third.deletedRowCount == 1)
         #expect(Self.needsRebuild(fixture.store.load(recent)))
         #else
         #expect(Bool(true))
@@ -565,10 +720,20 @@ struct CostUsageCodexUsageRowStoreTests {
             publishedGenerationIDs: [published.state.generation],
             gracePeriod: 0,
             now: dueAt)
-        #expect(due.deletedGenerationCount == 1)
-        #expect(due.deletedRowCount == 1)
+        #expect(due.deletedGenerationCount == 0)
+        #expect(due.deletedRowCount == 0)
         #expect(recorder.snapshot().garbageCollectionSweepCount == 2)
         #expect(try Self.readyRows(store: fixture.store, reference: published) == rows)
+        #expect(try Self.readyRows(store: fixture.store, reference: unreferenced) == rows)
+
+        let expired = try fixture.store.garbageCollect(
+            publishedGenerationIDs: [published.state.generation],
+            gracePeriod: 0,
+            now: dueAt.addingTimeInterval(
+                CostUsageCodexUsageRowStore.garbageCollectionMinimumInterval + 1))
+        #expect(expired.deletedGenerationCount == 1)
+        #expect(expired.deletedRowCount == 1)
+        #expect(recorder.snapshot().garbageCollectionSweepCount == 3)
         #expect(Self.needsRebuild(fixture.store.load(unreferenced)))
         #else
         #expect(Bool(true))
@@ -895,6 +1060,44 @@ struct CostUsageCodexUsageRowStoreTests {
             nil) == SQLITE_OK)
         defer { sqlite3_close(db) }
         try #require(sqlite3_exec(db, "PRAGMA user_version = \(version)", nil, nil, nil) == SQLITE_OK)
+    }
+
+    private static func downgradeToVersionOneSchema(databaseURL: URL) throws {
+        var db: OpaquePointer?
+        try #require(sqlite3_open_v2(
+            databaseURL.path,
+            &db,
+            SQLITE_OPEN_READWRITE | SQLITE_OPEN_FULLMUTEX,
+            nil) == SQLITE_OK)
+        defer { sqlite3_close(db) }
+        try #require(sqlite3_exec(
+            db,
+            "DROP INDEX generations_unreferenced",
+            nil,
+            nil,
+            nil) == SQLITE_OK)
+        try #require(sqlite3_exec(
+            db,
+            "ALTER TABLE generations DROP COLUMN unreferenced_at_ms",
+            nil,
+            nil,
+            nil) == SQLITE_OK)
+        try #require(sqlite3_exec(db, "PRAGMA user_version = 1", nil, nil, nil) == SQLITE_OK)
+    }
+
+    private static func userVersion(databaseURL: URL) throws -> Int32 {
+        var db: OpaquePointer?
+        try #require(sqlite3_open_v2(
+            databaseURL.path,
+            &db,
+            SQLITE_OPEN_READONLY | SQLITE_OPEN_FULLMUTEX,
+            nil) == SQLITE_OK)
+        defer { sqlite3_close(db) }
+        var statement: OpaquePointer?
+        try #require(sqlite3_prepare_v2(db, "PRAGMA user_version", -1, &statement, nil) == SQLITE_OK)
+        defer { sqlite3_finalize(statement) }
+        try #require(sqlite3_step(statement) == SQLITE_ROW)
+        return sqlite3_column_int(statement, 0)
     }
 
     private static let sqliteTransient = unsafeBitCast(-1, to: sqlite3_destructor_type.self)

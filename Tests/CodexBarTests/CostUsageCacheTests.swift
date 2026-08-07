@@ -282,6 +282,7 @@ struct CostUsageCacheTests {
             "codex:cu:p6c0f1fa950e63467",
             "codex:cu:p89e80f722cad05c8",
             "codex:cu:pcdc205df2dba1a53",
+            "codex:cu:pb078d50efbec1a2b",
         ] {
             var cache = CostUsageCache()
             cache.lastScanUnixMs = 123

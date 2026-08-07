@@ -1521,7 +1521,7 @@ struct ProviderArchitectureGatekeeperTests {
             reason: "This provider-specific core branch passes its already-selected identity to a shared helper."),
         SuppressedProviderReference(
             path: "Sources/CodexBarCore/Vendored/CostUsage/CostUsageCache.swift",
-            line: 102,
+            line: 105,
             anchor: "let url = self.cacheFileURL(provider: .codex, cacheRoot: cacheRoot)",
             expectedProviderIDs: ["codex"],
             reason: "This provider-specific core branch passes its already-selected identity to a shared helper."),
@@ -3607,7 +3607,7 @@ struct ProviderArchitectureGatekeeperTests {
             reason: "This exact shared construct dispatches a provider-owned capability at the generic integration boundary."),
         AllowedProviderConstruct(
             path: "Sources/CodexBarCore/Vendored/CostUsage/CostUsageCache.swift",
-            line: 110,
+            line: 113,
             anchor: "let expectedProducerKey = producerKey ?? self.currentProducerKey(provider: .codex)",
             expectedProviderIDs: ["codex"],
             expectedReferenceCount: 1,
@@ -3615,7 +3615,7 @@ struct ProviderArchitectureGatekeeperTests {
             reason: "This exact cost scanner dispatch selects a provider-owned transcript, cache, or pricing format."),
         AllowedProviderConstruct(
             path: "Sources/CodexBarCore/Vendored/CostUsage/CostUsageCache.swift",
-            line: 211,
+            line: 214,
             anchor: "if provider == .codex {",
             expectedProviderIDs: ["codex"],
             expectedReferenceCount: 1,
@@ -3623,7 +3623,7 @@ struct ProviderArchitectureGatekeeperTests {
             reason: "This exact cost scanner dispatch selects a provider-owned transcript, cache, or pricing format."),
         AllowedProviderConstruct(
             path: "Sources/CodexBarCore/Vendored/CostUsage/CostUsageCache.swift",
-            line: 239,
+            line: 242,
             anchor: "if provider == .codex, data.count > maxCacheBytes {",
             expectedProviderIDs: ["codex"],
             expectedReferenceCount: 1,
@@ -3631,7 +3631,7 @@ struct ProviderArchitectureGatekeeperTests {
             reason: "This exact cost scanner dispatch selects a provider-owned transcript, cache, or pricing format."),
         AllowedProviderConstruct(
             path: "Sources/CodexBarCore/Vendored/CostUsage/CostUsageCache.swift",
-            line: 268,
+            line: 271,
             anchor: "if provider == .codex, data.count > maxCacheLoadBytes {",
             expectedProviderIDs: ["codex"],
             expectedReferenceCount: 1,

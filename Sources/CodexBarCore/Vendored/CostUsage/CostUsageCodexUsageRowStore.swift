@@ -183,7 +183,7 @@ struct CostUsageCodexUsageRowGarbageCollectionResult: Equatable {
 // and write only the new suffix.
 // swiftlint:disable:next type_body_length
 struct CostUsageCodexUsageRowStore: Sendable {
-    private static let schemaVersion: Int32 = 1
+    private static let schemaVersion: Int32 = 2
     private static let stateFormatVersion = 1
     static let garbageCollectionMinimumInterval: TimeInterval = 60 * 60
 
@@ -373,11 +373,13 @@ struct CostUsageCodexUsageRowStore: Sendable {
         }
     }
 
-    /// Validates the shared database before a refresh starts publishing new references. Every
-    /// owned refresh still opens the database and checks its schema. The full-table quick check is
-    /// process-memoized for the current database file identity, so a Finish Now catch-up loop does
-    /// not rescan an ever-growing row store after every bounded JSONL slice. Structural failures
-    /// invalidate the memo and force the next owned refresh through the full check and recovery.
+    /// Validates the shared database before a refresh starts publishing new references. The caller
+    /// owns the refresh lease, so an older schema can be migrated before any other writer observes
+    /// it. Every owned refresh still opens the database and checks its schema. The full-table quick
+    /// check is process-memoized for the current database file identity, so a Finish Now catch-up
+    /// loop does not rescan an ever-growing row store after every bounded JSONL slice. Structural
+    /// failures invalidate the memo and force the next owned refresh through the full check and
+    /// recovery.
     func validateDatabaseHealth(requireExistingDatabase: Bool) throws {
         #if canImport(SQLite3) || canImport(CSQLite3)
         let url = self.databaseURL()
@@ -387,8 +389,24 @@ struct CostUsageCodexUsageRowStore: Sendable {
             return
         }
         let fileIDBeforeOpen = self.databaseFileID(url)
-        let db = try self.open(readOnly: true)
-        defer { sqlite3_close(db) }
+        var db: OpaquePointer? = try self.open(readOnly: true)
+        if try Self.userVersion(db) == 1 {
+            sqlite3_close(db)
+            db = nil
+            let migrationDB = try self.open(readOnly: false)
+            do {
+                try Self.ensureSchema(migrationDB)
+                sqlite3_close(migrationDB)
+            } catch {
+                sqlite3_close(migrationDB)
+                throw error
+            }
+            Self.maintenanceMemo.invalidate(path: url.path)
+            db = try self.open(readOnly: true)
+        }
+        defer {
+            if let db { sqlite3_close(db) }
+        }
         do {
             try Self.beginRead(db)
             try Self.requireCurrentSchema(db)
@@ -486,6 +504,10 @@ struct CostUsageCodexUsageRowStore: Sendable {
                     db: db)
                 guard finalDigest == state.prefixDigest else { throw StoreError.prefixMismatch }
             }
+            // SQLite commits before JSON publication. Clearing retirement here may retain an
+            // unpublished retry candidate longer, but prevents a successfully republished
+            // generation from carrying an old retirement deadline into the next GC sweep.
+            try Self.retainGenerationForPublication(generation, db: db)
             try Self.commit(db)
         } catch {
             let error = Self.capturingSQLiteError(error, db: db)
@@ -589,6 +611,7 @@ struct CostUsageCodexUsageRowStore: Sendable {
                 }
                 try Self.updateGeneration(updated, db: db)
             }
+            try Self.retainGenerationForPublication(expected.state.generation, db: db)
             try Self.commit(db)
         } catch {
             let error = Self.capturingSQLiteError(error, db: db)
@@ -966,9 +989,11 @@ struct CostUsageCodexUsageRowStore: Sendable {
         #endif
     }
 
-    /// Deletes only generations absent from the complete set of JSON-published generation IDs
-    /// and older than `gracePeriod`. The caller must hold the refresh lock while collecting the
-    /// IDs and invoking this method, so publication cannot race the protected-set snapshot.
+    /// Marks generations absent from the complete JSON-published set as unreferenced, then deletes
+    /// only generations that have remained unreferenced for `gracePeriod`. The caller must hold the
+    /// refresh lock while collecting the IDs and invoking this method, so publication cannot race
+    /// the protected-set snapshot. Starting grace at retirement protects a reader that selected the
+    /// previous JSON generation immediately before a concurrent replacement publication.
     @discardableResult
     func garbageCollect(
         publishedGenerationIDs: Set<String>,
@@ -979,6 +1004,7 @@ struct CostUsageCodexUsageRowStore: Sendable {
         guard publishedGenerationIDs.allSatisfy({ !$0.isEmpty }),
               gracePeriod.isFinite,
               gracePeriod >= 0,
+              let nowUnixMs = Self.unixMilliseconds(now),
               let cutoffUnixMs = Self.garbageCollectionCutoffUnixMs(
                   now: now,
                   gracePeriod: gracePeriod)
@@ -1025,8 +1051,28 @@ struct CostUsageCodexUsageRowStore: Sendable {
                 }
             }
 
+            try Self.execute(db, """
+            UPDATE generations
+            SET unreferenced_at_ms = NULL
+            WHERE id IN (SELECT id FROM protected_usage_row_generations)
+            """)
+            let retire = try Self.prepare(
+                db,
+                """
+                UPDATE generations
+                SET unreferenced_at_ms = ?
+                WHERE unreferenced_at_ms IS NULL
+                AND id NOT IN (SELECT id FROM protected_usage_row_generations)
+                """)
+            defer { sqlite3_finalize(retire) }
+            sqlite3_bind_int64(retire, 1, nowUnixMs)
+            let retireResult = sqlite3_step(retire)
+            guard retireResult == SQLITE_DONE else {
+                throw Self.sqliteError(db, fallbackCode: retireResult)
+            }
+
             let eligibleClause = """
-            created_at_ms < ?
+            unreferenced_at_ms < ?
             AND id NOT IN (SELECT id FROM protected_usage_row_generations)
             """
             let rowCount = try Self.count(
@@ -1137,6 +1183,15 @@ extension CostUsageCodexUsageRowStore {
         return Int64(cutoff.rounded(.down))
     }
 
+    private static func unixMilliseconds(_ date: Date) -> Int64? {
+        let milliseconds = date.timeIntervalSince1970 * 1000
+        guard milliseconds.isFinite,
+              milliseconds >= Double(Int64.min),
+              milliseconds <= Double(Int64.max)
+        else { return nil }
+        return Int64(milliseconds.rounded(.down))
+    }
+
     private func open(readOnly: Bool) throws -> OpaquePointer {
         let url = self.databaseURL()
         if !readOnly {
@@ -1190,10 +1245,8 @@ extension CostUsageCodexUsageRowStore {
         try self.begin(db)
         do {
             let current = try Self.userVersion(db)
-            guard current == 0 || current == Self.schemaVersion else {
-                throw StoreError.incompatibleSchema(version: current)
-            }
-            if current == 0 {
+            switch current {
+            case 0:
                 try Self.execute(db, """
                 CREATE TABLE generations (
                     id TEXT PRIMARY KEY,
@@ -1218,7 +1271,8 @@ extension CostUsageCodexUsageRowStore {
                     next_usage_row_index INTEGER NOT NULL CHECK (next_usage_row_index >= 0),
                     row_count INTEGER NOT NULL CHECK (row_count >= 0),
                     prefix_digest TEXT NOT NULL,
-                    created_at_ms INTEGER NOT NULL
+                    created_at_ms INTEGER NOT NULL,
+                    unreferenced_at_ms INTEGER
                 );
                 CREATE TABLE rows (
                     generation_id TEXT NOT NULL REFERENCES generations(id) ON DELETE CASCADE,
@@ -1245,8 +1299,23 @@ extension CostUsageCodexUsageRowStore {
                 CREATE INDEX rows_turn ON rows (turn_id, generation_id);
                 CREATE INDEX rows_dedup ON rows (dedup_key, generation_id);
                 CREATE INDEX rows_day_model ON rows (generation_id, day, model);
+                CREATE INDEX generations_unreferenced
+                    ON generations (unreferenced_at_ms)
+                    WHERE unreferenced_at_ms IS NOT NULL;
                 """)
                 try Self.execute(db, "PRAGMA user_version = \(Self.schemaVersion)")
+            case 1:
+                try Self.execute(db, """
+                ALTER TABLE generations ADD COLUMN unreferenced_at_ms INTEGER;
+                CREATE INDEX generations_unreferenced
+                    ON generations (unreferenced_at_ms)
+                    WHERE unreferenced_at_ms IS NOT NULL;
+                """)
+                try Self.execute(db, "PRAGMA user_version = \(Self.schemaVersion)")
+            case Self.schemaVersion:
+                break
+            default:
+                throw StoreError.incompatibleSchema(version: current)
             }
             try Self.commit(db)
         } catch {
@@ -1557,6 +1626,19 @@ extension CostUsageCodexUsageRowStore {
             if result != SQLITE_DONE { throw Self.sqliteError(db, fallbackCode: result) }
             throw StoreError.prefixMismatch
         }
+    }
+
+    private static func retainGenerationForPublication(
+        _ generation: String,
+        db: OpaquePointer?) throws
+    {
+        let statement = try Self.prepare(
+            db,
+            "UPDATE generations SET unreferenced_at_ms = NULL WHERE id = ?")
+        defer { sqlite3_finalize(statement) }
+        Self.bind(generation, to: statement, at: 1)
+        let result = sqlite3_step(statement)
+        guard result == SQLITE_DONE else { throw Self.sqliteError(db, fallbackCode: result) }
     }
 
     private static func bind(
