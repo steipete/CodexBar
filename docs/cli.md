@@ -50,8 +50,8 @@ See `docs/configuration.md` for the schema.
   - Legacy provider-specific keys such as `openRouterUsage`, `clawRouterUsage`, and `sub2APIUsage` are not compatibility
     aliases; clients must read `usage.details`. Unknown legacy keys in cached or iCloud-synced snapshots are ignored
     when decoding.
-- `codexbar cost` prints token cost usage for Claude, Codex, and Cursor.
-  - Claude and Codex are scanned from local session logs without web/CLI access.
+- `codexbar cost` prints token cost usage for Claude, Codex, Cursor, Kimi, and Moonshot.
+  - Claude, Codex, Kimi, and Moonshot are scanned from local session logs without web/CLI access.
   - Cursor is fetched from the cookie-authenticated cursor.com dashboard API (macOS only; see `docs/cursor.md`) and honors the configured cookie source: a non-empty Manual header is required and forwarded, while Off fails explicitly instead of silently omitting Cursor.
   - `--format text|json` (default: text).
   - `--refresh` ignores cached scans.
@@ -208,6 +208,8 @@ codexbar cost                     # cost usage (default 30-day window + today)
 codexbar cost --days 90           # choose a 1...365 day cost window
 codexbar cost --provider codex --group-by project
 codexbar cost --provider claude --format json --pretty
+codexbar cost --provider kimi --format json --pretty
+codexbar cost --provider moonshot --format json --pretty
 codexbar guard --provider codex --min-remaining 20 --window weekly --json
 codexbar cost --provider cursor   # Cursor dashboard cost (API-rate + Cursor-metered)
 codexbar dashboard | jq '.providers[] | {id, windows, error}'

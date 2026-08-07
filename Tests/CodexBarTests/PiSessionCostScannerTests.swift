@@ -1301,6 +1301,88 @@ extension PiSessionCostScannerTests {
         #expect(expandedReport.summary?.totalTokens == 45)
     }
 
+    @Test
+    func `pi scanner prices Kimi aliases and Moonshot sessions with models dev catalogs`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+
+        let day = try env.makeLocalNoon(year: 2026, month: 7, day: 18)
+        let catalog = try Self.modelsDevCatalog("""
+        {
+          "kimi-for-coding": {
+            "id": "kimi-for-coding",
+            "models": {
+              "k3": {
+                "id": "k3",
+                "cost": { "input": 1, "output": 3, "cache_read": 0.2 }
+              }
+            }
+          },
+          "moonshotai": {
+            "id": "moonshotai",
+            "models": {
+              "kimi-k3": {
+                "id": "kimi-k3",
+                "cost": { "input": 3, "output": 15, "cache_read": 0.3 }
+              }
+            }
+          }
+        }
+        """)
+        #expect(ModelsDevCache.save(catalog: catalog, fetchedAt: day, cacheRoot: env.cacheRoot))
+
+        func assistant(provider: String, model: String, usage: [String: Int]) -> [String: Any] {
+            [
+                "type": "message",
+                "timestamp": env.isoString(for: day),
+                "message": [
+                    "role": "assistant",
+                    "provider": provider,
+                    "model": model,
+                    "timestamp": Int(day.timeIntervalSince1970 * 1000),
+                    "usage": usage,
+                ],
+            ]
+        }
+
+        _ = try env.writePiSessionFile(
+            relativePath: "2026-07-18T10-00-00-000Z_kimi-moonshot-models.jsonl",
+            contents: env.jsonl([
+                assistant(
+                    provider: "kimi",
+                    model: "k3[1m]",
+                    usage: ["input": 100, "cacheRead": 10, "output": 50, "totalTokens": 160]),
+                assistant(
+                    provider: "moonshotai",
+                    model: "kimi-k3",
+                    usage: ["input": 100, "cacheRead": 10, "output": 50, "totalTokens": 160]),
+            ]))
+
+        let options = PiSessionCostScanner.Options(
+            piSessionsRoot: env.piSessionsRoot,
+            cacheRoot: env.cacheRoot,
+            refreshMinIntervalSeconds: 0)
+
+        let kimi = PiSessionCostScanner.loadDailyReport(
+            provider: .kimi,
+            since: day,
+            until: day,
+            now: day,
+            options: options)
+        let moonshot = PiSessionCostScanner.loadDailyReport(
+            provider: .moonshot,
+            since: day,
+            until: day,
+            now: day,
+            options: options)
+
+        #expect(kimi.data.first?.totalTokens == 160)
+        #expect(kimi.data.first?.modelBreakdowns?.first?.modelName == "k3[1m]")
+        #expect(abs((kimi.data.first?.costUSD ?? 0) - 0.000252) < 0.0000001)
+        #expect(moonshot.data.first?.totalTokens == 160)
+        #expect(abs((moonshot.data.first?.costUSD ?? 0) - 0.001053) < 0.0000001)
+    }
+
     private static func modelsDevCatalog(inputCostPerMillion: Double) throws -> ModelsDevCatalog {
         let json = """
         {

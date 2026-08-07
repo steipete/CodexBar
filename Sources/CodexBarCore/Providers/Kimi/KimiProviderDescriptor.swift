@@ -66,7 +66,8 @@ public enum KimiProviderDescriptor {
                 ]),
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
-                noDataMessage: { "Kimi Code cost summary is not supported." }),
+                noDataMessage: { "Kimi Code cost summary is not supported." },
+                supportsTokenSnapshot: true),
             pace: ProviderPaceCapability(
                 resetWindowPace: .windowDuration(minutes: self.weeklyWindowMinutes),
                 primary: .exact(kind: .weekly, minutes: self.weeklyWindowMinutes),
@@ -101,6 +102,7 @@ public enum KimiProviderDescriptor {
                 name: "kimi",
                 aliases: ["kimi-ai"],
                 versionDetector: nil,
+                supportsCostCommand: true,
                 browserSupportExemption: { sourceMode, environment, _ in
                     guard sourceMode == .auto else { return false }
                     return environment.map { environment in
