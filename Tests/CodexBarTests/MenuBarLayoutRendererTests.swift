@@ -48,7 +48,8 @@ struct MenuBarLayoutRendererTests {
             data: data,
             icon: icon,
             options: self.options())
-        #expect(iconOutput.attributedTitle.attribute(.attachment, at: 0, effectiveRange: nil) is NSTextAttachment)
+        #expect(iconOutput.attributedTitle.string.isEmpty)
+        #expect(iconOutput.leadingIcon != nil)
 
         let absoluteOutput = renderer.render(
             layout: MenuBarLayout(lines: [[.resetAbsolute]]),
@@ -99,14 +100,11 @@ struct MenuBarLayoutRendererTests {
             data: self.data(),
             icon: icon,
             options: self.options())
-        let attachment = try #require(
-            output.attributedTitle.attribute(.attachment, at: 0, effectiveRange: nil) as? NSTextAttachment)
-        let attachmentImage = try #require(attachment.image)
 
-        #expect(attachment.bounds.size == NSSize(width: 16, height: 16))
-        #expect(attachmentImage.isTemplate)
-        #expect(try self.averageBrightness(of: output.attributedTitle, appearance: .aqua) < 0.25)
-        #expect(try self.averageBrightness(of: output.attributedTitle, appearance: .darkAqua) > 0.75)
+        #expect(output.attributedTitle.string.isEmpty)
+        let leadingIcon = try #require(output.leadingIcon)
+        #expect(leadingIcon.isTemplate)
+        #expect(leadingIcon.size == icon.size)
     }
 
     @Test
@@ -263,7 +261,31 @@ struct MenuBarLayoutRendererTests {
 
         #expect(try #require(self.baselineOffset(in: stacked.attributedTitle, at: 0)) == -3)
         #expect(try #require(self.baselineOffset(in: stacked.attributedTitle, at: resetIndex)) == -3)
-        #expect(self.baselineOffset(in: singleLine.attributedTitle, at: 0) == nil)
+        #expect(try #require(self.baselineOffset(in: singleLine.attributedTitle, at: 0)) == -1)
+    }
+
+    @Test
+    func `vertical adjustment shifts single line baseline offset`() throws {
+        let renderer = MenuBarLayoutRenderer()
+        let base = renderer.render(
+            layout: MenuBarLayout(lines: [[.percent(window: .automatic)]]),
+            data: self.data(),
+            icon: nil,
+            options: self.options())
+        let adjusted = renderer.render(
+            layout: MenuBarLayout(lines: [[.percent(window: .automatic)]]),
+            data: self.data(),
+            icon: nil,
+            options: self.options(verticalAdjustment: 2))
+        let lifted = renderer.render(
+            layout: MenuBarLayout(lines: [[.percent(window: .automatic)]]),
+            data: self.data(),
+            icon: nil,
+            options: self.options(verticalAdjustment: -2))
+
+        #expect(try #require(self.baselineOffset(in: base.attributedTitle, at: 0)) == -1)
+        #expect(try #require(self.baselineOffset(in: adjusted.attributedTitle, at: 0)) == 1)
+        #expect(try #require(self.baselineOffset(in: lifted.attributedTitle, at: 0)) == -3)
     }
 
     @Test
@@ -414,10 +436,31 @@ struct MenuBarLayoutRendererTests {
             icon: icon,
             options: options)
 
-        #expect(output.attributedTitle.attribute(.attachment, at: 0, effectiveRange: nil) is NSTextAttachment)
+        #expect(output.leadingIcon != nil)
         let textIndex = (output.attributedTitle.string as NSString).range(of: "50%").location
         #expect(output.attributedTitle
             .attribute(.foregroundColor, at: textIndex, effectiveRange: nil) as? NSColor == .labelColor)
+    }
+
+    @Test
+    func `stale title dims foreground while keeping the snapshot visible`() {
+        let renderer = MenuBarLayoutRenderer()
+        let fresh = renderer.render(
+            layout: MenuBarLayout(lines: [[.percent(window: .automatic)]]),
+            data: self.data(),
+            icon: nil,
+            options: self.options())
+        let stale = renderer.render(
+            layout: MenuBarLayout(lines: [[.percent(window: .automatic)]]),
+            data: self.data(),
+            icon: nil,
+            options: self.options(isStale: true))
+
+        #expect(stale.attributedTitle.string == fresh.attributedTitle.string)
+        #expect(stale.attributedTitle
+            .attribute(.foregroundColor, at: 0, effectiveRange: nil) as? NSColor == .secondaryLabelColor)
+        #expect(fresh.attributedTitle
+            .attribute(.foregroundColor, at: 0, effectiveRange: nil) as? NSColor == .controlTextColor)
     }
 
     private func data(
@@ -461,14 +504,16 @@ struct MenuBarLayoutRendererTests {
             cost30d: "$20.00")
     }
 
-    private func options(now: Date? = nil) -> MenuBarLayoutRenderOptions {
+    private func options(now: Date? = nil, verticalAdjustment: Int = 0, isStale: Bool = false) -> MenuBarLayoutRenderOptions {
         MenuBarLayoutRenderOptions(
             size: .regular,
             highContrast: false,
             showUsed: true,
             appearanceName: "aqua",
             isDebugApp: false,
-            now: now ?? self.now)
+            isStale: isStale,
+            now: now ?? self.now,
+            verticalAdjustment: verticalAdjustment)
     }
 
     private func averageBrightness(
@@ -476,12 +521,22 @@ struct MenuBarLayoutRendererTests {
         appearance: NSAppearance.Name) throws
         -> CGFloat
     {
+        try self.renderAverageBrightness(appearance: appearance) { _ in
+            title.draw(at: NSPoint(x: 4, y: 4))
+        }
+    }
+
+    private func renderAverageBrightness(
+        appearance: NSAppearance.Name,
+        draw: (NSImage) -> Void) throws
+        -> CGFloat
+    {
         let canvas = NSImage(size: NSSize(width: 24, height: 24))
         try #require(NSAppearance(named: appearance)).performAsCurrentDrawingAppearance {
             canvas.lockFocus()
             NSColor.clear.setFill()
             NSRect(origin: .zero, size: canvas.size).fill()
-            title.draw(at: NSPoint(x: 4, y: 4))
+            draw(canvas)
             canvas.unlockFocus()
         }
 

@@ -51,9 +51,35 @@ struct MenuBarLayoutRenderOptions: Hashable {
     let showUsed: Bool
     let appearanceName: String
     let isDebugApp: Bool
+    /// Whether the provider's latest refresh failed; when true the shown snapshot is stale
+    /// and rendered dimmer until a background refresh succeeds again.
+    let isStale: Bool
     /// Exact display clock. The cache keys on the resulting reset strings, so animation ticks that keep
     /// the same visible countdown still reuse the cached title.
     let now: Date
+    /// User-tunable vertical nudge for the whole title, applied on top of the optical baseline
+    /// offset. Positive moves content down, negative moves it up.
+    let verticalAdjustment: Int
+
+    init(
+        size: MenuBarLayoutSize,
+        highContrast: Bool,
+        showUsed: Bool,
+        appearanceName: String,
+        isDebugApp: Bool,
+        isStale: Bool = false,
+        now: Date,
+        verticalAdjustment: Int = 0)
+    {
+        self.size = size
+        self.highContrast = highContrast
+        self.showUsed = showUsed
+        self.appearanceName = appearanceName
+        self.isDebugApp = isDebugApp
+        self.isStale = isStale
+        self.now = now
+        self.verticalAdjustment = verticalAdjustment
+    }
 }
 
 struct MenuBarLayoutRenderKey: Hashable {
@@ -64,6 +90,8 @@ struct MenuBarLayoutRenderKey: Hashable {
     let showUsed: Bool
     let appearanceName: String
     let isDebugApp: Bool
+    let isStale: Bool
+    let verticalAdjustment: Int
     let resetText: MenuBarLayoutResetText
 }
 
@@ -85,6 +113,11 @@ struct MenuBarLayoutResetText: Hashable {
 struct MenuBarLayoutRenderedTitle {
     let attributedTitle: NSAttributedString
     let accessibilityLabel: String
+    /// When the layout begins with an icon token, the raw template image is surfaced here so
+    /// the status item can assign it to `button.image`. Template images are the only menu bar
+    /// content AppKit automatically dims on inactive displays; attributed-title attachments are
+    /// pre-rendered bitmaps and do not follow the system's active-state tinting.
+    let leadingIcon: NSImage?
 }
 
 @MainActor
@@ -125,6 +158,7 @@ final class MenuBarLayoutTitleCache {
 final class MenuBarLayoutRenderer {
     private static let missingValue = "–"
     private static let stackedBaselineOffset: CGFloat = -3 // Center multi-line NSStatusBarButton titles.
+    private static let singleLineBaselineOffset: CGFloat = -1 // Drop single-line titles slightly for optical centering.
 
     private struct TokenStyle {
         let font: NSFont
@@ -155,6 +189,8 @@ final class MenuBarLayoutRenderer {
             showUsed: options.showUsed,
             appearanceName: options.appearanceName,
             isDebugApp: options.isDebugApp,
+            isStale: options.isStale,
+            verticalAdjustment: options.verticalAdjustment,
             resetText: resetText)
         return self.cache.value(for: key) {
             Self.renderUncached(layout: layout, data: data, icon: icon, options: options)
@@ -174,7 +210,13 @@ final class MenuBarLayoutRenderer {
     {
         let isStacked = layout.lines.count == 2
         let font = NSFont.systemFont(ofSize: Self.fontSize(size: options.size, isStacked: isStacked))
-        let foregroundColor = options.highContrast ? NSColor.labelColor : NSColor.controlTextColor
+        let foregroundColor = if options.highContrast {
+            NSColor.labelColor
+        } else if options.isStale {
+            NSColor.secondaryLabelColor
+        } else {
+            NSColor.controlTextColor
+        }
         let paragraphStyle = NSMutableParagraphStyle()
         if isStacked {
             paragraphStyle.minimumLineHeight = 9.5
@@ -186,11 +228,19 @@ final class MenuBarLayoutRenderer {
             .foregroundColor: foregroundColor,
             .paragraphStyle: paragraphStyle,
         ]
-        if isStacked {
-            attributes[.baselineOffset] = Self.stackedBaselineOffset
-        }
+        // Optical baseline offset keeps the title vertically balanced in the status bar button.
+        // A user-tunable nudge is layered on top so the layout can be fine-tuned per display.
+        let baseBaselineOffset = isStacked ? Self.stackedBaselineOffset : Self.singleLineBaselineOffset
+        attributes[.baselineOffset] = baseBaselineOffset + CGFloat(options.verticalAdjustment)
         let result = NSMutableAttributedString()
         var accessibilityLines: [String] = []
+        // Only surface a leading icon via `button.image` when an actual image is available;
+        // with a missing icon the token still renders its placeholder inside the title.
+        let leadingIcon: NSImage? = if layout.lines.first?.first == .icon, icon != nil {
+            icon
+        } else {
+            nil
+        }
 
         for (lineIndex, line) in layout.lines.enumerated() {
             if lineIndex > 0 {
@@ -198,6 +248,11 @@ final class MenuBarLayoutRenderer {
             }
             var accessibilityParts: [String] = []
             for (tokenIndex, token) in line.enumerated() {
+                // The leading icon is surfaced as `button.image` so AppKit applies the system's
+                // active/inactive display tinting; it is not repeated inside the attributed title.
+                if leadingIcon != nil, lineIndex == 0, tokenIndex == 0, token == .icon {
+                    continue
+                }
                 if tokenIndex > 0, token != .space, line[tokenIndex - 1] != .space {
                     result.append(NSAttributedString(string: "\u{2009}", attributes: attributes))
                 }
@@ -228,7 +283,8 @@ final class MenuBarLayoutRenderer {
         }.joined(separator: ", ")
         return MenuBarLayoutRenderedTitle(
             attributedTitle: result,
-            accessibilityLabel: accessibilityLabel)
+            accessibilityLabel: accessibilityLabel,
+            leadingIcon: leadingIcon)
     }
 
     private static func renderItem(
@@ -472,6 +528,6 @@ final class MenuBarLayoutRenderer {
         if isStacked {
             return size == .small ? 8 : 9
         }
-        return size == .small ? 14 : 16
+        return size == .small ? 14 : 18
     }
 }
