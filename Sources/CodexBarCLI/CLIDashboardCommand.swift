@@ -64,16 +64,22 @@ struct DashboardSnapshotProducer: Sendable {
         config: CodexBarConfig,
         refreshInterval: TimeInterval,
         codexBarVersion: String?,
-        identityMode: DashboardIdentityMode = .redacted) async throws -> DashboardSnapshotResult
+        identityMode: DashboardIdentityMode = .redacted,
+        providers requestedProviders: [UsageProvider]? = nil) async throws -> DashboardSnapshotResult
     {
-        let selection = CodexBarCLI.providerSelection(
+        let selection = requestedProviders.map(ProviderSelection.custom) ?? CodexBarCLI.providerSelection(
             rawOverride: nil,
             enabled: config.enabledProviders().compactMap(\.firstPartyProvider))
         let usageOutput = try await self.collectUsage(selection.asList)
         let costPayloads = await self.collectCost(
             CodexBarCLI.costProviders(from: selection),
             config)
-        let claudeSwap = await self.collectClaudeSwapAccounts(config)
+        // Provider-specific by design: claude-swap account enrichment is a
+        // Claude-only integration, so provider-filtered snapshots skip it
+        // unless the Claude row is requested.
+        let claudeSwap = selection.asList.contains(.claude)
+            ? await self.collectClaudeSwapAccounts(config)
+            : nil
         let generatedAt = self.now()
 
         let payload = DashboardSnapshotBuilder.makeSnapshot(

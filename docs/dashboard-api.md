@@ -32,6 +32,8 @@ On the default loopback bind, `/usage` and `/cost` are unchanged and unauthentic
 
 `GET /` serves a self-contained web dashboard that polls `/dashboard/v1/snapshot`. The static HTML is always unauthenticated, including on non-loopback binds, because it contains no account data. When the snapshot route returns `401`, the page asks for the dashboard token, stores it in the browser under the localStorage key `codexbar.dashboardToken`, and sends it in the `Authorization` header on each snapshot request. The token is never added to the URL.
 
+The browser keeps the last successfully merged snapshot in localStorage under `codexbar.lastSnapshot` and paints that redacted data immediately on the next load. It then fetches the config-only shell and streams concurrent per-provider snapshot updates into the page as they finish. Signing out clears both the token and cached snapshot.
+
 The UI does not change the transport threat model: `codexbar serve` is plain HTTP. Off-loopback, a token typed into the page transits the network in cleartext like every other request unless a TLS-terminating reverse proxy protects the connection.
 
 ## One-shot command semantics
@@ -121,6 +123,16 @@ Snapshot requests share the serve cache and coordination machinery used by `/usa
 - Concurrent cache misses coalesce into one fetch; `--request-timeout` bounds each request with `504 Gateway Timeout`.
 - Slow builds keep running past the request deadline; the finished result is committed to the response cache and handed to any same-config request already waiting, so a 504 first load self-heals on retry (the built-in web UI retries automatically).
 - Authorization is checked before the cache, so unauthenticated requests can neither warm nor read it.
+
+### Snapshot query parameters
+
+- `provider=<id>` returns a snapshot containing only the selected provider row. Provider names are validated like `/usage`; unknown providers return `400` with the normal JSON error shape.
+- `detail=full` is the default and returns the complete snapshot. `detail=shell` returns schema-v1 host metadata plus config-derived provider rows containing only `id`, `name`, `enabled`, and `display`; it performs no provider fetches or cost scans. Other detail values return `400`.
+- `detail=shell&provider=<id>` is supported and returns the config-only shell for that provider.
+
+### Stale responses and background refresh
+
+After a fresh cache entry expires, `codexbar serve` may answer immediately with its last-good response while rebuilding that same route and configuration in the background. Concurrent refresh triggers still coalesce, and a slow rebuild commits even if it outlives the initiating request deadline. Clients can use `generatedAt` together with `staleAfterSeconds` to decide how to present freshness. This behavior is disabled when `--refresh-interval 0`.
 
 ## Payload
 

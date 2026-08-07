@@ -132,6 +132,73 @@ struct DashboardSnapshotBuilderTests {
         #expect(object["generatedAt"] as? String == "2027-01-15T08:00:00Z")
     }
 
+    @Test
+    func `producer provider filter collects and returns exactly one row`() async throws {
+        let recorder = DashboardProviderSelectionRecorder()
+        let producer = DashboardSnapshotProducer(
+            collectUsage: { providers in
+                await recorder.recordUsage(providers)
+                var output = UsageCommandOutput()
+                output.payload = providers.map { provider in
+                    ProviderPayload(
+                        provider: provider,
+                        account: nil,
+                        version: nil,
+                        source: "test",
+                        status: nil,
+                        usage: nil,
+                        credits: nil,
+                        antigravityPlanInfo: nil,
+                        openaiDashboard: nil,
+                        error: nil)
+                }
+                return output
+            },
+            collectCost: { providers, _ in
+                await recorder.recordCost(providers)
+                return []
+            },
+            now: { Date(timeIntervalSince1970: 0) })
+        let config = CodexBarConfig(providers: [
+            ProviderConfig(id: .claude, enabled: true),
+            ProviderConfig(id: .codex, enabled: true),
+        ])
+
+        let result = try await producer.collect(
+            config: config,
+            refreshInterval: 60,
+            codexBarVersion: nil,
+            providers: [.codex])
+        let object = try self.jsonObject(result.payload)
+        let providers = try #require(object["providers"] as? [[String: Any]])
+
+        #expect(providers.compactMap { $0["id"] as? String } == ["codex"])
+        #expect(await recorder.usageProviders() == [.codex])
+        #expect(await recorder.costProviders() == [.codex])
+    }
+
+    @Test
+    func `shell builder emits config fields only without fetch collaborators`() throws {
+        let config = CodexBarConfig(providers: [
+            ProviderConfig(id: .claude, enabled: true),
+            ProviderConfig(id: .codex, enabled: true),
+            ProviderConfig(id: .gemini, enabled: false),
+        ])
+        let snapshot = DashboardSnapshotBuilder.makeShellSnapshot(
+            config: config,
+            generatedAt: Date(timeIntervalSince1970: 0),
+            refreshInterval: 300,
+            codexBarVersion: "9.8.7")
+        let object = try self.jsonObject(snapshot)
+        let providers = try #require(object["providers"] as? [[String: Any]])
+
+        #expect(object["schemaVersion"] as? Int == 1)
+        #expect(providers.compactMap { $0["id"] as? String } == ["claude", "codex"])
+        #expect(providers.allSatisfy { Set($0.keys) == ["id", "name", "enabled", "display"] })
+        #expect((providers[0]["display"] as? [String: Any])?["sortKey"] as? Int == 0)
+        #expect((providers[1]["display"] as? [String: Any])?["sortKey"] as? Int == 10)
+    }
+
     private func costCollectionContext() -> ServeCostCollectionContext {
         ServeCostCollectionContext(
             configFingerprint: "dashboard-cost-policy",
@@ -623,5 +690,26 @@ private actor DashboardCostConfigRecorder {
 
     func call() -> Call? {
         self.recordedCall
+    }
+}
+
+private actor DashboardProviderSelectionRecorder {
+    private var usage: [UsageProvider] = []
+    private var cost: [UsageProvider] = []
+
+    func recordUsage(_ providers: [UsageProvider]) {
+        self.usage = providers
+    }
+
+    func recordCost(_ providers: [UsageProvider]) {
+        self.cost = providers
+    }
+
+    func usageProviders() -> [UsageProvider] {
+        self.usage
+    }
+
+    func costProviders() -> [UsageProvider] {
+        self.cost
     }
 }

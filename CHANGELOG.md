@@ -2,6 +2,12 @@
 
 ## 0.48.1 — Unreleased
 
+### Added
+- CLI: add provider/detail snapshot queries and progressive cached-shell rendering to the built-in serve dashboard.
+
+### Fixed
+- CLI: answer expired serve-cache requests from the last-good response while rebuilding in the background instead of blocking the dashboard for up to a minute.
+
 ## 0.48.0 — 2026-08-06
 
 ### Added

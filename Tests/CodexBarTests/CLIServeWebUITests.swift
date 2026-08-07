@@ -50,6 +50,16 @@ struct CLIServeWebUITests {
     }
 
     @Test
+    func `web ui progressively paints cached shell and provider snapshots`() {
+        let html = self.html
+        #expect(html.contains("codexbar.lastSnapshot"))
+        #expect(html.contains("/dashboard/v1/snapshot?detail=shell"))
+        #expect(html.contains("card pending"))
+        #expect(html.contains("Promise.allSettled"))
+        #expect(html.contains("encodeURIComponent(provider.id)"))
+    }
+
+    @Test
     func `serve identity flag decodes like the dashboard command`() {
         #expect(CodexBarCLI.decodeDashboardIdentityMode(
             from: ParsedValues(positional: [], options: [:], flags: [])) == .redacted)

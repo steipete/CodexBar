@@ -242,6 +242,33 @@ extension CLIServeWebUI {
           border-color: color-mix(in srgb, var(--ok), var(--line) 45%);
         }
 
+        .card.pending {
+          min-height: 132px;
+        }
+
+        .pending-lines {
+          display: grid;
+          gap: 9px;
+          margin-top: 18px;
+        }
+
+        .pending-line {
+          height: 9px;
+          border-radius: 999px;
+          background: color-mix(in srgb, var(--accent), transparent 84%);
+          animation: pending-pulse 1.6s ease-in-out infinite;
+        }
+
+        .pending-line:last-child {
+          width: 62%;
+          animation-delay: 120ms;
+        }
+
+        @keyframes pending-pulse {
+          0%, 100% { opacity: 0.42; }
+          50% { opacity: 0.9; }
+        }
+
         .group {
           margin-bottom: 26px;
         }
@@ -535,7 +562,9 @@ extension CLIServeWebUI {
         }
 
         @media (prefers-reduced-motion: reduce) {
-          .fill {
+          .fill,
+          .pending-line {
+            animation: none;
             transition: none;
           }
         }
@@ -579,11 +608,16 @@ extension CLIServeWebUI {
         "use strict";
 
         const tokenKey = "codexbar.dashboardToken";
+        const snapshotKey = "codexbar.lastSnapshot";
         const providerIconURLs = __PROVIDER_ICON_URLS__;
         const state = {
           snapshot: null,
           timer: null,
           fetching: false,
+          fillPromise: null,
+          fillGeneration: 0,
+          fillComplete: false,
+          forceStale: false,
           refreshSeconds: 15,
           costHistories: {}
         };
@@ -621,6 +655,59 @@ extension CLIServeWebUI {
         function clearToken() {
           try {
             localStorage.removeItem(tokenKey);
+          } catch (_) {
+            // Nothing else to clear when storage is unavailable.
+          }
+        }
+
+        function storedSnapshot() {
+          try {
+            const snapshot = JSON.parse(localStorage.getItem(snapshotKey) || "null");
+            return snapshot && snapshot.schemaVersion === 1 && Array.isArray(snapshot.providers)
+              ? snapshot
+              : null;
+          } catch (_) {
+            return null;
+          }
+        }
+
+        function persistSnapshot(snapshot) {
+          try {
+            const persisted = {
+              ...snapshot,
+              providers: (snapshot.providers || []).filter(provider => !provider._pending).map(provider => {
+                const copy = { ...provider };
+                delete copy._pending;
+                delete copy._progressiveError;
+                copy.identity = redactedIdentity(copy.identity);
+                if (Array.isArray(copy.accounts)) {
+                  copy.accounts = copy.accounts.map(account => ({
+                    ...account,
+                    identity: redactedIdentity(account.identity)
+                  }));
+                }
+                return copy;
+              })
+            };
+            localStorage.setItem(snapshotKey, JSON.stringify(persisted));
+          } catch (_) {
+            // Rendering remains live when storage is unavailable or full.
+          }
+        }
+
+        function redactedIdentity(identity) {
+          if (!identity || !identity.accountEmail) return identity;
+          const email = String(identity.accountEmail);
+          const at = email.lastIndexOf("@");
+          return {
+            ...identity,
+            accountEmail: at >= 0 ? `redacted${email.slice(at)}` : "redacted"
+          };
+        }
+
+        function clearSnapshot() {
+          try {
+            localStorage.removeItem(snapshotKey);
           } catch (_) {
             // Nothing else to clear when storage is unavailable.
           }
@@ -834,7 +921,7 @@ extension CLIServeWebUI {
         }
 
         function renderProvider(provider) {
-          const card = node("article", "card");
+          const card = node("article", provider._pending ? "card pending" : "card");
           card.style.setProperty("--accent", accentColor(provider.display?.accentColor));
           if (provider.enabled === false) card.classList.add("disabled");
           if (provider.error) card.classList.add("error");
@@ -860,6 +947,13 @@ extension CLIServeWebUI {
             head.append(status);
           }
           card.append(head);
+
+          if (provider._pending) {
+            const lines = node("div", "pending-lines");
+            lines.append(node("span", "pending-line"), node("span", "pending-line"));
+            card.append(lines);
+            return card;
+          }
 
           if (provider.identity) {
             const identity = node("div", "identity");
@@ -909,12 +1003,14 @@ extension CLIServeWebUI {
             ? "Updated time unavailable"
             : `Updated ${relativeTime(state.snapshot.generatedAt)}`;
           const staleAfter = Math.max(0, finiteNumber(state.snapshot.staleAfterSeconds));
-          const stale = generatedAt !== null && (Date.now() - generatedAt) / 1000 > staleAfter;
+          const stale = state.forceStale
+            || (generatedAt !== null && (Date.now() - generatedAt) / 1000 > staleAfter);
           elements.stale.classList.toggle("visible", stale);
         }
 
-        function renderSnapshot(snapshot) {
+        function renderSnapshot(snapshot, forceStale = false) {
           state.snapshot = snapshot;
+          state.forceStale = forceStale;
           const host = snapshot.host || {};
           const interval = finiteNumber(host.refreshIntervalSeconds, 15);
           state.refreshSeconds = Math.max(interval, 15);
@@ -961,6 +1057,7 @@ extension CLIServeWebUI {
         }
 
         function showTokenForm() {
+          state.fillGeneration += 1;
           state.snapshot = null;
           elements.providers.replaceChildren();
           elements.error.classList.remove("visible");
@@ -982,6 +1079,119 @@ extension CLIServeWebUI {
           clearTimeout(state.timer);
           if (elements.auth.classList.contains("visible")) return;
           state.timer = setTimeout(refresh, state.refreshSeconds * 1000);
+        }
+
+        function requestHeaders(overrideToken) {
+          const token = overrideToken || storedToken();
+          return token ? { Authorization: `Bearer ${token}` } : {};
+        }
+
+        function progressiveErrorMessage(error) {
+          return error instanceof Error ? error.message : "Provider data is unavailable.";
+        }
+
+        function replaceProgressiveProvider(provider, snapshot, persist) {
+          if (!state.snapshot) return;
+          const providers = (state.snapshot.providers || []).map(existing => {
+            return existing.id === provider.id ? provider : existing;
+          });
+          state.snapshot = {
+            ...state.snapshot,
+            generatedAt: snapshot?.generatedAt || state.snapshot.generatedAt,
+            staleAfterSeconds: snapshot?.staleAfterSeconds ?? state.snapshot.staleAfterSeconds,
+            host: snapshot?.host || state.snapshot.host,
+            providers
+          };
+          renderSnapshot(state.snapshot, true);
+          if (persist) persistSnapshot(state.snapshot);
+        }
+
+        async function fetchProgressiveProvider(provider, headers, generation) {
+          try {
+            const response = await fetch(
+              `/dashboard/v1/snapshot?provider=${encodeURIComponent(provider.id)}`,
+              { headers, cache: "no-store" }
+            );
+            if (generation !== state.fillGeneration) return;
+            if (response.status === 401) {
+              showTokenForm();
+              return;
+            }
+            if (!response.ok) throw new Error(`Server returned HTTP ${response.status}`);
+            const snapshot = await response.json();
+            if (generation !== state.fillGeneration) return;
+            const row = (snapshot.providers || []).find(candidate => candidate.id === provider.id);
+            if (!row) throw new Error("Provider data was missing from the response.");
+            replaceProgressiveProvider(row, snapshot, true);
+          } catch (error) {
+            if (generation !== state.fillGeneration) return;
+            replaceProgressiveProvider({
+              ...provider,
+              _pending: false,
+              _progressiveError: true,
+              status: null,
+              identity: null,
+              windows: [],
+              credits: null,
+              cost: null,
+              accounts: null,
+              error: { message: progressiveErrorMessage(error) }
+            }, null, false);
+          }
+        }
+
+        async function runProgressiveFill(overrideToken) {
+          clearTimeout(state.timer);
+          const generation = ++state.fillGeneration;
+          const headers = requestHeaders(overrideToken);
+          let shell;
+          try {
+            const response = await fetch(
+              "/dashboard/v1/snapshot?detail=shell",
+              { headers, cache: "no-store" }
+            );
+            if (response.status === 401) {
+              showTokenForm();
+              return;
+            }
+            if (!response.ok) throw new Error(`Server returned HTTP ${response.status}`);
+            shell = await response.json();
+          } catch (error) {
+            if (!state.snapshot || !(state.snapshot.providers || []).length) {
+              showError(progressiveErrorMessage(error));
+              return;
+            }
+            shell = state.snapshot;
+          }
+          if (generation !== state.fillGeneration) return;
+
+          const cachedRows = new Map((state.snapshot?.providers || []).map(provider => [provider.id, provider]));
+          const shellRows = Array.isArray(shell.providers) ? shell.providers : [];
+          const providers = shellRows.map(provider => {
+            const cached = cachedRows.get(provider.id);
+            return cached
+              ? { ...cached, name: provider.name, enabled: provider.enabled, display: provider.display }
+              : { ...provider, _pending: true };
+          });
+          state.snapshot = { ...shell, providers };
+          renderSnapshot(state.snapshot, cachedRows.size > 0);
+
+          await Promise.allSettled(
+            providers.map(provider => fetchProgressiveProvider(provider, headers, generation))
+          );
+          if (generation !== state.fillGeneration) return;
+          state.fillComplete = true;
+          state.forceStale = false;
+          if (state.snapshot) renderSnapshot(state.snapshot);
+          scheduleRefresh();
+        }
+
+        function startProgressiveFill(overrideToken) {
+          if (state.fillPromise) return state.fillPromise;
+          state.fillPromise = runProgressiveFill(overrideToken).finally(() => {
+            state.fillPromise = null;
+          });
+          return state.fillPromise;
         }
 
         async function refreshCostHistory(headers) {
@@ -1011,8 +1221,7 @@ extension CLIServeWebUI {
           state.fetching = true;
           clearTimeout(state.timer);
           try {
-            const token = overrideToken || storedToken();
-            const headers = token ? { Authorization: `Bearer ${token}` } : {};
+            const headers = requestHeaders(overrideToken);
             const [response] = await Promise.all([
               fetch("/dashboard/v1/snapshot", { headers, cache: "no-store" }),
               refreshCostHistory(headers)
@@ -1028,7 +1237,9 @@ extension CLIServeWebUI {
               );
             }
             if (!response.ok) throw new Error(`Server returned HTTP ${response.status}`);
-            renderSnapshot(await response.json());
+            const snapshot = await response.json();
+            renderSnapshot(snapshot);
+            persistSnapshot(snapshot);
           } catch (error) {
             showError(error instanceof Error ? error.message : "The dashboard could not be refreshed.");
           } finally {
@@ -1043,21 +1254,28 @@ extension CLIServeWebUI {
           if (!token) return;
           saveToken(token);
           elements.token.value = "";
-          refresh(token);
+          if (state.fillComplete) refresh(token);
+          else startProgressiveFill(token);
         });
 
         elements.signOut.addEventListener("click", () => {
           clearToken();
+          clearSnapshot();
           clearTimeout(state.timer);
           showTokenForm();
         });
 
-        elements.retry.addEventListener("click", () => refresh());
+        elements.retry.addEventListener("click", () => {
+          if (state.fillComplete) refresh();
+          else startProgressiveFill();
+        });
 
         // No document.hidden gating: embedded panes and sidebars often report
         // "hidden" permanently, and browsers already throttle background timers.
         setInterval(updateFreshness, 1000);
-        refresh();
+        const cached = storedSnapshot();
+        if (cached) renderSnapshot(cached, true);
+        startProgressiveFill();
       </script>
     </body>
     </html>
