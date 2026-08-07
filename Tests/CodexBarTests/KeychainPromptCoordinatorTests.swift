@@ -1,7 +1,7 @@
-import CodexBarCore
 import Foundation
 import Testing
 @testable import CodexBar
+@testable import CodexBarCore
 
 struct KeychainPromptCoordinatorTests {
     @Test
@@ -82,10 +82,24 @@ struct KeychainPromptCoordinatorTests {
             service: "Chrome Safe Storage",
             account: nil)
 
-        #expect(!KeychainPromptCoordinator.shouldPresentExplanation(for: claudeContext, userDefaults: defaults))
+        #expect(KeychainPromptCoordinator.shouldPresentExplanation(for: claudeContext, userDefaults: defaults))
         #expect(KeychainPromptCoordinator.shouldPresentExplanation(for: codexContext, userDefaults: defaults))
 
-        defaults.set(true, forKey: ClaudeOAuthPromptExplanationPreference.userDefaultsKey)
-        #expect(KeychainPromptCoordinator.shouldPresentExplanation(for: claudeContext, userDefaults: defaults))
+        defaults.set(false, forKey: ClaudeOAuthPromptExplanationPreference.userDefaultsKey)
+        #expect(!KeychainPromptCoordinator.shouldPresentExplanation(for: claudeContext, userDefaults: defaults))
+    }
+
+    @Test
+    func `prompt handler result reports whether an explanation was shown`() {
+        let context = KeychainPromptContext(
+            kind: .claudeOAuth,
+            service: "Claude Code-credentials",
+            account: nil)
+
+        let result = KeychainPromptHandler.withResultHandlerForTesting(result: false) {
+            KeychainPromptHandler.notifyIfHandled(context)
+        }
+
+        #expect(!result)
     }
 }

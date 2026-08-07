@@ -54,8 +54,8 @@ Admin API key setup:
   - `Always allow prompts`: allows interactive prompts in both user and background flows.
 - This setting only affects Claude OAuth Keychain prompting behavior; it does not switch your Claude usage source.
 - Preferences → Providers → Claude → Show Keychain access explanation controls CodexBar's explanatory alert before
-  the native macOS Keychain prompt. It is disabled by default and does not change Keychain authorization or OAuth
-  behavior.
+  the native macOS Keychain prompt. It remains enabled by default for existing installations; disable it when you
+  no longer need the explanation. This does not change Keychain authorization or OAuth behavior.
 - If Preferences → Advanced → Disable Keychain access is enabled, this policy remains visible but inactive until
   Keychain access is re-enabled.
 

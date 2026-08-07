@@ -44,7 +44,7 @@ struct KeychainKimiTokenStore: KimiTokenStoring {
         if case .interactionRequired = KeychainAccessPreflight
             .checkGenericPassword(service: self.service, account: self.account)
         {
-            KeychainPromptHandler.handler?(KeychainPromptContext(
+            _ = KeychainPromptHandler.handler?(KeychainPromptContext(
                 kind: .kimiToken,
                 service: self.service,
                 account: self.account))

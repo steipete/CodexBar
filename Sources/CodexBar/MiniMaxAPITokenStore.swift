@@ -44,7 +44,7 @@ struct KeychainMiniMaxAPITokenStore: MiniMaxAPITokenStoring {
         if case .interactionRequired = KeychainAccessPreflight
             .checkGenericPassword(service: self.service, account: self.account)
         {
-            KeychainPromptHandler.handler?(KeychainPromptContext(
+            _ = KeychainPromptHandler.handler?(KeychainPromptContext(
                 kind: .minimaxToken,
                 service: self.service,
                 account: self.account))

@@ -63,7 +63,7 @@ enum ClaudeOAuthPromptExplanationPreference {
     static let userDefaultsKey = "claudeOAuthPromptExplanationEnabled"
 
     static func isEnabled(in userDefaults: UserDefaults = .standard) -> Bool {
-        userDefaults.object(forKey: self.userDefaultsKey) as? Bool ?? false
+        userDefaults.object(forKey: self.userDefaultsKey) as? Bool ?? true
     }
 }
 
@@ -124,14 +124,15 @@ enum KeychainPromptCoordinator {
             && !executableURL.pathComponents.contains(where: { $0.hasSuffix(".app") })
     }
 
-    private static func presentKeychainPrompt(_ context: KeychainPromptContext) {
+    private static func presentKeychainPrompt(_ context: KeychainPromptContext) -> Bool {
         guard self.shouldPresentExplanation(for: context) else {
             self.log.info("Keychain prompt explanation suppressed", metadata: ["kind": "claudeOAuth"])
-            return
+            return false
         }
         let model = self.alertModel(for: context)
         self.log.info("Keychain prompt requested", metadata: ["kind": "\(context.kind)"])
         self.presentAlert(model)
+        return true
     }
 
     static func shouldPresentExplanation(

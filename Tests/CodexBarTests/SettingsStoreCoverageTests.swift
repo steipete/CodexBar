@@ -553,9 +553,9 @@ struct SettingsStoreCoverageTests {
     }
 
     @Test
-    func `claude keychain prompt explanation is disabled by default`() {
+    func `claude keychain prompt explanation preserves the existing default`() {
         let settings = Self.makeSettingsStore()
-        #expect(!settings.claudeOAuthPromptExplanationEnabled)
+        #expect(settings.claudeOAuthPromptExplanationEnabled)
     }
 
     @Test

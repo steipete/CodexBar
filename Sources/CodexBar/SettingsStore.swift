@@ -493,7 +493,7 @@ extension SettingsStore {
         let claudeOAuthKeychainReadStrategyRaw = Self.loadClaudeOAuthKeychainReadStrategyRaw(userDefaults: userDefaults)
         let claudeOAuthKeychainPromptModeRaw = userDefaults.string(forKey: "claudeOAuthKeychainPromptMode")
         let claudeOAuthPromptExplanationEnabled = userDefaults.object(
-            forKey: ClaudeOAuthPromptExplanationPreference.userDefaultsKey) as? Bool ?? false
+            forKey: ClaudeOAuthPromptExplanationPreference.userDefaultsKey) as? Bool ?? true
         let claudeWebExtrasEnabledRaw = userDefaults.object(forKey: "claudeWebExtrasEnabled") as? Bool ?? false
         let creditsExtrasDefault = userDefaults.object(forKey: "showOptionalCreditsAndExtraUsage") as? Bool
         let showOptionalCreditsAndExtraUsage = creditsExtrasDefault ?? true
