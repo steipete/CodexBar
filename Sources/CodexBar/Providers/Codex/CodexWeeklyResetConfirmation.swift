@@ -177,32 +177,33 @@ struct CodexWeeklyResetConfirmation: Sendable {
         else {
             return false
         }
-        let previouslyAvailableIDs = Set(previousCredits.credits.lazy
-            .filter { $0.status == .available }
-            .map(\.id))
-        guard !previouslyAvailableIDs.isEmpty else { return false }
-        return previouslyAvailableIDs.contains { creditID in
+        let previouslyAvailableCredits = previousCredits.availableCredits(at: previousCredits.updatedAt)
+        guard !previouslyAvailableCredits.isEmpty else { return false }
+        return previouslyAvailableCredits.contains { previousCredit in
             Self.inventoryConfirmsConsumption(
-                creditID: creditID,
+                previousCredit: previousCredit,
                 current: initialCredits,
                 previousAvailableCount: previousCredits.availableCount) &&
                 Self.inventoryConfirmsConsumption(
-                    creditID: creditID,
+                    previousCredit: previousCredit,
                     current: confirmationCredits,
                     previousAvailableCount: previousCredits.availableCount)
         }
     }
 
     private static func inventoryConfirmsConsumption(
-        creditID: String,
+        previousCredit: CodexRateLimitResetCredit,
         current: CodexRateLimitResetCreditsSnapshot,
         previousAvailableCount: Int) -> Bool
     {
-        if let credit = current.credits.first(where: { $0.id == creditID }) {
+        if let credit = current.credits.first(where: { $0.id == previousCredit.id }) {
             return credit.status == .redeeming || credit.status == .redeemed
         }
-        // The live provider omits a consumed credit instead of retaining a redeemed row.
-        // Require the successful inventory's aggregate count to corroborate the disappearance.
+        // A credit can disappear because it expired. Only treat omission as consumption while
+        // the previously available credit would still be valid at this inventory timestamp.
+        guard previousCredit.expiresAt.map({ $0 > current.updatedAt }) ?? true else { return false }
+        // The live provider omits a consumed credit instead of retaining a redeemed row, so the
+        // successful inventory's aggregate count must also corroborate the disappearance.
         return current.availableCount < previousAvailableCount
     }
 
