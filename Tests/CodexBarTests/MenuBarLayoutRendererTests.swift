@@ -71,6 +71,19 @@ struct MenuBarLayoutRendererTests {
     }
 
     @Test
+    func `Notion secondary pace announces monthly cadence`() {
+        let renderer = MenuBarLayoutRenderer()
+        let output = renderer.render(
+            layout: MenuBarLayout(lines: [[.pace(window: .weekly)]]),
+            data: self.data(provider: .notion),
+            icon: nil,
+            options: self.options())
+
+        #expect(output.attributedTitle.string == "+11%")
+        #expect(output.accessibilityLabel == L("%@ %@ %@", L("Monthly"), L("display_mode_pace").lowercased(), "+11%"))
+    }
+
+    @Test
     func `icon attachment matches the default template size and appearance`() throws {
         let renderer = MenuBarLayoutRenderer()
         let icon = NSImage(size: NSSize(width: 16, height: 16))

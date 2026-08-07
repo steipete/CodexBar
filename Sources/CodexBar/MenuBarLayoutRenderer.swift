@@ -269,10 +269,11 @@ final class MenuBarLayoutRenderer {
                 : L("%@ %@", accessibilityPrefix, value)
             return self.textToken(display, accessibilityText: accessibility, attributes: style.attributes)
         case let .pace(window):
+            let accessibilityPrefix = Self.paceAccessibilityPrefix(window, data: data)
             return self.optionalTextToken(
                 Self.pace(window, data: data),
-                unavailableLabel: L("%@ unavailable", Self.paceAccessibilityPrefix(window)),
-                accessibilityPrefix: Self.paceAccessibilityPrefix(window),
+                unavailableLabel: L("%@ unavailable", accessibilityPrefix),
+                accessibilityPrefix: accessibilityPrefix,
                 attributes: style.attributes)
         case .usageBar:
             guard let window = data.automatic else {
@@ -400,10 +401,19 @@ final class MenuBarLayoutRenderer {
         }
     }
 
-    private static func paceAccessibilityPrefix(_ percentWindow: PercentWindow) -> String {
+    private static func paceAccessibilityPrefix(
+        _ percentWindow: PercentWindow,
+        data: MenuBarLayoutRenderData)
+        -> String
+    {
         switch percentWindow {
         case .session: L("menu_bar_layout_token_session_pace")
-        case .weekly: L("menu_bar_layout_token_weekly_pace")
+        case .weekly:
+            if data.provider == .notion {
+                L("%@ %@", L("Monthly"), L("display_mode_pace").lowercased())
+            } else {
+                L("menu_bar_layout_token_weekly_pace")
+            }
         case .scopedWeekly: L("menu_bar_layout_token_weekly_pace")
         case .automatic: L("menu_bar_layout_token_auto_pace")
         }
