@@ -1344,6 +1344,12 @@
 "menu_bar_layout_gap" = "Odstęp";
 "menu_bar_layout_gap_tight" = "Wąski";
 "menu_bar_layout_gap_regular" = "Zwykły";
+"menu_bar_layout_vertical_adjustment" = "Regulacja pionowa";
+"menu_bar_layout_vertical_up_2" = "W górę 2 px";
+"menu_bar_layout_vertical_up_1" = "W górę 1 px";
+"menu_bar_layout_vertical_default" = "Domyślnie";
+"menu_bar_layout_vertical_down_1" = "W dół 1 px";
+"menu_bar_layout_vertical_down_2" = "W dół 2 px";
 "menu_bar_layout_keyboard_hint" = "Delete usuwa zaznaczony element";
 "menu_bar_layout_sample_account" = "konto";
 "menu_bar_layout_sample_runs_out" = "wyczerpie się pt.";

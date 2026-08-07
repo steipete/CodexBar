@@ -1340,6 +1340,12 @@
 "menu_bar_layout_gap" = "Separación";
 "menu_bar_layout_gap_tight" = "Estreita";
 "menu_bar_layout_gap_regular" = "Normal";
+"menu_bar_layout_vertical_adjustment" = "Axuste vertical";
+"menu_bar_layout_vertical_up_2" = "Arriba 2 px";
+"menu_bar_layout_vertical_up_1" = "Arriba 1 px";
+"menu_bar_layout_vertical_default" = "Por defecto";
+"menu_bar_layout_vertical_down_1" = "Abaixo 1 px";
+"menu_bar_layout_vertical_down_2" = "Abaixo 2 px";
 "menu_bar_layout_keyboard_hint" = "Suprimir retira a ficha seleccionada";
 "menu_bar_layout_sample_account" = "conta";
 "menu_bar_layout_sample_runs_out" = "esgótase ven.";

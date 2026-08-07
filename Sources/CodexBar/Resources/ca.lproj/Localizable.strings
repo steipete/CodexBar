@@ -1343,6 +1343,12 @@
 "menu_bar_layout_gap" = "Espaiat";
 "menu_bar_layout_gap_tight" = "Estret";
 "menu_bar_layout_gap_regular" = "Normal";
+"menu_bar_layout_vertical_adjustment" = "Ajust vertical";
+"menu_bar_layout_vertical_up_2" = "Amunt 2 px";
+"menu_bar_layout_vertical_up_1" = "Amunt 1 px";
+"menu_bar_layout_vertical_default" = "Predeterminat";
+"menu_bar_layout_vertical_down_1" = "Avall 1 px";
+"menu_bar_layout_vertical_down_2" = "Avall 2 px";
 "menu_bar_layout_keyboard_hint" = "Suprimir elimina la fitxa seleccionada";
 "menu_bar_layout_sample_account" = "compte";
 "menu_bar_layout_sample_runs_out" = "s’esgota div.";

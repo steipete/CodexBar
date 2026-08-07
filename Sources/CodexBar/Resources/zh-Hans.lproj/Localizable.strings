@@ -1319,6 +1319,12 @@
 "menu_bar_layout_gap" = "间距";
 "menu_bar_layout_gap_tight" = "紧凑";
 "menu_bar_layout_gap_regular" = "常规";
+"menu_bar_layout_vertical_adjustment" = "垂直调整";
+"menu_bar_layout_vertical_up_2" = "上移 2 像素";
+"menu_bar_layout_vertical_up_1" = "上移 1 像素";
+"menu_bar_layout_vertical_default" = "默认";
+"menu_bar_layout_vertical_down_1" = "下移 1 像素";
+"menu_bar_layout_vertical_down_2" = "下移 2 像素";
 "menu_bar_layout_keyboard_hint" = "Delete 键会移除所选项目";
 "menu_bar_layout_sample_account" = "帐户";
 "menu_bar_layout_sample_runs_out" = "周五用尽";

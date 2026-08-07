@@ -1342,6 +1342,12 @@
 "menu_bar_layout_gap" = "Boşluk";
 "menu_bar_layout_gap_tight" = "Dar";
 "menu_bar_layout_gap_regular" = "Normal";
+"menu_bar_layout_vertical_adjustment" = "Dikey Ayar";
+"menu_bar_layout_vertical_up_2" = "Yukarı 2 px";
+"menu_bar_layout_vertical_up_1" = "Yukarı 1 px";
+"menu_bar_layout_vertical_default" = "Varsayılan";
+"menu_bar_layout_vertical_down_1" = "Aşağı 1 px";
+"menu_bar_layout_vertical_down_2" = "Aşağı 2 px";
 "menu_bar_layout_keyboard_hint" = "Delete seçili belirteci kaldırır";
 "menu_bar_layout_sample_account" = "hesap";
 "menu_bar_layout_sample_runs_out" = "Cum. biter";

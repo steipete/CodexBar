@@ -1344,6 +1344,12 @@
 "menu_bar_layout_gap" = "المسافة";
 "menu_bar_layout_gap_tight" = "ضيّق";
 "menu_bar_layout_gap_regular" = "عادي";
+"menu_bar_layout_vertical_adjustment" = "الضبط العمودي";
+"menu_bar_layout_vertical_up_2" = "أعلى 2 بكسل";
+"menu_bar_layout_vertical_up_1" = "أعلى بكسل";
+"menu_bar_layout_vertical_default" = "الافتراضي";
+"menu_bar_layout_vertical_down_1" = "أسفل بكسل";
+"menu_bar_layout_vertical_down_2" = "أسفل 2 بكسل";
 "menu_bar_layout_keyboard_hint" = "يحذف Delete العنصر المحدد";
 "menu_bar_layout_sample_account" = "حساب";
 "menu_bar_layout_sample_runs_out" = "ينفد الجمعة";

@@ -1341,6 +1341,12 @@
 "menu_bar_layout_gap" = "間隔";
 "menu_bar_layout_gap_tight" = "狭い";
 "menu_bar_layout_gap_regular" = "標準";
+"menu_bar_layout_vertical_adjustment" = "垂直調整";
+"menu_bar_layout_vertical_up_2" = "上に2px";
+"menu_bar_layout_vertical_up_1" = "上に1px";
+"menu_bar_layout_vertical_default" = "デフォルト";
+"menu_bar_layout_vertical_down_1" = "下に1px";
+"menu_bar_layout_vertical_down_2" = "下に2px";
 "menu_bar_layout_keyboard_hint" = "Delete キーで選択したトークンを削除";
 "menu_bar_layout_sample_account" = "アカウント";
 "menu_bar_layout_sample_runs_out" = "金曜に使い切る";

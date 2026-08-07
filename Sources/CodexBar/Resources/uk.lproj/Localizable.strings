@@ -1340,6 +1340,12 @@
 "menu_bar_layout_gap" = "Інтервал";
 "menu_bar_layout_gap_tight" = "Вузький";
 "menu_bar_layout_gap_regular" = "Звичайний";
+"menu_bar_layout_vertical_adjustment" = "Вертикальне налаштування";
+"menu_bar_layout_vertical_up_2" = "Вгору 2 px";
+"menu_bar_layout_vertical_up_1" = "Вгору 1 px";
+"menu_bar_layout_vertical_default" = "За замовчуванням";
+"menu_bar_layout_vertical_down_1" = "Вниз 1 px";
+"menu_bar_layout_vertical_down_2" = "Вниз 2 px";
 "menu_bar_layout_keyboard_hint" = "Delete видаляє вибраний елемент";
 "menu_bar_layout_sample_account" = "обліковий запис";
 "menu_bar_layout_sample_runs_out" = "закінчиться пт.";

@@ -1344,6 +1344,12 @@
 "menu_bar_layout_gap" = "Jarak";
 "menu_bar_layout_gap_tight" = "Rapat";
 "menu_bar_layout_gap_regular" = "Reguler";
+"menu_bar_layout_vertical_adjustment" = "Penyesuaian Vertikal";
+"menu_bar_layout_vertical_up_2" = "Naik 2 px";
+"menu_bar_layout_vertical_up_1" = "Naik 1 px";
+"menu_bar_layout_vertical_default" = "Default";
+"menu_bar_layout_vertical_down_1" = "Turun 1 px";
+"menu_bar_layout_vertical_down_2" = "Turun 2 px";
 "menu_bar_layout_keyboard_hint" = "Delete menghapus token yang dipilih";
 "menu_bar_layout_sample_account" = "akun";
 "menu_bar_layout_sample_runs_out" = "habis Jum.";

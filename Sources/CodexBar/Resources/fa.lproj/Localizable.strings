@@ -1344,6 +1344,12 @@
 "menu_bar_layout_gap" = "فاصله";
 "menu_bar_layout_gap_tight" = "فشرده";
 "menu_bar_layout_gap_regular" = "معمولی";
+"menu_bar_layout_vertical_adjustment" = "تنظیم عمودی";
+"menu_bar_layout_vertical_up_2" = "۲ پیکسل بالا";
+"menu_bar_layout_vertical_up_1" = "۱ پیکسل بالا";
+"menu_bar_layout_vertical_default" = "پیش‌فرض";
+"menu_bar_layout_vertical_down_1" = "۱ پیکسل پایین";
+"menu_bar_layout_vertical_down_2" = "۲ پیکسل پایین";
 "menu_bar_layout_keyboard_hint" = "Delete نشانهٔ انتخاب‌شده را حذف می‌کند";
 "menu_bar_layout_sample_account" = "حساب";
 "menu_bar_layout_sample_runs_out" = "جمعه تمام می‌شود";
