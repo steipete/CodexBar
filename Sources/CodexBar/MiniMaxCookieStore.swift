@@ -44,7 +44,7 @@ struct KeychainMiniMaxCookieStore: MiniMaxCookieStoring {
         if case .interactionRequired = KeychainAccessPreflight
             .checkGenericPassword(service: self.service, account: self.account)
         {
-            _ = KeychainPromptHandler.handler?(KeychainPromptContext(
+            KeychainPromptHandler.handler?(KeychainPromptContext(
                 kind: .minimaxCookie,
                 service: self.service,
                 account: self.account))

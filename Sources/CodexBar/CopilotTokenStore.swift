@@ -44,7 +44,7 @@ struct KeychainCopilotTokenStore: CopilotTokenStoring {
         if case .interactionRequired = KeychainAccessPreflight
             .checkGenericPassword(service: self.service, account: self.account)
         {
-            _ = KeychainPromptHandler.handler?(KeychainPromptContext(
+            KeychainPromptHandler.handler?(KeychainPromptContext(
                 kind: .copilotToken,
                 service: self.service,
                 account: self.account))

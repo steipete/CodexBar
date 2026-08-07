@@ -44,7 +44,11 @@ public enum KeychainPromptHandler {
     }
 
     @TaskLocal private static var taskHandlerStore: HandlerStore?
-    public nonisolated(unsafe) static var handler: ((KeychainPromptContext) -> Bool)?
+    /// Compatibility callback for clients that only need notification delivery.
+    public nonisolated(unsafe) static var handler: ((KeychainPromptContext) -> Void)?
+
+    /// Optional result-capable callback used when callers need to know whether a prompt was shown.
+    public nonisolated(unsafe) static var resultHandler: ((KeychainPromptContext) -> Bool)?
 
     public static func notify(_ context: KeychainPromptContext) {
         _ = self.notifyIfHandled(context)
@@ -55,8 +59,12 @@ public enum KeychainPromptHandler {
         if let taskHandlerStore {
             return taskHandlerStore.handler(context)
         }
+        if let resultHandler {
+            return resultHandler(context)
+        }
         guard let handler else { return false }
-        return handler(context)
+        handler(context)
+        return true
     }
 
     #if DEBUG
