@@ -86,7 +86,7 @@ struct UsageMenuCardView: View {
             }
 
             func linePresentation(title: String) -> LinePresentation {
-                let usedPercent = self.percentStyle == .used ? self.percent : 100 - self.percent
+                // Keep the title aligned with the configured used/remaining label semantics.
                 let metaParts = [
                     self.detailLeftText,
                     self.detailRightText,
@@ -99,7 +99,7 @@ struct UsageMenuCardView: View {
                     return text
                 }
                 return LinePresentation(
-                    titleText: "\(title) \(UsageFormatter.percentString(usedPercent))",
+                    titleText: "\(title) \(self.percentLabel)",
                     resetText: self.resetText,
                     metaText: metaParts.isEmpty ? nil : metaParts.joined(separator: " · "))
             }

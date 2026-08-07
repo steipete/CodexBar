@@ -32,6 +32,7 @@
 - Settings: localize every Plugins pane control, status, approval prompt, and alert across all complete app locales.
 
 ### Fixed
+- Menu: make the Usage bars fill setting apply to percentage labels as well as bars again. Thanks @FrankSmithXYZ!
 - Codex: bound the persisted cost-usage cache with entry/byte budgets, window-aware pruning, and a load-refusal cap, so the main process no longer grows without limit on large session corpora (#2646, refs #2637). Thanks @Yuxin-Qiao!
 - Codex: resume fork catch-up from a validated cached offset when a rollout is appended, charging only the appended suffix against scan budgets instead of restarting the bounded full scan (#2648). Thanks @xx205!
 - Claude: report a provably unreadable OAuth delegated refresh as terminal with a long cooldown, instead of looping "run claude login, then retry" and relaunching the CLI every poll cycle (#2650, refs #2634). Thanks @kes02!
