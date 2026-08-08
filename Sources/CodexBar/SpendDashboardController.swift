@@ -7,6 +7,8 @@ struct SpendDashboardTrackedSource: Identifiable, Equatable, Sendable {
     enum State: Equatable, Sendable {
         case connected
         case configured
+        case needsAttention
+        case awaitingUsage
     }
 
     let id: String
@@ -463,7 +465,11 @@ enum SpendDashboardSource {
         settings: SettingsStore,
         store: UsageStore) -> [SpendDashboardTrackedSource]
     {
-        let enabled = Set(store.enabledFirstPartyProvidersForDisplay())
+        // Tracked access reflects user enablement, not refresh-time availability. Providers with no
+        // current snapshot still need a row so the dashboard can explain their connection state.
+        let enabled = Set(UsageProvider.allCases.filter { provider in
+            settings.isProviderEnabled(provider: provider, metadata: store.metadata(for: provider))
+        })
         var sources: [SpendDashboardTrackedSource] = []
 
         for provider in UsageProvider.allCases {
@@ -473,18 +479,24 @@ enum SpendDashboardSource {
             if provider == .codex {
                 let accounts = settings.codexVisibleAccountProjection.visibleAccounts
                 let snapshotsByID = Dictionary(uniqueKeysWithValues: store.codexAccountSnapshots.map {
-                    ($0.id, $0.snapshot != nil)
+                    ($0.id, $0)
                 })
                 if !accounts.isEmpty {
                     sources.append(contentsOf: accounts.map { account in
-                        let connected = snapshotsByID[account.id] == true
+                        let accountSnapshot = snapshotsByID[account.id]
+                        let connected = accountSnapshot?.snapshot != nil
                             || (account.isActive && store.snapshot(for: .codex) != nil)
+                        let hasError = accountSnapshot?.error != nil
+                            || (account.isActive && store.error(for: .codex) != nil)
                         return SpendDashboardTrackedSource(
                             id: "codex:\(account.id)",
                             provider: provider,
                             providerName: providerName,
                             accountName: self.trackedAccountName(account.email, providerName: providerName),
-                            state: connected ? .connected : .configured,
+                            state: self.trackedSourceState(
+                                hasLiveSnapshot: connected,
+                                hasConfiguredCredential: true,
+                                hasError: hasError),
                             supportsCostHistory: supportsCostHistory,
                             contributesCostHistory: supportsCostHistory && enabled.contains(provider))
                     })
@@ -497,18 +509,24 @@ enum SpendDashboardSource {
                 let activeAccountID = settings.effectiveSelectedTokenAccount(for: provider)?.id
                 let cachedByID = Dictionary(
                     uniqueKeysWithValues: (store.accountSnapshots[provider.instanceID] ?? []).map {
-                        ($0.id, $0.snapshot != nil)
+                        ($0.id, $0)
                     })
                 sources.append(contentsOf: accounts.map { account in
                     let isActive = account.id == activeAccountID
-                    let connected = cachedByID[account.id] == true
+                    let accountSnapshot = cachedByID[account.id]
+                    let connected = accountSnapshot?.snapshot != nil
                         || (isActive && store.snapshot(for: provider.instanceID) != nil)
+                    let hasError = accountSnapshot?.error != nil
+                        || (isActive && (store.error(for: provider) != nil || store.tokenError(for: provider) != nil))
                     return SpendDashboardTrackedSource(
                         id: "\(provider.rawValue):account:\(account.id.uuidString.lowercased())",
                         provider: provider,
                         providerName: providerName,
                         accountName: self.trackedAccountName(account.displayName, providerName: providerName),
-                        state: connected ? .connected : .configured,
+                        state: self.trackedSourceState(
+                            hasLiveSnapshot: connected,
+                            hasConfiguredCredential: true,
+                            hasError: hasError),
                         supportsCostHistory: supportsCostHistory,
                         contributesCostHistory: supportsCostHistory && isActive && enabled.contains(provider))
                 })
@@ -520,19 +538,34 @@ enum SpendDashboardSource {
                 || config?.sanitizedSecretKey != nil
                 || config?.sanitizedCookieHeader != nil
             let hasLiveSnapshot = store.snapshot(for: provider.instanceID) != nil
-                || store.tokenSnapshotPublicationForCurrentProviderConfig(for: provider) != nil
-            guard hasConfiguredCredential || hasLiveSnapshot else { continue }
+                || store.tokenSnapshotPublicationForCurrentProviderConfig(for: provider)?.snapshot != nil
+            guard enabled.contains(provider) || hasConfiguredCredential || hasLiveSnapshot else { continue }
+            let hasError = store.error(for: provider) != nil || store.tokenError(for: provider) != nil
             sources.append(SpendDashboardTrackedSource(
                 id: "\(provider.rawValue):current",
                 provider: provider,
                 providerName: providerName,
                 accountName: nil,
-                state: hasLiveSnapshot ? .connected : .configured,
+                state: self.trackedSourceState(
+                    hasLiveSnapshot: hasLiveSnapshot,
+                    hasConfiguredCredential: hasConfiguredCredential,
+                    hasError: hasError),
                 supportsCostHistory: supportsCostHistory,
                 contributesCostHistory: supportsCostHistory && enabled.contains(provider)))
         }
 
         return sources
+    }
+
+    private static func trackedSourceState(
+        hasLiveSnapshot: Bool,
+        hasConfiguredCredential: Bool,
+        hasError: Bool) -> SpendDashboardTrackedSource.State
+    {
+        if hasError { return .needsAttention }
+        if hasLiveSnapshot { return .connected }
+        if hasConfiguredCredential { return .configured }
+        return .awaitingUsage
     }
 
     private static func trackedAccountName(_ rawValue: String?, providerName: String) -> String? {
