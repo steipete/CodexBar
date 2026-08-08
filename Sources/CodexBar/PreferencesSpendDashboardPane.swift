@@ -430,7 +430,7 @@ struct SpendDashboardPane: View {
                 provider: source.provider,
                 providerName: source.providerName,
                 currencyCode: fallbackCurrencyCode,
-                expectedSourceCount: sources.count)
+                expectedSourceIDs: Set(sources.map(\.id)))
         }
         return ShareStatsBuilder.make(
             model: model,

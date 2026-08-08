@@ -2218,7 +2218,7 @@ struct ProviderArchitectureGatekeeperTests {
             reason: "This exact shared provider integration dispatches a capability owned by the provider descriptor or adapter."),
         AllowedProviderConstruct(
             path: "Sources/CodexBar/ShareStatsPayload.swift",
-            line: 198,
+            line: 219,
             anchor: "([\"codestral-\", \"devstral-\", \"magistral-\", \"mistral-\", \"mistral \", \"mistral.\", \"mixtral-\"], \"Mistral\"),",
             expectedProviderIDs: ["mistral"],
             expectedReferenceCount: 1,
@@ -2226,7 +2226,7 @@ struct ProviderArchitectureGatekeeperTests {
             reason: "This public model-family sanitizer is independent of the provider registry; Mistral is also a provider ID."),
         AllowedProviderConstruct(
             path: "Sources/CodexBar/ShareStatsPayload.swift",
-            line: 229,
+            line: 250,
             anchor: "\"air\": \"Air\", \"chat\": \"Chat\", \"code\": \"Code\", \"coder\": \"Coder\", \"codex\": \"Codex\",",
             expectedProviderIDs: ["codex"],
             expectedReferenceCount: 1,

@@ -2,6 +2,7 @@ import CodexBarCore
 import Foundation
 
 struct ShareStatsProviderPayload: Sendable, Equatable {
+    let sourceID: String?
     let provider: UsageProvider
     let providerName: String
     let subscriptionName: String?
@@ -9,24 +10,44 @@ struct ShareStatsProviderPayload: Sendable, Equatable {
     let totalTokens: Int?
     let estimatedCost: Double?
     let coveredDayCount: Int
+
+    init(
+        sourceID: String? = nil,
+        provider: UsageProvider,
+        providerName: String,
+        subscriptionName: String?,
+        currencyCode: String,
+        totalTokens: Int?,
+        estimatedCost: Double?,
+        coveredDayCount: Int)
+    {
+        self.sourceID = sourceID
+        self.provider = provider
+        self.providerName = providerName
+        self.subscriptionName = subscriptionName
+        self.currencyCode = currencyCode
+        self.totalTokens = totalTokens
+        self.estimatedCost = estimatedCost
+        self.coveredDayCount = coveredDayCount
+    }
 }
 
 struct ShareStatsProviderRosterEntry: Sendable, Equatable {
     let provider: UsageProvider
     let providerName: String
     let currencyCode: String
-    let expectedSourceCount: Int
+    let expectedSourceIDs: Set<String>
 
     init(
         provider: UsageProvider,
         providerName: String,
         currencyCode: String,
-        expectedSourceCount: Int = 1)
+        expectedSourceIDs: Set<String> = [])
     {
         self.provider = provider
         self.providerName = providerName
         self.currencyCode = currencyCode
-        self.expectedSourceCount = max(1, expectedSourceCount)
+        self.expectedSourceIDs = expectedSourceIDs
     }
 }
 
@@ -323,6 +344,7 @@ enum ShareStatsBuilder {
         let trackedProviders = model.groups.flatMap { group in
             group.providers.map { row in
                 ShareStatsProviderPayload(
+                    sourceID: row.id,
                     provider: row.provider,
                     providerName: row.displayName,
                     subscriptionName: subscriptionNames[row.id]?.displayName,
@@ -340,7 +362,9 @@ enum ShareStatsBuilder {
             var emittedProviders: Set<UsageProvider> = []
             providers = providerRoster.compactMap { entry in
                 guard emittedProviders.insert(entry.provider).inserted else { return nil }
-                guard let matches = trackedByProvider[entry.provider], !matches.isEmpty else {
+                let allMatches = trackedByProvider[entry.provider] ?? []
+                let matches = self.rosterMatches(entry: entry, candidates: allMatches)
+                guard !matches.isEmpty else {
                     return ShareStatsProviderPayload(
                         provider: entry.provider,
                         providerName: entry.providerName,
@@ -417,23 +441,30 @@ enum ShareStatsBuilder {
             }
         }
         let rosterHasIncompleteProviders = providerRoster.contains { entry in
-            let matches = trackedProviders.filter { $0.provider == entry.provider }
+            let allMatches = trackedProviders.filter { $0.provider == entry.provider }
+            let matches = self.rosterMatches(entry: entry, candidates: allMatches)
             let knownCosts = matches.compactMap(\.estimatedCost)
-            return matches.count < entry.expectedSourceCount ||
+            return self.rosterIdentityIsIncomplete(entry: entry, candidates: allMatches) ||
                 matches.contains { $0.totalTokens == nil || $0.estimatedCost == nil } ||
                 Set(matches.map(\.currencyCode)).count > 1 ||
                 self.safeCostSum(knownCosts) == nil
         }
-        let currencies = model.groups.map {
-            ShareStatsCurrencyPayload(
-                currencyCode: $0.currencyCode,
-                estimatedCost: self.finiteCost($0.totalCost ?? $0.knownCost),
-                coveredDayCount: $0.coveredDayCount,
-                isPartial: rosterHasIncompleteProviders || $0.totalCost == nil)
+        let currencies = model.groups.map { group in
+            let rosterCosts = providers.filter { $0.currencyCode == group.currencyCode }
+                .compactMap(\.estimatedCost)
+            let estimatedCost = providerRoster.isEmpty
+                ? self.finiteCost(group.totalCost ?? group.knownCost)
+                : self.safeCostSum(rosterCosts)
+            return ShareStatsCurrencyPayload(
+                currencyCode: group.currencyCode,
+                estimatedCost: estimatedCost,
+                coveredDayCount: group.coveredDayCount,
+                isPartial: rosterHasIncompleteProviders || group.totalCost == nil)
         }
-        let knownTokenValues = trackedProviders.compactMap(\.totalTokens)
+        let tokenProviders = providerRoster.isEmpty ? trackedProviders : providers
+        let knownTokenValues = tokenProviders.compactMap(\.totalTokens)
         let totalTokens = self.safeTokenSum(knownTokenValues)
-        let totalTokensIsPartial = trackedProviders.contains { $0.totalTokens == nil } ||
+        let totalTokensIsPartial = tokenProviders.contains { $0.totalTokens == nil } ||
             rosterHasIncompleteProviders ||
             model.groups.contains { $0.totalTokens == nil }
         let periodEnd = model.groups.map(\.chartDomain.upperBound).max() ?? Date()
@@ -441,7 +472,7 @@ enum ShareStatsBuilder {
             days: model.requestedDays,
             periodEnd: periodEnd,
             providers: providers,
-            topModels: topModels,
+            topModels: rosterHasIncompleteProviders ? [] : topModels,
             currencies: currencies,
             totalTokens: totalTokens,
             totalTokensIsPartial: totalTokensIsPartial)
@@ -482,6 +513,25 @@ enum ShareStatsBuilder {
             guard total.isFinite else { return nil }
         }
         return total
+    }
+
+    private static func rosterMatches(
+        entry: ShareStatsProviderRosterEntry,
+        candidates: [ShareStatsProviderPayload]) -> [ShareStatsProviderPayload]
+    {
+        guard !entry.expectedSourceIDs.isEmpty else { return candidates }
+        return candidates.filter { candidate in
+            candidate.sourceID.map(entry.expectedSourceIDs.contains) == true
+        }
+    }
+
+    private static func rosterIdentityIsIncomplete(
+        entry: ShareStatsProviderRosterEntry,
+        candidates: [ShareStatsProviderPayload]) -> Bool
+    {
+        guard !entry.expectedSourceIDs.isEmpty else { return candidates.isEmpty }
+        let actualIDs = Set(candidates.compactMap(\.sourceID))
+        return actualIDs != entry.expectedSourceIDs || candidates.count != entry.expectedSourceIDs.count
     }
 }
 

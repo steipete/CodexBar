@@ -154,6 +154,48 @@ struct PreferencesSpendDashboardShareTests {
         #expect(payload.totalTokensIsPartial)
     }
 
+    @Test
+    func `mismatched account identity is excluded and marks share partial`() throws {
+        let model = SpendDashboardModel(requestedDays: 30, groups: [
+            Self.group(currencyCode: "USD", providers: [
+                Self.row(id: "codex:a", tokens: 200, cost: 4),
+                Self.row(id: "codex:c", tokens: 900, cost: 9),
+            ]),
+        ])
+        let payload = try #require(SpendDashboardPane.makeSharePayload(
+            model: model,
+            subscriptionNames: [:],
+            trackedSources: Self.codexSources(ids: ["codex:a", "codex:b"])))
+
+        #expect(payload.providers.first?.estimatedCost == 4)
+        #expect(payload.providers.first?.totalTokens == 200)
+        #expect(payload.currencies.first?.estimatedCost == 4)
+        #expect(payload.currencies.allSatisfy(\.isPartial))
+        #expect(payload.totalTokensIsPartial)
+        #expect(payload.topModels.isEmpty)
+    }
+
+    @Test
+    func `extra stale account row is excluded and marks share partial`() throws {
+        let model = SpendDashboardModel(requestedDays: 30, groups: [
+            Self.group(currencyCode: "USD", providers: [
+                Self.row(id: "codex:a", tokens: 200, cost: 4),
+                Self.row(id: "codex:b", tokens: 100, cost: 3),
+                Self.row(id: "codex:c", tokens: 900, cost: 9),
+            ]),
+        ])
+        let payload = try #require(SpendDashboardPane.makeSharePayload(
+            model: model,
+            subscriptionNames: [:],
+            trackedSources: Self.codexSources(ids: ["codex:a", "codex:b"])))
+
+        #expect(payload.providers.first?.estimatedCost == 7)
+        #expect(payload.providers.first?.totalTokens == 300)
+        #expect(payload.currencies.first?.estimatedCost == 7)
+        #expect(payload.currencies.allSatisfy(\.isPartial))
+        #expect(payload.totalTokensIsPartial)
+    }
+
     private static func source(
         id: String,
         provider: UsageProvider,
@@ -180,6 +222,17 @@ struct PreferencesSpendDashboardShareTests {
             totalTokens: tokens,
             totalCost: cost,
             coveredDayCount: 30)
+    }
+
+    private static func codexSources(ids: [String]) -> [SpendDashboardTrackedSource] {
+        ids.map {
+            Self.source(
+                id: $0,
+                provider: .codex,
+                providerName: "Codex",
+                state: .connected,
+                contributesCostHistory: true)
+        }
     }
 
     private static func group(
