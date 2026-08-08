@@ -33,28 +33,24 @@ struct PreferencesSpendDashboardShareTests {
                 id: "codex:personal",
                 provider: .codex,
                 providerName: "Codex",
-                accountName: "Personal",
                 state: .connected,
                 contributesCostHistory: true),
             Self.source(
                 id: "codex:work",
                 provider: .codex,
                 providerName: "Codex",
-                accountName: "Work",
                 state: .configured,
                 contributesCostHistory: true),
             Self.source(
                 id: "openrouter:current",
                 provider: .openrouter,
                 providerName: "OpenRouter",
-                accountName: nil,
                 state: .awaitingUsage,
                 contributesCostHistory: true),
             Self.source(
                 id: "gemini:current",
                 provider: .gemini,
                 providerName: "Gemini",
-                accountName: nil,
                 state: .needsAttention,
                 contributesCostHistory: false),
         ]
@@ -76,7 +72,6 @@ struct PreferencesSpendDashboardShareTests {
         id: String,
         provider: UsageProvider,
         providerName: String,
-        accountName: String?,
         state: SpendDashboardTrackedSource.State,
         contributesCostHistory: Bool) -> SpendDashboardTrackedSource
     {
@@ -84,7 +79,7 @@ struct PreferencesSpendDashboardShareTests {
             id: id,
             provider: provider,
             providerName: providerName,
-            accountName: accountName,
+            accountName: nil,
             state: state,
             supportsCostHistory: contributesCostHistory,
             contributesCostHistory: contributesCostHistory)
