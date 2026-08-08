@@ -7,6 +7,57 @@ import Testing
 struct SpendDashboardTrackedSourceTests {
     @Test
     @MainActor
+    func `tracked access keeps enabled providers visible across connection states`() throws {
+        let settings = testSettingsStore(suiteName: "SpendDashboardTrackedSourceTests-enabled")
+        let metadata = ProviderRegistry.shared.metadata
+        for provider in UsageProvider.allCases {
+            try settings.setProviderEnabled(
+                provider: provider,
+                metadata: #require(metadata[provider]),
+                enabled: [.cursor, .gemini, .grok, .openrouter].contains(provider))
+        }
+        settings.addTokenAccount(provider: .cursor, label: "Work", token: "fixture")
+
+        let store = UsageStore(
+            fetcher: UsageFetcher(environment: [:]),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings,
+            startupBehavior: .testing,
+            environmentBase: [:])
+        store._setSnapshotForTesting(
+            UsageSnapshot(
+                primary: RateWindow(
+                    usedPercent: 10,
+                    windowMinutes: nil,
+                    resetsAt: nil,
+                    resetDescription: nil),
+                secondary: nil,
+                updatedAt: Date()),
+            provider: .grok)
+        store._setSnapshotForTesting(
+            UsageSnapshot(
+                primary: RateWindow(
+                    usedPercent: 20,
+                    windowMinutes: nil,
+                    resetsAt: nil,
+                    resetDescription: nil),
+                secondary: nil,
+                updatedAt: Date()),
+            provider: .gemini)
+        store._setErrorForTesting("Not logged in", provider: .gemini)
+
+        let sources = SpendDashboardSource.trackedSources(settings: settings, store: store)
+        let rows = Dictionary(uniqueKeysWithValues: sources.map { ($0.provider, $0) })
+
+        #expect(Set(rows.keys) == [.cursor, .gemini, .grok, .openrouter])
+        #expect(rows[.grok]?.state == .connected)
+        #expect(rows[.gemini]?.state == .needsAttention)
+        #expect(rows[.openrouter]?.state == .awaitingUsage)
+        #expect(rows.values.filter(\.contributesCostHistory).map(\.provider) == [.cursor])
+    }
+
+    @Test
+    @MainActor
     func `tracked access includes every saved provider credential without inventing cost coverage`() {
         let settings = testSettingsStore(suiteName: "SpendDashboardTrackedSourceTests-credentials")
         let supportedProviders = UsageProvider.allCases.filter {
@@ -49,6 +100,26 @@ struct SpendDashboardTrackedSourceTests {
             contributesCostHistory: false)
 
         #expect(spendDashboardTrackedSourceStatusText(source) == "Usage connected · not in cost total")
+
+        let attention = SpendDashboardTrackedSource(
+            id: "gemini:current",
+            provider: .gemini,
+            providerName: "Gemini",
+            accountName: nil,
+            state: .needsAttention,
+            supportsCostHistory: false,
+            contributesCostHistory: false)
+        #expect(spendDashboardTrackedSourceStatusText(attention) == "Unavailable")
+
+        let setup = SpendDashboardTrackedSource(
+            id: "openrouter:current",
+            provider: .openrouter,
+            providerName: "OpenRouter",
+            accountName: nil,
+            state: .awaitingUsage,
+            supportsCostHistory: false,
+            contributesCostHistory: false)
+        #expect(spendDashboardTrackedSourceStatusText(setup) == "No usage yet")
     }
 
     @Test
@@ -115,7 +186,7 @@ struct SpendDashboardTrackedSourceTests {
             provider: .openrouter,
             providerName: "OpenRouter",
             accountName: "Research",
-            state: .connected,
+            state: .awaitingUsage,
             supportsCostHistory: false,
             contributesCostHistory: false),
         SpendDashboardTrackedSource(
@@ -131,7 +202,7 @@ struct SpendDashboardTrackedSourceTests {
             provider: .gemini,
             providerName: "Gemini",
             accountName: "Studio",
-            state: .connected,
+            state: .needsAttention,
             supportsCostHistory: false,
             contributesCostHistory: false),
         SpendDashboardTrackedSource(

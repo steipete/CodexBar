@@ -50,6 +50,14 @@ func codexCostCatchUpProgressText(_ activity: CodexCostCatchUpActivity) -> Strin
 }
 
 func spendDashboardTrackedSourceStatusText(_ source: SpendDashboardTrackedSource) -> String {
+    switch source.state {
+    case .needsAttention:
+        return L("Unavailable")
+    case .awaitingUsage:
+        return L("No usage yet")
+    case .connected, .configured:
+        break
+    }
     if source.contributesCostHistory {
         return source.state == .connected
             ? L("Cost history connected")
@@ -557,6 +565,14 @@ private struct SpendTrackedSourceRow: View {
     }
 
     private var statusSymbol: String {
+        switch self.source.state {
+        case .needsAttention:
+            return "exclamationmark.triangle.fill"
+        case .awaitingUsage:
+            return "clock"
+        case .connected, .configured:
+            break
+        }
         if self.source.contributesCostHistory {
             return self.source.state == .connected ? "checkmark.circle.fill" : "clock.fill"
         }
@@ -564,6 +580,9 @@ private struct SpendTrackedSourceRow: View {
     }
 
     private var statusColor: Color {
+        if self.source.state == .needsAttention {
+            return .orange
+        }
         if self.source.contributesCostHistory {
             return self.source.state == .connected ? .green : .orange
         }
