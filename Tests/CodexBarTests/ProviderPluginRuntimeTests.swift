@@ -14,6 +14,18 @@ struct ProviderPluginRuntimeTests {
     }
 
     @Test
+    func `date now uses the injected fetch clock`() async throws {
+        let expected = Date(timeIntervalSince1970: 1_800_000_000)
+        let runtime = try ProviderPluginRuntime(source: Self.plugin(fetchBody: """
+        return { primary: { usedPercent: 1, resetsAt: ctx.date.now() } };
+        """))
+
+        let snapshot = try await runtime.fetchUsage(secrets: ["TEST_KEY": "test-key"], now: expected)
+
+        #expect(snapshot.primary?.resetsAt == expected)
+    }
+
+    @Test
     func `context exposes no browser or timer globals`() throws {
         let runtime = try ProviderPluginRuntime(source: Self.plugin())
 
@@ -490,7 +502,9 @@ struct ProviderPluginRuntimeTests {
         await #expect(throws: ProviderPluginError.self) {
             _ = try await runtime.fetchUsage(secrets: ["TEST_KEY": "hang"])
         }
-        #expect(Date().timeIntervalSince(start) < 1)
+        // The 0.15s watchdog must fire promptly rather than wait out the hang; allow generous
+        // headroom for loaded CI runners (observed 1.66s on ARM64 under contention).
+        #expect(Date().timeIntervalSince(start) < 5)
 
         let recovered = try await runtime.fetchUsage(secrets: ["TEST_KEY": "ok"])
         #expect(recovered.primary?.usedPercent == 7)

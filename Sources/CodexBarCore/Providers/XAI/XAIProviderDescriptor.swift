@@ -63,51 +63,26 @@ public enum XAIProviderDescriptor {
     private static func fetchPlan() -> ProviderFetchPlan {
         ProviderFetchPlan(
             sourceModes: [.auto, .api],
-            pipeline: ProviderFetchPipeline(resolveStrategies: { context in
-                let swift = XAIAPIFetchStrategy()
-                guard ProviderPluginPrototype.isEnabled(environment: context.env) else { return [swift] }
-                return [
-                    ScriptFetchStrategy(
-                        id: "xai.js",
-                        provider: .xai,
-                        bundledPlugin: "xai",
-                        secretKey: XAISettingsReader.apiKeyEnvironmentKey,
-                        resolveValues: { context in
-                            guard let key = XAISettingsReader.apiKey(environment: context.env),
-                                  let teamID = XAISettingsReader.teamID(environment: context.env)
-                            else { return nil }
-                            return ScriptFetchStrategy.Values(
-                                settings: [XAISettingsReader.teamIDEnvironmentKey: teamID],
-                                secrets: [XAISettingsReader.apiKeyEnvironmentKey: key])
-                        }),
-                    swift,
-                ]
+            pipeline: ProviderFetchPipeline(resolveStrategies: { _ in
+                [ScriptFetchStrategy(
+                    id: "xai.js",
+                    provider: .xai,
+                    bundledPlugin: "xai",
+                    secretKey: XAISettingsReader.apiKeyEnvironmentKey,
+                    sourceLabel: "api",
+                    validateContext: { context in
+                        _ = try XAISettingsReader.validatedTeamID(environment: context.env)
+                    },
+                    resolveValues: { context in
+                        guard let key = XAISettingsReader.apiKey(environment: context.env) else { return nil }
+                        let settings = XAISettingsReader.teamID(environment: context.env).map {
+                            [XAISettingsReader.teamIDEnvironmentKey: $0]
+                        } ?? [:]
+                        return ScriptFetchStrategy.Values(
+                            settings: settings,
+                            secrets: [XAISettingsReader.apiKeyEnvironmentKey: key])
+                    },
+                    isEnabled: { _ in true })]
             }))
-    }
-}
-
-struct XAIAPIFetchStrategy: ProviderFetchStrategy {
-    let id = "xai.api"
-    let kind: ProviderFetchKind = .apiToken
-
-    func isAvailable(_ context: ProviderFetchContext) async -> Bool {
-        XAISettingsReader.apiKey(environment: context.env) != nil
-    }
-
-    func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
-        guard let key = XAISettingsReader.apiKey(environment: context.env) else {
-            throw XAIBillingError.notConfigured
-        }
-        guard let teamID = XAISettingsReader.teamID(environment: context.env) else {
-            throw XAIBillingError.missingTeamID
-        }
-        let usage = try await XAIBillingFetcher.fetchUsage(managementKey: key, teamID: teamID)
-        return self.makeResult(
-            usage: usage.toUsageSnapshot(),
-            sourceLabel: "api")
-    }
-
-    func shouldFallback(on _: Error, context _: ProviderFetchContext) -> Bool {
-        false
     }
 }

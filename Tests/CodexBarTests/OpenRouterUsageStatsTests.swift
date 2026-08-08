@@ -29,6 +29,7 @@ struct OpenRouterPluginGoldenTests {
 
         #expect(snapshot.primary == nil)
         #expect(snapshot.detailRow(label: "API key budget")?.value == "Unavailable right now")
+        #expect(snapshot.detailRow(label: "API key budget")?.secondaryValue == "Request returned HTTP 500")
     }
 
     @Test
@@ -157,6 +158,7 @@ struct OpenRouterPluginGoldenTests {
 
         #expect(usage.primary == nil)
         #expect(usage.detailRow(label: "API key budget")?.value == "Unavailable right now")
+        #expect(usage.detailRow(label: "API key budget")?.secondaryValue == "Response was invalid")
     }
 
     @Test
@@ -209,6 +211,7 @@ struct OpenRouterPluginGoldenTests {
         #expect(ContinuousClock.now - startedAt < .seconds(1.4))
         #expect(usage.primary == nil)
         #expect(usage.detailRow(label: "API key budget")?.value == "Unavailable right now")
+        #expect(usage.detailRow(label: "API key budget")?.secondaryValue == "Request timed out")
         try await Task.sleep(for: .milliseconds(600))
     }
 

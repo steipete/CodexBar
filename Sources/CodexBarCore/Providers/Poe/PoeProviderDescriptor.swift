@@ -53,43 +53,19 @@ public enum PoeProviderDescriptor {
     }
 
     private static func fetchPlan() -> ProviderFetchPlan {
-        .scriptPrototypeAPI(
-            configuration: .init(
-                provider: .poe,
-                plugin: "poe",
-                secretKey: PoeSettingsReader.apiKeyEnvironmentKey,
-                strategyID: "poe.api"),
-            resolveToken: { ProviderTokenResolver.token(for: .poe, environment: $0) },
-            missingCredentialsError: { PoeUsageError.missingCredentials },
-            loadUsage: { apiKey, _ in
-                try await PoeUsageFetcher.fetchUsage(apiKey: apiKey).toUsageSnapshot()
-            })
-    }
-}
-
-struct PoeAPIFetchStrategy: ProviderFetchStrategy {
-    let id: String = "poe.api"
-    let kind: ProviderFetchKind = .apiToken
-
-    func isAvailable(_ context: ProviderFetchContext) async -> Bool {
-        Self.resolveToken(environment: context.env) != nil
-    }
-
-    func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
-        guard let apiKey = Self.resolveToken(environment: context.env) else {
-            throw PoeUsageError.missingCredentials
-        }
-        let usage = try await PoeUsageFetcher.fetchUsage(apiKey: apiKey)
-        return self.makeResult(
-            usage: usage.toUsageSnapshot(),
-            sourceLabel: "api")
-    }
-
-    func shouldFallback(on _: Error, context _: ProviderFetchContext) -> Bool {
-        false
-    }
-
-    private static func resolveToken(environment: [String: String]) -> String? {
-        ProviderTokenResolver.token(for: .poe, environment: environment)
+        ProviderFetchPlan(
+            sourceModes: [.auto, .api],
+            pipeline: ProviderFetchPipeline(resolveStrategies: { _ in
+                [ScriptFetchStrategy(
+                    id: "poe.js",
+                    provider: .poe,
+                    bundledPlugin: "poe",
+                    secretKey: PoeSettingsReader.apiKeyEnvironmentKey,
+                    sourceLabel: "api",
+                    resolveSecret: { environment in
+                        self.credentials.resolveToken(environment: environment)?.token
+                    },
+                    isEnabled: { _ in true })]
+            }))
     }
 }

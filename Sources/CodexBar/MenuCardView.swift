@@ -539,7 +539,9 @@ private struct MetricRow: View {
                         Text(resetText)
                             .font(.footnote)
                             .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
-                            .lineLimit(1)
+                            .lineLimit(2)
+                            .multilineTextAlignment(.trailing)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
                 }
                 UsageProgressBar(
@@ -554,8 +556,9 @@ private struct MetricRow: View {
                     Text(metaText)
                         .font(.footnote)
                         .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
-                        .lineLimit(1)
+                        .lineLimit(2)
                         .truncationMode(.tail)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
                 if let detail = self.metric.detailText {
                     Text(detail)

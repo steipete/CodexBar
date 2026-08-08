@@ -14,8 +14,8 @@ This document describes the bundled first-party conversion prototype. User-insta
 This prototype proves that an existing first-party `UsageProvider` can define its manifest, HTTP requests, response
 parsing, and generic `UsageSnapshot` projection in one bundled JavaScript file. It is deliberately not a user-plugin
 system: IDs remain compile-time `UsageProvider` cases and scripts ship inside CodexBar. Crof, Venice, OpenRouter,
-ClawRouter, Deepgram, and sub2api use the same bundled script on Apple platforms and Linux; their former Linux-only
-native fetch twins have been removed.
+ClawRouter, Deepgram, sub2api, Synthetic, Poe, xAI, and z.ai use the same bundled script on Apple platforms and Linux;
+their native fetch twins have been removed.
 
 The runtime selects JavaScriptCore by default on Apple platforms and QuickJS on Linux. Set
 `CODEXBAR_PLUGIN_ENGINE=quickjs` on macOS to exercise QuickJS locally. QuickJS uses a 20-second in-engine interrupt
@@ -28,13 +28,14 @@ case therefore remain out of scope for this prototype.
 
 ## Enable and test
 
-Set `CODEXBAR_JS_PROVIDERS=1` in CodexBar's environment. Synthetic, OpenAI, z.ai, Poe, xAI, Manus,
+Set `CODEXBAR_JS_PROVIDERS=1` in CodexBar's environment. OpenAI, Manus,
 Perplexity, T3 Chat, and Qoder then prepend a script strategy to their existing pipeline.
 A missing required secret or disabled cookie source leaves the script
 strategy unavailable and permits the Swift strategy to run; a loaded script that fails does not fall back, so parity
 defects stay visible. Without the variable, the resolver returns the original Swift strategy only and does not load
-an engine or plugin resource for those providers. Crof, Venice, OpenRouter, ClawRouter, Deepgram, and sub2api always
-resolve only their script strategy on every platform; `CODEXBAR_JS_PROVIDERS` does not affect them.
+an engine or plugin resource for those providers. Crof, Venice, OpenRouter, ClawRouter, Deepgram, sub2api, Synthetic,
+Poe, xAI, and z.ai always resolve only their script strategy on every platform; `CODEXBAR_JS_PROVIDERS` does not affect
+them.
 
 Run the focused proof with:
 
@@ -117,7 +118,8 @@ built-ins, but no browser or Node host environment. Tests assert that `fetch`, `
   values are also substring-redacted from errors crossing back to Swift.
 - `ctx.cache.get(key)` and `ctx.cache.set(key, value, ttlSeconds)` provide an in-memory, per-context cache. TTLs are
   positive and capped at 24 hours.
-- `ctx.date.iso(text)`, `unixSeconds(number)`, and `unixMillis(number)` return JavaScript `Date` objects.
+- `ctx.date.now()`, `iso(text)`, `unixSeconds(number)`, and `unixMillis(number)` return JavaScript `Date` objects.
+  `now()` uses the host refresh clock so fixtures and retries share the snapshot timestamp.
 - `ctx.date.nextDailyReset(timeZoneIdentifier, hour)` returns the next wall-clock hour in an IANA time zone, including
   DST transitions. Crof uses `America/Chicago` at hour `0`.
 - `ctx.jwt.decode(token)` decodes the JSON payload segment without verifying a signature.

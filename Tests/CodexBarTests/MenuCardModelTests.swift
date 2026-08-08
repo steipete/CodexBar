@@ -383,21 +383,32 @@ struct ProviderInlineDashboardModelTests {
     func `zai hourly usage gets inline dashboard`() throws {
         let now = try #require(Self.zaiDate("2023-11-15 12:00"))
         let metadata = try #require(ProviderDefaults.metadata[.zai])
-        let usage = ZaiUsageSnapshot(
-            tokenLimit: nil,
-            timeLimit: nil,
-            planName: "Pro",
-            modelUsage: ZaiModelUsageData(
-                xTime: ["2023-11-14 12:00", "2023-11-15 12:00"],
-                modelDataList: [
-                    ZaiModelDataItem(modelName: "glm-4.5", tokensUsage: [100, 200]),
-                ]),
-            updatedAt: now)
+        let details = try ProviderDetailSection(
+            title: "Hourly tokens",
+            rows: [.init(label: "glm-4.5", value: "300")],
+            chart: .init(
+                kind: .bars,
+                title: "Hourly tokens",
+                unit: "tokens",
+                points: [
+                    .init(label: "2023-11-14 12:00", value: 100),
+                    .init(label: "2023-11-15 12:00", value: 200),
+                ]))
+        let snapshot = UsageSnapshot(
+            primary: nil,
+            secondary: nil,
+            details: [details],
+            updatedAt: now,
+            identity: ProviderIdentitySnapshot(
+                providerID: .zai,
+                accountEmail: nil,
+                accountOrganization: nil,
+                loginMethod: "Pro"))
 
         let model = UsageMenuCardView.Model.make(.init(
             provider: .zai,
             metadata: metadata,
-            snapshot: usage.toUsageSnapshot(),
+            snapshot: snapshot,
             credits: nil,
             creditsError: nil,
             dashboard: nil,

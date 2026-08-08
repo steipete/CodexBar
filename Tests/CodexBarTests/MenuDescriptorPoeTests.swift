@@ -72,39 +72,33 @@ struct MenuDescriptorPoeTests {
             browserDetection: BrowserDetection(cacheTTL: 0),
             settings: settings)
 
-        let now = Date()
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = try #require(TimeZone(secondsFromGMT: 0))
-        // Match Poe's UTC day boundary so this remains stable across local time zones and UTC midnight.
-        let today = calendar.date(bySettingHour: 12, minute: 0, second: 0, of: now) ?? now
-        let yesterday = calendar.date(byAdding: .day, value: -1, to: today) ?? now.addingTimeInterval(-86400)
-        let history = PoeUsageHistorySnapshot(
-            entries: [
-                .init(
-                    id: "a",
-                    createdAt: today,
-                    model: "GPT-4o",
-                    usageType: "chat",
-                    points: 100,
-                    costUSD: nil),
-                .init(
-                    id: "b",
-                    createdAt: yesterday,
-                    model: "Claude-3.7-Sonnet",
-                    usageType: "chat",
-                    points: 200,
-                    costUSD: nil),
-            ],
-            daily: [
-                .init(day: "2026-05-30", points: 200, requests: 1, costUSD: nil),
-                .init(day: "2026-05-31", points: 100, requests: 1, costUSD: nil),
-            ],
-            updatedAt: now)
-
-        let snapshot = PoeUsageSnapshot(
-            currentPointBalance: 300,
-            history: history,
-            updatedAt: now).toUsageSnapshot()
+        let rows = try [
+            ProviderDetailSection.Row(label: "Today", value: "100 points", secondaryValue: "1 requests"),
+            ProviderDetailSection.Row(label: "Last 7 days", value: "300 points", secondaryValue: "2 requests"),
+            ProviderDetailSection.Row(label: "Last 30 days", value: "300 points", secondaryValue: "2 requests"),
+            ProviderDetailSection.Row(
+                label: "Top model",
+                value: "Claude-3.7-Sonnet",
+                secondaryValue: "200 points"),
+            ProviderDetailSection.Row(label: "Usage mix", value: "chat: 300 points"),
+            ProviderDetailSection.Row(
+                label: "Recent activity",
+                value: "05-31 12:00 · GPT-4o",
+                secondaryValue: "100 points"),
+        ]
+        let details = try [ProviderDetailSection(title: "Points", rows: rows)]
+        let snapshot = UsageSnapshot(
+            primary: nil,
+            secondary: nil,
+            tertiary: nil,
+            providerCost: nil,
+            details: details,
+            updatedAt: Date(),
+            identity: ProviderIdentitySnapshot(
+                providerID: .poe,
+                accountEmail: nil,
+                accountOrganization: nil,
+                loginMethod: "Balance: 300 points"))
         store._setSnapshotForTesting(snapshot, provider: .poe)
 
         let descriptor = MenuDescriptor.build(

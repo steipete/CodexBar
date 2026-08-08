@@ -7,6 +7,12 @@ public enum ProviderPluginEngineKind: Equatable, Sendable {
     case quickJS
 }
 
+struct ProviderPluginContextOptions: Sendable {
+    static let production = Self(optionalRequestTimeoutSeconds: nil)
+
+    let optionalRequestTimeoutSeconds: TimeInterval?
+}
+
 enum ProviderPluginSourceLint {
     static func validateBundled(_ source: String, name: String) throws {
         if source.range(of: #"\bIntl\s*\."#, options: .regularExpression) != nil {
@@ -64,6 +70,7 @@ protocol ProviderPluginEngine: AnyObject, Sendable {
         secrets: [String: String],
         now: Date,
         timeZone: TimeZone,
+        contextOptions: ProviderPluginContextOptions,
         cookieResolver: ProviderPluginRuntime.CookieResolver?,
         instanceCookieResolver: ProviderPluginRuntime.InstanceCookieResolver?,
         completion: @escaping @Sendable (Result<UsageSnapshot, Error>) -> Void)

@@ -91,7 +91,7 @@ struct CostUsageCalendarTests {
             until: secondDay,
             now: secondDay,
             options: options)
-        let cache = CostUsageCacheIO.load(provider: .codex, cacheRoot: env.cacheRoot)
+        let cache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot, calendar: buddhist)
 
         #expect(secondReport.data.map(\.date) == ["2026-07-23"])
         #expect(secondReport.data.first?.totalTokens == 20)
@@ -126,7 +126,7 @@ struct CostUsageCalendarTests {
             until: windowEnd,
             now: windowEnd,
             options: Self.codexOptions(env: env, calendar: utc))
-        let utcCache = CostUsageCacheIO.load(provider: .codex, cacheRoot: env.cacheRoot)
+        let utcCache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot, calendar: utc)
         #expect(utcReport.data.map(\.date) == ["2026-07-22"])
         #expect(utcCache.timeZoneIdentifier == utc.timeZone.identifier)
         #expect(utcCache.files.values.compactMap(\.sessionId) == ["calendar-time-zone-change.jsonl"])
@@ -137,7 +137,7 @@ struct CostUsageCalendarTests {
             until: windowEnd,
             now: windowEnd,
             options: Self.codexOptions(env: env, calendar: bangkok))
-        let bangkokCache = CostUsageCacheIO.load(provider: .codex, cacheRoot: env.cacheRoot)
+        let bangkokCache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot, calendar: bangkok)
         #expect(bangkokReport.data.map(\.date) == ["2026-07-23"])
         #expect(bangkokReport.data.first?.totalTokens == 10)
         #expect(bangkokCache.timeZoneIdentifier == "Asia/Bangkok")
@@ -282,7 +282,7 @@ struct CostUsageCalendarTests {
             options: Self.claudeOptions(env: env, calendar: bangkok))
         #expect(utcClaude.data.map(\.date) == ["2026-07-22"])
         #expect(bangkokClaude.data.map(\.date) == ["2026-07-23"])
-        #expect(CostUsageCacheIO.load(
+        #expect(CostUsageClaudeCacheIO.load(
             provider: .claude,
             cacheRoot: env.cacheRoot).timeZoneIdentifier == "Asia/Bangkok")
 

@@ -362,7 +362,7 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
         }
 
         if provider == .zai {
-            return ZaiUsageFetcher.resolveDashboardURL(
+            return ZaiEndpointRouter.resolveDashboardURL(
                 region: self.settings.zaiAPIRegion,
                 environment: environment,
                 usageScope: self.settings.zaiEffectiveUsageScope())

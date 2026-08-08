@@ -9,14 +9,29 @@ defineProvider({
   ],
   async fetchUsage(ctx) {
     const team = ctx.settings.get("XAI_TEAM_ID");
-    if (!team || team.includes("/") || team === "." || team === "..") throw new Error("Invalid xAI team ID");
+    if (!team || team.includes("/") || team === "." || team === "..") {
+      throw ctx.fail.missingCredential("Missing or invalid xAI team ID");
+    }
     const root = `https://management-api.x.ai/v1/billing/teams/${encodeURIComponent(team)}`;
     const balanceResponse = await ctx.http.getJSON(`${root}/prepaid/balance`);
-    if (balanceResponse.status < 200 || balanceResponse.status >= 300) throw new Error(`xAI balance API error: HTTP ${balanceResponse.status}`);
+    if (balanceResponse.status === 401 || balanceResponse.status === 403) {
+      throw ctx.fail.authenticationExpired("xAI rejected the Management API key. Create one in the xAI Console under Settings > Management Keys; inference API keys are not accepted.");
+    }
+    if (balanceResponse.status === 404) {
+      throw ctx.fail.apiFailure("xAI returned 404 for this team. Check the team ID, and that the Management key belongs to the same team.");
+    }
+    if (balanceResponse.status === 429) {
+      throw ctx.fail.rateLimited("xAI Management API rate limit exceeded. Usage will refresh on the next cycle.");
+    }
+    if (balanceResponse.status < 200 || balanceResponse.status >= 300) {
+      throw ctx.fail.apiFailure(`xAI Management API returned HTTP ${balanceResponse.status}.`);
+    }
     const raw = balanceResponse.json && balanceResponse.json.total && balanceResponse.json.total.val;
-    if (typeof raw !== "string" || !/^-?\d+(\.\d+)?$/.test(raw.trim())) throw new Error("xAI balance is invalid");
+    if (typeof raw !== "string" || !/^-?\d+(\.\d+)?$/.test(raw.trim())) {
+      throw ctx.fail.parseFailure("Could not parse xAI billing data: balance total.val is not a cent amount");
+    }
     const balance = -Number(raw) / 100;
-    const now = new Date();
+    const now = ctx.date.now();
     const start = new Date(now);
     start.setUTCDate(start.getUTCDate() - 29);
     start.setUTCHours(0, 0, 0, 0);
@@ -29,22 +44,30 @@ defineProvider({
         timeUnit: "TIME_UNIT_DAY", values: [{ name: "usd", aggregation: "AGGREGATION_SUM" }],
         groupBy: [], filters: [],
       } } });
-      if (usage.status === 401 || usage.status === 403) throw new Error(`xAI usage API error: HTTP ${usage.status}`);
+      if (usage.status === 401 || usage.status === 403) {
+        throw ctx.fail.authenticationExpired("xAI rejected the Management API key. Create one in the xAI Console under Settings > Management Keys; inference API keys are not accepted.");
+      }
       if (usage.status >= 200 && usage.status < 300) {
         const totals = {};
         for (const series of usage.json.timeSeries || []) for (const point of series.dataPoints || []) {
-          const day = String(point.timestamp).slice(0, 10);
-          totals[day] = (totals[day] || 0) + Number((point.values || [0])[0] || 0);
+          const date = new Date(point.timestamp);
+          const value = (point.values || [0])[0] || 0;
+          if (!Number.isFinite(date.getTime()) || typeof value !== "number" || !Number.isFinite(value)) {
+            throw new Error("invalid xAI usage history");
+          }
+          const day = date.toISOString().slice(0, 10);
+          totals[day] = (totals[day] || 0) + value;
         }
         daily = Object.keys(totals).sort().map(day => ({ label: day, value: totals[day] }));
         partial = usage.json.limitReached === true;
       }
     } catch (error) {
-      if (/HTTP 401|HTTP 403/.test(error.message)) throw error;
+      if (/rejected the Management API key/.test(error.message)) throw error;
     }
     return {
       cost: { used: balance, currency: "USD", period: "Prepaid credits" },
       identity: { loginMethod: "Management API" },
+      dataConfidence: partial ? "estimated" : "exact",
       details: [{
         title: "Billing summary",
         rows: [

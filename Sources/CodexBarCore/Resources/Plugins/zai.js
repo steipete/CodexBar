@@ -1,7 +1,12 @@
 defineProvider({
   id: "zai",
   name: "z.ai / GLM",
-  endpoints: ["https://api.z.ai", "https://open.bigmodel.cn"],
+  endpoints: [
+    "https://api.z.ai",
+    "https://open.bigmodel.cn",
+    { setting: "Z_AI_QUOTA_ENDPOINT", policy: "https" },
+    { setting: "Z_AI_MODEL_USAGE_ENDPOINT", policy: "https" },
+  ],
   auth: { type: "bearer", secret: "Z_AI_API_KEY" },
   settings: [
     { key: "Z_AI_API_KEY", title: "API key", type: "secure" },
@@ -9,6 +14,8 @@ defineProvider({
     { key: "Z_AI_USAGE_SCOPE", title: "Usage scope", type: "plain" },
     { key: "Z_AI_ORGANIZATION", title: "Organization", type: "plain" },
     { key: "Z_AI_PROJECT", title: "Project", type: "plain" },
+    { key: "Z_AI_QUOTA_ENDPOINT", title: "Quota endpoint", type: "plain" },
+    { key: "Z_AI_MODEL_USAGE_ENDPOINT", title: "Model usage endpoint", type: "plain" },
   ],
 
   async fetchUsage(ctx) {
@@ -20,11 +27,22 @@ defineProvider({
     if (scope !== "personal" && scope !== "team") throw new Error("Unsupported z.ai usage scope");
     if (scope === "team" && (!organization || !project)) throw new Error("z.ai team scope needs organization and project");
     const base = region === "bigmodel-cn" ? "https://open.bigmodel.cn" : "https://api.z.ai";
+    const quotaEndpoint = ctx.settings.get("Z_AI_QUOTA_ENDPOINT") ||
+      `${base}/api/monitor/usage/quota/limit`;
+    const modelUsageEndpoint = ctx.settings.get("Z_AI_MODEL_USAGE_ENDPOINT") ||
+      `${base}/api/monitor/usage/model-usage`;
     const headers = scope === "team"
       ? { "Bigmodel-Organization": organization, "Bigmodel-Project": project }
       : {};
-    const quotaSuffix = scope === "team" ? "?type=2" : "";
-    const quotaResponse = await ctx.http.getJSON(`${base}/api/monitor/usage/quota/limit${quotaSuffix}`, { headers });
+    function withType(url, value) {
+      const parts = String(url).split("?");
+      const query = parts.length > 1 ? parts.slice(1).join("?").split("&").filter(Boolean) : [];
+      const filtered = query.filter(item => decodeURIComponent(item.split("=", 1)[0]) !== "type");
+      filtered.push(`type=${value}`);
+      return `${parts[0]}?${filtered.join("&")}`;
+    }
+    const quotaURL = scope === "team" ? withType(quotaEndpoint, 2) : quotaEndpoint;
+    const quotaResponse = await ctx.http.getJSON(quotaURL, { headers });
     if (quotaResponse.status !== 200) throw new Error(`z.ai quota API error: HTTP ${quotaResponse.status}`);
     const root = quotaResponse.json;
     if (!root || typeof root !== "object" || Array.isArray(root) || root.success !== true || root.code !== 200) {
@@ -117,12 +135,19 @@ defineProvider({
     if (plan) result.identity.loginMethod = plan.trim();
 
     async function modelUsage(daysBack) {
-      const end = new Date();
-      const start = new Date(end.getTime() - Math.max(1, daysBack) * 86400000);
-      const stamp = date => date.toISOString().slice(0, 19).replace("T", " ");
+      const end = ctx.date.now();
+      const start = new Date(end);
+      start.setHours(0, 0, 0, 0);
+      start.setDate(start.getDate() - Math.max(1, daysBack));
+      const rangeEnd = new Date(end);
+      rangeEnd.setMinutes(59, 59, 0);
+      const pad = value => String(value).padStart(2, "0");
+      const stamp = date => `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ` +
+        `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
       const type = scope === "team" ? "&type=3" : "";
-      const url = `${base}/api/monitor/usage/model-usage?startTime=${encodeURIComponent(stamp(start))}` +
-        `&endTime=${encodeURIComponent(stamp(end))}${type}`;
+      const modelUsageBase = modelUsageEndpoint.split("?", 1)[0];
+      const url = `${modelUsageBase}?startTime=${encodeURIComponent(stamp(start))}` +
+        `&endTime=${encodeURIComponent(stamp(rangeEnd))}${type}`;
       const response = await ctx.http.getJSON(url, { headers });
       if (response.status !== 200) throw new Error(`HTTP ${response.status}`);
       const body = response.json;

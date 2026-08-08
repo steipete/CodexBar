@@ -113,7 +113,7 @@ struct ProviderPluginExtensionParityTests {
     }
 
     @Test
-    func `xAI plugin matches generic Swift projection and details golden`() async throws {
+    func `xAI plugin matches the cut-over golden`() async throws {
         let transport = Self.transport { request in
             if request.url?.path.hasSuffix("/prepaid/balance") == true {
                 return #"{"total":{"val":"-1000"}}"#
@@ -121,21 +121,22 @@ struct ProviderPluginExtensionParityTests {
             return #"{"timeSeries":[{"dataPoints":[{"timestamp":"2027-01-15T00:00:00Z","values":[1.5]}]}],"limitReached":false}"#
         }
         let now = Date(timeIntervalSince1970: 1_800_000_000)
-        let swift = try await XAIBillingFetcher.fetchUsage(
-            managementKey: "fixture-key",
-            teamID: "team-1234",
-            transport: transport,
-            now: now).toUsageSnapshot()
         let script = try await ProviderPluginRuntime(bundledPlugin: "xai", transport: transport)
             .fetchUsage(
                 settings: ["XAI_TEAM_ID": "team-1234"],
                 secrets: ["XAI_MANAGEMENT_API_KEY": "fixture-key"],
                 now: now)
 
-        #expect(script.primary == swift.primary)
-        #expect(script.providerCost == swift.providerCost)
-        #expect(script.identity?.loginMethod == swift.identity?.loginMethod)
-        #expect(script.details == swift.details)
+        #expect(script.primary == nil)
+        #expect(script.secondary == nil)
+        #expect(script.tertiary == nil)
+        #expect(script.providerCost?.used == 10)
+        #expect(script.providerCost?.limit == 0)
+        #expect(script.providerCost?.currencyCode == "USD")
+        #expect(script.providerCost?.period == "Prepaid credits")
+        #expect(script.identity?.providerID == .xai)
+        #expect(script.identity?.loginMethod == "Management API")
+        #expect(script.dataConfidence == .exact)
         let details = try #require(script.details.first)
         #expect(details.title == "Billing summary")
         #expect(try details.rows.first == .init(label: "Prepaid balance", value: "$10.00"))

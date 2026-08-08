@@ -372,17 +372,15 @@ struct InlineCostHistoryDashboardLabelTests {
     func `token-only provider details use token chart units`() throws {
         let now = Date(timeIntervalSince1970: 1_700_179_200)
         let metadata = try #require(ProviderDefaults.metadata[.zai])
-        let modelUsage = ZaiModelUsageData(
-            xTime: ["2023-11-17 00:00"],
-            modelDataList: [
-                ZaiModelDataItem(modelName: "glm-test", tokensUsage: [123]),
-            ])
-        let snapshot = ZaiUsageSnapshot(
-            tokenLimit: nil,
-            timeLimit: nil,
-            planName: nil,
-            modelUsage: modelUsage,
-            updatedAt: now).toUsageSnapshot()
+        let details = try ProviderDetailSection(
+            title: "Hourly tokens",
+            rows: [.init(label: "glm-test", value: "123")],
+            chart: .init(
+                kind: .bars,
+                title: "Hourly tokens",
+                unit: "tokens",
+                points: [.init(label: "2023-11-17 00:00", value: 123)]))
+        let snapshot = UsageSnapshot(primary: nil, secondary: nil, details: [details], updatedAt: now)
 
         let model = UsageMenuCardView.Model.make(.init(
             provider: .zai,

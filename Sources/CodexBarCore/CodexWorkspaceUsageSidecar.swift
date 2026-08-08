@@ -47,7 +47,7 @@ struct CodexWorkspaceUsageSidecar: Sendable {
             self.size = usage.size
             self.parsedBytes = usage.parsedBytes ?? -1
             self.sessionID = usage.codexSession?.sessionId ?? usage.sessionId ?? ""
-            self.producerKey = cache.producerKey ?? ""
+            self.producerKey = CostUsageStore.cacheGeneration
             self.pricingKey = cache.codexPricingKey ?? ""
             self.contentFingerprint = usage.codexWorkspaceUsageFingerprintValue()
         }
@@ -126,7 +126,7 @@ struct CodexWorkspaceUsageSidecar: Sendable {
             else { return nil }
         }
         if let cache {
-            guard Self.columnString(statement, at: 3) == cache.producerKey,
+            guard Self.columnString(statement, at: 3) == CostUsageStore.cacheGeneration,
                   Self.columnString(statement, at: 4) == cache.codexPricingKey,
                   Self.columnString(statement, at: 5) == Self.cacheFingerprint(cache)
             else { return nil }
@@ -234,10 +234,7 @@ struct CodexWorkspaceUsageSidecar: Sendable {
                d.output_tokens,
                d.cost_nanos,
                d.standard_tokens,
-               d.priority_tokens,
-               d.standard_cost_nanos,
-               d.priority_cost_nanos,
-               d.priority_surcharge_nanos
+               d.priority_tokens
         FROM usage_rollouts r
         LEFT JOIN catalog_threads c ON c.id = r.session_id OR c.rollout_path = r.rollout_path
         JOIN usage_daily d ON d.rollout_path = r.rollout_path
@@ -270,16 +267,10 @@ struct CodexWorkspaceUsageSidecar: Sendable {
                 Int(sqlite3_column_int64(statement, 13)),
                 Int(sqlite3_column_int64(statement, 14)),
             ]
+            // This legacy-named field carries only source-authoritative cost; estimates resolve on read.
             Self.assign(Self.columnInt64(statement, at: 15), to: &usage.codexCostNanos, day: day, model: model)
             Self.assign(Self.columnInt64(statement, at: 16), to: &usage.codexStandardTokens, day: day, model: model)
             Self.assign(Self.columnInt64(statement, at: 17), to: &usage.codexPriorityTokens, day: day, model: model)
-            Self.assign(Self.columnInt64(statement, at: 18), to: &usage.codexStandardCostNanos, day: day, model: model)
-            Self.assign(Self.columnInt64(statement, at: 19), to: &usage.codexPriorityCostNanos, day: day, model: model)
-            Self.assign(
-                Self.columnInt64(statement, at: 20),
-                to: &usage.codexPrioritySurchargeNanos,
-                day: day,
-                model: model)
             cache.files[path] = usage
         }
         let eventSQL = """
@@ -371,6 +362,8 @@ struct CodexWorkspaceUsageSidecar: Sendable {
             throw SidecarError.incompatibleSchema
         }
         guard current == 0 else { return }
+        // The nullable Standard/Priority cost columns remain only to preserve the v5 schema.
+        // Readers and writers intentionally ignore them; estimates are resolved from tokens.
         try Self.execute(db, """
         CREATE TABLE IF NOT EXISTS schema_meta (
             key TEXT PRIMARY KEY,
@@ -531,7 +524,7 @@ struct CodexWorkspaceUsageSidecar: Sendable {
         else { throw SidecarError.statementFailed }
         defer { sqlite3_finalize(statement) }
         Self.bind(generation, to: statement, at: 1)
-        guard sqlite3_step(statement) == SQLITE_DONE else { throw SidecarError.writeFailed }
+        guard sqlite3_step(statement) == SQLITE_DONE else { throw Self.sqliteFailure(db) }
     }
 
     private func importChangedRollouts(
@@ -625,7 +618,7 @@ struct CodexWorkspaceUsageSidecar: Sendable {
         let rootsData = try JSONEncoder().encode(rootsFingerprint)
         Self.bind(rootsData, to: state, at: 2)
         Self.bind(catalog.fingerprint, to: state, at: 3)
-        Self.bind(cache.producerKey, to: state, at: 4)
+        Self.bind(CostUsageStore.cacheGeneration, to: state, at: 4)
         Self.bind(cache.codexPricingKey, to: state, at: 5)
         Self.bind(Self.cacheFingerprint(cache), to: state, at: 6)
         sqlite3_bind_int64(state, 7, Int64((snapshot.updatedAt.timeIntervalSince1970 * 1000).rounded()))
@@ -697,15 +690,15 @@ struct CodexWorkspaceUsageSidecar: Sendable {
         Self.bind(identity.contentFingerprint, to: statement, at: 18)
         sqlite3_bind_int(statement, 19, Self.hasCompleteEventDetail(usage) ? 1 : 0)
         Self.bind(generation, to: statement, at: 20)
-        guard sqlite3_step(statement) == SQLITE_DONE else { throw SidecarError.writeFailed }
+        guard sqlite3_step(statement) == SQLITE_DONE else { throw Self.sqliteFailure(db) }
     }
 
     private static func insertDaily(path: String, usage: CostUsageFileUsage, db: OpaquePointer?) throws {
         let sql = """
         INSERT INTO usage_daily (
             rollout_path, day, model, input_tokens, cached_input_tokens, output_tokens, cost_nanos,
-            standard_tokens, priority_tokens, standard_cost_nanos, priority_cost_nanos, priority_surcharge_nanos
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            standard_tokens, priority_tokens
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         """
         guard let statement = Self.prepare(db, sql) else { throw SidecarError.statementFailed }
         defer { sqlite3_finalize(statement) }
@@ -719,13 +712,11 @@ struct CodexWorkspaceUsageSidecar: Sendable {
                 sqlite3_bind_int64(statement, 4, Int64(max(0, values[safe: 0] ?? 0)))
                 sqlite3_bind_int64(statement, 5, Int64(max(0, values[safe: 1] ?? 0)))
                 sqlite3_bind_int64(statement, 6, Int64(max(0, values[safe: 2] ?? 0)))
+                // Preserve only source-authoritative money in the sidecar.
                 Self.bind(usage.codexCostNanos?[day]?[model], to: statement, at: 7)
                 Self.bind(usage.codexStandardTokens?[day]?[model], to: statement, at: 8)
                 Self.bind(usage.codexPriorityTokens?[day]?[model], to: statement, at: 9)
-                Self.bind(usage.codexStandardCostNanos?[day]?[model], to: statement, at: 10)
-                Self.bind(usage.codexPriorityCostNanos?[day]?[model], to: statement, at: 11)
-                Self.bind(usage.codexPrioritySurchargeNanos?[day]?[model], to: statement, at: 12)
-                guard sqlite3_step(statement) == SQLITE_DONE else { throw SidecarError.writeFailed }
+                guard sqlite3_step(statement) == SQLITE_DONE else { throw Self.sqliteFailure(db) }
             }
         }
     }
@@ -738,6 +729,20 @@ struct CodexWorkspaceUsageSidecar: Sendable {
             input_tokens, cached_input_tokens, output_tokens, known_cost_nanos, unpriced_tokens,
             pricing_model, pricing_mode, reasoning_tokens
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(rollout_path, event_index) DO UPDATE SET
+            timestamp_ms = excluded.timestamp_ms,
+            day = excluded.day,
+            canonical_model = excluded.canonical_model,
+            raw_model = excluded.raw_model,
+            turn_id = excluded.turn_id,
+            input_tokens = excluded.input_tokens,
+            cached_input_tokens = excluded.cached_input_tokens,
+            output_tokens = excluded.output_tokens,
+            known_cost_nanos = excluded.known_cost_nanos,
+            unpriced_tokens = excluded.unpriced_tokens,
+            pricing_model = excluded.pricing_model,
+            pricing_mode = excluded.pricing_mode,
+            reasoning_tokens = excluded.reasoning_tokens
         """
         guard let statement = Self.prepare(db, sql) else { throw SidecarError.statementFailed }
         defer { sqlite3_finalize(statement) }
@@ -760,7 +765,7 @@ struct CodexWorkspaceUsageSidecar: Sendable {
             Self.bind(row.pricingModel, to: statement, at: 13)
             Self.bind(row.pricingMode, to: statement, at: 14)
             Self.bind(row.reasoning.map(Int64.init), to: statement, at: 15)
-            guard sqlite3_step(statement) == SQLITE_DONE else { throw SidecarError.writeFailed }
+            guard sqlite3_step(statement) == SQLITE_DONE else { throw Self.sqliteFailure(db) }
         }
     }
 
@@ -770,7 +775,7 @@ struct CodexWorkspaceUsageSidecar: Sendable {
             else { throw SidecarError.statementFailed }
             defer { sqlite3_finalize(statement) }
             Self.bind(path, to: statement, at: 1)
-            guard sqlite3_step(statement) == SQLITE_DONE else { throw SidecarError.writeFailed }
+            guard sqlite3_step(statement) == SQLITE_DONE else { throw Self.sqliteFailure(db) }
         }
     }
 
@@ -955,11 +960,17 @@ struct CodexWorkspaceUsageSidecar: Sendable {
 
     private static let sqliteTransient = unsafeBitCast(-1, to: sqlite3_destructor_type.self)
 
+    private static func sqliteFailure(_ db: OpaquePointer?) -> SidecarError {
+        guard let db, let message = sqlite3_errmsg(db) else { return .writeFailed }
+        return .sqlite(String(cString: message))
+    }
+
     private enum SidecarError: Error {
         case openFailed
         case incompatibleSchema
         case statementFailed
         case writeFailed
+        case sqlite(String)
     }
     #endif
 }

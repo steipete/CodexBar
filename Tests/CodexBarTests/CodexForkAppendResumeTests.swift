@@ -57,7 +57,7 @@ struct CodexForkAppendResumeTests {
             now: day,
             options: options)
 
-        let firstCache = CostUsageCacheIO.load(provider: .codex, cacheRoot: env.cacheRoot)
+        let firstCache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
         let firstUsage = try #require(firstCache.files.values.first { $0.sessionId == "redacted-child" })
         let firstParsedBytes = try #require(firstUsage.parsedBytes)
         #expect(firstUsage.forkedFromId == "redacted-missing-parent")
@@ -104,7 +104,7 @@ struct CodexForkAppendResumeTests {
             now: day.addingTimeInterval(1),
             options: options)
 
-        let secondCache = CostUsageCacheIO.load(provider: .codex, cacheRoot: env.cacheRoot)
+        let secondCache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
         let secondUsage = try #require(secondCache.files.values.first { $0.sessionId == "redacted-child" })
         #expect(secondUsage.parsedBytes == appendedSize)
         #expect((secondUsage.parsedBytes ?? 0) >= firstParsedBytes)
@@ -168,7 +168,7 @@ struct CodexForkAppendResumeTests {
             now: day,
             options: options)
 
-        let firstCache = CostUsageCacheIO.load(provider: .codex, cacheRoot: env.cacheRoot)
+        let firstCache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
         let firstUsage = try #require(firstCache.files.values.first { $0.sessionId == "redacted-subagent" })
         let firstParsedBytes = try #require(firstUsage.parsedBytes)
         #expect(firstUsage.forkedFromId == "redacted-missing-parent")
@@ -231,7 +231,7 @@ struct CodexForkAppendResumeTests {
             now: day.addingTimeInterval(1),
             options: options)
 
-        let secondCache = CostUsageCacheIO.load(provider: .codex, cacheRoot: env.cacheRoot)
+        let secondCache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
         let secondUsage = try #require(secondCache.files.values.first { $0.sessionId == "redacted-subagent" })
         #expect((secondUsage.parsedBytes ?? 0) <= 512)
         #expect(secondUsage.codexScanComplete == false)
