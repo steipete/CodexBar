@@ -66,11 +66,13 @@ struct CostUsageStoreDayAggregate: Codable, Equatable, Sendable {
     var outputTokens: Int64
     var reasoningTokens: Int64
     var requestCount: Int64
-    var knownCostNanos: Int64
-    var prioritySurchargeNanos: Int64 = 0
-    var unpricedTokens: Int64
-    var standardCostNanos: Int64
-    var priorityCostNanos: Int64
+    var authoritativeCostNanos: Int64
+    var standardInputTokens: Int64
+    var standardCachedTokens: Int64
+    var standardOutputTokens: Int64
+    var priorityInputTokens: Int64
+    var priorityCachedTokens: Int64
+    var priorityOutputTokens: Int64
     var standardTokens: Int64
     var priorityTokens: Int64
 
@@ -83,11 +85,13 @@ struct CostUsageStoreDayAggregate: Codable, Equatable, Sendable {
             outputTokens: 0,
             reasoningTokens: 0,
             requestCount: 0,
-            knownCostNanos: 0,
-            prioritySurchargeNanos: 0,
-            unpricedTokens: 0,
-            standardCostNanos: 0,
-            priorityCostNanos: 0,
+            authoritativeCostNanos: 0,
+            standardInputTokens: 0,
+            standardCachedTokens: 0,
+            standardOutputTokens: 0,
+            priorityInputTokens: 0,
+            priorityCachedTokens: 0,
+            priorityOutputTokens: 0,
             standardTokens: 0,
             priorityTokens: 0)
     }

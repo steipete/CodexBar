@@ -55,7 +55,7 @@ actor CostUsageStore {
 
     static let log = CodexBarLog.logger(LogCategories.tokenCost)
     static let databaseFilename = "cost-usage.sqlite"
-    static let baseSchemaVersion = 2
+    static let baseSchemaVersion = 3
     static let schemaVersion = CostUsageStore.combinedSchemaVersion(
         base: CostUsageStore.baseSchemaVersion,
         parserHash: CodexParserHash.value)
@@ -376,11 +376,13 @@ extension CostUsageStore {
         output_tokens INTEGER NOT NULL,
         reasoning_tokens INTEGER NOT NULL,
         request_count INTEGER NOT NULL,
-        known_cost_nanos INTEGER NOT NULL,
-        priority_surcharge_nanos INTEGER NOT NULL,
-        unpriced_tokens INTEGER NOT NULL,
-        standard_cost_nanos INTEGER NOT NULL,
-        priority_cost_nanos INTEGER NOT NULL,
+        authoritative_cost_nanos INTEGER NOT NULL,
+        standard_input_tokens INTEGER NOT NULL,
+        standard_cached_tokens INTEGER NOT NULL,
+        standard_output_tokens INTEGER NOT NULL,
+        priority_input_tokens INTEGER NOT NULL,
+        priority_cached_tokens INTEGER NOT NULL,
+        priority_output_tokens INTEGER NOT NULL,
         standard_tokens INTEGER NOT NULL,
         priority_tokens INTEGER NOT NULL,
         PRIMARY KEY(file_id, day, model)
@@ -395,11 +397,13 @@ extension CostUsageStore {
         output_tokens INTEGER NOT NULL,
         reasoning_tokens INTEGER NOT NULL,
         request_count INTEGER NOT NULL,
-        known_cost_nanos INTEGER NOT NULL,
-        priority_surcharge_nanos INTEGER NOT NULL,
-        unpriced_tokens INTEGER NOT NULL,
-        standard_cost_nanos INTEGER NOT NULL,
-        priority_cost_nanos INTEGER NOT NULL,
+        authoritative_cost_nanos INTEGER NOT NULL,
+        standard_input_tokens INTEGER NOT NULL,
+        standard_cached_tokens INTEGER NOT NULL,
+        standard_output_tokens INTEGER NOT NULL,
+        priority_input_tokens INTEGER NOT NULL,
+        priority_cached_tokens INTEGER NOT NULL,
+        priority_output_tokens INTEGER NOT NULL,
         standard_tokens INTEGER NOT NULL,
         priority_tokens INTEGER NOT NULL,
         PRIMARY KEY(day, model)

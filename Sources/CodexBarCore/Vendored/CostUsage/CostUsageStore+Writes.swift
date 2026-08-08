@@ -157,10 +157,11 @@ extension CostUsageStore {
                 let insert = try Self.prepare(database, """
                 INSERT INTO file_day_aggregates (
                     file_id, day, model, input_tokens, cached_tokens, output_tokens,
-                    reasoning_tokens, request_count, known_cost_nanos, priority_surcharge_nanos,
-                    unpriced_tokens, standard_cost_nanos, priority_cost_nanos,
+                    reasoning_tokens, request_count, authoritative_cost_nanos,
+                    standard_input_tokens, standard_cached_tokens, standard_output_tokens,
+                    priority_input_tokens, priority_cached_tokens, priority_output_tokens,
                     standard_tokens, priority_tokens
-                ) VALUES ((SELECT id FROM files WHERE path = ?), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES ((SELECT id FROM files WHERE path = ?), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """)
                 defer { sqlite3_finalize(insert) }
                 for aggregate in aggregates {
@@ -185,20 +186,24 @@ extension CostUsageStore {
                 let statement = try Self.prepare(database, """
                 INSERT INTO day_aggregates (
                     day, model, input_tokens, cached_tokens, output_tokens, reasoning_tokens,
-                    request_count, known_cost_nanos, priority_surcharge_nanos, unpriced_tokens,
-                    standard_cost_nanos, priority_cost_nanos, standard_tokens, priority_tokens
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    request_count, authoritative_cost_nanos,
+                    standard_input_tokens, standard_cached_tokens, standard_output_tokens,
+                    priority_input_tokens, priority_cached_tokens, priority_output_tokens,
+                    standard_tokens, priority_tokens
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(day, model) DO UPDATE SET
                     input_tokens = input_tokens + excluded.input_tokens,
                     cached_tokens = cached_tokens + excluded.cached_tokens,
                     output_tokens = output_tokens + excluded.output_tokens,
                     reasoning_tokens = reasoning_tokens + excluded.reasoning_tokens,
                     request_count = request_count + excluded.request_count,
-                    known_cost_nanos = known_cost_nanos + excluded.known_cost_nanos,
-                    priority_surcharge_nanos = priority_surcharge_nanos + excluded.priority_surcharge_nanos,
-                    unpriced_tokens = unpriced_tokens + excluded.unpriced_tokens,
-                    standard_cost_nanos = standard_cost_nanos + excluded.standard_cost_nanos,
-                    priority_cost_nanos = priority_cost_nanos + excluded.priority_cost_nanos,
+                    authoritative_cost_nanos = authoritative_cost_nanos + excluded.authoritative_cost_nanos,
+                    standard_input_tokens = standard_input_tokens + excluded.standard_input_tokens,
+                    standard_cached_tokens = standard_cached_tokens + excluded.standard_cached_tokens,
+                    standard_output_tokens = standard_output_tokens + excluded.standard_output_tokens,
+                    priority_input_tokens = priority_input_tokens + excluded.priority_input_tokens,
+                    priority_cached_tokens = priority_cached_tokens + excluded.priority_cached_tokens,
+                    priority_output_tokens = priority_output_tokens + excluded.priority_output_tokens,
                     standard_tokens = standard_tokens + excluded.standard_tokens,
                     priority_tokens = priority_tokens + excluded.priority_tokens
                 """)
@@ -272,9 +277,11 @@ extension CostUsageStore {
         let statement = try self.prepare(database, """
         INSERT INTO day_aggregates (
             day, model, input_tokens, cached_tokens, output_tokens, reasoning_tokens,
-            request_count, known_cost_nanos, priority_surcharge_nanos, unpriced_tokens,
-            standard_cost_nanos, priority_cost_nanos, standard_tokens, priority_tokens
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            request_count, authoritative_cost_nanos,
+            standard_input_tokens, standard_cached_tokens, standard_output_tokens,
+            priority_input_tokens, priority_cached_tokens, priority_output_tokens,
+            standard_tokens, priority_tokens
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """)
         defer { sqlite3_finalize(statement) }
         for aggregate in aggregates {
@@ -505,11 +512,13 @@ extension CostUsageStore {
             aggregate.outputTokens,
             aggregate.reasoningTokens,
             aggregate.requestCount,
-            aggregate.knownCostNanos,
-            aggregate.prioritySurchargeNanos,
-            aggregate.unpricedTokens,
-            aggregate.standardCostNanos,
-            aggregate.priorityCostNanos,
+            aggregate.authoritativeCostNanos,
+            aggregate.standardInputTokens,
+            aggregate.standardCachedTokens,
+            aggregate.standardOutputTokens,
+            aggregate.priorityInputTokens,
+            aggregate.priorityCachedTokens,
+            aggregate.priorityOutputTokens,
             aggregate.standardTokens,
             aggregate.priorityTokens,
         ]

@@ -1120,11 +1120,13 @@ extension CostUsageStoreTests {
             outputTokens: 3 * scale,
             reasoningTokens: 1 * scale,
             requestCount: 1 * scale,
-            knownCostNanos: 1000 * scale,
-            prioritySurchargeNanos: 200 * scale,
-            unpricedTokens: 4 * scale,
-            standardCostNanos: 600 * scale,
-            priorityCostNanos: 400 * scale,
+            authoritativeCostNanos: 1000 * scale,
+            standardInputTokens: 6 * scale,
+            standardCachedTokens: 1 * scale,
+            standardOutputTokens: 2 * scale,
+            priorityInputTokens: 4 * scale,
+            priorityCachedTokens: 1 * scale,
+            priorityOutputTokens: 1 * scale,
             standardTokens: 9 * scale,
             priorityTokens: 6 * scale)
     }

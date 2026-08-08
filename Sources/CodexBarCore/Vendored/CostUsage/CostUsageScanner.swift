@@ -246,6 +246,8 @@ enum CostUsageScanner {
         let cached: Int
         let output: Int
         let reasoning: Int?
+        /// Set only when the source supplied an authoritative monetary cost.
+        /// Estimated model-table pricing is resolved from token classes when reports are read.
         let knownCostNanos: Int64?
         let unpricedTokens: Int?
         let pricingModel: String?
@@ -876,7 +878,6 @@ enum CostUsageScanner {
         let rootsFingerprint: [String: Int64]
         let rootsChanged: Bool
         let windowExpanded: Bool
-        let needsCostCacheMigration: Bool
         let needsProjectMetadataMigration: Bool
         let modelsDevCatalog: ModelsDevCatalog?
         let codexPricingKey: String
@@ -885,7 +886,6 @@ enum CostUsageScanner {
         let priorityTurns: [String: CodexPriorityTurnMetadata]
         let priorityTurnKeys: [String: String]
         let priorityTurnIDsByDay: [String: [String]]
-        let pricingChanged: Bool
         let priorityMetadataChanged: Bool
         let priorityTurnsChanged: Bool
         let needsTurnIDCacheMigration: Bool
@@ -1937,12 +1937,11 @@ enum CostUsageScanner {
         self.codexRootsFingerprint(self.codexSessionsRoots(options: options))
     }
 
-    /// Bump when the cost FORMULA changes (not the rates) so caches written by an older formula
-    /// are invalidated and repriced. The pricing fingerprints below only capture rate constants,
-    /// so formula-only fixes would otherwise reuse stale precomputed costs.
+    /// Bump when the report pricing formula changes. Rates are resolved when reports are read;
+    /// this fingerprint only invalidates downstream presentation caches such as Workspaces snapshots.
     private static let codexCostFormulaVersion = 2
 
-    private static func codexPricingKey(modelsDevArtifact: ModelsDevCacheArtifact?) -> String {
+    static func codexPricingKey(modelsDevArtifact: ModelsDevCacheArtifact?) -> String {
         CostUsagePricingKey.codex(
             modelsDevArtifact: modelsDevArtifact,
             formulaVersion: self.codexCostFormulaVersion)
@@ -4364,14 +4363,15 @@ enum CostUsageScanner {
         let rootsFingerprint = Self.codexRootsFingerprint(roots)
         let rootsChanged = cache.roots != rootsFingerprint
         let windowExpanded = Self.requestedWindowExpandsCache(range: range, cache: cache)
-        let needsCostCacheMigration = cache.files.values.contains { Self.needsCodexCostCache($0, range: range) }
+        let needsPricingMetadataMigration = cache.files.values.contains {
+            Self.needsCodexPricingMetadata($0, range: range)
+        }
         let needsProjectMetadataMigration = cache.codexProjectMetadataVersion != Self.codexProjectMetadataVersion
         let modelsDevLoad = ModelsDevCache.load(now: now, cacheRoot: options.cacheRoot)
         let modelsDevCatalog = modelsDevLoad.artifact?.catalog
         let codexPricingKey = Self.codexPricingKey(modelsDevArtifact: modelsDevLoad.artifact)
         let codexPriorityMetadataKey = Self.codexPriorityMetadataKey(databaseURL: options.codexTraceDatabaseURL)
         let hasPriorityMetadata = codexPriorityMetadataKey.hasPrefix("sqlite:")
-        let pricingChanged = cache.codexPricingKey != nil && cache.codexPricingKey != codexPricingKey
         let priorityMetadataChanged = Self.codexPriorityMetadataChanged(
             old: cache.codexPriorityMetadataKey,
             new: codexPriorityMetadataKey)
@@ -4383,10 +4383,9 @@ enum CostUsageScanner {
         let shouldInspectPriorityTurns = options.forceRescan
             || windowExpanded
             || rootsChanged
-            || needsCostCacheMigration
+            || needsPricingMetadataMigration
             || needsProjectMetadataMigration
             || needsTurnIDCacheMigration
-            || pricingChanged
             || priorityMetadataChanged
             || refreshMs == 0
             || cache.lastScanUnixMs == 0
@@ -4414,10 +4413,9 @@ enum CostUsageScanner {
         let shouldRefresh = options.forceRescan
             || windowExpanded
             || rootsChanged
-            || needsCostCacheMigration
+            || needsPricingMetadataMigration
             || needsProjectMetadataMigration
             || needsTurnIDCacheMigration
-            || pricingChanged
             || priorityMetadataChanged
             || priorityTurnsChanged
             || refreshMs == 0
@@ -4430,7 +4428,6 @@ enum CostUsageScanner {
             rootsFingerprint: rootsFingerprint,
             rootsChanged: rootsChanged,
             windowExpanded: windowExpanded,
-            needsCostCacheMigration: needsCostCacheMigration,
             needsProjectMetadataMigration: needsProjectMetadataMigration,
             modelsDevCatalog: modelsDevCatalog,
             codexPricingKey: codexPricingKey,
@@ -4439,7 +4436,6 @@ enum CostUsageScanner {
             priorityTurns: priorityTurns,
             priorityTurnKeys: priorityTurnKeys,
             priorityTurnIDsByDay: priorityTurnIDsByDay,
-            pricingChanged: pricingChanged,
             priorityMetadataChanged: priorityMetadataChanged,
             priorityTurnsChanged: priorityTurnsChanged,
             needsTurnIDCacheMigration: needsTurnIDCacheMigration,
@@ -4703,7 +4699,7 @@ enum CostUsageScanner {
                 }
             }
 
-            let shouldRetainWiderWindow = !options.forceRescan && !plan.pricingChanged && !plan
+            let shouldRetainWiderWindow = !options.forceRescan && !plan
                 .priorityMetadataChanged && !plan.needsTurnIDCacheMigration && !plan.needsProjectMetadataMigration
             let retainedSinceKey = shouldRetainWiderWindow
                 ? [cachedSinceKey, range.scanSinceKey].compactMap(\.self).min() ?? range.scanSinceKey
@@ -4899,10 +4895,9 @@ enum CostUsageScanner {
     {
         CodexFileScanContext(
             range: range,
-            forceFullScan: options.forceRescan || plan.windowExpanded || plan.pricingChanged
+            forceFullScan: options.forceRescan || plan.windowExpanded
                 || plan.priorityMetadataChanged || plan.needsProjectMetadataMigration,
-            dropDeferredCodexRows: options.forceRescan || plan.pricingChanged || plan.priorityMetadataChanged
-                || plan.needsTurnIDCacheMigration,
+            dropDeferredCodexRows: options.forceRescan || plan.needsTurnIDCacheMigration,
             requiresTurnIDCache: plan.needsTurnIDCacheMigration,
             changedPriorityTurnIDs: plan.changedPriorityTurnIDs,
             resources: resources,

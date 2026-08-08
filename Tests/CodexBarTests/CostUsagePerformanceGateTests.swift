@@ -136,7 +136,7 @@ struct CostUsagePerformanceGateTests {
         let cache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
         let cachedUsage = try #require(cache.files.values.first { !($0.codexRows?.isEmpty ?? true) })
         let range = CostUsageScanner.CostUsageDayRange(since: day, until: day)
-        #expect(!CostUsageScanner.needsCodexCostCache(cachedUsage, range: range))
+        #expect(!CostUsageScanner.needsCodexPricingMetadata(cachedUsage, range: range))
         var catalogLoadCount = 0
         let report = CostUsageScanner.buildCodexReportFromCache(
             cache: cache,
@@ -152,7 +152,7 @@ struct CostUsagePerformanceGateTests {
     }
 
     @Test
-    func `cached daily report uses complete aggregates without loading pricing`() throws {
+    func `cached daily report resolves pricing once at read time`() throws {
         let env = try CostUsageTestEnvironment()
         defer { env.cleanup() }
         let day = try env.makeLocalNoon(year: 2026, month: 5, day: 10)
@@ -185,7 +185,7 @@ struct CostUsagePerformanceGateTests {
         #expect(cached.data.map(\.totalTokens) == scanned.data.map(\.totalTokens))
         #expect(cached.summary?.totalTokens == scanned.summary?.totalTokens)
         #expect(abs((cached.summary?.totalCostUSD ?? 0) - (scanned.summary?.totalCostUSD ?? 0)) < 0.000000001)
-        #expect(catalogLoadCount == 0)
+        #expect(catalogLoadCount == 1)
     }
 
     @Test
@@ -222,7 +222,7 @@ struct CostUsagePerformanceGateTests {
             legacy.files[path]?.codexPriorityCostNanos = nil
         }
         let range = CostUsageScanner.CostUsageDayRange(since: day, until: day)
-        #expect(legacy.files.values.allSatisfy { CostUsageScanner.needsCodexCostCache($0, range: range) })
+        #expect(legacy.files.values.allSatisfy { CostUsageScanner.needsCodexPricingMetadata($0, range: range) })
 
         let backfilled = CostUsageScanner.buildCodexReportFromCache(cache: legacy, range: range)
 

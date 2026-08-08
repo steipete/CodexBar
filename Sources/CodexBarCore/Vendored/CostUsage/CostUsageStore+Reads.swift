@@ -286,8 +286,10 @@ extension CostUsageStore {
     {
         var sql = """
         SELECT day, model, input_tokens, cached_tokens, output_tokens, reasoning_tokens,
-               request_count, known_cost_nanos, priority_surcharge_nanos, unpriced_tokens,
-               standard_cost_nanos, priority_cost_nanos, standard_tokens, priority_tokens
+               request_count, authoritative_cost_nanos,
+               standard_input_tokens, standard_cached_tokens, standard_output_tokens,
+               priority_input_tokens, priority_cached_tokens, priority_output_tokens,
+               standard_tokens, priority_tokens
         FROM day_aggregates
         """
         if sinceDay != nil, untilDay != nil {
@@ -314,13 +316,15 @@ extension CostUsageStore {
                 outputTokens: sqlite3_column_int64(statement, 4),
                 reasoningTokens: sqlite3_column_int64(statement, 5),
                 requestCount: sqlite3_column_int64(statement, 6),
-                knownCostNanos: sqlite3_column_int64(statement, 7),
-                prioritySurchargeNanos: sqlite3_column_int64(statement, 8),
-                unpricedTokens: sqlite3_column_int64(statement, 9),
-                standardCostNanos: sqlite3_column_int64(statement, 10),
-                priorityCostNanos: sqlite3_column_int64(statement, 11),
-                standardTokens: sqlite3_column_int64(statement, 12),
-                priorityTokens: sqlite3_column_int64(statement, 13)))
+                authoritativeCostNanos: sqlite3_column_int64(statement, 7),
+                standardInputTokens: sqlite3_column_int64(statement, 8),
+                standardCachedTokens: sqlite3_column_int64(statement, 9),
+                standardOutputTokens: sqlite3_column_int64(statement, 10),
+                priorityInputTokens: sqlite3_column_int64(statement, 11),
+                priorityCachedTokens: sqlite3_column_int64(statement, 12),
+                priorityOutputTokens: sqlite3_column_int64(statement, 13),
+                standardTokens: sqlite3_column_int64(statement, 14),
+                priorityTokens: sqlite3_column_int64(statement, 15)))
             result = sqlite3_step(statement)
         }
         guard result == SQLITE_DONE else { throw StoreError.sqlite(result) }
@@ -333,8 +337,9 @@ extension CostUsageStore {
     {
         var sql = """
         SELECT f.path, a.day, a.model, a.input_tokens, a.cached_tokens, a.output_tokens,
-               a.reasoning_tokens, a.request_count, a.known_cost_nanos, a.priority_surcharge_nanos,
-               a.unpriced_tokens, a.standard_cost_nanos, a.priority_cost_nanos,
+               a.reasoning_tokens, a.request_count, a.authoritative_cost_nanos,
+               a.standard_input_tokens, a.standard_cached_tokens, a.standard_output_tokens,
+               a.priority_input_tokens, a.priority_cached_tokens, a.priority_output_tokens,
                a.standard_tokens, a.priority_tokens
         FROM file_day_aggregates a JOIN files f ON f.id = a.file_id
         """
@@ -364,13 +369,15 @@ extension CostUsageStore {
                     outputTokens: sqlite3_column_int64(statement, 5),
                     reasoningTokens: sqlite3_column_int64(statement, 6),
                     requestCount: sqlite3_column_int64(statement, 7),
-                    knownCostNanos: sqlite3_column_int64(statement, 8),
-                    prioritySurchargeNanos: sqlite3_column_int64(statement, 9),
-                    unpricedTokens: sqlite3_column_int64(statement, 10),
-                    standardCostNanos: sqlite3_column_int64(statement, 11),
-                    priorityCostNanos: sqlite3_column_int64(statement, 12),
-                    standardTokens: sqlite3_column_int64(statement, 13),
-                    priorityTokens: sqlite3_column_int64(statement, 14))))
+                    authoritativeCostNanos: sqlite3_column_int64(statement, 8),
+                    standardInputTokens: sqlite3_column_int64(statement, 9),
+                    standardCachedTokens: sqlite3_column_int64(statement, 10),
+                    standardOutputTokens: sqlite3_column_int64(statement, 11),
+                    priorityInputTokens: sqlite3_column_int64(statement, 12),
+                    priorityCachedTokens: sqlite3_column_int64(statement, 13),
+                    priorityOutputTokens: sqlite3_column_int64(statement, 14),
+                    standardTokens: sqlite3_column_int64(statement, 15),
+                    priorityTokens: sqlite3_column_int64(statement, 16))))
             result = sqlite3_step(statement)
         }
         guard result == SQLITE_DONE else { throw StoreError.sqlite(result) }

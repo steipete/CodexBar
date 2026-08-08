@@ -77,18 +77,6 @@ extension CostUsageStore {
         var hasSeenRawTotals: Bool
         var divergentTotals: Bool?
         var interleavedTotals: Bool?
-        var hasCostNanos: Bool
-        var hasPrioritySurchargeNanos: Bool
-        var hasStandardCostNanos: Bool
-        var hasPriorityCostNanos: Bool
-        var hasStandardTokens: Bool
-        var hasPriorityTokens: Bool
-        var costNanos: [String: [String: Int64]]?
-        var prioritySurchargeNanos: [String: [String: Int64]]?
-        var standardCostNanos: [String: [String: Int64]]?
-        var priorityCostNanos: [String: [String: Int64]]?
-        var standardTokens: [String: [String: Int]]?
-        var priorityTokens: [String: [String: Int]]?
     }
 
     private struct StoredPriorityState: Codable {
@@ -151,6 +139,7 @@ extension CostUsageStore {
             let rows = (rowsByPath[file.path] ?? []).compactMap {
                 try? JSONDecoder().decode(CostUsageScanner.CodexUsageRow.self, from: $0.payload)
             }
+            let restoredRows = rows.isEmpty ? Self.aggregateRows(from: aggregates) : rows
             let tokenSnapshots = (snapshotsByPath[file.path] ?? []).map(Self.tokenSnapshot(from:))
             let lineage = lineageByPath[file.path]
             let accumulator = accumulatorByPath[file.path]
@@ -178,15 +167,15 @@ extension CostUsageStore {
                 canonicalProjectPath: details.canonicalProjectPath,
                 codexCostCacheComplete: details.costCacheComplete,
                 codexSession: details.session,
-                codexCostNanos: details.costNanos,
-                codexPrioritySurchargeNanos: details.prioritySurchargeNanos,
-                codexStandardCostNanos: details.standardCostNanos,
-                codexPriorityCostNanos: details.priorityCostNanos,
-                codexStandardTokens: details.standardTokens,
-                codexPriorityTokens: details.priorityTokens,
+                codexCostNanos: Self.authoritativeCosts(from: aggregates),
+                codexPrioritySurchargeNanos: nil,
+                codexStandardCostNanos: nil,
+                codexPriorityCostNanos: nil,
+                codexStandardTokens: Self.modeTokens(from: aggregates, priority: false),
+                codexPriorityTokens: Self.modeTokens(from: aggregates, priority: true),
                 codexTurnIDs: details.hasTurnIDs ? CostUsageScanner.codexTurnIDs(rows: rows) ?? [] : nil,
                 codexWorkspaceContentFingerprint: details.workspaceFingerprint,
-                codexRows: details.hasRows ? rows : nil,
+                codexRows: details.hasRows ? restoredRows : nil,
                 codexTokenSnapshots: details.hasTokenSnapshots ? tokenSnapshots : nil,
                 codexTokenCheckpoints: details.hasTokenSnapshots
                     ? CostUsageScanner.codexTokenCheckpoints(for: tokenSnapshots) : nil,
@@ -237,19 +226,7 @@ extension CostUsageStore {
             hasTokenSnapshots: usage.codexTokenSnapshots != nil,
             hasSeenRawTotals: usage.seenRawTotals != nil,
             divergentTotals: usage.hasDivergentTotals,
-            interleavedTotals: usage.hasInterleavedTotals,
-            hasCostNanos: usage.codexCostNanos != nil,
-            hasPrioritySurchargeNanos: usage.codexPrioritySurchargeNanos != nil,
-            hasStandardCostNanos: usage.codexStandardCostNanos != nil,
-            hasPriorityCostNanos: usage.codexPriorityCostNanos != nil,
-            hasStandardTokens: usage.codexStandardTokens != nil,
-            hasPriorityTokens: usage.codexPriorityTokens != nil,
-            costNanos: usage.codexCostNanos,
-            prioritySurchargeNanos: usage.codexPrioritySurchargeNanos,
-            standardCostNanos: usage.codexStandardCostNanos,
-            priorityCostNanos: usage.codexPriorityCostNanos,
-            standardTokens: usage.codexStandardTokens,
-            priorityTokens: usage.codexPriorityTokens)
+            interleavedTotals: usage.hasInterleavedTotals)
         let file = CostUsageStoreFile(
             path: path,
             inode: Self.inode(from: usage.codexScanFileId),
@@ -386,7 +363,7 @@ extension CostUsageStore {
         return keys.map { key in
             let packed = usage.days[key.day]?[key.model] ?? []
             let rows = (usage.codexRows ?? []).filter { $0.day == key.day && $0.model == key.model }
-            return CostUsageStoreDayAggregate(
+            var aggregate = CostUsageStoreDayAggregate(
                 day: key.day,
                 model: key.model,
                 inputTokens: Int64(packed[safe: 0] ?? 0),
@@ -394,13 +371,36 @@ extension CostUsageStore {
                 outputTokens: Int64(packed[safe: 2] ?? 0),
                 reasoningTokens: Int64(rows.compactMap(\.reasoning).reduce(0, +)),
                 requestCount: Int64(rows.count),
-                knownCostNanos: usage.codexCostNanos?[key.day]?[key.model] ?? 0,
-                prioritySurchargeNanos: usage.codexPrioritySurchargeNanos?[key.day]?[key.model] ?? 0,
-                unpricedTokens: Int64(rows.compactMap(\.unpricedTokens).reduce(0, +)),
-                standardCostNanos: usage.codexStandardCostNanos?[key.day]?[key.model] ?? 0,
-                priorityCostNanos: usage.codexPriorityCostNanos?[key.day]?[key.model] ?? 0,
-                standardTokens: Int64(usage.codexStandardTokens?[key.day]?[key.model] ?? 0),
-                priorityTokens: Int64(usage.codexPriorityTokens?[key.day]?[key.model] ?? 0))
+                authoritativeCostNanos: 0,
+                standardInputTokens: 0,
+                standardCachedTokens: 0,
+                standardOutputTokens: 0,
+                priorityInputTokens: 0,
+                priorityCachedTokens: 0,
+                priorityOutputTokens: 0,
+                standardTokens: 0,
+                priorityTokens: 0)
+            for row in rows {
+                let isPriority = row.pricingMode == "priority"
+                let total = Int64(max(0, row.input) + max(0, row.output))
+                if isPriority {
+                    aggregate.priorityTokens += total
+                } else {
+                    aggregate.standardTokens += total
+                }
+                if let cost = row.knownCostNanos {
+                    aggregate.authoritativeCostNanos += cost
+                } else if isPriority {
+                    aggregate.priorityInputTokens += Int64(row.input)
+                    aggregate.priorityCachedTokens += Int64(row.cached)
+                    aggregate.priorityOutputTokens += Int64(row.output)
+                } else {
+                    aggregate.standardInputTokens += Int64(row.input)
+                    aggregate.standardCachedTokens += Int64(row.cached)
+                    aggregate.standardOutputTokens += Int64(row.output)
+                }
+            }
+            return aggregate
         }.sorted { ($0.day, $0.model) < ($1.day, $1.model) }
     }
 
@@ -421,17 +421,87 @@ extension CostUsageStore {
                 guard var value = values[key] else { continue }
                 value.reasoningTokens += aggregate.reasoningTokens
                 value.requestCount += aggregate.requestCount
-                value.knownCostNanos += aggregate.knownCostNanos
-                value.prioritySurchargeNanos += aggregate.prioritySurchargeNanos
-                value.unpricedTokens += aggregate.unpricedTokens
-                value.standardCostNanos += aggregate.standardCostNanos
-                value.priorityCostNanos += aggregate.priorityCostNanos
+                value.authoritativeCostNanos += aggregate.authoritativeCostNanos
+                value.standardInputTokens += aggregate.standardInputTokens
+                value.standardCachedTokens += aggregate.standardCachedTokens
+                value.standardOutputTokens += aggregate.standardOutputTokens
+                value.priorityInputTokens += aggregate.priorityInputTokens
+                value.priorityCachedTokens += aggregate.priorityCachedTokens
+                value.priorityOutputTokens += aggregate.priorityOutputTokens
                 value.standardTokens += aggregate.standardTokens
                 value.priorityTokens += aggregate.priorityTokens
                 values[key] = value
             }
         }
         return values.values.sorted { ($0.day, $0.model) < ($1.day, $1.model) }
+    }
+
+    private static func authoritativeCosts(
+        from aggregates: [CostUsageStoreDayAggregate]) -> [String: [String: Int64]]?
+    {
+        var values: [String: [String: Int64]] = [:]
+        for aggregate in aggregates where aggregate.authoritativeCostNanos != 0 {
+            values[aggregate.day, default: [:]][aggregate.model] = aggregate.authoritativeCostNanos
+        }
+        return values.isEmpty ? nil : values
+    }
+
+    private static func aggregateRows(
+        from aggregates: [CostUsageStoreDayAggregate]) -> [CostUsageScanner.CodexUsageRow]
+    {
+        aggregates.flatMap { aggregate -> [CostUsageScanner.CodexUsageRow] in
+            var rows: [CostUsageScanner.CodexUsageRow] = []
+            func append(input: Int64, cached: Int64, output: Int64, mode: String) {
+                guard input != 0 || cached != 0 || output != 0 else { return }
+                rows.append(CostUsageScanner.CodexUsageRow(
+                    day: aggregate.day,
+                    model: aggregate.model,
+                    turnID: nil,
+                    eventIndex: nil,
+                    input: Self.int(input),
+                    cached: Self.int(cached),
+                    output: Self.int(output),
+                    pricingModel: aggregate.model,
+                    pricingMode: mode))
+            }
+            append(
+                input: aggregate.standardInputTokens,
+                cached: aggregate.standardCachedTokens,
+                output: aggregate.standardOutputTokens,
+                mode: "standard")
+            append(
+                input: aggregate.priorityInputTokens,
+                cached: aggregate.priorityCachedTokens,
+                output: aggregate.priorityOutputTokens,
+                mode: "priority")
+            if aggregate.authoritativeCostNanos != 0 {
+                rows.append(CostUsageScanner.CodexUsageRow(
+                    day: aggregate.day,
+                    model: aggregate.model,
+                    turnID: nil,
+                    eventIndex: nil,
+                    input: 0,
+                    cached: 0,
+                    output: 0,
+                    knownCostNanos: aggregate.authoritativeCostNanos,
+                    pricingModel: aggregate.model,
+                    pricingMode: "standard"))
+            }
+            return rows
+        }
+    }
+
+    private static func modeTokens(
+        from aggregates: [CostUsageStoreDayAggregate],
+        priority: Bool) -> [String: [String: Int]]?
+    {
+        var values: [String: [String: Int]] = [:]
+        for aggregate in aggregates {
+            let count = priority ? aggregate.priorityTokens : aggregate.standardTokens
+            guard count > 0 else { continue }
+            values[aggregate.day, default: [:]][aggregate.model] = Self.int(count)
+        }
+        return values.isEmpty ? nil : values
     }
 
     private static func days(from aggregates: [CostUsageStoreDayAggregate]) -> [String: [String: [Int]]] {

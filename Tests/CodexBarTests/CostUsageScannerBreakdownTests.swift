@@ -728,7 +728,7 @@ struct CostUsageScannerBreakdownTests {
     }
 
     @Test
-    func `codex incremental cache migrates legacy rows before appending delta costs`() throws {
+    func `codex incremental cache migrates legacy rows before appending delta tokens`() throws {
         let env = try CostUsageTestEnvironment()
         defer { env.cleanup() }
 
@@ -823,7 +823,7 @@ struct CostUsageScannerBreakdownTests {
         let migratedUsage = try #require(migratedCache.files[path])
         #expect(migratedUsage.codexRows?.map(\.day) == [olderDayKey, dayKey, dayKey])
         #expect(migratedUsage.codexRows?.map(\.eventIndex) == [0, 1, 2])
-        #expect(migratedUsage.codexCostNanos?[dayKey] != nil)
+        #expect(migratedUsage.codexCostNanos == nil)
 
         let parsedBytes = migratedUsage.parsedBytes
         options.refreshMinIntervalSeconds = 60
@@ -919,7 +919,7 @@ struct CostUsageScannerBreakdownTests {
     }
 
     @Test
-    func `codex split cache migration does not double count existing cost maps`() throws {
+    func `codex pricing metadata migration does not persist derived cost maps`() throws {
         let env = try CostUsageTestEnvironment()
         defer { env.cleanup() }
 
@@ -962,7 +962,7 @@ struct CostUsageScannerBreakdownTests {
         var cache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
         let path = try #require(cache.files.keys.first)
         var cachedUsage = try #require(cache.files[path])
-        let originalCostNanos = try #require(cachedUsage.codexCostNanos?[dayKey]?[normalizedModel])
+        #expect(cachedUsage.codexCostNanos == nil)
         let addedModel = CostUsagePricing.normalizeCodexModel("gpt-5.5")
         cachedUsage.codexRows = [
             CostUsageScanner.CodexUsageRow(
@@ -1001,8 +1001,7 @@ struct CostUsageScannerBreakdownTests {
         #expect(abs((report.summary?.totalCostUSD ?? 0) - expectedCost) < 0.000_000_001)
         let migratedUsage = try #require(CostUsageStoreAccess.read(cacheRoot: env.cacheRoot).files[path])
         #expect(migratedUsage.codexRows?.map(\.eventIndex) == [0, 1])
-        #expect(migratedUsage.codexCostNanos?[dayKey]?[normalizedModel] == originalCostNanos)
-        #expect(migratedUsage.codexCostNanos?[dayKey]?[addedModel] == Int64((10.0 * 5e-6 * 1_000_000_000).rounded()))
+        #expect(migratedUsage.codexCostNanos == nil)
         #expect(migratedUsage.codexStandardTokens?[dayKey]?[normalizedModel] == 10)
         #expect(migratedUsage.codexStandardTokens?[dayKey]?[addedModel] == 10)
     }
