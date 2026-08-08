@@ -50,6 +50,7 @@
 " providers" = " 提供者";
 "(System)" = "（系統）";
 "30d" = "30 天";
+"365d" = "365 天";
 "7d" = "7 天";
 "A managed Codex login is already running. Wait for it to finish before adding " = "託管 Codex 登入已在執行。請等待其完成後再新增 ";
 "API key" = "API 金鑰";
@@ -1321,6 +1322,13 @@
 "Model breakdown unavailable" = "無法取得模型明細";
 "Local estimated history" = "本機預估歷史";
 "Coverage" = "涵蓋範圍";
+"Tracked access" = "已追蹤的存取";
+"Every configured subscription or key stays visible. Only compatible sources enter cost totals." = "每個已設定的訂閱或密鑰都保持可見。只有相容的來源才會計入成本總額。";
+"tracked sources" = "已追蹤的來源";
+"Cost history connected" = "成本歷史已連接";
+"Cost history pending" = "成本歷史待處理";
+"Usage connected · not in cost total" = "用量已連接 · 不計入成本總額";
+"Configured · not in cost total" = "已設定 · 不計入成本總額";
 "Estimated spend" = "預估支出";
 "Tracked tokens" = "已追蹤 token";
 "Subscriptions" = "訂閱";

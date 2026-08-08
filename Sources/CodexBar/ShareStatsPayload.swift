@@ -11,6 +11,12 @@ struct ShareStatsProviderPayload: Sendable, Equatable {
     let coveredDayCount: Int
 }
 
+struct ShareStatsProviderRosterEntry: Sendable, Equatable {
+    let provider: UsageProvider
+    let providerName: String
+    let currencyCode: String
+}
+
 struct ShareStatsModelPayload: Sendable, Equatable {
     let provider: UsageProvider
     let providerName: String
@@ -85,6 +91,7 @@ struct ShareStatsCurrencyPayload: Sendable, Equatable, Identifiable {
     let currencyCode: String
     let estimatedCost: Double?
     let coveredDayCount: Int
+    var isPartial = false
 
     var id: String {
         self.currencyCode
@@ -98,11 +105,16 @@ struct ShareStatsPayload: Sendable, Equatable {
     let topModels: [ShareStatsModelPayload]
     let currencies: [ShareStatsCurrencyPayload]
     let totalTokens: Int?
+    let totalTokensIsPartial: Bool
 
     var hasShareableData: Bool {
         !self.providers.isEmpty && self.providers.contains { provider in
             provider.totalTokens != nil || provider.estimatedCost != nil
         }
+    }
+
+    var spendReportingProviderCount: Int {
+        self.providers.count { $0.estimatedCost != nil }
     }
 }
 
@@ -221,9 +233,10 @@ enum ShareStatsSanitizer {
 enum ShareStatsBuilder {
     static func make(
         model: SpendDashboardModel,
-        subscriptionNames: [String: ShareStatsSubscriptionName] = [:]) -> ShareStatsPayload?
+        subscriptionNames: [String: ShareStatsSubscriptionName] = [:],
+        providerRoster: [ShareStatsProviderRosterEntry] = []) -> ShareStatsPayload?
     {
-        let providers = model.groups.flatMap { group in
+        let trackedProviders = model.groups.flatMap { group in
             group.providers.map { row in
                 ShareStatsProviderPayload(
                     provider: row.provider,
@@ -233,6 +246,26 @@ enum ShareStatsBuilder {
                     totalTokens: row.totalTokens,
                     estimatedCost: self.finiteCost(row.totalCost),
                     coveredDayCount: row.coveredDayCount)
+            }
+        }
+        let providers: [ShareStatsProviderPayload]
+        if providerRoster.isEmpty {
+            providers = trackedProviders
+        } else {
+            let trackedByProvider = trackedProviders.reduce(into: [UsageProvider: ShareStatsProviderPayload]()) {
+                if $0[$1.provider] == nil {
+                    $0[$1.provider] = $1
+                }
+            }
+            providers = providerRoster.map { entry in
+                trackedByProvider[entry.provider] ?? ShareStatsProviderPayload(
+                    provider: entry.provider,
+                    providerName: entry.providerName,
+                    subscriptionName: nil,
+                    currencyCode: entry.currencyCode,
+                    totalTokens: nil,
+                    estimatedCost: nil,
+                    coveredDayCount: 0)
             }
         }
         let sanitizedModels = model.groups.filter {
@@ -278,13 +311,18 @@ enum ShareStatsBuilder {
                 return lhs.modelName < rhs.modelName
             }
         }
+        let rosterHasUntrackedProviders = providers.count > trackedProviders.count
         let currencies = model.groups.map {
             ShareStatsCurrencyPayload(
                 currencyCode: $0.currencyCode,
-                estimatedCost: self.finiteCost($0.totalCost),
-                coveredDayCount: $0.coveredDayCount)
+                estimatedCost: self.finiteCost($0.totalCost ?? $0.knownCost),
+                coveredDayCount: $0.coveredDayCount,
+                isPartial: rosterHasUntrackedProviders || $0.totalCost == nil)
         }
-        let totalTokens = self.combinedTotalTokens(model.groups.map(\.totalTokens))
+        let knownTokenValues = trackedProviders.compactMap(\.totalTokens)
+        let totalTokens = self.safeTokenSum(knownTokenValues)
+        let totalTokensIsPartial = knownTokenValues.count < providers.count ||
+            model.groups.contains { $0.totalTokens == nil }
         let periodEnd = model.groups.map(\.chartDomain.upperBound).max() ?? Date()
         let payload = ShareStatsPayload(
             days: model.requestedDays,
@@ -292,7 +330,8 @@ enum ShareStatsBuilder {
             providers: providers,
             topModels: topModels,
             currencies: currencies,
-            totalTokens: totalTokens)
+            totalTokens: totalTokens,
+            totalTokensIsPartial: totalTokensIsPartial)
         return payload.hasShareableData ? payload : nil
     }
 
@@ -310,6 +349,16 @@ enum ShareStatsBuilder {
             total = result.partialValue
         }
         return total
+    }
+
+    private static func safeTokenSum(_ values: [Int]) -> Int? {
+        var total = 0
+        for value in values {
+            let result = total.addingReportingOverflow(value)
+            guard !result.overflow else { return nil }
+            total = result.partialValue
+        }
+        return values.isEmpty ? nil : total
     }
 }
 
@@ -345,10 +394,16 @@ enum ShareStatsFormatting {
     static func text(_ payload: ShareStatsPayload) -> String {
         var lines = ["My AI subscriptions · last \(payload.days) days"]
         if let tokens = payload.totalTokens {
-            lines.append("\(self.compactCount(tokens)) tracked tokens")
+            let value = payload.totalTokensIsPartial ? "~\(self.compactCount(tokens))" : self.compactCount(tokens)
+            lines.append("\(value) tracked tokens")
         }
+        lines.append(
+            "\(payload.spendReportingProviderCount)/\(payload.providers.count) connected services report spend")
         lines.append(contentsOf: payload.currencies.map { currency in
-            let spend = currency.estimatedCost.map { "\(self.currency($0, code: currency.currencyCode)) estimated" }
+            let spend = currency.estimatedCost.map {
+                let value = self.currency($0, code: currency.currencyCode)
+                return "\(currency.isPartial ? "~" : "")\(value) estimated"
+            }
                 ?? "Spend unavailable"
             return "\(currency.currencyCode): \(spend) · "
                 + "coverage \(currency.coveredDayCount)/\(payload.days) days"

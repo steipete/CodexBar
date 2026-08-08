@@ -188,7 +188,8 @@ enum CodexAccountMenuProjectionRevalidationResult: Equatable {
 @Observable
 final class SettingsStore {
     static let sharedDefaults = AppGroupSupport.sharedDefaults()
-    static let mergedOverviewProviderLimit = 6
+    static let mergedOverviewProviderLimit = UsageProvider.allCases.count
+    static let mergedOverviewLegacyWheelNavigationLimit = 6
     static let productionCodexAccountReconciliationSnapshotCacheInterval: TimeInterval = 2
     static let isRunningTests: Bool = {
         let env = ProcessInfo.processInfo.environment
@@ -231,6 +232,7 @@ final class SettingsStore {
     var providerDetailSettingsRevision: Int = 0
     var backgroundWorkSettingsRevision: Int = 0
     var costUsageSettingsRevision: UInt64 = 0
+    @ObservationIgnored var spendDashboardHistoryDaysOverride: Int?
     var providerOrder: [ProviderInstanceID] = []
     var providerEnablement: [ProviderInstanceID: Bool] = [:]
     @ObservationIgnored var providerEnablementRevisions: [ProviderInstanceID: UInt64] = [:]

@@ -13,6 +13,8 @@ struct UsageStoreSpendDashboardCodexCostCatchUpTests {
             Self.account(id: "first", cacheIdentity: "cache-first"),
             Self.account(id: "second", cacheIdentity: "cache-second"),
         ]
+        store.settings.setSpendDashboardHistoryDaysOverride(365)
+        let expectedHistoryDays = store.settings.effectiveCostUsageHistoryDays
         let baselineConfiguration = SpendDashboardSource.configuration(settings: store.settings, store: store)
         var completedCacheIdentities: Set<String> = []
         var statusAccounts: [String] = []
@@ -50,7 +52,7 @@ struct UsageStoreSpendDashboardCodexCostCatchUpTests {
         let replacementConfiguration = SpendDashboardSource.configuration(settings: store.settings, store: store)
         #expect(statusAccounts == ["first", "second"])
         #expect(advancedAccounts == ["first", "second"])
-        #expect(receivedHistoryDays == [SpendDashboardSource.scanDays, SpendDashboardSource.scanDays])
+        #expect(receivedHistoryDays == [expectedHistoryDays, expectedHistoryDays])
         #expect(store.spendDashboardCodexCostCatchUpRevision == 1)
         #expect(baselineConfiguration.sourceRevisions != replacementConfiguration.sourceRevisions)
         #expect(store.spendDashboardCodexCostCatchUpActivity?.phase == .complete)
@@ -142,6 +144,22 @@ struct UsageStoreSpendDashboardCodexCostCatchUpTests {
         #expect(originalToken != nil)
         #expect(store.spendDashboardCodexCostCatchUpToken == originalToken)
         #expect(store.spendDashboardCodexCostCatchUpMode == .accelerated)
+        store.cancelSpendDashboardCodexCostCatchUp()
+    }
+
+    @Test
+    func `changing the dashboard history window restarts catch-up with a new identity`() throws {
+        let store = try Self.makeStore(suite: "history-window-identity")
+        let accounts = [Self.account(id: "account", cacheIdentity: "cache-account")]
+        store.settings.setSpendDashboardHistoryDaysOverride(30)
+
+        store.startSpendDashboardCodexCostCatchUpIfNeeded(accounts: accounts)
+        let thirtyDayToken = try #require(store.spendDashboardCodexCostCatchUpToken)
+        store.settings.setSpendDashboardHistoryDaysOverride(365)
+        store.startSpendDashboardCodexCostCatchUpIfNeeded(accounts: accounts)
+
+        #expect(store.spendDashboardCodexCostCatchUpToken != nil)
+        #expect(store.spendDashboardCodexCostCatchUpToken != thirtyDayToken)
         store.cancelSpendDashboardCodexCostCatchUp()
     }
 

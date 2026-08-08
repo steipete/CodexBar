@@ -573,12 +573,54 @@ extension StatusItemController {
                 guard !model.isOverviewErrorOnly else { return nil }
                 return (provider: provider, model: model)
             }
-        guard !rows.isEmpty else { return false }
-
         let t0 = CACurrentMediaTime()
         defer { self.logChartRenderDurationIfSlow("addOverviewRows(\(rows.count))", startedAt: t0) }
 
+        let spendModel = self.overviewSpendDashboardModel(providers: enabledProviders)
+        let spendSummary = OverviewSpendSummary(
+            model: spendModel,
+            connectedProviderCount: enabledProviders.count)
+        let fallbackCurrencyCode = spendModel.groups.first?.currencyCode ?? "USD"
+        let sharePayload = ShareStatsBuilder.make(
+            model: spendModel,
+            providerRoster: enabledProviders.map {
+                ShareStatsProviderRosterEntry(
+                    provider: $0,
+                    providerName: ProviderDefaults.metadata[$0]?.displayName ?? $0.rawValue,
+                    currencyCode: fallbackCurrencyCode)
+            })
+        let summaryItem = self.makeMenuCardItem(
+            OverviewSpendSummaryCardView(
+                summary: spendSummary,
+                days: spendModel.requestedDays,
+                width: menuWidth,
+                canShare: sharePayload != nil,
+                share: { [weak interactionMenu] in
+                    guard let sharePayload else { return }
+                    interactionMenu?.cancelTracking()
+                    DispatchQueue.main.async {
+                        ShareStatsPresenter.shared.present(payload: sharePayload)
+                    }
+                }),
+            id: "overviewSpendSummary",
+            width: menuWidth,
+            heightCacheScope: "overviewSpendSummary",
+            heightCacheFingerprint: [
+                spendSummary.primarySpendText,
+                spendSummary.coverageText,
+                spendSummary.tokenText ?? "",
+            ].joined(separator: "|"),
+            containsInteractiveControls: sharePayload != nil)
+        menu.addItem(summaryItem)
+        menu.addItem(.separator())
+
+        guard !rows.isEmpty else {
+            self.addOverviewEmptyState(to: menu, enabledProviders: enabledProviders)
+            return true
+        }
+
         for (index, row) in rows.enumerated() {
+            let emphasis: OverviewMenuCardRowView.Emphasis = index == 0 ? .prominent : .compact
             let identifier = "\(Self.overviewRowIdentifierPrefix)\(row.provider.rawValue)"
             let storageText = self.store.storageFootprintText(for: row.provider)
             let submenu = self.makeOverviewRowSubmenu(
@@ -586,13 +628,20 @@ extension StatusItemController {
                 model: row.model,
                 width: menuWidth)
             let item = self.makeMenuCardItem(
-                OverviewMenuCardRowView(model: row.model, storageText: storageText, width: menuWidth),
+                OverviewMenuCardRowView(
+                    model: row.model,
+                    storageText: storageText,
+                    width: menuWidth,
+                    emphasis: emphasis),
                 id: identifier,
                 width: menuWidth,
                 heightCacheScope: row.provider.rawValue,
                 heightCacheFingerprint: row.model.heightFingerprint(
                     section: "overview",
-                    additional: [UsageMenuCardView.Model.heightFingerprintField("storage", storageText)]),
+                    additional: [
+                        UsageMenuCardView.Model.heightFingerprintField("storage", storageText),
+                        "emphasis=\(emphasis == .prominent ? "prominent" : "compact")",
+                    ]),
                 submenu: submenu,
                 containsInteractiveControls: row.model.subtitleStyle == .error || row.model.usesLiveSubtitle,
                 usesGPUSelection: true,
@@ -606,7 +655,7 @@ extension StatusItemController {
                 item.action = #selector(self.selectOverviewProvider(_:))
             }
             menu.addItem(item)
-            if index < rows.count - 1 {
+            if index == 0, rows.count > 1 {
                 menu.addItem(.separator())
             }
         }

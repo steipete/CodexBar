@@ -94,6 +94,21 @@ struct SpendDashboardModel: Equatable, Sendable {
         var id: String {
             self.currencyCode
         }
+
+        var knownCostProviderCount: Int {
+            self.providers.count { $0.totalCost != nil }
+        }
+
+        var knownCost: Double? {
+            let costs = self.providers.compactMap(\.totalCost)
+            guard !costs.isEmpty else { return nil }
+            var total = 0.0
+            for cost in costs {
+                total += cost
+                guard total.isFinite else { return nil }
+            }
+            return total
+        }
     }
 
     let requestedDays: Int
@@ -119,7 +134,7 @@ struct SpendDashboardModel: Equatable, Sendable {
         calendar: Calendar = .current,
         preferredCurrencyCode: String = "auto") -> Self
     {
-        let days = max(1, min(30, requestedDays))
+        let days = max(1, min(365, requestedDays))
         let calculationCalendar = Self.gregorianCalendar(timeZone: calendar.timeZone)
         let classifiedInputs = inputs.compactMap { input -> ClassifiedInput? in
             guard let sourceCurrencyCode = Self.currencyCode(input.snapshot.currencyCode) else { return nil }
@@ -228,7 +243,8 @@ struct SpendDashboardModel: Equatable, Sendable {
             guard summary.totalCost != nil else { return false }
             let summaryModelHistory = Self.modelSummary(summaries: [summary])
             return summaryModelHistory.completeness == .complete ||
-                Self.canRetainPartialCodexModelHistory(summary)
+                Self.canRetainPartialCodexModelHistory(summary) ||
+                Self.canRetainTokenOnlyModelHistory(summary)
         }
         // A Codex session can have valid priced rows alongside model-less or unpriced rows.
         // Keep only the directly priced portion, but mark the aggregate partial and remove ranking.

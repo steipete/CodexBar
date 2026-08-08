@@ -30,6 +30,7 @@
 " providers" = " providers";
 "(System)" = "(System)";
 "30d" = "30d";
+"365d" = "365d";
 "7d" = "7d";
 "A managed Codex login is already running. Wait for it to finish before adding " = "Trwa już zarządzane logowanie Codex. Poczekaj na jego zakończenie, zanim dodasz ";
 "API key" = "Klucz API";
@@ -1294,6 +1295,13 @@
 "Model breakdown unavailable" = "Podział według modeli jest niedostępny";
 "Local estimated history" = "Lokalna historia szacunkowa";
 "Coverage" = "Pokrycie";
+"Tracked access" = "Śledzony dostęp";
+"Every configured subscription or key stays visible. Only compatible sources enter cost totals." = "Każda skonfigurowana subskrypcja lub klucz pozostaje widoczna. Tylko kompatybilne źródła wchodzą do sum kosztów.";
+"tracked sources" = "śledzone źródła";
+"Cost history connected" = "Historia kosztów połączona";
+"Cost history pending" = "Historia kosztów oczekująca";
+"Usage connected · not in cost total" = "Użycie połączone · nie wliczane do sumy kosztów";
+"Configured · not in cost total" = "Skonfigurowane · nie wliczane do sumy kosztów";
 "Estimated spend" = "Szacowane wydatki";
 "Tracked tokens" = "Śledzone tokeny";
 "Subscriptions" = "Subskrypcje";

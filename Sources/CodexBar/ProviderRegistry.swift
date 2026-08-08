@@ -85,7 +85,7 @@ struct ProviderRegistry {
                                 }
                             }
                         },
-                        costUsageHistoryDays: settings.costUsageHistoryDays,
+                        costUsageHistoryDays: settings.effectiveCostUsageHistoryDays,
                         persistsCLISessions: true,
                         persistentCLISessionIdleWindow: Self.persistentCLISessionIdleWindow(
                             refreshInterval: Self.nominalRefreshInterval(for: settings.refreshFrequency)))
