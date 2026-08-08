@@ -39,9 +39,7 @@ struct UsageStoreCachedTokenHydrationTests {
 
         store.hydrateCachedTokenSnapshots(now: day)
 
-        for _ in 0..<100 where store.tokenSnapshot(for: .codex) == nil {
-            try await Task.sleep(for: .milliseconds(10))
-        }
+        try await Self.waitForCodexTokenSnapshot(in: store)
 
         #expect(store.tokenSnapshot(for: .codex)?.sessionTokens == 42)
         #expect(store.tokenSnapshot(for: .codex)?.daily.map(\.date) == ["2026-04-08"])
@@ -132,9 +130,7 @@ struct UsageStoreCachedTokenHydrationTests {
         store._test_tokenUsageRefreshOverride = { _, _ in tokenRefreshCount += 1 }
 
         store.hydrateCachedTokenSnapshots(now: now)
-        for _ in 0..<100 where store.tokenSnapshot(for: .codex) == nil {
-            try await Task.sleep(for: .milliseconds(10))
-        }
+        try await Self.waitForCodexTokenSnapshot(in: store)
 
         await store.refreshTokenUsageNow(for: .codex, force: false)
 
@@ -180,9 +176,7 @@ struct UsageStoreCachedTokenHydrationTests {
         store._test_tokenUsageRefreshOverride = { _, _ in tokenRefreshCount += 1 }
 
         store.hydrateCachedTokenSnapshots(now: now)
-        for _ in 0..<100 where store.tokenSnapshot(for: .codex) == nil {
-            try await Task.sleep(for: .milliseconds(10))
-        }
+        try await Self.waitForCodexTokenSnapshot(in: store)
 
         await store.refreshTokenUsageNow(for: .codex, force: false)
 
@@ -311,6 +305,16 @@ struct UsageStoreCachedTokenHydrationTests {
             last30DaysCostUSD: 1,
             daily: [],
             updatedAt: Date())
+    }
+
+    private static func waitForCodexTokenSnapshot(in store: UsageStore) async throws {
+        // Parallel suites can occupy the process-global CostUsageScanExecutor, so use a real deadline instead of
+        // assuming the cached read will reach the front of that queue within a fixed number of scheduler turns.
+        let clock = ContinuousClock()
+        let deadline = clock.now.advanced(by: .seconds(60))
+        while store.tokenSnapshot(for: .codex) == nil, clock.now < deadline {
+            try await Task.sleep(for: .milliseconds(10))
+        }
     }
 
     private static func writeCodexSessionFile(

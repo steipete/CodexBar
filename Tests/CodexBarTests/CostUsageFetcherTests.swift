@@ -859,6 +859,7 @@ extension CostUsageFetcherTests {
         let first = try await CostUsageFetcher.loadTokenSnapshot(
             provider: .codex,
             now: day,
+            allowPricingRefresh: false,
             scannerOptions: nativeOptions,
             piScannerOptions: piOptions)
         #expect(first.daily.first?.totalTokens == 110)
@@ -884,6 +885,7 @@ extension CostUsageFetcherTests {
         let debounced = try await CostUsageFetcher.loadTokenSnapshot(
             provider: .codex,
             now: day,
+            allowPricingRefresh: false,
             scannerOptions: nativeOptions,
             piScannerOptions: piOptions)
         #expect(debounced.daily.first?.totalTokens == 110)
@@ -891,6 +893,7 @@ extension CostUsageFetcherTests {
         let refreshed = try await CostUsageFetcher.loadTokenSnapshot(
             provider: .codex,
             now: day,
+            allowPricingRefresh: false,
             bypassScannerDebounce: true,
             scannerOptions: nativeOptions,
             piScannerOptions: piOptions)
