@@ -4,6 +4,13 @@ import Foundation
 import Testing
 @testable import CodexBar
 
+extension StatusMenuTests {
+    func expectCondensedOverview(menu: NSMenu, ids: [String], rows: [String]) {
+        #expect(ids.contains("overviewSpendSummary"))
+        #expect(menu.items.count(where: \.isSeparatorItem) < rows.count + 1)
+    }
+}
+
 @MainActor
 struct StatusMenuOverviewScrollTests {
     private func makeController(suiteName: String) -> StatusItemController {
