@@ -120,7 +120,7 @@ struct ProviderPluginDetailsParityTests {
         let transport = ProviderHTTPTransportHandler { request in
             await requests.append(request)
             if request.url?.path == "/api/v1/activity" {
-                try await Task.sleep(for: .seconds(3))
+                try await Task.sleep(for: .seconds(4))
                 throw URLError(.timedOut)
             }
             let body = switch request.url?.path {
@@ -145,8 +145,8 @@ struct ProviderPluginDetailsParityTests {
         }
 
         #expect(optionalRequests.count == 2)
-        #expect(optionalRequests.allSatisfy { $0.timeoutInterval == 1 })
-        #expect(elapsed < .seconds(2))
+        #expect(optionalRequests.map(\.timeoutInterval) == [1, 2])
+        #expect(elapsed < .seconds(3))
         #expect(script.openRouterActivityUsage == nil)
         #expect(script.identity?.loginMethod == "Balance: $60.00")
     }
@@ -225,7 +225,7 @@ struct ProviderPluginDetailsParityTests {
         #expect(recorded[1].value(forHTTPHeaderField: "X-Title") == nil)
         #expect(recorded[2].value(forHTTPHeaderField: "X-Title") == nil)
         #expect(recorded[1].timeoutInterval == 1)
-        #expect(recorded[2].timeoutInterval == 1)
+        #expect(recorded[2].timeoutInterval == 2)
     }
 
     @Test
