@@ -240,12 +240,16 @@ struct SpendDashboardModelTests {
             calendar: Self.calendar).groups.first)
 
         #expect(group.totalCost == nil)
+        #expect(group.knownCost == 4)
+        #expect(group.knownCostProviderCount == 1)
         #expect(group.totalTokens == nil)
         #expect(group.modelHistoryCompleteness == .incomplete)
         #expect(group.models.map(\.provider) == [.claude])
         #expect(group.models.map(\.modelName) == ["test-model"])
         #expect(group.models.map(\.totalCost) == [4])
         #expect(spendDashboardModelHistoryPresentation(group) == .partial)
+        #expect(spendDashboardAggregateCostText(group) == "≥ $4.00")
+        #expect(spendDashboardCostCoverageText(group) == "1 / 2 Accounts")
     }
 
     @Test
@@ -374,6 +378,9 @@ struct SpendDashboardModelTests {
 
         #expect(group.providers.first(where: { $0.id == "invalid" })?.totalCost == nil)
         #expect(group.totalCost == nil)
+        #expect(group.knownCost == nil)
+        #expect(group.knownCostProviderCount == 2)
+        #expect(spendDashboardAggregateCostText(group) == "Spend unavailable")
         #expect(group.totalTokens == nil)
         #expect(group.dailyPoints.isEmpty)
     }

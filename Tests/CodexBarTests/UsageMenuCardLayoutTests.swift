@@ -31,7 +31,7 @@ struct UsageMenuCardLayoutTests {
     }
 
     @Test
-    func `full provider card matches overview height`() {
+    func `overview uses a fixed compact card instead of the full provider detail height`() {
         let model = Self.model(metrics: [
             UsageMenuCardView.Model.Metric(
                 id: "session",
@@ -44,24 +44,80 @@ struct UsageMenuCardLayoutTests {
                 detailRightText: "Lasts until reset",
                 pacePercent: nil,
                 paceOnTop: true),
+            UsageMenuCardView.Model.Metric(
+                id: "weekly",
+                title: "Weekly",
+                percent: 52,
+                percentStyle: .left,
+                resetText: "Resets Friday",
+                detailText: nil,
+                detailLeftText: nil,
+                detailRightText: nil,
+                pacePercent: nil,
+                paceOnTop: true),
         ])
         let width: CGFloat = 296
 
         let fullCardSize = NSHostingController(rootView: UsageMenuCardView(model: model, width: width))
             .sizeThatFits(in: CGSize(width: width, height: .greatestFiniteMagnitude))
-        let overviewStyleSize = NSHostingController(rootView: UsageMenuCardHeaderAndUsageSectionView(
+        let overviewSize = NSHostingController(rootView: OverviewMenuCardRowView(
             model: model,
-            layoutModel: model,
-            bottomPadding: UsageMenuCardLayout.sectionBottomPadding,
+            storageText: nil,
+            width: width))
+            .sizeThatFits(in: CGSize(width: width, height: .greatestFiniteMagnitude))
+        let emptyOverviewSize = NSHostingController(rootView: OverviewMenuCardRowView(
+            model: Self.model(),
+            storageText: nil,
             width: width))
             .sizeThatFits(in: CGSize(width: width, height: .greatestFiniteMagnitude))
 
-        #expect(UsageMenuCardLayout.postHeaderDividerContentSpacing == 16)
-        #expect(UsageMenuCardLayout.headerOnlyVerticalPadding == 6)
-        #expect(UsageMenuCardLayout.sectionTopPadding == 6)
-        #expect(UsageMenuCardLayout.sectionBottomPadding == 6)
+        #expect(overviewSize.height == OverviewMenuCardRowView.rowHeight)
+        #expect(emptyOverviewSize.height == OverviewMenuCardRowView.rowHeight)
+        #expect(overviewSize.height < fullCardSize.height)
+        #expect(OverviewMenuCardRowView.primaryMetric(for: model)?.id == "session")
+    }
 
-        #expect(abs(fullCardSize.height - overviewStyleSize.height) < Self.heightTolerance)
+    @Test
+    func `overview prioritizes refresh status and expands for accessibility text`() {
+        let metric = UsageMenuCardView.Model.Metric(
+            id: "weekly",
+            title: "Weekly",
+            percent: 52,
+            percentStyle: .left,
+            resetText: "Resets Friday",
+            detailText: nil,
+            detailLeftText: nil,
+            detailRightText: nil,
+            pacePercent: nil,
+            paceOnTop: true)
+        var configuredErrorModel = Self.model(
+            metrics: [metric],
+            subtitleText: "Could not refresh usage",
+            subtitleStyle: .error)
+        configuredErrorModel.usesLiveSubtitle = true
+        let errorModel = configuredErrorModel
+        let width: CGFloat = 296
+        let monitor = MenuCardRefreshMonitor(
+            resolveModel: { _ in errorModel },
+            isProviderRefreshActive: { _ in true })
+        monitor.beginManualRefresh(frozenModels: [.codex: errorModel])
+        let refreshSubtitle = OverviewMenuCardRowView.liveSubtitle(
+            for: errorModel,
+            refreshMonitor: monitor)
+
+        let accessibilitySize = NSHostingController(rootView: OverviewMenuCardRowView(
+            model: errorModel,
+            storageText: nil,
+            width: width)
+            .environment(\.dynamicTypeSize, .accessibility5))
+            .sizeThatFits(in: CGSize(width: width, height: .greatestFiniteMagnitude))
+
+        #expect(refreshSubtitle.text == "Refreshing…")
+        #expect(refreshSubtitle.style == .loading)
+        #expect(OverviewMenuCardRowView.prioritizesStatus(for: refreshSubtitle.style))
+        #expect(OverviewMenuCardRowView.primaryMetric(for: errorModel)?.id == "weekly")
+        #expect(accessibilitySize.height >= OverviewMenuCardRowView.accessibilityRowHeight)
+        #expect(accessibilitySize.height > OverviewMenuCardRowView.rowHeight)
     }
 
     @Test
@@ -185,14 +241,16 @@ struct UsageMenuCardLayoutTests {
         metrics: [UsageMenuCardView.Model.Metric] = [],
         usageNotes: [String] = [],
         creditsText: String? = nil,
-        placeholder: String? = nil) -> UsageMenuCardView.Model
+        placeholder: String? = nil,
+        subtitleText: String = "Not fetched yet",
+        subtitleStyle: UsageMenuCardView.Model.SubtitleStyle = .info) -> UsageMenuCardView.Model
     {
         UsageMenuCardView.Model(
             provider: .codex,
             providerName: "Codex",
             email: "steipete@gmail.com",
-            subtitleText: "Not fetched yet",
-            subtitleStyle: .info,
+            subtitleText: subtitleText,
+            subtitleStyle: subtitleStyle,
             planText: "Pro 20x",
             metrics: metrics,
             usageNotes: usageNotes,
