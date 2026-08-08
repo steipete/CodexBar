@@ -3,6 +3,14 @@ import Foundation
 import FoundationNetworking
 #endif
 
+/// Stable provider-detail row ids and section title for the Copilot AI credit lanes, so a feature
+/// can find a row again (tests, clearing the org row when its toggle is switched off).
+public enum CopilotCreditDetailRows {
+    public static let sectionTitle = "Credits"
+    public static let seatRowID = "copilot-seat-credits"
+    public static let orgRowID = "copilot-org-credits"
+}
+
 public struct CopilotUsageFetcher: Sendable {
     public struct GitHubUserIdentity: Decodable, Equatable, Sendable {
         public let id: Int64
@@ -16,15 +24,18 @@ public struct CopilotUsageFetcher: Sendable {
 
     private let token: String
     private let enterpriseHost: String?
+    private let seatEntitlement: Double?
     private let transport: any ProviderHTTPTransport
 
     public init(
         token: String,
         enterpriseHost: String? = nil,
+        seatEntitlement: Double? = nil,
         transport: any ProviderHTTPTransport = ProviderHTTPClient.shared)
     {
         self.token = token
         self.enterpriseHost = enterpriseHost
+        self.seatEntitlement = seatEntitlement
         self.transport = transport
     }
 
@@ -46,6 +57,12 @@ public struct CopilotUsageFetcher: Sendable {
     }
 
     public func fetch() async throws -> UsageSnapshot {
+        try await self.snapshot(from: self.fetchResponse())
+    }
+
+    /// Network and decode only, so fetch strategies can reuse payload fields the snapshot mapping
+    /// does not carry (the organization list feeding the opt-in org credits row).
+    func fetchResponse() async throws -> CopilotUsageResponse {
         guard let url = Self.usageURL(enterpriseHost: self.enterpriseHost) else {
             throw URLError(.badURL)
         }
@@ -65,22 +82,23 @@ public struct CopilotUsageFetcher: Sendable {
             throw URLError(.badServerResponse)
         }
 
-        let usage = try JSONDecoder().decode(CopilotUsageResponse.self, from: response.data)
+        return try JSONDecoder().decode(CopilotUsageResponse.self, from: response.data)
+    }
+
+    func snapshot(from usage: CopilotUsageResponse) throws -> UsageSnapshot {
         let resetsAt = Self.parseQuotaResetDate(usage.quotaResetDate)
         let premiumSnapshot = usage.quotaSnapshots.premiumInteractions
         let chatSnapshot = usage.quotaSnapshots.chat
         let premium = Self.makeRateWindow(from: premiumSnapshot, resetsAt: resetsAt)
         let chat = Self.makeRateWindow(from: chatSnapshot, resetsAt: resetsAt)
-        let creditsUsed = premiumSnapshot?.creditsUsed ?? chatSnapshot?.creditsUsed
-        let details: [ProviderDetailSection] = creditsUsed.map { creditsUsed in
-            [.makeSection(title: "Credits", rows: [
-                .makeRow(
-                    label: "Credits used",
-                    value: UsageFormatter.creditsNumberString(from: creditsUsed),
-                    secondaryValue: resetsAt.map { UsageFormatter.resetDescription(from: $0) }),
-            ])]
-        } ?? []
         let hasUnlimitedQuota = premiumSnapshot?.unlimited == true || chatSnapshot?.unlimited == true
+        let creditsUsed = premiumSnapshot?.creditsUsed ?? chatSnapshot?.creditsUsed
+        let details = Self.makeCreditDetails(
+            creditsUsed: creditsUsed,
+            seatEntitlement: self.seatEntitlement,
+            tokenBasedBilling: usage.tokenBasedBilling,
+            hasUnlimitedQuota: hasUnlimitedQuota,
+            resetsAt: resetsAt)
 
         let primary: RateWindow?
         let secondary: RateWindow?
@@ -169,6 +187,44 @@ public struct CopilotUsageFetcher: Sendable {
             windowMinutes: nil,
             resetsAt: resetsAt,
             resetDescription: overQuotaDescription)
+    }
+
+    static func makeCreditDetails(
+        creditsUsed: Double?,
+        seatEntitlement: Double?,
+        tokenBasedBilling: Bool,
+        hasUnlimitedQuota: Bool,
+        resetsAt: Date?) -> [ProviderDetailSection]
+    {
+        guard let creditsUsed else { return [] }
+        // GitHub reports `credits_used: 0` on metered snapshots too, so the field alone is not
+        // exclusive to credit-billed seats. Only surface the row when it carries real signal:
+        // token/unlimited billing, actual consumption, or a user-configured entitlement to track
+        // against. Otherwise every Copilot Pro/Individual seat would grow a permanent, unremovable
+        // "0 credits used" row.
+        let hasSignal = tokenBasedBilling || hasUnlimitedQuota || creditsUsed > 0 || seatEntitlement != nil
+        guard hasSignal else { return [] }
+
+        let usedLabel = UsageFormatter.creditsNumberString(from: creditsUsed)
+        let resetText = resetsAt.map { UsageFormatter.resetDescription(from: $0) }
+        let row: ProviderDetailSection.Row = if let seatEntitlement {
+            // GitHub publishes no included-credit ceiling on any documented endpoint, so the
+            // denominator is user-entered; the bar's ratio travels as data on the shared row
+            // contract while the caption keeps the raw numbers.
+            .makeRow(
+                id: CopilotCreditDetailRows.seatRowID,
+                label: "Credits used",
+                value: "\(usedLabel) / \(UsageFormatter.creditsNumberString(from: seatEntitlement))",
+                secondaryValue: resetText,
+                progress: .makeProgress(used: creditsUsed, total: seatEntitlement))
+        } else {
+            .makeRow(
+                id: CopilotCreditDetailRows.seatRowID,
+                label: "Credits used",
+                value: usedLabel,
+                secondaryValue: resetText)
+        }
+        return [.makeSection(title: CopilotCreditDetailRows.sectionTitle, rows: [row])]
     }
 
     static func parseQuotaResetDate(_ value: String?) -> Date? {

@@ -501,6 +501,11 @@ extension SettingsStore {
         let menuBarLayoutVerticalAdjustment = max(-20, min(20, rawVerticalAdjustment ?? 0))
         let copilotBudgetExtrasEnabled = userDefaults.object(forKey: "copilotBudgetExtrasEnabled") as? Bool ?? false
         let copilotIconSecondaryWindowIDRaw = Self.loadCopilotIconSecondaryWindowIDRaw(userDefaults: userDefaults)
+        let copilotOrgCreditsEnabled = userDefaults.object(forKey: "copilotOrgCreditsEnabled") as? Bool ?? false
+        let copilotSeatCreditEntitlementRaw = userDefaults.object(
+            forKey: "copilotSeatCreditEntitlement") as? String ?? ""
+        let copilotOrgCreditEntitlementRaw = userDefaults.object(
+            forKey: "copilotOrgCreditEntitlement") as? String ?? ""
         let costUsageEnabled = userDefaults.object(forKey: "tokenCostUsageEnabled") as? Bool ?? false
         let codexLocalSessionCostLedgerEnabled = userDefaults.object(
             forKey: "codexLocalSessionCostLedgerEnabled") as? Bool ?? false
@@ -631,6 +636,9 @@ extension SettingsStore {
             menuBarLayoutVerticalAdjustment: menuBarLayoutVerticalAdjustment,
             copilotBudgetExtrasEnabled: copilotBudgetExtrasEnabled,
             copilotIconSecondaryWindowIDRaw: copilotIconSecondaryWindowIDRaw,
+            copilotOrgCreditsEnabled: copilotOrgCreditsEnabled,
+            copilotSeatCreditEntitlementRaw: copilotSeatCreditEntitlementRaw,
+            copilotOrgCreditEntitlementRaw: copilotOrgCreditEntitlementRaw,
             costUsageEnabled: costUsageEnabled,
             codexLocalSessionCostLedgerEnabled: codexLocalSessionCostLedgerEnabled,
             costUsageHistoryDays: costUsageHistoryDays,
