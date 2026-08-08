@@ -60,6 +60,7 @@ enum QuickJSTypeScriptTranspiler {
         }
 
         func evaluate(_ script: String, filename: String) throws -> JSValue {
+            JS_UpdateStackTop(runtime)
             let value = script.utf8CString.withUnsafeBufferPointer { scriptBuffer in
                 filename.withCString { filenamePointer in
                     JS_Eval(

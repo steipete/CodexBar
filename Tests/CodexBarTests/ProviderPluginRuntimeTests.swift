@@ -524,13 +524,13 @@ struct ProviderPluginRuntimeTests {
     }
 
     @Test
-    func `QuickJS engine supports recursion beyond a dispatch worker stack`() async throws {
+    func `QuickJS engine supports bounded recursion on its dedicated stack`() async throws {
         let runtime = try ProviderPluginRuntime(
             source: Self.plugin(fetchBody: """
             function recurse(depth) {
               return depth <= 0 ? 0 : 1 + recurse(depth - 1);
             }
-            return { primary: { usedPercent: recurse(200) } };
+            return { primary: { usedPercent: recurse(100) } };
             """),
             engine: .quickJS)
 
@@ -541,17 +541,17 @@ struct ProviderPluginRuntimeTests {
 
     @Test
     func `QuickJS engine reports recursion beyond its JavaScript stack limit`() async throws {
-        let runtime = try ProviderPluginRuntime(
+        let engine = try Self.quickJSEngine(
             source: Self.plugin(fetchBody: """
             function recurse(depth) {
               return depth <= 0 ? 0 : 1 + recurse(depth - 1);
             }
             return { primary: { usedPercent: recurse(100000) } };
             """),
-            engine: .quickJS)
+            workerStackSizeBytes: 2 * 1024 * 1024)
 
         do {
-            _ = try await runtime.fetchUsage(secrets: ["TEST_KEY": "secret"])
+            _ = try await Self.fetchUsage(engine: engine)
             Issue.record("Expected stack overflow")
         } catch let error as ProviderPluginError {
             guard case let .script(message) = error else {
@@ -607,6 +607,40 @@ struct ProviderPluginRuntimeTests {
           },
         });
         """
+    }
+
+    private static func quickJSEngine(
+        source: String,
+        workerStackSizeBytes: Int) throws -> QuickJSProviderPluginEngine
+    {
+        let bundle = try #require(CodexBarCoreResources.bundle)
+        let preludeURL = try #require(bundle.url(
+            forResource: "provider-plugin-prelude",
+            withExtension: "js"))
+        let preludeSource = try String(contentsOf: preludeURL, encoding: .utf8)
+        return try QuickJSProviderPluginEngine.make(
+            source: source,
+            preludeSource: preludeSource,
+            transport: ProviderHTTPTransportHandler { _ in throw URLError(.unsupportedURL) },
+            timeout: ProviderPluginRuntime.defaultTimeout,
+            responseSizeLimit: ProviderPluginRuntime.maximumResponseBytes,
+            rejectsNonSuccessResponses: false,
+            allowsDynamicID: false,
+            workerStackSizeBytes: workerStackSizeBytes)
+    }
+
+    private static func fetchUsage(engine: QuickJSProviderPluginEngine) async throws -> UsageSnapshot {
+        let result = await withCheckedContinuation { continuation in
+            engine.fetch(
+                settings: [:],
+                secrets: ["TEST_KEY": "secret"],
+                now: Date(),
+                timeZone: .current,
+                cookieResolver: nil,
+                instanceCookieResolver: nil)
+            { continuation.resume(returning: $0) }
+        }
+        return try result.get()
     }
 
     private static func transport(

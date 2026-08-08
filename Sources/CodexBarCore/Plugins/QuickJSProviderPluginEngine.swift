@@ -19,8 +19,7 @@ private enum QuickJSHostFunction: Int32 {
 }
 
 enum QuickJSRuntimeLimits {
-    /// QuickJS may use up to 2 MiB of native stack before raising its JavaScript stack-overflow error.
-    /// Keep the hosting thread larger so the native guard page always remains beyond QuickJS's limit.
+    /// Leave ample native-stack headroom for Swift entry frames and QuickJS's stack-overflow error construction.
     static let nativeStackSizeBytes = 4 * 1024 * 1024
 }
 
@@ -121,7 +120,7 @@ private final class QuickJSPluginValue: ProviderPluginValue {
 
 final class QuickJSProviderPluginEngine: ProviderPluginEngine, @unchecked Sendable {
     static let memoryLimitBytes = 64 * 1024 * 1024
-    static let stackLimitBytes = 2 * 1024 * 1024
+    static let stackLimitBytes = 1 * 1024 * 1024
 
     static func transpileTypeScript(source: String, sucraseSource: String) throws -> String {
         try QuickJSTypeScriptTranspiler.transpile(source: source, sucraseSource: sucraseSource)
@@ -173,9 +172,12 @@ final class QuickJSProviderPluginEngine: ProviderPluginEngine, @unchecked Sendab
         timeout: TimeInterval,
         responseSizeLimit: Int,
         rejectsNonSuccessResponses: Bool,
-        allowsDynamicID: Bool) throws -> QuickJSProviderPluginEngine
+        allowsDynamicID: Bool,
+        workerStackSizeBytes: Int = QuickJSRuntimeLimits.nativeStackSizeBytes) throws -> QuickJSProviderPluginEngine
     {
-        let worker = QuickJSSerialWorker(name: "CodexBar QuickJS provider plugin")
+        let worker = QuickJSSerialWorker(
+            name: "CodexBar QuickJS provider plugin",
+            stackSizeBytes: workerStackSizeBytes)
         return try worker.sync {
             guard let runtime = JS_NewRuntime() else {
                 throw ProviderPluginError.load("QuickJS could not create a runtime")
@@ -385,6 +387,7 @@ final class QuickJSProviderPluginEngine: ProviderPluginEngine, @unchecked Sendab
         if JS_IsPromise(result) {
             while JS_PromiseState(self.context, result) == JS_PROMISE_PENDING {
                 var pendingContext: OpaquePointer?
+                JS_UpdateStackTop(self.runtime)
                 let executed = JS_ExecutePendingJob(self.runtime, &pendingContext)
                 if executed < 0 {
                     cqjs_free_value(self.context, result)
@@ -790,6 +793,7 @@ final class QuickJSProviderPluginEngine: ProviderPluginEngine, @unchecked Sendab
     }
 
     private func call(_ function: JSValue, arguments: [JSValue]) throws -> JSValue {
+        JS_UpdateStackTop(self.runtime)
         var mutableArguments = arguments
         let result = mutableArguments.withUnsafeMutableBufferPointer { buffer in
             JS_Call(self.context, function, cqjs_undefined(), Int32(buffer.count), buffer.baseAddress)
@@ -799,6 +803,7 @@ final class QuickJSProviderPluginEngine: ProviderPluginEngine, @unchecked Sendab
     }
 
     private func evaluate(_ source: String, filename: String) throws -> JSValue {
+        JS_UpdateStackTop(self.runtime)
         let result = source.utf8CString.withUnsafeBufferPointer { sourceBuffer in
             filename.withCString { filenamePointer in
                 JS_Eval(
@@ -977,7 +982,7 @@ private final class QuickJSSerialWorker: @unchecked Sendable {
     private let state: State
     private let thread: Thread
 
-    init(name: String) {
+    init(name: String, stackSizeBytes: Int) {
         let state = State()
         self.state = state
         self.thread = Thread {
@@ -987,7 +992,7 @@ private final class QuickJSSerialWorker: @unchecked Sendable {
             }
         }
         self.thread.name = name
-        self.thread.stackSize = QuickJSRuntimeLimits.nativeStackSizeBytes
+        self.thread.stackSize = stackSizeBytes
         self.thread.start()
     }
 
