@@ -32,28 +32,27 @@ extension CostUsageStore {
         // midway can never leave e.g. files upserted while day_aggregates stay stale.
         // Budget enforcement below runs outside: it checkpoints the WAL and vacuums, which
         // SQLite forbids inside an open transaction.
-        _ = self.withSaveTransaction(default: false) {
-            self.deleteRemovedFiles(previous: previous, cache: cache)
-            var persistedFiles = 0
-            for (path, usage) in cache.files.sorted(by: { $0.key < $1.key }) {
-                self.persistFile(
-                    path: path,
-                    usage: usage,
-                    baseline: PersistedFileBaseline(
-                        file: previousFilesByPath[path],
-                        snapshotCount: snapshotCountsByPath[path] ?? 0,
-                        rowCount: rowCountsByPath[path] ?? 0,
-                        canReuseRows: canReuseStoredRows),
-                    calendar: calendar)
-                persistedFiles += 1
-                Self.saveCycleCheckpointForTesting?(persistedFiles)
-            }
-            _ = self.replaceDayAggregates(Self.globalAggregates(cache: cache))
-            _ = self.setMetadata(Self.metadata(cache: cache, calendar: calendar))
-            _ = self.setDiscoveryState(Self.discoveryState(cache.codexSessionDiscovery))
-            _ = self.setLookbackState(Self.lookbackState(cache.codexActiveLookbackState))
-            return true
+        self.beginSaveTransaction()
+        self.deleteRemovedFiles(previous: previous, cache: cache)
+        var persistedFiles = 0
+        for (path, usage) in cache.files.sorted(by: { $0.key < $1.key }) {
+            self.persistFile(
+                path: path,
+                usage: usage,
+                baseline: PersistedFileBaseline(
+                    file: previousFilesByPath[path],
+                    snapshotCount: snapshotCountsByPath[path] ?? 0,
+                    rowCount: rowCountsByPath[path] ?? 0,
+                    canReuseRows: canReuseStoredRows),
+                calendar: calendar)
+            persistedFiles += 1
+            Self.saveCycleCheckpointForTesting?(persistedFiles)
         }
+        _ = self.replaceDayAggregates(Self.globalAggregates(cache: cache))
+        _ = self.setMetadata(Self.metadata(cache: cache, calendar: calendar))
+        _ = self.setDiscoveryState(Self.discoveryState(cache.codexSessionDiscovery))
+        _ = self.setLookbackState(Self.lookbackState(cache.codexActiveLookbackState))
+        self.endSaveTransaction()
         let result = self.enforceBudgets(
             maxRows: rowBudget,
             maxFileBytes: fileBudgetBytes,

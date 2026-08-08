@@ -189,30 +189,36 @@ extension CostUsageStore {
         }
     }
 
-    /// Runs `operation` as one all-or-nothing write cycle: a single BEGIN IMMEDIATE/COMMIT
-    /// spanning every store call made inside it. Nested `withDatabase` calls join the open
-    /// transaction and the first inner failure aborts the cycle, so a crash or error midway
-    /// leaves the previous on-disk state fully intact — matching the old JSON path's
-    /// atomic single-file replace.
-    func withSaveTransaction<T>(default fallback: T, _ operation: () throws -> T) -> T {
-        self.withDatabase(default: fallback) { database in
-            // Transaction control is inlined (not via the static `inTransaction`) so the
-            // non-Sendable `operation` closure never crosses an isolation boundary.
+    /// Opens the save cycle's all-or-nothing transaction: a single BEGIN IMMEDIATE spanning
+    /// every store call made until `endSaveTransaction()`. Nested `withDatabase` calls join
+    /// the open transaction and the first inner failure aborts the cycle, so a crash or
+    /// error midway leaves the previous on-disk state fully intact — matching the old JSON
+    /// path's atomic single-file replace. If the transaction cannot open, subsequent writes
+    /// proceed unprotected, exactly like the pre-transaction behavior.
+    func beginSaveTransaction() {
+        _ = self.withDatabase(default: false) { database in
             try Self.execute(database, "BEGIN IMMEDIATE")
             self.activeTransactionDatabase = database
-            defer {
-                self.activeTransactionDatabase = nil
-                self.activeTransactionError = nil
-            }
-            do {
-                let value = try operation()
-                if let failure = self.activeTransactionError { throw failure }
-                try Self.execute(database, "COMMIT")
-                return value
-            } catch {
+            return true
+        }
+    }
+
+    /// Commits the open save transaction, or rolls it back when a nested write failed. The
+    /// stored failure is rethrown through `withDatabase` so the usual rebuild-vs-preserve
+    /// classification still applies to it.
+    @discardableResult
+    func endSaveTransaction() -> Bool {
+        guard self.activeTransactionDatabase != nil else { return false }
+        let failure = self.activeTransactionError
+        self.activeTransactionDatabase = nil
+        self.activeTransactionError = nil
+        return self.withDatabase(default: false) { database in
+            if let failure {
                 try? Self.execute(database, "ROLLBACK")
-                throw error
+                throw failure
             }
+            try Self.execute(database, "COMMIT")
+            return true
         }
     }
 
