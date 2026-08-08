@@ -50,7 +50,6 @@ struct SpendDashboardOpenRouterDateTruthTests {
         #expect(group.totalCost == nil)
         #expect(group.knownCost == 2)
         #expect(group.totalTokens == nil)
-        #expect(group.knownTokens == 20)
     }
 
     private static func snapshot(

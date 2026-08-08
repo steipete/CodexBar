@@ -83,9 +83,10 @@ struct SpendDashboardTrackedSourceTests {
         #expect(Set(credentialSources.map(\.id)).count == credentialSources.count)
 
         let openRouterSources = credentialSources.filter { $0.provider == .openrouter }
+        let allSupportCostHistory = openRouterSources.allSatisfy(\.supportsCostHistory)
         #expect(openRouterSources.count == 2)
         #expect(openRouterSources.allSatisfy { $0.state == .configured })
-        #expect(openRouterSources.allSatisfy(\.supportsCostHistory))
+        #expect(allSupportCostHistory)
         #expect(openRouterSources.allSatisfy { !$0.contributesCostHistory })
     }
 
