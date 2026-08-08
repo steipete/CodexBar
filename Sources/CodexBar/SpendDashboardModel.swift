@@ -94,6 +94,21 @@ struct SpendDashboardModel: Equatable, Sendable {
         var id: String {
             self.currencyCode
         }
+
+        var knownCostProviderCount: Int {
+            self.providers.count { $0.totalCost != nil }
+        }
+
+        var knownCost: Double? {
+            let costs = self.providers.compactMap(\.totalCost)
+            guard !costs.isEmpty else { return nil }
+            var total = 0.0
+            for cost in costs {
+                total += cost
+                guard total.isFinite else { return nil }
+            }
+            return total
+        }
     }
 
     let requestedDays: Int

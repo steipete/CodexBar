@@ -68,6 +68,17 @@ func spendDashboardTrackedSourceStatusText(_ source: SpendDashboardTrackedSource
         : L("Configured · not in cost total")
 }
 
+func spendDashboardAggregateCostText(_ group: SpendDashboardModel.CurrencyGroup) -> String {
+    guard let cost = group.totalCost ?? group.knownCost else { return L("Spend unavailable") }
+    let formatted = UsageFormatter.currencyString(cost, currencyCode: group.currencyCode)
+    return group.totalCost == nil ? "≥ \(formatted)" : formatted
+}
+
+func spendDashboardCostCoverageText(_ group: SpendDashboardModel.CurrencyGroup) -> String {
+    "\(codexBarLocalizedInteger(group.knownCostProviderCount)) / " +
+        "\(codexBarLocalizedInteger(group.providers.count)) \(L("Accounts"))"
+}
+
 enum SpendDashboardModelHistoryPresentation: Equatable {
     case unavailable
     case empty
@@ -616,9 +627,7 @@ private struct SpendCurrencySection: View {
                 Text(self.group.currencyCode)
                     .font(.headline)
                 Spacer()
-                Text(self.group.totalCost.map {
-                    UsageFormatter.currencyString($0, currencyCode: self.group.currencyCode)
-                } ?? L("Spend unavailable"))
+                Text(spendDashboardAggregateCostText(self.group))
                     .font(.title3.weight(.semibold))
                     .monospacedDigit()
             }
@@ -635,16 +644,16 @@ private struct SpendCurrencySection: View {
                 HStack(spacing: 24) {
                     SpendSummaryValue(
                         title: L("Estimated spend"),
-                        value: self.group.totalCost.map {
-                            UsageFormatter.currencyString($0, currencyCode: self.group.currencyCode)
-                        } ?? "—")
+                        value: spendDashboardAggregateCostText(self.group))
                     SpendSummaryValue(
                         title: L("Tracked tokens"),
                         value: self.group.totalTokens.map(UsageFormatter.tokenCountString) ?? "—")
                     SpendSummaryValue(
+                        title: L("Coverage"),
+                        value: spendDashboardCostCoverageText(self.group))
+                    SpendSummaryValue(
                         title: L("Subscriptions"),
                         value: codexBarLocalizedInteger(self.group.providers.count))
-                    Spacer()
                 }
             }
 
@@ -668,6 +677,7 @@ private struct SpendSummaryValue: View {
                 .font(.system(.title2, design: .rounded, weight: .semibold))
                 .monospacedDigit()
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
