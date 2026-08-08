@@ -639,6 +639,8 @@
 "check_for_updates" = "检查更新…";
 "updates_unavailable" = "此构建中更新不可用。";
 "copyright" = "© 2026 Peter Steinberger。MIT 许可证。";
+"use_javascriptcore_plugin_engine" = "为提供商插件使用 JavaScriptCore";
+"use_javascriptcore_plugin_engine_subtitle" = "仅用于兼容性回退。重启 CodexBar 后生效；CODEXBAR_PLUGIN_ENGINE 会覆盖此设置。";
 "section_logging" = "日志";
 "enable_file_logging" = "启用文件日志";
 "enable_file_logging_subtitle" = "将日志写入 %@ 以进行调试。";

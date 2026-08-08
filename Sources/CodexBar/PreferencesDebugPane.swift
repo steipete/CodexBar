@@ -7,6 +7,8 @@ struct DebugPane: View {
     @Bindable var settings: SettingsStore
     @Bindable var store: UsageStore
     @AppStorage("debugFileLoggingEnabled") private var debugFileLoggingEnabled = false
+    @AppStorage(ProviderPluginRuntime.javaScriptCoreRollbackDefaultsKey)
+    private var useJavaScriptCorePluginEngine = false
     // Provider-specific by design: debug probe, fetch, and error pickers historically start on Codex.
     @State private var currentLogProvider: UsageProvider = .codex
     @State private var currentFetchProvider: UsageProvider = .codex
@@ -71,6 +73,13 @@ struct DebugPane: View {
                         title: L("force_animation_next_refresh"),
                         subtitle: L("force_animation_next_refresh_subtitle"),
                         binding: self.$store.debugForceAnimation)
+                }
+
+                SettingsSection(title: L("Provider Plugins")) {
+                    PreferenceToggleRow(
+                        title: L("use_javascriptcore_plugin_engine"),
+                        subtitle: L("use_javascriptcore_plugin_engine_subtitle"),
+                        binding: self.$useJavaScriptCorePluginEngine)
                 }
 
                 SettingsSection(

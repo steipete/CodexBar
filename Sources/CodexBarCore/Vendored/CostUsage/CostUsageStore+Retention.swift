@@ -128,16 +128,31 @@ extension CostUsageStore {
         untilDay: String?,
         calendar: Calendar) -> Range<Int64>?
     {
-        guard let sinceDay, let untilDay,
-              let since = CostUsageScanner.parseDayKey(sinceDay, calendar: calendar),
-              let until = CostUsageScanner.parseDayKey(untilDay, calendar: calendar)
-        else { return nil }
         let scanCalendar = CostUsageScanner.CostUsageDayRange.localGregorianCalendar(matching: calendar)
+        guard let sinceDay, let untilDay,
+              let since = Self.dayStart(sinceDay, calendar: scanCalendar),
+              let until = Self.dayStart(untilDay, calendar: scanCalendar)
+        else { return nil }
         let end = scanCalendar.date(byAdding: .day, value: 1, to: until) ?? until
         let lower = Int64(since.timeIntervalSince1970 * 1000)
         let upper = Int64(end.timeIntervalSince1970 * 1000)
         guard lower < upper else { return nil }
         return lower..<upper
+    }
+
+    private static func dayStart(_ key: String, calendar: Calendar) -> Date? {
+        let parts = key.split(separator: "-")
+        guard parts.count == 3,
+              let year = Int(parts[0]),
+              let month = Int(parts[1]),
+              let day = Int(parts[2])
+        else { return nil }
+        return calendar.date(from: DateComponents(
+            calendar: calendar,
+            timeZone: calendar.timeZone,
+            year: year,
+            month: month,
+            day: day))
     }
 
     private static func retentionCandidates(

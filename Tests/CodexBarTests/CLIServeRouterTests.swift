@@ -570,7 +570,7 @@ struct CLIServeRouterTests {
         {
             _ = await counter.increment()
             do {
-                try await Task.sleep(nanoseconds: 200_000_000)
+                try await Task.sleep(nanoseconds: 5_000_000_000)
                 return Self.response("[{\"provider\":\"codex\",\"call\":1}]")
             } catch {
                 return CodexBarCLI.serveTimeoutResponse()
@@ -633,7 +633,7 @@ struct CLIServeRouterTests {
                         requestTimeout: 0.01)
                     {
                         _ = await counter.increment()
-                        try? await Task.sleep(nanoseconds: 200_000_000)
+                        try? await Task.sleep(nanoseconds: 5_000_000_000)
                         return Self.response("[{\"provider\":\"codex\"}]")
                     }
                 }
@@ -727,7 +727,7 @@ struct CLIServeRouterTests {
             requestTimeout: 0.01)
         {
             _ = await counter.increment()
-            try? await Task.sleep(nanoseconds: 200_000_000)
+            try? await Task.sleep(nanoseconds: 5_000_000_000)
             return Self.response("[{\"provider\":\"codex\",\"call\":2}]")
         }
 
@@ -785,7 +785,7 @@ struct CLIServeRouterTests {
             refreshInterval: 0.01,
             requestTimeout: 0.01)
         {
-            try? await Task.sleep(nanoseconds: 200_000_000)
+            try? await Task.sleep(nanoseconds: 5_000_000_000)
             return Self.response(#"[{"provider":"codex","call":3}]"#)
         }
         let timeoutRows = try Self.jsonRows(timedOut)
@@ -929,7 +929,7 @@ struct CLIServeRouterTests {
             refreshInterval: 0.05,
             requestTimeout: 0.01)
         {
-            try? await Task.sleep(nanoseconds: 200_000_000)
+            try? await Task.sleep(nanoseconds: 5_000_000_000)
             return Self.response("[]")
         }
         #expect(timedOut.status == .gatewayTimeout)
@@ -972,7 +972,7 @@ struct CLIServeRouterTests {
             refreshInterval: 0.05,
             requestTimeout: 0.01)
         {
-            try? await Task.sleep(nanoseconds: 200_000_000)
+            try? await Task.sleep(nanoseconds: 5_000_000_000)
             return Self.response("[]")
         }
         #expect(timedOut.status == .gatewayTimeout)
@@ -1258,7 +1258,7 @@ struct CLIServeRouterTests {
             refreshInterval: 0.05,
             requestTimeout: 0.01)
         {
-            try? await Task.sleep(nanoseconds: 200_000_000)
+            try? await Task.sleep(nanoseconds: 5_000_000_000)
             return Self.response(
                 #"[{"provider":"codex","account":"shared","call":3}]"#,
                 usageCacheKeys: ["account-2"])
@@ -1388,7 +1388,7 @@ struct CLIServeRouterTests {
             refreshInterval: 0.05,
             requestTimeout: 0.01)
         {
-            try? await Task.sleep(nanoseconds: 200_000_000)
+            try? await Task.sleep(nanoseconds: 5_000_000_000)
             return Self.response(
                 #"[{"provider":"antigravity","account":"second@example.com","call":2}]"#,
                 usageCacheKeys: [nil])
@@ -1426,7 +1426,7 @@ struct CLIServeRouterTests {
             refreshInterval: 0.05,
             requestTimeout: 0.01)
         {
-            try? await Task.sleep(nanoseconds: 200_000_000)
+            try? await Task.sleep(nanoseconds: 5_000_000_000)
             return Self.response("[]", usageCacheKeys: [])
         }
         #expect(timedOut.status == .gatewayTimeout)

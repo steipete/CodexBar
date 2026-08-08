@@ -363,6 +363,22 @@ public final class UserProviderPluginLoader: @unchecked Sendable {
             throw ProviderPluginError.load("bundled Sucrase \(Self.sucraseVersion) resource was not found")
         }
         let sucraseSource = try String(contentsOf: resourceURL, encoding: .utf8)
+        let output = switch ProviderPluginRuntime.resolveEngineKind(.automatic) {
+        case .automatic:
+            preconditionFailure("automatic plugin engine selection must be resolved")
+        case .javaScriptCore:
+            try Self.transpileTypeScriptWithJavaScriptCore(source: source, sucraseSource: sucraseSource)
+        case .quickJS:
+            try QuickJSProviderPluginEngine.transpileTypeScript(source: source, sucraseSource: sucraseSource)
+        }
+        try Data(output.utf8).write(to: cacheURL, options: .atomic)
+        return (output, cacheURL, false)
+    }
+
+    private static func transpileTypeScriptWithJavaScriptCore(
+        source: String,
+        sucraseSource: String) throws -> String
+    {
         #if canImport(JavaScriptCore)
         guard let context = JSContext() else {
             throw ProviderPluginError.load("JavaScriptCore could not create a TypeScript transpiler context")
@@ -383,13 +399,10 @@ public final class UserProviderPluginLoader: @unchecked Sendable {
         guard let output = result?.toString(), !output.isEmpty else {
             throw ProviderPluginError.load("TypeScript transpilation returned no output")
         }
+        return output
         #else
-        let output = try QuickJSProviderPluginEngine.transpileTypeScript(
-            source: source,
-            sucraseSource: sucraseSource)
+        throw ProviderPluginError.load("JavaScriptCore is unavailable on this platform")
         #endif
-        try Data(output.utf8).write(to: cacheURL, options: .atomic)
-        return (output, cacheURL, false)
     }
 }
 

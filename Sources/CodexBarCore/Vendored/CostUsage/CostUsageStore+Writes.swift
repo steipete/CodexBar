@@ -479,6 +479,12 @@ extension CostUsageStore {
     }
 
     static func inTransaction<T>(_ database: OpaquePointer, _ operation: () throws -> T) throws -> T {
+        // Flatten when a transaction is already open (the save cycle's outer BEGIN
+        // IMMEDIATE): SQLite has no nested transactions, and the outer scope owns
+        // commit/rollback for every write made inside it.
+        guard sqlite3_get_autocommit(database) != 0 else {
+            return try operation()
+        }
         try self.execute(database, "BEGIN IMMEDIATE")
         do {
             let value = try operation()
