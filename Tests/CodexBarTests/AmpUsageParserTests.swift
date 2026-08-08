@@ -78,8 +78,54 @@ struct AmpUsageParserTests {
         #expect(snapshot.accountOrganization == "example")
         #expect(usage.primary?.usedPercent == 39)
         #expect(usage.primary?.windowMinutes == 1440)
-        #expect(usage.primary?.resetsAt == nil)
+        #expect(usage.primary?.resetsAt == Date(timeIntervalSince1970: 1_700_006_400))
         #expect(usage.primary?.resetDescription == "resets daily")
+    }
+
+    @Test
+    func `does not infer daily reset from percentage alone`() throws {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let snapshot = try AmpUsageParser.parse(
+            displayText: "Signed in as user@example.com\nAmp Free: 61% remaining",
+            now: now)
+        let usage = snapshot.toUsageSnapshot(now: now)
+
+        #expect(snapshot.freeUsed == 39)
+        #expect(snapshot.freeResetDescription == nil)
+        #expect(usage.primary?.resetsAt == nil)
+        #expect(usage.primary?.resetDescription == nil)
+    }
+
+    @Test
+    func `parses current amp subscription and resets free usage at 8 pm EDT`() throws {
+        let now = Date(timeIntervalSince1970: 1_785_794_400) // 2026-08-03 18:00 EDT
+        let output = """
+        Signed in as example@example.net (example)
+        Amp Free: 100% remaining today (resets daily) - https://ampcode.com/settings#amp-free
+        Subscription Gigawatt: 100% other usage and 100% orb usage remaining - resets upon renewal in 1 month
+        Individual credits: $17.23 remaining (set up auto-reload to avoid running out) - https://ampcode.com/settings
+        Workspace meow: $5.33 remaining (set up auto-reload to avoid running out) - https://ampcode.com/workspaces/meow
+        """
+
+        let snapshot = try AmpUsageParser.parse(displayText: output, now: now)
+        let usage = snapshot.toUsageSnapshot(now: now)
+
+        #expect(snapshot.subscription == AmpSubscriptionUsage(
+            plan: "Gigawatt",
+            otherUsedPercent: 0,
+            orbUsedPercent: 0,
+            resetsAt: Date(timeIntervalSince1970: 1_788_472_800),
+            resetDescription: "renews in 1 month"))
+        #expect(snapshot.individualCredits == 17.23)
+        #expect(snapshot.workspaceBalances == [AmpWorkspaceBalance(name: "meow", remaining: 5.33)])
+        #expect(usage.extraRateWindows == [NamedRateWindow(
+            id: "amp-free",
+            title: "Amp Free",
+            window: RateWindow(
+                usedPercent: 0,
+                windowMinutes: 1440,
+                resetsAt: Date(timeIntervalSince1970: 1_785_801_600), // 8:00 PM EDT
+                resetDescription: "resets daily"))])
     }
 
     @Test
@@ -153,7 +199,7 @@ struct AmpUsageParserTests {
         let published = daily.backfillingResetTimes(from: legacy, now: now)
 
         #expect(legacy.primary?.resetsAt == now.addingTimeInterval(8 * 3600))
-        #expect(published.primary?.resetsAt == nil)
+        #expect(published.primary?.resetsAt == Date(timeIntervalSince1970: 1_700_006_400))
         #expect(published.primary?.resetDescription == "resets daily")
     }
 

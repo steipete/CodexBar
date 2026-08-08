@@ -246,6 +246,14 @@ struct UsageStoreCoverageTests {
                     windowMinutes: ProviderPaceCapability.monthlyWindowSentinelMinutes,
                     resetsAt: now.addingTimeInterval(29 * 24 * 60 * 60),
                     resetDescription: "renews in 29 days"),
+                extraRateWindows: [NamedRateWindow(
+                    id: "amp-free",
+                    title: "Amp Free",
+                    window: RateWindow(
+                        usedPercent: 39,
+                        windowMinutes: 1440,
+                        resetsAt: now.addingTimeInterval(8 * 60 * 60),
+                        resetDescription: "resets daily"))],
                 updatedAt: now,
                 identity: ProviderIdentitySnapshot(
                     providerID: .amp,
@@ -256,7 +264,7 @@ struct UsageStoreCoverageTests {
 
         let model = ProvidersPane(settings: settings, store: store)._test_menuCardModel(for: .amp)
 
-        #expect(model.metrics.map(\.title) == ["Other usage", "Orb usage"])
+        #expect(model.metrics.map(\.title) == ["Other usage", "Orb usage", "Amp Free"])
         #expect(model.planText == "Megawatt")
     }
 

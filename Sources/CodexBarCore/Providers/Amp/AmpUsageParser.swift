@@ -30,11 +30,11 @@ enum AmpUsageParser {
             #"\s*/\s*\$?"# + amountPattern +
             #"\s+remaining(?:\s*\(replenishes\s*\+\$?"# + amountPattern + #"\s*/\s*hour\))?"#
         let freePercentPattern = #"(?im)^\s*Amp Free:\s*"# + amountPattern +
-            #"\s*%\s+remaining(?:\s+today)?(?:\s*\(resets\s+daily\))?"#
+            #"\s*%\s+remaining(?:\s+today)?(?:\s*(\(resets\s+daily\)))?"#
         let subscriptionPattern = #"(?im)^\s*Subscription\s+(.+?):\s*"# + amountPattern +
             #"\s*%\s+other\s+usage\s+and\s+"# + amountPattern +
             #"\s*%\s+orb\s+usage\s+remaining\s*-\s*resets\s+upon\s+renewal\s+in\s+"# +
-            #"([0-9][0-9,]*)\s+days?(?:\s+-\s+https?://\S+)?\s*$"#
+            #"([0-9][0-9,]*)\s+(days?|months?)(?:\s+-\s+https?://\S+)?\s*$"#
         let creditsPattern = #"(?im)^\s*Individual credits:\s*\$?"# + amountPattern + #"\s+remaining"#
         let individualCredits = self.captures(in: text, pattern: creditsPattern)?.first
             .flatMap(self.number(from:))
@@ -65,8 +65,8 @@ enum AmpUsageParser {
                 resetDescription: nil)
         }()
         let freePercentUsage: FreeTierUsage? = {
-            guard let remainingText = self.captures(in: text, pattern: freePercentPattern)?.first,
-                  let remaining = self.number(from: remainingText)
+            guard let free = self.captures(in: text, pattern: freePercentPattern),
+                  let remaining = self.number(from: free[0])
             else { return nil }
             let clampedRemaining = min(100, max(0, remaining))
             return FreeTierUsage(
@@ -74,23 +74,29 @@ enum AmpUsageParser {
                 used: 100 - clampedRemaining,
                 hourlyReplenishment: 0,
                 windowHours: 24,
-                resetDescription: "resets daily")
+                resetDescription: self.nonEmpty(free[1]).map { _ in "resets daily" })
         }()
         let resolvedFreeUsage = freeUsage ?? freePercentUsage
         let subscriptionUsage: AmpSubscriptionUsage? = {
             guard let subscription = self.captures(in: text, pattern: subscriptionPattern),
-                  subscription.count == 4,
+                  subscription.count == 5,
                   let plan = self.nonEmpty(subscription[0]),
                   let otherRemaining = self.number(from: subscription[1]),
                   let orbRemaining = self.number(from: subscription[2]),
-                  let renewalDays = Int(subscription[3].replacingOccurrences(of: ",", with: ""))
+                  let renewalValue = Int(subscription[3].replacingOccurrences(of: ",", with: "")),
+                  let resetsAt = self.subscriptionResetDate(
+                      value: renewalValue,
+                      unit: subscription[4],
+                      now: now)
             else { return nil }
-            let resetDescription = renewalDays == 1 ? "renews in 1 day" : "renews in \(renewalDays) days"
+            let unit = subscription[4].lowercased()
+            let singularUnit = unit.hasPrefix("month") ? "month" : "day"
+            let resetDescription = "renews in \(renewalValue) \(singularUnit)\(renewalValue == 1 ? "" : "s")"
             return AmpSubscriptionUsage(
                 plan: plan,
                 otherUsedPercent: 100 - min(100, max(0, otherRemaining)),
                 orbUsedPercent: 100 - min(100, max(0, orbRemaining)),
-                resetsAt: now.addingTimeInterval(TimeInterval(renewalDays) * 24 * 60 * 60),
+                resetsAt: resetsAt,
                 resetDescription: resetDescription)
         }()
         guard resolvedFreeUsage != nil || subscriptionUsage != nil || individualCredits != nil ||
@@ -111,6 +117,13 @@ enum AmpUsageParser {
             updatedAt: now,
             freeResetDescription: resolvedFreeUsage?.resetDescription,
             subscription: subscriptionUsage)
+    }
+
+    private static func subscriptionResetDate(value: Int, unit: String, now: Date) -> Date? {
+        if unit.lowercased().hasPrefix("month") {
+            return Calendar(identifier: .gregorian).date(byAdding: .month, value: value, to: now)
+        }
+        return now.addingTimeInterval(TimeInterval(value) * 24 * 60 * 60)
     }
 
     private struct FreeTierUsage {
