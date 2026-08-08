@@ -72,7 +72,9 @@ struct ShareStatsCardView: View {
                     .font(.system(size: 20, weight: .semibold, design: .rounded))
                     .tracking(1.8)
                     .foregroundStyle(self.secondary)
-                Text(self.payload.totalTokens.map(ShareStatsFormatting.compactCount) ?? "—")
+                Text(self.payload.totalTokens.map {
+                    "\(self.payload.totalTokensIsPartial ? "~" : "")\(ShareStatsFormatting.compactCount($0))"
+                } ?? "—")
                     .font(.system(size: 104, weight: .semibold, design: .rounded))
                     .monospacedDigit()
                     .lineLimit(1)
@@ -92,7 +94,8 @@ struct ShareStatsCardView: View {
                             .foregroundStyle(self.secondary)
                         Spacer()
                         Text(currency.estimatedCost.map {
-                            ShareStatsFormatting.currency($0, code: currency.currencyCode)
+                            let value = ShareStatsFormatting.currency($0, code: currency.currencyCode)
+                            return "\(currency.isPartial ? "~" : "")\(value)"
                         } ?? "Unavailable")
                             .font(.system(size: 32, weight: .semibold, design: .rounded))
                             .monospacedDigit()
@@ -112,8 +115,12 @@ struct ShareStatsCardView: View {
     private var currencySummary: String {
         let hiddenCount = self.payload.currencies.count - min(self.payload.currencies.count, 2)
         return hiddenCount > 0
-            ? "+\(hiddenCount) more currencies · see subscription rows"
-            : "\(self.payload.providers.count) subscriptions · native currencies kept separate"
+            ? "\(self.spendCoverage) · +\(hiddenCount) more currencies"
+            : "\(self.spendCoverage) · native currencies kept separate"
+    }
+
+    private var spendCoverage: String {
+        "\(self.payload.spendReportingProviderCount)/\(self.payload.providers.count) report spend"
     }
 
     private var rankings: some View {

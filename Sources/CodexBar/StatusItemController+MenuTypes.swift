@@ -33,14 +33,126 @@ extension ProviderSwitcherSelection {
     }
 }
 
+struct OverviewSpendSummary: Equatable {
+    let primarySpendText: String
+    let coverageText: String
+    let tokenText: String?
+    let isPartial: Bool
+
+    init(model: SpendDashboardModel, connectedProviderCount: Int) {
+        let connectedCount = max(0, connectedProviderCount)
+        let knownCostCount = model.groups.reduce(0) { $0 + $1.knownCostProviderCount }
+        let knownTokenRows = model.groups.flatMap(\.providers).compactMap(\.totalTokens)
+        let knownTokens = Self.safeTokenSum(knownTokenRows)
+        let tokenCoverageIsComplete = knownTokenRows.count == connectedCount
+        self.isPartial = knownCostCount < connectedCount || model.groups.contains { $0.totalCost == nil }
+
+        let spendTexts = model.groups.compactMap { group -> String? in
+            guard let cost = group.totalCost ?? group.knownCost else { return nil }
+            let formatted = UsageFormatter.currencyString(cost, currencyCode: group.currencyCode)
+            let groupIsPartial = group.totalCost == nil || knownCostCount < connectedCount
+            return groupIsPartial ? "~\(formatted)" : formatted
+        }
+        self.primarySpendText = spendTexts.isEmpty ? L("Spend unavailable") : spendTexts.joined(separator: " · ")
+        self.coverageText = "\(codexBarLocalizedInteger(knownCostCount)) / " +
+            "\(codexBarLocalizedInteger(connectedCount)) \(L("Providers"))"
+        self.tokenText = knownTokens.map {
+            let formatted = ShareStatsFormatting.compactCount($0)
+            let value = tokenCoverageIsComplete ? formatted : "~\(formatted)"
+            return L("%@ tokens", value)
+        }
+    }
+
+    private static func safeTokenSum(_ values: [Int]) -> Int? {
+        var total = 0
+        for value in values {
+            let result = total.addingReportingOverflow(value)
+            guard !result.overflow else { return nil }
+            total = result.partialValue
+        }
+        return values.isEmpty ? nil : total
+    }
+}
+
+struct OverviewSpendSummaryCardView: View {
+    static let rowHeight: CGFloat = 94
+
+    let summary: OverviewSpendSummary
+    let days: Int
+    let width: CGFloat
+    let canShare: Bool
+    let share: () -> Void
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            VStack(alignment: .leading, spacing: 7) {
+                HStack(spacing: 6) {
+                    Text(L("Usage & Spend"))
+                        .font(.headline.weight(.semibold))
+                    Text("·")
+                    Text(spendDashboardDayRangeText(self.days))
+                }
+                .foregroundStyle(.secondary)
+
+                Text(self.summary.primarySpendText)
+                    .font(.system(.title2, design: .rounded, weight: .bold))
+                    .monospacedDigit()
+                    .lineLimit(2)
+
+                HStack(spacing: 8) {
+                    Text(self.summary.coverageText)
+                    if let tokenText = self.summary.tokenText {
+                        Text("·")
+                        Text(tokenText)
+                    }
+                }
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+            }
+
+            Spacer(minLength: 6)
+
+            Button(action: self.share) {
+                Image(systemName: "square.and.arrow.up")
+                    .font(.body.weight(.semibold))
+                    .frame(width: 30, height: 30)
+                    .background(.primary.opacity(0.07), in: Circle())
+            }
+            .buttonStyle(.plain)
+            .menuCardInteractiveControl(isEnabled: self.canShare)
+            .disabled(!self.canShare)
+            .opacity(self.canShare ? 1 : 0.35)
+            .accessibilityLabel(L("Share Stats…"))
+            .help(L("Share Stats…"))
+        }
+        .padding(.horizontal, UsageMenuCardLayout.horizontalPadding)
+        .padding(.vertical, 10)
+        .frame(width: self.width, alignment: .leading)
+        .frame(minHeight: Self.rowHeight, alignment: .leading)
+        .background {
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(Color.accentColor.opacity(0.08))
+                .padding(.horizontal, 6)
+        }
+    }
+}
+
 struct OverviewMenuCardRowView: View {
+    enum Emphasis: Equatable {
+        case prominent
+        case compact
+    }
+
     static let showsSectionDividers = false
     static let rowHeight: CGFloat = 88
+    static let compactRowHeight: CGFloat = 54
     static let accessibilityRowHeight: CGFloat = 112
 
     let model: UsageMenuCardView.Model
     let storageText: String?
     let width: CGFloat
+    var emphasis: Emphasis = .prominent
     @Environment(\.menuItemHighlighted) private var isHighlighted
     @Environment(\.menuCardRefreshMonitor) private var refreshMonitor
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
@@ -50,6 +162,30 @@ struct OverviewMenuCardRowView: View {
         let liveSubtitle = Self.liveSubtitle(for: liveModel, refreshMonitor: self.refreshMonitor)
         let metric = Self.primaryMetric(for: liveModel)
         let prioritizesStatus = Self.prioritizesStatus(for: liveSubtitle.style)
+        Group {
+            switch self.emphasis {
+            case .prominent:
+                self.prominentContent(
+                    liveModel: liveModel,
+                    liveSubtitle: liveSubtitle,
+                    metric: metric,
+                    prioritizesStatus: prioritizesStatus)
+            case .compact:
+                self.compactContent(
+                    liveModel: liveModel,
+                    liveSubtitle: liveSubtitle,
+                    metric: metric,
+                    prioritizesStatus: prioritizesStatus)
+            }
+        }
+    }
+
+    private func prominentContent(
+        liveModel: UsageMenuCardView.Model,
+        liveSubtitle: MenuCardLiveSubtitle,
+        metric: UsageMenuCardView.Model.Metric?,
+        prioritizesStatus: Bool) -> some View
+    {
         VStack(alignment: .leading, spacing: 6) {
             HStack(alignment: .firstTextBaseline, spacing: 10) {
                 Text(liveModel.providerName)
@@ -91,14 +227,14 @@ struct OverviewMenuCardRowView: View {
                         accessibilityLabel: metric.percentStyle.accessibilityLabel)
                 }
             } else {
-                Text(Self.spendReference(for: liveModel) ?? liveModel.subtitleText)
+                Text(Self.compactSpendText(for: liveModel))
                     .font(.subheadline.weight(.medium))
                     .lineLimit(1)
             }
 
             HStack(alignment: .firstTextBaseline, spacing: 6) {
                 if metric != nil || prioritizesStatus {
-                    Text(Self.spendReference(for: liveModel) ?? liveModel.subtitleText)
+                    Text(Self.compactSpendText(for: liveModel))
                         .lineLimit(1)
                         .truncationMode(.tail)
                 }
@@ -117,8 +253,60 @@ struct OverviewMenuCardRowView: View {
         .frame(minHeight: Self.rowHeight(for: self.dynamicTypeSize), alignment: .leading)
     }
 
+    private func compactContent(
+        liveModel: UsageMenuCardView.Model,
+        liveSubtitle: MenuCardLiveSubtitle,
+        metric: UsageMenuCardView.Model.Metric?,
+        prioritizesStatus: Bool) -> some View
+    {
+        VStack(alignment: .leading, spacing: 5) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text(liveModel.providerName)
+                    .font(.subheadline.weight(.semibold))
+                    .lineLimit(self.dynamicTypeSize.isAccessibilitySize ? 2 : 1)
+                if !liveModel.email.isEmpty {
+                    Text(liveModel.email)
+                        .font(.caption)
+                        .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
+                        .lineLimit(self.dynamicTypeSize.isAccessibilitySize ? 2 : 1)
+                        .truncationMode(.middle)
+                }
+                Spacer(minLength: 6)
+            }
+
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                if prioritizesStatus {
+                    Text(liveSubtitle.text)
+                        .foregroundStyle(self.subtitleColor(for: liveSubtitle.style))
+                } else if let metric {
+                    let title = UsageMenuCardView.popupMetricTitle(provider: liveModel.provider, metric: metric)
+                    Text(metric.linePresentation(title: title).titleText)
+                } else {
+                    Text(liveSubtitle.text)
+                }
+                Spacer(minLength: 8)
+                Text(Self.compactSpendText(for: liveModel))
+                    .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
+            }
+            .font(.caption)
+            .lineLimit(self.dynamicTypeSize.isAccessibilitySize ? 2 : 1)
+        }
+        .padding(.horizontal, UsageMenuCardLayout.horizontalPadding)
+        .padding(.vertical, 6)
+        .frame(width: self.width, alignment: .leading)
+        .frame(
+            minHeight: self.dynamicTypeSize.isAccessibilitySize
+                ? Self.accessibilityRowHeight
+                : Self.compactRowHeight,
+            alignment: .leading)
+    }
+
     static func primaryMetric(for model: UsageMenuCardView.Model) -> UsageMenuCardView.Model.Metric? {
         model.metrics.first
+    }
+
+    static func compactSpendText(for model: UsageMenuCardView.Model) -> String {
+        self.spendReference(for: model) ?? L("Spend unavailable")
     }
 
     static func prioritizesStatus(for style: UsageMenuCardView.Model.SubtitleStyle) -> Bool {

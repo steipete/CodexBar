@@ -31,22 +31,63 @@ struct ShareStatsTests {
             subscriptionNames: subscriptionNames))
 
         #expect(payload.days == 30)
-        #expect(payload.totalTokens == nil)
+        #expect(payload.totalTokens == 500)
+        #expect(payload.totalTokensIsPartial)
         #expect(payload.currencies == [
             ShareStatsCurrencyPayload(currencyCode: "GBP", estimatedCost: 12, coveredDayCount: 10),
-            ShareStatsCurrencyPayload(currencyCode: "USD", estimatedCost: nil, coveredDayCount: 0),
+            ShareStatsCurrencyPayload(currencyCode: "USD", estimatedCost: 4, coveredDayCount: 0, isPartial: true),
         ])
         #expect(payload.providers.map(\.providerName) == ["Claude", "Codex · #1", "Cursor"])
         #expect(payload.providers.map(\.subscriptionName) == ["Max", "Pro 20x", "Cursor Pro"])
         #expect(payload.providers.last?.estimatedCost == nil)
+        #expect(payload.spendReportingProviderCount == 2)
         #expect(payload.topModels.map(\.modelName).prefix(2) == ["Claude", "GPT"])
 
         let text = ShareStatsFormatting.text(payload)
         #expect(text.contains("GBP: £12.00 estimated · coverage 10/30 days"))
         #expect(text.contains("Claude · Max: 300 tokens · ~£12.00 est · 10/30 days"))
-        #expect(text.contains("USD: Spend unavailable · coverage 0/30 days"))
+        #expect(text.contains("USD: ~$4.00 estimated · coverage 0/30 days"))
         #expect(text.contains("Cursor · Cursor Pro: Spend unavailable"))
+        #expect(text.contains("2/3 connected services report spend"))
         #expect(!text.contains("£12.00 +"))
+    }
+
+    @Test
+    func `overview roster keeps every connected service in the flex card`() throws {
+        let roster = [
+            ShareStatsProviderRosterEntry(provider: .codex, providerName: "Codex", currencyCode: "USD"),
+            ShareStatsProviderRosterEntry(provider: .claude, providerName: "Claude", currencyCode: "USD"),
+            ShareStatsProviderRosterEntry(provider: .openrouter, providerName: "OpenRouter", currencyCode: "USD"),
+            ShareStatsProviderRosterEntry(provider: .gemini, providerName: "Gemini", currencyCode: "USD"),
+            ShareStatsProviderRosterEntry(provider: .grok, providerName: "Grok", currencyCode: "USD"),
+            ShareStatsProviderRosterEntry(provider: .cursor, providerName: "Cursor", currencyCode: "USD"),
+        ]
+        let payload = try #require(ShareStatsBuilder.make(model: Self.dashboard, providerRoster: roster))
+
+        #expect(payload.providers.map(\.provider) == roster.map(\.provider))
+        #expect(payload.providers.count == 6)
+        #expect(payload.spendReportingProviderCount == 2)
+        #expect(payload.providers.last?.estimatedCost == nil)
+        #expect(payload.totalTokens == 500)
+        #expect(payload.totalTokensIsPartial)
+        #expect(payload.currencies.allSatisfy(\.isPartial))
+        #expect(ShareStatsFormatting.text(payload).contains("~500 tracked tokens"))
+        #expect(ShareStatsFormatting.text(payload).contains("2/6 connected services report spend"))
+    }
+
+    @Test
+    func `twenty connected services remain accounted for without overflowing the flex card`() throws {
+        let roster = Array(UsageProvider.allCases.prefix(20)).map { provider in
+            ShareStatsProviderRosterEntry(
+                provider: provider,
+                providerName: ProviderDefaults.metadata[provider]?.displayName ?? provider.rawValue,
+                currencyCode: "USD")
+        }
+        let payload = try #require(ShareStatsBuilder.make(model: Self.dashboard, providerRoster: roster))
+
+        #expect(roster.count == 20)
+        #expect(payload.providers.count == 20)
+        #expect(ShareStatsCardView.providerDisplayLimit(for: payload.providers.count) == 4)
     }
 
     @Test
@@ -309,6 +350,7 @@ struct ShareStatsTests {
         #expect(ShareStatsCardView.providerDisplayLimit(for: 5) == 5)
         #expect(ShareStatsCardView.providerDisplayLimit(for: 6) == 4)
         #expect(ShareStatsCardView.providerDisplayLimit(for: 12) == 4)
+        #expect(ShareStatsCardView.providerDisplayLimit(for: 20) == 4)
     }
 
     @Test @MainActor
