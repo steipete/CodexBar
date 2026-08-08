@@ -17,6 +17,9 @@ enum ProviderPluginSnapshotMapper {
         let tertiary = try self.window(value, property: "tertiary")
         let extraRateWindows = try self.extraWindows(value)
         let providerCost = try self.cost(value, now: now)
+        let openRouterActivityUsage = provider == .openrouter
+            ? self.openRouterActivityUsage(value, now: now)
+            : nil
         let details = try self.details(value)
         let identity = try self.identity(value, provider: provider)
         let subscriptionRenewsAt = try self.optionalDate(value, property: "subscriptionRenewsAt")
@@ -37,11 +40,61 @@ enum ProviderPluginSnapshotMapper {
             extraRateWindows: extraRateWindows,
             providerCost: providerCost,
             details: details,
+            openRouterActivityUsage: openRouterActivityUsage,
             subscriptionExpiresAt: subscriptionExpiresAt,
             subscriptionRenewsAt: subscriptionRenewsAt,
             updatedAt: now,
             identity: identity,
             dataConfidence: dataConfidence)
+    }
+
+    /// Activity is an optional management-key enrichment. Malformed or unsupported
+    /// activity must not invalidate an otherwise healthy provider snapshot.
+    private static func openRouterActivityUsage(
+        _ root: any ProviderPluginValue,
+        now: Date) -> OpenRouterActivityUsageSnapshot?
+    {
+        guard let value = root.property("openRouterActivityUsage"),
+              value.isObject,
+              !value.isArray,
+              !value.isNull,
+              let rows = value.property("data"),
+              rows.isArray,
+              let rawCount = rows.property("length")?.int32Value(),
+              rawCount >= 0,
+              rawCount <= 10_000
+        else { return nil }
+
+        do {
+            let items: [[String: Any]] = try (0..<Int(rawCount)).map { index in
+                guard let row = rows.element(at: index), row.isObject, !row.isArray else {
+                    throw ProviderPluginError.invalidSnapshot("openRouterActivityUsage.data must contain objects")
+                }
+                let path = "openRouterActivityUsage.data[\(index)]"
+                return [
+                    "date": try self.requiredString(row, property: "date", path: path),
+                    "model": try self.requiredString(row, property: "model", path: path),
+                    "prompt_tokens": try self.requiredNonnegativeInteger(
+                        row,
+                        property: "prompt_tokens",
+                        path: path),
+                    "completion_tokens": try self.requiredNonnegativeInteger(
+                        row,
+                        property: "completion_tokens",
+                        path: path),
+                    "reasoning_tokens": try self.requiredNonnegativeInteger(
+                        row,
+                        property: "reasoning_tokens",
+                        path: path),
+                    "requests": try self.requiredNonnegativeInteger(row, property: "requests", path: path),
+                    "usage": try self.requiredNonnegativeNumber(row, property: "usage", path: path),
+                ]
+            }
+            let data = try JSONSerialization.data(withJSONObject: ["data": items])
+            return try OpenRouterActivityUsageSnapshot(data: data, now: now)
+        } catch {
+            return nil
+        }
     }
 
     private static func dataConfidence(_ root: any ProviderPluginValue) throws -> UsageDataConfidence {
@@ -289,6 +342,30 @@ enum ProviderPluginSnapshotMapper {
             throw ProviderPluginError.invalidSnapshot("\(path).\(property) must be a positive integer")
         }
         return Int(number)
+    }
+
+    private static func requiredNonnegativeInteger(
+        _ value: any ProviderPluginValue,
+        property: String,
+        path: String) throws -> Int
+    {
+        let number = try self.requiredFiniteNumber(value, property: property, path: path)
+        guard number.rounded() == number, number >= 0, number <= Double(Int.max) else {
+            throw ProviderPluginError.invalidSnapshot("\(path).\(property) must be a nonnegative integer")
+        }
+        return Int(number)
+    }
+
+    private static func requiredNonnegativeNumber(
+        _ value: any ProviderPluginValue,
+        property: String,
+        path: String) throws -> Double
+    {
+        let number = try self.requiredFiniteNumber(value, property: property, path: path)
+        guard number >= 0 else {
+            throw ProviderPluginError.invalidSnapshot("\(path).\(property) must be nonnegative")
+        }
+        return number
     }
 
     private static func requiredString(

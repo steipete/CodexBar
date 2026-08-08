@@ -39,7 +39,8 @@ struct OpenRouterProviderImplementation: ProviderImplementation {
                 title: "API key",
                 subtitle: "Stored in ~/.codexbar/config.json. "
                     + "Get your key from openrouter.ai/settings/keys and set a key spending limit "
-                    + "there to enable API key quota tracking.",
+                    + "there to enable API key quota tracking. A Management API key also enables "
+                    + "per-model spend and token history for the last 30 completed UTC days.",
                 kind: .secure,
                 placeholder: "sk-or-v1-...",
                 binding: context.providerConfigBinding(.apiKey),

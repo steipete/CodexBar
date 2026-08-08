@@ -597,7 +597,10 @@ struct SpendDashboardModel: Equatable, Sendable {
         displayCalendar: Calendar) -> ClosedRange<Date>
     {
         let bucketCalendar = Self.bucketCalendar(for: input.provider, displayCalendar: displayCalendar)
-        let bucketEnd = bucketCalendar.startOfDay(for: input.snapshot.updatedAt)
+        let snapshotDay = bucketCalendar.startOfDay(for: input.snapshot.updatedAt)
+        let bucketEnd = input.provider == .openrouter
+            ? bucketCalendar.date(byAdding: .day, value: -1, to: snapshotDay) ?? snapshotDay
+            : snapshotDay
         let scanEnd = displayCalendar.startOfDay(for: bucketEnd)
         let scanDays = max(1, input.snapshot.historyDays)
         let bucketStart = bucketCalendar.date(byAdding: .day, value: -(scanDays - 1), to: bucketEnd) ?? bucketEnd
@@ -652,9 +655,9 @@ struct SpendDashboardModel: Equatable, Sendable {
     }
 
     private static func bucketCalendar(for provider: UsageProvider, displayCalendar: Calendar) -> Calendar {
-        guard provider == .mistral else { return displayCalendar }
-        // Mistral labels both daily buckets and snapshot coverage by UTC day. Map each UTC boundary into the
-        // containing local dashboard day instead of reinterpreting the label as a local date.
+        guard provider == .mistral || provider == .openrouter else { return displayCalendar }
+        // Mistral and OpenRouter label daily buckets and snapshot coverage by UTC day. Map each UTC boundary
+        // into the containing local dashboard day instead of reinterpreting the label as a local date.
         return self.gregorianCalendar(timeZone: TimeZone(secondsFromGMT: 0) ?? .gmt)
     }
 

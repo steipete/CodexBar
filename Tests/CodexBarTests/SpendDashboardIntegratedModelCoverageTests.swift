@@ -32,6 +32,7 @@ struct SpendDashboardIntegratedModelCoverageTests {
             .cursor,
             .mistral,
             .openai,
+            .openrouter,
             .opencodego,
             .vertexai,
         ])
