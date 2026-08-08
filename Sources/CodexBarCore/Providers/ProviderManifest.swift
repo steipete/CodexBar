@@ -72,5 +72,6 @@ public enum ProviderManifest {
         ZoomMateProviderDescriptor.descriptor,
         XAIProviderDescriptor.descriptor,
         NotionProviderDescriptor.descriptor,
+        IBMBobProviderDescriptor.descriptor,
     ]
 }

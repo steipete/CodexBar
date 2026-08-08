@@ -70,6 +70,7 @@ extension ProviderInstanceID {
     public static let zoommate = UsageProvider.zoommate.instanceID
     public static let xai = UsageProvider.xai.instanceID
     public static let notion = UsageProvider.notion.instanceID
+    public static let ibmbob = UsageProvider.ibmbob.instanceID
 }
 
 // swiftformat:enable sortDeclarations

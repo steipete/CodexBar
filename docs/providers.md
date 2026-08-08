@@ -8,7 +8,7 @@ read_when:
 
 # Providers
 
-CodexBar currently registers 67 provider IDs. Some companies expose multiple surfaces, such as Codex vs OpenAI API or
+CodexBar currently registers 68 provider IDs. Some companies expose multiple surfaces, such as Codex vs OpenAI API or
 OpenCode vs OpenCode Go, because the auth source and quota shape differ.
 
 ## Fetch strategies (current)
@@ -97,6 +97,7 @@ scan fails, while provider/account configuration changes replace obsolete result
 | xAI | Management key + team ID from config/env → prepaid balance and 30-day daily spend from the Management API (`api`). |
 | Zed | Zed editor Keychain session → `cloud.zed.dev/client/users/me` for plan and quota data (`local`). |
 | Notion AI | Browser cookies → workspace resolution and the AI usage allowance API (`web`). |
+| IBM Bob | API key from config/env → profile and per-team Bobcoin budget APIs (`api`). |
 
 ## Codex
 - App Auto: OAuth API first; falls back to CLI only when OAuth credentials are missing or auth/refresh is invalid.

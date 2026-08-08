@@ -1,0 +1,23 @@
+<svg id="Bob" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <defs>
+    <linearGradient id="helmetShade" x1="0" y1="0" x2="1" y2="0">
+      <stop offset=".134" stop-opacity="0"/>
+      <stop offset=".873"/>
+    </linearGradient>
+    <linearGradient id="bobGradient" x1="0" y1="32" x2="32" y2="0" gradientUnits="userSpaceOnUse">
+      <stop offset=".1" stop-color="#a16efb"/>
+      <stop offset=".9" stop-color="#0e61fa"/>
+    </linearGradient>
+    <mask id="helmetMask" x="0" y="0" width="32" height="32" maskUnits="userSpaceOnUse">
+      <path d="M29.718 15.25a13.67 13.67 0 0 0-9.991-12.476A1.747 1.747 0 0 0 18 1.25h-4c-.887 0-1.615.667-1.727 1.524A13.67 13.67 0 0 0 2.282 15.25H0v1.5h32v-1.5h-2.282zM12.25 4.337V13h1.5V3a.25.25 0 0 1 .25-.25h4a.25.25 0 0 1 .25.25v10h1.5V4.337a12.183 12.183 0 0 1 8.468 10.913H3.782A12.183 12.183 0 0 1 12.25 4.337z" fill="#fff"/>
+      <path d="M21 7v7H11V7h10z" fill="url(#helmetShade)"/>
+    </mask>
+  </defs>
+  <g mask="url(#helmetMask)">
+    <path fill="url(#bobGradient)" d="M0 0h32v32H0z"/>
+  </g>
+  <path d="M24 30.75H8a4.756 4.756 0 0 1-4.69-4H3c-.965 0-1.75-.785-1.75-1.75v-6h1.5v6c0 .138.112.25.25.25h1.75V26A3.254 3.254 0 0 0 8 29.25h16A3.254 3.254 0 0 0 27.25 26v-.75H29a.25.25 0 0 0 .25-.25v-6h1.5v6c0 .965-.785 1.75-1.75 1.75h-.31a4.756 4.756 0 0 1-4.69 4z" fill="#001d6c"/>
+  <circle cx="22" cy="21" r="2" fill="#001d6c"/>
+  <circle cx="10" cy="21" r="2" fill="#001d6c"/>
+  <path d="M16 27.75a5.695 5.695 0 0 1-3.451-1.15.75.75 0 0 1 .903-1.199c1.476 1.111 3.617 1.111 5.099 0a.75.75 0 1 1 .901 1.199 5.696 5.696 0 0 1-3.45 1.15z" fill="#001d6c"/>
+</svg>
