@@ -213,9 +213,10 @@ bound violation fails the entire fetch with its property path.
 
 ## Concurrency and execution limit
 
-Each runtime owns one engine context confined to a dedicated serial dispatch queue. Promise `then`/rejection callbacks
-converge on a lock-protected checked continuation gate, so network, timeout, and script completion can resume Swift
-exactly once. QuickJS's `JS_SetInterruptHandler` stops evaluation on that executor when the 20-second watchdog fires;
+Each runtime owns one engine context confined to a dedicated serial worker. QuickJS uses a 4 MiB native-stack thread,
+leaving guard-page margin beyond its 2 MiB JavaScript stack limit. Promise `then`/rejection callbacks converge on a
+lock-protected checked continuation gate, so network, timeout, and script completion can resume Swift exactly once.
+QuickJS's `JS_SetInterruptHandler` stops evaluation on that worker when the 20-second watchdog fires;
 the poisoned context is discarded and the next refresh creates a fresh one, which the hung-script recovery test proves.
 
 The same hard-interrupt watchdog is production-default for first-party cut-over providers. It is part of the shared

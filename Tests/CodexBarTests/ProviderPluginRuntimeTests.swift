@@ -524,6 +524,49 @@ struct ProviderPluginRuntimeTests {
     }
 
     @Test
+    func `QuickJS engine supports recursion beyond a dispatch worker stack`() async throws {
+        let runtime = try ProviderPluginRuntime(
+            source: Self.plugin(fetchBody: """
+            function recurse(depth) {
+              return depth <= 0 ? 0 : 1 + recurse(depth - 1);
+            }
+            return { primary: { usedPercent: recurse(200) } };
+            """),
+            engine: .quickJS)
+
+        let snapshot = try await runtime.fetchUsage(secrets: ["TEST_KEY": "secret"])
+
+        #expect(snapshot.primary?.usedPercent == 100)
+    }
+
+    @Test
+    func `QuickJS engine reports recursion beyond its JavaScript stack limit`() async throws {
+        let runtime = try ProviderPluginRuntime(
+            source: Self.plugin(fetchBody: """
+            function recurse(depth) {
+              return depth <= 0 ? 0 : 1 + recurse(depth - 1);
+            }
+            return { primary: { usedPercent: recurse(100000) } };
+            """),
+            engine: .quickJS)
+
+        do {
+            _ = try await runtime.fetchUsage(secrets: ["TEST_KEY": "secret"])
+            Issue.record("Expected stack overflow")
+        } catch let error as ProviderPluginError {
+            guard case let .script(message) = error else {
+                Issue.record("Unexpected plugin error: \(error)")
+                return
+            }
+            let normalizedMessage = message.lowercased()
+            #expect(normalizedMessage.contains("stack"))
+            #expect(normalizedMessage.contains("overflow") || normalizedMessage.contains("exceeded"))
+        } catch {
+            Issue.record("Unexpected error: \(error)")
+        }
+    }
+
+    @Test
     func `hung script times out and next fetch uses a fresh context`() async throws {
         let runtime = try ProviderPluginRuntime(
             source: Self.plugin(fetchBody: """

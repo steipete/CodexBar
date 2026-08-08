@@ -2,8 +2,6 @@ import CQuickJS
 import Foundation
 
 enum QuickJSTypeScriptTranspiler {
-    private static let nativeStackSizeBytes = 4 * 1024 * 1024
-
     static func transpile(source: String, sucraseSource: String) throws -> String {
         let box = QuickJSBlockingResult<String>()
         let thread = Thread {
@@ -12,7 +10,7 @@ enum QuickJSTypeScriptTranspiler {
             })
         }
         // Dispatch/Swift cooperative workers can have less native stack than QuickJS's 2 MiB limit.
-        thread.stackSize = self.nativeStackSizeBytes
+        thread.stackSize = QuickJSRuntimeLimits.nativeStackSizeBytes
         thread.name = "CodexBar QuickJS TypeScript transpiler"
         thread.start()
 
