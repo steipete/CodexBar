@@ -146,7 +146,28 @@ struct CLIServeRouterTests {
             try CLIServeRouter.route(
                 method: "GET",
                 path: "/dashboard/v1/snapshot",
-                queryItems: [:]) == .dashboardSnapshot)
+                queryItems: [:]) == .dashboardSnapshot(provider: nil, detail: nil))
+        #expect(
+            try CLIServeRouter.route(
+                method: "GET",
+                path: "/dashboard/v1/snapshot",
+                queryItems: ["provider": "claude"]) == .dashboardSnapshot(provider: "claude", detail: nil))
+        #expect(
+            try CLIServeRouter.route(
+                method: "GET",
+                path: "/dashboard/v1/snapshot",
+                queryItems: ["detail": "shell"]) == .dashboardSnapshot(provider: nil, detail: "shell"))
+        #expect(
+            try CLIServeRouter.route(
+                method: "GET",
+                path: "/dashboard/v1/snapshot",
+                queryItems: ["detail": "full"]) == .dashboardSnapshot(provider: nil, detail: "full"))
+        #expect(
+            try CLIServeRouter.route(
+                method: "GET",
+                path: "/dashboard/v1/snapshot",
+                queryItems: ["provider": "codex", "detail": "shell"]) ==
+                .dashboardSnapshot(provider: "codex", detail: "shell"))
     }
 
     @Test

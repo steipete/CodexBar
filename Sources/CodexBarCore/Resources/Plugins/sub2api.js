@@ -11,7 +11,7 @@ defineProvider({
     let base = ctx.settings.get("SUB2API_BASE_URL").replace(/\/+$/, "");
     if (!/\/v1(?:\/usage)?$/.test(base)) base += "/v1";
     if (!/\/usage$/.test(base)) base += "/usage";
-    const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+    const timezone = ctx.env.timeZone || "UTC";
     let response;
     try {
       response = await ctx.http.get(`${base}?days=30&timezone=${encodeURIComponent(timezone)}`, {
@@ -112,10 +112,10 @@ defineProvider({
     }
 
     const money = (value, valueUnit = "USD") => valueUnit.toUpperCase() === "USD"
-      ? `$${new Intl.NumberFormat("en-US", {
+      ? `$${ctx.format.number(value, {
         minimumFractionDigits: 2,
         maximumFractionDigits: 2,
-      }).format(value)}`
+      })}`
       : `${Number(value).toFixed(2)} ${valueUnit}`;
     const amount = (used, limit, valueUnit = "USD") =>
       `${money(used, valueUnit)} / ${money(limit, valueUnit)}`;
@@ -193,10 +193,10 @@ defineProvider({
       ["All time", totals(usage.total, "usage.total")],
     ]) {
       if (!value) continue;
-      rows.push({ label: `${title} requests`, value: new Intl.NumberFormat("en-US").format(value.requests) });
+      rows.push({ label: `${title} requests`, value: ctx.format.number(value.requests) });
       rows.push({
         label: `${title} tokens`,
-        value: new Intl.NumberFormat("en-US").format(value.tokens),
+        value: ctx.format.number(value.tokens),
         secondaryValue: money(value.cost),
       });
     }

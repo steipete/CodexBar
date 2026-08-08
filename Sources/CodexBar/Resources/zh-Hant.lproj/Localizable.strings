@@ -1457,3 +1457,6 @@
 "Enter every endpoint setting to review the exact network origins." = "請填寫所有端點設定，以檢視確切的網路來源。";
 "Approve" = "核准";
 "Install" = "安裝";
+"5-hour usage" = "5 小時用量";
+"7-day usage" = "7 天用量";
+"Total usage" = "總用量";

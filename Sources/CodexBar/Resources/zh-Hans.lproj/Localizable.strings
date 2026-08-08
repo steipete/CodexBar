@@ -1405,3 +1405,6 @@
 "Enter every endpoint setting to review the exact network origins." = "请填写所有端点设置，以查看确切的网络来源。";
 "Approve" = "批准";
 "Install" = "安装";
+"5-hour usage" = "5 小时用量";
+"7-day usage" = "7 天用量";
+"Total usage" = "总用量";

@@ -1426,3 +1426,6 @@
 "Enter every endpoint setting to review the exact network origins." = "Renseignez tous les paramètres des points de terminaison pour vérifier les origines réseau exactes.";
 "Approve" = "Approuver";
 "Install" = "Installer";
+"5-hour usage" = "Utilisation sur 5 heures";
+"7-day usage" = "Utilisation sur 7 jours";
+"Total usage" = "Utilisation totale";

@@ -256,7 +256,7 @@ extension StatusItemController {
         let showBrandPercent = self.settings.menuBarShowsBrandIconWithPercent
         let primaryProvider = self.primaryProviderForUnifiedIcon()
         let resolverStyle = self.store.style(for: primaryProvider)
-        let snapshot = self.store.snapshot(for: primaryProvider.instanceID)
+        let snapshot = self.store.menuBarSnapshot(for: primaryProvider.instanceID)
         let warningFlash = self.quotaWarningFlashActive(provider: primaryProvider)
 
         if let layoutResult = self.applyStoredUnifiedMenuBarLayoutIfNeeded(
@@ -474,7 +474,7 @@ extension StatusItemController {
     @discardableResult
     func applyIcon(for provider: UsageProvider, phase: Double?) -> Bool {
         guard let button = self.statusItems[provider.instanceID]?.button else { return false }
-        let snapshot = self.store.snapshot(for: provider.instanceID)
+        let snapshot = self.store.menuBarSnapshot(for: provider.instanceID)
         // IconRenderer treats these values as a left-to-right "progress fill" percentage; depending on the
         // user setting we pass either "percent left" or "percent used".
         let showUsed = self.settings.usageBarsShowUsed
@@ -1252,7 +1252,7 @@ extension StatusItemController {
     /// while pace/both render the one lane chosen by `combinedDisplayPercentWindow` — mirror that presentation
     /// here rather than scheduling whichever lane happened to drive the icon.
     func menuBarDisplayedResetDates(for provider: UsageProvider, now: Date) -> [Date] {
-        let snapshot = self.store.snapshot(for: provider.instanceID)
+        let snapshot = self.store.menuBarSnapshot(for: provider.instanceID)
         let layoutResolution = self.settings.menuBarLayoutResolution(for: provider)
         if !layoutResolution.usesLegacyRendering,
            self.settings.menuBarIconStyle == .iconAndPercent
@@ -1408,7 +1408,7 @@ extension StatusItemController {
             return selected
         }
         for provider in self.store.enabledFirstPartyProviders() {
-            if self.store.isEnabled(provider), self.store.snapshot(for: provider.instanceID) != nil {
+            if self.store.isEnabled(provider), self.store.menuBarSnapshot(for: provider.instanceID) != nil {
                 return provider
             }
         }

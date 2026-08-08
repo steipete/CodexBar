@@ -33,7 +33,7 @@ defineProvider({
     const resetDate = typeof reset === "number"
       ? (reset > 10000000000 ? ctx.date.unixMillis(reset) : ctx.date.unixSeconds(reset))
       : (reset ? ctx.date.iso(reset) : undefined);
-    const format = value => new Intl.NumberFormat("en-US", { maximumFractionDigits: Number.isInteger(value) ? 0 : 2 }).format(value);
+    const format = value => ctx.format.number(value, { maximumFractionDigits: Number.isInteger(value) ? 0 : 2 });
     return { primary: {
       usedPercent: Math.max(0, Math.min(100, percentage)), resetsAt: resetDate,
       resetDescription: `${format(used)} / ${format(total)} credits`,

@@ -69,7 +69,6 @@ public enum CrofProviderDescriptor {
     }
 
     private static func fetchPlan() -> ProviderFetchPlan {
-        #if canImport(JavaScriptCore)
         ProviderFetchPlan(
             sourceModes: [.auto, .api],
             pipeline: ProviderFetchPipeline(resolveStrategies: { _ in
@@ -84,16 +83,6 @@ public enum CrofProviderDescriptor {
                     },
                     isEnabled: { _ in true })]
             }))
-        #else
-        // Linux compatibility only. JavaScriptCore platforms use the bundled plugin above.
-        .apiToken(
-            strategyID: "crof.api",
-            resolveToken: { ProviderTokenResolver.token(for: .crof, environment: $0) },
-            missingCredentialsError: { CrofUsageError.missingCredentials },
-            loadUsage: { apiKey, _ in
-                try await CrofUsageFetcher.fetchUsage(apiKey: apiKey).toUsageSnapshot()
-            })
-        #endif
     }
 
     public static func primaryLabel(snapshot: UsageSnapshot) -> String {

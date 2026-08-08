@@ -50,14 +50,35 @@ struct MenuBarLayoutRenderOptions: Hashable {
     let showUsed: Bool
     let appearanceName: String
     let isDebugApp: Bool
-    /// Minute-granularity clock. Countdown tokens refresh without invalidating cached titles every tick.
+    /// Exact display clock. The cache keys on the resulting reset strings, so animation ticks that keep
+    /// the same visible countdown still reuse the cached title.
     let now: Date
 }
 
 struct MenuBarLayoutRenderKey: Hashable {
     let layout: MenuBarLayout
     let data: MenuBarLayoutRenderData
-    let options: MenuBarLayoutRenderOptions
+    let size: MenuBarLayoutSize
+    let highContrast: Bool
+    let showUsed: Bool
+    let appearanceName: String
+    let isDebugApp: Bool
+    let resetText: MenuBarLayoutResetText
+}
+
+struct MenuBarLayoutResetText: Hashable {
+    let countdown: String?
+    let absolute: String?
+
+    init(window: MenuBarLayoutRenderWindow?, now: Date) {
+        if let resetsAt = window?.resetsAt {
+            self.countdown = UsageFormatter.resetCountdownDescription(from: resetsAt, now: now)
+            self.absolute = UsageFormatter.resetDescription(from: resetsAt, now: now)
+        } else {
+            self.countdown = window?.resetDescription
+            self.absolute = window?.resetDescription
+        }
+    }
 }
 
 struct MenuBarLayoutRenderedTitle {
@@ -124,7 +145,16 @@ final class MenuBarLayoutRenderer {
         options: MenuBarLayoutRenderOptions)
         -> MenuBarLayoutRenderedTitle
     {
-        let key = MenuBarLayoutRenderKey(layout: layout, data: data, options: options)
+        let resetText = MenuBarLayoutResetText(window: data.automatic, now: options.now)
+        let key = MenuBarLayoutRenderKey(
+            layout: layout,
+            data: data,
+            size: options.size,
+            highContrast: options.highContrast,
+            showUsed: options.showUsed,
+            appearanceName: options.appearanceName,
+            isDebugApp: options.isDebugApp,
+            resetText: resetText)
         return self.cache.value(for: key) {
             Self.renderUncached(layout: layout, data: data, icon: icon, options: options)
         }

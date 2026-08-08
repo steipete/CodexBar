@@ -1427,3 +1427,6 @@
 "Enter every endpoint setting to review the exact network origins." = "Nhập đầy đủ các cài đặt điểm cuối để xem chính xác các nguồn mạng.";
 "Approve" = "Phê duyệt";
 "Install" = "Cài đặt";
+"5-hour usage" = "Mức sử dụng 5 giờ";
+"7-day usage" = "Mức sử dụng 7 ngày";
+"Total usage" = "Tổng mức sử dụng";

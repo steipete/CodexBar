@@ -121,7 +121,6 @@ public enum ZaiProviderDescriptor {
                 teamContext: settings?.teamContext,
                 environment: context.env).toUsageSnapshot()
         }
-        #if canImport(JavaScriptCore)
         return ProviderFetchPlan(
             sourceModes: [.auto, .api],
             pipeline: ProviderFetchPipeline(resolveStrategies: { context in
@@ -159,13 +158,6 @@ public enum ZaiProviderDescriptor {
                     swift,
                 ]
             }))
-        #else
-        return .apiToken(
-            strategyID: "zai.api",
-            resolveToken: { ProviderTokenResolver.token(for: .zai, environment: $0) },
-            missingCredentialsError: { ZaiSettingsError.missingToken },
-            loadUsage: loadUsage)
-        #endif
     }
 }
 

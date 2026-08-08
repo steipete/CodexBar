@@ -92,7 +92,7 @@ struct UsageStoreWidgetSnapshotTests {
                         resetDescription: nil)),
                 NamedRateWindow(
                     id: "kimi-monthly",
-                    title: "Monthly",
+                    title: "Total usage",
                     window: RateWindow(
                         usedPercent: 75,
                         windowMinutes: nil,
@@ -117,7 +117,7 @@ struct UsageStoreWidgetSnapshotTests {
         let entry = try #require(widgetSnapshots.last?.entries.first { $0.provider == .kimi })
         // Widgets preserve persisted lane order; menu-only presentation may reorder these lanes.
         #expect(entry.usageRows?.map(\.id) == ["primary", "secondary", "kimi-monthly", "kimi-code-7d"])
-        #expect(entry.usageRows?.map(\.title) == ["Weekly", "Rate Limit", "Monthly", "Code 7-day"])
+        #expect(entry.usageRows?.map(\.title) == ["7-day usage", "5-hour usage", "Total usage", "Code 7-day"])
         #expect(entry.usageRows?.compactMap(\.percentLeft) == [75, 50, 25, 90])
     }
 

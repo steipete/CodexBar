@@ -1394,3 +1394,6 @@
 "Enter every endpoint setting to review the exact network origins." = "정확한 네트워크 오리진을 검토하려면 모든 엔드포인트 설정을 입력하세요.";
 "Approve" = "승인";
 "Install" = "설치";
+"5-hour usage" = "5시간 사용량";
+"7-day usage" = "7일 사용량";
+"Total usage" = "총 사용량";

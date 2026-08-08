@@ -30,9 +30,9 @@ defineProvider({
       return number;
     }
     function compact(value) {
-      return new Intl.NumberFormat("en-US", {
+      return ctx.format.number(value, {
         maximumFractionDigits: value >= 1000 ? 0 : 1,
-      }).format(value);
+      });
     }
     function entryDate(value) {
       if (typeof value === "number" && Number.isFinite(value)) {

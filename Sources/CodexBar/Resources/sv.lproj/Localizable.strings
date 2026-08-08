@@ -1425,3 +1425,6 @@
 "Enter every endpoint setting to review the exact network origins." = "Ange alla slutpunktsinställningar för att granska de exakta ursprungsadresserna.";
 "Approve" = "Godkänn";
 "Install" = "Installera";
+"5-hour usage" = "5-timmarsanvändning";
+"7-day usage" = "7-dagarsanvändning";
+"Total usage" = "Total användning";

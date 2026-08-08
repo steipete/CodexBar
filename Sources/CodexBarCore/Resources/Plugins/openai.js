@@ -31,10 +31,10 @@ defineProvider({
       return typeof value === "string" && value.trim() ? value.trim() : fallback;
     }
     function usd(value) {
-      return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(Math.max(0, value));
+      return ctx.format.usd(Math.max(0, value));
     }
     function numberText(value) {
-      return new Intl.NumberFormat("en-US", { maximumFractionDigits: 1 }).format(value);
+      return ctx.format.number(value, { maximumFractionDigits: 1 });
     }
     function queryURL(path, range, groupBy, page) {
       const query = [

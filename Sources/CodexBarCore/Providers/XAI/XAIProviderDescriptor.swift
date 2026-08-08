@@ -65,7 +65,6 @@ public enum XAIProviderDescriptor {
             sourceModes: [.auto, .api],
             pipeline: ProviderFetchPipeline(resolveStrategies: { context in
                 let swift = XAIAPIFetchStrategy()
-                #if canImport(JavaScriptCore)
                 guard ProviderPluginPrototype.isEnabled(environment: context.env) else { return [swift] }
                 return [
                     ScriptFetchStrategy(
@@ -83,9 +82,6 @@ public enum XAIProviderDescriptor {
                         }),
                     swift,
                 ]
-                #else
-                return [swift]
-                #endif
             }))
     }
 }

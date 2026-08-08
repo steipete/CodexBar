@@ -139,7 +139,7 @@ struct ProviderInlineDashboardModelTests {
             now: now))
 
         #expect(model.metrics.map(\.id) == ["secondary", "primary"])
-        #expect(model.metrics.map(\.title) == ["Rate Limit", "Weekly"])
+        #expect(model.metrics.map(\.title) == ["5-hour usage", "7-day usage"])
         #expect(model.metrics.map(\.detailLeftText) == ["11% in reserve", "25% in reserve"])
         #expect(model.metrics.map(\.detailRightText) == ["Lasts until reset", "Lasts until reset"])
         #expect(model.metrics.allSatisfy { $0.pacePercent != nil })

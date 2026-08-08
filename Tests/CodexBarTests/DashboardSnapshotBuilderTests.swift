@@ -84,7 +84,7 @@ struct DashboardSnapshotBuilderTests {
     }
 
     @Test
-    func `producer keeps stable order redaction and partial errors`() async throws {
+    func `producer defaults to full identity and keeps stable order and partial errors`() async throws {
         let generatedAt = Date(timeIntervalSince1970: 1_800_000_000)
         let healthy = self.identityPayload(email: "user@example.com")
         let failed = ProviderPayload(
@@ -125,11 +125,78 @@ struct DashboardSnapshotBuilderTests {
         let claudeDisplay = try #require(providers[1]["display"] as? [String: Any])
 
         #expect(providers.compactMap { $0["id"] as? String } == ["codex", "claude"])
-        #expect(identity["accountEmail"] as? String == "redacted@example.com")
+        #expect(identity["accountEmail"] as? String == "user@example.com")
         #expect(error["message"] as? String == "temporary failure")
         #expect(codexDisplay["sortKey"] as? Int == 10)
         #expect(claudeDisplay["sortKey"] as? Int == 0)
         #expect(object["generatedAt"] as? String == "2027-01-15T08:00:00Z")
+    }
+
+    @Test
+    func `producer provider filter collects and returns exactly one row`() async throws {
+        let recorder = DashboardProviderSelectionRecorder()
+        let producer = DashboardSnapshotProducer(
+            collectUsage: { providers in
+                await recorder.recordUsage(providers)
+                var output = UsageCommandOutput()
+                output.payload = providers.map { provider in
+                    ProviderPayload(
+                        provider: provider,
+                        account: nil,
+                        version: nil,
+                        source: "test",
+                        status: nil,
+                        usage: nil,
+                        credits: nil,
+                        antigravityPlanInfo: nil,
+                        openaiDashboard: nil,
+                        error: nil)
+                }
+                return output
+            },
+            collectCost: { providers, _ in
+                await recorder.recordCost(providers)
+                return []
+            },
+            now: { Date(timeIntervalSince1970: 0) })
+        let config = CodexBarConfig(providers: [
+            ProviderConfig(id: .claude, enabled: true),
+            ProviderConfig(id: .codex, enabled: true),
+        ])
+
+        let result = try await producer.collect(
+            config: config,
+            refreshInterval: 60,
+            codexBarVersion: nil,
+            providers: [.codex])
+        let object = try self.jsonObject(result.payload)
+        let providers = try #require(object["providers"] as? [[String: Any]])
+
+        #expect(providers.compactMap { $0["id"] as? String } == ["codex"])
+        #expect(await recorder.usageProviders() == [.codex])
+        #expect(await recorder.costProviders() == [.codex])
+    }
+
+    @Test
+    func `shell builder emits config fields only without fetch collaborators`() throws {
+        let config = CodexBarConfig(providers: [
+            ProviderConfig(id: .claude, enabled: true),
+            ProviderConfig(id: .codex, enabled: true),
+            ProviderConfig(id: .gemini, enabled: false),
+        ])
+        let snapshot = DashboardSnapshotBuilder.makeShellSnapshot(
+            config: config,
+            generatedAt: Date(timeIntervalSince1970: 0),
+            refreshInterval: 300,
+            codexBarVersion: "9.8.7")
+        let object = try self.jsonObject(snapshot)
+        let providers = try #require(object["providers"] as? [[String: Any]])
+
+        #expect(object["schemaVersion"] as? Int == 1)
+        #expect(providers.compactMap { $0["id"] as? String } == ["claude", "codex"])
+        #expect(providers.allSatisfy { Set($0.keys) == ["id", "name", "enabled", "display"] })
+        #expect((providers[0]["display"] as? [String: Any])?["sortKey"] as? Int == 0)
+        #expect((providers[1]["display"] as? [String: Any])?["sortKey"] as? Int == 10)
     }
 
     private func costCollectionContext() -> ServeCostCollectionContext {
@@ -372,6 +439,50 @@ struct DashboardSnapshotBuilderTests {
     }
 
     @Test
+    func `claude swap account keeps email when usage fetch fails`() throws {
+        let snapshot = self.claudeSwapSnapshot(
+            number: 1,
+            email: "stale@example.com",
+            usageStatus: .tokenExpired,
+            identityMode: .full)
+        let account = try self.firstClaudeSwapAccount(snapshot)
+        let identity = try #require(account["identity"] as? [String: Any])
+
+        #expect(identity["accountEmail"] as? String == "stale@example.com")
+        #expect(account["label"] as? String == "stale@example.com")
+        #expect((account["windows"] as? [Any])?.isEmpty == true)
+    }
+
+    @Test
+    func `claude swap failed account redacts email in identity and label`() throws {
+        let snapshot = self.claudeSwapSnapshot(
+            number: 4,
+            email: "private-person@example.com",
+            usageStatus: .noCredentials,
+            identityMode: .redacted)
+        let account = try self.firstClaudeSwapAccount(snapshot)
+        let identity = try #require(account["identity"] as? [String: Any])
+        let encoded = try #require(CodexBarCLI.encodeJSON(snapshot, pretty: false))
+
+        #expect(identity["accountEmail"] as? String == "redacted@example.com")
+        #expect(account["label"] as? String == "redacted@example.com")
+        #expect(!encoded.contains("private-person"))
+    }
+
+    @Test
+    func `claude swap placeholder label stays a slot label without identity`() throws {
+        let snapshot = self.claudeSwapSnapshot(
+            number: 7,
+            email: "",
+            usageStatus: .unavailable,
+            identityMode: .full)
+        let account = try self.firstClaudeSwapAccount(snapshot)
+
+        #expect(account["label"] as? String == "Account 7")
+        #expect(account["identity"] is NSNull)
+    }
+
+    @Test
     func `dashboard redaction keeps only the final email domain`() throws {
         let snapshot = DashboardSnapshotBuilder.makeSnapshot(
             usagePayloads: [self.identityPayload(email: #""foo@bar"@example.com"#)],
@@ -561,6 +672,39 @@ struct DashboardSnapshotBuilderTests {
             error: nil)
     }
 
+    private func claudeSwapSnapshot(
+        number: Int,
+        email: String,
+        usageStatus: ClaudeSwapUsageStatus,
+        identityMode: DashboardIdentityMode) -> DashboardSnapshotPayload
+    {
+        // Provider-specific by design: these fixtures cover claude-swap labels without usage snapshots.
+        let account = ClaudeSwapAccountProjection.accountSnapshots(from: ClaudeSwapAccountList(
+            activeAccountNumber: number,
+            accounts: [ClaudeSwapAccountRow(
+                number: number,
+                email: email,
+                isActive: true,
+                usageStatus: usageStatus,
+                fiveHour: nil,
+                sevenDay: nil)]))
+        return DashboardSnapshotBuilder.makeSnapshot(
+            usagePayloads: [self.identityPayload(email: "ambient@example.com")],
+            costPayloads: [],
+            config: CodexBarConfig(providers: [ProviderConfig(id: .claude, enabled: true)]),
+            identityMode: identityMode,
+            generatedAt: Date(timeIntervalSince1970: 0),
+            refreshInterval: 60,
+            codexBarVersion: nil,
+            claudeSwap: DashboardClaudeSwapInput(accounts: account, adapterError: nil, weeklyWorkDays: nil))
+    }
+
+    private func firstClaudeSwapAccount(_ snapshot: DashboardSnapshotPayload) throws -> [String: Any] {
+        let object = try self.jsonObject(snapshot)
+        let provider = try #require((object["providers"] as? [[String: Any]])?.first)
+        return try #require((provider["accounts"] as? [[String: Any]])?.first)
+    }
+
     private func firstIdentity(_ snapshot: DashboardSnapshotPayload) -> [String: Any]? {
         guard let object = try? self.jsonObject(snapshot) else { return nil }
         let provider = (object["providers"] as? [[String: Any]])?.first
@@ -623,5 +767,26 @@ private actor DashboardCostConfigRecorder {
 
     func call() -> Call? {
         self.recordedCall
+    }
+}
+
+private actor DashboardProviderSelectionRecorder {
+    private var usage: [UsageProvider] = []
+    private var cost: [UsageProvider] = []
+
+    func recordUsage(_ providers: [UsageProvider]) {
+        self.usage = providers
+    }
+
+    func recordCost(_ providers: [UsageProvider]) {
+        self.cost = providers
+    }
+
+    func usageProviders() -> [UsageProvider] {
+        self.usage
+    }
+
+    func costProviders() -> [UsageProvider] {
+        self.cost
     }
 }

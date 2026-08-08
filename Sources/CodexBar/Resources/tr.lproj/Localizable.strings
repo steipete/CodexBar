@@ -1428,3 +1428,6 @@
 "Enter every endpoint setting to review the exact network origins." = "Kullanılacak ağ kaynaklarını tam olarak incelemek için tüm uç nokta ayarlarını girin.";
 "Approve" = "Onayla";
 "Install" = "Yükle";
+"5-hour usage" = "5 saatlik kullanım";
+"7-day usage" = "7 günlük kullanım";
+"Total usage" = "Toplam kullanım";

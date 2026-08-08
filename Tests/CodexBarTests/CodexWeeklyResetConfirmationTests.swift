@@ -312,6 +312,119 @@ struct CodexWeeklyResetConfirmationTests {
     }
 
     @Test
+    func `consumed reset credit omitted by provider confirms an early manual weekly reset`() throws {
+        let formatter = ISO8601DateFormatter()
+        let previousCapturedAt = try #require(formatter.date(from: "2026-08-06T09:28:18Z"))
+        let previousReset = try #require(formatter.date(from: "2026-08-10T01:00:26Z"))
+        let initialCapturedAt = try #require(formatter.date(from: "2026-08-06T09:33:18Z"))
+        let initialReset = try #require(formatter.date(from: "2026-08-13T09:33:18Z"))
+        let previous = self.snapshot(
+            capturedAt: previousCapturedAt,
+            weeklyUsed: 99,
+            weeklyReset: previousReset,
+            resetCredits: self.resetCredits(
+                status: .available,
+                capturedAt: previousCapturedAt))
+        let initial = self.snapshot(
+            capturedAt: initialCapturedAt,
+            weeklyUsed: 0,
+            weeklyReset: initialReset,
+            resetCredits: self.emptyResetCredits(capturedAt: initialCapturedAt))
+        let confirmationCapturedAt = initialCapturedAt.addingTimeInterval(30)
+        let confirmation = self.snapshot(
+            capturedAt: confirmationCapturedAt,
+            weeklyUsed: 0,
+            weeklyReset: initialReset.addingTimeInterval(30),
+            resetCredits: self.emptyResetCredits(capturedAt: confirmationCapturedAt))
+
+        #expect(
+            CodexWeeklyResetConfirmation.initialDecision(previous: previous, initial: initial)
+                == .requiresConfirmation)
+        #expect(
+            CodexWeeklyResetConfirmation.confirmationDecision(
+                previous: previous,
+                initial: initial,
+                confirmation: confirmation)
+                == .publishConfirmation)
+    }
+
+    @Test
+    func `one missing reset credit inventory does not confirm an early manual weekly reset`() throws {
+        let formatter = ISO8601DateFormatter()
+        let previousCapturedAt = try #require(formatter.date(from: "2026-08-06T09:28:18Z"))
+        let previousReset = try #require(formatter.date(from: "2026-08-10T01:00:26Z"))
+        let initialCapturedAt = try #require(formatter.date(from: "2026-08-06T09:33:18Z"))
+        let initialReset = try #require(formatter.date(from: "2026-08-13T09:33:18Z"))
+        let previousCredits = self.resetCredits(
+            status: .available,
+            capturedAt: previousCapturedAt)
+        let previous = self.snapshot(
+            capturedAt: previousCapturedAt,
+            weeklyUsed: 99,
+            weeklyReset: previousReset,
+            resetCredits: previousCredits)
+        let initial = self.snapshot(
+            capturedAt: initialCapturedAt,
+            weeklyUsed: 0,
+            weeklyReset: initialReset,
+            resetCredits: previousCredits)
+        let confirmationCapturedAt = initialCapturedAt.addingTimeInterval(30)
+        let confirmation = self.snapshot(
+            capturedAt: confirmationCapturedAt,
+            weeklyUsed: 0,
+            weeklyReset: initialReset.addingTimeInterval(30),
+            resetCredits: self.emptyResetCredits(capturedAt: confirmationCapturedAt))
+
+        #expect(
+            CodexWeeklyResetConfirmation.confirmationDecision(
+                previous: previous,
+                initial: initial,
+                confirmation: confirmation)
+                == .preservePrevious)
+    }
+
+    @Test
+    func `expired omitted reset credit does not confirm an early manual weekly reset`() throws {
+        let formatter = ISO8601DateFormatter()
+        let previousCapturedAt = try #require(formatter.date(from: "2026-08-06T09:28:18Z"))
+        let previousReset = try #require(formatter.date(from: "2026-08-10T01:00:26Z"))
+        let initialCapturedAt = try #require(formatter.date(from: "2026-08-06T09:33:18Z"))
+        let initialReset = try #require(formatter.date(from: "2026-08-13T09:33:18Z"))
+        let confirmationCapturedAt = initialCapturedAt.addingTimeInterval(30)
+
+        for expiresAt in [
+            initialCapturedAt.addingTimeInterval(-1),
+            initialCapturedAt.addingTimeInterval(15),
+        ] {
+            let previous = self.snapshot(
+                capturedAt: previousCapturedAt,
+                weeklyUsed: 99,
+                weeklyReset: previousReset,
+                resetCredits: self.resetCredits(
+                    status: .available,
+                    capturedAt: previousCapturedAt,
+                    expiresAt: expiresAt))
+            let initial = self.snapshot(
+                capturedAt: initialCapturedAt,
+                weeklyUsed: 0,
+                weeklyReset: initialReset,
+                resetCredits: self.emptyResetCredits(capturedAt: initialCapturedAt))
+            let confirmation = self.snapshot(
+                capturedAt: confirmationCapturedAt,
+                weeklyUsed: 0,
+                weeklyReset: initialReset.addingTimeInterval(30),
+                resetCredits: self.emptyResetCredits(capturedAt: confirmationCapturedAt))
+
+            #expect(
+                CodexWeeklyResetConfirmation.confirmationDecision(
+                    previous: previous,
+                    initial: initial,
+                    confirmation: confirmation)
+                    == .preservePrevious)
+        }
+    }
+
+    @Test
     func `prior boundary due tolerance includes the exact two minute edge`() {
         let previousBoundary = self.resetAt
         let nextBoundary = previousBoundary.addingTimeInterval(7 * 24 * 60 * 60)
@@ -522,7 +635,8 @@ struct CodexWeeklyResetConfirmationTests {
 
     private func resetCredits(
         status: CodexRateLimitResetCreditStatus,
-        capturedAt: Date) -> CodexRateLimitResetCreditsSnapshot
+        capturedAt: Date,
+        expiresAt: Date? = nil) -> CodexRateLimitResetCreditsSnapshot
     {
         CodexRateLimitResetCreditsSnapshot(
             credits: [CodexRateLimitResetCredit(
@@ -530,12 +644,19 @@ struct CodexWeeklyResetConfirmationTests {
                 resetType: "codex_rate_limits",
                 status: status,
                 grantedAt: capturedAt.addingTimeInterval(-24 * 60 * 60),
-                expiresAt: capturedAt.addingTimeInterval(24 * 60 * 60),
+                expiresAt: expiresAt ?? capturedAt.addingTimeInterval(24 * 60 * 60),
                 redeemStartedAt: status == .available ? nil : capturedAt,
                 redeemedAt: status == .redeemed ? capturedAt : nil,
                 title: nil,
                 description: nil)],
             availableCount: status == .available ? 1 : 0,
+            updatedAt: capturedAt)
+    }
+
+    private func emptyResetCredits(capturedAt: Date) -> CodexRateLimitResetCreditsSnapshot {
+        CodexRateLimitResetCreditsSnapshot(
+            credits: [],
+            availableCount: 0,
             updatedAt: capturedAt)
     }
 }

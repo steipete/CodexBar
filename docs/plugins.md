@@ -81,8 +81,10 @@ example, `acme-usage` and `API_KEY` use `CODEXBAR_PLUGIN_ACME_USAGE_API_KEY`.
 
 ## `ctx` API
 
-`ctx` exists only during `fetchUsage`. JavaScriptCore provides ECMAScript built-ins but no browser or Node environment;
-`fetch`, `XMLHttpRequest`, timers, `require`, `process`, and filesystem APIs are unavailable.
+`ctx` exists only during `fetchUsage`. CodexBar uses JavaScriptCore on Apple platforms and QuickJS on Linux; both
+provide ECMAScript built-ins but no browser or Node environment. `Intl` is engine-dependent and unavailable in QuickJS,
+so portable third-party plugins must use the host helpers below instead of ECMA-402. `fetch`, `XMLHttpRequest`, timers,
+`require`, `process`, and filesystem APIs are unavailable.
 
 - `await ctx.http.getJSON(url, opts?)` performs GET and returns `{status, headers, json}`.
 - `await ctx.http.get(url, opts?)` performs GET and returns `{status, headers, bodyText}`.
@@ -104,6 +106,9 @@ example, `acme-usage` and `API_KEY` use `CODEXBAR_PLUGIN_ACME_USAGE_API_KEY`.
   24 hours.
 - `ctx.date.iso(text)`, `unixSeconds(number)`, and `unixMillis(number)` create JavaScript dates.
 - `ctx.date.nextDailyReset(timeZoneIdentifier, hour)` returns the next wall-clock reset in an IANA time zone.
+- `ctx.env.timeZone` is the host's current IANA time-zone identifier; zero-offset GMT aliases are normalized to `UTC`.
+- `ctx.format.number(value, options?)`, `usd(value)`, and `monthDay(date)` provide deterministic formatting on both
+  engines. Number options support `minimumFractionDigits` and `maximumFractionDigits`.
 - `ctx.jwt.decode(token)` decodes (but does not authenticate) a JWT JSON payload.
 - `ctx.pct(used, limit)` returns a finite percentage clamped to 0–100; non-positive limits map to 100.
 
@@ -114,6 +119,9 @@ response bytes are capped at 1 MiB. Request URLs must match a declared, approved
 Bundled first-party providers that have cut over to JavaScript use the shared runtime's 20-second hung-script watchdog.
 A timeout fails that refresh and discards the poisoned worker so the next refresh starts with a fresh context; this is
 production-default and does not depend on `CODEXBAR_JS_PROVIDERS`.
+On Linux, QuickJS enforces the watchdog in-engine with `JS_SetInterruptHandler`, caps the runtime heap at 64 MiB, and
+caps the JavaScript stack at 2 MiB. The interrupt terminates evaluation on its confined thread; timed-out scripts do not
+leave an abandoned evaluation thread behind.
 
 ## Snapshot result
 
@@ -182,7 +190,7 @@ verify every origin, and avoid installing files from untrusted repositories. App
 authority; DNS changes after approval are outside CodexBar's threat model. Secrets are never placed in URLs or logged,
 redirects cannot forward authentication, and undeclared settings/cookies/origins fail closed.
 
-Plugins support the macOS app and macOS CLI only. They are excluded from widgets and all built-in-provider-only
+Plugins support the macOS app plus the macOS and Linux CLIs. They are excluded from widgets and all built-in-provider-only
 surfaces (status feeds, token accounts, OAuth, browser automation, storage probes, local cost scanners, and provider
 specific payloads). Rendering is limited to generic snapshots and declarative details. There are no remote catalogs,
 downloaded plugins/assets, custom SVGs, imports, arbitrary local I/O, or compatibility fallback from an unknown ID to a

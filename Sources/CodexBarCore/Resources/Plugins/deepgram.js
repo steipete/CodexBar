@@ -122,11 +122,11 @@ defineProvider({
       for (const field of Object.keys(totals)) totals[field] += payload[field];
     }
 
-    const decimal = value => new Intl.NumberFormat("en-US", {
+    const decimal = value => ctx.format.number(value, {
       minimumFractionDigits: value === Math.floor(value) ? 0 : 1,
       maximumFractionDigits: 1,
-    }).format(value);
-    const integer = value => new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 }).format(value);
+    });
+    const integer = value => ctx.format.number(value, { maximumFractionDigits: 0 });
     const rows = [{ label: "Requests", value: integer(totals.requests) }];
     if (totals.hours || totals.totalHours) rows.push({
       label: "Audio",

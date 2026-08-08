@@ -68,7 +68,6 @@ public enum ManusProviderDescriptor {
             sourceModes: [.auto, .web],
             pipeline: ProviderFetchPipeline(resolveStrategies: { context in
                 let swift = ManusWebFetchStrategy()
-                #if canImport(JavaScriptCore)
                 guard ProviderPluginPrototype.isEnabled(environment: context.env) else { return [swift] }
                 return [
                     ScriptFetchStrategy(
@@ -82,9 +81,6 @@ public enum ManusProviderDescriptor {
                         }),
                     swift,
                 ]
-                #else
-                return [swift]
-                #endif
             }))
     }
 }

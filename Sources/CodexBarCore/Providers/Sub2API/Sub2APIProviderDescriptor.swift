@@ -91,7 +91,6 @@ public enum Sub2APIProviderDescriptor {
             versionDetector: nil))
 
     private static func fetchPlan() -> ProviderFetchPlan {
-        #if canImport(JavaScriptCore)
         ProviderFetchPlan(
             sourceModes: [.auto, .api],
             pipeline: ProviderFetchPipeline(resolveStrategies: { _ in
@@ -111,38 +110,5 @@ public enum Sub2APIProviderDescriptor {
                     },
                     isEnabled: { _ in true })]
             }))
-        #else
-        // Linux compatibility only. JavaScriptCore platforms use the bundled sub2api plugin above.
-        ProviderFetchPlan(
-            sourceModes: [.auto, .api],
-            pipeline: ProviderFetchPipeline(resolveStrategies: { _ in [Sub2APIAPIFetchStrategy()] }))
-        #endif
     }
 }
-
-#if !canImport(JavaScriptCore)
-struct Sub2APIAPIFetchStrategy: ProviderFetchStrategy {
-    let id = "sub2api.api"
-    let kind: ProviderFetchKind = .apiToken
-
-    func isAvailable(_ context: ProviderFetchContext) async -> Bool {
-        Sub2APISettingsReader.apiKey(environment: context.env) != nil &&
-            Sub2APISettingsReader.baseURL(environment: context.env) != nil
-    }
-
-    func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
-        guard let apiKey = Sub2APISettingsReader.apiKey(environment: context.env) else {
-            throw Sub2APIUsageError.missingCredentials
-        }
-        guard let baseURL = Sub2APISettingsReader.baseURL(environment: context.env) else {
-            throw Sub2APIUsageError.missingBaseURL
-        }
-        let usage = try await Sub2APIUsageFetcher.fetchUsage(apiKey: apiKey, baseURL: baseURL)
-        return self.makeResult(usage: usage.toUsageSnapshot(), sourceLabel: "api")
-    }
-
-    func shouldFallback(on _: Error, context _: ProviderFetchContext) -> Bool {
-        false
-    }
-}
-#endif

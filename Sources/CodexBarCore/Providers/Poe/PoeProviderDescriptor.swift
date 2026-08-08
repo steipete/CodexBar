@@ -53,7 +53,6 @@ public enum PoeProviderDescriptor {
     }
 
     private static func fetchPlan() -> ProviderFetchPlan {
-        #if canImport(JavaScriptCore)
         .scriptPrototypeAPI(
             configuration: .init(
                 provider: .poe,
@@ -65,11 +64,6 @@ public enum PoeProviderDescriptor {
             loadUsage: { apiKey, _ in
                 try await PoeUsageFetcher.fetchUsage(apiKey: apiKey).toUsageSnapshot()
             })
-        #else
-        ProviderFetchPlan(
-            sourceModes: [.auto, .api],
-            pipeline: ProviderFetchPipeline(resolveStrategies: { _ in [PoeAPIFetchStrategy()] }))
-        #endif
     }
 }
 

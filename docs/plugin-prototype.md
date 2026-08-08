@@ -14,8 +14,12 @@ This document describes the bundled first-party conversion prototype. User-insta
 This prototype proves that an existing first-party `UsageProvider` can define its manifest, HTTP requests, response
 parsing, and generic `UsageSnapshot` projection in one bundled JavaScript file. It is deliberately not a user-plugin
 system: IDs remain compile-time `UsageProvider` cases and scripts ship inside CodexBar. Crof, Venice, OpenRouter,
-ClawRouter, Deepgram, and sub2api have cut over to the bundled script on JavaScriptCore platforms; their native fetch
-cores remain compiled only for the Linux CLI.
+ClawRouter, Deepgram, and sub2api use the same bundled script on Apple platforms and Linux; their former Linux-only
+native fetch twins have been removed.
+
+The runtime selects JavaScriptCore by default on Apple platforms and QuickJS on Linux. Set
+`CODEXBAR_PLUGIN_ENGINE=quickjs` on macOS to exercise QuickJS locally. QuickJS uses a 20-second in-engine interrupt
+watchdog, a 64 MiB heap limit, and a 2 MiB JavaScript stack limit; JavaScriptCore retains the existing worker behavior.
 
 Plugin manifests and their projected snapshots now carry a validated `ProviderInstanceID`. The prototype still maps
 that instance ID to an existing first-party `UsageProvider` before using browser-cookie brokerage or other bespoke
@@ -29,8 +33,8 @@ Perplexity, T3 Chat, and Qoder then prepend a script strategy to their existing 
 A missing required secret or disabled cookie source leaves the script
 strategy unavailable and permits the Swift strategy to run; a loaded script that fails does not fall back, so parity
 defects stay visible. Without the variable, the resolver returns the original Swift strategy only and does not load
-JavaScriptCore or a plugin resource for those providers. Crof, Venice, OpenRouter, ClawRouter, Deepgram, and sub2api
-always resolve only their script strategy on JavaScriptCore platforms; `CODEXBAR_JS_PROVIDERS` does not affect them.
+an engine or plugin resource for those providers. Crof, Venice, OpenRouter, ClawRouter, Deepgram, and sub2api always
+resolve only their script strategy on every platform; `CODEXBAR_JS_PROVIDERS` does not affect them.
 
 Run the focused proof with:
 
@@ -38,6 +42,7 @@ Run the focused proof with:
 swift test --filter ProviderPluginRuntimeTests
 swift test --filter ProviderPluginParityTests
 swift test --filter ProviderPluginDetailsParityTests
+./Scripts/test-plugin-engines.sh
 ```
 
 The parity suites send canned responses through an injected `ProviderHTTPTransport`. Flag-gated providers compare the

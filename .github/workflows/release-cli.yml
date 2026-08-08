@@ -385,8 +385,27 @@ jobs:
           ln -s "CodexBarCLI" "$OUT_DIR/codexbar"
           printf '%s\n' "${SAFE_REF_NAME#v}" > "$OUT_DIR/VERSION"
 
+          CORE_RESOURCE_SOURCE=""
+          for candidate in \
+            "$BIN_DIR/CodexBar_CodexBarCore.bundle" \
+            "$BIN_DIR/CodexBar_CodexBarCore.resources"; do
+            if [[ -d "$candidate" ]]; then
+              CORE_RESOURCE_SOURCE="$candidate"
+              break
+            fi
+          done
+          if [[ -z "$CORE_RESOURCE_SOURCE" ]]; then
+            echo "Missing CodexBarCore resource bundle in $BIN_DIR" >&2
+            exit 1
+          fi
+          cp -R "$CORE_RESOURCE_SOURCE" "$OUT_DIR/CodexBar_CodexBarCore.bundle"
+          RESOURCE_SMOKE_OUTPUT="$RUNNER_TEMP/codexbar-cli-resource-smoke-${{ matrix.name }}.txt"
+          CODEXBAR_RESOURCE_SMOKE=1 "$OUT_DIR/CodexBarCLI" > "$RESOURCE_SMOKE_OUTPUT"
+          grep -Fx "CODEXBAR_RESOURCE_SMOKE_OK" "$RESOURCE_SMOKE_OUTPUT"
+
           ASSET="CodexBarCLI-${SAFE_REF_NAME}-${{ matrix.asset-platform }}-${{ matrix.asset-arch }}.tar.gz"
-          (cd "$OUT_DIR" && tar czf "$ASSET" CodexBarCLI codexbar VERSION)
+          (cd "$OUT_DIR" && tar czf "$ASSET" \
+            CodexBarCLI codexbar VERSION CodexBar_CodexBarCore.bundle)
           if command -v sha256sum >/dev/null 2>&1; then
             sha256sum "$OUT_DIR/$ASSET" > "$OUT_DIR/$ASSET.sha256"
           else

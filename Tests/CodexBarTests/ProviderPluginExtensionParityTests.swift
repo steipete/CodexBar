@@ -1,6 +1,8 @@
-#if canImport(JavaScriptCore)
 // swiftlint:disable line_length multiline_arguments
 import Foundation
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
 import Testing
 @testable import CodexBarCore
 
@@ -178,5 +180,5 @@ struct ProviderPluginExtensionParityTests {
         #expect(script.identity?.accountID == swift.identity?.accountID)
     }
 }
+
 // swiftlint:enable line_length multiline_arguments
-#endif

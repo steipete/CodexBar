@@ -15,7 +15,7 @@ struct ProviderEndpointOverrideSecurityLinuxTests {
         #expect(MiMoWebFetchStrategy.shouldFallbackToLocal(error: MiMoSettingsError.invalidCookie) == true)
     }
 
-    #if !canImport(JavaScriptCore)
+    #if !canImport(CQuickJS)
     @Test
     func deepgramRejectsInsecureOverrideBeforeSendingToken() async {
         let transport = FailingTransport()
@@ -113,7 +113,7 @@ struct ProviderEndpointOverrideSecurityLinuxTests {
 
     @Test
     func affectedProviderOverridesAcceptHTTPSAndBareHosts() throws {
-        #if !canImport(JavaScriptCore)
+        #if !canImport(CQuickJS)
         try DeepgramUsageFetcher.validateEndpointOverrides(environment: [
             DeepgramUsageFetcher.apiURLKey: "deepgram-proxy.test/v1",
         ])

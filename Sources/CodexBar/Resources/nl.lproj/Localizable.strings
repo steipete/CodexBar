@@ -1426,3 +1426,6 @@
 "Enter every endpoint setting to review the exact network origins." = "Vul alle eindpuntinstellingen in om de exacte netwerkherkomsten te controleren.";
 "Approve" = "Goedkeuren";
 "Install" = "Installeren";
+"5-hour usage" = "5-uursgebruik";
+"7-day usage" = "7-dagengebruik";
+"Total usage" = "Totaal gebruik";

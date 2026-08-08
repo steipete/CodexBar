@@ -1428,3 +1428,6 @@
 "Enter every endpoint setting to review the exact network origins." = "Укажите все параметры эндпоинта, чтобы просмотреть точные сетевые источники.";
 "Approve" = "Одобрить";
 "Install" = "Установить";
+"5-hour usage" = "Использование за 5 часов";
+"7-day usage" = "Использование за 7 дней";
+"Total usage" = "Общее использование";

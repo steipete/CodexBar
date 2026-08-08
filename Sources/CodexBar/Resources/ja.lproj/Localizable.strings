@@ -1427,3 +1427,6 @@
 "Enter every endpoint setting to review the exact network origins." = "正確なネットワークオリジンを確認するには、すべてのエンドポイント設定を入力してください。";
 "Approve" = "承認";
 "Install" = "インストール";
+"5-hour usage" = "5時間の使用量";
+"7-day usage" = "7日間の使用量";
+"Total usage" = "合計使用量";

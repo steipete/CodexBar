@@ -25,7 +25,7 @@ defineProvider({
     const periodic = number("periodicCredits");
     const refresh = number("refreshCredits");
     const maxRefresh = number("maxRefreshCredits");
-    const format = value => new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 }).format(Math.round(value));
+    const format = value => ctx.format.number(Math.round(value), { maximumFractionDigits: 0 });
     return {
       primary: monthly > 0 ? {
         usedPercent: ctx.pct(monthly - periodic, monthly),

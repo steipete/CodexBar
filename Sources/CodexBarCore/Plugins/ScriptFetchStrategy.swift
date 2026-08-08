@@ -1,4 +1,3 @@
-#if canImport(JavaScriptCore)
 import Foundation
 
 public enum ProviderPluginPrototype {
@@ -208,4 +207,3 @@ extension ProviderFetchPlan {
             }))
     }
 }
-#endif

@@ -723,8 +723,7 @@ public struct OpenAIDashboardFetcher {
             extraRateWindows: CodexAdditionalRateLimitMapper.extraRateWindows(
                 from: response.additionalRateLimits),
             creditsRemaining: response.credits?.balance,
-            codexCreditLimit: (response.individualLimit ?? response.rateLimit?.individualLimit)?
-                .codexCreditLimitSnapshot(updatedAt: Date()),
+            codexCreditLimit: response.resolvedIndividualLimit?.codexCreditLimitSnapshot(updatedAt: Date()),
             accountPlan: response.planType?.rawValue)
     }
 

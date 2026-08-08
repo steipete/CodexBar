@@ -167,6 +167,10 @@ jobs:
             CODEXBAR_TEST_SHARD_COUNT=${{ matrix.shard-count }} \
             ./Scripts/test.sh
 
+      - name: Provider plugin engine A/B goldens
+        if: ${{ matrix.shard-index == 0 }}
+        run: ./Scripts/test-plugin-engines.sh
+
       - name: Summarize macOS shard
         if: ${{ always() }}
         shell: bash

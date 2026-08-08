@@ -37,7 +37,7 @@ defineProvider({
       }),
       secondary: {
         usedPercent: promo > 0 ? ctx.pct(promoUsed, promo) : 100,
-        resetDescription: promoExpiry ? `${promoDescription} · exp. ${new Date(promoExpiry * 1000).toLocaleDateString("en-US", { month: "short", day: "numeric" })}` : promoDescription,
+        resetDescription: promoExpiry ? `${promoDescription} · exp. ${ctx.format.monthDay(new Date(promoExpiry * 1000))}` : promoDescription,
       },
       tertiary: {
         usedPercent: purchased > 0 ? ctx.pct(purchasedUsed, purchased) : 100,

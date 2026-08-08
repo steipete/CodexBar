@@ -173,7 +173,9 @@ defineProvider({
         if (limit === null && used !== null && remaining !== null) limit = used + remaining;
         if (used === null && limit !== null && remaining !== null) used = limit - remaining;
         if (remaining === null && limit !== null && used !== null) remaining = Math.max(0, limit - used);
-        if (limit !== null && used !== null && limit > 0) usedPercent = used / limit * 100;
+        if (limit !== null && used !== null && limit > 0) {
+          usedPercent = ctx.pct(used, limit);
+        }
       }
       if (usedPercent === null) return null;
       usedPercent = Math.max(0, Math.min(100, usedPercent));
@@ -198,7 +200,7 @@ defineProvider({
         const remaining = firstCurrency(payload, ["remainingCredits", "remaining_credits"]);
         const explicitUsed = firstCurrency(payload, ["usedCredits", "used_credits"]);
         const used = explicitUsed !== null ? explicitUsed :
-          remaining !== null ? Math.max(0, costLimit - remaining) : usedPercent / 100 * costLimit;
+          remaining !== null ? Math.max(0, costLimit - remaining) : ctx.amountFromPercent(usedPercent, costLimit);
         cost = { used, limit: costLimit, currency: "USD", period: "Weekly" };
         if (resetsAt !== null) cost.resetsAt = resetsAt;
         const regen = firstCurrency(payload, ["nextRegenCredits", "next_regen_credits"]);

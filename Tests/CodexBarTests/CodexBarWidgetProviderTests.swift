@@ -393,9 +393,9 @@ struct CodexBarWidgetProviderTests {
             secondary: RateWindow(usedPercent: 50, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
             tertiary: nil,
             usageRows: [
-                WidgetSnapshot.WidgetUsageRowSnapshot(id: "primary", title: "Weekly", percentLeft: 75),
-                WidgetSnapshot.WidgetUsageRowSnapshot(id: "secondary", title: "Rate Limit", percentLeft: 50),
-                WidgetSnapshot.WidgetUsageRowSnapshot(id: "kimi-monthly", title: "Monthly", percentLeft: 25),
+                WidgetSnapshot.WidgetUsageRowSnapshot(id: "primary", title: "7-day usage", percentLeft: 75),
+                WidgetSnapshot.WidgetUsageRowSnapshot(id: "secondary", title: "5-hour usage", percentLeft: 50),
+                WidgetSnapshot.WidgetUsageRowSnapshot(id: "kimi-monthly", title: "Total usage", percentLeft: 25),
                 WidgetSnapshot.WidgetUsageRowSnapshot(id: "kimi-code-7d", title: "Code 7-day", percentLeft: 90),
             ],
             creditsRemaining: nil,

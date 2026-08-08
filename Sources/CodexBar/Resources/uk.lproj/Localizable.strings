@@ -1426,3 +1426,6 @@
 "Enter every endpoint setting to review the exact network origins." = "Введіть усі параметри кінцевих точок, щоб переглянути точні джерела мережевих запитів.";
 "Approve" = "Схвалити";
 "Install" = "Встановити";
+"5-hour usage" = "Використання за 5 годин";
+"7-day usage" = "Використання за 7 днів";
+"Total usage" = "Загальне використання";

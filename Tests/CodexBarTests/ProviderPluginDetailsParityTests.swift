@@ -1,5 +1,7 @@
-#if canImport(JavaScriptCore)
 import Foundation
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
 import Testing
 @testable import CodexBarCore
 
@@ -289,6 +291,44 @@ struct ProviderPluginDetailsParityTests {
     }
 
     @Test
+    func `zai CREDIT_LIMIT fixture has Swift core parity and stable details`() async throws {
+        let transport = Self.transport { request in
+            // Quota only: model-usage is intentionally unserved so the plugin's non-fatal
+            // model-usage fetch fails and both paths produce only Quota details.
+            if request.url?.path.hasSuffix("/quota/limit") == true {
+                return Self.zaiCreditQuota
+            }
+            throw FixtureError.unexpectedURL(request.url)
+        }
+        let now = Date(timeIntervalSince1970: 1_786_073_946)
+        let swift = try await ZaiUsageFetcher.fetchUsage(apiKey: "fixture-key", environment: [:], transport: transport)
+            .toUsageSnapshot()
+        let script = try await ProviderPluginRuntime(bundledPlugin: "zai", transport: transport)
+            .fetchUsage(
+                settings: [
+                    "Z_AI_REGION": "global",
+                    "Z_AI_USAGE_SCOPE": "personal",
+                ],
+                secrets: ["Z_AI_API_KEY": "fixture-key"],
+                now: now)
+
+        Self.expectCoreParity(swift, script)
+        #expect(swift.details == script.details)
+        #expect(swift.primary?.usedPercent == 5)
+        #expect(swift.primary?.windowMinutes == 300)
+        #expect(swift.primary?.resetDescription == "5-hour")
+        #expect(swift.secondary?.usedPercent == 10)
+        #expect(swift.secondary?.windowMinutes == 10080)
+        #expect(swift.identity?.loginMethod == "lite")
+        #expect(try script.details == [
+            Self.section("Quota details", rows: [
+                Self.row("Credit quota", "10% used", "10000 limit · 9000 remaining"),
+                Self.row("Session credit quota", "5% used", "2000 limit · 1900 remaining"),
+            ]),
+        ])
+    }
+
+    @Test
     func `OpenAI fixture has Swift core parity and stable details`() async throws {
         let transport = Self.transport { request in
             if request.url?.path.hasSuffix("/organization/costs") == true {
@@ -469,6 +509,14 @@ struct ProviderPluginDetailsParityTests {
        {"modelCode":"web-reader","usage":14}]}
     ]}}
     """#
+    private static let zaiCreditQuota = #"""
+    {"code":200,"msg":"success","success":true,"data":{"level":"lite","limits":[
+      {"type":"CREDIT_LIMIT","unit":3,"number":5,"usage":2000,"currentValue":100,"remaining":1900,
+       "percentage":5,"nextResetTime":1786073946574},
+      {"type":"CREDIT_LIMIT","unit":6,"number":1,"usage":10000,"currentValue":1000,"remaining":9000,
+       "percentage":10,"nextResetTime":1786660486998}
+    ]}}
+    """#
     private static let zaiModelUsage = #"""
     {"code":200,"msg":"success","success":true,"data":{
       "x_time":["2026-08-02 08:00","2026-08-02 09:00"],
@@ -521,4 +569,3 @@ private actor PluginRequestRecorder {
         self.requests.append(request)
     }
 }
-#endif

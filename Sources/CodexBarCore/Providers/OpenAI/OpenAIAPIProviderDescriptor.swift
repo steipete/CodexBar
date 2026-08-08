@@ -80,7 +80,6 @@ public enum OpenAIAPIProviderDescriptor {
     }
 
     private static func fetchPlan() -> ProviderFetchPlan {
-        #if canImport(JavaScriptCore)
         ProviderFetchPlan(
             sourceModes: [.auto, .api],
             pipeline: ProviderFetchPipeline(resolveStrategies: { context in
@@ -109,11 +108,6 @@ public enum OpenAIAPIProviderDescriptor {
                     swift,
                 ]
             }))
-        #else
-        ProviderFetchPlan(
-            sourceModes: [.auto, .api],
-            pipeline: ProviderFetchPipeline(resolveStrategies: { _ in [OpenAIAPIBalanceFetchStrategy()] }))
-        #endif
     }
 }
 

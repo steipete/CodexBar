@@ -1430,3 +1430,6 @@
 "Enter every endpoint setting to review the exact network origins." = "أدخل جميع إعدادات نقاط النهاية لمراجعة أصول الشبكة الدقيقة.";
 "Approve" = "موافقة";
 "Install" = "تثبيت";
+"5-hour usage" = "الاستخدام خلال 5 ساعات";
+"7-day usage" = "الاستخدام خلال 7 أيام";
+"Total usage" = "إجمالي الاستخدام";

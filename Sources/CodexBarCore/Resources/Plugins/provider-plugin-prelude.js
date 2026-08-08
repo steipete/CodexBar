@@ -91,38 +91,41 @@
     },
   });
 
+  function formatNumber(value, options) {
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric)) return String(numeric);
+    const settings = options || {};
+    const maximum = settings.maximumFractionDigits === undefined ? 3 : Number(settings.maximumFractionDigits);
+    const minimum = settings.minimumFractionDigits === undefined ? 0 : Number(settings.minimumFractionDigits);
+    if (!Number.isInteger(maximum) || !Number.isInteger(minimum) || minimum < 0 || maximum < minimum || maximum > 20) {
+      throw new RangeError("invalid fraction digit range");
+    }
+    let [integer, fraction = ""] = Math.abs(numeric).toFixed(maximum).split(".");
+    while (fraction.length > minimum && fraction.endsWith("0")) fraction = fraction.slice(0, -1);
+    integer = integer.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+    const sign = numeric < 0 ? "-" : "";
+    return `${sign}${integer}${fraction ? `.${fraction}` : ""}`;
+  }
+
+  ctx.format = Object.freeze({
+    number(value, options) { return formatNumber(value, options); },
+    usd(value) {
+      const numeric = Number(value);
+      const sign = numeric < 0 ? "-$" : "$";
+      return `${sign}${formatNumber(Math.abs(numeric), { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    },
+    monthDay(value) {
+      const date = value instanceof Date ? value : new Date(value);
+      if (!Number.isFinite(date.getTime())) throw new TypeError("invalid date");
+      const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+      return `${months[date.getMonth()]} ${date.getDate()}`;
+    },
+  });
+
   function parseDate(value) {
     const date = new Date(value);
     if (!Number.isFinite(date.getTime())) throw new TypeError("invalid date");
     return date;
-  }
-
-  function zonedParts(date, timeZone) {
-    const formatter = new Intl.DateTimeFormat("en-US", {
-      timeZone,
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit",
-      hourCycle: "h23",
-    });
-    const values = {};
-    for (const part of formatter.formatToParts(date)) {
-      if (part.type !== "literal") values[part.type] = Number(part.value);
-    }
-    return values;
-  }
-
-  function zonedEpoch(year, month, day, hour, timeZone) {
-    let guess = Date.UTC(year, month - 1, day, hour, 0, 0);
-    for (let iteration = 0; iteration < 3; iteration += 1) {
-      const parts = zonedParts(new Date(guess), timeZone);
-      const represented = Date.UTC(parts.year, parts.month - 1, parts.day, parts.hour, parts.minute, parts.second);
-      guess += Date.UTC(year, month - 1, day, hour, 0, 0) - represented;
-    }
-    return guess;
   }
 
   function decodeBase64URL(text) {
@@ -157,19 +160,7 @@
       if (!Number.isInteger(resetHour) || resetHour < 0 || resetHour > 23) {
         throw new TypeError("reset hour must be an integer from 0 through 23");
       }
-      const now = new Date();
-      const parts = zonedParts(now, String(timeZone));
-      let candidate = zonedEpoch(parts.year, parts.month, parts.day, resetHour, String(timeZone));
-      if (candidate <= now.getTime()) {
-        const tomorrow = new Date(Date.UTC(parts.year, parts.month - 1, parts.day) + 86400000);
-        candidate = zonedEpoch(
-          tomorrow.getUTCFullYear(),
-          tomorrow.getUTCMonth() + 1,
-          tomorrow.getUTCDate(),
-          resetHour,
-          String(timeZone));
-      }
-      return new Date(candidate);
+      return new Date(host.nextDailyReset(String(timeZone), resetHour));
     },
   });
 
@@ -181,12 +172,8 @@
     },
   });
 
-  ctx.pct = (used, limit) => {
-    const numericUsed = Number(used);
-    const numericLimit = Number(limit);
-    if (!Number.isFinite(numericUsed) || !Number.isFinite(numericLimit) || numericLimit <= 0) return 100;
-    return Math.max(0, Math.min(100, numericUsed / numericLimit * 100));
-  };
+  ctx.pct = (used, limit) => host.pct(Number(used), Number(limit));
+  ctx.amountFromPercent = (percent, limit) => host.amountFromPercent(Number(percent), Number(limit));
 
   return ctx;
 })
