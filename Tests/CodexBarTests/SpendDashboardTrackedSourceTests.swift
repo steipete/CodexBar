@@ -59,6 +59,91 @@ struct SpendDashboardTrackedSourceTests {
 
     @Test
     @MainActor
+    func `automatic provider fetch with dormant saved account emits one ambient current source`() throws {
+        let settings = testSettingsStore(suiteName: "SpendDashboardTrackedSourceTests-ambient-account")
+        let metadata = try #require(ProviderRegistry.shared.metadata[.cursor])
+        try settings.setProviderEnabled(provider: .cursor, metadata: metadata, enabled: true)
+        settings.addTokenAccount(provider: .cursor, label: "Dormant manual account", token: "fixture")
+        let account = try #require(settings.selectedTokenAccount(for: .cursor))
+        settings.cursorCookieSource = .auto
+        #expect(settings.effectiveSelectedTokenAccount(for: .cursor) == nil)
+
+        let store = UsageStore(
+            fetcher: UsageFetcher(environment: [:]),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings,
+            startupBehavior: .testing,
+            environmentBase: [:])
+        let sources = SpendDashboardSource.trackedSources(settings: settings, store: store)
+            .filter { $0.provider == .cursor }
+        let accountID = "cursor:account:\(account.id.uuidString.lowercased())"
+
+        #expect(Set(sources.map(\.id)) == [accountID, "cursor:current"])
+        #expect(sources.first { $0.id == accountID }?.contributesCostHistory == false)
+        #expect(sources.first { $0.id == "cursor:current" }?.contributesCostHistory == true)
+
+        let date = Date(timeIntervalSince1970: 1_785_974_400)
+        let model = SpendDashboardModel(requestedDays: 30, groups: [
+            SpendDashboardModel.CurrencyGroup(
+                currencyCode: "USD",
+                providers: [
+                    SpendDashboardModel.ProviderRow(
+                        id: "cursor",
+                        rank: 1,
+                        provider: .cursor,
+                        displayName: "Cursor",
+                        totalTokens: 900,
+                        totalCost: 9,
+                        coveredDayCount: 30),
+                ],
+                models: [],
+                dailyPoints: [],
+                totalTokens: 900,
+                totalCost: 9,
+                coveredDayCount: 30,
+                chartDomain: date...date,
+                modelHistoryCompleteness: .complete),
+        ])
+        let payload = try #require(SpendDashboardPane.makeSharePayload(
+            model: model,
+            subscriptionNames: [:],
+            trackedSources: sources))
+
+        #expect(payload.providers.first?.provider == .cursor)
+        #expect(payload.providers.first?.estimatedCost == 9)
+        #expect(payload.providers.first?.totalTokens == 900)
+        #expect(payload.currencies.first?.estimatedCost == 9)
+        #expect(payload.currencies.first?.isPartial == false)
+        #expect(payload.totalTokens == 900)
+        #expect(payload.totalTokensIsPartial == false)
+    }
+
+    @Test
+    @MainActor
+    func `active saved account does not duplicate provider with an ambient current source`() throws {
+        let settings = testSettingsStore(suiteName: "SpendDashboardTrackedSourceTests-active-account")
+        let metadata = try #require(ProviderRegistry.shared.metadata[.cursor])
+        try settings.setProviderEnabled(provider: .cursor, metadata: metadata, enabled: true)
+        settings.addTokenAccount(provider: .cursor, label: "Active manual account", token: "fixture")
+        let account = try #require(settings.effectiveSelectedTokenAccount(for: .cursor))
+
+        let store = UsageStore(
+            fetcher: UsageFetcher(environment: [:]),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings,
+            startupBehavior: .testing,
+            environmentBase: [:])
+        let sources = SpendDashboardSource.trackedSources(settings: settings, store: store)
+            .filter { $0.provider == .cursor }
+
+        #expect(sources.count == 1)
+        #expect(sources.first?.id == "cursor:account:\(account.id.uuidString.lowercased())")
+        #expect(sources.first?.contributesCostHistory == true)
+        #expect(!sources.contains { $0.id == "cursor:current" })
+    }
+
+    @Test
+    @MainActor
     func `quota usage does not claim cost history is connected`() throws {
         let settings = testSettingsStore(suiteName: "SpendDashboardTrackedSourceTests-quota-only")
         let metadata = try #require(ProviderRegistry.shared.metadata[.openrouter])

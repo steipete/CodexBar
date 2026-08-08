@@ -568,7 +568,7 @@ enum SpendDashboardSource {
                         contributesCostHistory: supportsCostHistory && isActive && enabled.contains(provider),
                         costHistoryAvailable: isActive && currentCostHistoryAvailable)
                 })
-                continue
+                if activeAccountID != nil { continue }
             }
 
             let config = settings.providerConfig(for: provider)
