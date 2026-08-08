@@ -69,7 +69,9 @@ Notes:
   ignored rather than misattributed.
 - The status line runs several times per second while a response streams. Gate on `rate_limits` being present,
   and throttle if you care about the write volume — CodexBar only ever uses the newest file.
-- Observations older than 15 minutes are ignored, so a dead session cannot outrank a fresh poll.
+- Observations older than 15 minutes are ignored, so a dead session cannot outrank a fresh poll. A
+  timestamp more than 5 minutes in the future is rejected too — modest clock skew is tolerated, but an
+  arbitrarily future one would never expire.
 
 ## What the card shows
 

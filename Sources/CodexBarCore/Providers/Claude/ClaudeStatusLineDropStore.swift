@@ -9,6 +9,11 @@ public enum ClaudeStatusLineDropStore {
     /// own the card again — a stale live value must never outrank a fresh poll.
     public static let freshnessWindow: TimeInterval = 15 * 60
 
+    /// Tolerance for a shim clock running ahead of the app's. Beyond this an observation is rejected rather
+    /// than trusted: an unbounded future timestamp would stay "fresh" forever and defeat the staleness bound
+    /// just as surely as an absent one.
+    public static let maximumClockSkew: TimeInterval = 5 * 60
+
     public static let directoryName = "claude-statusline"
 
     public static func directoryURL(applicationSupport: URL) -> URL {
@@ -33,9 +38,11 @@ public enum ClaudeStatusLineDropStore {
             .max { $0.capturedAt < $1.capturedAt }
     }
 
-    /// A future `capturedAt` counts as fresh: clock skew between the shim and the app must not blank the feed.
+    /// Modest clock skew between the shim and the app must not blank the feed, but an arbitrarily future
+    /// timestamp is not evidence of freshness — it is an observation we cannot age.
     public static func isFresh(_ candidate: ClaudeStatusLineRateLimits, now: Date) -> Bool {
-        now.timeIntervalSince(candidate.capturedAt) <= self.freshnessWindow
+        let age = now.timeIntervalSince(candidate.capturedAt)
+        return age <= self.freshnessWindow && age >= -self.maximumClockSkew
     }
 
     public static func matchesProfile(

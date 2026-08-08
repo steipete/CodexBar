@@ -123,13 +123,26 @@ struct ClaudeStatusLineFeedTests {
     }
 
     @Test
-    func `clock skew does not blank a live feed`() {
+    func `modest clock skew does not blank a live feed`() {
         let now = Date(timeIntervalSince1970: 1_000_000)
-        let future = self.limits(configDir: nil, capturedAt: now.addingTimeInterval(120))
+        let skewed = self.limits(configDir: nil, capturedAt: now.addingTimeInterval(120))
         #expect(ClaudeStatusLineDropStore.select(
-            candidates: [future],
+            candidates: [skewed],
             expectedConfigDir: nil,
             now: now) != nil)
+    }
+
+    @Test
+    func `an implausibly future observation is rejected rather than trusted forever`() {
+        // Unbounded future timestamps would stay fresh indefinitely — the same defect as an absent one.
+        let now = Date(timeIntervalSince1970: 1_000_000)
+        let farFuture = self.limits(
+            configDir: nil,
+            capturedAt: now.addingTimeInterval(ClaudeStatusLineDropStore.maximumClockSkew + 60))
+        #expect(ClaudeStatusLineDropStore.select(
+            candidates: [farFuture],
+            expectedConfigDir: nil,
+            now: now) == nil)
     }
 
     // MARK: - Snapshot mapping
