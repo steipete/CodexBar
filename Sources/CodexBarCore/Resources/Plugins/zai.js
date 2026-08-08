@@ -126,7 +126,7 @@ defineProvider({
     function quotaRateRow() {
       const PEAK_START = 6;
       const PEAK_END = 10;
-      const now = ctx.date.now();
+      const now = new Date(ctx.date.nowMillis());
       const day = now.getUTCDay();
       const hour = now.getUTCHours();
       const isPeak = day >= 1 && day <= 5 && hour >= PEAK_START && hour < PEAK_END;
