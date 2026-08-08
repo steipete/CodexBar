@@ -18,6 +18,27 @@ struct SpendDashboardTrackedSource: Identifiable, Equatable, Sendable {
     let state: State
     let supportsCostHistory: Bool
     let contributesCostHistory: Bool
+    let costHistoryAvailable: Bool
+
+    init(
+        id: String,
+        provider: UsageProvider,
+        providerName: String,
+        accountName: String?,
+        state: State,
+        supportsCostHistory: Bool,
+        contributesCostHistory: Bool,
+        costHistoryAvailable: Bool = false)
+    {
+        self.id = id
+        self.provider = provider
+        self.providerName = providerName
+        self.accountName = accountName
+        self.state = state
+        self.supportsCostHistory = supportsCostHistory
+        self.contributesCostHistory = contributesCostHistory
+        self.costHistoryAvailable = costHistoryAvailable
+    }
 }
 
 struct SpendDashboardConfiguration: Equatable, Sendable {
@@ -476,6 +497,8 @@ enum SpendDashboardSource {
             let providerName = store.metadata(for: provider).displayName
             let supportsCostHistory = ProviderDescriptorRegistry.descriptor(for: provider)
                 .tokenCost.supportsTokenCost
+            let currentCostHistoryAvailable = store
+                .tokenSnapshotPublicationForCurrentProviderConfig(for: provider)?.snapshot != nil
             if provider == .codex {
                 let accounts = settings.codexVisibleAccountProjection.visibleAccounts
                 let snapshotsByID = Dictionary(uniqueKeysWithValues: store.codexAccountSnapshots.map {
@@ -498,7 +521,8 @@ enum SpendDashboardSource {
                                 hasConfiguredCredential: true,
                                 hasError: hasError),
                             supportsCostHistory: supportsCostHistory,
-                            contributesCostHistory: supportsCostHistory && enabled.contains(provider))
+                            contributesCostHistory: supportsCostHistory && enabled.contains(provider),
+                            costHistoryAvailable: account.isActive && currentCostHistoryAvailable)
                     })
                     continue
                 }
@@ -528,7 +552,8 @@ enum SpendDashboardSource {
                             hasConfiguredCredential: true,
                             hasError: hasError),
                         supportsCostHistory: supportsCostHistory,
-                        contributesCostHistory: supportsCostHistory && isActive && enabled.contains(provider))
+                        contributesCostHistory: supportsCostHistory && isActive && enabled.contains(provider),
+                        costHistoryAvailable: isActive && currentCostHistoryAvailable)
                 })
                 continue
             }
@@ -551,7 +576,8 @@ enum SpendDashboardSource {
                     hasConfiguredCredential: hasConfiguredCredential,
                     hasError: hasError),
                 supportsCostHistory: supportsCostHistory,
-                contributesCostHistory: supportsCostHistory && enabled.contains(provider)))
+                contributesCostHistory: supportsCostHistory && enabled.contains(provider),
+                costHistoryAvailable: currentCostHistoryAvailable))
         }
 
         return sources

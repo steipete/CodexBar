@@ -24,8 +24,9 @@ struct SpendDashboardOpenRouterDateTruthTests {
             calendar: utc).groups.first)
 
         #expect(group.providers.first?.coveredDayCount == 1)
-        #expect(group.totalCost == 2)
-        #expect(group.totalTokens == 20)
+        #expect(group.totalCost == nil)
+        #expect(group.knownCost == 2)
+        #expect(group.totalTokens == nil)
         #expect(group.dailyPoints.map(\.day) == [august6])
         #expect(group.coveredDayCount == 1)
     }

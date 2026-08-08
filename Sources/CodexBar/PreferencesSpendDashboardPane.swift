@@ -59,7 +59,7 @@ func spendDashboardTrackedSourceStatusText(_ source: SpendDashboardTrackedSource
         break
     }
     if source.contributesCostHistory {
-        return source.state == .connected
+        return source.costHistoryAvailable
             ? L("Cost history connected")
             : L("Cost history pending")
     }
@@ -77,6 +77,16 @@ func spendDashboardAggregateCostText(_ group: SpendDashboardModel.CurrencyGroup)
 func spendDashboardCostCoverageText(_ group: SpendDashboardModel.CurrencyGroup) -> String {
     "\(codexBarLocalizedInteger(group.knownCostProviderCount)) / " +
         "\(codexBarLocalizedInteger(group.providers.count)) \(L("Accounts"))"
+}
+
+func spendDashboardProviderCostText(
+    _ row: SpendDashboardModel.ProviderRow,
+    currencyCode: String,
+    requestedDays: Int) -> String
+{
+    guard let cost = row.totalCost else { return L("Spend unavailable") }
+    let formatted = UsageFormatter.currencyString(cost, currencyCode: currencyCode)
+    return row.coveredDayCount < requestedDays ? "~\(formatted)" : formatted
 }
 
 enum SpendDashboardModelHistoryPresentation: Equatable {
@@ -383,9 +393,30 @@ struct SpendDashboardPane: View {
     }
 
     private var sharePayload: ShareStatsPayload? {
-        ShareStatsBuilder.make(
+        Self.makeSharePayload(
             model: self.controller.model,
-            subscriptionNames: self.subscriptionNames)
+            subscriptionNames: self.subscriptionNames,
+            trackedSources: self.configuration.trackedSources)
+    }
+
+    static func makeSharePayload(
+        model: SpendDashboardModel,
+        subscriptionNames: [String: ShareStatsSubscriptionName],
+        trackedSources: [SpendDashboardTrackedSource]) -> ShareStatsPayload?
+    {
+        let fallbackCurrencyCode = model.groups.first?.currencyCode ?? "USD"
+        var seenProviders: Set<UsageProvider> = []
+        let roster = trackedSources.compactMap { source -> ShareStatsProviderRosterEntry? in
+            guard seenProviders.insert(source.provider).inserted else { return nil }
+            return ShareStatsProviderRosterEntry(
+                provider: source.provider,
+                providerName: source.providerName,
+                currencyCode: fallbackCurrencyCode)
+        }
+        return ShareStatsBuilder.make(
+            model: model,
+            subscriptionNames: subscriptionNames,
+            providerRoster: roster)
     }
 
     private var subscriptionNames: [String: ShareStatsSubscriptionName] {
@@ -585,7 +616,7 @@ private struct SpendTrackedSourceRow: View {
             break
         }
         if self.source.contributesCostHistory {
-            return self.source.state == .connected ? "checkmark.circle.fill" : "clock.fill"
+            return self.source.costHistoryAvailable ? "checkmark.circle.fill" : "clock.fill"
         }
         return self.source.state == .connected ? "minus.circle.fill" : "minus.circle"
     }
@@ -595,7 +626,7 @@ private struct SpendTrackedSourceRow: View {
             return .orange
         }
         if self.source.contributesCostHistory {
-            return self.source.state == .connected ? .green : .orange
+            return self.source.costHistoryAvailable ? .green : .orange
         }
         return .secondary
     }
@@ -625,7 +656,7 @@ private struct SpendCurrencySection: View {
         VStack(alignment: .leading, spacing: 12) {
             SpendCurrencySummaryView(group: self.group, requestedDays: self.requestedDays)
 
-            SpendProviderPanel(group: self.group)
+            SpendProviderPanel(group: self.group, requestedDays: self.requestedDays)
             SpendModelPanel(group: self.group)
             SpendDailyChart(group: self.group)
         }
@@ -694,6 +725,7 @@ private struct SpendSummaryValue: View {
 
 private struct SpendProviderPanel: View {
     let group: SpendDashboardModel.CurrencyGroup
+    let requestedDays: Int
 
     var body: some View {
         SpendDashboardPanel {
@@ -711,9 +743,10 @@ private struct SpendProviderPanel: View {
                         SpendProviderIcon(provider: row.provider)
                         Text(row.displayName).lineLimit(1)
                         Spacer()
-                        Text(row.totalCost.map {
-                            UsageFormatter.currencyString($0, currencyCode: self.group.currencyCode)
-                        } ?? L("Spend unavailable"))
+                        Text(spendDashboardProviderCostText(
+                            row,
+                            currencyCode: self.group.currencyCode,
+                            requestedDays: self.requestedDays))
                             .foregroundStyle(row.totalCost == nil ? .secondary : .primary)
                             .monospacedDigit()
                     }

@@ -59,6 +59,50 @@ struct SpendDashboardTrackedSourceTests {
 
     @Test
     @MainActor
+    func `quota usage does not claim cost history is connected`() throws {
+        let settings = testSettingsStore(suiteName: "SpendDashboardTrackedSourceTests-quota-only")
+        let metadata = try #require(ProviderRegistry.shared.metadata[.openrouter])
+        try settings.setProviderEnabled(provider: .openrouter, metadata: metadata, enabled: true)
+        settings[providerConfig: .openrouter, field: .apiKey] = "fixture-key"
+
+        let store = UsageStore(
+            fetcher: UsageFetcher(environment: [:]),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings,
+            startupBehavior: .testing,
+            environmentBase: [:])
+        store._setSnapshotForTesting(
+            UsageSnapshot(
+                primary: RateWindow(
+                    usedPercent: 25,
+                    windowMinutes: nil,
+                    resetsAt: nil,
+                    resetDescription: nil),
+                secondary: nil,
+                updatedAt: Date()),
+            provider: .openrouter)
+
+        let source = try #require(SpendDashboardSource.trackedSources(settings: settings, store: store).first {
+            $0.provider == .openrouter
+        })
+
+        #expect(spendDashboardTrackedSourceStatusText(source) == "Cost history pending")
+
+        store._setTokenSnapshotForTesting(CostUsageTokenSnapshot(
+            sessionTokens: nil,
+            sessionCostUSD: nil,
+            last30DaysTokens: 100,
+            last30DaysCostUSD: 1,
+            daily: [],
+            updatedAt: Date()), provider: .openrouter)
+        let sourceWithCost = try #require(SpendDashboardSource.trackedSources(
+            settings: settings,
+            store: store).first { $0.provider == .openrouter })
+        #expect(spendDashboardTrackedSourceStatusText(sourceWithCost) == "Cost history connected")
+    }
+
+    @Test
+    @MainActor
     func `tracked access includes every saved provider credential without inventing cost coverage`() {
         let settings = testSettingsStore(suiteName: "SpendDashboardTrackedSourceTests-credentials")
         let supportedProviders = UsageProvider.allCases.filter {
@@ -174,7 +218,8 @@ struct SpendDashboardTrackedSourceTests {
             accountName: "Personal",
             state: .connected,
             supportsCostHistory: true,
-            contributesCostHistory: true),
+            contributesCostHistory: true,
+            costHistoryAvailable: true),
         SpendDashboardTrackedSource(
             id: "claude:account:team",
             provider: .claude,
@@ -182,7 +227,8 @@ struct SpendDashboardTrackedSourceTests {
             accountName: "Team",
             state: .connected,
             supportsCostHistory: true,
-            contributesCostHistory: true),
+            contributesCostHistory: true,
+            costHistoryAvailable: true),
         SpendDashboardTrackedSource(
             id: "openrouter:account:research",
             provider: .openrouter,

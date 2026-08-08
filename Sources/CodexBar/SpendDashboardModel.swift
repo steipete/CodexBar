@@ -239,9 +239,7 @@ struct SpendDashboardModel: Equatable, Sendable {
                 calendar: calendar)
         }
         let providers = Self.providerRows(summaries)
-        let coversRequestedHorizon = summaries.allSatisfy {
-            $0.input.provider != .openrouter || $0.input.snapshot.historyDays >= days
-        }
+        let coversRequestedHorizon = summaries.allSatisfy { $0.coveredDayCount >= days }
         let modelSummaries = summaries.filter { summary in
             guard summary.totalCost != nil else { return false }
             let summaryModelHistory = Self.modelSummary(summaries: [summary])
