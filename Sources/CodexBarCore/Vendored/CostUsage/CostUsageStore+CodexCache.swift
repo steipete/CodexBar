@@ -18,22 +18,25 @@ extension CostUsageStore {
         _ cache: CostUsageCache,
         calendar: Calendar,
         requestedScanWindow: (sinceKey: String, untilKey: String),
-        reportWindow: (sinceKey: String, untilKey: String)? = nil) -> CostUsageStoreBudgetResult
+        reportWindow: (sinceKey: String, untilKey: String)? = nil,
+        rowBudget: Int = CostUsageStore.defaultRowBudget,
+        fileBudgetBytes: Int64 = CostUsageStore.defaultFileBudgetBytes) -> CostUsageStoreBudgetResult
     {
         let previous = self.readSnapshot()
         let canReuseStoredRows = previous.metadata.timeZoneIdentifier == calendar.timeZone.identifier
         self.deleteRemovedFiles(previous: previous, cache: cache)
+        let previousFilesByPath = Dictionary(uniqueKeysWithValues: previous.files.map { ($0.path, $0) })
+        let snapshotCountsByPath = previous.tokenSnapshots
+            .reduce(into: [String: Int]()) { $0[$1.path, default: 0] += 1 }
+        let rowCountsByPath = previous.usageRows.reduce(into: [String: Int]()) { $0[$1.path, default: 0] += 1 }
         for (path, usage) in cache.files.sorted(by: { $0.key < $1.key }) {
-            let oldFile = previous.files.first { $0.path == path }
-            let oldSnapshotCount = previous.tokenSnapshots.count(where: { $0.path == path })
-            let oldRowCount = previous.usageRows.count(where: { $0.path == path })
             self.persistFile(
                 path: path,
                 usage: usage,
                 baseline: PersistedFileBaseline(
-                    file: oldFile,
-                    snapshotCount: oldSnapshotCount,
-                    rowCount: oldRowCount,
+                    file: previousFilesByPath[path],
+                    snapshotCount: snapshotCountsByPath[path] ?? 0,
+                    rowCount: rowCountsByPath[path] ?? 0,
                     canReuseRows: canReuseStoredRows),
                 calendar: calendar)
         }
@@ -42,8 +45,8 @@ extension CostUsageStore {
         _ = self.setDiscoveryState(Self.discoveryState(cache.codexSessionDiscovery))
         _ = self.setLookbackState(Self.lookbackState(cache.codexActiveLookbackState))
         let result = self.enforceBudgets(
-            maxRows: Self.defaultRowBudget,
-            maxFileBytes: Self.defaultFileBudgetBytes,
+            maxRows: rowBudget,
+            maxFileBytes: fileBudgetBytes,
             requestedSinceDay: requestedScanWindow.sinceKey,
             requestedUntilDay: requestedScanWindow.untilKey,
             calendar: calendar)

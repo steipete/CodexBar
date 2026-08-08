@@ -32,6 +32,28 @@ private func quickJSHostCallback(
     return engine.handleHostCall(function, context: context, arguments: argv, count: Int(argc))
 }
 
+private func quickJSInstallContextOptions(
+    _ options: ProviderPluginContextOptions,
+    context: OpaquePointer,
+    target: JSValue)
+{
+    guard let timeout = options.optionalRequestTimeoutSeconds else { return }
+    _ = JS_SetPropertyStr(
+        context,
+        target,
+        "__codexbarOptionalRequestTimeoutSeconds",
+        JS_NewFloat64(context, timeout))
+}
+
+private func quickJSNormalizedTimeZoneIdentifier(_ timeZone: TimeZone) -> String {
+    if timeZone.secondsFromGMT() == 0,
+       ["GMT", "Etc/GMT", "Etc/UTC", "UTC"].contains(timeZone.identifier)
+    {
+        return "UTC"
+    }
+    return timeZone.identifier
+}
+
 private final class QuickJSPluginValue: ProviderPluginValue {
     private unowned let engine: QuickJSProviderPluginEngine
     private let value: JSValue
@@ -305,6 +327,7 @@ final class QuickJSProviderPluginEngine: ProviderPluginEngine, @unchecked Sendab
         secrets: [String: String],
         now: Date,
         timeZone: TimeZone,
+        contextOptions: ProviderPluginContextOptions,
         cookieResolver: ProviderPluginRuntime.CookieResolver?,
         instanceCookieResolver: ProviderPluginRuntime.InstanceCookieResolver?,
         completion: @escaping @Sendable (Result<UsageSnapshot, Error>) -> Void)
@@ -316,6 +339,7 @@ final class QuickJSProviderPluginEngine: ProviderPluginEngine, @unchecked Sendab
                     secrets: secrets,
                     now: now,
                     timeZone: timeZone,
+                    contextOptions: contextOptions,
                     cookieResolver: cookieResolver,
                     instanceCookieResolver: instanceCookieResolver)
             })
@@ -385,6 +409,7 @@ final class QuickJSProviderPluginEngine: ProviderPluginEngine, @unchecked Sendab
         secrets: [String: String],
         now: Date,
         timeZone: TimeZone,
+        contextOptions: ProviderPluginContextOptions,
         cookieResolver: ProviderPluginRuntime.CookieResolver?,
         instanceCookieResolver: ProviderPluginRuntime.InstanceCookieResolver?) throws -> UsageSnapshot
     {
@@ -418,12 +443,13 @@ final class QuickJSProviderPluginEngine: ProviderPluginEngine, @unchecked Sendab
             ctx,
             "__codexbarNowMillis",
             JS_NewFloat64(self.context, now.timeIntervalSince1970 * 1000))
+        quickJSInstallContextOptions(contextOptions, context: self.context, target: ctx)
         let env = JS_NewObject(self.context)
         _ = JS_SetPropertyStr(
             self.context,
             env,
             "timeZone",
-            self.makeString(Self.normalizedTimeZoneIdentifier(timeZone)))
+            self.makeString(quickJSNormalizedTimeZoneIdentifier(timeZone)))
         _ = JS_SetPropertyStr(self.context, ctx, "env", env)
 
         let preparedContext = try self.call(applyPrelude, arguments: [ctx, host])
@@ -958,15 +984,6 @@ final class QuickJSProviderPluginEngine: ProviderPluginEngine, @unchecked Sendab
         }
         guard !cqjs_is_exception(result) else { throw self.scriptErrorFromException() }
         return result
-    }
-
-    private static func normalizedTimeZoneIdentifier(_ timeZone: TimeZone) -> String {
-        if timeZone.secondsFromGMT() == 0,
-           ["GMT", "Etc/GMT", "Etc/UTC", "UTC"].contains(timeZone.identifier)
-        {
-            return "UTC"
-        }
-        return timeZone.identifier
     }
 }
 

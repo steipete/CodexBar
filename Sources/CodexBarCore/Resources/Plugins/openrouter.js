@@ -47,8 +47,21 @@ defineProvider({
     const totalUsage = finite(credits.total_usage, "total_usage", false);
     const balance = Math.max(0, totalCredits - totalUsage);
     let keyData = null;
+    let keyDegradation = null;
+    const injectedOptionalTimeout = ctx.__codexbarOptionalRequestTimeoutSeconds;
+    const optionalRequestTimeoutSeconds = typeof injectedOptionalTimeout === "number" &&
+      Number.isFinite(injectedOptionalTimeout) ? injectedOptionalTimeout : 1;
+    function degradationReason(error) {
+      const message = error && typeof error.message === "string" ? error.message : String(error);
+      if (/timed out|-1001/i.test(message)) return "Request timed out";
+      if (/json|parse|invalid|must be/i.test(message)) return "Response was invalid";
+      return "Request failed";
+    }
     try {
-      const keyResponse = await ctx.http.get(`${base}/key`, { timeoutSeconds: 1 });
+      const keyResponse = await ctx.http.get(`${base}/key`, {
+        timeoutSeconds: optionalRequestTimeoutSeconds,
+      });
+      if (keyResponse.status !== 200) keyDegradation = `Request returned HTTP ${keyResponse.status}`;
       const keyPayload = keyResponse.status === 200 ? JSON.parse(keyResponse.bodyText) : null;
       if (keyPayload && keyPayload.data && typeof keyPayload.data === "object" &&
           !Array.isArray(keyPayload.data)) {
@@ -66,13 +79,18 @@ defineProvider({
         }
         keyData = candidate;
       }
-    } catch (_) {}
+    } catch (error) {
+      keyDegradation = degradationReason(error);
+    }
+    if (!keyData && !keyDegradation) keyDegradation = "Response was unavailable";
 
     // /activity is management-key-only and optional. Credits and key quota remain valid
     // when analytics is forbidden, unsupported by an endpoint override, slow, or malformed.
     let openRouterActivityUsage = null;
     try {
-      const activityResponse = await ctx.http.get(`${base}/activity`, { timeoutSeconds: 2 });
+      const activityResponse = await ctx.http.get(`${base}/activity`, {
+        timeoutSeconds: optionalRequestTimeoutSeconds,
+      });
       if (activityResponse.status === 200) {
         const activityPayload = JSON.parse(activityResponse.bodyText);
         if (activityPayload && Array.isArray(activityPayload.data)) {
@@ -177,7 +195,11 @@ defineProvider({
     } else {
       details.push({
         title: "API key",
-        rows: [{ label: "API key budget", value: "Unavailable right now" }],
+        rows: [{
+          label: "API key budget",
+          value: "Unavailable right now",
+          secondaryValue: keyDegradation,
+        }],
       });
     }
 

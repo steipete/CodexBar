@@ -23,6 +23,7 @@ public final class ProviderPluginRuntime: @unchecked Sendable {
     private let responseSizeLimit: Int
     private let rejectsNonSuccessResponses: Bool
     private let allowsDynamicID: Bool
+    private let contextOptions: ProviderPluginContextOptions
     private let engineKind: ProviderPluginEngineKind
     private let lock = NSLock()
     private var worker: (any ProviderPluginEngine)?
@@ -41,9 +42,24 @@ public final class ProviderPluginRuntime: @unchecked Sendable {
 
     convenience init(
         bundledPlugin name: String,
+        transport: any ProviderHTTPTransport = ProviderHTTPClient.shared,
+        timeout: TimeInterval = ProviderPluginRuntime.defaultTimeout,
+        contextOptions: ProviderPluginContextOptions) throws
+    {
+        try self.init(
+            bundledPlugin: name,
+            resourceBundle: CodexBarCoreResources.bundle,
+            transport: transport,
+            timeout: timeout,
+            contextOptions: contextOptions)
+    }
+
+    convenience init(
+        bundledPlugin name: String,
         resourceBundle: Bundle?,
         transport: any ProviderHTTPTransport = ProviderHTTPClient.shared,
-        timeout: TimeInterval = ProviderPluginRuntime.defaultTimeout) throws
+        timeout: TimeInterval = ProviderPluginRuntime.defaultTimeout,
+        contextOptions: ProviderPluginContextOptions = .production) throws
     {
         guard let resourceBundle else {
             throw ProviderPluginError.load(CodexBarCoreResources.missingBundleMessage)
@@ -53,7 +69,12 @@ public final class ProviderPluginRuntime: @unchecked Sendable {
         }
         let source = try String(contentsOf: url, encoding: .utf8)
         try ProviderPluginSourceLint.validateBundled(source, name: name)
-        try self.init(source: source, resourceBundle: resourceBundle, transport: transport, timeout: timeout)
+        try self.init(
+            source: source,
+            resourceBundle: resourceBundle,
+            transport: transport,
+            timeout: timeout,
+            contextOptions: contextOptions)
     }
 
     public convenience init(
@@ -73,6 +94,7 @@ public final class ProviderPluginRuntime: @unchecked Sendable {
             responseSizeLimit: responseSizeLimit,
             rejectsNonSuccessResponses: rejectsNonSuccessResponses,
             allowsDynamicID: allowsDynamicID,
+            contextOptions: .production,
             engine: engine)
     }
 
@@ -84,10 +106,16 @@ public final class ProviderPluginRuntime: @unchecked Sendable {
         responseSizeLimit: Int = ProviderPluginRuntime.maximumResponseBytes,
         rejectsNonSuccessResponses: Bool = false,
         allowsDynamicID: Bool = false,
+        contextOptions: ProviderPluginContextOptions = .production,
         engine: ProviderPluginEngineKind = .automatic) throws
     {
         guard timeout > 0 else { throw ProviderPluginError.load("timeout must be positive") }
         guard responseSizeLimit > 0 else { throw ProviderPluginError.load("response size limit must be positive") }
+        if let optionalRequestTimeoutSeconds = contextOptions.optionalRequestTimeoutSeconds,
+           !(1...30).contains(optionalRequestTimeoutSeconds)
+        {
+            throw ProviderPluginError.load("optional request timeout must be from 1 through 30 seconds")
+        }
         guard let resourceBundle else {
             throw ProviderPluginError.load(CodexBarCoreResources.missingBundleMessage)
         }
@@ -105,6 +133,7 @@ public final class ProviderPluginRuntime: @unchecked Sendable {
         self.responseSizeLimit = responseSizeLimit
         self.rejectsNonSuccessResponses = rejectsNonSuccessResponses
         self.allowsDynamicID = allowsDynamicID
+        self.contextOptions = contextOptions
         self.engineKind = Self.resolveEngineKind(engine)
 
         let worker = try ProviderPluginEngineFactory.make(
@@ -149,6 +178,7 @@ public final class ProviderPluginRuntime: @unchecked Sendable {
                 secrets: sanitizedSecrets,
                 now: now,
                 timeZone: timeZone,
+                contextOptions: self.contextOptions,
                 cookieResolver: cookieResolver,
                 instanceCookieResolver: instanceCookieResolver)
             { result in
@@ -430,6 +460,7 @@ final class JavaScriptCoreProviderPluginEngine: ProviderPluginEngine, @unchecked
         secrets: [String: String],
         now: Date,
         timeZone: TimeZone,
+        contextOptions: ProviderPluginContextOptions,
         cookieResolver: ProviderPluginRuntime.CookieResolver?,
         instanceCookieResolver: ProviderPluginRuntime.InstanceCookieResolver?,
         completion: @escaping @Sendable (Result<UsageSnapshot, Error>) -> Void)
@@ -440,6 +471,7 @@ final class JavaScriptCoreProviderPluginEngine: ProviderPluginEngine, @unchecked
                 secrets: secrets,
                 now: now,
                 timeZone: timeZone,
+                contextOptions: contextOptions,
                 cookieResolver: cookieResolver,
                 instanceCookieResolver: instanceCookieResolver,
                 completion: completion)
@@ -452,6 +484,7 @@ final class JavaScriptCoreProviderPluginEngine: ProviderPluginEngine, @unchecked
         secrets: [String: String],
         now: Date,
         timeZone: TimeZone,
+        contextOptions: ProviderPluginContextOptions,
         cookieResolver: ProviderPluginRuntime.CookieResolver?,
         instanceCookieResolver: ProviderPluginRuntime.InstanceCookieResolver?,
         completion: @escaping @Sendable (Result<UsageSnapshot, Error>) -> Void)
@@ -463,6 +496,7 @@ final class JavaScriptCoreProviderPluginEngine: ProviderPluginEngine, @unchecked
             secrets: secrets,
             now: now,
             timeZone: timeZone,
+            contextOptions: contextOptions,
             cookieResolver: cookieResolver,
             instanceCookieResolver: instanceCookieResolver,
             redactionValues: redactionValues)
@@ -522,6 +556,7 @@ final class JavaScriptCoreProviderPluginEngine: ProviderPluginEngine, @unchecked
         secrets: [String: String],
         now: Date,
         timeZone: TimeZone,
+        contextOptions: ProviderPluginContextOptions,
         cookieResolver: ProviderPluginRuntime.CookieResolver?,
         instanceCookieResolver: ProviderPluginRuntime.InstanceCookieResolver?,
         redactionValues: ProviderPluginRedactionValues) -> JSValue
@@ -529,6 +564,11 @@ final class JavaScriptCoreProviderPluginEngine: ProviderPluginEngine, @unchecked
         let ctx = JSValue(newObjectIn: self.context)!
         let host = JSValue(newObjectIn: self.context)!
         ctx.setObject(now.timeIntervalSince1970 * 1000, forKeyedSubscript: "__codexbarNowMillis" as NSString)
+        if let optionalRequestTimeoutSeconds = contextOptions.optionalRequestTimeoutSeconds {
+            ctx.setObject(
+                optionalRequestTimeoutSeconds,
+                forKeyedSubscript: "__codexbarOptionalRequestTimeoutSeconds" as NSString)
+        }
 
         let settingGet: @convention(block) (String, Bool) -> JSValue = { [weak self] key, secure in
             guard let self else { return JSValue(undefinedIn: nil) }

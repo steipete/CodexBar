@@ -53,6 +53,7 @@ actor CostUsageStore {
         }
     }
 
+    static let log = CodexBarLog.logger(LogCategories.tokenCost)
     static let databaseFilename = "cost-usage.sqlite"
     static let baseSchemaVersion = 2
     static let schemaVersion = CostUsageStore.combinedSchemaVersion(
@@ -113,7 +114,9 @@ extension CostUsageStore {
         _ cache: CostUsageCache,
         calendar: Calendar,
         requestedScanWindow: (sinceKey: String, untilKey: String),
-        reportWindow: (sinceKey: String, untilKey: String)? = nil) -> CostUsageStoreBudgetResult
+        reportWindow: (sinceKey: String, untilKey: String)? = nil,
+        rowBudget: Int = CostUsageStore.defaultRowBudget,
+        fileBudgetBytes: Int64 = CostUsageStore.defaultFileBudgetBytes) -> CostUsageStoreBudgetResult
     {
         Self.sharedExecutor.sync {
             self.assumeIsolated { store in
@@ -121,7 +124,9 @@ extension CostUsageStore {
                     cache,
                     calendar: calendar,
                     requestedScanWindow: requestedScanWindow,
-                    reportWindow: reportWindow)
+                    reportWindow: reportWindow,
+                    rowBudget: rowBudget,
+                    fileBudgetBytes: fileBudgetBytes)
             }
         }
     }
@@ -141,14 +146,53 @@ extension CostUsageStore {
             let database = try self.ensureDatabase()
             return try operation(database)
         } catch {
-            self.rebuildDatabase()
+            guard Self.shouldRebuild(after: error) else {
+                self.recoverConnectionAfterFailure()
+                Self.log.warning("cost-usage store operation failed; keeping database: \(error)")
+                return fallback
+            }
+            self.rebuildDatabase(reason: "operation failed: \(error)")
             do {
                 let database = try self.ensureDatabase()
                 return try operation(database)
             } catch {
-                self.rebuildDatabase()
+                if Self.shouldRebuild(after: error) {
+                    self.rebuildDatabase(reason: "retry failed: \(error)")
+                } else {
+                    self.recoverConnectionAfterFailure()
+                    Self.log.warning("cost-usage store retry failed; keeping database: \(error)")
+                }
                 return fallback
             }
+        }
+    }
+
+    /// Destroying the database is only the right recovery for corruption or schema drift.
+    /// Transient and data-shape failures (lock contention from a second process, disk full,
+    /// out of memory, a constraint violation from bad input) must not delete user history:
+    /// the old JSON path kept the previous artifact on a failed write, and so do we.
+    static func shouldRebuild(after error: Error) -> Bool {
+        guard case let StoreError.sqlite(code) = error else { return true }
+        switch code & 0xFF {
+        case SQLITE_PERM, SQLITE_BUSY, SQLITE_LOCKED, SQLITE_NOMEM, SQLITE_READONLY,
+             SQLITE_INTERRUPT, SQLITE_IOERR, SQLITE_FULL, SQLITE_TOOBIG, SQLITE_CONSTRAINT,
+             SQLITE_MISUSE, SQLITE_AUTH, SQLITE_RANGE:
+            return false
+        default:
+            return true
+        }
+    }
+
+    /// After a preserved (non-rebuild) failure the connection may still hold an open
+    /// transaction if ROLLBACK itself failed. Roll back, or drop the connection so the
+    /// next access reopens the intact file.
+    private func recoverConnectionAfterFailure() {
+        guard let handle = self.connection?.handle else { return }
+        if sqlite3_get_autocommit(handle) == 0,
+           sqlite3_exec(handle, "ROLLBACK", nil, nil, nil) != SQLITE_OK
+        {
+            self.connection?.close()
+            self.connection = nil
         }
     }
 
@@ -161,7 +205,7 @@ extension CostUsageStore {
             self.connection = SQLiteConnection(handle: opened)
             return opened
         } catch {
-            self.rebuildDatabase()
+            self.rebuildDatabase(reason: "open failed: \(error)")
             guard let database = self.connection?.handle else { throw error }
             return database
         }
@@ -221,7 +265,7 @@ extension CostUsageStore {
         try Self.stepDone(statement, database: database)
     }
 
-    private func rebuildDatabase() {
+    private func rebuildDatabase(reason: String) {
         self.connection?.close()
         self.connection = nil
         for suffix in ["", "-wal", "-shm"] {
@@ -231,6 +275,7 @@ extension CostUsageStore {
             }
         }
         self.rebuildCount += 1
+        Self.log.warning("cost-usage store rebuilt (count \(self.rebuildCount)): \(reason)")
         if let database = try? self.openDatabase() {
             self.connection = SQLiteConnection(handle: database)
         }
@@ -257,7 +302,7 @@ extension CostUsageStore {
         for url in temporaryNames {
             try? FileManager.default.removeItem(at: url)
         }
-        self.rebuildDatabase()
+        self.rebuildDatabase(reason: "legacy Codex JSON artifact removed")
         return true
     }
 }

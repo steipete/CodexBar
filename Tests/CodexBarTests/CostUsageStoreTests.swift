@@ -570,6 +570,220 @@ extension CostUsageStoreTests {
         #expect(discovery.pendingSessionIDs.isEmpty)
         #expect(discovery.filePathBySessionID.isEmpty)
     }
+
+    @Test
+    func `retention prunes the discovery payload in sync with typed state`() async throws {
+        let fixture = try StoreFixture()
+        defer { fixture.remove() }
+        let store = CostUsageStore(cacheRoot: fixture.root)
+        var old = Self.file(path: "/rollouts/old.jsonl", day: "2026-07-01")
+        old.sessionID = "old-session"
+        var kept = Self.file(path: "/rollouts/kept.jsonl", day: "2026-08-02")
+        kept.sessionID = "kept-session"
+        #expect(await store.upsertFile(old))
+        #expect(await store.upsertFile(kept))
+        let discovery = CostUsageCodexSessionDiscovery(
+            roots: ["/rollouts"],
+            generation: nil,
+            directoryStamps: [:],
+            directoryPaths: [],
+            nextDirectoryIndex: 3,
+            filePaths: [old.path, kept.path],
+            nextFileIndex: 2,
+            fileStamps: [
+                old.path: .init(mtimeUnixMs: 1, size: 100, fileId: nil),
+                kept.path: .init(mtimeUnixMs: 1, size: 100, fileId: nil),
+            ],
+            headScan: nil,
+            filePathBySessionId: [
+                "old-session": old.path,
+                "kept-session": kept.path,
+            ],
+            missingSessionIds: ["old-session"],
+            pendingSessionIds: [],
+            validationDirectoryIndex: 1,
+            isComplete: true)
+        var state = Self.discoveryState(paths: [old.path, kept.path])
+        state.payload = try JSONEncoder().encode(discovery)
+        #expect(await store.setDiscoveryState(state))
+
+        _ = await store.retainDayWindow(sinceDay: "2026-08-01", untilDay: "2026-08-03")
+
+        // The scanner round-trips discovery through the opaque payload, so pruning must
+        // reach it or deleted files resurface on the next load.
+        let cache = store.syncLoadCodexCache(calendar: .current)
+        let pruned = try #require(cache.codexSessionDiscovery)
+        #expect(pruned.filePaths == [kept.path])
+        #expect(pruned.fileStamps[old.path] == nil)
+        #expect(pruned.fileStamps[kept.path] != nil)
+        #expect(pruned.filePathBySessionId["old-session"] == nil)
+        #expect(pruned.filePathBySessionId["kept-session"] != nil)
+        #expect(pruned.missingSessionIds.isEmpty)
+        #expect(pruned.isComplete == false)
+        #expect(pruned.nextFileIndex == 0)
+        #expect(pruned.nextDirectoryIndex == 0)
+    }
+
+    @Test
+    func `retention does not protect a parent referenced only by a lineage only child`() async throws {
+        let fixture = try StoreFixture()
+        defer { fixture.remove() }
+        let store = CostUsageStore(cacheRoot: fixture.root)
+        var parent = Self.file(path: "/rollouts/parent.jsonl", day: "2026-07-01")
+        parent.sessionID = "parent-session"
+        let child = Self.file(path: "/rollouts/child.jsonl", day: "2026-08-02")
+        var lineage = Self.lineage(path: child.path)
+        lineage.forkedFromID = "parent-session"
+        lineage.dependencyKey = CostUsageScanner.codexForkDependencyNotRequiredKey
+        #expect(await store.upsertFile(parent))
+        #expect(await store.upsertFile(child))
+        #expect(await store.upsertForkLineage(lineage))
+
+        _ = await store.retainDayWindow(sinceDay: "2026-08-01", untilDay: "2026-08-03")
+
+        // Lineage-only children never resolve inherited totals, so they do not keep a
+        // stale out-of-window parent alive.
+        #expect(await store.fetchFile(path: parent.path) == nil)
+        #expect(await store.fetchFile(path: child.path) != nil)
+    }
+
+    @Test
+    func `retention drops a stale parent referenced only by a stale child`() async throws {
+        let fixture = try StoreFixture()
+        defer { fixture.remove() }
+        let store = CostUsageStore(cacheRoot: fixture.root)
+        var parent = Self.file(path: "/rollouts/parent.jsonl", day: "2026-07-01", updatedAt: 1)
+        parent.sessionID = "parent-session"
+        var child = Self.file(path: "/rollouts/child.jsonl", day: "2026-07-02", updatedAt: 2)
+        child.sessionID = "child-session"
+        var lineage = Self.lineage(path: child.path)
+        lineage.forkedFromID = "parent-session"
+        #expect(await store.upsertFile(parent))
+        #expect(await store.upsertFile(child))
+        #expect(await store.upsertForkLineage(lineage))
+
+        let result = await store.retainDayWindow(sinceDay: "2026-08-01", untilDay: "2026-08-03")
+
+        // One pass: deleting the stale child releases the parent's fork protection, and the
+        // parent must not linger as an unreferenced out-of-window row.
+        #expect(result.deletedFiles == 2)
+        #expect(await store.fetchFile(path: parent.path) == nil)
+        #expect(await store.fetchFile(path: child.path) == nil)
+    }
+
+    @Test
+    func `retention preserves an out of window file modified inside the window`() async throws {
+        let fixture = try StoreFixture()
+        defer { fixture.remove() }
+        let store = CostUsageStore(cacheRoot: fixture.root)
+        let calendar = CostUsageScanner.CostUsageDayRange.localGregorianCalendar()
+        let activeDate = try #require(CostUsageScanner.parseDayKey("2026-08-02", calendar: calendar))
+        var active = Self.file(path: "/rollouts/active.jsonl", day: "2026-07-01")
+        active.mtimeUnixMs = Int64(activeDate.addingTimeInterval(3600).timeIntervalSince1970 * 1000)
+        var stale = Self.file(path: "/rollouts/stale.jsonl", day: "2026-07-01")
+        stale.mtimeUnixMs = 1
+        #expect(await store.upsertFile(active))
+        #expect(await store.upsertFile(stale))
+
+        _ = await store.retainDayWindow(sinceDay: "2026-08-01", untilDay: "2026-08-03", calendar: calendar)
+
+        // A recent mtime means the file may hold unscanned in-window rows; dropping it would
+        // force a rediscovery and full reparse on every refresh.
+        #expect(await store.fetchFile(path: active.path) != nil)
+        #expect(await store.fetchFile(path: stale.path) == nil)
+    }
+}
+
+extension CostUsageStoreTests {
+    @Test
+    func `save preserves an existing complete previous report across repeated trims`() async throws {
+        let fixture = try StoreFixture()
+        defer { fixture.remove() }
+        let store = CostUsageStore(cacheRoot: fixture.root)
+        var cache = CostUsageCache()
+        cache.scanSinceKey = "2026-06-01"
+        cache.scanUntilKey = "2026-07-01"
+        var older = CostUsageFileUsage(
+            mtimeUnixMs: 1,
+            size: 100,
+            days: ["2026-06-05": ["gpt-5.5": [1, 0, 0]]])
+        older.sessionId = "older-session"
+        var recent = CostUsageFileUsage(
+            mtimeUnixMs: 1,
+            size: 100,
+            days: ["2026-06-28": ["gpt-5.5": [1, 0, 0]]])
+        recent.sessionId = "recent-session"
+        cache.files = [
+            "/sessions/older.jsonl": older,
+            "/sessions/recent.jsonl": recent,
+        ]
+        cache.days = [
+            "2026-06-05": ["gpt-5.5": [1, 0, 0]],
+            "2026-06-28": ["gpt-5.5": [1, 0, 0]],
+        ]
+        // Simulate an already pending catch-up pass with a complete previous report.
+        cache.codexScanCatchUpPending = true
+        cache.codexPreviousReport = CostUsageCodexPreviousReport(
+            report: CostUsageDailyReport(data: [
+                CostUsageDailyReport.Entry(
+                    date: "2026-06-05",
+                    inputTokens: 1,
+                    outputTokens: 0,
+                    totalTokens: 1,
+                    costUSD: nil,
+                    modelsUsed: nil,
+                    modelBreakdowns: nil),
+            ], summary: nil),
+            cache: cache)
+
+        let result = store.syncSaveCodexCache(
+            cache,
+            calendar: .current,
+            requestedScanWindow: (sinceKey: "2026-06-01", untilKey: "2026-07-01"),
+            reportWindow: (sinceKey: "2026-06-01", untilKey: "2026-07-01"),
+            fileBudgetBytes: 1)
+
+        #expect(result.catchUpRequired)
+        let metadata = await store.fetchMetadata()
+        let payload = try #require(metadata.previousReportPayload)
+        let preserved = try JSONDecoder().decode(CostUsageCodexPreviousReport.self, from: payload)
+        #expect(preserved.data.count == 1)
+        #expect(preserved.data.first?.date == "2026-06-05")
+        #expect(preserved.data.contains { $0.date == "2026-06-28" } == false)
+    }
+
+    @Test
+    func `save catch up report honors a non-gregorian system calendar`() async throws {
+        let fixture = try StoreFixture()
+        defer { fixture.remove() }
+        let store = CostUsageStore(cacheRoot: fixture.root)
+        var calendar = Calendar(identifier: .buddhist)
+        calendar.timeZone = try #require(TimeZone(secondsFromGMT: 0))
+        var cache = CostUsageCache()
+        cache.scanSinceKey = "2026-06-01"
+        cache.scanUntilKey = "2026-07-01"
+        var entry = CostUsageFileUsage(
+            mtimeUnixMs: 1,
+            size: 100,
+            days: ["2026-06-05": ["gpt-5.5": [1, 0, 0]]])
+        entry.sessionId = "in-window-session"
+        cache.files = ["/sessions/in-window.jsonl": entry]
+        cache.days = ["2026-06-05": ["gpt-5.5": [1, 0, 0]]]
+
+        let result = store.syncSaveCodexCache(
+            cache,
+            calendar: calendar,
+            requestedScanWindow: (sinceKey: "2026-06-01", untilKey: "2026-07-01"),
+            reportWindow: (sinceKey: "2026-06-01", untilKey: "2026-07-01"),
+            fileBudgetBytes: 1)
+
+        #expect(result.catchUpRequired)
+        let metadata = await store.fetchMetadata()
+        let payload = try #require(metadata.previousReportPayload)
+        let previous = try JSONDecoder().decode(CostUsageCodexPreviousReport.self, from: payload)
+        #expect(previous.data.contains { $0.date == "2026-06-05" })
+        #expect(previous.data.contains { $0.date == "1483-06-05" } == false)
+    }
 }
 
 extension CostUsageStoreTests {
@@ -673,7 +887,7 @@ extension CostUsageStoreTests {
     }
 
     @Test
-    func `in window budget trim marks catch up and preserves previous report`() async throws {
+    func `in window byte budget trim marks catch up and preserves previous report`() async throws {
         let fixture = try StoreFixture()
         defer { fixture.remove() }
         let store = CostUsageStore(cacheRoot: fixture.root)
@@ -682,12 +896,18 @@ extension CostUsageStoreTests {
         metadata.lastScanUnixMs = 1234
         metadata.previousReportPayload = previous
         #expect(await store.setMetadata(metadata))
-        #expect(await store.upsertFile(Self.file(path: "/rollouts/one.jsonl", day: "2026-08-01", updatedAt: 1)))
-        #expect(await store.upsertFile(Self.file(path: "/rollouts/two.jsonl", day: "2026-08-01", updatedAt: 2)))
+        for (index, path) in ["/rollouts/one.jsonl", "/rollouts/two.jsonl"].enumerated() {
+            #expect(await store.upsertFile(Self.file(path: path, day: "2026-08-01", updatedAt: Int64(index))))
+            let row = CostUsageStoreUsageRow(
+                path: path,
+                rowIndex: 0,
+                payload: Data(repeating: UInt8(index), count: 256 * 1024))
+            #expect(await store.replaceUsageRows(path: path, rows: [row]))
+        }
 
         let result = await store.enforceBudgets(
-            maxRows: 1,
-            maxFileBytes: .max,
+            maxRows: .max,
+            maxFileBytes: 1,
             requestedSinceDay: "2026-08-01",
             requestedUntilDay: "2026-08-02")
         let retained = await store.fetchMetadata()
@@ -696,6 +916,106 @@ extension CostUsageStoreTests {
         #expect(retained.catchUpPending)
         #expect(retained.lastScanUnixMs == 0)
         #expect(retained.previousReportPayload == previous)
+    }
+
+    @Test
+    func `row budget never deletes files touching the requested window`() async throws {
+        let fixture = try StoreFixture()
+        defer { fixture.remove() }
+        let store = CostUsageStore(cacheRoot: fixture.root)
+        #expect(await store.upsertFile(Self.file(path: "/rollouts/stale.jsonl", day: "2026-06-01", updatedAt: 0)))
+        #expect(await store.upsertFile(Self.file(path: "/rollouts/one.jsonl", day: "2026-08-01", updatedAt: 1)))
+        #expect(await store.upsertFile(Self.file(path: "/rollouts/two.jsonl", day: "2026-08-02", updatedAt: 2)))
+
+        let result = await store.enforceBudgets(
+            maxRows: 1,
+            maxFileBytes: .max,
+            requestedSinceDay: "2026-08-01",
+            requestedUntilDay: "2026-08-02")
+
+        // The out-of-window file is pruned, but in-window files stay even though the row
+        // count remains above the cap: the former entry budget never dropped in-window data.
+        #expect(result.rowCount == 2)
+        #expect(await store.fetchFile(path: "/rollouts/stale.jsonl") == nil)
+        #expect(await store.fetchFile(path: "/rollouts/one.jsonl") != nil)
+        #expect(await store.fetchFile(path: "/rollouts/two.jsonl") != nil)
+        #expect(await store.fetchMetadata().catchUpPending == false)
+    }
+
+    @Test
+    func `byte budget strips detail from a protected file instead of stalling`() async throws {
+        let fixture = try StoreFixture()
+        defer { fixture.remove() }
+        let store = CostUsageStore(cacheRoot: fixture.root)
+        var file = Self.file(path: "/rollouts/resuming.jsonl", day: "2026-08-01")
+        file.scanState.isComplete = false
+        #expect(await store.upsertFile(file))
+        #expect(await store.appendTokenSnapshots([Self.snapshot(path: file.path, eventIndex: 0)]))
+        #expect(await store.replaceUsageRows(path: file.path, rows: [CostUsageStoreUsageRow(
+            path: file.path,
+            rowIndex: 0,
+            payload: Data(repeating: 7, count: 256 * 1024))]))
+        #expect(await store.upsertAccumulator(Self.accumulator(path: file.path)))
+
+        let result = await store.enforceBudgets(
+            maxRows: .max,
+            maxFileBytes: 1,
+            requestedSinceDay: "2026-08-01",
+            requestedUntilDay: "2026-08-02")
+
+        let stripped = try #require(await store.fetchFile(path: file.path))
+        #expect(result.catchUpRequired)
+        #expect(stripped.parsedBytes == 0)
+        #expect(stripped.scanState.isComplete == false)
+        #expect(stripped.scanState.resumePayload == nil)
+        #expect(await store.fetchTokenSnapshots(path: file.path).isEmpty)
+        #expect(await store.fetchUsageRows(path: file.path).isEmpty)
+        #expect(await store.fetchAccumulator(path: file.path) == nil)
+        #expect(await store.fetchMetadata().catchUpPending)
+    }
+
+    @Test
+    func `byte budget compacts a fork parent required by a surviving child`() async throws {
+        let fixture = try StoreFixture()
+        defer { fixture.remove() }
+        let store = CostUsageStore(cacheRoot: fixture.root)
+        var parent = Self.file(path: "/rollouts/parent.jsonl", day: "2026-08-01", updatedAt: 1)
+        parent.sessionID = "parent-session"
+        #expect(await store.upsertFile(parent))
+        #expect(await store.upsertForkLineage(CostUsageStoreForkLineage(
+            path: parent.path,
+            sessionID: "parent-session",
+            forkedFromID: nil,
+            forkTimestamp: nil,
+            dependencyKey: nil,
+            subagentState: nil,
+            accountingState: nil)))
+        #expect(await store.replaceUsageRows(path: parent.path, rows: [CostUsageStoreUsageRow(
+            path: parent.path,
+            rowIndex: 0,
+            payload: Data(repeating: 5, count: 256 * 1024))]))
+        var child = Self.file(path: "/rollouts/child.jsonl", day: "2026-08-01", updatedAt: 2)
+        child.sessionID = "child-session"
+        child.scanState.isComplete = false
+        var lineage = Self.lineage(path: child.path)
+        lineage.forkedFromID = "parent-session"
+        #expect(await store.upsertFile(child))
+        #expect(await store.upsertForkLineage(lineage))
+
+        let result = await store.enforceBudgets(
+            maxRows: .max,
+            maxFileBytes: 1,
+            requestedSinceDay: "2026-08-01",
+            requestedUntilDay: "2026-08-02")
+
+        // The parent cannot be deleted while the incomplete child still needs its baseline,
+        // so byte pressure compacts its rebuildable detail instead.
+        let compacted = try #require(await store.fetchFile(path: parent.path))
+        #expect(result.catchUpRequired)
+        #expect(compacted.parsedBytes == 0)
+        #expect(compacted.scanState.isComplete == false)
+        #expect(await store.fetchUsageRows(path: parent.path).isEmpty)
+        #expect(await store.fetchFile(path: child.path) != nil)
     }
 
     @Test
@@ -712,6 +1032,31 @@ extension CostUsageStoreTests {
         #expect(try reader.scalarInt("SELECT COUNT(*) FROM files") == 1)
         try reader.execute("COMMIT")
         #expect(try reader.scalarInt("SELECT COUNT(*) FROM files") == 2)
+    }
+
+    @Test(.timeLimit(.minutes(1)))
+    func `write lock held by another process skips the write instead of deleting the store`() async throws {
+        let fixture = try StoreFixture()
+        defer { fixture.remove() }
+        let store = CostUsageStore(cacheRoot: fixture.root)
+        #expect(await store.upsertFile(Self.file(path: "/rollouts/one.jsonl", day: "2026-08-01")))
+
+        // The CLI cost command scans through CostUsageFetcher and therefore opens its own
+        // writable store connection. Hold that cross-process lock past the 5s busy timeout.
+        let holder = try SQLiteTestConnection(url: store.databaseURL)
+        try holder.execute("BEGIN IMMEDIATE")
+        try holder.execute("INSERT OR REPLACE INTO meta(key, value) VALUES ('holder', '1')")
+
+        let blocked = await store.upsertFile(Self.file(path: "/rollouts/two.jsonl", day: "2026-08-02"))
+        #expect(blocked == false)
+        #expect(await store.rebuildCount == 0)
+        #expect(FileManager.default.fileExists(atPath: store.databaseURL.path))
+
+        try holder.execute("COMMIT")
+        #expect(await store.upsertFile(Self.file(path: "/rollouts/two.jsonl", day: "2026-08-02")))
+        let reader = try SQLiteTestConnection(url: store.databaseURL, readOnly: true)
+        #expect(try reader.scalarInt("SELECT COUNT(*) FROM files") == 2)
+        #expect(await store.rebuildCount == 0)
     }
 }
 

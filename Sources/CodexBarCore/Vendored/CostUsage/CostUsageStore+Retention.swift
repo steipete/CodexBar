@@ -10,7 +10,11 @@ import CSQLite3
 
 extension CostUsageStore {
     @discardableResult
-    func retainDayWindow(sinceDay: String, untilDay: String) -> CostUsageStoreRetentionResult {
+    func retainDayWindow(
+        sinceDay: String,
+        untilDay: String,
+        calendar: Calendar = .current) -> CostUsageStoreRetentionResult
+    {
         guard sinceDay <= untilDay else {
             return CostUsageStoreRetentionResult(
                 deletedFiles: 0,
@@ -24,7 +28,7 @@ extension CostUsageStore {
             deletedFileDayAggregates: 0,
             deletedDayAggregates: 0)
         return self.withDatabase(default: fallback) { database in
-            try Self.prune(database, sinceDay: sinceDay, untilDay: untilDay)
+            try Self.prune(database, sinceDay: sinceDay, untilDay: untilDay, calendar: calendar)
         }
     }
 
@@ -42,7 +46,8 @@ extension CostUsageStore {
     private static func prune(
         _ database: OpaquePointer,
         sinceDay: String,
-        untilDay: String) throws -> CostUsageStoreRetentionResult
+        untilDay: String,
+        calendar: Calendar) throws -> CostUsageStoreRetentionResult
     {
         try self.inTransaction(database) {
             let beforeFiles = try self.scalarInt(database, "SELECT COUNT(*) FROM files")
@@ -50,17 +55,27 @@ extension CostUsageStore {
             let beforeFileAggregates = try self.scalarInt(database, "SELECT COUNT(*) FROM file_day_aggregates")
             let beforeAggregates = try self.scalarInt(database, "SELECT COUNT(*) FROM day_aggregates")
 
-            let candidates = try self.retentionCandidates(
-                database,
-                sinceDay: sinceDay,
-                untilDay: untilDay)
+            let activeWindow = self.activeWindowMs(sinceDay: sinceDay, untilDay: untilDay, calendar: calendar)
             let deleteFile = try self.prepare(database, "DELETE FROM files WHERE path = ?")
             defer { sqlite3_finalize(deleteFile) }
-            for candidate in candidates {
-                sqlite3_reset(deleteFile)
-                sqlite3_clear_bindings(deleteFile)
-                self.bind(candidate.path, to: deleteFile, at: 1)
-                try self.stepDone(deleteFile, database: database)
+            var candidates: [RetentionCandidate] = []
+            // Iterate to a fixpoint: deleting a stale child releases the fork protection on
+            // its stale parent, which must then be pruned in the same pass instead of
+            // lingering as an unreferenced out-of-window row.
+            while true {
+                let round = try self.retentionCandidates(
+                    database,
+                    sinceDay: sinceDay,
+                    untilDay: untilDay,
+                    activeWindow: activeWindow)
+                guard !round.isEmpty else { break }
+                for candidate in round {
+                    sqlite3_reset(deleteFile)
+                    sqlite3_clear_bindings(deleteFile)
+                    self.bind(candidate.path, to: deleteFile, at: 1)
+                    try self.stepDone(deleteFile, database: database)
+                }
+                candidates += round
             }
 
             let deleteFileAggregates = try self.prepare(
@@ -105,13 +120,37 @@ extension CostUsageStore {
         var sessionID: String?
     }
 
+    /// Milliseconds spanned by the scan window's local days; a session file whose mtime
+    /// falls inside it is still active (it may hold unscanned in-window rows) even when its
+    /// scanned coverage is entirely out of window, so retention must not drop it.
+    static func activeWindowMs(
+        sinceDay: String?,
+        untilDay: String?,
+        calendar: Calendar) -> Range<Int64>?
+    {
+        guard let sinceDay, let untilDay,
+              let since = CostUsageScanner.parseDayKey(sinceDay, calendar: calendar),
+              let until = CostUsageScanner.parseDayKey(untilDay, calendar: calendar)
+        else { return nil }
+        let scanCalendar = CostUsageScanner.CostUsageDayRange.localGregorianCalendar(matching: calendar)
+        let end = scanCalendar.date(byAdding: .day, value: 1, to: until) ?? until
+        let lower = Int64(since.timeIntervalSince1970 * 1000)
+        let upper = Int64(end.timeIntervalSince1970 * 1000)
+        guard lower < upper else { return nil }
+        return lower..<upper
+    }
+
     private static func retentionCandidates(
         _ database: OpaquePointer,
         sinceDay: String,
-        untilDay: String) throws -> [RetentionCandidate]
+        untilDay: String,
+        activeWindow: Range<Int64>?) throws -> [RetentionCandidate]
     {
+        // Fork parents stay protected only while a surviving child still needs the parent's
+        // baseline; lineage-only children (dependency key "not required") never resolve
+        // inherited totals, so they do not keep a stale parent alive.
         let statement = try self.prepare(database, """
-        SELECT f.path, f.session_id
+        SELECT f.path, f.session_id, f.mtime_ms
         FROM files f
         WHERE f.scan_complete = 1
           AND f.coverage_since_day IS NOT NULL
@@ -122,6 +161,7 @@ extension CostUsageStore {
               f.session_id IS NULL OR NOT EXISTS (
                   SELECT 1 FROM fork_lineage l
                   WHERE l.forked_from_id = f.session_id AND l.file_id != f.id
+                    AND (l.dependency_key IS NULL OR l.dependency_key != ?)
               )
           )
         ORDER BY f.updated_at_ms, f.path
@@ -129,11 +169,15 @@ extension CostUsageStore {
         defer { sqlite3_finalize(statement) }
         self.bind(sinceDay, to: statement, at: 1)
         self.bind(untilDay, to: statement, at: 2)
+        self.bind(CostUsageScanner.codexForkDependencyNotRequiredKey, to: statement, at: 3)
         var values: [RetentionCandidate] = []
         var result = sqlite3_step(statement)
         while result == SQLITE_ROW {
             guard let path = self.columnText(statement, at: 0) else { throw StoreError.invalidData }
-            values.append(RetentionCandidate(path: path, sessionID: self.columnText(statement, at: 1)))
+            let mtime = sqlite3_column_int64(statement, 2)
+            if activeWindow?.contains(mtime) != true {
+                values.append(RetentionCandidate(path: path, sessionID: self.columnText(statement, at: 1)))
+            }
             result = sqlite3_step(statement)
         }
         guard result == SQLITE_DONE else { throw StoreError.sqlite(result) }
@@ -158,7 +202,35 @@ extension CostUsageStore {
         state.filePathBySessionID = state.filePathBySessionID.filter {
             !sessionIDs.contains($0.key) && !paths.contains($0.value)
         }
-        state.nextFileIndex = min(state.nextFileIndex, state.filePaths.count)
+        // Cursors may point past the shortened arrays, and pruned coverage is no longer
+        // complete; reset both so the next discovery pass re-enqueues remaining files
+        // instead of trusting stale coverage.
+        state.nextFileIndex = 0
+        state.nextDirectoryIndex = 0
+        state.validationDirectoryIndex = 0
+        state.isComplete = false
+        // The scanner round-trips discovery through the opaque payload, so the payload must
+        // be pruned in lockstep with the typed columns or the deleted files resurface on the
+        // next load.
+        if let payload = state.payload,
+           var discovery = try? JSONDecoder().decode(CostUsageCodexSessionDiscovery.self, from: payload)
+        {
+            discovery.filePaths.removeAll { paths.contains($0) }
+            discovery.fileStamps = discovery.fileStamps.filter { !paths.contains($0.key) }
+            discovery.filePathBySessionId = discovery.filePathBySessionId.filter {
+                !sessionIDs.contains($0.key) && !paths.contains($0.value)
+            }
+            discovery.missingSessionIds.removeAll { sessionIDs.contains($0) }
+            discovery.pendingSessionIds.removeAll { sessionIDs.contains($0) }
+            if let head = discovery.headScan, paths.contains(head.path) {
+                discovery.headScan = nil
+            }
+            discovery.nextFileIndex = 0
+            discovery.nextDirectoryIndex = 0
+            discovery.validationDirectoryIndex = 0
+            discovery.isComplete = false
+            state.payload = (try? JSONEncoder().encode(discovery)) ?? state.payload
+        }
         try self.writeSingleton(state, database: database, table: "discovery_state")
     }
 }
@@ -192,15 +264,21 @@ extension CostUsageStore {
             if initialRows > Int64(rowLimit) || initialBytes > byteLimit,
                let sinceDay, let untilDay, sinceDay <= untilDay
             {
-                _ = try Self.prune(database, sinceDay: sinceDay, untilDay: untilDay)
+                _ = try Self.prune(database, sinceDay: sinceDay, untilDay: untilDay, calendar: calendar)
             }
 
             var catchUpRequired = false
+            // The row budget mirrors the former entry budget: it only ever removes files the
+            // requested window does not read. In-window and recently active files are never
+            // dropped just for a row overage; the byte budget below is the sole authority
+            // that may sacrifice in-window data.
             while try Self.rowCount(database) > Int64(rowLimit) {
                 guard try Self.deleteOldestRetainedFile(
                     database,
                     sinceDay: sinceDay,
-                    calendar: calendar) else { break }
+                    untilDay: untilDay,
+                    calendar: calendar,
+                    protectRequestedWindow: true) else { break }
                 catchUpRequired = true
             }
             try Self.reclaimFreePages(database)
@@ -210,7 +288,9 @@ extension CostUsageStore {
                 guard try Self.deleteOldestRetainedFile(
                     database,
                     sinceDay: sinceDay,
-                    calendar: calendar)
+                    untilDay: untilDay,
+                    calendar: calendar,
+                    protectRequestedWindow: false)
                 else {
                     guard try Self.stripOldestRebuildableDetail(database) else { break }
                     catchUpRequired = true
@@ -246,7 +326,9 @@ extension CostUsageStore {
     private static func deleteOldestRetainedFile(
         _ database: OpaquePointer,
         sinceDay: String?,
-        calendar: Calendar) throws -> Bool
+        untilDay: String?,
+        calendar: Calendar,
+        protectRequestedWindow: Bool) throws -> Bool
     {
         let statement = try self.prepare(database, """
         SELECT f.id, f.path, f.mtime_ms, f.coverage_since_day, f.coverage_until_day
@@ -264,16 +346,24 @@ extension CostUsageStore {
         """)
         defer { sqlite3_finalize(statement) }
         self.bind(CostUsageScanner.codexForkDependencyNotRequiredKey, to: statement, at: 1)
-        let activeSinceMs = sinceDay.flatMap { CostUsageScanner.parseDayKey($0, calendar: calendar) }
-            .map { Int64($0.timeIntervalSince1970 * 1000) }
+        let activeWindow = self.activeWindowMs(sinceDay: sinceDay, untilDay: untilDay, calendar: calendar)
         var result = sqlite3_step(statement)
         while result == SQLITE_ROW {
             let mtime = sqlite3_column_int64(statement, 2)
             let coverageSince = self.columnText(statement, at: 3)
             let coverageUntil = self.columnText(statement, at: 4)
-            let zeroDayRecentlyActive = coverageSince == nil && coverageUntil == nil
-                && activeSinceMs.map { mtime >= $0 } == true
-            if !zeroDayRecentlyActive {
+            let recentlyActive = activeWindow?.contains(mtime) == true
+            let zeroDayRecentlyActive = coverageSince == nil && coverageUntil == nil && recentlyActive
+            let touchesWindow: Bool = if let sinceDay, let untilDay,
+                                         let coverageSince, let coverageUntil
+            {
+                coverageUntil >= sinceDay && coverageSince <= untilDay
+            } else {
+                false
+            }
+            let protected = zeroDayRecentlyActive
+                || (protectRequestedWindow && (touchesWindow || recentlyActive))
+            if !protected {
                 let fileID = sqlite3_column_int64(statement, 0)
                 try self.execute(database, "DELETE FROM files WHERE id = \(fileID)")
                 return sqlite3_changes(database) > 0

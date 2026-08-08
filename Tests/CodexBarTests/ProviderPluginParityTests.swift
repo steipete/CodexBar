@@ -235,12 +235,15 @@ struct ProviderPluginParityTests {
                 statusCode: 200,
                 httpVersion: nil,
                 headerFields: ["Content-Type": "application/json"]))
+            if request.url?.path.hasSuffix("/key") == true {
+                try await Task.sleep(for: .milliseconds(950))
+            }
             let body = request.url?.path.hasSuffix("/key") == true ? keyBody : creditsBody
             return (Data(body.utf8), response)
         }
         let now = Date()
 
-        let runtime = try ProviderPluginRuntime(bundledPlugin: "openrouter", transport: transport)
+        let runtime = try Self.openRouterRuntime(transport: transport)
         let script = try await runtime.fetchUsage(
             secrets: ["OPENROUTER_API_KEY": "fixture-key"],
             now: now)
@@ -265,6 +268,9 @@ struct ProviderPluginParityTests {
         }}
         """#
         let transport = ProviderHTTPTransportHandler { request in
+            if request.url?.path.hasSuffix("/key") == true {
+                try await Task.sleep(for: .milliseconds(950))
+            }
             let response = try #require(HTTPURLResponse(
                 url: request.url!,
                 statusCode: 200,
@@ -275,7 +281,7 @@ struct ProviderPluginParityTests {
         }
         let now = Date()
 
-        let runtime = try ProviderPluginRuntime(bundledPlugin: "openrouter", transport: transport)
+        let runtime = try Self.openRouterRuntime(transport: transport)
         let script = try await runtime.fetchUsage(
             secrets: ["OPENROUTER_API_KEY": "fixture-key"],
             now: now)
@@ -305,12 +311,15 @@ struct ProviderPluginParityTests {
                 statusCode: 200,
                 httpVersion: nil,
                 headerFields: ["Content-Type": "application/json"]))
+            if request.url?.path.hasSuffix("/key") == true {
+                try await Task.sleep(for: .milliseconds(950))
+            }
             let body = request.url?.path.hasSuffix("/key") == true ? keyBody : creditsBody
             return (Data(body.utf8), response)
         }
         let now = Date()
 
-        let runtime = try ProviderPluginRuntime(bundledPlugin: "openrouter", transport: transport)
+        let runtime = try Self.openRouterRuntime(transport: transport)
         let script = try await runtime.fetchUsage(
             secrets: ["OPENROUTER_API_KEY": "fixture-key"],
             now: now)
@@ -333,6 +342,15 @@ struct ProviderPluginParityTests {
                 headerFields: ["Content-Type": "application/json"]))
             return (Data(body.utf8), response)
         }
+    }
+
+    private static func openRouterRuntime(
+        transport: any ProviderHTTPTransport) throws -> ProviderPluginRuntime
+    {
+        try ProviderPluginRuntime(
+            bundledPlugin: "openrouter",
+            transport: transport,
+            contextOptions: ProviderPluginContextOptions(optionalRequestTimeoutSeconds: 15))
     }
 
     private static func context(environment: [String: String]) -> ProviderFetchContext {
