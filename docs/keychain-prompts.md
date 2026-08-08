@@ -20,6 +20,11 @@ Before a Keychain read that may require interaction, CodexBar shows an explanati
 **Learn More** opens this page without dismissing that explanation or starting the macOS prompt. Choose **OK** only
 when you are ready to continue, or use the opt-out below.
 
+For Claude OAuth, the explanatory alert remains enabled by default for existing installations. Disable **Preferences →
+Providers → Claude → Show Keychain access explanation** after you have acknowledged the explanation and no longer need
+to see it before the native macOS authorization prompt. This preference only controls CodexBar's explanation; it does
+not change whether macOS asks for access or whether Claude OAuth can run.
+
 After you acknowledge the Claude OAuth explanation, CodexBar does not repeat that explanation for six hours. This
 cooldown only applies to CodexBar's explanatory alert: macOS can still show its own Keychain authorization prompt,
 and the Claude **Never prompt** and global **Disable Keychain access** settings remain in effect.

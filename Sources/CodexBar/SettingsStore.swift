@@ -492,6 +492,8 @@ extension SettingsStore {
         let menuBarShowsHighestUsage = userDefaults.object(forKey: "menuBarShowsHighestUsage") as? Bool ?? false
         let claudeOAuthKeychainReadStrategyRaw = Self.loadClaudeOAuthKeychainReadStrategyRaw(userDefaults: userDefaults)
         let claudeOAuthKeychainPromptModeRaw = userDefaults.string(forKey: "claudeOAuthKeychainPromptMode")
+        let claudeOAuthPromptExplanationEnabled = userDefaults.object(
+            forKey: ClaudeOAuthPromptExplanationPreference.userDefaultsKey) as? Bool ?? true
         let claudeWebExtrasEnabledRaw = userDefaults.object(forKey: "claudeWebExtrasEnabled") as? Bool ?? false
         let creditsExtrasDefault = userDefaults.object(forKey: "showOptionalCreditsAndExtraUsage") as? Bool
         let showOptionalCreditsAndExtraUsage = creditsExtrasDefault ?? true
@@ -604,6 +606,7 @@ extension SettingsStore {
             confettiOnWeeklyLimitResetsEnabled: confettiOnReset.weekly,
             menuBarShowsHighestUsage: menuBarShowsHighestUsage,
             claudeOAuthKeychainPromptModeRaw: claudeOAuthKeychainPromptModeRaw,
+            claudeOAuthPromptExplanationEnabled: claudeOAuthPromptExplanationEnabled,
             claudeOAuthKeychainReadStrategyRaw: claudeOAuthKeychainReadStrategyRaw,
             claudeWebExtrasEnabledRaw: claudeWebExtrasEnabledRaw,
             showOptionalCreditsAndExtraUsage: showOptionalCreditsAndExtraUsage,

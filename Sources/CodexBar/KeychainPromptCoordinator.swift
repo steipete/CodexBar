@@ -59,6 +59,14 @@ struct KeychainPromptAlertModel: Equatable {
     let documentationURL: String
 }
 
+enum ClaudeOAuthPromptExplanationPreference {
+    static let userDefaultsKey = "claudeOAuthPromptExplanationEnabled"
+
+    static func isEnabled(in userDefaults: UserDefaults = .standard) -> Bool {
+        userDefaults.object(forKey: self.userDefaultsKey) as? Bool ?? true
+    }
+}
+
 @MainActor
 private final class KeychainPromptLearnMoreTarget: NSObject {
     private let documentationURL: String
@@ -80,7 +88,7 @@ enum KeychainPromptCoordinator {
         "https://github.com/steipete/CodexBar/blob/main/docs/keychain-prompts.md"
 
     static func install() {
-        KeychainPromptHandler.handler = { context in
+        KeychainPromptHandler.resultHandler = { context in
             self.presentKeychainPrompt(context)
         }
         BrowserCookieKeychainPromptHandler.handler = { context in
@@ -116,10 +124,27 @@ enum KeychainPromptCoordinator {
             && !executableURL.pathComponents.contains(where: { $0.hasSuffix(".app") })
     }
 
-    private static func presentKeychainPrompt(_ context: KeychainPromptContext) {
+    private static func presentKeychainPrompt(_ context: KeychainPromptContext) -> Bool {
+        guard self.shouldPresentExplanation(for: context) else {
+            self.log.info("Keychain prompt explanation suppressed", metadata: ["kind": "claudeOAuth"])
+            return false
+        }
         let model = self.alertModel(for: context)
         self.log.info("Keychain prompt requested", metadata: ["kind": "\(context.kind)"])
         self.presentAlert(model)
+        return true
+    }
+
+    static func shouldPresentExplanation(
+        for context: KeychainPromptContext,
+        userDefaults: UserDefaults = .standard) -> Bool
+    {
+        switch context.kind {
+        case .claudeOAuth:
+            ClaudeOAuthPromptExplanationPreference.isEnabled(in: userDefaults)
+        default:
+            true
+        }
     }
 
     private static func presentBrowserCookiePrompt(_ context: BrowserCookieKeychainPromptContext) {

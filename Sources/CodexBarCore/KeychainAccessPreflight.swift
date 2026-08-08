@@ -36,15 +36,19 @@ public struct KeychainPromptContext: Sendable {
 
 public enum KeychainPromptHandler {
     final class HandlerStore: @unchecked Sendable {
-        let handler: (KeychainPromptContext) -> Void
+        let handler: (KeychainPromptContext) -> Bool
 
-        init(handler: @escaping (KeychainPromptContext) -> Void) {
+        init(handler: @escaping (KeychainPromptContext) -> Bool) {
             self.handler = handler
         }
     }
 
     @TaskLocal private static var taskHandlerStore: HandlerStore?
+    /// Compatibility callback for clients that only need notification delivery.
     public nonisolated(unsafe) static var handler: ((KeychainPromptContext) -> Void)?
+
+    /// Optional result-capable callback used when callers need to know whether a prompt was shown.
+    public nonisolated(unsafe) static var resultHandler: ((KeychainPromptContext) -> Bool)?
 
     public static func notify(_ context: KeychainPromptContext) {
         _ = self.notifyIfHandled(context)
@@ -53,12 +57,14 @@ public enum KeychainPromptHandler {
     @discardableResult
     static func notifyIfHandled(_ context: KeychainPromptContext) -> Bool {
         if let taskHandlerStore {
-            taskHandlerStore.handler(context)
+            return taskHandlerStore.handler(context)
+        }
+        if let handler {
+            handler(context)
             return true
         }
-        guard let handler else { return false }
-        handler(context)
-        return true
+        if let resultHandler { return resultHandler(context) }
+        return false
     }
 
     #if DEBUG
@@ -66,7 +72,13 @@ public enum KeychainPromptHandler {
         _ handler: ((KeychainPromptContext) -> Void)?,
         operation: () throws -> T) rethrows -> T
     {
-        try self.$taskHandlerStore.withValue(handler.map(HandlerStore.init(handler:))) {
+        let resultHandler = handler.map { callback in
+            { context in
+                callback(context)
+                return true
+            }
+        }
+        return try self.$taskHandlerStore.withValue(resultHandler.map(HandlerStore.init(handler:))) {
             try operation()
         }
     }
@@ -75,10 +87,37 @@ public enum KeychainPromptHandler {
         _ handler: ((KeychainPromptContext) -> Void)?,
         operation: () async throws -> T) async rethrows -> T
     {
-        try await self.$taskHandlerStore.withValue(handler.map(HandlerStore.init(handler:))) {
+        let resultHandler = handler.map { callback in
+            { context in
+                callback(context)
+                return true
+            }
+        }
+        return try await self.$taskHandlerStore.withValue(resultHandler.map(HandlerStore.init(handler:))) {
             try await operation()
         }
     }
+
+    static func withResultHandlerForTesting<T>(
+        result: Bool,
+        operation: () throws -> T) rethrows -> T
+    {
+        let handler: (KeychainPromptContext) -> Bool = { _ in result }
+        return try self.$taskHandlerStore.withValue(HandlerStore(handler: handler)) {
+            try operation()
+        }
+    }
+
+    static func withResultHandlerForTesting<T>(
+        result: Bool,
+        operation: () async throws -> T) async rethrows -> T
+    {
+        let handler: (KeychainPromptContext) -> Bool = { _ in result }
+        return try await self.$taskHandlerStore.withValue(HandlerStore(handler: handler)) {
+            try await operation()
+        }
+    }
+
     #endif
 }
 
