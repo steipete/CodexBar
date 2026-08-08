@@ -71,7 +71,7 @@ func spendDashboardTrackedSourceStatusText(_ source: SpendDashboardTrackedSource
 func spendDashboardAggregateCostText(_ group: SpendDashboardModel.CurrencyGroup) -> String {
     guard let cost = group.totalCost ?? group.knownCost else { return L("Spend unavailable") }
     let formatted = UsageFormatter.currencyString(cost, currencyCode: group.currencyCode)
-    return group.totalCost == nil ? "≥ \(formatted)" : formatted
+    return group.totalCost == nil ? "~\(formatted)" : formatted
 }
 
 func spendDashboardCostCoverageText(_ group: SpendDashboardModel.CurrencyGroup) -> String {
@@ -623,6 +623,21 @@ private struct SpendCurrencySection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
+            SpendCurrencySummaryView(group: self.group, requestedDays: self.requestedDays)
+
+            SpendProviderPanel(group: self.group)
+            SpendModelPanel(group: self.group)
+            SpendDailyChart(group: self.group)
+        }
+    }
+}
+
+struct SpendCurrencySummaryView: View {
+    let group: SpendDashboardModel.CurrencyGroup
+    let requestedDays: Int
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .firstTextBaseline) {
                 Text(self.group.currencyCode)
                     .font(.headline)
@@ -656,10 +671,6 @@ private struct SpendCurrencySection: View {
                         value: codexBarLocalizedInteger(self.group.providers.count))
                 }
             }
-
-            SpendProviderPanel(group: self.group)
-            SpendModelPanel(group: self.group)
-            SpendDailyChart(group: self.group)
         }
     }
 }

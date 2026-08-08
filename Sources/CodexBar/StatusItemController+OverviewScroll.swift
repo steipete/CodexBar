@@ -26,6 +26,12 @@ extension StatusItemController {
             self.overviewScrollAccumulatedDelta = 0
             return false
         }
+        // Long overviews need AppKit's native viewport movement so offscreen rows can become visible.
+        // Keep legacy row-to-row wheel navigation only for short lists that fit without scrolling.
+        if self.overviewRowCount(in: menu) > SettingsStore.mergedOverviewLegacyWheelNavigationLimit {
+            self.overviewScrollAccumulatedDelta = 0
+            return false
+        }
         guard !event.hasPreciseScrollingDeltas else {
             self.overviewScrollAccumulatedDelta = 0
             return false
@@ -61,7 +67,11 @@ extension StatusItemController {
     }
 
     func menuHasOverviewRows(_ menu: NSMenu) -> Bool {
-        menu.items.contains { item in
+        self.overviewRowCount(in: menu) > 0
+    }
+
+    func overviewRowCount(in menu: NSMenu) -> Int {
+        menu.items.count { item in
             (item.representedObject as? String)?.hasPrefix(Self.overviewRowIdentifierPrefix) == true
         }
     }

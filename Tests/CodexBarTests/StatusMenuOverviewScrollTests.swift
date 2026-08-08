@@ -28,15 +28,32 @@ struct StatusMenuOverviewScrollTests {
             statusBar: .system)
     }
 
-    private func makeOverviewMenu() -> NSMenu {
+    private func makeOverviewMenu(count: Int = 2) -> NSMenu {
         let menu = NSMenu()
-        for provider in ["claude", "codex"] {
+        for index in 0..<count {
             let item = NSMenuItem()
-            item.representedObject = "\(StatusItemController.overviewRowIdentifierPrefix)\(provider)"
+            item.representedObject = "\(StatusItemController.overviewRowIdentifierPrefix)provider-\(index)"
             item.isEnabled = true
             menu.addItem(item)
         }
         return menu
+    }
+
+    @Test
+    func `long overview passes coarse wheel events through to native menu scrolling`() throws {
+        let controller = self.makeController(suiteName: "OverviewScroll-LongNative")
+        defer { controller.releaseStatusItemsForTesting() }
+        let menu = self.makeOverviewMenu(count: 20)
+        var steps: [OverviewScrollStep] = []
+        controller.overviewScrollNavigationHandlerForTesting = { steps.append($0) }
+
+        controller.overviewScrollAccumulatedDelta = 0.5
+        let scroll = try #require(self.makeScrollEvent(deltaY: -1, precise: false))
+
+        #expect(controller.overviewRowCount(in: menu) == 20)
+        #expect(!controller.handleOverviewScrollWheel(scroll, menu: menu))
+        #expect(steps.isEmpty)
+        #expect(controller.overviewScrollAccumulatedDelta == 0)
     }
 
     private func makeScrollEvent(deltaY: Double, precise: Bool) -> NSEvent? {

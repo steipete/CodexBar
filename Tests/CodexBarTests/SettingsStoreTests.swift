@@ -434,8 +434,8 @@ struct SettingsStoreTests {
     }
 
     @Test
-    func `resolved merged overview providers defaults to first six when selection empty`() throws {
-        let suite = "SettingsStoreTests-merged-overview-default-first-six"
+    func `resolved merged overview providers defaults to every active provider when selection empty`() throws {
+        let suite = "SettingsStoreTests-merged-overview-default-all"
         let defaults = try #require(UserDefaults(suiteName: suite))
         defaults.removePersistentDomain(forName: suite)
         let configStore = testConfigStore(suiteName: suite)
@@ -445,10 +445,11 @@ struct SettingsStoreTests {
             zaiTokenStore: NoopZaiTokenStore(),
             syntheticTokenStore: NoopSyntheticTokenStore())
 
-        let activeProviders: [UsageProvider] = [.codex, .claude, .cursor, .opencode, .warp, .gemini, .grok]
+        let activeProviders = Array(UsageProvider.allCases.prefix(20))
         let resolved = store.resolvedMergedOverviewProviders(activeProviders: activeProviders)
 
-        #expect(resolved == [.codex, .claude, .cursor, .opencode, .warp, .gemini])
+        #expect(activeProviders.count == 20)
+        #expect(resolved == activeProviders)
     }
 
     @Test
@@ -690,7 +691,7 @@ struct SettingsStoreTests {
         #expect(resolvedWhenEmpty == [])
 
         let resolvedAfterReenable = store.resolvedMergedOverviewProviders(activeProviders: activeProviders)
-        #expect(resolvedAfterReenable == [.codex, .claude, .cursor, .opencode, .warp, .gemini])
+        #expect(resolvedAfterReenable == activeProviders)
     }
 
     @Test

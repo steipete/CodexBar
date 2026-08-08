@@ -248,7 +248,7 @@ struct SpendDashboardModelTests {
         #expect(group.models.map(\.modelName) == ["test-model"])
         #expect(group.models.map(\.totalCost) == [4])
         #expect(spendDashboardModelHistoryPresentation(group) == .partial)
-        #expect(spendDashboardAggregateCostText(group) == "≥ $4.00")
+        #expect(spendDashboardAggregateCostText(group) == "~$4.00")
         #expect(spendDashboardCostCoverageText(group) == "1 / 2 Accounts")
     }
 
