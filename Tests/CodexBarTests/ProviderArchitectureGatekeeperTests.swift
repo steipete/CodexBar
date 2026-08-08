@@ -2355,14 +2355,6 @@ struct ProviderArchitectureGatekeeperTests {
             reason: "This exact shared construct dispatches a provider-owned capability at the generic integration boundary."),
         AllowedProviderConstruct(
             path: "Sources/CodexBar/SpendDashboardController.swift",
-            line: 614,
-            anchor: "guard provider != .codex else { return nil }",
-            expectedProviderIDs: ["codex"],
-            expectedReferenceCount: 1,
-            expectedReferenceFingerprint: ["codex@0"],
-            reason: "This exact shared construct dispatches a provider-owned capability at the generic integration boundary."),
-        AllowedProviderConstruct(
-            path: "Sources/CodexBar/SpendDashboardController.swift",
             line: 665,
             anchor: "guard provider != .codex else { return nil }",
             expectedProviderIDs: ["codex"],
@@ -2387,7 +2379,15 @@ struct ProviderArchitectureGatekeeperTests {
             reason: "This exact shared construct dispatches a provider-owned capability at the generic integration boundary."),
         AllowedProviderConstruct(
             path: "Sources/CodexBar/SpendDashboardModel.swift",
-            line: 601,
+            line: 243,
+            anchor: "$0.input.provider != .openrouter || $0.input.snapshot.historyDays >= days",
+            expectedProviderIDs: ["openrouter"],
+            expectedReferenceCount: 1,
+            expectedReferenceFingerprint: ["openrouter@0"],
+            reason: "OpenRouter activity has a bounded completed-day horizon, so longer requested totals remain partial."),
+        AllowedProviderConstruct(
+            path: "Sources/CodexBar/SpendDashboardModel.swift",
+            line: 605,
             anchor: "let bucketEnd = input.provider == .openrouter",
             expectedProviderIDs: ["openrouter"],
             expectedReferenceCount: 1,
@@ -2395,7 +2395,7 @@ struct ProviderArchitectureGatekeeperTests {
             reason: "This exact shared construct dispatches a provider-owned capability at the generic integration boundary."),
         AllowedProviderConstruct(
             path: "Sources/CodexBar/SpendDashboardModel.swift",
-            line: 658,
+            line: 662,
             anchor: "guard provider == .mistral || provider == .openrouter else { return displayCalendar }",
             expectedProviderIDs: ["mistral", "openrouter"],
             expectedReferenceCount: 2,

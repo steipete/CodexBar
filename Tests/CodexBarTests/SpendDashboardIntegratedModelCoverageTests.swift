@@ -109,7 +109,7 @@ struct SpendDashboardIntegratedModelCoverageTests {
                 totalTokens: 20),
         ]
         let entry = CostUsageDailyReport.Entry(
-            date: "2026-08-05",
+            date: "2026-08-04",
             inputTokens: nil,
             outputTokens: nil,
             totalTokens: 30,

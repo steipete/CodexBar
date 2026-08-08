@@ -239,6 +239,9 @@ struct SpendDashboardModel: Equatable, Sendable {
                 calendar: calendar)
         }
         let providers = Self.providerRows(summaries)
+        let coversRequestedHorizon = summaries.allSatisfy {
+            $0.input.provider != .openrouter || $0.input.snapshot.historyDays >= days
+        }
         let modelSummaries = summaries.filter { summary in
             guard summary.totalCost != nil else { return false }
             let summaryModelHistory = Self.modelSummary(summaries: [summary])
@@ -249,7 +252,8 @@ struct SpendDashboardModel: Equatable, Sendable {
         // A Codex session can have valid priced rows alongside model-less or unpriced rows.
         // Keep only the directly priced portion, but mark the aggregate partial and remove ranking.
         let modelSummary = Self.modelSummary(summaries: modelSummaries)
-        let modelHistoryCompleteness = modelSummaries.count == summaries.count &&
+        let modelHistoryCompleteness = coversRequestedHorizon &&
+            modelSummaries.count == summaries.count &&
             modelSummary.completeness == .complete
             ? ModelHistoryCompleteness.complete
             : ModelHistoryCompleteness.incomplete
@@ -259,8 +263,8 @@ struct SpendDashboardModel: Equatable, Sendable {
             providers: providers,
             models: modelSummary.rows,
             dailyPoints: dailyPoints,
-            totalTokens: Self.completeIntSum(providers.map(\.totalTokens)),
-            totalCost: Self.completeCostSum(providers.map(\.totalCost)),
+            totalTokens: coversRequestedHorizon ? Self.completeIntSum(providers.map(\.totalTokens)) : nil,
+            totalCost: coversRequestedHorizon ? Self.completeCostSum(providers.map(\.totalCost)) : nil,
             coveredDayCount: Self.commonCoverageDayCount(summaries: summaries, calendar: calendar),
             chartDomain: Self.chartDomain(bounds: bounds, calendar: calendar),
             modelHistoryCompleteness: modelHistoryCompleteness)
