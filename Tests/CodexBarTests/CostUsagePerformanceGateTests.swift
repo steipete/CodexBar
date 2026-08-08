@@ -56,6 +56,100 @@ struct CostUsagePerformanceGateTests {
     }
 
     @Test
+    func `over budget prune retains stale coverage file modified inside the window`() async throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+        let oldDay = try env.makeLocalNoon(year: 2026, month: 5, day: 10)
+        let windowStart = try env.makeLocalNoon(year: 2026, month: 7, day: 27)
+        let windowDay = try env.makeLocalNoon(year: 2026, month: 8, day: 2)
+        let oldISO = env.isoString(for: oldDay)
+
+        // One still-active session whose usage rows are all out of window, plus idle stale
+        // sessions. The active file lives in the scanned window's directory and keeps an
+        // in-window mtime, exactly like a session that stopped producing usage weeks ago.
+        let activeURL = try env.writeCodexSessionFile(
+            day: windowDay,
+            filename: "stale-active.jsonl",
+            contents: [
+                #"{"type":"session_meta","timestamp":"\#(oldISO)","payload":{"session_id":"stale-active-session"}}"#,
+                #"{"type":"turn_context","timestamp":"\#(oldISO)","payload":{"model":"openai/gpt-5.2-codex"}}"#,
+                #"{"type":"event_msg","timestamp":"\#(oldISO)","payload":{"type":"token_count","info":"#
+                    + #"{"total_token_usage":{"input_tokens":100,"cached_input_tokens":20,"output_tokens":10},"#
+                    + #""model":"openai/gpt-5.2-codex"}}}"#,
+            ].joined(separator: "\n") + "\n")
+        try FileManager.default.setAttributes(
+            [.modificationDate: windowDay],
+            ofItemAtPath: activeURL.path)
+        for index in 0..<30 {
+            let idleURL = try env.writeCodexSessionFile(
+                day: windowDay,
+                filename: "idle-\(index).jsonl",
+                contents: [
+                    #"{"type":"session_meta","timestamp":"\#(oldISO)","payload":{"session_id":"idle-\#(index)"}}"#,
+                    #"{"type":"event_msg","timestamp":"\#(oldISO)","payload":{"type":"token_count","info":"#
+                        + #"{"total_token_usage":{"input_tokens":10,"cached_input_tokens":2,"output_tokens":1},"#
+                        + #""model":"openai/gpt-5.2-codex"}}}"#,
+                ].joined(separator: "\n") + "\n")
+            try FileManager.default.setAttributes(
+                [.modificationDate: oldDay],
+                ofItemAtPath: idleURL.path)
+        }
+
+        var options = CostUsageScanner.Options(
+            codexSessionsRoot: env.codexSessionsRoot,
+            claudeProjectsRoots: nil,
+            cacheRoot: env.cacheRoot,
+            codexTraceDatabaseURL: env.root.appendingPathComponent("missing.sqlite"))
+        options.refreshMinIntervalSeconds = 0
+        _ = CostUsageScanner.loadDailyReport(
+            provider: .codex,
+            since: windowStart,
+            until: windowDay,
+            now: windowDay,
+            options: options)
+
+        let store = CostUsageStore(cacheRoot: env.cacheRoot)
+        let activeFile = { (files: [CostUsageStoreFile]) -> CostUsageStoreFile? in
+            files.first { $0.sessionID == "stale-active-session" }
+        }
+        let coldRow = try #require(await activeFile(store.readSnapshot().files))
+        #expect(coldRow.scanState.isComplete)
+        let coldAnchor = coldRow.anchor?.sha256
+        let coldParsedBytes = coldRow.parsedBytes
+
+        // Force the over-budget branch of the production save path: 31 retained files
+        // exceed the 1-file row budget, so the window prune must run before the row cap.
+        let budget = await store.enforceBudgets(
+            maxRows: 1,
+            maxFileBytes: .max,
+            requestedSinceDay: Self.dayKeyString(for: windowStart),
+            requestedUntilDay: Self.dayKeyString(for: windowDay),
+            calendar: .current)
+        #expect(budget.rowCount == 1)
+        let retained = try #require(await activeFile(store.readSnapshot().files))
+        #expect(retained.scanState.isComplete)
+        #expect(retained.anchor?.sha256 == coldAnchor)
+        print("[retention-proof] stale-coverage file retained after over-budget prune: \(retained.path)")
+
+        let warmCounter = HeadParseCounter()
+        _ = CostUsageScanner.withCodexSessionHeadParseObserverForTesting {
+            warmCounter.increment()
+        } operation: {
+            _ = CostUsageScanner.loadDailyReport(
+                provider: .codex,
+                since: windowStart,
+                until: windowDay,
+                now: windowDay,
+                options: options)
+        }
+        #expect(warmCounter.value == 0)
+        let warmRow = try #require(await activeFile(store.readSnapshot().files))
+        #expect(warmRow.anchor?.sha256 == coldAnchor)
+        #expect(warmRow.parsedBytes == coldParsedBytes)
+        print("[retention-proof] warm refresh reused the cached row, headParses=0")
+    }
+
+    @Test
     func `priority turns refresh must scan only appended trace rows`() throws {
         let env = try CostUsageTestEnvironment()
         defer { env.cleanup() }
@@ -1404,6 +1498,14 @@ extension CostUsagePerformanceGateTests {
             FileManager.default.fileExists(atPath: $0.path)
         }
         return Int64(CostUsageScanner.codexActiveSessionLookbackDays * existingRootCount)
+    }
+
+    private static func dayKeyString(for date: Date) -> String {
+        let components = Calendar.current.dateComponents([.year, .month, .day], from: date)
+        let year = components.year ?? 0
+        let month = components.month ?? 0
+        let day = components.day ?? 0
+        return String(format: "%04d-%02d-%02d", year, month, day)
     }
 }
 
