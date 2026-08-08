@@ -65,6 +65,7 @@ extension StatusItemController {
         let accountLabel = self.menuBarLayoutAccountLabel(provider: provider, snapshot: snapshot)
 
         return MenuBarLayoutRenderData(
+            provider: provider,
             iconKey: "\(provider.rawValue):\(warningFlash ? "warning" : "normal")",
             providerName: providerName,
             accountLabel: accountLabel,

@@ -80,6 +80,24 @@ public enum NotionProviderDescriptor {
                     guard let minutes = window.windowMinutes else { return false }
                     return minutes <= Self.rollingWindowMaxMinutes
                 }),
+            presentation: ProviderUsagePresentation(
+                semanticWindowResolver: { snapshot in
+                    let rolling = snapshot.primary.flatMap { window -> RateWindow? in
+                        guard !window.isSyntheticPlaceholder,
+                              let minutes = window.windowMinutes,
+                              minutes <= Self.rollingWindowMaxMinutes
+                        else { return nil }
+                        return window
+                    }
+                    let monthly = snapshot.secondary.flatMap { window -> RateWindow? in
+                        guard !window.isSyntheticPlaceholder,
+                              window.windowMinutes == ProviderPaceCapability.monthlyWindowSentinelMinutes
+                        else { return nil }
+                        return window
+                    }
+                    return ProviderSemanticWindows(session: rolling, weekly: monthly)
+                },
+                menuBarLayoutSecondaryLabel: "Monthly"),
             fetchPlan: ProviderFetchPlan(
                 sourceModes: [.auto, .web],
                 pipeline: ProviderFetchPipeline(resolveStrategies: { _ in [NotionWebFetchStrategy()] })),

@@ -58,6 +58,32 @@ struct MenuBarLayoutRendererTests {
     }
 
     @Test
+    func `Notion secondary percentage renders and announces monthly cadence`() {
+        let renderer = MenuBarLayoutRenderer()
+        let output = renderer.render(
+            layout: MenuBarLayout(lines: [[.percent(window: .weekly)]]),
+            data: self.data(provider: .notion),
+            icon: nil,
+            options: self.options())
+
+        #expect(output.attributedTitle.string == "M 60%")
+        #expect(output.accessibilityLabel == L("%@ %@", L("Monthly"), "60%"))
+    }
+
+    @Test
+    func `Notion secondary pace announces monthly cadence`() {
+        let renderer = MenuBarLayoutRenderer()
+        let output = renderer.render(
+            layout: MenuBarLayout(lines: [[.pace(window: .weekly)]]),
+            data: self.data(provider: .notion),
+            icon: nil,
+            options: self.options())
+
+        #expect(output.attributedTitle.string == "+11%")
+        #expect(output.accessibilityLabel == L("%@ %@ %@", L("Monthly"), L("display_mode_pace").lowercased(), "+11%"))
+    }
+
+    @Test
     func `icon attachment matches the default template size and appearance`() throws {
         let renderer = MenuBarLayoutRenderer()
         let icon = NSImage(size: NSSize(width: 16, height: 16))
@@ -86,6 +112,7 @@ struct MenuBarLayoutRendererTests {
     func `missing token data keeps every sibling visible as a placeholder`() {
         let renderer = MenuBarLayoutRenderer()
         let missingData = MenuBarLayoutRenderData(
+            provider: .codex,
             iconKey: "missing",
             providerName: nil,
             accountLabel: nil,
@@ -147,6 +174,7 @@ struct MenuBarLayoutRendererTests {
     func `pace token stays a placeholder while siblings keep rendering`() {
         let renderer = MenuBarLayoutRenderer()
         let data = MenuBarLayoutRenderData(
+            provider: .codex,
             iconKey: "codex",
             providerName: "Codex",
             accountLabel: nil,
@@ -338,6 +366,7 @@ struct MenuBarLayoutRendererTests {
             resetsAt: nil,
             resetDescription: "Friday at 10:00"))
         let data = MenuBarLayoutRenderData(
+            provider: .codex,
             iconKey: "codex",
             providerName: "Codex",
             accountLabel: nil,
@@ -388,10 +417,12 @@ struct MenuBarLayoutRendererTests {
 
     private func data(
         automaticUsedPercent: Double = 50,
+        provider: UsageProvider = .codex,
         automaticResetAt: Date? = nil)
         -> MenuBarLayoutRenderData
     {
         MenuBarLayoutRenderData(
+            provider: provider,
             iconKey: "codex",
             providerName: "Codex",
             accountLabel: "user@example.com",
