@@ -718,7 +718,7 @@ public enum ClaudeOAuthCredentialsStore {
             return record
         }
 
-        private func resolvedCacheOwner(
+        func resolvedCacheOwner(
             _ owner: ClaudeOAuthCredentialOwner,
             credentials: ClaudeOAuthCredentials,
             environment: [String: String]) -> ClaudeOAuthCredentialOwner
@@ -728,8 +728,8 @@ public enum ClaudeOAuthCredentialsStore {
                 matching: credentials,
                 environment: environment)
             else { return owner }
-            // Claude Code rotates refresh tokens; selected-profile file evidence or a matching global
-            // Keychain credential proves that it owns this cache's refresh lifecycle.
+            // Claude Code rotates refresh tokens; evidence of CLI storage or a logged-in Claude Code config
+            // keeps the chain CLI-owned. Only positive absence lets CodexBar keep its mirror chain alive.
             return .claudeCLI
         }
 
@@ -740,11 +740,31 @@ public enum ClaudeOAuthCredentialsStore {
             if ClaudeOAuthCredentialsStore.currentFileFingerprint(environment: environment) != nil {
                 return true
             }
-            guard ClaudeOAuthKeychainPromptPreference.storedMode() != .never else { return false }
-            guard case .matched = ClaudeOAuthCredentialsStore.claudeKeychainCredentialMatchWithoutPrompt(
-                for: credentials)
-            else { return false }
-            return true
+
+            let keychainMatch: ClaudeKeychainCredentialMatch =
+                if ClaudeOAuthKeychainPromptPreference.storedMode() == .never {
+                    .unavailable
+                } else {
+                    ClaudeOAuthCredentialsStore.claudeKeychainCredentialMatchWithoutPrompt(for: credentials)
+                }
+
+            switch keychainMatch {
+            case .matched, .mismatch:
+                return true
+            case .absent:
+                return false
+            case .unavailable, .notApplicable:
+                // The keychain cannot tell us anything, so Claude's plaintext config decides —
+                // and only positive proof of a signed-out CLI releases the chain to CodexBar.
+                // Indeterminate evidence (unreadable/malformed config) stays CLI-owned: never
+                // rotate a chain we cannot prove we own.
+                switch ClaudeAccountProfile.configOwnershipEvidence(environment: environment) {
+                case .signedIn, .indeterminate:
+                    return true
+                case .signedOut:
+                    return false
+                }
+            }
         }
 
         @discardableResult
@@ -1388,7 +1408,11 @@ public enum ClaudeOAuthCredentialsStore {
             existingRateLimitTier: String?,
             existingSubscriptionType: String?) async throws -> ClaudeOAuthCredentials
         {
-            guard ClaudeOAuthRefreshFailureGate.shouldAttempt(environment: self.environment) else {
+            let refreshTokenHash = ClaudeOAuthCredentialsStore.sha256Hex(Data(refreshToken.utf8))
+            guard ClaudeOAuthRefreshFailureGate.shouldAttempt(
+                environment: self.environment,
+                refreshTokenHash: refreshTokenHash)
+            else {
                 let status = ClaudeOAuthRefreshFailureGate.currentBlockStatus(environment: self.environment)
                 let message = switch status {
                 case .terminal:
@@ -1437,14 +1461,18 @@ public enum ClaudeOAuthCredentialsStore {
 
                     switch disposition {
                     case .terminalInvalidGrant:
-                        ClaudeOAuthRefreshFailureGate.recordTerminalAuthFailure(environment: self.environment)
+                        ClaudeOAuthRefreshFailureGate.recordTerminalAuthFailure(
+                            environment: self.environment,
+                            refreshTokenHash: refreshTokenHash)
                         Repository(context: self.context).invalidateCache(environment: self.environment)
                         let message = "HTTP \(response.statusCode) invalid_grant. " +
                             ClaudeOAuthCredentialsStore.reauthenticateHint
                         throw ClaudeOAuthCredentialsError.refreshFailed(
                             message)
                     case .transientBackoff:
-                        ClaudeOAuthRefreshFailureGate.recordTransientFailure(environment: self.environment)
+                        ClaudeOAuthRefreshFailureGate.recordTransientFailure(
+                            environment: self.environment,
+                            refreshTokenHash: refreshTokenHash)
                         let suffix = oauthError.map { " (\($0))" } ?? ""
                         throw ClaudeOAuthCredentialsError.refreshFailed("HTTP \(response.statusCode)\(suffix)")
                     }
@@ -1492,6 +1520,19 @@ public enum ClaudeOAuthCredentialsStore {
             allowClaudeKeychainRepairWithoutPrompt: allowClaudeKeychainRepairWithoutPrompt,
             clearInvalidCache: clearInvalidCache)
     }
+
+    #if DEBUG
+    static func resolvedCacheOwnerForTesting(
+        _ owner: ClaudeOAuthCredentialOwner,
+        credentials: ClaudeOAuthCredentials,
+        environment: [String: String]) -> ClaudeOAuthCredentialOwner
+    {
+        Repository(context: self.currentCollaboratorContext()).resolvedCacheOwner(
+            owner,
+            credentials: credentials,
+            environment: environment)
+    }
+    #endif
 
     /// Async version of load that handles expired tokens based on credential ownership.
     /// - Claude CLI-owned credentials delegate refresh to Claude CLI.
