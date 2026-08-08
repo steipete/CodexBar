@@ -404,7 +404,7 @@ struct SettingsStoreTests {
             .gemini,
             .grok,
         ]
-        let expectedProviders: [UsageProvider] = [.opencode, .codex, .claude, .cursor, .warp, .gemini]
+        let expectedProviders: [UsageProvider] = [.opencode, .codex, .claude, .cursor, .warp, .gemini, .grok]
         #expect(storeA.mergedOverviewSelectedProviders == expectedProviders)
 
         let defaultsB = try #require(UserDefaults(suiteName: suite))
@@ -434,8 +434,8 @@ struct SettingsStoreTests {
     }
 
     @Test
-    func `resolved merged overview providers defaults to first six when selection empty`() throws {
-        let suite = "SettingsStoreTests-merged-overview-default-first-six"
+    func `resolved merged overview providers defaults to every active provider when selection empty`() throws {
+        let suite = "SettingsStoreTests-merged-overview-default-all"
         let defaults = try #require(UserDefaults(suiteName: suite))
         defaults.removePersistentDomain(forName: suite)
         let configStore = testConfigStore(suiteName: suite)
@@ -445,10 +445,11 @@ struct SettingsStoreTests {
             zaiTokenStore: NoopZaiTokenStore(),
             syntheticTokenStore: NoopSyntheticTokenStore())
 
-        let activeProviders: [UsageProvider] = [.codex, .claude, .cursor, .opencode, .warp, .gemini, .grok]
+        let activeProviders = Array(UsageProvider.allCases.prefix(20))
         let resolved = store.resolvedMergedOverviewProviders(activeProviders: activeProviders)
 
-        #expect(resolved == [.codex, .claude, .cursor, .opencode, .warp, .gemini])
+        #expect(activeProviders.count == 20)
+        #expect(resolved == activeProviders)
     }
 
     @Test
@@ -684,13 +685,14 @@ struct SettingsStoreTests {
             .opencode,
             .warp,
             .gemini,
+            .grok,
         ])
 
         let resolvedWhenEmpty = store.reconcileMergedOverviewSelectedProviders(activeProviders: [])
         #expect(resolvedWhenEmpty == [])
 
         let resolvedAfterReenable = store.resolvedMergedOverviewProviders(activeProviders: activeProviders)
-        #expect(resolvedAfterReenable == [.codex, .claude, .cursor, .opencode, .warp, .gemini])
+        #expect(resolvedAfterReenable == activeProviders)
     }
 
     @Test

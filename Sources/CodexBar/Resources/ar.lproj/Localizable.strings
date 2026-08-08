@@ -30,6 +30,7 @@
 " providers" = " providers";
 "(System)" = "(النظام)";
 "30d" = "30 يومًا";
+"365d" = "365 يومًا";
 "7d" = "7 أيام";
 "A managed Codex login is already running. Wait for it to finish before adding " = "تسجيل دخول Codex المدار يعمل بالفعل. انتظر حتى ينتهي قبل إضافة  ";
 "API key" = "مفتاح API";
@@ -1294,6 +1295,13 @@
 "Model breakdown unavailable" = "تفصيل الإنفاق حسب النموذج غير متاح";
 "Local estimated history" = "السجل التقديري المحلي";
 "Coverage" = "التغطية";
+"Tracked access" = "الوصول المُتتبَّع";
+"Every configured subscription or key stays visible. Only compatible sources enter cost totals." = "يبقى كل اشتراك أو مفتاح مُهيأ مرئيًا. المصادر المتوافقة فقط تدخل في إجماليات التكلفة.";
+"tracked sources" = "المصادر المُتتبَّعة";
+"Cost history connected" = "سجل التكلفة متصل";
+"Cost history pending" = "سجل التكلفة قيد الانتظار";
+"Usage connected · not in cost total" = "الاستخدام متصل · غير مشمول في إجمالي التكلفة";
+"Configured · not in cost total" = "مُهيأ · غير مشمول في إجمالي التكلفة";
 "Estimated spend" = "الإنفاق التقديري";
 "Tracked tokens" = "الرموز المتتبعة";
 "Subscriptions" = "الاشتراكات";

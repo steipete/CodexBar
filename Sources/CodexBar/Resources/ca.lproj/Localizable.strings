@@ -30,6 +30,7 @@
 " providers" = " proveïdors";
 "(System)" = "(Sistema)";
 "30d" = "30 d";
+"365d" = "365 d";
 "7d" = "7 d";
 "A managed Codex login is already running. Wait for it to finish before adding " = "Ja hi ha un inici de sessió gestionat de Codex en curs. Espereu que acabi abans d'afegir ";
 "API key" = "Clau d'API";
@@ -1293,6 +1294,13 @@
 "Model breakdown unavailable" = "Desglossament per model no disponible";
 "Local estimated history" = "Historial local estimat";
 "Coverage" = "Cobertura";
+"Tracked access" = "Accés fet un seguiment";
+"Every configured subscription or key stays visible. Only compatible sources enter cost totals." = "Totes les subscripcions o claus configurades resten visibles. Només les fonts compatibles entren als totals de cost.";
+"tracked sources" = "fonts amb seguiment";
+"Cost history connected" = "Historial de costos connectat";
+"Cost history pending" = "Historial de costos pendent";
+"Usage connected · not in cost total" = "Ús connectat · no inclòs al total de cost";
+"Configured · not in cost total" = "Configurat · no inclòs al total de cost";
 "Estimated spend" = "Despesa estimada";
 "Tracked tokens" = "Tokens registrats";
 "Subscriptions" = "Subscripcions";

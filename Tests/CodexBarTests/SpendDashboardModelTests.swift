@@ -5,27 +5,6 @@ import Testing
 
 struct SpendDashboardModelTests {
     @Test
-    func `count labels avoid plural agreement and localize numbers`() {
-        CodexBarLocalizationOverride.$appLanguage.withValue("en") {
-            #expect(spendDashboardRefreshFailureText(1) == "Refresh failures: 1")
-            #expect(spendDashboardRefreshFailureText(2) == "Refresh failures: 2")
-            #expect(spendDashboardCoverageText(covered: 3, requested: 7) == "Coverage: 3 / 7")
-        }
-        CodexBarLocalizationOverride.$appLanguage.withValue("de") {
-            #expect(spendDashboardRefreshFailureText(1234) == "Fehlgeschlagene Aktualisierungen: 1.234")
-            #expect(spendDashboardCoverageText(covered: 3, requested: 30) == "Abdeckung: 3 / 30")
-        }
-        CodexBarLocalizationOverride.$appLanguage.withValue("fa") {
-            #expect(codexBarLocalizedInteger(12) == "۱۲")
-            #expect(spendDashboardDayRangeText(7) == "۷ روز")
-            #expect(spendDashboardDayRangeText(30) == "۳۰ روز")
-            #expect(spendDashboardRankText(1234) == "#۱٬۲۳۴")
-            #expect(spendDashboardRefreshFailureText(2) == "\(L("Refresh failures")): ۲")
-            #expect(spendDashboardCoverageText(covered: 3, requested: 30) == "پوشش: ۳ / ۳۰")
-        }
-    }
-
-    @Test
     func `Codex account indices use app locale numerals`() throws {
         let home = FileManager.default.temporaryDirectory
             .appendingPathComponent("SpendDashboardModelTests-index-locale-\(UUID().uuidString)", isDirectory: true)
@@ -68,7 +47,17 @@ struct SpendDashboardModelTests {
         let providers = Set(ProviderDescriptorRegistry.all
             .filter(\.tokenCost.supportsTokenCost)
             .map(\.id))
-        #expect(providers == [.codex, .claude, .vertexai, .openai, .mistral, .bedrock, .cursor, .opencodego])
+        #expect(providers == [
+            .codex,
+            .claude,
+            .vertexai,
+            .openai,
+            .openrouter,
+            .mistral,
+            .bedrock,
+            .cursor,
+            .opencodego,
+        ])
     }
 
     @Test
@@ -207,7 +196,8 @@ struct SpendDashboardModelTests {
 
         #expect(group.coveredDayCount == 0)
         #expect(group.providers.allSatisfy { $0.coveredDayCount == 7 })
-        #expect(group.totalCost == 5)
+        #expect(group.totalCost == nil)
+        #expect(group.knownCost == 5)
         #expect(group.providers.map(\.id) == ["later", "earlier"])
         #expect(group.dailyPoints.map(\.sourceID) == ["earlier", "later"])
     }
@@ -239,7 +229,8 @@ struct SpendDashboardModelTests {
 
         #expect(group.coveredDayCount == 3)
         #expect(group.providers.allSatisfy { $0.coveredDayCount == 7 })
-        #expect(group.totalCost == 5)
+        #expect(group.totalCost == nil)
+        #expect(group.knownCost == 5)
     }
 
     @Test
@@ -261,12 +252,16 @@ struct SpendDashboardModelTests {
             calendar: Self.calendar).groups.first)
 
         #expect(group.totalCost == nil)
+        #expect(group.knownCost == 4)
+        #expect(group.knownCostProviderCount == 1)
         #expect(group.totalTokens == nil)
         #expect(group.modelHistoryCompleteness == .incomplete)
         #expect(group.models.map(\.provider) == [.claude])
         #expect(group.models.map(\.modelName) == ["test-model"])
         #expect(group.models.map(\.totalCost) == [4])
         #expect(spendDashboardModelHistoryPresentation(group) == .partial)
+        #expect(spendDashboardAggregateCostText(group) == "~$4.00")
+        #expect(spendDashboardCostCoverageText(group) == "1 / 2 Accounts")
     }
 
     @Test
@@ -395,6 +390,9 @@ struct SpendDashboardModelTests {
 
         #expect(group.providers.first(where: { $0.id == "invalid" })?.totalCost == nil)
         #expect(group.totalCost == nil)
+        #expect(group.knownCost == nil)
+        #expect(group.knownCostProviderCount == 2)
+        #expect(spendDashboardAggregateCostText(group) == "Spend unavailable")
         #expect(group.totalTokens == nil)
         #expect(group.dailyPoints.isEmpty)
     }
@@ -753,7 +751,6 @@ struct SpendDashboardModelTests {
         #expect(!request.authFileWasReadable)
         #expect(request.displayName == "Codex · #2")
         #expect(request.cacheIdentity.count == 64)
-        #expect(SpendDashboardSource.scanDays == 30)
         #expect(SpendDashboardSource.codexRequest(
             account: account,
             homePath: "relative/path",
@@ -979,5 +976,27 @@ extension SpendDashboardModelTests {
         #expect(group.totalCost == 2)
         #expect(group.modelHistoryCompleteness == .incomplete)
         #expect(group.models.isEmpty)
+    }
+
+    @Test
+    func `count labels avoid plural agreement and localize numbers`() {
+        CodexBarLocalizationOverride.$appLanguage.withValue("en") {
+            #expect(spendDashboardRefreshFailureText(1) == "Refresh failures: 1")
+            #expect(spendDashboardRefreshFailureText(2) == "Refresh failures: 2")
+            #expect(spendDashboardCoverageText(covered: 3, requested: 7) == "Coverage: 3 / 7")
+        }
+        CodexBarLocalizationOverride.$appLanguage.withValue("de") {
+            #expect(spendDashboardRefreshFailureText(1234) == "Fehlgeschlagene Aktualisierungen: 1.234")
+            #expect(spendDashboardCoverageText(covered: 3, requested: 30) == "Abdeckung: 3 / 30")
+        }
+        CodexBarLocalizationOverride.$appLanguage.withValue("fa") {
+            #expect(codexBarLocalizedInteger(12) == "۱۲")
+            #expect(spendDashboardDayRangeText(7) == "۷ روز")
+            #expect(spendDashboardDayRangeText(30) == "۳۰ روز")
+            #expect(spendDashboardDayRangeText(365) == "۳۶۵ روز")
+            #expect(spendDashboardRankText(1234) == "#۱٬۲۳۴")
+            #expect(spendDashboardRefreshFailureText(2) == "\(L("Refresh failures")): ۲")
+            #expect(spendDashboardCoverageText(covered: 3, requested: 30) == "پوشش: ۳ / ۳۰")
+        }
     }
 }

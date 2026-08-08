@@ -50,6 +50,7 @@
 " providers" = " 공급자";
 "(System)" = "(시스템)";
 "30d" = "30일";
+"365d" = "365일";
 "7d" = "7일";
 "A managed Codex login is already running. Wait for it to finish before adding " = "관리되는 Codex 로그인이 이미 실행 중입니다. 추가하기 전에 완료될 때까지 기다리세요. ";
 "API key" = "API 키";
@@ -1258,6 +1259,13 @@
 "Model breakdown unavailable" = "모델별 내역을 사용할 수 없습니다";
 "Local estimated history" = "로컬 예상 내역";
 "Coverage" = "포함 범위";
+"Tracked access" = "추적된 접근";
+"Every configured subscription or key stays visible. Only compatible sources enter cost totals." = "구성된 모든 구독 또는 키가 계속 표시됩니다. 호환되는 소스만 비용 합계에 포함됩니다.";
+"tracked sources" = "추적된 소스";
+"Cost history connected" = "비용 기록 연결됨";
+"Cost history pending" = "비용 기록 대기 중";
+"Usage connected · not in cost total" = "사용량 연결됨 · 비용 합계에 포함되지 않음";
+"Configured · not in cost total" = "구성됨 · 비용 합계에 포함되지 않음";
 "Estimated spend" = "예상 지출";
 "Tracked tokens" = "추적된 토큰";
 "Subscriptions" = "구독";

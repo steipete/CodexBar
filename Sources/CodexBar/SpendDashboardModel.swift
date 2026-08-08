@@ -94,6 +94,21 @@ struct SpendDashboardModel: Equatable, Sendable {
         var id: String {
             self.currencyCode
         }
+
+        var knownCostProviderCount: Int {
+            self.providers.count { $0.totalCost != nil }
+        }
+
+        var knownCost: Double? {
+            let costs = self.providers.compactMap(\.totalCost)
+            guard !costs.isEmpty else { return nil }
+            var total = 0.0
+            for cost in costs {
+                total += cost
+                guard total.isFinite else { return nil }
+            }
+            return total
+        }
     }
 
     let requestedDays: Int
@@ -119,7 +134,7 @@ struct SpendDashboardModel: Equatable, Sendable {
         calendar: Calendar = .current,
         preferredCurrencyCode: String = "auto") -> Self
     {
-        let days = max(1, min(30, requestedDays))
+        let days = max(1, min(365, requestedDays))
         let calculationCalendar = Self.gregorianCalendar(timeZone: calendar.timeZone)
         let classifiedInputs = inputs.compactMap { input -> ClassifiedInput? in
             guard let sourceCurrencyCode = Self.currencyCode(input.snapshot.currencyCode) else { return nil }
@@ -224,16 +239,19 @@ struct SpendDashboardModel: Equatable, Sendable {
                 calendar: calendar)
         }
         let providers = Self.providerRows(summaries)
+        let coversRequestedHorizon = summaries.allSatisfy { $0.coveredDayCount >= days }
         let modelSummaries = summaries.filter { summary in
             guard summary.totalCost != nil else { return false }
             let summaryModelHistory = Self.modelSummary(summaries: [summary])
             return summaryModelHistory.completeness == .complete ||
-                Self.canRetainPartialCodexModelHistory(summary)
+                Self.canRetainPartialCodexModelHistory(summary) ||
+                Self.canRetainTokenOnlyModelHistory(summary)
         }
         // A Codex session can have valid priced rows alongside model-less or unpriced rows.
         // Keep only the directly priced portion, but mark the aggregate partial and remove ranking.
         let modelSummary = Self.modelSummary(summaries: modelSummaries)
-        let modelHistoryCompleteness = modelSummaries.count == summaries.count &&
+        let modelHistoryCompleteness = coversRequestedHorizon &&
+            modelSummaries.count == summaries.count &&
             modelSummary.completeness == .complete
             ? ModelHistoryCompleteness.complete
             : ModelHistoryCompleteness.incomplete
@@ -243,8 +261,8 @@ struct SpendDashboardModel: Equatable, Sendable {
             providers: providers,
             models: modelSummary.rows,
             dailyPoints: dailyPoints,
-            totalTokens: Self.completeIntSum(providers.map(\.totalTokens)),
-            totalCost: Self.completeCostSum(providers.map(\.totalCost)),
+            totalTokens: coversRequestedHorizon ? Self.completeIntSum(providers.map(\.totalTokens)) : nil,
+            totalCost: coversRequestedHorizon ? Self.completeCostSum(providers.map(\.totalCost)) : nil,
             coveredDayCount: Self.commonCoverageDayCount(summaries: summaries, calendar: calendar),
             chartDomain: Self.chartDomain(bounds: bounds, calendar: calendar),
             modelHistoryCompleteness: modelHistoryCompleteness)
@@ -581,7 +599,10 @@ struct SpendDashboardModel: Equatable, Sendable {
         displayCalendar: Calendar) -> ClosedRange<Date>
     {
         let bucketCalendar = Self.bucketCalendar(for: input.provider, displayCalendar: displayCalendar)
-        let bucketEnd = bucketCalendar.startOfDay(for: input.snapshot.updatedAt)
+        let snapshotDay = bucketCalendar.startOfDay(for: input.snapshot.updatedAt)
+        let bucketEnd = input.provider == .openrouter
+            ? bucketCalendar.date(byAdding: .day, value: -1, to: snapshotDay) ?? snapshotDay
+            : snapshotDay
         let scanEnd = displayCalendar.startOfDay(for: bucketEnd)
         let scanDays = max(1, input.snapshot.historyDays)
         let bucketStart = bucketCalendar.date(byAdding: .day, value: -(scanDays - 1), to: bucketEnd) ?? bucketEnd
@@ -636,9 +657,9 @@ struct SpendDashboardModel: Equatable, Sendable {
     }
 
     private static func bucketCalendar(for provider: UsageProvider, displayCalendar: Calendar) -> Calendar {
-        guard provider == .mistral else { return displayCalendar }
-        // Mistral labels both daily buckets and snapshot coverage by UTC day. Map each UTC boundary into the
-        // containing local dashboard day instead of reinterpreting the label as a local date.
+        guard provider == .mistral || provider == .openrouter else { return displayCalendar }
+        // Mistral and OpenRouter label daily buckets and snapshot coverage by UTC day. Map each UTC boundary
+        // into the containing local dashboard day instead of reinterpreting the label as a local date.
         return self.gregorianCalendar(timeZone: TimeZone(secondsFromGMT: 0) ?? .gmt)
     }
 

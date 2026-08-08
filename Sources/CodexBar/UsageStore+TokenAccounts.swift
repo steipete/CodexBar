@@ -980,7 +980,7 @@ extension UsageStore {
                         generation: publicationGeneration)
                 }
             },
-            costUsageHistoryDays: self.settings.costUsageHistoryDays,
+            costUsageHistoryDays: self.settings.effectiveCostUsageHistoryDays,
             claudeOwnerCLIRecoveryOnly: claudeOwnerCLIRecoveryOnly,
             persistsCLISessions: true,
             persistentCLISessionIdleWindow: ProviderRegistry.persistentCLISessionIdleWindow(
@@ -1452,7 +1452,12 @@ extension UsageStore {
                     ? labeled.preservingDeepSeekPlatformProfiles(
                         from: self.presentationSnapshot(for: .deepseek))
                     : labeled
-                let backfilled = profileStable.backfillingResetTimes(
+                let historyStable = provider == .openrouter
+                    ? self.preservingOpenRouterActivityIfCurrent(
+                        profileStable,
+                        previous: self.snapshots[provider.instanceID])
+                    : profileStable
+                let backfilled = historyStable.backfillingResetTimes(
                     from: self.lastKnownResetSnapshots[provider.instanceID])
                 let warningAccountDiscriminator = Self.warningTokenAccountDiscriminator(account)
                 self.handleQuotaWarningTransitions(

@@ -8,11 +8,16 @@ func spendDashboardDayRangeText(_ days: Int) -> String {
     switch days {
     case 7: template = L("7d")
     case 30: template = L("30d")
+    case 365: template = L("365d")
     default: return codexBarLocalizedInteger(days)
     }
     return template.replacingOccurrences(
         of: String(days),
         with: codexBarLocalizedInteger(days))
+}
+
+func spendDashboardRequiredHistoryDays(selectedDays: Int, configuredDays: Int) -> Int {
+    max(1, min(365, max(selectedDays, configuredDays)))
 }
 
 func spendDashboardRankText(_ rank: Int) -> String {
@@ -42,6 +47,76 @@ func codexCostCatchUpProgressText(_ activity: CodexCostCatchUpActivity) -> Strin
             + codexBarLocalizedInteger(activity.totalFiles)
     }
     return L("Loading…")
+}
+
+func spendDashboardTrackedSourceStatusText(_ source: SpendDashboardTrackedSource) -> String {
+    switch source.state {
+    case .needsAttention:
+        return L("Unavailable")
+    case .awaitingUsage:
+        return L("No usage yet")
+    case .connected, .configured:
+        break
+    }
+    if source.contributesCostHistory {
+        return source.costHistoryAvailable
+            ? L("Cost history connected")
+            : L("Cost history pending")
+    }
+    return source.state == .connected
+        ? L("Usage connected · not in cost total")
+        : L("Configured · not in cost total")
+}
+
+func spendDashboardTrackedSourcesForPresentation(
+    _ sources: [SpendDashboardTrackedSource],
+    model: SpendDashboardModel) -> [SpendDashboardTrackedSource]
+{
+    let costedSourceIDs = Set(model.groups.flatMap(\.providers).compactMap { row in
+        row.totalCost == nil ? nil : row.id
+    })
+    return sources.map { source in
+        source.withCostHistoryAvailable(
+            source.costHistoryAvailable || costedSourceIDs.contains(source.id))
+    }
+}
+
+func spendDashboardAggregateCostText(_ group: SpendDashboardModel.CurrencyGroup) -> String {
+    guard let cost = group.totalCost ?? group.knownCost else { return L("Spend unavailable") }
+    let formatted = UsageFormatter.currencyString(cost, currencyCode: group.currencyCode)
+    return group.totalCost == nil ? "~\(formatted)" : formatted
+}
+
+func spendDashboardAggregateTokenText(_ group: SpendDashboardModel.CurrencyGroup) -> String {
+    if let totalTokens = group.totalTokens {
+        return UsageFormatter.tokenCountString(totalTokens)
+    }
+
+    var knownTokens = 0
+    var hasKnownTokens = false
+    for tokens in group.providers.compactMap(\.totalTokens) {
+        let addition = knownTokens.addingReportingOverflow(tokens)
+        guard !addition.overflow else { return "—" }
+        knownTokens = addition.partialValue
+        hasKnownTokens = true
+    }
+    guard hasKnownTokens else { return "—" }
+    return "~\(UsageFormatter.tokenCountString(knownTokens))"
+}
+
+func spendDashboardCostCoverageText(_ group: SpendDashboardModel.CurrencyGroup) -> String {
+    "\(codexBarLocalizedInteger(group.knownCostProviderCount)) / " +
+        "\(codexBarLocalizedInteger(group.providers.count)) \(L("Accounts"))"
+}
+
+func spendDashboardProviderCostText(
+    _ row: SpendDashboardModel.ProviderRow,
+    currencyCode: String,
+    requestedDays: Int) -> String
+{
+    guard let cost = row.totalCost else { return L("Spend unavailable") }
+    let formatted = UsageFormatter.currencyString(cost, currencyCode: currencyCode)
+    return row.coveredDayCount < requestedDays ? "~\(formatted)" : formatted
 }
 
 enum SpendDashboardModelHistoryPresentation: Equatable {
@@ -83,6 +158,7 @@ struct SpendDashboardPane: View {
                 self.header
                 self.codexCostCatchUpPanel
                 self.content
+                self.trackedAccess
                 self.provenance
                 self.shareAction
             }
@@ -91,6 +167,7 @@ struct SpendDashboardPane: View {
         .background(FocusResigningBackground())
         .onAppear {
             self.isVisible = true
+            self.applySelectedHistoryCoverage()
             self.controller.refreshDateWindow()
             self.controller.update(configuration: self.configuration)
             if !self.controller.isRefreshing {
@@ -110,6 +187,7 @@ struct SpendDashboardPane: View {
         }
         .onDisappear {
             self.isVisible = false
+            self.settings.setSpendDashboardHistoryDaysOverride(nil)
             self.controller.stop()
         }
         .onReceive(NotificationCenter.default.publisher(for: .NSCalendarDayChanged)) { _ in
@@ -128,34 +206,12 @@ struct SpendDashboardPane: View {
     }
 
     private var header: some View {
-        HStack(alignment: .top, spacing: 16) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(L("Usage & Spend"))
-                    .font(.title2.weight(.semibold))
-                Text(L("Local estimated cost history across supported providers."))
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-            }
-            Spacer()
-            Picker(L("Time range"), selection: self.daysBinding) {
-                Text(spendDashboardDayRangeText(7)).tag(7)
-                Text(spendDashboardDayRangeText(30)).tag(30)
-            }
-            .labelsHidden()
-            .pickerStyle(.segmented)
-            .frame(width: 116)
-
-            Button {
-                self.controller.refresh()
-            } label: {
-                if self.controller.isRefreshing {
-                    ProgressView().controlSize(.small)
-                } else {
-                    Label(L("Refresh"), systemImage: "arrow.clockwise")
-                }
-            }
-            .disabled(self.controller.isRefreshing || !self.settings.costUsageEnabled)
-        }
+        SpendDashboardHeader(
+            selectedDays: self.controller.selectedDays,
+            isRefreshing: self.controller.isRefreshing,
+            isCostTrackingEnabled: self.settings.costUsageEnabled,
+            selectDays: { self.daysBinding.wrappedValue = $0 },
+            refresh: { self.controller.refresh() })
     }
 
     @ViewBuilder
@@ -339,6 +395,22 @@ struct SpendDashboardPane: View {
         }
     }
 
+    @ViewBuilder
+    private var trackedAccess: some View {
+        let sources = spendDashboardTrackedSourcesForPresentation(
+            self.configuration.trackedSources,
+            model: self.controller.model)
+        if !sources.isEmpty {
+            SpendTrackedAccessPanel(
+                sources: sources,
+                description: self.trackedAccessDescription)
+        }
+    }
+
+    private var trackedAccessDescription: String {
+        L("Every configured subscription or key stays visible. Only compatible sources enter cost totals.")
+    }
+
     private var shareAction: some View {
         HStack {
             Spacer()
@@ -353,9 +425,51 @@ struct SpendDashboardPane: View {
     }
 
     private var sharePayload: ShareStatsPayload? {
-        ShareStatsBuilder.make(
+        Self.makeSharePayload(
             model: self.controller.model,
-            subscriptionNames: self.subscriptionNames)
+            subscriptionNames: self.subscriptionNames,
+            trackedSources: self.configuration.trackedSources)
+    }
+
+    static func makeSharePayload(
+        model: SpendDashboardModel,
+        subscriptionNames: [String: ShareStatsSubscriptionName],
+        trackedSources: [SpendDashboardTrackedSource]) -> ShareStatsPayload?
+    {
+        let fallbackCurrencyCode = model.groups.first?.currencyCode ?? "USD"
+        let sourcesByProvider = Dictionary(grouping: trackedSources, by: \.provider)
+        var seenProviders: Set<UsageProvider> = []
+        let roster = trackedSources.compactMap { source -> ShareStatsProviderRosterEntry? in
+            guard seenProviders.insert(source.provider).inserted,
+                  let sources = sourcesByProvider[source.provider]
+            else { return nil }
+            return ShareStatsProviderRosterEntry(
+                provider: source.provider,
+                providerName: source.providerName,
+                currencyCode: fallbackCurrencyCode,
+                expectedSourceIDs: self.shareExpectedSourceIDs(
+                    provider: source.provider,
+                    sources: sources))
+        }
+        return ShareStatsBuilder.make(
+            model: model,
+            subscriptionNames: subscriptionNames,
+            providerRoster: roster)
+    }
+
+    private static func shareExpectedSourceIDs(
+        provider: UsageProvider,
+        sources: [SpendDashboardTrackedSource]) -> Set<String>
+    {
+        let providerScopedSources = sources.filter { source in
+            source.contributesCostHistory &&
+                (source.id == "\(provider.rawValue):current" ||
+                    source.id.hasPrefix("\(provider.rawValue):account:"))
+        }
+        if providerScopedSources.count == 1 {
+            return [provider.rawValue]
+        }
+        return Set(sources.map(\.id))
     }
 
     private var subscriptionNames: [String: ShareStatsSubscriptionName] {
@@ -388,7 +502,186 @@ struct SpendDashboardPane: View {
     private var daysBinding: Binding<Int> {
         Binding(
             get: { self.controller.selectedDays },
-            set: { self.controller.selectDays($0) })
+            set: {
+                self.controller.selectDays($0)
+                self.applySelectedHistoryCoverage()
+                self.controller.refreshDateWindow()
+            })
+    }
+
+    private func applySelectedHistoryCoverage() {
+        let requiredDays = spendDashboardRequiredHistoryDays(
+            selectedDays: self.controller.selectedDays,
+            configuredDays: self.settings.costUsageHistoryDays)
+        self.settings.setSpendDashboardHistoryDaysOverride(
+            requiredDays == self.settings.costUsageHistoryDays ? nil : requiredDays)
+    }
+}
+
+struct SpendDashboardHeader: View {
+    let selectedDays: Int
+    let isRefreshing: Bool
+    let isCostTrackingEnabled: Bool
+    let selectDays: (Int) -> Void
+    let refresh: () -> Void
+
+    var body: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(alignment: .top, spacing: 16) {
+                self.title
+                Spacer(minLength: 16)
+                self.controls
+            }
+            VStack(alignment: .leading, spacing: 12) {
+                self.title
+                self.controls
+            }
+        }
+    }
+
+    private var title: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(L("Usage & Spend"))
+                .font(.title2.weight(.semibold))
+            Text(L("Local estimated cost history across supported providers."))
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    private var controls: some View {
+        HStack(spacing: 12) {
+            Picker(L("Time range"), selection: self.daysBinding) {
+                Text(spendDashboardDayRangeText(7)).tag(7)
+                Text(spendDashboardDayRangeText(30)).tag(30)
+                Text(spendDashboardDayRangeText(365)).tag(365)
+            }
+            .labelsHidden()
+            .pickerStyle(.segmented)
+            .frame(width: 174)
+
+            Button(action: self.refresh) {
+                if self.isRefreshing {
+                    ProgressView().controlSize(.small)
+                } else {
+                    Label(L("Refresh"), systemImage: "arrow.clockwise")
+                }
+            }
+            .disabled(self.isRefreshing || !self.isCostTrackingEnabled)
+        }
+    }
+
+    private var daysBinding: Binding<Int> {
+        Binding(get: { self.selectedDays }, set: { self.selectDays($0) })
+    }
+}
+
+struct SpendTrackedAccessPanel: View {
+    let sources: [SpendDashboardTrackedSource]
+    let description: String
+
+    private let columns = [
+        GridItem(.adaptive(minimum: 245, maximum: 420), spacing: 12),
+    ]
+
+    var body: some View {
+        SpendDashboardPanel {
+            VStack(alignment: .leading, spacing: 16) {
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(alignment: .firstTextBaseline, spacing: 12) {
+                        Text(L("Tracked access"))
+                            .font(.headline)
+                        Spacer(minLength: 12)
+                        Text(
+                            "\(codexBarLocalizedInteger(self.sources.count)) " +
+                                L("tracked sources"))
+                            .font(.caption.monospacedDigit().weight(.semibold))
+                            .foregroundStyle(.secondary)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 6)
+                            .background(.quaternary.opacity(0.7), in: Capsule())
+                            .accessibilityLabel(
+                                "\(codexBarLocalizedInteger(self.sources.count)) \(L("tracked sources"))")
+                    }
+                    Text(self.description)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                LazyVGrid(columns: self.columns, alignment: .leading, spacing: 12) {
+                    ForEach(self.sources) { source in
+                        SpendTrackedSourceRow(source: source)
+                    }
+                }
+            }
+        }
+    }
+}
+
+private struct SpendTrackedSourceRow: View {
+    let source: SpendDashboardTrackedSource
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 9) {
+            HStack(spacing: 10) {
+                SpendProviderIcon(provider: self.source.provider)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(self.source.providerName)
+                        .font(.subheadline.weight(.medium))
+                        .lineLimit(1)
+                    if let accountName = self.source.accountName {
+                        Text(accountName)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
+                }
+                Spacer(minLength: 4)
+            }
+
+            Label(
+                spendDashboardTrackedSourceStatusText(self.source),
+                systemImage: self.statusSymbol)
+                .font(.caption.weight(.medium))
+                .foregroundStyle(self.statusColor)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, minHeight: 72, alignment: .leading)
+        .background(.background.opacity(0.72), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .strokeBorder(Color(nsColor: .separatorColor).opacity(0.25))
+        }
+        .accessibilityElement(children: .combine)
+    }
+
+    private var statusSymbol: String {
+        switch self.source.state {
+        case .needsAttention:
+            return "exclamationmark.triangle.fill"
+        case .awaitingUsage:
+            return "clock"
+        case .connected, .configured:
+            break
+        }
+        if self.source.contributesCostHistory {
+            return self.source.costHistoryAvailable ? "checkmark.circle.fill" : "clock.fill"
+        }
+        return self.source.state == .connected ? "minus.circle.fill" : "minus.circle"
+    }
+
+    private var statusColor: Color {
+        if self.source.state == .needsAttention {
+            return .orange
+        }
+        if self.source.contributesCostHistory {
+            return self.source.costHistoryAvailable ? .green : .orange
+        }
+        return .secondary
     }
 }
 
@@ -414,13 +707,26 @@ private struct SpendCurrencySection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
+            SpendCurrencySummaryView(group: self.group, requestedDays: self.requestedDays)
+
+            SpendProviderPanel(group: self.group, requestedDays: self.requestedDays)
+            SpendModelPanel(group: self.group)
+            SpendDailyChart(group: self.group)
+        }
+    }
+}
+
+struct SpendCurrencySummaryView: View {
+    let group: SpendDashboardModel.CurrencyGroup
+    let requestedDays: Int
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .firstTextBaseline) {
                 Text(self.group.currencyCode)
                     .font(.headline)
                 Spacer()
-                Text(self.group.totalCost.map {
-                    UsageFormatter.currencyString($0, currencyCode: self.group.currencyCode)
-                } ?? L("Spend unavailable"))
+                Text(spendDashboardAggregateCostText(self.group))
                     .font(.title3.weight(.semibold))
                     .monospacedDigit()
             }
@@ -437,22 +743,18 @@ private struct SpendCurrencySection: View {
                 HStack(spacing: 24) {
                     SpendSummaryValue(
                         title: L("Estimated spend"),
-                        value: self.group.totalCost.map {
-                            UsageFormatter.currencyString($0, currencyCode: self.group.currencyCode)
-                        } ?? "—")
+                        value: spendDashboardAggregateCostText(self.group))
                     SpendSummaryValue(
                         title: L("Tracked tokens"),
-                        value: self.group.totalTokens.map(UsageFormatter.tokenCountString) ?? "—")
+                        value: spendDashboardAggregateTokenText(self.group))
+                    SpendSummaryValue(
+                        title: L("Coverage"),
+                        value: spendDashboardCostCoverageText(self.group))
                     SpendSummaryValue(
                         title: L("Subscriptions"),
                         value: codexBarLocalizedInteger(self.group.providers.count))
-                    Spacer()
                 }
             }
-
-            SpendProviderPanel(group: self.group)
-            SpendModelPanel(group: self.group)
-            SpendDailyChart(group: self.group)
         }
     }
 }
@@ -470,11 +772,13 @@ private struct SpendSummaryValue: View {
                 .font(.system(.title2, design: .rounded, weight: .semibold))
                 .monospacedDigit()
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
 private struct SpendProviderPanel: View {
     let group: SpendDashboardModel.CurrencyGroup
+    let requestedDays: Int
 
     var body: some View {
         SpendDashboardPanel {
@@ -492,9 +796,10 @@ private struct SpendProviderPanel: View {
                         SpendProviderIcon(provider: row.provider)
                         Text(row.displayName).lineLimit(1)
                         Spacer()
-                        Text(row.totalCost.map {
-                            UsageFormatter.currencyString($0, currencyCode: self.group.currencyCode)
-                        } ?? L("Spend unavailable"))
+                        Text(spendDashboardProviderCostText(
+                            row,
+                            currencyCode: self.group.currencyCode,
+                            requestedDays: self.requestedDays))
                             .foregroundStyle(row.totalCost == nil ? .secondary : .primary)
                             .monospacedDigit()
                     }

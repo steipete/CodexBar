@@ -2,6 +2,7 @@ import CodexBarCore
 import Foundation
 
 struct ShareStatsProviderPayload: Sendable, Equatable {
+    let sourceID: String?
     let provider: UsageProvider
     let providerName: String
     let subscriptionName: String?
@@ -9,11 +10,51 @@ struct ShareStatsProviderPayload: Sendable, Equatable {
     let totalTokens: Int?
     let estimatedCost: Double?
     let coveredDayCount: Int
+
+    init(
+        sourceID: String? = nil,
+        provider: UsageProvider,
+        providerName: String,
+        subscriptionName: String?,
+        currencyCode: String,
+        totalTokens: Int?,
+        estimatedCost: Double?,
+        coveredDayCount: Int)
+    {
+        self.sourceID = sourceID
+        self.provider = provider
+        self.providerName = providerName
+        self.subscriptionName = subscriptionName
+        self.currencyCode = currencyCode
+        self.totalTokens = totalTokens
+        self.estimatedCost = estimatedCost
+        self.coveredDayCount = coveredDayCount
+    }
+}
+
+struct ShareStatsProviderRosterEntry: Sendable, Equatable {
+    let provider: UsageProvider
+    let providerName: String
+    let currencyCode: String
+    let expectedSourceIDs: Set<String>
+
+    init(
+        provider: UsageProvider,
+        providerName: String,
+        currencyCode: String,
+        expectedSourceIDs: Set<String> = [])
+    {
+        self.provider = provider
+        self.providerName = providerName
+        self.currencyCode = currencyCode
+        self.expectedSourceIDs = expectedSourceIDs
+    }
 }
 
 struct ShareStatsModelPayload: Sendable, Equatable {
     let provider: UsageProvider
     let providerName: String
+    let modelIdentity: String
     let modelName: String
     let currencyCode: String
     let totalTokens: Int?
@@ -23,6 +64,7 @@ struct ShareStatsModelPayload: Sendable, Equatable {
 private struct ShareStatsModelFamilyKey: Hashable {
     let provider: UsageProvider
     let providerName: String
+    let modelIdentity: String
     let modelName: String
     let currencyCode: String
 }
@@ -74,6 +116,7 @@ private struct ShareStatsModelFamilyAccumulator {
         return ShareStatsModelPayload(
             provider: self.key.provider,
             providerName: self.key.providerName,
+            modelIdentity: self.key.modelIdentity,
             modelName: self.key.modelName,
             currencyCode: self.key.currencyCode,
             totalTokens: totalTokens,
@@ -85,6 +128,7 @@ struct ShareStatsCurrencyPayload: Sendable, Equatable, Identifiable {
     let currencyCode: String
     let estimatedCost: Double?
     let coveredDayCount: Int
+    var isPartial = false
 
     var id: String {
         self.currencyCode
@@ -98,11 +142,16 @@ struct ShareStatsPayload: Sendable, Equatable {
     let topModels: [ShareStatsModelPayload]
     let currencies: [ShareStatsCurrencyPayload]
     let totalTokens: Int?
+    let totalTokensIsPartial: Bool
 
     var hasShareableData: Bool {
         !self.providers.isEmpty && self.providers.contains { provider in
             provider.totalTokens != nil || provider.estimatedCost != nil
         }
+    }
+
+    var spendReportingProviderCount: Int {
+        self.providers.count { $0.estimatedCost != nil }
     }
 }
 
@@ -142,16 +191,23 @@ enum ShareStatsSanitizer {
     static func modelName(_ rawValue: String) -> String? {
         guard let value = self.safeLabel(
             rawValue,
-            maximumLength: 72,
+            maximumLength: 96,
             maximumWords: 3,
             requireModelShape: true)
         else { return nil }
 
         let normalized = value.lowercased()
+        guard !normalized.contains("://"), !normalized.contains("\\") else { return nil }
+        let pathComponents = normalized.split(separator: "/", omittingEmptySubsequences: false)
+        guard pathComponents.count <= 2,
+              pathComponents.allSatisfy({ !$0.isEmpty })
+        else { return nil }
+
+        let routedModelName = String(pathComponents.last ?? "")
         let regionalPrefixes = ["us.", "eu.", "apac.", "global."]
-        let familyName = regionalPrefixes.first { normalized.hasPrefix($0) }.map {
-            String(normalized.dropFirst($0.count))
-        } ?? normalized
+        let familyName = regionalPrefixes.first { routedModelName.hasPrefix($0) }.map {
+            String(routedModelName.dropFirst($0.count))
+        } ?? routedModelName
         let publicModelFamilies: [(prefixes: [String], label: String)] = [
             (["amazon.nova-", "nova-"], "Amazon Nova"),
             (["anthropic.claude-", "claude-", "claude "], "Claude"),
@@ -178,13 +234,74 @@ enum ShareStatsSanitizer {
             (["tts-"], "OpenAI TTS"),
             (["whisper-"], "Whisper"),
         ]
-        guard !normalized.contains("://"),
-              !normalized.contains("/"),
-              !normalized.contains("\\")
-        else { return nil }
-        return publicModelFamilies.first { family in
-            family.prefixes.contains(where: familyName.hasPrefix)
-        }?.label
+        guard let match = publicModelFamilies.lazy.compactMap({ family -> (String, String)? in
+            guard let prefix = family.prefixes.first(where: familyName.hasPrefix) else { return nil }
+            return (prefix, family.label)
+        }).first else { return nil }
+
+        let remainder = String(familyName.dropFirst(match.0.count))
+        guard !remainder.isEmpty else { return match.1 }
+        guard let detail = self.publicModelDetail(remainder) else { return nil }
+        return "\(match.1) \(detail)"
+    }
+
+    private static func publicModelDetail(_ rawValue: String) -> String? {
+        let displayTokens: [String: String] = [
+            "air": "Air", "chat": "Chat", "code": "Code", "coder": "Coder", "codex": "Codex",
+            "fable": "Fable", "fast": "Fast", "flash": "Flash", "free": "Free", "haiku": "Haiku",
+            "instruct": "Instruct", "large": "Large", "lite": "Lite", "max": "Max",
+            "latest": "Latest", "luna": "Luna", "medium": "Medium", "mini": "Mini", "nano": "Nano",
+            "opus": "Opus",
+            "oss": "OSS", "preview": "Preview", "pro": "Pro", "reasoning": "Reasoning",
+            "small": "Small", "sol": "Sol", "sonnet": "Sonnet", "terra": "Terra", "thinking": "Thinking",
+            "turbo": "Turbo", "vision": "Vision",
+        ]
+        let tokens = rawValue.split(whereSeparator: { "-_:".contains($0) }).map(String.init)
+        var details: [String] = []
+        var numericVersion: [String] = []
+
+        func flushNumericVersion() {
+            guard !numericVersion.isEmpty else { return }
+            details.append(numericVersion.joined(separator: "."))
+            numericVersion.removeAll(keepingCapacity: true)
+        }
+
+        for token in tokens {
+            if token.allSatisfy(\.isNumber), token.count <= 3 {
+                numericVersion.append(token)
+                continue
+            }
+            flushNumericVersion()
+            if token.range(of: #"^v[0-9]+$"#, options: .regularExpression) != nil ||
+                token.range(of: #"^[0-9]{8}$"#, options: .regularExpression) != nil
+            {
+                break
+            }
+            if token.range(of: #"^[0-9]+(?:\.[0-9]+)+$"#, options: .regularExpression) != nil {
+                details.append(token)
+                continue
+            }
+            if let displayToken = displayTokens[token] {
+                details.append(displayToken)
+                continue
+            }
+            if token.range(of: #"^[a-z][0-9]+(?:\.[0-9]+)*$"#, options: .regularExpression) != nil {
+                details.append(token.uppercased())
+                continue
+            }
+            if token.range(of: #"^[0-9]+b$"#, options: .regularExpression) != nil {
+                details.append(token.uppercased())
+                continue
+            }
+            if token.range(of: #"^[0-9]+o$"#, options: .regularExpression) != nil {
+                details.append(token)
+                continue
+            }
+            return nil
+        }
+        flushNumericVersion()
+        guard !details.isEmpty else { return nil }
+        return details.joined(separator: " ")
     }
 
     private static func safeLabel(
@@ -221,11 +338,13 @@ enum ShareStatsSanitizer {
 enum ShareStatsBuilder {
     static func make(
         model: SpendDashboardModel,
-        subscriptionNames: [String: ShareStatsSubscriptionName] = [:]) -> ShareStatsPayload?
+        subscriptionNames: [String: ShareStatsSubscriptionName] = [:],
+        providerRoster: [ShareStatsProviderRosterEntry] = []) -> ShareStatsPayload?
     {
-        let providers = model.groups.flatMap { group in
+        let trackedProviders = model.groups.flatMap { group in
             group.providers.map { row in
                 ShareStatsProviderPayload(
+                    sourceID: row.id,
                     provider: row.provider,
                     providerName: row.displayName,
                     subscriptionName: subscriptionNames[row.id]?.displayName,
@@ -233,6 +352,41 @@ enum ShareStatsBuilder {
                     totalTokens: row.totalTokens,
                     estimatedCost: self.finiteCost(row.totalCost),
                     coveredDayCount: row.coveredDayCount)
+            }
+        }
+        let providers: [ShareStatsProviderPayload]
+        if providerRoster.isEmpty {
+            providers = trackedProviders
+        } else {
+            let trackedByProvider = Dictionary(grouping: trackedProviders, by: \.provider)
+            var emittedProviders: Set<UsageProvider> = []
+            providers = providerRoster.compactMap { entry in
+                guard emittedProviders.insert(entry.provider).inserted else { return nil }
+                let allMatches = trackedByProvider[entry.provider] ?? []
+                let matches = self.rosterMatches(entry: entry, candidates: allMatches)
+                guard !matches.isEmpty else {
+                    return ShareStatsProviderPayload(
+                        provider: entry.provider,
+                        providerName: entry.providerName,
+                        subscriptionName: nil,
+                        currencyCode: entry.currencyCode,
+                        totalTokens: nil,
+                        estimatedCost: nil,
+                        coveredDayCount: 0)
+                }
+                let knownCosts = matches.compactMap(\.estimatedCost)
+                let currencyCodes = Set(matches.map(\.currencyCode))
+                let coveredDayCount = matches.filter { $0.estimatedCost != nil || $0.totalTokens != nil }
+                    .map(\.coveredDayCount)
+                    .min() ?? 0
+                return ShareStatsProviderPayload(
+                    provider: entry.provider,
+                    providerName: entry.providerName,
+                    subscriptionName: matches.count == 1 ? matches[0].subscriptionName : nil,
+                    currencyCode: matches[0].currencyCode,
+                    totalTokens: self.combinedTotalTokens(matches.map(\.totalTokens)),
+                    estimatedCost: currencyCodes.count == 1 ? self.safeCostSum(knownCosts) : nil,
+                    coveredDayCount: coveredDayCount)
             }
         }
         let sanitizedModels = model.groups.filter {
@@ -246,6 +400,7 @@ enum ShareStatsBuilder {
                 return ShareStatsModelPayload(
                     provider: row.provider,
                     providerName: row.providerName,
+                    modelIdentity: modelName.lowercased(),
                     modelName: modelName,
                     currencyCode: group.currencyCode,
                     totalTokens: row.totalTokens,
@@ -257,6 +412,7 @@ enum ShareStatsBuilder {
             let key = ShareStatsModelFamilyKey(
                 provider: row.provider,
                 providerName: row.providerName,
+                modelIdentity: row.modelIdentity,
                 modelName: row.modelName,
                 currencyCode: row.currencyCode)
             if var existing = modelFamilies[key] {
@@ -275,24 +431,55 @@ enum ShareStatsBuilder {
                 if lhs.providerName != rhs.providerName {
                     return lhs.providerName < rhs.providerName
                 }
-                return lhs.modelName < rhs.modelName
+                if lhs.modelName != rhs.modelName {
+                    return lhs.modelName < rhs.modelName
+                }
+                if lhs.currencyCode != rhs.currencyCode {
+                    return lhs.currencyCode < rhs.currencyCode
+                }
+                return lhs.modelIdentity < rhs.modelIdentity
             }
         }
-        let currencies = model.groups.map {
-            ShareStatsCurrencyPayload(
-                currencyCode: $0.currencyCode,
-                estimatedCost: self.finiteCost($0.totalCost),
-                coveredDayCount: $0.coveredDayCount)
+        let rosterProviderKinds = Set(providerRoster.map(\.provider))
+        let rosterHasUnexpectedProviderFamilies = !providerRoster.isEmpty && trackedProviders.contains {
+            !rosterProviderKinds.contains($0.provider)
         }
-        let totalTokens = self.combinedTotalTokens(model.groups.map(\.totalTokens))
+        let rosterHasIncompleteProviders = rosterHasUnexpectedProviderFamilies || providerRoster.contains { entry in
+            let allMatches = trackedProviders.filter { $0.provider == entry.provider }
+            let matches = self.rosterMatches(entry: entry, candidates: allMatches)
+            let knownCosts = matches.compactMap(\.estimatedCost)
+            return self.rosterIdentityIsIncomplete(entry: entry, candidates: allMatches) ||
+                matches.contains { $0.totalTokens == nil || $0.estimatedCost == nil } ||
+                Set(matches.map(\.currencyCode)).count > 1 ||
+                self.safeCostSum(knownCosts) == nil
+        }
+        let currencies = model.groups.map { group in
+            let rosterCosts = providers.filter { $0.currencyCode == group.currencyCode }
+                .compactMap(\.estimatedCost)
+            let estimatedCost = providerRoster.isEmpty
+                ? self.finiteCost(group.totalCost ?? group.knownCost)
+                : self.safeCostSum(rosterCosts)
+            return ShareStatsCurrencyPayload(
+                currencyCode: group.currencyCode,
+                estimatedCost: estimatedCost,
+                coveredDayCount: group.coveredDayCount,
+                isPartial: rosterHasIncompleteProviders || group.totalCost == nil)
+        }
+        let tokenProviders = providerRoster.isEmpty ? trackedProviders : providers
+        let knownTokenValues = tokenProviders.compactMap(\.totalTokens)
+        let totalTokens = self.safeTokenSum(knownTokenValues)
+        let totalTokensIsPartial = tokenProviders.contains { $0.totalTokens == nil } ||
+            rosterHasIncompleteProviders ||
+            model.groups.contains { $0.totalTokens == nil }
         let periodEnd = model.groups.map(\.chartDomain.upperBound).max() ?? Date()
         let payload = ShareStatsPayload(
             days: model.requestedDays,
             periodEnd: periodEnd,
             providers: providers,
-            topModels: topModels,
+            topModels: rosterHasIncompleteProviders ? [] : topModels,
             currencies: currencies,
-            totalTokens: totalTokens)
+            totalTokens: totalTokens,
+            totalTokensIsPartial: totalTokensIsPartial)
         return payload.hasShareableData ? payload : nil
     }
 
@@ -310,6 +497,45 @@ enum ShareStatsBuilder {
             total = result.partialValue
         }
         return total
+    }
+
+    private static func safeTokenSum(_ values: [Int]) -> Int? {
+        var total = 0
+        for value in values {
+            let result = total.addingReportingOverflow(value)
+            guard !result.overflow else { return nil }
+            total = result.partialValue
+        }
+        return values.isEmpty ? nil : total
+    }
+
+    private static func safeCostSum(_ values: [Double]) -> Double? {
+        guard !values.isEmpty else { return nil }
+        var total = 0.0
+        for value in values {
+            total += value
+            guard total.isFinite else { return nil }
+        }
+        return total
+    }
+
+    private static func rosterMatches(
+        entry: ShareStatsProviderRosterEntry,
+        candidates: [ShareStatsProviderPayload]) -> [ShareStatsProviderPayload]
+    {
+        guard !entry.expectedSourceIDs.isEmpty else { return candidates }
+        return candidates.filter { candidate in
+            candidate.sourceID.map(entry.expectedSourceIDs.contains) == true
+        }
+    }
+
+    private static func rosterIdentityIsIncomplete(
+        entry: ShareStatsProviderRosterEntry,
+        candidates: [ShareStatsProviderPayload]) -> Bool
+    {
+        guard !entry.expectedSourceIDs.isEmpty else { return candidates.isEmpty }
+        let actualIDs = Set(candidates.compactMap(\.sourceID))
+        return actualIDs != entry.expectedSourceIDs || candidates.count != entry.expectedSourceIDs.count
     }
 }
 
@@ -345,10 +571,16 @@ enum ShareStatsFormatting {
     static func text(_ payload: ShareStatsPayload) -> String {
         var lines = ["My AI subscriptions · last \(payload.days) days"]
         if let tokens = payload.totalTokens {
-            lines.append("\(self.compactCount(tokens)) tracked tokens")
+            let value = payload.totalTokensIsPartial ? "~\(self.compactCount(tokens))" : self.compactCount(tokens)
+            lines.append("\(value) tracked tokens")
         }
+        lines.append(
+            "\(payload.spendReportingProviderCount)/\(payload.providers.count) connected services report spend")
         lines.append(contentsOf: payload.currencies.map { currency in
-            let spend = currency.estimatedCost.map { "\(self.currency($0, code: currency.currencyCode)) estimated" }
+            let spend = currency.estimatedCost.map {
+                let value = self.currency($0, code: currency.currencyCode)
+                return "\(currency.isPartial ? "~" : "")\(value) estimated"
+            }
                 ?? "Spend unavailable"
             return "\(currency.currencyCode): \(spend) · "
                 + "coverage \(currency.coveredDayCount)/\(payload.days) days"
@@ -381,6 +613,9 @@ enum ShareStatsFormatting {
                 }
                 return "\(model.modelName) (\(model.providerName)): \(metrics.joined(separator: " · "))"
             })
+            if payload.topModels.count > 5 {
+                lines.append("+\(payload.topModels.count - 5) more models ranked in local stats")
+            }
         }
         lines.append("Generated locally by CodexBar · Data through \(self.dataThrough(payload.periodEnd))")
         return lines.joined(separator: "\n")

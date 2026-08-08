@@ -127,12 +127,14 @@ struct SpendDashboardTokenProvenanceTests {
         let controller = Self.dashboardController(settings: settings, store: store, now: now)
         controller.update(configuration: SpendDashboardSource.configuration(settings: settings, store: store))
         await Self.waitUntil { !controller.isRefreshing }
-        #expect(controller.model.groups.first?.totalCost == 3)
+        #expect(controller.model.groups.first?.totalCost == nil)
+        #expect(controller.model.groups.first?.knownCost == 3)
 
         controller.refresh()
         await Self.waitUntil { !controller.isRefreshing }
 
-        #expect(controller.model.groups.first?.totalCost == 3)
+        #expect(controller.model.groups.first?.totalCost == nil)
+        #expect(controller.model.groups.first?.knownCost == 3)
         #expect(controller.failedSourceCount == 1)
         #expect(store.tokenSnapshotPublicationRevision(for: .mistral) == baselineRevision)
     }
@@ -149,7 +151,8 @@ struct SpendDashboardTokenProvenanceTests {
         let controller = Self.dashboardController(settings: settings, store: store, now: now)
         controller.update(configuration: SpendDashboardSource.configuration(settings: settings, store: store))
         await Self.waitUntil { !controller.isRefreshing }
-        #expect(controller.model.groups.first?.totalCost == 4)
+        #expect(controller.model.groups.first?.totalCost == nil)
+        #expect(controller.model.groups.first?.knownCost == 4)
 
         controller.refresh()
         await Self.waitUntil { !controller.isRefreshing }

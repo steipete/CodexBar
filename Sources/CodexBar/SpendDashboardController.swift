@@ -3,12 +3,63 @@ import CryptoKit
 import Foundation
 import Observation
 
+struct SpendDashboardTrackedSource: Identifiable, Equatable, Sendable {
+    enum State: Equatable, Sendable {
+        case connected
+        case configured
+        case needsAttention
+        case awaitingUsage
+    }
+
+    let id: String
+    let provider: UsageProvider
+    let providerName: String
+    let accountName: String?
+    let state: State
+    let supportsCostHistory: Bool
+    let contributesCostHistory: Bool
+    let costHistoryAvailable: Bool
+
+    init(
+        id: String,
+        provider: UsageProvider,
+        providerName: String,
+        accountName: String?,
+        state: State,
+        supportsCostHistory: Bool,
+        contributesCostHistory: Bool,
+        costHistoryAvailable: Bool = false)
+    {
+        self.id = id
+        self.provider = provider
+        self.providerName = providerName
+        self.accountName = accountName
+        self.state = state
+        self.supportsCostHistory = supportsCostHistory
+        self.contributesCostHistory = contributesCostHistory
+        self.costHistoryAvailable = costHistoryAvailable
+    }
+
+    func withCostHistoryAvailable(_ available: Bool) -> Self {
+        Self(
+            id: self.id,
+            provider: self.provider,
+            providerName: self.providerName,
+            accountName: self.accountName,
+            state: self.state,
+            supportsCostHistory: self.supportsCostHistory,
+            contributesCostHistory: self.contributesCostHistory,
+            costHistoryAvailable: available)
+    }
+}
+
 struct SpendDashboardConfiguration: Equatable, Sendable {
     let costUsageEnabled: Bool
     let preferredCurrencyCode: String
     let providerIDs: [String]
     let codexAccountIdentities: [String]
     let codexAccountDisplayNames: [String: String]
+    let trackedSources: [SpendDashboardTrackedSource]
     let sourceOwnershipFingerprints: [String]
     let sourceRevisions: [String]
 
@@ -18,6 +69,7 @@ struct SpendDashboardConfiguration: Equatable, Sendable {
         providerIDs: [String],
         codexAccountIdentities: [String],
         codexAccountDisplayNames: [String: String] = [:],
+        trackedSources: [SpendDashboardTrackedSource] = [],
         sourceOwnershipFingerprints: [String] = [],
         sourceRevisions: [String] = [])
     {
@@ -26,6 +78,7 @@ struct SpendDashboardConfiguration: Equatable, Sendable {
         self.providerIDs = providerIDs
         self.codexAccountIdentities = codexAccountIdentities
         self.codexAccountDisplayNames = codexAccountDisplayNames
+        self.trackedSources = trackedSources
         self.sourceOwnershipFingerprints = sourceOwnershipFingerprints
         self.sourceRevisions = sourceRevisions
     }
@@ -67,6 +120,7 @@ struct SpendDashboardLoadRequest: Sendable {
     let codexRequests: [CodexSpendScanRequest]
     let now: Date
     let force: Bool
+    let historyDays: Int
 
     init(
         configuration: SpendDashboardConfiguration,
@@ -75,7 +129,8 @@ struct SpendDashboardLoadRequest: Sendable {
         confirmedEmptySourceIDs: Set<String> = [],
         codexRequests: [CodexSpendScanRequest],
         now: Date,
-        force: Bool)
+        force: Bool,
+        historyDays: Int = 30)
     {
         self.configuration = configuration
         self.capturedInputs = capturedInputs
@@ -84,6 +139,7 @@ struct SpendDashboardLoadRequest: Sendable {
         self.codexRequests = codexRequests
         self.now = now
         self.force = force
+        self.historyDays = max(1, min(365, historyDays))
     }
 }
 
@@ -126,9 +182,7 @@ enum SpendDashboardSource {
         -> CostUsageTokenSnapshot?
     typealias CodexCacheRootResolver = @Sendable (CodexSpendScanRequest) -> URL
 
-    static let scanDays = 30
     static let activityDays = 365
-
     @MainActor
     static func configuration(settings: SettingsStore, store: UsageStore) -> SpendDashboardConfiguration {
         let providers = self.costCapableProviders(store: store)
@@ -155,6 +209,7 @@ enum SpendDashboardSource {
             providerIDs: providers.map(\.rawValue),
             codexAccountIdentities: codexRequests.map { "\($0.id)|\($0.cacheIdentity)" },
             codexAccountDisplayNames: self.codexDisplayNamesByID(codexRequests),
+            trackedSources: self.trackedSources(settings: settings, store: store),
             sourceOwnershipFingerprints: self.sourceOwnershipFingerprints(
                 providers: providers,
                 settings: settings,
@@ -170,6 +225,7 @@ enum SpendDashboardSource {
         now: Date? = nil,
         nowProvider: @escaping @Sendable () -> Date = { Date() }) async -> SpendDashboardLoadRequest
     {
+        let historyDays = settings.effectiveCostUsageHistoryDays
         guard settings.costUsageEnabled else {
             return SpendDashboardLoadRequest(
                 configuration: self.configuration(settings: settings, store: store),
@@ -177,7 +233,8 @@ enum SpendDashboardSource {
                 unavailableSourceIDs: [],
                 codexRequests: [],
                 now: now ?? nowProvider(),
-                force: mode.forcesLoader)
+                force: mode.forcesLoader,
+                historyDays: historyDays)
         }
 
         let initialProviders = self.costCapableProviders(store: store)
@@ -215,7 +272,8 @@ enum SpendDashboardSource {
                 unavailableSourceIDs: [],
                 codexRequests: [],
                 now: captureNow,
-                force: mode.forcesLoader)
+                force: mode.forcesLoader,
+                historyDays: historyDays)
         }
 
         var inputs: [SpendDashboardModel.ProviderInput] = []
@@ -252,7 +310,8 @@ enum SpendDashboardSource {
             confirmedEmptySourceIDs: confirmedEmptySourceIDs,
             codexRequests: codexRequests,
             now: captureNow,
-            force: mode.forcesLoader)
+            force: mode.forcesLoader,
+            historyDays: historyDays)
     }
 
     static func load(_ request: SpendDashboardLoadRequest) async -> SpendDashboardLoadResult {
@@ -309,7 +368,7 @@ enum SpendDashboardSource {
                 cacheRoot: cacheRootResolver(account),
                 now: request.now,
                 force: false,
-                historyDays: Self.scanDays,
+                historyDays: request.historyDays,
                 refreshPricingInBackground: false,
                 includePiSessions: false))
             guard !Task.isCancelled,
@@ -355,7 +414,7 @@ enum SpendDashboardSource {
                     cacheRoot: cacheRoot,
                     now: request.now,
                     force: request.force,
-                    historyDays: Self.scanDays,
+                    historyDays: request.historyDays,
                     refreshPricingInBackground: false,
                     includePiSessions: false))
                 try Task.checkCancellation()
@@ -432,6 +491,130 @@ enum SpendDashboardSource {
         store.enabledFirstPartyProvidersForDisplay().filter {
             ProviderDescriptorRegistry.descriptor(for: $0).tokenCost.supportsTokenCost
         }
+    }
+
+    @MainActor
+    static func trackedSources(
+        settings: SettingsStore,
+        store: UsageStore) -> [SpendDashboardTrackedSource]
+    {
+        // Tracked access reflects user enablement, not refresh-time availability. Providers with no
+        // current snapshot still need a row so the dashboard can explain their connection state.
+        let enabled = Set(UsageProvider.allCases.filter { provider in
+            settings.isProviderEnabled(provider: provider, metadata: store.metadata(for: provider))
+        })
+        var sources: [SpendDashboardTrackedSource] = []
+
+        for provider in UsageProvider.allCases {
+            let providerName = store.metadata(for: provider).displayName
+            let supportsCostHistory = ProviderDescriptorRegistry.descriptor(for: provider)
+                .tokenCost.supportsTokenCost
+            let currentCostHistoryAvailable = store
+                .tokenSnapshotPublicationForCurrentProviderConfig(for: provider)?
+                .snapshot?.historyCoverageIsEstablished == true
+            if provider == .codex {
+                let accounts = settings.codexVisibleAccountProjection.visibleAccounts
+                let snapshotsByID = Dictionary(uniqueKeysWithValues: store.codexAccountSnapshots.map {
+                    ($0.id, $0)
+                })
+                if !accounts.isEmpty {
+                    sources.append(contentsOf: accounts.map { account in
+                        let accountSnapshot = snapshotsByID[account.id]
+                        let connected = accountSnapshot?.snapshot != nil
+                            || (account.isActive && store.snapshot(for: .codex) != nil)
+                        let hasError = accountSnapshot?.error != nil
+                            || (account.isActive && store.error(for: .codex) != nil)
+                        return SpendDashboardTrackedSource(
+                            id: "codex:\(account.id)",
+                            provider: provider,
+                            providerName: providerName,
+                            accountName: self.trackedAccountName(account.email, providerName: providerName),
+                            state: self.trackedSourceState(
+                                hasLiveSnapshot: connected,
+                                hasConfiguredCredential: true,
+                                hasError: hasError),
+                            supportsCostHistory: supportsCostHistory,
+                            contributesCostHistory: supportsCostHistory && enabled.contains(provider),
+                            costHistoryAvailable: account.isActive && currentCostHistoryAvailable)
+                    })
+                    continue
+                }
+            }
+
+            let accounts = settings.tokenAccounts(for: provider)
+            if !accounts.isEmpty {
+                let activeAccountID = settings.effectiveSelectedTokenAccount(for: provider)?.id
+                let cachedByID = Dictionary(
+                    uniqueKeysWithValues: (store.accountSnapshots[provider.instanceID] ?? []).map {
+                        ($0.id, $0)
+                    })
+                sources.append(contentsOf: accounts.map { account in
+                    let isActive = account.id == activeAccountID
+                    let accountSnapshot = cachedByID[account.id]
+                    let connected = accountSnapshot?.snapshot != nil
+                        || (isActive && store.snapshot(for: provider.instanceID) != nil)
+                    let hasError = accountSnapshot?.error != nil
+                        || (isActive && (store.error(for: provider) != nil || store.tokenError(for: provider) != nil))
+                    return SpendDashboardTrackedSource(
+                        id: "\(provider.rawValue):account:\(account.id.uuidString.lowercased())",
+                        provider: provider,
+                        providerName: providerName,
+                        accountName: self.trackedAccountName(account.displayName, providerName: providerName),
+                        state: self.trackedSourceState(
+                            hasLiveSnapshot: connected,
+                            hasConfiguredCredential: true,
+                            hasError: hasError),
+                        supportsCostHistory: supportsCostHistory,
+                        contributesCostHistory: supportsCostHistory && isActive && enabled.contains(provider),
+                        costHistoryAvailable: isActive && currentCostHistoryAvailable)
+                })
+                if activeAccountID != nil { continue }
+            }
+
+            let config = settings.providerConfig(for: provider)
+            let hasConfiguredCredential = config?.sanitizedAPIKey != nil
+                || config?.sanitizedSecretKey != nil
+                || config?.sanitizedCookieHeader != nil
+            let hasLiveSnapshot = store.snapshot(for: provider.instanceID) != nil
+                || store.tokenSnapshotPublicationForCurrentProviderConfig(for: provider)?.snapshot != nil
+            guard enabled.contains(provider) || hasConfiguredCredential || hasLiveSnapshot else { continue }
+            let hasError = store.error(for: provider) != nil || store.tokenError(for: provider) != nil
+            sources.append(SpendDashboardTrackedSource(
+                id: "\(provider.rawValue):current",
+                provider: provider,
+                providerName: providerName,
+                accountName: nil,
+                state: self.trackedSourceState(
+                    hasLiveSnapshot: hasLiveSnapshot,
+                    hasConfiguredCredential: hasConfiguredCredential,
+                    hasError: hasError),
+                supportsCostHistory: supportsCostHistory,
+                contributesCostHistory: supportsCostHistory && enabled.contains(provider),
+                costHistoryAvailable: currentCostHistoryAvailable))
+        }
+
+        return sources
+    }
+
+    private static func trackedSourceState(
+        hasLiveSnapshot: Bool,
+        hasConfiguredCredential: Bool,
+        hasError: Bool) -> SpendDashboardTrackedSource.State
+    {
+        if hasError { return .needsAttention }
+        if hasLiveSnapshot { return .connected }
+        if hasConfiguredCredential { return .configured }
+        return .awaitingUsage
+    }
+
+    private static func trackedAccountName(_ rawValue: String?, providerName: String) -> String? {
+        guard let value = rawValue?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !value.isEmpty,
+              value.localizedCaseInsensitiveCompare(providerName) != .orderedSame
+        else {
+            return nil
+        }
+        return value
     }
 
     @MainActor
@@ -1199,6 +1382,9 @@ final class SpendDashboardController {
     }
 
     private static func normalizedDays(_ value: Int) -> Int {
-        value == 7 ? 7 : 30
+        switch value {
+        case 7, 30, 365: value
+        default: 30
+        }
     }
 }

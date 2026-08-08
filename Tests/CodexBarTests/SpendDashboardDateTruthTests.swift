@@ -30,7 +30,7 @@ struct SpendDashboardDateTruthTests {
             updatedAt: now)
         let group = try #require(SpendDashboardModel.build(
             inputs: [.init(provider: .mistral, displayName: "Mistral", snapshot: snapshot)],
-            requestedDays: 7,
+            requestedDays: 2,
             now: now,
             calendar: pacific).groups.first)
 
@@ -146,8 +146,10 @@ struct SpendDashboardDateTruthTests {
 
         #expect(snapshot.updatedAt == july15)
         #expect(group.coveredDayCount == 2)
-        #expect(group.totalCost == 3)
-        #expect(group.totalTokens == 30)
+        #expect(group.totalCost == nil)
+        #expect(group.totalTokens == nil)
+        #expect(group.knownCost == 3)
+        #expect(group.providers.first?.totalTokens == 30)
         #expect(group.dailyPoints.map(\.day) == [july14, july15])
         #expect(group.dailyPoints.map(\.cost) == [1, 2])
     }
@@ -332,9 +334,11 @@ struct SpendDashboardDateTruthTests {
             let eur = try #require(groups.first(where: { $0.currencyCode == "EUR" }))
             let usd = try #require(groups.first(where: { $0.currencyCode == "USD" }))
 
-            #expect(usd.totalCost == 7)
+            let coversRequestedHorizon = omission.historyDays >= 7
+            #expect(usd.totalCost == (coversRequestedHorizon ? 7 : nil))
+            #expect(usd.knownCost == 7)
             #expect(usd.totalTokens == nil)
-            #expect(usd.modelHistoryCompleteness == .complete)
+            #expect(usd.modelHistoryCompleteness == (coversRequestedHorizon ? .complete : .incomplete))
             #expect(usd.models.map(\.totalCost) == [4, 3])
             #expect(usd.models.first(where: { $0.provider == .claude })?.totalTokens == nil)
             #expect(usd.models.first(where: { $0.provider == .codex })?.totalTokens == 10)
@@ -344,7 +348,7 @@ struct SpendDashboardDateTruthTests {
                 aggregateTotal: usd.totalCost).content == .chart)
 
             #expect(cad.totalCost == nil)
-            #expect(cad.totalTokens == 30)
+            #expect(cad.totalTokens == (coversRequestedHorizon ? 30 : nil))
             #expect(cad.modelHistoryCompleteness == .incomplete)
             #expect(cad.models.map(\.provider) == [.mistral])
             #expect(cad.models.map(\.totalCost) == [5])
@@ -505,7 +509,7 @@ struct SpendDashboardDateTruthTests {
             historyDays: 2)
         let group = try #require(SpendDashboardModel.build(
             inputs: [.init(provider: .claude, displayName: "Claude", snapshot: snapshot)],
-            requestedDays: 7,
+            requestedDays: 2,
             now: Self.now,
             calendar: Self.calendar).groups.first)
 
@@ -591,7 +595,7 @@ struct SpendDashboardDateTruthTests {
             historyDays: 1)
         let group = try #require(SpendDashboardModel.build(
             inputs: [.init(provider: .claude, displayName: "Claude", snapshot: snapshot)],
-            requestedDays: 7,
+            requestedDays: 1,
             now: Self.now,
             calendar: Self.calendar).groups.first)
 
@@ -664,7 +668,7 @@ struct SpendDashboardDateTruthTests {
         #expect(snapshot.last30DaysTokens == 0)
         let group = try #require(SpendDashboardModel.build(
             inputs: [.init(provider: .mistral, displayName: "Mistral", snapshot: snapshot)],
-            requestedDays: 7,
+            requestedDays: 1,
             now: Self.now,
             calendar: Self.calendar).groups.first)
 
@@ -726,7 +730,7 @@ struct SpendDashboardDateTruthTests {
                 establishesCoverage: true))
         let groups = SpendDashboardModel.build(
             inputs: [costOnly, completeUSD, tokenOnly],
-            requestedDays: 7,
+            requestedDays: 1,
             now: Self.now,
             calendar: Self.calendar).groups
         let eur = try #require(groups.first(where: { $0.currencyCode == "EUR" }))

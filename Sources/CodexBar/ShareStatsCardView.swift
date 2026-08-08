@@ -5,11 +5,15 @@ struct ShareStatsCardView: View {
 
     let payload: ShareStatsPayload
 
-    static func providerDisplayLimit(for providerCount: Int) -> Int {
+    nonisolated static func providerDisplayLimit(for providerCount: Int) -> Int {
         providerCount > 5 ? 4 : min(providerCount, 5)
     }
 
-    static func providerPaletteIndex(
+    nonisolated static func modelSectionDetail(for modelCount: Int) -> String {
+        modelCount > 3 ? "3 OF \(modelCount) · BY TOKENS" : "BY TOKENS"
+    }
+
+    nonisolated static func providerPaletteIndex(
         for model: ShareStatsModelPayload,
         providers: [ShareStatsProviderPayload]) -> Int?
     {
@@ -72,7 +76,9 @@ struct ShareStatsCardView: View {
                     .font(.system(size: 20, weight: .semibold, design: .rounded))
                     .tracking(1.8)
                     .foregroundStyle(self.secondary)
-                Text(self.payload.totalTokens.map(ShareStatsFormatting.compactCount) ?? "—")
+                Text(self.payload.totalTokens.map {
+                    "\(self.payload.totalTokensIsPartial ? "~" : "")\(ShareStatsFormatting.compactCount($0))"
+                } ?? "—")
                     .font(.system(size: 104, weight: .semibold, design: .rounded))
                     .monospacedDigit()
                     .lineLimit(1)
@@ -92,7 +98,8 @@ struct ShareStatsCardView: View {
                             .foregroundStyle(self.secondary)
                         Spacer()
                         Text(currency.estimatedCost.map {
-                            ShareStatsFormatting.currency($0, code: currency.currencyCode)
+                            let value = ShareStatsFormatting.currency($0, code: currency.currencyCode)
+                            return "\(currency.isPartial ? "~" : "")\(value)"
                         } ?? "Unavailable")
                             .font(.system(size: 32, weight: .semibold, design: .rounded))
                             .monospacedDigit()
@@ -112,8 +119,12 @@ struct ShareStatsCardView: View {
     private var currencySummary: String {
         let hiddenCount = self.payload.currencies.count - min(self.payload.currencies.count, 2)
         return hiddenCount > 0
-            ? "+\(hiddenCount) more currencies · see subscription rows"
-            : "\(self.payload.providers.count) subscriptions · native currencies kept separate"
+            ? "\(self.spendCoverage) · +\(hiddenCount) more currencies"
+            : "\(self.spendCoverage) · native currencies kept separate"
+    }
+
+    private var spendCoverage: String {
+        "\(self.payload.spendReportingProviderCount)/\(self.payload.providers.count) report spend"
     }
 
     private var rankings: some View {
@@ -141,9 +152,11 @@ struct ShareStatsCardView: View {
 
             VStack(alignment: .leading, spacing: 0) {
                 VStack(alignment: .leading, spacing: 6) {
-                    self.sectionHeader("TOP MODELS", detail: "BY USAGE")
+                    self.sectionHeader(
+                        "TOP MODELS",
+                        detail: Self.modelSectionDetail(for: self.payload.topModels.count))
                     if self.payload.topModels.isEmpty {
-                        Text("No model-level history in this local snapshot")
+                        Text("No share-safe model ranking in this snapshot")
                             .font(.system(size: 18, weight: .medium, design: .rounded))
                             .foregroundStyle(self.secondary)
                             .padding(.top, 4)

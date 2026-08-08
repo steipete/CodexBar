@@ -55,6 +55,7 @@ struct ProviderPluginDetailsParityTests {
             switch request.url?.path {
             case "/api/v1/credits": Self.openRouterCredits
             case "/api/v1/key": Self.openRouterKey
+            case "/api/v1/activity": Self.openRouterActivity
             default: throw FixtureError.unexpectedURL(request.url)
             }
         }
@@ -64,6 +65,13 @@ struct ProviderPluginDetailsParityTests {
 
         #expect(script.primary?.usedPercent == 25)
         #expect(script.identity?.loginMethod == "Balance: $60.00")
+        let activity = try #require(script.openRouterActivityUsage)
+        let activityCost = activity.toCostUsageTokenSnapshot()
+        #expect(activityCost.last30DaysTokens == 45)
+        #expect(activityCost.last30DaysRequests == 3)
+        #expect(abs((activityCost.last30DaysCostUSD ?? -1) - 0.015) < 0.000_000_001)
+        #expect(activityCost.daily.count == 1)
+        #expect(activityCost.daily.first?.modelBreakdowns?.count == 1)
         #expect(try script.details == [
             Self.section("Credits", rows: [
                 Self.row("Remaining", "$60.00"),
@@ -86,6 +94,61 @@ struct ProviderPluginDetailsParityTests {
                     ("Today", 1), ("This week", 2), ("This month", 4),
                 ])),
         ])
+    }
+
+    @Test
+    func `OpenRouter malformed optional activity preserves credits on both plugin engines`() async throws {
+        let transport = Self.transport { request in
+            switch request.url?.path {
+            case "/api/v1/credits": Self.openRouterCredits
+            case "/api/v1/key": Self.openRouterKey
+            case "/api/v1/activity": #"{"data":[{"date":"2026-08-01","usage":"free"}]}"#
+            default: throw FixtureError.unexpectedURL(request.url)
+            }
+        }
+
+        let script = try await ProviderPluginRuntime(bundledPlugin: "openrouter", transport: transport)
+            .fetchUsage(secrets: ["OPENROUTER_API_KEY": "fixture-key"])
+
+        #expect(script.openRouterActivityUsage == nil)
+        #expect(script.identity?.loginMethod == "Balance: $60.00")
+    }
+
+    @Test
+    func `OpenRouter delayed optional activity stays within the fast return budget`() async throws {
+        let requests = PluginRequestRecorder()
+        let transport = ProviderHTTPTransportHandler { request in
+            await requests.append(request)
+            if request.url?.path == "/api/v1/activity" {
+                try await Task.sleep(for: .seconds(3))
+                throw URLError(.timedOut)
+            }
+            let body = switch request.url?.path {
+            case "/api/v1/credits": Self.openRouterCredits
+            case "/api/v1/key": Self.openRouterKey
+            default: throw FixtureError.unexpectedURL(request.url)
+            }
+            let response = try #require(HTTPURLResponse(
+                url: request.url!,
+                statusCode: 200,
+                httpVersion: nil,
+                headerFields: ["Content-Type": "application/json"]))
+            return (Data(body.utf8), response)
+        }
+        let clock = ContinuousClock()
+        let startedAt = clock.now
+        let script = try await ProviderPluginRuntime(bundledPlugin: "openrouter", transport: transport)
+            .fetchUsage(secrets: ["OPENROUTER_API_KEY": "fixture-key"])
+        let elapsed = startedAt.duration(to: clock.now)
+        let optionalRequests = await requests.requests.filter {
+            ["key", "activity"].contains($0.url?.lastPathComponent)
+        }
+
+        #expect(optionalRequests.count == 2)
+        #expect(optionalRequests.allSatisfy { $0.timeoutInterval == 1 })
+        #expect(elapsed < .seconds(2))
+        #expect(script.openRouterActivityUsage == nil)
+        #expect(script.identity?.loginMethod == "Balance: $60.00")
     }
 
     @Test
@@ -146,17 +209,23 @@ struct ProviderPluginDetailsParityTests {
             secrets: [OpenRouterSettingsReader.envKey: "fixture-key"])
 
         let recorded = await requests.requests
-        #expect(recorded.count == 2)
+        #expect(recorded.count == 3)
         #expect(recorded[0].url?.absoluteString == (overridden
                 ? "https://router.example.test/gateway/v1/credits"
                 : "https://openrouter.ai/api/v1/credits"))
         #expect(recorded[1].url?.absoluteString == (overridden
                 ? "https://router.example.test/gateway/v1/key"
                 : "https://openrouter.ai/api/v1/key"))
+        #expect(recorded[2].url?.absoluteString == (overridden
+                ? "https://router.example.test/gateway/v1/activity"
+                : "https://openrouter.ai/api/v1/activity"))
         #expect(recorded[0].value(forHTTPHeaderField: "X-Title") == (overridden ? "CodexBar QA" : "CodexBar"))
         #expect(recorded[0].value(forHTTPHeaderField: "HTTP-Referer") ==
             (overridden ? "https://codexbar.example" : nil))
         #expect(recorded[1].value(forHTTPHeaderField: "X-Title") == nil)
+        #expect(recorded[2].value(forHTTPHeaderField: "X-Title") == nil)
+        #expect(recorded[1].timeoutInterval == 1)
+        #expect(recorded[2].timeoutInterval == 1)
     }
 
     @Test
@@ -493,6 +562,14 @@ struct ProviderPluginDetailsParityTests {
     {"data":{"limit":20,"limit_remaining":15,"limit_reset":"monthly","usage":5,
     "usage_daily":1,"usage_weekly":2,"usage_monthly":4,
     "rate_limit":{"requests":120,"interval":"10s"}}}
+    """#
+    private static let openRouterActivity = #"""
+    {"data":[
+      {"date":"2026-08-01","model":"anthropic/claude-sonnet-4-6","prompt_tokens":10,
+       "completion_tokens":20,"reasoning_tokens":5,"requests":2,"usage":0.01},
+      {"date":"2026-08-01","model":"anthropic/claude-sonnet-4-6","prompt_tokens":5,
+       "completion_tokens":10,"reasoning_tokens":2,"requests":1,"usage":0.005}
+    ]}
     """#
     private static let poeBalance = #"{"current_point_balance":2500}"#
     private static let poeHistory = #"""

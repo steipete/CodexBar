@@ -31,22 +31,112 @@ struct ShareStatsTests {
             subscriptionNames: subscriptionNames))
 
         #expect(payload.days == 30)
-        #expect(payload.totalTokens == nil)
+        #expect(payload.totalTokens == 500)
+        #expect(payload.totalTokensIsPartial)
         #expect(payload.currencies == [
             ShareStatsCurrencyPayload(currencyCode: "GBP", estimatedCost: 12, coveredDayCount: 10),
-            ShareStatsCurrencyPayload(currencyCode: "USD", estimatedCost: nil, coveredDayCount: 0),
+            ShareStatsCurrencyPayload(currencyCode: "USD", estimatedCost: 4, coveredDayCount: 0, isPartial: true),
         ])
         #expect(payload.providers.map(\.providerName) == ["Claude", "Codex · #1", "Cursor"])
         #expect(payload.providers.map(\.subscriptionName) == ["Max", "Pro 20x", "Cursor Pro"])
         #expect(payload.providers.last?.estimatedCost == nil)
-        #expect(payload.topModels.map(\.modelName).prefix(2) == ["Claude", "GPT"])
+        #expect(payload.spendReportingProviderCount == 2)
+        #expect(payload.topModels.map(\.modelName).prefix(2) == ["Claude Sonnet 4", "GPT 5.4"])
 
         let text = ShareStatsFormatting.text(payload)
         #expect(text.contains("GBP: £12.00 estimated · coverage 10/30 days"))
         #expect(text.contains("Claude · Max: 300 tokens · ~£12.00 est · 10/30 days"))
-        #expect(text.contains("USD: Spend unavailable · coverage 0/30 days"))
+        #expect(text.contains("USD: ~$4.00 estimated · coverage 0/30 days"))
         #expect(text.contains("Cursor · Cursor Pro: Spend unavailable"))
+        #expect(text.contains("2/3 connected services report spend"))
         #expect(!text.contains("£12.00 +"))
+    }
+
+    @Test
+    func `overview roster keeps every connected service in the flex card`() throws {
+        let roster = [
+            ShareStatsProviderRosterEntry(provider: .codex, providerName: "Codex", currencyCode: "USD"),
+            ShareStatsProviderRosterEntry(provider: .claude, providerName: "Claude", currencyCode: "USD"),
+            ShareStatsProviderRosterEntry(provider: .openrouter, providerName: "OpenRouter", currencyCode: "USD"),
+            ShareStatsProviderRosterEntry(provider: .gemini, providerName: "Gemini", currencyCode: "USD"),
+            ShareStatsProviderRosterEntry(provider: .grok, providerName: "Grok", currencyCode: "USD"),
+            ShareStatsProviderRosterEntry(provider: .cursor, providerName: "Cursor", currencyCode: "USD"),
+        ]
+        let payload = try #require(ShareStatsBuilder.make(model: Self.dashboard, providerRoster: roster))
+
+        #expect(payload.providers.map(\.provider) == roster.map(\.provider))
+        #expect(payload.providers.count == 6)
+        #expect(payload.spendReportingProviderCount == 2)
+        #expect(payload.providers.last?.estimatedCost == nil)
+        #expect(payload.totalTokens == 500)
+        #expect(payload.totalTokensIsPartial)
+        #expect(payload.currencies.allSatisfy { currency in currency.isPartial })
+        #expect(ShareStatsFormatting.text(payload).contains("~500 tracked tokens"))
+        #expect(ShareStatsFormatting.text(payload).contains("2/6 connected services report spend"))
+    }
+
+    @Test
+    func `duplicate accounts cannot mask a connected provider with unavailable usage`() throws {
+        let model = SpendDashboardModel(requestedDays: 30, groups: [
+            SpendDashboardModel.CurrencyGroup(
+                currencyCode: "USD",
+                providers: [
+                    SpendDashboardModel.ProviderRow(
+                        id: "codex:one",
+                        rank: 1,
+                        provider: .codex,
+                        displayName: "Codex · #1",
+                        totalTokens: 200,
+                        totalCost: 4,
+                        coveredDayCount: 30),
+                    SpendDashboardModel.ProviderRow(
+                        id: "codex:two",
+                        rank: 2,
+                        provider: .codex,
+                        displayName: "Codex · #2",
+                        totalTokens: 300,
+                        totalCost: 6,
+                        coveredDayCount: 30),
+                ],
+                models: [],
+                dailyPoints: [],
+                totalTokens: 500,
+                totalCost: 10,
+                coveredDayCount: 30,
+                chartDomain: Self.date...Self.date,
+                modelHistoryCompleteness: .complete),
+        ])
+        let roster = [
+            ShareStatsProviderRosterEntry(provider: .codex, providerName: "Codex", currencyCode: "USD"),
+            ShareStatsProviderRosterEntry(
+                provider: .openrouter,
+                providerName: "OpenRouter",
+                currencyCode: "USD"),
+        ]
+
+        let payload = try #require(ShareStatsBuilder.make(model: model, providerRoster: roster))
+
+        #expect(payload.totalTokens == 500)
+        #expect(payload.totalTokensIsPartial)
+        #expect(payload.currencies.count == 1)
+        #expect(payload.currencies.first?.isPartial == true)
+        #expect(payload.spendReportingProviderCount == 1)
+        #expect(payload.providers.count == 2)
+    }
+
+    @Test
+    func `twenty connected services remain accounted for without overflowing the flex card`() throws {
+        let roster = Array(UsageProvider.allCases.prefix(20)).map { provider in
+            ShareStatsProviderRosterEntry(
+                provider: provider,
+                providerName: ProviderDefaults.metadata[provider]?.displayName ?? provider.rawValue,
+                currencyCode: "USD")
+        }
+        let payload = try #require(ShareStatsBuilder.make(model: Self.dashboard, providerRoster: roster))
+
+        #expect(roster.count == 20)
+        #expect(payload.providers.count == 20)
+        #expect(ShareStatsCardView.providerDisplayLimit(for: payload.providers.count) == 4)
     }
 
     @Test
@@ -77,9 +167,9 @@ struct ShareStatsTests {
             subscriptionNames: subscriptionNames))
         let text = ShareStatsFormatting.text(payload)
 
-        #expect(payload.topModels.map(\.modelName) == ["Claude", "GPT"])
-        #expect(payload.topModels.last?.totalTokens == 400)
-        #expect(payload.topModels.last?.estimatedCost == 8)
+        #expect(payload.topModels.map(\.modelName) == ["Claude Sonnet 4", "GPT 5.4"])
+        #expect(payload.topModels.last?.totalTokens == 200)
+        #expect(payload.topModels.last?.estimatedCost == 4)
         #expect(payload.providers.map(\.subscriptionName) == ["Max", nil, nil])
         #expect(!text.contains("person@example.com"))
         #expect(!text.contains("/Users/"))
@@ -124,8 +214,82 @@ struct ShareStatsTests {
 
     @Test
     func `bedrock regional model identifiers map to public families`() {
-        #expect(ShareStatsSanitizer.modelName("us.amazon.nova-2-lite-v1:0") == "Amazon Nova")
-        #expect(ShareStatsSanitizer.modelName("global.anthropic.claude-sonnet-4-v1:0") == "Claude")
+        #expect(ShareStatsSanitizer.modelName("us.amazon.nova-2-lite-v1:0") == "Amazon Nova 2 Lite")
+        #expect(ShareStatsSanitizer.modelName("global.anthropic.claude-sonnet-4-v1:0") == "Claude Sonnet 4")
+    }
+
+    @Test
+    func `share model labels preserve first class variants and routed OpenRouter ids`() {
+        #expect(ShareStatsSanitizer.modelName("claude-fable-5") == "Claude Fable 5")
+        #expect(ShareStatsSanitizer.modelName("claude-opus-4-6") == "Claude Opus 4.6")
+        #expect(ShareStatsSanitizer.modelName("claude-sonnet-4-6") == "Claude Sonnet 4.6")
+        #expect(ShareStatsSanitizer.modelName("anthropic/claude-sonnet-4-6") == "Claude Sonnet 4.6")
+        #expect(ShareStatsSanitizer.modelName("openai/gpt-5.4-mini") == "GPT 5.4 Mini")
+        #expect(ShareStatsSanitizer.modelName("openai/gpt-5.6-sol") == "GPT 5.6 Sol")
+        #expect(ShareStatsSanitizer.modelName("openai/gpt-5.6-terra") == "GPT 5.6 Terra")
+        #expect(ShareStatsSanitizer.modelName("openai/gpt-5.6-luna") == "GPT 5.6 Luna")
+        #expect(ShareStatsSanitizer.modelName("openai/gpt-4o") == "GPT 4o")
+        #expect(ShareStatsSanitizer.modelName("google/gemini-2.5-pro") == "Gemini 2.5 Pro")
+        #expect(ShareStatsSanitizer.modelName("moonshotai/kimi-k2.5") == "Kimi K2.5")
+        #expect(ShareStatsSanitizer.modelName("acme/private-model-v2") == nil)
+        #expect(ShareStatsSanitizer.modelName("acme/gpt-secret-project") == nil)
+    }
+
+    @Test @MainActor
+    func `routed OpenRouter models remain distinct in the share ranking`() throws {
+        let modelRows = [
+            ("anthropic/claude-fable-5", 900),
+            ("anthropic/claude-opus-4-6", 800),
+            ("anthropic/claude-sonnet-4-6", 700),
+            ("openai/gpt-5.4-mini", 600),
+            ("gpt-5.4-mini", 100),
+            ("google/gemini-2.5-pro", 500),
+            ("x-ai/grok-4-fast", 400),
+        ]
+        let dashboard = SpendDashboardModel(requestedDays: 30, groups: [
+            SpendDashboardModel.CurrencyGroup(
+                currencyCode: "USD",
+                providers: [
+                    SpendDashboardModel.ProviderRow(
+                        id: "openrouter",
+                        rank: 1,
+                        provider: .openrouter,
+                        displayName: "OpenRouter",
+                        totalTokens: 4000,
+                        totalCost: 40,
+                        coveredDayCount: 30),
+                ],
+                models: modelRows.enumerated().map { index, row in
+                    SpendDashboardModel.ModelRow(
+                        rank: index + 1,
+                        provider: .openrouter,
+                        providerName: "OpenRouter",
+                        modelName: row.0,
+                        totalTokens: row.1,
+                        totalCost: Double(row.1) / 100)
+                },
+                dailyPoints: [],
+                totalTokens: 4000,
+                totalCost: 40,
+                coveredDayCount: 30,
+                chartDomain: Self.date...Self.date,
+                modelHistoryCompleteness: .complete),
+        ])
+
+        let payload = try #require(ShareStatsBuilder.make(model: dashboard))
+        #expect(payload.topModels.map(\.modelName) == [
+            "Claude Fable 5",
+            "Claude Opus 4.6",
+            "Claude Sonnet 4.6",
+            "GPT 5.4 Mini",
+            "Gemini 2.5 Pro",
+            "Grok 4 Fast",
+        ])
+        #expect(payload.topModels.allSatisfy { $0.provider == .openrouter })
+        #expect(payload.topModels.first { $0.modelName == "GPT 5.4 Mini" }?.totalTokens == 700)
+        #expect(ShareStatsCardView.modelSectionDetail(for: payload.topModels.count) == "3 OF 6 · BY TOKENS")
+        #expect(ShareStatsFormatting.text(payload).contains("+1 more models ranked in local stats"))
+        #expect(try #require(ShareStatsRenderer.pngData(for: payload)).isEmpty == false)
     }
 
     @Test
@@ -135,21 +299,21 @@ struct ShareStatsTests {
                 rank: 1,
                 provider: .codex,
                 providerName: "Codex",
-                modelName: "gpt-5.4",
+                modelName: "gpt-5.4-mini",
                 totalTokens: Int.max,
                 totalCost: Double.greatestFiniteMagnitude),
             SpendDashboardModel.ModelRow(
                 rank: 2,
                 provider: .codex,
                 providerName: "Codex",
-                modelName: "gpt-5.4-mini",
+                modelName: "openai/gpt-5.4-mini",
                 totalTokens: 1,
                 totalCost: Double.greatestFiniteMagnitude),
             SpendDashboardModel.ModelRow(
                 rank: 3,
                 provider: .codex,
                 providerName: "Codex",
-                modelName: "gpt-5.4-nano",
+                modelName: "chatgpt-5.4-mini",
                 totalTokens: 5,
                 totalCost: 5),
         ]
@@ -309,6 +473,7 @@ struct ShareStatsTests {
         #expect(ShareStatsCardView.providerDisplayLimit(for: 5) == 5)
         #expect(ShareStatsCardView.providerDisplayLimit(for: 6) == 4)
         #expect(ShareStatsCardView.providerDisplayLimit(for: 12) == 4)
+        #expect(ShareStatsCardView.providerDisplayLimit(for: 20) == 4)
     }
 
     @Test @MainActor

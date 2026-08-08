@@ -701,7 +701,7 @@ extension UsageStore {
             } else {
                 self.lastKnownResetSnapshots[provider.instanceID]
             }
-            let profileStable = self.preservingDeepSeekProfileCatalog(in: accountScoped, provider: provider)
+            let profileStable = self.preservingProviderEnrichment(in: accountScoped, provider: provider)
             let stabilized = Self.commandCodeSnapshotResolvingDepletionOnEnrichmentFailure(
                 current: profileStable,
                 previous: self.snapshots[provider.instanceID])
@@ -853,6 +853,17 @@ extension UsageStore {
     {
         guard provider == .deepseek else { return snapshot }
         return snapshot.preservingDeepSeekPlatformProfiles(from: self.presentationSnapshot(for: .deepseek))
+    }
+
+    private func preservingProviderEnrichment(
+        in snapshot: UsageSnapshot,
+        provider: UsageProvider) -> UsageSnapshot
+    {
+        let profileStable = self.preservingDeepSeekProfileCatalog(in: snapshot, provider: provider)
+        guard provider == .openrouter else { return profileStable }
+        return self.preservingOpenRouterActivityIfCurrent(
+            profileStable,
+            previous: self.snapshots[provider.instanceID])
     }
 
     private func bindCodexFailurePublicationOwner(

@@ -50,6 +50,7 @@
 " providers" = " провайдеров";
 "(System)" = "(Система)";
 "30d" = "30 дн.";
+"365d" = "365 дн.";
 "7d" = "7 дн.";
 "A managed Codex login is already running. Wait for it to finish before adding " = "Управляемый вход Codex уже активен. Подождите, пока он завершится, прежде чем добавлять ";
 "API key" = "API-ключ";
@@ -1292,6 +1293,13 @@
 "Model breakdown unavailable" = "Разбивка по моделям недоступна";
 "Local estimated history" = "Локальная история оценок";
 "Coverage" = "Охват";
+"Tracked access" = "Отслеживаемый доступ";
+"Every configured subscription or key stays visible. Only compatible sources enter cost totals." = "Каждая настроенная подписка или ключ остаются видимыми. Только совместимые источники входят в итоговые суммы затрат.";
+"tracked sources" = "отслеживаемые источники";
+"Cost history connected" = "История затрат подключена";
+"Cost history pending" = "История затрат ожидается";
+"Usage connected · not in cost total" = "Использование подключено · не входит в сумму затрат";
+"Configured · not in cost total" = "Настроено · не входит в сумму затрат";
 "Estimated spend" = "Предполагаемые расходы";
 "Tracked tokens" = "Отслеживаемые токены";
 "Subscriptions" = "Подписки";
