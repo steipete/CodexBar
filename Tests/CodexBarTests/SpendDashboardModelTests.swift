@@ -196,7 +196,8 @@ struct SpendDashboardModelTests {
 
         #expect(group.coveredDayCount == 0)
         #expect(group.providers.allSatisfy { $0.coveredDayCount == 7 })
-        #expect(group.totalCost == 5)
+        #expect(group.totalCost == nil)
+        #expect(group.knownCost == 5)
         #expect(group.providers.map(\.id) == ["later", "earlier"])
         #expect(group.dailyPoints.map(\.sourceID) == ["earlier", "later"])
     }
@@ -228,7 +229,8 @@ struct SpendDashboardModelTests {
 
         #expect(group.coveredDayCount == 3)
         #expect(group.providers.allSatisfy { $0.coveredDayCount == 7 })
-        #expect(group.totalCost == 5)
+        #expect(group.totalCost == nil)
+        #expect(group.knownCost == 5)
     }
 
     @Test
