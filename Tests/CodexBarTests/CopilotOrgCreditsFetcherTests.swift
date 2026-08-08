@@ -167,7 +167,8 @@ struct CopilotOrgCreditsFetcherTests {
         // quirk that isn't even stable between direct URL access and URLRequest-wrapped access on
         // this platform -- so neither can be trusted to prove safety here. What actually goes on the
         // wire is the encoded string, so assert on that: the separators must survive as `%2F`.
-        #expect(url.absoluteString == "https://api.github.com/organizations/..%2F..%2Fetc/settings/billing/ai_credit/usage")
+        #expect(url.absoluteString ==
+            "https://api.github.com/organizations/..%2F..%2Fetc/settings/billing/ai_credit/usage")
         #expect(!url.absoluteString.contains("/organizations/../../etc"))
     }
 }
