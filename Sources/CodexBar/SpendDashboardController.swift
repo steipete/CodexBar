@@ -39,6 +39,18 @@ struct SpendDashboardTrackedSource: Identifiable, Equatable, Sendable {
         self.contributesCostHistory = contributesCostHistory
         self.costHistoryAvailable = costHistoryAvailable
     }
+
+    func withCostHistoryAvailable(_ available: Bool) -> Self {
+        Self(
+            id: self.id,
+            provider: self.provider,
+            providerName: self.providerName,
+            accountName: self.accountName,
+            state: self.state,
+            supportsCostHistory: self.supportsCostHistory,
+            contributesCostHistory: self.contributesCostHistory,
+            costHistoryAvailable: available)
+    }
 }
 
 struct SpendDashboardConfiguration: Equatable, Sendable {
@@ -498,7 +510,8 @@ enum SpendDashboardSource {
             let supportsCostHistory = ProviderDescriptorRegistry.descriptor(for: provider)
                 .tokenCost.supportsTokenCost
             let currentCostHistoryAvailable = store
-                .tokenSnapshotPublicationForCurrentProviderConfig(for: provider)?.snapshot != nil
+                .tokenSnapshotPublicationForCurrentProviderConfig(for: provider)?
+                .snapshot?.historyCoverageIsEstablished == true
             if provider == .codex {
                 let accounts = settings.codexVisibleAccountProjection.visibleAccounts
                 let snapshotsByID = Dictionary(uniqueKeysWithValues: store.codexAccountSnapshots.map {

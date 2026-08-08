@@ -896,25 +896,13 @@ struct ProviderArchitectureGatekeeperTests {
             reason: "This observation touchpoint reads a fixed provider field so UI invalidation tracks that setting."),
         SuppressedProviderReference(
             path: "Sources/CodexBar/SpendDashboardController.swift",
-            line: 347,
+            line: 380,
             anchor: "provider: .codex,",
             expectedProviderIDs: ["codex"],
             reason: "This Codex account projection passes its fixed provider identity to shared spend infrastructure."),
         SuppressedProviderReference(
             path: "Sources/CodexBar/SpendDashboardController.swift",
-            line: 349,
-            anchor: "modelProviderName: ProviderDescriptorRegistry.descriptor(for: .codex).metadata.displayName,",
-            expectedProviderIDs: ["codex"],
-            reason: "This Codex account projection passes its fixed provider identity to shared spend infrastructure."),
-        SuppressedProviderReference(
-            path: "Sources/CodexBar/SpendDashboardController.swift",
-            line: 404,
-            anchor: "provider: .codex,",
-            expectedProviderIDs: ["codex"],
-            reason: "This Codex account projection passes its fixed provider identity to shared spend infrastructure."),
-        SuppressedProviderReference(
-            path: "Sources/CodexBar/SpendDashboardController.swift",
-            line: 406,
+            line: 382,
             anchor: "modelProviderName: ProviderDescriptorRegistry.descriptor(for: .codex).metadata.displayName,",
             expectedProviderIDs: ["codex"],
             reason: "This Codex account projection passes its fixed provider identity to shared spend infrastructure."),
@@ -926,7 +914,19 @@ struct ProviderArchitectureGatekeeperTests {
             reason: "This Codex account projection passes its fixed provider identity to shared spend infrastructure."),
         SuppressedProviderReference(
             path: "Sources/CodexBar/SpendDashboardController.swift",
-            line: 584,
+            line: 439,
+            anchor: "modelProviderName: ProviderDescriptorRegistry.descriptor(for: .codex).metadata.displayName,",
+            expectedProviderIDs: ["codex"],
+            reason: "This Codex account projection passes its fixed provider identity to shared spend infrastructure."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBar/SpendDashboardController.swift",
+            line: 470,
+            anchor: "provider: .codex,",
+            expectedProviderIDs: ["codex"],
+            reason: "This Codex account projection passes its fixed provider identity to shared spend infrastructure."),
+        SuppressedProviderReference(
+            path: "Sources/CodexBar/SpendDashboardController.swift",
+            line: 623,
             anchor: "let providerName = store.metadata(for: .codex).displayName",
             expectedProviderIDs: ["codex"],
             reason: "This Codex account projection passes its fixed provider identity to shared spend infrastructure."),
@@ -2194,7 +2194,7 @@ struct ProviderArchitectureGatekeeperTests {
             reason: "This exact app-runtime bridge coordinates provider-owned state through the shared controller."),
         AllowedProviderConstruct(
             path: "Sources/CodexBar/PreferencesSpendDashboardPane.swift",
-            line: 270,
+            line: 293,
             anchor: "self.configuration.providerIDs.contains(UsageProvider.codex.rawValue)",
             expectedProviderIDs: ["codex"],
             expectedReferenceCount: 1,
@@ -2202,7 +2202,7 @@ struct ProviderArchitectureGatekeeperTests {
             reason: "This exact app-runtime bridge coordinates provider-owned state through the shared controller."),
         AllowedProviderConstruct(
             path: "Sources/CodexBar/PreferencesSpendDashboardPane.swift",
-            line: 395,
+            line: 445,
             anchor: ".count { $0.provider == .codex }",
             expectedProviderIDs: ["codex"],
             expectedReferenceCount: 3,
@@ -2218,7 +2218,7 @@ struct ProviderArchitectureGatekeeperTests {
             reason: "This exact shared provider integration dispatches a capability owned by the provider descriptor or adapter."),
         AllowedProviderConstruct(
             path: "Sources/CodexBar/ShareStatsPayload.swift",
-            line: 185,
+            line: 198,
             anchor: "([\"codestral-\", \"devstral-\", \"magistral-\", \"mistral-\", \"mistral \", \"mistral.\", \"mixtral-\"], \"Mistral\"),",
             expectedProviderIDs: ["mistral"],
             expectedReferenceCount: 1,
@@ -2226,7 +2226,7 @@ struct ProviderArchitectureGatekeeperTests {
             reason: "This public model-family sanitizer is independent of the provider registry; Mistral is also a provider ID."),
         AllowedProviderConstruct(
             path: "Sources/CodexBar/ShareStatsPayload.swift",
-            line: 216,
+            line: 229,
             anchor: "\"air\": \"Air\", \"chat\": \"Chat\", \"code\": \"Code\", \"coder\": \"Coder\", \"codex\": \"Codex\",",
             expectedProviderIDs: ["codex"],
             expectedReferenceCount: 1,
@@ -2307,7 +2307,7 @@ struct ProviderArchitectureGatekeeperTests {
             reason: "This exact app-runtime bridge coordinates provider-owned state through the shared controller."),
         AllowedProviderConstruct(
             path: "Sources/CodexBar/SpendDashboardController.swift",
-            line: 156,
+            line: 189,
             anchor: "let codexRequests = providers.contains(.codex)",
             expectedProviderIDs: ["codex"],
             expectedReferenceCount: 1,
@@ -2315,7 +2315,7 @@ struct ProviderArchitectureGatekeeperTests {
             reason: "This exact shared construct dispatches a provider-owned capability at the generic integration boundary."),
         AllowedProviderConstruct(
             path: "Sources/CodexBar/SpendDashboardController.swift",
-            line: 208,
+            line: 241,
             anchor: "let providerBaselines = initialProviders.filter { $0 != .codex }.map { provider in",
             expectedProviderIDs: ["codex"],
             expectedReferenceCount: 1,
@@ -2323,7 +2323,7 @@ struct ProviderArchitectureGatekeeperTests {
             reason: "This exact shared construct dispatches a provider-owned capability at the generic integration boundary."),
         AllowedProviderConstruct(
             path: "Sources/CodexBar/SpendDashboardController.swift",
-            line: 227,
+            line: 260,
             anchor: "let codexRequests = providers.contains(.codex)",
             expectedProviderIDs: ["codex"],
             expectedReferenceCount: 1,
@@ -2331,7 +2331,7 @@ struct ProviderArchitectureGatekeeperTests {
             reason: "This exact shared construct dispatches a provider-owned capability at the generic integration boundary."),
         AllowedProviderConstruct(
             path: "Sources/CodexBar/SpendDashboardController.swift",
-            line: 249,
+            line: 282,
             anchor: "for provider in providers where provider != .codex {",
             expectedProviderIDs: ["codex"],
             expectedReferenceCount: 1,
@@ -2339,7 +2339,7 @@ struct ProviderArchitectureGatekeeperTests {
             reason: "This exact shared construct dispatches a provider-owned capability at the generic integration boundary."),
         AllowedProviderConstruct(
             path: "Sources/CodexBar/SpendDashboardController.swift",
-            line: 479,
+            line: 515,
             anchor: "if provider == .codex {",
             expectedProviderIDs: ["codex"],
             expectedReferenceCount: 3,
@@ -2347,7 +2347,7 @@ struct ProviderArchitectureGatekeeperTests {
             reason: "The tracked-source roster projects Codex's first-party multi-account state before generic token accounts."),
         AllowedProviderConstruct(
             path: "Sources/CodexBar/SpendDashboardController.swift",
-            line: 610,
+            line: 649,
             anchor: "if providers.contains(.codex) {",
             expectedProviderIDs: ["codex"],
             expectedReferenceCount: 2,
@@ -2355,7 +2355,7 @@ struct ProviderArchitectureGatekeeperTests {
             reason: "This exact shared construct dispatches a provider-owned capability at the generic integration boundary."),
         AllowedProviderConstruct(
             path: "Sources/CodexBar/SpendDashboardController.swift",
-            line: 665,
+            line: 704,
             anchor: "guard provider != .codex else { return nil }",
             expectedProviderIDs: ["codex"],
             expectedReferenceCount: 1,
@@ -2363,7 +2363,7 @@ struct ProviderArchitectureGatekeeperTests {
             reason: "Codex ownership is represented by its dedicated account projection rather than generic provider config."),
         AllowedProviderConstruct(
             path: "Sources/CodexBar/SpendDashboardController.swift",
-            line: 1286,
+            line: 1325,
             anchor: "guard input.provider == .codex,",
             expectedProviderIDs: ["codex"],
             expectedReferenceCount: 1,
@@ -2379,15 +2379,7 @@ struct ProviderArchitectureGatekeeperTests {
             reason: "This exact shared construct dispatches a provider-owned capability at the generic integration boundary."),
         AllowedProviderConstruct(
             path: "Sources/CodexBar/SpendDashboardModel.swift",
-            line: 243,
-            anchor: "$0.input.provider != .openrouter || $0.input.snapshot.historyDays >= days",
-            expectedProviderIDs: ["openrouter"],
-            expectedReferenceCount: 1,
-            expectedReferenceFingerprint: ["openrouter@0"],
-            reason: "OpenRouter activity has a bounded completed-day horizon, so longer requested totals remain partial."),
-        AllowedProviderConstruct(
-            path: "Sources/CodexBar/SpendDashboardModel.swift",
-            line: 605,
+            line: 603,
             anchor: "let bucketEnd = input.provider == .openrouter",
             expectedProviderIDs: ["openrouter"],
             expectedReferenceCount: 1,
@@ -2395,7 +2387,7 @@ struct ProviderArchitectureGatekeeperTests {
             reason: "This exact shared construct dispatches a provider-owned capability at the generic integration boundary."),
         AllowedProviderConstruct(
             path: "Sources/CodexBar/SpendDashboardModel.swift",
-            line: 662,
+            line: 660,
             anchor: "guard provider == .mistral || provider == .openrouter else { return displayCalendar }",
             expectedProviderIDs: ["mistral", "openrouter"],
             expectedReferenceCount: 2,

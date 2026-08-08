@@ -91,6 +91,19 @@ struct SpendDashboardTrackedSourceTests {
         store._setTokenSnapshotForTesting(CostUsageTokenSnapshot(
             sessionTokens: nil,
             sessionCostUSD: nil,
+            last30DaysTokens: nil,
+            last30DaysCostUSD: nil,
+            historyCoverageIsEstablished: false,
+            daily: [],
+            updatedAt: Date()), provider: .openrouter)
+        let sourceWithUnestablishedCost = try #require(SpendDashboardSource.trackedSources(
+            settings: settings,
+            store: store).first { $0.provider == .openrouter })
+        #expect(spendDashboardTrackedSourceStatusText(sourceWithUnestablishedCost) == "Cost history pending")
+
+        store._setTokenSnapshotForTesting(CostUsageTokenSnapshot(
+            sessionTokens: nil,
+            sessionCostUSD: nil,
             last30DaysTokens: 100,
             last30DaysCostUSD: 1,
             daily: [],
@@ -99,6 +112,46 @@ struct SpendDashboardTrackedSourceTests {
             settings: settings,
             store: store).first { $0.provider == .openrouter })
         #expect(spendDashboardTrackedSourceStatusText(sourceWithCost) == "Cost history connected")
+    }
+
+    @Test
+    func `inactive Codex account with loaded spend presents cost history as connected`() throws {
+        let source = SpendDashboardTrackedSource(
+            id: "codex:work",
+            provider: .codex,
+            providerName: "Codex",
+            accountName: "Work",
+            state: .configured,
+            supportsCostHistory: true,
+            contributesCostHistory: true)
+        let date = Date(timeIntervalSince1970: 1_785_974_400)
+        let model = SpendDashboardModel(requestedDays: 30, groups: [
+            SpendDashboardModel.CurrencyGroup(
+                currencyCode: "USD",
+                providers: [
+                    SpendDashboardModel.ProviderRow(
+                        id: "codex:work",
+                        rank: 1,
+                        provider: .codex,
+                        displayName: "Codex · Work",
+                        totalTokens: 100,
+                        totalCost: 2,
+                        coveredDayCount: 30),
+                ],
+                models: [],
+                dailyPoints: [],
+                totalTokens: 100,
+                totalCost: 2,
+                coveredDayCount: 30,
+                chartDomain: date...date,
+                modelHistoryCompleteness: .complete),
+        ])
+
+        let presented = try #require(spendDashboardTrackedSourcesForPresentation(
+            [source],
+            model: model).first)
+        #expect(presented.costHistoryAvailable)
+        #expect(spendDashboardTrackedSourceStatusText(presented) == "Cost history connected")
     }
 
     @Test

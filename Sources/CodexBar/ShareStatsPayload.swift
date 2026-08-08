@@ -15,6 +15,19 @@ struct ShareStatsProviderRosterEntry: Sendable, Equatable {
     let provider: UsageProvider
     let providerName: String
     let currencyCode: String
+    let expectedSourceCount: Int
+
+    init(
+        provider: UsageProvider,
+        providerName: String,
+        currencyCode: String,
+        expectedSourceCount: Int = 1)
+    {
+        self.provider = provider
+        self.providerName = providerName
+        self.currencyCode = currencyCode
+        self.expectedSourceCount = max(1, expectedSourceCount)
+    }
 }
 
 struct ShareStatsModelPayload: Sendable, Equatable {
@@ -323,20 +336,33 @@ enum ShareStatsBuilder {
         if providerRoster.isEmpty {
             providers = trackedProviders
         } else {
-            let trackedByProvider = trackedProviders.reduce(into: [UsageProvider: ShareStatsProviderPayload]()) {
-                if $0[$1.provider] == nil {
-                    $0[$1.provider] = $1
+            let trackedByProvider = Dictionary(grouping: trackedProviders, by: \.provider)
+            var emittedProviders: Set<UsageProvider> = []
+            providers = providerRoster.compactMap { entry in
+                guard emittedProviders.insert(entry.provider).inserted else { return nil }
+                guard let matches = trackedByProvider[entry.provider], !matches.isEmpty else {
+                    return ShareStatsProviderPayload(
+                        provider: entry.provider,
+                        providerName: entry.providerName,
+                        subscriptionName: nil,
+                        currencyCode: entry.currencyCode,
+                        totalTokens: nil,
+                        estimatedCost: nil,
+                        coveredDayCount: 0)
                 }
-            }
-            providers = providerRoster.map { entry in
-                trackedByProvider[entry.provider] ?? ShareStatsProviderPayload(
+                let knownCosts = matches.compactMap(\.estimatedCost)
+                let currencyCodes = Set(matches.map(\.currencyCode))
+                let coveredDayCount = matches.filter { $0.estimatedCost != nil || $0.totalTokens != nil }
+                    .map(\.coveredDayCount)
+                    .min() ?? 0
+                return ShareStatsProviderPayload(
                     provider: entry.provider,
                     providerName: entry.providerName,
-                    subscriptionName: nil,
-                    currencyCode: entry.currencyCode,
-                    totalTokens: nil,
-                    estimatedCost: nil,
-                    coveredDayCount: 0)
+                    subscriptionName: matches.count == 1 ? matches[0].subscriptionName : nil,
+                    currencyCode: matches[0].currencyCode,
+                    totalTokens: self.combinedTotalTokens(matches.map(\.totalTokens)),
+                    estimatedCost: currencyCodes.count == 1 ? self.safeCostSum(knownCosts) : nil,
+                    coveredDayCount: coveredDayCount)
             }
         }
         let sanitizedModels = model.groups.filter {
@@ -390,21 +416,25 @@ enum ShareStatsBuilder {
                 return lhs.modelIdentity < rhs.modelIdentity
             }
         }
-        let trackedProviderKinds = Set(trackedProviders.map(\.provider))
-        let rosterHasUntrackedProviders = providerRoster.contains {
-            !trackedProviderKinds.contains($0.provider)
+        let rosterHasIncompleteProviders = providerRoster.contains { entry in
+            let matches = trackedProviders.filter { $0.provider == entry.provider }
+            let knownCosts = matches.compactMap(\.estimatedCost)
+            return matches.count < entry.expectedSourceCount ||
+                matches.contains { $0.totalTokens == nil || $0.estimatedCost == nil } ||
+                Set(matches.map(\.currencyCode)).count > 1 ||
+                self.safeCostSum(knownCosts) == nil
         }
         let currencies = model.groups.map {
             ShareStatsCurrencyPayload(
                 currencyCode: $0.currencyCode,
                 estimatedCost: self.finiteCost($0.totalCost ?? $0.knownCost),
                 coveredDayCount: $0.coveredDayCount,
-                isPartial: rosterHasUntrackedProviders || $0.totalCost == nil)
+                isPartial: rosterHasIncompleteProviders || $0.totalCost == nil)
         }
         let knownTokenValues = trackedProviders.compactMap(\.totalTokens)
         let totalTokens = self.safeTokenSum(knownTokenValues)
         let totalTokensIsPartial = trackedProviders.contains { $0.totalTokens == nil } ||
-            rosterHasUntrackedProviders ||
+            rosterHasIncompleteProviders ||
             model.groups.contains { $0.totalTokens == nil }
         let periodEnd = model.groups.map(\.chartDomain.upperBound).max() ?? Date()
         let payload = ShareStatsPayload(
@@ -442,6 +472,16 @@ enum ShareStatsBuilder {
             total = result.partialValue
         }
         return values.isEmpty ? nil : total
+    }
+
+    private static func safeCostSum(_ values: [Double]) -> Double? {
+        guard !values.isEmpty else { return nil }
+        var total = 0.0
+        for value in values {
+            total += value
+            guard total.isFinite else { return nil }
+        }
+        return total
     }
 }
 

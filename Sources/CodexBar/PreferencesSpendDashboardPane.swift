@@ -68,6 +68,19 @@ func spendDashboardTrackedSourceStatusText(_ source: SpendDashboardTrackedSource
         : L("Configured · not in cost total")
 }
 
+func spendDashboardTrackedSourcesForPresentation(
+    _ sources: [SpendDashboardTrackedSource],
+    model: SpendDashboardModel) -> [SpendDashboardTrackedSource]
+{
+    let costedSourceIDs = Set(model.groups.flatMap(\.providers).compactMap { row in
+        row.totalCost == nil ? nil : row.id
+    })
+    return sources.map { source in
+        source.withCostHistoryAvailable(
+            source.costHistoryAvailable || costedSourceIDs.contains(source.id))
+    }
+}
+
 func spendDashboardAggregateCostText(_ group: SpendDashboardModel.CurrencyGroup) -> String {
     guard let cost = group.totalCost ?? group.knownCost else { return L("Spend unavailable") }
     let formatted = UsageFormatter.currencyString(cost, currencyCode: group.currencyCode)
@@ -367,7 +380,9 @@ struct SpendDashboardPane: View {
 
     @ViewBuilder
     private var trackedAccess: some View {
-        let sources = self.configuration.trackedSources
+        let sources = spendDashboardTrackedSourcesForPresentation(
+            self.configuration.trackedSources,
+            model: self.controller.model)
         if !sources.isEmpty {
             SpendTrackedAccessPanel(
                 sources: sources,
@@ -405,13 +420,17 @@ struct SpendDashboardPane: View {
         trackedSources: [SpendDashboardTrackedSource]) -> ShareStatsPayload?
     {
         let fallbackCurrencyCode = model.groups.first?.currencyCode ?? "USD"
+        let sourcesByProvider = Dictionary(grouping: trackedSources, by: \.provider)
         var seenProviders: Set<UsageProvider> = []
         let roster = trackedSources.compactMap { source -> ShareStatsProviderRosterEntry? in
-            guard seenProviders.insert(source.provider).inserted else { return nil }
+            guard seenProviders.insert(source.provider).inserted,
+                  let sources = sourcesByProvider[source.provider]
+            else { return nil }
             return ShareStatsProviderRosterEntry(
                 provider: source.provider,
                 providerName: source.providerName,
-                currencyCode: fallbackCurrencyCode)
+                currencyCode: fallbackCurrencyCode,
+                expectedSourceCount: sources.count)
         }
         return ShareStatsBuilder.make(
             model: model,

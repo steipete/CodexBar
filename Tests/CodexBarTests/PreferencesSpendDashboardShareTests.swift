@@ -19,11 +19,19 @@ struct PreferencesSpendDashboardShareTests {
                         totalTokens: 200,
                         totalCost: 4,
                         coveredDayCount: 30),
+                    SpendDashboardModel.ProviderRow(
+                        id: "codex:work",
+                        rank: 2,
+                        provider: .codex,
+                        displayName: "Codex · Work",
+                        totalTokens: 100,
+                        totalCost: 3,
+                        coveredDayCount: 30),
                 ],
                 models: [],
                 dailyPoints: [],
-                totalTokens: 200,
-                totalCost: 4,
+                totalTokens: 300,
+                totalCost: 7,
                 coveredDayCount: 30,
                 chartDomain: date...date,
                 modelHistoryCompleteness: .complete),
@@ -61,11 +69,89 @@ struct PreferencesSpendDashboardShareTests {
             trackedSources: trackedSources))
 
         #expect(payload.providers.map(\.provider) == [.codex, .openrouter, .gemini])
-        #expect(payload.providers.map(\.estimatedCost) == [4, nil, nil])
+        #expect(payload.providers.map(\.estimatedCost) == [7, nil, nil])
         #expect(payload.spendReportingProviderCount == 1)
         #expect(payload.currencies.allSatisfy(\.isPartial))
         #expect(payload.totalTokensIsPartial)
         #expect(ShareStatsFormatting.text(payload).contains("1/3 connected services report spend"))
+    }
+
+    @Test
+    func `missing tracked account keeps settings share partial`() throws {
+        let model = SpendDashboardModel(requestedDays: 30, groups: [
+            Self.group(currencyCode: "USD", providers: [Self.row(id: "codex:personal", tokens: 200, cost: 4)]),
+        ])
+        let payload = try #require(SpendDashboardPane.makeSharePayload(
+            model: model,
+            subscriptionNames: [:],
+            trackedSources: [
+                Self.source(
+                    id: "codex:personal",
+                    provider: .codex,
+                    providerName: "Codex",
+                    state: .connected,
+                    contributesCostHistory: true),
+                Self.source(
+                    id: "codex:work",
+                    provider: .codex,
+                    providerName: "Codex",
+                    state: .configured,
+                    contributesCostHistory: true),
+            ]))
+
+        #expect(payload.providers.first?.estimatedCost == 4)
+        #expect(payload.currencies.allSatisfy(\.isPartial))
+        #expect(payload.totalTokensIsPartial)
+    }
+
+    @Test
+    func `provider accounts in unlike currencies never merge spend`() throws {
+        let model = SpendDashboardModel(requestedDays: 30, groups: [
+            Self.group(currencyCode: "USD", providers: [Self.row(id: "codex:personal", tokens: 200, cost: 4)]),
+            Self.group(currencyCode: "EUR", providers: [Self.row(id: "codex:work", tokens: 100, cost: 3)]),
+        ])
+        let trackedSources = ["codex:personal", "codex:work"].map {
+            Self.source(
+                id: $0,
+                provider: .codex,
+                providerName: "Codex",
+                state: .connected,
+                contributesCostHistory: true)
+        }
+        let payload = try #require(SpendDashboardPane.makeSharePayload(
+            model: model,
+            subscriptionNames: [:],
+            trackedSources: trackedSources))
+
+        #expect(payload.providers.first?.estimatedCost == nil)
+        #expect(payload.currencies.allSatisfy(\.isPartial))
+    }
+
+    @Test
+    func `provider family overflow fails closed`() throws {
+        let model = SpendDashboardModel(requestedDays: 30, groups: [
+            Self.group(currencyCode: "USD", providers: [
+                Self.row(id: "codex:personal", tokens: Int.max, cost: Double.greatestFiniteMagnitude),
+                Self.row(id: "codex:work", tokens: 1, cost: Double.greatestFiniteMagnitude),
+            ]),
+        ])
+        let trackedSources = ["codex:personal", "codex:work"].map {
+            Self.source(
+                id: $0,
+                provider: .codex,
+                providerName: "Codex",
+                state: .connected,
+                contributesCostHistory: true)
+        }
+        let payload = try #require(SpendDashboardPane.makeSharePayload(
+            model: model,
+            subscriptionNames: [:],
+            trackedSources: trackedSources))
+
+        #expect(payload.providers.first?.totalTokens == nil)
+        #expect(payload.providers.first?.estimatedCost == nil)
+        #expect(payload.currencies.allSatisfy(\.isPartial))
+        #expect(payload.totalTokensIsPartial)
     }
 
     private static func source(
@@ -83,5 +169,33 @@ struct PreferencesSpendDashboardShareTests {
             state: state,
             supportsCostHistory: contributesCostHistory,
             contributesCostHistory: contributesCostHistory)
+    }
+
+    private static func row(id: String, tokens: Int, cost: Double) -> SpendDashboardModel.ProviderRow {
+        SpendDashboardModel.ProviderRow(
+            id: id,
+            rank: 1,
+            provider: .codex,
+            displayName: "Codex",
+            totalTokens: tokens,
+            totalCost: cost,
+            coveredDayCount: 30)
+    }
+
+    private static func group(
+        currencyCode: String,
+        providers: [SpendDashboardModel.ProviderRow]) -> SpendDashboardModel.CurrencyGroup
+    {
+        let date = Date(timeIntervalSince1970: 1_785_974_400)
+        return SpendDashboardModel.CurrencyGroup(
+            currencyCode: currencyCode,
+            providers: providers,
+            models: [],
+            dailyPoints: [],
+            totalTokens: nil,
+            totalCost: nil,
+            coveredDayCount: 30,
+            chartDomain: date...date,
+            modelHistoryCompleteness: .incomplete)
     }
 }
