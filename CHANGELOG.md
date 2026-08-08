@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.48.2 — Unreleased
+
+### Changed
+- CLI: dashboard snapshot identity now defaults to full; use `--identity redacted` to restore redacted emails.
+
 ## 0.48.1 — 2026-08-07
 
 ### Fixed

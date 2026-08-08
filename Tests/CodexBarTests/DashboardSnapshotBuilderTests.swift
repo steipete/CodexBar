@@ -84,7 +84,7 @@ struct DashboardSnapshotBuilderTests {
     }
 
     @Test
-    func `producer keeps stable order redaction and partial errors`() async throws {
+    func `producer defaults to full identity and keeps stable order and partial errors`() async throws {
         let generatedAt = Date(timeIntervalSince1970: 1_800_000_000)
         let healthy = self.identityPayload(email: "user@example.com")
         let failed = ProviderPayload(
@@ -125,7 +125,7 @@ struct DashboardSnapshotBuilderTests {
         let claudeDisplay = try #require(providers[1]["display"] as? [String: Any])
 
         #expect(providers.compactMap { $0["id"] as? String } == ["codex", "claude"])
-        #expect(identity["accountEmail"] as? String == "redacted@example.com")
+        #expect(identity["accountEmail"] as? String == "user@example.com")
         #expect(error["message"] as? String == "temporary failure")
         #expect(codexDisplay["sortKey"] as? Int == 10)
         #expect(claudeDisplay["sortKey"] as? Int == 0)

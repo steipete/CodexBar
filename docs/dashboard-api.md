@@ -32,7 +32,7 @@ On the default loopback bind, `/usage` and `/cost` are unchanged and unauthentic
 
 `GET /` serves a self-contained web dashboard that polls `/dashboard/v1/snapshot`. The static HTML is always unauthenticated, including on non-loopback binds, because it contains no account data. When the snapshot route returns `401`, the page asks for the dashboard token, stores it in the browser under the localStorage key `codexbar.dashboardToken`, and sends it in the `Authorization` header on each snapshot request. The token is never added to the URL.
 
-The browser keeps the last successfully merged snapshot in localStorage under `codexbar.lastSnapshot` and paints that redacted data immediately on the next load. It then fetches the config-only shell and streams concurrent per-provider snapshot updates into the page as they finish. Signing out clears both the token and cached snapshot.
+The browser keeps the last successfully merged snapshot in localStorage under `codexbar.lastSnapshot` and paints that data immediately on the next load, preserving the identity detail served by the configured mode. It then fetches the config-only shell and streams concurrent per-provider snapshot updates into the page as they finish. Signing out clears both the token and cached snapshot.
 
 The UI does not change the transport threat model: `codexbar serve` is plain HTTP. Off-loopback, a token typed into the page transits the network in cleartext like every other request unless a TLS-terminating reverse proxy protects the connection.
 
@@ -40,7 +40,8 @@ The UI does not change the transport threat model: `codexbar serve` is plain HTT
 
 - `codexbar dashboard` reads enabled providers from CodexBar config, emits them in stable order, and carries configured
   ordering through each row's `display.sortKey`.
-- Identity is always redacted. Provider failures stay in their rows without discarding healthy rows.
+- Identity defaults to full account emails. Pass `--identity redacted` to hide email local parts. Provider failures stay
+  in their rows without discarding healthy rows.
 - A valid full, partial, empty, or all-error snapshot exits `0`. Command-wide setup or encoding failure writes a
   diagnostic to stderr and exits non-zero without writing a substitute document to stdout.
 - Stdout contains exactly one JSON document plus a trailing newline. `--pretty` changes formatting only;
@@ -72,7 +73,7 @@ codexbar serve --dashboard-token YOUR_TOKEN
 Transport is **plain HTTP**. There is no TLS in `codexbar serve`, which means:
 
 - The bearer token crosses the network **in cleartext on every request**. Anyone who can observe the path (same Wi-Fi, ARP spoofing, a compromised switch, your ISP on a routed path) can capture the token and replay it until the server restarts with a new one.
-- The response bodies — plan labels, usage percentages, email domains, cost figures — cross the network in cleartext too.
+- The response bodies — plan labels, usage percentages, cost figures, and full account emails by default — cross the network in cleartext too. On non-loopback binds, use `--identity redacted` to hide email local parts unless clients need full identity.
 - Because non-loopback binds gate `/usage`, `/cost`, and `/dashboard/v1/snapshot` behind the same token, a passive observer sees your account data but an active client without the token gets `401` on every data route. Only the account-free static UI at `/` and `/health` are unauthenticated off-loopback.
 
 Deployments, from safest to least safe:
@@ -95,10 +96,10 @@ Deployments, from safest to least safe:
 3. **Trusted network segment, cleartext accepted.** Bind a LAN address directly:
 
    ```bash
-   CODEXBAR_DASHBOARD_TOKEN=... codexbar serve --host 0.0.0.0 --allow-plain-http
+   CODEXBAR_DASHBOARD_TOKEN=... codexbar serve --host 0.0.0.0 --allow-plain-http --identity redacted
    ```
 
-   A non-loopback `--host` refuses to start without a token, and refuses to start without `--allow-plain-http` — passing that flag is the explicit, operational acceptance that cleartext bearer transport is fine on this network. The token then gates all data routes, and the server logs a one-line warning at startup.
+   A non-loopback `--host` refuses to start without a token, and refuses to start without `--allow-plain-http` — passing that flag is the explicit, operational acceptance that cleartext bearer transport is fine on this network. Full account emails are included in dashboard responses by default, so `--identity redacted` is recommended for these deployments. The token gates all data routes, and the server logs a one-line warning at startup.
 
 The server compares tokens in constant time (fixed-length SHA-256 digest comparison), so timing does not leak a matching prefix. That protects the comparison, not the transport: on plain HTTP the token is still readable in transit.
 
@@ -136,7 +137,7 @@ After a fresh cache entry expires, `codexbar serve` may answer immediately with 
 
 ## Payload
 
-The snapshot is a stable display contract, not a raw dump of provider internals. Identity is always redacted: email local parts are hidden while domains and plan labels are kept.
+The snapshot is a stable display contract, not a raw dump of provider internals. Identity defaults to full account emails and plan labels. Pass `--identity redacted` to replace email local parts with `redacted` while keeping domains and plan labels.
 
 ```json
 {
@@ -159,7 +160,7 @@ The snapshot is a stable display contract, not a raw dump of provider internals.
         "updatedAt": "2026-07-16T11:59:00Z"
       },
       "identity": {
-        "accountEmail": "redacted@example.com",
+        "accountEmail": "user@example.com",
         "plan": "Pro 20x"
       },
       "windows": [
@@ -195,20 +196,21 @@ The snapshot is a stable display contract, not a raw dump of provider internals.
 
 When the claude-swap integration is enabled, the Claude provider row additionally includes an `accounts` array. This
 is an additive schema-v1 extension: other provider rows and Claude rows without the integration keep their existing
-shape. Account identity follows the dashboard's always-redacted policy. A failure limited to one account stays in that
-account's `error`; a failure of the whole adapter sets `accountsError` while leaving the ambient Claude row intact.
+shape. Account identity follows the dashboard identity mode: full by default, or redacted with `--identity redacted`.
+A failure limited to one account stays in that account's `error`; a failure of the whole adapter sets `accountsError`
+while leaving the ambient Claude row intact.
 
 ```json
 {
   "id": "claude",
-  "identity": { "accountEmail": "redacted@example.com", "plan": "Max" },
+  "identity": { "accountEmail": "user@example.com", "plan": "Max" },
   "windows": [{ "kind": "session", "label": "Session", "usedPercent": 20, "remainingPercent": 80, "resetAt": "2026-07-16T17:00:00Z" }],
   "accounts": [
     {
       "id": "claude-swap:2",
       "label": "Account 2",
       "active": true,
-      "identity": { "accountEmail": "redacted@personal.example", "plan": null },
+      "identity": { "accountEmail": "personal@personal.example", "plan": null },
       "windows": [
         { "kind": "session", "label": "Session", "usedPercent": 40, "remainingPercent": 60, "resetAt": "2026-07-16T17:00:00Z" },
         { "kind": "weekly", "label": "Weekly", "usedPercent": 60, "remainingPercent": 40, "resetAt": "2026-07-18T12:00:00Z" },
@@ -247,7 +249,7 @@ account's `error`; a failure of the whole adapter sets `accountsError` while lea
 - `providers[].enabled`: Whether the provider is enabled in CodexBar config.
 - `providers[].source`: Source used for the provider data.
 - `providers[].status`: Provider service status when available (`level`: `ok` | `warning` | `critical` | `unknown`).
-- `providers[].identity`: Redacted account email and plan label, or `null`.
+- `providers[].identity`: Account email and plan label, or `null`; the email local part is hidden only in redacted mode.
 - `providers[].windows`: Session, weekly, tertiary, or provider-specific rate windows.
 - `providers[].credits`: Remaining credits or balance when available.
 - `providers[].cost`: Local cost data when available.
@@ -259,7 +261,7 @@ account's `error`; a failure of the whole adapter sets `accountsError` while lea
   - `id`: Stable source and slot identifier, such as `claude-swap:2`.
   - `label`: Stable, non-sensitive display key, such as `Account 2`.
   - `active`: Whether this is the source's active account.
-  - `identity`: Dashboard-redacted account email with a `null` plan, or `null`.
+  - `identity`: Account email with a `null` plan, or `null`; the email local part is hidden only in redacted mode.
   - `windows`: Account-local session, weekly, and scoped windows in the same shape as `providers[].windows`.
   - `pace`: Account-local primary, secondary, and tertiary pace values when computable. Each pace value contains
     `stage`, `deltaPercent`, `expectedUsedPercent`, `willLastToReset`, `etaSeconds`, `runOutProbability`, and `summary`.

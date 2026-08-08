@@ -55,7 +55,7 @@ struct DashboardClaudeSwapSnapshotTests {
 
     @Test
     func `dashboard identity flag decodes redacted full and rejects others`() {
-        #expect(CodexBarCLI.decodeDashboardIdentityMode(from: self.parsedValues(identity: nil)) == .redacted)
+        #expect(CodexBarCLI.decodeDashboardIdentityMode(from: self.parsedValues(identity: nil)) == .full)
         #expect(CodexBarCLI.decodeDashboardIdentityMode(from: self.parsedValues(identity: "redacted")) == .redacted)
         #expect(CodexBarCLI.decodeDashboardIdentityMode(from: self.parsedValues(identity: "full")) == .full)
         #expect(CodexBarCLI.decodeDashboardIdentityMode(from: self.parsedValues(identity: "FULL")) == .full)

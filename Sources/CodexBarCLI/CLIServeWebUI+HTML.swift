@@ -679,13 +679,6 @@ extension CLIServeWebUI {
                 const copy = { ...provider };
                 delete copy._pending;
                 delete copy._progressiveError;
-                copy.identity = redactedIdentity(copy.identity);
-                if (Array.isArray(copy.accounts)) {
-                  copy.accounts = copy.accounts.map(account => ({
-                    ...account,
-                    identity: redactedIdentity(account.identity)
-                  }));
-                }
                 return copy;
               })
             };
@@ -693,16 +686,6 @@ extension CLIServeWebUI {
           } catch (_) {
             // Rendering remains live when storage is unavailable or full.
           }
-        }
-
-        function redactedIdentity(identity) {
-          if (!identity || !identity.accountEmail) return identity;
-          const email = String(identity.accountEmail);
-          const at = email.lastIndexOf("@");
-          return {
-            ...identity,
-            accountEmail: at >= 0 ? `redacted${email.slice(at)}` : "redacted"
-          };
         }
 
         function clearSnapshot() {

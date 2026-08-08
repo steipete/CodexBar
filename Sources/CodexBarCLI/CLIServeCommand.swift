@@ -38,8 +38,8 @@ struct ServeOptions: CommanderParsable {
 
     @Option(
         name: .long("identity"),
-        help: "Dashboard snapshot identity detail: redacted (default) or full. Full exposes real account " +
-            "emails to every authorized dashboard client; use it only on trusted, private networks.")
+        help: "Dashboard snapshot identity detail: full (default) or redacted. Use redacted to hide email local " +
+            "parts from authorized dashboard clients.")
     var identity: String?
 }
 
@@ -124,9 +124,9 @@ struct ServeRuntime {
     let requestTimeout: TimeInterval
     let healthVersion: String?
     let dashboardAuth: CLIServeDashboardAuth
-    /// Identity detail for dashboard snapshots. Defaults to `.redacted`; the
-    /// `--identity full` startup opt-in exposes real account emails to every
-    /// authorized dashboard client on trusted, private networks.
+    /// Identity detail for dashboard snapshots. Defaults to `.full`; the
+    /// `--identity redacted` startup option hides email local parts from every
+    /// authorized dashboard client.
     let dashboardIdentityMode: DashboardIdentityMode
     /// True for non-loopback binds: every data route (`/usage`, `/cost`,
     /// `/dashboard/v1/snapshot`) then requires the bearer token, so account data
@@ -143,7 +143,7 @@ struct ServeRuntime {
         requestTimeout: TimeInterval,
         healthVersion: String?,
         dashboardAuth: CLIServeDashboardAuth,
-        dashboardIdentityMode: DashboardIdentityMode = .redacted,
+        dashboardIdentityMode: DashboardIdentityMode = .full,
         bindHost: String)
     {
         self.configStore = configStore

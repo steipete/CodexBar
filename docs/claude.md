@@ -151,7 +151,7 @@ The accepted multi-account design in
   Claude provider or `--source auto` remains eligible, while `--account`, `--account-index`, `--all-accounts`, and
   explicit non-auto source flags bypass the adapter. `codexbar usage` and serve `/usage`/`/cost` remain unchanged,
   while `codexbar dashboard` and `GET /dashboard/v1/snapshot` additionally nest one entry per swap account in the
-  Claude provider row, with identity redacted per the dashboard policy.
+  Claude provider row, with full identity by default or redacted email local parts when `--identity redacted` is set.
 - Isolation: CodexBar never reads claude-swap or Claude Code credential storage for this feature; the
   subprocess handles its own credential access. In the app, adapter failures keep the last successful accounts as
   stale data, surface the error in provider settings, and never affect the ambient Claude usage card. In terminal

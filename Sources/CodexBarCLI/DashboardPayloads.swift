@@ -1,8 +1,8 @@
 import CodexBarCore
 import Foundation
 
-/// How much account identity a dashboard snapshot exposes. `codexbar serve`
-/// always uses `.redacted`; the other modes exist for the builder contract.
+/// How much account identity a dashboard snapshot exposes. Dashboard commands
+/// default to `.full`; `.redacted` remains available as an explicit privacy mode.
 enum DashboardIdentityMode: String, Equatable, Sendable {
     case none
     case redacted

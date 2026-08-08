@@ -29,8 +29,8 @@ struct DashboardOptions: CommanderParsable {
 
     @Option(
         name: .long("identity"),
-        help: "Account identity detail: redacted (default) or full. The HTTP serve transport is always " +
-            "redacted; full is for one-shot snapshots consumed on trusted, private surfaces.")
+        help: "Account identity detail: full (default) or redacted. Use redacted when the snapshot may leave a " +
+            "trusted, private surface.")
     var identity: String?
 
     @Option(
@@ -64,7 +64,7 @@ struct DashboardSnapshotProducer: Sendable {
         config: CodexBarConfig,
         refreshInterval: TimeInterval,
         codexBarVersion: String?,
-        identityMode: DashboardIdentityMode = .redacted,
+        identityMode: DashboardIdentityMode = .full,
         providers requestedProviders: [UsageProvider]? = nil) async throws -> DashboardSnapshotResult
     {
         let selection = requestedProviders.map(ProviderSelection.custom) ?? CodexBarCLI.providerSelection(
@@ -333,11 +333,11 @@ extension CodexBarCLI {
             ])
     }
 
-    /// `.none` is deliberately not accepted: the flag chooses between the safe
-    /// default and full identity for trusted local consumers; suppressing
-    /// identity entirely is not a supported dashboard shape.
+    /// `.none` is deliberately not accepted: the flag chooses between full
+    /// identity by default and opt-in email redaction; suppressing identity
+    /// entirely is not a supported dashboard shape.
     static func decodeDashboardIdentityMode(from values: ParsedValues) -> DashboardIdentityMode? {
-        guard let raw = values.options["identity"]?.last else { return .redacted }
+        guard let raw = values.options["identity"]?.last else { return .full }
         switch raw.lowercased() {
         case DashboardIdentityMode.redacted.rawValue:
             return .redacted

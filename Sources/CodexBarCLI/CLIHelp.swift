@@ -159,13 +159,15 @@ extension CodexBarCLI {
 
         Usage:
           codexbar dashboard [--pretty] [--timeout <seconds>] [--output <path>]
+                             [--identity <redacted|full>]
                              [--json-output] [--log-level <trace|verbose|debug|info|warning|error|critical>]
                              [-v|--verbose]
 
         Description:
           Print one dashboard-v1 snapshot as JSON, then exit. Honors enabled providers
-          in stable order, always redacts account identity, and keeps provider
-          failures as row-level errors without dropping healthy rows.
+          in stable order and keeps provider failures as row-level errors without
+          dropping healthy rows. Account identity defaults to full emails;
+          --identity redacted hides email local parts.
           Stdout contains only the JSON document; diagnostics are written to stderr.
           --timeout accepts 0...86400 seconds and defaults to 30; 0 disables the deadline.
           --output atomically writes the snapshot to a file (0644) instead of stdout;
@@ -213,9 +215,8 @@ extension CodexBarCLI {
           non-loopback host the token also gates /usage and /cost (account data);
           / and /health are always open. Use a TLS-terminating reverse proxy for anything
           beyond a trusted network segment.
-          Snapshot identity defaults to redacted emails; --identity full exposes real
-          account emails to every authorized dashboard client. Reserve it for trusted,
-          private networks (e.g. a tailnet-only reverse proxy).
+          Snapshot identity defaults to full account emails. --identity redacted hides
+          email local parts and is recommended whenever responses cross a network.
 
         Endpoints:
           GET /                    Built-in web dashboard
