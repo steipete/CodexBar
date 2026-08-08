@@ -758,18 +758,29 @@ public struct CursorStatusSnapshot: Sendable {
     }
 
     private static func formatMembershipType(_ type: String) -> String {
-        switch type.lowercased() {
+        let planName = switch type.lowercased() {
         case "enterprise":
-            "Cursor Enterprise"
-        case "pro":
-            "Cursor Pro"
+            "Enterprise"
+        case "express":
+            "Start"
+        case "free":
+            "Free"
+        case "free_trial":
+            "Pro Trial"
         case "hobby":
-            "Cursor Hobby"
+            "Hobby"
+        case "pro", "pro_student":
+            "Pro"
+        case "pro_plus":
+            "Pro+"
         case "team":
-            "Cursor Team"
+            "Team"
+        case "ultra":
+            "Ultra"
         default:
-            "Cursor \(type.capitalized)"
+            type
         }
+        return "Cursor \(planName)"
     }
 }
 
