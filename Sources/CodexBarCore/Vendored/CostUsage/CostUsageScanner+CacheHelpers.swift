@@ -1693,8 +1693,15 @@ extension CostUsageScanner {
                 }
                 let cachedStandardTokens = standardTokensByDayModel[day]?[model]
                 let cachedPriorityTokens = priorityTokensByDayModel[day]?[model]
-                let standardCost = cachedStandardCost
-                let priorityCost = cachedPriorityCost
+                let (splitTokenTotal, splitTokenOverflow) = (cachedStandardTokens ?? 0)
+                    .addingReportingOverflow(cachedPriorityTokens ?? 0)
+                // Fork-copied rows can inflate the per-file split maps; never publish a split
+                // that exceeds the canonical day/model total.
+                let splitIsUntrusted = splitTokenOverflow || splitTokenTotal > totalTokens
+                let standardCost = splitIsUntrusted ? nil : cachedStandardCost
+                let priorityCost = splitIsUntrusted ? nil : cachedPriorityCost
+                let standardTokens = splitIsUntrusted ? nil : cachedStandardTokens
+                let priorityTokens = splitIsUntrusted ? nil : cachedPriorityTokens
                 let splitTotalCost: Double? = if standardCost != nil || priorityCost != nil {
                     (standardCost ?? 0) + (priorityCost ?? 0)
                 } else {
@@ -1715,7 +1722,7 @@ extension CostUsageScanner {
                 {
                     cost = (cost ?? 0) + (Double(surchargeNanos) / Self.costScale)
                 }
-                let hasModeSplit = priorityCost != nil || cachedPriorityTokens != nil
+                let hasModeSplit = priorityCost != nil || priorityTokens != nil
                 breakdown.append(
                     CostUsageDailyReport.ModelBreakdown(
                         modelName: model,
@@ -1723,8 +1730,8 @@ extension CostUsageScanner {
                         totalTokens: totalTokens,
                         standardCostUSD: hasModeSplit ? standardCost : nil,
                         priorityCostUSD: hasModeSplit ? priorityCost : nil,
-                        standardTokens: hasModeSplit ? cachedStandardTokens : nil,
-                        priorityTokens: hasModeSplit ? cachedPriorityTokens : nil))
+                        standardTokens: hasModeSplit ? standardTokens : nil,
+                        priorityTokens: hasModeSplit ? priorityTokens : nil))
                 if let cost {
                     dayCost += cost
                     dayCostSeen = true

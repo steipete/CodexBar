@@ -769,6 +769,133 @@ struct CostUsageScannerPriorityTests {
         #expect(abs((report.summary?.totalCostUSD ?? 0) - expected) < 0.000_000_001)
     }
 
+    @Test
+    func `codex cached report drops inflated standard fast split when it exceeds canonical total`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+
+        let day = try env.makeLocalNoon(year: 2026, month: 8, day: 6)
+        let dayKey = CostUsageScanner.CostUsageDayRange.dayKey(from: day)
+        let cache = Self.makeSplitCodexCache(
+            dayKey: dayKey,
+            model: "gpt-5.5",
+            canonical: (input: 1000, cached: 0, output: 500),
+            split: (
+                standardTokens: 10_000_000,
+                priorityTokens: 5_000_000,
+                standardCostNanos: 10_000_000_000,
+                priorityCostNanos: 5_000_000_000),
+            baseCostNanos: 20_000_000)
+
+        let report = CostUsageScanner.buildCodexReportFromCache(
+            cache: cache,
+            range: CostUsageScanner.CostUsageDayRange(since: day, until: day))
+
+        // Canonical ownership is 1,500 tokens, but the copied fork split claims 15,000,000.
+        // The report must not publish that split or its inflated cost; it falls back to the
+        // canonical base cost of $0.02 (1,000 input + 500 output at gpt-5.5 rates).
+        let breakdown = try #require(report.data.first?.modelBreakdowns?.first)
+        #expect(breakdown.totalTokens == 1500)
+        #expect(abs((breakdown.costUSD ?? 0) - 0.02) < 1e-12)
+        #expect(breakdown.standardCostUSD == nil)
+        #expect(breakdown.priorityCostUSD == nil)
+        #expect(breakdown.standardTokens == nil)
+        #expect(breakdown.priorityTokens == nil)
+        #expect(abs((report.summary?.totalCostUSD ?? 0) - 0.02) < 1e-12)
+    }
+
+    @Test
+    func `codex cached report keeps valid standard fast split when tokens reconcile with canonical total`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+
+        let day = try env.makeLocalNoon(year: 2026, month: 8, day: 6)
+        let dayKey = CostUsageScanner.CostUsageDayRange.dayKey(from: day)
+        let cache = Self.makeSplitCodexCache(
+            dayKey: dayKey,
+            model: "gpt-5.5",
+            canonical: (input: 1000, cached: 0, output: 500),
+            split: (
+                standardTokens: 1000,
+                priorityTokens: 500,
+                standardCostNanos: 20_000_000,
+                priorityCostNanos: 10_000_000),
+            baseCostNanos: 20_000_000)
+
+        let report = CostUsageScanner.buildCodexReportFromCache(
+            cache: cache,
+            range: CostUsageScanner.CostUsageDayRange(since: day, until: day))
+
+        // A split that reconciles with canonical ownership keeps its exact cost and token values.
+        let breakdown = try #require(report.data.first?.modelBreakdowns?.first)
+        #expect(breakdown.totalTokens == 1500)
+        #expect(abs((breakdown.costUSD ?? 0) - 0.03) < 1e-12)
+        #expect(abs((breakdown.standardCostUSD ?? 0) - 0.02) < 1e-12)
+        #expect(abs((breakdown.priorityCostUSD ?? 0) - 0.01) < 1e-12)
+        #expect(breakdown.standardTokens == 1000)
+        #expect(breakdown.priorityTokens == 500)
+        #expect(abs((report.summary?.totalCostUSD ?? 0) - 0.03) < 1e-12)
+    }
+
+    @Test
+    func `codex cached report treats overflowing standard fast token sum as untrusted`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+
+        let day = try env.makeLocalNoon(year: 2026, month: 8, day: 6)
+        let dayKey = CostUsageScanner.CostUsageDayRange.dayKey(from: day)
+        let cache = Self.makeSplitCodexCache(
+            dayKey: dayKey,
+            model: "gpt-5.5",
+            canonical: (input: 1000, cached: 0, output: 500),
+            split: (
+                standardTokens: Int.max,
+                priorityTokens: 1,
+                standardCostNanos: 10_000_000_000,
+                priorityCostNanos: 5_000_000_000),
+            baseCostNanos: 20_000_000)
+
+        let report = CostUsageScanner.buildCodexReportFromCache(
+            cache: cache,
+            range: CostUsageScanner.CostUsageDayRange(since: day, until: day))
+
+        let breakdown = try #require(report.data.first?.modelBreakdowns?.first)
+        #expect(breakdown.totalTokens == 1500)
+        #expect(abs((breakdown.costUSD ?? 0) - 0.02) < 1e-12)
+        #expect(breakdown.standardCostUSD == nil)
+        #expect(breakdown.priorityCostUSD == nil)
+        #expect(breakdown.standardTokens == nil)
+        #expect(breakdown.priorityTokens == nil)
+    }
+
+    private static func makeSplitCodexCache(
+        dayKey: String,
+        model: String,
+        canonical: (input: Int, cached: Int, output: Int),
+        split: (
+            standardTokens: Int,
+            priorityTokens: Int,
+            standardCostNanos: Int64,
+            priorityCostNanos: Int64),
+        baseCostNanos: Int64) -> CostUsageCache
+    {
+        var file = CostUsageFileUsage(
+            mtimeUnixMs: 1_751_000_000_000,
+            size: 1024,
+            days: [dayKey: [model: [canonical.input, canonical.cached, canonical.output]]])
+        file.codexCostCacheComplete = true
+        file.codexCostNanos = [dayKey: [model: baseCostNanos]]
+        file.codexStandardCostNanos = [dayKey: [model: split.standardCostNanos]]
+        file.codexPriorityCostNanos = [dayKey: [model: split.priorityCostNanos]]
+        file.codexStandardTokens = [dayKey: [model: split.standardTokens]]
+        file.codexPriorityTokens = [dayKey: [model: split.priorityTokens]]
+
+        var cache = CostUsageCache()
+        cache.days = [dayKey: [model: [canonical.input, canonical.cached, canonical.output]]]
+        cache.files = ["/sessions/2026-08-06/fork-copied.jsonl": file]
+        return cache
+    }
+
     private func tokenCount(timestamp: String, input: Int, cached: Int, output: Int) -> [String: Any] {
         [
             "type": "event_msg",
