@@ -72,7 +72,8 @@ struct PreferencesSpendDashboardShareTests {
         #expect(payload.providers.map(\.provider) == [.codex, .openrouter, .gemini])
         #expect(payload.providers.map(\.estimatedCost) == [7, nil, nil])
         #expect(payload.spendReportingProviderCount == 1)
-        #expect(payload.currencies.allSatisfy(\.isPartial))
+        let allCurrenciesArePartial = payload.currencies.allSatisfy(\.isPartial)
+        #expect(allCurrenciesArePartial)
         #expect(payload.totalTokensIsPartial)
         #expect(ShareStatsFormatting.text(payload).contains("1/3 connected services report spend"))
     }
@@ -101,7 +102,8 @@ struct PreferencesSpendDashboardShareTests {
             ]))
 
         #expect(payload.providers.first?.estimatedCost == 4)
-        #expect(payload.currencies.allSatisfy(\.isPartial))
+        let allCurrenciesArePartial = payload.currencies.allSatisfy(\.isPartial)
+        #expect(allCurrenciesArePartial)
         #expect(payload.totalTokensIsPartial)
     }
 
@@ -125,7 +127,8 @@ struct PreferencesSpendDashboardShareTests {
             trackedSources: trackedSources))
 
         #expect(payload.providers.first?.estimatedCost == nil)
-        #expect(payload.currencies.allSatisfy(\.isPartial))
+        let allCurrenciesArePartial = payload.currencies.allSatisfy(\.isPartial)
+        #expect(allCurrenciesArePartial)
     }
 
     @Test
@@ -151,7 +154,8 @@ struct PreferencesSpendDashboardShareTests {
 
         #expect(payload.providers.first?.totalTokens == nil)
         #expect(payload.providers.first?.estimatedCost == nil)
-        #expect(payload.currencies.allSatisfy(\.isPartial))
+        let allCurrenciesArePartial = payload.currencies.allSatisfy(\.isPartial)
+        #expect(allCurrenciesArePartial)
         #expect(payload.totalTokensIsPartial)
     }
 
@@ -171,7 +175,8 @@ struct PreferencesSpendDashboardShareTests {
         #expect(payload.providers.first?.estimatedCost == 4)
         #expect(payload.providers.first?.totalTokens == 200)
         #expect(payload.currencies.first?.estimatedCost == 4)
-        #expect(payload.currencies.allSatisfy(\.isPartial))
+        let allCurrenciesArePartial = payload.currencies.allSatisfy(\.isPartial)
+        #expect(allCurrenciesArePartial)
         #expect(payload.totalTokensIsPartial)
         #expect(payload.topModels.isEmpty)
     }
@@ -193,7 +198,8 @@ struct PreferencesSpendDashboardShareTests {
         #expect(payload.providers.first?.estimatedCost == 7)
         #expect(payload.providers.first?.totalTokens == 300)
         #expect(payload.currencies.first?.estimatedCost == 7)
-        #expect(payload.currencies.allSatisfy(\.isPartial))
+        let allCurrenciesArePartial = payload.currencies.allSatisfy(\.isPartial)
+        #expect(allCurrenciesArePartial)
         #expect(payload.totalTokensIsPartial)
     }
 
