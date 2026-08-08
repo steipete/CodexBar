@@ -66,6 +66,8 @@ struct ClaudeProviderImplementation: ProviderImplementation {
         case .oauth: .oauth
         case .web: .web
         case .cli: .cli
+        // Never user-selectable: the feed participates only inside Auto.
+        case .statusline: .auto
         }
     }
 
@@ -186,7 +188,7 @@ struct ClaudeProviderImplementation: ProviderImplementation {
                     ?? .onlyOnUserAction
             })
 
-        let usageOptions = ClaudeUsageDataSource.allCases.map {
+        let usageOptions = ClaudeUsageDataSource.userSelectableCases.map {
             ProviderSettingsPickerOption(id: $0.rawValue, title: $0.displayName)
         }
         let cookieOptions = ProviderCookieSourceUI.options(

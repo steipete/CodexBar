@@ -557,7 +557,7 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
 
         func loadLatestUsage(model: String) async throws -> ClaudeUsageSnapshot {
             switch self.fetcher.dataSource {
-            case .auto:
+            case .auto, .statusline:
                 return try await self.executeAuto(model: model)
             case .api:
                 throw ClaudeUsageError.parseFailed("Claude Admin API usage is handled by the provider descriptor.")
@@ -636,6 +636,10 @@ public struct ClaudeUsageFetcher: ClaudeUsageFetching, Sendable {
             switch step.dataSource {
             case .api:
                 throw ClaudeUsageError.parseFailed("Planner emitted invalid api execution step.")
+            case .statusline:
+                // The statusLine feed is served by its own fetch strategy in the provider pipeline, not by this
+                // legacy fetcher; emitting it here would mean the planner and this executor disagree.
+                throw ClaudeUsageError.parseFailed("Planner emitted invalid statusline execution step.")
             case .oauth:
                 return try await self.fetcher.loadViaOAuth(
                     allowDelegatedRetry: self.fetcher.allowsDelegatedOAuthRefresh)

@@ -14,6 +14,8 @@ extension SettingsStore {
             case .oauth: .oauth
             case .web: .web
             case .cli: .cli
+            // Never user-selectable: the feed participates only inside Auto, so persist Auto.
+            case .statusline: .auto
             }
             self.updateProviderConfig(provider: .claude) { entry in
                 entry.source = source

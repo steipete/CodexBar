@@ -988,7 +988,9 @@ extension UsageStore {
             // Explicit OAuth records sourced from the Claude file/cache require a stable account
             // observation before their unavailable-Keychain owner can enter history.
             return true
-        case .api, .web, nil:
+        case .api, .web, .statusline, nil:
+            // The statusLine feed carries no credential and asserts no identity, so it can never establish
+            // an account observation.
             return false
         }
     }
@@ -1098,7 +1100,7 @@ extension UsageStore {
                 self = .api
             case .oauth:
                 self = .oauth
-            case .auto, nil:
+            case .auto, .statusline, nil:
                 return nil
             }
         }

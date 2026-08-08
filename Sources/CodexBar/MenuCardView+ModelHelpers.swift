@@ -221,11 +221,23 @@ extension UsageMenuCardView.Model {
         }
     }
 
+    static func isClaudeStatusLineSource(_ sourceLabel: String?) -> Bool {
+        sourceLabel?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .caseInsensitiveCompare(ClaudeUsageDataSource.statusline.sourceLabel) == .orderedSame
+    }
+
     static func usageNotes(input: Input) -> [String] {
         let subscriptionNotes = self.subscriptionMetadataNotes(snapshot: input.snapshot, provider: input.provider)
 
         if input.provider == .kiro {
             return self.kiroUsageNotes(input: input) + subscriptionNotes
+        }
+
+        // The statusLine feed reports numbers the user's own Claude configuration published, so the card has to
+        // say where they came from rather than presenting them as a CodexBar reading (owner ruling, #2733).
+        if input.provider == .claude, Self.isClaudeStatusLineSource(input.sourceLabel) {
+            return [L("From your Claude statusLine config")] + subscriptionNotes
         }
 
         if input.provider == .kilo {
