@@ -7,6 +7,40 @@ import Testing
 
 struct ProviderPluginRuntimeTests {
     @Test
+    func `automatic engine defaults to QuickJS`() {
+        #expect(ProviderPluginRuntime.resolveEngineKind(
+            .automatic,
+            environment: [:],
+            useJavaScriptCoreRollback: false) == .quickJS)
+    }
+
+    @Test
+    func `explicit engine selection bypasses automatic policy`() {
+        #expect(ProviderPluginRuntime.resolveEngineKind(
+            .quickJS,
+            environment: [ProviderPluginRuntime.engineEnvironmentKey: "jsc"],
+            useJavaScriptCoreRollback: true) == .quickJS)
+    }
+
+    #if canImport(JavaScriptCore)
+    @Test
+    func `JavaScriptCore rollback supports environment and debug defaults`() {
+        #expect(ProviderPluginRuntime.resolveEngineKind(
+            .automatic,
+            environment: [ProviderPluginRuntime.engineEnvironmentKey: "jsc"],
+            useJavaScriptCoreRollback: false) == .javaScriptCore)
+        #expect(ProviderPluginRuntime.resolveEngineKind(
+            .automatic,
+            environment: [:],
+            useJavaScriptCoreRollback: true) == .javaScriptCore)
+        #expect(ProviderPluginRuntime.resolveEngineKind(
+            .automatic,
+            environment: [ProviderPluginRuntime.engineEnvironmentKey: "quickjs"],
+            useJavaScriptCoreRollback: true) == .quickJS)
+    }
+    #endif
+
+    @Test
     func `missing resource bundle throws a provider load error`() {
         #expect(throws: ProviderPluginError.load(CodexBarCoreResources.missingBundleMessage)) {
             _ = try ProviderPluginRuntime(bundledPlugin: "openrouter", resourceBundle: nil)
@@ -502,6 +536,55 @@ struct ProviderPluginRuntimeTests {
     }
 
     @Test
+    func `QuickJS engine supports bounded recursion on its dedicated stack`() async throws {
+        let runtime = try ProviderPluginRuntime(
+            source: Self.plugin(fetchBody: """
+            function recurse(depth) {
+              return depth <= 0 ? 0 : 1 + recurse(depth - 1);
+            }
+            return { primary: { usedPercent: recurse(100) } };
+            """),
+            engine: .quickJS)
+
+        let snapshot = try await runtime.fetchUsage(secrets: ["TEST_KEY": "secret"])
+
+        #expect(snapshot.primary?.usedPercent == 100)
+    }
+
+    @Test
+    func `QuickJS engine reports recursion beyond its JavaScript stack limit`() async throws {
+        // Production geometry only: QuickJS's overflow guard is unreliable when the native
+        // margin above the JS limit is thin (macOS crashes instead of throwing — see the
+        // quickjs-ng/zipline reports), so a deliberately starved worker stack turns this
+        // test into a layout-lottery process crash on CI runners. The default 4 MiB worker
+        // with the 1 MiB JS limit leaves 3 MiB of margin for the guard and throw path while
+        // still proving the semantics: over-limit recursion yields a clean script error.
+        let engine = try Self.quickJSEngine(
+            source: Self.plugin(fetchBody: """
+            function recurse(depth) {
+              return depth <= 0 ? 0 : 1 + recurse(depth - 1);
+            }
+            return { primary: { usedPercent: recurse(100000) } };
+            """),
+            workerStackSizeBytes: QuickJSRuntimeLimits.nativeStackSizeBytes)
+
+        do {
+            _ = try await Self.fetchUsage(engine: engine)
+            Issue.record("Expected stack overflow")
+        } catch let error as ProviderPluginError {
+            guard case let .script(message) = error else {
+                Issue.record("Unexpected plugin error: \(error)")
+                return
+            }
+            let normalizedMessage = message.lowercased()
+            #expect(normalizedMessage.contains("stack"))
+            #expect(normalizedMessage.contains("overflow") || normalizedMessage.contains("exceeded"))
+        } catch {
+            Issue.record("Unexpected error: \(error)")
+        }
+    }
+
+    @Test
     func `hung script times out and next fetch uses a fresh context`() async throws {
         let runtime = try ProviderPluginRuntime(
             source: Self.plugin(fetchBody: """
@@ -542,6 +625,41 @@ struct ProviderPluginRuntimeTests {
           },
         });
         """
+    }
+
+    private static func quickJSEngine(
+        source: String,
+        workerStackSizeBytes: Int) throws -> QuickJSProviderPluginEngine
+    {
+        let bundle = try #require(CodexBarCoreResources.bundle)
+        let preludeURL = try #require(bundle.url(
+            forResource: "provider-plugin-prelude",
+            withExtension: "js"))
+        let preludeSource = try String(contentsOf: preludeURL, encoding: .utf8)
+        return try QuickJSProviderPluginEngine.make(
+            source: source,
+            preludeSource: preludeSource,
+            transport: ProviderHTTPTransportHandler { _ in throw URLError(.unsupportedURL) },
+            timeout: ProviderPluginRuntime.defaultTimeout,
+            responseSizeLimit: ProviderPluginRuntime.maximumResponseBytes,
+            rejectsNonSuccessResponses: false,
+            allowsDynamicID: false,
+            workerStackSizeBytes: workerStackSizeBytes)
+    }
+
+    private static func fetchUsage(engine: QuickJSProviderPluginEngine) async throws -> UsageSnapshot {
+        let result = await withCheckedContinuation { continuation in
+            engine.fetch(
+                settings: [:],
+                secrets: ["TEST_KEY": "secret"],
+                now: Date(),
+                timeZone: .current,
+                contextOptions: .production,
+                cookieResolver: nil,
+                instanceCookieResolver: nil)
+            { continuation.resume(returning: $0) }
+        }
+        return try result.get()
     }
 
     private static func transport(

@@ -34,13 +34,13 @@ struct FireworksUsageFetcherTests {
 
         let summary = try FireworksUsageFetcher._parseSummaryForTesting(Data(json.utf8))
 
-        #expect((summary.last30DaysSpend ?? -1) == 1.525548296, accuracy: 0.000000001)
+        #expect(abs((summary.last30DaysSpend ?? -1) - 1.525548296) <= 0.000000001)
         #expect(summary.currencyCode == "USD")
 
         let usage = FireworksUsageSnapshot(summary: summary).toUsageSnapshot()
         #expect(usage.primary == nil)
         #expect(usage.secondary == nil)
-        #expect(usage.providerCost?.used == 1.525548296, accuracy: 0.000000001)
+        #expect(abs((usage.providerCost?.used ?? -1) - 1.525548296) <= 0.000000001)
         #expect(usage.providerCost?.currencyCode == "USD")
         #expect(usage.providerCost?.period == "Last 30 days")
         #expect(usage.providerCost?.limit == 0)
@@ -71,7 +71,7 @@ struct FireworksUsageFetcherTests {
         let summary = try FireworksUsageFetcher._parseSummaryForTesting(Data(json.utf8))
 
         #expect(summary.currencyCode == "USD")
-        #expect((summary.last30DaysSpend ?? -1) == 1.35, accuracy: 0.000000001)
+        #expect(abs((summary.last30DaysSpend ?? -1) - 1.35) <= 0.000000001)
     }
 
     @Test
@@ -106,7 +106,7 @@ struct FireworksUsageFetcherTests {
         let url = try FireworksUsageFetcher.resolveSummaryURL(
             accountSlug: "x0mh0x",
             startTime: Date(timeIntervalSince1970: 0),
-            endTime: Date(timeIntervalSince1970: 86_400))
+            endTime: Date(timeIntervalSince1970: 86400))
 
         #expect(url.absoluteString.hasPrefix("https://api.fireworks.ai/v1/accounts/x0mh0x/billing/summary?"))
         #expect(url.absoluteString.contains("startTime=1970-01-01T00:00:00Z"))
@@ -114,15 +114,12 @@ struct FireworksUsageFetcherTests {
     }
 
     @Test
-    func `malformed account slugs fail with a config error instead of misrouting`() async {
+    func `malformed account slugs fail with a config error instead of misrouting`() {
         // A slug with reserved/invalid URL characters must surface as a config error
         // (never widen the path, inject a query, or crash on URL construction).
         for badSlug in ["sp ace", "has/slash", "has?query", "has#fragment", "percent%2F", "col\u{00e9}on"] {
-            await #expect {
+            #expect(throws: FireworksUsageError.invalidAccountSlug(badSlug)) {
                 _ = try FireworksUsageFetcher.resolveSummaryURL(accountSlug: badSlug)
-            } throws: { error in
-                guard case FireworksUsageError.invalidAccountSlug = error else { return false }
-                return true
             }
         }
 
@@ -180,7 +177,7 @@ struct FireworksUsageFetcherTests {
             session: session)
 
         #expect(FireworksStubURLProtocol.requests.count == 1)
-        #expect((snapshot.summary.last30DaysSpend ?? -1) == 0.5, accuracy: 0.000000001)
+        #expect(abs((snapshot.summary.last30DaysSpend ?? -1) - 0.5) <= 0.000000001)
     }
 
     @Test
@@ -216,29 +213,26 @@ struct FireworksUsageFetcherTests {
                     accountSlug: "x0mh0x",
                     session: session)
             } throws: { error in
-                error == expectedError
+                guard let error = error as? FireworksUsageError else { return false }
+                return error == expectedError
             }
         }
     }
 
     @Test
     func `fetch usage requires key and slug`() async {
-        await #expect {
+        await #expect(throws: FireworksUsageError.missingCredentials) {
             _ = try await FireworksUsageFetcher.fetchUsage(
                 apiKey: "  ",
                 accountSlug: "x0mh0x",
                 session: URLSession(configuration: .ephemeral))
-        } throws: { error in
-            error == FireworksUsageError.missingCredentials
         }
 
-        await #expect {
+        await #expect(throws: FireworksUsageError.missingAccountSlug) {
             _ = try await FireworksUsageFetcher.fetchUsage(
                 apiKey: "fw-test-key",
                 accountSlug: "",
                 session: URLSession(configuration: .ephemeral))
-        } throws: { error in
-            error == FireworksUsageError.missingAccountSlug
         }
     }
 }

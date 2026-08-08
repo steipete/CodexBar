@@ -107,8 +107,8 @@ public struct FireworksUsageFetcher: Sendable {
         }
 
         let startTime = now.addingTimeInterval(-TimeInterval(self.lookbackDays * 24 * 60 * 60))
-        var request = URLRequest(
-            url: try Self.resolveSummaryURL(accountSlug: cleanedSlug, startTime: startTime, endTime: now))
+        var request = try URLRequest(
+            url: Self.resolveSummaryURL(accountSlug: cleanedSlug, startTime: startTime, endTime: now))
         request.httpMethod = "GET"
         request.setValue("Bearer \(cleanedKey)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
@@ -154,7 +154,7 @@ public struct FireworksUsageFetcher: Sendable {
         startTime: Date? = nil,
         endTime: Date? = nil) throws -> URL
     {
-        guard accountSlug.rangeOfCharacter(from: Self.accountSlugAllowedCharacters.inverted) == nil else {
+        guard accountSlug.rangeOfCharacter(from: self.accountSlugAllowedCharacters.inverted) == nil else {
             throw FireworksUsageError.invalidAccountSlug(accountSlug)
         }
         guard let components = URLComponents(
@@ -198,8 +198,8 @@ public struct FireworksUsageFetcher: Sendable {
                   let units = cost.units.flatMap(Double.init),
                   let nanos = cost.nanos,
                   let code = cost.currencyCode?
-                .trimmingCharacters(in: .whitespacesAndNewlines),
-                  !code.isEmpty
+                      .trimmingCharacters(in: .whitespacesAndNewlines),
+                      !code.isEmpty
             else {
                 continue
             }

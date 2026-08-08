@@ -667,6 +667,8 @@
 "copyright" = "© 2026 Peter Steinberger. Лицензия MIT.";
 
 /* Debug Pane */
+"use_javascriptcore_plugin_engine" = "Использовать JavaScriptCore для плагинов провайдеров";
+"use_javascriptcore_plugin_engine_subtitle" = "Только для отката совместимости. Перезапустите CodexBar; CODEXBAR_PLUGIN_ENGINE переопределяет эту настройку.";
 "section_logging" = "Журналирование";
 "enable_file_logging" = "Включить запись логов";
 "enable_file_logging_subtitle" = "Записывать логи в %@ для отладки.";

@@ -31,6 +31,7 @@ public enum FireworksProviderDescriptor {
     static func makeDescriptor() -> ProviderDescriptor {
         ProviderDescriptor(
             id: .fireworks,
+            settingsSection: .init(FireworksProviderSettingsKey.self),
             credentials: self.credentials,
             metadata: ProviderMetadata(
                 id: .fireworks,

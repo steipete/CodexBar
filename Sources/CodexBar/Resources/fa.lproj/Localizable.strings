@@ -672,6 +672,8 @@
 "copyright" = "© ۲۰۲۶ پیتر استاینبرگر. MIT مجوز.";
 
 /* Debug Pane */
+"use_javascriptcore_plugin_engine" = "استفاده از JavaScriptCore برای افزونه‌های ارائه‌دهنده";
+"use_javascriptcore_plugin_engine_subtitle" = "فقط برای بازگشت سازگاری. برای اعمال CodexBar را بازراه‌اندازی کنید؛ CODEXBAR_PLUGIN_ENGINE این تنظیم را لغو می‌کند.";
 "section_logging" = "چوب بری";
 "enable_file_logging" = "فعال سازی ثبت فایل";
 "enable_file_logging_subtitle" = "لاگ ها را برای %@ برای اشکال زدایی بنویسید.";

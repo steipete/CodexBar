@@ -5,6 +5,7 @@ import Testing
 /// Corpus-scale probes for the SQLite store foundation (#2760 phase 1). The shapes mirror
 /// the #2637 incident corpora (~1.5k session files, large per-file payloads, 30-day window)
 /// so phase 2/3 performance work has failing/passing gates before the JSON path is deleted.
+@Suite(.serialized)
 struct CostUsageStoreScaleProofTests {
     private static let windowDays = 30
 
@@ -248,10 +249,13 @@ extension CostUsageStoreScaleProofTests {
             outputTokens: 3,
             reasoningTokens: 1,
             requestCount: 1,
-            knownCostNanos: 1000,
-            unpricedTokens: 4,
-            standardCostNanos: 600,
-            priorityCostNanos: 400,
+            authoritativeCostNanos: 1000,
+            standardInputTokens: 6,
+            standardCachedTokens: 1,
+            standardOutputTokens: 2,
+            priorityInputTokens: 4,
+            priorityCachedTokens: 1,
+            priorityOutputTokens: 1,
             standardTokens: 9,
             priorityTokens: 6)
     }

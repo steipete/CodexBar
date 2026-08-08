@@ -660,6 +660,8 @@
 "check_for_updates" = "檢查更新…";
 "updates_unavailable" = "此建置無法使用更新功能。";
 "copyright" = "© 2026 Peter Steinberger。MIT 許可證。";
+"use_javascriptcore_plugin_engine" = "為供應商外掛使用 JavaScriptCore";
+"use_javascriptcore_plugin_engine_subtitle" = "僅用於相容性回復。重新啟動 CodexBar 後生效；CODEXBAR_PLUGIN_ENGINE 會覆寫此設定。";
 "section_logging" = "記錄";
 "enable_file_logging" = "啟用檔案記錄";
 "enable_file_logging_subtitle" = "將記錄寫入 %@ 以進行除錯。";

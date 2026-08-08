@@ -171,6 +171,23 @@ jobs:
         if: ${{ matrix.shard-index == 0 }}
         run: ./Scripts/test-plugin-engines.sh
 
+      - name: Collect crash reports on failure
+        if: ${{ failure() }}
+        shell: bash
+        run: |
+          set -uo pipefail
+          reports="$HOME/Library/Logs/DiagnosticReports"
+          found=0
+          if [[ -d "$reports" ]]; then
+            while IFS= read -r file; do
+              found=1
+              echo "::group::crash report $(basename "$file")"
+              cat "$file"
+              echo "::endgroup::"
+            done < <(find "$reports" \( -name '*.ips' -o -name '*.crash' \) -newer .git/HEAD -print 2>/dev/null | head -5)
+          fi
+          [[ "$found" == 1 ]] || echo "no fresh crash reports under $reports"
+
       - name: Summarize macOS shard
         if: ${{ always() }}
         shell: bash

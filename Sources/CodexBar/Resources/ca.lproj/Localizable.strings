@@ -650,6 +650,8 @@
 "copyright" = "© 2026 Peter Steinberger. Llicència MIT.";
 
 /* Debug Pane */
+"use_javascriptcore_plugin_engine" = "Utilitza JavaScriptCore per als connectors de proveïdor";
+"use_javascriptcore_plugin_engine_subtitle" = "Només com a reversió de compatibilitat. Reinicieu CodexBar per aplicar-ho; CODEXBAR_PLUGIN_ENGINE substitueix aquest ajust.";
 "section_logging" = "Registre";
 "enable_file_logging" = "Activeu el registre en fitxer";
 "enable_file_logging_subtitle" = "Escriu els registres a %@ per a la depuració.";
