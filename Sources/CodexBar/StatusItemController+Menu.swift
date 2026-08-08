@@ -1140,7 +1140,9 @@ extension StatusItemController {
         // feel frozen and can block keyboard focus from returning.
         // Exception: when `refreshAllProvidersOnMenuOpen` is enabled, every enabled provider is refreshed on
         // open regardless of freshness — still after the delay below, and still via the light usage-only
-        // primitive so the OpenAI dashboard scrape stays deferred until the menu closes.
+        // primitive so the OpenAI dashboard scrape stays deferred until the menu closes. Token cost is not
+        // part of that primitive, so the plan also schedules a forced cost rescan (fire-and-forget; the
+        // open menu picks up the published snapshot through the store observation).
         let providersNeedingRetryAtOpen = self.delayedRefreshRetryProviders(for: menu).filter {
             self.store.needsUsageRefreshRetry(for: $0)
         }
@@ -1173,6 +1175,9 @@ extension StatusItemController {
                     .map(\.instanceID))))
             if plan.refreshCodexDashboard {
                 self.deferOpenAIDashboardRefreshUntilMenuCloses(reason: "refresh all")
+            }
+            if plan.refreshTokenCost {
+                self.store.scheduleForcedTokenRefresh()
             }
             let retryInstanceIDs = plan.providers
             let retryProviders = retryInstanceIDs.compactMap(\.firstPartyProvider)
