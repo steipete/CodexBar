@@ -44,7 +44,8 @@ struct OverviewSpendSummary: Equatable {
         let knownCostCount = model.groups.reduce(0) { $0 + $1.knownCostProviderCount }
         let knownTokenRows = model.groups.flatMap(\.providers).compactMap(\.totalTokens)
         let knownTokens = Self.safeTokenSum(knownTokenRows)
-        let tokenCoverageIsComplete = knownTokenRows.count == connectedCount
+        let tokenCoverageIsComplete = knownTokenRows.count == connectedCount &&
+            model.groups.allSatisfy { $0.totalTokens != nil }
         self.isPartial = knownCostCount < connectedCount || model.groups.contains { $0.totalCost == nil }
 
         let spendTexts = model.groups.compactMap { group -> String? in

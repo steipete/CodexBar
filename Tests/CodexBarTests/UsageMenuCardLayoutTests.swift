@@ -194,6 +194,51 @@ struct UsageMenuCardLayoutTests {
     }
 
     @Test
+    func `overview token total reflects requested range coverage`() {
+        func model(coveredDayCount: Int) -> SpendDashboardModel {
+            let providers = [
+                SpendDashboardModel.ProviderRow(
+                    id: "codex",
+                    rank: 1,
+                    provider: .codex,
+                    displayName: "Codex",
+                    totalTokens: 4_000_000,
+                    totalCost: 40,
+                    coveredDayCount: coveredDayCount),
+                SpendDashboardModel.ProviderRow(
+                    id: "openrouter",
+                    rank: 2,
+                    provider: .openrouter,
+                    displayName: "OpenRouter",
+                    totalTokens: 6_000_000,
+                    totalCost: 60,
+                    coveredDayCount: coveredDayCount),
+            ]
+            let group = SpendDashboardModel.CurrencyGroup(
+                currencyCode: "USD",
+                providers: providers,
+                models: [],
+                dailyPoints: [],
+                totalTokens: coveredDayCount >= 365 ? 10_000_000 : nil,
+                totalCost: coveredDayCount >= 365 ? 100 : nil,
+                coveredDayCount: coveredDayCount,
+                chartDomain: Date(timeIntervalSince1970: 1_783_036_800)...Date(timeIntervalSince1970: 1_814_572_800),
+                modelHistoryCompleteness: coveredDayCount >= 365 ? .complete : .incomplete)
+            return SpendDashboardModel(requestedDays: 365, groups: [group])
+        }
+
+        let shortCoverage = OverviewSpendSummary(
+            model: model(coveredDayCount: 30),
+            connectedProviderCount: 2)
+        let fullCoverage = OverviewSpendSummary(
+            model: model(coveredDayCount: 365),
+            connectedProviderCount: 2)
+
+        #expect(shortCoverage.tokenText == "~10M tokens")
+        #expect(fullCoverage.tokenText == "10M tokens")
+    }
+
+    @Test
     func `overview prioritizes refresh status and expands for accessibility text`() {
         let metric = UsageMenuCardView.Model.Metric(
             id: "weekly",
