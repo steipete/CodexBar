@@ -164,9 +164,9 @@ struct UsageStoreCachedTokenHydrationTests {
             now: now,
             historyDays: 1,
             scannerOptions: options)
-        var cache = CostUsageCacheIO.load(provider: .codex, cacheRoot: env.cacheRoot)
+        var cache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
         cache.lastScanUnixMs = Int64(now.addingTimeInterval(-2 * 60 * 60).timeIntervalSince1970 * 1000)
-        CostUsageCacheIO.save(provider: .codex, cache: cache, cacheRoot: env.cacheRoot)
+        CostUsageStoreAccess.replace(cacheRoot: env.cacheRoot, cache: cache)
 
         let settings = Self.makeCodexOnlySettings(historyDays: 1)
         let store = UsageStore(

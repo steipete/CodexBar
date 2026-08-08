@@ -23,6 +23,8 @@ struct CostUsageStoreScanState: Codable, Equatable, Sendable {
     var nextUsageRowIndex: Int?
     var lastModel: String?
     var lastTurnID: String?
+    var fileIdentity: String?
+    var detailsPayload: Data?
 }
 
 struct CostUsageStoreFile: Codable, Equatable, Sendable {
@@ -47,7 +49,13 @@ struct CostUsageStoreTokenSnapshot: Codable, Equatable, Sendable {
     var day: String?
     var last: CostUsageStoreTotals?
     var total: CostUsageStoreTotals?
-    var endOffset: Int64
+    var endOffset: Int64?
+}
+
+struct CostUsageStoreUsageRow: Codable, Equatable, Sendable {
+    var path: String
+    var rowIndex: Int
+    var payload: Data
 }
 
 struct CostUsageStoreDayAggregate: Codable, Equatable, Sendable {
@@ -59,6 +67,7 @@ struct CostUsageStoreDayAggregate: Codable, Equatable, Sendable {
     var reasoningTokens: Int64
     var requestCount: Int64
     var knownCostNanos: Int64
+    var prioritySurchargeNanos: Int64 = 0
     var unpricedTokens: Int64
     var standardCostNanos: Int64
     var priorityCostNanos: Int64
@@ -75,6 +84,7 @@ struct CostUsageStoreDayAggregate: Codable, Equatable, Sendable {
             reasoningTokens: 0,
             requestCount: 0,
             knownCostNanos: 0,
+            prioritySurchargeNanos: 0,
             unpricedTokens: 0,
             standardCostNanos: 0,
             priorityCostNanos: 0,
@@ -194,6 +204,7 @@ struct CostUsageStoreSnapshot: Equatable, Sendable {
     var metadata: CostUsageStoreMetadata
     var files: [CostUsageStoreFile]
     var tokenSnapshots: [CostUsageStoreTokenSnapshot]
+    var usageRows: [CostUsageStoreUsageRow] = []
     var fileDayAggregates: [CostUsageStoreFileDayAggregate]
     var dayAggregates: [CostUsageStoreDayAggregate]
     var forkLineage: [CostUsageStoreForkLineage]
@@ -214,6 +225,7 @@ struct CostUsageStoreBudgetResult: Equatable, Sendable {
     var deletedRows: Int
     var rowCount: Int
     var fileBytes: Int64
+    var catchUpRequired: Bool = false
 }
 
 struct CostUsageStoreConfiguration: Equatable, Sendable {

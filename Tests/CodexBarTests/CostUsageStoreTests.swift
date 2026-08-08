@@ -10,13 +10,13 @@ import CSQLite3
 
 struct CostUsageStoreTests {
     @Test
-    func `database lives beside the legacy artifact directory`() async throws {
+    func `database lives beside the legacy artifact directory`() throws {
         let fixture = try StoreFixture()
         defer { fixture.remove() }
         let store = CostUsageStore(cacheRoot: fixture.root)
 
-        #expect(await store.databaseURL.lastPathComponent == "cost-usage.sqlite")
-        #expect(await store.databaseURL.deletingLastPathComponent().lastPathComponent == "cost-usage")
+        #expect(store.databaseURL.lastPathComponent == "cost-usage.sqlite")
+        #expect(store.databaseURL.deletingLastPathComponent().lastPathComponent == "cost-usage")
     }
 
     @Test
@@ -73,7 +73,7 @@ struct CostUsageStoreTests {
         let store = CostUsageStore(cacheRoot: fixture.root)
         _ = await store.configuration()
 
-        let indexes = try await SQLiteTestConnection.indexNames(at: store.databaseURL)
+        let indexes = try SQLiteTestConnection.indexNames(at: store.databaseURL)
         #expect(indexes.contains("files_path_idx"))
         #expect(indexes.contains("file_day_aggregates_day_idx"))
         #expect(indexes.contains("file_day_aggregates_model_day_idx"))
@@ -479,7 +479,7 @@ extension CostUsageStoreTests {
         defer { fixture.remove() }
         let store = CostUsageStore(cacheRoot: fixture.root)
         #expect(await store.mergeDayAggregates([Self.aggregate(day: "2026-08-01", model: "model-a", scale: 1)]))
-        try await SQLiteTestConnection.execute(at: store.databaseURL, sql: "DROP TABLE day_aggregates")
+        try SQLiteTestConnection.execute(at: store.databaseURL, sql: "DROP TABLE day_aggregates")
 
         #expect(await store.fetchDayAggregates(sinceDay: "2026-08-01", untilDay: "2026-08-01").isEmpty)
         #expect(await store.rebuildCount == 1)
@@ -596,14 +596,11 @@ extension CostUsageStoreTests {
         for index in 0..<8 {
             let file = Self.file(path: "/rollouts/\(index).jsonl", day: "2026-08-01", updatedAt: Int64(index))
             #expect(await store.upsertFile(file))
-            let line = CostUsageStoreBufferedLine(
+            let row = CostUsageStoreUsageRow(
                 path: file.path,
-                kind: .deferredReplay,
-                lineIndex: 0,
-                ordinal: nil,
-                endOffset: nil,
+                rowIndex: 0,
                 payload: Data(repeating: UInt8(index), count: 256 * 1024))
-            #expect(await store.replaceBufferedLines(path: file.path, kind: .deferredReplay, lines: [line]))
+            #expect(await store.replaceUsageRows(path: file.path, rows: [row]))
         }
         let before = await store.fileSizeBytes()
         let limit = max(1, before / 2)
@@ -625,12 +622,89 @@ extension CostUsageStoreTests {
     }
 
     @Test
+    func `budget pruning uses the requested window and narrows retained coverage`() async throws {
+        let fixture = try StoreFixture()
+        defer { fixture.remove() }
+        let store = CostUsageStore(cacheRoot: fixture.root)
+        #expect(await store.upsertFile(Self.file(path: "/rollouts/stale.jsonl", day: "2026-06-01", updatedAt: 1)))
+        #expect(await store.upsertFile(Self.file(path: "/rollouts/current.jsonl", day: "2026-08-01", updatedAt: 2)))
+
+        let result = await store.enforceBudgets(
+            maxRows: 1,
+            maxFileBytes: .max,
+            requestedSinceDay: "2026-07-31",
+            requestedUntilDay: "2026-08-02")
+
+        #expect(result.rowCount == 1)
+        #expect(await store.fetchFile(path: "/rollouts/stale.jsonl") == nil)
+        #expect(await store.fetchFile(path: "/rollouts/current.jsonl") != nil)
+        let metadata = await store.fetchMetadata()
+        #expect(metadata.scanSinceDay == "2026-07-31")
+        #expect(metadata.scanUntilDay == "2026-08-02")
+    }
+
+    @Test
+    func `budget keeps a recently active zero day entry`() async throws {
+        let fixture = try StoreFixture()
+        defer { fixture.remove() }
+        let store = CostUsageStore(cacheRoot: fixture.root)
+        let calendar = CostUsageScanner.CostUsageDayRange.localGregorianCalendar()
+        let activeDate = try #require(CostUsageScanner.parseDayKey("2026-08-01", calendar: calendar))
+        var active = Self.file(path: "/rollouts/active.jsonl", day: "2026-08-01", updatedAt: 1)
+        active.coverageSinceDay = nil
+        active.coverageUntilDay = nil
+        active.mtimeUnixMs = Int64(activeDate.addingTimeInterval(3600).timeIntervalSince1970 * 1000)
+        var stale = Self.file(path: "/rollouts/stale-zero.jsonl", day: "2026-08-01", updatedAt: 0)
+        stale.coverageSinceDay = nil
+        stale.coverageUntilDay = nil
+        stale.mtimeUnixMs = 1
+        #expect(await store.upsertFile(active))
+        #expect(await store.upsertFile(stale))
+
+        _ = await store.enforceBudgets(
+            maxRows: 1,
+            maxFileBytes: .max,
+            requestedSinceDay: "2026-08-01",
+            requestedUntilDay: "2026-08-02",
+            calendar: calendar)
+
+        #expect(await store.fetchFile(path: active.path) != nil)
+        #expect(await store.fetchFile(path: stale.path) == nil)
+    }
+
+    @Test
+    func `in window budget trim marks catch up and preserves previous report`() async throws {
+        let fixture = try StoreFixture()
+        defer { fixture.remove() }
+        let store = CostUsageStore(cacheRoot: fixture.root)
+        let previous = Data("previous-report".utf8)
+        var metadata = CostUsageStoreMetadata.empty
+        metadata.lastScanUnixMs = 1234
+        metadata.previousReportPayload = previous
+        #expect(await store.setMetadata(metadata))
+        #expect(await store.upsertFile(Self.file(path: "/rollouts/one.jsonl", day: "2026-08-01", updatedAt: 1)))
+        #expect(await store.upsertFile(Self.file(path: "/rollouts/two.jsonl", day: "2026-08-01", updatedAt: 2)))
+
+        let result = await store.enforceBudgets(
+            maxRows: 1,
+            maxFileBytes: .max,
+            requestedSinceDay: "2026-08-01",
+            requestedUntilDay: "2026-08-02")
+        let retained = await store.fetchMetadata()
+
+        #expect(result.catchUpRequired)
+        #expect(retained.catchUpPending)
+        #expect(retained.lastScanUnixMs == 0)
+        #expect(retained.previousReportPayload == previous)
+    }
+
+    @Test
     func `read only WAL reader keeps a consistent snapshot during write`() async throws {
         let fixture = try StoreFixture()
         defer { fixture.remove() }
         let store = CostUsageStore(cacheRoot: fixture.root)
         #expect(await store.upsertFile(Self.file(path: "/rollouts/one.jsonl", day: "2026-08-01")))
-        let reader = try await SQLiteTestConnection(url: store.databaseURL, readOnly: true)
+        let reader = try SQLiteTestConnection(url: store.databaseURL, readOnly: true)
         try reader.execute("BEGIN")
         #expect(try reader.scalarInt("SELECT COUNT(*) FROM files") == 1)
 
@@ -663,7 +737,9 @@ extension CostUsageStoreTests {
                 tokenTimestampsMonotonic: true,
                 nextUsageRowIndex: 7,
                 lastModel: "gpt-5.6-sol",
-                lastTurnID: "turn-1"),
+                lastTurnID: "turn-1",
+                fileIdentity: "1:42",
+                detailsPayload: Data([4, 5, 6])),
             sessionID: "session-\(path)",
             coverageSinceDay: day,
             coverageUntilDay: day,
@@ -700,6 +776,7 @@ extension CostUsageStoreTests {
             reasoningTokens: 1 * scale,
             requestCount: 1 * scale,
             knownCostNanos: 1000 * scale,
+            prioritySurchargeNanos: 200 * scale,
             unpricedTokens: 4 * scale,
             standardCostNanos: 600 * scale,
             priorityCostNanos: 400 * scale,

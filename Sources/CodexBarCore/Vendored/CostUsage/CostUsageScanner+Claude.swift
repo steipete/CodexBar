@@ -31,7 +31,9 @@ extension CostUsageScanner {
         fileManager: FileManager = .default,
         workingDirectory: URL? = nil) -> [URL]
     {
-        if let override = options.claudeProjectsRoots { return override }
+        if let override = options.claudeProjectsRoots {
+            return override
+        }
 
         var roots: [URL] = []
 
@@ -123,13 +125,19 @@ extension CostUsageScanner {
         }
 
         func toInt(_ v: Any?) -> Int {
-            if let n = v as? NSNumber { return n.intValue }
+            if let n = v as? NSNumber {
+                return n.intValue
+            }
             return 0
         }
 
         func toBool(_ value: Any?) -> Bool {
-            if let bool = value as? Bool { return bool }
-            if let number = value as? NSNumber { return number.boolValue }
+            if let bool = value as? Bool {
+                return bool
+            }
+            if let number = value as? NSNumber {
+                return number.boolValue
+            }
             return false
         }
 
@@ -181,7 +189,9 @@ extension CostUsageScanner {
                             total: cacheCreate)
                         let cacheRead = max(0, toInt(usage["cache_read_input_tokens"]))
                         let output = max(0, toInt(usage["output_tokens"]))
-                        if input == 0, cacheCreate == 0, cacheRead == 0, output == 0 { return }
+                        if input == 0, cacheCreate == 0, cacheRead == 0, output == 0 {
+                            return
+                        }
 
                         let cost = CostUsagePricing.claudeCostUSD(
                             model: model,
@@ -438,13 +448,25 @@ extension CostUsageScanner {
 
         // Fallback: check for explicit Vertex AI metadata fields
         var candidates: [[String: Any]] = [obj]
-        if let metadata = obj["metadata"] as? [String: Any] { candidates.append(metadata) }
-        if let request = obj["request"] as? [String: Any] { candidates.append(request) }
-        if let context = obj["context"] as? [String: Any] { candidates.append(context) }
-        if let client = obj["client"] as? [String: Any] { candidates.append(client) }
+        if let metadata = obj["metadata"] as? [String: Any] {
+            candidates.append(metadata)
+        }
+        if let request = obj["request"] as? [String: Any] {
+            candidates.append(request)
+        }
+        if let context = obj["context"] as? [String: Any] {
+            candidates.append(context)
+        }
+        if let client = obj["client"] as? [String: Any] {
+            candidates.append(client)
+        }
         if let message = obj["message"] as? [String: Any] {
-            if let metadata = message["metadata"] as? [String: Any] { candidates.append(metadata) }
-            if let request = message["request"] as? [String: Any] { candidates.append(request) }
+            if let metadata = message["metadata"] as? [String: Any] {
+                candidates.append(metadata)
+            }
+            if let request = message["request"] as? [String: Any] {
+                candidates.append(request)
+            }
         }
 
         return candidates.contains { Self.containsVertexAIMetadata(in: $0) }
@@ -473,9 +495,13 @@ extension CostUsageScanner {
                 return true
             }
             if let nested = value as? [String: Any] {
-                if Self.containsVertexAIMetadata(in: nested) { return true }
+                if Self.containsVertexAIMetadata(in: nested) {
+                    return true
+                }
             } else if let array = value as? [Any] {
-                if Self.containsVertexAIMetadata(in: array) { return true }
+                if Self.containsVertexAIMetadata(in: array) {
+                    return true
+                }
             }
         }
 
@@ -485,7 +511,9 @@ extension CostUsageScanner {
     private static func containsVertexAIMetadata(in array: [Any]) -> Bool {
         for entry in array {
             if let dict = entry as? [String: Any] {
-                if self.containsVertexAIMetadata(in: dict) { return true }
+                if self.containsVertexAIMetadata(in: dict) {
+                    return true
+                }
             }
         }
 
@@ -640,7 +668,9 @@ extension CostUsageScanner {
             guard let values = try? url.resourceValues(forKeys: Set(keys)) else { continue }
             guard values.isRegularFile == true else { continue }
             let size = Int64(values.fileSize ?? 0)
-            if size <= 0 { continue }
+            if size <= 0 {
+                continue
+            }
 
             let mtime = values.contentModificationDate?.timeIntervalSince1970 ?? 0
             let mtimeMs = Int64(mtime * 1000)
@@ -661,7 +691,7 @@ extension CostUsageScanner {
         options: Options,
         checkCancellation: CancellationCheck?) throws -> CostUsageDailyReport
     {
-        var cache = CostUsageCacheIO.load(
+        var cache = CostUsageClaudeCacheIO.load(
             provider: provider,
             cacheRoot: options.cacheRoot,
             calendar: range.calendar)
@@ -716,7 +746,7 @@ extension CostUsageScanner {
             cache.scanUntilKey = range.scanUntilKey
             cache.lastScanUnixMs = nowMs
             try checkCancellation?()
-            CostUsageCacheIO.save(
+            CostUsageClaudeCacheIO.save(
                 provider: provider,
                 cache: cache,
                 cacheRoot: options.cacheRoot,

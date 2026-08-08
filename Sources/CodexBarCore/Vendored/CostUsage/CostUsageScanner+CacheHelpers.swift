@@ -1159,6 +1159,13 @@ extension CostUsageScanner {
         let initialCountedTotals = cached.lastCountedTotals ?? cached.lastTotals
         let initialRawTotalsBaseline = cached.lastRawTotalsBaseline ?? cached.lastTotals
         let initialHasDivergentTotals = cached.hasDivergentTotals ?? (cached.lastTotals == nil)
+        let initialAccumulatorState = CostUsageCodexTokenAccumulatorState(
+            countedTotals: initialCountedTotals,
+            rawTotalsBaseline: initialRawTotalsBaseline,
+            sawDivergentTotals: initialHasDivergentTotals,
+            rawTotalsWatermark: cached.lastRawTotalsWatermark,
+            seenRawTotals: cached.seenRawTotals ?? [],
+            sawInterleavedTotals: cached.hasInterleavedTotals ?? false)
         // Correctness-critical interleave state is watermark + interleaved flag (+ counted/raw).
         // `seenRawTotals` is optional precision only and must not gate incremental resume (#2037).
         let hasIncompleteInterleaveState =
@@ -1240,6 +1247,12 @@ extension CostUsageScanner {
             sessionId: sessionId,
             fileIdentity: input.metadata.path,
             state: &state)
+        let pricedUniqueRows = Self.codexRowsWithPricingAudit(
+            uniqueRows,
+            priorityTurns: context.resources.priorityTurns,
+            modelsDevCatalog: context.resources.modelsDevCatalog,
+            modelsDevCacheRoot: context.resources.modelsDevCacheRoot)
+        context.workRecorder?.record(processed: uniqueRows.count, repriced: pricedUniqueRows.count)
 
         let migratedCached = sessionAlreadyContributed
             ? Self.codexFileUsageByFilteringRows(migrated, rows: retainedCachedRows, context: context)
@@ -1316,13 +1329,18 @@ extension CostUsageScanner {
                 migratedCached.codexPriorityTokens,
                 splitMaps.priorityTokens),
             codexTurnIDs: Self.mergeCodexTurnIDs(migratedCached.codexTurnIDs, rows: uniqueRows),
-            codexRows: Self.codexRowsWithPricingAudit(
-                Self.mergeCodexRows(retainedCachedRows, rows: uniqueRows, sessionId: sessionId) ?? [],
-                priorityTurns: context.resources.priorityTurns,
-                modelsDevCatalog: context.resources.modelsDevCatalog,
-                modelsDevCacheRoot: context.resources.modelsDevCacheRoot),
+            codexRows: Self.mergeCodexRows(
+                retainedCachedRows,
+                rows: pricedUniqueRows,
+                sessionId: sessionId),
             codexTokenSnapshots: mergedTokenSnapshots,
-            codexTokenCheckpoints: Self.codexTokenCheckpoints(for: mergedTokenSnapshots),
+            codexTokenCheckpoints: isBufferedForkResume && startOffset == input.metadata.size
+                ? migratedCached.codexTokenCheckpoints
+                : Self.appendingCodexTokenCheckpoints(
+                    delta.tokenSnapshots,
+                    to: migratedCached.codexTokenCheckpoints ?? [],
+                    startingEventIndex: migratedCached.codexTokenSnapshots?.count ?? 0,
+                    initialState: initialAccumulatorState),
             codexTokenTimestampsMonotonic: Self.codexTokenTimestampsAreMonotonic(mergedTokenSnapshots),
             codexTokenIndexAnchor: Self.codexTokenIndexAnchor(
                 fileURL: input.fileURL,
@@ -1391,6 +1409,7 @@ extension CostUsageScanner {
             sessionId: sessionId,
             fileIdentity: input.metadata.path,
             state: &state)
+        context.workRecorder?.record(processed: uniqueRows.count, repriced: uniqueRows.count)
         if let sessionId,
            state.contributingSessionIds.contains(sessionId),
            uniqueRows.isEmpty,

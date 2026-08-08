@@ -63,14 +63,6 @@ extension CostUsageStore {
                 try self.stepDone(deleteFile, database: database)
             }
 
-            let deleteSnapshots = try self.prepare(database, """
-            DELETE FROM token_snapshots WHERE day IS NOT NULL AND (day < ? OR day > ?)
-            """)
-            defer { sqlite3_finalize(deleteSnapshots) }
-            self.bind(sinceDay, to: deleteSnapshots, at: 1)
-            self.bind(untilDay, to: deleteSnapshots, at: 2)
-            try self.stepDone(deleteSnapshots, database: database)
-
             let deleteFileAggregates = try self.prepare(
                 database,
                 "DELETE FROM file_day_aggregates WHERE day < ? OR day > ?")
@@ -174,39 +166,73 @@ extension CostUsageStore {
 // MARK: - Budgets and vacuum
 
 extension CostUsageStore {
-    func enforceBudgets(maxRows: Int, maxFileBytes: Int64) -> CostUsageStoreBudgetResult {
+    /// The row budget is the SQLite equivalent of the former 25k cache-entry cap: one
+    /// retained session file is one entry. Dependent token and usage rows are bounded by
+    /// the independent 256 MiB database cap, so active append/fork state is not discarded
+    /// merely because a single session contains many events.
+    func enforceBudgets(
+        maxRows: Int,
+        maxFileBytes: Int64,
+        requestedSinceDay: String? = nil,
+        requestedUntilDay: String? = nil,
+        calendar: Calendar = .current) -> CostUsageStoreBudgetResult
+    {
         let fallback = CostUsageStoreBudgetResult(deletedRows: 0, rowCount: 0, fileBytes: 0)
         return self.withDatabase(default: fallback) { database in
             let initialRows = try Self.rowCount(database)
-            if let metadata = try Self.readSingleton(
+            let initialBytes = Self.fileSize(at: self.databaseURL)
+            let metadata = try Self.readSingleton(
                 CostUsageStoreMetadata.self,
                 database: database,
-                table: "scan_metadata"),
-                let sinceDay = metadata.scanSinceDay,
-                let untilDay = metadata.scanUntilDay,
-                sinceDay <= untilDay
+                table: "scan_metadata")
+            let sinceDay = requestedSinceDay ?? metadata?.scanSinceDay
+            let untilDay = requestedUntilDay ?? metadata?.scanUntilDay
+            let rowLimit = max(0, maxRows)
+            let byteLimit = max(0, maxFileBytes)
+            if initialRows > Int64(rowLimit) || initialBytes > byteLimit,
+               let sinceDay, let untilDay, sinceDay <= untilDay
             {
                 _ = try Self.prune(database, sinceDay: sinceDay, untilDay: untilDay)
             }
 
-            let rowLimit = max(0, maxRows)
+            var catchUpRequired = false
             while try Self.rowCount(database) > Int64(rowLimit) {
-                guard try Self.deleteOldestRetainedRow(database) else { break }
+                guard try Self.deleteOldestRetainedFile(
+                    database,
+                    sinceDay: sinceDay,
+                    calendar: calendar) else { break }
+                catchUpRequired = true
             }
             try Self.reclaimFreePages(database)
 
-            let byteLimit = max(0, maxFileBytes)
             var fileBytes = Self.fileSize(at: self.databaseURL)
             while fileBytes > byteLimit {
-                guard try Self.deleteOldestRetainedRow(database) else { break }
+                guard try Self.deleteOldestRetainedFile(
+                    database,
+                    sinceDay: sinceDay,
+                    calendar: calendar)
+                else {
+                    guard try Self.stripOldestRebuildableDetail(database) else { break }
+                    catchUpRequired = true
+                    try Self.markCatchUpRequired(database)
+                    try Self.reclaimFreePages(database)
+                    fileBytes = Self.fileSize(at: self.databaseURL)
+                    continue
+                }
+                catchUpRequired = true
                 try Self.reclaimFreePages(database)
                 fileBytes = Self.fileSize(at: self.databaseURL)
+            }
+            if catchUpRequired {
+                try Self.rebuildDayAggregates(database)
+                try Self.markCatchUpRequired(database)
             }
             let finalRows = try Self.rowCount(database)
             return CostUsageStoreBudgetResult(
                 deletedRows: Int(max(0, initialRows - finalRows)),
                 rowCount: Int(finalRows),
-                fileBytes: fileBytes)
+                fileBytes: fileBytes,
+                catchUpRequired: catchUpRequired)
         }
     }
 
@@ -217,35 +243,113 @@ extension CostUsageStore {
         }
     }
 
-    private static func deleteOldestRetainedRow(_ database: OpaquePointer) throws -> Bool {
-        let statements = [
-            "DELETE FROM files WHERE id = (SELECT id FROM files ORDER BY updated_at_ms, id LIMIT 1)",
-            """
-            DELETE FROM day_aggregates WHERE rowid = (
-                SELECT rowid FROM day_aggregates ORDER BY day, model LIMIT 1
-            )
-            """,
-        ]
-        for sql in statements {
-            try self.execute(database, sql)
-            if sqlite3_changes(database) > 0 {
-                return true
+    private static func deleteOldestRetainedFile(
+        _ database: OpaquePointer,
+        sinceDay: String?,
+        calendar: Calendar) throws -> Bool
+    {
+        let statement = try self.prepare(database, """
+        SELECT f.id, f.path, f.mtime_ms, f.coverage_since_day, f.coverage_until_day
+        FROM files f
+        WHERE f.scan_complete = 1
+          AND NOT EXISTS (SELECT 1 FROM buffered_lines b WHERE b.file_id = f.id)
+          AND NOT EXISTS (
+              SELECT 1 FROM fork_lineage child
+              JOIN fork_lineage parent ON parent.session_id = child.forked_from_id
+              WHERE parent.file_id = f.id
+                AND child.file_id != f.id
+                AND (child.dependency_key IS NULL OR child.dependency_key != ?)
+          )
+        ORDER BY f.updated_at_ms, f.id
+        """)
+        defer { sqlite3_finalize(statement) }
+        self.bind(CostUsageScanner.codexForkDependencyNotRequiredKey, to: statement, at: 1)
+        let activeSinceMs = sinceDay.flatMap { CostUsageScanner.parseDayKey($0, calendar: calendar) }
+            .map { Int64($0.timeIntervalSince1970 * 1000) }
+        var result = sqlite3_step(statement)
+        while result == SQLITE_ROW {
+            let mtime = sqlite3_column_int64(statement, 2)
+            let coverageSince = self.columnText(statement, at: 3)
+            let coverageUntil = self.columnText(statement, at: 4)
+            let zeroDayRecentlyActive = coverageSince == nil && coverageUntil == nil
+                && activeSinceMs.map { mtime >= $0 } == true
+            if !zeroDayRecentlyActive {
+                let fileID = sqlite3_column_int64(statement, 0)
+                try self.execute(database, "DELETE FROM files WHERE id = \(fileID)")
+                return sqlite3_changes(database) > 0
             }
+            result = sqlite3_step(statement)
         }
+        guard result == SQLITE_DONE else { throw StoreError.sqlite(result) }
         return false
     }
 
     private static func rowCount(_ database: OpaquePointer) throws -> Int64 {
-        try self.scalarInt(database, """
-        SELECT
-            (SELECT COUNT(*) FROM files) +
-            (SELECT COUNT(*) FROM token_snapshots) +
-            (SELECT COUNT(*) FROM file_day_aggregates) +
-            (SELECT COUNT(*) FROM day_aggregates) +
-            (SELECT COUNT(*) FROM fork_lineage) +
-            (SELECT COUNT(*) FROM buffered_lines) +
-            (SELECT COUNT(*) FROM accumulators)
+        try self.scalarInt(database, "SELECT COUNT(*) FROM files")
+    }
+
+    private static func stripOldestRebuildableDetail(_ database: OpaquePointer) throws -> Bool {
+        let statement = try self.prepare(database, """
+        SELECT f.id, f.scan_state
+        FROM files f
+        WHERE NOT EXISTS (SELECT 1 FROM buffered_lines b WHERE b.file_id = f.id)
+          AND ((SELECT COUNT(*) FROM token_snapshots t WHERE t.file_id = f.id) > 0
+            OR (SELECT COUNT(*) FROM usage_rows r WHERE r.file_id = f.id) > 0)
+        ORDER BY f.updated_at_ms, f.id
+        LIMIT 1
         """)
+        defer { sqlite3_finalize(statement) }
+        guard sqlite3_step(statement) == SQLITE_ROW,
+              let stateData = self.columnData(statement, at: 1),
+              var state = try? JSONDecoder().decode(CostUsageStoreScanState.self, from: stateData)
+        else { return false }
+        let fileID = sqlite3_column_int64(statement, 0)
+        state.isComplete = false
+        state.resumePayload = nil
+        state.tokenTimestampsMonotonic = nil
+        state.nextUsageRowIndex = nil
+        let updatedState = try JSONEncoder().encode(state)
+        let update = try self.prepare(database, """
+        UPDATE files
+        SET parsed_bytes = 0, anchor_indexed_bytes = NULL, anchor_window_start = NULL,
+            anchor_sha256 = NULL, scan_state = ?, scan_complete = 0
+        WHERE id = ?
+        """)
+        defer { sqlite3_finalize(update) }
+        self.bind(updatedState, to: update, at: 1)
+        sqlite3_bind_int64(update, 2, fileID)
+        try self.stepDone(update, database: database)
+        try self.execute(database, "DELETE FROM token_snapshots WHERE file_id = \(fileID)")
+        try self.execute(database, "DELETE FROM usage_rows WHERE file_id = \(fileID)")
+        try self.execute(database, "DELETE FROM accumulators WHERE file_id = \(fileID)")
+        return true
+    }
+
+    private static func rebuildDayAggregates(_ database: OpaquePointer) throws {
+        try self.execute(database, "DELETE FROM day_aggregates")
+        try self.execute(database, """
+        INSERT INTO day_aggregates (
+            day, model, input_tokens, cached_tokens, output_tokens, reasoning_tokens,
+            request_count, known_cost_nanos, priority_surcharge_nanos, unpriced_tokens,
+            standard_cost_nanos, priority_cost_nanos, standard_tokens, priority_tokens
+        )
+        SELECT day, model, SUM(input_tokens), SUM(cached_tokens), SUM(output_tokens),
+               SUM(reasoning_tokens), SUM(request_count), SUM(known_cost_nanos),
+               SUM(priority_surcharge_nanos), SUM(unpriced_tokens), SUM(standard_cost_nanos),
+               SUM(priority_cost_nanos), SUM(standard_tokens), SUM(priority_tokens)
+        FROM file_day_aggregates
+        GROUP BY day, model
+        """)
+    }
+
+    private static func markCatchUpRequired(_ database: OpaquePointer) throws {
+        var metadata = try self.readSingleton(
+            CostUsageStoreMetadata.self,
+            database: database,
+            table: "scan_metadata") ?? .empty
+        metadata.catchUpPending = true
+        metadata.lastScanUnixMs = 0
+        try self.writeSingleton(metadata, database: database, table: "scan_metadata")
     }
 
     private static func reclaimFreePages(_ database: OpaquePointer) throws {

@@ -196,6 +196,50 @@ struct PreferencesSpendDashboardShareTests {
         #expect(payload.totalTokensIsPartial)
     }
 
+    @Test
+    func `stale provider family is excluded from top models`() throws {
+        let date = Date(timeIntervalSince1970: 1_785_974_400)
+        let group = SpendDashboardModel.CurrencyGroup(
+            currencyCode: "USD",
+            providers: [
+                Self.row(id: "codex:a", tokens: 200, cost: 4),
+                SpendDashboardModel.ProviderRow(
+                    id: "openrouter",
+                    rank: 1,
+                    provider: .openrouter,
+                    displayName: "OpenRouter",
+                    totalTokens: 900,
+                    totalCost: 9,
+                    coveredDayCount: 30),
+            ],
+            models: [
+                SpendDashboardModel.ModelRow(
+                    rank: 1,
+                    provider: .openrouter,
+                    providerName: "OpenRouter",
+                    modelName: "anthropic/claude-sonnet-4",
+                    totalTokens: 900,
+                    totalCost: 9),
+            ],
+            dailyPoints: [],
+            totalTokens: 1100,
+            totalCost: 13,
+            coveredDayCount: 30,
+            chartDomain: date...date,
+            modelHistoryCompleteness: .complete)
+        let model = SpendDashboardModel(requestedDays: 30, groups: [group])
+        let payload = try #require(SpendDashboardPane.makeSharePayload(
+            model: model,
+            subscriptionNames: [:],
+            trackedSources: Self.codexSources(ids: ["codex:a"])))
+
+        #expect(payload.providers.map(\.provider) == [.codex])
+        #expect(payload.currencies.compactMap(\.estimatedCost) == [4])
+        #expect(payload.totalTokens == 200)
+        #expect(payload.totalTokensIsPartial)
+        #expect(payload.topModels.isEmpty)
+    }
+
     private static func source(
         id: String,
         provider: UsageProvider,

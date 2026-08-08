@@ -25,6 +25,12 @@ extension CostUsageStore {
         }
     }
 
+    func fetchUsageRows(path: String) -> [CostUsageStoreUsageRow] {
+        self.withDatabase(default: []) { database in
+            try Self.readUsageRows(database, path: path)
+        }
+    }
+
     func fetchDayAggregates(sinceDay: String, untilDay: String) -> [CostUsageStoreDayAggregate] {
         guard sinceDay <= untilDay else { return [] }
         return self.withDatabase(default: []) { database in
@@ -96,6 +102,7 @@ extension CostUsageStore {
             metadata: .empty,
             files: [],
             tokenSnapshots: [],
+            usageRows: [],
             fileDayAggregates: [],
             dayAggregates: [],
             forkLineage: [],
@@ -112,6 +119,7 @@ extension CostUsageStore {
                         table: "scan_metadata") ?? .empty,
                     files: Self.readFiles(database),
                     tokenSnapshots: Self.readTokenSnapshots(database, path: nil),
+                    usageRows: Self.readUsageRows(database, path: nil),
                     fileDayAggregates: Self.readFileDayAggregates(database, path: nil),
                     dayAggregates: Self.readDayAggregates(database, sinceDay: nil, untilDay: nil),
                     forkLineage: Self.readForkLineage(database, path: nil),
@@ -233,7 +241,38 @@ extension CostUsageStore {
                 day: self.columnText(statement, at: 4),
                 last: self.decodeTotals(statement, startingAt: 5),
                 total: self.decodeTotals(statement, startingAt: 9),
-                endOffset: sqlite3_column_int64(statement, 13)))
+                endOffset: self.columnInt64(statement, at: 13)))
+            result = sqlite3_step(statement)
+        }
+        guard result == SQLITE_DONE else { throw StoreError.sqlite(result) }
+        return values
+    }
+
+    static func readUsageRows(
+        _ database: OpaquePointer,
+        path: String?) throws -> [CostUsageStoreUsageRow]
+    {
+        var sql = """
+        SELECT f.path, r.row_index, r.payload
+        FROM usage_rows r JOIN files f ON f.id = r.file_id
+        """
+        if path != nil {
+            sql += " WHERE f.path = ?"
+        }
+        sql += " ORDER BY f.path, r.row_index"
+        let statement = try self.prepare(database, sql)
+        defer { sqlite3_finalize(statement) }
+        if let path {
+            self.bind(path, to: statement, at: 1)
+        }
+        var values: [CostUsageStoreUsageRow] = []
+        var result = sqlite3_step(statement)
+        while result == SQLITE_ROW {
+            guard let path = self.columnText(statement, at: 0),
+                  let rowIndex = Int(exactly: sqlite3_column_int64(statement, 1)),
+                  let payload = self.columnData(statement, at: 2)
+            else { throw StoreError.invalidData }
+            values.append(CostUsageStoreUsageRow(path: path, rowIndex: rowIndex, payload: payload))
             result = sqlite3_step(statement)
         }
         guard result == SQLITE_DONE else { throw StoreError.sqlite(result) }
@@ -247,8 +286,8 @@ extension CostUsageStore {
     {
         var sql = """
         SELECT day, model, input_tokens, cached_tokens, output_tokens, reasoning_tokens,
-               request_count, known_cost_nanos, unpriced_tokens, standard_cost_nanos,
-               priority_cost_nanos, standard_tokens, priority_tokens
+               request_count, known_cost_nanos, priority_surcharge_nanos, unpriced_tokens,
+               standard_cost_nanos, priority_cost_nanos, standard_tokens, priority_tokens
         FROM day_aggregates
         """
         if sinceDay != nil, untilDay != nil {
@@ -276,11 +315,12 @@ extension CostUsageStore {
                 reasoningTokens: sqlite3_column_int64(statement, 5),
                 requestCount: sqlite3_column_int64(statement, 6),
                 knownCostNanos: sqlite3_column_int64(statement, 7),
-                unpricedTokens: sqlite3_column_int64(statement, 8),
-                standardCostNanos: sqlite3_column_int64(statement, 9),
-                priorityCostNanos: sqlite3_column_int64(statement, 10),
-                standardTokens: sqlite3_column_int64(statement, 11),
-                priorityTokens: sqlite3_column_int64(statement, 12)))
+                prioritySurchargeNanos: sqlite3_column_int64(statement, 8),
+                unpricedTokens: sqlite3_column_int64(statement, 9),
+                standardCostNanos: sqlite3_column_int64(statement, 10),
+                priorityCostNanos: sqlite3_column_int64(statement, 11),
+                standardTokens: sqlite3_column_int64(statement, 12),
+                priorityTokens: sqlite3_column_int64(statement, 13)))
             result = sqlite3_step(statement)
         }
         guard result == SQLITE_DONE else { throw StoreError.sqlite(result) }
@@ -293,8 +333,9 @@ extension CostUsageStore {
     {
         var sql = """
         SELECT f.path, a.day, a.model, a.input_tokens, a.cached_tokens, a.output_tokens,
-               a.reasoning_tokens, a.request_count, a.known_cost_nanos, a.unpriced_tokens,
-               a.standard_cost_nanos, a.priority_cost_nanos, a.standard_tokens, a.priority_tokens
+               a.reasoning_tokens, a.request_count, a.known_cost_nanos, a.priority_surcharge_nanos,
+               a.unpriced_tokens, a.standard_cost_nanos, a.priority_cost_nanos,
+               a.standard_tokens, a.priority_tokens
         FROM file_day_aggregates a JOIN files f ON f.id = a.file_id
         """
         if path != nil {
@@ -324,11 +365,12 @@ extension CostUsageStore {
                     reasoningTokens: sqlite3_column_int64(statement, 6),
                     requestCount: sqlite3_column_int64(statement, 7),
                     knownCostNanos: sqlite3_column_int64(statement, 8),
-                    unpricedTokens: sqlite3_column_int64(statement, 9),
-                    standardCostNanos: sqlite3_column_int64(statement, 10),
-                    priorityCostNanos: sqlite3_column_int64(statement, 11),
-                    standardTokens: sqlite3_column_int64(statement, 12),
-                    priorityTokens: sqlite3_column_int64(statement, 13))))
+                    prioritySurchargeNanos: sqlite3_column_int64(statement, 9),
+                    unpricedTokens: sqlite3_column_int64(statement, 10),
+                    standardCostNanos: sqlite3_column_int64(statement, 11),
+                    priorityCostNanos: sqlite3_column_int64(statement, 12),
+                    standardTokens: sqlite3_column_int64(statement, 13),
+                    priorityTokens: sqlite3_column_int64(statement, 14))))
             result = sqlite3_step(statement)
         }
         guard result == SQLITE_DONE else { throw StoreError.sqlite(result) }

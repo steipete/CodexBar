@@ -92,9 +92,48 @@ extension CostUsageStore {
                     Self.bind(snapshot.day, to: statement, at: 5)
                     Self.bindTotals(snapshot.last, to: statement, startingAt: 6)
                     Self.bindTotals(snapshot.total, to: statement, startingAt: 10)
-                    sqlite3_bind_int64(statement, 14, snapshot.endOffset)
+                    Self.bind(snapshot.endOffset, to: statement, at: 14)
                     try Self.stepDone(statement, database: database)
                 }
+            }
+            return true
+        }
+    }
+
+    @discardableResult
+    func replaceTokenSnapshots(path: String, snapshots: [CostUsageStoreTokenSnapshot]) -> Bool {
+        guard snapshots.allSatisfy({ $0.path == path }) else { return false }
+        return self.withDatabase(default: false) { database in
+            try Self.inTransaction(database) {
+                let delete = try Self.prepare(database, """
+                DELETE FROM token_snapshots WHERE file_id = (SELECT id FROM files WHERE path = ?)
+                """)
+                defer { sqlite3_finalize(delete) }
+                Self.bind(path, to: delete, at: 1)
+                try Self.stepDone(delete, database: database)
+                try Self.insertTokenSnapshots(database, snapshots: snapshots)
+            }
+            return true
+        }
+    }
+
+    @discardableResult
+    func replaceUsageRows(path: String, rows: [CostUsageStoreUsageRow]) -> Bool {
+        guard rows.allSatisfy({ $0.path == path }) else { return false }
+        return self.withDatabase(default: false) { database in
+            try Self.inTransaction(database) {
+                try Self.replaceUsageRows(database, path: path, rows: rows)
+            }
+            return true
+        }
+    }
+
+    @discardableResult
+    func appendUsageRows(_ rows: [CostUsageStoreUsageRow]) -> Bool {
+        guard !rows.isEmpty else { return true }
+        return self.withDatabase(default: false) { database in
+            try Self.inTransaction(database) {
+                try Self.insertUsageRows(database, rows: rows)
             }
             return true
         }
@@ -118,9 +157,10 @@ extension CostUsageStore {
                 let insert = try Self.prepare(database, """
                 INSERT INTO file_day_aggregates (
                     file_id, day, model, input_tokens, cached_tokens, output_tokens,
-                    reasoning_tokens, request_count, known_cost_nanos, unpriced_tokens,
-                    standard_cost_nanos, priority_cost_nanos, standard_tokens, priority_tokens
-                ) VALUES ((SELECT id FROM files WHERE path = ?), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    reasoning_tokens, request_count, known_cost_nanos, priority_surcharge_nanos,
+                    unpriced_tokens, standard_cost_nanos, priority_cost_nanos,
+                    standard_tokens, priority_tokens
+                ) VALUES ((SELECT id FROM files WHERE path = ?), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """)
                 defer { sqlite3_finalize(insert) }
                 for aggregate in aggregates {
@@ -145,9 +185,9 @@ extension CostUsageStore {
                 let statement = try Self.prepare(database, """
                 INSERT INTO day_aggregates (
                     day, model, input_tokens, cached_tokens, output_tokens, reasoning_tokens,
-                    request_count, known_cost_nanos, unpriced_tokens, standard_cost_nanos,
-                    priority_cost_nanos, standard_tokens, priority_tokens
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    request_count, known_cost_nanos, priority_surcharge_nanos, unpriced_tokens,
+                    standard_cost_nanos, priority_cost_nanos, standard_tokens, priority_tokens
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(day, model) DO UPDATE SET
                     input_tokens = input_tokens + excluded.input_tokens,
                     cached_tokens = cached_tokens + excluded.cached_tokens,
@@ -155,6 +195,7 @@ extension CostUsageStore {
                     reasoning_tokens = reasoning_tokens + excluded.reasoning_tokens,
                     request_count = request_count + excluded.request_count,
                     known_cost_nanos = known_cost_nanos + excluded.known_cost_nanos,
+                    priority_surcharge_nanos = priority_surcharge_nanos + excluded.priority_surcharge_nanos,
                     unpriced_tokens = unpriced_tokens + excluded.unpriced_tokens,
                     standard_cost_nanos = standard_cost_nanos + excluded.standard_cost_nanos,
                     priority_cost_nanos = priority_cost_nanos + excluded.priority_cost_nanos,
@@ -174,11 +215,78 @@ extension CostUsageStore {
             return true
         }
     }
+
+    @discardableResult
+    func replaceDayAggregates(_ aggregates: [CostUsageStoreDayAggregate]) -> Bool {
+        self.withDatabase(default: false) { database in
+            try Self.inTransaction(database) {
+                try Self.execute(database, "DELETE FROM day_aggregates")
+                try Self.insertDayAggregates(database, aggregates: aggregates)
+            }
+            return true
+        }
+    }
 }
 
 // MARK: - Lineage, buffers, discovery, and accumulators
 
 extension CostUsageStore {
+    static func insertTokenSnapshots(
+        _ database: OpaquePointer,
+        snapshots: [CostUsageStoreTokenSnapshot]) throws
+    {
+        let statement = try self.prepare(database, """
+        INSERT INTO token_snapshots (
+            file_id, event_index, timestamp, timestamp_ms, day,
+            last_input, last_cached, last_output, last_reasoning,
+            total_input, total_cached, total_output, total_reasoning, end_offset
+        ) VALUES ((SELECT id FROM files WHERE path = ?), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(file_id, event_index) DO UPDATE SET
+            timestamp = excluded.timestamp, timestamp_ms = excluded.timestamp_ms, day = excluded.day,
+            last_input = excluded.last_input, last_cached = excluded.last_cached,
+            last_output = excluded.last_output, last_reasoning = excluded.last_reasoning,
+            total_input = excluded.total_input, total_cached = excluded.total_cached,
+            total_output = excluded.total_output, total_reasoning = excluded.total_reasoning,
+            end_offset = excluded.end_offset
+        """)
+        defer { sqlite3_finalize(statement) }
+        for snapshot in snapshots {
+            sqlite3_reset(statement)
+            sqlite3_clear_bindings(statement)
+            self.bind(snapshot.path, to: statement, at: 1)
+            sqlite3_bind_int64(statement, 2, Int64(snapshot.eventIndex))
+            self.bind(snapshot.timestamp, to: statement, at: 3)
+            self.bind(snapshot.timestampUnixMs, to: statement, at: 4)
+            self.bind(snapshot.day, to: statement, at: 5)
+            self.bindTotals(snapshot.last, to: statement, startingAt: 6)
+            self.bindTotals(snapshot.total, to: statement, startingAt: 10)
+            self.bind(snapshot.endOffset, to: statement, at: 14)
+            try self.stepDone(statement, database: database)
+        }
+    }
+
+    static func insertDayAggregates(
+        _ database: OpaquePointer,
+        aggregates: [CostUsageStoreDayAggregate]) throws
+    {
+        let statement = try self.prepare(database, """
+        INSERT INTO day_aggregates (
+            day, model, input_tokens, cached_tokens, output_tokens, reasoning_tokens,
+            request_count, known_cost_nanos, priority_surcharge_nanos, unpriced_tokens,
+            standard_cost_nanos, priority_cost_nanos, standard_tokens, priority_tokens
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """)
+        defer { sqlite3_finalize(statement) }
+        for aggregate in aggregates {
+            sqlite3_reset(statement)
+            sqlite3_clear_bindings(statement)
+            self.bind(aggregate.day, to: statement, at: 1)
+            self.bind(aggregate.model, to: statement, at: 2)
+            self.bindAggregateValues(aggregate, to: statement, startingAt: 3)
+            try self.stepDone(statement, database: database)
+        }
+    }
+
     @discardableResult
     func upsertForkLineage(_ lineage: CostUsageStoreForkLineage) -> Bool {
         self.withDatabase(default: false) { database in
@@ -332,6 +440,37 @@ extension CostUsageStore {
 // MARK: - Write helpers
 
 extension CostUsageStore {
+    static func replaceUsageRows(
+        _ database: OpaquePointer,
+        path: String,
+        rows: [CostUsageStoreUsageRow]) throws
+    {
+        let delete = try self.prepare(database, """
+        DELETE FROM usage_rows WHERE file_id = (SELECT id FROM files WHERE path = ?)
+        """)
+        defer { sqlite3_finalize(delete) }
+        self.bind(path, to: delete, at: 1)
+        try self.stepDone(delete, database: database)
+        try self.insertUsageRows(database, rows: rows)
+    }
+
+    static func insertUsageRows(_ database: OpaquePointer, rows: [CostUsageStoreUsageRow]) throws {
+        let statement = try self.prepare(database, """
+        INSERT INTO usage_rows (file_id, row_index, payload)
+        VALUES ((SELECT id FROM files WHERE path = ?), ?, ?)
+        ON CONFLICT(file_id, row_index) DO UPDATE SET payload = excluded.payload
+        """)
+        defer { sqlite3_finalize(statement) }
+        for row in rows {
+            sqlite3_reset(statement)
+            sqlite3_clear_bindings(statement)
+            self.bind(row.path, to: statement, at: 1)
+            sqlite3_bind_int64(statement, 2, Int64(row.rowIndex))
+            self.bind(row.payload, to: statement, at: 3)
+            try self.stepDone(statement, database: database)
+        }
+    }
+
     static func inTransaction<T>(_ database: OpaquePointer, _ operation: () throws -> T) throws -> T {
         try self.execute(database, "BEGIN IMMEDIATE")
         do {
@@ -367,6 +506,7 @@ extension CostUsageStore {
             aggregate.reasoningTokens,
             aggregate.requestCount,
             aggregate.knownCostNanos,
+            aggregate.prioritySurchargeNanos,
             aggregate.unpricedTokens,
             aggregate.standardCostNanos,
             aggregate.priorityCostNanos,

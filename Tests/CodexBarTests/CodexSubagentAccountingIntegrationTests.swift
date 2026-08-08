@@ -195,7 +195,7 @@ struct CodexSubagentAccountingIntegrationTests {
             options: options)
         #expect(report.data.first?.totalTokens == 165)
 
-        let cache = CostUsageCacheIO.load(provider: .codex, cacheRoot: env.cacheRoot)
+        let cache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
         let childUsages = cache.files.values.filter { $0.sessionId?.hasPrefix("marker-child") == true }
         #expect(childUsages.count == 3)
         #expect(childUsages.allSatisfy {
@@ -707,7 +707,7 @@ struct CodexSubagentAccountingIntegrationTests {
             options: options)
         #expect(second.data.first?.totalTokens == 55)
 
-        let cache = CostUsageCacheIO.load(provider: .codex, cacheRoot: env.cacheRoot)
+        let cache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
         let usage = try #require(cache.files.values.first { $0.sessionId == "growing-child" })
         #expect(usage.sessionId == "growing-child")
         #expect(usage.forkedFromId == "growing-parent")

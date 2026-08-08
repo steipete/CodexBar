@@ -69,8 +69,7 @@ enum CodexLocalProjectUsageIndexer {
             checkCancellation: checkCancellation)
         try checkCancellation?()
 
-        let cache = CostUsageCacheIO.load(
-            provider: .codex,
+        let cache = CostUsageStoreAccess.read(
             cacheRoot: scannerOptions.cacheRoot,
             calendar: scannerOptions.calendar)
         let catalogResult = CodexThreadCatalogReader.loadResult(options: scannerOptions)
@@ -158,8 +157,7 @@ enum CodexLocalProjectUsageIndexer {
             since: since,
             until: until,
             calendar: options.calendar)
-        let cache = cacheOverride ?? CostUsageCacheIO.load(
-            provider: .codex,
+        let cache = cacheOverride ?? CostUsageStoreAccess.read(
             cacheRoot: options.cacheRoot,
             calendar: options.calendar)
         let catalog = catalogOverride ?? CodexThreadCatalogReader.load(options: options)
@@ -698,7 +696,7 @@ extension CodexLocalProjectUsageIndexer {
         let revisionParts = identity.rootsFingerprint.sorted { $0.key < $1.key }.map { "\($0.key)=\($0.value)" }
         let indexRevision = ([
             identity.scopeSignature,
-            context.cache.producerKey ?? "",
+            CostUsageStore.cacheGeneration,
             context.cache.codexPricingKey ?? "",
         ] + revisionParts)
             .joined(separator: "|")
@@ -913,7 +911,7 @@ extension CodexLocalProjectUsageIndexer {
     {
         let roots = self.rootsFingerprint(CostUsageScanner.codexRootsFingerprint(options: options))
         var parts = roots.sorted { $0.key < $1.key }.map { "root:\($0.key)=\($0.value)" }
-        parts.append("producer=\(cache.producerKey ?? "")")
+        parts.append("store=\(CostUsageStore.cacheGeneration)")
         parts.append("pricing=\(cache.codexPricingKey ?? "")")
         parts.append("priorityMetadata=\(cache.codexPriorityMetadataKey ?? "")")
         if let catalogFingerprint {

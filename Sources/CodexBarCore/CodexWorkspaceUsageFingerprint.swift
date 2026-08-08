@@ -22,7 +22,9 @@ struct CodexWorkspaceUsageFingerprintPayload: Encodable {
     let priorityCostNanos: [String: [String: Int64]]?
     let standardTokens: [String: [String: Int]]?
     let priorityTokens: [String: [String: Int]]?
-    let rows: [CostUsageScanner.CodexUsageRow]?
+    let rowCount: Int?
+    let lastRowIndex: Int?
+    let tokenIndexAnchor: CostUsageCodexTokenIndexAnchor?
 
     init(usage: CostUsageFileUsage) {
         self.days = usage.days
@@ -38,7 +40,9 @@ struct CodexWorkspaceUsageFingerprintPayload: Encodable {
         self.priorityCostNanos = usage.codexPriorityCostNanos
         self.standardTokens = usage.codexStandardTokens
         self.priorityTokens = usage.codexPriorityTokens
-        self.rows = usage.codexRows
+        self.rowCount = usage.codexRows?.count
+        self.lastRowIndex = usage.codexRows?.compactMap(\.eventIndex).max()
+        self.tokenIndexAnchor = usage.codexTokenIndexAnchor
     }
 }
 

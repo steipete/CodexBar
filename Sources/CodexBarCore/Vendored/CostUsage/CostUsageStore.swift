@@ -1,3 +1,4 @@
+import Dispatch
 import Foundation
 
 #if canImport(SQLite3)
@@ -10,6 +11,30 @@ import CSQLite3
 /// connection; Phase 2 can keep its existing scan-queue serialization while independent
 /// app and CLI readers use WAL snapshots through separate read-only connections.
 actor CostUsageStore {
+    private final class StoreSerialExecutor: SerialExecutor, @unchecked Sendable {
+        private let queue: DispatchQueue
+
+        init(label: String) {
+            self.queue = DispatchQueue(label: label, qos: .utility)
+        }
+
+        func enqueue(_ job: consuming ExecutorJob) {
+            let unownedJob = UnownedJob(job)
+            let executor = self.asUnownedSerialExecutor()
+            self.queue.async {
+                unownedJob.runSynchronously(on: executor)
+            }
+        }
+
+        func checkIsolated() {
+            dispatchPrecondition(condition: .onQueue(self.queue))
+        }
+
+        func sync<T>(_ operation: () throws -> T) rethrows -> T {
+            try self.queue.sync(execute: operation)
+        }
+    }
+
     private final class SQLiteConnection: @unchecked Sendable {
         private(set) var handle: OpaquePointer?
 
@@ -29,12 +54,22 @@ actor CostUsageStore {
     }
 
     static let databaseFilename = "cost-usage.sqlite"
-    static let baseSchemaVersion = 1
+    static let baseSchemaVersion = 2
     static let schemaVersion = CostUsageStore.combinedSchemaVersion(
         base: CostUsageStore.baseSchemaVersion,
         parserHash: CodexParserHash.value)
+    static let cacheGeneration = "sqlite:\(CostUsageStore.schemaVersion)"
 
-    let databaseURL: URL
+    /// Process-wide serialization keeps every writable store connection on the same queue.
+    /// This matches the scan pipeline's single-writer contract without multiplying executor
+    /// threads when tests or short-lived readers create several store actors.
+    private nonisolated static let sharedExecutor = StoreSerialExecutor(
+        label: "com.steipete.codexbar.cost-usage-store")
+    nonisolated var unownedExecutor: UnownedSerialExecutor {
+        Self.sharedExecutor.asUnownedSerialExecutor()
+    }
+
+    nonisolated let databaseURL: URL
     private let expectedSchemaVersion: Int32
     private let expectedParserHash: String
     private var connection: SQLiteConnection?
@@ -46,6 +81,7 @@ actor CostUsageStore {
         parserHash: String = CodexParserHash.value)
     {
         let root = cacheRoot ?? FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first!
+            .appendingPathComponent("CodexBar", isDirectory: true)
         self.databaseURL = root
             .appendingPathComponent("cost-usage", isDirectory: true)
             .appendingPathComponent(Self.databaseFilename, isDirectory: false)
@@ -61,6 +97,33 @@ actor CostUsageStore {
         }
         let combined = (UInt32(truncatingIfNeeded: base) & 0x7F) << 24 | (hash & 0x00FF_FFFF)
         return Int32(combined)
+    }
+}
+
+extension CostUsageStore {
+    nonisolated func syncLoadCodexCache(calendar: Calendar) -> CostUsageCache {
+        Self.sharedExecutor.sync {
+            self.assumeIsolated { store in
+                store.loadCodexCache(calendar: calendar)
+            }
+        }
+    }
+
+    nonisolated func syncSaveCodexCache(
+        _ cache: CostUsageCache,
+        calendar: Calendar,
+        requestedScanWindow: (sinceKey: String, untilKey: String),
+        reportWindow: (sinceKey: String, untilKey: String)? = nil) -> CostUsageStoreBudgetResult
+    {
+        Self.sharedExecutor.sync {
+            self.assumeIsolated { store in
+                store.saveCodexCache(
+                    cache,
+                    calendar: calendar,
+                    requestedScanWindow: requestedScanWindow,
+                    reportWindow: reportWindow)
+            }
+        }
     }
 }
 
@@ -172,6 +235,31 @@ extension CostUsageStore {
             self.connection = SQLiteConnection(handle: database)
         }
     }
+
+    /// The Codex JSON cache is derived data, so the SQLite cutover deliberately rebuilds
+    /// from session files instead of importing an old monolithic snapshot. Keep the legacy
+    /// filename knowledge confined to this one cleanup boundary.
+    func removeLegacyCodexArtifactIfPresent() -> Bool {
+        let directory = self.databaseURL.deletingLastPathComponent()
+        let legacyFilename = "codex-v11.json"
+        let legacyURL = directory.appendingPathComponent(legacyFilename)
+        guard FileManager.default.fileExists(atPath: legacyURL.path) else { return false }
+
+        let temporaryNames = (try? FileManager.default.contentsOfDirectory(
+            at: directory,
+            includingPropertiesForKeys: nil))?.filter { url in
+            let name = url.lastPathComponent
+            return name == legacyFilename
+                || name.hasPrefix(".\(legacyFilename).")
+                || name.hasPrefix("\(legacyFilename).")
+                || name.hasPrefix("\(legacyFilename)-")
+        } ?? [legacyURL]
+        for url in temporaryNames {
+            try? FileManager.default.removeItem(at: url)
+        }
+        self.rebuildDatabase()
+        return true
+    }
 }
 
 // MARK: - Schema
@@ -222,11 +310,18 @@ extension CostUsageStore {
         total_cached INTEGER,
         total_output INTEGER,
         total_reasoning INTEGER,
-        end_offset INTEGER NOT NULL,
+        end_offset INTEGER,
         PRIMARY KEY(file_id, event_index)
     );
     CREATE INDEX token_snapshots_day_idx ON token_snapshots(day);
     CREATE INDEX token_snapshots_timestamp_idx ON token_snapshots(file_id, timestamp_ms, event_index);
+    CREATE TABLE usage_rows (
+        file_id INTEGER NOT NULL REFERENCES files(id) ON DELETE CASCADE,
+        row_index INTEGER NOT NULL,
+        payload BLOB NOT NULL,
+        PRIMARY KEY(file_id, row_index)
+    );
+    CREATE INDEX usage_rows_file_idx ON usage_rows(file_id, row_index);
     CREATE TABLE file_day_aggregates (
         file_id INTEGER NOT NULL REFERENCES files(id) ON DELETE CASCADE,
         day TEXT NOT NULL,
@@ -237,6 +332,7 @@ extension CostUsageStore {
         reasoning_tokens INTEGER NOT NULL,
         request_count INTEGER NOT NULL,
         known_cost_nanos INTEGER NOT NULL,
+        priority_surcharge_nanos INTEGER NOT NULL,
         unpriced_tokens INTEGER NOT NULL,
         standard_cost_nanos INTEGER NOT NULL,
         priority_cost_nanos INTEGER NOT NULL,
@@ -255,6 +351,7 @@ extension CostUsageStore {
         reasoning_tokens INTEGER NOT NULL,
         request_count INTEGER NOT NULL,
         known_cost_nanos INTEGER NOT NULL,
+        priority_surcharge_nanos INTEGER NOT NULL,
         unpriced_tokens INTEGER NOT NULL,
         standard_cost_nanos INTEGER NOT NULL,
         priority_cost_nanos INTEGER NOT NULL,

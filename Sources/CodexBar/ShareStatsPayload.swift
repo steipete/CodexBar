@@ -440,7 +440,11 @@ enum ShareStatsBuilder {
                 return lhs.modelIdentity < rhs.modelIdentity
             }
         }
-        let rosterHasIncompleteProviders = providerRoster.contains { entry in
+        let rosterProviderKinds = Set(providerRoster.map(\.provider))
+        let rosterHasUnexpectedProviderFamilies = !providerRoster.isEmpty && trackedProviders.contains {
+            !rosterProviderKinds.contains($0.provider)
+        }
+        let rosterHasIncompleteProviders = rosterHasUnexpectedProviderFamilies || providerRoster.contains { entry in
             let allMatches = trackedProviders.filter { $0.provider == entry.provider }
             let matches = self.rosterMatches(entry: entry, candidates: allMatches)
             let knownCosts = matches.compactMap(\.estimatedCost)

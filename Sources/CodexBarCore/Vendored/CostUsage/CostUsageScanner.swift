@@ -43,6 +43,32 @@ enum CostUsageScanner {
         case excludeVertexAI
     }
 
+    struct CodexScanWorkMetrics: Equatable, Sendable {
+        var usageRowsProcessed: Int
+        var usageRowsRepriced: Int
+    }
+
+    final class CodexScanWorkRecorder: @unchecked Sendable {
+        private let lock = NSLock()
+        private var processed = 0
+        private var repriced = 0
+
+        func record(processed: Int, repriced: Int) {
+            self.lock.lock()
+            self.processed += max(0, processed)
+            self.repriced += max(0, repriced)
+            self.lock.unlock()
+        }
+
+        func snapshot() -> CodexScanWorkMetrics {
+            self.lock.lock()
+            defer { self.lock.unlock() }
+            return CodexScanWorkMetrics(
+                usageRowsProcessed: self.processed,
+                usageRowsRepriced: self.repriced)
+        }
+    }
+
     struct Options {
         var codexSessionsRoot: URL?
         var claudeProjectsRoots: [URL]?
@@ -64,6 +90,7 @@ enum CostUsageScanner {
         var maxCodexScanDurationPerRefresh: TimeInterval?
         /// Prefer newest session files first so recent usage lands before catch-up work.
         var preferNewestCodexSessionsFirst: Bool = true
+        var codexScanWorkRecorderForTesting: CodexScanWorkRecorder?
 
         init(
             codexSessionsRoot: URL? = nil,
@@ -76,7 +103,8 @@ enum CostUsageScanner {
             maxCodexSessionFileBytes: Int64 = 256 * 1024 * 1024,
             maxCodexScanBytesPerRefresh: Int64 = 512 * 1024 * 1024,
             maxCodexScanDurationPerRefresh: TimeInterval? = nil,
-            preferNewestCodexSessionsFirst: Bool = true)
+            preferNewestCodexSessionsFirst: Bool = true,
+            codexScanWorkRecorderForTesting: CodexScanWorkRecorder? = nil)
         {
             self.codexSessionsRoot = codexSessionsRoot
             self.claudeProjectsRoots = claudeProjectsRoots
@@ -89,6 +117,7 @@ enum CostUsageScanner {
             self.maxCodexScanBytesPerRefresh = max(0, maxCodexScanBytesPerRefresh)
             self.maxCodexScanDurationPerRefresh = maxCodexScanDurationPerRefresh.map { max(0, $0) }
             self.preferNewestCodexSessionsFirst = preferNewestCodexSessionsFirst
+            self.codexScanWorkRecorderForTesting = codexScanWorkRecorderForTesting
         }
     }
 
@@ -684,6 +713,34 @@ enum CostUsageScanner {
         return checkpoints
     }
 
+    /// Extends sparse checkpoints from the persisted terminal accumulator. Only the appended
+    /// token events are folded; the already-indexed prefix is never replayed.
+    static func appendingCodexTokenCheckpoints(
+        _ events: [CostUsageCodexTokenSnapshot],
+        to checkpoints: [CostUsageCodexTokenCheckpoint],
+        startingEventIndex: Int,
+        initialState: CostUsageCodexTokenAccumulatorState) -> [CostUsageCodexTokenCheckpoint]
+    {
+        guard !events.isEmpty else { return checkpoints }
+        var accumulator = CodexSnapshotAccumulator(state: initialState)
+        var appended: [CostUsageCodexTokenCheckpoint] = []
+        var lastCheckpointOffset = checkpoints.last?.endOffset ?? 0
+        for (offset, event) in events.enumerated() {
+            _ = accumulator.apply(last: event.last, total: event.total)
+            guard let endOffset = event.endOffset else { continue }
+            let reachedStride = endOffset - lastCheckpointOffset >= Self.codexTokenCheckpointStride
+            let isLastEvent = offset == events.index(before: events.endIndex)
+            guard reachedStride || isLastEvent else { continue }
+            appended.append(CostUsageCodexTokenCheckpoint(
+                eventIndex: startingEventIndex + offset,
+                timestamp: event.timestamp,
+                endOffset: endOffset,
+                state: accumulator.state))
+            lastCheckpointOffset = endOffset
+        }
+        return checkpoints + appended
+    }
+
     static func codexTokenTimestampsAreMonotonic(
         _ events: [CostUsageCodexTokenSnapshot]) -> Bool
     {
@@ -721,6 +778,7 @@ enum CostUsageScanner {
         let resources: CodexScanResources
         let checkCancellation: CancellationCheck?
         let scanBudget: CodexScanBudget?
+        let workRecorder: CodexScanWorkRecorder?
     }
 
     final class CodexCanonicalProjectPathResolver {
@@ -4391,16 +4449,13 @@ enum CostUsageScanner {
 
     private static func loadCodexCache(
         options: Options,
-        range: CostUsageDayRange) -> CostUsageCodexCacheLoadResult
+        range: CostUsageDayRange) -> CostUsageStoreLoad
     {
-        CostUsageCacheIO.loadCodexForMigration(
-            cacheRoot: options.cacheRoot,
-            calendar: range.calendar)
+        CostUsageStoreAccess.load(cacheRoot: options.cacheRoot, calendar: range.calendar)
     }
 
     private static func codexPreviousReportCandidate(
         cache: CostUsageCache,
-        incompatibleCache: CostUsageCache?,
         range: CostUsageDayRange,
         plan: CodexRefreshPlan,
         options: Options) -> CostUsageCodexPreviousReport?
@@ -4417,11 +4472,9 @@ enum CostUsageScanner {
             return previous
         }
 
-        let sourceCache: CostUsageCache? = if let incompatibleCache {
-            incompatibleCache
-        } else if !currentScanIsPending,
-                  options.forceRescan,
-                  !cache.days.isEmpty
+        let sourceCache: CostUsageCache? = if !currentScanIsPending,
+                                              options.forceRescan,
+                                              !cache.days.isEmpty
         {
             cache
         } else {
@@ -4459,12 +4512,17 @@ enum CostUsageScanner {
         return previous
     }
 
-    private static func saveCodexCache(_ cache: CostUsageCache, options: Options, range: CostUsageDayRange) {
-        // Provider-specific by design: Codex scans persist resume and report-window metadata.
-        CostUsageCacheIO.save(
-            provider: .codex,
+    private static func saveCodexCache(
+        _ cache: CostUsageCache,
+        store: CostUsageStore,
+        options: Options,
+        range: CostUsageDayRange)
+    {
+        // The serial scan queue remains the per-process writer boundary. The store actor owns
+        // the sole writable connection; app and CLI readers take independent WAL snapshots.
+        CostUsageStoreAccess.save(
+            store: store,
             cache: cache,
-            cacheRoot: options.cacheRoot,
             calendar: range.calendar,
             requestedScanWindow: (sinceKey: range.scanSinceKey, untilKey: range.scanUntilKey),
             reportWindow: (sinceKey: range.sinceKey, untilKey: range.untilKey))
@@ -4483,7 +4541,6 @@ enum CostUsageScanner {
         let plan = Self.makeCodexRefreshPlan(cache: cache, range: range, now: now, nowMs: nowMs, options: options)
         let previousReport = Self.codexPreviousReportCandidate(
             cache: cache,
-            incompatibleCache: loadedCache.incompatibleCache,
             range: range,
             plan: plan,
             options: options)
@@ -4693,7 +4750,7 @@ enum CostUsageScanner {
             }
             cache.lastScanUnixMs = nowMs
             try checkCancellation?()
-            Self.saveCodexCache(cache, options: options, range: range)
+            Self.saveCodexCache(cache, store: loadedCache.store, options: options, range: range)
         }
 
         if let previous = Self.codexPreviousReport(
@@ -4850,7 +4907,8 @@ enum CostUsageScanner {
             changedPriorityTurnIDs: plan.changedPriorityTurnIDs,
             resources: resources,
             checkCancellation: checkCancellation,
-            scanBudget: scanBudget)
+            scanBudget: scanBudget,
+            workRecorder: options.codexScanWorkRecorderForTesting)
     }
 
     static func sortedCodexSessionFilesNewestFirst(_ files: [URL]) -> [URL] {

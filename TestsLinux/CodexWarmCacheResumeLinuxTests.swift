@@ -100,8 +100,7 @@ struct CodexWarmCacheResumeLinuxTests {
     }
 
     private static func persistedCache(cacheRoot: URL) throws -> CostUsageCache {
-        let data = try Data(contentsOf: CostUsageCacheIO.cacheFileURL(provider: .codex, cacheRoot: cacheRoot))
-        return try JSONDecoder().decode(CostUsageCache.self, from: data)
+        CostUsageStoreAccess.read(cacheRoot: cacheRoot)
     }
 
     @Test
