@@ -980,4 +980,85 @@ extension SpendDashboardModelTests {
         #expect(group.modelHistoryCompleteness == .incomplete)
         #expect(group.models.isEmpty)
     }
+
+    @Test
+    func `full 30 day coverage keeps unpriced spend unavailable instead of zero`() throws {
+        let snapshot = Self.snapshot(
+            currency: "USD",
+            entries: [
+                Self.entry(day: "2026-07-16", cost: nil, tokens: 12, model: nil),
+                Self.entry(day: "2026-07-15", cost: nil, tokens: 8, model: nil),
+            ])
+        let group = try #require(SpendDashboardModel.build(
+            inputs: [.init(provider: .claude, displayName: "Claude", snapshot: snapshot)],
+            requestedDays: 30,
+            now: Self.now,
+            calendar: Self.calendar).groups.first)
+
+        #expect(group.coveredDayCount == 30)
+        #expect(group.totalCost == nil)
+        #expect(group.totalTokens == 20)
+        #expect(group.modelHistoryCompleteness == .incomplete)
+        #expect(group.models.isEmpty)
+        #expect(spendDashboardModelHistoryPresentation(group) == .unavailable)
+    }
+
+    @Test
+    func `full 30 day coverage keeps empty and known zero spend distinct from unavailable`() throws {
+        let unpriced = SpendDashboardModel.build(
+            inputs: [.init(provider: .claude, displayName: "Claude", snapshot: Self.snapshot(
+                currency: "USD",
+                entries: [Self.entry(day: "2026-07-16", cost: nil, tokens: 12, model: nil)]))],
+            requestedDays: 30,
+            now: Self.now,
+            calendar: Self.calendar)
+        let empty = SpendDashboardModel.build(
+            inputs: [.init(provider: .claude, displayName: "Claude", snapshot: CostUsageTokenSnapshot(
+                sessionTokens: nil,
+                sessionCostUSD: nil,
+                last30DaysTokens: 0,
+                last30DaysCostUSD: 0,
+                currencyCode: "USD",
+                historyDays: 30,
+                daily: [],
+                updatedAt: Self.now))],
+            requestedDays: 30,
+            now: Self.now,
+            calendar: Self.calendar)
+        let knownZero = SpendDashboardModel.build(
+            inputs: [.init(provider: .claude, displayName: "Claude", snapshot: Self.snapshot(
+                currency: "USD",
+                entries: [
+                    Self.entry(day: "2026-07-16", cost: 0, tokens: 0, model: nil),
+                    Self.entry(day: "2026-07-15", cost: 0, tokens: 0, model: nil),
+                ]))],
+            requestedDays: 30,
+            now: Self.now,
+            calendar: Self.calendar)
+
+        for model in [unpriced, empty, knownZero] {
+            let group = try #require(model.groups.first)
+            #expect(group.coveredDayCount == 30)
+        }
+
+        let unpricedGroup = try #require(unpriced.groups.first)
+        #expect(unpricedGroup.totalCost == nil)
+        #expect(unpricedGroup.modelHistoryCompleteness == .incomplete)
+        #expect(unpricedGroup.models.isEmpty)
+        #expect(spendDashboardModelHistoryPresentation(unpricedGroup) == .unavailable)
+
+        let emptyGroup = try #require(empty.groups.first)
+        #expect(emptyGroup.totalCost == 0)
+        #expect(emptyGroup.totalTokens == 0)
+        #expect(emptyGroup.modelHistoryCompleteness == .complete)
+        #expect(emptyGroup.models.isEmpty)
+        #expect(spendDashboardModelHistoryPresentation(emptyGroup) == .empty)
+
+        let knownZeroGroup = try #require(knownZero.groups.first)
+        #expect(knownZeroGroup.totalCost == 0)
+        #expect(knownZeroGroup.totalTokens == 0)
+        #expect(knownZeroGroup.modelHistoryCompleteness == .complete)
+        #expect(knownZeroGroup.models.isEmpty)
+        #expect(spendDashboardModelHistoryPresentation(knownZeroGroup) == .empty)
+    }
 }
