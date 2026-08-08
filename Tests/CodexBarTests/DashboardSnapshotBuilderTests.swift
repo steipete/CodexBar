@@ -439,6 +439,50 @@ struct DashboardSnapshotBuilderTests {
     }
 
     @Test
+    func `claude swap account keeps email when usage fetch fails`() throws {
+        let snapshot = self.claudeSwapSnapshot(
+            number: 1,
+            email: "stale@example.com",
+            usageStatus: .tokenExpired,
+            identityMode: .full)
+        let account = try self.firstClaudeSwapAccount(snapshot)
+        let identity = try #require(account["identity"] as? [String: Any])
+
+        #expect(identity["accountEmail"] as? String == "stale@example.com")
+        #expect(account["label"] as? String == "stale@example.com")
+        #expect((account["windows"] as? [Any])?.isEmpty == true)
+    }
+
+    @Test
+    func `claude swap failed account redacts email in identity and label`() throws {
+        let snapshot = self.claudeSwapSnapshot(
+            number: 4,
+            email: "private-person@example.com",
+            usageStatus: .noCredentials,
+            identityMode: .redacted)
+        let account = try self.firstClaudeSwapAccount(snapshot)
+        let identity = try #require(account["identity"] as? [String: Any])
+        let encoded = try #require(CodexBarCLI.encodeJSON(snapshot, pretty: false))
+
+        #expect(identity["accountEmail"] as? String == "redacted@example.com")
+        #expect(account["label"] as? String == "redacted@example.com")
+        #expect(!encoded.contains("private-person"))
+    }
+
+    @Test
+    func `claude swap placeholder label stays a slot label without identity`() throws {
+        let snapshot = self.claudeSwapSnapshot(
+            number: 7,
+            email: "",
+            usageStatus: .unavailable,
+            identityMode: .full)
+        let account = try self.firstClaudeSwapAccount(snapshot)
+
+        #expect(account["label"] as? String == "Account 7")
+        #expect(account["identity"] is NSNull)
+    }
+
+    @Test
     func `dashboard redaction keeps only the final email domain`() throws {
         let snapshot = DashboardSnapshotBuilder.makeSnapshot(
             usagePayloads: [self.identityPayload(email: #""foo@bar"@example.com"#)],
@@ -626,6 +670,39 @@ struct DashboardSnapshotBuilderTests {
             antigravityPlanInfo: nil,
             openaiDashboard: nil,
             error: nil)
+    }
+
+    private func claudeSwapSnapshot(
+        number: Int,
+        email: String,
+        usageStatus: ClaudeSwapUsageStatus,
+        identityMode: DashboardIdentityMode) -> DashboardSnapshotPayload
+    {
+        // Provider-specific by design: these fixtures cover claude-swap labels without usage snapshots.
+        let account = ClaudeSwapAccountProjection.accountSnapshots(from: ClaudeSwapAccountList(
+            activeAccountNumber: number,
+            accounts: [ClaudeSwapAccountRow(
+                number: number,
+                email: email,
+                isActive: true,
+                usageStatus: usageStatus,
+                fiveHour: nil,
+                sevenDay: nil)]))
+        return DashboardSnapshotBuilder.makeSnapshot(
+            usagePayloads: [self.identityPayload(email: "ambient@example.com")],
+            costPayloads: [],
+            config: CodexBarConfig(providers: [ProviderConfig(id: .claude, enabled: true)]),
+            identityMode: identityMode,
+            generatedAt: Date(timeIntervalSince1970: 0),
+            refreshInterval: 60,
+            codexBarVersion: nil,
+            claudeSwap: DashboardClaudeSwapInput(accounts: account, adapterError: nil, weeklyWorkDays: nil))
+    }
+
+    private func firstClaudeSwapAccount(_ snapshot: DashboardSnapshotPayload) throws -> [String: Any] {
+        let object = try self.jsonObject(snapshot)
+        let provider = try #require((object["providers"] as? [[String: Any]])?.first)
+        return try #require((provider["accounts"] as? [[String: Any]])?.first)
     }
 
     private func firstIdentity(_ snapshot: DashboardSnapshotPayload) -> [String: Any]? {

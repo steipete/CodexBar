@@ -5,6 +5,9 @@
 ### Changed
 - CLI: dashboard snapshot identity now defaults to full; use `--identity redacted` to restore redacted emails.
 
+### Fixed
+- CLI: claude-swap accounts with expired or missing credentials now keep their email on the serve dashboard instead of showing a bare slot number.
+
 ## 0.48.1 — 2026-08-07
 
 ### Fixed

@@ -176,16 +176,20 @@ enum DashboardSnapshotBuilder {
         weeklyWorkDays: Int?,
         generatedAt: Date) -> DashboardAccountPayload
     {
-        let email = account.snapshot?.identity?.accountEmail
-        let redactedEmail = identityMode != .none && email?.contains("@") == true
+        // Provider-specific by design: claude-swap keeps the source email in displayLabel when usage is unavailable.
+        let snapshotEmail = account.snapshot?.identity?.accountEmail
+        let email = snapshotEmail?.contains("@") == true
+            ? snapshotEmail
+            : (account.displayLabel.contains("@") ? account.displayLabel : nil)
+        let presentedEmail = identityMode != .none && email?.contains("@") == true
             ? self.dashboardEmail(email, mode: identityMode)
             : nil
-        let identity = redactedEmail.map { DashboardIdentityPayload(accountEmail: $0, plan: nil) }
+        let identity = presentedEmail.map { DashboardIdentityPayload(accountEmail: $0, plan: nil) }
         // Provider-specific by design: claude-swap account windows and pace use Claude's presentation semantics.
         let metadata = ProviderDescriptorRegistry.descriptor(for: UsageProvider.claude).metadata
         return DashboardAccountPayload(
             id: "\(account.id.source):\(account.id.opaqueID)",
-            label: "Account \(account.id.opaqueID)",
+            label: presentedEmail ?? "Account \(account.id.opaqueID)",
             active: account.isActive,
             identity: identity,
             windows: self.makeWindows(provider: .claude, metadata: metadata, usage: account.snapshot),

@@ -196,7 +196,9 @@ The snapshot is a stable display contract, not a raw dump of provider internals.
 
 When the claude-swap integration is enabled, the Claude provider row additionally includes an `accounts` array. This
 is an additive schema-v1 extension: other provider rows and Claude rows without the integration keep their existing
-shape. Account identity follows the dashboard identity mode: full by default, or redacted with `--identity redacted`.
+shape. An account's `label` is its email when known and otherwise falls back to its slot label; `identity` is present
+whenever claude-swap reports an email, independently of whether that account's usage fetch succeeds. Both fields follow
+the dashboard identity mode: full by default, or redacted with `--identity redacted`.
 A failure limited to one account stays in that account's `error`; a failure of the whole adapter sets `accountsError`
 while leaving the ambient Claude row intact.
 
@@ -208,7 +210,7 @@ while leaving the ambient Claude row intact.
   "accounts": [
     {
       "id": "claude-swap:2",
-      "label": "Account 2",
+      "label": "personal@personal.example",
       "active": true,
       "identity": { "accountEmail": "personal@personal.example", "plan": null },
       "windows": [
@@ -225,9 +227,9 @@ while leaving the ambient Claude row intact.
     },
     {
       "id": "claude-swap:1",
-      "label": "Account 1",
+      "label": "expired@example.com",
       "active": false,
-      "identity": null,
+      "identity": { "accountEmail": "expired@example.com", "plan": null },
       "windows": [],
       "pace": null,
       "error": "Token expired. Switch to this account in claude-swap to refresh it.",
@@ -259,9 +261,11 @@ while leaving the ambient Claude row intact.
 - `providers[].accounts`: Ordered local multi-account entries when an integration supplies them; an enabled source
   with no accounts emits `[]`.
   - `id`: Stable source and slot identifier, such as `claude-swap:2`.
-  - `label`: Stable, non-sensitive display key, such as `Account 2`.
+  - `label`: Account email when known, otherwise a slot label such as `Account 2`; email labels follow the dashboard
+    identity mode.
   - `active`: Whether this is the source's active account.
-  - `identity`: Account email with a `null` plan, or `null`; the email local part is hidden only in redacted mode.
+  - `identity`: Account email with a `null` plan whenever claude-swap reports one, even if usage fetching fails;
+    otherwise `null`. The email local part is hidden only in redacted mode.
   - `windows`: Account-local session, weekly, and scoped windows in the same shape as `providers[].windows`.
   - `pace`: Account-local primary, secondary, and tertiary pace values when computable. Each pace value contains
     `stage`, `deltaPercent`, `expectedUsedPercent`, `willLastToReset`, `etaSeconds`, `runOutProbability`, and `summary`.
