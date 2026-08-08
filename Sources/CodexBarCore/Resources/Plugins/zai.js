@@ -103,6 +103,48 @@ defineProvider({
       if (limit.remaining !== null) parts.push(`${limit.remaining} remaining`);
       return { label, value: `${limit.percent.toFixed(limit.percent % 1 ? 1 : 0)}% used`, secondaryValue: parts.join(" · ") || undefined };
     }
+    // Mirrors UsageFormatter.resetCountdownDescription so the row reads like native reset text.
+    function countdownText(millis) {
+      const seconds = Math.max(0, millis / 1000);
+      if (seconds < 1) return "now";
+      const totalMinutes = Math.max(1, Math.ceil(seconds / 60));
+      const days = Math.floor(totalMinutes / 1440);
+      const hours = Math.floor(totalMinutes / 60) % 24;
+      const minutes = totalMinutes % 60;
+      if (days > 0) {
+        if (hours > 0) return `in ${days}d ${hours}h`;
+        if (minutes > 0) return `in ${days}d ${minutes}m`;
+        return `in ${days}d`;
+      }
+      if (hours > 0) return minutes > 0 ? `in ${hours}h ${minutes}m` : `in ${hours}h`;
+      return `in ${totalMinutes}m`;
+    }
+    // Peak is Mon-Fri 06:00-10:00 UTC (14:00-18:00 UTC+8); weekends are off-peak all day.
+    // Credit plans charge 1x peak / 0.5x off-peak (docs.z.ai/devpack/overview); legacy
+    // TOKENS_LIMIT plans charge model-dependent flat rates, so the row is credit-only.
+    // No z.ai endpoint exposes this - it is purely a function of the injected clock.
+    function quotaRateRow() {
+      const PEAK_START = 6;
+      const PEAK_END = 10;
+      const now = ctx.date.now();
+      const day = now.getUTCDay();
+      const hour = now.getUTCHours();
+      const isPeak = day >= 1 && day <= 5 && hour >= PEAK_START && hour < PEAK_END;
+      const boundary = new Date(Date.UTC(
+        now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), isPeak ? PEAK_END : PEAK_START));
+      if (!isPeak) {
+        if (hour >= PEAK_START) boundary.setUTCDate(boundary.getUTCDate() + 1);
+        while (boundary.getUTCDay() === 0 || boundary.getUTCDay() === 6) {
+          boundary.setUTCDate(boundary.getUTCDate() + 1);
+        }
+      }
+      const countdown = countdownText(boundary.getTime() - now.getTime());
+      return {
+        label: "Quota rate",
+        value: isPeak ? "Peak" : "Off-peak",
+        secondaryValue: `${isPeak ? "off-peak" : "peak"} ${countdown}`,
+      };
+    }
 
     const limits = root.data.limits.map(parseLimit).filter(Boolean);
     const tokenLimits = limits.filter(item => item.raw.type === "TOKENS_LIMIT" || item.raw.type === "CREDIT_LIMIT")
@@ -122,6 +164,8 @@ defineProvider({
     }
     if (tokenLimit) result.details[0].rows.push(limitRow(tokenLimit.raw.type === "CREDIT_LIMIT" ? "Credit quota" : "Token quota", tokenLimit));
     if (sessionLimit) result.details[0].rows.push(limitRow(sessionLimit.raw.type === "CREDIT_LIMIT" ? "Session credit quota" : "Session token quota", sessionLimit));
+    const hasCreditLimit = [tokenLimit, sessionLimit].some(item => item && item.raw.type === "CREDIT_LIMIT");
+    if (hasCreditLimit) result.details[0].rows.push(quotaRateRow());
     if (timeLimit) {
       result.details[0].rows.push(limitRow("MCP quota", timeLimit));
       for (const detail of timeLimit.details.slice(0, 20)) {
