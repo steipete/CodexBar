@@ -132,7 +132,7 @@ struct PreferencesSpendDashboardShareTests {
     }
 
     @Test
-    func `provider family overflow fails closed`() throws {
+    func `provider family overflow fails closed`() {
         let model = SpendDashboardModel(requestedDays: 30, groups: [
             Self.group(currencyCode: "USD", providers: [
                 Self.row(id: "codex:personal", tokens: Int.max, cost: Double.greatestFiniteMagnitude),
@@ -147,16 +147,12 @@ struct PreferencesSpendDashboardShareTests {
                 state: .connected,
                 contributesCostHistory: true)
         }
-        let payload = try #require(SpendDashboardPane.makeSharePayload(
+        let payload = SpendDashboardPane.makeSharePayload(
             model: model,
             subscriptionNames: [:],
-            trackedSources: trackedSources))
+            trackedSources: trackedSources)
 
-        #expect(payload.providers.first?.totalTokens == nil)
-        #expect(payload.providers.first?.estimatedCost == nil)
-        let allCurrenciesArePartial = payload.currencies.allSatisfy(\.isPartial)
-        #expect(allCurrenciesArePartial)
-        #expect(payload.totalTokensIsPartial)
+        #expect(payload == nil)
     }
 
     @Test
