@@ -3,6 +3,8 @@
 ## 0.48.2 — Unreleased
 
 ### Fixed
+- Menu: let long metric reset and pace details wrap to two lines instead of truncating, without clipping cached card heights (#2742). Thanks @Yuxin-Qiao!
+- Menu: let compact metric detail and reset rows wrap to a second line instead of truncating, so non-English locales keep the full pace and reset information (refs #2182). Thanks @Yuxin-Qiao!
 - Kimi: use official usage lane names and hide the Code 7-day row only when it duplicates the primary seven-day quota (matching percentage and reset) (#2741). Thanks @Yuxin-Qiao!
 - Menu bar: keep custom reset-countdown tokens aligned with the opened menu by using the exact display clock instead of rounding to the wall minute (#2735). Thanks @hyuntaedotkim!
 - Codex: apply a manual reset even when the provider omits the redeemed credit from the next inventory — both samples must corroborate consumption, and the exemption stays one-shot (#2728). Thanks @endless7!
@@ -28,14 +30,6 @@
 
 ### Fixed
 - CLI: answer expired serve-cache requests from the last-good response while rebuilding in the background instead of blocking the dashboard for up to a minute.
-
-### Fixed
-
-### Fixed
-- Kimi: hide the Code 7-day window when it reports the same percentage and reset time as the primary weekly quota, so the menu no longer shows one allowance twice.
-
-### Fixed
-- Menu bar: keep custom reset countdowns aligned with the opened menu instead of rounding their clock back to the start of the wall minute.
 
 ## 0.48.0 — 2026-08-06
 
