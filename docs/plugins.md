@@ -106,6 +106,8 @@ so portable third-party plugins must use the host helpers below instead of ECMA-
   24 hours.
 - `ctx.date.now()`, `iso(text)`, `unixSeconds(number)`, and `unixMillis(number)` create JavaScript dates. `now()` uses
   the host refresh clock.
+- `ctx.date.nowMillis()` returns the same host refresh clock as Unix epoch milliseconds — use it for arithmetic that
+  should stay deterministic under fixture clocks (the z.ai quota-rate row does).
 - `ctx.date.nextDailyReset(timeZoneIdentifier, hour)` returns the next wall-clock reset in an IANA time zone.
 - `ctx.env.timeZone` is the host's current IANA time-zone identifier; zero-offset GMT aliases are normalized to `UTC`.
 - `ctx.format.number(value, options?)`, `usd(value)`, and `monthDay(date)` provide deterministic formatting on both
