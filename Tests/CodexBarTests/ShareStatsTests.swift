@@ -118,7 +118,8 @@ struct ShareStatsTests {
 
         #expect(payload.totalTokens == 500)
         #expect(payload.totalTokensIsPartial)
-        #expect(payload.currencies.only?.isPartial == true)
+        #expect(payload.currencies.count == 1)
+        #expect(payload.currencies.first?.isPartial == true)
         #expect(payload.spendReportingProviderCount == 1)
         #expect(payload.providers.count == 2)
     }

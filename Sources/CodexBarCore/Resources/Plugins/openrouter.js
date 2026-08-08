@@ -48,7 +48,7 @@ defineProvider({
     const balance = Math.max(0, totalCredits - totalUsage);
     let keyData = null;
     try {
-      const keyResponse = await ctx.http.get(`${base}/key`, { timeoutSeconds: 1 });
+      const keyResponse = await ctx.http.get(`${base}/key`, { timeoutSeconds: 5 });
       const keyPayload = keyResponse.status === 200 ? JSON.parse(keyResponse.bodyText) : null;
       if (keyPayload && keyPayload.data && typeof keyPayload.data === "object" &&
           !Array.isArray(keyPayload.data)) {
