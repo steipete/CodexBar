@@ -41,6 +41,30 @@ struct SpendDashboardDateTruthTests {
     }
 
     @Test
+    func `OpenRouter thirty completed days stay partial in annual view`() throws {
+        var utc = Calendar(identifier: .gregorian)
+        utc.timeZone = try #require(TimeZone(secondsFromGMT: 0))
+        let now = try #require(ISO8601DateFormatter().date(from: "2026-08-07T12:00:00Z"))
+        let snapshot = Self.snapshot(
+            currency: "USD",
+            entries: [Self.entry(day: "2026-08-06", cost: 2, tokens: 20)],
+            historyDays: 30,
+            updatedAt: now)
+        let group = try #require(SpendDashboardModel.build(
+            inputs: [.init(provider: .openrouter, displayName: "OpenRouter", snapshot: snapshot)],
+            requestedDays: 365,
+            now: now,
+            calendar: utc).groups.first)
+
+        #expect(group.providers.first?.coveredDayCount == 30)
+        #expect(group.coveredDayCount == 30)
+        #expect(group.totalCost == nil)
+        #expect(group.knownCost == 2)
+        #expect(group.totalTokens == nil)
+        #expect(group.knownTokens == 20)
+    }
+
+    @Test
     func `Mistral UTC buckets map into Pacific dashboard days at midnight UTC`() throws {
         var pacific = Calendar(identifier: .gregorian)
         pacific.timeZone = try #require(TimeZone(identifier: "America/Los_Angeles"))

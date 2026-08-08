@@ -46,6 +46,30 @@ public struct OpenRouterActivityUsageSnapshot: Codable, Equatable, Sendable {
     public let historyDays: Int
     public let updatedAt: Date
 
+    private enum CodingKeys: String, CodingKey {
+        case daily
+        case historyDays
+        case updatedAt
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let daily = try container.decode([DailyBucket].self, forKey: .daily)
+        let historyDays = try container.decode(Int.self, forKey: .historyDays)
+        let updatedAt = try container.decode(Date.self, forKey: .updatedAt)
+        do {
+            try Self.validate(daily: daily, historyDays: historyDays, updatedAt: updatedAt)
+        } catch {
+            throw DecodingError.dataCorruptedError(
+                forKey: .daily,
+                in: container,
+                debugDescription: "OpenRouter activity history is invalid")
+        }
+        self.daily = daily
+        self.historyDays = historyDays
+        self.updatedAt = updatedAt
+    }
+
     /// Decodes the documented `/api/v1/activity` envelope and keeps only the requested
     /// completed UTC-day window. OpenRouter currently exposes at most 30 completed days.
     public init(data: Data, now: Date, historyDays: Int = 30) throws {
@@ -93,9 +117,7 @@ public struct OpenRouterActivityUsageSnapshot: Codable, Equatable, Sendable {
                 usageUSD: Self.sum(models.map(\.usageUSD)),
                 models: models)
         }.sorted { $0.date < $1.date }
-        _ = try Self.sum(daily.map(\.totalTokens))
-        _ = try Self.sum(daily.map(\.requests))
-        _ = try Self.sum(daily.map(\.usageUSD))
+        try Self.validate(daily: daily, historyDays: days, updatedAt: now)
         self.daily = daily
         self.historyDays = days
         self.updatedAt = now
@@ -129,7 +151,7 @@ public struct OpenRouterActivityUsageSnapshot: Codable, Equatable, Sendable {
             currencyCode: "USD",
             historyDays: self.historyDays,
             historyCoverageIsEstablished: true,
-            historyLabel: "Last \(self.historyDays) completed UTC days",
+            historyLabel: "OpenRouter account activity · Last \(self.historyDays) completed UTC days",
             daily: daily,
             updatedAt: self.updatedAt)
     }
@@ -241,6 +263,65 @@ public struct OpenRouterActivityUsageSnapshot: Codable, Equatable, Sendable {
         let total = values.reduce(0, +)
         guard total.isFinite else { throw DecodeError.numericOverflow }
         return total
+    }
+
+    private static func validate(
+        daily: [DailyBucket],
+        historyDays: Int,
+        updatedAt: Date) throws
+    {
+        guard (1...30).contains(historyDays), daily.count <= historyDays else {
+            throw DecodeError.invalidActivityItem
+        }
+        let today = self.utcCalendar.startOfDay(for: updatedAt)
+        guard let firstDay = self.utcCalendar.date(byAdding: .day, value: -historyDays, to: today) else {
+            throw DecodeError.invalidDateWindow
+        }
+        var dates = Set<String>()
+        for bucket in daily {
+            guard let date = self.date(from: bucket.date),
+                  date >= firstDay,
+                  date < today,
+                  dates.insert(bucket.date).inserted,
+                  bucket.promptTokens >= 0,
+                  bucket.completionTokens >= 0,
+                  bucket.reasoningTokens >= 0,
+                  bucket.requests >= 0,
+                  bucket.usageUSD.isFinite,
+                  bucket.usageUSD >= 0,
+                  !bucket.models.isEmpty,
+                  bucket.models.count <= 10000
+            else { throw DecodeError.invalidActivityItem }
+            _ = try self.add(bucket.promptTokens, bucket.completionTokens)
+
+            var modelNames = Set<String>()
+            for model in bucket.models {
+                guard !model.model.isEmpty,
+                      modelNames.insert(model.model).inserted,
+                      model.promptTokens >= 0,
+                      model.completionTokens >= 0,
+                      model.reasoningTokens >= 0,
+                      model.requests >= 0,
+                      model.usageUSD.isFinite,
+                      model.usageUSD >= 0
+                else { throw DecodeError.invalidActivityItem }
+                _ = try self.add(model.promptTokens, model.completionTokens)
+            }
+            let promptTokens = try self.sum(bucket.models.map(\.promptTokens))
+            let completionTokens = try self.sum(bucket.models.map(\.completionTokens))
+            let reasoningTokens = try self.sum(bucket.models.map(\.reasoningTokens))
+            let requests = try self.sum(bucket.models.map(\.requests))
+            let usageUSD = try self.sum(bucket.models.map(\.usageUSD))
+            guard bucket.promptTokens == promptTokens,
+                  bucket.completionTokens == completionTokens,
+                  bucket.reasoningTokens == reasoningTokens,
+                  bucket.requests == requests,
+                  bucket.usageUSD == usageUSD
+            else { throw DecodeError.invalidActivityItem }
+        }
+        _ = try self.sum(daily.map { try self.add($0.promptTokens, $0.completionTokens) })
+        _ = try self.sum(daily.map(\.requests))
+        _ = try self.sum(daily.map(\.usageUSD))
     }
 
     private static func modelSort(_ lhs: ModelBreakdown, _ rhs: ModelBreakdown) -> Bool {

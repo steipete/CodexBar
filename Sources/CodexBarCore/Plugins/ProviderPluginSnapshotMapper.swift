@@ -62,7 +62,7 @@ enum ProviderPluginSnapshotMapper {
               rows.isArray,
               let rawCount = rows.property("length")?.int32Value(),
               rawCount >= 0,
-              rawCount <= 10_000
+              rawCount <= 10000
         else { return nil }
 
         do {
@@ -71,23 +71,23 @@ enum ProviderPluginSnapshotMapper {
                     throw ProviderPluginError.invalidSnapshot("openRouterActivityUsage.data must contain objects")
                 }
                 let path = "openRouterActivityUsage.data[\(index)]"
-                return [
-                    "date": try self.requiredString(row, property: "date", path: path),
-                    "model": try self.requiredString(row, property: "model", path: path),
-                    "prompt_tokens": try self.requiredNonnegativeInteger(
+                return try [
+                    "date": self.requiredString(row, property: "date", path: path),
+                    "model": self.requiredString(row, property: "model", path: path),
+                    "prompt_tokens": self.requiredNonnegativeInteger(
                         row,
                         property: "prompt_tokens",
                         path: path),
-                    "completion_tokens": try self.requiredNonnegativeInteger(
+                    "completion_tokens": self.requiredNonnegativeInteger(
                         row,
                         property: "completion_tokens",
                         path: path),
-                    "reasoning_tokens": try self.requiredNonnegativeInteger(
+                    "reasoning_tokens": self.requiredNonnegativeInteger(
                         row,
                         property: "reasoning_tokens",
                         path: path),
-                    "requests": try self.requiredNonnegativeInteger(row, property: "requests", path: path),
-                    "usage": try self.requiredNonnegativeNumber(row, property: "usage", path: path),
+                    "requests": self.requiredNonnegativeInteger(row, property: "requests", path: path),
+                    "usage": self.requiredNonnegativeNumber(row, property: "usage", path: path),
                 ]
             }
             let data = try JSONSerialization.data(withJSONObject: ["data": items])

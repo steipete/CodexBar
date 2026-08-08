@@ -65,6 +65,13 @@ struct ProviderPluginDetailsParityTests {
 
         #expect(script.primary?.usedPercent == 25)
         #expect(script.identity?.loginMethod == "Balance: $60.00")
+        let activity = try #require(script.openRouterActivityUsage)
+        let activityCost = activity.toCostUsageTokenSnapshot()
+        #expect(activityCost.last30DaysTokens == 45)
+        #expect(activityCost.last30DaysRequests == 3)
+        #expect(abs((activityCost.last30DaysCostUSD ?? -1) - 0.015) < 0.000_000_001)
+        #expect(activityCost.daily.count == 1)
+        #expect(activityCost.daily.first?.modelBreakdowns?.count == 1)
         #expect(try script.details == [
             Self.section("Credits", rows: [
                 Self.row("Remaining", "$60.00"),
@@ -87,6 +94,24 @@ struct ProviderPluginDetailsParityTests {
                     ("Today", 1), ("This week", 2), ("This month", 4),
                 ])),
         ])
+    }
+
+    @Test
+    func `OpenRouter malformed optional activity preserves credits on both plugin engines`() async throws {
+        let transport = Self.transport { request in
+            switch request.url?.path {
+            case "/api/v1/credits": Self.openRouterCredits
+            case "/api/v1/key": Self.openRouterKey
+            case "/api/v1/activity": #"{"data":[{"date":"2026-08-01","usage":"free"}]}"#
+            default: throw FixtureError.unexpectedURL(request.url)
+            }
+        }
+
+        let script = try await ProviderPluginRuntime(bundledPlugin: "openrouter", transport: transport)
+            .fetchUsage(secrets: ["OPENROUTER_API_KEY": "fixture-key"])
+
+        #expect(script.openRouterActivityUsage == nil)
+        #expect(script.identity?.loginMethod == "Balance: $60.00")
     }
 
     @Test
@@ -499,7 +524,14 @@ struct ProviderPluginDetailsParityTests {
     "usage_daily":1,"usage_weekly":2,"usage_monthly":4,
     "rate_limit":{"requests":120,"interval":"10s"}}}
     """#
-    private static let openRouterActivity = #"{"data":[]}"#
+    private static let openRouterActivity = #"""
+    {"data":[
+      {"date":"2026-08-01","model":"anthropic/claude-sonnet-4-6","prompt_tokens":10,
+       "completion_tokens":20,"reasoning_tokens":5,"requests":2,"usage":0.01},
+      {"date":"2026-08-01","model":"anthropic/claude-sonnet-4-6","prompt_tokens":5,
+       "completion_tokens":10,"reasoning_tokens":2,"requests":1,"usage":0.005}
+    ]}
+    """#
     private static let poeBalance = #"{"current_point_balance":2500}"#
     private static let poeHistory = #"""
     {"data":[

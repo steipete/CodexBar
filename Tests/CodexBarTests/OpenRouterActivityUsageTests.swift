@@ -58,6 +58,58 @@ struct OpenRouterActivityUsageTests {
         #expect(abs((firstDay.costUSD ?? -1) - 0.02) < 0.000_000_001)
     }
 
+    @Test
+    func `persisted activity validates before entering spend totals`() throws {
+        let activity = try OpenRouterActivityUsageSnapshot(
+            data: Data(Self.activityFixture.utf8),
+            now: Self.now)
+        let usage = UsageSnapshot(
+            primary: nil,
+            secondary: nil,
+            openRouterActivityUsage: activity,
+            updatedAt: Self.now)
+        let encoded = try JSONEncoder().encode(usage)
+
+        let decoded = try JSONDecoder().decode(UsageSnapshot.self, from: encoded)
+        #expect(decoded.openRouterActivityUsage == activity)
+
+        let encodedText = try #require(String(data: encoded, encoding: .utf8))
+        let invalidText = encodedText.replacingOccurrences(
+            of: #""promptTokens":60"#,
+            with: #""promptTokens":-1"#)
+        #expect(invalidText != encodedText)
+        let invalid = Data(invalidText.utf8)
+        #expect(throws: DecodingError.self) {
+            _ = try JSONDecoder().decode(UsageSnapshot.self, from: invalid)
+        }
+    }
+
+    @Test
+    func `non OpenRouter plugins cannot inject activity history`() async throws {
+        let runtime = try ProviderPluginRuntime(source: #"""
+        defineProvider({
+          id: "synthetic",
+          name: "Synthetic fixture",
+          endpoints: ["https://fixture.example"],
+          settings: [],
+          async fetchUsage() {
+            return {
+              primary: { usedPercent: 1 },
+              openRouterActivityUsage: { data: [{
+                date: "2026-08-06", model: "openai/gpt-5.6-sol",
+                prompt_tokens: 10, completion_tokens: 20, reasoning_tokens: 5,
+                requests: 1, usage: 0.01,
+              }] },
+            };
+          },
+        });
+        """#)
+
+        let snapshot = try await runtime.fetchUsage(now: Self.now)
+
+        #expect(snapshot.openRouterActivityUsage == nil)
+    }
+
     @Test @MainActor
     func `transient activity failure preserves only current credential history`() throws {
         let activity = try OpenRouterActivityUsageSnapshot(
@@ -118,8 +170,8 @@ struct OpenRouterActivityUsageTests {
         #expect(abs((activity.toCostUsageTokenSnapshot().last30DaysCostUSD ?? -1) - 0.05) < 0.000_000_001)
     }
 
-    @Test
-    func `bundled plugin treats activity forbidden as optional`() async throws {
+    @Test(arguments: [403, 404])
+    func `bundled plugin treats unavailable activity as optional`(statusCode: Int) async throws {
         let requests = OpenRouterActivityRequestRecorder()
         let transport = ProviderHTTPTransportHandler { request in
             await requests.append(request)
@@ -128,7 +180,7 @@ struct OpenRouterActivityUsageTests {
                 return try Self.response(
                     request,
                     body: #"{"error":{"message":"management key required"}}"#,
-                    statusCode: 403)
+                    statusCode: statusCode)
             case "key":
                 return try Self.response(request, body: #"{"data":{}}"#)
             default:

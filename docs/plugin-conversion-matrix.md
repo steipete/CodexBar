@@ -69,7 +69,7 @@ that remain cheap to convert. Remaining buckets name the next blocker after this
 | ollama | `needs-cookie-import` | No | Skipped: hosted parity requires HTML bootstrap/state extraction plus API-key fallback arbitration. |
 | synthetic | `cut-over` | Yes | Cut over on both engines: fixed-origin bearer GET with generic windows, cost, dates, and identity; the native fetch twin is deleted. |
 | warp | `needs-pty/webview/native` | No | Warp sends a POST GraphQL operation, which the GET-only HTTP broker cannot express. |
-| openrouter | `cut-over` | Yes | Cut over on JavaScriptCore: endpoint and client-header overrides plus one-second best-effort key enrichment match native behavior; the native fetch core is Linux-only. |
+| openrouter | `cut-over` | Yes | Cut over on both engines: endpoint and client-header overrides, best-effort key enrichment, and management-key completed-day model activity are plugin-owned; the native fetch core is deleted. |
 | elevenlabs | `convertible-now` | No | Verified `xi-api-key` GET; heterogeneous character/minute quotas map to named generic windows. |
 | windsurf | `needs-files/subprocess/oauth-broker` | No | Chromium localStorage, IDE databases, and binary protobuf decoding supply the current session. |
 | zed | `needs-files/subprocess/oauth-broker` | No | Zed server settings and a named Keychain credential must be read locally. |

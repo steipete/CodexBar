@@ -189,7 +189,8 @@ prototype flag, so cut-over providers retain timeout and fresh-context recovery 
 ## Current limitations
 
 The remaining bundled-conversion flag is macOS-only and compiled out when JavaScriptCore is unavailable. It supports bundled
-first-party IDs and the generic snapshot and declarative details only: no provider-specific Swift payloads,
+first-party IDs, the generic snapshot, declarative details, and explicitly allowlisted behavioral payload projections:
+no arbitrary provider-specific Swift payloads,
 OAuth/refresh broker, local files or databases, subprocesses,
 arbitrary/form POST bodies, PTY, WebView, binary/protobuf responses, private-network HTTP, or unvalidated dynamic
 origins. The separate user-plugin path adds local `.js`/`.ts` discovery, approval, and settings without changing these
@@ -201,4 +202,4 @@ first-party flag semantics. Browser cookies remain restricted to declared domain
 Display-only provider payloads now use `details` on both the Swift and JavaScript paths. The remaining bespoke
 `UsageSnapshot` fields drive behavior rather than presentation: Codex reset-credit actions, Command Code refresh
 stabilization, DeepSeek profile selection/transition state, and provider-derived token-cost pipelines for OpenAI API,
-Mistral, and OpenCode Go. They are not plugin compatibility shims.
+OpenRouter completed-day activity, Mistral, and OpenCode Go. They are not plugin compatibility shims.
