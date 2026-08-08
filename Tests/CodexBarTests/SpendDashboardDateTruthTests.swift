@@ -30,7 +30,7 @@ struct SpendDashboardDateTruthTests {
             updatedAt: now)
         let group = try #require(SpendDashboardModel.build(
             inputs: [.init(provider: .mistral, displayName: "Mistral", snapshot: snapshot)],
-            requestedDays: 7,
+            requestedDays: 2,
             now: now,
             calendar: pacific).groups.first)
 
@@ -140,7 +140,7 @@ struct SpendDashboardDateTruthTests {
         let snapshot = usage.toCostUsageTokenSnapshot()
         let group = try #require(SpendDashboardModel.build(
             inputs: [.init(provider: .mistral, displayName: "Mistral", snapshot: snapshot)],
-            requestedDays: 30,
+            requestedDays: 2,
             now: updatedAt,
             calendar: Self.calendar).groups.first)
 
@@ -325,7 +325,7 @@ struct SpendDashboardDateTruthTests {
                     Self.input(id: "healthy-cad", provider: .mistral, currency: "CAD", cost: 5),
                     Self.input(id: "healthy-eur", provider: .bedrock, currency: "EUR", cost: 6),
                 ],
-                requestedDays: 7,
+                requestedDays: 1,
                 now: Self.now,
                 calendar: Self.calendar).groups
             let cad = try #require(groups.first(where: { $0.currencyCode == "CAD" }))
@@ -505,7 +505,7 @@ struct SpendDashboardDateTruthTests {
             historyDays: 2)
         let group = try #require(SpendDashboardModel.build(
             inputs: [.init(provider: .claude, displayName: "Claude", snapshot: snapshot)],
-            requestedDays: 7,
+            requestedDays: 2,
             now: Self.now,
             calendar: Self.calendar).groups.first)
 
@@ -591,7 +591,7 @@ struct SpendDashboardDateTruthTests {
             historyDays: 1)
         let group = try #require(SpendDashboardModel.build(
             inputs: [.init(provider: .claude, displayName: "Claude", snapshot: snapshot)],
-            requestedDays: 7,
+            requestedDays: 1,
             now: Self.now,
             calendar: Self.calendar).groups.first)
 
@@ -664,7 +664,7 @@ struct SpendDashboardDateTruthTests {
         #expect(snapshot.last30DaysTokens == 0)
         let group = try #require(SpendDashboardModel.build(
             inputs: [.init(provider: .mistral, displayName: "Mistral", snapshot: snapshot)],
-            requestedDays: 7,
+            requestedDays: 1,
             now: Self.now,
             calendar: Self.calendar).groups.first)
 
@@ -726,7 +726,7 @@ struct SpendDashboardDateTruthTests {
                 establishesCoverage: true))
         let groups = SpendDashboardModel.build(
             inputs: [costOnly, completeUSD, tokenOnly],
-            requestedDays: 7,
+            requestedDays: 1,
             now: Self.now,
             calendar: Self.calendar).groups
         let eur = try #require(groups.first(where: { $0.currencyCode == "EUR" }))

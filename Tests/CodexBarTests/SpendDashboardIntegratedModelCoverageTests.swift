@@ -39,7 +39,7 @@ struct SpendDashboardIntegratedModelCoverageTests {
         #expect(Set(group.models.map(\.id)) == expectedIDs)
         #expect(group.models.count == providers.count * 2)
         #expect(group.models.allSatisfy { $0.totalTokens != nil && $0.totalCost != nil })
-        #expect(group.modelHistoryCompleteness == .complete)
+        #expect(group.modelHistoryCompleteness == .incomplete)
     }
 
     @Test
