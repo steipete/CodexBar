@@ -42,6 +42,7 @@ struct SpendDashboardCoverageTruthTests {
         #expect(group.knownCost == 2)
         #expect(group.totalTokens == nil)
         #expect(group.modelHistoryCompleteness == .incomplete)
+        #expect(spendDashboardAggregateTokenText(group) == "~20")
         #expect(spendDashboardProviderCostText(
             row,
             currencyCode: group.currencyCode,
@@ -82,9 +83,42 @@ struct SpendDashboardCoverageTruthTests {
 
         #expect(group.totalCost == 2)
         #expect(group.totalTokens == 20)
+        #expect(spendDashboardAggregateTokenText(group) == "20")
         #expect(spendDashboardProviderCostText(
             row,
             currencyCode: group.currencyCode,
             requestedDays: 30) == "$2.00")
+    }
+
+    @Test
+    func `aggregate token text qualifies safe mixed coverage and rejects unknown or overflow`() {
+        let date = Date(timeIntervalSince1970: 1_785_974_400)
+        func group(tokens: [Int?]) -> SpendDashboardModel.CurrencyGroup {
+            let providers = tokens.enumerated().map { index, tokens in
+                SpendDashboardModel.ProviderRow(
+                    id: "provider-\(index)",
+                    rank: index + 1,
+                    provider: index == 0 ? .codex : .openrouter,
+                    displayName: index == 0 ? "Codex" : "OpenRouter",
+                    totalTokens: tokens,
+                    totalCost: nil,
+                    coveredDayCount: index == 0 ? 365 : 30)
+            }
+            return SpendDashboardModel.CurrencyGroup(
+                currencyCode: "USD",
+                providers: providers,
+                models: [],
+                dailyPoints: [],
+                totalTokens: nil,
+                totalCost: nil,
+                coveredDayCount: 30,
+                chartDomain: date...date,
+                modelHistoryCompleteness: .incomplete)
+        }
+
+        #expect(spendDashboardAggregateTokenText(group(tokens: [4_000_000, 6_000_000])) == "~10M")
+        #expect(spendDashboardAggregateTokenText(group(tokens: [4_000_000, nil])) == "~4M")
+        #expect(spendDashboardAggregateTokenText(group(tokens: [nil, nil])) == "—")
+        #expect(spendDashboardAggregateTokenText(group(tokens: [.max, .max])) == "—")
     }
 }

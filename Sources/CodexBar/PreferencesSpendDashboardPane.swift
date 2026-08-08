@@ -87,6 +87,23 @@ func spendDashboardAggregateCostText(_ group: SpendDashboardModel.CurrencyGroup)
     return group.totalCost == nil ? "~\(formatted)" : formatted
 }
 
+func spendDashboardAggregateTokenText(_ group: SpendDashboardModel.CurrencyGroup) -> String {
+    if let totalTokens = group.totalTokens {
+        return UsageFormatter.tokenCountString(totalTokens)
+    }
+
+    var knownTokens = 0
+    var hasKnownTokens = false
+    for tokens in group.providers.compactMap(\.totalTokens) {
+        let addition = knownTokens.addingReportingOverflow(tokens)
+        guard !addition.overflow else { return "—" }
+        knownTokens = addition.partialValue
+        hasKnownTokens = true
+    }
+    guard hasKnownTokens else { return "—" }
+    return "~\(UsageFormatter.tokenCountString(knownTokens))"
+}
+
 func spendDashboardCostCoverageText(_ group: SpendDashboardModel.CurrencyGroup) -> String {
     "\(codexBarLocalizedInteger(group.knownCostProviderCount)) / " +
         "\(codexBarLocalizedInteger(group.providers.count)) \(L("Accounts"))"
@@ -729,7 +746,7 @@ struct SpendCurrencySummaryView: View {
                         value: spendDashboardAggregateCostText(self.group))
                     SpendSummaryValue(
                         title: L("Tracked tokens"),
-                        value: self.group.totalTokens.map(UsageFormatter.tokenCountString) ?? "—")
+                        value: spendDashboardAggregateTokenText(self.group))
                     SpendSummaryValue(
                         title: L("Coverage"),
                         value: spendDashboardCostCoverageText(self.group))
