@@ -115,6 +115,43 @@ struct ProviderPluginDetailsParityTests {
     }
 
     @Test
+    func `OpenRouter delayed optional activity stays within the fast return budget`() async throws {
+        let requests = PluginRequestRecorder()
+        let transport = ProviderHTTPTransportHandler { request in
+            await requests.append(request)
+            if request.url?.path == "/api/v1/activity" {
+                try await Task.sleep(for: .seconds(3))
+                throw URLError(.timedOut)
+            }
+            let body = switch request.url?.path {
+            case "/api/v1/credits": Self.openRouterCredits
+            case "/api/v1/key": Self.openRouterKey
+            default: throw FixtureError.unexpectedURL(request.url)
+            }
+            let response = try #require(HTTPURLResponse(
+                url: request.url!,
+                statusCode: 200,
+                httpVersion: nil,
+                headerFields: ["Content-Type": "application/json"]))
+            return (Data(body.utf8), response)
+        }
+        let clock = ContinuousClock()
+        let startedAt = clock.now
+        let script = try await ProviderPluginRuntime(bundledPlugin: "openrouter", transport: transport)
+            .fetchUsage(secrets: ["OPENROUTER_API_KEY": "fixture-key"])
+        let elapsed = startedAt.duration(to: clock.now)
+        let optionalRequests = await requests.requests.filter {
+            ["key", "activity"].contains($0.url?.lastPathComponent)
+        }
+
+        #expect(optionalRequests.count == 2)
+        #expect(optionalRequests.allSatisfy { $0.timeoutInterval == 1 })
+        #expect(elapsed < .seconds(2))
+        #expect(script.openRouterActivityUsage == nil)
+        #expect(script.identity?.loginMethod == "Balance: $60.00")
+    }
+
+    @Test
     func `ClawRouter fixture matches stable cut-over details`() async throws {
         let transport = Self.transport { request in
             guard request.url?.path == "/v1/usage" else { throw FixtureError.unexpectedURL(request.url) }
@@ -187,6 +224,8 @@ struct ProviderPluginDetailsParityTests {
             (overridden ? "https://codexbar.example" : nil))
         #expect(recorded[1].value(forHTTPHeaderField: "X-Title") == nil)
         #expect(recorded[2].value(forHTTPHeaderField: "X-Title") == nil)
+        #expect(recorded[1].timeoutInterval == 1)
+        #expect(recorded[2].timeoutInterval == 1)
     }
 
     @Test

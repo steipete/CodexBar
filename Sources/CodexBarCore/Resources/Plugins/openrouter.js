@@ -48,7 +48,7 @@ defineProvider({
     const balance = Math.max(0, totalCredits - totalUsage);
     let keyData = null;
     try {
-      const keyResponse = await ctx.http.get(`${base}/key`, { timeoutSeconds: 2 });
+      const keyResponse = await ctx.http.get(`${base}/key`, { timeoutSeconds: 1 });
       const keyPayload = keyResponse.status === 200 ? JSON.parse(keyResponse.bodyText) : null;
       if (keyPayload && keyPayload.data && typeof keyPayload.data === "object" &&
           !Array.isArray(keyPayload.data)) {
@@ -72,7 +72,7 @@ defineProvider({
     // when analytics is forbidden, unsupported by an endpoint override, slow, or malformed.
     let openRouterActivityUsage = null;
     try {
-      const activityResponse = await ctx.http.get(`${base}/activity`, { timeoutSeconds: 5 });
+      const activityResponse = await ctx.http.get(`${base}/activity`, { timeoutSeconds: 1 });
       if (activityResponse.status === 200) {
         const activityPayload = JSON.parse(activityResponse.bodyText);
         if (activityPayload && Array.isArray(activityPayload.data)) {
