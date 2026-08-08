@@ -2225,6 +2225,14 @@ struct ProviderArchitectureGatekeeperTests {
             expectedReferenceFingerprint: ["mistral@0"],
             reason: "This public model-family sanitizer is independent of the provider registry; Mistral is also a provider ID."),
         AllowedProviderConstruct(
+            path: "Sources/CodexBar/ShareStatsPayload.swift",
+            line: 216,
+            anchor: "\"air\": \"Air\", \"chat\": \"Chat\", \"code\": \"Code\", \"coder\": \"Coder\", \"codex\": \"Codex\",",
+            expectedProviderIDs: ["codex"],
+            expectedReferenceCount: 1,
+            expectedReferenceFingerprint: ["codex@0"],
+            reason: "This privacy allowlist recognizes Codex as a public model-name token, not as a provider dispatch."),
+        AllowedProviderConstruct(
             path: "Sources/CodexBar/SessionQuotaNotifications.swift",
             line: 198,
             anchor: "if transition != .restored || observation.provider != .codex {",
@@ -2331,6 +2339,14 @@ struct ProviderArchitectureGatekeeperTests {
             reason: "This exact shared construct dispatches a provider-owned capability at the generic integration boundary."),
         AllowedProviderConstruct(
             path: "Sources/CodexBar/SpendDashboardController.swift",
+            line: 479,
+            anchor: "if provider == .codex {",
+            expectedProviderIDs: ["codex"],
+            expectedReferenceCount: 3,
+            expectedReferenceFingerprint: ["codex@0", "codex@9", "codex@11"],
+            reason: "The tracked-source roster projects Codex's first-party multi-account state before generic token accounts."),
+        AllowedProviderConstruct(
+            path: "Sources/CodexBar/SpendDashboardController.swift",
             line: 610,
             anchor: "if providers.contains(.codex) {",
             expectedProviderIDs: ["codex"],
@@ -2345,6 +2361,14 @@ struct ProviderArchitectureGatekeeperTests {
             expectedReferenceCount: 1,
             expectedReferenceFingerprint: ["codex@0"],
             reason: "This exact shared construct dispatches a provider-owned capability at the generic integration boundary."),
+        AllowedProviderConstruct(
+            path: "Sources/CodexBar/SpendDashboardController.swift",
+            line: 665,
+            anchor: "guard provider != .codex else { return nil }",
+            expectedProviderIDs: ["codex"],
+            expectedReferenceCount: 1,
+            expectedReferenceFingerprint: ["codex@0"],
+            reason: "Codex ownership is represented by its dedicated account projection rather than generic provider config."),
         AllowedProviderConstruct(
             path: "Sources/CodexBar/SpendDashboardController.swift",
             line: 1286,
@@ -2865,6 +2889,14 @@ struct ProviderArchitectureGatekeeperTests {
                 "codex@39",
             ],
             reason: "This exact app-runtime bridge coordinates provider-owned state through the shared controller."),
+        AllowedProviderConstruct(
+            path: "Sources/CodexBar/UsageStore+Refresh.swift",
+            line: 898,
+            anchor: "let identity = usage.identity(for: .codex)",
+            expectedProviderIDs: ["codex"],
+            expectedReferenceCount: 2,
+            expectedReferenceFingerprint: ["codex@0", "codex@2"],
+            reason: "This Codex-only identity repair preserves the expected account email on a provider-owned snapshot."),
         AllowedProviderConstruct(
             path: "Sources/CodexBar/UsageStore+Refresh.swift",
             line: 992,

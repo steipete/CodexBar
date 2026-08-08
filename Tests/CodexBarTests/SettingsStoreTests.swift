@@ -685,6 +685,7 @@ struct SettingsStoreTests {
             .opencode,
             .warp,
             .gemini,
+            .grok,
         ])
 
         let resolvedWhenEmpty = store.reconcileMergedOverviewSelectedProviders(activeProviders: [])
