@@ -672,6 +672,8 @@
 "copyright" = "© 2026 بيتر ستاينبرجر. MIT الرخصة.";
 
 /* Debug Pane */
+"use_javascriptcore_plugin_engine" = "استخدام JavaScriptCore لإضافات المزوّد";
+"use_javascriptcore_plugin_engine_subtitle" = "للرجوع المتوافق فقط. أعد تشغيل CodexBar للتطبيق؛ يتجاوز CODEXBAR_PLUGIN_ENGINE هذا الإعداد.";
 "section_logging" = "قطع الأشجار";
 "enable_file_logging" = "تمكين تسجيل الملفات";
 "enable_file_logging_subtitle" = "اكتب السجلات إلى %@ للتصحيح.";

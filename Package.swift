@@ -102,6 +102,16 @@ let package = Package(
                     .enableUpcomingFeature("StrictConcurrency"),
                 ],
                 linkerSettings: sqlite3LinkerSettings),
+            // Crash-test subprocess: tests SIGKILL it mid-save to prove the cost store's
+            // save cycle is atomic. Not shipped; built only as a test dependency.
+            .executableTarget(
+                name: "CodexBarCostStoreCrashProbe",
+                dependencies: ["CodexBarCore"],
+                path: "Sources/CodexBarCostStoreCrashProbe",
+                swiftSettings: [
+                    .enableUpcomingFeature("StrictConcurrency"),
+                ],
+                linkerSettings: sqlite3LinkerSettings),
             // Sole owner of the adaptive refresh decision table. Package-internal so the app and
             // offline replay tool share behavior without publishing another library product.
             .target(
@@ -211,7 +221,7 @@ let package = Package(
 
         targets.append(.testTarget(
             name: "CodexBarTests",
-            dependencies: ["CodexBar", "CodexBarCore", "CodexBarCLI", "CodexBarWidget"],
+            dependencies: ["CodexBar", "CodexBarCore", "CodexBarCLI", "CodexBarCostStoreCrashProbe", "CodexBarWidget"],
             path: "Tests",
             exclude: [
                 "AdaptiveReplayCLITests",

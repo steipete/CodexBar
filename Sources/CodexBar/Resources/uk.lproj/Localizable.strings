@@ -666,6 +666,8 @@
 "copyright" = "© 2026 Пітер Штайнбергер. Ліцензія MIT.";
 
 /* Debug Pane */
+"use_javascriptcore_plugin_engine" = "Використовувати JavaScriptCore для плагінів постачальників";
+"use_javascriptcore_plugin_engine_subtitle" = "Лише для відкату сумісності. Перезапустіть CodexBar; CODEXBAR_PLUGIN_ENGINE перевизначає це налаштування.";
 "section_logging" = "Лісозаготівля";
 "enable_file_logging" = "Увімкнути журналювання файлів";
 "enable_file_logging_subtitle" = "Записати журнали до %@ для налагодження.";

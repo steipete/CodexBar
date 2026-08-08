@@ -13,6 +13,7 @@ public final class ProviderPluginRuntime: @unchecked Sendable {
     public static let defaultTimeout: TimeInterval = 20
     public static let maximumResponseBytes = 5 * 1024 * 1024
     public static let engineEnvironmentKey = "CODEXBAR_PLUGIN_ENGINE"
+    public static let javaScriptCoreRollbackDefaultsKey = "debugUseJavaScriptCorePluginEngine"
 
     public let manifest: ProviderPluginManifest
 
@@ -230,16 +231,30 @@ public final class ProviderPluginRuntime: @unchecked Sendable {
         self.lock.unlock()
     }
 
-    private static func resolveEngineKind(_ requested: ProviderPluginEngineKind) -> ProviderPluginEngineKind {
+    static func resolveEngineKind(_ requested: ProviderPluginEngineKind) -> ProviderPluginEngineKind {
+        self.resolveEngineKind(
+            requested,
+            environment: ProcessInfo.processInfo.environment,
+            useJavaScriptCoreRollback: UserDefaults.standard.bool(forKey: self.javaScriptCoreRollbackDefaultsKey))
+    }
+
+    static func resolveEngineKind(
+        _ requested: ProviderPluginEngineKind,
+        environment: [String: String],
+        useJavaScriptCoreRollback: Bool) -> ProviderPluginEngineKind
+    {
         guard requested == .automatic else { return requested }
-        if ProcessInfo.processInfo.environment[self.engineEnvironmentKey]?.lowercased() == "quickjs" {
-            return .quickJS
-        }
         #if canImport(JavaScriptCore)
-        return .javaScriptCore
-        #else
-        return .quickJS
+        switch environment[self.engineEnvironmentKey]?.lowercased() {
+        case "jsc": return .javaScriptCore
+        case "quickjs": return .quickJS
+        default:
+            if useJavaScriptCoreRollback {
+                return .javaScriptCore
+            }
+        }
         #endif
+        return .quickJS
     }
 
     private func redactedError(_ error: Error, secrets: Dictionary<String, String>.Values) -> Error {

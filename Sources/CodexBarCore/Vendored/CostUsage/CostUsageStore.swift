@@ -61,6 +61,11 @@ actor CostUsageStore {
         parserHash: CodexParserHash.value)
     static let cacheGeneration = "sqlite:\(CostUsageStore.schemaVersion)"
 
+    /// Test-only crash injection: invoked inside `saveCodexCache`'s transaction after each
+    /// persisted file with the running count, so a crash-safety harness can SIGKILL the
+    /// process at a deterministic mid-save point. Never set in production.
+    nonisolated(unsafe) static var saveCycleCheckpointForTesting: ((Int) -> Void)?
+
     /// Process-wide serialization keeps every writable store connection on the same queue.
     /// This matches the scan pipeline's single-writer contract without multiplying executor
     /// threads when tests or short-lived readers create several store actors.
@@ -75,6 +80,11 @@ actor CostUsageStore {
     private let expectedParserHash: String
     private var connection: SQLiteConnection?
     private(set) var rebuildCount = 0
+    /// While a save cycle's enclosing transaction is open, nested `withDatabase` calls join
+    /// it instead of opening their own connection scope, and the first failure aborts the
+    /// remainder of the cycle so the outer transaction rolls back as a unit.
+    private var activeTransactionDatabase: OpaquePointer?
+    private var activeTransactionError: Error?
 
     init(
         cacheRoot: URL? = nil,
@@ -142,6 +152,18 @@ extension CostUsageStore {
     }
 
     func withDatabase<T>(default fallback: T, _ operation: (OpaquePointer) throws -> T) -> T {
+        if let database = self.activeTransactionDatabase {
+            // A failed statement may have aborted the enclosing transaction; running the
+            // remaining writes would commit them individually in autocommit mode, which is
+            // exactly the partial-save state the transaction exists to prevent. Skip them.
+            guard self.activeTransactionError == nil else { return fallback }
+            do {
+                return try operation(database)
+            } catch {
+                self.activeTransactionError = error
+                return fallback
+            }
+        }
         do {
             let database = try self.ensureDatabase()
             return try operation(database)
@@ -164,6 +186,39 @@ extension CostUsageStore {
                 }
                 return fallback
             }
+        }
+    }
+
+    /// Opens the save cycle's all-or-nothing transaction: a single BEGIN IMMEDIATE spanning
+    /// every store call made until `endSaveTransaction()`. Nested `withDatabase` calls join
+    /// the open transaction and the first inner failure aborts the cycle, so a crash or
+    /// error midway leaves the previous on-disk state fully intact — matching the old JSON
+    /// path's atomic single-file replace. If the transaction cannot open, subsequent writes
+    /// proceed unprotected, exactly like the pre-transaction behavior.
+    func beginSaveTransaction() {
+        _ = self.withDatabase(default: false) { database in
+            try Self.execute(database, "BEGIN IMMEDIATE")
+            self.activeTransactionDatabase = database
+            return true
+        }
+    }
+
+    /// Commits the open save transaction, or rolls it back when a nested write failed. The
+    /// stored failure is rethrown through `withDatabase` so the usual rebuild-vs-preserve
+    /// classification still applies to it.
+    @discardableResult
+    func endSaveTransaction() -> Bool {
+        guard self.activeTransactionDatabase != nil else { return false }
+        let failure = self.activeTransactionError
+        self.activeTransactionDatabase = nil
+        self.activeTransactionError = nil
+        return self.withDatabase(default: false) { database in
+            if let failure {
+                try? Self.execute(database, "ROLLBACK")
+                throw failure
+            }
+            try Self.execute(database, "COMMIT")
+            return true
         }
     }
 
