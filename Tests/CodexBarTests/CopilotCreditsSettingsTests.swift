@@ -46,4 +46,37 @@ struct CopilotCreditsSettingsTests {
         #expect(settings.seatCreditEntitlement == nil)
         #expect(settings.orgCreditEntitlement == nil)
     }
+
+    @Test
+    func `token account decoding defaults missing entitlements to nil`() throws {
+        // Legacy accounts predate the per-account entitlement keys and must still decode.
+        let json = """
+        {
+          "id": "\(UUID().uuidString)",
+          "label": "Legacy",
+          "token": "token",
+          "addedAt": 0
+        }
+        """
+        let account = try JSONDecoder().decode(ProviderTokenAccount.self, from: Data(json.utf8))
+        #expect(account.seatCreditEntitlement == nil)
+        #expect(account.orgCreditEntitlement == nil)
+        #expect(account.sanitizedSeatCreditEntitlement == nil)
+        #expect(account.sanitizedOrgCreditEntitlement == nil)
+    }
+
+    @Test
+    func `token account entitlements survive a codable round trip`() throws {
+        let account = ProviderTokenAccount(
+            id: UUID(),
+            label: "Work",
+            token: "token",
+            addedAt: 0,
+            lastUsed: nil,
+            seatCreditEntitlement: "1500",
+            orgCreditEntitlement: "2000")
+        let decoded = try JSONDecoder().decode(ProviderTokenAccount.self, from: JSONEncoder().encode(account))
+        #expect(decoded.seatCreditEntitlement == "1500")
+        #expect(decoded.orgCreditEntitlement == "2000")
+    }
 }
