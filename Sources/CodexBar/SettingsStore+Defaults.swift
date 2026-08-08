@@ -855,7 +855,7 @@ extension SettingsStore {
         guard self.hasMergedOverviewSelectionPreference else {
             return Array(normalizedActive.prefix(maxVisibleProviders))
         }
-        if normalizedActive.count <= maxVisibleProviders,
+        if normalizedActive.count <= Self.mergedOverviewLegacyWheelNavigationLimit,
            !self.mergedOverviewSelectionApplies(to: normalizedActive)
         {
             return normalizedActive
@@ -881,7 +881,8 @@ extension SettingsStore {
             return []
         }
 
-        let shouldPersistResolvedSelection = normalizedActive.count > maxVisibleProviders ||
+        let shouldPersistResolvedSelection =
+            normalizedActive.count > Self.mergedOverviewLegacyWheelNavigationLimit ||
             self.mergedOverviewSelectionApplies(to: normalizedActive)
 
         if self.hasMergedOverviewSelectionPreference, shouldPersistResolvedSelection {
