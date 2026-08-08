@@ -18,6 +18,11 @@ private enum QuickJSHostFunction: Int32 {
     case amountFromPercent
 }
 
+enum QuickJSRuntimeLimits {
+    /// Leave ample native-stack headroom for Swift entry frames and QuickJS's stack-overflow error construction.
+    static let nativeStackSizeBytes = 4 * 1024 * 1024
+}
+
 private func quickJSHostCallback(
     _ opaque: UnsafeMutableRawPointer?,
     _ context: OpaquePointer?,
@@ -115,82 +120,10 @@ private final class QuickJSPluginValue: ProviderPluginValue {
 
 final class QuickJSProviderPluginEngine: ProviderPluginEngine, @unchecked Sendable {
     static let memoryLimitBytes = 64 * 1024 * 1024
-    static let stackLimitBytes = 2 * 1024 * 1024
+    static let stackLimitBytes = 1 * 1024 * 1024
 
     static func transpileTypeScript(source: String, sucraseSource: String) throws -> String {
-        guard let runtime = JS_NewRuntime() else {
-            throw ProviderPluginError.load("QuickJS could not create a TypeScript transpiler runtime")
-        }
-        JS_SetMemoryLimit(runtime, self.memoryLimitBytes)
-        JS_SetMaxStackSize(runtime, self.stackLimitBytes)
-        guard let context = JS_NewContext(runtime) else {
-            JS_FreeRuntime(runtime)
-            throw ProviderPluginError.load("QuickJS could not create a TypeScript transpiler context")
-        }
-        JS_UpdateStackTop(runtime)
-        let watchdog = cqjs_watchdog_create(nil, nil)
-        if let watchdog {
-            cqjs_watchdog_install(watchdog, runtime, context)
-            cqjs_watchdog_arm(watchdog, UInt64(ProviderPluginRuntime.defaultTimeout * 1000))
-        }
-        defer {
-            if let watchdog {
-                cqjs_watchdog_disarm(watchdog)
-                cqjs_watchdog_destroy(watchdog)
-            }
-            JS_FreeContext(context)
-            JS_FreeRuntime(runtime)
-        }
-
-        func exceptionMessage() -> String {
-            let exception = JS_GetException(context)
-            defer { cqjs_free_value(context, exception) }
-            var length = 0
-            guard let pointer = JS_ToCStringLen2(context, &length, exception, false) else { return "unknown error" }
-            defer { JS_FreeCString(context, pointer) }
-            let bytes = UnsafeRawPointer(pointer).assumingMemoryBound(to: UInt8.self)
-            return String(bytes: UnsafeBufferPointer(start: bytes, count: length), encoding: .utf8) ?? "unknown error"
-        }
-
-        func evaluate(_ script: String, filename: String) throws -> JSValue {
-            let value = script.utf8CString.withUnsafeBufferPointer { scriptBuffer in
-                filename.withCString { filenamePointer in
-                    JS_Eval(
-                        context,
-                        scriptBuffer.baseAddress,
-                        scriptBuffer.count - 1,
-                        filenamePointer,
-                        JS_EVAL_TYPE_GLOBAL)
-                }
-            }
-            guard !cqjs_is_exception(value) else {
-                throw ProviderPluginError.load("TypeScript transpilation failed: \(exceptionMessage())")
-            }
-            return value
-        }
-
-        let sucrase = try evaluate(sucraseSource, filename: "sucrase.js")
-        cqjs_free_value(context, sucrase)
-        let global = JS_GetGlobalObject(context)
-        defer { cqjs_free_value(context, global) }
-        let sourceValue = source.utf8CString.withUnsafeBufferPointer { buffer in
-            JS_NewStringLen(context, buffer.baseAddress, buffer.count - 1)
-        }
-        _ = JS_SetPropertyStr(context, global, "__codexbarTypeScriptSource", sourceValue)
-        let result = try evaluate(
-            "sucrase.transform(__codexbarTypeScriptSource, {transforms:['typescript']}).code",
-            filename: "<sucrase-transform>")
-        defer { cqjs_free_value(context, result) }
-        var length = 0
-        guard let pointer = JS_ToCStringLen2(context, &length, result, false) else {
-            throw ProviderPluginError.load("TypeScript transpilation returned no output")
-        }
-        defer { JS_FreeCString(context, pointer) }
-        let bytes = UnsafeRawPointer(pointer).assumingMemoryBound(to: UInt8.self)
-        guard let output = String(bytes: UnsafeBufferPointer(start: bytes, count: length), encoding: .utf8),
-              !output.isEmpty
-        else { throw ProviderPluginError.load("TypeScript transpilation returned no output") }
-        return output
+        try QuickJSTypeScriptTranspiler.transpile(source: source, sucraseSource: sucraseSource)
     }
 
     private struct FetchState {
@@ -207,7 +140,9 @@ final class QuickJSProviderPluginEngine: ProviderPluginEngine, @unchecked Sendab
         let expiresAt: Date
     }
 
-    private let queue: DispatchQueue
+    // @unchecked Sendable is safe because every mutable engine field and QuickJS API call is confined
+    // to this serial worker. requestInterrupt() is the watchdog's explicitly thread-safe escape hatch.
+    private let worker: QuickJSSerialWorker
     private let runtime: OpaquePointer
     fileprivate let context: OpaquePointer
     private let transport: any ProviderHTTPTransport
@@ -237,34 +172,37 @@ final class QuickJSProviderPluginEngine: ProviderPluginEngine, @unchecked Sendab
         timeout: TimeInterval,
         responseSizeLimit: Int,
         rejectsNonSuccessResponses: Bool,
-        allowsDynamicID: Bool) throws -> QuickJSProviderPluginEngine
+        allowsDynamicID: Bool,
+        workerStackSizeBytes: Int = QuickJSRuntimeLimits.nativeStackSizeBytes) throws -> QuickJSProviderPluginEngine
     {
-        guard let runtime = JS_NewRuntime() else {
-            throw ProviderPluginError.load("QuickJS could not create a runtime")
-        }
-        JS_SetMemoryLimit(runtime, Self.memoryLimitBytes)
-        JS_SetMaxStackSize(runtime, Self.stackLimitBytes)
-        guard let context = JS_NewContext(runtime) else {
-            JS_FreeRuntime(runtime)
-            throw ProviderPluginError.load("QuickJS could not create a context")
-        }
-        let queue = DispatchQueue(label: "com.steipete.codexbar.provider-plugin.quickjs.\(UUID().uuidString)")
-        let engine = QuickJSProviderPluginEngine(
-            queue: queue,
-            runtime: runtime,
-            context: context,
-            transport: transport,
-            timeout: timeout,
-            responseSizeLimit: responseSizeLimit,
-            rejectsNonSuccessResponses: rejectsNonSuccessResponses)
-        return try queue.sync {
+        let worker = QuickJSSerialWorker(
+            name: "CodexBar QuickJS provider plugin",
+            stackSizeBytes: workerStackSizeBytes)
+        return try worker.sync {
+            guard let runtime = JS_NewRuntime() else {
+                throw ProviderPluginError.load("QuickJS could not create a runtime")
+            }
+            JS_SetMemoryLimit(runtime, Self.memoryLimitBytes)
+            JS_SetMaxStackSize(runtime, Self.stackLimitBytes)
+            guard let context = JS_NewContext(runtime) else {
+                JS_FreeRuntime(runtime)
+                throw ProviderPluginError.load("QuickJS could not create a context")
+            }
+            let engine = QuickJSProviderPluginEngine(
+                worker: worker,
+                runtime: runtime,
+                context: context,
+                transport: transport,
+                timeout: timeout,
+                responseSizeLimit: responseSizeLimit,
+                rejectsNonSuccessResponses: rejectsNonSuccessResponses)
             try engine.load(source: source, preludeSource: preludeSource, allowsDynamicID: allowsDynamicID)
             return engine
         }
     }
 
     private init(
-        queue: DispatchQueue,
+        worker: QuickJSSerialWorker,
         runtime: OpaquePointer,
         context: OpaquePointer,
         transport: any ProviderHTTPTransport,
@@ -272,7 +210,7 @@ final class QuickJSProviderPluginEngine: ProviderPluginEngine, @unchecked Sendab
         responseSizeLimit: Int,
         rejectsNonSuccessResponses: Bool)
     {
-        self.queue = queue
+        self.worker = worker
         self.runtime = runtime
         self.context = context
         self.transport = transport
@@ -282,21 +220,38 @@ final class QuickJSProviderPluginEngine: ProviderPluginEngine, @unchecked Sendab
     }
 
     deinit {
-        if let definition = self.definition {
-            cqjs_free_value(self.context, definition)
+        let runtime = self.runtime
+        let context = self.context
+        let definition = self.definition
+        let applyPrelude = self.applyPrelude
+        let fetchUsage = self.fetchUsage
+        let watchdog = self.watchdog
+        let teardown = {
+            if let definition {
+                cqjs_free_value(context, definition)
+            }
+            if let applyPrelude {
+                cqjs_free_value(context, applyPrelude)
+            }
+            if let fetchUsage {
+                cqjs_free_value(context, fetchUsage)
+            }
+            if let watchdog {
+                cqjs_watchdog_disarm(watchdog)
+            }
+            // The runtime retains the interrupt-handler opaque pointer until it is freed.
+            JS_FreeContext(context)
+            JS_FreeRuntime(runtime)
+            if let watchdog {
+                cqjs_watchdog_destroy(watchdog)
+            }
         }
-        if let applyPrelude = self.applyPrelude {
-            cqjs_free_value(self.context, applyPrelude)
+        if self.worker.isCurrentThread {
+            teardown()
+        } else {
+            try? self.worker.sync(teardown)
         }
-        if let fetchUsage = self.fetchUsage {
-            cqjs_free_value(self.context, fetchUsage)
-        }
-        if let watchdog = self.watchdog {
-            cqjs_watchdog_disarm(watchdog)
-            cqjs_watchdog_destroy(watchdog)
-        }
-        JS_FreeContext(self.context)
-        JS_FreeRuntime(self.runtime)
+        self.worker.shutdown()
     }
 
     // swiftlint:disable:next function_parameter_count
@@ -309,9 +264,9 @@ final class QuickJSProviderPluginEngine: ProviderPluginEngine, @unchecked Sendab
         instanceCookieResolver: ProviderPluginRuntime.InstanceCookieResolver?,
         completion: @escaping @Sendable (Result<UsageSnapshot, Error>) -> Void)
     {
-        self.queue.async {
+        self.worker.async {
             completion(Result {
-                try self.fetchOnQueue(
+                try self.fetchOnWorker(
                     settings: settings,
                     secrets: secrets,
                     now: now,
@@ -323,7 +278,7 @@ final class QuickJSProviderPluginEngine: ProviderPluginEngine, @unchecked Sendab
     }
 
     func globalType(of name: String) throws -> String {
-        try self.queue.sync {
+        try self.worker.sync {
             JS_UpdateStackTop(self.runtime)
             let escaped = name.replacingOccurrences(of: "\\", with: "\\\\")
                 .replacingOccurrences(of: "'", with: "\\'")
@@ -380,7 +335,7 @@ final class QuickJSProviderPluginEngine: ProviderPluginEngine, @unchecked Sendab
     }
 
     // swiftlint:disable:next function_parameter_count
-    private func fetchOnQueue(
+    private func fetchOnWorker(
         settings: [String: String],
         secrets: [String: String],
         now: Date,
@@ -432,6 +387,7 @@ final class QuickJSProviderPluginEngine: ProviderPluginEngine, @unchecked Sendab
         if JS_IsPromise(result) {
             while JS_PromiseState(self.context, result) == JS_PROMISE_PENDING {
                 var pendingContext: OpaquePointer?
+                JS_UpdateStackTop(self.runtime)
                 let executed = JS_ExecutePendingJob(self.runtime, &pendingContext)
                 if executed < 0 {
                     cqjs_free_value(self.context, result)
@@ -837,6 +793,7 @@ final class QuickJSProviderPluginEngine: ProviderPluginEngine, @unchecked Sendab
     }
 
     private func call(_ function: JSValue, arguments: [JSValue]) throws -> JSValue {
+        JS_UpdateStackTop(self.runtime)
         var mutableArguments = arguments
         let result = mutableArguments.withUnsafeMutableBufferPointer { buffer in
             JS_Call(self.context, function, cqjs_undefined(), Int32(buffer.count), buffer.baseAddress)
@@ -846,6 +803,7 @@ final class QuickJSProviderPluginEngine: ProviderPluginEngine, @unchecked Sendab
     }
 
     private func evaluate(_ source: String, filename: String) throws -> JSValue {
+        JS_UpdateStackTop(self.runtime)
         let result = source.utf8CString.withUnsafeBufferPointer { sourceBuffer in
             filename.withCString { filenamePointer in
                 JS_Eval(
@@ -970,7 +928,106 @@ final class QuickJSProviderPluginEngine: ProviderPluginEngine, @unchecked Sendab
     }
 }
 
-private final class QuickJSBlockingResult<Value: Sendable>: @unchecked Sendable {
+private final class QuickJSSerialWorker: @unchecked Sendable {
+    typealias Job = () -> Void
+
+    private final class State: @unchecked Sendable {
+        private let condition = NSCondition()
+        private var jobs: [Job] = []
+        private var acceptsJobs = true
+        private var stopped = false
+
+        func enqueue(_ job: @escaping Job) -> Bool {
+            self.condition.lock()
+            defer { self.condition.unlock() }
+            guard self.acceptsJobs else { return false }
+            self.jobs.append(job)
+            self.condition.signal()
+            return true
+        }
+
+        func next() -> Job? {
+            self.condition.lock()
+            defer { self.condition.unlock() }
+            while self.jobs.isEmpty, self.acceptsJobs {
+                self.condition.wait()
+            }
+            guard !self.jobs.isEmpty else { return nil }
+            return self.jobs.removeFirst()
+        }
+
+        func beginShutdown() {
+            self.condition.lock()
+            self.acceptsJobs = false
+            self.condition.broadcast()
+            self.condition.unlock()
+        }
+
+        func markStopped() {
+            self.condition.lock()
+            self.stopped = true
+            self.condition.broadcast()
+            self.condition.unlock()
+        }
+
+        func waitUntilStopped() {
+            self.condition.lock()
+            while !self.stopped {
+                self.condition.wait()
+            }
+            self.condition.unlock()
+        }
+    }
+
+    private let state: State
+    private let thread: Thread
+
+    init(name: String, stackSizeBytes: Int) {
+        let state = State()
+        self.state = state
+        self.thread = Thread {
+            defer { state.markStopped() }
+            while let job = state.next() {
+                job()
+            }
+        }
+        self.thread.name = name
+        self.thread.stackSize = stackSizeBytes
+        self.thread.start()
+    }
+
+    deinit {
+        self.shutdown()
+    }
+
+    var isCurrentThread: Bool {
+        Thread.current === self.thread
+    }
+
+    func async(_ operation: @escaping Job) {
+        precondition(self.state.enqueue(operation), "QuickJS worker accepted work after shutdown")
+    }
+
+    func sync<Value: Sendable>(_ operation: @escaping () throws -> Value) throws -> Value {
+        if self.isCurrentThread {
+            return try operation()
+        }
+        let box = QuickJSBlockingResult<Value>()
+        precondition(self.state.enqueue {
+            box.finish(Result { try operation() })
+        }, "QuickJS worker accepted work after shutdown")
+        return try box.wait().get()
+    }
+
+    func shutdown() {
+        self.state.beginShutdown()
+        if !self.isCurrentThread {
+            self.state.waitUntilStopped()
+        }
+    }
+}
+
+final class QuickJSBlockingResult<Value: Sendable>: @unchecked Sendable {
     private let condition = NSCondition()
     private var result: Result<Value, Error>?
 
@@ -988,6 +1045,18 @@ private final class QuickJSBlockingResult<Value: Sendable>: @unchecked Sendable 
             _ = self.condition.wait(until: deadline)
         }
         return self.result
+    }
+
+    func wait() -> Result<Value, Error> {
+        self.condition.lock()
+        defer { self.condition.unlock() }
+        while self.result == nil {
+            self.condition.wait()
+        }
+        guard let result = self.result else {
+            preconditionFailure("QuickJS blocking result signaled without a value")
+        }
+        return result
     }
 }
 

@@ -81,8 +81,9 @@ example, `acme-usage` and `API_KEY` use `CODEXBAR_PLUGIN_ACME_USAGE_API_KEY`.
 
 ## `ctx` API
 
-`ctx` exists only during `fetchUsage`. CodexBar uses JavaScriptCore on Apple platforms and QuickJS on Linux; both
-provide ECMAScript built-ins but no browser or Node environment. `Intl` is engine-dependent and unavailable in QuickJS,
+`ctx` exists only during `fetchUsage`. CodexBar uses QuickJS on every platform; both QuickJS and the Apple-only
+JavaScriptCore rollback engine provide ECMAScript built-ins but no browser or Node environment. `Intl` is
+engine-dependent and unavailable in QuickJS,
 so portable third-party plugins must use the host helpers below instead of ECMA-402. `fetch`, `XMLHttpRequest`, timers,
 `require`, `process`, and filesystem APIs are unavailable.
 
@@ -120,9 +121,12 @@ response bytes are capped at 1 MiB. Request URLs must match a declared, approved
 Bundled first-party providers that have cut over to JavaScript use the shared runtime's 20-second hung-script watchdog.
 A timeout fails that refresh and discards the poisoned worker so the next refresh starts with a fresh context; this is
 production-default and does not depend on `CODEXBAR_JS_PROVIDERS`.
-On Linux, QuickJS enforces the watchdog in-engine with `JS_SetInterruptHandler`, caps the runtime heap at 64 MiB, and
-caps the JavaScript stack at 2 MiB. The interrupt terminates evaluation on its confined thread; timed-out scripts do not
-leave an abandoned evaluation thread behind.
+QuickJS enforces the watchdog in-engine with `JS_SetInterruptHandler`, caps the runtime heap at 64 MiB, and caps the
+JavaScript stack at 2 MiB. The interrupt terminates evaluation on its confined thread; timed-out scripts do not leave an
+abandoned evaluation thread behind. On Apple platforms, `CODEXBAR_PLUGIN_ENGINE=jsc` selects the JavaScriptCore rollback
+engine; the same rollback is available in **Settings → Debug → Provider Plugins** and takes effect after restarting
+CodexBar. JavaScriptCore has no public interrupt API, so a timed-out rollback-engine context is discarded but its
+abandoned evaluation thread can remain alive until process exit.
 
 ## Snapshot result
 
@@ -158,7 +162,8 @@ and 120 characters per detail string. Wrong types and limit violations fail the 
 
 ## TypeScript
 
-TypeScript files are transpiled with the bundled Sucrase 3.35.1 build using its `typescript` transform. Use ordinary
+TypeScript files are transpiled by the selected plugin engine with the bundled Sucrase 3.35.1 build using its
+`typescript` transform. Use ordinary
 type syntax but no module imports, JSX, decorators, or runtime TypeScript features that require module resolution.
 Transpiled output is cached in `~/Library/Caches/CodexBar/plugins/` under a filename containing the SHA-256 of the source
 and the Sucrase version. An unchanged file is a cache hit; any source or compiler-version change produces a new key.
