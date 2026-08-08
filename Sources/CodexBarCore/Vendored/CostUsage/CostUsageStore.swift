@@ -196,15 +196,22 @@ extension CostUsageStore {
     /// atomic single-file replace.
     func withSaveTransaction<T>(default fallback: T, _ operation: () throws -> T) -> T {
         self.withDatabase(default: fallback) { database in
-            try Self.inTransaction(database) {
-                self.activeTransactionDatabase = database
-                defer {
-                    self.activeTransactionDatabase = nil
-                    self.activeTransactionError = nil
-                }
+            // Transaction control is inlined (not via the static `inTransaction`) so the
+            // non-Sendable `operation` closure never crosses an isolation boundary.
+            try Self.execute(database, "BEGIN IMMEDIATE")
+            self.activeTransactionDatabase = database
+            defer {
+                self.activeTransactionDatabase = nil
+                self.activeTransactionError = nil
+            }
+            do {
                 let value = try operation()
                 if let failure = self.activeTransactionError { throw failure }
+                try Self.execute(database, "COMMIT")
                 return value
+            } catch {
+                try? Self.execute(database, "ROLLBACK")
+                throw error
             }
         }
     }
