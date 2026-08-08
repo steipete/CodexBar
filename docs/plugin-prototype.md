@@ -21,6 +21,45 @@ The runtime selects JavaScriptCore by default on Apple platforms and QuickJS on 
 `CODEXBAR_PLUGIN_ENGINE=quickjs` on macOS to exercise QuickJS locally. QuickJS uses a 20-second in-engine interrupt
 watchdog, a 64 MiB heap limit, and a 2 MiB JavaScript stack limit; JavaScriptCore retains the existing worker behavior.
 
+## Engine benchmark
+
+The test-only `ProviderPluginEngineBenchmarkTests` instrumentation compares both engines without pass/fail thresholds.
+Run it on macOS with
+`CODEXBAR_PLUGIN_BENCHMARK=1 swift test --filter ProviderPluginEngineBenchmarkTests`. The August 8, 2026 baseline below
+was captured from a Swift debug build on an Apple M3 Ultra. Creation includes loading and linting each bundled source,
+creating its runtime, and reading its manifest; values are the median of five samples in milliseconds.
+
+| Bundled plugin | JavaScriptCore | QuickJS |
+| --- | ---: | ---: |
+| clawrouter | 2.167 | 3.563 |
+| crof | 1.606 | 1.736 |
+| deepgram | 2.074 | 3.127 |
+| manus | 0.907 | 4.241 |
+| openai | 2.859 | 4.279 |
+| openrouter | 1.901 | 3.333 |
+| perplexity | 1.114 | 3.861 |
+| poe | 1.972 | 3.681 |
+| qoder | 0.863 | 2.362 |
+| sub2api | 2.848 | 4.018 |
+| synthetic | 2.617 | 5.985 |
+| t3chat | 1.521 | 1.734 |
+| venice | 1.483 | 1.881 |
+| xai | 1.359 | 2.470 |
+| zai | 2.862 | 8.986 |
+
+Fetch timings reuse one context for 50 iterations with fixture transport. Poe exercises all five history pages with
+100 entries per page, OpenRouter performs its credits and key requests, and Crof performs its single usage request.
+Memory is a rough macOS task physical-footprint delta while retaining all 15 contexts, divided by context count.
+
+| Engine | Poe (50) | OpenRouter (50) | Crof (50) | Rough peak delta/context |
+| --- | ---: | ---: | ---: | ---: |
+| JavaScriptCore | 321.237 ms | 36.424 ms | 23.917 ms | 806.4 KiB |
+| QuickJS | 1000.066 ms | 90.610 ms | 38.119 ms | 117.3 KiB |
+
+At this representative workload QuickJS trades roughly 1.6–3.1× fetch time for a much smaller measured context
+footprint. All operations stay well below the 20-second watchdog; these figures are instrumentation for future engine
+work, not a performance contract.
+
 Plugin manifests and their projected snapshots now carry a validated `ProviderInstanceID`. The prototype still maps
 that instance ID to an existing first-party `UsageProvider` before using browser-cookie brokerage or other bespoke
 provider paths, and the widget's `AppEnum` still lists only first-party cases. User-installed plugins without an enum
