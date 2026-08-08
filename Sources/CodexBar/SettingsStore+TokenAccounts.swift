@@ -111,7 +111,9 @@ extension SettingsStore {
         externalIdentifier: String?? = nil,
         usageScope: String?? = nil,
         organizationID: String?? = nil,
-        workspaceID: String?? = nil)
+        workspaceID: String?? = nil,
+        seatCreditEntitlement: String?? = nil,
+        orgCreditEntitlement: String?? = nil)
     {
         guard let data = self.tokenAccountsData(for: provider), !data.accounts.isEmpty else { return }
         guard let index = data.accounts.firstIndex(where: { $0.id == accountID }) else { return }
@@ -151,6 +153,20 @@ extension SettingsStore {
         } else {
             resolvedWorkspaceID = existing.workspaceID
         }
+        let resolvedSeatCreditEntitlement: String?
+        if let seatCreditEntitlement {
+            let trimmed = seatCreditEntitlement?.trimmingCharacters(in: .whitespacesAndNewlines)
+            resolvedSeatCreditEntitlement = (trimmed?.isEmpty ?? true) ? nil : trimmed
+        } else {
+            resolvedSeatCreditEntitlement = existing.seatCreditEntitlement
+        }
+        let resolvedOrgCreditEntitlement: String?
+        if let orgCreditEntitlement {
+            let trimmed = orgCreditEntitlement?.trimmingCharacters(in: .whitespacesAndNewlines)
+            resolvedOrgCreditEntitlement = (trimmed?.isEmpty ?? true) ? nil : trimmed
+        } else {
+            resolvedOrgCreditEntitlement = existing.orgCreditEntitlement
+        }
         let updatedAccount = ProviderTokenAccount(
             id: existing.id,
             label: (trimmedLabel?.isEmpty == false) ? trimmedLabel! : existing.label,
@@ -160,7 +176,9 @@ extension SettingsStore {
             externalIdentifier: resolvedIdentifier,
             usageScope: resolvedUsageScope,
             organizationID: resolvedOrganizationID,
-            workspaceID: resolvedWorkspaceID)
+            workspaceID: resolvedWorkspaceID,
+            seatCreditEntitlement: resolvedSeatCreditEntitlement,
+            orgCreditEntitlement: resolvedOrgCreditEntitlement)
 
         var accounts = data.accounts
         accounts[index] = updatedAccount
