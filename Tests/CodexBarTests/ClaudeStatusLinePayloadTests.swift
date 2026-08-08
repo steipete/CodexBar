@@ -84,11 +84,11 @@ struct ClaudeStatusLinePayloadTests {
     }
 
     @Test
-    func `a missing capturedAt falls back to now rather than dropping the observation`() throws {
-        let now = Date(timeIntervalSince1970: 5000)
-        let limits = try #require(ClaudeStatusLinePayloadParser.parse(
-            Data(#"{"schema":1,"payload":{"rate_limits":{"five_hour":{"used_percentage":1}}}}"#.utf8),
-            now: now))
-        #expect(limits.capturedAt == now)
+    func `an observation with no usable capture time is dropped`() {
+        // Defaulting to "now" would make a file that has sat on disk for hours look perpetually fresh and
+        // defeat the staleness bound, so an unaged observation is absence.
+        let windows = #"{"rate_limits":{"five_hour":{"used_percentage":1}}}"#
+        #expect(self.parse(#"{"schema":1,"payload":\#(windows)}"#) == nil)
+        #expect(self.parse(#"{"schema":1,"capturedAt":"not a date","payload":\#(windows)}"#) == nil)
     }
 }

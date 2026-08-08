@@ -61,6 +61,8 @@ esac
 
 Notes:
 
+- `capturedAt` is required. An observation without a usable capture time is discarded — it cannot be aged, and
+  treating it as current would let a file that has sat on disk for hours outrank a live poll.
 - Write atomically (`mv` over a temp file). CodexBar may read while you write.
 - `configDir` must be the session's `CLAUDE_CONFIG_DIR`, or empty for the default profile. CodexBar drops
   observations whose profile does not match the account it is showing, so a wrong value means the feed is

@@ -41,7 +41,7 @@ public enum ClaudeStatusLinePayloadParser {
     /// Envelope version this build understands. An unknown version is absence, not an error.
     public static let currentSchemaVersion = 1
 
-    public static func parse(_ data: Data, now: Date = Date()) -> ClaudeStatusLineRateLimits? {
+    public static func parse(_ data: Data, now _: Date = Date()) -> ClaudeStatusLineRateLimits? {
         guard let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return nil }
         guard let schema = self.finiteNumber(root["schema"]), Int(schema) == self.currentSchemaVersion else {
             return nil
@@ -54,9 +54,14 @@ public enum ClaudeStatusLinePayloadParser {
         let sevenDay = self.window(rateLimits["seven_day"])
         guard fiveHour != nil || sevenDay != nil else { return nil }
 
+        // Why: a drop file with no usable capture time cannot be aged, and defaulting to "now" would make a
+        // file that has sat on disk for hours look perpetually fresh — defeating the staleness bound that keeps
+        // a dead session from outranking a live poll. Absence is the safe answer.
+        guard let capturedAt = self.date(root["capturedAt"]) else { return nil }
+
         return ClaudeStatusLineRateLimits(
             configDir: self.nonemptyString(root["configDir"]),
-            capturedAt: self.date(root["capturedAt"]) ?? now,
+            capturedAt: capturedAt,
             fiveHour: fiveHour,
             sevenDay: sevenDay)
     }
