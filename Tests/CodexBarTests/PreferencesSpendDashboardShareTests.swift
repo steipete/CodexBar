@@ -243,6 +243,57 @@ struct PreferencesSpendDashboardShareTests {
         #expect(payload.topModels.isEmpty)
     }
 
+    @Test
+    func `selected saved account matches provider scoped spend`() throws {
+        let date = Date(timeIntervalSince1970: 1_785_974_400)
+        let model = SpendDashboardModel(requestedDays: 30, groups: [
+            SpendDashboardModel.CurrencyGroup(
+                currencyCode: "USD",
+                providers: [
+                    SpendDashboardModel.ProviderRow(
+                        id: "openrouter",
+                        rank: 1,
+                        provider: .openrouter,
+                        displayName: "OpenRouter",
+                        totalTokens: 900,
+                        totalCost: 9,
+                        coveredDayCount: 30),
+                ],
+                models: [],
+                dailyPoints: [],
+                totalTokens: 900,
+                totalCost: 9,
+                coveredDayCount: 30,
+                chartDomain: date...date,
+                modelHistoryCompleteness: .complete),
+        ])
+        let payload = try #require(SpendDashboardPane.makeSharePayload(
+            model: model,
+            subscriptionNames: [:],
+            trackedSources: [
+                Self.source(
+                    id: "openrouter:account:00000000-0000-0000-0000-000000000001",
+                    provider: .openrouter,
+                    providerName: "OpenRouter",
+                    state: .connected,
+                    contributesCostHistory: true),
+                Self.source(
+                    id: "openrouter:account:00000000-0000-0000-0000-000000000002",
+                    provider: .openrouter,
+                    providerName: "OpenRouter",
+                    state: .configured,
+                    contributesCostHistory: false),
+            ]))
+
+        #expect(payload.providers.first?.estimatedCost == 9)
+        #expect(payload.providers.first?.totalTokens == 900)
+        #expect(payload.spendReportingProviderCount == 1)
+        #expect(payload.currencies.first?.estimatedCost == 9)
+        #expect(payload.currencies.first?.isPartial == false)
+        #expect(payload.totalTokens == 900)
+        #expect(payload.totalTokensIsPartial == false)
+    }
+
     private static func source(
         id: String,
         provider: UsageProvider,

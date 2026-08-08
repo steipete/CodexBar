@@ -430,12 +430,29 @@ struct SpendDashboardPane: View {
                 provider: source.provider,
                 providerName: source.providerName,
                 currencyCode: fallbackCurrencyCode,
-                expectedSourceIDs: Set(sources.map(\.id)))
+                expectedSourceIDs: self.shareExpectedSourceIDs(
+                    provider: source.provider,
+                    sources: sources))
         }
         return ShareStatsBuilder.make(
             model: model,
             subscriptionNames: subscriptionNames,
             providerRoster: roster)
+    }
+
+    private static func shareExpectedSourceIDs(
+        provider: UsageProvider,
+        sources: [SpendDashboardTrackedSource]) -> Set<String>
+    {
+        let providerScopedSources = sources.filter { source in
+            source.contributesCostHistory &&
+                (source.id == "\(provider.rawValue):current" ||
+                    source.id.hasPrefix("\(provider.rawValue):account:"))
+        }
+        if providerScopedSources.count == 1 {
+            return [provider.rawValue]
+        }
+        return Set(sources.map(\.id))
     }
 
     private var subscriptionNames: [String: ShareStatsSubscriptionName] {
