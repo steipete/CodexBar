@@ -65,7 +65,7 @@ struct ProviderSettingsDescriptorTests {
 
         #expect(project.title == "Project ID")
         #expect(project.subtitle.contains(OpenAIAPISettingsReader.projectIDEnvironmentKey))
-        #expect(fixture.settings.openAIAPIProjectID == "proj_abc")
+        #expect(fixture.settings[providerConfig: .openai, field: .secretWorkspace(logField: "projectID")] == "proj_abc")
         #expect(fixture.settings.providerConfig(for: .openai)?.sanitizedWorkspaceID == "proj_abc")
     }
 

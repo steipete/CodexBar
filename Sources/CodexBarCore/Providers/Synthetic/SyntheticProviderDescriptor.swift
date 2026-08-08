@@ -26,6 +26,7 @@ public enum SyntheticProviderDescriptor {
                 widgetSelectable: false,
                 isPrimaryProvider: false,
                 usesAccountFallback: false,
+                sharePlanLabels: ["starter": "Starter", "pro": "Pro", "team": "Team", "enterprise": "Enterprise"],
                 dashboardURL: nil,
                 statusPageURL: nil),
             branding: ProviderBranding(
@@ -40,6 +41,9 @@ public enum SyntheticProviderDescriptor {
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
                 noDataMessage: { "Synthetic cost summary is not supported." }),
+            presentation: ProviderUsagePresentation(
+                costPresenter: { _ in ProviderCostPresentation(menuCardStyle: .hidden) },
+                menuCard: ProviderMenuCardPresentation(usesSyntheticRollingRegen: true)),
             fetchPlan: self.fetchPlan(),
             cli: ProviderCLIConfig(
                 name: "synthetic",
@@ -55,7 +59,7 @@ public enum SyntheticProviderDescriptor {
                 plugin: "synthetic",
                 secretKey: SyntheticSettingsReader.apiKeyKey,
                 strategyID: "synthetic.api"),
-            resolveToken: { ProviderTokenResolver.syntheticToken(environment: $0) },
+            resolveToken: { ProviderTokenResolver.token(for: .synthetic, environment: $0) },
             missingCredentialsError: { SyntheticSettingsError.missingToken },
             loadUsage: { apiKey, _ in
                 try await SyntheticUsageFetcher.fetchUsage(apiKey: apiKey).toUsageSnapshot()
@@ -63,7 +67,7 @@ public enum SyntheticProviderDescriptor {
         #else
         .apiToken(
             strategyID: "synthetic.api",
-            resolveToken: { ProviderTokenResolver.syntheticToken(environment: $0) },
+            resolveToken: { ProviderTokenResolver.token(for: .synthetic, environment: $0) },
             missingCredentialsError: { SyntheticSettingsError.missingToken },
             loadUsage: { apiKey, _ in
                 try await SyntheticUsageFetcher.fetchUsage(apiKey: apiKey).toUsageSnapshot()

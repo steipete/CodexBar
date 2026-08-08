@@ -6,7 +6,7 @@ import SweetCookieKit
 public enum PerplexityCookieImporter {
     private static let importSessionCacheTTL: TimeInterval = 5
     private static let importSessionCache = ImportSessionCache(ttl: importSessionCacheTTL)
-    private static let log = CodexBarLog.logger(LogCategories.perplexityCookie)
+    private static let log = CodexBarLog.logger(LogCategories.provider(.perplexity, scope: "cookie"))
     private static let cookieClient = BrowserCookieClient()
     private static let cookieDomains = ["www.perplexity.ai", "perplexity.ai"]
     private static let cookieImportOrder: BrowserCookieImportOrder =

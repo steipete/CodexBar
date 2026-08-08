@@ -45,6 +45,7 @@ public enum DoubaoProviderDescriptor {
                 widgetSelectable: false,
                 isPrimaryProvider: false,
                 usesAccountFallback: false,
+                debugLogUnavailableMessage: "Doubao debug log not yet implemented",
                 browserCookieOrder: nil,
                 dashboardURL: "https://console.volcengine.com/ark/region:ark+cn-beijing/openManagement?LLM=%7B%7D&advancedActiveKey=subscribe",
                 statusPageURL: nil),
@@ -56,7 +57,8 @@ public enum DoubaoProviderDescriptor {
                     ProviderColor(hex: 0x0057FF),
                     ProviderColor(hex: 0xEFC5BA),
                     ProviderColor(hex: 0x493530),
-                ]),
+                ],
+                widgetColor: ProviderColor(red: 45 / 255, green: 136 / 255, blue: 255 / 255)),
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
                 noDataMessage: { "Doubao cost summary is not available." }),
@@ -132,7 +134,7 @@ public enum DoubaoProviderDescriptor {
 
     private static func hasConfiguredAPICredentials(environment: [String: String]) -> Bool {
         DoubaoSettingsReader.codingPlanCredentials(environment: environment) != nil ||
-            ProviderTokenResolver.doubaoToken(environment: environment) != nil
+            ProviderTokenResolver.token(for: .doubao, environment: environment) != nil
     }
 }
 
@@ -192,11 +194,11 @@ struct DoubaoAPIFetchStrategy: ProviderFetchStrategy {
         // Auto mode only tries API when credentials are resolvable.
         context.sourceMode == .api ||
             DoubaoSettingsReader.codingPlanCredentials(environment: context.env) != nil ||
-            ProviderTokenResolver.doubaoToken(environment: context.env) != nil
+            ProviderTokenResolver.token(for: .doubao, environment: context.env) != nil
     }
 
     func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
-        let apiKey = ProviderTokenResolver.doubaoToken(environment: context.env)
+        let apiKey = ProviderTokenResolver.token(for: .doubao, environment: context.env)
         var signedError: Error?
 
         // 1) Try AK/SK signed Coding Plan usage (legacy Volcengine API).

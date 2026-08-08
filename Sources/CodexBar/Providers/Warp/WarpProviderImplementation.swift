@@ -7,7 +7,7 @@ struct WarpProviderImplementation: ProviderImplementation {
 
     @MainActor
     func observeSettings(_ settings: SettingsStore) {
-        _ = settings.warpAPIToken
+        _ = settings[providerConfig: .warp, field: .apiKey]
     }
 
     @MainActor
@@ -20,7 +20,7 @@ struct WarpProviderImplementation: ProviderImplementation {
                     + "then create one.",
                 kind: .secure,
                 placeholder: "wk-...",
-                binding: context.stringBinding(\.warpAPIToken),
+                binding: context.providerConfigBinding(.apiKey),
                 actions: [
                     ProviderSettingsActionDescriptor(
                         id: "warp-open-api-keys",

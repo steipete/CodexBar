@@ -488,6 +488,51 @@ struct AntigravityCLIHTTPSFetchStrategyTests {
     }
 
     @Test
+    func `cli HTTPS keeps waiting while snapshot account is not ready yet`() async throws {
+        let fetchAttempts = AntigravityCLICounter()
+
+        let snapshot = try await AntigravityCLIHTTPSFetchStrategy.waitForSnapshot(
+            pid: 123,
+            deadline: Date().addingTimeInterval(5),
+            expectedAccountEmail: "user@example.com",
+            dependencies: AntigravityCLIHTTPSFetchStrategy.SnapshotWaitDependencies(
+                pollIntervalNanoseconds: 0,
+                listeningPorts: { _, _ in [50080] },
+                drainOutput: { Data() },
+                fetchSnapshot: { _ in
+                    if fetchAttempts.increment() == 1 {
+                        return AntigravityStatusSnapshot(
+                            modelQuotas: [
+                                AntigravityModelQuota(
+                                    label: "Claude Sonnet",
+                                    modelId: "claude-sonnet",
+                                    remainingFraction: 0.5,
+                                    resetTime: nil,
+                                    resetDescription: nil),
+                            ],
+                            accountEmail: nil,
+                            accountPlan: "Pro",
+                            source: .local)
+                    }
+                    return AntigravityStatusSnapshot(
+                        modelQuotas: [
+                            AntigravityModelQuota(
+                                label: "Claude Sonnet",
+                                modelId: "claude-sonnet",
+                                remainingFraction: 0.5,
+                                resetTime: nil,
+                                resetDescription: nil),
+                        ],
+                        accountEmail: "user@example.com",
+                        accountPlan: "Pro",
+                        source: .local)
+                }))
+
+        #expect(fetchAttempts.value == 2)
+        #expect(snapshot.accountEmail == "user@example.com")
+    }
+
+    @Test
     func `cli HTTPS drains output before ports appear`() async throws {
         let portPolls = AntigravityCLICounter()
         let drainAttempts = AntigravityCLICounter()

@@ -33,6 +33,9 @@ public enum DeepInfraProviderDescriptor {
                 widgetSelectable: false,
                 isPrimaryProvider: false,
                 usesAccountFallback: false,
+                debugLogUnavailableMessage: "DeepInfra debug log not yet implemented",
+                balanceOnly: true,
+                usesDetailBackedWindow: true,
                 browserCookieOrder: nil,
                 dashboardURL: "https://deepinfra.com/dash",
                 statusPageURL: nil,
@@ -49,9 +52,15 @@ public enum DeepInfraProviderDescriptor {
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
                 noDataMessage: { "DeepInfra per-request cost history is not available in CodexBar." }),
+            presentation: ProviderUsagePresentation(
+                menuCard: ProviderMenuCardPresentation(
+                    showsPrimaryBalanceDescription: true,
+                    hidesPrimaryResetWithoutDate: true,
+                    movePrimaryDetailToStatus: { _ in true }),
+                menu: ProviderMenuDescriptorPresentation(primaryDescriptionIsDetail: { _ in true })),
             fetchPlan: .apiToken(
                 strategyID: "deepinfra.api",
-                resolveToken: { ProviderTokenResolver.deepInfraToken(environment: $0) },
+                resolveToken: { ProviderTokenResolver.token(for: .deepinfra, environment: $0) },
                 missingCredentialsError: { DeepInfraUsageError.missingCredentials },
                 loadUsage: { apiKey, _ in
                     try await DeepInfraUsageFetcher.fetchUsage(apiKey: apiKey).toUsageSnapshot()

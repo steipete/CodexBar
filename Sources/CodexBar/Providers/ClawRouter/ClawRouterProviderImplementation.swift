@@ -11,13 +11,13 @@ struct ClawRouterProviderImplementation: ProviderImplementation {
 
     @MainActor
     func observeSettings(_ settings: SettingsStore) {
-        _ = settings.clawRouterAPIKey
-        _ = settings.clawRouterBaseURL
+        _ = settings[providerConfig: .clawrouter, field: .apiKey]
+        _ = settings[providerConfig: .clawrouter, field: .endpoint]
     }
 
     @MainActor
     func isAvailable(context: ProviderAvailabilityContext) -> Bool {
-        ProviderTokenResolver.clawRouterToken(environment: context.environment) != nil
+        ProviderTokenResolver.token(for: .clawrouter, environment: context.environment) != nil
     }
 
     @MainActor
@@ -29,7 +29,7 @@ struct ClawRouterProviderImplementation: ProviderImplementation {
                 subtitle: "Stored in the CodexBar config file. Reads monthly budget and routed usage from /v1/usage.",
                 kind: .secure,
                 placeholder: "ClawRouter key…",
-                binding: context.stringBinding(\.clawRouterAPIKey),
+                binding: context.providerConfigBinding(.apiKey),
                 actions: [],
                 isVisible: nil,
                 onActivate: nil),
@@ -39,7 +39,7 @@ struct ClawRouterProviderImplementation: ProviderImplementation {
                 subtitle: "Optional. Defaults to the hosted ClawRouter service.",
                 kind: .plain,
                 placeholder: ClawRouterSettingsReader.defaultBaseURL.absoluteString,
-                binding: context.stringBinding(\.clawRouterBaseURL),
+                binding: context.providerConfigBinding(.endpoint),
                 actions: [],
                 isVisible: nil,
                 onActivate: nil),

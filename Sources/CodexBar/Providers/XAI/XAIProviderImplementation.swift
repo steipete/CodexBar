@@ -11,8 +11,8 @@ struct XAIProviderImplementation: ProviderImplementation {
 
     @MainActor
     func observeSettings(_ settings: SettingsStore) {
-        _ = settings.xaiManagementAPIKey
-        _ = settings.xaiTeamID
+        _ = settings[providerConfig: .xai, field: .apiKey]
+        _ = settings[providerConfig: .xai, field: .workspace]
     }
 
     @MainActor
@@ -20,7 +20,8 @@ struct XAIProviderImplementation: ProviderImplementation {
         if XAISettingsReader.apiKey(environment: context.environment) != nil {
             return true
         }
-        return !context.settings.xaiManagementAPIKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        return !context.settings[providerConfig: .xai, field: .apiKey].trimmingCharacters(in: .whitespacesAndNewlines)
+            .isEmpty
     }
 
     @MainActor
@@ -33,7 +34,7 @@ struct XAIProviderImplementation: ProviderImplementation {
                     + "Settings > Management Keys; inference API keys are not accepted.",
                 kind: .secure,
                 placeholder: "xai-...",
-                binding: context.stringBinding(\.xaiManagementAPIKey),
+                binding: context.providerConfigBinding(.apiKey),
                 actions: [],
                 isVisible: nil,
                 onActivate: nil),
@@ -43,7 +44,7 @@ struct XAIProviderImplementation: ProviderImplementation {
                 subtitle: "Required. Shown in the xAI Console URL and team settings.",
                 kind: .plain,
                 placeholder: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
-                binding: context.stringBinding(\.xaiTeamID),
+                binding: context.providerConfigBinding(.workspace),
                 actions: [],
                 isVisible: nil,
                 onActivate: nil),

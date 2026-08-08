@@ -12,7 +12,7 @@ struct AiAndProviderImplementation: ProviderImplementation {
 
     @MainActor
     func observeSettings(_ settings: SettingsStore) {
-        _ = settings.aiAndAPIKey
+        _ = settings[providerConfig: .aiand, field: .apiKey]
     }
 
     @MainActor
@@ -20,7 +20,8 @@ struct AiAndProviderImplementation: ProviderImplementation {
         if AiAndSettingsReader.apiKey(environment: context.environment) != nil {
             return true
         }
-        return !context.settings.aiAndAPIKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        return !context.settings[providerConfig: .aiand, field: .apiKey].trimmingCharacters(in: .whitespacesAndNewlines)
+            .isEmpty
     }
 
     @MainActor
@@ -32,7 +33,7 @@ struct AiAndProviderImplementation: ProviderImplementation {
                 subtitle: "Stored in CodexBar's config file. Create a key in the ai& console (shown once).",
                 kind: .secure,
                 placeholder: "sk-…",
-                binding: context.stringBinding(\.aiAndAPIKey),
+                binding: context.providerConfigBinding(.apiKey),
                 actions: [
                     ProviderSettingsActionDescriptor(
                         id: "aiand-open-console",

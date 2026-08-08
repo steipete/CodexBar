@@ -1,4 +1,5 @@
 import Foundation
+import SweetCookieKit
 
 public enum NotionProviderDescriptor {
     /// Notion reports the rolling allowance as a `6h` window — session-shaped, but wider than the
@@ -7,6 +8,14 @@ public enum NotionProviderDescriptor {
     public static let rollingWindowMaxMinutes = 6 * 60
 
     public static let descriptor: ProviderDescriptor = Self.makeDescriptor()
+
+    private static var browserCookieOrder: BrowserCookieImportOrder? {
+        #if os(macOS)
+        [.chrome]
+        #else
+        nil
+        #endif
+    }
 
     static func makeDescriptor() -> ProviderDescriptor {
         ProviderDescriptor(
@@ -41,7 +50,8 @@ public enum NotionProviderDescriptor {
                 widgetSelectable: false,
                 isPrimaryProvider: false,
                 usesAccountFallback: false,
-                browserCookieOrder: ProviderBrowserCookieDefaults.chromeOnlyImportOrder,
+                sharePlanLabels: ["free": "Free", "plus": "Plus", "business": "Business", "enterprise": "Enterprise"],
+                browserCookieOrder: self.browserCookieOrder,
                 dashboardURL: "https://app.notion.com/",
                 statusPageURL: nil,
                 statusLinkURL: "https://status.notion.so/"),
@@ -61,7 +71,15 @@ public enum NotionProviderDescriptor {
                 noDataMessage: { "Notion AI cost summary is not supported." }),
             // The billing-period window renews on a calendar cycle, so pace has to measure the real
             // month ending at the reset rather than the 30-day sentinel the snapshot carries.
-            pace: .calendarMonthResetWindow,
+            pace: ProviderPaceCapability(
+                resetWindowPace: .windowDuration(minutes: ProviderPaceCapability.monthlyWindowSentinelMinutes),
+                inferredMonthlyDuration: .windowDuration(
+                    minutes: ProviderPaceCapability.monthlyWindowSentinelMinutes),
+                primary: .session(maximumMinutes: self.rollingWindowMaxMinutes),
+                sessionPaceWindowRule: .custom { window, _ in
+                    guard let minutes = window.windowMinutes else { return false }
+                    return minutes <= Self.rollingWindowMaxMinutes
+                }),
             fetchPlan: ProviderFetchPlan(
                 sourceModes: [.auto, .web],
                 pipeline: ProviderFetchPipeline(resolveStrategies: { _ in [NotionWebFetchStrategy()] })),
@@ -93,7 +111,7 @@ struct NotionWebFetchStrategy: ProviderFetchStrategy {
         let fetcher = NotionUsageFetcher(browserDetection: context.browserDetection)
         let manual = Self.manualCookieHeader(from: context)
         let logger: ((String) -> Void)? = context.verbose
-            ? { msg in CodexBarLog.logger(LogCategories.notion).verbose(msg) }
+            ? { msg in CodexBarLog.logger(LogCategories.provider(.notion)).verbose(msg) }
             : nil
         let snapshot = try await fetcher.fetch(
             cookieHeaderOverride: manual,

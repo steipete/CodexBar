@@ -187,7 +187,8 @@ scan fails, while provider/account configuration changes replace obsolete result
 
 ## Antigravity
 - Local Antigravity language server (internal protocol, HTTPS on localhost).
-- `GetUserStatus` primary; `GetCommandModelConfigs` fallback.
+- `agy` CLI HTTPS source when the app is closed; Google OAuth fallback.
+- `RetrieveUserQuotaSummary` primary; `GetUserStatus` / `GetCommandModelConfigs` fallbacks.
 - Status: Google Workspace incidents (Gemini product).
 - Details: `docs/antigravity.md`.
 

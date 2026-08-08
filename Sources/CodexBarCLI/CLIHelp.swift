@@ -158,16 +158,21 @@ extension CodexBarCLI {
         CodexBar \(version)
 
         Usage:
-          codexbar dashboard [--pretty] [--timeout <seconds>]
+          codexbar dashboard [--pretty] [--timeout <seconds>] [--output <path>]
+                             [--identity <redacted|full>]
                              [--json-output] [--log-level <trace|verbose|debug|info|warning|error|critical>]
                              [-v|--verbose]
 
         Description:
           Print one dashboard-v1 snapshot as JSON, then exit. Honors enabled providers
-          in stable order, always redacts account identity, and keeps provider
-          failures as row-level errors without dropping healthy rows.
+          in stable order and keeps provider failures as row-level errors without
+          dropping healthy rows. Account identity defaults to full emails;
+          --identity redacted hides email local parts.
           Stdout contains only the JSON document; diagnostics are written to stderr.
           --timeout accepts 0...86400 seconds and defaults to 30; 0 disables the deadline.
+          --output atomically writes the snapshot to a file (0644) instead of stdout;
+          the parent directory must already exist (it is not created), and nothing is
+          printed to stdout on success.
 
         Global flags:
           -h, --help      Show help
@@ -180,6 +185,7 @@ extension CodexBarCLI {
           codexbar dashboard
           codexbar dashboard --pretty
           codexbar dashboard --timeout 60
+          codexbar dashboard --output /var/www/dashboard/snapshot.json
         """
     }
 
@@ -191,13 +197,15 @@ extension CodexBarCLI {
           codexbar serve [--host <host>] [--port <port>] [--refresh-interval <seconds>]
                          [--request-timeout <seconds>]
                          [--dashboard-token <token>] [--allow-plain-http]
+                         [--identity <redacted|full>]
                          [--json-output] [--log-level <trace|verbose|debug|info|warning|error|critical>]
                          [-v|--verbose]
 
         Description:
           Start a foreground HTTP server that exposes existing CLI JSON payloads and a
-          token-gated dashboard snapshot. The server binds to 127.0.0.1 by default;
-          `localhost` is normalized to 127.0.0.1.
+          token-gated dashboard snapshot, with a built-in web UI at /. The static web UI
+          is always open; it sends a browser-entered token only when fetching snapshot data.
+          The server binds to 127.0.0.1 by default; `localhost` is normalized to 127.0.0.1.
           GET /dashboard/v1/snapshot requires "Authorization: Bearer YOUR_TOKEN" and fails
           closed (401) when no token is configured. Set the token with --dashboard-token or,
           preferably, the CODEXBAR_DASHBOARD_TOKEN environment variable (argv leaks via ps).
@@ -205,10 +213,13 @@ extension CodexBarCLI {
           request. A non-loopback --host therefore requires both a dashboard token and
           --allow-plain-http, which records that you accept that trade-off. On a
           non-loopback host the token also gates /usage and /cost (account data);
-          /health is always open. Use a TLS-terminating reverse proxy for anything
+          / and /health are always open. Use a TLS-terminating reverse proxy for anything
           beyond a trusted network segment.
+          Snapshot identity defaults to full account emails. --identity redacted hides
+          email local parts and is recommended whenever responses cross a network.
 
         Endpoints:
+          GET /                    Built-in web dashboard
           GET /health
           GET /usage
           GET /usage?provider=claude
@@ -450,7 +461,7 @@ extension CodexBarCLI {
                        [--days <days>] [--group-by project]
           codexbar sessions [--json|--json-v2] [--pretty]
           codexbar sessions focus <id>
-          codexbar dashboard [--pretty] [--timeout <seconds>]
+          codexbar dashboard [--pretty] [--timeout <seconds>] [--output <path>]
           codexbar serve [--host <host>] [--port <port>] [--refresh-interval <seconds>]
                        [--request-timeout <seconds>]
                        [--dashboard-token <token>] [--allow-plain-http]

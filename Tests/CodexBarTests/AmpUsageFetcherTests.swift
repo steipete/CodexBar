@@ -102,7 +102,7 @@ struct AmpUsageFetcherTests {
     func `amp config token resolves through environment`() {
         let env = [AmpSettingsReader.apiTokenKey: " 'sgamp_test' "]
 
-        #expect(ProviderTokenResolver.ampToken(environment: env) == "sgamp_test")
+        #expect(ProviderTokenResolver.token(for: .amp, environment: env) == "sgamp_test")
     }
 
     @Test

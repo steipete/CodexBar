@@ -34,6 +34,7 @@ public enum ManusProviderDescriptor {
                 widgetSelectable: false,
                 isPrimaryProvider: false,
                 usesAccountFallback: false,
+                debugLogUnavailableMessage: "Manus debug log not yet implemented",
                 browserCookieOrder: ProviderBrowserCookieDefaults.defaultImportOrder,
                 dashboardURL: "https://manus.im",
                 statusPageURL: nil),
@@ -45,10 +46,16 @@ public enum ManusProviderDescriptor {
                     ProviderColor(hex: 0x34322D),
                     ProviderColor(hex: 0xF2F0E9),
                     ProviderColor(hex: 0x0099FF),
-                ]),
+                ],
+                widgetColor: ProviderColor(red: 24 / 255, green: 24 / 255, blue: 24 / 255)),
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
                 noDataMessage: { "Manus cost summary is not supported." }),
+            presentation: ProviderUsagePresentation(
+                costPresenter: { _ in ProviderCostPresentation(menuCardStyle: .hidden) },
+                menuCard: ProviderMenuCardPresentation(
+                    showsPrimaryBalanceDescription: true,
+                    clearsPrimaryReset: true)),
             fetchPlan: self.fetchPlan(),
             cli: ProviderCLIConfig(
                 name: "manus",
@@ -101,7 +108,7 @@ struct ManusWebFetchStrategy: ProviderFetchStrategy {
 
     let id: String = "manus.web"
     let kind: ProviderFetchKind = .web
-    private static let log = CodexBarLog.logger(LogCategories.manusWeb)
+    private static let log = CodexBarLog.logger(LogCategories.provider(.manus, scope: "web"))
 
     func isAvailable(_ context: ProviderFetchContext) async -> Bool {
         guard context.settings?.manus?.cookieSource != .off else { return false }

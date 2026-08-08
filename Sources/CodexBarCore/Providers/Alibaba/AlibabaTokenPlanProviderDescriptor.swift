@@ -38,6 +38,7 @@ public enum AlibabaTokenPlanProviderDescriptor {
         let browserOrder: BrowserCookieImportOrder? = nil
         #endif
 
+        // Provider-specific by design: The Alibaba folder co-locates the distinct Alibaba Token Plan descriptor.
         return ProviderDescriptor(
             id: .alibabatokenplan,
             settingsSection: .init(
@@ -72,6 +73,11 @@ public enum AlibabaTokenPlanProviderDescriptor {
                 defaultEnabled: false,
                 isPrimaryProvider: false,
                 usesAccountFallback: false,
+                sharePlanLabels: [
+                    "token plan": "Token Plan", "token plan pro": "Token Plan Pro",
+                    "token plan plus": "Token Plan Plus",
+                ],
+                debugLogUnavailableMessage: "Alibaba Token Plan debug log not yet implemented",
                 browserCookieOrder: browserOrder,
                 dashboardURL: AlibabaTokenPlanUsageFetcher.dashboardURL.absoluteString,
                 statusPageURL: nil,
@@ -89,13 +95,19 @@ public enum AlibabaTokenPlanProviderDescriptor {
                 supportsTokenCost: false,
                 noDataMessage: { "Alibaba Token Plan cost summary is not supported." }),
             pace: .calendarMonthResetWindow,
+            presentation: ProviderUsagePresentation(menuCard: ProviderMenuCardPresentation(
+                showsPrimaryBalanceDescription: true)),
             fetchPlan: ProviderFetchPlan(
                 sourceModes: [.auto, .web],
                 pipeline: ProviderFetchPipeline(resolveStrategies: self.resolveStrategies)),
             cli: ProviderCLIConfig(
                 name: "alibaba-token-plan",
                 aliases: ["alibaba-token", "bailian-token-plan"],
-                versionDetector: nil))
+                versionDetector: nil,
+                browserSupportExemption: { _, _, settings in
+                    // Manual cookies use plain URLSession; only browser import is platform-bound.
+                    settings?.alibabaTokenPlan?.cookieSource == .manual
+                }))
     }
 
     private static func resolveStrategies(context: ProviderFetchContext) async -> [any ProviderFetchStrategy] {
@@ -169,6 +181,7 @@ struct AlibabaTokenPlanWebFetchStrategy: ProviderFetchStrategy {
             where error.isCredentialFailure && cookieSource != .manual
         {
             #if os(macOS)
+            // Provider-specific by design: This strategy clears the co-located Token Plan variant's cookie cache.
             CookieHeaderCache.clear(provider: .alibabatokenplan, scope: region.cookieCacheScope)
             let refreshedHeaders = try Self.resolveCookieHeaders(context: context, allowCached: false, region: region)
             let usage = try await self.fetchUsage(refreshedHeaders, region, context.env)
@@ -259,6 +272,7 @@ struct AlibabaTokenPlanWebFetchStrategy: ProviderFetchStrategy {
                 throw AlibabaTokenPlanSettingsError.missingCookie(
                     details: "No Alibaba Token Plan browser cookies were available after import.")
             }
+            // Provider-specific by design: This strategy stores cookies for the co-located Token Plan variant.
             CookieHeaderCache.store(
                 provider: .alibabatokenplan,
                 scope: region.cookieCacheScope,
@@ -290,6 +304,7 @@ struct AlibabaTokenPlanWebFetchStrategy: ProviderFetchStrategy {
     /// The former unscoped cache only ever represented the China gateway. Never expose it to
     /// International requests; migrate it into the China scope after a successful scoped write.
     private static func cachedCookieEntry(region: AlibabaTokenPlanAPIRegion) -> CookieHeaderCache.Entry? {
+        // Provider-specific by design: This migration is scoped to the co-located Token Plan variant's cache.
         if let scoped = CookieHeaderCache.load(provider: .alibabatokenplan, scope: region.cookieCacheScope) {
             return scoped
         }

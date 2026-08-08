@@ -23,6 +23,7 @@ public enum AiAndProviderDescriptor {
                 cliName: "aiand",
                 defaultEnabled: false,
                 widgetSelectable: false,
+                debugLogUnavailableMessage: "ai& debug log not yet implemented",
                 dashboardURL: "https://console.aiand.com",
                 statusPageURL: nil),
             branding: ProviderBranding(
@@ -37,6 +38,12 @@ public enum AiAndProviderDescriptor {
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
                 noDataMessage: { "ai& spend is summed from the request logs API." }),
+            presentation: ProviderUsagePresentation(costPresenter: { snapshot in
+                let style: ProviderCostMenuCardStyle = (snapshot.providerCost?.limit ?? 1) <= 0
+                    ? .apiSpend
+                    : .generic
+                return ProviderCostPresentation(menuCardStyle: style)
+            }),
             fetchPlan: ProviderFetchPlan(
                 sourceModes: [.auto, .api],
                 pipeline: ProviderFetchPipeline(resolveStrategies: { _ in [AiAndAPIFetchStrategy()] })),

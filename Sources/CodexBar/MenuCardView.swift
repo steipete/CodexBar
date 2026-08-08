@@ -86,7 +86,7 @@ struct UsageMenuCardView: View {
             }
 
             func linePresentation(title: String) -> LinePresentation {
-                let usedPercent = self.percentStyle == .used ? self.percent : 100 - self.percent
+                // Keep the title aligned with the configured used/remaining label semantics.
                 let metaParts = [
                     self.detailLeftText,
                     self.detailRightText,
@@ -99,7 +99,7 @@ struct UsageMenuCardView: View {
                     return text
                 }
                 return LinePresentation(
-                    titleText: "\(title) \(UsageFormatter.percentString(usedPercent))",
+                    titleText: "\(title) \(self.percentLabel)",
                     resetText: self.resetText,
                     metaText: metaParts.isEmpty ? nil : metaParts.joined(separator: " · "))
             }
@@ -911,7 +911,9 @@ extension UsageMenuCardView.Model {
         let openAIAPIUsage = input.snapshot?.openAIAPIUsage
         let inlineUsageDashboard = Self.inlineUsageDashboard(input: input)
         let usageNotes = Self.usageNotes(input: input)
-        let rawCreditsText: String? = if input.provider == .openrouter ||
+        let presentation = ProviderDescriptorRegistry.descriptor(for: input.provider).presentation
+        let menuCard = presentation.menuCard
+        let rawCreditsText: String? = if !menuCard.showsCreditsSection ||
             !input.showOptionalCreditsAndExtraUsage
         {
             nil
@@ -927,23 +929,19 @@ extension UsageMenuCardView.Model {
         let creditsProgressPercent = Self.creditsProgressPercent(credits: input.credits)
         let creditsScaleText = Self.creditsScaleText(credits: input.credits)
         let codexCreditLimitDetail = Self.codexCreditLimitDetail(credits: input.credits, now: input.now)
-        let isClaudeAdminAPI = input.provider == .claude &&
-            input.snapshot?.loginMethod(for: .claude) == "Admin API"
-        let isRequiredOpenCodeZenBalance = Self.isRequiredOpenCodeZenBalance(input.snapshot)
-        let hidesOptionalProviderCost = ((input.provider == .claude && !isClaudeAdminAPI) ||
-            input.provider == .cursor ||
-            input.provider == .factory ||
-            input.provider == .devin ||
-            (input.provider == .opencodego && !isRequiredOpenCodeZenBalance)) &&
-            !input.showOptionalCreditsAndExtraUsage
-        let providerCost: ProviderCostSection? = if hidesOptionalProviderCost ||
-            (input.provider == .openai && openAIAPIUsage != nil)
-        {
+        let isClaudeAdminAPI = input.snapshot?.loginMethod(for: input.provider) == "Admin API"
+        let showsProviderCost = menuCard.showsProviderCost(context: ProviderCostVisibilityContext(
+            snapshot: input.snapshot,
+            showOptionalUsage: input.showOptionalCreditsAndExtraUsage))
+        let providerCostStyle = input.snapshot.map {
+            presentation.cost(snapshot: $0).menuCardStyle
+        } ?? .generic
+        let providerCost: ProviderCostSection? = if !showsProviderCost {
             nil
         } else {
             Self.providerCostSection(
-                provider: input.provider,
                 cost: input.snapshot?.providerCost,
+                style: providerCostStyle,
                 isClaudeAdminAPI: isClaudeAdminAPI,
                 preferredCurrencyCode: input.preferredCurrencyCode)
         }
@@ -995,10 +993,13 @@ extension UsageMenuCardView.Model {
     private static func visibleProviderDetails(input: Input) -> [ProviderDetailSection] {
         var details = input.snapshot?.details ?? []
         if !input.showOptionalCreditsAndExtraUsage {
-            if input.provider == .sakana {
+            let policy = ProviderDescriptorRegistry.descriptor(for: input.provider).presentation.optionalDetails
+            if policy.hidesAllWithoutOptionalUsage {
                 details = []
-            } else if input.provider == .minimax {
-                details.removeAll { $0.title == "Billing history" }
+            } else if !policy.hiddenTitlesWithoutOptionalUsage.isEmpty {
+                details.removeAll { section in
+                    section.title.map(policy.hiddenTitlesWithoutOptionalUsage.contains) == true
+                }
             }
         }
         guard input.hidePersonalInfo else { return details }

@@ -1,7 +1,17 @@
 import Foundation
+import SweetCookieKit
 
 public enum GrokProviderDescriptor {
     public static let descriptor: ProviderDescriptor = Self.makeDescriptor()
+
+    /// Grok is normally signed in through Chrome; avoid touching unrelated browser keychains.
+    private static var browserCookieOrder: BrowserCookieImportOrder? {
+        #if os(macOS)
+        [.chrome]
+        #else
+        nil
+        #endif
+    }
 
     static func makeDescriptor() -> ProviderDescriptor {
         ProviderDescriptor(
@@ -21,7 +31,8 @@ public enum GrokProviderDescriptor {
                 widgetSelectable: false,
                 isPrimaryProvider: false,
                 usesAccountFallback: false,
-                browserCookieOrder: ProviderBrowserCookieDefaults.grokCookieImportOrder,
+                debugLogUnavailableMessage: "Grok debug log not yet implemented",
+                browserCookieOrder: self.browserCookieOrder,
                 dashboardURL: "https://grok.com/?_s=usage",
                 changelogURL: "https://x.ai/news",
                 statusPageURL: nil,
@@ -48,12 +59,20 @@ public enum GrokProviderDescriptor {
                     && timeUntilReset > 0
                     && timeUntilReset <= TimeInterval(windowMinutes) * 60
             }),
+            presentation: ProviderUsagePresentation(rateWindowLabeler: { metadata, snapshot, now in
+                ProviderRateWindowLabels(
+                    primary: Self.primaryLabel(window: snapshot.primary, now: now) ?? metadata.sessionLabel,
+                    secondary: metadata.weeklyLabel,
+                    tertiary: metadata.opusLabel ?? "Sonnet",
+                    showsTertiary: metadata.supportsOpus)
+            }),
             fetchPlan: ProviderFetchPlan(
                 sourceModes: [.auto, .cli, .web],
                 pipeline: ProviderFetchPipeline(resolveStrategies: self.resolveStrategies)),
             cli: ProviderCLIConfig(
                 name: "grok",
-                versionDetector: { _ in GrokStatusProbe.detectVersion() }))
+                versionDetector: { _ in GrokStatusProbe.detectVersion() },
+                browserSupportExemption: { _, _, _ in true }))
     }
 
     private static func resolveStrategies(context: ProviderFetchContext) async -> [any ProviderFetchStrategy] {

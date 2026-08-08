@@ -78,7 +78,7 @@ struct StatusItemAnimationTests {
         if let openRouterMeta = registry.metadata[.openrouter] {
             settings.setProviderEnabled(provider: .openrouter, metadata: openRouterMeta, enabled: true)
         }
-        settings.openRouterAPIToken = "or-token"
+        settings[providerConfig: .openrouter, field: .apiKey] = "or-token"
         if let geminiMeta = registry.metadata[.gemini] {
             settings.setProviderEnabled(provider: .gemini, metadata: geminiMeta, enabled: false)
         }
@@ -126,7 +126,7 @@ struct StatusItemAnimationTests {
         if let openRouterMeta = registry.metadata[.openrouter] {
             settings.setProviderEnabled(provider: .openrouter, metadata: openRouterMeta, enabled: true)
         }
-        settings.openRouterAPIToken = "or-token"
+        settings[providerConfig: .openrouter, field: .apiKey] = "or-token"
 
         let fetcher = UsageFetcher()
         let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
@@ -297,7 +297,7 @@ struct StatusItemAnimationTests {
         if let openRouterMeta = registry.metadata[.openrouter] {
             settings.setProviderEnabled(provider: .openrouter, metadata: openRouterMeta, enabled: true)
         }
-        settings.openRouterAPIToken = "or-token"
+        settings[providerConfig: .openrouter, field: .apiKey] = "or-token"
 
         let fetcher = UsageFetcher()
         let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
@@ -364,7 +364,7 @@ struct StatusItemAnimationTests {
         if let openRouterMeta = registry.metadata[.openrouter] {
             settings.setProviderEnabled(provider: .openrouter, metadata: openRouterMeta, enabled: true)
         }
-        settings.openRouterAPIToken = "or-token"
+        settings[providerConfig: .openrouter, field: .apiKey] = "or-token"
 
         let fetcher = UsageFetcher()
         let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)

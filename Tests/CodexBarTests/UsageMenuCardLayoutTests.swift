@@ -91,7 +91,7 @@ struct UsageMenuCardLayoutTests {
     }
 
     @Test
-    func `metric line presentation keeps used percent and reset in title row`() {
+    func `metric line presentation keeps remaining percent and reset in title row`() {
         let metric = UsageMenuCardView.Model.Metric(
             id: "weekly",
             title: "Weekly",
@@ -110,7 +110,7 @@ struct UsageMenuCardLayoutTests {
 
         let presentation = metric.linePresentation(title: metric.title)
 
-        #expect(presentation.titleText == "Weekly 31%")
+        #expect(presentation.titleText == "Weekly 69% left")
         #expect(presentation.resetText == "Resets Jul 22, 8:33 AM")
         #expect(presentation.metaText ==
             "26% in deficit · Runs out in 19h 7m (85% risk) · " +
@@ -118,7 +118,7 @@ struct UsageMenuCardLayoutTests {
     }
 
     @Test
-    func `metric title always reports used percent`() {
+    func `metric title follows configured percent style`() {
         let leftMetric = UsageMenuCardView.Model.Metric(
             id: "weekly",
             title: "Weekly",
@@ -142,8 +142,8 @@ struct UsageMenuCardLayoutTests {
             pacePercent: nil,
             paceOnTop: true)
 
-        #expect(leftMetric.linePresentation(title: leftMetric.title).titleText == "Weekly 31%")
-        #expect(usedMetric.linePresentation(title: usedMetric.title).titleText == "Weekly 31%")
+        #expect(leftMetric.linePresentation(title: leftMetric.title).titleText == "Weekly 69% left")
+        #expect(usedMetric.linePresentation(title: usedMetric.title).titleText == "Weekly 31% used")
     }
 
     @Test

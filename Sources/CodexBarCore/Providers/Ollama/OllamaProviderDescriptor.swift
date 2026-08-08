@@ -36,6 +36,7 @@ public enum OllamaProviderDescriptor {
                 widgetSelectable: false,
                 isPrimaryProvider: false,
                 usesAccountFallback: false,
+                debugPane: ProviderDebugPaneCapabilities(probeLogOrder: 5, errorSimulationOrder: 8),
                 browserCookieOrder: ProviderBrowserCookieDefaults.defaultImportOrder,
                 dashboardURL: "https://ollama.com/settings",
                 statusPageURL: nil),
@@ -46,16 +47,35 @@ public enum OllamaProviderDescriptor {
                 confettiPalette: [
                     ProviderColor(hex: 0x000000),
                     ProviderColor(hex: 0xFFFFFF),
-                ]),
+                ],
+                widgetColor: ProviderColor(red: 32 / 255, green: 32 / 255, blue: 32 / 255)),
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
                 noDataMessage: { "Ollama cost summary is not supported." }),
+            pace: ProviderPaceCapability(
+                primary: .session(maximumMinutes: 300, requiresDuration: true),
+                secondary: .weeklyWithDuration,
+                sessionPaceWindowRule: .windowDurationPresent),
+            presentation: ProviderUsagePresentation(menuCard: ProviderMenuCardPresentation(
+                usageNotesResolver: { context in
+                    guard context.snapshot?.identity?.loginMethod == "API key" else { return .unhandled }
+                    return .localized([
+                        "API key verified. Cloud quotas need browser cookies. Sign in to Ollama.",
+                    ])
+                })),
             fetchPlan: ProviderFetchPlan(
                 sourceModes: [.auto, .web, .api],
                 pipeline: ProviderFetchPipeline(resolveStrategies: self.resolveStrategies)),
             cli: ProviderCLIConfig(
                 name: "ollama",
-                versionDetector: nil))
+                versionDetector: nil,
+                browserSupportExemption: { sourceMode, environment, settings in
+                    guard sourceMode == .auto else { return false }
+                    let hasEnvironmentToken = environment.map {
+                        ProviderTokenResolver.token(for: .ollama, environment: $0) != nil
+                    } == true
+                    return settings?.ollama?.cookieSource == .off || hasEnvironmentToken
+                }))
     }
 
     private static func resolveStrategies(context: ProviderFetchContext) async -> [any ProviderFetchStrategy] {
@@ -72,7 +92,7 @@ public enum OllamaProviderDescriptor {
         if context.settings?.ollama?.cookieSource == .off {
             return [OllamaAPIFetchStrategy()]
         }
-        if ProviderTokenResolver.ollamaToken(environment: context.env) != nil {
+        if ProviderTokenResolver.token(for: .ollama, environment: context.env) != nil {
             return [OllamaStatusFetchStrategy(), OllamaAPIFetchStrategy()]
         }
         return [OllamaStatusFetchStrategy()]
@@ -93,7 +113,7 @@ struct OllamaStatusFetchStrategy: ProviderFetchStrategy {
         let manual = Self.manualCookieHeader(from: context)
         let isManualMode = context.settings?.ollama?.cookieSource == .manual
         let logger: ((String) -> Void)? = context.verbose
-            ? { msg in CodexBarLog.logger(LogCategories.ollama).verbose(msg) }
+            ? { msg in CodexBarLog.logger(LogCategories.provider(.ollama)).verbose(msg) }
             : nil
         let snap: OllamaUsageSnapshot = if isManualMode {
             try await fetcher.fetch(
@@ -129,7 +149,7 @@ struct OllamaStatusFetchStrategy: ProviderFetchStrategy {
 
     func shouldFallback(on _: Error, context: ProviderFetchContext) -> Bool {
         context.sourceMode == .auto
-            && ProviderTokenResolver.ollamaToken(environment: context.env) != nil
+            && ProviderTokenResolver.token(for: .ollama, environment: context.env) != nil
     }
 
     static func manualCookieHeader(from context: ProviderFetchContext) -> String? {
@@ -212,6 +232,6 @@ struct OllamaAPIFetchStrategy: ProviderFetchStrategy {
     }
 
     private static func resolveToken(environment: [String: String]) -> String? {
-        ProviderTokenResolver.ollamaToken(environment: environment)
+        ProviderTokenResolver.token(for: .ollama, environment: environment)
     }
 }

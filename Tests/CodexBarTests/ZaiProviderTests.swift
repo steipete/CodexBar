@@ -1156,6 +1156,93 @@ struct ZaiThreeLimitTests {
     }
 }
 
+/// Regression coverage for #2724 / #2712: credit-based GLM Coding Plans (lite/standard/pro)
+/// return CREDIT_LIMIT entries. Dropping them showed 100% remaining / 0% used and let the
+/// reset display fall back to a non-5-hour limit's timestamp.
+struct ZaiCreditLimitTests {
+    /// Exact payload reported in #2724 (lite plan, global region).
+    private static let creditPayload = """
+    {
+      "code": 200,
+      "msg": "Operation successful",
+      "data": {
+        "limits": [
+          {
+            "type": "CREDIT_LIMIT",
+            "unit": 3,
+            "number": 5,
+            "usage": 2000,
+            "currentValue": 71,
+            "remaining": 1929,
+            "percentage": 3,
+            "nextResetTime": 1786073946574
+          },
+          {
+            "type": "CREDIT_LIMIT",
+            "unit": 6,
+            "number": 1,
+            "usage": 10000,
+            "currentValue": 71,
+            "remaining": 9929,
+            "percentage": 1,
+            "nextResetTime": 1786660486998
+          }
+        ],
+        "level": "lite"
+      },
+      "success": true
+    }
+    """
+
+    @Test
+    func `parses CREDIT_LIMIT entries into session and weekly slots`() throws {
+        let snapshot = try ZaiUsageFetcher.parseUsageSnapshot(from: Data(Self.creditPayload.utf8))
+
+        // 5-hour credit window → sessionTokenLimit (primary)
+        #expect(snapshot.sessionTokenLimit?.type == .creditLimit)
+        #expect(snapshot.sessionTokenLimit?.unit == .hours)
+        #expect(snapshot.sessionTokenLimit?.number == 5)
+        #expect(snapshot.sessionTokenLimit?.windowMinutes == 300)
+
+        // Weekly credit window → tokenLimit (secondary)
+        #expect(snapshot.tokenLimit?.type == .creditLimit)
+        #expect(snapshot.tokenLimit?.unit == .weeks)
+        #expect(snapshot.tokenLimit?.windowMinutes == 10080)
+
+        #expect(snapshot.timeLimit == nil)
+        #expect(snapshot.isValid)
+        #expect(snapshot.planName == "lite")
+    }
+
+    @Test
+    func `credit usage renders real percentages instead of 100 percent remaining`() throws {
+        let snapshot = try ZaiUsageFetcher.parseUsageSnapshot(from: Data(Self.creditPayload.utf8))
+        let usage = snapshot.toUsageSnapshot()
+
+        // 71 of 2000 credits used → 3.55%, not the 0% shown when CREDIT_LIMIT was dropped.
+        #expect(abs((usage.primary?.usedPercent ?? 0) - 3.55) < 0.0001)
+        #expect(usage.primary?.windowMinutes == 300)
+        #expect(usage.primary?.resetDescription == "5-hour")
+        // 71 of 10000 weekly credits → 0.71%.
+        #expect(abs((usage.secondary?.usedPercent ?? 0) - 0.71) < 0.0001)
+        #expect(usage.secondary?.windowMinutes == 10080)
+
+        let quotaRows = usage.details.first { $0.title == "Quota details" }?.rows ?? []
+        #expect(quotaRows.map(\.label) == ["Credit quota", "Session credit quota"])
+    }
+
+    @Test
+    func `primary reset time comes from the 5-hour credit window`() throws {
+        // #2712: the displayed reset must be the 5-hour window's nextResetTime,
+        // not a fallback limit's longer schedule.
+        let snapshot = try ZaiUsageFetcher.parseUsageSnapshot(from: Data(Self.creditPayload.utf8))
+        let usage = snapshot.toUsageSnapshot()
+
+        #expect(usage.primary?.resetsAt == Date(timeIntervalSince1970: 1_786_073_946.574))
+        #expect(usage.secondary?.resetsAt == Date(timeIntervalSince1970: 1_786_660_486.998))
+    }
+}
+
 struct ZaiAPIRegionTests {
     @Test
     func `dashboard URLs follow selected region`() {

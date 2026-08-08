@@ -6,6 +6,36 @@ import Testing
 @MainActor
 struct SettingsStoreAdditionalTests {
     @Test
+    func `typed provider config bindings normalize every standard field`() {
+        let settings = Self.makeSettingsStore(suite: "SettingsStoreAdditionalTests-provider-config-bindings")
+
+        let fields: [(ProviderConfigStringField, String)] = [
+            (.apiKey, "api"),
+            (.secretKey, "secret"),
+            (.region, "region"),
+            (.endpoint, "https://example.test"),
+            (.workspace, "workspace"),
+            (.cookieHeader, "session=fixture"),
+        ]
+        for (field, value) in fields {
+            settings[providerConfig: .groq, field: field] = "  \(value)  "
+            #expect(settings[providerConfig: .groq, field: field] == value)
+        }
+
+        let binding = settings.providerConfigBinding(provider: .openai, field: .secretWorkspace(logField: "projectID"))
+        binding.wrappedValue = "  project  "
+        #expect(binding.wrappedValue == "project")
+
+        let cookieSource = settings.providerCookieSourceBinding(provider: .groq, fallback: .auto)
+        #expect(cookieSource.wrappedValue == .auto)
+        cookieSource.wrappedValue = .manual
+        #expect(cookieSource.wrappedValue == .manual)
+
+        settings[providerConfig: .groq, field: .apiKey] = "   "
+        #expect(settings.providerConfig(for: .groq)?.apiKey == nil)
+    }
+
+    @Test
     @MainActor
     func `antigravity two pool migration preserves released metric meaning`() {
         let primaryDefaults = UserDefaults(suiteName: #function + ".primary")!
@@ -160,6 +190,36 @@ struct SettingsStoreAdditionalTests {
 
             settings.setMenuBarMetricPreference(.secondary, for: provider)
             #expect(settings.menuBarMetricPreference(for: provider) == .automatic)
+        }
+    }
+
+    @Test
+    func `menu bar metric capability membership preserves every provider verdict`() {
+        let settings = Self.makeSettingsStore(suite: "SettingsStoreAdditionalTests-menu-metric-capabilities")
+        let standard: Set<MenuBarMetricPreference> = [.automatic, .primary, .secondary]
+        let overrides: [UsageProvider: Set<MenuBarMetricPreference>] = [
+            .codex: standard.union([.primaryAndSecondary]),
+            .claude: standard.union([.primaryAndSecondary, .extraUsage]),
+            .cursor: standard.union([.tertiary, .extraUsage]),
+            .gemini: standard.union([.average]),
+            .perplexity: standard.union([.tertiary]),
+            .mistral: [.automatic, .monthlyPlan],
+            .openrouter: [.automatic, .primary],
+            .deepseek: [.automatic],
+            .deepinfra: [.automatic],
+            .moonshot: [.automatic],
+            .poe: [.automatic],
+        ]
+
+        for provider in UsageProvider.allCases {
+            let supported = overrides[provider] ?? standard
+            for preference in MenuBarMetricPreference.allCases {
+                settings.setMenuBarMetricPreference(preference, for: provider)
+                let expected = supported.contains(preference) ? preference : .automatic
+                #expect(
+                    settings.menuBarMetricPreference(for: provider) == expected,
+                    "Unexpected \(preference.rawValue) verdict for \(provider.rawValue).")
+            }
         }
     }
 

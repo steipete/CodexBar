@@ -1,3 +1,4 @@
+#if !canImport(JavaScriptCore)
 import CodexBarCore
 import Foundation
 import Testing
@@ -341,3 +342,4 @@ struct Sub2APIUsageFetcherTests {
             hour: 12)))
     }
 }
+#endif

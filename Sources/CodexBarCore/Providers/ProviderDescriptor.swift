@@ -1,12 +1,125 @@
 import Foundation
 
+public enum ProviderTokenCostHint: Sendable, Equatable {
+    case localized(String)
+    case estimate
+    case literal(String)
+}
+
+public enum ProviderTokenCostHistoryTitleStyle: Sendable, Equatable {
+    case standard
+    case compact
+}
+
+public enum ProviderTokenCostPrimaryValue: Sendable, Equatable {
+    case session
+    case latestDaily
+}
+
+public enum ProviderTokenCostHintPlacement: Sendable, Equatable {
+    case beforeRequestHistory
+    case afterRequestHistory
+    case hidden
+}
+
 public struct ProviderTokenCostConfig: Sendable {
     public let supportsTokenCost: Bool
     public let noDataMessage: @Sendable () -> String
+    public let menuHintLines: [ProviderTokenCostHint]
+    public let supportsTokenSnapshot: Bool
+    public let settingsStatusOrder: Int?
+    public let showsHintInProviderDetails: Bool
+    public let showsCostMenuSection: Bool
+    public let estimateDisclaimer: String
+    public let historyTitleStyle: ProviderTokenCostHistoryTitleStyle
+    public let primaryValue: ProviderTokenCostPrimaryValue
+    public let showsRequestHistory: Bool
+    public let hintPlacement: ProviderTokenCostHintPlacement
+    public let chartEstimateDisclaimer: ProviderTokenCostHint?
 
-    public init(supportsTokenCost: Bool, noDataMessage: @escaping @Sendable () -> String) {
+    public init(
+        supportsTokenCost: Bool,
+        noDataMessage: @escaping @Sendable () -> String,
+        menuHintLines: [ProviderTokenCostHint] = [],
+        supportsTokenSnapshot: Bool = false,
+        settingsStatusOrder: Int? = nil,
+        showsHintInProviderDetails: Bool = false,
+        showsCostMenuSection: Bool = true,
+        estimateDisclaimer: String = "Estimated from local logs · may differ from your bill",
+        historyTitleStyle: ProviderTokenCostHistoryTitleStyle = .standard,
+        primaryValue: ProviderTokenCostPrimaryValue = .session,
+        showsRequestHistory: Bool = true,
+        hintPlacement: ProviderTokenCostHintPlacement = .afterRequestHistory,
+        chartEstimateDisclaimer: ProviderTokenCostHint? = nil)
+    {
         self.supportsTokenCost = supportsTokenCost
         self.noDataMessage = noDataMessage
+        self.menuHintLines = menuHintLines
+        self.supportsTokenSnapshot = supportsTokenSnapshot
+        self.settingsStatusOrder = settingsStatusOrder
+        self.showsHintInProviderDetails = showsHintInProviderDetails
+        self.showsCostMenuSection = showsCostMenuSection
+        self.estimateDisclaimer = estimateDisclaimer
+        self.historyTitleStyle = historyTitleStyle
+        self.primaryValue = primaryValue
+        self.showsRequestHistory = showsRequestHistory
+        self.hintPlacement = hintPlacement
+        self.chartEstimateDisclaimer = chartEstimateDisclaimer
+    }
+}
+
+public struct ProviderHistoryCapability: Sendable, Equatable {
+    public static let optIn = ProviderHistoryCapability(alwaysTracksPlanUtilization: false)
+    public static let alwaysTracked = ProviderHistoryCapability(alwaysTracksPlanUtilization: true)
+
+    public let alwaysTracksPlanUtilization: Bool
+
+    public init(alwaysTracksPlanUtilization: Bool) {
+        self.alwaysTracksPlanUtilization = alwaysTracksPlanUtilization
+    }
+}
+
+public struct ProviderConfigCapabilities: Sendable, Equatable {
+    public let workspaceIDValidationOrder: Int?
+    public let supportsEnterpriseHost: Bool
+
+    public init(
+        workspaceIDValidationOrder: Int? = nil,
+        supportsEnterpriseHost: Bool = false)
+    {
+        self.workspaceIDValidationOrder = workspaceIDValidationOrder
+        self.supportsEnterpriseHost = supportsEnterpriseHost
+    }
+}
+
+public enum ProviderMenuBarMetric: Sendable, Hashable {
+    case automatic
+    case primary
+    case secondary
+    case primaryAndSecondary
+    case tertiary
+    case extraUsage
+    case average
+    case monthlyPlan
+}
+
+public struct ProviderMenuBarMetricCapabilities: Sendable, Equatable {
+    public static let automaticOnly = Self(supported: [.automatic])
+    public static let standard = Self(supported: [.automatic, .primary, .secondary])
+
+    public let supported: Set<ProviderMenuBarMetric>
+    public let tertiaryRequiresWindow: Bool
+
+    public init(
+        supported: Set<ProviderMenuBarMetric>,
+        tertiaryRequiresWindow: Bool = false)
+    {
+        self.supported = supported
+        self.tertiaryRequiresWindow = tertiaryRequiresWindow
+    }
+
+    public func supports(_ metric: ProviderMenuBarMetric) -> Bool {
+        self.supported.contains(metric)
     }
 }
 
@@ -50,6 +163,53 @@ public enum ProviderPaceDurationRule: Sendable {
     }
 }
 
+public enum ProviderPaceKind: Sendable {
+    case session
+    case weekly
+
+    public var defaultWindowMinutes: Int {
+        switch self {
+        case .session: 300
+        case .weekly: 10080
+        }
+    }
+}
+
+public enum ProviderPaceSlot: Sendable {
+    case primary
+    case secondary
+    case tertiary
+}
+
+public struct ProviderStandardPaceLane: Sendable {
+    public let kind: ProviderPaceKind
+    public let windowRule: ProviderPaceWindowRule
+
+    public init(kind: ProviderPaceKind, windowRule: ProviderPaceWindowRule) {
+        self.kind = kind
+        self.windowRule = windowRule
+    }
+
+    public static func session(maximumMinutes: Int, requiresDuration: Bool = false) -> Self {
+        Self(kind: .session, windowRule: .custom { window, _ in
+            guard let minutes = window.windowMinutes else { return !requiresDuration }
+            return minutes <= maximumMinutes
+        })
+    }
+
+    public static var weekly: Self {
+        Self(kind: .weekly, windowRule: .custom { _, _ in true })
+    }
+
+    public static var weeklyWithDuration: Self {
+        Self(kind: .weekly, windowRule: .windowDurationPresent)
+    }
+
+    public static func exact(kind: ProviderPaceKind, minutes: Int) -> Self {
+        Self(kind: kind, windowRule: .windowDuration(minutes: minutes))
+    }
+}
+
 public struct ProviderPaceCapability: Sendable {
     public static let monthlyWindowSentinelMinutes = 30 * 24 * 60
     public static let unsupported = ProviderPaceCapability()
@@ -59,13 +219,28 @@ public struct ProviderPaceCapability: Sendable {
 
     public let resetWindowPace: ProviderPaceWindowRule
     public let inferredMonthlyDuration: ProviderPaceDurationRule
+    public let primary: ProviderStandardPaceLane?
+    public let secondary: ProviderStandardPaceLane?
+    public let tertiary: ProviderStandardPaceLane?
+    public let showsHeadroomHint: Bool
+    public let sessionPaceWindowRule: ProviderPaceWindowRule
 
     public init(
         resetWindowPace: ProviderPaceWindowRule = .unsupported,
-        inferredMonthlyDuration: ProviderPaceDurationRule = .unsupported)
+        inferredMonthlyDuration: ProviderPaceDurationRule = .unsupported,
+        primary: ProviderStandardPaceLane? = nil,
+        secondary: ProviderStandardPaceLane? = nil,
+        tertiary: ProviderStandardPaceLane? = nil,
+        showsHeadroomHint: Bool = false,
+        sessionPaceWindowRule: ProviderPaceWindowRule = .unsupported)
     {
         self.resetWindowPace = resetWindowPace
         self.inferredMonthlyDuration = inferredMonthlyDuration
+        self.primary = primary
+        self.secondary = secondary
+        self.tertiary = tertiary
+        self.showsHeadroomHint = showsHeadroomHint
+        self.sessionPaceWindowRule = sessionPaceWindowRule
     }
 
     public func supportsResetWindowPace(window: RateWindow, now: Date) -> Bool {
@@ -90,6 +265,23 @@ public struct ProviderPaceCapability: Sendable {
             isSyntheticPlaceholder: window.isSyntheticPlaceholder)
     }
 
+    public func resolvedKind(slot: ProviderPaceSlot, window: RateWindow, now: Date) -> ProviderPaceKind? {
+        if self.supportsResetWindowPace(window: window, now: now) {
+            return .weekly
+        }
+        let lane = switch slot {
+        case .primary: self.primary
+        case .secondary: self.secondary
+        case .tertiary: self.tertiary
+        }
+        guard let lane, lane.windowRule.matches(window: window, now: now) else { return nil }
+        return lane.kind
+    }
+
+    public func supportsSessionPace(window: RateWindow, now: Date) -> Bool {
+        self.sessionPaceWindowRule.matches(window: window, now: now)
+    }
+
     private static func inferredMonthlyWindowMinutes(endingAt resetsAt: Date) -> Int? {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(secondsFromGMT: 0) ?? calendar.timeZone
@@ -106,20 +298,28 @@ public struct ProviderDescriptor: Sendable {
     public let branding: ProviderBranding
     public let tokenCost: ProviderTokenCostConfig
     public let pace: ProviderPaceCapability
+    public let history: ProviderHistoryCapability
+    public let presentation: ProviderUsagePresentation
     public let settingsSection: ProviderSettingsSectionRegistration
     public let credentials: ProviderCredentialAdapter?
+    public let config: ProviderConfigCapabilities
+    public let menuBarMetrics: ProviderMenuBarMetricCapabilities
     public let fetchPlan: ProviderFetchPlan
     public let cli: ProviderCLIConfig
     private let configNormalizer: @Sendable (inout ProviderConfig) -> Void
 
     public init(
         id: UsageProvider,
+        menuBarMetrics: ProviderMenuBarMetricCapabilities? = nil,
         settingsSection: ProviderSettingsSectionRegistration? = nil,
         credentials: ProviderCredentialAdapter? = nil,
+        config: ProviderConfigCapabilities = ProviderConfigCapabilities(),
         metadata: ProviderMetadata,
         branding: ProviderBranding,
         tokenCost: ProviderTokenCostConfig,
         pace: ProviderPaceCapability = .unsupported,
+        history: ProviderHistoryCapability = .optIn,
+        presentation: ProviderUsagePresentation = ProviderUsagePresentation(),
         fetchPlan: ProviderFetchPlan,
         cli: ProviderCLIConfig,
         configNormalizer: @escaping @Sendable (inout ProviderConfig) -> Void = { _ in })
@@ -130,7 +330,11 @@ public struct ProviderDescriptor: Sendable {
         self.branding = branding
         self.tokenCost = tokenCost
         self.pace = pace
+        self.history = history
+        self.presentation = presentation
         self.credentials = credentials
+        self.config = config
+        self.menuBarMetrics = menuBarMetrics ?? (metadata.balanceOnly ? .automaticOnly : .standard)
         self.fetchPlan = fetchPlan
         self.cli = cli
         self.configNormalizer = configNormalizer

@@ -1,3 +1,5 @@
+// Linux compatibility only. JavaScriptCore platforms use the bundled Deepgram plugin.
+#if !canImport(JavaScriptCore)
 import Foundation
 #if canImport(FoundationNetworking)
 import FoundationNetworking
@@ -315,7 +317,7 @@ extension DeepgramUsageSnapshot {
 public struct DeepgramUsageFetcher: Sendable {
     public static let apiURLKey = "DEEPGRAM_API_URL"
 
-    private static let log = CodexBarLog.logger(LogCategories.deepgramUsage)
+    private static let log = CodexBarLog.logger(LogCategories.provider(.deepgram, scope: "usage"))
     private static let defaultBaseURL = URL(string: "https://api.deepgram.com/v1")!
 
     private struct FetchContext {
@@ -584,3 +586,4 @@ public struct DeepgramUsageFetcher: Sendable {
         }
     }
 }
+#endif

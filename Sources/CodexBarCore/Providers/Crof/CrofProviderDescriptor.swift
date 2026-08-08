@@ -27,6 +27,7 @@ public enum CrofProviderDescriptor {
                 widgetSelectable: false,
                 isPrimaryProvider: false,
                 usesAccountFallback: false,
+                usesDetailBackedWindow: true,
                 browserCookieOrder: nil,
                 dashboardURL: "https://crof.ai/dashboard",
                 statusPageURL: nil,
@@ -39,10 +40,27 @@ public enum CrofProviderDescriptor {
                     ProviderColor(hex: 0x0A0A0A),
                     ProviderColor(hex: 0x8B7CFF),
                     ProviderColor(hex: 0xA99FFF),
-                ]),
+                ],
+                widgetColor: ProviderColor(red: 46 / 255, green: 171 / 255, blue: 148 / 255)),
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
                 noDataMessage: { "Crof cost summary is not available via API." }),
+            presentation: ProviderUsagePresentation(
+                rateWindowLabeler: { metadata, snapshot, _ in
+                    ProviderRateWindowLabels(
+                        primary: Self.primaryLabel(snapshot: snapshot),
+                        secondary: metadata.weeklyLabel,
+                        tertiary: metadata.opusLabel ?? "Sonnet",
+                        showsTertiary: metadata.supportsOpus)
+                },
+                menuCard: ProviderMenuCardPresentation(
+                    primaryDescriptionPlacement: .detailBySecondaryPresence,
+                    hidesPrimaryResetWithoutSecondary: true,
+                    movePrimaryDetailToStatus: { $0?.secondary == nil }),
+                menu: ProviderMenuDescriptorPresentation(
+                    primaryDescriptionIsDetail: { $0.secondary == nil },
+                    duplicatesPrimaryDetailWhenResetDatePresent: true,
+                    secondaryDescriptionMode: .resetOverride)),
             fetchPlan: self.fetchPlan(),
             cli: ProviderCLIConfig(
                 name: "crof",
@@ -70,7 +88,7 @@ public enum CrofProviderDescriptor {
         // Linux compatibility only. JavaScriptCore platforms use the bundled plugin above.
         .apiToken(
             strategyID: "crof.api",
-            resolveToken: { ProviderTokenResolver.crofToken(environment: $0) },
+            resolveToken: { ProviderTokenResolver.token(for: .crof, environment: $0) },
             missingCredentialsError: { CrofUsageError.missingCredentials },
             loadUsage: { apiKey, _ in
                 try await CrofUsageFetcher.fetchUsage(apiKey: apiKey).toUsageSnapshot()

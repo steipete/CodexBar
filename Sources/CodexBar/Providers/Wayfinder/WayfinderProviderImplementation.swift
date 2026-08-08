@@ -23,7 +23,7 @@ struct WayfinderProviderImplementation: ProviderImplementation {
 
     @MainActor
     func observeSettings(_ settings: SettingsStore) {
-        _ = settings.wayfinderGatewayURL
+        _ = settings[providerConfig: .wayfinder, field: .endpoint]
     }
 
     @MainActor
@@ -42,7 +42,7 @@ struct WayfinderProviderImplementation: ProviderImplementation {
                     "savings — prompts are never read or sent.",
                 kind: .plain,
                 placeholder: WayfinderSettingsReader.defaultBaseURL.absoluteString,
-                binding: context.stringBinding(\.wayfinderGatewayURL),
+                binding: context.providerConfigBinding(.endpoint),
                 actions: [],
                 isVisible: nil,
                 onActivate: nil),

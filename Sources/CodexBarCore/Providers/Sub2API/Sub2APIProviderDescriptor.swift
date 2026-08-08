@@ -27,8 +27,8 @@ public enum Sub2APIProviderDescriptor {
         },
         missingCredentialMessage: { environment in
             Sub2APISettingsReader.apiKey(environment: environment) == nil
-                ? Sub2APIUsageError.missingCredentials.errorDescription
-                : Sub2APIUsageError.missingBaseURL.errorDescription
+                ? Sub2APISettingsReader.missingCredentialsMessage
+                : Sub2APISettingsReader.missingBaseURLMessage
         })
 
     public static func primaryLabel(snapshot: UsageSnapshot) -> String? {
@@ -38,6 +38,7 @@ public enum Sub2APIProviderDescriptor {
     public static let descriptor = ProviderDescriptor(
         id: .sub2api,
         credentials: Self.credentials,
+        config: ProviderConfigCapabilities(supportsEnterpriseHost: true),
         metadata: ProviderMetadata(
             id: .sub2api,
             displayName: "sub2api",
@@ -51,6 +52,11 @@ public enum Sub2APIProviderDescriptor {
             cliName: "sub2api",
             defaultEnabled: false,
             widgetSelectable: false,
+            sharePlanLabels: [
+                "free": "Free", "pro": "Pro", "team": "Team", "claude team": "Team",
+                "enterprise": "Enterprise", "wallet plan": "Wallet",
+            ],
+            debugLogUnavailableMessage: "sub2api debug log not yet implemented",
             dashboardURL: nil,
             statusPageURL: nil),
         branding: ProviderBranding(
@@ -65,6 +71,19 @@ public enum Sub2APIProviderDescriptor {
         tokenCost: ProviderTokenCostConfig(
             supportsTokenCost: false,
             noDataMessage: { "sub2api spend is reported by its usage API." }),
+        presentation: ProviderUsagePresentation(
+            rateWindowLabeler: { metadata, snapshot, _ in
+                ProviderRateWindowLabels(
+                    primary: Self.primaryLabel(snapshot: snapshot) ?? metadata.sessionLabel,
+                    secondary: metadata.weeklyLabel,
+                    tertiary: metadata.opusLabel ?? "Sonnet",
+                    showsTertiary: metadata.supportsOpus)
+            },
+            menuCard: ProviderMenuCardPresentation(usesRawPrimaryResetDescription: true),
+            menu: ProviderMenuDescriptorPresentation(
+                primaryDescriptionIsDetail: { _ in true },
+                secondaryDescriptionMode: .resetOverride,
+                tertiaryDescriptionOverridesReset: true)),
         fetchPlan: Self.fetchPlan(),
         cli: ProviderCLIConfig(
             name: "sub2api",
@@ -72,35 +91,36 @@ public enum Sub2APIProviderDescriptor {
             versionDetector: nil))
 
     private static func fetchPlan() -> ProviderFetchPlan {
+        #if canImport(JavaScriptCore)
         ProviderFetchPlan(
             sourceModes: [.auto, .api],
-            pipeline: ProviderFetchPipeline(resolveStrategies: { context in
-                let swift = Sub2APIAPIFetchStrategy()
-                #if canImport(JavaScriptCore)
-                guard ProviderPluginPrototype.isEnabled(environment: context.env) else { return [swift] }
-                return [
-                    ScriptFetchStrategy(
-                        id: "sub2api.js",
-                        provider: .sub2api,
-                        bundledPlugin: "sub2api",
-                        secretKey: Sub2APISettingsReader.apiKeyEnvironmentKey,
-                        resolveValues: { context in
-                            guard let key = Sub2APISettingsReader.apiKey(environment: context.env),
-                                  let baseURL = Sub2APISettingsReader.baseURL(environment: context.env)
-                            else { return nil }
-                            return ScriptFetchStrategy.Values(
-                                settings: [Sub2APISettingsReader.baseURLEnvironmentKey: baseURL.absoluteString],
-                                secrets: [Sub2APISettingsReader.apiKeyEnvironmentKey: key])
-                        }),
-                    swift,
-                ]
-                #else
-                return [swift]
-                #endif
+            pipeline: ProviderFetchPipeline(resolveStrategies: { _ in
+                [ScriptFetchStrategy(
+                    id: "sub2api.js",
+                    provider: .sub2api,
+                    bundledPlugin: "sub2api",
+                    secretKey: Sub2APISettingsReader.apiKeyEnvironmentKey,
+                    sourceLabel: "api",
+                    resolveValues: { context in
+                        guard let key = self.credentials.resolveToken(environment: context.env)?.token,
+                              let baseURL = Sub2APISettingsReader.baseURL(environment: context.env)
+                        else { return nil }
+                        return ScriptFetchStrategy.Values(
+                            settings: [Sub2APISettingsReader.baseURLEnvironmentKey: baseURL.absoluteString],
+                            secrets: [Sub2APISettingsReader.apiKeyEnvironmentKey: key])
+                    },
+                    isEnabled: { _ in true })]
             }))
+        #else
+        // Linux compatibility only. JavaScriptCore platforms use the bundled sub2api plugin above.
+        ProviderFetchPlan(
+            sourceModes: [.auto, .api],
+            pipeline: ProviderFetchPipeline(resolveStrategies: { _ in [Sub2APIAPIFetchStrategy()] }))
+        #endif
     }
 }
 
+#if !canImport(JavaScriptCore)
 struct Sub2APIAPIFetchStrategy: ProviderFetchStrategy {
     let id = "sub2api.api"
     let kind: ProviderFetchKind = .apiToken
@@ -125,3 +145,4 @@ struct Sub2APIAPIFetchStrategy: ProviderFetchStrategy {
         false
     }
 }
+#endif

@@ -21,6 +21,10 @@ public enum ZedProviderDescriptor {
                 widgetSelectable: false,
                 isPrimaryProvider: false,
                 usesAccountFallback: false,
+                sharePlanLabels: [
+                    "zed free": "Zed Free", "zed pro": "Zed Pro", "zed pro trial": "Zed Pro Trial",
+                    "zed student": "Zed Student", "zed business": "Zed Business",
+                ],
                 dashboardURL: nil,
                 statusPageURL: nil),
             branding: ProviderBranding(
@@ -31,7 +35,8 @@ public enum ZedProviderDescriptor {
                     ProviderColor(hex: 0x084CCF),
                     ProviderColor(hex: 0x000000),
                     ProviderColor(hex: 0xFFFFFF),
-                ]),
+                ],
+                widgetColor: ProviderColor(red: 64 / 255, green: 156 / 255, blue: 255 / 255)),
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
                 noDataMessage: { "Zed cost summary is not supported." }),

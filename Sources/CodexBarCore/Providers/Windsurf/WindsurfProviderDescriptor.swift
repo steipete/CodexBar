@@ -26,6 +26,10 @@ public enum WindsurfProviderDescriptor {
                 widgetSelectable: false,
                 isPrimaryProvider: false,
                 usesAccountFallback: false,
+                sharePlanLabels: [
+                    "free": "Free", "pro": "Pro", "team": "Teams", "teams": "Teams",
+                    "enterprise": "Enterprise", "ultimate": "Ultimate",
+                ],
                 dashboardURL: "https://windsurf.com/subscription/usage",
                 statusPageURL: nil),
             branding: ProviderBranding(

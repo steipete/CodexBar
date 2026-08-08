@@ -272,7 +272,7 @@ struct TTYCommandRunnerEnvTests {
             options: .init(
                 timeout: Self.harnessPTYTimeout,
                 stopOnSubstrings: ["deep-link-disabled"],
-                useClaudeProbeWorkingDirectory: true))
+                useProviderProbeWorkingDirectory: true))
         let clean = result.text.replacingOccurrences(of: "\r", with: "")
 
         #expect(clean.contains("deep-link-disabled"))
@@ -292,7 +292,7 @@ struct TTYCommandRunnerEnvTests {
                 timeout: Self.harnessPTYTimeout,
                 baseEnvironment: env,
                 stopOnSubstrings: ["deep-link-disabled"],
-                useClaudeProbeWorkingDirectory: true))
+                useProviderProbeWorkingDirectory: true))
         let clean = result.text.replacingOccurrences(of: "\r", with: "")
 
         #expect(clean.contains("deep-link-disabled"))

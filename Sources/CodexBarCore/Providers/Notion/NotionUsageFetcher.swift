@@ -138,7 +138,7 @@ public enum NotionCookieImporter {
 #endif
 
 public struct NotionUsageFetcher: Sendable {
-    private static let log = CodexBarLog.logger(LogCategories.notion)
+    private static let log = CodexBarLog.logger(LogCategories.provider(.notion))
     static let sessionCookieName = "token_v2"
     private static let baseURL = URL(string: "https://app.notion.com")!
     private static let refererURL = URL(string: "https://app.notion.com/")!

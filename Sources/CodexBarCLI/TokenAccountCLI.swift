@@ -104,6 +104,7 @@ struct TokenAccountCLIContext {
         codexActiveSourceOverride: CodexActiveSource? = nil) -> ProviderSettingsSnapshot?
     {
         let config = self.providerConfig(for: provider)
+        // Provider-specific by design: managed Codex profiles require live reconciliation state that is not config.
         if provider == .codex {
             return ProviderSettingsSnapshot.make(codex: self.makeCodexSettingsSnapshot(
                 account: account,
@@ -121,14 +122,17 @@ struct TokenAccountCLIContext {
         codexActiveSourceOverride: CodexActiveSource? = nil) ->
         ProviderSettingsSnapshot.CodexProviderSettings
     {
+        // Provider-specific by design: Codex settings include reconciliation state and profile-home selection.
         let config = self.providerConfig(for: .codex)
         let reconciliationSnapshot = self.codexAccountReconciler(
             activeSource: codexActiveSourceOverride).loadSnapshot()
         let resolvedActiveSource = CodexActiveSourceResolver.resolve(from: reconciliationSnapshot)
+        let cookieSettings = ProviderCredentialSettingsContext(config: config, account: account)
+            .cookieSettings(for: .codex)
         return CodexProviderSettingsBuilder.make(input: CodexProviderSettingsBuilderInput(
             usageDataSource: .auto,
-            cookieSource: self.cookieSource(provider: .codex, account: account, config: config),
-            manualCookieHeader: self.manualCookieHeader(provider: .codex, account: account, config: config),
+            cookieSource: cookieSettings.cookieSource,
+            manualCookieHeader: cookieSettings.manualCookieHeader,
             reconciliationSnapshot: reconciliationSnapshot,
             resolvedActiveSource: resolvedActiveSource))
     }
@@ -145,6 +149,7 @@ struct TokenAccountCLIContext {
             provider: provider,
             config: providerConfig,
             selectedAccount: account)
+        // Provider-specific by design: managed Codex accounts select a distinct filesystem home, not a credential.
         if provider == .codex,
            let codexHomePath = self.codexHomePath(for: codexActiveSourceOverride)
         {
@@ -163,21 +168,8 @@ struct TokenAccountCLIContext {
 
     func manualTokenUpdater() -> ProviderFetchContext.ProviderManualTokenUpdater {
         { provider, token in
-            try? Self.updateStoredManualToken(provider: provider, token: token)
+            try? ProviderDescriptorRegistry.descriptor(for: provider).credentials?.persistManualToken(token)
         }
-    }
-
-    private static func updateStoredManualToken(provider: UsageProvider, token: String) throws {
-        guard provider == .stepfun else { return }
-        let trimmed = token.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return }
-
-        let store = CodexBarConfigStore()
-        var config = try store.load() ?? .makeDefault()
-        var providerConfig = config.providerConfig(for: provider.instanceID) ?? ProviderConfig(id: provider.instanceID)
-        providerConfig.region = trimmed
-        config.setProviderConfig(providerConfig)
-        try store.save(config)
     }
 
     private static func updateStoredTokenAccount(
@@ -218,11 +210,13 @@ struct TokenAccountCLIContext {
     }
 
     func fetcher(base: UsageFetcher, provider: UsageProvider, env: [String: String]) -> UsageFetcher {
+        // Provider-specific by design: UsageFetcher owns Codex filesystem scopes and must be rebuilt with CODEX_HOME.
         guard provider == .codex else { return base }
         return UsageFetcher(environment: env)
     }
 
     func visibleCodexAccounts() -> CodexVisibleAccountProjection {
+        // Provider-specific by design: only Codex exposes reconciled live, managed, and profile-home accounts.
         self.codexAccountReconciler().loadVisibleAccounts()
     }
 
@@ -245,6 +239,7 @@ struct TokenAccountCLIContext {
     }
 
     func applyCodexVisibleAccountLabel(_ snapshot: UsageSnapshot, account: CodexVisibleAccount) -> UsageSnapshot {
+        // Provider-specific by design: reconciled Codex accounts carry workspace labels outside token-account config.
         let existing = snapshot.identity(for: .codex)
         let identity = ProviderIdentitySnapshot(
             providerID: .codex,
@@ -259,26 +254,9 @@ struct TokenAccountCLIContext {
         provider: UsageProvider,
         account: ProviderTokenAccount?) -> ProviderSourceMode
     {
-        guard provider == .claude else {
-            return base
-        }
         let config = self.providerConfig(for: provider)
-        let routing = self.claudeCredentialRouting(account: account, config: config)
-
-        guard account != nil else { return base }
-
-        // Selected-account credentials are authoritative regardless of the global source. Claude CLI usage is
-        // ambient to the active local profile and must never be labeled as a configured token account.
-        switch routing {
-        case .adminAPIKey:
-            return .api
-        case .oauth:
-            return .oauth
-        case .webCookie:
-            return .web
-        case .none:
-            return base
-        }
+        return ProviderDescriptorRegistry.descriptor(for: provider).credentials?
+            .selectedAccountSourceMode(base: base, account: account, config: config) ?? base
     }
 
     func preferredSourceMode(for provider: UsageProvider) -> ProviderSourceMode {
@@ -291,6 +269,7 @@ struct TokenAccountCLIContext {
     }
 
     private func codexAccountReconciler(activeSource: CodexActiveSource? = nil) -> DefaultCodexAccountReconciler {
+        // Provider-specific by design: this reconciles Codex profile homes with its managed-account store.
         let storeLoader: @Sendable () throws -> ManagedCodexAccountSet = if let managedCodexAccountStoreURL {
             {
                 try FileManagedCodexAccountStore(fileURL: managedCodexAccountStoreURL).loadAccounts()
@@ -311,6 +290,7 @@ struct TokenAccountCLIContext {
     }
 
     private func codexHomePath(for activeSourceOverride: CodexActiveSource?) -> String? {
+        // Provider-specific by design: Codex profile selection changes the local data root for the whole fetcher.
         let activeSource: CodexActiveSource = if let activeSourceOverride {
             activeSourceOverride
         } else {
@@ -335,53 +315,5 @@ struct TokenAccountCLIContext {
                 CodexHomeScope.normalizedHomePath($0) == normalizedPath
             } ? normalizedPath : nil
         }
-    }
-
-    private func manualCookieHeader(
-        provider: UsageProvider,
-        account: ProviderTokenAccount?,
-        config: ProviderConfig?) -> String?
-    {
-        self.cookieSettings(provider: provider, account: account, config: config).manualCookieHeader
-    }
-
-    private func cookieSource(
-        provider: UsageProvider,
-        account: ProviderTokenAccount?,
-        config: ProviderConfig?) -> ProviderCookieSource
-    {
-        self.cookieSettings(provider: provider, account: account, config: config).cookieSource
-    }
-
-    private func cookieSettings(
-        provider: UsageProvider,
-        account: ProviderTokenAccount?,
-        config: ProviderConfig?,
-        configuredHeader: String? = nil) -> ProviderSettingsSnapshot.CookieProviderSettings
-    {
-        let configuredSource: ProviderCookieSource = if let override = config?.cookieSource {
-            override
-        } else if provider == .stepfun, config?.sanitizedRegion != nil {
-            .manual
-        } else if config?.sanitizedCookieHeader != nil {
-            .manual
-        } else {
-            .auto
-        }
-        return ProviderCookieSettingsResolver.resolve(
-            provider: provider,
-            configuredSource: configuredSource,
-            configuredHeader: configuredHeader ?? config?.sanitizedCookieHeader,
-            selectedAccount: account)
-    }
-
-    private func claudeCredentialRouting(
-        account: ProviderTokenAccount?,
-        config: ProviderConfig?) -> ClaudeCredentialRouting
-    {
-        let manualCookieHeader = account == nil ? config?.sanitizedCookieHeader : nil
-        return ClaudeCredentialRouting.resolve(
-            tokenAccountToken: account?.token,
-            manualCookieHeader: manualCookieHeader)
     }
 }

@@ -79,6 +79,7 @@ struct ProviderRegistry {
                         },
                         providerManualTokenUpdater: { provider, token in
                             await MainActor.run {
+                                // Provider-specific by design: StepFun rotates its legacy app-owned session token.
                                 if provider == .stepfun {
                                     settings.stepfunToken = token
                                 }
@@ -155,6 +156,7 @@ struct ProviderRegistry {
         // quotas, and dashboard data. Token-cost/session history is intentionally handled
         // separately because it is provider-level local telemetry from this Mac's Codex sessions,
         // not account-owned remote state.
+        // Provider-specific by design: managed Codex account selection scopes the fetcher's CODEX_HOME.
         if provider == .codex {
             let codexActiveSource = codexActiveSourceOverride ?? settings.codexResolvedActiveSource
             if let managedHomePath = settings.managedCodexRemoteHomePath(forActiveSource: codexActiveSource) {
@@ -169,6 +171,7 @@ struct ProviderRegistry {
     }
 
     static func makeFetcher(base: UsageFetcher, provider: UsageProvider, env: [String: String]) -> UsageFetcher {
+        // Provider-specific by design: a Codex account scope needs a fetcher rebuilt with its selected CODEX_HOME.
         guard provider == .codex else { return base }
         return UsageFetcher(environment: env)
     }

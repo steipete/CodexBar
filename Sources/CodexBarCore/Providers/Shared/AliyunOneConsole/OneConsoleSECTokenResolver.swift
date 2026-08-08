@@ -188,7 +188,10 @@ public struct OneConsoleSECTokenResolver: Sendable {
     {
         var components = URLComponents()
         components.scheme = dashboardURL.scheme ?? "https"
-        components.host = dashboardURL.host ?? "home.qwencloud.com"
+        guard let dashboardHost = dashboardURL.host else {
+            throw OneConsoleSECTokenError.notFound
+        }
+        components.host = dashboardHost
         if let port = dashboardURL.port {
             components.port = port
         }

@@ -82,7 +82,7 @@ struct OpenRouterMultiAccountTests {
     @Test
     func `two OpenRouter accounts fetch with isolated keys and caches`() async throws {
         let settings = Self.makeSettings(suite: "OpenRouterMultiAccountTests-fetch")
-        settings.openRouterAPIToken = "decoy-token"
+        settings[providerConfig: .openrouter, field: .apiKey] = "decoy-token"
         settings.addTokenAccount(provider: .openrouter, label: "Personal", token: "test-key")
         settings.addTokenAccount(provider: .openrouter, label: "Work", token: "test-auth-token")
         let accounts = settings.tokenAccounts(for: .openrouter)

@@ -14,8 +14,8 @@ extension CostUsageScanner {
     private static let requestMarker = "websocket request:"
 
     static func defaultCodexPriorityDatabaseURL() -> URL {
-        FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".codex", isDirectory: true)
+        CodexHomeScope
+            .ambientHomeURL(env: [:])
             .appendingPathComponent("logs_2.sqlite", isDirectory: false)
     }
 
@@ -405,7 +405,9 @@ extension CostUsageScanner {
             }
             while true {
                 let stepResult = sqlite3_step(stmt)
-                if stepResult == SQLITE_DONE { break }
+                if stepResult == SQLITE_DONE {
+                    break
+                }
                 guard stepResult == SQLITE_ROW else { return nil }
                 retained.insert(sqlite3_column_int64(stmt, 0))
             }
@@ -641,8 +643,12 @@ extension CostUsageScanner {
     private static func timestamp(_ timestamp: String?, isInRangeSince since: String?, until: String?) -> Bool {
         guard since != nil || until != nil else { return true }
         guard let dayKey = self.dayKey(fromTimestamp: timestamp) else { return false }
-        if let since, dayKey < since { return false }
-        if let until, dayKey > until { return false }
+        if let since, dayKey < since {
+            return false
+        }
+        if let until, dayKey > until {
+            return false
+        }
         return true
     }
 

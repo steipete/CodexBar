@@ -113,104 +113,6 @@ struct ShareStatsSubscriptionName: Sendable, Equatable {
         self.displayName = displayName
     }
 
-    private static let labelsByProvider: [String: [String: String]] = [
-        UsageProvider.codex.rawValue: [
-            "guest": "Guest", "free": "Free", "go": "Go", "plus": "Plus", "plus plan": "Plus",
-            "chatgpt plus": "Plus", "chatgpt-plus": "Plus", "chatgpt_plus": "Plus",
-            "pro": "Pro 20x", "codex pro": "Pro 20x",
-            "prolite": "Pro 5x", "pro_lite": "Pro 5x", "pro-lite": "Pro 5x",
-            "pro lite": "Pro 5x", "codex pro lite": "Pro 5x",
-            "free_workspace": "Free Workspace", "team": "Team", "business": "Business",
-            "education": "Education", "quorum": "Quorum", "k12": "K12",
-            "enterprise": "Enterprise", "edu": "Edu",
-        ],
-        UsageProvider.claude.rawValue: [
-            "free": "Free", "claude free": "Free", "pro": "Pro", "claude pro": "Pro",
-            "max": "Max", "claude max": "Max", "max 5x": "Max 5x", "claude max 5x": "Max 5x",
-            "max 20x": "Max 20x", "claude max 20x": "Max 20x", "team": "Team",
-            "claude team": "Team", "claude team standard": "Team Standard",
-            "claude team premium": "Team Premium", "enterprise": "Enterprise",
-            "claude enterprise": "Enterprise", "ultra": "Ultra", "claude ultra": "Ultra",
-        ],
-        UsageProvider.cursor.rawValue: [
-            "free": "Cursor Free", "cursor free": "Cursor Free",
-            "hobby": "Cursor Hobby", "cursor hobby": "Cursor Hobby",
-            "pro": "Cursor Pro", "cursor pro": "Cursor Pro",
-            "team": "Cursor Team", "cursor team": "Cursor Team",
-            "business": "Cursor Business", "cursor business": "Cursor Business",
-            "enterprise": "Cursor Enterprise", "cursor enterprise": "Cursor Enterprise",
-            "ultra": "Cursor Ultra", "cursor ultra": "Cursor Ultra",
-        ],
-        UsageProvider.alibaba.rawValue: [
-            "lite": "Lite", "coding plan lite": "Lite", "pro": "Pro", "active pro": "Pro",
-            "alibaba coding plan pro": "Pro", "starter": "Starter", "enterprise": "Enterprise",
-        ],
-        UsageProvider.alibabatokenplan.rawValue: [
-            "token plan": "Token Plan", "token plan pro": "Token Plan Pro",
-            "token plan plus": "Token Plan Plus",
-        ],
-        UsageProvider.gemini.rawValue: [
-            "free": "Free", "paid": "Paid", "plus": "Plus", "workspace": "Workspace",
-            "legacy": "Legacy", "gemini code assist in google one ai pro": "Google One AI Pro",
-        ],
-        UsageProvider.antigravity.rawValue: [
-            "free": "Free", "paid": "Paid", "pro": "Pro",
-            "ultra": "Google AI Ultra", "google ai ultra": "Google AI Ultra",
-        ],
-        UsageProvider.copilot.rawValue: [
-            "free": "Free", "individual": "Individual", "pro": "Individual",
-            "business": "Business", "enterprise": "Enterprise",
-        ],
-        UsageProvider.devin.rawValue: [
-            "free": "Free", "core": "Core", "pro": "Pro", "team": "Team", "enterprise": "Enterprise",
-        ],
-        UsageProvider.zai.rawValue: [
-            "free": "Free", "pro": "Pro", "max": "Max", "team": "Team",
-        ],
-        UsageProvider.minimax.rawValue: [
-            "free": "Free", "pro": "Pro", "plus": "Plus", "max": "Max", "ultra": "Ultra",
-            "minimax star": "MiniMax Star", "combo star": "Combo Star", "coding plan pro": "Coding Plan Pro",
-            "token plan pro": "Token Plan Pro", "token plan · tokenplanplus-年度会员": "Token Plan Plus",
-            "tokenplanplus-年度会员": "Token Plan Plus", "tokenplanmax-年度会员": "Token Plan Max",
-            "tokenplanultra-年度会员": "Token Plan Ultra",
-        ],
-        UsageProvider.augment.rawValue: [
-            "free": "Free", "community": "Community", "indie": "Indie", "pro": "Pro",
-            "team": "Team", "enterprise": "Enterprise",
-        ],
-        UsageProvider.elevenlabs.rawValue: [
-            "free": "Free", "starter": "Starter", "creator": "Creator", "pro": "Pro",
-            "scale": "Scale", "business": "Business", "growing business": "Business",
-            "enterprise": "Enterprise",
-        ],
-        UsageProvider.windsurf.rawValue: [
-            "free": "Free", "pro": "Pro", "team": "Teams", "teams": "Teams",
-            "enterprise": "Enterprise", "ultimate": "Ultimate",
-        ],
-        UsageProvider.zed.rawValue: [
-            "zed free": "Zed Free", "zed pro": "Zed Pro", "zed pro trial": "Zed Pro Trial",
-            "zed student": "Zed Student", "zed business": "Zed Business",
-        ],
-        UsageProvider.perplexity.rawValue: ["pro": "Pro", "max": "Max"],
-        UsageProvider.sakana.rawValue: [
-            "standard": "Standard", "standard $20/mo": "Standard", "pro": "Pro", "enterprise": "Enterprise",
-        ],
-        UsageProvider.abacus.rawValue: [
-            "basic": "Basic", "pro": "Pro", "team": "Team", "enterprise": "Enterprise",
-        ],
-        UsageProvider.synthetic.rawValue: [
-            "starter": "Starter", "pro": "Pro", "team": "Team", "enterprise": "Enterprise",
-        ],
-        UsageProvider.t3chat.rawValue: ["free": "Free", "pro": "Pro", "team": "Team"],
-        UsageProvider.notion.rawValue: [
-            "free": "Free", "plus": "Plus", "business": "Business", "enterprise": "Enterprise",
-        ],
-        UsageProvider.sub2api.rawValue: [
-            "free": "Free", "pro": "Pro", "team": "Team", "claude team": "Team",
-            "enterprise": "Enterprise", "wallet plan": "Wallet",
-        ],
-    ]
-
     /// Converts plan-bearing provider identity into a closed, non-identifying share-card value.
     static func from(snapshot: UsageSnapshot?, provider: UsageProvider) -> Self? {
         guard let identity = snapshot?.identity(for: provider.instanceID),
@@ -219,7 +121,8 @@ struct ShareStatsSubscriptionName: Sendable, Equatable {
         else { return nil }
 
         let key = rawName.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        guard !key.isEmpty, let displayName = Self.labelsByProvider[provider.rawValue]?[key] else { return nil }
+        let labels = ProviderDescriptorRegistry.descriptor(for: provider).metadata.sharePlanLabels
+        guard !key.isEmpty, let displayName = labels[key] else { return nil }
         return Self(displayName: displayName)
     }
 

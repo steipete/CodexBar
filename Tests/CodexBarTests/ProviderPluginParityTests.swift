@@ -24,18 +24,75 @@ struct ProviderPluginParityTests {
 
     @Test
     func `cut-over providers use only JS without the prototype flag`() async {
-        for (provider, key) in [(UsageProvider.crof, "CROF_API_KEY"), (.venice, "VENICE_API_KEY")] {
+        for (provider, key) in [
+            (UsageProvider.crof, "CROF_API_KEY"),
+            (.venice, "VENICE_API_KEY"),
+            (.openrouter, "OPENROUTER_API_KEY"),
+            (.clawrouter, "CLAWROUTER_API_KEY"),
+            (.deepgram, "DEEPGRAM_API_KEY"),
+            (.sub2api, "SUB2API_API_KEY"),
+        ] {
             let descriptor = ProviderDescriptorRegistry.descriptor(for: provider)
-            let context = Self.context(environment: [key: "fixture-key"])
+            var environment = [key: "fixture-key"]
+            if provider == .sub2api {
+                environment[Sub2APISettingsReader.baseURLEnvironmentKey] = "https://api.example.com"
+            }
+            let context = Self.context(environment: environment)
             let strategies = await descriptor.fetchPlan.pipeline.resolveStrategies(context)
 
             #expect(strategies.map(\.id) == ["\(provider.rawValue).js"])
             #expect(await strategies[0].isAvailable(context))
-            let flagged = await descriptor.fetchPlan.pipeline.resolveStrategies(Self.context(environment: [
-                key: "fixture-key",
-                ProviderPluginPrototype.environmentKey: "1",
-            ]))
+            environment[ProviderPluginPrototype.environmentKey] = "1"
+            let flagged = await descriptor.fetchPlan.pipeline.resolveStrategies(Self.context(environment: environment))
             #expect(flagged.map(\.id) == ["\(provider.rawValue).js"])
+        }
+    }
+
+    @Test(arguments: [UsageProvider.openrouter, .clawrouter, .deepgram])
+    func `override preflight preserves provider validation errors`(provider: UsageProvider) async throws {
+        let environment: [String: String] = switch provider {
+        case .openrouter:
+            [
+                OpenRouterSettingsReader.envKey: "fixture-key",
+                OpenRouterSettingsReader.apiURLEnvironmentKey: "http://router.example.test",
+                ProviderPluginPrototype.environmentKey: "1",
+            ]
+        case .clawrouter:
+            [
+                ClawRouterSettingsReader.apiKeyEnvironmentKey: "fixture-key",
+                ClawRouterSettingsReader.baseURLEnvironmentKey: "http://router.example.test",
+                ProviderPluginPrototype.environmentKey: "1",
+            ]
+        case .deepgram:
+            [
+                DeepgramSettingsReader.apiKeyEnvironmentKey: "fixture-key",
+                DeepgramSettingsReader.apiURLEnvironmentKey: "http://router.example.test",
+                ProviderPluginPrototype.environmentKey: "1",
+            ]
+        default: [:]
+        }
+        let context = Self.context(environment: environment)
+        let strategy = try #require(await ProviderDescriptorRegistry.descriptor(for: provider)
+            .fetchPlan.pipeline.resolveStrategies(context).first)
+
+        do {
+            _ = try await strategy.fetch(context)
+            Issue.record("Expected invalid endpoint override")
+        } catch let error as OpenRouterSettingsError {
+            #expect(provider == .openrouter)
+            #expect(error == .invalidEndpointOverride(OpenRouterSettingsReader.apiURLEnvironmentKey))
+        } catch let error as ClawRouterSettingsError {
+            #expect(provider == .clawrouter)
+            #expect(error == .invalidEndpointOverride(ClawRouterSettingsReader.baseURLEnvironmentKey))
+        } catch let error as DeepgramSettingsError {
+            #expect(provider == .deepgram)
+            guard case let .invalidEndpointOverride(key) = error else {
+                Issue.record("Unexpected Deepgram settings error: \(error)")
+                return
+            }
+            #expect(key == DeepgramSettingsReader.apiURLEnvironmentKey)
+        } catch {
+            Issue.record("Unexpected error: \(error)")
         }
     }
 
@@ -143,7 +200,7 @@ struct ProviderPluginParityTests {
     }
 
     @Test
-    func `OpenRouter monthly limit fixture has Swift and JS snapshot parity`() async throws {
+    func `OpenRouter monthly limit fixture matches the cut-over golden`() async throws {
         let creditsBody = #"{"data":{"total_credits":100,"total_usage":40}}"#
         let keyBody = #"""
         {"data":{
@@ -170,22 +227,18 @@ struct ProviderPluginParityTests {
         }
         let now = Date()
 
-        let swift = try await OpenRouterUsageFetcher.fetchUsage(
-            apiKey: "fixture-key",
-            environment: ["OPENROUTER_API_URL": "https://openrouter.test/api/v1"],
-            transport: transport).toUsageSnapshot()
         let runtime = try ProviderPluginRuntime(bundledPlugin: "openrouter", transport: transport)
         let script = try await runtime.fetchUsage(
             secrets: ["OPENROUTER_API_KEY": "fixture-key"],
             now: now)
 
-        #expect(swift.primary?.usedPercent == 9.0914810042)
         #expect(script.primary?.usedPercent == 9.0914810042)
-        Self.expectCoreParity(swift, script)
+        #expect(script.identity?.providerID == .openrouter)
+        #expect(script.identity?.loginMethod == "Balance: $60.00")
     }
 
     @Test
-    func `OpenRouter remaining above limit fixture has Swift and JS snapshot parity`() async throws {
+    func `OpenRouter remaining above limit fixture matches the cut-over golden`() async throws {
         let creditsBody = #"{"data":{"total_credits":100,"total_usage":40}}"#
         let keyBody = #"""
         {"data":{
@@ -209,10 +262,6 @@ struct ProviderPluginParityTests {
         }
         let now = Date()
 
-        let swift = try await OpenRouterUsageFetcher.fetchUsage(
-            apiKey: "fixture-key",
-            environment: ["OPENROUTER_API_URL": "https://openrouter.test/api/v1"],
-            transport: transport).toUsageSnapshot()
         let runtime = try ProviderPluginRuntime(bundledPlugin: "openrouter", transport: transport)
         let script = try await runtime.fetchUsage(
             secrets: ["OPENROUTER_API_KEY": "fixture-key"],
@@ -220,13 +269,12 @@ struct ProviderPluginParityTests {
 
         // Server remaining above the configured limit clamps to a full quota (0% used)
         // in both implementations instead of suppressing the meter.
-        #expect(swift.primary?.usedPercent == 0)
         #expect(script.primary?.usedPercent == 0)
-        Self.expectCoreParity(swift, script)
+        #expect(script.detailRow(label: "API key remaining")?.value == "$500.00")
     }
 
     @Test
-    func `OpenRouter reset window fallback without cumulative usage has Swift and JS parity`() async throws {
+    func `OpenRouter reset window fallback without cumulative usage matches the cut-over golden`() async throws {
         let creditsBody = #"{"data":{"total_credits":100,"total_usage":40}}"#
         let keyBody = #"""
         {"data":{
@@ -249,10 +297,6 @@ struct ProviderPluginParityTests {
         }
         let now = Date()
 
-        let swift = try await OpenRouterUsageFetcher.fetchUsage(
-            apiKey: "fixture-key",
-            environment: ["OPENROUTER_API_URL": "https://openrouter.test/api/v1"],
-            transport: transport).toUsageSnapshot()
         let runtime = try ProviderPluginRuntime(bundledPlugin: "openrouter", transport: transport)
         let script = try await runtime.fetchUsage(
             secrets: ["OPENROUTER_API_KEY": "fixture-key"],
@@ -260,9 +304,8 @@ struct ProviderPluginParityTests {
 
         // Without cumulative usage, the reset-window fallback still renders the meter
         // in both implementations.
-        #expect(swift.primary?.usedPercent == 9.0914810042)
         #expect(script.primary?.usedPercent == 9.0914810042)
-        Self.expectCoreParity(swift, script)
+        #expect(script.detailRow(label: "API key remaining")?.value == "$454.54")
     }
 
     private static func transport(body: String) -> ProviderHTTPTransportHandler {

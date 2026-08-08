@@ -105,7 +105,9 @@ extension StatusItemController {
 
         guard let nextWakeAt else { return Self.blinkIdleFallbackInterval }
         let delay = nextWakeAt.timeIntervalSince(now)
-        if delay <= 0 { return Self.blinkActiveTickInterval }
+        if delay <= 0 {
+            return Self.blinkActiveTickInterval
+        }
         return .seconds(delay)
     }
 
@@ -217,6 +219,7 @@ extension StatusItemController {
     }
 
     private func randomEffect(for provider: UsageProvider) -> MotionEffect {
+        // Provider-specific by design: Claude's star glyph uses wiggle rather than rotational tilt.
         if provider == .claude {
             Bool.random() ? .blink : .wiggle
         } else {
@@ -225,27 +228,35 @@ extension StatusItemController {
     }
 
     private func isBlinkingAllowed(at date: Date = .init()) -> Bool {
-        if self.settings.randomBlinkEnabled { return true }
-        if let until = self.blinkForceUntil, until > date { return true }
+        if self.settings.randomBlinkEnabled {
+            return true
+        }
+        if let until = self.blinkForceUntil, until > date {
+            return true
+        }
         self.blinkForceUntil = nil
         return false
     }
 
     @discardableResult
+    // swiftlint:disable:next function_body_length
     func applyIcon(
         phase: Double?,
         bypassMergedMenuTrackingDeferral: Bool = false) -> Bool
     {
         guard let button = self.statusItem.button else { return false }
         if !bypassMergedMenuTrackingDeferral,
-           self.deferMergedIconRenderDuringMenuTrackingIfNeeded() { return true }
+           self.deferMergedIconRenderDuringMenuTrackingIfNeeded()
+        {
+            return true
+        }
 
         let style = self.store.iconStyle
         let showUsed = self.settings.usageBarsShowUsed
         let showBrandPercent = self.settings.menuBarShowsBrandIconWithPercent
         let primaryProvider = self.primaryProviderForUnifiedIcon()
         let resolverStyle = self.store.style(for: primaryProvider)
-        let snapshot = self.store.snapshot(for: primaryProvider.instanceID)
+        let snapshot = self.store.menuBarSnapshot(for: primaryProvider.instanceID)
         let warningFlash = self.quotaWarningFlashActive(provider: primaryProvider)
 
         if let layoutResult = self.applyStoredUnifiedMenuBarLayoutIfNeeded(
@@ -463,7 +474,7 @@ extension StatusItemController {
     @discardableResult
     func applyIcon(for provider: UsageProvider, phase: Double?) -> Bool {
         guard let button = self.statusItems[provider.instanceID]?.button else { return false }
-        let snapshot = self.store.snapshot(for: provider.instanceID)
+        let snapshot = self.store.menuBarSnapshot(for: provider.instanceID)
         // IconRenderer treats these values as a left-to-right "progress fill" percentage; depending on the
         // user setting we pass either "percent left" or "percent used".
         let showUsed = self.settings.usageBarsShowUsed
@@ -524,6 +535,7 @@ extension StatusItemController {
 
         if let phase, self.shouldAnimate(provider: provider) {
             var pattern = self.animationPattern
+            // Provider-specific by design: Claude's star glyph cannot render the icon-only unbraid transition.
             if provider == .claude, pattern == .unbraid {
                 pattern = .cylon
             }
@@ -650,6 +662,7 @@ extension StatusItemController {
                 primary: showUsed ? metricWindow.usedPercent : metricWindow.remainingPercent,
                 secondary: nil)
         }
+        // Provider-specific by design: Mistral's balance/spend text replaces percentage lanes in its icon.
         if provider == .mistral {
             return (primary: nil, secondary: nil)
         }
@@ -686,6 +699,7 @@ extension StatusItemController {
         // icon render, this signature input, and the menu-bar fallback semantics on a single
         // source of truth — a hand-rolled approximation can silently drift from the projection
         // as its fallback logic evolves.
+        // Provider-specific by design: only Codex projects credits into the menu-bar icon fallback.
         guard provider == .codex else { return nil }
         return self.store.codexMenuBarCreditsRemaining(
             snapshotOverride: snapshot,
@@ -694,7 +708,9 @@ extension StatusItemController {
 
     func quotaWarningFlashActive(provider: UsageProvider, now: Date = Date()) -> Bool {
         guard let until = self.quotaWarningFlashUntil[provider.instanceID] else { return false }
-        if until > now { return true }
+        if until > now {
+            return true
+        }
         self.quotaWarningFlashUntil.removeValue(forKey: provider.instanceID)
         self.quotaWarningFlashTasks[provider.instanceID]?.cancel()
         self.quotaWarningFlashTasks.removeValue(forKey: provider.instanceID)
@@ -847,6 +863,7 @@ extension StatusItemController {
         snapshot: UsageSnapshot?,
         now: Date = .init()) -> String?
     {
+        // Provider-specific by design: provider payload fields and display modes supply distinct balance/spend text.
         let mode = self.settings.menuBarDisplayMode
         if provider == .openrouter,
            self.settings.menuBarMetricPreference(for: provider, snapshot: snapshot) == .automatic,
@@ -1017,11 +1034,14 @@ extension StatusItemController {
         preference: MenuBarMetricPreference) -> String?
     {
         guard let snapshot, let detail = snapshot.detailRow(label: "Balance")?.value else { return nil }
-        if snapshot.primary != nil, preference != .secondary { return nil }
+        if snapshot.primary != nil, preference != .secondary {
+            return nil
+        }
         return detail.components(separatedBy: " (Paid:").first
     }
 
     nonisolated static func poeBalanceDisplayText(snapshot: UsageSnapshot?) -> String? {
+        // Provider-specific by design: Poe stores its point balance in the login-method payload field.
         self.displayValue(
             from: snapshot?.loginMethod(for: .poe),
             prefix: "Balance:",
@@ -1029,6 +1049,7 @@ extension StatusItemController {
     }
 
     nonisolated static func moonshotBalanceDisplayText(snapshot: UsageSnapshot?) -> String? {
+        // Provider-specific by design: Moonshot stores cash/voucher balance text in its login-method payload.
         self.displayValue(
             from: snapshot?.loginMethod(for: .moonshot),
             prefix: "Balance:",
@@ -1203,6 +1224,7 @@ extension StatusItemController {
         snapshot: UsageSnapshot?,
         projection: CodexConsumerProjection?) -> (session: RateWindow?, weekly: RateWindow?)?
     {
+        // Provider-specific by design: only Codex and Claude expose the combined session-and-weekly menu metric.
         guard provider == .codex || provider == .claude,
               self.settings.menuBarMetricPreference(for: provider, snapshot: snapshot) == .primaryAndSecondary
         else { return nil }
@@ -1230,7 +1252,7 @@ extension StatusItemController {
     /// while pace/both render the one lane chosen by `combinedDisplayPercentWindow` — mirror that presentation
     /// here rather than scheduling whichever lane happened to drive the icon.
     func menuBarDisplayedResetDates(for provider: UsageProvider, now: Date) -> [Date] {
-        let snapshot = self.store.snapshot(for: provider.instanceID)
+        let snapshot = self.store.menuBarSnapshot(for: provider.instanceID)
         let layoutResolution = self.settings.menuBarLayoutResolution(for: provider)
         if !layoutResolution.usesLegacyRendering,
            self.settings.menuBarIconStyle == .iconAndPercent
@@ -1276,7 +1298,9 @@ extension StatusItemController {
         guard let window = self.menuBarMetricWindow(for: provider, snapshot: snapshot, now: now)
         else { return [] }
         // Outside reset-time mode the reset text is only visible once the quota is exhausted.
-        if mode != .resetTime, window.remainingPercent > 0 { return [] }
+        if mode != .resetTime, window.remainingPercent > 0 {
+            return []
+        }
         return window.resetsAt.map { [$0] } ?? []
     }
 
@@ -1314,6 +1338,7 @@ extension StatusItemController {
         if let projection {
             return projection.menuBarSelectableRateWindow(for: .weekly)
         }
+        // Provider-specific by design: Abacus publishes its weekly semantic window in the primary lane.
         if provider == .abacus {
             return snapshot?.primary
         }
@@ -1383,7 +1408,7 @@ extension StatusItemController {
             return selected
         }
         for provider in self.store.enabledFirstPartyProviders() {
-            if self.store.isEnabled(provider), self.store.snapshot(for: provider.instanceID) != nil {
+            if self.store.isEnabled(provider), self.store.menuBarSnapshot(for: provider.instanceID) != nil {
                 return provider
             }
         }
@@ -1392,6 +1417,7 @@ extension StatusItemController {
         if let enabled = self.store.enabledFirstPartyProviders().first {
             return enabled
         }
+        // Provider-specific by design: Codex remains the placeholder icon when no provider can animate.
         return .codex
     }
 
@@ -1432,7 +1458,9 @@ extension StatusItemController {
     }
 
     func shouldAnimate(provider: UsageProvider, mergeIcons: Bool? = nil) -> Bool {
-        if self.store.debugForceAnimation { return true }
+        if self.store.debugForceAnimation {
+            return true
+        }
 
         let isMerged = mergeIcons ?? self.shouldMergeIcons
         let isVisible = isMerged ? self.isEnabled(provider) : self.isVisible(provider)
@@ -1442,10 +1470,13 @@ extension StatusItemController {
         // Animating the fallback causes unnecessary CPU usage (battery drain). See #269, #139.
         let isEnabled = self.isEnabled(provider)
         let isFallbackOnly = !isEnabled && self.fallbackProvider == provider
-        if isFallbackOnly { return false }
+        if isFallbackOnly {
+            return false
+        }
 
         let isStale = self.store.isStale(provider: provider)
         let hasSatisfiedUsageFetch = self.store.hasSatisfiedUsageFetch(for: provider)
+        // Provider-specific by design: Warp animates while its first remote refresh is still in flight.
         if provider == .warp, !hasSatisfiedUsageFetch, self.store.refreshingProviders.contains(provider.instanceID) {
             return true
         }

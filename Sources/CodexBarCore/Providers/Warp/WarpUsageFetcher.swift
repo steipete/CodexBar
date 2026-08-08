@@ -128,7 +128,7 @@ public enum WarpUsageError: LocalizedError, Sendable {
 }
 
 public struct WarpUsageFetcher: Sendable {
-    private static let log = CodexBarLog.logger(LogCategories.warpUsage)
+    private static let log = CodexBarLog.logger(LogCategories.provider(.warp, scope: "usage"))
     private static let apiURL = URL(string: "https://app.warp.dev/graphql/v2?op=GetRequestLimitInfo")!
     private static let clientID = "warp-app"
     /// Warp's GraphQL endpoint is fronted by an edge limiter that returns HTTP 429 ("Rate exceeded.")

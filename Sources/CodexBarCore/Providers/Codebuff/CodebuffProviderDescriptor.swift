@@ -100,7 +100,7 @@ struct CodebuffAPIFetchStrategy: ProviderFetchStrategy {
     }
 
     private static func resolveToken(environment: [String: String]) -> ProviderTokenResolution? {
-        ProviderTokenResolver.codebuffResolution(environment: environment)
+        ProviderTokenResolver.resolution(for: .codebuff, environment: environment)
     }
 }
 

@@ -1,3 +1,5 @@
+// Linux compatibility only. JavaScriptCore platforms use the bundled ClawRouter plugin.
+#if !canImport(JavaScriptCore)
 import Foundation
 #if canImport(FoundationNetworking)
 import FoundationNetworking
@@ -297,3 +299,4 @@ public enum ClawRouterUsageFetcher {
             day: 1).date
     }
 }
+#endif

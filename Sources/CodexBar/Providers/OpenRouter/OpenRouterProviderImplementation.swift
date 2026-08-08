@@ -13,7 +13,8 @@ struct OpenRouterProviderImplementation: ProviderImplementation {
 
     @MainActor
     func observeSettings(_ settings: SettingsStore) {
-        _ = settings.openRouterAPIToken
+        _ = settings[providerConfig: .openrouter, field: .apiKey]
+        _ = settings[providerConfig: .openrouter, field: .endpoint]
     }
 
     @MainActor
@@ -21,7 +22,8 @@ struct OpenRouterProviderImplementation: ProviderImplementation {
         if OpenRouterSettingsReader.apiToken(environment: context.environment) != nil {
             return true
         }
-        return !context.settings.openRouterAPIToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        return !context.settings[providerConfig: .openrouter, field: .apiKey]
+            .trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     @MainActor
@@ -40,7 +42,17 @@ struct OpenRouterProviderImplementation: ProviderImplementation {
                     + "there to enable API key quota tracking.",
                 kind: .secure,
                 placeholder: "sk-or-v1-...",
-                binding: context.stringBinding(\.openRouterAPIToken),
+                binding: context.providerConfigBinding(.apiKey),
+                actions: [],
+                isVisible: nil,
+                onActivate: nil),
+            ProviderSettingsFieldDescriptor(
+                id: "openrouter-api-url",
+                title: "API URL",
+                subtitle: "Optional. Defaults to the hosted OpenRouter API.",
+                kind: .plain,
+                placeholder: "https://openrouter.ai/api/v1",
+                binding: context.providerConfigBinding(.endpoint),
                 actions: [],
                 isVisible: nil,
                 onActivate: nil),

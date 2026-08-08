@@ -4,7 +4,7 @@ import Foundation
 import SweetCookieKit
 
 public enum ManusCookieImporter {
-    private static let log = CodexBarLog.logger(LogCategories.manusCookie)
+    private static let log = CodexBarLog.logger(LogCategories.provider(.manus, scope: "cookie"))
     private static let cookieClient = BrowserCookieClient()
     private static let cookieDomains = ["manus.im", "www.manus.im"]
     private static let cookieImportOrder: BrowserCookieImportOrder =

@@ -47,13 +47,20 @@ public enum NeuralWattProviderDescriptor {
                     ProviderColor(hex: 0x38D98C),
                     ProviderColor(hex: 0x17243A),
                     ProviderColor(hex: 0xFFFFFF),
-                ]),
+                ],
+                widgetColor: ProviderColor(red: 56 / 255, green: 217 / 255, blue: 140 / 255)),
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
                 noDataMessage: { "Neuralwatt token cost history is not available via the quota API." }),
+            presentation: ProviderUsagePresentation(
+                costPresenter: { _ in ProviderCostPresentation(menuCardStyle: .payAsYouGoBalance) },
+                menuCard: ProviderMenuCardPresentation(
+                    showsPrimaryBalanceDescription: true,
+                    hidesPrimaryResetWithoutDate: true),
+                menu: ProviderMenuDescriptorPresentation(primaryDescriptionIsDetail: { _ in true })),
             fetchPlan: .apiToken(
                 strategyID: "neuralwatt.api",
-                resolveToken: { ProviderTokenResolver.neuralWattToken(environment: $0) },
+                resolveToken: { ProviderTokenResolver.token(for: .neuralwatt, environment: $0) },
                 missingCredentialsError: { NeuralWattUsageError.missingCredentials },
                 loadUsage: { apiKey, context in
                     try await NeuralWattUsageFetcher.fetchUsage(

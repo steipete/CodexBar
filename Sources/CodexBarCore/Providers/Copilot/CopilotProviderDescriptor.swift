@@ -1,4 +1,5 @@
 import Foundation
+import SweetCookieKit
 
 public enum CopilotProviderDescriptor {
     public static let descriptor: ProviderDescriptor = Self.makeDescriptor()
@@ -11,7 +12,18 @@ public enum CopilotProviderDescriptor {
             placeholder: "Paste GitHub token…",
             injection: .environment(key: "COPILOT_API_TOKEN"),
             requiresManualCookieSource: false,
-            cookieName: nil))
+            cookieName: nil,
+            clearsAPIKeyOnMutation: true,
+            primaryAddActionTitle: "Add Account"))
+
+    /// Budget imports stay Chrome-only to avoid prompting unrelated browsers.
+    private static var browserCookieOrder: BrowserCookieImportOrder? {
+        #if os(macOS)
+        [.chrome]
+        #else
+        nil
+        #endif
+    }
 
     static func makeDescriptor() -> ProviderDescriptor {
         ProviderDescriptor(
@@ -22,6 +34,7 @@ public enum CopilotProviderDescriptor {
                     manualCookieHeader: settings.manualBudgetCookieHeader)
             }),
             credentials: self.credentials,
+            config: ProviderConfigCapabilities(supportsEnterpriseHost: true),
             metadata: ProviderMetadata(
                 id: .copilot,
                 displayName: "Copilot",
@@ -36,7 +49,12 @@ public enum CopilotProviderDescriptor {
                 defaultEnabled: false,
                 isPrimaryProvider: false,
                 usesAccountFallback: false,
-                browserCookieOrder: ProviderBrowserCookieDefaults.copilotCookieImportOrder,
+                sharePlanLabels: [
+                    "free": "Free", "individual": "Individual", "pro": "Individual",
+                    "business": "Business", "enterprise": "Enterprise",
+                ],
+                debugLogUnavailableMessage: "Copilot debug log not yet implemented",
+                browserCookieOrder: self.browserCookieOrder,
                 dashboardURL: "https://github.com/settings/copilot",
                 statusPageURL: "https://www.githubstatus.com/"),
             branding: ProviderBranding(
@@ -54,6 +72,26 @@ public enum CopilotProviderDescriptor {
             pace: ProviderPaceCapability(
                 resetWindowPace: .resetDatePresent,
                 inferredMonthlyDuration: .windowDurationMissing),
+            presentation: ProviderUsagePresentation(
+                iconWindowResolver: { context in
+                    guard let id = context.secondaryOverrideWindowID,
+                          let extra = context.snapshot.extraRateWindows?.first(where: { $0.id == id })?.window
+                    else {
+                        return ProviderUsageWindowPair(
+                            primary: context.snapshot.primary,
+                            secondary: context.snapshot.secondary)
+                    }
+                    return ProviderUsageWindowPair(primary: context.snapshot.primary, secondary: extra)
+                },
+                automaticSelectionPrioritizesExhaustedWindow: false,
+                menuBarWindowResolver: { context in
+                    guard context.metric == .automatic,
+                          let primary = context.snapshot.primary,
+                          let secondary = context.snapshot.secondary
+                    else { return .unhandled }
+                    return .resolved(primary.usedPercent >= secondary.usedPercent ? primary : secondary)
+                },
+                menuCard: ProviderMenuCardPresentation(primaryDescriptionPlacement: .detailLeft)),
             fetchPlan: ProviderFetchPlan(
                 sourceModes: [.auto, .api],
                 pipeline: ProviderFetchPipeline(resolveStrategies: { _ in [CopilotAPIFetchStrategy()] })),
@@ -90,8 +128,8 @@ struct CopilotAPIFetchStrategy: ProviderFetchStrategy {
     }
 
     private static func resolveToken(context: ProviderFetchContext) -> String? {
-        ProviderTokenResolver.copilotToken(environment: context.env)
-            ?? ProviderTokenResolver.copilotResolution(environment: [
+        ProviderTokenResolver.token(for: .copilot, environment: context.env)
+            ?? ProviderTokenResolver.resolution(for: .copilot, environment: [
                 "COPILOT_API_TOKEN": context.settings?.copilot?.apiToken ?? "",
             ])?.token
     }

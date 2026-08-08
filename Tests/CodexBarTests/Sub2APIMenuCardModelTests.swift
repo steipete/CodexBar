@@ -1,3 +1,4 @@
+#if canImport(JavaScriptCore)
 import CodexBarCore
 import Foundation
 import Testing
@@ -5,7 +6,7 @@ import Testing
 
 struct Sub2APIMenuCardModelTests {
     @Test
-    func `subscription amounts share the percentage row`() throws {
+    func `subscription amounts share the percentage row`() async throws {
         let now = Date(timeIntervalSince1970: 1_720_440_000)
         let json = """
         {
@@ -20,9 +21,7 @@ struct Sub2APIMenuCardModelTests {
           }
         }
         """
-        let snapshot = try Sub2APIUsageFetcher._parseSnapshotForTesting(
-            Data(json.utf8),
-            updatedAt: now).toUsageSnapshot()
+        let snapshot = try await Self.snapshot(json, now: now)
         let metadata = try #require(ProviderDefaults.metadata[.sub2api])
 
         let model = UsageMenuCardView.Model.make(.init(
@@ -59,7 +58,7 @@ struct Sub2APIMenuCardModelTests {
     }
 
     @Test
-    func `plan balance and per key totals render without overloading identity`() throws {
+    func `plan balance and per key totals render without overloading identity`() async throws {
         let now = Date(timeIntervalSince1970: 1_720_440_000)
         let json = """
         {
@@ -73,9 +72,7 @@ struct Sub2APIMenuCardModelTests {
           }
         }
         """
-        let snapshot = try Sub2APIUsageFetcher._parseSnapshotForTesting(
-            Data(json.utf8),
-            updatedAt: now).toUsageSnapshot()
+        let snapshot = try await Self.snapshot(json, now: now)
         let metadata = try #require(ProviderDefaults.metadata[.sub2api])
 
         let model = UsageMenuCardView.Model.make(.init(
@@ -106,7 +103,7 @@ struct Sub2APIMenuCardModelTests {
     }
 
     @Test
-    func `extra window amount renders as detail instead of reset`() throws {
+    func `extra window amount renders as detail instead of reset`() async throws {
         let now = Date(timeIntervalSince1970: 1_720_440_000)
         let json = """
         {
@@ -121,9 +118,7 @@ struct Sub2APIMenuCardModelTests {
           ]
         }
         """
-        let snapshot = try Sub2APIUsageFetcher._parseSnapshotForTesting(
-            Data(json.utf8),
-            updatedAt: now).toUsageSnapshot()
+        let snapshot = try await Self.snapshot(json, now: now)
         let metadata = try #require(ProviderDefaults.metadata[.sub2api])
 
         let model = UsageMenuCardView.Model.make(.init(
@@ -150,4 +145,22 @@ struct Sub2APIMenuCardModelTests {
         #expect(weekly.resetText == nil)
         #expect(weekly.detailText == "$40.00 / $200.00")
     }
+
+    private static func snapshot(_ body: String, now: Date) async throws -> UsageSnapshot {
+        let runtime = try ProviderPluginRuntime(
+            bundledPlugin: "sub2api",
+            transport: ProviderHTTPTransportHandler { request in
+                let response = try #require(HTTPURLResponse(
+                    url: request.url!,
+                    statusCode: 200,
+                    httpVersion: nil,
+                    headerFields: ["Content-Type": "application/json"]))
+                return (Data(body.utf8), response)
+            })
+        return try await runtime.fetchUsage(
+            settings: [Sub2APISettingsReader.baseURLEnvironmentKey: "https://api.example.com"],
+            secrets: [Sub2APISettingsReader.apiKeyEnvironmentKey: "fixture-key"],
+            now: now)
+    }
 }
+#endif

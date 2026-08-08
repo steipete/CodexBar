@@ -27,6 +27,10 @@ struct ProviderSettingsContext {
     let requestConfirmation: (ProviderSettingsConfirmation) -> Void
     let runLoginFlow: () async -> Void
 
+    func providerConfigBinding(_ field: ProviderConfigStringField) -> Binding<String> {
+        self.settings.providerConfigBinding(provider: self.provider, field: field)
+    }
+
     init(
         provider: UsageProvider,
         settings: SettingsStore,

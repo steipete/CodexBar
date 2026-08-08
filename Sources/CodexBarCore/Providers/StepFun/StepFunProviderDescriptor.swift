@@ -18,7 +18,21 @@ public enum StepFunProviderDescriptor {
             cookieName: nil),
         authDetector: { environment, _ in
             StepFunSettingsReader.token(environment: environment) == nil ? [] : ["api"]
-        })
+        },
+        manualTokenPersister: { try Self.persistManualToken($0) })
+
+    private static func persistManualToken(_ token: String) throws {
+        let trimmed = token.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+
+        let store = CodexBarConfigStore()
+        var config = try store.load() ?? .makeDefault()
+        var providerConfig = config.providerConfig(for: UsageProvider.stepfun.instanceID)
+            ?? ProviderConfig(id: UsageProvider.stepfun.instanceID)
+        providerConfig.region = trimmed
+        config.setProviderConfig(providerConfig)
+        try store.save(config)
+    }
 
     static func makeDescriptor() -> ProviderDescriptor {
         ProviderDescriptor(
@@ -55,6 +69,7 @@ public enum StepFunProviderDescriptor {
                 widgetSelectable: false,
                 isPrimaryProvider: false,
                 usesAccountFallback: false,
+                debugLogUnavailableMessage: "StepFun debug log not yet implemented",
                 browserCookieOrder: nil,
                 dashboardURL: "https://platform.stepfun.com/plan-usage",
                 statusPageURL: nil,
@@ -67,7 +82,8 @@ public enum StepFunProviderDescriptor {
                     ProviderColor(hex: 0x000000),
                     ProviderColor(hex: 0xFFFFFF),
                     ProviderColor(hex: 0x858585),
-                ]),
+                ],
+                widgetColor: ProviderColor(red: 255 / 255, green: 140 / 255, blue: 0 / 255)),
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
                 noDataMessage: { "StepFun per-day cost history is not available via API." }),

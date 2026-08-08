@@ -322,6 +322,25 @@ struct ProviderDiagnosticExportTests {
         #expect(diagParse.category == "parse")
     }
 
+    @Test(arguments: [
+        (ProviderFetchClassifiedError.Kind.authenticationExpired, "auth"),
+        (.missingCredential, "auth"),
+        (.permissionDenied, "auth"),
+        (.rateLimited, "api"),
+        (.providerUnavailable, "api"),
+        (.apiFailure, "api"),
+        (.parseFailure, "parse"),
+        (.networkFailure, "network"),
+    ])
+    func `diagnostic error maps classified plugin failures`(kind: ProviderFetchClassifiedError.Kind, category: String) {
+        let error = ProviderFetchClassifiedError(kind: kind, message: "fixture detail")
+
+        let diagnostic = ProviderDiagnosticError(from: error, authConfigured: true)
+
+        #expect(diagnostic.category == category)
+        #expect(!diagnostic.safeDescription.contains("fixture detail"))
+    }
+
     @Test
     func `diagnostic error maps Alibaba invalid endpoint override to configuration`() {
         let error = ProviderEndpointOverrideError.alibabaCodingPlan("ALIBABA_CODING_PLAN_QUOTA_URL")

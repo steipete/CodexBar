@@ -1,3 +1,5 @@
+// Linux compatibility only. JavaScriptCore platforms use the bundled OpenRouter plugin.
+#if !canImport(JavaScriptCore)
 import Foundation
 #if canImport(FoundationNetworking)
 import FoundationNetworking
@@ -302,15 +304,12 @@ extension OpenRouterUsageSnapshot {
 
 /// Fetches usage stats from the OpenRouter API
 public struct OpenRouterUsageFetcher: Sendable {
-    private static let log = CodexBarLog.logger(LogCategories.openRouterUsage)
+    private static let log = CodexBarLog.logger(LogCategories.provider(.openrouter, scope: "usage"))
     private static let rateLimitTimeoutSeconds: TimeInterval = 1.0
     private static let creditsRequestTimeoutSeconds: TimeInterval = 15
     private static let maxErrorBodyLength = 240
     private static let maxDebugErrorBodyLength = 2000
     private static let debugFullErrorBodiesEnvKey = "CODEXBAR_DEBUG_OPENROUTER_ERROR_BODIES"
-    private static let httpRefererEnvKey = "OPENROUTER_HTTP_REFERER"
-    private static let clientTitleEnvKey = "OPENROUTER_X_TITLE"
-    private static let defaultClientTitle = "CodexBar"
 
     /// Fetches credits usage from OpenRouter using the provided API key
     public static func fetchUsage(
@@ -331,11 +330,10 @@ public struct OpenRouterUsageFetcher: Sendable {
         request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.timeoutInterval = Self.creditsRequestTimeoutSeconds
-        if let referer = Self.sanitizedHeaderValue(environment[self.httpRefererEnvKey]) {
+        if let referer = OpenRouterSettingsReader.httpReferer(environment: environment) {
             request.setValue(referer, forHTTPHeaderField: "HTTP-Referer")
         }
-        let title = Self.sanitizedHeaderValue(environment[self.clientTitleEnvKey]) ?? Self.defaultClientTitle
-        request.setValue(title, forHTTPHeaderField: "X-Title")
+        request.setValue(OpenRouterSettingsReader.clientTitle(environment: environment), forHTTPHeaderField: "X-Title")
 
         let response = try await transport.response(for: request)
         let data = response.data
@@ -479,10 +477,6 @@ public struct OpenRouterUsageFetcher: Sendable {
         environment[self.debugFullErrorBodiesEnvKey] == "1"
     }
 
-    private static func sanitizedHeaderValue(_ raw: String?) -> String? {
-        OpenRouterSettingsReader.cleaned(raw)
-    }
-
     private static func sanitizedResponseBodySummary(_ data: Data) -> String {
         guard !data.isEmpty else { return "empty body" }
 
@@ -565,3 +559,4 @@ public enum OpenRouterUsageError: LocalizedError, Sendable {
         }
     }
 }
+#endif

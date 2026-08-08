@@ -60,6 +60,8 @@ extension UsageStore {
         let accountContext = QuotaWarningAccountContext(
             discriminator: accountDiscriminator,
             displayName: self.quotaWarningAccountDisplayName(provider: provider, snapshot: snapshot))
+        // Provider-specific by design: warning lanes follow Antigravity families, balance-only suppression, and
+        // provider-authored dynamic labels rather than the generic primary/secondary pair.
         let source: SessionQuotaWindowSource? = if provider == .antigravity {
             Self.hasAntigravityQuotaSummaryWindows(snapshot: snapshot)
                 ? .antigravityQuotaSummary

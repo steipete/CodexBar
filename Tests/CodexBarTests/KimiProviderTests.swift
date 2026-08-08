@@ -187,7 +187,7 @@ struct KimiSettingsReaderTests {
             accessToken: "oauth",
             expiresAt: Date().addingTimeInterval(3600).timeIntervalSince1970)
 
-        let explicit = ProviderTokenResolver.kimiAPIResolution(environment: [
+        let explicit = ProviderTokenResolver.resolution(for: .kimi, kind: .secondary, environment: [
             "KIMI_CODE_API_KEY": "explicit",
             "KIMI_CODE_HOME": home.path,
         ])
@@ -204,7 +204,7 @@ struct KimiSettingsReaderTests {
                 key: "https://proxy.example.com",
             ]
             #expect(KimiSettingsReader.hasKimiCodeCredential(environment: environment) == false)
-            #expect(ProviderTokenResolver.kimiAPIResolution(environment: environment) == nil)
+            #expect(ProviderTokenResolver.resolution(for: .kimi, kind: .secondary, environment: environment) == nil)
         }
     }
 
@@ -295,7 +295,7 @@ struct KimiAPIFetchStrategyTests {
 
         #expect(KimiBrowserImportPolicy.allowsImport(offContext) == false)
         #expect(KimiBrowserImportPolicy.allowsImport(autoContext))
-        #expect(ProviderTokenResolver.kimiAuthResolution(environment: [:]) == nil)
+        #expect(ProviderTokenResolver.resolution(for: .kimi, environment: [:]) == nil)
     }
 
     @Test
@@ -1375,7 +1375,7 @@ struct KimiTokenResolverTests {
     func `resolves token from environment`() {
         KeychainAccessGate.withTaskOverrideForTesting(true) {
             let env = ["KIMI_AUTH_TOKEN": "test.jwt.token"]
-            let token = ProviderTokenResolver.kimiAuthToken(environment: env)
+            let token = ProviderTokenResolver.token(for: .kimi, environment: env)
             #expect(token == "test.jwt.token")
         }
     }
@@ -1385,7 +1385,7 @@ struct KimiTokenResolverTests {
         // This test would require mocking the keychain.
         KeychainAccessGate.withTaskOverrideForTesting(true) {
             let env = ["KIMI_AUTH_TOKEN": "test.env.token"]
-            let token = ProviderTokenResolver.kimiAuthToken(environment: env)
+            let token = ProviderTokenResolver.token(for: .kimi, environment: env)
             #expect(token == "test.env.token")
         }
     }
@@ -1394,7 +1394,7 @@ struct KimiTokenResolverTests {
     func `resolution includes source`() {
         KeychainAccessGate.withTaskOverrideForTesting(true) {
             let env = ["KIMI_AUTH_TOKEN": "test.jwt.token"]
-            let resolution = ProviderTokenResolver.kimiAuthResolution(environment: env)
+            let resolution = ProviderTokenResolver.resolution(for: .kimi, environment: env)
 
             #expect(resolution?.token == "test.jwt.token")
             #expect(resolution?.source == .environment)

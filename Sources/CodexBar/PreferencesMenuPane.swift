@@ -137,9 +137,9 @@ struct CostSummarySettingsSection: View {
                 SettingsSectionFooter {
                     VStack(alignment: .leading, spacing: 3) {
                         Text(L("cost_auto_refresh_info"))
-                        self.costStatusLine(provider: .claude)
-                        self.costStatusLine(provider: .codex)
-                        self.costStatusLine(provider: .cursor)
+                        ForEach(Self.costStatusProviders, id: \.self) { provider in
+                            self.costStatusLine(provider: provider)
+                        }
                         Text(Self.costDataExplanation())
                     }
                 }
@@ -149,6 +149,15 @@ struct CostSummarySettingsSection: View {
 
     static func costDataExplanation() -> String {
         L("cost_data_explanation")
+    }
+
+    static var costStatusProviders: [UsageProvider] {
+        ProviderDescriptorRegistry.all.compactMap { descriptor -> (UsageProvider, Int)? in
+            guard let order = descriptor.tokenCost.settingsStatusOrder else { return nil }
+            return (descriptor.id, order)
+        }
+        .sorted { $0.1 < $1.1 }
+        .map(\.0)
     }
 
     private func costStatusLine(provider: UsageProvider) -> Text {

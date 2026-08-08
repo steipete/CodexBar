@@ -15,6 +15,8 @@ public enum ClawRouterSettingsReader {
     public static let apiKeyEnvironmentKey = "CLAWROUTER_API_KEY"
     public static let baseURLEnvironmentKey = "CLAWROUTER_BASE_URL"
     public static let defaultBaseURL = URL(string: "https://clawrouter.openclaw.ai")!
+    public static let missingCredentialsMessage =
+        "Missing ClawRouter API key. Add one in Settings or set CLAWROUTER_API_KEY."
 
     public static func apiKey(
         environment: [String: String] = ProcessInfo.processInfo.environment) -> String?

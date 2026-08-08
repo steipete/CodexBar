@@ -11,13 +11,13 @@ struct LiteLLMProviderImplementation: ProviderImplementation {
 
     @MainActor
     func observeSettings(_ settings: SettingsStore) {
-        _ = settings.liteLLMAPIKey
-        _ = settings.liteLLMBaseURL
+        _ = settings[providerConfig: .litellm, field: .apiKey]
+        _ = settings[providerConfig: .litellm, field: .endpoint]
     }
 
     @MainActor
     func isAvailable(context: ProviderAvailabilityContext) -> Bool {
-        ProviderTokenResolver.liteLLMToken(environment: context.environment) != nil &&
+        ProviderTokenResolver.token(for: .litellm, environment: context.environment) != nil &&
             LiteLLMSettingsReader.hasBaseURLOverride(environment: context.environment)
     }
 
@@ -30,7 +30,7 @@ struct LiteLLMProviderImplementation: ProviderImplementation {
                 subtitle: "LiteLLM virtual key used to read its own spend and budget.",
                 kind: .secure,
                 placeholder: "sk-…",
-                binding: context.stringBinding(\.liteLLMAPIKey),
+                binding: context.providerConfigBinding(.apiKey),
                 actions: [],
                 isVisible: nil,
                 onActivate: nil),
@@ -40,7 +40,7 @@ struct LiteLLMProviderImplementation: ProviderImplementation {
                 subtitle: "LiteLLM proxy base URL. /v1 suffixes are accepted and stripped for management endpoints.",
                 kind: .plain,
                 placeholder: "https://litellm.example.com",
-                binding: context.stringBinding(\.liteLLMBaseURL),
+                binding: context.providerConfigBinding(.endpoint),
                 actions: [],
                 isVisible: nil,
                 onActivate: nil),

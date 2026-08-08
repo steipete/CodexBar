@@ -11,8 +11,8 @@ struct Sub2APIProviderImplementation: ProviderImplementation {
 
     @MainActor
     func observeSettings(_ settings: SettingsStore) {
-        _ = settings.sub2APIAPIKey
-        _ = settings.sub2APIBaseURL
+        _ = settings[providerConfig: .sub2api, field: .apiKey]
+        _ = settings[providerConfig: .sub2api, field: .endpoint]
         _ = settings.tokenAccountsData(for: .sub2api)
     }
 
@@ -31,7 +31,7 @@ struct Sub2APIProviderImplementation: ProviderImplementation {
                 subtitle: "Used when no group API key account is selected.",
                 kind: .secure,
                 placeholder: "sk-…",
-                binding: context.stringBinding(\.sub2APIAPIKey),
+                binding: context.providerConfigBinding(.apiKey),
                 actions: [],
                 isVisible: nil,
                 onActivate: nil),
@@ -41,7 +41,7 @@ struct Sub2APIProviderImplementation: ProviderImplementation {
                 subtitle: "Base URL of your sub2api instance. HTTPS is required except for local loopback testing.",
                 kind: .plain,
                 placeholder: "https://sub2api.example.com",
-                binding: context.stringBinding(\.sub2APIBaseURL),
+                binding: context.providerConfigBinding(.endpoint),
                 actions: [],
                 isVisible: nil,
                 onActivate: nil),

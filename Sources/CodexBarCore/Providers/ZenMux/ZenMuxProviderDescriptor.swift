@@ -23,6 +23,7 @@ public enum ZenMuxProviderDescriptor {
                 cliName: "zenmux",
                 defaultEnabled: false,
                 widgetSelectable: false,
+                debugLogUnavailableMessage: "ZenMux debug log not yet implemented",
                 dashboardURL: "https://zenmux.ai/platform/management",
                 statusPageURL: nil),
             branding: ProviderBranding(
@@ -37,6 +38,11 @@ public enum ZenMuxProviderDescriptor {
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
                 noDataMessage: { "ZenMux cost history is not exposed by the Management API." }),
+            presentation: ProviderUsagePresentation(
+                costPresenter: { _ in ProviderCostPresentation(menuCardStyle: .payAsYouGoBalance) },
+                menuCard: ProviderMenuCardPresentation(
+                    primaryDescriptionPlacement: .detailLeft,
+                    hidesPrimaryResetWithoutDate: true)),
             fetchPlan: ProviderFetchPlan(
                 sourceModes: [.auto, .api],
                 pipeline: ProviderFetchPipeline(resolveStrategies: { _ in [ZenMuxAPIFetchStrategy()] })),

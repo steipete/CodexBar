@@ -17,6 +17,8 @@ public enum PerplexityProviderDescriptor {
     static func makeDescriptor() -> ProviderDescriptor {
         ProviderDescriptor(
             id: .perplexity,
+            menuBarMetrics: ProviderMenuBarMetricCapabilities(
+                supported: [.automatic, .primary, .secondary, .tertiary]),
             settingsSection: .init(
                 PerplexityProviderSettingsKey.self,
                 cookieSettings: PerplexityProviderSettings.self),
@@ -37,6 +39,7 @@ public enum PerplexityProviderDescriptor {
                 widgetSelectable: false,
                 isPrimaryProvider: false,
                 usesAccountFallback: false,
+                sharePlanLabels: ["pro": "Pro", "max": "Max"],
                 browserCookieOrder: nil,
                 dashboardURL: "https://www.perplexity.ai/account/usage",
                 statusPageURL: nil,
@@ -53,6 +56,24 @@ public enum PerplexityProviderDescriptor {
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
                 noDataMessage: { "Perplexity cost tracking is not supported." }),
+            presentation: ProviderUsagePresentation(
+                iconWindowResolver: { context in
+                    let windows = context.snapshot.orderedPerplexityDisplayWindows()
+                    return ProviderUsageWindowPair(primary: windows.first, secondary: windows.dropFirst().first)
+                },
+                requestedMenuBarLaneOrders: [
+                    .primary: [.primary, .secondary, .tertiary],
+                    .secondary: [.secondary, .tertiary, .primary],
+                    .tertiary: [.tertiary, .secondary, .primary],
+                ],
+                automaticSelectionPrioritizesExhaustedWindow: false,
+                menuBarWindowResolver: { context in
+                    guard context.metric == .automatic else { return .unhandled }
+                    return .resolved(context.snapshot.automaticPerplexityWindow())
+                },
+                menu: ProviderMenuDescriptorPresentation(
+                    secondaryDescriptionMode: .resetOverride,
+                    tertiaryDescriptionOverridesReset: true)),
             fetchPlan: self.fetchPlan(),
             cli: ProviderCLIConfig(
                 name: "perplexity",

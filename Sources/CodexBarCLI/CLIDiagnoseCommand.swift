@@ -174,17 +174,6 @@ extension CodexBarCLI {
             environment: environment,
             settings: settings)
     }
-
-    static func resolveMiniMaxAuthMode(
-        environment: [String: String],
-        settings: ProviderSettingsSnapshot?) -> MiniMaxAuthMode
-    {
-        let apiToken = ProviderTokenResolver.minimaxToken(environment: environment)
-        let envCookieHeader = ProviderTokenResolver.minimaxCookie(environment: environment)
-        let settingsCookieHeader = CookieHeaderNormalizer.normalize(settings?.minimax?.manualCookieHeader)
-        let cookieHeader = envCookieHeader ?? settingsCookieHeader
-        return MiniMaxAuthMode.resolve(apiToken: apiToken, cookieHeader: cookieHeader)
-    }
 }
 
 #if DEBUG
@@ -202,13 +191,6 @@ extension CodexBarCLI {
             config: config,
             environment: environment,
             settings: settings)
-    }
-
-    static func _resolveMiniMaxAuthModeForTesting(
-        environment: [String: String],
-        settings: ProviderSettingsSnapshot?) -> MiniMaxAuthMode
-    {
-        self.resolveMiniMaxAuthMode(environment: environment, settings: settings)
     }
 }
 #endif

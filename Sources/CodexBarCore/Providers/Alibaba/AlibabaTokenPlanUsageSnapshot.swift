@@ -76,6 +76,7 @@ extension AlibabaTokenPlanUsageSnapshot {
 
         let planName = self.planName?.trimmingCharacters(in: .whitespacesAndNewlines)
         let loginMethod = (planName?.isEmpty ?? true) ? nil : planName
+        // Provider-specific by design: This co-located snapshot belongs to the Alibaba Token Plan variant.
         let identity = ProviderIdentitySnapshot(
             providerID: .alibabatokenplan,
             accountEmail: nil,

@@ -71,6 +71,7 @@ extension UsageStore {
     }
 
     func requestOpenAIDashboardRefreshIfStale(reason: String) {
+        // Provider-specific by design: the OpenAI WKWebView session lifecycle attaches only to Codex consumer usage.
         guard self.isEnabled(.codex),
               self.settings.openAIWebAccessEnabled,
               self.settings.codexCookieSource.isEnabled
@@ -255,6 +256,7 @@ extension UsageStore {
             self.lastOpenAIDashboardError = nil
             self.openAIDashboardRequiresLogin = false
 
+            // Provider-specific by design: an authorized OpenAI dashboard attaches metadata/backfill to Codex usage.
             if let currentUsage = self.snapshots[.codex] {
                 self.snapshots[.codex] = currentUsage.withSubscriptionMetadata(
                     expiresAt: dashboard.subscriptionExpiresAt,
@@ -903,6 +905,7 @@ extension UsageStore {
             }
 
             if allowCurrentSnapshotFallback,
+               // Provider-specific by design: OpenAI web attachment falls back to the current Codex owner email.
                let snapshotEmail = self.snapshots[.codex]?.accountEmail(for: .codex)?
                    .trimmingCharacters(in: .whitespacesAndNewlines),
                    !snapshotEmail.isEmpty
@@ -1479,6 +1482,7 @@ extension UsageStore {
     }
 
     func syncOpenAIWebState() {
+        // Provider-specific by design: the OpenAI WKWebView lifecycle is enabled only for Codex consumer access.
         guard self.isEnabled(.codex),
               self.settings.openAIWebAccessEnabled,
               self.settings.codexCookieSource.isEnabled

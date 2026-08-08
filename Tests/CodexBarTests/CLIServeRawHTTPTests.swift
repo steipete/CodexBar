@@ -127,6 +127,33 @@ struct CLIServeRawHTTPTests {
     // MARK: - Dashboard snapshot auth (production handler)
 
     @Test
+    func `web UI returns HTML with no-store`() async throws {
+        try await Self.withServeRuntime(token: nil, body: { port in
+            let response = try await Self.rawExchange(
+                port: port,
+                request: "GET / HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n")
+
+            #expect(response.statusLine == "HTTP/1.1 200 OK")
+            #expect(response.headerValue("Content-Type") == "text/html; charset=utf-8")
+            #expect(response.headerValue("Cache-Control") == "no-store")
+            #expect(response.body.contains("CodexBar Dashboard"))
+            #expect(response.body.contains("/dashboard/v1/snapshot"))
+        })
+    }
+
+    @Test
+    func `web UI stays open when a dashboard token is configured`() async throws {
+        try await Self.withServeRuntime(token: "secret", bindHost: "0.0.0.0", body: { port in
+            let response = try await Self.rawExchange(
+                port: port,
+                request: "GET / HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n")
+
+            #expect(response.statusLine == "HTTP/1.1 200 OK")
+            #expect(response.headerValue("Content-Type") == "text/html; charset=utf-8")
+        })
+    }
+
+    @Test
     func `snapshot without credentials returns 401 with challenge and no-store`() async throws {
         try await Self.withServeRuntime(token: "secret", body: { port in
             let response = try await Self.rawExchange(
@@ -170,6 +197,64 @@ struct CLIServeRawHTTPTests {
             #expect(object["schemaVersion"] as? Int == 1)
             #expect((object["providers"] as? [Any])?.isEmpty == true)
             #expect(object["host"] is [String: Any])
+        })
+    }
+
+    @Test
+    func `snapshot shell returns minimal provider rows without waiting for fetches`() async throws {
+        let config = CodexBarConfig(providers: [
+            ProviderConfig(id: .claude, enabled: true),
+            ProviderConfig(id: .codex, enabled: false),
+        ])
+        try await Self.withServeRuntime(token: "secret", config: config, body: { port in
+            let startedAt = ContinuousClock().now
+            let response = try await Self.rawExchange(
+                port: port,
+                request: "GET /dashboard/v1/snapshot?detail=shell HTTP/1.1\r\nHost: 127.0.0.1\r\n"
+                    + "Authorization: Bearer secret\r\n\r\n")
+            let elapsed = startedAt.duration(to: ContinuousClock().now)
+
+            #expect(response.statusLine == "HTTP/1.1 200 OK")
+            #expect(response.headerValue("Cache-Control") == "no-store")
+            #expect(elapsed < .seconds(1))
+            let object = try #require(
+                JSONSerialization.jsonObject(with: Data(response.body.utf8)) as? [String: Any])
+            let providers = try #require(object["providers"] as? [[String: Any]])
+            #expect(providers.count == 1)
+            #expect(providers[0]["id"] as? String == "claude")
+            #expect(Set(providers[0].keys) == ["id", "name", "enabled", "display"])
+        })
+    }
+
+    @Test
+    func `snapshot shell supports provider filter and rejects invalid query values`() async throws {
+        let config = CodexBarConfig(providers: [
+            ProviderConfig(id: .claude, enabled: true),
+            ProviderConfig(id: .codex, enabled: true),
+        ])
+        try await Self.withServeRuntime(token: "secret", config: config, body: { port in
+            let filtered = try await Self.rawExchange(
+                port: port,
+                request: "GET /dashboard/v1/snapshot?detail=shell&provider=codex HTTP/1.1\r\n"
+                    + "Host: 127.0.0.1\r\nAuthorization: Bearer secret\r\n\r\n")
+            let invalidProvider = try await Self.rawExchange(
+                port: port,
+                request: "GET /dashboard/v1/snapshot?provider=missing HTTP/1.1\r\n"
+                    + "Host: 127.0.0.1\r\nAuthorization: Bearer secret\r\n\r\n")
+            let invalidDetail = try await Self.rawExchange(
+                port: port,
+                request: "GET /dashboard/v1/snapshot?detail=summary HTTP/1.1\r\n"
+                    + "Host: 127.0.0.1\r\nAuthorization: Bearer secret\r\n\r\n")
+
+            let object = try #require(
+                JSONSerialization.jsonObject(with: Data(filtered.body.utf8)) as? [String: Any])
+            let providers = try #require(object["providers"] as? [[String: Any]])
+            #expect(filtered.statusLine == "HTTP/1.1 200 OK")
+            #expect(providers.compactMap { $0["id"] as? String } == ["codex"])
+            #expect(invalidProvider.statusLine == "HTTP/1.1 400 Bad Request")
+            #expect(invalidProvider.body == #"{"error":"Unknown provider 'missing'."}"#)
+            #expect(invalidDetail.statusLine == "HTTP/1.1 400 Bad Request")
+            #expect(invalidDetail.body == #"{"error":"Unknown dashboard detail 'summary'."}"#)
         })
     }
 
@@ -364,12 +449,13 @@ struct CLIServeRawHTTPTests {
     static func withServeRuntime(
         token: String?,
         bindHost: String = "127.0.0.1",
+        config: CodexBarConfig? = nil,
         rawConfigJSON: String? = nil,
         body: (UInt16) async throws -> Void) async throws
     {
         let store = testConfigStore(suiteName: "CLIServeRawHTTPTests-\(UUID().uuidString)")
         defer { try? store.deleteIfPresent() }
-        try store.save(CodexBarConfig(providers: UsageProvider.allCases.map {
+        try store.save(config ?? CodexBarConfig(providers: UsageProvider.allCases.map {
             ProviderConfig(id: $0.instanceID, enabled: false)
         }))
         if let rawConfigJSON {

@@ -13,21 +13,29 @@ enum CostUsageCacheIO {
     /// scanner instead of being decoded in one shot. `JSONDecoder` materializes the whole
     /// object graph at roughly an order of magnitude over the artifact size (#2637 traced
     /// multi-GiB `MALLOC_LARGE` spikes to exactly this decode), so the cap stays close to
-    /// the save budget: `save` never persists a Codex artifact above the budget, which
-    /// means anything bigger is a legacy or foreign artifact that is cheaper to rebuild
-    /// bounded than to decode in one shot.
+    /// the save budget: `save` bounds artifacts to `maxCacheFileBytes`, and when protected
+    /// entries (resuming sessions, fork parents) cannot be trimmed further it may overshoot
+    /// only up to this load cap. Anything above the cap is a legacy or foreign artifact
+    /// that is cheaper to rebuild bounded than to decode in one shot.
     static let maxCacheLoadBytes: Int = 320 * 1024 * 1024
 
     /// Producer keys from older parser hashes whose caches are still valid under the current
-    /// delta semantics. #2037 invalidated earlier keys; append-safe fork resume does not change
-    /// stored totals or cache layout, so its immediate predecessor remains reusable.
+    /// delta semantics. #2037 invalidated earlier keys; every rotation since #2632 (append-safe
+    /// fork resume, bounded persistence, provider-special-case refactors, catch-up report
+    /// calendar normalization) preserved stored totals and cache layout, so all shipped
+    /// predecessors back to #2632 remain reusable.
     private static let compatibleCodexProducerKeys: Set<String> = [
+        "codex:cu:p1cd29792d9ca2b11",
+        "codex:cu:p37aedd661c4272a8",
+        "codex:cu:p6c0f1fa950e63467",
+        "codex:cu:paa27d287348e79b5",
         "codex:cu:p843ca061c36bbea1",
     ]
 
     /// Parsing and attribution changes rotate the Codex parser producer key.
     /// Increment this artifact version only when the stored schema or cache layout becomes incompatible.
     private static func artifactVersion(for provider: UsageProvider) -> Int {
+        // Provider-specific by design: scanner parser/schema compatibility versions differ by cache producer.
         switch provider {
         case .codex:
             11
@@ -59,6 +67,7 @@ enum CostUsageCacheIO {
         maxCacheBytes: Int = CostUsageCacheIO.maxCacheLoadBytes) -> CostUsageCache
     {
         let url = self.cacheFileURL(provider: provider, cacheRoot: cacheRoot)
+        // Provider-specific by design: only Codex persistence carries bounded resume/discovery scan state.
         // Only Codex has bounded persistence pruning on save; other providers would be
         // rejected, rebuilt, and written oversized again on every refresh.
         let effectiveMaxBytes = provider == .codex ? maxCacheBytes : Int.max
@@ -209,6 +218,10 @@ enum CostUsageCacheIO {
                 guard strippedDetail || clearedLookback || prunedOrphans else { break }
                 data = (try? JSONEncoder().encode(cache)) ?? Data()
             }
+            // The loop can stall with the payload still above the save budget when every
+            // remaining byte belongs to protected entries. That overshoot is bounded by
+            // `maxCacheLoadBytes` below; the artifact stays loadable, so the next refresh
+            // keeps trimming instead of entering a full-rebuild loop.
         }
         if provider == .codex, data.count > maxCacheLoadBytes {
             // Enforcement could not shrink the payload below what `load` accepts (e.g. the
@@ -465,8 +478,8 @@ enum CostUsageCacheIO {
         // pads by one day on each side).
         guard let sinceKey = reportWindow?.sinceKey ?? cache.scanSinceKey,
               let untilKey = reportWindow?.untilKey ?? cache.scanUntilKey,
-              let since = dayDate(sinceKey, calendar: calendar),
-              let until = dayDate(untilKey, calendar: calendar)
+              let since = CostUsageScanner.parseDayKey(sinceKey, calendar: calendar),
+              let until = CostUsageScanner.parseDayKey(untilKey, calendar: calendar)
         else { return nil }
         let range = CostUsageScanner.CostUsageDayRange(
             since: since,
@@ -514,22 +527,6 @@ enum CostUsageCacheIO {
             }
         }
         return strippedAny
-    }
-
-    private static func dayDate(_ key: String, calendar: Calendar) -> Date? {
-        let parts = key.split(separator: "-", omittingEmptySubsequences: true)
-        guard parts.count == 3,
-              let year = Int(parts[0]),
-              let month = Int(parts[1]),
-              let day = Int(parts[2])
-        else { return nil }
-        var components = DateComponents()
-        components.calendar = calendar
-        components.timeZone = calendar.timeZone
-        components.year = year
-        components.month = month
-        components.day = day
-        return calendar.date(from: components)
     }
 
     /// Removes discovery records for session files that were pruned from `files` so the
@@ -763,6 +760,7 @@ enum CostUsageCacheIO {
         provider: UsageProvider,
         parserHash: String = CodexParserHash.value) -> String?
     {
+        // Provider-specific by design: only the Codex incremental parser persists a producer hash.
         guard provider == .codex else { return nil }
         return "\(provider.rawValue):cu:p\(parserHash)"
     }

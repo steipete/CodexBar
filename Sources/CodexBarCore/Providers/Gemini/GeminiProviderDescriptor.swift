@@ -6,6 +6,8 @@ public enum GeminiProviderDescriptor {
     static func makeDescriptor() -> ProviderDescriptor {
         ProviderDescriptor(
             id: .gemini,
+            menuBarMetrics: ProviderMenuBarMetricCapabilities(
+                supported: [.automatic, .primary, .secondary, .average]),
             metadata: ProviderMetadata(
                 id: .gemini,
                 displayName: "Gemini",
@@ -20,6 +22,12 @@ public enum GeminiProviderDescriptor {
                 defaultEnabled: false,
                 isPrimaryProvider: false,
                 usesAccountFallback: false,
+                sharePlanLabels: [
+                    "free": "Free", "paid": "Paid", "plus": "Plus", "workspace": "Workspace",
+                    "legacy": "Legacy", "gemini code assist in google one ai pro": "Google One AI Pro",
+                ],
+                debugLogUnavailableMessage: "Gemini debug log not yet implemented",
+                debugPane: ProviderDebugPaneCapabilities(errorSimulationOrder: 2),
                 dashboardURL: "https://gemini.google.com",
                 changelogURL: "https://github.com/google-gemini/gemini-cli/releases",
                 statusPageURL: nil,
@@ -33,15 +41,26 @@ public enum GeminiProviderDescriptor {
                     ProviderColor(hex: 0x4285F4),
                     ProviderColor(hex: 0xA142F4),
                     ProviderColor(hex: 0xD96570),
-                ]),
+                ],
+                burnDownWidgetColor: ProviderColor(red: 0.420, green: 0.440, blue: 0.900)),
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
                 noDataMessage: { "Gemini cost summary is not supported." }),
+            presentation: ProviderUsagePresentation(
+                identityPresenter: { provider, snapshot in
+                    guard let plan = snapshot.loginMethod(for: provider), !plan.isEmpty else {
+                        return ProviderIdentityPresentation(badge: nil, plan: nil)
+                    }
+                    let display = UsageFormatter.cleanPlanName(plan)
+                    return ProviderIdentityPresentation(badge: display, plan: display)
+                },
+                iconDecorations: [.gemini]),
             fetchPlan: ProviderFetchPlan(
                 sourceModes: [.auto, .api],
                 pipeline: ProviderFetchPipeline(resolveStrategies: { _ in [GeminiStatusFetchStrategy()] })),
             cli: ProviderCLIConfig(
                 name: "gemini",
+                binaryLocator: { BinaryLocator.resolveGeminiBinary() },
                 versionDetector: { _ in ProviderVersionDetector.geminiVersion() }))
     }
 }

@@ -128,7 +128,8 @@ struct CLIServeRouterTests {
     }
 
     @Test
-    func `routes health usage and cost endpoints`() throws {
+    func `routes web UI health usage cost and dashboard endpoints`() throws {
+        #expect(try CLIServeRouter.route(method: "GET", path: "/", queryItems: [:]) == .webUI)
         #expect(try CLIServeRouter.route(method: "GET", path: "/health", queryItems: [:]) == .health)
         #expect(try CLIServeRouter.route(method: "GET", path: "/usage", queryItems: [:]) == .usage(provider: nil))
         #expect(
@@ -145,13 +146,46 @@ struct CLIServeRouterTests {
             try CLIServeRouter.route(
                 method: "GET",
                 path: "/dashboard/v1/snapshot",
-                queryItems: [:]) == .dashboardSnapshot)
+                queryItems: [:]) == .dashboardSnapshot(provider: nil, detail: nil))
+        #expect(
+            try CLIServeRouter.route(
+                method: "GET",
+                path: "/dashboard/v1/snapshot",
+                queryItems: ["provider": "claude"]) == .dashboardSnapshot(provider: "claude", detail: nil))
+        #expect(
+            try CLIServeRouter.route(
+                method: "GET",
+                path: "/dashboard/v1/snapshot",
+                queryItems: ["detail": "shell"]) == .dashboardSnapshot(provider: nil, detail: "shell"))
+        #expect(
+            try CLIServeRouter.route(
+                method: "GET",
+                path: "/dashboard/v1/snapshot",
+                queryItems: ["detail": "full"]) == .dashboardSnapshot(provider: nil, detail: "full"))
+        #expect(
+            try CLIServeRouter.route(
+                method: "GET",
+                path: "/dashboard/v1/snapshot",
+                queryItems: ["provider": "codex", "detail": "shell"]) ==
+                .dashboardSnapshot(provider: "codex", detail: "shell"))
     }
 
     @Test
     func `rejects non get methods`() {
         do {
             _ = try CLIServeRouter.route(method: "POST", path: "/usage", queryItems: [:])
+            Issue.record("Expected methodNotAllowed")
+        } catch let error as CLIServeRouteError {
+            #expect(error == .methodNotAllowed)
+        } catch {
+            Issue.record("Unexpected error: \(error)")
+        }
+    }
+
+    @Test
+    func `rejects post to web UI`() {
+        do {
+            _ = try CLIServeRouter.route(method: "POST", path: "/", queryItems: [:])
             Issue.record("Expected methodNotAllowed")
         } catch let error as CLIServeRouteError {
             #expect(error == .methodNotAllowed)
@@ -535,8 +569,12 @@ struct CLIServeRouterTests {
             requestTimeout: 0.01)
         {
             _ = await counter.increment()
-            try? await Task.sleep(nanoseconds: 200_000_000)
-            return Self.response("[{\"provider\":\"codex\",\"call\":1}]")
+            do {
+                try await Task.sleep(nanoseconds: 200_000_000)
+                return Self.response("[{\"provider\":\"codex\",\"call\":1}]")
+            } catch {
+                return CodexBarCLI.serveTimeoutResponse()
+            }
         }
 
         #expect(timeout.status == .gatewayTimeout)

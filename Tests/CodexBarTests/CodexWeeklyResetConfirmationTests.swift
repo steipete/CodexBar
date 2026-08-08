@@ -271,6 +271,47 @@ struct CodexWeeklyResetConfirmationTests {
     }
 
     @Test
+    func `redeemed reset credit confirms an early manual weekly reset`() throws {
+        let formatter = ISO8601DateFormatter()
+        let previousCapturedAt = try #require(formatter.date(from: "2026-07-28T03:09:20Z"))
+        let previousReset = try #require(formatter.date(from: "2026-08-02T10:17:56Z"))
+        let initialCapturedAt = try #require(formatter.date(from: "2026-07-28T03:59:23Z"))
+        let initialReset = try #require(formatter.date(from: "2026-08-04T03:59:21Z"))
+        let previous = self.snapshot(
+            capturedAt: previousCapturedAt,
+            weeklyUsed: 100,
+            weeklyReset: previousReset,
+            resetCredits: self.resetCredits(
+                status: .available,
+                capturedAt: previousCapturedAt))
+        let initial = self.snapshot(
+            capturedAt: initialCapturedAt,
+            weeklyUsed: 0,
+            weeklyReset: initialReset,
+            resetCredits: self.resetCredits(
+                status: .redeeming,
+                capturedAt: initialCapturedAt))
+        let confirmationCapturedAt = initialCapturedAt.addingTimeInterval(30)
+        let confirmation = self.snapshot(
+            capturedAt: confirmationCapturedAt,
+            weeklyUsed: 0,
+            weeklyReset: initialReset.addingTimeInterval(30),
+            resetCredits: self.resetCredits(
+                status: .redeemed,
+                capturedAt: confirmationCapturedAt))
+
+        #expect(
+            CodexWeeklyResetConfirmation.initialDecision(previous: previous, initial: initial)
+                == .requiresConfirmation)
+        #expect(
+            CodexWeeklyResetConfirmation.confirmationDecision(
+                previous: previous,
+                initial: initial,
+                confirmation: confirmation)
+                == .publishConfirmation)
+    }
+
+    @Test
     func `prior boundary due tolerance includes the exact two minute edge`() {
         let previousBoundary = self.resetAt
         let nextBoundary = previousBoundary.addingTimeInterval(7 * 24 * 60 * 60)
@@ -442,20 +483,23 @@ struct CodexWeeklyResetConfirmationTests {
         offset: TimeInterval,
         weeklyUsed: Double?,
         weeklyReset: Date?,
-        weeklyInPrimary: Bool = false) -> UsageSnapshot
+        weeklyInPrimary: Bool = false,
+        resetCredits: CodexRateLimitResetCreditsSnapshot? = nil) -> UsageSnapshot
     {
         self.snapshot(
             capturedAt: self.capturedAt.addingTimeInterval(offset),
             weeklyUsed: weeklyUsed,
             weeklyReset: weeklyReset,
-            weeklyInPrimary: weeklyInPrimary)
+            weeklyInPrimary: weeklyInPrimary,
+            resetCredits: resetCredits)
     }
 
     private func snapshot(
         capturedAt: Date,
         weeklyUsed: Double?,
         weeklyReset: Date?,
-        weeklyInPrimary: Bool = false) -> UsageSnapshot
+        weeklyInPrimary: Bool = false,
+        resetCredits: CodexRateLimitResetCreditsSnapshot? = nil) -> UsageSnapshot
     {
         let weekly = weeklyUsed.map {
             RateWindow(
@@ -472,6 +516,26 @@ struct CodexWeeklyResetConfirmationTests {
         return UsageSnapshot(
             primary: weeklyInPrimary ? weekly : session,
             secondary: weeklyInPrimary ? session : weekly,
+            codexResetCredits: resetCredits,
+            updatedAt: capturedAt)
+    }
+
+    private func resetCredits(
+        status: CodexRateLimitResetCreditStatus,
+        capturedAt: Date) -> CodexRateLimitResetCreditsSnapshot
+    {
+        CodexRateLimitResetCreditsSnapshot(
+            credits: [CodexRateLimitResetCredit(
+                id: "manual-reset-credit",
+                resetType: "codex_rate_limits",
+                status: status,
+                grantedAt: capturedAt.addingTimeInterval(-24 * 60 * 60),
+                expiresAt: capturedAt.addingTimeInterval(24 * 60 * 60),
+                redeemStartedAt: status == .available ? nil : capturedAt,
+                redeemedAt: status == .redeemed ? capturedAt : nil,
+                title: nil,
+                description: nil)],
+            availableCount: status == .available ? 1 : 0,
             updatedAt: capturedAt)
     }
 }

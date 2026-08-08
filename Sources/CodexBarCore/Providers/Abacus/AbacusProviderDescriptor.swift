@@ -35,6 +35,7 @@ public enum AbacusProviderDescriptor {
                 widgetSelectable: false,
                 isPrimaryProvider: false,
                 usesAccountFallback: false,
+                sharePlanLabels: ["basic": "Basic", "pro": "Pro", "team": "Team", "enterprise": "Enterprise"],
                 browserCookieOrder: ProviderBrowserCookieDefaults.defaultImportOrder,
                 dashboardURL: "https://apps.abacus.ai/chatllm/admin/compute-points-usage",
                 statusPageURL: nil,
@@ -51,6 +52,11 @@ public enum AbacusProviderDescriptor {
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
                 noDataMessage: { "Abacus AI cost summary is not supported." }),
+            presentation: ProviderUsagePresentation(
+                menuCard: ProviderMenuCardPresentation(usesAbacusPace: true),
+                menu: ProviderMenuDescriptorPresentation(
+                    primaryDescriptionIsDetail: { _ in true },
+                    showsPrimaryWeeklyPace: true)),
             fetchPlan: ProviderFetchPlan(
                 sourceModes: [.auto, .web],
                 pipeline: ProviderFetchPipeline(resolveStrategies: { _ in
@@ -84,7 +90,7 @@ struct AbacusWebFetchStrategy: ProviderFetchStrategy {
             manual = nil
         }
         let logger: ((String) -> Void)? = context.verbose
-            ? { msg in CodexBarLog.logger(LogCategories.abacusUsage).verbose(msg) }
+            ? { msg in CodexBarLog.logger(LogCategories.provider(.abacus, scope: "usage")).verbose(msg) }
             : nil
         let snap = try await AbacusUsageFetcher.fetchUsage(
             cookieHeaderOverride: manual,

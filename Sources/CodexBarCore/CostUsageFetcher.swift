@@ -257,6 +257,7 @@ public struct CostUsageFetcher: Sendable {
     package func codexScanCatchUpStatus(
         codexHomePath: String? = nil) async -> CodexScanCatchUpStatus
     {
+        // Provider-specific by design: Codex exposes bounded background catch-up for its incremental JSONL scanner.
         let options = Self.resolvedScannerOptions(
             self.scannerOptionsOverride(),
             provider: .codex,
@@ -358,6 +359,7 @@ public struct CostUsageFetcher: Sendable {
         codexHomePath: String?) -> CostUsageScanner.Options
     {
         var options = override ?? CostUsageScanner.Options()
+        // Provider-specific by design: Codex managed profiles relocate sessions and archived_sessions roots.
         if provider == .codex,
            let codexHomePath = codexHomePath?.trimmingCharacters(in: .whitespacesAndNewlines),
            !codexHomePath.isEmpty
@@ -410,6 +412,7 @@ public struct CostUsageFetcher: Sendable {
         // Rolling window is inclusive, so a 30-day display starts 29 days before `now`.
         let since = options.calendar.date(byAdding: .day, value: -(clampedHistoryDays - 1), to: now) ?? now
         let scopedCodexHomePath = codexHomePath?.trimmingCharacters(in: .whitespacesAndNewlines)
+        // Provider-specific by design: scoped Codex homes exclude ambient Pi sessions from managed-profile totals.
         let shouldMergePiUsage = provider != .codex || scopedCodexHomePath?.isEmpty != false
         await Self.refreshPricingIfAllowed(
             options: PricingRefreshOptions(
@@ -512,6 +515,8 @@ public struct CostUsageFetcher: Sendable {
         options: LocalTokenScanOptions) async throws -> LocalTokenScanResult
     {
         try Task.checkCancellation()
+        // Provider-specific by design: Codex owns project/session attribution and optional Pi merge state, while
+        // Claude/Vertex share the transcript scanner with mutually exclusive filters.
         // These synchronous scans can run for minutes on large archives. The dedicated queue keeps
         // them off the cooperative pool and bridges task cancellation into scanner-level checks.
         return try await CostUsageScanExecutor.run { checkCancellation in
@@ -932,18 +937,7 @@ public struct CostUsageFetcher: Sendable {
     /// Providers whose token-cost snapshot `loadTokenSnapshot` can produce. Cursor is
     /// macOS-only because it reuses the macOS Cursor session resolution.
     static func supportsTokenSnapshot(_ provider: UsageProvider) -> Bool {
-        switch provider {
-        case .codex, .claude, .vertexai, .bedrock:
-            return true
-        case .cursor:
-            #if os(macOS)
-            return true
-            #else
-            return false
-            #endif
-        default:
-            return false
-        }
+        ProviderDescriptorRegistry.descriptor(for: provider).tokenCost.supportsTokenSnapshot
     }
 
     static func loadCachedCodexLocalProjectUsageSnapshot(
@@ -1129,6 +1123,7 @@ public struct CostUsageFetcher: Sendable {
         bypassScannerDebounce: Bool,
         configuredDuration: TimeInterval?) -> TimeInterval?
     {
+        // Provider-specific by design: only Codex refresh uses a bounded initial scan before background catch-up.
         guard provider == .codex,
               bypassScannerDebounce,
               configuredDuration == nil
@@ -1383,6 +1378,7 @@ extension CostUsageFetcher {
         historyDays: Int,
         cursorCookieHeaderOverride: String?) async throws -> CostUsageTokenSnapshot?
     {
+        // Provider-specific by design: Bedrock uses AWS billing while Cursor uses its macOS dashboard session.
         let since = Calendar.current.date(byAdding: .day, value: -(historyDays - 1), to: now) ?? now
         if provider == .bedrock {
             let daily = try await Self.loadBedrockDailyReport(

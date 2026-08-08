@@ -87,10 +87,14 @@ example, `acme-usage` and `API_KEY` use `CODEXBAR_PLUGIN_ACME_USAGE_API_KEY`.
 - `await ctx.http.getJSON(url, opts?)` performs GET and returns `{status, headers, json}`.
 - `await ctx.http.get(url, opts?)` performs GET and returns `{status, headers, bodyText}`.
 - `await ctx.http.postJSON(url, {body, headers?})` performs JSON POST. `body` must be JSON-serializable.
-- `opts.headers` accepts string values. Plugins cannot replace their declared auth header.
+- `opts.headers` accepts string values. Plugins cannot replace their declared auth header. `opts.timeoutSeconds` sets a
+  hard request deadline from 1 through 30 seconds; the default is 15 seconds.
 - `ctx.settings.get(key)` reads a declared `plain` setting.
 - `ctx.settings.getSecret(key)` reads a declared `secure` setting. Missing values return `null`; kind mismatches and
   undeclared keys throw.
+- `ctx.fail` creates classified errors for `authenticationExpired`, `missingCredential`, `permissionDenied`,
+  `rateLimited`, `providerUnavailable`, `parseFailure`, `networkFailure`, and `apiFailure`. Throw the returned error,
+  for example `throw ctx.fail.rateLimited("Provider rate limit reached")`; ordinary errors retain generic mapping.
 - `await ctx.browser.cookieHeader(domain)` returns a cookie header only with the `browser-cookies` capability and for a
   declared domain. The app imports from Chrome only. Cookie values are secret-equivalent and redacted.
 - `ctx.html.metaContent(html, name)` returns the first matching quoted meta value or `null`.
@@ -124,6 +128,7 @@ return {
   cost: { used: 8.5, limit: 20, currency: "USD", period: "This month", balance: 11.5 },
   identity: { email: "user@example.com", organization: "Acme", loginMethod: "API key", accountID: "123" },
   subscriptionRenewsAt: "2026-09-01T00:00:00Z",
+  dataConfidence: "exact", // exact | estimated | percentOnly | unknown
   details: [{
     title: "Usage summary",
     rows: [{ label: "Requests", value: "1,240", secondaryValue: "Last 30 days" }],
@@ -139,7 +144,7 @@ return {
 
 Percentages must be finite and are clamped to 0–100. Window minutes are positive integers. Cost requires finite `used`
 and a three-letter uppercase currency. Dates are JavaScript `Date` values or ISO-8601 strings. Snapshot identity is
-always scoped to the manifest's instance ID. Details allow at most 8 sections, 24 rows per section, 120 chart points,
+always scoped to the manifest's instance ID. Data confidence defaults to `unknown`. Details allow at most 8 sections, 24 rows per section, 120 chart points,
 and 120 characters per detail string. Wrong types and limit violations fail the whole fetch instead of truncating it.
 
 ## TypeScript

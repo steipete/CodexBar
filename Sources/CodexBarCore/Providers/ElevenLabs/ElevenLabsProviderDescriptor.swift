@@ -4,6 +4,7 @@ public enum ElevenLabsProviderDescriptor {
     public static let descriptor: ProviderDescriptor = Self.makeDescriptor()
     private static let credentials = ProviderCredentialAdapter.apiKey(
         environmentKey: ElevenLabsSettingsReader.apiKeyEnvironmentKey,
+        apiKeyDebugLabel: ElevenLabsSettingsReader.apiKeyEnvironmentKey,
         resolve: ElevenLabsSettingsReader.apiKey,
         tokenAccountSupport: TokenAccountSupport(
             title: "API keys",
@@ -33,6 +34,11 @@ public enum ElevenLabsProviderDescriptor {
                 widgetSelectable: false,
                 isPrimaryProvider: false,
                 usesAccountFallback: false,
+                sharePlanLabels: [
+                    "free": "Free", "starter": "Starter", "creator": "Creator", "pro": "Pro",
+                    "scale": "Scale", "business": "Business", "growing business": "Business",
+                    "enterprise": "Enterprise",
+                ],
                 browserCookieOrder: nil,
                 dashboardURL: "https://elevenlabs.io/app/developers/usage",
                 subscriptionDashboardURL: "https://elevenlabs.io/app/subscription",
@@ -46,13 +52,15 @@ public enum ElevenLabsProviderDescriptor {
                     ProviderColor(hex: 0x000000),
                     ProviderColor(hex: 0x808080),
                     ProviderColor(hex: 0xFDFCFC),
-                ]),
+                ],
+                widgetColor: ProviderColor(red: 235 / 255, green: 235 / 255, blue: 230 / 255),
+                progressColorStyle: .label),
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
                 noDataMessage: { "ElevenLabs cost history is not available via API yet." }),
             fetchPlan: .apiToken(
                 strategyID: "elevenlabs.api",
-                resolveToken: { ProviderTokenResolver.elevenLabsToken(environment: $0) },
+                resolveToken: { ProviderTokenResolver.token(for: .elevenlabs, environment: $0) },
                 missingCredentialsError: { ElevenLabsUsageError.missingCredentials },
                 loadUsage: { apiKey, context in
                     try await ElevenLabsUsageFetcher.fetchUsage(

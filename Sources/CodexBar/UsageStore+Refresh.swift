@@ -81,6 +81,7 @@ extension UsageStore {
         if let tokenAccount {
             return self.warningTokenAccountDiscriminator(tokenAccount)
         }
+        // Provider-specific by design: Codex owner keys and Claude OAuth observations scope warning deduplication.
         if provider == .codex {
             return context.codexSessionQuotaOwnerKey?.rawValue
         }
@@ -122,6 +123,7 @@ extension UsageStore {
     }
 
     func prepareRefreshState(for provider: UsageProvider? = nil) {
+        // Provider-specific by design: Codex active-source correction reconciles managed profile filesystem state.
         guard provider == nil || provider == .codex else { return }
         _ = self.settings.persistResolvedCodexActiveSourceCorrectionIfNeeded()
     }
@@ -295,6 +297,7 @@ extension UsageStore {
             guard matches.count == 1 else { return nil }
             return matches[0]
         }()
+        // Provider-specific by design: Codex account refresh hydrates only a uniquely matching reconciled owner.
         if self.snapshots[.codex] == nil,
            let hydratedPrior,
            let hydratedSnapshot = hydratedPrior.snapshot
@@ -652,6 +655,7 @@ extension UsageStore {
         context: ProviderRefreshOutcomeContext) async
     {
         let rawScoped = result.usage.scoped(to: provider)
+        // Provider-specific by design: Codex results are discarded when managed-account ownership changes mid-fetch.
         if provider == .codex,
            let codexExpectedGuard = context.codexExpectedGuard,
            !self.shouldApplyCodexUsageResult(expectedGuard: codexExpectedGuard, usage: rawScoped)
@@ -1007,6 +1011,7 @@ extension UsageStore {
                 return true
             }
             let normalizedPriorSource = priorSourceLabel?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            // Provider-specific by design: Claude's legacy CLI source label is part of refresh continuity.
             return normalizedPriorSource == "claude" || normalizedPriorSource == "cli"
         }
     }
@@ -1053,6 +1058,7 @@ extension UsageStore {
         case oauth
 
         init?(sourceLabel: String?) {
+            // Provider-specific by design: Claude CLI results historically used both provider and transport labels.
             switch sourceLabel?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
             case "claude", "cli":
                 self = .cli
@@ -1119,6 +1125,7 @@ extension UsageStore {
         beforeFetch: ClaudeRefreshAuthState?,
         afterFetchFingerprintToken: String?) -> Bool
     {
+        // Provider-specific by design: Claude credential fingerprints invalidate results produced by an old OAuth key.
         provider == .claude && afterFetchFingerprintToken != beforeFetch?.fingerprintToken
     }
 
@@ -1285,6 +1292,7 @@ extension UsageStore {
     }
 
     private func clearClaudeCredentialDerivedStateForCredentialSwap() {
+        // Provider-specific by design: Claude credential swaps invalidate OAuth, swap, widget, quota, and token state.
         self.widgetUsagePreservationBlockedProviders.insert(.claude)
         self.snapshots.removeValue(forKey: .claude)
         self.lastKnownResetSnapshots.removeValue(forKey: .claude)

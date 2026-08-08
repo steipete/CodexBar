@@ -94,6 +94,7 @@ enum CLIClaudeSwapCards {
         hasExplicitAccountSelection: Bool,
         sourceModeOverride: ProviderSourceMode?) -> Bool
     {
+        // Provider-specific by design: claude-swap owns multi-account state only in Claude automatic mode.
         provider == .claude
             && integrationEnabled
             && !hasExplicitAccountSelection
@@ -148,6 +149,7 @@ enum CLIClaudeSwapCards {
             let diagnostic = CLIClaudeSwapText.sanitizeDiagnostic(error.localizedDescription)
             let message = diagnostic.isEmpty ? "claude-swap list failed." : diagnostic
             output.cardFailures.append(CLICardFailure(
+                // Provider-specific by design: a claude-swap subprocess failure is attached to the Claude card lane.
                 provider: .claude,
                 accountLabel: ClaudeSwapAccountProjection.sourceLabel,
                 message: message))

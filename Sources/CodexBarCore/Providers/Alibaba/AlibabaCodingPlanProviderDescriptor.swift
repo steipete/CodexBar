@@ -62,6 +62,11 @@ public enum AlibabaCodingPlanProviderDescriptor {
                 defaultEnabled: false,
                 isPrimaryProvider: false,
                 usesAccountFallback: false,
+                sharePlanLabels: [
+                    "lite": "Lite", "coding plan lite": "Lite", "pro": "Pro", "active pro": "Pro",
+                    "alibaba coding plan pro": "Pro", "starter": "Starter", "enterprise": "Enterprise",
+                ],
+                debugLogUnavailableMessage: "Alibaba Coding Plan debug log not yet implemented",
                 browserCookieOrder: browserOrder,
                 dashboardURL: AlibabaCodingPlanAPIRegion.international.dashboardURL.absoluteString,
                 statusPageURL: nil,
@@ -79,6 +84,8 @@ public enum AlibabaCodingPlanProviderDescriptor {
                 supportsTokenCost: false,
                 noDataMessage: { "Alibaba Coding Plan cost summary is not supported." }),
             pace: .calendarMonthResetWindow,
+            presentation: ProviderUsagePresentation(menuCard: ProviderMenuCardPresentation(
+                showsPrimaryBalanceDescription: true)),
             fetchPlan: ProviderFetchPlan(
                 sourceModes: [.auto, .web, .api],
                 pipeline: ProviderFetchPipeline(resolveStrategies: self.resolveStrategies)),
@@ -291,6 +298,6 @@ struct AlibabaCodingPlanAPIFetchStrategy: ProviderFetchStrategy {
     }
 
     private static func resolveToken(environment: [String: String]) -> String? {
-        ProviderTokenResolver.alibabaToken(environment: environment)
+        ProviderTokenResolver.token(for: .alibaba, environment: environment)
     }
 }

@@ -336,7 +336,7 @@ public final class UserProviderPluginLoader: @unchecked Sendable {
         if let cached = try? String(contentsOf: cacheURL, encoding: .utf8) {
             return (cached, cacheURL, true)
         }
-        guard let resourceURL = Bundle.module.url(
+        guard let resourceURL = CodexBarCoreResources.bundle.url(
             forResource: "sucrase-\(Self.sucraseVersion).min",
             withExtension: "js")
         else {

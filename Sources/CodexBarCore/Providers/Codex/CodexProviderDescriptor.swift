@@ -1,11 +1,24 @@
 import Foundation
+import SweetCookieKit
 
 public enum CodexProviderDescriptor {
     public static let descriptor: ProviderDescriptor = Self.makeDescriptor()
 
+    /// Preserve the legacy prompt behavior before probing Chromium variants that may trigger Safe Storage prompts.
+    private static var browserCookieOrder: BrowserCookieImportOrder? {
+        #if os(macOS)
+        let preferredPrefix: [Browser] = [.safari, .chrome, .firefox]
+        return preferredPrefix + Browser.defaultImportOrder.filter { !preferredPrefix.contains($0) }
+        #else
+        return nil
+        #endif
+    }
+
     static func makeDescriptor() -> ProviderDescriptor {
         ProviderDescriptor(
             id: .codex,
+            menuBarMetrics: ProviderMenuBarMetricCapabilities(
+                supported: [.automatic, .primary, .secondary, .primaryAndSecondary]),
             settingsSection: .init(CodexProviderSettingsKey.self),
             metadata: ProviderMetadata(
                 id: .codex,
@@ -21,7 +34,21 @@ public enum CodexProviderDescriptor {
                 defaultEnabled: true,
                 isPrimaryProvider: true,
                 usesAccountFallback: true,
-                browserCookieOrder: ProviderBrowserCookieDefaults.codexCookieImportOrder
+                sharePlanLabels: [
+                    "guest": "Guest", "free": "Free", "go": "Go", "plus": "Plus", "plus plan": "Plus",
+                    "chatgpt plus": "Plus", "chatgpt-plus": "Plus", "chatgpt_plus": "Plus",
+                    "pro": "Pro 20x", "codex pro": "Pro 20x",
+                    "prolite": "Pro 5x", "pro_lite": "Pro 5x", "pro-lite": "Pro 5x",
+                    "pro lite": "Pro 5x", "codex pro lite": "Pro 5x",
+                    "free_workspace": "Free Workspace", "team": "Team", "business": "Business",
+                    "education": "Education", "quorum": "Quorum", "k12": "K12",
+                    "enterprise": "Enterprise", "edu": "Edu",
+                ],
+                debugPane: ProviderDebugPaneCapabilities(
+                    probeLogOrder: 0,
+                    notificationSimulationOrder: 0,
+                    errorSimulationOrder: 0),
+                browserCookieOrder: self.browserCookieOrder
                     ?? ProviderBrowserCookieDefaults.defaultImportOrder,
                 dashboardURL: "https://chatgpt.com/codex/settings/usage",
                 changelogURL: "https://github.com/openai/codex/releases",
@@ -34,16 +61,61 @@ public enum CodexProviderDescriptor {
                     ProviderColor(hex: 0x736BD4),
                     ProviderColor(hex: 0x97A9F7),
                     ProviderColor(hex: 0xCFD4F7),
-                ]),
+                ],
+                burnDownWidgetColor: ProviderColor(red: 0.120, green: 0.780, blue: 0.598)),
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: true,
-                noDataMessage: self.noDataMessage),
+                noDataMessage: self.noDataMessage,
+                menuHintLines: [.localized("codex_api_estimate_hint")],
+                supportsTokenSnapshot: true,
+                settingsStatusOrder: 1,
+                showsHintInProviderDetails: true,
+                historyTitleStyle: .compact,
+                hintPlacement: .beforeRequestHistory,
+                chartEstimateDisclaimer: .localized("codex_api_estimate_hint")),
+            pace: ProviderPaceCapability(
+                primary: .session(maximumMinutes: 300),
+                secondary: .weekly,
+                showsHeadroomHint: true,
+                sessionPaceWindowRule: .custom { window, _ in
+                    guard let minutes = window.windowMinutes else { return true }
+                    return minutes != 7 * 24 * 60 && minutes != 30 * 24 * 60
+                }),
+            history: .alwaysTracked,
+            presentation: ProviderUsagePresentation(
+                identityPresenter: { provider, snapshot in
+                    guard let plan = snapshot.loginMethod(for: provider), !plan.isEmpty else {
+                        return ProviderIdentityPresentation(badge: nil, plan: nil)
+                    }
+                    let display = CodexPlanFormatting.displayName(plan) ?? plan
+                    return ProviderIdentityPresentation(badge: display, plan: display)
+                },
+                creditResolver: { $0.codexCreditLimit?.remaining ?? $0.remaining },
+                iconWindowResolver: self.iconWindows,
+                iconDecorations: [.face],
+                automaticSelectionPrioritizesExhaustedWindow: false,
+                planUtilizationSeriesResolver: self.planUtilizationSeries,
+                planUtilizationSeriesNormalizer: { series, windowMinutes in
+                    guard windowMinutes == 30 * 24 * 60,
+                          series == .session || series == .weekly
+                    else { return series }
+                    return .monthly
+                },
+                secondaryGloballyCapsPrimary: true,
+                menuCard: ProviderMenuCardPresentation(
+                    creditsVisibility: .requiresValueOrError,
+                    supportsInlineTokenCostDashboard: true)),
             fetchPlan: ProviderFetchPlan(
                 sourceModes: [.auto, .web, .cli, .oauth],
                 pipeline: ProviderFetchPipeline(resolveStrategies: self.resolveStrategies)),
             cli: ProviderCLIConfig(
                 name: "codex",
-                versionDetector: { _ in ProviderVersionDetector.codexVersion() }))
+                binaryLocator: { BinaryLocator.resolveCodexBinary() },
+                versionDetector: { _ in ProviderVersionDetector.codexVersion() },
+                supportsCostCommand: true,
+                prefersBinaryLocatorForWhich: true,
+                ttyStatusCommand: "/status",
+                browserSupportExemption: { sourceMode, _, _ in sourceMode == .auto }))
     }
 
     private static func resolveStrategies(context: ProviderFetchContext) async -> [any ProviderFetchStrategy] {
@@ -83,6 +155,82 @@ public enum CodexProviderDescriptor {
 
     private static func noDataMessage() -> String {
         self.noDataMessage(env: ProcessInfo.processInfo.environment)
+    }
+
+    private enum UsageLane: Hashable {
+        case session
+        case weekly
+        case monthly
+    }
+
+    private static func iconWindows(context: ProviderIconWindowContext) -> ProviderUsageWindowPair {
+        let windows = self.visibleWindows(snapshot: context.snapshot, now: context.now)
+        return ProviderUsageWindowPair(primary: windows.first, secondary: windows.dropFirst().first)
+    }
+
+    private static func planUtilizationSeries(
+        snapshot: UsageSnapshot) -> Set<ProviderPlanUtilizationSeries>?
+    {
+        let lanes = Set(self.windowsByLane(snapshot: snapshot).keys)
+        return Set(lanes.map { lane in
+            switch lane {
+            case .session: .session
+            case .weekly: .weekly
+            case .monthly: .monthly
+            }
+        })
+    }
+
+    private static func visibleWindows(snapshot: UsageSnapshot, now: Date) -> [RateWindow] {
+        let slotted = [
+            self.classified(snapshot.primary, fallback: .session),
+            self.classified(snapshot.secondary, fallback: .weekly),
+        ].compactMap(\.self)
+        let windowsByLane = self.windowsByLane(snapshot: snapshot)
+        let weekly = windowsByLane[.weekly]
+        var seen: Set<UsageLane> = []
+        return slotted.compactMap { lane, _ in
+            guard seen.insert(lane).inserted, var window = windowsByLane[lane] else { return nil }
+            if lane == .session, self.weeklyCapsSession(weekly, now: now) {
+                window = RateWindow(
+                    usedPercent: 100,
+                    windowMinutes: window.windowMinutes,
+                    resetsAt: window.resetsAt,
+                    resetDescription: window.resetDescription,
+                    nextRegenPercent: window.nextRegenPercent,
+                    isSyntheticPlaceholder: window.isSyntheticPlaceholder)
+            }
+            guard window.remainingPercent > 0 || window.resetsAt.map({ $0 > now }) != false else { return nil }
+            return window
+        }
+    }
+
+    private static func windowsByLane(snapshot: UsageSnapshot) -> [UsageLane: RateWindow] {
+        let slotted = [
+            self.classified(snapshot.primary, fallback: .session),
+            self.classified(snapshot.secondary, fallback: .weekly),
+        ].compactMap(\.self)
+        var result: [UsageLane: RateWindow] = [:]
+        for (lane, window) in slotted {
+            result[lane] = window
+        }
+        return result
+    }
+
+    private static func classified(_ window: RateWindow?, fallback: UsageLane) -> (UsageLane, RateWindow)? {
+        guard let window else { return nil }
+        let lane: UsageLane = switch window.windowMinutes {
+        case 5 * 60: .session
+        case 7 * 24 * 60: .weekly
+        case 30 * 24 * 60: .monthly
+        default: fallback
+        }
+        return (lane, window)
+    }
+
+    private static func weeklyCapsSession(_ weekly: RateWindow?, now: Date) -> Bool {
+        guard let weekly, weekly.remainingPercent <= 0 else { return false }
+        return weekly.resetsAt.map { $0 > now } ?? true
     }
 
     private static func noDataMessage(env: [String: String], fileManager: FileManager = .default) -> String {
@@ -237,8 +385,7 @@ struct CodexOAuthFetchStrategy: ProviderFetchStrategy {
         updatedAt: Date) -> CreditsSnapshot?
     {
         let balance = response.credits?.balance
-        let creditLimit = (response.individualLimit ?? response.rateLimit?.individualLimit)?
-            .codexCreditLimitSnapshot(updatedAt: updatedAt)
+        let creditLimit = response.resolvedIndividualLimit?.codexCreditLimitSnapshot(updatedAt: updatedAt)
         guard balance != nil || creditLimit != nil else { return nil }
         return CreditsSnapshot(
             remaining: balance ?? 0,
@@ -310,7 +457,9 @@ struct CodexOAuthFetchStrategy: ProviderFetchStrategy {
         do {
             cliResult = try await cliStrategy.fetch(context)
         } catch {
-            if error is CancellationError { throw error }
+            if error is CancellationError {
+                throw error
+            }
             return oauthResult
         }
         guard let cliLimit = cliResult.credits?.codexCreditLimit,
@@ -347,7 +496,9 @@ struct CodexOAuthFetchStrategy: ProviderFetchStrategy {
     }
 
     private static func defersResetCreditFetchToApp(_ context: ProviderFetchContext) -> Bool {
-        if case .app = context.runtime { return true }
+        if case .app = context.runtime {
+            return true
+        }
         return false
     }
 
@@ -363,7 +514,9 @@ struct CodexOAuthFetchStrategy: ProviderFetchStrategy {
         do {
             return try await fetcher(credentials)
         } catch {
-            if error is CancellationError || Task.isCancelled { throw CancellationError() }
+            if error is CancellationError || Task.isCancelled {
+                throw CancellationError()
+            }
             return nil
         }
     }

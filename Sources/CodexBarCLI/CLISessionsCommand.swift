@@ -26,6 +26,7 @@ extension CodexBarCLI {
 
     static func sessionsForJSON(_ sessions: [AgentSession], includePiFamily: Bool) -> [AgentSession] {
         guard !includePiFamily else { return sessions }
+        // Provider-specific by design: the legacy sessions JSON contract includes only native Codex/Claude scans.
         return sessions.filter { $0.provider == .codex || $0.provider == .claude }
     }
 

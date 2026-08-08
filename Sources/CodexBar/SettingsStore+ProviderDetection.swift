@@ -13,14 +13,25 @@ enum ProviderDetectionPolicy {
     }
 
     static func enabledProviders(signals: Signals) -> Set<UsageProvider> {
+        // Provider-specific by design: first-run detection probes these four concrete CLI/app credential sources.
         var enabled: Set<UsageProvider> = []
-        if signals.codexCLIInstalled { enabled.insert(.codex) }
-        if signals.claudeCLIInstalled || signals.claudeDesktopInstalled { enabled.insert(.claude) }
-        if signals.geminiCLIInstalled, signals.geminiConfigured { enabled.insert(.gemini) }
-        if signals.antigravityAvailable { enabled.insert(.antigravity) }
+        if signals.codexCLIInstalled {
+            enabled.insert(.codex)
+        }
+        if signals.claudeCLIInstalled || signals.claudeDesktopInstalled {
+            enabled.insert(.claude)
+        }
+        if signals.geminiCLIInstalled, signals.geminiConfigured {
+            enabled.insert(.gemini)
+        }
+        if signals.antigravityAvailable {
+            enabled.insert(.antigravity)
+        }
 
         // Keep the historical Codex default when no usable provider source is found.
-        if enabled.isEmpty { enabled.insert(.codex) }
+        if enabled.isEmpty {
+            enabled.insert(.codex)
+        }
         return enabled
     }
 }
@@ -37,6 +48,7 @@ extension SettingsStore {
 
     func applyProviderDetection() async {
         guard !self.providerDetectionCompleted else { return }
+        // Provider-specific by design: detection reads each provider's installed app, CLI, or credential artifact.
         let codexCLIInstalled = BinaryLocator.resolveCodexBinary() != nil
         let claudeCLIInstalled = BinaryLocator.resolveClaudeBinary() != nil
         let claudeDesktopInstalled = NSWorkspace.shared.urlForApplication(

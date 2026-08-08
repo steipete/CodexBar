@@ -199,6 +199,31 @@ public enum ProviderFetchError: LocalizedError, Sendable {
     }
 }
 
+public struct ProviderFetchClassifiedError: LocalizedError, Sendable, Equatable {
+    public enum Kind: String, Sendable, CaseIterable {
+        case authenticationExpired = "authentication-expired"
+        case missingCredential = "missing-credential"
+        case permissionDenied = "permission-denied"
+        case rateLimited = "rate-limited"
+        case providerUnavailable = "provider-unavailable"
+        case parseFailure = "parse-failure"
+        case networkFailure = "network-failure"
+        case apiFailure = "api-failure"
+    }
+
+    public let kind: Kind
+    public let message: String
+
+    public init(kind: Kind, message: String) {
+        self.kind = kind
+        self.message = message
+    }
+
+    public var errorDescription: String? {
+        self.message
+    }
+}
+
 public enum ProviderFetchKind: Sendable {
     case cli
     case web

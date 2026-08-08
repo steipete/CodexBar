@@ -5,7 +5,9 @@ import SwiftUI
 
 extension StatusItemController {
     func switcherWeeklyRemaining(for provider: UsageProvider) -> Double? {
-        let snapshot = self.store.snapshot(for: provider.instanceID)
+        // The switcher mini-bars mirror the menu-bar indicator, so route through the
+        // same presentation snapshot (claude-swap active-account override, issue #2731).
+        let snapshot = self.store.menuBarSnapshot(for: provider.instanceID)
         return Self.switcherWeeklyMetricPercent(
             for: provider,
             snapshot: snapshot,

@@ -119,7 +119,7 @@ struct MoonshotProviderTokenResolverTests {
     @Test
     func `resolves from environment`() {
         let env = ["MOONSHOT_API_KEY": "env-token"]
-        let resolution = ProviderTokenResolver.moonshotResolution(environment: env)
+        let resolution = ProviderTokenResolver.resolution(for: .moonshot, environment: env)
 
         #expect(resolution?.token == "env-token")
         #expect(resolution?.source == .environment)

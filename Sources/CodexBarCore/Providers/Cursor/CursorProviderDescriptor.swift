@@ -1,4 +1,5 @@
 import Foundation
+import SweetCookieKit
 
 public enum CursorProviderDescriptor {
     public static let descriptor: ProviderDescriptor = Self.makeDescriptor()
@@ -8,11 +9,24 @@ public enum CursorProviderDescriptor {
         placeholder: "Cookie: …",
         injection: .cookieHeader,
         requiresManualCookieSource: true,
-        cookieName: nil))
+        cookieName: nil,
+        selectedAccountRequiresManualCookieSource: true))
+
+    /// Active Cursor sessions often live only in Safari; Chromium profiles may carry stale tokens.
+    private static var browserCookieOrder: BrowserCookieImportOrder? {
+        #if os(macOS)
+        [.safari] + Browser.defaultImportOrder.filter { $0 != .safari }
+        #else
+        nil
+        #endif
+    }
 
     static func makeDescriptor() -> ProviderDescriptor {
         ProviderDescriptor(
             id: .cursor,
+            menuBarMetrics: ProviderMenuBarMetricCapabilities(
+                supported: [.automatic, .primary, .secondary, .tertiary, .extraUsage],
+                tertiaryRequiresWindow: true),
             settingsSection: .init(CursorProviderSettingsKey.self, cookieSettings: CursorProviderSettings.self),
             credentials: self.credentials,
             metadata: ProviderMetadata(
@@ -29,7 +43,17 @@ public enum CursorProviderDescriptor {
                 defaultEnabled: false,
                 isPrimaryProvider: false,
                 usesAccountFallback: false,
-                browserCookieOrder: ProviderBrowserCookieDefaults.cursorCookieImportOrder
+                sharePlanLabels: [
+                    "free": "Cursor Free", "cursor free": "Cursor Free",
+                    "hobby": "Cursor Hobby", "cursor hobby": "Cursor Hobby",
+                    "pro": "Cursor Pro", "cursor pro": "Cursor Pro",
+                    "team": "Cursor Team", "cursor team": "Cursor Team",
+                    "business": "Cursor Business", "cursor business": "Cursor Business",
+                    "enterprise": "Cursor Enterprise", "cursor enterprise": "Cursor Enterprise",
+                    "ultra": "Cursor Ultra", "cursor ultra": "Cursor Ultra",
+                ],
+                debugPane: ProviderDebugPaneCapabilities(probeLogOrder: 2),
+                browserCookieOrder: self.browserCookieOrder
                     ?? ProviderBrowserCookieDefaults.defaultImportOrder,
                 dashboardURL: "https://cursor.com/dashboard?tab=usage",
                 statusPageURL: "https://status.cursor.com",
@@ -44,14 +68,71 @@ public enum CursorProviderDescriptor {
                 ]),
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: true,
-                noDataMessage: { "No Cursor cost usage found. Sign in to Cursor in your browser or the Cursor app." }),
+                noDataMessage: { "No Cursor cost usage found. Sign in to Cursor in your browser or the Cursor app." },
+                menuHintLines: [.estimate],
+                supportsTokenSnapshot: self.supportsTokenSnapshot,
+                settingsStatusOrder: 2,
+                estimateDisclaimer: "From Cursor's usage dashboard at vendor token rates; may differ from your " +
+                    "invoice."),
             pace: ProviderPaceCapability(resetWindowPace: .windowDurationPresent),
+            presentation: ProviderUsagePresentation(
+                requestedMenuBarLaneOrders: [
+                    .tertiary: [.tertiary, .secondary, .primary],
+                ],
+                automaticSelectionPrioritizesExhaustedWindow: false,
+                menuBarWindowResolver: self.menuBarWindow,
+                menuCard: ProviderMenuCardPresentation(
+                    costVisibilityResolver: { $0.showOptionalUsage },
+                    supportsInlineTokenCostDashboard: true,
+                    primaryDetailKind: .requestQuota)),
             fetchPlan: ProviderFetchPlan(
                 sourceModes: [.auto, .cli, .web],
                 pipeline: ProviderFetchPipeline(resolveStrategies: { _ in [CursorStatusFetchStrategy()] })),
             cli: ProviderCLIConfig(
                 name: "cursor",
-                versionDetector: nil))
+                versionDetector: nil,
+                supportsCostCommand: self.supportsCostCommand,
+                browserSupportExemption: { _, _, settings in
+                    #if os(Linux)
+                    // Linux uses Cursor app auth and manual cookies; browser import remains macOS-only.
+                    settings?.cursor?.cookieSource != .off
+                    #else
+                    false
+                    #endif
+                }))
+    }
+
+    private static var supportsCostCommand: Bool {
+        #if os(macOS)
+        true
+        #else
+        false
+        #endif
+    }
+
+    private static func menuBarWindow(
+        context: ProviderMenuBarWindowContext) -> ProviderMenuBarWindowResolution
+    {
+        guard context.metric == .automatic else { return .unhandled }
+        let total = context.snapshot.primary
+        let subquotas = [context.snapshot.secondary, context.snapshot.tertiary].compactMap(\.self)
+        let usableSubquotas = subquotas.filter { $0.remainingPercent > 0 }
+        if let total, total.remainingPercent <= 0 {
+            return .resolved(total)
+        }
+        if !subquotas.isEmpty, usableSubquotas.isEmpty {
+            return .resolved(subquotas.max(by: { $0.usedPercent < $1.usedPercent }))
+        }
+        return .resolved(([total].compactMap(\.self) + usableSubquotas)
+            .max(by: { $0.usedPercent < $1.usedPercent }))
+    }
+
+    private static var supportsTokenSnapshot: Bool {
+        #if os(macOS)
+        true
+        #else
+        false
+        #endif
     }
 }
 

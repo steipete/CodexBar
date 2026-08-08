@@ -1,33 +1,46 @@
 defineProvider({
   id: "openrouter",
   name: "OpenRouter",
-  endpoints: ["https://openrouter.ai"],
+  endpoints: ["https://openrouter.ai", { setting: "OPENROUTER_API_URL", policy: "https" }],
   auth: { type: "bearer", secret: "OPENROUTER_API_KEY" },
-  settings: [{
-    key: "OPENROUTER_API_KEY",
-    title: "API key",
-    subtitle: "OpenRouter API key used for credits and key quota.",
-    type: "secure",
-  }],
+  settings: [
+    {
+      key: "OPENROUTER_API_KEY",
+      title: "API key",
+      subtitle: "OpenRouter API key used for credits and key quota.",
+      type: "secure",
+    },
+    { key: "OPENROUTER_API_URL", title: "API URL", type: "plain" },
+    { key: "OPENROUTER_HTTP_REFERER", title: "HTTP referer", type: "plain" },
+    { key: "OPENROUTER_X_TITLE", title: "Client title", type: "plain" },
+  ],
 
   async fetchUsage(ctx) {
-    const creditsResponse = await ctx.http.getJSON("https://openrouter.ai/api/v1/credits", {
-      headers: { "X-Title": "CodexBar" },
-    });
-    if (creditsResponse.status !== 200) {
-      throw new Error(`OpenRouter API error: HTTP ${creditsResponse.status}`);
-    }
-    const credits = creditsResponse.json && creditsResponse.json.data;
-    if (!credits || typeof credits !== "object" || Array.isArray(credits)) {
-      throw new Error("Failed to parse OpenRouter credits: data must be an object");
-    }
-
     function finite(value, field, optional) {
       if (optional && (value === null || value === undefined)) return null;
       if (typeof value !== "number" || !Number.isFinite(value)) {
-        throw new Error(`Failed to parse OpenRouter response: ${field} must be a finite number`);
+        throw ctx.fail.parseFailure(`Failed to parse OpenRouter response: ${field} must be a finite number`);
       }
       return value;
+    }
+
+    const base = (ctx.settings.get("OPENROUTER_API_URL") || "https://openrouter.ai/api/v1").replace(/\/+$/, "");
+    const headers = { "X-Title": ctx.settings.get("OPENROUTER_X_TITLE") || "CodexBar" };
+    const referer = ctx.settings.get("OPENROUTER_HTTP_REFERER");
+    if (referer) headers["HTTP-Referer"] = referer;
+    const creditsResponse = await ctx.http.get(`${base}/credits`, { headers });
+    if (creditsResponse.status !== 200) {
+      throw ctx.fail.apiFailure(`OpenRouter API error: HTTP ${creditsResponse.status}`);
+    }
+    let creditsPayload;
+    try {
+      creditsPayload = JSON.parse(creditsResponse.bodyText);
+    } catch (_) {
+      throw ctx.fail.parseFailure("Failed to parse OpenRouter response: response was not valid JSON");
+    }
+    const credits = creditsPayload && creditsPayload.data;
+    if (!credits || typeof credits !== "object" || Array.isArray(credits)) {
+      throw ctx.fail.parseFailure("Failed to parse OpenRouter credits: data must be an object");
     }
 
     const totalCredits = finite(credits.total_credits, "total_credits", false);
@@ -35,10 +48,23 @@ defineProvider({
     const balance = Math.max(0, totalCredits - totalUsage);
     let keyData = null;
     try {
-      const keyResponse = await ctx.http.getJSON("https://openrouter.ai/api/v1/key");
-      if (keyResponse.status === 200 && keyResponse.json &&
-          keyResponse.json.data && typeof keyResponse.json.data === "object") {
-        keyData = keyResponse.json.data;
+      const keyResponse = await ctx.http.get(`${base}/key`, { timeoutSeconds: 1 });
+      const keyPayload = keyResponse.status === 200 ? JSON.parse(keyResponse.bodyText) : null;
+      if (keyPayload && keyPayload.data && typeof keyPayload.data === "object" &&
+          !Array.isArray(keyPayload.data)) {
+        const candidate = keyPayload.data;
+        for (const field of [
+          "limit", "limit_remaining", "usage", "usage_daily", "usage_weekly", "usage_monthly",
+        ]) finite(candidate[field], `key.${field}`, true);
+        if (candidate.limit_reset !== null && candidate.limit_reset !== undefined &&
+            typeof candidate.limit_reset !== "string") throw new TypeError("key.limit_reset must be a string");
+        if (candidate.rate_limit !== null && candidate.rate_limit !== undefined &&
+            (!candidate.rate_limit || typeof candidate.rate_limit !== "object" ||
+             !Number.isInteger(candidate.rate_limit.requests) ||
+             typeof candidate.rate_limit.interval !== "string")) {
+          throw new TypeError("key.rate_limit is invalid");
+        }
+        keyData = candidate;
       }
     } catch (_) {}
 

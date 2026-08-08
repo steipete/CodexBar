@@ -12,7 +12,7 @@ struct ZenMuxProviderImplementation: ProviderImplementation {
 
     @MainActor
     func observeSettings(_ settings: SettingsStore) {
-        _ = settings.zenMuxManagementAPIKey
+        _ = settings[providerConfig: .zenmux, field: .apiKey]
     }
 
     @MainActor
@@ -20,7 +20,8 @@ struct ZenMuxProviderImplementation: ProviderImplementation {
         if ZenMuxSettingsReader.managementAPIKey(environment: context.environment) != nil {
             return true
         }
-        return !context.settings.zenMuxManagementAPIKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        return !context.settings[providerConfig: .zenmux, field: .apiKey]
+            .trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     @MainActor
@@ -32,7 +33,7 @@ struct ZenMuxProviderImplementation: ProviderImplementation {
                 subtitle: "Stored in ~/.codexbar/config.json. Standard ZenMux inference API keys are not supported.",
                 kind: .secure,
                 placeholder: "ZenMux management key…",
-                binding: context.stringBinding(\.zenMuxManagementAPIKey),
+                binding: context.providerConfigBinding(.apiKey),
                 actions: [
                     ProviderSettingsActionDescriptor(
                         id: "zenmux-open-management",

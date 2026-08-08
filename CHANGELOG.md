@@ -1,43 +1,82 @@
 # Changelog
 
-## 0.47.1 — Unreleased
-
-### Added
-- CLI: expose Codex cost-history completeness in JSON and add an experimental provider-native-only scan mode (#2520). Thanks @NickGuAI!
-- Usage & Spend: add an accessible daily, weekly, and cumulative token-activity heatmap backed by the existing persistent cost scan cache (#2548). Thanks @Yuxin-Qiao!
-- Settings: the sidebar is now resizable — drag the divider between 200–380pt; the width persists across launches.
-- z.ai/GLM: route BigModel aliases and relay-file keys only to China endpoints, reject canonical cross-region overrides before bearer auth, and keep Kimi browser import disabled when Cookie Source is Off (#2351). Thanks @Leehow!
-- Kimi: enrich Code API and CLI usage with the monthly membership pool from a signed-in Kimi Desktop session, using WAL-safe read-only cookie access (#2351). Thanks @Leehow!
-- Sessions: discover live pi and OMP sessions through one Pi-family scanner, with dialect-aware metadata, PID-only startup rows, and mixed-version CLI/remote support (#2529). Thanks @wdmitchelluk!
-- Kimi/GLM: distinguish Kimi Code from the regional Open Platform, bind China and international keys to their issuing hosts, and show GLM Coding Plan's 5-hour window as primary with MCP separate (#2351). Thanks @Leehow!
-- Provider plugins: declarative detail rows/charts plus bundled JavaScript conversions for OpenAI, z.ai, OpenRouter, Poe, and ClawRouter behind `CODEXBAR_JS_PROVIDERS=1`.
-- Provider plugins: install local JavaScript or TypeScript providers with manifest-driven settings and generic menu cards, approval-bound network/cookie access, and sandboxed Sucrase transpilation.
-- OpenCode Go: per-model cost and request breakdowns by day in the shared cost history chart, resolved from the local session database (#2649). Thanks @kentoku24!
-- Copilot: decode the AI credits counter for token-billed seats and expose it in `codexbar diagnose`, so Business seats with zero-entitlement quotas are no longer blank at the data layer (#2613, refs #2593). Thanks @Yuxin-Qiao, and @KSEGIT for the discovery!
-
-### Changed
-- Provider plugins: use the bundled JavaScript implementation by default for Crof and Venice on macOS, with identical golden-tested output and the native fetchers retained only for the Linux CLI.
-- Settings: refresh the Plugins pane to match the other panes — labeled install and directory rows with a Show in Finder affordance, a tilde-abbreviated path, a properly sized empty state, and consistent section footers.
-- Settings: localize every Plugins pane control, status, approval prompt, and alert across all complete app locales.
-- **Breaking JSON change:** provider-specific usage payload keys are being removed from `codexbar usage --format json`, `serve /usage`, and synced snapshots in favor of the generic Codable `usage.details` sections. The app and text CLI now render those same declarative rows and charts.
-- Menu: move each usage window's used percentage and reset time into its title row, with all pace detail on one line (#2182). Thanks @jack24254029!
-- Codex: define Fast cost as estimated API Fast USD, resolve it models.dev-first with model-specific API ratios, and refresh GPT-5.6 Terra/Luna fallback rates (refs #2175). Thanks @iam-brain!
+## 0.48.2 — Unreleased
 
 ### Fixed
-- Overview: stop the infinite menu flicker when hovering between provider chart submenus with Agent Sessions enabled — no-op session rescans no longer invalidate menus, submenu hovers no longer trigger rescans, and session updates defer tracked-parent rebuilds like other data refreshes (#2652). Thanks @qazi0!
-- Widgets: bound widget-snapshot file I/O with a defensive timeout and skip further container access once it wedges, so a blocked macOS 26 app-group open() can no longer beachball the app or hang the widget (#2267 follow-up).
-- Command Code: parse and display 5-hour and weekly rolling limits alongside monthly credits and reset times (#2466). Thanks @derekszen!
-- OpenCode Go: include Zen balance in CLI usage reads without waiting beyond five seconds (#2583). Thanks @Yuxin-Qiao!
-- Usage & Spend: keep validated Codex totals visible while the local scanner catches up, with refresh indicators in the dashboard and menu cost rows (#2397). Thanks @hhh2210!
-- ZoomMate: preserve browser cookie scope so parent-domain sessions reach both API hosts without leaking host-only cookies (fixes #2507). Thanks @weddle!
-- Sync: propagate provider configuration edits made by the CLI or directly in `config.json` to the iCloud fleet without echoing remotely applied writes.
-- Codex: classify rate windows by duration, so a 30-day window renders as Monthly with its real reset countdown instead of masquerading as the Session card — consistently across the provider card, widgets, and submenu (#2600, fixes #2592). Thanks @Yuxin-Qiao!
+- Claude: the menu-bar indicator now renders the active claude-swap account's usage when the adapter owns account presentation (2+ accounts), instead of drawing empty bars from an ambient snapshot without usable windows (#2731). Thanks @Meldiron for the report!
+- z.ai/GLM: parse `CREDIT_LIMIT` quota entries from credit-based Coding Plans (lite/standard/pro) so usage no longer sticks at 100% remaining / 0% used and the 5-hour credit window drives the primary percentage and reset time (#2724, #2712). Thanks @stuible!
+
+### Changed
+- CLI: dashboard snapshot identity now defaults to full; use `--identity redacted` to restore redacted emails.
+
+### Fixed
+- CLI: claude-swap accounts with expired or missing credentials now keep their email on the serve dashboard instead of showing a bare slot number.
+
+## 0.48.1 — 2026-08-07
+
+### Fixed
+- Codex: decode the monthly credit limit from `spend_control.individual_limit` and accept the `reset_at` spelling, so team/enterprise workspaces stop dropping the whole credits payload over OAuth (#2736).
+- App: fix the 0.48.0 crash-at-launch "could not load resource bundle: CodexBar_CodexBarCore.bundle" — the new provider-plugin runtime loaded its bundled scripts through the autogenerated `Bundle.module` accessor, which only probes the app root and the build machine's compile-time path; resources now resolve through a safe accessor that checks `Contents/Resources` first, with a source-level regression gate (#2738, #2730).
+
+### Added
+- CLI: add provider/detail snapshot queries and progressive cached-shell rendering to the built-in serve dashboard.
+
+### Fixed
+- CLI: answer expired serve-cache requests from the last-good response while rebuilding in the background instead of blocking the dashboard for up to a minute.
+
+### Fixed
+
+## 0.48.0 — 2026-08-06
+
+### Added
+- CLI: add a built-in auto-refreshing web dashboard at `/` to `codexbar serve`.
+- CLI: the serve web dashboard renders per-account sections for claude-swap providers, and `codexbar serve --identity full` opts authorized dashboard clients into real account emails on trusted, private networks.
+- CLI: the serve web dashboard gains daily spend bar charts from local cost history, real provider brand icons served from an embedded `/icons/` route, and a grouped vertical layout — multi-account providers render one card per account under a titled section.
+- CLI: `codexbar dashboard --output <path>` atomically writes the snapshot to a file (temp file + fsync + rename, `0644`) instead of stdout, so static-webroot publishers no longer need a shell wrapper.
+- Dashboard v1 snapshot: Claude rows now include all claude-swap accounts (windows, pace, active flag, redacted identity) when the integration is enabled.
+- Usage & Spend: add an accessible daily, weekly, and cumulative token-activity heatmap backed by the existing persistent cost scan cache (#2548). Thanks @Yuxin-Qiao!
+- Provider plugins: install local JavaScript or TypeScript providers with manifest-driven settings and generic menu cards, approval-bound network/cookie access, and sandboxed Sucrase transpilation.
+- Provider plugins: declarative detail rows/charts plus bundled JavaScript conversions for OpenAI, z.ai, OpenRouter, Poe, and ClawRouter behind `CODEXBAR_JS_PROVIDERS=1`.
+- Settings: the sidebar is now resizable — drag the divider between 200–380pt; the width persists across launches.
+- Kimi: enrich Code API and CLI usage with the monthly membership pool from a signed-in Kimi Desktop session, using WAL-safe read-only cookie access (#2351). Thanks @Leehow!
+- Kimi/GLM: distinguish Kimi Code from the regional Open Platform, bind China and international keys to their issuing hosts, and show GLM Coding Plan's 5-hour window as primary with MCP separate (#2351). Thanks @Leehow!
+- z.ai/GLM: route BigModel aliases and relay-file keys only to China endpoints, reject canonical cross-region overrides before bearer auth, and keep Kimi browser import disabled when Cookie Source is Off (#2351). Thanks @Leehow!
+- Sessions: discover live pi and OMP sessions through one Pi-family scanner, with dialect-aware metadata, PID-only startup rows, and mixed-version CLI/remote support (#2529). Thanks @wdmitchelluk!
+- OpenCode Go: per-model cost and request breakdowns by day in the shared cost history chart, resolved from the local session database (#2649). Thanks @kentoku24!
+- Copilot: decode the AI credits counter for token-billed seats and expose it in `codexbar diagnose`, so Business seats with zero-entitlement quotas are no longer blank at the data layer (#2613, refs #2593). Thanks @Yuxin-Qiao, and @KSEGIT for the discovery!
+- CLI: expose Codex cost-history completeness in JSON and add an experimental provider-native-only scan mode (#2520). Thanks @NickGuAI!
+- Currency: Korean won (KRW) in the preferred-currency picker, with correct zero-decimal formatting (#2669, refs #2449). Thanks @kes02!
+
+### Changed
+- **Breaking JSON change:** provider-specific usage payload keys are being removed from `codexbar usage --format json`, `serve /usage`, and synced snapshots in favor of the generic Codable `usage.details` sections. The app and text CLI now render those same declarative rows and charts.
+- Provider plugins: use the bundled JavaScript implementation by default for Crof, Venice, OpenRouter, ClawRouter, Deepgram, and sub2api on macOS, with identical golden-tested output and the native fetchers retained only for the Linux CLI.
+- Menu: move each usage window's used percentage and reset time into its title row, with all pace detail on one line (#2182). Thanks @jack24254029!
+- Codex: define Fast cost as estimated API Fast USD, resolve it models.dev-first with model-specific API ratios, and refresh GPT-5.6 Terra/Luna fallback rates (refs #2175). Thanks @iam-brain!
+- Settings: refresh the Plugins pane to match the other panes — labeled install and directory rows with a Show in Finder affordance, a tilde-abbreviated path, a properly sized empty state, and consistent section footers.
+- Settings: localize every Plugins pane control, status, approval prompt, and alert across all complete app locales.
+
+### Fixed
+- Menu: make the Usage bars fill setting apply to percentage labels as well as bars again. Thanks @FrankSmithXYZ!
 - Codex: bound the persisted cost-usage cache with entry/byte budgets, window-aware pruning, and a load-refusal cap, so the main process no longer grows without limit on large session corpora (#2646, refs #2637). Thanks @Yuxin-Qiao!
 - Codex: resume fork catch-up from a validated cached offset when a rollout is appended, charging only the appended suffix against scan budgets instead of restarting the bounded full scan (#2648). Thanks @xx205!
 - Claude: report a provably unreadable OAuth delegated refresh as terminal with a long cooldown, instead of looping "run claude login, then retry" and relaunching the CLI every poll cycle (#2650, refs #2634). Thanks @kes02!
-- Usage & Spend: keep priced Codex model rows visible when the history also contains unpriced Auto Review routing rows, labeled as a partial breakdown with ranking removed (#2643). Thanks @akshayprabhu200!
-- Perplexity: pin the promo expiry date to English formatting regardless of system locale, matching the rest of the string and the JS plugin (#2651). Thanks @kes02!
+- Overview: stop the infinite menu flicker when hovering between provider chart submenus with Agent Sessions enabled — no-op session rescans no longer invalidate menus, submenu hovers no longer trigger rescans, and session updates defer tracked-parent rebuilds like other data refreshes (#2652). Thanks @qazi0!
+- Codex: classify rate windows by duration, so a 30-day window renders as Monthly with its real reset countdown instead of masquerading as the Session card — consistently across the provider card, widgets, and submenu (#2600, fixes #2592). Thanks @Yuxin-Qiao!
+- Codex: apply a manual reset immediately — a redeemed reset credit now exempts the weekly-boundary confirmation guard, so fresh quota shows without waiting out the old boundary (#2710). Thanks @endless7!
+- Widgets: bound widget-snapshot file I/O with a defensive timeout and skip further container access once it wedges, so a blocked macOS 26 app-group open() can no longer beachball the app or hang the widget (#2267 follow-up).
+- Usage & Spend: keep validated Codex totals visible while the local scanner catches up, with refresh indicators in the dashboard and menu cost rows (#2397). Thanks @hhh2210!
+- CLI: stop discarding slow dashboard-snapshot builds after serve request deadlines, so the web dashboard's first load self-heals instead of returning 504 forever.
+- CLI: `codexbar serve` bounds the entire request head (16 KB / 10 s total) instead of only each read, closing a pre-auth slow-trickle hold (#2684). Thanks @OfficialAbhinavSingh!
+- Antigravity: wait for `agy` keyring readiness on cold start (bounded 15s) instead of falling through to the degraded OAuth placeholder (#2665, refs #2427). Thanks @Yuxin-Qiao!
+- Command Code: parse and display 5-hour and weekly rolling limits alongside monthly credits and reset times (#2466). Thanks @derekszen!
+- Command Code: recognize the Individual GOAT plan ($70/mo credits) and the new production cookie names while keeping the legacy bare-token fallback (#2706). Thanks @KronixDev!
 - OpenRouter: use the server-reported current-period remaining for the key-limit meter and "left" text instead of deriving both from cumulative lifetime usage (#2612, fixes #2605). Thanks @Yuxin-Qiao!
+- OpenCode Go: include Zen balance in CLI usage reads without waiting beyond five seconds (#2583). Thanks @Yuxin-Qiao!
+- ZoomMate: preserve browser cookie scope so parent-domain sessions reach both API hosts without leaking host-only cookies (fixes #2507). Thanks @weddle!
+- Sync: propagate provider configuration edits made by the CLI or directly in `config.json` to the iCloud fleet without echoing remotely applied writes.
+- Usage & Spend: keep priced Codex model rows visible when the history also contains unpriced Auto Review routing rows, labeled as a partial breakdown with ranking removed (#2643). Thanks @akshayprabhu200!
+- Codex: document the real cost-cache overshoot contract, fix day-key parsing under non-Gregorian system calendars, and accept all shipped predecessor cache keys so mid-window builds skip pointless rebuilds (#2703). Thanks @Yuxin-Qiao!
+- Perplexity: pin the promo expiry date to English formatting regardless of system locale, matching the rest of the string and the JS plugin (#2651). Thanks @kes02!
 
 ## 0.47.0 — 2026-08-03
 

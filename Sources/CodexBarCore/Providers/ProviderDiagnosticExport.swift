@@ -176,8 +176,12 @@ public struct ProviderDiagnosticUsageSummary: Codable, Sendable {
         }
 
         var providerSpecificData: [String] = []
-        if snapshot.openAIAPIUsage != nil { providerSpecificData.append("openAIAPIUsage") }
-        if snapshot.mistralUsage != nil { providerSpecificData.append("mistralUsage") }
+        if snapshot.openAIAPIUsage != nil {
+            providerSpecificData.append("openAIAPIUsage")
+        }
+        if snapshot.mistralUsage != nil {
+            providerSpecificData.append("mistralUsage")
+        }
 
         self.updatedAt = snapshot.updatedAt
         self.dataConfidence = snapshot.dataConfidence.rawValue
@@ -336,6 +340,14 @@ public struct ProviderDiagnosticError: Codable, Sendable {
         if error is ProviderEndpointOverrideError {
             return "configuration"
         }
+        if let pluginError = error as? ProviderFetchClassifiedError {
+            return switch pluginError.kind {
+            case .authenticationExpired, .missingCredential, .permissionDenied: "auth"
+            case .rateLimited, .providerUnavailable, .apiFailure: "api"
+            case .parseFailure: "parse"
+            case .networkFailure: "network"
+            }
+        }
         if let minimaxError = error as? MiniMaxUsageError {
             switch minimaxError {
             case .networkError: return "network"
@@ -352,7 +364,9 @@ public struct ProviderDiagnosticError: Codable, Sendable {
             case .parseFailed: return "parse"
             }
         }
-        if error is MiniMaxSettingsError || error is MiniMaxAPISettingsError { return "auth" }
+        if error is MiniMaxSettingsError || error is MiniMaxAPISettingsError {
+            return "auth"
+        }
         return ProviderDiagnosticFetchAttempt.errorCategoryLabel(error.localizedDescription)
     }
 

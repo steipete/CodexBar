@@ -37,46 +37,20 @@ struct InlineUsageDashboardModel: Equatable {
 
 extension UsageMenuCardView.Model {
     static func apiProviderUsageNotes(input: Input) -> [String]? {
-        if input.provider == .openai,
-           let usage = input.snapshot?.openAIAPIUsage
+        let menuCard = ProviderDescriptorRegistry.descriptor(for: input.provider).presentation.menuCard
+        switch menuCard.usageNotes(context: ProviderUsageNotesContext(
+            snapshot: input.snapshot,
+            isRefreshing: input.isRefreshing,
+            tokenCostInlineDashboardEnabled: input.tokenCostInlineDashboardEnabled,
+            showOptionalUsage: input.showOptionalCreditsAndExtraUsage))
         {
+        case let .openAIAPI(usage):
             return self.openAIAPIUsageNotes(usage)
-        }
-
-        if input.provider == .deepseek {
-            if input.isRefreshing {
-                return []
-            }
-            if input.snapshot?.primary == nil {
-                if input.snapshot?.deepseekDetailedUsageState == .webSessionRequired {
-                    return [L("Sign in to DeepSeek Platform in Chrome for detailed usage.")]
-                }
-                if input.snapshot?.deepseekDetailedUsageState == .profileSelectionRequired {
-                    return [L("Select a DeepSeek Chrome profile in Settings.")]
-                }
-            }
-            guard input.tokenCostInlineDashboardEnabled,
-                  input.showOptionalCreditsAndExtraUsage
-            else { return nil }
-            guard input.snapshot?.details.isEmpty == false else {
-                if input.snapshot?.deepseekDetailedUsageState == .webSessionRequired {
-                    return [L("Sign in to DeepSeek Platform in Chrome for detailed usage.")]
-                }
-                if input.snapshot?.deepseekDetailedUsageState == .profileSelectionRequired {
-                    return [L("Select a DeepSeek Chrome profile in Settings.")]
-                }
-                return [L("Detailed usage unavailable.")]
-            }
+        case let .localized(keys):
+            return keys.map { L($0) }
+        case .unhandled:
             return nil
         }
-
-        if input.provider == .ollama,
-           input.snapshot?.identity?.loginMethod == "API key"
-        {
-            return [L("API key verified. Cloud quotas need browser cookies. Sign in to Ollama.")]
-        }
-
-        return nil
     }
 
     static func openAIAPIUsageNotes(_ usage: OpenAIAPIUsageSnapshot) -> [String] {
@@ -118,7 +92,8 @@ extension UsageMenuCardView.Model {
     }
 
     private static func resolveInlineUsageDashboard(input: Input) -> InlineUsageDashboardModel? {
-        if self.usesProviderCostHistoryAsPrimaryDashboard(input.provider),
+        let menuCard = ProviderDescriptorRegistry.descriptor(for: input.provider).presentation.menuCard
+        if menuCard.usesProviderCostHistoryAsPrimaryDashboard,
            let tokenSnapshot = primaryCostHistorySnapshot(input: input),
            !tokenSnapshot.daily.isEmpty
         {
@@ -128,7 +103,7 @@ extension UsageMenuCardView.Model {
                 comparisonPeriodsEnabled: input.costComparisonPeriodsEnabled,
                 preferredCurrencyCode: input.preferredCurrencyCode)
         }
-        if [.codex, .claude, .vertexai, .bedrock, .cursor, .opencodego].contains(input.provider),
+        if menuCard.supportsInlineTokenCostDashboard,
            input.tokenCostInlineDashboardEnabled,
            let tokenSnapshot = input.tokenSnapshot,
            !tokenSnapshot.daily.isEmpty || tokenSnapshot.meteredCostUSD != nil
@@ -143,24 +118,14 @@ extension UsageMenuCardView.Model {
     }
 
     static func usesProviderCostHistoryAsPrimaryDashboard(_ provider: UsageProvider) -> Bool {
-        provider == .openai || provider == .mistral
+        ProviderDescriptorRegistry.descriptor(for: provider).presentation.menuCard
+            .usesProviderCostHistoryAsPrimaryDashboard
     }
 
     static func primaryCostHistorySnapshot(input: Input) -> CostUsageTokenSnapshot? {
-        switch input.provider {
-        case .openai:
-            if let projected = input.snapshot?.openAIAPIUsage?.toCostUsageTokenSnapshot() {
-                return projected
-            }
-            return input.snapshot == nil ? input.tokenSnapshot : nil
-        case .mistral:
-            if let projected = input.snapshot?.mistralUsage?.toCostUsageTokenSnapshot() {
-                return projected
-            }
-            return input.snapshot == nil ? input.tokenSnapshot : nil
-        default:
-            return input.tokenSnapshot
-        }
+        ProviderDescriptorRegistry.descriptor(for: input.provider).presentation.menuCard.primaryCostHistory(
+            snapshot: input.snapshot,
+            tokenSnapshot: input.tokenSnapshot)
     }
 
     private static func costHistoryInlineDashboard(
@@ -199,7 +164,8 @@ extension UsageMenuCardView.Model {
                 : historyDays == 30
                 ? "30d"
                 : String(format: L("Last %d days"), historyDays))
-        let historyTitle = provider == .codex ? codexHistoryPeriod : defaultHistoryTitle
+        let tokenCost = ProviderDescriptorRegistry.descriptor(for: provider).tokenCost
+        let historyTitle = tokenCost.historyTitleStyle == .compact ? codexHistoryPeriod : defaultHistoryTitle
         let tokenHistoryTitle = snapshot.historyLabel.map { "\($0) \(L("tokens"))" }
             ?? (historyDays == 1
                 ? L("Today tokens")
@@ -228,7 +194,7 @@ extension UsageMenuCardView.Model {
                 accessibilityValue: "\(entry.date): \(convertedString(cost))")
         }
         let latest = CostUsageTokenSnapshot.latestEntry(in: snapshot.daily)
-        let usesLatestPrimary = provider == .bedrock || provider == .mistral
+        let usesLatestPrimary = tokenCost.primaryValue == .latestDaily
         let primaryCostUSD = usesLatestPrimary ? latest?.costUSD : snapshot.sessionCostUSD
         var details: [String] = []
         if comparisonPeriodsEnabled {
@@ -246,16 +212,16 @@ extension UsageMenuCardView.Model {
         if let topModel = Self.topCostModel(from: snapshot.daily) {
             details.append("\(L("Top model")): \(Self.shortModelName(topModel))")
         }
-        if provider == .codex {
-            details.append(L("codex_api_estimate_hint"))
+        let hintLines = Self.tokenUsageHintLines(provider: provider)
+        if tokenCost.hintPlacement == .beforeRequestHistory {
+            details.append(contentsOf: hintLines)
         }
-        if provider != .groq {
+        if tokenCost.showsRequestHistory {
             if let requestCount = snapshot.last30DaysRequests {
                 details
                     .append("\(requestHistoryTitle): \(UsageFormatter.tokenCountString(requestCount)) \(L("requests"))")
             }
-            if provider != .codex {
-                let hintLines = Self.tokenUsageHintLines(provider: provider)
+            if tokenCost.hintPlacement == .afterRequestHistory {
                 if hintLines.isEmpty == false {
                     details.append(contentsOf: hintLines)
                 } else {

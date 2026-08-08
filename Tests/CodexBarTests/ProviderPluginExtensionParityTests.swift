@@ -59,7 +59,7 @@ struct ProviderPluginExtensionParityTests {
     }
 
     @Test
-    func `Deepgram plugin matches generic Swift projection and details golden`() async throws {
+    func `Deepgram plugin matches the cut-over details golden`() async throws {
         let transport = Self.transport { request in
             switch request.url?.path {
             case "/v1/projects":
@@ -70,14 +70,11 @@ struct ProviderPluginExtensionParityTests {
                 throw URLError(.badURL)
             }
         }
-        let swift = try await DeepgramUsageFetcher.fetchUsage(apiKey: "fixture-key", transport: transport)
-            .toUsageSnapshot()
         let script = try await ProviderPluginRuntime(bundledPlugin: "deepgram", transport: transport)
             .fetchUsage(secrets: ["DEEPGRAM_API_KEY": "fixture-key"])
 
-        #expect(script.primary == swift.primary)
-        #expect(script.identity?.loginMethod == swift.identity?.loginMethod)
-        #expect(script.details == swift.details)
+        #expect(script.primary == nil)
+        #expect(script.identity?.loginMethod == "Project: Alpha")
         #expect(try script.details == [ProviderDetailSection(
             title: "Usage summary",
             rows: [
@@ -89,24 +86,22 @@ struct ProviderPluginExtensionParityTests {
     }
 
     @Test
-    func `sub2api plugin matches generic Swift projection and details golden`() async throws {
+    func `sub2api plugin matches the cut-over details golden`() async throws {
         let fixture = #"{"mode":"quota_limited","isValid":true,"planName":"Team","quota":{"limit":100,"used":25,"remaining":75,"unit":"USD"},"usage":{"today":{"requests":4,"total_tokens":1200,"actual_cost":1.25}}}"#
         let transport = Self.transport { _ in fixture }
         let now = Date(timeIntervalSince1970: 1_800_000_000)
-        let swift = try Sub2APIUsageFetcher._parseSnapshotForTesting(Data(fixture.utf8), updatedAt: now)
-            .toUsageSnapshot()
         let script = try await ProviderPluginRuntime(bundledPlugin: "sub2api", transport: transport)
             .fetchUsage(
                 settings: ["SUB2API_BASE_URL": "http://127.0.0.1:8787"],
                 secrets: ["SUB2API_API_KEY": "fixture-key"],
                 now: now)
 
-        #expect(script.primary == swift.primary)
-        #expect(script.secondary == swift.secondary)
-        #expect(script.tertiary == swift.tertiary)
-        #expect(script.identity?.accountOrganization == swift.identity?.accountOrganization)
-        #expect(script.identity?.loginMethod == swift.identity?.loginMethod)
-        #expect(script.details == swift.details)
+        #expect(script.primary?.usedPercent == 25)
+        #expect(script.secondary == nil)
+        #expect(script.tertiary == nil)
+        #expect(script.identity?.accountOrganization == "Team")
+        #expect(script.identity?.loginMethod == "Team")
+        #expect(script.dataConfidence == .exact)
         #expect(try script.details == [ProviderDetailSection(
             title: "Usage summary",
             rows: [

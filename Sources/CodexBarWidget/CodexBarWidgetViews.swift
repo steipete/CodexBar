@@ -229,6 +229,7 @@ enum CompactMetricFormatter {
     }
 
     static func costMetricLabel(_ label: String, provider: ProviderInstanceID) -> String {
+        // Provider-specific by design: old Codex widget timelines lack the API-estimate billing disclaimer.
         guard provider == .codex else { return "\(label) cost" }
         // Existing widget timelines may predate the estimate labels. Do not leave a bare
         // dollar value until the app next republishes it.
@@ -573,31 +574,21 @@ struct WidgetUsageRow: Identifiable, Equatable {
     }
 
     static func smallWidgetRowLimit(for entry: WidgetSnapshot.ProviderEntry) -> Int? {
-        if entry.provider == .kimi {
-            return 3
-        }
-        return self.antigravityQuotaSummaryRowLimit(for: entry, limit: 2)
+        self.widgetRowLimit(for: entry, family: .small)
     }
 
     static func mediumWidgetRowLimit(for entry: WidgetSnapshot.ProviderEntry) -> Int? {
-        if entry.provider == .kimi {
-            return 3
-        }
-        return self.antigravityQuotaSummaryRowLimit(for: entry, limit: 3)
+        self.widgetRowLimit(for: entry, family: .medium)
     }
 
-    private static func antigravityQuotaSummaryRowLimit(
+    private static func widgetRowLimit(
         for entry: WidgetSnapshot.ProviderEntry,
-        limit: Int) -> Int?
+        family: ProviderWidgetFamily) -> Int?
     {
-        guard entry.provider == .antigravity,
-              entry.usageRows?.contains(where: {
-                  $0.id.hasPrefix("antigravity-quota-summary-")
-              }) == true
-        else {
-            return nil
-        }
-        return limit
+        guard let provider = entry.provider.firstPartyProvider else { return nil }
+        return ProviderDescriptorRegistry.descriptor(for: provider).presentation.widgetRowLimit(
+            rows: entry.usageRows,
+            family: family)
     }
 
     static func rows(
@@ -651,6 +642,7 @@ struct WidgetUsageRow: Identifiable, Equatable {
             rows = defaultRows.filter { $0.percentLeft != nil }
         }
         guard let limit else { return rows }
+        // Provider-specific by design: Antigravity medium widgets select one constrained row per model family.
         if entry.provider == .antigravity,
            limit >= 2,
            rows.contains(where: { $0.id.hasPrefix("antigravity-quota-summary-") })
@@ -688,6 +680,7 @@ struct WidgetUsageRow: Identifiable, Equatable {
         provider: ProviderInstanceID,
         now: Date) -> [WidgetUsageRow]
     {
+        // Provider-specific by design: Codex weekly exhaustion suppresses its paired legacy session widget row.
         guard provider == .codex,
               let weekly = snapshots.first(where: { $0.id == "weekly" })?.window,
               weekly.remainingPercent <= 0,
@@ -705,6 +698,7 @@ struct WidgetUsageRow: Identifiable, Equatable {
         for rowID: String,
         entry: WidgetSnapshot.ProviderEntry) -> RateWindow?
     {
+        // Provider-specific by design: old Codex timelines reconstruct session/weekly windows by duration.
         guard entry.provider == .codex else { return nil }
         let candidates = [(entry.primary, "session"), (entry.secondary, "weekly")]
         for (window, fallbackID) in candidates {
@@ -733,6 +727,7 @@ struct WidgetUsageRow: Identifiable, Equatable {
     }
 
     private static func antigravityQuotaFamily(for row: WidgetUsageRow) -> AntigravityQuotaFamily? {
+        // Provider-specific by design: Antigravity IDs/titles classify Gemini versus third-party quota families.
         guard row.id.hasPrefix("antigravity-quota-summary-") else { return nil }
         let id = row.id.lowercased()
         if id.contains("gemini") {
@@ -931,146 +926,10 @@ enum UsageHistoryChartMode {
 }
 
 enum WidgetColors {
-    // swiftlint:disable:next cyclomatic_complexity
     static func color(for instanceID: ProviderInstanceID) -> Color {
         guard let provider = instanceID.firstPartyProvider else { return .secondary }
-        return switch provider {
-        case .codex:
-            Color(red: 73 / 255, green: 163 / 255, blue: 176 / 255)
-        case .openai:
-            Color(red: 15 / 255, green: 130 / 255, blue: 110 / 255)
-        case .azureopenai:
-            Color(red: 0, green: 120 / 255, blue: 212 / 255)
-        case .claude:
-            Color(red: 204 / 255, green: 124 / 255, blue: 94 / 255)
-        case .clinepass:
-            Color(
-                red: ClinePassProviderDescriptor.descriptor.branding.color.red,
-                green: ClinePassProviderDescriptor.descriptor.branding.color.green,
-                blue: ClinePassProviderDescriptor.descriptor.branding.color.blue)
-        case .gemini:
-            Color(red: 171 / 255, green: 135 / 255, blue: 234 / 255)
-        case .antigravity:
-            Color(red: 96 / 255, green: 186 / 255, blue: 126 / 255)
-        case .cursor:
-            Color(red: 0 / 255, green: 191 / 255, blue: 165 / 255) // #00BFA5 - Cursor teal
-        case .opencode:
-            Color(red: 59 / 255, green: 130 / 255, blue: 246 / 255)
-        case .opencodego:
-            Color(red: 59 / 255, green: 130 / 255, blue: 246 / 255)
-        case .alibaba, .alibabatokenplan:
-            Color(red: 1.0, green: 106 / 255, blue: 0)
-        case .qwencloud:
-            Color(red: 97 / 255, green: 92 / 255, blue: 237 / 255)
-        case .zai:
-            Color(red: 232 / 255, green: 90 / 255, blue: 106 / 255)
-        case .factory:
-            Color(red: 255 / 255, green: 107 / 255, blue: 53 / 255) // Factory orange
-        case .copilot:
-            Color(red: 168 / 255, green: 85 / 255, blue: 247 / 255) // Purple
-        case .devin:
-            Color(red: 70 / 255, green: 180 / 255, blue: 130 / 255)
-        case .minimax:
-            Color(red: 254 / 255, green: 96 / 255, blue: 60 / 255)
-        case .manus:
-            Color(red: 24 / 255, green: 24 / 255, blue: 24 / 255)
-        case .vertexai:
-            Color(red: 66 / 255, green: 133 / 255, blue: 244 / 255) // Google Blue
-        case .kilo:
-            Color(red: 242 / 255, green: 112 / 255, blue: 39 / 255) // Kilo orange
-        case .kiro:
-            Color(red: 255 / 255, green: 153 / 255, blue: 0 / 255) // AWS orange
-        case .augment:
-            Color(red: 99 / 255, green: 102 / 255, blue: 241 / 255) // Augment purple
-        case .jetbrains:
-            Color(red: 255 / 255, green: 51 / 255, blue: 153 / 255) // JetBrains pink
-        case .kimi:
-            Color(red: 254 / 255, green: 96 / 255, blue: 60 / 255) // Kimi orange
-        case .moonshot:
-            Color(red: 32 / 255, green: 93 / 255, blue: 235 / 255)
-        case .amp:
-            Color(red: 220 / 255, green: 38 / 255, blue: 38 / 255) // Amp red
-        case .t3chat:
-            Color(red: 245 / 255, green: 102 / 255, blue: 71 / 255)
-        case .zoommate:
-            Color(red: 11 / 255, green: 92 / 255, blue: 255 / 255) // Zoom blue
-        case .notion:
-            Color(red: 51 / 255, green: 126 / 255, blue: 169 / 255) // Notion accent blue
-        case .ollama:
-            Color(red: 32 / 255, green: 32 / 255, blue: 32 / 255) // Ollama charcoal
-        case .synthetic:
-            Color(red: 20 / 255, green: 20 / 255, blue: 20 / 255) // Synthetic charcoal
-        case .openrouter:
-            Color(red: 111 / 255, green: 66 / 255, blue: 193 / 255) // OpenRouter purple
-        case .clawrouter:
-            Color(red: 89 / 255, green: 110 / 255, blue: 246 / 255)
-        case .sub2api:
-            Color(red: 45 / 255, green: 198 / 255, blue: 216 / 255)
-        case .wayfinder:
-            Color(red: 16 / 255, green: 163 / 255, blue: 127 / 255)
-        case .elevenlabs:
-            Color(red: 235 / 255, green: 235 / 255, blue: 230 / 255)
-        case .warp:
-            Color(red: 147 / 255, green: 139 / 255, blue: 180 / 255)
-        case .windsurf:
-            Color(red: 52 / 255, green: 232 / 255, blue: 187 / 255) // Windsurf #34e8bb
-        case .perplexity:
-            Color(red: 32 / 255, green: 178 / 255, blue: 170 / 255) // Perplexity teal
-        case .mimo:
-            Color(red: 1.0, green: 105 / 255, blue: 0)
-        case .doubao:
-            Color(red: 45 / 255, green: 136 / 255, blue: 255 / 255) // Doubao blue
-        case .sakana:
-            Color(red: 41 / 255, green: 117 / 255, blue: 219 / 255)
-        case .abacus:
-            Color(red: 56 / 255, green: 189 / 255, blue: 248 / 255)
-        case .mistral:
-            Color(red: 255 / 255, green: 80 / 255, blue: 15 / 255) // Mistral orange
-        case .deepseek:
-            Color(red: 82 / 255, green: 125 / 255, blue: 240 / 255)
-        case .deepinfra:
-            Color(red: 42 / 255, green: 50 / 255, blue: 117 / 255)
-        case .codebuff:
-            Color(red: 68 / 255, green: 255 / 255, blue: 0 / 255) // Codebuff lime
-        case .crof:
-            Color(red: 46 / 255, green: 171 / 255, blue: 148 / 255)
-        case .venice:
-            Color(red: 51 / 255, green: 153 / 255, blue: 1.0)
-        case .commandcode:
-            Color(red: 0, green: 0, blue: 0)
-        case .qoder:
-            Color(red: 16 / 255, green: 185 / 255, blue: 129 / 255)
-        case .stepfun:
-            Color(red: 255 / 255, green: 140 / 255, blue: 0 / 255) // StepFun orange
-        case .bedrock:
-            Color(red: 255 / 255, green: 153 / 255, blue: 0 / 255) // AWS orange
-        case .grok:
-            Color(red: 16 / 255, green: 163 / 255, blue: 127 / 255) // Grok teal
-        case .groq:
-            Color(red: 245 / 255, green: 104 / 255, blue: 68 / 255)
-        case .llmproxy:
-            Color(red: 36 / 255, green: 180 / 255, blue: 126 / 255)
-        case .litellm:
-            Color(red: 76 / 255, green: 137 / 255, blue: 240 / 255)
-        case .deepgram:
-            Color(red: 10 / 255, green: 18 / 255, blue: 27 / 255)
-        case .poe:
-            Color(red: 93 / 255, green: 92 / 255, blue: 222 / 255) // Poe purple
-        case .chutes:
-            Color(red: 24 / 255, green: 160 / 255, blue: 88 / 255)
-        case .longcat:
-            Color(red: 255 / 255, green: 209 / 255, blue: 0 / 255)
-        case .zed:
-            Color(red: 64 / 255, green: 156 / 255, blue: 255 / 255)
-        case .neuralwatt:
-            Color(red: 56 / 255, green: 217 / 255, blue: 140 / 255)
-        case .zenmux:
-            Color(red: 108 / 255, green: 92 / 255, blue: 231 / 255)
-        case .aiand:
-            Color(red: 226 / 255, green: 92 / 255, blue: 43 / 255)
-        case .xai:
-            Color(red: 142 / 255, green: 142 / 255, blue: 147 / 255)
-        }
+        let color = ProviderDescriptorRegistry.descriptor(for: provider).branding.widgetColor
+        return Color(red: color.red, green: color.green, blue: color.blue)
     }
 }
 
@@ -1081,6 +940,7 @@ struct WidgetBalanceLine: Equatable {
 
 enum WidgetBalanceFormatter {
     static func extraUsageCost(for entry: WidgetSnapshot.ProviderEntry) -> ProviderCostSnapshot? {
+        // Provider-specific by design: Devin encodes its extra-usage balance as a named provider-cost period.
         guard entry.provider == .devin,
               let cost = entry.providerCost,
               cost.period == "Extra usage balance"

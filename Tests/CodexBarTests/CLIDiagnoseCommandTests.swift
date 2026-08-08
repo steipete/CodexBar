@@ -41,22 +41,30 @@ struct CLIDiagnoseCommandTests {
     func `diagnose auth mode uses settings-backed MiniMax manual cookie when env token is absent`() {
         let settings = self.makeSettingsWithMiniMaxCookie("Cookie: session_id=demo-cookie")
 
-        let authMode = CodexBarCLI._resolveMiniMaxAuthModeForTesting(
+        let summary = CodexBarCLI._diagnosticAuthSummaryForTesting(
+            provider: .minimax,
+            account: nil,
+            config: nil,
             environment: [:],
             settings: settings)
 
-        #expect(authMode == .cookie)
+        #expect(summary.configured)
+        #expect(summary.modes == ["cookie"])
     }
 
     @Test
     func `diagnose auth mode keeps apiToken precedence over settings cookie`() {
         let settings = self.makeSettingsWithMiniMaxCookie("Cookie: session_id=demo-cookie")
 
-        let authMode = CodexBarCLI._resolveMiniMaxAuthModeForTesting(
+        let summary = CodexBarCLI._diagnosticAuthSummaryForTesting(
+            provider: .minimax,
+            account: nil,
+            config: nil,
             environment: [MiniMaxAPISettingsReader.apiTokenKey: "sk-api-demo-token"],
             settings: settings)
 
-        #expect(authMode == .apiToken)
+        #expect(summary.configured)
+        #expect(summary.modes == ["apiToken"])
     }
 
     @Test

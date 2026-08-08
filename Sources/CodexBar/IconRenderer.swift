@@ -636,8 +636,12 @@ enum IconRenderer {
                     }
                 }
 
+                let providerPresentation = UsageProvider(rawValue: style.rawValue)
+                    .map { ProviderDescriptorRegistry.descriptor(for: $0).presentation }
+                let usesMissingSecondaryLayout =
+                    providerPresentation?.treatsExhaustedSecondaryIconWindowAsMissing == true
                 let effectiveWeeklyRemaining: Double? = {
-                    if style == .warp, let weeklyRemaining, weeklyRemaining <= 0 {
+                    if usesMissingSecondaryLayout, let weeklyRemaining, weeklyRemaining <= 0 {
                         return nil
                     }
                     return weeklyRemaining
@@ -655,15 +659,16 @@ enum IconRenderer {
                 let creditsBottomRectPx = RectPx(x: barXPx, y: 4, w: barWidthPx, h: 6)
 
                 // Warp special case: when no bonus or bonus exhausted, show "top monthly, bottom dimmed"
-                let warpNoBonus = style == .warp && !weeklyAvailable
+                let missingSecondary = usesMissingSecondaryLayout && !weeklyAvailable
 
                 // "Hide critters" renders plain meter bars: suppress all face/decoration twists.
-                let twistFace = !hideCritters && style == .codex
-                let twistNotches = !hideCritters && style == .claude
-                let twistGemini = !hideCritters && (style == .gemini || style == .antigravity)
-                let twistAntigravity = !hideCritters && style == .antigravity
-                let twistFactory = !hideCritters && style == .factory
-                let twistWarp = !hideCritters && style == .warp
+                let decorations = hideCritters ? ProviderIconDecorations() : providerPresentation?.iconDecorations ?? []
+                let twistFace = decorations.contains(.face)
+                let twistNotches = decorations.contains(.notches)
+                let twistGemini = decorations.contains(.gemini)
+                let twistAntigravity = decorations.contains(.antigravity)
+                let twistFactory = decorations.contains(.factory)
+                let twistWarp = decorations.contains(.warp)
 
                 if weeklyAvailable {
                     // Normal: top=primary, bottom=secondary (bonus/weekly).
@@ -678,8 +683,8 @@ enum IconRenderer {
                         addWarpTwist: twistWarp,
                         blink: blink)
                     drawBar(rectPx: bottomRectPx, remaining: bottomValue)
-                } else if !hasWeekly || warpNoBonus {
-                    if style == .warp {
+                } else if !hasWeekly || missingSecondary {
+                    if usesMissingSecondaryLayout {
                         // Warp: no bonus or bonus exhausted -> top=monthly credits, bottom=dimmed track
                         drawBar(
                             rectPx: topRectPx,

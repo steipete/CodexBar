@@ -25,6 +25,7 @@ public enum JetBrainsProviderDescriptor {
                 widgetSelectable: false,
                 isPrimaryProvider: false,
                 usesAccountFallback: false,
+                debugLogUnavailableMessage: "JetBrains AI debug log not yet implemented",
                 dashboardURL: nil,
                 statusPageURL: nil),
             branding: ProviderBranding(
