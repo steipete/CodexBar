@@ -55,6 +55,7 @@ struct SettingsDefaultsState {
     var claudeOAuthKeychainPromptModeRaw: String?
     var claudeOAuthKeychainReadStrategyRaw: String?
     var claudeWebExtrasEnabledRaw: Bool
+    var claudeStatusLineFeedEnabledRaw: Bool
     var showOptionalCreditsAndExtraUsage: Bool
     var claudeDailyRoutinesUsageVisible: Bool
     var codexSparkUsageVisible: Bool

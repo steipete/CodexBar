@@ -630,6 +630,11 @@ extension SettingsStore {
         set { self.claudeWebExtrasEnabledRaw = newValue }
     }
 
+    var claudeStatusLineFeedEnabled: Bool {
+        get { self.defaultsState.claudeStatusLineFeedEnabledRaw }
+        set { self.defaultsState.claudeStatusLineFeedEnabledRaw = newValue }
+    }
+
     var copilotBudgetExtrasEnabled: Bool {
         get { self.defaultsState.copilotBudgetExtrasEnabled }
         set {

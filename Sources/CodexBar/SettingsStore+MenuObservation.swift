@@ -54,6 +54,7 @@ extension SettingsStore {
         _ = self.claudeOAuthKeychainPromptMode
         _ = self.claudeOAuthKeychainReadStrategy
         _ = self.claudeWebExtrasEnabled
+        _ = self.claudeStatusLineFeedEnabled
         _ = self.copilotBudgetExtrasEnabled
         _ = self.showOptionalCreditsAndExtraUsage
         _ = self.claudeDailyRoutinesUsageVisible

@@ -7,6 +7,10 @@ public struct ClaudeSourcePlanningInput: Equatable, Sendable {
     public let hasWebSession: Bool
     public let hasCLI: Bool
     public let hasOAuthCredentials: Bool
+    /// Opt-in, off by default (owner ruling, #2733).
+    public let statusLineFeedEnabled: Bool
+    /// A fresh, profile-matched observation is on disk right now.
+    public let hasStatusLineObservation: Bool
 
     public init(
         runtime: ProviderRuntime,
@@ -14,7 +18,9 @@ public struct ClaudeSourcePlanningInput: Equatable, Sendable {
         webExtrasEnabled: Bool,
         hasWebSession: Bool,
         hasCLI: Bool,
-        hasOAuthCredentials: Bool)
+        hasOAuthCredentials: Bool,
+        statusLineFeedEnabled: Bool = false,
+        hasStatusLineObservation: Bool = false)
     {
         self.runtime = runtime
         self.selectedDataSource = selectedDataSource
@@ -22,6 +28,8 @@ public struct ClaudeSourcePlanningInput: Equatable, Sendable {
         self.hasWebSession = hasWebSession
         self.hasCLI = hasCLI
         self.hasOAuthCredentials = hasOAuthCredentials
+        self.statusLineFeedEnabled = statusLineFeedEnabled
+        self.hasStatusLineObservation = hasStatusLineObservation
     }
 }
 
@@ -33,6 +41,7 @@ public enum ClaudeSourcePlanReason: String, Equatable, Sendable {
     case appAutoFallbackWeb = "app-auto-fallback-web"
     case cliAutoPreferredWeb = "cli-auto-preferred-web"
     case cliAutoFallbackCLI = "cli-auto-fallback-cli"
+    case appAutoStatusLineFeed = "app-auto-statusline-feed"
 }
 
 public struct ClaudeFetchPlanStep: Equatable, Sendable {
@@ -74,7 +83,7 @@ public struct ClaudeFetchPlan: Equatable, Sendable {
             self.availableSteps.first
         case .oauth where self.input.runtime == .app:
             self.availableSteps.first
-        case .api, .oauth, .web, .cli:
+        case .api, .oauth, .web, .cli, .statusline:
             self.orderedSteps.first
         }
     }
@@ -83,7 +92,7 @@ public struct ClaudeFetchPlan: Equatable, Sendable {
         switch self.input.selectedDataSource {
         case .auto:
             self.availableSteps
-        case .api, .oauth, .web, .cli:
+        case .api, .oauth, .web, .cli, .statusline:
             self.orderedSteps
         }
     }
@@ -176,11 +185,17 @@ public enum ClaudeSourcePlanner {
         case .auto:
             switch input.runtime {
             case .app:
-                [
-                    self.step(.oauth, reason: .appAutoPreferredOAuth, input: input),
-                    self.step(.cli, reason: .appAutoFallbackCLI, input: input),
-                    self.step(.web, reason: .appAutoFallbackWeb, input: input),
-                ]
+                // Why: the opt-in feed must leave the plan byte-identical when it is off, so it is inserted
+                // rather than always present-but-unavailable — planner order is asserted directly by tests and
+                // surfaced in debug output.
+                [self.step(.oauth, reason: .appAutoPreferredOAuth, input: input)]
+                    + (input.statusLineFeedEnabled
+                        ? [self.step(.statusline, reason: .appAutoStatusLineFeed, input: input)]
+                        : [])
+                    + [
+                        self.step(.cli, reason: .appAutoFallbackCLI, input: input),
+                        self.step(.web, reason: .appAutoFallbackWeb, input: input),
+                    ]
             case .cli:
                 [
                     self.step(.web, reason: .cliAutoPreferredWeb, input: input),
@@ -203,6 +218,18 @@ public enum ClaudeSourcePlanner {
             [self.step(.web, reason: .explicitSourceSelection, input: input)]
         case .cli:
             [self.step(.cli, reason: .explicitSourceSelection, input: input)]
+        case .statusline:
+            // Not user-selectable; it only ever joins the Auto order. Reaching here means a config carried a
+            // value this build does not offer, so fall back to Auto's behaviour rather than stranding the card.
+            self.makeSteps(input: ClaudeSourcePlanningInput(
+                runtime: input.runtime,
+                selectedDataSource: .auto,
+                webExtrasEnabled: input.webExtrasEnabled,
+                hasWebSession: input.hasWebSession,
+                hasCLI: input.hasCLI,
+                hasOAuthCredentials: input.hasOAuthCredentials,
+                statusLineFeedEnabled: input.statusLineFeedEnabled,
+                hasStatusLineObservation: input.hasStatusLineObservation))
         }
     }
 
@@ -230,6 +257,8 @@ public enum ClaudeSourcePlanner {
             input.hasWebSession
         case .cli:
             input.hasCLI
+        case .statusline:
+            input.statusLineFeedEnabled && input.hasStatusLineObservation
         }
     }
 }

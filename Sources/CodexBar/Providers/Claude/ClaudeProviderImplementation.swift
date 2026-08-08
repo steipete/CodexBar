@@ -25,6 +25,7 @@ struct ClaudeProviderImplementation: ProviderImplementation {
         _ = settings.claudeOAuthKeychainPromptMode
         _ = settings.claudeOAuthKeychainReadStrategy
         _ = settings.claudeWebExtrasEnabled
+        _ = settings.claudeStatusLineFeedEnabled
         _ = settings.claudeSwapEnabled
         _ = settings.claudeSwapShowSingleAccount
         _ = settings.claudeSwapExecutablePath
@@ -66,6 +67,8 @@ struct ClaudeProviderImplementation: ProviderImplementation {
         case .oauth: .oauth
         case .web: .web
         case .cli: .cli
+        // Never user-selectable: the feed participates only inside Auto.
+        case .statusline: .auto
         }
     }
 
@@ -104,6 +107,20 @@ struct ClaudeProviderImplementation: ProviderImplementation {
                 actions: [],
                 isVisible: nil,
                 isEnabled: { context.settings.showOptionalCreditsAndExtraUsage },
+                onChange: nil,
+                onAppDidBecomeActive: nil,
+                onAppearWhenEnabled: nil),
+            ProviderSettingsToggleDescriptor(
+                id: "claude-statusline-feed",
+                title: "Read usage from your Claude statusLine",
+                subtitle: "Uses the rate limits Claude Code publishes to your own statusLine command, so the "
+                    + "card stays current between polls. Composes with OAuth/CLI and never replaces them. "
+                    + "Requires a statusLine helper you configure — see docs/claude-statusline-feed.md.",
+                binding: context.boolBinding(\.claudeStatusLineFeedEnabled),
+                statusText: nil,
+                actions: [],
+                isVisible: nil,
+                isEnabled: nil,
                 onChange: nil,
                 onAppDidBecomeActive: nil,
                 onAppearWhenEnabled: nil),
@@ -186,7 +203,7 @@ struct ClaudeProviderImplementation: ProviderImplementation {
                     ?? .onlyOnUserAction
             })
 
-        let usageOptions = ClaudeUsageDataSource.allCases.map {
+        let usageOptions = ClaudeUsageDataSource.userSelectableCases.map {
             ProviderSettingsPickerOption(id: $0.rawValue, title: $0.displayName)
         }
         let cookieOptions = ProviderCookieSourceUI.options(

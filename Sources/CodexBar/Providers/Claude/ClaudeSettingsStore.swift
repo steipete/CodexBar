@@ -14,6 +14,8 @@ extension SettingsStore {
             case .oauth: .oauth
             case .web: .web
             case .cli: .cli
+            // Never user-selectable: the feed participates only inside Auto, so persist Auto.
+            case .statusline: .auto
             }
             self.updateProviderConfig(provider: .claude) { entry in
                 entry.source = source
@@ -104,6 +106,7 @@ extension SettingsStore {
                 routing: routing,
                 hasSelectedAccount: account != nil),
             webExtrasEnabled: self.claudeWebExtrasEnabled,
+            statusLineFeedEnabled: self.claudeStatusLineFeedEnabled,
             cookieSource: self.claudeSnapshotCookieSource(tokenOverride: tokenOverride, routing: routing),
             manualCookieHeader: self.claudeSnapshotCookieHeader(
                 routing: routing,
