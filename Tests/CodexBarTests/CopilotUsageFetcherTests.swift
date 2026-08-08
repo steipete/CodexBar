@@ -370,6 +370,251 @@ struct CopilotUsageFetcherTests {
     }
 
     @Test
+    func `fetch renders a credit bar when a seat entitlement is configured`() async throws {
+        let transport = ProviderHTTPTransportStub { request in
+            let response = try HTTPURLResponse(
+                url: #require(request.url),
+                statusCode: 200,
+                httpVersion: "HTTP/1.1",
+                headerFields: ["Content-Type": "application/json"])!
+            let data = Data(
+                """
+                {
+                  "copilot_plan": "business",
+                  "token_based_billing": true,
+                  "quota_reset_date": "2026-09-01",
+                  "organization_login_list": ["example-org"],
+                  "quota_snapshots": {
+                    "premium_interactions": {
+                      "entitlement": 0, "remaining": 0, "percent_remaining": 100,
+                      "quota_id": "premium_interactions", "unlimited": true, "credits_used": 31
+                    }
+                  }
+                }
+                """.utf8)
+            return (data, response)
+        }
+
+        let usage = try await CopilotUsageFetcher(
+            token: "test-token-placeholder",
+            seatEntitlement: 3000,
+            transport: transport)
+            .fetch()
+
+        let row = try #require(usage.detailRow(id: CopilotCreditDetailRows.seatRowID))
+        #expect(row.label == "Credits used")
+        #expect(row.value == "31 / 3000")
+        #expect(row.progress?.used == 31)
+        #expect(row.progress?.total == 3000)
+        #expect(row.secondaryValue != nil)
+        // Regression guard for #1258: credits must not resurrect a fake quota bar.
+        #expect(usage.primary == nil)
+        #expect(usage.secondary == nil)
+    }
+
+    @Test
+    func `fetch renders seat credits as text when no entitlement is configured`() async throws {
+        // Isolates the `tokenBasedBilling` disjunct in the seat-row gate: credits_used is zero, no
+        // snapshot carries `unlimited`, and no seatEntitlement is configured, so tokenBasedBilling is
+        // the only thing that can make the gate true. A Business account reporting zero credits early
+        // in the billing month is a real, common state, and the seat row must still appear for it --
+        // that is this gate's entire purpose.
+        let transport = ProviderHTTPTransportStub { request in
+            let response = try HTTPURLResponse(
+                url: #require(request.url),
+                statusCode: 200,
+                httpVersion: "HTTP/1.1",
+                headerFields: ["Content-Type": "application/json"])!
+            let data = Data(
+                """
+                {
+                  "copilot_plan": "business",
+                  "token_based_billing": true,
+                  "quota_snapshots": {
+                    "premium_interactions": {
+                      "entitlement": 0, "remaining": 0, "percent_remaining": 100,
+                      "quota_id": "premium_interactions", "credits_used": 0
+                    }
+                  }
+                }
+                """.utf8)
+            return (data, response)
+        }
+
+        let usage = try await CopilotUsageFetcher(
+            token: "test-token-placeholder",
+            transport: transport)
+            .fetch()
+
+        let row = try #require(usage.detailRow(id: CopilotCreditDetailRows.seatRowID))
+        #expect(row.value == "0")
+        #expect(row.progress == nil)
+        #expect(usage.primary == nil)
+        #expect(usage.secondary == nil)
+    }
+
+    @Test
+    func `fetch omits seat credits for metered accounts reporting zero credits`() async throws {
+        // Regression guard: `credits_used: 0` on a NOT credit-billed snapshot must not grow a
+        // permanent, unremovable "0 credits used" row on Copilot Pro/Individual seats.
+        let transport = ProviderHTTPTransportStub { request in
+            let response = try HTTPURLResponse(
+                url: #require(request.url),
+                statusCode: 200,
+                httpVersion: "HTTP/1.1",
+                headerFields: ["Content-Type": "application/json"])!
+            let data = Data(
+                """
+                {
+                  "copilot_plan": "business",
+                  "token_based_billing": false,
+                  "quota_snapshots": {
+                    "premium_interactions": {
+                      "entitlement": 300, "remaining": 300, "percent_remaining": 100,
+                      "quota_id": "premium_interactions", "credits_used": 0
+                    }
+                  }
+                }
+                """.utf8)
+            return (data, response)
+        }
+
+        let usage = try await CopilotUsageFetcher(
+            token: "test-token-placeholder",
+            transport: transport)
+            .fetch()
+
+        #expect(usage.detailRow(id: CopilotCreditDetailRows.seatRowID) == nil)
+        // The metered bar itself is unaffected by the credits suppression.
+        #expect(usage.primary?.usedPercent == 0)
+    }
+
+    @Test
+    func `fetch retains seat credits for a metered account with positive credits`() async throws {
+        let transport = ProviderHTTPTransportStub { request in
+            let response = try HTTPURLResponse(
+                url: #require(request.url),
+                statusCode: 200,
+                httpVersion: "HTTP/1.1",
+                headerFields: ["Content-Type": "application/json"])!
+            let data = Data(
+                """
+                {
+                  "copilot_plan": "business",
+                  "token_based_billing": false,
+                  "quota_snapshots": {
+                    "premium_interactions": {
+                      "entitlement": 300, "remaining": 275, "percent_remaining": 91.67,
+                      "quota_id": "premium_interactions", "credits_used": 25
+                    }
+                  }
+                }
+                """.utf8)
+            return (data, response)
+        }
+
+        let usage = try await CopilotUsageFetcher(
+            token: "test-token-placeholder",
+            transport: transport)
+            .fetch()
+
+        #expect(usage.detailRow(id: CopilotCreditDetailRows.seatRowID)?.value == "25")
+        #expect(usage.primary != nil)
+    }
+
+    @Test
+    func `fetch retains seat credits for a metered account with a configured entitlement`() async throws {
+        let transport = ProviderHTTPTransportStub { request in
+            let response = try HTTPURLResponse(
+                url: #require(request.url),
+                statusCode: 200,
+                httpVersion: "HTTP/1.1",
+                headerFields: ["Content-Type": "application/json"])!
+            let data = Data(
+                """
+                {
+                  "copilot_plan": "business",
+                  "token_based_billing": false,
+                  "quota_snapshots": {
+                    "premium_interactions": {
+                      "entitlement": 300, "remaining": 300, "percent_remaining": 100,
+                      "quota_id": "premium_interactions", "credits_used": 0
+                    }
+                  }
+                }
+                """.utf8)
+            return (data, response)
+        }
+
+        let usage = try await CopilotUsageFetcher(
+            token: "test-token-placeholder",
+            seatEntitlement: 3000,
+            transport: transport)
+            .fetch()
+
+        let row = try #require(usage.detailRow(id: CopilotCreditDetailRows.seatRowID))
+        #expect(row.value == "0 / 3000")
+        #expect(row.progress?.total == 3000)
+    }
+
+    @Test
+    func `fetch omits credits when the payload has none`() async throws {
+        let transport = ProviderHTTPTransportStub { request in
+            let response = try HTTPURLResponse(
+                url: #require(request.url),
+                statusCode: 200,
+                httpVersion: "HTTP/1.1",
+                headerFields: ["Content-Type": "application/json"])!
+            let data = Data(
+                """
+                {
+                  "copilot_plan": "individual",
+                  "quota_snapshots": {
+                    "premium_interactions": {
+                      "entitlement": 300, "remaining": 150, "percent_remaining": 50,
+                      "quota_id": "premium_interactions"
+                    }
+                  }
+                }
+                """.utf8)
+            return (data, response)
+        }
+
+        let usage = try await CopilotUsageFetcher(
+            token: "test-token-placeholder",
+            transport: transport)
+            .fetch()
+
+        #expect(usage.detailRow(id: CopilotCreditDetailRows.seatRowID) == nil)
+        // Metered accounts keep their real bar.
+        #expect(usage.primary?.usedPercent == 50)
+    }
+
+    @Test
+    func `makeCreditDetails suppresses metered zero credit accounts without an entitlement`() {
+        let details = CopilotUsageFetcher.makeCreditDetails(
+            creditsUsed: 0,
+            seatEntitlement: nil,
+            tokenBasedBilling: false,
+            hasUnlimitedQuota: false,
+            resetsAt: nil)
+
+        #expect(details.isEmpty)
+    }
+
+    @Test
+    func `makeCreditDetails retains credits when the account has unlimited quota`() {
+        let details = CopilotUsageFetcher.makeCreditDetails(
+            creditsUsed: 0,
+            seatEntitlement: nil,
+            tokenBasedBilling: false,
+            hasUnlimitedQuota: true,
+            resetsAt: nil)
+
+        #expect(details.first?.rows.first?.id == CopilotCreditDetailRows.seatRowID)
+    }
+
+    @Test
     func `parseQuotaResetDate supports date only and ISO timestamps`() throws {
         let dateOnly = try #require(ISO8601DateFormatter().date(from: "2026-07-01T00:00:00Z"))
         let iso = try #require(ISO8601DateFormatter().date(from: "2026-07-01T08:30:45Z"))

@@ -108,6 +108,120 @@ struct CopilotMenuCardModelTests {
         #expect(premium.pacePercent == nil)
     }
 
+    private func makeModel(
+        details: [ProviderDetailSection],
+        showOptionalUsage: Bool = true,
+        now: Date = Date(timeIntervalSince1970: 0)) throws -> UsageMenuCardView.Model
+    {
+        let snapshot = UsageSnapshot(
+            primary: nil,
+            secondary: nil,
+            details: details,
+            updatedAt: now)
+        let metadata = try #require(ProviderDefaults.metadata[.copilot])
+        return UsageMenuCardView.Model.make(.init(
+            provider: .copilot,
+            metadata: metadata,
+            snapshot: snapshot,
+            credits: nil,
+            creditsError: nil,
+            dashboard: nil,
+            dashboardError: nil,
+            tokenSnapshot: nil,
+            tokenError: nil,
+            account: AccountInfo(email: nil, plan: nil),
+            isRefreshing: false,
+            lastError: nil,
+            usageBarsShowUsed: true,
+            resetTimeDisplayStyle: .countdown,
+            tokenCostUsageEnabled: false,
+            showOptionalCreditsAndExtraUsage: showOptionalUsage,
+            hidePersonalInfo: false,
+            now: now))
+    }
+
+    @Test
+    func `credit lane keeps its bar data when an entitlement is set`() throws {
+        let model = try self.makeModel(details: [
+            ProviderDetailSection(title: CopilotCreditDetailRows.sectionTitle, rows: [
+                Self.makeCreditRow(
+                    id: CopilotCreditDetailRows.seatRowID,
+                    value: "31 / 3000",
+                    progress: ProviderDetailSection.Row.Progress(used: 31, total: 3000)),
+            ]),
+        ])
+        let row = try #require(model.providerDetails.lazy.flatMap(\.rows)
+            .first { $0.id == CopilotCreditDetailRows.seatRowID })
+        #expect(row.label == "Credits used")
+        #expect(row.value == "31 / 3000")
+        #expect(row.progress?.used == 31)
+        #expect(row.progress?.total == 3000)
+    }
+
+    @Test
+    func `credit lane stays text only when no entitlement is set`() throws {
+        let model = try self.makeModel(details: [
+            ProviderDetailSection(title: CopilotCreditDetailRows.sectionTitle, rows: [
+                Self.makeCreditRow(
+                    id: CopilotCreditDetailRows.seatRowID,
+                    value: "31"),
+            ]),
+        ])
+        let row = try #require(model.providerDetails.lazy.flatMap(\.rows)
+            .first { $0.id == CopilotCreditDetailRows.seatRowID })
+        #expect(row.value == "31")
+        #expect(row.progress == nil)
+    }
+
+    @Test
+    func `org credit row title includes the org login`() throws {
+        let model = try self.makeModel(details: [
+            ProviderDetailSection(title: CopilotCreditDetailRows.sectionTitle, rows: [
+                Self.makeCreditRow(
+                    id: CopilotCreditDetailRows.orgRowID,
+                    label: "Org credits (acme-corp)",
+                    value: "81 / 6000",
+                    progress: ProviderDetailSection.Row.Progress(used: 81, total: 6000)),
+            ]),
+        ])
+        let row = try #require(model.providerDetails.lazy.flatMap(\.rows)
+            .first { $0.id == CopilotCreditDetailRows.orgRowID })
+        #expect(row.label == "Org credits (acme-corp)")
+    }
+
+    @Test
+    func `credit rows are absent without credit data`() throws {
+        let model = try self.makeModel(details: [])
+        #expect(model.providerDetails.flatMap(\.rows).contains { $0.id?.hasSuffix("-credits") == true } == false)
+    }
+
+    @Test
+    func `credit rows render even when optional extra usage is disabled`() throws {
+        // Regression guard: Copilot credit rows are core data (GitHub bills some accounts by
+        // credit, not by rate window) and must not be swallowed by the optional-usage policy
+        // that gates optional detail sections.
+        let model = try self.makeModel(
+            details: [
+                ProviderDetailSection(title: CopilotCreditDetailRows.sectionTitle, rows: [
+                    Self.makeCreditRow(
+                        id: CopilotCreditDetailRows.seatRowID,
+                        value: "31 / 3000",
+                        progress: ProviderDetailSection.Row.Progress(used: 31, total: 3000)),
+                ]),
+            ],
+            showOptionalUsage: false)
+        #expect(model.providerDetails.flatMap(\.rows).contains { $0.id == CopilotCreditDetailRows.seatRowID })
+    }
+
+    private static func makeCreditRow(
+        id: String,
+        label: String = "Credits used",
+        value: String,
+        progress: ProviderDetailSection.Row.Progress? = nil) throws -> ProviderDetailSection.Row
+    {
+        try ProviderDetailSection.Row(id: id, label: label, value: value, progress: progress)
+    }
+
     private static func model(snapshot: UsageSnapshot, now: Date) throws -> UsageMenuCardView.Model {
         let metadata = try #require(ProviderDefaults.metadata[.copilot])
         return UsageMenuCardView.Model.make(.init(

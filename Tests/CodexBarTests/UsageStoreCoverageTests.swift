@@ -356,6 +356,51 @@ struct UsageStoreCoverageTests {
     }
 
     @Test
+    func `clearing copilot org credits syncs reset baseline`() {
+        let settings = Self.makeSettingsStore(suite: "UsageStoreCoverageTests-copilot-org-credits-clear")
+        let store = Self.makeUsageStore(settings: settings)
+        let live = Self.makeCopilotSnapshot(usedPercent: 20, extraRateWindows: nil, details: [
+            Self.makeCopilotCreditsSection(seatValue: "31 / 3000", orgValue: "81 / 6000"),
+        ])
+        let resetBaseline = Self.makeCopilotSnapshot(usedPercent: 10, extraRateWindows: nil, details: [
+            Self.makeCopilotCreditsSection(seatValue: "20 / 3000", orgValue: "40 / 6000"),
+        ])
+        store._setSnapshotForTesting(live, provider: .copilot)
+        store.lastKnownResetSnapshots[.copilot] = resetBaseline
+
+        store.clearCopilotOrgCredits()
+
+        #expect(store.snapshot(for: .copilot)?.detailRow(id: CopilotCreditDetailRows.orgRowID) == nil)
+        #expect(store.snapshot(for: .copilot)?.detailRow(id: CopilotCreditDetailRows.seatRowID)?.value == "31 / 3000")
+        #expect(store.lastKnownResetSnapshots[.copilot]?.detailRow(id: CopilotCreditDetailRows.orgRowID) == nil)
+        #expect(store.lastKnownResetSnapshots[.copilot]?.detailRow(id: CopilotCreditDetailRows.seatRowID)?
+            .value == "31 / 3000")
+    }
+
+    @Test
+    func `clearing copilot org credits also clears stale reset baseline`() {
+        let settings = Self.makeSettingsStore(suite: "UsageStoreCoverageTests-copilot-org-credits-reset-clear")
+        let store = Self.makeUsageStore(settings: settings)
+        let live = Self.makeCopilotSnapshot(usedPercent: 20, extraRateWindows: nil, details: [
+            Self.makeCopilotCreditsSection(seatValue: "31 / 3000", orgValue: nil),
+        ])
+        let resetBaseline = Self.makeCopilotSnapshot(usedPercent: 10, extraRateWindows: nil, details: [
+            Self.makeCopilotCreditsSection(seatValue: "20 / 3000", orgValue: "40 / 6000"),
+        ])
+        store._setSnapshotForTesting(live, provider: .copilot)
+        store.lastKnownResetSnapshots[.copilot] = resetBaseline
+
+        store.clearCopilotOrgCredits()
+
+        // The live snapshot already had no org row, so it is untouched...
+        #expect(store.snapshot(for: .copilot)?.detailRow(id: CopilotCreditDetailRows.seatRowID)?.value == "31 / 3000")
+        // ...but the stale reset baseline's org row must not survive either.
+        #expect(store.lastKnownResetSnapshots[.copilot]?.detailRow(id: CopilotCreditDetailRows.orgRowID) == nil)
+        #expect(store.lastKnownResetSnapshots[.copilot]?.detailRow(id: CopilotCreditDetailRows.seatRowID)?
+            .value == "20 / 3000")
+    }
+
+    @Test
     func `permission prompt errors are detected for notifications`() {
         let errors: [LocalizedTestError] = [
             LocalizedTestError("Waiting for folder trust prompt"),
@@ -1117,13 +1162,34 @@ extension UsageStoreCoverageTests {
 
     private static func makeCopilotSnapshot(
         usedPercent: Double,
-        extraRateWindows: [NamedRateWindow]?) -> UsageSnapshot
+        extraRateWindows: [NamedRateWindow]?,
+        details: [ProviderDetailSection] = []) -> UsageSnapshot
     {
         UsageSnapshot(
             primary: RateWindow(usedPercent: usedPercent, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
             secondary: nil,
             extraRateWindows: extraRateWindows,
+            details: details,
             updatedAt: Date(timeIntervalSince1970: 1_780_358_400))
+    }
+
+    private static func makeCopilotCreditsSection(
+        seatValue: String,
+        orgValue: String?) -> ProviderDetailSection
+    {
+        var rows = [
+            ProviderDetailSection.Row.makeRow(
+                id: CopilotCreditDetailRows.seatRowID,
+                label: "Credits used",
+                value: seatValue),
+        ]
+        if let orgValue {
+            rows.append(ProviderDetailSection.Row.makeRow(
+                id: CopilotCreditDetailRows.orgRowID,
+                label: "Org credits (example-org)",
+                value: orgValue))
+        }
+        return ProviderDetailSection.makeSection(title: CopilotCreditDetailRows.sectionTitle, rows: rows)
     }
 
     private static func makeCopilotBudgetWindow() -> NamedRateWindow {
