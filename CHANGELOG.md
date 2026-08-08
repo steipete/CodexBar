@@ -19,6 +19,7 @@
 - Codex: cost history now lives in a single SQLite store — bounded memory at any corpus size, append-linear catch-up, and no more multi-hundred-MB JSON decode on refresh (#2760). Thanks @xx205 for the accumulator design!
 - CLI: dashboard snapshot identity now defaults to full; use `--identity redacted` to restore redacted emails.
 - Provider plugins: run the same bundled JavaScript providers and local plugin CLI on Linux through a sandboxed QuickJS engine, removing the cut-over providers' Linux-only Swift twins.
+- Provider plugins: use QuickJS on every platform with byte-identical output and hard interruption for hung scripts; Apple builds retain JavaScriptCore as an explicit rollback engine.
 
 ### Fixed
 - CLI: claude-swap accounts with expired or missing credentials now keep their email on the serve dashboard instead of showing a bare slot number.

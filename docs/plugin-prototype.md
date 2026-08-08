@@ -1,5 +1,5 @@
 ---
-summary: "JavaScriptCore provider-plugin prototype API, safety boundary, enablement, and limitations."
+summary: "JavaScript provider-plugin prototype API, engine benchmark, safety boundary, enablement, and limitations."
 read_when:
   - Working on the JavaScript provider prototype
   - Converting a first-party provider to a bundled JavaScript resource
@@ -17,9 +17,10 @@ system: IDs remain compile-time `UsageProvider` cases and scripts ship inside Co
 ClawRouter, Deepgram, sub2api, Synthetic, Poe, xAI, and z.ai use the same bundled script on Apple platforms and Linux;
 their native fetch twins have been removed.
 
-The runtime selects JavaScriptCore by default on Apple platforms and QuickJS on Linux. Set
-`CODEXBAR_PLUGIN_ENGINE=quickjs` on macOS to exercise QuickJS locally. QuickJS uses a 20-second in-engine interrupt
-watchdog, a 64 MiB heap limit, and a 2 MiB JavaScript stack limit; JavaScriptCore retains the existing worker behavior.
+The runtime selects QuickJS on every platform. QuickJS uses a 20-second in-engine interrupt watchdog, a 64 MiB heap
+limit, and a 2 MiB JavaScript stack limit. On Apple platforms, set `CODEXBAR_PLUGIN_ENGINE=jsc` or enable the
+JavaScriptCore rollback in **Settings → Debug → Provider Plugins** and restart CodexBar. An explicit engine environment
+value overrides the persisted Debug setting. JavaScriptCore remains in-tree for rollback and A/B drift detection.
 
 ## Engine benchmark
 
@@ -131,9 +132,9 @@ Cookie plugins omit `auth`, declare `capabilities: ["browser-cookies"]`, and lis
 
 ## `ctx` reference
 
-`ctx` exists only as the argument to `fetchUsage`; it is not a global. JavaScriptCore supplies standard ECMAScript
-built-ins, but no browser or Node host environment. Tests assert that `fetch`, `XMLHttpRequest`, `setTimeout`, and
-`setInterval` are undefined.
+`ctx` exists only as the argument to `fetchUsage`; it is not a global. QuickJS and the JavaScriptCore rollback engine
+supply standard ECMAScript built-ins, but no browser or Node host environment. Tests assert that `fetch`,
+`XMLHttpRequest`, `setTimeout`, and `setInterval` are undefined.
 
 - `await ctx.http.getJSON(url, opts?)` performs a GET and returns `{status, headers, json}`.
 - `await ctx.http.get(url, opts?)` performs a GET and returns `{status, headers, bodyText}`.
@@ -212,18 +213,17 @@ bound violation fails the entire fetch with its property path.
 
 ## Concurrency and execution limit
 
-Each runtime owns one `JSContext` confined to a dedicated serial dispatch queue; `JSContext` and every `JSValue` remain
-on that executor. Promise `then`/rejection callbacks converge on a lock-protected checked continuation gate, so network,
-timeout, and script completion can resume Swift exactly once. The exported `JSContextGroupSetExecutionTimeLimit` symbol
-has no declaration in the public macOS JavaScriptCore headers, so the prototype does not bind that private SPI.
+Each runtime owns one engine context confined to a dedicated serial dispatch queue. Promise `then`/rejection callbacks
+converge on a lock-protected checked continuation gate, so network, timeout, and script completion can resume Swift
+exactly once. QuickJS's `JS_SetInterruptHandler` stops evaluation on that executor when the 20-second watchdog fires;
+the poisoned context is discarded and the next refresh creates a fresh one, which the hung-script recovery test proves.
 
-Instead, a 20-second wall-clock watchdog fails the refresh and discards the poisoned worker; the next refresh creates a
-new context on a fresh executor, which the hung-script recovery test proves. This keeps refresh callers responsive but
-cannot interrupt the abandoned JavaScriptCore thread, which may remain alive until process exit. A production plugin
-runtime needs a public interrupt API or a killable helper-process boundary before accepting untrusted scripts.
-
-The same watchdog is production-default for first-party cut-over providers. It is part of the shared runtime, not the
-prototype flag, so cut-over providers retain timeout and fresh-context recovery without `CODEXBAR_JS_PROVIDERS`.
+The same hard-interrupt watchdog is production-default for first-party cut-over providers. It is part of the shared
+runtime, not the prototype flag, so cut-over providers retain timeout and fresh-context recovery without
+`CODEXBAR_JS_PROVIDERS`. The Apple-only JavaScriptCore rollback still uses a `JSContext` and `JSValue` objects confined
+to its executor. The exported `JSContextGroupSetExecutionTimeLimit` symbol has no declaration in public macOS headers,
+so the rollback path does not bind that private SPI: its watchdog returns to the caller and discards the poisoned
+context, but it cannot interrupt the abandoned JavaScriptCore thread, which may remain alive until process exit.
 
 ## Current limitations
 

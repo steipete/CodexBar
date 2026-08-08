@@ -674,6 +674,8 @@
 "copyright" = "© 2026 Peter Steinberger. Lisensi MIT.";
 
 /* Debug Pane */
+"use_javascriptcore_plugin_engine" = "Gunakan JavaScriptCore untuk plugin penyedia";
+"use_javascriptcore_plugin_engine_subtitle" = "Hanya untuk rollback kompatibilitas. Mulai ulang CodexBar untuk menerapkan; CODEXBAR_PLUGIN_ENGINE mengganti pengaturan ini.";
 "section_logging" = "Pencatatan";
 "enable_file_logging" = "Aktifkan pencatatan file";
 "enable_file_logging_subtitle" = "Tulis log ke %@ untuk debugging.";

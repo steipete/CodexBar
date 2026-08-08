@@ -7,6 +7,40 @@ import Testing
 
 struct ProviderPluginRuntimeTests {
     @Test
+    func `automatic engine defaults to QuickJS`() {
+        #expect(ProviderPluginRuntime.resolveEngineKind(
+            .automatic,
+            environment: [:],
+            useJavaScriptCoreRollback: false) == .quickJS)
+    }
+
+    @Test
+    func `explicit engine selection bypasses automatic policy`() {
+        #expect(ProviderPluginRuntime.resolveEngineKind(
+            .quickJS,
+            environment: [ProviderPluginRuntime.engineEnvironmentKey: "jsc"],
+            useJavaScriptCoreRollback: true) == .quickJS)
+    }
+
+    #if canImport(JavaScriptCore)
+    @Test
+    func `JavaScriptCore rollback supports environment and debug defaults`() {
+        #expect(ProviderPluginRuntime.resolveEngineKind(
+            .automatic,
+            environment: [ProviderPluginRuntime.engineEnvironmentKey: "jsc"],
+            useJavaScriptCoreRollback: false) == .javaScriptCore)
+        #expect(ProviderPluginRuntime.resolveEngineKind(
+            .automatic,
+            environment: [:],
+            useJavaScriptCoreRollback: true) == .javaScriptCore)
+        #expect(ProviderPluginRuntime.resolveEngineKind(
+            .automatic,
+            environment: [ProviderPluginRuntime.engineEnvironmentKey: "quickjs"],
+            useJavaScriptCoreRollback: true) == .quickJS)
+    }
+    #endif
+
+    @Test
     func `missing resource bundle throws a provider load error`() {
         #expect(throws: ProviderPluginError.load(CodexBarCoreResources.missingBundleMessage)) {
             _ = try ProviderPluginRuntime(bundledPlugin: "openrouter", resourceBundle: nil)
