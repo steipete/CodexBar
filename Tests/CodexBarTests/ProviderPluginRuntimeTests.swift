@@ -26,6 +26,18 @@ struct ProviderPluginRuntimeTests {
     }
 
     @Test
+    func `date nowMillis uses the injected fetch clock`() async throws {
+        let expected = Date(timeIntervalSince1970: 1_800_000_000)
+        let runtime = try ProviderPluginRuntime(source: Self.plugin(fetchBody: """
+        return { primary: { usedPercent: 1, resetDescription: String(ctx.date.nowMillis()) } };
+        """))
+
+        let snapshot = try await runtime.fetchUsage(secrets: ["TEST_KEY": "test-key"], now: expected)
+
+        #expect(snapshot.primary?.resetDescription == "1800000000000")
+    }
+
+    @Test
     func `context exposes no browser or timer globals`() throws {
         let runtime = try ProviderPluginRuntime(source: Self.plugin())
 

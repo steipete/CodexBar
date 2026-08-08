@@ -155,6 +155,7 @@
   delete ctx.__codexbarNowMillis;
   ctx.date = Object.freeze({
     now() { return parseDate(nowMillis); },
+    nowMillis() { return nowMillis; },
     iso(value) { return parseDate(String(value)); },
     unixSeconds(value) { return parseDate(Number(value) * 1000); },
     unixMillis(value) { return parseDate(Number(value)); },
