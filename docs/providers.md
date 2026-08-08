@@ -74,6 +74,7 @@ scan fails, while provider/account configuration changes replace obsolete result
 | Abacus AI | Browser cookies → compute points + billing API (`web`). |
 | Mistral | Console billing, credit balance, and Vibe subscription usage via browser cookies (`web`). |
 | DeepSeek | API key from env or token accounts → balance endpoint (`api`). |
+| Fireworks | API key + account slug → 30-day spend from the billing summary API (`api`). |
 | DeepInfra | API key from env or token accounts → billing checklist + monthly usage endpoints (`api`). |
 | Moonshot | API key from config/env → balance endpoint (`api`). |
 | Codebuff | API token from config/env or `codebuff login` credentials → usage API (`api`). |

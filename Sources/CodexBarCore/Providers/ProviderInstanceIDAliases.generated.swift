@@ -15,6 +15,7 @@ extension ProviderInstanceID {
     public static let alibabatokenplan = UsageProvider.alibabatokenplan.instanceID
     public static let qwencloud = UsageProvider.qwencloud.instanceID
     public static let factory = UsageProvider.factory.instanceID
+    public static let fireworks = UsageProvider.fireworks.instanceID
     public static let gemini = UsageProvider.gemini.instanceID
     public static let antigravity = UsageProvider.antigravity.instanceID
     public static let copilot = UsageProvider.copilot.instanceID

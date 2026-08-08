@@ -18,6 +18,7 @@ enum ProviderImplementationManifest {
         { AlibabaTokenPlanProviderImplementation() },
         { QwenCloudProviderImplementation() },
         { FactoryProviderImplementation() },
+        { FireworksProviderImplementation() },
         { GeminiProviderImplementation() },
         { AntigravityProviderImplementation() },
         { CopilotProviderImplementation() },

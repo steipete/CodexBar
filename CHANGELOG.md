@@ -36,6 +36,8 @@
 ## 0.48.0 — 2026-08-06
 
 ### Added
+- Fireworks: new provider showing 30-day spend from the account billing summary API, with Settings fields for the API key and account slug (Fireworks has no whoami endpoint and no public balance API).
+- CLI: expose Codex cost-history completeness in JSON and add an experimental provider-native-only scan mode (#2520). Thanks @NickGuAI!
 - CLI: add a built-in auto-refreshing web dashboard at `/` to `codexbar serve`.
 - CLI: the serve web dashboard renders per-account sections for claude-swap providers, and `codexbar serve --identity full` opts authorized dashboard clients into real account emails on trusted, private networks.
 - CLI: the serve web dashboard gains daily spend bar charts from local cost history, real provider brand icons served from an embedded `/icons/` route, and a grouped vertical layout — multi-account providers render one card per account under a titled section.
