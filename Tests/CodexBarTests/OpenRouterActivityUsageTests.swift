@@ -131,6 +131,9 @@ struct OpenRouterActivityUsageTests {
             startupBehavior: .testing,
             environmentBase: [:])
         store.publishTokenSnapshot(activity.toCostUsageTokenSnapshot(), for: .openrouter)
+        settings.costUsageHistoryDays = 365
+
+        #expect(store.tokenSnapshotPublicationForCurrentProviderConfig(for: .openrouter) == nil)
 
         let preserved = store.preservingOpenRouterActivityIfCurrent(current, previous: previous)
         #expect(preserved.openRouterActivityUsage == activity)

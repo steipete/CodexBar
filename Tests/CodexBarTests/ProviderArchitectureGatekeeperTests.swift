@@ -3062,7 +3062,7 @@ struct ProviderArchitectureGatekeeperTests {
         AllowedProviderConstruct(
             path: "Sources/CodexBar/UsageStore+TokenCost.swift",
             line: 512,
-            anchor: "self.tokenSnapshotPublicationForCurrentProviderConfig(for: .openrouter)?.snapshot != nil,",
+            anchor: "self.tokenSnapshotPublicationForCurrentCredentialScope(for: .openrouter)?.snapshot != nil,",
             expectedProviderIDs: ["openrouter"],
             expectedReferenceCount: 1,
             expectedReferenceFingerprint: ["openrouter@0"],

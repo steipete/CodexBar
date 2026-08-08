@@ -509,9 +509,21 @@ extension UsageStore {
         previous: UsageSnapshot?) -> UsageSnapshot
     {
         guard snapshot.openRouterActivityUsage == nil,
-              self.tokenSnapshotPublicationForCurrentProviderConfig(for: .openrouter)?.snapshot != nil,
+              self.tokenSnapshotPublicationForCurrentCredentialScope(for: .openrouter)?.snapshot != nil,
               let activity = previous?.openRouterActivityUsage
         else { return snapshot }
         return snapshot.withOpenRouterActivityUsage(activity)
+    }
+
+    private func tokenSnapshotPublicationForCurrentCredentialScope(
+        for provider: UsageProvider) -> TokenSnapshotPublication?
+    {
+        guard let publication = self.tokenSnapshotPublications[provider.instanceID],
+              publication.providerConfigRevision == self.settings.providerConfigRevision(for: provider),
+              publication.scopeSignature == self.tokenSnapshotScopeSignature(
+                  for: provider,
+                  historyDays: publication.historyDays)
+        else { return nil }
+        return publication
     }
 }
