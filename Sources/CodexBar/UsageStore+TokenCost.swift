@@ -519,10 +519,7 @@ extension UsageStore {
         for provider: UsageProvider) -> TokenSnapshotPublication?
     {
         guard let publication = self.tokenSnapshotPublications[provider.instanceID],
-              publication.providerConfigRevision == self.settings.providerConfigRevision(for: provider),
-              publication.scopeSignature == self.tokenSnapshotScopeSignature(
-                  for: provider,
-                  historyDays: publication.historyDays)
+              publication.providerConfigRevision == self.settings.providerConfigRevision(for: provider)
         else { return nil }
         return publication
     }
