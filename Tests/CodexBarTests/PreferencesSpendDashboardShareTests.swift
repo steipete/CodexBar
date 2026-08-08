@@ -3,6 +3,7 @@ import Foundation
 import Testing
 @testable import CodexBar
 
+@MainActor
 struct PreferencesSpendDashboardShareTests {
     @Test
     func `settings share includes every tracked provider once even without cost history`() throws {
