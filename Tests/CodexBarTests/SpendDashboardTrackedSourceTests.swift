@@ -54,7 +54,7 @@ struct SpendDashboardTrackedSourceTests {
         #expect(rows[.gemini]?.state == .needsAttention)
         #expect(rows[.openrouter]?.state == .awaitingUsage)
         #expect(rows[.openrouter]?.supportsCostHistory == true)
-        #expect(rows.values.filter(\.contributesCostHistory).map(\.provider) == [.cursor])
+        #expect(Set(rows.values.filter(\.contributesCostHistory).map(\.provider)) == [.cursor, .openrouter])
     }
 
     @Test
