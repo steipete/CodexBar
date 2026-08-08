@@ -4,6 +4,7 @@ extension StatusItemController {
             "enabled=\(self.store.enabledProvidersForDisplay().map(\.rawValue).joined(separator: ","))",
             "showUsed=\(self.settings.usageBarsShowUsed ? "1" : "0")",
             "optional=\(self.settings.showOptionalCreditsAndExtraUsage ? "1" : "0")",
+            "claudeScopedWeekly=\(self.settings.claudeModelScopedWeeklyUsageVisible ? "1" : "0")",
         ].joined(separator: "|")
     }
 

@@ -672,6 +672,14 @@ extension SettingsStore {
         }
     }
 
+    var claudeModelScopedWeeklyUsageVisible: Bool {
+        get { self.defaultsState.claudeModelScopedWeeklyUsageVisible }
+        set {
+            self.defaultsState.claudeModelScopedWeeklyUsageVisible = newValue
+            self.userDefaults.set(newValue, forKey: "claudeModelScopedWeeklyUsageVisible")
+        }
+    }
+
     var codexSparkUsageVisible: Bool {
         get { self.defaultsState.codexSparkUsageVisible }
         set {

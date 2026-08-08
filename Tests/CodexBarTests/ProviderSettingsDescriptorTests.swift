@@ -345,6 +345,26 @@ struct ProviderSettingsDescriptorTests {
     }
 
     @Test
+    func `claude model scoped widget usage toggle is default off and independent`() throws {
+        let fixture = try self.makeSettingsFixture(suite: "ProviderSettingsDescriptorTests-claude-model-scoped-widget")
+        let context = fixture.settingsContext(provider: .claude)
+        let toggles = ClaudeProviderImplementation().settingsToggles(context: context)
+        let widgetToggle = try #require(toggles.first {
+            $0.id == "claude-model-scoped-weekly-usage-visible"
+        })
+
+        #expect(widgetToggle.binding.wrappedValue == false)
+        #expect(widgetToggle.isEnabled == nil)
+        #expect(widgetToggle.subtitle.contains("Fable"))
+
+        widgetToggle.binding.wrappedValue = true
+        #expect(fixture.settings.claudeModelScopedWeeklyUsageVisible)
+
+        fixture.settings.showOptionalCreditsAndExtraUsage = false
+        #expect(widgetToggle.isEnabled == nil)
+    }
+
+    @Test
     func `claude single swap account toggle persists and follows integration visibility`() throws {
         let fixture = try self.makeSettingsFixture(suite: "ProviderSettingsDescriptorTests-claude-swap-single")
         let context = fixture.settingsContext(provider: .claude)
