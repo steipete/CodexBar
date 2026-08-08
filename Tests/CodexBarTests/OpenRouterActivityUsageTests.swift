@@ -254,8 +254,9 @@ struct OpenRouterActivityUsageTests {
         body: String,
         statusCode: Int = 200) throws -> (Data, URLResponse)
     {
+        let url = try #require(request.url)
         let response = try #require(try HTTPURLResponse(
-            url: #require(request.url),
+            url: url,
             statusCode: statusCode,
             httpVersion: "HTTP/1.1",
             headerFields: ["Content-Type": "application/json"]))

@@ -404,7 +404,7 @@ struct SettingsStoreTests {
             .gemini,
             .grok,
         ]
-        let expectedProviders: [UsageProvider] = [.opencode, .codex, .claude, .cursor, .warp, .gemini]
+        let expectedProviders: [UsageProvider] = [.opencode, .codex, .claude, .cursor, .warp, .gemini, .grok]
         #expect(storeA.mergedOverviewSelectedProviders == expectedProviders)
 
         let defaultsB = try #require(UserDefaults(suiteName: suite))
