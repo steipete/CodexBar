@@ -201,7 +201,7 @@ struct OpenRouterActivityUsageTests {
         #expect(usage.detailRow(label: "Remaining")?.value == "$60.00")
     }
 
-    private static let now = Date(timeIntervalSince1970: 1_785_974_400) // 2026-08-07 00:00:00 UTC
+    private static let now = Date(timeIntervalSince1970: 1_786_060_800) // 2026-08-07 00:00:00 UTC
 
     private static let activityFixture = #"""
     {
