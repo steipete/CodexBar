@@ -55,7 +55,7 @@ Copilot uses GitHub OAuth device flow and the Copilot internal usage API for pri
 4) **Organization AI credit usage** (optional, opt-in, best-effort)
    - Disabled by default. The Copilot provider's "Organization AI credits" setting must be enabled, and the seat's
      usage fetch must already have resolved an `organization_login_list` entry, before CodexBar calls this endpoint.
-   - `GET https://api.github.com/orgs/{org}/settings/billing/ai_credit/usage`
+   - `GET https://api.github.com/organizations/{org}/settings/billing/ai_credit/usage`
    - With an enterprise host, the API host is `api.<enterpriseHost>`.
    - Headers:
      - `Authorization: token <github_oauth_token>`
@@ -65,8 +65,9 @@ Copilot uses GitHub OAuth device flow and the Copilot internal usage API for pri
      org billing access is the common case, not an edge case. Every failure path (network error, non-200 status,
      malformed JSON) logs a `Copilot org credits unavailable` warning and returns `nil`, leaving the rest of the
      Copilot card unaffected.
-   - `usageItems` are summed after filtering to `unitType == "ai-credits"`, so an unrelated line item on this
-     endpoint cannot silently inflate the total.
+   - `usageItems` are summed after filtering to a credit `unitType` (`"credits"` per the organization-report
+     docs, `"ai-credits"` per the user-level docs and live organization responses), so an unrelated line item on
+     this endpoint cannot silently inflate the total.
 
 ## Snapshot mapping
 - Primary: `quotaSnapshots.premiumInteractions` percent remaining → used percent.

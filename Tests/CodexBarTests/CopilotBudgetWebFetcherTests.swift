@@ -663,7 +663,7 @@ struct CopilotBudgetWebFetcherTests {
                     }
                     """.utf8))
             }
-            if url.host == "api.github.com", url.path == "/orgs/example-org/settings/billing/ai_credit/usage" {
+            if url.host == "api.github.com", url.path == "/organizations/example-org/settings/billing/ai_credit/usage" {
                 return Self.stubResponse(
                     url: url,
                     data: Data(#"{"usageItems":[{"unitType":"ai-credits","grossQuantity":81.1}]}"#.utf8))
@@ -735,7 +735,7 @@ struct CopilotBudgetWebFetcherTests {
                     }
                     """.utf8))
             }
-            if url.host == "api.github.com", url.path == "/orgs/example-org/settings/billing/ai_credit/usage" {
+            if url.host == "api.github.com", url.path == "/organizations/example-org/settings/billing/ai_credit/usage" {
                 // Most tokens do not have org billing access -- this is the common real-world case.
                 return Self.stubResponse(
                     url: url,
@@ -764,7 +764,7 @@ struct CopilotBudgetWebFetcherTests {
         #expect(result.usage.detailRow(id: CopilotCreditDetailRows.orgRowID) == nil)
         // The rejection must be a real best-effort miss, not a guard that quietly skipped the call.
         #expect(CopilotBudgetBindingStubURLProtocol.requests().contains {
-            $0.url?.path == "/orgs/example-org/settings/billing/ai_credit/usage"
+            $0.url?.path == "/organizations/example-org/settings/billing/ai_credit/usage"
         })
     }
 
@@ -822,7 +822,7 @@ struct CopilotBudgetWebFetcherTests {
         #expect(result.usage.detailRow(id: CopilotCreditDetailRows.seatRowID)?.value == "31 / 3000")
         #expect(result.usage.detailRow(id: CopilotCreditDetailRows.orgRowID) == nil)
         #expect(CopilotBudgetBindingStubURLProtocol.requests().allSatisfy {
-            $0.url?.path != "/orgs/example-org/settings/billing/ai_credit/usage"
+            $0.url?.path != "/organizations/example-org/settings/billing/ai_credit/usage"
         })
     }
 
@@ -889,9 +889,9 @@ final class CopilotBudgetBindingStubURLProtocol: URLProtocol {
              ("github.com", "/settings/billing/budgets"):
             return true
         default:
-            // Org AI-credit billing usage, e.g. /orgs/example-org/settings/billing/ai_credit/usage.
+            // Org AI-credit billing usage, e.g. /organizations/example-org/settings/billing/ai_credit/usage.
             return host == "api.github.com"
-                && path.hasPrefix("/orgs/")
+                && path.hasPrefix("/organizations/")
                 && path.hasSuffix("/settings/billing/ai_credit/usage")
         }
     }

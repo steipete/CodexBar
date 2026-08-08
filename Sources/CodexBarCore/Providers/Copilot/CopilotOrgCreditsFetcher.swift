@@ -11,9 +11,9 @@ public struct CopilotOrgCreditsFetcher: Sendable {
     struct UsageReport: Decodable {
         struct Item: Decodable {
             let grossQuantity: Double?
-            /// The endpoint is credit-scoped today, but future line items could carry another unit.
-            /// Only "ai-credits" items are summed, so an unrelated unit type cannot silently inflate
-            /// the total.
+            /// GitHub's docs show `unitType: "credits"` for organization reports and `"ai-credits"`
+            /// for user-level reports, and live org responses have been observed with `"ai-credits"`.
+            /// Both spellings are summed; an unrelated unit type cannot silently inflate the total.
             let unitType: String?
         }
 
@@ -40,17 +40,21 @@ public struct CopilotOrgCreditsFetcher: Sendable {
         else { return nil }
         return CopilotDeviceFlow.makeRequestURL(
             host: CopilotUsageFetcher.apiHost(enterpriseHost: enterpriseHost),
-            path: "/orgs/\(encoded)/settings/billing/ai_credit/usage")
+            path: "/organizations/\(encoded)/settings/billing/ai_credit/usage")
     }
 
     /// `.urlPathAllowed` leaves `/` unescaped since it is meant for encoding a full multi-segment
     /// path. `org` is a single path segment, so `/` must be escaped here too, or an org value such
-    /// as `"../../repos/x"` would traverse outside `/orgs/<org>/...` on the request host.
+    /// as `"../../repos/x"` would traverse outside `/organizations/<org>/...` on the request host.
     private static let orgSegmentAllowedCharacters: CharacterSet = {
         var allowed = CharacterSet.urlPathAllowed
         allowed.remove(charactersIn: "/")
         return allowed
     }()
+
+    /// Unit-type spellings observed for AI-credit line items: `"credits"` per GitHub's organization
+    /// report docs, `"ai-credits"` per the user-level docs and live organization responses.
+    private static let creditUnitTypes: Set<String> = ["credits", "ai-credits"]
 
     /// Total AI credits consumed by the organization this billing period, or `nil` when unavailable.
     public func fetchCreditsUsed(org: String) async -> Double? {
@@ -92,15 +96,15 @@ public struct CopilotOrgCreditsFetcher: Sendable {
             return 0
         }
 
-        let creditItems = report.usageItems.filter { $0.unitType == "ai-credits" }
+        let creditItems = report.usageItems.filter { Self.creditUnitTypes.contains($0.unitType ?? "") }
         guard !creditItems.isEmpty else {
-            // Usage items came back, but none matched the expected unit type -- that is data we
+            // Usage items came back, but none matched a known credit unit type -- that is data we
             // could not interpret, not zero usage. If GitHub ever changes the unit-type spelling,
             // returning 0 here would render a fabricated "0 credits used" (or a fabricated 0% bar
             // against a configured entitlement) instead of surfacing the unrecognized response.
             CodexBarLog.logger(LogCategories.providers).warning(
                 "Copilot org credits unavailable",
-                metadata: ["error": "no usage items matched unitType ai-credits"])
+                metadata: ["error": "no usage items matched a credit unitType"])
             return nil
         }
 

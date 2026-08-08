@@ -41,7 +41,7 @@ struct CopilotOrgCreditsFetcherTests {
 
         #expect(abs((total ?? 0) - 81.10) < 0.001)
         let requests = await transport.requests()
-        #expect(requests.first?.url?.path == "/orgs/example-org/settings/billing/ai_credit/usage")
+        #expect(requests.first?.url?.path == "/organizations/example-org/settings/billing/ai_credit/usage")
     }
 
     @Test
@@ -68,6 +68,31 @@ struct CopilotOrgCreditsFetcherTests {
             .fetchCreditsUsed(org: "example-org")
 
         #expect(abs((total ?? 0) - 31.13) < 0.001)
+    }
+
+    @Test
+    func `accepts the documented org credits unit type`() async {
+        // GitHub's org AI-credit docs show `unitType: "credits"` (user-level docs and live org
+        // responses show "ai-credits"); both spellings must sum.
+        let transport = self.makeTransport(
+            statusCode: 200,
+            body: """
+            {
+              "timePeriod": { "year": 2026, "month": 8 },
+              "organization": "example-org",
+              "usageItems": [
+                { "product": "Copilot", "sku": "Copilot AI Credits",
+                  "unitType": "credits", "grossQuantity": 100 }
+              ]
+            }
+            """)
+
+        let total = await CopilotOrgCreditsFetcher(
+            token: "test-token-placeholder",
+            transport: transport)
+            .fetchCreditsUsed(org: "example-org")
+
+        #expect(abs((total ?? 0) - 100) < 0.001)
     }
 
     @Test
@@ -142,8 +167,8 @@ struct CopilotOrgCreditsFetcherTests {
         // quirk that isn't even stable between direct URL access and URLRequest-wrapped access on
         // this platform -- so neither can be trusted to prove safety here. What actually goes on the
         // wire is the encoded string, so assert on that: the separators must survive as `%2F`.
-        #expect(url.absoluteString == "https://api.github.com/orgs/..%2F..%2Fetc/settings/billing/ai_credit/usage")
-        #expect(!url.absoluteString.contains("/orgs/../../etc"))
+        #expect(url.absoluteString == "https://api.github.com/organizations/..%2F..%2Fetc/settings/billing/ai_credit/usage")
+        #expect(!url.absoluteString.contains("/organizations/../../etc"))
     }
 }
 
