@@ -29,6 +29,9 @@ public struct OpenCodeUsageFetcher: Sendable {
     private static let serverURL = URL(string: "https://opencode.ai/_server")!
     private static let workspacesServerID = "def39973159c7f0483d8793a822b8dbb10d067e12c65455fcb4608459ba0234f"
     private static let subscriptionServerID = "7abeebee372f304e050aaaf92be863f4a86490e382f8c79db68fd94040d691b4"
+    /// Customer/billing server function, the same one `OpenCodeGoUsageFetcher` reads the Zen
+    /// balance from. It carries the monthly spend fields pay-as-you-go workspaces bill against.
+    private static let billingServerID = "c83b78a614689c38ebee981f9b39a8b377716db85c1fd7dbab604adc02d3313d"
     private static let percentKeys = [
         "usagePercent",
         "usedPercent",
@@ -101,12 +104,87 @@ public struct OpenCodeUsageFetcher: Sendable {
                 timeout: timeout,
                 transport: transport)
         }
-        let subscriptionText = try await self.fetchSubscriptionInfo(
-            workspaceID: workspaceID,
-            cookieHeader: requestCookieHeader,
+        do {
+            let subscriptionText = try await self.fetchSubscriptionInfo(
+                workspaceID: workspaceID,
+                cookieHeader: requestCookieHeader,
+                timeout: timeout,
+                transport: transport)
+            return try self.parseSubscription(text: subscriptionText, now: now)
+        } catch let error as OpenCodeUsageError {
+            // Pay-as-you-go workspaces have no subscription object, so the subscription server
+            // function answers with null or fails outright. Their spend lives in the billing
+            // payload instead, which is still reachable with the same session cookie.
+            guard self.canFallBackToBilling(from: error) else { throw error }
+            do {
+                if let snapshot = try await self.fetchPayAsYouGoUsage(
+                    workspaceID: workspaceID,
+                    cookieHeader: requestCookieHeader,
+                    timeout: timeout,
+                    now: now,
+                    transport: transport)
+                {
+                    return snapshot
+                }
+            } catch OpenCodeUsageError.invalidCredentials {
+                throw OpenCodeUsageError.invalidCredentials
+            } catch {
+                Self.log.error("OpenCode billing fallback failed: \(error.localizedDescription)")
+            }
+            throw error
+        }
+    }
+}
+
+extension OpenCodeUsageFetcher {
+    /// Only subscription-shaped failures are worth retrying against billing. Credential and
+    /// transport failures would fail the same way on the billing call.
+    private static func canFallBackToBilling(from error: OpenCodeUsageError) -> Bool {
+        switch error {
+        case .apiError, .parseFailed:
+            true
+        case .invalidCredentials, .networkError:
+            false
+        }
+    }
+
+    private static func fetchPayAsYouGoUsage(
+        workspaceID: String,
+        cookieHeader: String,
+        timeout: TimeInterval,
+        now: Date,
+        transport: any ProviderHTTPTransport) async throws -> OpenCodeUsageSnapshot?
+    {
+        let referer = URL(string: "https://opencode.ai/workspace/\(workspaceID)") ?? self.baseURL
+        let text = try await self.fetchServerText(
+            request: ServerRequest(
+                serverID: self.billingServerID,
+                args: [workspaceID],
+                method: "GET",
+                referer: referer),
+            cookieHeader: cookieHeader,
             timeout: timeout,
             transport: transport)
-        return try self.parseSubscription(text: subscriptionText, now: now)
+        if self.looksSignedOut(text: text) {
+            throw OpenCodeUsageError.invalidCredentials
+        }
+        guard let billing = OpenCodeZenBillingParser.parse(text: text) else {
+            Self.log.error("OpenCode billing payload did not contain monthly usage fields.")
+            return nil
+        }
+        guard !billing.hasSubscription else {
+            Self.log.warning("OpenCode billing fallback still reports a subscription; preserving subscription error.")
+            return nil
+        }
+        Self.log.info(
+            "OpenCode billing usage resolved (subscription \(billing.hasSubscription ? "present" : "null"), " +
+                "limit \(billing.monthlyLimitUSD == nil ? "unset" : "set")).")
+        return .payAsYouGo(
+            OpenCodeUsageSnapshot.PayAsYouGoUsage(
+                monthlyUsageUSD: billing.monthlyUsageUSD,
+                monthlyLimitUSD: billing.monthlyLimitUSD,
+                balanceUSD: billing.balanceUSD),
+            updatedAt: now)
     }
 
     private static func fetchWorkspaceID(
@@ -212,6 +290,15 @@ public struct OpenCodeUsageFetcher: Sendable {
         if trimmed.caseInsensitiveCompare("null") == .orderedSame {
             return true
         }
+        // A server function that resolves to null answers with the seeded payload
+        // `…["server-fn:<uuid>"]=[],null)`. Treating it as a null payload avoids a POST retry that
+        // opencode.ai answers with HTTP 500 for workspaces without a subscription.
+        if trimmed.range(
+            of: #"\]\s*=\s*\[\s*\]\s*,\s*null\s*\)\s*$"#,
+            options: .regularExpression) != nil
+        {
+            return true
+        }
         guard let data = trimmed.data(using: .utf8),
               let object = try? JSONSerialization.jsonObject(with: data, options: [])
         else {
@@ -308,7 +395,9 @@ public struct OpenCodeUsageFetcher: Sendable {
         }
         return text
     }
+}
 
+extension OpenCodeUsageFetcher {
     static func parseSubscription(text: String, now: Date) throws -> OpenCodeUsageSnapshot {
         if let snapshot = self.parseSubscriptionJSON(text: text, now: now) {
             return snapshot

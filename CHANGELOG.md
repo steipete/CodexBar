@@ -99,6 +99,7 @@
 - Menu bar: model-scoped weekly percentage layout token, labeled from the active carve-out while keeping the persistent editor vocabulary model-generic (#2440, addresses #2360). Thanks @lucacampanella!
 
 ### Fixed
+- OpenCode: show pay-as-you-go monthly spend and prepaid balance without misclassifying subscription accounts after a transient API failure (#2504). Thanks @epoch-chrono!
 - Notion AI: `codexbar` now honors the provider's Workspace ID, manual cookie header, and `off` source instead of always auto-selecting a workspace (#2552). Thanks @n0ah37!
 - Providers with monthly billing windows (Notion AI, Amp, MiMo, StepFun, Doubao, Alibaba, OpenCode Go): the menu bar's pace token, the "runs out" estimate, and predictive pace warnings now measure the real calendar cycle, matching the card and the CLI instead of scoring every period as a flat 30 days (#2552). Thanks @n0ah37!
 - Cursor: make on-demand extra usage follow the shared optional-usage setting and remove the unsupported credits placeholder (#2338). Thanks @Zihao-Qi!
