@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+@testable import CodexBar
 @testable import CodexBarCore
 
 /// The opt-in statusLine feed must compose with the polled sources and never replace them (owner ruling, #2733).
@@ -151,5 +152,24 @@ struct ClaudeStatusLineFeedTests {
         #expect(snapshot.accountOrganization == nil)
         #expect(snapshot.primary.windowMinutes == 300)
         #expect(snapshot.secondary?.windowMinutes == 10080)
+    }
+}
+
+/// Guards the gap the planner tests above cannot see: they build `ClaudeSourcePlanningInput` directly, so they
+/// pass even when nothing carries the user's toggle into it. The first version of this feature was unreachable
+/// for exactly that reason.
+@MainActor
+struct ClaudeStatusLineSettingsReachabilityTests {
+    @Test
+    func `the feed toggle reaches the provider settings snapshot`() {
+        let settings = testSettingsStore(suiteName: "ClaudeStatusLineFeed-reachability")
+
+        // Off by default (owner ruling, #2733).
+        #expect(!settings.claudeStatusLineFeedEnabled)
+        #expect(settings.claudeSettingsSnapshot(tokenOverride: nil).statusLineFeedEnabled == false)
+
+        settings.claudeStatusLineFeedEnabled = true
+        // The planner reads this snapshot field; without it the step can never become available.
+        #expect(settings.claudeSettingsSnapshot(tokenOverride: nil).statusLineFeedEnabled == true)
     }
 }

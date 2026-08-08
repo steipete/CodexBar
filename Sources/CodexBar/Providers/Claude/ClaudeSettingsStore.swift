@@ -106,6 +106,7 @@ extension SettingsStore {
                 routing: routing,
                 hasSelectedAccount: account != nil),
             webExtrasEnabled: self.claudeWebExtrasEnabled,
+            statusLineFeedEnabled: self.claudeStatusLineFeedEnabled,
             cookieSource: self.claudeSnapshotCookieSource(tokenOverride: tokenOverride, routing: routing),
             manualCookieHeader: self.claudeSnapshotCookieHeader(
                 routing: routing,
