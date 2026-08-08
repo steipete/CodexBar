@@ -151,6 +151,7 @@ public struct UsageSnapshot: Codable, Sendable {
     public let deepseekPlatformProfiles: [DeepSeekPlatformProfile]
     public let opencodegoUsage: OpenCodeGoUsageSnapshot?
     public let openAIAPIUsage: OpenAIAPIUsageSnapshot?
+    public let openRouterActivityUsage: OpenRouterActivityUsageSnapshot?
     public let codexResetCredits: CodexRateLimitResetCreditsSnapshot?
     public let mistralUsage: MistralUsageSnapshot?
     /// Live-only marker for optional Command Code subscription lookup failure.
@@ -173,6 +174,7 @@ public struct UsageSnapshot: Codable, Sendable {
         case providerCost
         case details
         case openAIAPIUsage
+        case openRouterActivityUsage
         case codexResetCredits
         case mistralUsage
         case subscriptionExpiresAt
@@ -196,6 +198,7 @@ public struct UsageSnapshot: Codable, Sendable {
         deepseekPlatformProfiles: [DeepSeekPlatformProfile] = [],
         opencodegoUsage: OpenCodeGoUsageSnapshot? = nil,
         openAIAPIUsage: OpenAIAPIUsageSnapshot? = nil,
+        openRouterActivityUsage: OpenRouterActivityUsageSnapshot? = nil,
         codexResetCredits: CodexRateLimitResetCreditsSnapshot? = nil,
         mistralUsage: MistralUsageSnapshot? = nil,
         commandCodeSubscriptionEnrichmentUnavailable: Bool = false,
@@ -220,6 +223,7 @@ public struct UsageSnapshot: Codable, Sendable {
         self.deepseekPlatformProfiles = deepseekPlatformProfiles
         self.opencodegoUsage = opencodegoUsage
         self.openAIAPIUsage = openAIAPIUsage
+        self.openRouterActivityUsage = openRouterActivityUsage
         self.codexResetCredits = codexResetCredits
         self.mistralUsage = mistralUsage
         self.commandCodeSubscriptionEnrichmentUnavailable = commandCodeSubscriptionEnrichmentUnavailable
@@ -269,6 +273,9 @@ public struct UsageSnapshot: Codable, Sendable {
         self.deepseekPlatformProfiles = [] // Live-only browser profile catalog
         self.opencodegoUsage = nil // Not persisted, fetched fresh each time
         self.openAIAPIUsage = try container.decodeIfPresent(OpenAIAPIUsageSnapshot.self, forKey: .openAIAPIUsage)
+        self.openRouterActivityUsage = try container.decodeIfPresent(
+            OpenRouterActivityUsageSnapshot.self,
+            forKey: .openRouterActivityUsage)
         self.codexResetCredits = try container.decodeIfPresent(
             CodexRateLimitResetCreditsSnapshot.self,
             forKey: .codexResetCredits)
@@ -314,6 +321,7 @@ public struct UsageSnapshot: Codable, Sendable {
             try container.encode(self.details, forKey: .details)
         }
         try container.encodeIfPresent(self.openAIAPIUsage, forKey: .openAIAPIUsage)
+        try container.encodeIfPresent(self.openRouterActivityUsage, forKey: .openRouterActivityUsage)
         try container.encodeIfPresent(self.codexResetCredits, forKey: .codexResetCredits)
         try container.encodeIfPresent(self.mistralUsage, forKey: .mistralUsage)
         try container.encodeIfPresent(self.subscriptionExpiresAt, forKey: .subscriptionExpiresAt)
@@ -386,6 +394,10 @@ public struct UsageSnapshot: Codable, Sendable {
 
     public func withDataConfidence(_ dataConfidence: UsageDataConfidence) -> UsageSnapshot {
         self.replacing(dataConfidence: .value(dataConfidence))
+    }
+
+    public func withOpenRouterActivityUsage(_ activity: OpenRouterActivityUsageSnapshot) -> UsageSnapshot {
+        self.replacing(openRouterActivityUsage: .value(activity))
     }
 
     public func scoped(to provider: UsageProvider) -> UsageSnapshot {
@@ -467,6 +479,7 @@ public struct UsageSnapshot: Codable, Sendable {
         details: Replacement<[ProviderDetailSection]> = .unchanged,
         deepseekDetailedUsageState: Replacement<DeepSeekDetailedUsageState> = .unchanged,
         deepseekPlatformProfiles: Replacement<[DeepSeekPlatformProfile]> = .unchanged,
+        openRouterActivityUsage: Replacement<OpenRouterActivityUsageSnapshot?> = .unchanged,
         codexResetCredits: Replacement<CodexRateLimitResetCreditsSnapshot?> = .unchanged,
         subscriptionExpiresAt: Replacement<Date?> = .unchanged,
         subscriptionRenewsAt: Replacement<Date?> = .unchanged,
@@ -484,6 +497,7 @@ public struct UsageSnapshot: Codable, Sendable {
             deepseekPlatformProfiles: deepseekPlatformProfiles.resolving(self.deepseekPlatformProfiles),
             opencodegoUsage: self.opencodegoUsage,
             openAIAPIUsage: self.openAIAPIUsage,
+            openRouterActivityUsage: openRouterActivityUsage.resolving(self.openRouterActivityUsage),
             codexResetCredits: codexResetCredits.resolving(self.codexResetCredits),
             mistralUsage: self.mistralUsage,
             commandCodeSubscriptionEnrichmentUnavailable: self.commandCodeSubscriptionEnrichmentUnavailable,

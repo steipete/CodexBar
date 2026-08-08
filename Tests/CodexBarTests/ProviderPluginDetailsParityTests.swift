@@ -54,6 +54,7 @@ struct ProviderPluginDetailsParityTests {
             switch request.url?.path {
             case "/api/v1/credits": Self.openRouterCredits
             case "/api/v1/key": Self.openRouterKey
+            case "/api/v1/activity": Self.openRouterActivity
             default: throw FixtureError.unexpectedURL(request.url)
             }
         }
@@ -145,17 +146,21 @@ struct ProviderPluginDetailsParityTests {
             secrets: [OpenRouterSettingsReader.envKey: "fixture-key"])
 
         let recorded = await requests.requests
-        #expect(recorded.count == 2)
+        #expect(recorded.count == 3)
         #expect(recorded[0].url?.absoluteString == (overridden
                 ? "https://router.example.test/gateway/v1/credits"
                 : "https://openrouter.ai/api/v1/credits"))
         #expect(recorded[1].url?.absoluteString == (overridden
                 ? "https://router.example.test/gateway/v1/key"
                 : "https://openrouter.ai/api/v1/key"))
+        #expect(recorded[2].url?.absoluteString == (overridden
+                ? "https://router.example.test/gateway/v1/activity"
+                : "https://openrouter.ai/api/v1/activity"))
         #expect(recorded[0].value(forHTTPHeaderField: "X-Title") == (overridden ? "CodexBar QA" : "CodexBar"))
         #expect(recorded[0].value(forHTTPHeaderField: "HTTP-Referer") ==
             (overridden ? "https://codexbar.example" : nil))
         #expect(recorded[1].value(forHTTPHeaderField: "X-Title") == nil)
+        #expect(recorded[2].value(forHTTPHeaderField: "X-Title") == nil)
     }
 
     @Test
@@ -489,6 +494,7 @@ struct ProviderPluginDetailsParityTests {
     "usage_daily":1,"usage_weekly":2,"usage_monthly":4,
     "rate_limit":{"requests":120,"interval":"10s"}}}
     """#
+    private static let openRouterActivity = #"{"data":[]}"#
     private static let poeBalance = #"{"current_point_balance":2500}"#
     private static let poeHistory = #"""
     {"data":[

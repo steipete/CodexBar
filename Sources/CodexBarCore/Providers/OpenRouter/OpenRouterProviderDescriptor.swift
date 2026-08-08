@@ -63,8 +63,10 @@ public enum OpenRouterProviderDescriptor {
                 ],
                 widgetColor: ProviderColor(red: 111 / 255, green: 66 / 255, blue: 193 / 255)),
             tokenCost: ProviderTokenCostConfig(
-                supportsTokenCost: false,
-                noDataMessage: { "OpenRouter cost summary is not yet supported." }),
+                supportsTokenCost: true,
+                noDataMessage: { "OpenRouter activity history requires a Management API key." },
+                menuHintLines: [.literal("Reported by OpenRouter for completed UTC days.")],
+                primaryValue: .latestDaily),
             presentation: ProviderUsagePresentation(
                 menuCard: ProviderMenuCardPresentation(
                     showsCreditsSection: false,

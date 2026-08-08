@@ -434,6 +434,8 @@ extension UsageStore {
         switch provider {
         case .openai:
             snapshot?.openAIAPIUsage?.toCostUsageTokenSnapshot()
+        case .openrouter:
+            snapshot?.openRouterActivityUsage?.toCostUsageTokenSnapshot()
         case .mistral:
             snapshot?.mistralUsage?.toCostUsageTokenSnapshot(historyDays: self.settings.effectiveCostUsageHistoryDays)
         case .opencodego:
@@ -451,7 +453,7 @@ extension UsageStore {
 
     nonisolated static func tokenCostRequiresProviderSnapshot(_ provider: UsageProvider) -> Bool {
         switch provider {
-        case .mistral, .openai, .opencodego:
+        case .mistral, .openai, .openrouter, .opencodego:
             true
         default:
             false
@@ -500,5 +502,16 @@ extension UsageStore {
 
     nonisolated static func tokenCostNoDataMessage(for provider: UsageProvider) -> String {
         ProviderDescriptorRegistry.descriptor(for: provider).tokenCost.noDataMessage()
+    }
+
+    func preservingOpenRouterActivityIfCurrent(
+        _ snapshot: UsageSnapshot,
+        previous: UsageSnapshot?) -> UsageSnapshot
+    {
+        guard snapshot.openRouterActivityUsage == nil,
+              self.tokenSnapshotPublicationForCurrentProviderConfig(for: .openrouter)?.snapshot != nil,
+              let activity = previous?.openRouterActivityUsage
+        else { return snapshot }
+        return snapshot.withOpenRouterActivityUsage(activity)
     }
 }

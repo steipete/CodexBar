@@ -15,6 +15,9 @@ enum ProviderPluginSnapshotMapper {
         let tertiary = try self.window(value, property: "tertiary")
         let extraRateWindows = try self.extraWindows(value)
         let providerCost = try self.cost(value, now: now)
+        let openRouterActivityUsage = provider == .openrouter
+            ? self.openRouterActivityUsage(value, now: now)
+            : nil
         let details = try self.details(value)
         let identity = try self.identity(value, provider: provider)
         let subscriptionRenewsAt = try self.optionalDate(value, property: "subscriptionRenewsAt")
@@ -35,11 +38,29 @@ enum ProviderPluginSnapshotMapper {
             extraRateWindows: extraRateWindows,
             providerCost: providerCost,
             details: details,
+            openRouterActivityUsage: openRouterActivityUsage,
             subscriptionExpiresAt: subscriptionExpiresAt,
             subscriptionRenewsAt: subscriptionRenewsAt,
             updatedAt: now,
             identity: identity,
             dataConfidence: dataConfidence)
+    }
+
+    /// Activity is an optional management-key enrichment. Malformed or unsupported
+    /// activity must not invalidate an otherwise healthy provider snapshot.
+    private static func openRouterActivityUsage(
+        _ root: JSValue,
+        now: Date) -> OpenRouterActivityUsageSnapshot?
+    {
+        guard let value = root.forProperty("openRouterActivityUsage"),
+              value.isObject,
+              !value.isArray,
+              !value.isNull,
+              let object = value.toObject(),
+              JSONSerialization.isValidJSONObject(object),
+              let data = try? JSONSerialization.data(withJSONObject: object)
+        else { return nil }
+        return try? OpenRouterActivityUsageSnapshot(data: data, now: now)
     }
 
     private static func dataConfidence(_ root: JSValue) throws -> UsageDataConfidence {

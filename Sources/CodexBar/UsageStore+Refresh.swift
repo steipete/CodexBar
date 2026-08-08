@@ -702,8 +702,13 @@ extension UsageStore {
                 self.lastKnownResetSnapshots[provider.instanceID]
             }
             let profileStable = self.preservingDeepSeekProfileCatalog(in: accountScoped, provider: provider)
+            let historyStable = provider == .openrouter
+                ? self.preservingOpenRouterActivityIfCurrent(
+                    profileStable,
+                    previous: self.snapshots[provider.instanceID])
+                : profileStable
             let stabilized = Self.commandCodeSnapshotResolvingDepletionOnEnrichmentFailure(
-                current: profileStable,
+                current: historyStable,
                 previous: self.snapshots[provider.instanceID])
             let backfilled = stabilized.backfillingResetTimes(from: resetBackfillSource)
             let warningAccountDiscriminator = Self.warningAccountDiscriminator(

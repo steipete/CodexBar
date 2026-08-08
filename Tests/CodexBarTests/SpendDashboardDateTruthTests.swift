@@ -14,6 +14,33 @@ struct SpendDashboardDateTruthTests {
     }
 
     @Test
+    func `OpenRouter completed UTC history never fabricates the current day`() throws {
+        var utc = Calendar(identifier: .gregorian)
+        utc.timeZone = try #require(TimeZone(secondsFromGMT: 0))
+        let now = try #require(ISO8601DateFormatter().date(from: "2026-08-07T12:00:00Z"))
+        let august6 = try #require(utc.date(from: DateComponents(year: 2026, month: 8, day: 6)))
+        let snapshot = Self.snapshot(
+            currency: "USD",
+            entries: [
+                Self.entry(day: "2026-08-05", cost: 1, tokens: 10),
+                Self.entry(day: "2026-08-06", cost: 2, tokens: 20),
+            ],
+            historyDays: 2,
+            updatedAt: now)
+        let group = try #require(SpendDashboardModel.build(
+            inputs: [.init(provider: .openrouter, displayName: "OpenRouter", snapshot: snapshot)],
+            requestedDays: 2,
+            now: now,
+            calendar: utc).groups.first)
+
+        #expect(group.providers.first?.coveredDayCount == 1)
+        #expect(group.totalCost == 2)
+        #expect(group.totalTokens == 20)
+        #expect(group.dailyPoints.map(\.day) == [august6])
+        #expect(group.coveredDayCount == 1)
+    }
+
+    @Test
     func `Mistral UTC buckets map into Pacific dashboard days at midnight UTC`() throws {
         var pacific = Calendar(identifier: .gregorian)
         pacific.timeZone = try #require(TimeZone(identifier: "America/Los_Angeles"))

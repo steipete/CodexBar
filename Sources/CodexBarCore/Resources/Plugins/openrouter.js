@@ -68,6 +68,29 @@ defineProvider({
       }
     } catch (_) {}
 
+    // /activity is management-key-only and optional. Credits and key quota remain valid
+    // when analytics is forbidden, unsupported by an endpoint override, slow, or malformed.
+    let openRouterActivityUsage = null;
+    try {
+      const activityResponse = await ctx.http.get(`${base}/activity`, { timeoutSeconds: 5 });
+      if (activityResponse.status === 200) {
+        const activityPayload = JSON.parse(activityResponse.bodyText);
+        if (activityPayload && Array.isArray(activityPayload.data)) {
+          openRouterActivityUsage = {
+            data: activityPayload.data.map(item => ({
+              date: item.date,
+              model: item.model,
+              prompt_tokens: item.prompt_tokens,
+              completion_tokens: item.completion_tokens,
+              reasoning_tokens: item.reasoning_tokens,
+              requests: item.requests,
+              usage: item.usage,
+            })),
+          };
+        }
+      }
+    } catch (_) {}
+
     function resetWindowUsage(reset) {
       const windowKey =
         reset === "daily" ? "usage_daily" :
@@ -163,6 +186,7 @@ defineProvider({
       details,
     };
     if (primary) result.primary = primary;
+    if (openRouterActivityUsage) result.openRouterActivityUsage = openRouterActivityUsage;
     return result;
   },
 });

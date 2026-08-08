@@ -104,6 +104,7 @@ public struct OpenRouterUsageSnapshot: Codable, Sendable {
     public let keyUsageWeekly: Double?
     public let keyUsageMonthly: Double?
     public let rateLimit: OpenRouterRateLimit?
+    public let activityUsage: OpenRouterActivityUsageSnapshot?
     public let updatedAt: Date
 
     public init(
@@ -120,6 +121,7 @@ public struct OpenRouterUsageSnapshot: Codable, Sendable {
         keyUsageWeekly: Double? = nil,
         keyUsageMonthly: Double? = nil,
         rateLimit: OpenRouterRateLimit?,
+        activityUsage: OpenRouterActivityUsageSnapshot? = nil,
         updatedAt: Date)
     {
         self.totalCredits = totalCredits
@@ -136,12 +138,17 @@ public struct OpenRouterUsageSnapshot: Codable, Sendable {
         self.keyUsageWeekly = keyUsageWeekly
         self.keyUsageMonthly = keyUsageMonthly
         self.rateLimit = rateLimit
+        self.activityUsage = activityUsage
         self.updatedAt = updatedAt
     }
 
     /// Returns true if this snapshot contains valid data
     public var isValid: Bool {
         self.totalCredits >= 0
+    }
+
+    public func toCostUsageTokenSnapshot() -> CostUsageTokenSnapshot? {
+        self.activityUsage?.toCostUsageTokenSnapshot()
     }
 
     public var hasValidKeyQuota: Bool {
@@ -297,6 +304,7 @@ extension OpenRouterUsageSnapshot {
             tertiary: nil,
             providerCost: nil,
             details: details,
+            openRouterActivityUsage: self.activityUsage,
             updatedAt: self.updatedAt,
             identity: identity)
     }
@@ -359,6 +367,12 @@ public struct OpenRouterUsageFetcher: Sendable {
                 baseURL: baseURL,
                 timeoutSeconds: Self.rateLimitTimeoutSeconds,
                 transport: transport)
+            let now = Date()
+            let activityUsage = try await OpenRouterActivityUsageFetcher.fetchOptional(
+                apiKey: apiKey,
+                baseURL: baseURL,
+                transport: transport,
+                now: now)
 
             return OpenRouterUsageSnapshot(
                 totalCredits: creditsResponse.data.totalCredits,
@@ -374,7 +388,8 @@ public struct OpenRouterUsageFetcher: Sendable {
                 keyUsageWeekly: keyFetch.data?.usageWeekly,
                 keyUsageMonthly: keyFetch.data?.usageMonthly,
                 rateLimit: keyFetch.data?.rateLimit,
-                updatedAt: Date())
+                activityUsage: activityUsage,
+                updatedAt: now)
         } catch is CancellationError {
             throw CancellationError()
         } catch let error as DecodingError {

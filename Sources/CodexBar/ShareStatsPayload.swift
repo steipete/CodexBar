@@ -20,6 +20,7 @@ struct ShareStatsProviderRosterEntry: Sendable, Equatable {
 struct ShareStatsModelPayload: Sendable, Equatable {
     let provider: UsageProvider
     let providerName: String
+    let modelIdentity: String
     let modelName: String
     let currencyCode: String
     let totalTokens: Int?
@@ -29,6 +30,7 @@ struct ShareStatsModelPayload: Sendable, Equatable {
 private struct ShareStatsModelFamilyKey: Hashable {
     let provider: UsageProvider
     let providerName: String
+    let modelIdentity: String
     let modelName: String
     let currencyCode: String
 }
@@ -80,6 +82,7 @@ private struct ShareStatsModelFamilyAccumulator {
         return ShareStatsModelPayload(
             provider: self.key.provider,
             providerName: self.key.providerName,
+            modelIdentity: self.key.modelIdentity,
             modelName: self.key.modelName,
             currencyCode: self.key.currencyCode,
             totalTokens: totalTokens,
@@ -154,16 +157,23 @@ enum ShareStatsSanitizer {
     static func modelName(_ rawValue: String) -> String? {
         guard let value = self.safeLabel(
             rawValue,
-            maximumLength: 72,
+            maximumLength: 96,
             maximumWords: 3,
             requireModelShape: true)
         else { return nil }
 
         let normalized = value.lowercased()
+        guard !normalized.contains("://"), !normalized.contains("\\") else { return nil }
+        let pathComponents = normalized.split(separator: "/", omittingEmptySubsequences: false)
+        guard pathComponents.count <= 2,
+              pathComponents.allSatisfy({ !$0.isEmpty })
+        else { return nil }
+
+        let routedModelName = String(pathComponents.last ?? "")
         let regionalPrefixes = ["us.", "eu.", "apac.", "global."]
-        let familyName = regionalPrefixes.first { normalized.hasPrefix($0) }.map {
-            String(normalized.dropFirst($0.count))
-        } ?? normalized
+        let familyName = regionalPrefixes.first { routedModelName.hasPrefix($0) }.map {
+            String(routedModelName.dropFirst($0.count))
+        } ?? routedModelName
         let publicModelFamilies: [(prefixes: [String], label: String)] = [
             (["amazon.nova-", "nova-"], "Amazon Nova"),
             (["anthropic.claude-", "claude-", "claude "], "Claude"),
@@ -190,13 +200,74 @@ enum ShareStatsSanitizer {
             (["tts-"], "OpenAI TTS"),
             (["whisper-"], "Whisper"),
         ]
-        guard !normalized.contains("://"),
-              !normalized.contains("/"),
-              !normalized.contains("\\")
-        else { return nil }
-        return publicModelFamilies.first { family in
-            family.prefixes.contains(where: familyName.hasPrefix)
-        }?.label
+        guard let match = publicModelFamilies.lazy.compactMap({ family -> (String, String)? in
+            guard let prefix = family.prefixes.first(where: familyName.hasPrefix) else { return nil }
+            return (prefix, family.label)
+        }).first else { return nil }
+
+        let remainder = String(familyName.dropFirst(match.0.count))
+        guard !remainder.isEmpty else { return match.1 }
+        guard let detail = self.publicModelDetail(remainder) else { return nil }
+        return "\(match.1) \(detail)"
+    }
+
+    private static func publicModelDetail(_ rawValue: String) -> String? {
+        let displayTokens: [String: String] = [
+            "air": "Air", "chat": "Chat", "code": "Code", "coder": "Coder", "codex": "Codex",
+            "fable": "Fable", "fast": "Fast", "flash": "Flash", "free": "Free", "haiku": "Haiku",
+            "instruct": "Instruct", "large": "Large", "lite": "Lite", "max": "Max",
+            "latest": "Latest", "luna": "Luna", "medium": "Medium", "mini": "Mini", "nano": "Nano",
+            "opus": "Opus",
+            "oss": "OSS", "preview": "Preview", "pro": "Pro", "reasoning": "Reasoning",
+            "small": "Small", "sol": "Sol", "sonnet": "Sonnet", "terra": "Terra", "thinking": "Thinking",
+            "turbo": "Turbo", "vision": "Vision",
+        ]
+        let tokens = rawValue.split(whereSeparator: { "-_:".contains($0) }).map(String.init)
+        var details: [String] = []
+        var numericVersion: [String] = []
+
+        func flushNumericVersion() {
+            guard !numericVersion.isEmpty else { return }
+            details.append(numericVersion.joined(separator: "."))
+            numericVersion.removeAll(keepingCapacity: true)
+        }
+
+        for token in tokens {
+            if token.allSatisfy(\.isNumber), token.count <= 3 {
+                numericVersion.append(token)
+                continue
+            }
+            flushNumericVersion()
+            if token.range(of: #"^v[0-9]+$"#, options: .regularExpression) != nil ||
+                token.range(of: #"^[0-9]{8}$"#, options: .regularExpression) != nil
+            {
+                break
+            }
+            if token.range(of: #"^[0-9]+(?:\.[0-9]+)+$"#, options: .regularExpression) != nil {
+                details.append(token)
+                continue
+            }
+            if let displayToken = displayTokens[token] {
+                details.append(displayToken)
+                continue
+            }
+            if token.range(of: #"^[a-z][0-9]+(?:\.[0-9]+)*$"#, options: .regularExpression) != nil {
+                details.append(token.uppercased())
+                continue
+            }
+            if token.range(of: #"^[0-9]+b$"#, options: .regularExpression) != nil {
+                details.append(token.uppercased())
+                continue
+            }
+            if token.range(of: #"^[0-9]+o$"#, options: .regularExpression) != nil {
+                details.append(token)
+                continue
+            }
+            return nil
+        }
+        flushNumericVersion()
+        guard !details.isEmpty else { return nil }
+        return details.joined(separator: " ")
     }
 
     private static func safeLabel(
@@ -279,6 +350,7 @@ enum ShareStatsBuilder {
                 return ShareStatsModelPayload(
                     provider: row.provider,
                     providerName: row.providerName,
+                    modelIdentity: modelName.lowercased(),
                     modelName: modelName,
                     currencyCode: group.currencyCode,
                     totalTokens: row.totalTokens,
@@ -290,6 +362,7 @@ enum ShareStatsBuilder {
             let key = ShareStatsModelFamilyKey(
                 provider: row.provider,
                 providerName: row.providerName,
+                modelIdentity: row.modelIdentity,
                 modelName: row.modelName,
                 currencyCode: row.currencyCode)
             if var existing = modelFamilies[key] {
@@ -308,10 +381,19 @@ enum ShareStatsBuilder {
                 if lhs.providerName != rhs.providerName {
                     return lhs.providerName < rhs.providerName
                 }
-                return lhs.modelName < rhs.modelName
+                if lhs.modelName != rhs.modelName {
+                    return lhs.modelName < rhs.modelName
+                }
+                if lhs.currencyCode != rhs.currencyCode {
+                    return lhs.currencyCode < rhs.currencyCode
+                }
+                return lhs.modelIdentity < rhs.modelIdentity
             }
         }
-        let rosterHasUntrackedProviders = providers.count > trackedProviders.count
+        let trackedProviderKinds = Set(trackedProviders.map(\.provider))
+        let rosterHasUntrackedProviders = providerRoster.contains {
+            !trackedProviderKinds.contains($0.provider)
+        }
         let currencies = model.groups.map {
             ShareStatsCurrencyPayload(
                 currencyCode: $0.currencyCode,
@@ -321,7 +403,8 @@ enum ShareStatsBuilder {
         }
         let knownTokenValues = trackedProviders.compactMap(\.totalTokens)
         let totalTokens = self.safeTokenSum(knownTokenValues)
-        let totalTokensIsPartial = knownTokenValues.count < providers.count ||
+        let totalTokensIsPartial = trackedProviders.contains { $0.totalTokens == nil } ||
+            rosterHasUntrackedProviders ||
             model.groups.contains { $0.totalTokens == nil }
         let periodEnd = model.groups.map(\.chartDomain.upperBound).max() ?? Date()
         let payload = ShareStatsPayload(
@@ -436,6 +519,9 @@ enum ShareStatsFormatting {
                 }
                 return "\(model.modelName) (\(model.providerName)): \(metrics.joined(separator: " · "))"
             })
+            if payload.topModels.count > 5 {
+                lines.append("+\(payload.topModels.count - 5) more models ranked in local stats")
+            }
         }
         lines.append("Generated locally by CodexBar · Data through \(self.dataThrough(payload.periodEnd))")
         return lines.joined(separator: "\n")

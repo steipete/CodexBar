@@ -5,11 +5,15 @@ struct ShareStatsCardView: View {
 
     let payload: ShareStatsPayload
 
-    static func providerDisplayLimit(for providerCount: Int) -> Int {
+    nonisolated static func providerDisplayLimit(for providerCount: Int) -> Int {
         providerCount > 5 ? 4 : min(providerCount, 5)
     }
 
-    static func providerPaletteIndex(
+    nonisolated static func modelSectionDetail(for modelCount: Int) -> String {
+        modelCount > 3 ? "3 OF \(modelCount) · BY TOKENS" : "BY TOKENS"
+    }
+
+    nonisolated static func providerPaletteIndex(
         for model: ShareStatsModelPayload,
         providers: [ShareStatsProviderPayload]) -> Int?
     {
@@ -148,9 +152,11 @@ struct ShareStatsCardView: View {
 
             VStack(alignment: .leading, spacing: 0) {
                 VStack(alignment: .leading, spacing: 6) {
-                    self.sectionHeader("TOP MODELS", detail: "BY USAGE")
+                    self.sectionHeader(
+                        "TOP MODELS",
+                        detail: Self.modelSectionDetail(for: self.payload.topModels.count))
                     if self.payload.topModels.isEmpty {
-                        Text("No model-level history in this local snapshot")
+                        Text("No share-safe model ranking in this snapshot")
                             .font(.system(size: 18, weight: .medium, design: .rounded))
                             .foregroundStyle(self.secondary)
                             .padding(.top, 4)
