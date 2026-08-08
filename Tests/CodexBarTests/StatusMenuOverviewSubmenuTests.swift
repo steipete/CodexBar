@@ -5,6 +5,63 @@ import Testing
 
 extension StatusMenuTests {
     @Test
+    func `overview spend window uses current time instead of cached snapshot time`() throws {
+        let settings = self.makeSettings()
+        settings.costUsageHistoryDays = 7
+
+        let fetcher = UsageFetcher()
+        let store = UsageStore(
+            fetcher: fetcher,
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings)
+        let cachedAt = try #require(Calendar.current.date(from: DateComponents(
+            year: 2025,
+            month: 1,
+            day: 7,
+            hour: 12)))
+        store._setTokenSnapshotForTesting(CostUsageTokenSnapshot(
+            sessionTokens: nil,
+            sessionCostUSD: nil,
+            last30DaysTokens: 1000,
+            last30DaysCostUSD: 9,
+            historyDays: 7,
+            daily: [
+                CostUsageDailyReport.Entry(
+                    date: "2025-01-07",
+                    inputTokens: 600,
+                    outputTokens: 400,
+                    totalTokens: 1000,
+                    costUSD: 9,
+                    modelsUsed: nil,
+                    modelBreakdowns: nil),
+            ],
+            updatedAt: cachedAt), provider: .claude)
+
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: self.makeStatusBarForTesting())
+        defer { controller.releaseStatusItemsForTesting() }
+
+        let currentTime = try #require(Calendar.current.date(from: DateComponents(
+            year: 2025,
+            month: 2,
+            day: 7,
+            hour: 12)))
+        let model = controller.overviewSpendDashboardModel(providers: [.claude], now: currentTime)
+        let group = try #require(model.groups.first)
+
+        #expect(group.providers.first?.totalCost == nil)
+        #expect(group.dailyPoints.isEmpty)
+        #expect(Calendar.current.isDate(
+            group.chartDomain.upperBound,
+            inSameDayAs: currentTime.addingTimeInterval(86400)))
+    }
+
+    @Test
     func `overview rows expose provider detail submenus`() throws {
         self.disableMenuCardsForTesting()
         let settings = self.makeSettings()
