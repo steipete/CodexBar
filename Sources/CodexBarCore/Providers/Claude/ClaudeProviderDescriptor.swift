@@ -1005,6 +1005,9 @@ struct ClaudeCLIFetchStrategy: ProviderFetchStrategy {
         do {
             usage = try await fetcher.loadLatestUsage(model: "sonnet")
         } catch {
+            if Task.isCancelled || ClaudeOAuthFetchError.isCancellation(error) {
+                throw error
+            }
             if let backgroundAvailabilityMarker {
                 ClaudeCLIBackgroundAvailability.revoke(backgroundAvailabilityMarker)
             }
