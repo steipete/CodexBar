@@ -42,6 +42,9 @@
 
 ## 0.49.6 — 2026-08-14
 
+### Added
+- Copilot: add an opt-in organization AI credit lane that fetches `/orgs/{org}/settings/billing/ai_credit/usage` when the token has org billing access, plus user-entered per-seat and organization credit entitlements that turn the credit rows into usage bars — GitHub publishes no credit entitlement on any documented endpoint, so a lane without one stays plain text (#2593). Thanks @KSEGIT!
+
 ### Fixed
 - Antigravity: hide untouched model families from compact menu cards and widgets while keeping unknown-usage families visible and preserving every family in provider details and all-untouched states (#2875). Thanks @urda!
 - Menu bar layout: show the weekly pace reserve token after 1% of the quota window has elapsed, even when learned history still predicts less than 1% expected usage (#2842, #2853). Thanks @Yuxin-Qiao!
