@@ -58,6 +58,27 @@ struct CodexProviderImplementation: ProviderImplementation {
     }
 
     @MainActor
+    func settingsActions(context: ProviderSettingsContext) -> [ProviderSettingsActionsDescriptor] {
+        [
+            ProviderSettingsActionsDescriptor(
+                id: "codex-oauth",
+                title: L("codex_reauthenticate_title"),
+                subtitle: L("codex_reauthenticate_subtitle"),
+                actions: [
+                    ProviderSettingsActionDescriptor(
+                        id: "codex-oauth-reauthenticate",
+                        title: L("Re-authenticate"),
+                        style: .bordered,
+                        isVisible: nil,
+                        perform: {
+                            await context.runLoginFlow()
+                        }),
+                ],
+                isVisible: nil),
+        ]
+    }
+
+    @MainActor
     func settingsToggles(context: ProviderSettingsContext) -> [ProviderSettingsToggleDescriptor] {
         let extrasBinding = Binding(
             get: { context.settings.openAIWebAccessEnabled },

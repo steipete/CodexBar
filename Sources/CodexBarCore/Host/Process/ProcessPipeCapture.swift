@@ -113,6 +113,14 @@ package final class ProcessPipeCapture: @unchecked Sendable {
         return self.didReachEOF
     }
 
+    /// Snapshot of the bytes captured so far, without stopping the capture. Lets a caller
+    /// poll for interactive output (e.g. a device-flow URL/code) while the process is still running.
+    package func currentSnapshot() -> Data {
+        self.condition.lock()
+        defer { self.condition.unlock() }
+        return self.data
+    }
+
     package static func decodeUTF8(_ data: Data) -> String {
         // A byte cap can split the final scalar; lossy decoding preserves the valid captured prefix.
         // swiftlint:disable:next optional_data_string_conversion
