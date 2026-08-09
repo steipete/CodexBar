@@ -114,7 +114,8 @@ struct ProviderPresentationPolicyCharacterizationTests {
             (.notion, nil, false),
             (.notion, 360, true),
             (.notion, 361, false),
-            (.zai, 300, false),
+            (.zai, 300, true),
+            (.zai, 301, false),
         ]
 
         for (provider, minutes, expected) in fixtures {
