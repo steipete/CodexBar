@@ -680,6 +680,34 @@ struct CLISnapshotTests {
     }
 
     @Test
+    func `zai CLI pace rejects a rolling 30-day coding limit`() {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let snapshot = UsageSnapshot(
+            primary: .init(
+                usedPercent: 50,
+                windowMinutes: ProviderPaceCapability.monthlyWindowSentinelMinutes,
+                resetsAt: now.addingTimeInterval(15 * 24 * 60 * 60),
+                resetDescription: "30 days window"),
+            secondary: nil,
+            tertiary: nil,
+            updatedAt: now)
+
+        #expect(CLIRenderer.providerPacePayload(provider: .zai, snapshot: snapshot, now: now) == nil)
+
+        let output = CLIRenderer.renderText(
+            provider: .zai,
+            snapshot: snapshot,
+            credits: nil,
+            context: RenderContext(
+                header: "z.ai",
+                status: nil,
+                useColor: false,
+                resetStyle: .countdown),
+            now: now)
+        #expect(!output.contains("Pace:"))
+    }
+
+    @Test
     func `Kimi CLI pace rejects missing and unsupported window durations`() {
         let now = Date(timeIntervalSince1970: 1_700_000_000)
         for duration: Int? in [nil, 24 * 60, 30 * 24 * 60] {

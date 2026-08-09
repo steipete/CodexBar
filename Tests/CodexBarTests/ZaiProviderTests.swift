@@ -145,6 +145,19 @@ struct ZaiProviderTests {
         #expect(snapshot.extraRateWindows?.first?.window.windowMinutes == nil)
     }
 
+    @Test(arguments: ["TOKENS_LIMIT", "CREDIT_LIMIT"])
+    func `plugin preserves rolling 30-day limits without MCP semantics`(limitType: String) async throws {
+        let fixture = #"""
+        {"code":200,"msg":"success","success":true,"data":{"limits":[
+          {"type":"\#(limitType)","unit":1,"number":30,"percentage":50,"nextResetTime":1787112000000}
+        ]}}
+        """#
+        let snapshot = try await Self.pluginSnapshot(quotaFixture: fixture)
+
+        #expect(snapshot.primary?.windowMinutes == ProviderPaceCapability.monthlyWindowSentinelMinutes)
+        #expect(snapshot.primary?.resetDescription == "30 days window")
+    }
+
     @Test
     func `provider metadata keeps regional dashboards`() {
         let descriptor = ProviderDescriptorRegistry.descriptor(for: .zai)
