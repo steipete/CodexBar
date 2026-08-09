@@ -18,6 +18,8 @@
 - PTY probes: abort output-overflow children through a bounded process-group kill path, avoiding minute-long cleanup stalls under load (refs #2792).
 - PTY runner: drain short-lived commands to terminal closure after exit, preventing false empty probe results when output is still buffered.
 - Cost store: give the store actor's custom serial executor an `isIsolatingCurrentContext()` implementation — macOS 26+ runtimes consult it before `checkIsolated()`, and its default cannot see through `DispatchQueue.sync`, so every synchronous store bridge tripped "Incorrect actor executor assumption" and the app died on launch.
+- Sessions: make the additional SSH-hosts setting visibly editable, with an accepted-format hint and accessibility
+  help (#2804).
 - Codex: reject Standard/Fast pricing rows that exceed canonical fork-deduplicated usage, preventing copied fork rows and their Fast surcharge from inflating cost estimates (#2754). Thanks @1328189205 for the report and @Yuxin-Qiao for the initial fix and regression-test approach!
 - Claude: stop rotating Claude Code's refresh-token chain on keychain-only installs — ownership evidence is tri-state with indeterminate treated as CLI-owned, delegated refreshes cannot invalidate unreadable credentials, and token-lineage changes no longer block recovery (#2745, refs #2689, #2634). Thanks @avenoxai!
 - Plugins: run the QuickJS worker and TypeScript transpiler on Thread subclasses instead of Thread(block:) closures — binaries built with the Xcode 26.3 SDK inferred @MainActor on those blocks, and macOS runtimes that enforce dynamic isolation crashed (SIGTRAP) on the first plugin fetch; this was the deterministic macOS CI shard crash since #2775 and could crash shipped builds at runtime.

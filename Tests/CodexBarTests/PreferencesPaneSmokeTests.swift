@@ -211,6 +211,24 @@ struct PreferencesPaneSmokeTests {
     }
 
     @Test
+    func `agent session hosts editor builds for empty disabled and populated states`() {
+        let suite = "PreferencesPaneSmokeTests-agent-session-hosts"
+        let settings = Self.makeSettingsStore(suite: suite)
+
+        settings.agentSessionsEnabled = false
+        settings.agentSessionsManualHosts = ""
+        _ = AgentSessionHostsEditor(settings: settings).body
+        #expect(AgentSessionHostsEditor.inputFormatHint == "user@host, user@host")
+
+        settings.agentSessionsEnabled = true
+        settings.agentSessionsManualHosts = "developer@example-host"
+        _ = AgentSessionHostsEditor(settings: settings).body
+
+        let reloaded = Self.makeSettingsStore(suite: suite, reset: false)
+        #expect(reloaded.agentSessionsManualHosts == "developer@example-host")
+    }
+
+    @Test
     func `quota warning compact threshold text filters and persists typed values`() {
         let suite = "PreferencesPaneSmokeTests-quota-warning-threshold-editor"
         let settings = Self.makeSettingsStore(suite: suite)

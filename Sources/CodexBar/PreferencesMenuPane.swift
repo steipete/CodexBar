@@ -68,38 +68,68 @@ struct MenuPane: View {
 
             CostSummarySettingsSection(settings: self.settings, store: self.store)
 
-            Section {
-                Toggle(isOn: self.$settings.agentSessionsEnabled) {
-                    SettingsRowLabel(
-                        L("agent_sessions_title"),
-                        subtitle: L("agent_sessions_subtitle"))
-                }
-
-                SettingsMenuPicker(
-                    selection: self.$settings.agentSessionLabelStyle,
-                    options: MenuSettingsMenuOptions.agentSessionLabelStyles,
-                    label: {
-                        SettingsRowLabel(
-                            L("agent_session_labels_title"),
-                            subtitle: L("agent_session_labels_subtitle"))
-                    },
-                    optionLabel: { style in
-                        Text(style.label)
-                    })
-                    .disabled(!self.settings.agentSessionsEnabled)
-
-                TextField(L("agent_sessions_hosts_title"), text: self.$settings.agentSessionsManualHosts)
-                    .disabled(!self.settings.agentSessionsEnabled)
-            } header: {
-                Text(L("section_agent_sessions"))
-            } footer: {
-                SettingsSectionFooter(L("agent_sessions_footer"))
-            }
+            AgentSessionsSettingsSection(settings: self.settings)
         }
         .formStyle(.grouped)
         .toggleStyle(.switch)
         .scrollContentBackground(.hidden)
         .background(FocusResigningBackground())
+    }
+}
+
+@MainActor
+struct AgentSessionsSettingsSection: View {
+    @Bindable var settings: SettingsStore
+
+    var body: some View {
+        Section {
+            Toggle(isOn: self.$settings.agentSessionsEnabled) {
+                SettingsRowLabel(
+                    L("agent_sessions_title"),
+                    subtitle: L("agent_sessions_subtitle"))
+            }
+
+            SettingsMenuPicker(
+                selection: self.$settings.agentSessionLabelStyle,
+                options: MenuSettingsMenuOptions.agentSessionLabelStyles,
+                label: {
+                    SettingsRowLabel(
+                        L("agent_session_labels_title"),
+                        subtitle: L("agent_session_labels_subtitle"))
+                },
+                optionLabel: { style in
+                    Text(style.label)
+                })
+                .disabled(!self.settings.agentSessionsEnabled)
+
+            AgentSessionHostsEditor(settings: self.settings)
+        } header: {
+            Text(L("section_agent_sessions"))
+        } footer: {
+            SettingsSectionFooter(L("agent_sessions_footer"))
+        }
+    }
+}
+
+@MainActor
+struct AgentSessionHostsEditor: View {
+    static let inputFormatHint = "user@host, user@host"
+
+    @Bindable var settings: SettingsStore
+
+    var body: some View {
+        LabeledContent(L("agent_sessions_hosts_title")) {
+            TextField(
+                L("agent_sessions_hosts_title"),
+                text: self.$settings.agentSessionsManualHosts,
+                prompt: Text(verbatim: Self.inputFormatHint))
+                .labelsHidden()
+                .textFieldStyle(.roundedBorder)
+                .frame(minWidth: 220, idealWidth: 280)
+                .accessibilityLabel(L("agent_sessions_hosts_title"))
+        }
+        .disabled(!self.settings.agentSessionsEnabled)
+        .help(L("agent_sessions_footer"))
     }
 }
 
