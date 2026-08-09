@@ -56,8 +56,11 @@ defineProvider({
   letter of `name` with a neutral tint. File/SVG icons are not supported.
 - `endpoints`: 1–16 declared network origins. A fixed endpoint is a normalized HTTPS origin such as
   `https://api.example.com` (no path, query, fragment, or user info). A settings-derived endpoint is
-  `{setting: "BASE_URL", policy: "https"}` or `{setting: "BASE_URL", policy: "https-or-loopback-http"}`. Its setting
-  must be declared as `plain`. HTTP is allowed only for unauthenticated loopback targets.
+  `{setting: "BASE_URL", policy: "https"}`, `{setting: "BASE_URL", policy: "https-or-loopback-http"}`, or
+  `{setting: "BASE_URL", policy: "https-or-private-network-http"}`. Its setting must be declared as `plain`.
+  `https-or-loopback-http` preserves the unauthenticated loopback-only rule. `https-or-private-network-http` also permits
+  authenticated HTTP for loopback, RFC 1918 IPv4, IPv4 link-local, IPv6 unique-local/link-local, and `.local` targets,
+  but only through the separate typed approval described below. Public targets always require HTTPS.
 - `auth` (optional): one of the forms below. The named secret must be a declared `secure` setting.
 - `settings`: up to 32 setting definitions. Keys contain 1–64 ASCII letters, digits, or underscores and start with a
   letter. Each entry has `key`, `title`, optional `subtitle`, and `type: "plain" | "secure"` (default `secure`).
@@ -74,8 +77,9 @@ auth: { type: "header", header: "X-Custom-Key", secret: "API_KEY" }
 auth: { type: "authorization-scheme", scheme: "Token", secret: "API_KEY" }
 ```
 
-The host owns the authentication header; plugin request options cannot override it. Authenticated origins must be
-HTTPS. Secure settings can be overridden for CLI use with
+The host owns the authentication header; plugin request options cannot override it. Authenticated public origins must be
+HTTPS; authenticated private-network HTTP requires `https-or-private-network-http` plus typed approval. Secure settings
+can be overridden for CLI use with
 `CODEXBAR_PLUGIN_<PLUGIN_ID>_<SETTING_KEY>`, uppercased with non-alphanumeric characters replaced by underscores. For
 example, `acme-usage` and `API_KEY` use `CODEXBAR_PLUGIN_ACME_USAGE_API_KEY`.
 
@@ -198,6 +202,10 @@ Transpile failures appear as that plugin's Settings error.
 Approval records live outside plugin files under `~/Library/Application Support/CodexBar/plugin-approvals.json`. A
 change to instance ID, normalized origins, auth mode/header, secure setting names, capabilities, or cookie domains
 invalidates approval before the next request. There is no bulk approval or import path.
+
+Bundled first-party plugins do not use the interactive plugin-approval flow. The private-network HTTP policy is therefore
+accepted for bundled code only for LLM Proxy and LiteLLM, whose existing Swift providers already permit exactly those
+targets. Other bundled providers fail manifest validation if they request that policy.
 
 `codexbar plugins list` shows locally discovered plugins. `codexbar plugins fetch <id>` displays the same approval
 fields and can approve only from an interactive terminal; redirected/headless input fails closed. Browser-cookie plugins

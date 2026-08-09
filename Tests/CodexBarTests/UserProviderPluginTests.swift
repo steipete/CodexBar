@@ -266,6 +266,59 @@ struct UserProviderPluginTests {
     }
 
     @Test
+    func `LLM Proxy private HTTP requires approval and keeps auth bound to the typed origin`() async throws {
+        let fixture = try Fixture()
+        defer { fixture.remove() }
+        let source = """
+        defineProvider({
+          id: "llmproxy-prototype",
+          name: "LLM Proxy Prototype",
+          endpoints: [{ setting: "BASE_URL", policy: "https-or-private-network-http" }],
+          auth: { type: "bearer", secret: "TOKEN" },
+          settings: [
+            { key: "BASE_URL", title: "Base URL", type: "plain" },
+            { key: "TOKEN", title: "API token", type: "secure" },
+          ],
+          async fetchUsage(ctx) {
+            const response = await ctx.http.getJSON(`${ctx.settings.get("BASE_URL")}/usage`);
+            return { identity: { organization: response.json.organization } };
+          },
+        });
+        """
+        let transport = RecordingTransport(responseJSON: #"{"organization":"Acme gateway"}"#)
+        let plugin = try fixture.loader(transport: transport)
+            .load(fileURL: fixture.write(name: "llmproxy.js", source: source))
+        let settings = ["BASE_URL": "http://192.168.1.20:4000"]
+        let binding = try plugin.approvalBinding(settings: settings)
+
+        #expect(binding.origins == ["http://192.168.1.20:4000"])
+        #expect(binding.typedConfirmationOrigins == binding.origins)
+        let localBinding = try plugin.approvalBinding(settings: ["BASE_URL": "http://gateway.local.:4000"])
+        #expect(localBinding.typedConfirmationOrigins == localBinding.origins)
+        await #expect(throws: UserProviderPluginError.self) {
+            _ = try await plugin.fetchUsage(
+                settings: settings,
+                secrets: ["TOKEN": "fixture-secret"],
+                approvalStore: fixture.approvals)
+        }
+        #expect(transport.requestCount == 0)
+
+        try fixture.approvals.record(binding)
+        let snapshot = try await plugin.fetchUsage(
+            settings: settings,
+            secrets: ["TOKEN": "fixture-secret"],
+            approvalStore: fixture.approvals)
+
+        #expect(snapshot.identity?.accountOrganization == "Acme gateway")
+        #expect(transport.lastRequest?.url?.absoluteString == "http://192.168.1.20:4000/usage")
+        #expect(transport.lastRequest?.value(forHTTPHeaderField: "Authorization") == "Bearer fixture-secret")
+
+        #expect(throws: ProviderPluginError.self) {
+            _ = try plugin.approvalBinding(settings: ["BASE_URL": "http://gateway.example"])
+        }
+    }
+
+    @Test
     func `plugin CLI renders identity only snapshots`() throws {
         let fixture = try Fixture()
         defer { fixture.remove() }

@@ -30,11 +30,11 @@ weakening the plugin network policy.
 |---|---:|
 | `cut-over` | 11 |
 | `converted` | 5 |
-| `convertible-now` | 8 |
+| `convertible-now` | 10 |
 | `needs-cookie-import` | 19 |
 | `needs-files/subprocess/oauth-broker` | 15 |
 | `needs-pty/webview/native` | 8 |
-| `needs-host-extension` | 2 |
+| `needs-host-extension` | 0 |
 | **Total** | **68** |
 
 ## Matrix
@@ -94,8 +94,8 @@ weakening the plugin network policy.
 | bedrock | `needs-files/subprocess/oauth-broker` | No | AWS profiles/CLI credentials, SigV4 signing, pagination, and two services need host-owned credential/signing APIs. |
 | grok | `needs-pty/webview/native` | No | Persistent stdio JSON-RPC, auth/session files, cookies, logs, and binary gRPC-web are strongly native. |
 | groq | `needs-cookie-import` | No | Skipped: Stytch session exchange and console history remain a multi-step auth flow. |
-| llmproxy | `needs-host-extension` | No | Stopped: configured origins work for HTTPS/loopback, but native behavior also permits RFC 1918, link-local, unique-local IPv6, and `.local` HTTP, which the plugin policy rejects. |
-| litellm | `needs-host-extension` | No | Stopped: native private-network HTTP origins exceed the plugin policy; zero-spend keys without budgets can also produce an identity-only snapshot. |
+| llmproxy | `convertible-now` | No | Settings origins now preserve native HTTPS/public and approved private-network HTTP behavior. |
+| litellm | `convertible-now` | No | Settings origins now preserve native private-network HTTP behavior, and zero-spend identity-only snapshots are valid. |
 | deepgram | `cut-over` | Yes | Cut over on JavaScriptCore: project discovery, aggregation, configured origins, numeric validation, and classified auth/permission/rate/network/API/parse failures match native behavior; the native fetch core is Linux-only. |
 | poe | `cut-over` | Yes | Cut over on both engines: fixed-origin bearer GET balance/history pagination with daily points and model/type summaries; the native fetch twins are deleted. |
 | chutes | `convertible-now` | No | Tolerant no-usage payloads can return an API identity without inventing quota data. |

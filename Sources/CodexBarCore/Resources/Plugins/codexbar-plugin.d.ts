@@ -5,7 +5,7 @@ type CodexBarEndpoint =
   | string
   | {
       setting: string;
-      policy: "https" | "https-or-loopback-http";
+      policy: "https" | "https-or-loopback-http" | "https-or-private-network-http";
     };
 
 type CodexBarAuth =

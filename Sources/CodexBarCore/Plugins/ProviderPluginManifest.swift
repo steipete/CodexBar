@@ -54,6 +54,7 @@ public enum ProviderPluginEndpoint: Equatable, Hashable, Sendable {
     public enum Policy: String, Sendable {
         case https
         case httpsOrLoopbackHTTP = "https-or-loopback-http"
+        case httpsOrPrivateNetworkHTTP = "https-or-private-network-http"
     }
 
     case fixed(String)
@@ -119,6 +120,13 @@ public struct ProviderPluginManifest: Sendable {
             let rawPolicy = try Self.requiredString(rawEndpoint, property: "policy")
             guard let policy = ProviderPluginEndpoint.Policy(rawValue: rawPolicy) else {
                 throw ProviderPluginError.invalidManifest("unsupported endpoint policy '\(rawPolicy)'")
+            }
+            if policy == .httpsOrPrivateNetworkHTTP,
+               !allowsDynamicID,
+               id.firstPartyProvider.map(Self.bundledPrivateNetworkHTTPProviders.contains) != true
+            {
+                throw ProviderPluginError.invalidManifest(
+                    "private-network HTTP is not allowed for bundled provider '\(id.rawValue)'")
             }
             endpoints.insert(.setting(key: key, policy: policy))
         }
@@ -353,6 +361,8 @@ public struct ProviderPluginManifest: Sendable {
         }
         return value
     }
+
+    private static let bundledPrivateNetworkHTTPProviders: Set<UsageProvider> = [.llmproxy, .litellm]
 }
 
 enum ProviderPluginOrigin {
@@ -384,6 +394,8 @@ enum ProviderPluginOrigin {
             validator.validatedURL(url.absoluteString)
         case .httpsOrLoopbackHTTP:
             validator.validatedURLAllowingLoopbackHTTP(url.absoluteString)
+        case .httpsOrPrivateNetworkHTTP:
+            validator.validatedURLAllowingPrivateNetworkHTTP(url.absoluteString)
         }
         guard let validated, validated.fragment == nil, validated.user == nil, validated.password == nil else {
             throw ProviderPluginError.networkPolicy("URL does not satisfy the declared endpoint policy")

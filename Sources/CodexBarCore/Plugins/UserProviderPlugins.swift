@@ -18,6 +18,7 @@ public struct ProviderPluginApprovalBinding: Codable, Equatable, Sendable {
 
     public init(manifest: ProviderPluginManifest, settings: [String: String]) throws {
         var origins: Set<String> = []
+        var authenticatedHTTPOrigins: Set<String> = []
         for endpoint in manifest.endpoints {
             switch endpoint {
             case let .fixed(origin):
@@ -30,11 +31,18 @@ public struct ProviderPluginApprovalBinding: Codable, Equatable, Sendable {
                     throw ProviderPluginError.invalidManifest(
                         "endpoint setting '\(key)' must contain a valid URL before approval")
                 }
-                try origins.insert(ProviderPluginOrigin.normalizedOrigin(of: url, policy: policy))
+                let origin = try ProviderPluginOrigin.normalizedOrigin(of: url, policy: policy)
+                origins.insert(origin)
+                if policy == .httpsOrPrivateNetworkHTTP, origin.hasPrefix("http://") {
+                    authenticatedHTTPOrigins.insert(origin)
+                }
             }
         }
-        if manifest.auth != nil, origins.contains(where: { $0.hasPrefix("http://") }) {
-            throw ProviderPluginError.networkPolicy("authenticated plugin origins must use HTTPS")
+        if manifest.auth != nil,
+           origins.contains(where: { $0.hasPrefix("http://") && !authenticatedHTTPOrigins.contains($0) })
+        {
+            throw ProviderPluginError.networkPolicy(
+                "authenticated HTTP requires the private-network endpoint policy and typed approval")
         }
 
         self.instanceID = manifest.id
@@ -52,10 +60,11 @@ public struct ProviderPluginApprovalBinding: Codable, Equatable, Sendable {
 
     private static func requiresTypedConfirmation(_ origin: String) -> Bool {
         guard let host = URL(string: origin)?.host?.lowercased() else { return true }
-        if host == "localhost" || host.hasSuffix(".local") {
+        let normalizedHost = host.hasSuffix(".") ? String(host.dropLast()) : host
+        if normalizedHost == "localhost" || normalizedHost.hasSuffix(".local") {
             return true
         }
-        if self.isIPv4Literal(host) || host.contains(":") {
+        if self.isIPv4Literal(normalizedHost) || normalizedHost.contains(":") {
             return true
         }
         return false

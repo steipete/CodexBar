@@ -303,6 +303,82 @@ struct ProviderPluginRuntimeTests {
         #expect(await rejectedRequests.isEmpty)
     }
 
+    @Test(arguments: [
+        "http://localhost:4000",
+        "http://10.0.0.8:4000",
+        "http://172.16.0.8:4000",
+        "http://192.168.1.8:4000",
+        "http://169.254.1.8:4000",
+        "http://[fc00::8]:4000",
+        "http://[fe80::8]:4000",
+        "http://gateway.local:4000",
+        "https://gateway.example:4000",
+    ])
+    func `private network endpoint policy accepts the native gateway origin set`(origin: String) async throws {
+        let requests = RequestRecorder()
+        let runtime = try ProviderPluginRuntime(
+            source: Self.plugin(
+                id: "llmproxy",
+                endpoints: #"[{ setting: "BASE_URL", policy: "https-or-private-network-http" }]"#,
+                settings: """
+                { key: "TEST_KEY", title: "API key", type: "secure" },
+                { key: "BASE_URL", title: "Base URL", type: "plain" }
+                """,
+                fetchBody: """
+                const response = await ctx.http.getJSON(`${ctx.settings.get("BASE_URL")}/usage`);
+                return { primary: { usedPercent: response.json.used } };
+                """),
+            transport: Self.transport(recorder: requests, body: #"{"used":4}"#))
+
+        let snapshot = try await runtime.fetchUsage(
+            settings: ["BASE_URL": origin],
+            secrets: ["TEST_KEY": "fixture-key"])
+
+        #expect(snapshot.primary?.usedPercent == 4)
+        #expect(await requests.first?.url?.absoluteString == "\(origin)/usage")
+    }
+
+    @Test
+    func `private network endpoint policy rejects public HTTP before transport`() async throws {
+        let requests = RequestRecorder()
+        let runtime = try ProviderPluginRuntime(
+            source: Self.plugin(
+                id: "litellm",
+                endpoints: #"[{ setting: "BASE_URL", policy: "https-or-private-network-http" }]"#,
+                settings: """
+                { key: "TEST_KEY", title: "API key", type: "secure" },
+                { key: "BASE_URL", title: "Base URL", type: "plain" }
+                """,
+                fetchBody: """
+                await ctx.http.getJSON(`${ctx.settings.get("BASE_URL")}/usage`);
+                return { primary: { usedPercent: 1 } };
+                """),
+            transport: Self.transport(recorder: requests))
+
+        await #expect(throws: ProviderPluginError.self) {
+            _ = try await runtime.fetchUsage(
+                settings: ["BASE_URL": "http://gateway.example"],
+                secrets: ["TEST_KEY": "fixture-key"])
+        }
+        #expect(await requests.isEmpty)
+    }
+
+    @Test
+    func `bundled private network policy is limited to providers with native parity`() throws {
+        _ = try ProviderPluginRuntime(source: Self.plugin(
+            id: "llmproxy",
+            endpoints: #"[{ setting: "BASE_URL", policy: "https-or-private-network-http" }]"#,
+            auth: "null",
+            settings: #"{ key: "BASE_URL", title: "Base URL", type: "plain" }"#))
+
+        #expect(throws: ProviderPluginError.self) {
+            _ = try ProviderPluginRuntime(source: Self.plugin(
+                endpoints: #"[{ setting: "BASE_URL", policy: "https-or-private-network-http" }]"#,
+                auth: "null",
+                settings: #"{ key: "BASE_URL", title: "Base URL", type: "plain" }"#))
+        }
+    }
+
     @Test
     func `browser cookie access is declared domain only and cookie values are redacted`() async throws {
         let access = CookieAccessRecorder(header: "session=secret-cookie-value")
@@ -679,6 +755,7 @@ struct ProviderPluginRuntimeTests {
     }
 
     private static func plugin(
+        id: String = "synthetic",
         endpoints: String = #"["https://api.example.test"]"#,
         auth: String = #"{ type: "bearer", secret: "TEST_KEY" }"#,
         settings: String = #"{ key: "TEST_KEY", title: "API key", type: "secure" }"#,
@@ -687,7 +764,7 @@ struct ProviderPluginRuntimeTests {
     {
         """
         defineProvider({
-          id: "synthetic",
+          id: "\(id)",
           name: "Fixture",
           endpoints: \(endpoints),
           auth: \(auth),
