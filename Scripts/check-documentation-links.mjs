@@ -4,19 +4,14 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const approvedRootDocumentation = new Set([
-  "README.md",
-  "CHANGELOG.md",
-  "LICENSE",
-  "VISION.md",
-].map((relativePath) => path.join(repoRoot, relativePath)));
+const approvedRootDocumentation = new Set(
+  ["README.md", "CHANGELOG.md", "LICENSE", "VISION.md"].map((relativePath) => path.join(repoRoot, relativePath)),
+);
 
 const readme = readText("README.md");
-const readmeLinks = [
-  ...markdownLinks(readme),
-  ...markdownImageLinks(readme),
-  ...htmlLinks(readme),
-].filter(isRepositoryDocReference);
+const readmeLinks = [...markdownLinks(readme), ...markdownImageLinks(readme), ...htmlLinks(readme)].filter(
+  isRepositoryDocReference,
+);
 
 assert(readmeLinks.length > 0, "README.md has no local documentation links");
 for (const link of readmeLinks) validateLocalDocLink(link, repoRoot, "README.md");
@@ -27,11 +22,9 @@ for (const link of providerLinks) validateLocalDocLink(link, repoRoot, "docs/pro
 
 const docsLinks = markdownFiles("docs").flatMap((relativePath) => {
   const markdown = readText(relativePath);
-  const links = [
-    ...markdownLinks(markdown),
-    ...markdownImageLinks(markdown),
-    ...htmlLinks(markdown),
-  ].filter(isLocalDocumentationReference);
+  const links = [...markdownLinks(markdown), ...markdownImageLinks(markdown), ...htmlLinks(markdown)].filter(
+    isLocalDocumentationReference,
+  );
 
   return links.map((link) => ({ link, relativePath }));
 });
@@ -40,9 +33,7 @@ for (const { link, relativePath } of docsLinks) {
   validateLocalDocLink(link, path.join(repoRoot, path.dirname(relativePath)), relativePath);
 }
 
-console.log(
-  `documentation links OK: ${readmeLinks.length + providerLinks.length + docsLinks.length} local links`,
-);
+console.log(`documentation links OK: ${readmeLinks.length + providerLinks.length + docsLinks.length} local links`);
 
 function readText(relativePath) {
   return fs.readFileSync(path.join(repoRoot, relativePath), "utf8");
@@ -51,7 +42,8 @@ function readText(relativePath) {
 function markdownLinks(markdown) {
   const source = markdownTextOutsideCode(markdown);
   const links = [];
-  const inlinePattern = /(?<!!)\[(?:\\.|[^\]\\])+\]\(\s*(?:<([^>\n]+)>|([^\s)]+))(?:\s+(?:"[^"\n]*"|'[^'\n]*'|\([^)\n]*\)))?\s*\)/g;
+  const inlinePattern =
+    /(?<!!)\[(?:\\.|[^\]\\])+\]\(\s*(?:<([^>\n]+)>|([^\s)]+))(?:\s+(?:"[^"\n]*"|'[^'\n]*'|\([^)\n]*\)))?\s*\)/g;
   for (const match of source.matchAll(inlinePattern)) {
     links.push(encodeSpaces(match[1] ?? match[2]));
   }
@@ -65,7 +57,8 @@ function markdownLinks(markdown) {
 
 function markdownImageLinks(markdown) {
   const source = markdownTextOutsideCode(markdown);
-  const pattern = /!\[(?:\\.|[^\]\\])*\]\(\s*(?:<([^>\n]+)>|([^\s)]+))(?:\s+(?:"[^"\n]*"|'[^'\n]*'|\([^)\n]*\)))?\s*\)/g;
+  const pattern =
+    /!\[(?:\\.|[^\]\\])*\]\(\s*(?:<([^>\n]+)>|([^\s)]+))(?:\s+(?:"[^"\n]*"|'[^'\n]*'|\([^)\n]*\)))?\s*\)/g;
   return [...source.matchAll(pattern)].map((match) => match[1] ?? match[2]);
 }
 
@@ -131,12 +124,15 @@ function localDocPath(rawLink, baseDirectory, sourcePath) {
 
 function markdownFiles(relativeDir) {
   const dir = path.join(repoRoot, relativeDir);
-  return fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
-    if (entry.name.startsWith(".") || entry.name === "node_modules") return [];
-    const relativePath = path.join(relativeDir, entry.name);
-    if (entry.isDirectory()) return markdownFiles(relativePath);
-    return entry.isFile() && entry.name.endsWith(".md") ? [relativePath] : [];
-  }).sort((a, b) => a.localeCompare(b));
+  return fs
+    .readdirSync(dir, { withFileTypes: true })
+    .flatMap((entry) => {
+      if (entry.name.startsWith(".") || entry.name === "node_modules") return [];
+      const relativePath = path.join(relativeDir, entry.name);
+      if (entry.isDirectory()) return markdownFiles(relativePath);
+      return entry.isFile() && entry.name.endsWith(".md") ? [relativePath] : [];
+    })
+    .sort((a, b) => a.localeCompare(b));
 }
 
 function parseRelativeURL(rawLink) {
@@ -192,26 +188,26 @@ function removeMarkdownFormatting(text) {
 }
 
 function markdownTextOutsideCode(markdown) {
-  return markdownTextOutsideFencedCode(markdown)
-    .split("\n")
-    .map(removeInlineCode)
-    .join("\n");
+  return markdownTextOutsideFencedCode(markdown).split("\n").map(removeInlineCode).join("\n");
 }
 
 function markdownTextOutsideFencedCode(markdown) {
   let fence = null;
-  return markdown.split("\n").map((line) => {
-    if (fence) {
-      if (isClosingFence(line, fence.marker, fence.count)) fence = null;
-      return "";
-    }
-    const openingFence = parseOpeningFence(line);
-    if (openingFence) {
-      fence = openingFence;
-      return "";
-    }
-    return line;
-  }).join("\n");
+  return markdown
+    .split("\n")
+    .map((line) => {
+      if (fence) {
+        if (isClosingFence(line, fence.marker, fence.count)) fence = null;
+        return "";
+      }
+      const openingFence = parseOpeningFence(line);
+      if (openingFence) {
+        fence = openingFence;
+        return "";
+      }
+      return line;
+    })
+    .join("\n");
 }
 
 function parseOpeningFence(line) {

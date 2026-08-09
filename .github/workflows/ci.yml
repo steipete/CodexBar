@@ -97,7 +97,7 @@ jobs:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
       - name: Install lint tools
-        run: ./Scripts/install_lint_tools.sh swiftlint
+        run: ./Scripts/install_lint_tools.sh swiftlint oxlint oxfmt typescript
 
       - name: Lint
         run: ./Scripts/lint.sh lint-linux

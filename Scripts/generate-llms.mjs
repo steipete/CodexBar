@@ -36,7 +36,9 @@ const lines = [
   productDescription,
   "",
   "Canonical documentation:",
-  ...pages.map((page) => "- " + page.title + ": " + pageUrl(page.rel) + (page.description ? " - " + page.description : "")),
+  ...pages.map(
+    (page) => "- " + page.title + ": " + pageUrl(page.rel) + (page.description ? " - " + page.description : ""),
+  ),
   "",
   "Source: " + source,
   "",
@@ -81,7 +83,10 @@ function pageUrl(rel) {
 }
 
 function textContent(value) {
-  return attr(value || "").replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim();
+  return attr(value || "")
+    .replace(/<[^>]+>/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function attr(value) {

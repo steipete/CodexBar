@@ -2,13 +2,33 @@ import CQuickJS
 import Foundation
 
 enum QuickJSTypeScriptTranspiler {
-    static func transpile(source: String, sucraseSource: String) throws -> String {
-        let box = QuickJSBlockingResult<String>()
-        let thread = Thread {
-            box.finish(Result {
-                try self.transpileOnCurrentThread(source: source, sucraseSource: sucraseSource)
+    /// A Thread subclass with an overridden main() instead of Thread(block:): the block closure
+    /// picks up @MainActor inference under some SDKs (Xcode 26.3), and the embedded executor
+    /// check then traps off-main when the OS runtime enforces isolation dynamically.
+    private final class TranspileThread: Thread {
+        private let box: QuickJSBlockingResult<String>
+        private let source: String
+        private let sucraseSource: String
+
+        init(box: QuickJSBlockingResult<String>, source: String, sucraseSource: String) {
+            self.box = box
+            self.source = source
+            self.sucraseSource = sucraseSource
+            super.init()
+        }
+
+        override func main() {
+            self.box.finish(Result {
+                try QuickJSTypeScriptTranspiler.transpileOnCurrentThread(
+                    source: self.source,
+                    sucraseSource: self.sucraseSource)
             })
         }
+    }
+
+    static func transpile(source: String, sucraseSource: String) throws -> String {
+        let box = QuickJSBlockingResult<String>()
+        let thread = TranspileThread(box: box, source: source, sucraseSource: sucraseSource)
         // Dispatch/Swift cooperative workers can have less native stack than QuickJS's 2 MiB limit.
         thread.stackSize = QuickJSRuntimeLimits.nativeStackSizeBytes
         thread.name = "CodexBar QuickJS TypeScript transpiler"

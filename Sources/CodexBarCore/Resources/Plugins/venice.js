@@ -29,14 +29,16 @@ defineProvider({
 
     function optionalNumber(value, field) {
       if (value === null || value === undefined || value === "") return null;
-      const number = typeof value === "number" ? value :
-        typeof value === "string" ? Number(value.trim()) : Number.NaN;
+      const number = typeof value === "number" ? value : typeof value === "string" ? Number(value.trim()) : Number.NaN;
       if (!Number.isFinite(number)) throw new Error(`Failed to parse Venice response: ${field} must be numeric`);
       return number;
     }
 
-    if (payload.consumptionCurrency !== null && payload.consumptionCurrency !== undefined &&
-        typeof payload.consumptionCurrency !== "string") {
+    if (
+      payload.consumptionCurrency !== null &&
+      payload.consumptionCurrency !== undefined &&
+      typeof payload.consumptionCurrency !== "string"
+    ) {
       throw new Error("Failed to parse Venice response: consumptionCurrency must be a string");
     }
     const currency = payload.consumptionCurrency ? payload.consumptionCurrency.toUpperCase() : null;

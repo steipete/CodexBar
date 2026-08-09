@@ -15,7 +15,7 @@ defineProvider({
 
   async fetchUsage(ctx) {
     let base = (ctx.settings.get("CLAWROUTER_BASE_URL") || "https://clawrouter.openclaw.ai").replace(/\/+$/, "");
-    if (!/\/v1$/.test(base)) base += "/v1";
+    if (!base.endsWith("/v1")) base += "/v1";
     const response = await ctx.http.get(`${base}/usage`);
     if (response.status === 401 || response.status === 403) {
       throw ctx.fail.authenticationExpired("ClawRouter rejected the API key. Check the key and its policy status.");
@@ -30,11 +30,18 @@ defineProvider({
     let payload;
     try {
       payload = JSON.parse(response.bodyText);
-    } catch (_) {
+    } catch {
       throw ctx.fail.parseFailure("Could not parse ClawRouter usage: response was not valid JSON");
     }
-    if (!payload || typeof payload !== "object" || Array.isArray(payload) ||
-        !payload.budget || !payload.usage || !payload.usage.summary || !Array.isArray(payload.usage.providers)) {
+    if (
+      !payload ||
+      typeof payload !== "object" ||
+      Array.isArray(payload) ||
+      !payload.budget ||
+      !payload.usage ||
+      !payload.usage.summary ||
+      !Array.isArray(payload.usage.providers)
+    ) {
       throw ctx.fail.parseFailure("Could not parse ClawRouter usage: response shape is invalid");
     }
 
@@ -54,7 +61,10 @@ defineProvider({
       if (!match) return null;
       let year = Number(match[1]);
       let month = Number(match[2]) + 1;
-      if (month === 13) { year += 1; month = 1; }
+      if (month === 13) {
+        year += 1;
+        month = 1;
+      }
       return ctx.date.iso(`${year}-${String(month).padStart(2, "0")}-01T00:00:00Z`);
     }
 
@@ -75,19 +85,21 @@ defineProvider({
     const totalTokens = integer(summary.totalTokens, "summary.totalTokens");
     const actualCost = micros(summary.actualCostMicros, "summary.actualCostMicros", false);
 
-    const providers = payload.usage.providers.map(item => {
-      if (!item || typeof item.provider !== "string") {
-        throw ctx.fail.parseFailure("Could not parse ClawRouter usage: provider name must be a string");
-      }
-      return {
-        provider: item.provider.trim() || "Unknown",
-        requests: integer(item.requestCount, "provider.requestCount"),
-        success: integer(item.successCount, "provider.successCount"),
-        errors: integer(item.errorCount, "provider.errorCount"),
-        tokens: integer(item.totalTokens, "provider.totalTokens"),
-        cost: micros(item.actualCostMicros, "provider.actualCostMicros", false),
-      };
-    }).sort((a, b) => b.cost - a.cost || b.requests - a.requests || a.provider.localeCompare(b.provider));
+    const providers = payload.usage.providers
+      .map((item) => {
+        if (!item || typeof item.provider !== "string") {
+          throw ctx.fail.parseFailure("Could not parse ClawRouter usage: provider name must be a string");
+        }
+        return {
+          provider: item.provider.trim() || "Unknown",
+          requests: integer(item.requestCount, "provider.requestCount"),
+          success: integer(item.successCount, "provider.successCount"),
+          errors: integer(item.errorCount, "provider.errorCount"),
+          tokens: integer(item.totalTokens, "provider.totalTokens"),
+          cost: micros(item.actualCostMicros, "provider.actualCostMicros", false),
+        };
+      })
+      .sort((a, b) => b.cost - a.cost || b.requests - a.requests || a.provider.localeCompare(b.provider));
 
     const result = {
       dataConfidence: "exact",
@@ -95,15 +107,25 @@ defineProvider({
         organization: `${providers.length} routed providers`,
         loginMethod: budget.configured ? "Managed monthly budget" : "Unmetered",
       },
-      details: [{
-        title: "Usage",
-        rows: [
-          { label: "Requests", value: String(requestCount), secondaryValue: `${successCount} succeeded · ${errorCount} failed` },
-          { label: "Tokens", value: String(totalTokens), secondaryValue: `${inputTokens} input · ${outputTokens} output` },
-          { label: "Actual cost", value: `$${actualCost.toFixed(6)}` },
-          { label: "Budget ledger", value: budget.ledger },
-        ],
-      }],
+      details: [
+        {
+          title: "Usage",
+          rows: [
+            {
+              label: "Requests",
+              value: String(requestCount),
+              secondaryValue: `${successCount} succeeded · ${errorCount} failed`,
+            },
+            {
+              label: "Tokens",
+              value: String(totalTokens),
+              secondaryValue: `${inputTokens} input · ${outputTokens} output`,
+            },
+            { label: "Actual cost", value: `$${actualCost.toFixed(6)}` },
+            { label: "Budget ledger", value: budget.ledger },
+          ],
+        },
+      ],
     };
 
     if (spent !== null && limit !== null) {
@@ -132,7 +154,7 @@ defineProvider({
       }
       result.details.push({
         title: "Routed providers",
-        rows: providers.slice(0, 20).map(item => ({
+        rows: providers.slice(0, 20).map((item) => ({
           label: item.provider,
           value: `${item.requests} requests`,
           secondaryValue: `$${item.cost.toFixed(6)} · ${item.tokens} tokens`,
@@ -141,7 +163,7 @@ defineProvider({
           kind: "bars",
           title: "Provider cost",
           unit: "USD",
-          points: visible.map(item => ({ label: item.provider, value: item.cost })),
+          points: visible.map((item) => ({ label: item.provider, value: item.cost })),
         },
       });
     }

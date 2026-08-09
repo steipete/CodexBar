@@ -7,13 +7,8 @@ import { localeCatalog, localeMessages } from "../docs/site-locales.mjs";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const indexHtml = fs.readFileSync(path.join(repoRoot, "docs/index.html"), "utf8");
-const providerSource = fs.readFileSync(
-  path.join(repoRoot, "Sources/CodexBarCore/Providers/Providers.swift"),
-  "utf8",
-);
-const providerEnumBody = providerSource.match(
-  /public enum UsageProvider:[^{]+\{([\s\S]*?)\n\}/,
-)?.[1];
+const providerSource = fs.readFileSync(path.join(repoRoot, "Sources/CodexBarCore/Providers/Providers.swift"), "utf8");
+const providerEnumBody = providerSource.match(/public enum UsageProvider:[^{]+\{([\s\S]*?)\n\}/)?.[1];
 assert(providerEnumBody, "could not locate UsageProvider cases");
 const providerIDs = [...providerEnumBody.matchAll(/^\s*case\s+(\w+)\s*$/gm)].map((match) => match[1]);
 assert(providerIDs.length > 0, "UsageProvider must define at least one provider");
@@ -30,7 +25,10 @@ for (const [relativePath, expectedText] of publicCountFiles) {
   const contents = fs.readFileSync(path.join(repoRoot, relativePath), "utf8");
   assert(contents.includes(expectedText), `${relativePath} must advertise ${providerCount} providers`);
 }
-assert(indexHtml.includes(`across ${providerCount} providers`), `index metadata must advertise ${providerCount} providers`);
+assert(
+  indexHtml.includes(`across ${providerCount} providers`),
+  `index metadata must advertise ${providerCount} providers`,
+);
 assert(
   indexHtml.includes(`across ${providerCount} AI coding providers`),
   `index social metadata must advertise ${providerCount} providers`,
@@ -45,23 +43,40 @@ for (const match of indexHtml.matchAll(/<link rel="stylesheet" href="\.\/([^"?]+
   assert(fs.existsSync(path.join(repoRoot, "docs", match[1])), `missing local stylesheet ${match[1]}`);
 }
 const expectedCodes = [
-  "en", "zh-CN", "zh-TW", "ja-JP", "es", "pt-BR", "ko", "de", "fr", "ar", "it",
-  "vi", "nl", "tr", "uk", "ru", "id", "pl", "fa", "th", "gl", "ca", "sv",
+  "en",
+  "zh-CN",
+  "zh-TW",
+  "ja-JP",
+  "es",
+  "pt-BR",
+  "ko",
+  "de",
+  "fr",
+  "ar",
+  "it",
+  "vi",
+  "nl",
+  "tr",
+  "uk",
+  "ru",
+  "id",
+  "pl",
+  "fa",
+  "th",
+  "gl",
+  "ca",
+  "sv",
 ];
 const catalogCodes = localeCatalog.map((locale) => locale.code);
-const appLanguageSource = fs.readFileSync(
-  path.join(repoRoot, "Sources/CodexBar/PreferencesGeneralPane.swift"),
-  "utf8",
-);
+const appLanguageSource = fs.readFileSync(path.join(repoRoot, "Sources/CodexBar/PreferencesGeneralPane.swift"), "utf8");
 
 assertEqual(catalogCodes, expectedCodes, "locale catalog");
 assertEqual(
   localeCatalog.filter((locale) => locale.direction === "rtl").map((locale) => locale.code),
   ["ar", "fa"],
-  "RTL locale catalog");
-const appLanguageEnumBody = appLanguageSource.match(
-  /enum AppLanguage:[^{]+\{([\s\S]*?)\n\}/,
-)?.[1];
+  "RTL locale catalog",
+);
+const appLanguageEnumBody = appLanguageSource.match(/enum AppLanguage:[^{]+\{([\s\S]*?)\n\}/)?.[1];
 assert(appLanguageEnumBody, "could not locate AppLanguage cases");
 const appCatalogCodes = [...appLanguageEnumBody.matchAll(/case \w+ = "([^"]+)"/g)]
   .map((match) => match[1])
@@ -94,10 +109,11 @@ for (const key of referencedKeys) {
   assert(englishKeys.includes(key), `index.html references unknown locale key ${key}`);
 }
 
-const siteJs = fs.readFileSync(path.join(repoRoot, 'docs/site.js'), 'utf8');
-const hasLanguagePicker = indexHtml.includes('id="language-picker-list"')
-  && (indexHtml.includes('localeCatalog') || siteJs.includes('localeCatalog'));
-assert(hasLanguagePicker, 'site must include the language picker backed by localeCatalog');
+const siteJs = fs.readFileSync(path.join(repoRoot, "docs/site.js"), "utf8");
+const hasLanguagePicker =
+  indexHtml.includes('id="language-picker-list"') &&
+  (indexHtml.includes("localeCatalog") || siteJs.includes("localeCatalog"));
+assert(hasLanguagePicker, "site must include the language picker backed by localeCatalog");
 
 for (const code of catalogCodes) {
   assert(indexHtml.includes(`href="https://codexbar.app/?lang=${code}"`), `missing hreflang URL for ${code}`);
@@ -105,11 +121,11 @@ for (const code of catalogCodes) {
 
 const providerCards = [...indexHtml.matchAll(/<li class="provider-card"([^>]*)>([\s\S]*?)<\/li>/g)];
 for (const [, attrs, body] of providerCards) {
-  if (!attrs.includes('hidden')) {
-    assert(body.includes('class="provider-card-link"'), 'provider cards must link to provider documentation');
-    assert(body.includes('class="provider-logo'), 'provider cards must use logo assets');
+  if (!attrs.includes("hidden")) {
+    assert(body.includes('class="provider-card-link"'), "provider cards must link to provider documentation");
+    assert(body.includes('class="provider-logo'), "provider cards must use logo assets");
     for (const match of body.matchAll(/src="\.\/([^"]+)"/g)) {
-      assert(fs.existsSync(path.join(repoRoot, 'docs', match[1])), `missing provider logo asset ${match[1]}`);
+      assert(fs.existsSync(path.join(repoRoot, "docs", match[1])), `missing provider logo asset ${match[1]}`);
     }
   }
 }
