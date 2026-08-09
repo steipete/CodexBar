@@ -275,7 +275,10 @@ public final class ProviderPluginRuntime: @unchecked Sendable {
             }
         }
         if let classifiedError = error as? ProviderFetchClassifiedError {
-            return ProviderFetchClassifiedError(kind: classifiedError.kind, message: message)
+            return ProviderFetchClassifiedError(
+                kind: classifiedError.kind,
+                message: message,
+                retryAfterSeconds: classifiedError.retryAfterSeconds)
         }
         return ProviderPluginError.script(message)
     }
@@ -974,14 +977,8 @@ final class JavaScriptCoreProviderPluginEngine: ProviderPluginEngine, @unchecked
         redactionValues: ProviderPluginRedactionValues) -> Error
     {
         let message = redactionValues.redact(self.message(from: value))
-        let marker = "__CODEXBAR_FAILURE__:"
-        if message.hasPrefix(marker),
-           let separator = message[message.index(message.startIndex, offsetBy: marker.count)...].firstIndex(of: ":"),
-           let kind = ProviderFetchClassifiedError.Kind(
-               rawValue: String(message[message.index(message.startIndex, offsetBy: marker.count)..<separator]))
-        {
-            let body = String(message[message.index(after: separator)...])
-            return ProviderFetchClassifiedError(kind: kind, message: body)
+        if let classified = ProviderPluginClassifiedFailureParser.error(from: message) {
+            return classified
         }
         return ProviderPluginError.script(message)
     }

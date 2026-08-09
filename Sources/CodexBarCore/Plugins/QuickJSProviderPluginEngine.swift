@@ -861,15 +861,8 @@ final class QuickJSProviderPluginEngine: ProviderPluginEngine, @unchecked Sendab
 
     private func failure(from value: JSValue, redactionValues: QuickJSRedactionValues) -> Error {
         let message = redactionValues.redact((try? self.message(from: value)) ?? "unknown plugin failure")
-        let marker = "__CODEXBAR_FAILURE__:"
-        if message.hasPrefix(marker),
-           let separator = message[message.index(message.startIndex, offsetBy: marker.count)...].firstIndex(of: ":"),
-           let kind = ProviderFetchClassifiedError.Kind(
-               rawValue: String(message[message.index(message.startIndex, offsetBy: marker.count)..<separator]))
-        {
-            return ProviderFetchClassifiedError(
-                kind: kind,
-                message: String(message[message.index(after: separator)...]))
+        if let classified = ProviderPluginClassifiedFailureParser.error(from: message) {
+            return classified
         }
         return ProviderPluginError.script(message)
     }

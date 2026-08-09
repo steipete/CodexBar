@@ -98,6 +98,10 @@ so portable third-party plugins must use the host helpers below instead of ECMA-
 - `ctx.fail` creates classified errors for `authenticationExpired`, `missingCredential`, `permissionDenied`,
   `rateLimited`, `providerUnavailable`, `parseFailure`, `networkFailure`, and `apiFailure`. Throw the returned error,
   for example `throw ctx.fail.rateLimited("Provider rate limit reached")`; ordinary errors retain generic mapping.
+  Transient failures (`rateLimited`, `providerUnavailable`, `networkFailure`, and `apiFailure`) may request one delayed
+  retry with `{retryAfterSeconds}`. The host clamps the delay to 10 seconds, matching the built-in transient HTTP policy,
+  and never retries the retry. For a numeric `Retry-After` header, pass its value; use `1` for the built-in backoff when
+  the header is absent. Cancellation during the delay stops the retry.
 - `await ctx.browser.cookieHeader(domain)` returns a cookie header only with the `browser-cookies` capability and for a
   declared domain. The app imports from Chrome only. Cookie values are secret-equivalent and redacted.
 - `ctx.html.metaContent(html, name)` returns the first matching quoted meta value or `null`.

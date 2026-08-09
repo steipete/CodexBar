@@ -30,11 +30,11 @@ weakening the plugin network policy.
 |---|---:|
 | `cut-over` | 11 |
 | `converted` | 5 |
-| `convertible-now` | 7 |
+| `convertible-now` | 8 |
 | `needs-cookie-import` | 19 |
 | `needs-files/subprocess/oauth-broker` | 15 |
 | `needs-pty/webview/native` | 8 |
-| `needs-host-extension` | 3 |
+| `needs-host-extension` | 2 |
 | **Total** | **68** |
 
 ## Matrix
@@ -99,7 +99,7 @@ weakening the plugin network policy.
 | deepgram | `cut-over` | Yes | Cut over on JavaScriptCore: project discovery, aggregation, configured origins, numeric validation, and classified auth/permission/rate/network/API/parse failures match native behavior; the native fetch core is Linux-only. |
 | poe | `cut-over` | Yes | Cut over on both engines: fixed-origin bearer GET balance/history pagination with daily points and model/type summaries; the native fetch twins are deleted. |
 | chutes | `convertible-now` | No | Tolerant no-usage payloads can return an API identity without inventing quota data. |
-| neuralwatt | `needs-host-extension` | No | Stopped: the native request uses delayed transient/`Retry-After` retries, while the plugin HTTP API exposes neither retry policy nor sleep. |
+| neuralwatt | `convertible-now` | No | Classified transient failures can request the same single delayed retry and capped `Retry-After` behavior as native. |
 | clawrouter | `cut-over` | Yes | Cut over on JavaScriptCore: validated configured origins, classified failures, exact confidence, budget/ledger details, and provider charts match native behavior; the native fetch core is Linux-only. |
 | longcat | `needs-cookie-import` | No | Skipped: browser-cookie retry needs domain/path-aware cookie selection across multiple imported sessions; the generic broker currently returns one flattened header. |
 | sub2api | `cut-over` | Yes | Cut over on JavaScriptCore: configured HTTPS/loopback origins, a hard 15-second request deadline, strict parsing, exact confidence, and classified failures match native behavior; the native fetch core is Linux-only. |

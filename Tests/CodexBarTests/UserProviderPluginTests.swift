@@ -292,6 +292,42 @@ struct UserProviderPluginTests {
         ])
     }
 
+    @Test
+    func `NeuralWatt style Retry After failure delays once then succeeds`() async throws {
+        let source = """
+        defineProvider({
+          id: "neuralwatt-prototype",
+          name: "NeuralWatt Prototype",
+          endpoints: ["https://api.neuralwatt.test"],
+          settings: [],
+          async fetchUsage(ctx) {
+            const response = await ctx.http.getJSON("https://api.neuralwatt.test/v1/quota");
+            if (response.status === 429) {
+              throw ctx.fail.rateLimited("rate limited", {
+                retryAfterSeconds: Number(response.headers["retry-after"] || 1),
+              });
+            }
+            return { cost: { used: response.json.balance, currency: "USD" } };
+          },
+        });
+        """
+        let transport = SequenceResponseTransport(responses: [
+            (429, #"{"error":"slow down"}"#, ["Retry-After": "0"]),
+            (200, #"{"balance":5}"#, [:]),
+        ])
+        let runtime = try ProviderPluginRuntime(
+            source: source,
+            transport: transport,
+            allowsDynamicID: true)
+
+        let snapshot = try await ProviderFetchDelayedRetry.run {
+            try await runtime.fetchUsage()
+        }
+
+        #expect(snapshot.providerCost?.used == 5)
+        #expect(await transport.requestCount == 2)
+    }
+
     private static func javaScriptPlugin(
         id: String = "acme-meter",
         origin: String = "https://api.acme.test") -> String
@@ -366,6 +402,28 @@ private actor ResolverAccess {
 
     func record(provider _: UsageProvider, domain _: String) {
         self.calls += 1
+    }
+}
+
+private actor SequenceResponseTransport: ProviderHTTPTransport {
+    private var responses: [(status: Int, body: String, headers: [String: String])]
+    private(set) var requestCount = 0
+
+    init(responses: [(Int, String, [String: String])]) {
+        self.responses = responses
+    }
+
+    func data(for request: URLRequest) async throws -> (Data, URLResponse) {
+        self.requestCount += 1
+        let response = self.responses.removeFirst()
+        var headers = response.headers
+        headers["Content-Type"] = "application/json"
+        let httpResponse = try HTTPURLResponse(
+            url: #require(request.url),
+            statusCode: response.status,
+            httpVersion: nil,
+            headerFields: headers)!
+        return (Data(response.body.utf8), httpResponse)
     }
 }
 

@@ -545,6 +545,40 @@ struct ProviderPluginRuntimeTests {
     }
 
     @Test
+    func `transient classified failure preserves capped retry delay`() async throws {
+        let runtime = try ProviderPluginRuntime(source: Self.plugin(fetchBody: """
+        throw ctx.fail.rateLimited("retry later", { retryAfterSeconds: 30 });
+        """))
+
+        do {
+            _ = try await runtime.fetchUsage(secrets: ["TEST_KEY": "secret"])
+            Issue.record("Expected classified failure")
+        } catch let error as ProviderFetchClassifiedError {
+            #expect(error.kind == .rateLimited)
+            #expect(error.message == "retry later")
+            #expect(error.retryAfterSeconds == 10)
+        } catch {
+            Issue.record("Unexpected error: \(error)")
+        }
+    }
+
+    @Test
+    func `non transient classified failure rejects retry options`() async throws {
+        let runtime = try ProviderPluginRuntime(source: Self.plugin(fetchBody: """
+        throw ctx.fail.parseFailure("bad payload", { retryAfterSeconds: 1 });
+        """))
+
+        do {
+            _ = try await runtime.fetchUsage(secrets: ["TEST_KEY": "secret"])
+            Issue.record("Expected script failure")
+        } catch let error as ProviderPluginError {
+            #expect(error.localizedDescription.contains("retry options are supported only for transient failures"))
+        } catch {
+            Issue.record("Unexpected error: \(error)")
+        }
+    }
+
+    @Test
     func `unclassified failures retain generic script mapping`() async throws {
         let runtime = try ProviderPluginRuntime(source: Self.plugin(fetchBody: """
         throw new Error("ordinary fixture");

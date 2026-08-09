@@ -98,6 +98,22 @@ interface CodexBarHTTPTextResponse extends CodexBarHTTPResponse {
   bodyText: string;
 }
 
+interface CodexBarRetryOptions {
+  /** Requests one delayed retry. The host clamps this interval to 10 seconds. */
+  retryAfterSeconds: number;
+}
+
+interface CodexBarFailures {
+  authenticationExpired(message: unknown): Error;
+  missingCredential(message: unknown): Error;
+  permissionDenied(message: unknown): Error;
+  rateLimited(message: unknown, options?: CodexBarRetryOptions): Error;
+  providerUnavailable(message: unknown, options?: CodexBarRetryOptions): Error;
+  parseFailure(message: unknown): Error;
+  networkFailure(message: unknown, options?: CodexBarRetryOptions): Error;
+  apiFailure(message: unknown, options?: CodexBarRetryOptions): Error;
+}
+
 interface CodexBarPluginContext {
   readonly http: {
     getJSON<T = unknown>(url: string, options?: CodexBarHTTPRequestOptions): Promise<CodexBarHTTPJSONResponse<T>>;
@@ -130,19 +146,7 @@ interface CodexBarPluginContext {
     usd(value: number): string;
     monthDay(value: Date | number | string): string;
   };
-  readonly fail: Readonly<
-    Record<
-      | "authenticationExpired"
-      | "missingCredential"
-      | "permissionDenied"
-      | "rateLimited"
-      | "providerUnavailable"
-      | "parseFailure"
-      | "networkFailure"
-      | "apiFailure",
-      (message: unknown) => Error
-    >
-  >;
+  readonly fail: Readonly<CodexBarFailures>;
   readonly env: {
     readonly timeZone: string;
   };
