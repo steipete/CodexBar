@@ -273,6 +273,7 @@ private enum TTYCommandRunnerTestingOverrides {
 /// Keeps it minimal so we can reuse for Codex and Claude without tmux.
 public struct TTYCommandRunner {
     private static let log = CodexBarLog.logger(LogCategories.ttyRunner)
+    private static let postExitDrainTimeout: TimeInterval = 1
 
     public struct Result: Sendable {
         public enum Completion: Sendable, Equatable {
@@ -472,20 +473,25 @@ public struct TTYCommandRunner {
         return out
     }
 
+    @discardableResult
     static func drainRemainingOutput(
         until drainDeadline: Date,
         readChunk: () -> DrainReadResult,
         processChunk: (Data) -> Void,
+        shouldContinue: () -> Bool = { true },
         sleep: (UInt32) -> Void = { usleep($0) })
+        -> Bool
     {
-        while Date() < drainDeadline {
+        while true {
+            guard shouldContinue() else { return false }
             switch readChunk() {
             case let .data(newData):
                 processChunk(newData)
             case .wouldBlock:
+                guard Date() < drainDeadline else { return false }
                 sleep(20000)
             case .closed:
-                return
+                return true
             }
         }
     }
@@ -942,22 +948,20 @@ public struct TTYCommandRunner {
                 usleep(60000)
             }
 
-            let exitStatusBeforeDrain: Int32? = if !stoppedEarly,
-                                                   let exitObservedAt = process.exitObservationDate,
-                                                   exitObservedAt <= deadline
-            {
-                process.finishSynchronously()
-            } else {
-                nil
-            }
+            let exitedBeforeDeadline = !stoppedEarly
+                && process.exitObservationDate.map { $0 <= deadline } == true
+            let exitStatusBeforeDrain = exitedBeforeDeadline ? process.finishSynchronously() : nil
 
-            func drainNonCodexOutput(for duration: TimeInterval) {
+            func drainNonCodexOutput(for duration: TimeInterval) throws -> Bool {
                 let drainFor = max(0, duration)
-                guard drainFor > 0 else { return }
-                Self.drainRemainingOutput(
+                guard drainFor > 0 else { return false }
+                let closed = Self.drainRemainingOutput(
                     until: Date().addingTimeInterval(drainFor),
                     readChunk: readDrainChunk,
-                    processChunk: { _ = processNonCodexChunk($0, allowSends: false, allowStop: false) })
+                    processChunk: { _ = processNonCodexChunk($0, allowSends: false, allowStop: false) },
+                    shouldContinue: { !options.cancellationCheck() })
+                try checkCancellation()
+                return closed
             }
 
             if stoppedEarly {
@@ -979,12 +983,19 @@ public struct TTYCommandRunner {
                         usleep(50000)
                     }
                 }
+            } else if exitedBeforeDeadline {
+                // Exit observation, reaping, and PTY delivery are separate kernel events. Reaping alone is not
+                // enough: do not classify an empty result until the master has also drained through EOF/EIO.
+                guard try drainNonCodexOutput(for: Self.postExitDrainTimeout) else {
+                    Self.log.warning("PTY did not close after process exit", metadata: ["binary": binaryName])
+                    throw Error.timedOut
+                }
             } else {
                 // PTY-backed scripts can exit before their final echo becomes readable on the parent side.
                 // Give the kernel a brief non-blocking drain window so we don't lose the last line of output.
                 let defaultDrainDuration = min(0.5, max(0.2, options.settleAfterStop))
                 let drainDuration = TTYCommandRunnerTestingOverrides.postDeadlineDrainDuration ?? defaultDrainDuration
-                drainNonCodexOutput(for: drainDuration)
+                _ = try drainNonCodexOutput(for: drainDuration)
             }
 
             try checkOutputLimit()

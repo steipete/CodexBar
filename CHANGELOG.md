@@ -7,6 +7,7 @@
 
 ### Fixed
 - PTY probes: abort output-overflow children through a bounded process-group kill path, avoiding minute-long cleanup stalls under load (refs #2792).
+- PTY runner: drain short-lived commands to terminal closure after exit, preventing false empty probe results when output is still buffered.
 - Cost store: give the store actor's custom serial executor an `isIsolatingCurrentContext()` implementation — macOS 26+ runtimes consult it before `checkIsolated()`, and its default cannot see through `DispatchQueue.sync`, so every synchronous store bridge tripped "Incorrect actor executor assumption" and the app died on launch.
 - Codex: reject Standard/Fast pricing rows that exceed canonical fork-deduplicated usage, preventing copied fork rows and their Fast surcharge from inflating cost estimates (#2754). Thanks @1328189205 for the report and @Yuxin-Qiao for the initial fix and regression-test approach!
 - Claude: stop rotating Claude Code's own refresh-token chain on keychain-only installs — ownership evidence is now tri-state with indeterminate treated as CLI-owned, so delegated refreshes can never invalidate credentials CodexBar cannot read (#2745, refs #2634). Thanks @avenoxai!
