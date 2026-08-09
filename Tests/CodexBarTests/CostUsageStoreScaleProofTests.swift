@@ -79,10 +79,10 @@ struct CostUsageStoreScaleProofTests {
 
         // Generous gates so CI hardware variance does not flake; these catch order-of-magnitude
         // regressions (e.g. accidental full rewrites or missing indexes) rather than jitter.
-        #expect(Self.milliseconds(bulkElapsed) < 120_000)
-        #expect(Self.milliseconds(pruneElapsed) < 2000)
-        #expect(Self.milliseconds(reportElapsed) < 1000)
-        #expect(Self.milliseconds(snapshotElapsed) < 10000)
+        #expect(bulkElapsed < Self.timingBudget(.seconds(120)))
+        #expect(pruneElapsed < Self.timingBudget(.seconds(2)))
+        #expect(reportElapsed < Self.timingBudget(.seconds(1)))
+        #expect(snapshotElapsed < Self.timingBudget(.seconds(10)))
         #expect(bulkFileBytes < 300 * 1_048_576)
     }
 
@@ -140,7 +140,7 @@ struct CostUsageStoreScaleProofTests {
 
         print("[scale-proof] window prune 500 -> \(survivors) files: \(Self.milliseconds(pruneElapsed)) ms, ")
         print("[scale-proof] db file \(beforeBytes / 1_048_576) -> \(afterBytes / 1_048_576) MiB")
-        #expect(Self.milliseconds(pruneElapsed) < 5000)
+        #expect(pruneElapsed < Self.timingBudget(.seconds(5)))
     }
 
     @Test
@@ -173,8 +173,8 @@ struct CostUsageStoreScaleProofTests {
         print("[scale-proof] 100 MiB blob write: \(Self.milliseconds(writeElapsed)) ms, ")
         print("[scale-proof] db file after 100 MiB blob: \(persistedBytes / 1_048_576) MiB")
         print("[scale-proof] 100 MiB blob read: \(Self.milliseconds(readElapsed)) ms")
-        #expect(Self.milliseconds(writeElapsed) < 5000)
-        #expect(Self.milliseconds(readElapsed) < 5000)
+        #expect(writeElapsed < Self.timingBudget(.seconds(5)))
+        #expect(readElapsed < Self.timingBudget(.seconds(5)))
         // Keep the persisted representation bounded so a second whole-artifact copy cannot
         // hide behind a successful round trip.
         #expect(persistedBytes < 256 * 1_048_576)
@@ -184,6 +184,10 @@ struct CostUsageStoreScaleProofTests {
 // MARK: - Helpers
 
 extension CostUsageStoreScaleProofTests {
+    private static func timingBudget(_ budget: Duration) -> Duration {
+        TestTimingBudget.scaled(budget)
+    }
+
     private static func dayString(
         daysAgo: Int,
         calendar: Calendar,
