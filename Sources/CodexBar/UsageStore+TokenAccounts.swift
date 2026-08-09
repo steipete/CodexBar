@@ -1452,12 +1452,7 @@ extension UsageStore {
                     ? labeled.preservingDeepSeekPlatformProfiles(
                         from: self.presentationSnapshot(for: .deepseek))
                     : labeled
-                let historyStable = provider == .openrouter
-                    ? self.preservingOpenRouterActivityIfCurrent(
-                        profileStable,
-                        previous: self.snapshots[provider.instanceID])
-                    : profileStable
-                let backfilled = historyStable.backfillingResetTimes(
+                let backfilled = profileStable.backfillingResetTimes(
                     from: self.lastKnownResetSnapshots[provider.instanceID])
                 let warningAccountDiscriminator = Self.warningTokenAccountDiscriminator(account)
                 self.handleQuotaWarningTransitions(

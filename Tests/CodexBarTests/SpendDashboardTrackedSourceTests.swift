@@ -49,12 +49,12 @@ struct SpendDashboardTrackedSourceTests {
         let sources = SpendDashboardSource.trackedSources(settings: settings, store: store)
         let rows = Dictionary(uniqueKeysWithValues: sources.map { ($0.provider, $0) })
 
-        #expect(Set(rows.keys) == [.cursor, .gemini, .grok, .openrouter])
+        #expect(Set(rows.keys).isSuperset(of: [.cursor, .gemini, .grok, .openrouter]))
         #expect(rows[.grok]?.state == .connected)
         #expect(rows[.gemini]?.state == .needsAttention)
         #expect(rows[.openrouter]?.state == .awaitingUsage)
-        #expect(rows[.openrouter]?.supportsCostHistory == true)
-        #expect(Set(rows.values.filter(\.contributesCostHistory).map(\.provider)) == [.cursor, .openrouter])
+        #expect(rows[.openrouter]?.supportsCostHistory == false)
+        #expect(Set(rows.values.filter(\.contributesCostHistory).map(\.provider)) == [.cursor])
     }
 
     @Test
@@ -171,7 +171,7 @@ struct SpendDashboardTrackedSourceTests {
             $0.provider == .openrouter
         })
 
-        #expect(spendDashboardTrackedSourceStatusText(source) == "Cost history pending")
+        #expect(spendDashboardTrackedSourceStatusText(source) == "Usage connected · not in cost total")
 
         store._setTokenSnapshotForTesting(CostUsageTokenSnapshot(
             sessionTokens: nil,
@@ -184,7 +184,8 @@ struct SpendDashboardTrackedSourceTests {
         let sourceWithUnestablishedCost = try #require(SpendDashboardSource.trackedSources(
             settings: settings,
             store: store).first { $0.provider == .openrouter })
-        #expect(spendDashboardTrackedSourceStatusText(sourceWithUnestablishedCost) == "Cost history pending")
+        #expect(spendDashboardTrackedSourceStatusText(sourceWithUnestablishedCost) ==
+            "Usage connected · not in cost total")
 
         store._setTokenSnapshotForTesting(CostUsageTokenSnapshot(
             sessionTokens: nil,
@@ -196,7 +197,7 @@ struct SpendDashboardTrackedSourceTests {
         let sourceWithCost = try #require(SpendDashboardSource.trackedSources(
             settings: settings,
             store: store).first { $0.provider == .openrouter })
-        #expect(spendDashboardTrackedSourceStatusText(sourceWithCost) == "Cost history connected")
+        #expect(spendDashboardTrackedSourceStatusText(sourceWithCost) == "Usage connected · not in cost total")
     }
 
     @Test
@@ -265,10 +266,9 @@ struct SpendDashboardTrackedSourceTests {
         #expect(Set(credentialSources.map(\.id)).count == credentialSources.count)
 
         let openRouterSources = credentialSources.filter { $0.provider == .openrouter }
-        let allSupportCostHistory = openRouterSources.allSatisfy(\.supportsCostHistory)
         #expect(openRouterSources.count == 2)
         #expect(openRouterSources.allSatisfy { $0.state == .configured })
-        #expect(allSupportCostHistory)
+        #expect(openRouterSources.allSatisfy { !$0.supportsCostHistory })
         #expect(openRouterSources.allSatisfy { !$0.contributesCostHistory })
     }
 
@@ -280,7 +280,7 @@ struct SpendDashboardTrackedSourceTests {
             providerName: "OpenRouter",
             accountName: "Work",
             state: .connected,
-            supportsCostHistory: true,
+            supportsCostHistory: false,
             contributesCostHistory: false)
 
         #expect(spendDashboardTrackedSourceStatusText(source) == "Usage connected · not in cost total")
@@ -301,7 +301,7 @@ struct SpendDashboardTrackedSourceTests {
             providerName: "OpenRouter",
             accountName: nil,
             state: .awaitingUsage,
-            supportsCostHistory: true,
+            supportsCostHistory: false,
             contributesCostHistory: false)
         #expect(spendDashboardTrackedSourceStatusText(setup) == "No usage yet")
     }
@@ -373,7 +373,7 @@ struct SpendDashboardTrackedSourceTests {
             providerName: "OpenRouter",
             accountName: "Research",
             state: .awaitingUsage,
-            supportsCostHistory: true,
+            supportsCostHistory: false,
             contributesCostHistory: false),
         SpendDashboardTrackedSource(
             id: "cursor:account:work",

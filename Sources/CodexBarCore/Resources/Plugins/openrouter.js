@@ -92,31 +92,6 @@ defineProvider({
     }
     if (!keyData && !keyDegradation) keyDegradation = "Response was unavailable";
 
-    // /activity is management-key-only and optional. Credits and key quota remain valid
-    // when analytics is forbidden, unsupported by an endpoint override, slow, or malformed.
-    let openRouterActivityUsage = null;
-    try {
-      const activityResponse = await ctx.http.get(`${base}/activity`, {
-        timeoutSeconds: optionalRequestTimeoutSeconds,
-      });
-      if (activityResponse.status === 200) {
-        const activityPayload = JSON.parse(activityResponse.bodyText);
-        if (activityPayload && Array.isArray(activityPayload.data)) {
-          openRouterActivityUsage = {
-            data: activityPayload.data.map((item) => ({
-              date: item.date,
-              model: item.model,
-              prompt_tokens: item.prompt_tokens,
-              completion_tokens: item.completion_tokens,
-              reasoning_tokens: item.reasoning_tokens,
-              requests: item.requests,
-              usage: item.usage,
-            })),
-          };
-        }
-      }
-    } catch {}
-
     function resetWindowUsage(reset) {
       const windowKey =
         reset === "daily"
@@ -224,7 +199,6 @@ defineProvider({
       details,
     };
     if (primary) result.primary = primary;
-    if (openRouterActivityUsage) result.openRouterActivityUsage = openRouterActivityUsage;
     return result;
   },
 });

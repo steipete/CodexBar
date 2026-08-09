@@ -701,7 +701,7 @@ extension UsageStore {
             } else {
                 self.lastKnownResetSnapshots[provider.instanceID]
             }
-            let profileStable = self.preservingProviderEnrichment(in: accountScoped, provider: provider)
+            let profileStable = self.preservingDeepSeekProfileCatalog(in: accountScoped, provider: provider)
             let stabilized = Self.commandCodeSnapshotResolvingDepletionOnEnrichmentFailure(
                 current: profileStable,
                 previous: self.snapshots[provider.instanceID])
@@ -855,17 +855,6 @@ extension UsageStore {
         return snapshot.preservingDeepSeekPlatformProfiles(from: self.presentationSnapshot(for: .deepseek))
     }
 
-    private func preservingProviderEnrichment(
-        in snapshot: UsageSnapshot,
-        provider: UsageProvider) -> UsageSnapshot
-    {
-        let profileStable = self.preservingDeepSeekProfileCatalog(in: snapshot, provider: provider)
-        guard provider == .openrouter else { return profileStable }
-        return self.preservingOpenRouterActivityIfCurrent(
-            profileStable,
-            previous: self.snapshots[provider.instanceID])
-    }
-
     private func bindCodexFailurePublicationOwner(
         provider: UsageProvider,
         expectedGuard: CodexAccountScopedRefreshGuard?)
@@ -889,6 +878,7 @@ extension UsageStore {
         usage: UsageSnapshot,
         expectedGuard: CodexAccountScopedRefreshGuard?) -> UsageSnapshot
     {
+        // Provider-specific by design: Codex identity repair preserves the expected account email on Codex snapshots.
         guard provider == .codex,
               CodexIdentityResolver.normalizeEmail(usage.accountEmail(for: .codex)) == nil,
               let accountEmail = CodexIdentityResolver.normalizeEmail(expectedGuard?.accountKey)

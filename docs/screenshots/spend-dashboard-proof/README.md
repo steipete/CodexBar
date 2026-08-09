@@ -27,5 +27,5 @@ with known spend and three sources whose spend is explicitly unavailable. The
 Overview is captured at the production 310-point menu width, keeps Codex
 prominent, and uses compact rows for the remaining providers. The share capture
 uses the production `ShareStatsWindowController`, preserves all six connected
-sources, labels partial spend with its reporting denominator, and ranks routed
-OpenRouter models alongside first-class Claude and Codex variants.
+sources, and labels partial spend with its reporting denominator. Its values and
+model labels are synthetic UI fixtures rather than claims about live provider coverage.

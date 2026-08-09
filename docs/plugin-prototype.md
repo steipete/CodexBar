@@ -244,4 +244,4 @@ first-party flag semantics. Browser cookies remain restricted to declared domain
 Display-only provider payloads now use `details` on both the Swift and JavaScript paths. The remaining bespoke
 `UsageSnapshot` fields drive behavior rather than presentation: Codex reset-credit actions, Command Code refresh
 stabilization, DeepSeek profile selection/transition state, and provider-derived token-cost pipelines for OpenAI API,
-OpenRouter completed-day activity, Mistral, and OpenCode Go. They are not plugin compatibility shims.
+Mistral and OpenCode Go. They are not plugin compatibility shims.

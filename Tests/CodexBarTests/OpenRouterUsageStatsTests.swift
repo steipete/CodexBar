@@ -52,7 +52,7 @@ struct OpenRouterPluginGoldenTests {
     }
 
     @Test
-    func `requests preserve credits headers and bounded enrichment deadline`() async throws {
+    func `requests preserve credits headers and one second enrichment deadline`() async throws {
         let requests = OpenRouterRequestRecorder()
         let transport = Self.transport(requests: requests, keyBody: #"""
         {"data":{
@@ -75,17 +75,13 @@ struct OpenRouterPluginGoldenTests {
             secrets: [OpenRouterSettingsReader.envKey: "sk-or-v1-test"])
 
         let recorded = await requests.requests
-        #expect(recorded.count == 3)
+        #expect(recorded.count == 2)
         #expect(recorded[0].timeoutInterval == 15)
         #expect(recorded[0].value(forHTTPHeaderField: "HTTP-Referer") == "https://codexbar.example")
         #expect(recorded[0].value(forHTTPHeaderField: "X-Title") == "CodexBar QA")
         #expect(recorded[1].timeoutInterval == 1)
         #expect(recorded[1].value(forHTTPHeaderField: "HTTP-Referer") == nil)
         #expect(recorded[1].value(forHTTPHeaderField: "X-Title") == nil)
-        #expect(recorded[2].url?.path.hasSuffix("/activity") == true)
-        #expect(recorded[2].timeoutInterval == 1)
-        #expect(recorded[2].value(forHTTPHeaderField: "HTTP-Referer") == nil)
-        #expect(recorded[2].value(forHTTPHeaderField: "X-Title") == nil)
         #expect(usage.detailRow(label: "Today")?.value == "$0.12")
         #expect(usage.detailRow(label: "This week")?.value == "$0.74")
         #expect(usage.detailRow(label: "This month")?.value == "$4.56")
@@ -196,7 +192,7 @@ struct OpenRouterPluginGoldenTests {
         let transport = ProviderHTTPTransportHandler { request in
             if request.url?.path.hasSuffix("/key") == true {
                 await withCheckedContinuation { continuation in
-                    DispatchQueue.global().asyncAfter(deadline: .now() + 2.5) {
+                    DispatchQueue.global().asyncAfter(deadline: .now() + 1.5) {
                         continuation.resume()
                     }
                 }
@@ -212,7 +208,7 @@ struct OpenRouterPluginGoldenTests {
 
         let usage = try await runtime.fetchUsage(secrets: [OpenRouterSettingsReader.envKey: "fixture-key"])
 
-        #expect(ContinuousClock.now - startedAt < .seconds(2.4))
+        #expect(ContinuousClock.now - startedAt < .seconds(1.4))
         #expect(usage.primary == nil)
         #expect(usage.detailRow(label: "API key budget")?.value == "Unavailable right now")
         #expect(usage.detailRow(label: "API key budget")?.secondaryValue == "Request timed out")
