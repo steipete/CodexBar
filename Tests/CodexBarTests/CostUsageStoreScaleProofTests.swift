@@ -173,8 +173,18 @@ struct CostUsageStoreScaleProofTests {
         print("[scale-proof] 100 MiB blob write: \(Self.milliseconds(writeElapsed)) ms, ")
         print("[scale-proof] db file after 100 MiB blob: \(persistedBytes / 1_048_576) MiB")
         print("[scale-proof] 100 MiB blob read: \(Self.milliseconds(readElapsed)) ms")
-        #expect(writeElapsed < Self.timingBudget(.seconds(5)))
-        #expect(readElapsed < Self.timingBudget(.seconds(5)))
+        // The 100 MiB round trip is by far the heaviest single I/O operation in the suite and the
+        // shared CI scaler was calibrated against much lighter work (see TestTimingBudget), so the
+        // nominal budget carries the headroom here. A healthy write measures ~8.5s on an idle
+        // 32-core machine and ~6-8s on a busy one, which is why the previous 5s ceiling failed
+        // even without contention. 30s stays an order-of-magnitude gate against that real
+        // baseline: quadratic buffering or a full rewrite still trips it.
+        //
+        // No wall-clock gate survives a pathologically oversubscribed host — at two spinning
+        // burners per core this write degrades to 67-171s, which is indistinguishable from a
+        // genuine regression. The byte assertion below is the load-independent correctness check.
+        #expect(writeElapsed < Self.timingBudget(.seconds(30)))
+        #expect(readElapsed < Self.timingBudget(.seconds(30)))
         // Keep the persisted representation bounded so a second whole-artifact copy cannot
         // hide behind a successful round trip.
         #expect(persistedBytes < 256 * 1_048_576)
