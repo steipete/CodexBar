@@ -15,10 +15,14 @@ defineProvider({
     const root = `https://management-api.x.ai/v1/billing/teams/${encodeURIComponent(team)}`;
     const balanceResponse = await ctx.http.getJSON(`${root}/prepaid/balance`);
     if (balanceResponse.status === 401 || balanceResponse.status === 403) {
-      throw ctx.fail.authenticationExpired("xAI rejected the Management API key. Create one in the xAI Console under Settings > Management Keys; inference API keys are not accepted.");
+      throw ctx.fail.authenticationExpired(
+        "xAI rejected the Management API key. Create one in the xAI Console under Settings > Management Keys; inference API keys are not accepted.",
+      );
     }
     if (balanceResponse.status === 404) {
-      throw ctx.fail.apiFailure("xAI returned 404 for this team. Check the team ID, and that the Management key belongs to the same team.");
+      throw ctx.fail.apiFailure(
+        "xAI returned 404 for this team. Check the team ID, and that the Management key belongs to the same team.",
+      );
     }
     if (balanceResponse.status === 429) {
       throw ctx.fail.rateLimited("xAI Management API rate limit exceeded. Usage will refresh on the next cycle.");
@@ -35,30 +39,42 @@ defineProvider({
     const start = new Date(now);
     start.setUTCDate(start.getUTCDate() - 29);
     start.setUTCHours(0, 0, 0, 0);
-    const timestamp = date => `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}-${String(date.getUTCDate()).padStart(2, "0")} ${String(date.getUTCHours()).padStart(2, "0")}:${String(date.getUTCMinutes()).padStart(2, "0")}:${String(date.getUTCSeconds()).padStart(2, "0")}`;
+    const timestamp = (date) =>
+      `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}-${String(date.getUTCDate()).padStart(2, "0")} ${String(date.getUTCHours()).padStart(2, "0")}:${String(date.getUTCMinutes()).padStart(2, "0")}:${String(date.getUTCSeconds()).padStart(2, "0")}`;
     let daily = [];
     let partial = false;
     try {
-      const usage = await ctx.http.postJSON(`${root}/usage`, { body: { analyticsRequest: {
-        timeRange: { startTime: timestamp(start), endTime: timestamp(now), timezone: "Etc/GMT" },
-        timeUnit: "TIME_UNIT_DAY", values: [{ name: "usd", aggregation: "AGGREGATION_SUM" }],
-        groupBy: [], filters: [],
-      } } });
+      const usage = await ctx.http.postJSON(`${root}/usage`, {
+        body: {
+          analyticsRequest: {
+            timeRange: { startTime: timestamp(start), endTime: timestamp(now), timezone: "Etc/GMT" },
+            timeUnit: "TIME_UNIT_DAY",
+            values: [{ name: "usd", aggregation: "AGGREGATION_SUM" }],
+            groupBy: [],
+            filters: [],
+          },
+        },
+      });
       if (usage.status === 401 || usage.status === 403) {
-        throw ctx.fail.authenticationExpired("xAI rejected the Management API key. Create one in the xAI Console under Settings > Management Keys; inference API keys are not accepted.");
+        throw ctx.fail.authenticationExpired(
+          "xAI rejected the Management API key. Create one in the xAI Console under Settings > Management Keys; inference API keys are not accepted.",
+        );
       }
       if (usage.status >= 200 && usage.status < 300) {
         const totals = {};
-        for (const series of usage.json.timeSeries || []) for (const point of series.dataPoints || []) {
-          const date = new Date(point.timestamp);
-          const value = (point.values || [0])[0] || 0;
-          if (!Number.isFinite(date.getTime()) || typeof value !== "number" || !Number.isFinite(value)) {
-            throw new Error("invalid xAI usage history");
+        for (const series of usage.json.timeSeries || [])
+          for (const point of series.dataPoints || []) {
+            const date = new Date(point.timestamp);
+            const value = (point.values || [0])[0] || 0;
+            if (!Number.isFinite(date.getTime()) || typeof value !== "number" || !Number.isFinite(value)) {
+              throw new Error("invalid xAI usage history");
+            }
+            const day = date.toISOString().slice(0, 10);
+            totals[day] = (totals[day] || 0) + value;
           }
-          const day = date.toISOString().slice(0, 10);
-          totals[day] = (totals[day] || 0) + value;
-        }
-        daily = Object.keys(totals).sort().map(day => ({ label: day, value: totals[day] }));
+        daily = Object.keys(totals)
+          .sort()
+          .map((day) => ({ label: day, value: totals[day] }));
         partial = usage.json.limitReached === true;
       }
     } catch (error) {
@@ -68,17 +84,19 @@ defineProvider({
       cost: { used: balance, currency: "USD", period: "Prepaid credits" },
       identity: { loginMethod: "Management API" },
       dataConfidence: partial ? "estimated" : "exact",
-      details: [{
-        title: "Billing summary",
-        rows: [
-          { label: "Prepaid balance", value: `$${balance.toFixed(2)}` },
-          {
-            label: partial ? "Last 30 days (partial)" : "Last 30 days",
-            value: `$${daily.reduce((sum, point) => sum + point.value, 0).toFixed(2)}`,
-          },
-        ],
-        chart: daily.length ? { kind: "bars", title: "Daily spend", unit: "USD", points: daily } : undefined,
-      }],
+      details: [
+        {
+          title: "Billing summary",
+          rows: [
+            { label: "Prepaid balance", value: `$${balance.toFixed(2)}` },
+            {
+              label: partial ? "Last 30 days (partial)" : "Last 30 days",
+              value: `$${daily.reduce((sum, point) => sum + point.value, 0).toFixed(2)}`,
+            },
+          ],
+          chart: daily.length ? { kind: "bars", title: "Daily spend", unit: "USD", points: daily } : undefined,
+        },
+      ],
     };
   },
 });

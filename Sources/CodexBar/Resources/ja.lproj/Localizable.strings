@@ -664,6 +664,8 @@
 "copyright" = "© 2026 Peter Steinberger. MIT License.";
 
 /* Debug Pane */
+"use_javascriptcore_plugin_engine" = "プロバイダープラグインにJavaScriptCoreを使用";
+"use_javascriptcore_plugin_engine_subtitle" = "互換性のためのロールバック専用です。適用するにはCodexBarを再起動してください。CODEXBAR_PLUGIN_ENGINEがこの設定より優先されます。";
 "section_logging" = "ログ";
 "enable_file_logging" = "ファイルログを有効にする";
 "enable_file_logging_subtitle" = "デバッグ用に %@ へログを書き込みます。";

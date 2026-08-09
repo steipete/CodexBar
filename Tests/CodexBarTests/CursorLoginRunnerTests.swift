@@ -74,6 +74,7 @@ struct CursorLoginRunnerTests {
                 chooserCalls += 1
                 return nil
             },
+            conditionalMutationCoordinator: .init(),
             replaceSessionCache: { _ in true })
 
         #expect(resolvedURLs.isEmpty)
@@ -118,6 +119,7 @@ struct CursorLoginRunnerTests {
                     launchURL: loginURL,
                     browserApplicationURL: browserApplicationURL ?? Self.cometApplicationURL))
             },
+            conditionalMutationCoordinator: .init(),
             replaceSessionCache: { _ in true })
 
         let result = await Task { await runner.run { _ in } }.value
@@ -148,6 +150,7 @@ struct CursorLoginRunnerTests {
                     launchURL: loginURL,
                     browserApplicationURL: browserApplicationURL ?? Self.cometApplicationURL))
             },
+            conditionalMutationCoordinator: .init(),
             replaceSessionCache: { _ in true })
 
         let result = await KeychainAccessGate.withTaskOverrideForTesting(false) {
@@ -204,6 +207,7 @@ struct CursorLoginRunnerTests {
                 presentedChoices = choices
                 return choices.first?.selectionID
             },
+            conditionalMutationCoordinator: .init(),
             replaceSessionCache: { _ in true })
 
         let result = await runner.run { _ in }
@@ -304,6 +308,7 @@ extension CursorLoginRunnerTests {
                 presentedChoices = choices
                 return choices.first?.selectionID
             },
+            conditionalMutationCoordinator: .init(),
             replaceSessionCache: { session in
                 committedHeaders.append(session.cookieHeader)
                 return true
@@ -360,6 +365,7 @@ extension CursorLoginRunnerTests {
                 presentedChoices = choices
                 return nil
             },
+            conditionalMutationCoordinator: .init(),
             replaceSessionCache: { session in
                 committedHeaders.append(session.cookieHeader)
                 return true
@@ -399,6 +405,7 @@ extension CursorLoginRunnerTests {
                 presentedChoices = choices
                 return nil
             },
+            conditionalMutationCoordinator: .init(),
             replaceSessionCache: { session in
                 committedHeaders.append(session.cookieHeader)
                 return true
@@ -486,6 +493,7 @@ extension CursorLoginRunnerTests {
             sleeper: { _ in },
             browserApplicationResolver: { _ in Self.cometApplicationURL },
             routeResolver: Self.fixtureRouteResolver,
+            conditionalMutationCoordinator: .init(),
             replaceSessionCache: { _ in
                 replacementEvents.append("replace")
                 return true
@@ -523,6 +531,7 @@ extension CursorLoginRunnerTests {
             sleeper: { _ in },
             browserApplicationResolver: { _ in Self.cometApplicationURL },
             routeResolver: Self.fixtureRouteResolver,
+            conditionalMutationCoordinator: .init(),
             replaceSessionCache: { _ in
                 events.append("replace")
                 return true
@@ -551,6 +560,7 @@ extension CursorLoginRunnerTests {
             sleeper: { _ in },
             browserApplicationResolver: { _ in Self.cometApplicationURL },
             routeResolver: Self.fixtureRouteResolver,
+            conditionalMutationCoordinator: .init(),
             replaceSessionCache: { _ in false })
 
         let result = await runner.run { phase in
@@ -583,6 +593,7 @@ extension CursorLoginRunnerTests {
             sleeper: { _ in },
             browserApplicationResolver: { _ in Self.cometApplicationURL },
             routeResolver: Self.fixtureRouteResolver,
+            conditionalMutationCoordinator: .init(),
             replaceSessionCache: { _ in
                 replacementEvents.append("replace")
                 return true
@@ -619,6 +630,7 @@ extension CursorLoginRunnerTests {
             },
             browserApplicationResolver: { _ in Self.cometApplicationURL },
             routeResolver: Self.fixtureRouteResolver,
+            conditionalMutationCoordinator: .init(),
             replaceSessionCache: { _ in
                 events.append("replace")
                 return true
@@ -660,6 +672,7 @@ extension CursorLoginRunnerTests {
                 URL(fileURLWithPath: "/Applications/Unsupported Browser.app")
             },
             routeResolver: { _, _ in .unavailable },
+            conditionalMutationCoordinator: .init(),
             replaceSessionCache: { _ in
                 replacementEvents.append("replace")
                 return true
@@ -696,6 +709,7 @@ extension CursorLoginRunnerTests {
             sleeper: { _ in },
             browserApplicationResolver: { _ in nil },
             routeResolver: { _, _ in .unavailable },
+            conditionalMutationCoordinator: .init(),
             replaceSessionCache: { _ in
                 replacementEvents.append("replace")
                 return true
@@ -731,6 +745,7 @@ extension CursorLoginRunnerTests {
                 URL(fileURLWithPath: "/Applications/Link Router.app")
             },
             routeResolver: { _, _ in .cancelled },
+            conditionalMutationCoordinator: .init(),
             replaceSessionCache: { _ in
                 events.append("replace")
                 return true
@@ -776,6 +791,7 @@ extension CursorLoginRunnerTests {
                     launchURL: URL(string: "https://example.invalid/intermediary")!,
                     browserApplicationURL: Self.cometApplicationURL))
             },
+            conditionalMutationCoordinator: .init(),
             replaceSessionCache: { _ in true })
 
         _ = await runner.run { _ in }
@@ -816,6 +832,7 @@ extension CursorLoginRunnerTests {
                     presentedChoices = choices
                     return chosenID
                 },
+                conditionalMutationCoordinator: .init(),
                 replaceSessionCache: { session in
                     committedHeaders.append(session.cookieHeader)
                     return true
@@ -869,6 +886,7 @@ extension CursorLoginRunnerTests {
                 presentedChoices = choices
                 return choices.first(where: { $0.displayLabel.contains("Personal") })?.selectionID
             },
+            conditionalMutationCoordinator: .init(),
             replaceSessionCache: { session in
                 committedHeaders.append(session.cookieHeader)
                 return true
@@ -908,6 +926,7 @@ extension CursorLoginRunnerTests {
                 chooserCalls += 1
                 return nil
             },
+            conditionalMutationCoordinator: .init(),
             replaceSessionCache: { session in
                 committedHeaders.append(session.cookieHeader)
                 return true
@@ -947,6 +966,7 @@ extension CursorLoginRunnerTests {
                 chooserCalls += 1
                 return nil
             },
+            conditionalMutationCoordinator: .init(),
             replaceSessionCache: { session in
                 committedHeaders.append(session.cookieHeader)
                 return true
@@ -978,6 +998,7 @@ extension CursorLoginRunnerTests {
             browserApplicationResolver: browserApplicationResolver,
             routeResolver: self.fixtureRouteResolver,
             accountChooser: accountChooser,
+            conditionalMutationCoordinator: .init(),
             replaceSessionCache: { _ in true })
     }
 

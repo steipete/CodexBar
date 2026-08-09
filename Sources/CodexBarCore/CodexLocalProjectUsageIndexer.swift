@@ -69,9 +69,11 @@ enum CodexLocalProjectUsageIndexer {
             checkCancellation: checkCancellation)
         try checkCancellation?()
 
-        let cache = CostUsageStoreAccess.read(
+        var cache = CostUsageStoreAccess.read(
             cacheRoot: scannerOptions.cacheRoot,
             calendar: scannerOptions.calendar)
+        let modelsDevLoad = ModelsDevCache.load(now: now, cacheRoot: scannerOptions.cacheRoot)
+        cache.codexPricingKey = CostUsageScanner.codexPricingKey(modelsDevArtifact: modelsDevLoad.artifact)
         let catalogResult = CodexThreadCatalogReader.loadResult(options: scannerOptions)
         let catalog = catalogResult.catalog
         let sourceStatus = CodexLocalProjectUsageSourceStatus(catalog: catalogResult.completeness)
@@ -97,7 +99,8 @@ enum CodexLocalProjectUsageIndexer {
             cache: cache,
             catalog: catalog,
             catalogIsComplete: catalogResult.isComplete)
-        let sidecarCache = try sidecar.usageCache(roots: rootsFingerprint)
+        var sidecarCache = try sidecar.usageCache(roots: rootsFingerprint)
+        sidecarCache.codexPricingKey = cache.codexPricingKey
         let snapshot = try self.buildSnapshotFromCostCache(
             now: now,
             historyDays: clampedHistoryDays,
@@ -105,6 +108,7 @@ enum CodexLocalProjectUsageIndexer {
             until: until,
             options: scannerOptions,
             cacheOverride: sidecarCache,
+            modelsDevCatalogOverride: modelsDevLoad.artifact?.catalog,
             catalogOverride: catalog,
             sourceStatus: sourceStatus,
             progress: progress,
@@ -147,6 +151,7 @@ enum CodexLocalProjectUsageIndexer {
         until: Date,
         options: CostUsageScanner.Options = CostUsageScanner.Options(),
         cacheOverride: CostUsageCache? = nil,
+        modelsDevCatalogOverride: ModelsDevCatalog? = nil,
         catalogOverride: CodexThreadCatalog? = nil,
         sourceStatus: CodexLocalProjectUsageSourceStatus = .complete,
         progress: (@Sendable (CodexLocalProjectUsageIndexProgress) -> Void)? = nil,
@@ -161,6 +166,10 @@ enum CodexLocalProjectUsageIndexer {
             cacheRoot: options.cacheRoot,
             calendar: options.calendar)
         let catalog = catalogOverride ?? CodexThreadCatalogReader.load(options: options)
+        let pricing = PricingContext(
+            modelsDevCatalog: modelsDevCatalogOverride
+                ?? CostUsagePricing.modelsDevCatalog(now: now, cacheRoot: options.cacheRoot),
+            cacheRoot: options.cacheRoot)
         let expectedRoots = CostUsageScanner.codexRootsFingerprint(options: options)
         let scopeSignature = self.stableScopeSignature(options: options)
         let rootsFingerprint = self.rootsFingerprint(expectedRoots)
@@ -174,7 +183,7 @@ enum CodexLocalProjectUsageIndexer {
         let indexed = try self.sessionBuckets(
             from: cache,
             range: range,
-            catalog: catalog,
+            context: SessionBucketContext(catalog: catalog, pricing: pricing),
             progress: progress,
             checkCancellation: checkCancellation)
         let indexedFiles = indexed.indexedFiles
@@ -264,6 +273,13 @@ enum CodexLocalProjectUsageIndexer {
         }
         let projects = rawProjects
 
+        var globalDailyTotals: [String: DailyTotals] = [:]
+        for bucket in sessionBuckets.values {
+            for (day, totals) in bucket.dailyTotals {
+                self.mergeDailyTotals(&globalDailyTotals, day: day, totals: totals)
+            }
+        }
+
         return try CodexLocalProjectUsageSnapshot(
             updatedAt: now,
             historyDays: clampedHistoryDays,
@@ -275,7 +291,7 @@ enum CodexLocalProjectUsageIndexer {
             projects: projects,
             sessions: sessions,
             modelBreakdowns: self.globalModelBreakdowns(from: sessionBuckets.values),
-            daily: self.dailyPoints(from: cache.files.values, range: range),
+            daily: self.dailyPoints(from: globalDailyTotals),
             sourceStatus: sourceStatus,
             modelsAnalytics: self.modelsAnalyticsPayload(
                 context: ModelsAnalyticsContext(
@@ -283,7 +299,8 @@ enum CodexLocalProjectUsageIndexer {
                     cache: cache,
                     catalog: catalog,
                     projects: projects,
-                    sourceStatus: sourceStatus),
+                    sourceStatus: sourceStatus,
+                    pricing: pricing),
                 window: ModelsAnalyticsWindow(
                     since: since,
                     until: until,
@@ -298,12 +315,23 @@ enum CodexLocalProjectUsageIndexer {
 }
 
 extension CodexLocalProjectUsageIndexer {
+    fileprivate struct PricingContext {
+        let modelsDevCatalog: ModelsDevCatalog?
+        let cacheRoot: URL?
+    }
+
+    fileprivate struct SessionBucketContext {
+        let catalog: CodexThreadCatalog
+        let pricing: PricingContext
+    }
+
     fileprivate struct ModelsAnalyticsContext {
         let currentBuckets: [String: SessionBucket]
         let cache: CostUsageCache
         let catalog: CodexThreadCatalog
         let projects: [CodexLocalProjectUsage]
         let sourceStatus: CodexLocalProjectUsageSourceStatus
+        let pricing: PricingContext
     }
 
     fileprivate struct ModelsAnalyticsWindow {
@@ -348,6 +376,13 @@ extension CodexLocalProjectUsageIndexer {
         var outputTokens: Int
         var costNanos: Int64?
         var unknownCostTokens: Int
+    }
+
+    fileprivate struct ReadTimePricingTotals {
+        var costNanos: Int64?
+        var coveredTokens = 0
+        var unknownCostTokens = 0
+        var hasAuthoritativeCost = false
     }
 
     fileprivate struct SessionBucket {
@@ -402,7 +437,7 @@ extension CodexLocalProjectUsageIndexer {
     fileprivate static func sessionBuckets(
         from cache: CostUsageCache,
         range: CostUsageScanner.CostUsageDayRange,
-        catalog: CodexThreadCatalog,
+        context: SessionBucketContext,
         progress: (@Sendable (CodexLocalProjectUsageIndexProgress) -> Void)?,
         checkCancellation: CostUsageScanner.CancellationCheck?)
         throws -> (sessionBuckets: [String: SessionBucket], indexedFiles: Int, skippedFiles: Int)
@@ -422,7 +457,7 @@ extension CodexLocalProjectUsageIndexer {
             try checkCancellation?()
             let path = entry.key
             let usage = entry.value
-            guard let fileTotals = self.fileTotals(from: usage, range: range) else {
+            guard let fileTotals = self.fileTotals(from: usage, range: range, pricing: context.pricing) else {
                 skippedFiles += 1
                 self.reportProgressIfNeeded(
                     progress,
@@ -435,7 +470,7 @@ extension CodexLocalProjectUsageIndexer {
             indexedFiles += 1
             let fileURL = URL(fileURLWithPath: path)
             let cachedMetadata = self.metadata(from: usage, catalogEntry: nil)
-            let catalogEntry = catalog.entry(
+            let catalogEntry = context.catalog.entry(
                 sessionId: cachedMetadata.sessionId ?? usage.sessionId,
                 rolloutPath: path)
             let metadata = self.metadata(from: usage, catalogEntry: catalogEntry)
@@ -566,7 +601,8 @@ extension CodexLocalProjectUsageIndexer {
 
     fileprivate static func fileTotals(
         from usage: CostUsageFileUsage,
-        range: CostUsageScanner.CostUsageDayRange) -> FileTotals?
+        range: CostUsageScanner.CostUsageDayRange,
+        pricing: PricingContext) -> FileTotals?
     {
         var input = 0
         var cached = 0
@@ -576,6 +612,7 @@ extension CodexLocalProjectUsageIndexer {
         var modelTotals: [String: ModelTotals] = [:]
         var dailyTotals: [String: DailyTotals] = [:]
         var modelDailyTotals: [String: [String: ModelDailyTotals]] = [:]
+        let pricingTotals = self.readTimePricingTotals(from: usage, range: range, pricing: pricing)
 
         for (day, models) in usage.days where CostUsageScanner.CostUsageDayRange
             .isInRange(dayKey: day, since: range.sinceKey, until: range.untilKey)
@@ -589,8 +626,11 @@ extension CodexLocalProjectUsageIndexer {
                 input += modelInput
                 cached += min(modelCached, modelInput)
                 output += modelOutput
-                let modelCostNanos = usage.codexCostNanos?[day]?[model]
-                let modelUnknownCostTokens = modelCostNanos == nil ? modelTotal : 0
+                let resolved = pricingTotals[day]?[model]
+                let modelCostNanos = resolved?.costNanos
+                let uncoveredTokens = max(0, modelTotal - min(modelTotal, resolved?.coveredTokens ?? 0))
+                let modelUnknownCostTokens = (resolved?.unknownCostTokens ?? 0)
+                    + (resolved?.hasAuthoritativeCost == true ? 0 : uncoveredTokens)
                 self.addModelTotals(
                     &modelTotals,
                     model: model,
@@ -634,6 +674,33 @@ extension CodexLocalProjectUsageIndexer {
             dailyTotals: dailyTotals,
             modelDailyTotals: modelDailyTotals,
             topModel: self.topModel(from: modelTotals))
+    }
+
+    fileprivate static func readTimePricingTotals(
+        from usage: CostUsageFileUsage,
+        range: CostUsageScanner.CostUsageDayRange,
+        pricing: PricingContext) -> [String: [String: ReadTimePricingTotals]]
+    {
+        var totals: [String: [String: ReadTimePricingTotals]] = [:]
+        for row in CostUsageScanner.codexRowsForReadTimePricing(usage) where CostUsageScanner.CostUsageDayRange
+            .isInRange(dayKey: row.day, since: range.sinceKey, until: range.untilKey)
+        {
+            let tokenCount = max(0, row.input) + max(0, row.output)
+            var value = totals[row.day]?[row.model] ?? ReadTimePricingTotals()
+            value.coveredTokens += tokenCount
+            value.hasAuthoritativeCost = value.hasAuthoritativeCost || row.knownCostNanos != nil
+            let resolvedCost = CostUsageScanner.codexResolvedCostNanos(
+                for: row,
+                modelsDevCatalog: pricing.modelsDevCatalog,
+                modelsDevCacheRoot: pricing.cacheRoot)
+            if let resolvedCost {
+                value.costNanos = self.addCost(value.costNanos, resolvedCost)
+            } else {
+                value.unknownCostTokens += tokenCount
+            }
+            totals[row.day, default: [:]][row.model] = value
+        }
+        return totals
     }
 
     static func modelsAnalyticsPeriods(
@@ -680,15 +747,17 @@ extension CodexLocalProjectUsageIndexer {
         let previousBuckets = try self.sessionBuckets(
             from: context.cache,
             range: previousRange,
-            catalog: context.catalog,
+            context: SessionBucketContext(catalog: context.catalog, pricing: context.pricing),
             progress: nil,
             checkCancellation: checkCancellation).sessionBuckets
         let currentFragments = self.analyticsFragments(
             from: context.currentBuckets.values,
-            calendar: window.calendar)
+            calendar: window.calendar,
+            pricing: context.pricing)
         let previousFragments = self.analyticsFragments(
             from: previousBuckets.values,
-            calendar: window.calendar)
+            calendar: window.calendar,
+            pricing: context.pricing)
         let currentBucketsByProject = Dictionary(grouping: context.currentBuckets.values, by: \.projectId)
         let previousBucketsByProject = Dictionary(grouping: previousBuckets.values, by: \.projectId)
         let currentFragmentsByProject = Dictionary(grouping: currentFragments, by: \.workspaceID)
@@ -838,7 +907,8 @@ extension CodexLocalProjectUsageIndexer {
 
     fileprivate static func analyticsFragments(
         from buckets: Dictionary<String, SessionBucket>.Values,
-        calendar: Calendar) -> [CodexModelsUsageFragment]
+        calendar: Calendar,
+        pricing: PricingContext) -> [CodexModelsUsageFragment]
     {
         let calendar = CostUsageScanner.CostUsageDayRange.localGregorianCalendar(matching: calendar)
         return buckets.flatMap { bucket in
@@ -850,6 +920,10 @@ extension CodexLocalProjectUsageIndexer {
                     let inputTokens = max(0, row.input)
                     let outputTokens = max(0, row.output)
                     let totalTokens = Int64(inputTokens + outputTokens)
+                    let costNanos = CostUsageScanner.codexResolvedCostNanos(
+                        for: row,
+                        modelsDevCatalog: pricing.modelsDevCatalog,
+                        modelsDevCacheRoot: pricing.cacheRoot)
                     return CodexModelsUsageFragment(
                         workspaceID: bucket.projectId,
                         sessionID: bucket.id,
@@ -860,9 +934,8 @@ extension CodexLocalProjectUsageIndexer {
                         cachedInputTokens: Int64(max(0, row.cached)),
                         outputTokens: Int64(outputTokens),
                         reasoningTokens: row.reasoning.map(Int64.init),
-                        costNanos: row.knownCostNanos,
-                        unpricedTokens: row.unpricedTokens.map(Int64.init)
-                            ?? (row.knownCostNanos == nil ? totalTokens : 0))
+                        costNanos: costNanos,
+                        unpricedTokens: costNanos == nil ? totalTokens : 0)
                 }
             }
             return bucket.modelDailyTotals.flatMap { day, models -> [CodexModelsUsageFragment] in
@@ -931,38 +1004,6 @@ extension CodexLocalProjectUsageIndexer {
     fileprivate static func total(from projects: [CodexLocalProjectUsage]) -> CodexLocalUsageTotals {
         projects.reduce(.empty) { partial, project in
             partial.adding(project.totals)
-        }
-    }
-
-    fileprivate static func dailyPoints(
-        from usages: Dictionary<String, CostUsageFileUsage>.Values,
-        range: CostUsageScanner.CostUsageDayRange) -> [CodexLocalUsageDailyPoint]
-    {
-        var buckets: [String: (tokens: Int, cachedInputTokens: Int, costNanos: Int64?)] = [:]
-        for usage in usages {
-            for (day, models) in usage.days where CostUsageScanner.CostUsageDayRange
-                .isInRange(dayKey: day, since: range.sinceKey, until: range.untilKey)
-            {
-                var bucket = buckets[day] ?? (0, 0, nil)
-                for (model, values) in models {
-                    let input = max(0, values[safe: 0] ?? 0)
-                    let cached = min(max(0, values[safe: 1] ?? 0), input)
-                    let tokens = input + max(0, values[safe: 2] ?? 0)
-                    bucket.tokens += tokens
-                    bucket.cachedInputTokens += cached
-                    if let nanos = usage.codexCostNanos?[day]?[model] {
-                        bucket.costNanos = self.addCost(bucket.costNanos, nanos)
-                    }
-                }
-                buckets[day] = bucket
-            }
-        }
-        return buckets.sorted { $0.key < $1.key }.map {
-            CodexLocalUsageDailyPoint(
-                day: $0.key,
-                totalTokens: $0.value.tokens,
-                cachedInputTokens: $0.value.cachedInputTokens,
-                estimatedCostUSD: self.usd(fromNanos: $0.value.costNanos))
         }
     }
 

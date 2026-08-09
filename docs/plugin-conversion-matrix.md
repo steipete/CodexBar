@@ -7,9 +7,8 @@ read_when:
 
 # Provider plugin conversion matrix
 
-This matrix evaluates all 67 providers in the 2026-08-02 capability audit against the prototype documented in
-[`plugin-prototype.md`](plugin-prototype.md). The current checkout has 66 `UsageProvider` cases; Notion is retained here
-because it is the 67th audited provider explicitly requested by this work order. Each provider has one primary blocker.
+This matrix evaluates all 68 providers in the current capability audit against the prototype documented in
+[`plugin-prototype.md`](plugin-prototype.md). Each provider has one primary blocker.
 
 `convertible-now` means the canonical first-party flow is GET-only, uses a fixed HTTPS origin and header secret, and fits
 the generic snapshot. Optional canonical-origin endpoint overrides do not change that bucket; providers whose identity
@@ -22,17 +21,21 @@ bundled script is the only JavaScriptCore implementation, with any retained nati
 makes implementation state explicit and the totals are mutually exclusive: `convertible-now` counts only providers
 that remain cheap to convert. Remaining buckets name the next blocker after this host-extension slice.
 
+`needs-host-extension` means an existing native behavior cannot be represented without changing provider semantics or
+weakening the plugin network policy.
+
 ## Totals
 
 | Status | Count |
 |---|---:|
-| `cut-over` | 10 |
+| `cut-over` | 11 |
 | `converted` | 5 |
-| `convertible-now` | 8 |
+| `convertible-now` | 3 |
 | `needs-cookie-import` | 19 |
 | `needs-files/subprocess/oauth-broker` | 15 |
-| `needs-pty/webview/native` | 10 |
-| **Total** | **67** |
+| `needs-pty/webview/native` | 8 |
+| `needs-host-extension` | 7 |
+| **Total** | **68** |
 
 ## Matrix
 
@@ -42,7 +45,8 @@ that remain cheap to convert. Remaining buckets name the next blocker after this
 | openai | `converted` | Yes | Converted: fixed-origin bearer GET pagination with daily spend, model, line-item, and token details. |
 | azureopenai | `needs-pty/webview/native` | No | The current quota probe is a POST chat completion against a user-configured deployment origin. |
 | claude | `needs-files/subprocess/oauth-broker` | No | Full parity needs credential files/Keychain, OAuth refresh, CLI/PTY, cookies, local logs, and admin details. |
-| clinepass | `convertible-now` | No | Verified fixed-origin bearer GET; limits and identity map to generic windows. |
+| fireworks | `needs-host-extension` | No | Stopped: a valid empty billing window must return a successful snapshot with no window, cost, or detail, which the plugin snapshot contract rejects. |
+| clinepass | `cut-over` | Yes | Cut over on both engines: fixed-origin bearer GET, typed quota lanes, credential aliases, and classified failures match native behavior; the Swift fetcher and Linux fixtures are deleted. |
 | cursor | `needs-cookie-import` | No | Browser cookies/app database provide auth, and integer request history also has bespoke detail. |
 | opencode | `needs-cookie-import` | No | Skipped: React server-function response parsing needs a protocol-specific text decoder beyond `matchFirst`. |
 | opencodego | `needs-files/subprocess/oauth-broker` | No | Local auth/SQLite state and browser sessions are required, with an additional bespoke usage model. |
@@ -63,7 +67,7 @@ that remain cheap to convert. Remaining buckets name the next blocker after this
 | vertexai | `needs-files/subprocess/oauth-broker` | No | ADC/gcloud files, OAuth refresh, optional subprocess fallback, and local cost logs are required. |
 | augment | `needs-files/subprocess/oauth-broker` | No | The preferred strategy spawns `auggie`; the alternative imports browser cookies and maintains sessions. |
 | jetbrains | `needs-pty/webview/native` | No | There is no HTTP strategy; native IDE discovery and local XML parsing are the provider. |
-| moonshot | `convertible-now` | No | Verified bearer GET against two fixed regional origins; balances project into generic windows. |
+| moonshot | `needs-host-extension` | No | Stopped: balance is intentionally carried only in snapshot identity, but the plugin contract rejects identity-only snapshots. |
 | amp | `needs-files/subprocess/oauth-broker` | No | CLI subprocess and browser-cookie strategies plus workspace credit details are outside this host. |
 | t3chat | `converted` | Yes | Converted: declared-domain cookie import, JSONL text parsing, and generic base/overage windows. |
 | ollama | `needs-cookie-import` | No | Skipped: hosted parity requires HTML bootstrap/state extraction plus API-key fallback arbitration. |
@@ -90,18 +94,18 @@ that remain cheap to convert. Remaining buckets name the next blocker after this
 | bedrock | `needs-files/subprocess/oauth-broker` | No | AWS profiles/CLI credentials, SigV4 signing, pagination, and two services need host-owned credential/signing APIs. |
 | grok | `needs-pty/webview/native` | No | Persistent stdio JSON-RPC, auth/session files, cookies, logs, and binary gRPC-web are strongly native. |
 | groq | `needs-cookie-import` | No | Skipped: Stytch session exchange and console history remain a multi-step auth flow. |
-| llmproxy | `needs-pty/webview/native` | No | Its origin is user-selected and may be private HTTP, conflicting with the manifest's fixed HTTPS origins. |
-| litellm | `needs-pty/webview/native` | No | Its required user-selected proxy origin and optional private HTTP cannot be declared by a bundled static manifest. |
+| llmproxy | `needs-host-extension` | No | Stopped: configured origins work for HTTPS/loopback, but native behavior also permits RFC 1918, link-local, unique-local IPv6, and `.local` HTTP, which the plugin policy rejects. |
+| litellm | `needs-host-extension` | No | Stopped: native private-network HTTP origins exceed the plugin policy; zero-spend keys without budgets can also produce an identity-only snapshot. |
 | deepgram | `cut-over` | Yes | Cut over on JavaScriptCore: project discovery, aggregation, configured origins, numeric validation, and classified auth/permission/rate/network/API/parse failures match native behavior; the native fetch core is Linux-only. |
 | poe | `cut-over` | Yes | Cut over on both engines: fixed-origin bearer GET balance/history pagination with daily points and model/type summaries; the native fetch twins are deleted. |
-| chutes | `convertible-now` | No | Verified bearer GET fan-out on the canonical origin; dynamic quota lanes map to named windows. |
-| neuralwatt | `convertible-now` | No | Verified canonical bearer GET; quota lanes and prepaid cost/energy project generically. |
+| chutes | `needs-host-extension` | No | Stopped: tolerant parsing explicitly accepts successful no-usage payloads, yielding an empty snapshot that the plugin contract rejects. |
+| neuralwatt | `needs-host-extension` | No | Stopped: the native request uses delayed transient/`Retry-After` retries, while the plugin HTTP API exposes neither retry policy nor sleep. |
 | clawrouter | `cut-over` | Yes | Cut over on JavaScriptCore: validated configured origins, classified failures, exact confidence, budget/ledger details, and provider charts match native behavior; the native fetch core is Linux-only. |
 | longcat | `needs-cookie-import` | No | Skipped: browser-cookie retry needs domain/path-aware cookie selection across multiple imported sessions; the generic broker currently returns one flattened header. |
 | sub2api | `cut-over` | Yes | Cut over on JavaScriptCore: configured HTTPS/loopback origins, a hard 15-second request deadline, strict parsing, exact confidence, and classified failures match native behavior; the native fetch core is Linux-only. |
 | wayfinder | `needs-pty/webview/native` | No | The local unauthenticated HTTP gateway, metrics text, and routing/savings model violate HTTPS-only generic scope. |
 | zenmux | `convertible-now` | No | Verified fixed-origin bearer GET pair; subscription and optional PAYG balance map generically. |
-| aiand | `convertible-now` | No | Verified fixed-origin bearer GET pagination; 30-day spend maps to generic cost. |
+| aiand | `needs-host-extension` | No | Stopped: an empty 30-day log window must omit cost because its currency is unknowable, yielding a valid empty snapshot that plugins reject. |
 | zoommate | `needs-cookie-import` | No | Skipped: cookie-to-JWT exchange plus paginated history requires provider-specific retry state. |
 | xai | `cut-over` | Yes | Cut over on both engines: bearer GET balance plus best-effort JSON POST history and billing details; the native fetch twins are deleted. |
 | notion | `needs-cookie-import` | No | Workspace selection and AI allowance calls require imported Notion cookies and forwarded session headers. |

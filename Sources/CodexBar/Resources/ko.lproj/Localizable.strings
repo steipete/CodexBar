@@ -650,6 +650,8 @@
 "check_for_updates" = "업데이트 확인…";
 "updates_unavailable" = "이 빌드에서는 업데이트를 사용할 수 없습니다.";
 "copyright" = "© 2026 Peter Steinberger. MIT License.";
+"use_javascriptcore_plugin_engine" = "제공자 플러그인에 JavaScriptCore 사용";
+"use_javascriptcore_plugin_engine_subtitle" = "호환성 롤백 전용입니다. 적용하려면 CodexBar를 재시작하세요. CODEXBAR_PLUGIN_ENGINE이 이 설정보다 우선합니다.";
 "section_logging" = "로깅";
 "enable_file_logging" = "파일 로깅 사용";
 "enable_file_logging_subtitle" = "디버깅을 위해 %@에 로그를 기록합니다.";

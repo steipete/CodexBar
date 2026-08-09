@@ -409,7 +409,7 @@ struct MenuBarLayoutEditor: View {
                         self.selectedPosition = position
                     } label: {
                         MenuBarLayoutChipLabel(
-                            title: token.editorLabel,
+                            title: token.editorLabel(provider: self.persistenceProvider),
                             systemImage: token.editorSystemImage,
                             isSelected: self.selectedPosition == position)
                     }
@@ -423,7 +423,7 @@ struct MenuBarLayoutEditor: View {
                     .dropDestination(for: MenuBarLayoutDragItem.self) { items, _ in
                         self.insert(items.first, at: position)
                     }
-                    .accessibilityLabel(token.editorAccessibilityLabel)
+                    .accessibilityLabel(token.editorAccessibilityLabel(provider: self.persistenceProvider))
                     .accessibilityHint(L("menu_bar_layout_chip_hint"))
                     .accessibilityAction(named: L("Remove")) {
                         self.remove(at: position)
@@ -494,7 +494,7 @@ struct MenuBarLayoutEditor: View {
                         self.write(MenuBarLayoutEditorMutations.append(token, to: self.layout))
                     } label: {
                         MenuBarLayoutChipLabel(
-                            title: token.editorLabel,
+                            title: token.editorLabel(provider: self.persistenceProvider),
                             systemImage: token.editorSystemImage,
                             isSelected: false)
                     }
@@ -505,7 +505,7 @@ struct MenuBarLayoutEditor: View {
                         return .handled
                     }
                     .draggable(MenuBarLayoutDragItem.palette(token))
-                    .accessibilityLabel(token.editorAccessibilityLabel)
+                    .accessibilityLabel(token.editorAccessibilityLabel(provider: self.persistenceProvider))
                     .accessibilityHint(L("menu_bar_layout_palette_hint"))
                 }
                 if group.includesLineBreak {
@@ -683,6 +683,7 @@ private struct MenuBarLayoutPreview: View {
         let cost = self.store.tokenSnapshotForCurrentProviderConfig(for: provider)?.snapshot
         let costToday = MenuBarLayoutCostResolver.todayCostUSD(snapshot: cost, now: now)
         return MenuBarLayoutRenderData(
+            provider: provider,
             iconKey: provider.rawValue,
             providerName: L(self.store.metadata(for: provider).displayName),
             accountLabel: self.settings.hidePersonalInfo ? nil : snapshot.accountEmail(for: provider),
@@ -726,6 +727,7 @@ private struct MenuBarLayoutPreview: View {
             MenuBarDisplayText.paceText(pace: UsagePace.weekly(window: window, now: now))
         }
         return MenuBarLayoutRenderData(
+            provider: provider,
             iconKey: "\(provider.rawValue)-representative",
             providerName: L(self.store.metadata(for: provider).displayName),
             accountLabel: self.settings.hidePersonalInfo ? nil : L("menu_bar_layout_sample_account"),
@@ -793,7 +795,27 @@ extension MenuBarLayoutGap {
 }
 
 extension MenuBarLayoutToken {
-    var editorLabel: String {
+    func editorLabel(provider: UsageProvider?) -> String {
+        if let providerLabel = self.providerEditorLabel(provider: provider) {
+            return providerLabel
+        }
+        return self.defaultEditorLabel
+    }
+
+    private func providerEditorLabel(provider: UsageProvider?) -> String? {
+        guard let provider,
+              let secondaryLabel = ProviderDescriptorRegistry.descriptor(for: provider).presentation
+                  .menuBarLayoutSecondaryLabel
+        else { return nil }
+        let localizedLabel = L(secondaryLabel)
+        return switch self {
+        case .percent(window: .weekly): L("%@ %@", localizedLabel, "%")
+        case .pace(window: .weekly): L("%@ %@", localizedLabel, L("display_mode_pace").lowercased())
+        default: nil
+        }
+    }
+
+    private var defaultEditorLabel: String {
         switch self {
         case .icon: L("menu_bar_layout_token_icon")
         case .providerName: L("menu_bar_layout_token_provider")
@@ -817,10 +839,10 @@ extension MenuBarLayoutToken {
         }
     }
 
-    var editorAccessibilityLabel: String {
+    func editorAccessibilityLabel(provider: UsageProvider?) -> String {
         switch self {
         case .separatorDot: L("menu_bar_layout_token_separator_accessibility")
-        default: self.editorLabel
+        default: self.editorLabel(provider: provider)
         }
     }
 

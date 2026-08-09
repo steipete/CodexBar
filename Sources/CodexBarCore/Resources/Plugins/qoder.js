@@ -12,11 +12,17 @@ defineProvider({
       const origin = `https://${site}`;
       const candidate = await ctx.http.getJSON(`${origin}/api/v2/me/usages/big_model_credits`, {
         headers: {
-          Cookie: cookie, Origin: origin, Referer: `${origin}/account/usage`,
-          "X-Requested-With": "XMLHttpRequest", "Bx-V": "2.5.35",
+          Cookie: cookie,
+          Origin: origin,
+          Referer: `${origin}/account/usage`,
+          "X-Requested-With": "XMLHttpRequest",
+          "Bx-V": "2.5.35",
         },
       });
-      if (candidate.status >= 200 && candidate.status < 300) { response = candidate; break; }
+      if (candidate.status >= 200 && candidate.status < 300) {
+        response = candidate;
+        break;
+      }
     }
     if (!response) throw new Error("Qoder credentials were rejected");
     const root = response.json || {};
@@ -28,15 +34,25 @@ defineProvider({
     const read = (value, camel, snake) => Number(value[camel] ?? value[snake]);
     const used = read(summary, "usedValue", "used_value") + (shared ? read(shared, "usedValue", "used_value") : 0);
     const total = read(summary, "limitValue", "limit_value") + (shared ? read(shared, "limitValue", "limit_value") : 0);
-    const percentage = shared ? ctx.pct(used, total) : Number(summary.usagePercentage ?? summary.usage_percentage ?? ctx.pct(used, total));
+    const percentage = shared
+      ? ctx.pct(used, total)
+      : Number(summary.usagePercentage ?? summary.usage_percentage ?? ctx.pct(used, total));
     const reset = root.nextResetAt ?? root.next_reset_at;
-    const resetDate = typeof reset === "number"
-      ? (reset > 10000000000 ? ctx.date.unixMillis(reset) : ctx.date.unixSeconds(reset))
-      : (reset ? ctx.date.iso(reset) : undefined);
-    const format = value => ctx.format.number(value, { maximumFractionDigits: Number.isInteger(value) ? 0 : 2 });
-    return { primary: {
-      usedPercent: Math.max(0, Math.min(100, percentage)), resetsAt: resetDate,
-      resetDescription: `${format(used)} / ${format(total)} credits`,
-    } };
+    const resetDate =
+      typeof reset === "number"
+        ? reset > 10000000000
+          ? ctx.date.unixMillis(reset)
+          : ctx.date.unixSeconds(reset)
+        : reset
+          ? ctx.date.iso(reset)
+          : undefined;
+    const format = (value) => ctx.format.number(value, { maximumFractionDigits: Number.isInteger(value) ? 0 : 2 });
+    return {
+      primary: {
+        usedPercent: Math.max(0, Math.min(100, percentage)),
+        resetsAt: resetDate,
+        resetDescription: `${format(used)} / ${format(total)} credits`,
+      },
+    };
   },
 });

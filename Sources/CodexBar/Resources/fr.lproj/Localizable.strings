@@ -667,6 +667,8 @@
 "copyright" = "© 2026 Peter Steinberger. Licence MIT.";
 
 /* Debug Pane */
+"use_javascriptcore_plugin_engine" = "Utiliser JavaScriptCore pour les extensions de fournisseurs";
+"use_javascriptcore_plugin_engine_subtitle" = "Repli de compatibilité uniquement. Redémarrez CodexBar pour l’appliquer ; CODEXBAR_PLUGIN_ENGINE remplace ce réglage.";
 "section_logging" = "Journalisation";
 "enable_file_logging" = "Activer la journalisation des fichiers";
 "enable_file_logging_subtitle" = "Écrivez les journaux dans %@ pour le débogage.";

@@ -731,7 +731,7 @@ struct CodexLocalProjectUsageTests {
                 cached: 0,
                 output: 20),
             costNanos: 1)
-        cache.files[env.root.appendingPathComponent("partial.jsonl").path] = self.makeCachedFileUsage(
+        var partialUsage = self.makeCachedFileUsage(
             dayKey: dayKey,
             fixture: CodexUsageFixture(
                 filename: "partial.jsonl",
@@ -741,6 +741,10 @@ struct CodexLocalProjectUsageTests {
                 cached: 0,
                 output: 20),
             costNanos: nil)
+        let unavailableModel = "openai/unknown-test-model"
+        partialUsage.days = [dayKey: [unavailableModel: [80, 0, 20]]]
+        partialUsage.lastModel = unavailableModel
+        cache.files[env.root.appendingPathComponent("partial.jsonl").path] = partialUsage
         CostUsageStoreAccess.replace(cacheRoot: env.cacheRoot, cache: cache)
 
         let snapshot = try CodexLocalProjectUsageIndexer.buildSnapshotFromCostCache(
@@ -1466,7 +1470,7 @@ extension CodexLocalProjectUsageTests {
             dayKey: dayKey,
             fixture: unavailableFixture,
             costNanos: nil)
-        let unavailableModel = "openai/gpt-5.4-mini"
+        let unavailableModel = "openai/unknown-test-model"
         unavailableUsage.days = [dayKey: [unavailableModel: [20, 0, 0]]]
         unavailableUsage.lastModel = unavailableModel
 
@@ -1488,7 +1492,7 @@ extension CodexLocalProjectUsageTests {
             catalogOverride: .empty)
         let analytics = try #require(snapshot.modelsAnalytics?.allWorkspaces)
         let priced = try #require(analytics.rows.first { $0.id == "gpt-5.4" })
-        let unavailable = try #require(analytics.rows.first { $0.id == "gpt-5.4-mini" })
+        let unavailable = try #require(analytics.rows.first { $0.id == "unknown-test-model" })
 
         #expect(priced.cost.knownAmount == 0)
         #expect(priced.cost.pricedTokens == 10)

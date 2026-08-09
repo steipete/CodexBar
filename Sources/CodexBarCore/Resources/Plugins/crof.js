@@ -47,9 +47,8 @@ defineProvider({
     }
 
     const clampedRemaining = Math.max(0, Math.min(requestsPlan, usableRequests));
-    const remainingPercent = requestsPlan > 0
-      ? Math.max(0, Math.min(100, Math.floor(clampedRemaining / requestsPlan * 100)))
-      : 0;
+    const remainingPercent =
+      requestsPlan > 0 ? Math.max(0, Math.min(100, Math.floor((clampedRemaining / requestsPlan) * 100))) : 0;
     const displayedRequests = Math.max(0, usableRequests);
     const requestText = Number.isInteger(displayedRequests)
       ? displayedRequests.toFixed(0)

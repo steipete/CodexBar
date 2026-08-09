@@ -758,18 +758,29 @@ public struct CursorStatusSnapshot: Sendable {
     }
 
     private static func formatMembershipType(_ type: String) -> String {
-        switch type.lowercased() {
+        let planName = switch type.lowercased() {
         case "enterprise":
-            "Cursor Enterprise"
-        case "pro":
-            "Cursor Pro"
+            "Enterprise"
+        case "express":
+            "Start"
+        case "free":
+            "Free"
+        case "free_trial":
+            "Pro Trial"
         case "hobby":
-            "Cursor Hobby"
+            "Hobby"
+        case "pro", "pro_student":
+            "Pro"
+        case "pro_plus":
+            "Pro+"
         case "team":
-            "Cursor Team"
+            "Team"
+        case "ultra":
+            "Ultra"
         default:
-            "Cursor \(type.capitalized)"
+            type
         }
+        return "Cursor \(planName)"
     }
 }
 
@@ -971,6 +982,7 @@ public struct CursorStatusProbe: Sendable {
     let browserCookieImportOrder: BrowserCookieImportOrder
     private let urlSession: any ProviderHTTPTransport
     let appAuthStore: any CursorAppAuthSessionProviding
+    let conditionalMutationCoordinator: CookieHeaderCache.ConditionalMutationCoordinator
 
     public init(
         baseURL: URL = URL(string: "https://cursor.com")!,
@@ -984,7 +996,25 @@ public struct CursorStatusProbe: Sendable {
             browserDetection: browserDetection,
             browserCookieImportOrder: Self.defaultBrowserCookieImportOrder,
             urlSession: urlSession,
-            appAuthStore: CursorAppAuthStore())
+            appAuthStore: CursorAppAuthStore(),
+            conditionalMutationCoordinator: .shared)
+    }
+
+    package init(
+        baseURL: URL = URL(string: "https://cursor.com")!,
+        timeout: TimeInterval = 15.0,
+        browserDetection: BrowserDetection,
+        urlSession: any ProviderHTTPTransport = ProviderHTTPClient.shared,
+        conditionalMutationCoordinator: CookieHeaderCache.ConditionalMutationCoordinator)
+    {
+        self.init(
+            baseURL: baseURL,
+            timeout: timeout,
+            browserDetection: browserDetection,
+            browserCookieImportOrder: Self.defaultBrowserCookieImportOrder,
+            urlSession: urlSession,
+            appAuthStore: CursorAppAuthStore(),
+            conditionalMutationCoordinator: conditionalMutationCoordinator)
     }
 
     init(
@@ -993,7 +1023,8 @@ public struct CursorStatusProbe: Sendable {
         browserDetection: BrowserDetection,
         browserCookieImportOrder: BrowserCookieImportOrder = Self.defaultBrowserCookieImportOrder,
         urlSession: any ProviderHTTPTransport = ProviderHTTPClient.shared,
-        appAuthStore: any CursorAppAuthSessionProviding)
+        appAuthStore: any CursorAppAuthSessionProviding,
+        conditionalMutationCoordinator: CookieHeaderCache.ConditionalMutationCoordinator = .shared)
     {
         self.baseURL = baseURL
         self.timeout = timeout
@@ -1001,6 +1032,7 @@ public struct CursorStatusProbe: Sendable {
         self.browserCookieImportOrder = browserCookieImportOrder
         self.urlSession = urlSession
         self.appAuthStore = appAuthStore
+        self.conditionalMutationCoordinator = conditionalMutationCoordinator
     }
 
     /// Fetch Cursor usage using a first-party web session derived from Cursor.app's access token.

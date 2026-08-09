@@ -621,6 +621,30 @@ extension SettingsStore {
         }
     }
 
+    /// Explicit opt-in for reading Claude Code's own Keychain item (#2634). Feeds
+    /// `ClaudeOAuthDirectKeychainReadConsent`, the single consent source behind
+    /// `ClaudeOAuthCredentialsStore.keychainAccessAllowed`.
+    var claudeOAuthDirectKeychainReadAllowed: Bool {
+        get { self.defaultsState.claudeOAuthDirectKeychainReadAllowed }
+        set {
+            let wasAllowed = self.defaultsState.claudeOAuthDirectKeychainReadAllowed
+            self.defaultsState.claudeOAuthDirectKeychainReadAllowed = newValue
+            self.userDefaults.set(newValue, forKey: ClaudeOAuthDirectKeychainReadConsent.userDefaultsKey)
+            CodexBarLog.logger(LogCategories.settings).info(
+                "Claude direct Keychain read consent updated",
+                metadata: ["allowed": newValue ? "1" : "0"])
+            if wasAllowed, !newValue {
+                // Revoking consent must also revoke what consent obtained: credentials copied from Claude
+                // Code's Keychain while consent was on live in CodexBar's memory and Keychain caches, and
+                // those caches are consulted before the direct-read gate. Advance the global revocation epoch
+                // before dropping the active cache so previously used profile caches also fail closed on lookup
+                // (CodexBar-owned state only — Claude Code's item is untouched).
+                ClaudeOAuthCredentialsStore.revokeDirectKeychainReadConsent()
+            }
+            self.noteBackgroundWorkSettingsChanged()
+        }
+    }
+
     var claudeOAuthPromptFreeCredentialsEnabled: Bool {
         get { self.claudeOAuthKeychainPromptMode == .never }
         set {

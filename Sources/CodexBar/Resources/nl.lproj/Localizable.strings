@@ -667,6 +667,8 @@
 "copyright" = "© 2026 Peter Steinberger. MIT-licentie.";
 
 /* Debug Pane */
+"use_javascriptcore_plugin_engine" = "JavaScriptCore gebruiken voor providerplug-ins";
+"use_javascriptcore_plugin_engine_subtitle" = "Alleen als compatibiliteitsterugval. Start CodexBar opnieuw; CODEXBAR_PLUGIN_ENGINE overschrijft deze instelling.";
 "section_logging" = "Loggen";
 "enable_file_logging" = "Bestandsregistratie inschakelen";
 "enable_file_logging_subtitle" = "Schrijf logboeken naar %@ voor foutopsporing.";

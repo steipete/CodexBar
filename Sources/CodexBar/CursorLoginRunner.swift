@@ -121,6 +121,7 @@ final class CursorLoginRunner {
     private let browserApplicationResolver: BrowserApplicationResolver
     private let routeResolver: RouteResolver
     private let accountChooser: AccountChooser?
+    private let conditionalMutationCoordinator: CookieHeaderCache.ConditionalMutationCoordinator
     private let timeout: TimeInterval
     private let pollInterval: TimeInterval
     private let logger = CodexBarLog.logger(LogCategories.provider(.cursor, scope: "login"))
@@ -142,6 +143,7 @@ final class CursorLoginRunner {
         },
         routeResolver: RouteResolver? = nil,
         accountChooser: AccountChooser? = nil,
+        conditionalMutationCoordinator: CookieHeaderCache.ConditionalMutationCoordinator = .shared,
         replaceSessionCache: @escaping SessionCacheReplacer = { session in
             await CursorLoginRunner.replaceCachedSession(session)
         })
@@ -160,6 +162,7 @@ final class CursorLoginRunner {
                 })
         }
         self.accountChooser = accountChooser
+        self.conditionalMutationCoordinator = conditionalMutationCoordinator
         self.timeout = timeout
         self.pollInterval = pollInterval
         self.launchRoute = launchRoute
@@ -181,7 +184,9 @@ final class CursorLoginRunner {
             }
         } else {
             self.loadBrowserLoginCandidates = { browserApplicationURL, timeout in
-                let probe = CursorStatusProbe(browserDetection: browserDetection)
+                let probe = CursorStatusProbe(
+                    browserDetection: browserDetection,
+                    conditionalMutationCoordinator: conditionalMutationCoordinator)
                 return try await probe.fetchBrowserLoginCandidates(
                     browserApplicationURL: browserApplicationURL,
                     timeout: timeout).map { result in
@@ -210,7 +215,9 @@ final class CursorLoginRunner {
             return Result(outcome: .cancelled, email: nil)
         }
 
-        let cacheMutationGate = CookieHeaderCache.beginConditionalMutationGate(provider: .cursor)
+        let cacheMutationGate = CookieHeaderCache.beginConditionalMutationGate(
+            provider: .cursor,
+            coordinator: self.conditionalMutationCoordinator)
         defer { CookieHeaderCache.endConditionalMutationGate(cacheMutationGate) }
 
         let route: CursorLoginBrowserRouter.Route

@@ -10,7 +10,7 @@ defineProvider({
   async fetchUsage(ctx) {
     let base = ctx.settings.get("SUB2API_BASE_URL").replace(/\/+$/, "");
     if (!/\/v1(?:\/usage)?$/.test(base)) base += "/v1";
-    if (!/\/usage$/.test(base)) base += "/usage";
+    if (!base.endsWith("/usage")) base += "/usage";
     const timezone = ctx.env.timeZone || "UTC";
     let response;
     try {
@@ -18,11 +18,12 @@ defineProvider({
         timeoutSeconds: 15,
       });
     } catch (error) {
-      throw ctx.fail.networkFailure(`sub2api network error: ${error && error.message || error}`);
+      throw ctx.fail.networkFailure(`sub2api network error: ${(error && error.message) || error}`);
     }
     if (response.status === 401 || response.status === 403) {
       throw ctx.fail.authenticationExpired(
-        "sub2api rejected the API key. Check that the key is active and assigned to a group.");
+        "sub2api rejected the API key. Check that the key is active and assigned to a group.",
+      );
     }
     if (response.status === 429) throw ctx.fail.rateLimited("sub2api API returned HTTP 429.");
     if (response.status >= 500) {
@@ -35,7 +36,7 @@ defineProvider({
     let data;
     try {
       data = JSON.parse(response.bodyText);
-    } catch (_) {
+    } catch {
       throw ctx.fail.parseFailure("Could not parse sub2api usage: response was not valid JSON");
     }
     if (!data || typeof data !== "object" || Array.isArray(data)) {
@@ -64,21 +65,24 @@ defineProvider({
     function parseDate(value, field) {
       const text = optional(value, field, "string");
       if (text === null) return undefined;
-      try { return ctx.date.iso(text); } catch (_) {
+      try {
+        return ctx.date.iso(text);
+      } catch {
         throw ctx.fail.parseFailure(`Could not parse sub2api usage: ${field} is not a valid date`);
       }
     }
 
-    const mode = optional(data.mode, "mode", "string") || "unknown";
+    optional(data.mode, "mode", "string");
     const isValid = optional(data.isValid, "isValid", "boolean");
-    const status = optional(data.status, "status", "string");
+    optional(data.status, "status", "string");
     const planName = optional(data.planName, "planName", "string");
     optional(data.remaining, "remaining", "number");
     const balance = optional(data.balance, "balance", "number");
     const rootUnit = optional(data.unit, "unit", "string");
     if (isValid === false) {
       throw ctx.fail.authenticationExpired(
-        "sub2api rejected the API key. Check that the key is active and assigned to a group.");
+        "sub2api rejected the API key. Check that the key is active and assigned to a group.",
+      );
     }
 
     let quota = null;
@@ -93,7 +97,7 @@ defineProvider({
         unit: optional(data.quota.unit, "quota.unit", "string"),
       };
     }
-    const unit = rootUnit || quota && quota.unit || "USD";
+    const unit = rootUnit || (quota && quota.unit) || "USD";
 
     let subscription = null;
     if (data.subscription !== null && data.subscription !== undefined) {
@@ -111,19 +115,22 @@ defineProvider({
       };
     }
 
-    const money = (value, valueUnit = "USD") => valueUnit.toUpperCase() === "USD"
-      ? `$${ctx.format.number(value, {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
-      })}`
-      : `${Number(value).toFixed(2)} ${valueUnit}`;
-    const amount = (used, limit, valueUnit = "USD") =>
-      `${money(used, valueUnit)} / ${money(limit, valueUnit)}`;
-    const window = (used, limit, minutes, valueUnit = "USD") => limit !== null && limit > 0 ? ({
-      usedPercent: ctx.pct(used, limit),
-      windowMinutes: minutes,
-      resetDescription: amount(used, limit, valueUnit),
-    }) : null;
+    const money = (value, valueUnit = "USD") =>
+      valueUnit.toUpperCase() === "USD"
+        ? `$${ctx.format.number(value, {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+          })}`
+        : `${Number(value).toFixed(2)} ${valueUnit}`;
+    const amount = (used, limit, valueUnit = "USD") => `${money(used, valueUnit)} / ${money(limit, valueUnit)}`;
+    const window = (used, limit, minutes, valueUnit = "USD") =>
+      limit !== null && limit > 0
+        ? {
+            usedPercent: ctx.pct(used, limit),
+            windowMinutes: minutes,
+            resetDescription: amount(used, limit, valueUnit),
+          }
+        : null;
     let primary = null;
     let secondary = null;
     let tertiary = null;
@@ -200,7 +207,7 @@ defineProvider({
         secondaryValue: money(value.cost),
       });
     }
-    const expiresAt = subscription && subscription.expiresAt || parseDate(data.expires_at, "expires_at");
+    const expiresAt = (subscription && subscription.expiresAt) || parseDate(data.expires_at, "expires_at");
     return {
       primary,
       secondary,

@@ -570,7 +570,7 @@ struct CLIServeRouterTests {
         {
             _ = await counter.increment()
             do {
-                try await Task.sleep(nanoseconds: 200_000_000)
+                try await Task.sleep(nanoseconds: 5_000_000_000)
                 return Self.response("[{\"provider\":\"codex\",\"call\":1}]")
             } catch {
                 return CodexBarCLI.serveTimeoutResponse()
@@ -633,7 +633,7 @@ struct CLIServeRouterTests {
                         requestTimeout: 0.01)
                     {
                         _ = await counter.increment()
-                        try? await Task.sleep(nanoseconds: 200_000_000)
+                        await Self.hangPastRequestDeadline()
                         return Self.response("[{\"provider\":\"codex\"}]")
                     }
                 }
@@ -706,30 +706,45 @@ struct CLIServeRouterTests {
 
     @Test
     func `cost refresh timeout serves the last good payload`() async throws {
-        let cache = CLIServeResponseCache()
+        let deadline = ServeListeningSignal()
+        let releaseSource = ServeListeningSignal()
+        defer { releaseSource.signal() }
+        let operations = CLIServeOperationCoordinator<CLIServeCoordinatedResponse>(
+            sleepUntil: { _ in await deadline.wait() })
+        let cache = CLIServeResponseCache(operations: operations)
         let counter = ServeTestCounter()
 
         let first = await CodexBarCLI.cachedServeResponse(
             key: "cost:",
             cache: cache,
             refreshInterval: 0.01,
-            requestTimeout: 1)
+            requestTimeout: 0)
         {
             let call = await counter.increment()
             return Self.response("[{\"provider\":\"codex\",\"call\":\(call)}]")
         }
-        try? await Task.sleep(nanoseconds: 30_000_000)
+        // Expire the fresh entry without relying on the scheduler to wake a TTL sleep promptly.
+        let cacheKey = CodexBarCLI.serveCacheKey(operationKey: "cost:", configToken: "")
+        _ = await cache.cachedResponse(for: cacheKey, now: Date().addingTimeInterval(1))
+        #expect(await cache.cachedEntryCount() == 0)
 
-        let timedOut = await CodexBarCLI.cachedServeResponse(
-            key: "cost:",
-            cache: cache,
-            refreshInterval: 0.01,
-            requestTimeout: 0.01)
-        {
-            _ = await counter.increment()
-            try? await Task.sleep(nanoseconds: 200_000_000)
-            return Self.response("[{\"provider\":\"codex\",\"call\":2}]")
+        let sourceEntered = ServeListeningSignal()
+        let request = Task {
+            await CodexBarCLI.cachedServeResponse(
+                key: "cost:",
+                cache: cache,
+                refreshInterval: 0.01,
+                requestTimeout: 30)
+            {
+                let call = await counter.increment()
+                sourceEntered.signal()
+                await releaseSource.wait()
+                return Self.response("[{\"provider\":\"codex\",\"call\":\(call)}]")
+            }
         }
+        await sourceEntered.wait()
+        deadline.signal()
+        let timedOut = await request.value
 
         #expect(timedOut.status == .ok)
         let firstRows = try Self.jsonRows(first)
@@ -739,6 +754,12 @@ struct CLIServeRouterTests {
         #expect(firstRows.first?["call"] as? Int == 1)
         #expect(timedOutRows.first?["call"] as? Int == 1)
         #expect(await counter.current() == 2)
+
+        releaseSource.signal()
+        for _ in 0..<1000 where await operations.snapshot().operationCount != 0 {
+            await Task.yield()
+        }
+        #expect(await operations.snapshot().operationCount == 0)
     }
 
     @Test
@@ -785,7 +806,7 @@ struct CLIServeRouterTests {
             refreshInterval: 0.01,
             requestTimeout: 0.01)
         {
-            try? await Task.sleep(nanoseconds: 200_000_000)
+            await Self.hangPastRequestDeadline()
             return Self.response(#"[{"provider":"codex","call":3}]"#)
         }
         let timeoutRows = try Self.jsonRows(timedOut)
@@ -929,7 +950,7 @@ struct CLIServeRouterTests {
             refreshInterval: 0.05,
             requestTimeout: 0.01)
         {
-            try? await Task.sleep(nanoseconds: 200_000_000)
+            await Self.hangPastRequestDeadline()
             return Self.response("[]")
         }
         #expect(timedOut.status == .gatewayTimeout)
@@ -972,7 +993,7 @@ struct CLIServeRouterTests {
             refreshInterval: 0.05,
             requestTimeout: 0.01)
         {
-            try? await Task.sleep(nanoseconds: 200_000_000)
+            await Self.hangPastRequestDeadline()
             return Self.response("[]")
         }
         #expect(timedOut.status == .gatewayTimeout)
@@ -1258,7 +1279,7 @@ struct CLIServeRouterTests {
             refreshInterval: 0.05,
             requestTimeout: 0.01)
         {
-            try? await Task.sleep(nanoseconds: 200_000_000)
+            await Self.hangPastRequestDeadline()
             return Self.response(
                 #"[{"provider":"codex","account":"shared","call":3}]"#,
                 usageCacheKeys: ["account-2"])
@@ -1388,7 +1409,7 @@ struct CLIServeRouterTests {
             refreshInterval: 0.05,
             requestTimeout: 0.01)
         {
-            try? await Task.sleep(nanoseconds: 200_000_000)
+            await Self.hangPastRequestDeadline()
             return Self.response(
                 #"[{"provider":"antigravity","account":"second@example.com","call":2}]"#,
                 usageCacheKeys: [nil])
@@ -1426,7 +1447,7 @@ struct CLIServeRouterTests {
             refreshInterval: 0.05,
             requestTimeout: 0.01)
         {
-            try? await Task.sleep(nanoseconds: 200_000_000)
+            await Self.hangPastRequestDeadline()
             return Self.response("[]", usageCacheKeys: [])
         }
         #expect(timedOut.status == .gatewayTimeout)
@@ -1537,6 +1558,15 @@ struct CLIServeRouterTests {
             Issue.record("Expected \(expected)")
         case let .failure(error):
             #expect(error == expected)
+        }
+    }
+
+    /// A refresh stand-in that outlives any request deadline. Deliberately uncancellable:
+    /// `try? await Task.sleep` returns immediately once the coordinator cancels the timed-out
+    /// operation, and that salvaged "real" response then races (and can beat) the timeout value.
+    private static func hangPastRequestDeadline() async {
+        await withUnsafeContinuation { continuation in
+            DispatchQueue.global().asyncAfter(deadline: .now() + 5) { continuation.resume() }
         }
     }
 

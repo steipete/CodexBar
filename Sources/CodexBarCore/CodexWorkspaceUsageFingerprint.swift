@@ -7,7 +7,7 @@ import Foundation
 
 /// Stable sidecar identity for a normalized Codex rollout.
 /// Scanner cursors are intentionally excluded: they do not alter the sidecar's
-/// persisted usage, but rows, attribution, and cost maps do.
+/// persisted usage, but rows, attribution, authoritative cost, and mode splits do.
 struct CodexWorkspaceUsageFingerprintPayload: Encodable {
     let days: [String: [String: [Int]]]
     let lastModel: String?
@@ -17,9 +17,6 @@ struct CodexWorkspaceUsageFingerprintPayload: Encodable {
     let canonicalProjectPath: String?
     let session: CostUsageCodexSessionMetadata?
     let costNanos: [String: [String: Int64]]?
-    let prioritySurchargeNanos: [String: [String: Int64]]?
-    let standardCostNanos: [String: [String: Int64]]?
-    let priorityCostNanos: [String: [String: Int64]]?
     let standardTokens: [String: [String: Int]]?
     let priorityTokens: [String: [String: Int]]?
     let rowCount: Int?
@@ -35,9 +32,6 @@ struct CodexWorkspaceUsageFingerprintPayload: Encodable {
         self.canonicalProjectPath = usage.canonicalProjectPath
         self.session = usage.codexSession
         self.costNanos = usage.codexCostNanos
-        self.prioritySurchargeNanos = usage.codexPrioritySurchargeNanos
-        self.standardCostNanos = usage.codexStandardCostNanos
-        self.priorityCostNanos = usage.codexPriorityCostNanos
         self.standardTokens = usage.codexStandardTokens
         self.priorityTokens = usage.codexPriorityTokens
         self.rowCount = usage.codexRows?.count

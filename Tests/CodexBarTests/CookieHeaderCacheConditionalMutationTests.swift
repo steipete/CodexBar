@@ -247,6 +247,38 @@ struct CookieHeaderCacheConditionalMutationTests {
     }
 
     @Test
+    func `independent coordinators do not invalidate each others observations`() {
+        self.withIsolatedCookieCache {
+            let scope = CookieHeaderCache.Scope.providerVariant(UUID().uuidString)
+            let refreshCoordinator = CookieHeaderCache.ConditionalMutationCoordinator()
+            let loginCoordinator = CookieHeaderCache.ConditionalMutationCoordinator()
+            CookieHeaderCache.store(
+                provider: .cursor,
+                scope: scope,
+                cookieHeader: "fixtureSession=original",
+                sourceLabel: "Original")
+            let observation = CookieHeaderCache.observeForConditionalMutation(
+                provider: .cursor,
+                scope: scope,
+                coordinator: refreshCoordinator)
+            let loginGate = CookieHeaderCache.beginConditionalMutationGate(
+                provider: .cursor,
+                scope: scope,
+                coordinator: loginCoordinator)
+            defer { CookieHeaderCache.endConditionalMutationGate(loginGate) }
+
+            #expect(CookieHeaderCache.storeIfObservationCurrent(
+                provider: .cursor,
+                scope: scope,
+                expected: observation,
+                cookieHeader: "fixtureSession=refreshed",
+                sourceLabel: "Background"))
+            #expect(CookieHeaderCache.load(provider: .cursor, scope: scope)?.cookieHeader ==
+                "fixtureSession=refreshed")
+        }
+    }
+
+    @Test
     func `cookie cache persists while Keychain access is disabled`() {
         KeychainCacheStore.resetDisabledAccessMemoryStoreForTesting()
         defer {

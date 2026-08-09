@@ -234,10 +234,7 @@ struct CodexWorkspaceUsageSidecar: Sendable {
                d.output_tokens,
                d.cost_nanos,
                d.standard_tokens,
-               d.priority_tokens,
-               d.standard_cost_nanos,
-               d.priority_cost_nanos,
-               d.priority_surcharge_nanos
+               d.priority_tokens
         FROM usage_rollouts r
         LEFT JOIN catalog_threads c ON c.id = r.session_id OR c.rollout_path = r.rollout_path
         JOIN usage_daily d ON d.rollout_path = r.rollout_path
@@ -270,16 +267,10 @@ struct CodexWorkspaceUsageSidecar: Sendable {
                 Int(sqlite3_column_int64(statement, 13)),
                 Int(sqlite3_column_int64(statement, 14)),
             ]
+            // This legacy-named field carries only source-authoritative cost; estimates resolve on read.
             Self.assign(Self.columnInt64(statement, at: 15), to: &usage.codexCostNanos, day: day, model: model)
             Self.assign(Self.columnInt64(statement, at: 16), to: &usage.codexStandardTokens, day: day, model: model)
             Self.assign(Self.columnInt64(statement, at: 17), to: &usage.codexPriorityTokens, day: day, model: model)
-            Self.assign(Self.columnInt64(statement, at: 18), to: &usage.codexStandardCostNanos, day: day, model: model)
-            Self.assign(Self.columnInt64(statement, at: 19), to: &usage.codexPriorityCostNanos, day: day, model: model)
-            Self.assign(
-                Self.columnInt64(statement, at: 20),
-                to: &usage.codexPrioritySurchargeNanos,
-                day: day,
-                model: model)
             cache.files[path] = usage
         }
         let eventSQL = """
@@ -371,6 +362,8 @@ struct CodexWorkspaceUsageSidecar: Sendable {
             throw SidecarError.incompatibleSchema
         }
         guard current == 0 else { return }
+        // The nullable Standard/Priority cost columns remain only to preserve the v5 schema.
+        // Readers and writers intentionally ignore them; estimates are resolved from tokens.
         try Self.execute(db, """
         CREATE TABLE IF NOT EXISTS schema_meta (
             key TEXT PRIMARY KEY,
@@ -704,8 +697,8 @@ struct CodexWorkspaceUsageSidecar: Sendable {
         let sql = """
         INSERT INTO usage_daily (
             rollout_path, day, model, input_tokens, cached_input_tokens, output_tokens, cost_nanos,
-            standard_tokens, priority_tokens, standard_cost_nanos, priority_cost_nanos, priority_surcharge_nanos
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            standard_tokens, priority_tokens
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         """
         guard let statement = Self.prepare(db, sql) else { throw SidecarError.statementFailed }
         defer { sqlite3_finalize(statement) }
@@ -719,12 +712,10 @@ struct CodexWorkspaceUsageSidecar: Sendable {
                 sqlite3_bind_int64(statement, 4, Int64(max(0, values[safe: 0] ?? 0)))
                 sqlite3_bind_int64(statement, 5, Int64(max(0, values[safe: 1] ?? 0)))
                 sqlite3_bind_int64(statement, 6, Int64(max(0, values[safe: 2] ?? 0)))
+                // Preserve only source-authoritative money in the sidecar.
                 Self.bind(usage.codexCostNanos?[day]?[model], to: statement, at: 7)
                 Self.bind(usage.codexStandardTokens?[day]?[model], to: statement, at: 8)
                 Self.bind(usage.codexPriorityTokens?[day]?[model], to: statement, at: 9)
-                Self.bind(usage.codexStandardCostNanos?[day]?[model], to: statement, at: 10)
-                Self.bind(usage.codexPriorityCostNanos?[day]?[model], to: statement, at: 11)
-                Self.bind(usage.codexPrioritySurchargeNanos?[day]?[model], to: statement, at: 12)
                 guard sqlite3_step(statement) == SQLITE_DONE else { throw Self.sqliteFailure(db) }
             }
         }

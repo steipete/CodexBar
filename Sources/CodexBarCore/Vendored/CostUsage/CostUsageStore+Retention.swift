@@ -128,16 +128,31 @@ extension CostUsageStore {
         untilDay: String?,
         calendar: Calendar) -> Range<Int64>?
     {
-        guard let sinceDay, let untilDay,
-              let since = CostUsageScanner.parseDayKey(sinceDay, calendar: calendar),
-              let until = CostUsageScanner.parseDayKey(untilDay, calendar: calendar)
-        else { return nil }
         let scanCalendar = CostUsageScanner.CostUsageDayRange.localGregorianCalendar(matching: calendar)
+        guard let sinceDay, let untilDay,
+              let since = Self.dayStart(sinceDay, calendar: scanCalendar),
+              let until = Self.dayStart(untilDay, calendar: scanCalendar)
+        else { return nil }
         let end = scanCalendar.date(byAdding: .day, value: 1, to: until) ?? until
         let lower = Int64(since.timeIntervalSince1970 * 1000)
         let upper = Int64(end.timeIntervalSince1970 * 1000)
         guard lower < upper else { return nil }
         return lower..<upper
+    }
+
+    private static func dayStart(_ key: String, calendar: Calendar) -> Date? {
+        let parts = key.split(separator: "-")
+        guard parts.count == 3,
+              let year = Int(parts[0]),
+              let month = Int(parts[1]),
+              let day = Int(parts[2])
+        else { return nil }
+        return calendar.date(from: DateComponents(
+            calendar: calendar,
+            timeZone: calendar.timeZone,
+            year: year,
+            month: month,
+            day: day))
     }
 
     private static func retentionCandidates(
@@ -420,13 +435,16 @@ extension CostUsageStore {
         try self.execute(database, """
         INSERT INTO day_aggregates (
             day, model, input_tokens, cached_tokens, output_tokens, reasoning_tokens,
-            request_count, known_cost_nanos, priority_surcharge_nanos, unpriced_tokens,
-            standard_cost_nanos, priority_cost_nanos, standard_tokens, priority_tokens
+            request_count, authoritative_cost_nanos,
+            standard_input_tokens, standard_cached_tokens, standard_output_tokens,
+            priority_input_tokens, priority_cached_tokens, priority_output_tokens,
+            standard_tokens, priority_tokens
         )
         SELECT day, model, SUM(input_tokens), SUM(cached_tokens), SUM(output_tokens),
-               SUM(reasoning_tokens), SUM(request_count), SUM(known_cost_nanos),
-               SUM(priority_surcharge_nanos), SUM(unpriced_tokens), SUM(standard_cost_nanos),
-               SUM(priority_cost_nanos), SUM(standard_tokens), SUM(priority_tokens)
+               SUM(reasoning_tokens), SUM(request_count), SUM(authoritative_cost_nanos),
+               SUM(standard_input_tokens), SUM(standard_cached_tokens), SUM(standard_output_tokens),
+               SUM(priority_input_tokens), SUM(priority_cached_tokens), SUM(priority_output_tokens),
+               SUM(standard_tokens), SUM(priority_tokens)
         FROM file_day_aggregates
         GROUP BY day, model
         """)

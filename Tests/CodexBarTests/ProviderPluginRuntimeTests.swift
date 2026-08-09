@@ -7,6 +7,40 @@ import Testing
 
 struct ProviderPluginRuntimeTests {
     @Test
+    func `automatic engine defaults to QuickJS`() {
+        #expect(ProviderPluginRuntime.resolveEngineKind(
+            .automatic,
+            environment: [:],
+            useJavaScriptCoreRollback: false) == .quickJS)
+    }
+
+    @Test
+    func `explicit engine selection bypasses automatic policy`() {
+        #expect(ProviderPluginRuntime.resolveEngineKind(
+            .quickJS,
+            environment: [ProviderPluginRuntime.engineEnvironmentKey: "jsc"],
+            useJavaScriptCoreRollback: true) == .quickJS)
+    }
+
+    #if canImport(JavaScriptCore)
+    @Test
+    func `JavaScriptCore rollback supports environment and debug defaults`() {
+        #expect(ProviderPluginRuntime.resolveEngineKind(
+            .automatic,
+            environment: [ProviderPluginRuntime.engineEnvironmentKey: "jsc"],
+            useJavaScriptCoreRollback: false) == .javaScriptCore)
+        #expect(ProviderPluginRuntime.resolveEngineKind(
+            .automatic,
+            environment: [:],
+            useJavaScriptCoreRollback: true) == .javaScriptCore)
+        #expect(ProviderPluginRuntime.resolveEngineKind(
+            .automatic,
+            environment: [ProviderPluginRuntime.engineEnvironmentKey: "quickjs"],
+            useJavaScriptCoreRollback: true) == .quickJS)
+    }
+    #endif
+
+    @Test
     func `missing resource bundle throws a provider load error`() {
         #expect(throws: ProviderPluginError.load(CodexBarCoreResources.missingBundleMessage)) {
             _ = try ProviderPluginRuntime(bundledPlugin: "openrouter", resourceBundle: nil)
@@ -23,6 +57,18 @@ struct ProviderPluginRuntimeTests {
         let snapshot = try await runtime.fetchUsage(secrets: ["TEST_KEY": "test-key"], now: expected)
 
         #expect(snapshot.primary?.resetsAt == expected)
+    }
+
+    @Test
+    func `date nowMillis uses the injected fetch clock`() async throws {
+        let expected = Date(timeIntervalSince1970: 1_800_000_000)
+        let runtime = try ProviderPluginRuntime(source: Self.plugin(fetchBody: """
+        return { primary: { usedPercent: 1, resetDescription: String(ctx.date.nowMillis()) } };
+        """))
+
+        let snapshot = try await runtime.fetchUsage(secrets: ["TEST_KEY": "test-key"], now: expected)
+
+        #expect(snapshot.primary?.resetDescription == "1800000000000")
     }
 
     @Test
@@ -490,21 +536,68 @@ struct ProviderPluginRuntimeTests {
     }
 
     @Test
+    func `QuickJS engine supports bounded recursion on its dedicated stack`() async throws {
+        let runtime = try ProviderPluginRuntime(
+            source: Self.plugin(fetchBody: """
+            function recurse(depth) {
+              return depth <= 0 ? 0 : 1 + recurse(depth - 1);
+            }
+            return { primary: { usedPercent: recurse(100) } };
+            """),
+            engine: .quickJS)
+
+        let snapshot = try await runtime.fetchUsage(secrets: ["TEST_KEY": "secret"])
+
+        #expect(snapshot.primary?.usedPercent == 100)
+    }
+
+    @Test
+    func `QuickJS engine reports recursion beyond its JavaScript stack limit`() async throws {
+        // Deliberately starved worker geometry: with a fixed JS stack limit this crashed the process
+        // (guard fires with too little native left to build the RangeError — the quickjs-ng/zipline#1130
+        // class). The derived limit (a quarter of the worker stack) makes the invariant hold at any size,
+        // so even a 512 KiB thread throws a clean script error instead of overrunning the guard page.
+        let engine = try Self.quickJSEngine(
+            source: Self.plugin(fetchBody: """
+            function recurse(depth) {
+              return depth <= 0 ? 0 : 1 + recurse(depth - 1);
+            }
+            return { primary: { usedPercent: recurse(100000) } };
+            """),
+            workerStackSizeBytes: 512 * 1024)
+
+        do {
+            _ = try await Self.fetchUsage(engine: engine)
+            Issue.record("Expected stack overflow")
+        } catch let error as ProviderPluginError {
+            guard case let .script(message) = error else {
+                Issue.record("Unexpected plugin error: \(error)")
+                return
+            }
+            let normalizedMessage = message.lowercased()
+            #expect(normalizedMessage.contains("stack"))
+            #expect(normalizedMessage.contains("overflow") || normalizedMessage.contains("exceeded"))
+        } catch {
+            Issue.record("Unexpected error: \(error)")
+        }
+    }
+
+    @Test
     func `hung script times out and next fetch uses a fresh context`() async throws {
         let runtime = try ProviderPluginRuntime(
             source: Self.plugin(fetchBody: """
             if (ctx.settings.getSecret("TEST_KEY") === "hang") while (true) {}
             return { primary: { usedPercent: 7 } };
             """),
-            timeout: 0.15)
+            timeout: 5)
         let start = Date()
 
         await #expect(throws: ProviderPluginError.self) {
             _ = try await runtime.fetchUsage(secrets: ["TEST_KEY": "hang"])
         }
-        // The 0.15s watchdog must fire promptly rather than wait out the hang; allow generous
-        // headroom for loaded CI runners (observed 1.66s on ARM64 under contention).
-        #expect(Date().timeIntervalSince(start) < 5)
+        // This ceiling only proves the watchdog interrupted the infinite loop instead of hanging
+        // forever. The runtime timeout itself leaves fresh-worker compilation ample scheduler headroom.
+        #expect(Date().timeIntervalSince(start) < 30)
 
         let recovered = try await runtime.fetchUsage(secrets: ["TEST_KEY": "ok"])
         #expect(recovered.primary?.usedPercent == 7)
@@ -530,6 +623,41 @@ struct ProviderPluginRuntimeTests {
           },
         });
         """
+    }
+
+    private static func quickJSEngine(
+        source: String,
+        workerStackSizeBytes: Int) throws -> QuickJSProviderPluginEngine
+    {
+        let bundle = try #require(CodexBarCoreResources.bundle)
+        let preludeURL = try #require(bundle.url(
+            forResource: "provider-plugin-prelude",
+            withExtension: "js"))
+        let preludeSource = try String(contentsOf: preludeURL, encoding: .utf8)
+        return try QuickJSProviderPluginEngine.make(
+            source: source,
+            preludeSource: preludeSource,
+            transport: ProviderHTTPTransportHandler { _ in throw URLError(.unsupportedURL) },
+            timeout: ProviderPluginRuntime.defaultTimeout,
+            responseSizeLimit: ProviderPluginRuntime.maximumResponseBytes,
+            rejectsNonSuccessResponses: false,
+            allowsDynamicID: false,
+            workerStackSizeBytes: workerStackSizeBytes)
+    }
+
+    private static func fetchUsage(engine: QuickJSProviderPluginEngine) async throws -> UsageSnapshot {
+        let result = await withCheckedContinuation { continuation in
+            engine.fetch(
+                settings: [:],
+                secrets: ["TEST_KEY": "secret"],
+                now: Date(),
+                timeZone: .current,
+                contextOptions: .production,
+                cookieResolver: nil,
+                instanceCookieResolver: nil)
+            { continuation.resume(returning: $0) }
+        }
+        return try result.get()
     }
 
     private static func transport(

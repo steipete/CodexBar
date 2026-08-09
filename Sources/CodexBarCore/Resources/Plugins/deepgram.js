@@ -15,7 +15,8 @@ defineProvider({
       if (status === 401) return ctx.fail.authenticationExpired("Deepgram API key is invalid or expired.");
       if (status === 403) {
         return ctx.fail.permissionDenied(
-          "Deepgram rejected access: The API key may not have access to the project or the Management API. HTTP 403");
+          "Deepgram rejected access: The API key may not have access to the project or the Management API. HTTP 403",
+        );
       }
       if (status === 429) return ctx.fail.rateLimited("Deepgram API error: HTTP 429");
       if (status >= 500) return ctx.fail.providerUnavailable(`Deepgram API error: HTTP ${status}`);
@@ -27,12 +28,12 @@ defineProvider({
       try {
         response = await ctx.http.get(url);
       } catch (error) {
-        throw ctx.fail.networkFailure(`Deepgram network error: ${error && error.message || error}`);
+        throw ctx.fail.networkFailure(`Deepgram network error: ${(error && error.message) || error}`);
       }
       if (response.status !== 200) throw classifyStatus(response.status);
       try {
         return JSON.parse(response.bodyText);
-      } catch (_) {
+      } catch {
         throw ctx.fail.parseFailure("Deepgram parse error: response was not valid JSON");
       }
     }
@@ -115,34 +116,37 @@ defineProvider({
     let start = null;
     let end = null;
     for (const project of projects) {
-      const payload = usagePayload(await getJSON(
-        `${base}/projects/${encodeURIComponent(project.project_id)}/usage/breakdown`));
+      const payload = usagePayload(
+        await getJSON(`${base}/projects/${encodeURIComponent(project.project_id)}/usage/breakdown`),
+      );
       if (payload.start && (!start || payload.start < start)) start = payload.start;
       if (payload.end && (!end || payload.end > end)) end = payload.end;
       for (const field of Object.keys(totals)) totals[field] += payload[field];
     }
 
-    const decimal = value => ctx.format.number(value, {
-      minimumFractionDigits: value === Math.floor(value) ? 0 : 1,
-      maximumFractionDigits: 1,
-    });
-    const integer = value => ctx.format.number(value, { maximumFractionDigits: 0 });
+    const decimal = (value) =>
+      ctx.format.number(value, {
+        minimumFractionDigits: value === Math.floor(value) ? 0 : 1,
+        maximumFractionDigits: 1,
+      });
+    const integer = (value) => ctx.format.number(value, { maximumFractionDigits: 0 });
     const rows = [{ label: "Requests", value: integer(totals.requests) }];
-    if (totals.hours || totals.totalHours) rows.push({
-      label: "Audio",
-      value: `${decimal(totals.hours)} hours`,
-      secondaryValue: `${decimal(totals.totalHours)} billable hours`,
-    });
+    if (totals.hours || totals.totalHours)
+      rows.push({
+        label: "Audio",
+        value: `${decimal(totals.hours)} hours`,
+        secondaryValue: `${decimal(totals.totalHours)} billable hours`,
+      });
     if (totals.agentHours) rows.push({ label: "Agent hours", value: decimal(totals.agentHours) });
-    if (totals.tokensIn || totals.tokensOut) rows.push({
-      label: "Tokens",
-      value: integer(totals.tokensIn + totals.tokensOut),
-    });
+    if (totals.tokensIn || totals.tokensOut)
+      rows.push({
+        label: "Tokens",
+        value: integer(totals.tokensIn + totals.tokensOut),
+      });
     if (totals.tts) rows.push({ label: "TTS characters", value: integer(totals.tts) });
     if (start && end) rows.push({ label: "Period", value: `${start} to ${end}` });
-    const loginMethod = projects.length > 1
-      ? `${projects.length} projects`
-      : `Project: ${projects[0].name || projects[0].project_id}`;
+    const loginMethod =
+      projects.length > 1 ? `${projects.length} projects` : `Project: ${projects[0].name || projects[0].project_id}`;
     return { identity: { loginMethod }, details: [{ title: "Usage summary", rows }] };
   },
 });

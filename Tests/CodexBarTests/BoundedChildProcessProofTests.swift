@@ -43,7 +43,9 @@ struct BoundedChildProcessProofTests {
         } catch {
             Issue.record("Unexpected overflow error: \(error)")
         }
-        #expect(start.duration(to: .now) < .seconds(10))
+        // Prove early abort (well under the 60s timeout) without a load-sensitive tight bound:
+        // heavily loaded CI shards have taken >10s for PTY drain alone (refs #2792 fallout).
+        #expect(start.duration(to: .now) < .seconds(30))
 
         let pidText = try String(contentsOf: pidURL, encoding: .utf8)
             .trimmingCharacters(in: .whitespacesAndNewlines)
