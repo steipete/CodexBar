@@ -498,27 +498,6 @@ public struct TTYCommandRunner {
         }
     }
 
-    static func drainReadResult(for data: Data, terminalRead: Int, errno err: Int32) -> DrainReadResult {
-        if !data.isEmpty {
-            return .data(data)
-        }
-
-        if terminalRead == 0 {
-            return .closed
-        }
-
-        if terminalRead < 0 {
-            if err == EAGAIN || err == EWOULDBLOCK || err == EINTR {
-                return .wouldBlock
-            }
-            if err == EIO {
-                return .closed
-            }
-        }
-
-        return .closed
-    }
-
     static func locateBundledHelper(_ name: String) -> String? {
         let fm = FileManager.default
 
@@ -671,6 +650,7 @@ public struct TTYCommandRunner {
         var cleanedUp = false
         var launchedProcess: SpawnedProcessGroup?
         var didExceedOutputLimit = false
+        var didTerminateSynchronously = false
         /// Always tear down the PTY child (and its process group) even if we throw early
         /// while bootstrapping the CLI (e.g. when it prompts for login/telemetry).
         func cleanup() {
@@ -696,7 +676,9 @@ public struct TTYCommandRunner {
                 try? primaryHandle.close()
                 launchedProcess.abortSynchronously()
             } else {
-                launchedProcess.terminateSynchronously()
+                if !didTerminateSynchronously {
+                    launchedProcess.terminateSynchronously()
+                }
                 try? primaryHandle.close()
             }
             TTYCommandRunnerActiveProcessRegistry.unregister(pid: launchedProcess.pid)
@@ -952,7 +934,13 @@ public struct TTYCommandRunner {
 
             let exitedBeforeDeadline = !stoppedEarly
                 && process.exitObservationDate.map { $0 <= deadline } == true
-            let exitStatusBeforeDrain = exitedBeforeDeadline ? process.finishSynchronously() : nil
+            let exitStatusBeforeDrain: Int32?
+            if exitedBeforeDeadline {
+                exitStatusBeforeDrain = process.terminateSynchronously()
+                didTerminateSynchronously = true
+            } else {
+                exitStatusBeforeDrain = nil
+            }
 
             func drainNonCodexOutput(for duration: TimeInterval) throws -> Bool {
                 let drainFor = max(0, duration)
@@ -1189,6 +1177,27 @@ public struct TTYCommandRunner {
 }
 
 extension TTYCommandRunner {
+    static func drainReadResult(for data: Data, terminalRead: Int, errno err: Int32) -> DrainReadResult {
+        if !data.isEmpty {
+            return .data(data)
+        }
+
+        if terminalRead == 0 {
+            return .closed
+        }
+
+        if terminalRead < 0 {
+            if err == EAGAIN || err == EWOULDBLOCK || err == EINTR {
+                return .wouldBlock
+            }
+            if err == EIO {
+                return .closed
+            }
+        }
+
+        return .closed
+    }
+
     static func withIsolatedActiveProcessRegistryForTesting<T>(_ operation: () throws -> T) rethrows -> T {
         try TTYCommandRunnerActiveProcessRegistry.withIsolatedStateForTesting(operation)
     }
