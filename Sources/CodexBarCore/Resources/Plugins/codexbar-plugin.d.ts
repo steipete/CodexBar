@@ -67,6 +67,7 @@ interface CodexBarDetailSection {
 }
 
 interface CodexBarUsageSnapshot {
+  /** At least one rate window, cost, non-empty detail section, or non-empty identity field is required. */
   primary?: CodexBarRateWindow | null;
   secondary?: CodexBarRateWindow | null;
   tertiary?: CodexBarRateWindow | null;

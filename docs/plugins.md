@@ -132,7 +132,7 @@ abandoned evaluation thread can remain alive until process exit.
 
 ## Snapshot result
 
-Return at least one rate window, cost object, or detail section:
+Return at least one rate window, cost object, detail section, or non-empty identity field:
 
 ```js
 return {
@@ -161,6 +161,9 @@ Percentages must be finite and are clamped to 0–100. Window minutes are positi
 and a three-letter uppercase currency. Dates are JavaScript `Date` values or ISO-8601 strings. Snapshot identity is
 always scoped to the manifest's instance ID. Data confidence defaults to `unknown`. Details allow at most 8 sections, 24 rows per section, 120 chart points,
 and 120 characters per detail string. Wrong types and limit violations fail the whole fetch instead of truncating it.
+An identity-only snapshot is useful for balance-only or zero-usage provider states and renders its available account,
+organization, plan/login-method, and account-ID fields in the menu and CLI. An empty object, an empty `identity` object,
+or metadata such as confidence and subscription dates without displayable usage or identity remains invalid.
 
 ## TypeScript
 

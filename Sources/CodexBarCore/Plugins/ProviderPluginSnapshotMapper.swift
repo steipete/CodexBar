@@ -26,8 +26,10 @@ enum ProviderPluginSnapshotMapper {
         guard primary != nil || secondary != nil || tertiary != nil || !(extraRateWindows?.isEmpty ?? true)
             || providerCost != nil
             || !details.isEmpty
+            || self.hasMeaningfulIdentity(identity)
         else {
-            throw ProviderPluginError.invalidSnapshot("snapshot must contain at least one rate window, cost, or detail")
+            throw ProviderPluginError.invalidSnapshot(
+                "snapshot must contain at least one rate window, cost, detail section, or identity field")
         }
 
         return UsageSnapshot(
@@ -42,6 +44,12 @@ enum ProviderPluginSnapshotMapper {
             updatedAt: now,
             identity: identity,
             dataConfidence: dataConfidence)
+    }
+
+    private static func hasMeaningfulIdentity(_ identity: ProviderIdentitySnapshot?) -> Bool {
+        guard let identity else { return false }
+        return identity.accountEmail != nil || identity.accountOrganization != nil || identity.loginMethod != nil
+            || identity.accountID != nil
     }
 
     private static func dataConfidence(_ root: any ProviderPluginValue) throws -> UsageDataConfidence {

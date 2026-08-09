@@ -265,6 +265,33 @@ struct UserProviderPluginTests {
         #expect(binding.typedConfirmationOrigins == binding.origins)
     }
 
+    @Test
+    func `plugin CLI renders identity only snapshots`() throws {
+        let fixture = try Fixture()
+        defer { fixture.remove() }
+        let plugin = try fixture.loader(transport: RecordingTransport(responseJSON: "{}"))
+            .load(fileURL: fixture.write(name: "identity.js", source: Self.javaScriptPlugin()))
+        let snapshot = UsageSnapshot(
+            primary: nil,
+            secondary: nil,
+            tertiary: nil,
+            updatedAt: Date(),
+            identity: ProviderIdentitySnapshot(
+                providerID: plugin.manifest.id,
+                accountEmail: "user@example.com",
+                accountOrganization: "Acme",
+                loginMethod: "API key",
+                accountID: "acct-1"))
+
+        #expect(CodexBarCLI.pluginSnapshotLines(plugin: plugin, snapshot: snapshot) == [
+            "Acme Meter",
+            "Account: user@example.com",
+            "Organization: Acme",
+            "Plan: API key",
+            "Account ID: acct-1",
+        ])
+    }
+
     private static func javaScriptPlugin(
         id: String = "acme-meter",
         origin: String = "https://api.acme.test") -> String

@@ -422,6 +422,35 @@ struct ProviderPluginRuntimeTests {
     }
 
     @Test
+    func `identity only snapshot preserves a successful sparse provider state`() async throws {
+        let runtime = try ProviderPluginRuntime(source: Self.plugin(fetchBody: """
+        return { identity: { organization: "Moonshot", loginMethod: "Balance: $0.00" } };
+        """))
+
+        let snapshot = try await runtime.fetchUsage(secrets: ["TEST_KEY": "secret"])
+
+        #expect(snapshot.primary == nil)
+        #expect(snapshot.providerCost == nil)
+        #expect(snapshot.identity?.accountOrganization == "Moonshot")
+        #expect(snapshot.identity?.loginMethod == "Balance: $0.00")
+    }
+
+    @Test(arguments: [
+        #"return {};"#,
+        #"return { identity: {} };"#,
+        #"return { identity: { email: "  " } };"#,
+        #"return { dataConfidence: "exact" };"#,
+        #"return { subscriptionRenewsAt: "2026-09-01T00:00:00Z" };"#,
+    ])
+    func `empty and metadata only snapshots remain invalid`(fetchBody: String) async throws {
+        let runtime = try ProviderPluginRuntime(source: Self.plugin(fetchBody: fetchBody))
+
+        await #expect(throws: ProviderPluginError.self) {
+            _ = try await runtime.fetchUsage(secrets: ["TEST_KEY": "secret"])
+        }
+    }
+
+    @Test
     func `details map strictly and trim display strings`() async throws {
         let runtime = try ProviderPluginRuntime(source: Self.plugin(fetchBody: """
         return {
