@@ -444,15 +444,25 @@ enum ShareStatsBuilder {
         let rosterHasUnexpectedProviderFamilies = !providerRoster.isEmpty && trackedProviders.contains {
             !rosterProviderKinds.contains($0.provider)
         }
-        let rosterHasIncompleteProviders = rosterHasUnexpectedProviderFamilies || providerRoster.contains { entry in
-            let allMatches = trackedProviders.filter { $0.provider == entry.provider }
-            let matches = self.rosterMatches(entry: entry, candidates: allMatches)
-            let knownCosts = matches.compactMap(\.estimatedCost)
-            return self.rosterIdentityIsIncomplete(entry: entry, candidates: allMatches) ||
-                matches.contains { $0.totalTokens == nil || $0.estimatedCost == nil } ||
-                Set(matches.map(\.currencyCode)).count > 1 ||
-                self.safeCostSum(knownCosts) == nil
-        }
+        let rosterHasIncompleteSpendProviders = rosterHasUnexpectedProviderFamilies ||
+            providerRoster.contains { entry in
+                let allMatches = trackedProviders.filter { $0.provider == entry.provider }
+                let matches = self.rosterMatches(entry: entry, candidates: allMatches)
+                let knownCosts = matches.compactMap(\.estimatedCost)
+                return self.rosterIdentityIsIncomplete(entry: entry, candidates: allMatches) ||
+                    matches.contains { $0.estimatedCost == nil } ||
+                    Set(matches.map(\.currencyCode)).count > 1 ||
+                    self.safeCostSum(knownCosts) == nil
+            }
+        let rosterHasIncompleteTokenProviders = rosterHasUnexpectedProviderFamilies ||
+            providerRoster.contains { entry in
+                let allMatches = trackedProviders.filter { $0.provider == entry.provider }
+                let matches = self.rosterMatches(entry: entry, candidates: allMatches)
+                return self.rosterIdentityIsIncomplete(entry: entry, candidates: allMatches) ||
+                    matches.contains { $0.totalTokens == nil }
+            }
+        let rosterHasIncompleteProviders = rosterHasIncompleteSpendProviders ||
+            rosterHasIncompleteTokenProviders
         let currencies = model.groups.map { group in
             let rosterCosts = providers.filter { $0.currencyCode == group.currencyCode }
                 .compactMap(\.estimatedCost)
@@ -463,13 +473,13 @@ enum ShareStatsBuilder {
                 currencyCode: group.currencyCode,
                 estimatedCost: estimatedCost,
                 coveredDayCount: group.coveredDayCount,
-                isPartial: rosterHasIncompleteProviders || group.totalCost == nil)
+                isPartial: rosterHasIncompleteSpendProviders || group.totalCost == nil)
         }
         let tokenProviders = providerRoster.isEmpty ? trackedProviders : providers
         let knownTokenValues = tokenProviders.compactMap(\.totalTokens)
         let totalTokens = self.safeTokenSum(knownTokenValues)
         let totalTokensIsPartial = tokenProviders.contains { $0.totalTokens == nil } ||
-            rosterHasIncompleteProviders ||
+            rosterHasIncompleteTokenProviders ||
             model.groups.contains { $0.totalTokens == nil }
         let periodEnd = model.groups.map(\.chartDomain.upperBound).max() ?? Date()
         let payload = ShareStatsPayload(

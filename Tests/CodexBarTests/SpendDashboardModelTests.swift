@@ -52,7 +52,6 @@ struct SpendDashboardModelTests {
             .claude,
             .vertexai,
             .openai,
-            .openrouter,
             .mistral,
             .bedrock,
             .cursor,

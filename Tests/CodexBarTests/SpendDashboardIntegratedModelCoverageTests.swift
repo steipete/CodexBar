@@ -32,14 +32,13 @@ struct SpendDashboardIntegratedModelCoverageTests {
             .cursor,
             .mistral,
             .openai,
-            .openrouter,
             .opencodego,
             .vertexai,
         ])
         #expect(Set(group.models.map(\.id)) == expectedIDs)
         #expect(group.models.count == providers.count * 2)
         #expect(group.models.allSatisfy { $0.totalTokens != nil && $0.totalCost != nil })
-        #expect(group.modelHistoryCompleteness == .incomplete)
+        #expect(group.modelHistoryCompleteness == .complete)
     }
 
     @Test

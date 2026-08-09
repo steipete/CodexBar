@@ -125,6 +125,42 @@ struct ShareStatsTests {
     }
 
     @Test
+    func `complete spend remains exact when a provider has no token counts`() throws {
+        let group = SpendDashboardModel.CurrencyGroup(
+            currencyCode: "USD",
+            providers: [
+                SpendDashboardModel.ProviderRow(
+                    id: "bedrock",
+                    rank: 1,
+                    provider: .bedrock,
+                    displayName: "Bedrock",
+                    totalTokens: nil,
+                    totalCost: 12,
+                    coveredDayCount: 30),
+            ],
+            models: [],
+            dailyPoints: [],
+            totalTokens: nil,
+            totalCost: 12,
+            coveredDayCount: 30,
+            chartDomain: Self.date...Self.date,
+            modelHistoryCompleteness: .complete)
+        let roster = [
+            ShareStatsProviderRosterEntry(provider: .bedrock, providerName: "Bedrock", currencyCode: "USD"),
+        ]
+
+        let payload = try #require(ShareStatsBuilder.make(
+            model: SpendDashboardModel(requestedDays: 30, groups: [group]),
+            providerRoster: roster))
+
+        #expect(payload.currencies.first?.estimatedCost == 12)
+        #expect(payload.currencies.first?.isPartial == false)
+        #expect(payload.totalTokens == nil)
+        #expect(payload.totalTokensIsPartial)
+        #expect(ShareStatsFormatting.text(payload).contains("USD: $12.00 estimated"))
+    }
+
+    @Test
     func `twenty connected services remain accounted for without overflowing the flex card`() throws {
         let roster = Array(UsageProvider.allCases.prefix(20)).map { provider in
             ShareStatsProviderRosterEntry(
