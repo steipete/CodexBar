@@ -18,9 +18,7 @@ struct CopilotProviderImplementation: ProviderImplementation {
         _ = settings.copilotBudgetExtrasEnabled
         _ = settings.copilotBudgetCookieSource
         _ = settings.copilotBudgetCookieHeader
-        _ = settings.copilotOrgCreditsEnabled
         _ = settings.copilotSeatCreditEntitlementRaw
-        _ = settings.copilotOrgCreditEntitlementRaw
     }
 
     @MainActor
@@ -77,29 +75,6 @@ struct CopilotProviderImplementation: ProviderImplementation {
                         await context.store.refreshProvider(.copilot, allowDisabled: true)
                     } else {
                         context.store.clearCopilotBudgetExtras()
-                    }
-                },
-                onAppDidBecomeActive: nil,
-                onAppearWhenEnabled: nil),
-            ProviderSettingsToggleDescriptor(
-                id: "copilot-org-credits",
-                title: "Organization AI credits",
-                subtitle: [
-                    "Optional.",
-                    "Fetches organization-wide AI credit usage.",
-                    "Requires a token with access to the organization's billing settings.",
-                ].joined(separator: " "),
-                binding: Binding(
-                    get: { context.settings.copilotOrgCreditsEnabled },
-                    set: { context.settings.copilotOrgCreditsEnabled = $0 }),
-                statusText: { nil },
-                actions: [],
-                isVisible: nil,
-                onChange: { enabled in
-                    if enabled {
-                        await context.store.refreshProvider(.copilot, allowDisabled: true)
-                    } else {
-                        context.store.clearCopilotOrgCredits()
                     }
                 },
                 onAppDidBecomeActive: nil,
@@ -181,7 +156,15 @@ struct CopilotProviderImplementation: ProviderImplementation {
 
     @MainActor
     func settingsFields(context: ProviderSettingsContext) -> [ProviderSettingsFieldDescriptor] {
-        [
+        let seatEntitlementBinding = Binding(
+            get: { context.settings.copilotEffectiveSeatCreditEntitlementRaw },
+            set: { newValue in
+                context.settings.copilotEffectiveSeatCreditEntitlementRaw = newValue
+                // Rewrite the cached row locally so a stale denominator/bar never survives a failed
+                // (or offline) refresh; no network call here.
+                context.store.updateCopilotSeatCreditEntitlement(CopilotCreditEntitlementParser.parse(newValue))
+            })
+        return [
             ProviderSettingsFieldDescriptor(
                 id: "copilot-budget-cookie-header",
                 title: "Manual GitHub Cookie header",
@@ -222,19 +205,9 @@ struct CopilotProviderImplementation: ProviderImplementation {
                     "Applies to the selected GitHub account.",
                 kind: .plain,
                 placeholder: "e.g. 3000",
-                binding: context.stringBinding(\.copilotEffectiveSeatCreditEntitlementRaw),
+                binding: seatEntitlementBinding,
                 actions: [],
                 isVisible: nil,
-                onActivate: nil),
-            ProviderSettingsFieldDescriptor(
-                id: "copilot-org-credit-entitlement",
-                title: "Included AI credits (organization)",
-                subtitle: "Total monthly organization allowance. Applies to the selected GitHub account.",
-                kind: .plain,
-                placeholder: "e.g. 6000",
-                binding: context.stringBinding(\.copilotEffectiveOrgCreditEntitlementRaw),
-                actions: [],
-                isVisible: { context.settings.copilotOrgCreditsEnabled },
                 onActivate: nil),
             ProviderSettingsFieldDescriptor(
                 id: "copilot-add-account",

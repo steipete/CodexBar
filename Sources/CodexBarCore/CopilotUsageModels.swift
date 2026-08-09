@@ -298,7 +298,6 @@ public struct CopilotUsageResponse: Sendable, Decodable {
     public let tokenBasedBilling: Bool
     public let assignedDate: String?
     public let quotaResetDate: String?
-    public let organizationLoginList: [String]
 
     private enum CodingKeys: String, CodingKey {
         case quotaSnapshots = "quota_snapshots"
@@ -308,7 +307,6 @@ public struct CopilotUsageResponse: Sendable, Decodable {
         case quotaResetDate = "quota_reset_date"
         case monthlyQuotas = "monthly_quotas"
         case limitedUserQuotas = "limited_user_quotas"
-        case organizationLoginList = "organization_login_list"
     }
 
     public init(
@@ -316,15 +314,13 @@ public struct CopilotUsageResponse: Sendable, Decodable {
         copilotPlan: String,
         tokenBasedBilling: Bool = false,
         assignedDate: String?,
-        quotaResetDate: String?,
-        organizationLoginList: [String] = [])
+        quotaResetDate: String?)
     {
         self.quotaSnapshots = quotaSnapshots
         self.copilotPlan = copilotPlan
         self.tokenBasedBilling = tokenBasedBilling
         self.assignedDate = assignedDate
         self.quotaResetDate = quotaResetDate
-        self.organizationLoginList = organizationLoginList
     }
 
     public init(from decoder: any Decoder) throws {
@@ -348,9 +344,6 @@ public struct CopilotUsageResponse: Sendable, Decodable {
         self.tokenBasedBilling = try container.decodeIfPresent(Bool.self, forKey: .tokenBasedBilling) ?? false
         self.assignedDate = try container.decodeIfPresent(String.self, forKey: .assignedDate)
         self.quotaResetDate = try container.decodeIfPresent(String.self, forKey: .quotaResetDate)
-        self.organizationLoginList = try container.decodeIfPresent(
-            [String].self,
-            forKey: .organizationLoginList) ?? []
     }
 
     private static func makeQuotaSnapshots(monthly: QuotaCounts?, limited: QuotaCounts?) -> QuotaSnapshots? {

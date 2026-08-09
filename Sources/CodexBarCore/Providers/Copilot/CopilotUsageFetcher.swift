@@ -3,12 +3,11 @@ import Foundation
 import FoundationNetworking
 #endif
 
-/// Stable provider-detail row ids and section title for the Copilot AI credit lanes, so a feature
-/// can find a row again (tests, clearing the org row when its toggle is switched off).
+/// Stable provider-detail row ids and section title for the Copilot AI credit lane, so a feature
+/// can find a row again (tests, menu card rendering).
 public enum CopilotCreditDetailRows {
     public static let sectionTitle = "Credits"
     public static let seatRowID = "copilot-seat-credits"
-    public static let orgRowID = "copilot-org-credits"
 }
 
 public struct CopilotUsageFetcher: Sendable {
@@ -57,12 +56,6 @@ public struct CopilotUsageFetcher: Sendable {
     }
 
     public func fetch() async throws -> UsageSnapshot {
-        try await self.snapshot(from: self.fetchResponse())
-    }
-
-    /// Network and decode only, so fetch strategies can reuse payload fields the snapshot mapping
-    /// does not carry (the organization list feeding the opt-in org credits row).
-    func fetchResponse() async throws -> CopilotUsageResponse {
         guard let url = Self.usageURL(enterpriseHost: self.enterpriseHost) else {
             throw URLError(.badURL)
         }
@@ -82,7 +75,8 @@ public struct CopilotUsageFetcher: Sendable {
             throw URLError(.badServerResponse)
         }
 
-        return try JSONDecoder().decode(CopilotUsageResponse.self, from: response.data)
+        let usage = try JSONDecoder().decode(CopilotUsageResponse.self, from: response.data)
+        return try self.snapshot(from: usage)
     }
 
     func snapshot(from usage: CopilotUsageResponse) throws -> UsageSnapshot {

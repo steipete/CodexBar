@@ -117,16 +117,10 @@ struct CopilotAPIFetchStrategy: ProviderFetchStrategy {
             token: token,
             enterpriseHost: context.settings?.copilot?.enterpriseHost,
             seatEntitlement: context.settings?.copilot?.seatCreditEntitlement)
-        let response = try await fetcher.fetchResponse()
-        let usage = try fetcher.snapshot(from: response)
+        let usage = try await fetcher.fetch()
         let snap = await self.addBudgetWindowsIfNeeded(to: usage, token: token, context: context)
-        let withCredits = await self.addOrgCreditsIfNeeded(
-            to: snap,
-            response: response,
-            token: token,
-            context: context)
         return self.makeResult(
-            usage: withCredits,
+            usage: snap,
             sourceLabel: "api")
     }
 
@@ -174,45 +168,6 @@ struct CopilotAPIFetchStrategy: ProviderFetchStrategy {
         }
     }
 
-    private func addOrgCreditsIfNeeded(
-        to usage: UsageSnapshot,
-        response: CopilotUsageResponse,
-        token: String,
-        context: ProviderFetchContext) async -> UsageSnapshot
-    {
-        guard let settings = context.settings?.copilot,
-              settings.orgCreditsEnabled,
-              let org = response.organizationLoginList.first
-        else { return usage }
-
-        guard let creditsUsed = await CopilotOrgCreditsFetcher(
-            token: token,
-            enterpriseHost: settings.enterpriseHost)
-            .fetchCreditsUsed(org: org)
-        else { return usage }
-
-        // A user in multiple orgs would otherwise silently see org #1's numbers with no indication
-        // of which org the row describes, so parenthesize the login in the row label.
-        let resetsAt = CopilotUsageFetcher.parseQuotaResetDate(response.quotaResetDate)
-        let usedLabel = UsageFormatter.creditsNumberString(from: creditsUsed)
-        let resetText = resetsAt.map { UsageFormatter.resetDescription(from: $0) }
-        let row: ProviderDetailSection.Row = if let entitlement = settings.orgCreditEntitlement {
-            .makeRow(
-                id: CopilotCreditDetailRows.orgRowID,
-                label: "Org credits (\(org))",
-                value: "\(usedLabel) / \(UsageFormatter.creditsNumberString(from: entitlement))",
-                secondaryValue: resetText,
-                progress: .makeProgress(used: creditsUsed, total: entitlement))
-        } else {
-            .makeRow(
-                id: CopilotCreditDetailRows.orgRowID,
-                label: "Org credits (\(org))",
-                value: usedLabel,
-                secondaryValue: resetText)
-        }
-        return usage.appendingCreditDetailRow(row)
-    }
-
     static func budgetCookieHeaderOverride(
         from settings: ProviderSettingsSnapshot.CopilotProviderSettings) -> String?
     {
@@ -239,23 +194,5 @@ struct CopilotAPIFetchStrategy: ProviderFetchStrategy {
     private static func normalizedBudgetAccountIdentifier(_ identifier: String?) -> String? {
         let trimmed = identifier?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         return trimmed.isEmpty ? nil : trimmed.lowercased()
-    }
-}
-
-extension UsageSnapshot {
-    /// Appends a credit row to the shared Credits detail section, creating the section when the
-    /// seat row is absent (for example, suppressed for lack of signal).
-    func appendingCreditDetailRow(_ row: ProviderDetailSection.Row) -> UsageSnapshot {
-        var details = self.details
-        if let index = details.firstIndex(where: { $0.title == CopilotCreditDetailRows.sectionTitle }) {
-            let section = details[index]
-            details[index] = .makeSection(
-                title: section.title,
-                rows: section.rows + [row],
-                chart: section.chart)
-        } else {
-            details.append(.makeSection(title: CopilotCreditDetailRows.sectionTitle, rows: [row]))
-        }
-        return self.with(details: details)
     }
 }

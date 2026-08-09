@@ -201,8 +201,7 @@ struct TokenAccountCLIContext {
             usageScope: existing.usageScope,
             organizationID: existing.organizationID,
             workspaceID: existing.workspaceID,
-            seatCreditEntitlement: existing.seatCreditEntitlement,
-            orgCreditEntitlement: existing.orgCreditEntitlement)
+            seatCreditEntitlement: existing.seatCreditEntitlement)
         providerConfig.tokenAccounts = ProviderTokenAccountData(
             version: data.version,
             accounts: accounts,

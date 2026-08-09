@@ -688,50 +688,6 @@ struct CopilotUsageModelsTests {
         #expect(response.quotaSnapshots.chat?.isPlaceholder == false)
     }
 
-    @Test
-    func `decodes organization login list from token billed business payload`() throws {
-        let response = try Self.decodeFixture(
-            """
-            {
-              "copilot_plan": "business",
-              "token_based_billing": true,
-              "organization_login_list": ["example-org"],
-              "quota_snapshots": {
-                "premium_interactions": {
-                  "unlimited": true,
-                  "entitlement": 0,
-                  "remaining": 0,
-                  "percent_remaining": 100.0,
-                  "quota_id": "premium_interactions",
-                  "credits_used": 31
-                }
-              }
-            }
-            """)
-
-        #expect(response.organizationLoginList == ["example-org"])
-    }
-
-    @Test
-    func `organization login list is empty when absent`() throws {
-        let response = try Self.decodeFixture(
-            """
-            {
-              "copilot_plan": "individual",
-              "quota_snapshots": {
-                "premium_interactions": {
-                  "entitlement": 300,
-                  "remaining": 150,
-                  "percent_remaining": 50,
-                  "quota_id": "premium_interactions"
-                }
-              }
-            }
-            """)
-
-        #expect(response.organizationLoginList.isEmpty)
-    }
-
     private static func decodeFixture(_ fixture: String) throws -> CopilotUsageResponse {
         try JSONDecoder().decode(CopilotUsageResponse.self, from: Data(fixture.utf8))
     }

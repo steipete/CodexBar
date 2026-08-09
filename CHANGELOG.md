@@ -43,7 +43,7 @@
 ## 0.49.6 — 2026-08-14
 
 ### Added
-- Copilot: add an opt-in organization AI credit lane that fetches `/organizations/{org}/settings/billing/ai_credit/usage` when the token has org billing access, plus user-entered per-seat and organization credit entitlements that turn the credit rows into usage bars — GitHub publishes no credit entitlement on any documented endpoint, so a lane without one stays plain text (#2593). Thanks @KSEGIT!
+- Copilot: add a per-seat "Credits used" row with a user-entered credit entitlement that turns the row into a usage bar — GitHub publishes no credit entitlement on any documented endpoint, so a row without one stays plain text, and the row only appears when it carries real signal (token-based billing, unlimited quota, or actual consumption) (#2593). Thanks @KSEGIT!
 
 ### Fixed
 - Antigravity: hide untouched model families from compact menu cards and widgets while keeping unknown-usage families visible and preserving every family in provider details and all-untouched states (#2875). Thanks @urda!

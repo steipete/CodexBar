@@ -9,35 +9,29 @@ struct CopilotAccountCreditEntitlementTests {
     func `account credit entitlement overrides the global fallback`() throws {
         let settings = Self.makeSettingsStore()
         settings.copilotSeatCreditEntitlementRaw = "3000"
-        settings.copilotOrgCreditEntitlementRaw = "6000"
         settings.addTokenAccount(provider: .copilot, label: "Work", token: "token-1")
         let account = try #require(settings.selectedTokenAccount(for: .copilot))
 
         settings.updateTokenAccount(
             provider: .copilot,
             accountID: account.id,
-            seatCreditEntitlement: "1500",
-            orgCreditEntitlement: "2000")
+            seatCreditEntitlement: "1500")
 
         let snapshot = settings.copilotSettingsSnapshot(tokenOverride: nil)
         #expect(snapshot.seatCreditEntitlement == 1500)
-        #expect(snapshot.orgCreditEntitlement == 2000)
         // The global values stay untouched as the fallback for accounts without an override.
         #expect(settings.copilotSeatCreditEntitlementRaw == "3000")
-        #expect(settings.copilotOrgCreditEntitlementRaw == "6000")
     }
 
     @Test
     func `credit entitlements fall back to the global values when the account has none`() {
         let settings = Self.makeSettingsStore()
         settings.copilotSeatCreditEntitlementRaw = "3000"
-        settings.copilotOrgCreditEntitlementRaw = "6000"
         settings.addTokenAccount(provider: .copilot, label: "Legacy", token: "token-1")
 
         let snapshot = settings.copilotSettingsSnapshot(tokenOverride: nil)
 
         #expect(snapshot.seatCreditEntitlement == 3000)
-        #expect(snapshot.orgCreditEntitlement == 6000)
     }
 
     @Test
@@ -78,17 +72,14 @@ struct CopilotAccountCreditEntitlementTests {
         first.updateTokenAccount(
             provider: .copilot,
             accountID: account.id,
-            seatCreditEntitlement: "1500",
-            orgCreditEntitlement: "2000")
+            seatCreditEntitlement: "1500")
 
         let reloadedStore = testConfigStore(suiteName: suite, reset: false)
         let second = Self.makeSettingsStore(userDefaults: defaults, configStore: reloadedStore)
         let reloaded = try #require(second.selectedTokenAccount(for: .copilot))
         #expect(reloaded.seatCreditEntitlement == "1500")
-        #expect(reloaded.orgCreditEntitlement == "2000")
         let snapshot = second.copilotSettingsSnapshot(tokenOverride: nil)
         #expect(snapshot.seatCreditEntitlement == 1500)
-        #expect(snapshot.orgCreditEntitlement == 2000)
     }
 
     private static func makeSettingsStore(

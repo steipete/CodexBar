@@ -383,7 +383,6 @@ struct CopilotUsageFetcherTests {
                   "copilot_plan": "business",
                   "token_based_billing": true,
                   "quota_reset_date": "2026-09-01",
-                  "organization_login_list": ["example-org"],
                   "quota_snapshots": {
                     "premium_interactions": {
                       "entitlement": 0, "remaining": 0, "percent_remaining": 100,

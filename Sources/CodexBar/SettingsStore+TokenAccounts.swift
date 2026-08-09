@@ -112,8 +112,7 @@ extension SettingsStore {
         usageScope: String?? = nil,
         organizationID: String?? = nil,
         workspaceID: String?? = nil,
-        seatCreditEntitlement: String?? = nil,
-        orgCreditEntitlement: String?? = nil)
+        seatCreditEntitlement: String?? = nil)
     {
         guard let data = self.tokenAccountsData(for: provider), !data.accounts.isEmpty else { return }
         guard let index = data.accounts.firstIndex(where: { $0.id == accountID }) else { return }
@@ -160,13 +159,6 @@ extension SettingsStore {
         } else {
             resolvedSeatCreditEntitlement = existing.seatCreditEntitlement
         }
-        let resolvedOrgCreditEntitlement: String?
-        if let orgCreditEntitlement {
-            let trimmed = orgCreditEntitlement?.trimmingCharacters(in: .whitespacesAndNewlines)
-            resolvedOrgCreditEntitlement = (trimmed?.isEmpty ?? true) ? nil : trimmed
-        } else {
-            resolvedOrgCreditEntitlement = existing.orgCreditEntitlement
-        }
         let updatedAccount = ProviderTokenAccount(
             id: existing.id,
             label: (trimmedLabel?.isEmpty == false) ? trimmedLabel! : existing.label,
@@ -177,8 +169,7 @@ extension SettingsStore {
             usageScope: resolvedUsageScope,
             organizationID: resolvedOrganizationID,
             workspaceID: resolvedWorkspaceID,
-            seatCreditEntitlement: resolvedSeatCreditEntitlement,
-            orgCreditEntitlement: resolvedOrgCreditEntitlement)
+            seatCreditEntitlement: resolvedSeatCreditEntitlement)
 
         var accounts = data.accounts
         accounts[index] = updatedAccount

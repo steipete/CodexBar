@@ -90,25 +90,6 @@ extension SettingsStore {
         }
     }
 
-    /// Effective organization AI credit allowance raw value, mirroring
-    /// `copilotEffectiveSeatCreditEntitlementRaw`.
-    var copilotEffectiveOrgCreditEntitlementRaw: String {
-        get {
-            self.effectiveSelectedTokenAccount(for: .copilot)?.sanitizedOrgCreditEntitlement
-                ?? self.copilotOrgCreditEntitlementRaw
-        }
-        set {
-            if let account = self.effectiveSelectedTokenAccount(for: .copilot) {
-                self.updateTokenAccount(
-                    provider: .copilot,
-                    accountID: account.id,
-                    orgCreditEntitlement: newValue)
-            } else {
-                self.copilotOrgCreditEntitlementRaw = newValue
-            }
-        }
-    }
-
     func copilotSettingsSnapshot(
         tokenOverride: TokenAccountOverride?) -> ProviderSettingsSnapshot.CopilotProviderSettings
     {
@@ -121,7 +102,6 @@ extension SettingsStore {
         // Per-account allowances win; the global UserDefaults values remain the fallback for
         // legacy installs and accounts that never set one (migration path, keys kept on purpose).
         let seatEntitlementRaw = account?.sanitizedSeatCreditEntitlement ?? self.copilotSeatCreditEntitlementRaw
-        let orgEntitlementRaw = account?.sanitizedOrgCreditEntitlement ?? self.copilotOrgCreditEntitlementRaw
         return ProviderSettingsSnapshot.CopilotProviderSettings(
             apiToken: self.normalizedConfigValue(token),
             enterpriseHost: host == CopilotDeviceFlow.defaultHost ? nil : host,
@@ -129,8 +109,6 @@ extension SettingsStore {
             budgetExtrasEnabled: self.copilotBudgetExtrasEnabled,
             budgetCookieSource: self.copilotBudgetCookieSource,
             manualBudgetCookieHeader: self.normalizedConfigValue(self.copilotBudgetCookieHeader),
-            orgCreditsEnabled: self.copilotOrgCreditsEnabled,
-            seatCreditEntitlement: CopilotCreditEntitlementParser.parse(seatEntitlementRaw),
-            orgCreditEntitlement: CopilotCreditEntitlementParser.parse(orgEntitlementRaw))
+            seatCreditEntitlement: CopilotCreditEntitlementParser.parse(seatEntitlementRaw))
     }
 }

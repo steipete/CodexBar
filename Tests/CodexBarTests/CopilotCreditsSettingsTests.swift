@@ -31,20 +31,14 @@ struct CopilotCreditsSettingsTests {
     func `settings snapshot carries credit configuration`() {
         let settings = ProviderSettingsSnapshot.CopilotProviderSettings(
             apiToken: "test-token-placeholder",
-            orgCreditsEnabled: true,
-            seatCreditEntitlement: 3000,
-            orgCreditEntitlement: 6000)
-        #expect(settings.orgCreditsEnabled)
+            seatCreditEntitlement: 3000)
         #expect(settings.seatCreditEntitlement == 3000)
-        #expect(settings.orgCreditEntitlement == 6000)
     }
 
     @Test
     func `settings snapshot defaults credits off`() {
         let settings = ProviderSettingsSnapshot.CopilotProviderSettings(apiToken: "t")
-        #expect(settings.orgCreditsEnabled == false)
         #expect(settings.seatCreditEntitlement == nil)
-        #expect(settings.orgCreditEntitlement == nil)
     }
 
     @Test
@@ -60,9 +54,7 @@ struct CopilotCreditsSettingsTests {
         """
         let account = try JSONDecoder().decode(ProviderTokenAccount.self, from: Data(json.utf8))
         #expect(account.seatCreditEntitlement == nil)
-        #expect(account.orgCreditEntitlement == nil)
         #expect(account.sanitizedSeatCreditEntitlement == nil)
-        #expect(account.sanitizedOrgCreditEntitlement == nil)
     }
 
     @Test
@@ -73,10 +65,8 @@ struct CopilotCreditsSettingsTests {
             token: "token",
             addedAt: 0,
             lastUsed: nil,
-            seatCreditEntitlement: "1500",
-            orgCreditEntitlement: "2000")
+            seatCreditEntitlement: "1500")
         let decoded = try JSONDecoder().decode(ProviderTokenAccount.self, from: JSONEncoder().encode(account))
         #expect(decoded.seatCreditEntitlement == "1500")
-        #expect(decoded.orgCreditEntitlement == "2000")
     }
 }

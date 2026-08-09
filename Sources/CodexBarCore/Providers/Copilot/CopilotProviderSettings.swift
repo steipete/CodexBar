@@ -7,11 +7,9 @@ public struct CopilotProviderSettings: Sendable {
     public let budgetExtrasEnabled: Bool
     public let budgetCookieSource: ProviderCookieSource
     public let manualBudgetCookieHeader: String?
-    public let orgCreditsEnabled: Bool
     /// User-entered monthly AI credit allowance. GitHub publishes no entitlement on any documented
     /// endpoint, so `nil` renders a text row rather than a bar.
     public let seatCreditEntitlement: Double?
-    public let orgCreditEntitlement: Double?
 
     public init(
         apiToken: String? = nil,
@@ -20,9 +18,7 @@ public struct CopilotProviderSettings: Sendable {
         budgetExtrasEnabled: Bool = false,
         budgetCookieSource: ProviderCookieSource = .auto,
         manualBudgetCookieHeader: String? = nil,
-        orgCreditsEnabled: Bool = false,
-        seatCreditEntitlement: Double? = nil,
-        orgCreditEntitlement: Double? = nil)
+        seatCreditEntitlement: Double? = nil)
     {
         self.apiToken = apiToken
         self.enterpriseHost = enterpriseHost
@@ -30,9 +26,7 @@ public struct CopilotProviderSettings: Sendable {
         self.budgetExtrasEnabled = budgetExtrasEnabled
         self.budgetCookieSource = budgetCookieSource
         self.manualBudgetCookieHeader = manualBudgetCookieHeader
-        self.orgCreditsEnabled = orgCreditsEnabled
         self.seatCreditEntitlement = seatCreditEntitlement
-        self.orgCreditEntitlement = orgCreditEntitlement
     }
 }
 

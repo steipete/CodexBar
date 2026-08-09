@@ -90,8 +90,8 @@ struct ProviderDetailSectionTests {
     @Test
     func `row id and progress round trip through codable`() throws {
         let row = try ProviderDetailSection.Row(
-            id: "copilot-org-credits",
-            label: "Org credits (example-org)",
+            id: "copilot-seat-credits",
+            label: "Credits used",
             value: "81 / 6000",
             progress: ProviderDetailSection.Row.Progress(used: 81, total: 6000))
 

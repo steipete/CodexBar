@@ -685,32 +685,11 @@ extension SettingsStore {
         }
     }
 
-    var copilotOrgCreditsEnabled: Bool {
-        get { self.defaultsState.copilotOrgCreditsEnabled }
-        set {
-            self.defaultsState.copilotOrgCreditsEnabled = newValue
-            self.userDefaults.set(newValue, forKey: "copilotOrgCreditsEnabled")
-            CodexBarLog.logger(LogCategories.settings).info(
-                "Copilot org credits updated",
-                metadata: ["enabled": newValue ? "1" : "0"])
-            self.noteBackgroundWorkSettingsChanged()
-        }
-    }
-
     var copilotSeatCreditEntitlementRaw: String {
         get { self.defaultsState.copilotSeatCreditEntitlementRaw }
         set {
             self.defaultsState.copilotSeatCreditEntitlementRaw = newValue
             self.userDefaults.set(newValue, forKey: "copilotSeatCreditEntitlement")
-            self.noteBackgroundWorkSettingsChanged()
-        }
-    }
-
-    var copilotOrgCreditEntitlementRaw: String {
-        get { self.defaultsState.copilotOrgCreditEntitlementRaw }
-        set {
-            self.defaultsState.copilotOrgCreditEntitlementRaw = newValue
-            self.userDefaults.set(newValue, forKey: "copilotOrgCreditEntitlement")
             self.noteBackgroundWorkSettingsChanged()
         }
     }

@@ -174,22 +174,6 @@ struct CopilotMenuCardModelTests {
     }
 
     @Test
-    func `org credit row title includes the org login`() throws {
-        let model = try self.makeModel(details: [
-            ProviderDetailSection(title: CopilotCreditDetailRows.sectionTitle, rows: [
-                Self.makeCreditRow(
-                    id: CopilotCreditDetailRows.orgRowID,
-                    label: "Org credits (acme-corp)",
-                    value: "81 / 6000",
-                    progress: ProviderDetailSection.Row.Progress(used: 81, total: 6000)),
-            ]),
-        ])
-        let row = try #require(model.providerDetails.lazy.flatMap(\.rows)
-            .first { $0.id == CopilotCreditDetailRows.orgRowID })
-        #expect(row.label == "Org credits (acme-corp)")
-    }
-
-    @Test
     func `credit rows are absent without credit data`() throws {
         let model = try self.makeModel(details: [])
         #expect(model.providerDetails.flatMap(\.rows).contains { $0.id?.hasSuffix("-credits") == true } == false)

@@ -356,48 +356,95 @@ struct UsageStoreCoverageTests {
     }
 
     @Test
-    func `clearing copilot org credits syncs reset baseline`() {
-        let settings = Self.makeSettingsStore(suite: "UsageStoreCoverageTests-copilot-org-credits-clear")
+    func `updating copilot seat entitlement syncs row and reset baseline`() throws {
+        let settings = Self.makeSettingsStore(suite: "UsageStoreCoverageTests-copilot-seat-update")
         let store = Self.makeUsageStore(settings: settings)
-        let live = Self.makeCopilotSnapshot(usedPercent: 20, extraRateWindows: nil, details: [
-            Self.makeCopilotCreditsSection(seatValue: "31 / 3000", orgValue: "81 / 6000"),
-        ])
-        let resetBaseline = Self.makeCopilotSnapshot(usedPercent: 10, extraRateWindows: nil, details: [
-            Self.makeCopilotCreditsSection(seatValue: "20 / 3000", orgValue: "40 / 6000"),
-        ])
-        store._setSnapshotForTesting(live, provider: .copilot)
-        store.lastKnownResetSnapshots[.copilot] = resetBaseline
+        store._setSnapshotForTesting(
+            Self.makeCopilotSeatCreditsSnapshot(used: 31, entitlement: 3000),
+            provider: .copilot)
+        store.lastKnownResetSnapshots[.copilot] = Self.makeCopilotSeatCreditsSnapshot(used: 31, entitlement: 1500)
 
-        store.clearCopilotOrgCredits()
+        store.updateCopilotSeatCreditEntitlement(6000)
 
-        #expect(store.snapshot(for: .copilot)?.detailRow(id: CopilotCreditDetailRows.orgRowID) == nil)
-        #expect(store.snapshot(for: .copilot)?.detailRow(id: CopilotCreditDetailRows.seatRowID)?.value == "31 / 3000")
-        #expect(store.lastKnownResetSnapshots[.copilot]?.detailRow(id: CopilotCreditDetailRows.orgRowID) == nil)
-        #expect(store.lastKnownResetSnapshots[.copilot]?.detailRow(id: CopilotCreditDetailRows.seatRowID)?
-            .value == "31 / 3000")
+        let liveRow = try #require(store.snapshot(for: .copilot)?.detailRow(id: CopilotCreditDetailRows.seatRowID))
+        #expect(liveRow.value == "31 / 6000")
+        #expect(liveRow.progress?.used == 31)
+        #expect(liveRow.progress?.total == 6000)
+        let resetRow = try #require(
+            store.lastKnownResetSnapshots[.copilot]?.detailRow(id: CopilotCreditDetailRows.seatRowID))
+        #expect(resetRow.value == "31 / 6000")
+        #expect(resetRow.progress?.total == 6000)
     }
 
     @Test
-    func `clearing copilot org credits also clears stale reset baseline`() {
-        let settings = Self.makeSettingsStore(suite: "UsageStoreCoverageTests-copilot-org-credits-reset-clear")
+    func `clearing copilot seat entitlement strips denominator and progress`() throws {
+        let settings = Self.makeSettingsStore(suite: "UsageStoreCoverageTests-copilot-seat-clear")
         let store = Self.makeUsageStore(settings: settings)
-        let live = Self.makeCopilotSnapshot(usedPercent: 20, extraRateWindows: nil, details: [
-            Self.makeCopilotCreditsSection(seatValue: "31 / 3000", orgValue: nil),
-        ])
-        let resetBaseline = Self.makeCopilotSnapshot(usedPercent: 10, extraRateWindows: nil, details: [
-            Self.makeCopilotCreditsSection(seatValue: "20 / 3000", orgValue: "40 / 6000"),
-        ])
+        store._setSnapshotForTesting(
+            Self.makeCopilotSeatCreditsSnapshot(used: 31, entitlement: 3000),
+            provider: .copilot)
+        store.lastKnownResetSnapshots[.copilot] = Self.makeCopilotSeatCreditsSnapshot(used: 31, entitlement: 3000)
+
+        store.updateCopilotSeatCreditEntitlement(nil)
+
+        let liveRow = try #require(store.snapshot(for: .copilot)?.detailRow(id: CopilotCreditDetailRows.seatRowID))
+        #expect(liveRow.value == "31")
+        #expect(liveRow.progress == nil)
+        let resetRow = try #require(
+            store.lastKnownResetSnapshots[.copilot]?.detailRow(id: CopilotCreditDetailRows.seatRowID))
+        #expect(resetRow.value == "31")
+        #expect(resetRow.progress == nil)
+    }
+
+    @Test
+    func `copilot seat entitlement update is a no-op without a seat row`() {
+        let settings = Self.makeSettingsStore(suite: "UsageStoreCoverageTests-copilot-seat-missing")
+        let store = Self.makeUsageStore(settings: settings)
+        let live = Self.makeCopilotSnapshot(usedPercent: 20, extraRateWindows: nil)
+        let resetBaseline = Self.makeCopilotSnapshot(usedPercent: 10, extraRateWindows: nil)
         store._setSnapshotForTesting(live, provider: .copilot)
         store.lastKnownResetSnapshots[.copilot] = resetBaseline
 
-        store.clearCopilotOrgCredits()
+        store.updateCopilotSeatCreditEntitlement(6000)
+        store.updateCopilotSeatCreditEntitlement(nil)
 
-        // The live snapshot already had no org row, so it is untouched...
-        #expect(store.snapshot(for: .copilot)?.detailRow(id: CopilotCreditDetailRows.seatRowID)?.value == "31 / 3000")
-        // ...but the stale reset baseline's org row must not survive either.
-        #expect(store.lastKnownResetSnapshots[.copilot]?.detailRow(id: CopilotCreditDetailRows.orgRowID) == nil)
-        #expect(store.lastKnownResetSnapshots[.copilot]?.detailRow(id: CopilotCreditDetailRows.seatRowID)?
-            .value == "20 / 3000")
+        #expect(store.snapshot(for: .copilot)?.details == live.details)
+        #expect(store.snapshot(for: .copilot)?.primary?.usedPercent == 20)
+        #expect(store.lastKnownResetSnapshots[.copilot]?.details == resetBaseline.details)
+        #expect(store.lastKnownResetSnapshots[.copilot]?.primary?.usedPercent == 10)
+    }
+
+    @Test
+    func `copilot seat entitlement update is a no-op for a text-only seat row`() {
+        let settings = Self.makeSettingsStore(suite: "UsageStoreCoverageTests-copilot-seat-text")
+        let store = Self.makeUsageStore(settings: settings)
+        let live = Self.makeCopilotSeatCreditsSnapshot(used: 31, entitlement: nil)
+        let resetBaseline = Self.makeCopilotSeatCreditsSnapshot(used: 31, entitlement: nil)
+        store._setSnapshotForTesting(live, provider: .copilot)
+        store.lastKnownResetSnapshots[.copilot] = resetBaseline
+
+        store.updateCopilotSeatCreditEntitlement(6000)
+        store.updateCopilotSeatCreditEntitlement(nil)
+
+        #expect(store.snapshot(for: .copilot)?.details == live.details)
+        #expect(store.lastKnownResetSnapshots[.copilot]?.details == resetBaseline.details)
+    }
+
+    @Test
+    func `copilot seat entitlement update still syncs stale reset baseline when live row is text-only`() throws {
+        let settings = Self.makeSettingsStore(suite: "UsageStoreCoverageTests-copilot-seat-baseline")
+        let store = Self.makeUsageStore(settings: settings)
+        let live = Self.makeCopilotSeatCreditsSnapshot(used: 31, entitlement: nil)
+        store._setSnapshotForTesting(live, provider: .copilot)
+        store.lastKnownResetSnapshots[.copilot] = Self.makeCopilotSeatCreditsSnapshot(used: 31, entitlement: 1500)
+
+        store.updateCopilotSeatCreditEntitlement(6000)
+
+        #expect(store.snapshot(for: .copilot)?.details == live.details)
+        let resetRow = try #require(
+            store.lastKnownResetSnapshots[.copilot]?.detailRow(id: CopilotCreditDetailRows.seatRowID))
+        #expect(resetRow.value == "31 / 6000")
+        #expect(resetRow.progress?.total == 6000)
     }
 
     @Test
@@ -1162,34 +1209,13 @@ extension UsageStoreCoverageTests {
 
     private static func makeCopilotSnapshot(
         usedPercent: Double,
-        extraRateWindows: [NamedRateWindow]?,
-        details: [ProviderDetailSection] = []) -> UsageSnapshot
+        extraRateWindows: [NamedRateWindow]?) -> UsageSnapshot
     {
         UsageSnapshot(
             primary: RateWindow(usedPercent: usedPercent, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
             secondary: nil,
             extraRateWindows: extraRateWindows,
-            details: details,
             updatedAt: Date(timeIntervalSince1970: 1_780_358_400))
-    }
-
-    private static func makeCopilotCreditsSection(
-        seatValue: String,
-        orgValue: String?) -> ProviderDetailSection
-    {
-        var rows = [
-            ProviderDetailSection.Row.makeRow(
-                id: CopilotCreditDetailRows.seatRowID,
-                label: "Credits used",
-                value: seatValue),
-        ]
-        if let orgValue {
-            rows.append(ProviderDetailSection.Row.makeRow(
-                id: CopilotCreditDetailRows.orgRowID,
-                label: "Org credits (example-org)",
-                value: orgValue))
-        }
-        return ProviderDetailSection.makeSection(title: CopilotCreditDetailRows.sectionTitle, rows: rows)
     }
 
     private static func makeCopilotBudgetWindow() -> NamedRateWindow {
@@ -1197,6 +1223,29 @@ extension UsageStoreCoverageTests {
             id: "copilot-budget-test",
             title: "Budget - Copilot",
             window: RateWindow(usedPercent: 50, windowMinutes: nil, resetsAt: nil, resetDescription: nil))
+    }
+
+    private static func makeCopilotSeatCreditsSnapshot(used: Double, entitlement: Double?) -> UsageSnapshot {
+        let usedLabel = UsageFormatter.creditsNumberString(from: used)
+        let row: ProviderDetailSection.Row = if let entitlement {
+            .makeRow(
+                id: CopilotCreditDetailRows.seatRowID,
+                label: "Credits used",
+                value: "\(usedLabel) / \(UsageFormatter.creditsNumberString(from: entitlement))",
+                secondaryValue: "resets Jul 1",
+                progress: .makeProgress(used: used, total: entitlement))
+        } else {
+            .makeRow(
+                id: CopilotCreditDetailRows.seatRowID,
+                label: "Credits used",
+                value: usedLabel,
+                secondaryValue: "resets Jul 1")
+        }
+        return UsageSnapshot(
+            primary: RateWindow(usedPercent: 20, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+            secondary: nil,
+            details: [.makeSection(title: CopilotCreditDetailRows.sectionTitle, rows: [row])],
+            updatedAt: Date(timeIntervalSince1970: 1_780_358_400))
     }
 
     private static func enableOnly(_ enabledProvider: UsageProvider, settings: SettingsStore) throws {
