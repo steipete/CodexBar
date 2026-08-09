@@ -86,6 +86,7 @@ interface CodexBarHTTPRequestOptions {
 }
 
 interface CodexBarHTTPResponse {
+  /** `http-status` exposes non-2xx responses so the plugin can take over classification from the host. */
   status: number;
   headers: Readonly<Record<string, string>>;
 }
@@ -99,7 +100,7 @@ interface CodexBarHTTPTextResponse extends CodexBarHTTPResponse {
 }
 
 interface CodexBarRetryOptions {
-  /** Requests one delayed retry. The host clamps this interval to 10 seconds. */
+  /** Requests the same one delayed retry used automatically for transient HTTP statuses; the host clamps it to 10 seconds. */
   retryAfterSeconds: number;
 }
 
@@ -169,7 +170,8 @@ interface CodexBarProviderDefinition {
   endpoints: CodexBarEndpoint[];
   auth?: CodexBarAuth;
   settings: CodexBarSetting[];
-  capabilities?: Array<"browser-cookies">;
+  /** Grants declared browser-cookie access or lets the plugin observe and classify non-2xx HTTP responses. */
+  capabilities?: Array<"browser-cookies" | "http-status">;
   cookieDomains?: string[];
   fetchUsage(ctx: CodexBarPluginContext): CodexBarUsageSnapshot | Promise<CodexBarUsageSnapshot>;
 }

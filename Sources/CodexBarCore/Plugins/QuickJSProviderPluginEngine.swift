@@ -180,7 +180,7 @@ final class QuickJSProviderPluginEngine: ProviderPluginEngine, @unchecked Sendab
     private let transport: any ProviderHTTPTransport
     private let timeout: TimeInterval
     private let responseSizeLimit: Int
-    private let rejectsNonSuccessResponses: Bool
+    private let enforcesUserResponsePolicy: Bool
     private var watchdog: OpaquePointer?
     private var definition: JSValue?
     private var applyPrelude: JSValue?
@@ -196,6 +196,10 @@ final class QuickJSProviderPluginEngine: ProviderPluginEngine, @unchecked Sendab
         return loadedManifest
     }
 
+    private var rejectsNonSuccessResponses: Bool {
+        self.enforcesUserResponsePolicy && !self.manifest.capabilities.contains(.httpStatus)
+    }
+
     // swiftlint:disable:next function_parameter_count
     static func make(
         source: String,
@@ -203,7 +207,7 @@ final class QuickJSProviderPluginEngine: ProviderPluginEngine, @unchecked Sendab
         transport: any ProviderHTTPTransport,
         timeout: TimeInterval,
         responseSizeLimit: Int,
-        rejectsNonSuccessResponses: Bool,
+        enforcesUserResponsePolicy: Bool,
         allowsDynamicID: Bool,
         workerStackSizeBytes: Int = QuickJSRuntimeLimits.nativeStackSizeBytes) throws -> QuickJSProviderPluginEngine
     {
@@ -229,7 +233,7 @@ final class QuickJSProviderPluginEngine: ProviderPluginEngine, @unchecked Sendab
                 transport: transport,
                 timeout: timeout,
                 responseSizeLimit: responseSizeLimit,
-                rejectsNonSuccessResponses: rejectsNonSuccessResponses)
+                enforcesUserResponsePolicy: enforcesUserResponsePolicy)
             try engine.load(source: source, preludeSource: preludeSource, allowsDynamicID: allowsDynamicID)
             return engine
         }
@@ -242,7 +246,7 @@ final class QuickJSProviderPluginEngine: ProviderPluginEngine, @unchecked Sendab
         transport: any ProviderHTTPTransport,
         timeout: TimeInterval,
         responseSizeLimit: Int,
-        rejectsNonSuccessResponses: Bool)
+        enforcesUserResponsePolicy: Bool)
     {
         self.worker = worker
         self.runtime = runtime
@@ -250,7 +254,7 @@ final class QuickJSProviderPluginEngine: ProviderPluginEngine, @unchecked Sendab
         self.transport = transport
         self.timeout = timeout
         self.responseSizeLimit = responseSizeLimit
-        self.rejectsNonSuccessResponses = rejectsNonSuccessResponses
+        self.enforcesUserResponsePolicy = enforcesUserResponsePolicy
     }
 
     deinit {
@@ -557,9 +561,15 @@ final class QuickJSProviderPluginEngine: ProviderPluginEngine, @unchecked Sendab
                 throw ProviderPluginError.http("response exceeded the \(self.responseSizeLimit)-byte limit")
             }
             if self.rejectsNonSuccessResponses, !(200..<300).contains(response.statusCode) {
+                if let failure = ProviderPluginTransientHTTPFailure(
+                    statusCode: response.statusCode,
+                    retryAfterHeader: response.response.value(forHTTPHeaderField: "Retry-After"))
+                {
+                    throw failure
+                }
                 throw ProviderPluginError.http("request returned HTTP \(response.statusCode)")
             }
-            if self.rejectsNonSuccessResponses,
+            if self.enforcesUserResponsePolicy,
                let encoding = response.response.value(forHTTPHeaderField: "Content-Encoding"),
                !encoding.isEmpty,
                encoding.caseInsensitiveCompare("identity") != .orderedSame
@@ -713,7 +723,7 @@ final class QuickJSProviderPluginEngine: ProviderPluginEngine, @unchecked Sendab
             }
         }
         request.setValue("application/json", forHTTPHeaderField: "Accept")
-        if self.rejectsNonSuccessResponses {
+        if self.enforcesUserResponsePolicy {
             request.setValue("identity", forHTTPHeaderField: "Accept-Encoding")
         }
         if method == "POST" {

@@ -63,6 +63,7 @@ public enum ProviderPluginEndpoint: Equatable, Hashable, Sendable {
 
 public enum ProviderPluginCapability: String, Hashable, Sendable {
     case browserCookies = "browser-cookies"
+    case httpStatus = "http-status"
 }
 
 public struct ProviderPluginManifest: Sendable {
@@ -440,7 +441,7 @@ public enum ProviderPluginError: LocalizedError, Sendable, Equatable {
 
 enum ProviderPluginClassifiedFailureParser {
     private static let markerV1 = "__CODEXBAR_FAILURE__:"
-    private static let markerV2 = "__CODEXBAR_FAILURE_V2__:"
+    fileprivate static let markerV2 = "__CODEXBAR_FAILURE_V2__:"
 
     static func error(from message: String) -> ProviderFetchClassifiedError? {
         if message.hasPrefix(self.markerV2) {
@@ -467,5 +468,34 @@ enum ProviderPluginClassifiedFailureParser {
             kind: kind,
             message: String(retryAndMessage[retryAndMessage.index(after: retrySeparator)...]),
             retryAfterSeconds: retryAfterSeconds)
+    }
+}
+
+struct ProviderPluginTransientHTTPFailure: LocalizedError, Sendable {
+    private static let retryPolicy = ProviderHTTPRetryPolicy.transientIdempotent
+
+    let errorDescription: String?
+
+    init?(statusCode: Int, retryAfterHeader: String?) {
+        guard let markerMessage = Self.markerMessage(
+            statusCode: statusCode,
+            retryAfterHeader: retryAfterHeader)
+        else { return nil }
+        self.errorDescription = markerMessage
+    }
+
+    static func markerMessage(statusCode: Int, retryAfterHeader: String?) -> String? {
+        guard self.retryPolicy.retryableStatusCodes.contains(statusCode) else { return nil }
+        let kind: ProviderFetchClassifiedError.Kind = statusCode == 429 ? .rateLimited : .providerUnavailable
+        let parsedRetryAfter = retryAfterHeader
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .flatMap(TimeInterval.init)
+        let retryAfterSeconds = if let parsedRetryAfter, parsedRetryAfter.isFinite, parsedRetryAfter >= 0 {
+            parsedRetryAfter
+        } else {
+            self.retryPolicy.baseDelaySeconds
+        }
+        let message = "request returned HTTP \(statusCode)"
+        return "\(ProviderPluginClassifiedFailureParser.markerV2)\(kind.rawValue):\(retryAfterSeconds):\(message)"
     }
 }

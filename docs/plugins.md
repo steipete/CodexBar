@@ -64,7 +64,8 @@ defineProvider({
 - `auth` (optional): one of the forms below. The named secret must be a declared `secure` setting.
 - `settings`: up to 32 setting definitions. Keys contain 1–64 ASCII letters, digits, or underscores and start with a
   letter. Each entry has `key`, `title`, optional `subtitle`, and `type: "plain" | "secure"` (default `secure`).
-- `capabilities` (optional): currently only `"browser-cookies"`.
+- `capabilities` (optional): `"browser-cookies"` and `"http-status"`. With `"http-status"`, the plugin observes
+  non-2xx responses itself instead of the host failing the request.
 - `cookieDomains`: required with `browser-cookies`; a non-empty list of normalized DNS host names.
 - `fetchUsage(ctx)`: function returning a snapshot object or a promise for one.
 
@@ -102,10 +103,12 @@ so portable third-party plugins must use the host helpers below instead of ECMA-
 - `ctx.fail` creates classified errors for `authenticationExpired`, `missingCredential`, `permissionDenied`,
   `rateLimited`, `providerUnavailable`, `parseFailure`, `networkFailure`, and `apiFailure`. Throw the returned error,
   for example `throw ctx.fail.rateLimited("Provider rate limit reached")`; ordinary errors retain generic mapping.
-  Transient failures (`rateLimited`, `providerUnavailable`, `networkFailure`, and `apiFailure`) may request one delayed
-  retry with `{retryAfterSeconds}`. The host clamps the delay to 10 seconds, matching the built-in transient HTTP policy,
-  and never retries the retry. For a numeric `Retry-After` header, pass its value; use `1` for the built-in backoff when
-  the header is absent. Cancellation during the delay stops the retry.
+  Every plugin automatically gets one delayed retry when a request returns 408, 429, 500, 502, 503, or 504. A numeric
+  `Retry-After` header sets the delay; otherwise the delay is 1 second, and the host clamps it to 10 seconds. A plugin
+  that needs provider-specific handling—such as a non-numeric `Retry-After`, quota data in the error body, or a vendor
+  retry field—declares `http-status`, receives the response, and throws `ctx.fail.rateLimited(message,
+  {retryAfterSeconds})` or another transient classified failure. Both paths share one retry budget and never retry the
+  retry. Cancellation during the delay stops the retry.
 - `await ctx.browser.cookieHeader(domain)` returns a cookie header only with the `browser-cookies` capability and for a
   declared domain. The app imports from Chrome only. Cookie values are secret-equivalent and redacted.
 - `ctx.html.metaContent(html, name)` returns the first matching quoted meta value or `null`.
@@ -125,8 +128,24 @@ so portable third-party plugins must use the host helpers below instead of ECMA-
 - `ctx.pct(used, limit)` returns a finite percentage clamped to 0–100; non-positive limits map to 100.
 
 User-plugin requests run in an ephemeral session with no ambient cookies, credential store, or URL cache. Redirects are
-rejected, the timeout is 15 seconds, `Accept-Encoding: identity` is sent, compressed and non-2xx responses fail, and
-response bytes are capped at 1 MiB. Request URLs must match a declared, approved origin.
+rejected, the timeout is 15 seconds, `Accept-Encoding: identity` is sent, compressed responses always fail, and response
+bytes are capped at 1 MiB. By default, the host rejects non-2xx responses and automatically retries 408, 429, 500, 502,
+503, and 504 once, using a numeric `Retry-After` delay or 1 second when absent, clamped to 10 seconds. With `http-status`,
+the plugin instead receives `{status, headers, ...}` and owns classification, including any request for the same single
+delayed retry. Request URLs must match a declared, approved origin.
+
+```js
+capabilities: ["http-status"],
+async fetchUsage(ctx) {
+  const response = await ctx.http.getJSON("https://api.example.com/usage");
+  if (response.status === 429) {
+    const retryAfterSeconds = Number(response.headers["retry-after"] || 1);
+    throw ctx.fail.rateLimited("Rate limited", { retryAfterSeconds });
+  }
+}
+```
+
+Declaring `http-status` changes the approval binding, so an installed plugin requires re-approval after adding it.
 
 Bundled first-party providers that have cut over to JavaScript use the shared runtime's 20-second hung-script watchdog.
 A timeout fails that refresh and discards the poisoned worker so the next refresh starts with a fresh context; this is

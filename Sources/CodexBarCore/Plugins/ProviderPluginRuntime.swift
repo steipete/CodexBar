@@ -22,7 +22,7 @@ public final class ProviderPluginRuntime: @unchecked Sendable {
     private let transport: any ProviderHTTPTransport
     private let timeout: TimeInterval
     private let responseSizeLimit: Int
-    private let rejectsNonSuccessResponses: Bool
+    private let enforcesUserResponsePolicy: Bool
     private let allowsDynamicID: Bool
     private let contextOptions: ProviderPluginContextOptions
     private let engineKind: ProviderPluginEngineKind
@@ -83,7 +83,7 @@ public final class ProviderPluginRuntime: @unchecked Sendable {
         transport: any ProviderHTTPTransport = ProviderHTTPClient.shared,
         timeout: TimeInterval = ProviderPluginRuntime.defaultTimeout,
         responseSizeLimit: Int = ProviderPluginRuntime.maximumResponseBytes,
-        rejectsNonSuccessResponses: Bool = false,
+        enforcesUserResponsePolicy: Bool = false,
         allowsDynamicID: Bool = false,
         engine: ProviderPluginEngineKind = .automatic) throws
     {
@@ -93,7 +93,7 @@ public final class ProviderPluginRuntime: @unchecked Sendable {
             transport: transport,
             timeout: timeout,
             responseSizeLimit: responseSizeLimit,
-            rejectsNonSuccessResponses: rejectsNonSuccessResponses,
+            enforcesUserResponsePolicy: enforcesUserResponsePolicy,
             allowsDynamicID: allowsDynamicID,
             contextOptions: .production,
             engine: engine)
@@ -105,7 +105,7 @@ public final class ProviderPluginRuntime: @unchecked Sendable {
         transport: any ProviderHTTPTransport = ProviderHTTPClient.shared,
         timeout: TimeInterval = ProviderPluginRuntime.defaultTimeout,
         responseSizeLimit: Int = ProviderPluginRuntime.maximumResponseBytes,
-        rejectsNonSuccessResponses: Bool = false,
+        enforcesUserResponsePolicy: Bool = false,
         allowsDynamicID: Bool = false,
         contextOptions: ProviderPluginContextOptions = .production,
         engine: ProviderPluginEngineKind = .automatic) throws
@@ -132,7 +132,7 @@ public final class ProviderPluginRuntime: @unchecked Sendable {
         self.transport = transport
         self.timeout = timeout
         self.responseSizeLimit = responseSizeLimit
-        self.rejectsNonSuccessResponses = rejectsNonSuccessResponses
+        self.enforcesUserResponsePolicy = enforcesUserResponsePolicy
         self.allowsDynamicID = allowsDynamicID
         self.contextOptions = contextOptions
         self.engineKind = Self.resolveEngineKind(engine)
@@ -144,7 +144,7 @@ public final class ProviderPluginRuntime: @unchecked Sendable {
             transport: transport,
             timeout: timeout,
             responseSizeLimit: responseSizeLimit,
-            rejectsNonSuccessResponses: rejectsNonSuccessResponses,
+            enforcesUserResponsePolicy: enforcesUserResponsePolicy,
             allowsDynamicID: allowsDynamicID)
         self.worker = worker
         self.manifest = worker.manifest
@@ -214,7 +214,7 @@ public final class ProviderPluginRuntime: @unchecked Sendable {
             transport: self.transport,
             timeout: self.timeout,
             responseSizeLimit: self.responseSizeLimit,
-            rejectsNonSuccessResponses: self.rejectsNonSuccessResponses,
+            enforcesUserResponsePolicy: self.enforcesUserResponsePolicy,
             allowsDynamicID: self.allowsDynamicID)
         guard worker.manifest.id == self.manifest.id else {
             throw ProviderPluginError.load("reloaded plugin changed provider id")
@@ -386,9 +386,14 @@ final class JavaScriptCoreProviderPluginEngine: ProviderPluginEngine, @unchecked
     private let fetchUsage: JSValue
     private let transport: any ProviderHTTPTransport
     private let responseSizeLimit: Int
-    private let rejectsNonSuccessResponses: Bool
+    private let enforcesUserResponsePolicy: Bool
     private var cache: [String: (value: JSValue, expiresAt: Date)] = [:]
     private var retainedCallbacks: [UUID: [Any]] = [:]
+
+    /// Opt-in relaxes only the status gate, never the representation gate.
+    private var rejectsNonSuccessResponses: Bool {
+        self.enforcesUserResponsePolicy && !self.manifest.capabilities.contains(.httpStatus)
+    }
 
     // swiftlint:disable:next function_parameter_count
     static func make(
@@ -396,7 +401,7 @@ final class JavaScriptCoreProviderPluginEngine: ProviderPluginEngine, @unchecked
         preludeSource: String,
         transport: any ProviderHTTPTransport,
         responseSizeLimit: Int,
-        rejectsNonSuccessResponses: Bool,
+        enforcesUserResponsePolicy: Bool,
         allowsDynamicID: Bool) throws -> JavaScriptCoreProviderPluginEngine
     {
         let queue = DispatchQueue(label: "com.steipete.codexbar.provider-plugin.\(UUID().uuidString)")
@@ -407,7 +412,7 @@ final class JavaScriptCoreProviderPluginEngine: ProviderPluginEngine, @unchecked
                 preludeSource: preludeSource,
                 transport: transport,
                 responseSizeLimit: responseSizeLimit,
-                rejectsNonSuccessResponses: rejectsNonSuccessResponses,
+                enforcesUserResponsePolicy: enforcesUserResponsePolicy,
                 allowsDynamicID: allowsDynamicID)
         }
     }
@@ -418,7 +423,7 @@ final class JavaScriptCoreProviderPluginEngine: ProviderPluginEngine, @unchecked
         preludeSource: String,
         transport: any ProviderHTTPTransport,
         responseSizeLimit: Int,
-        rejectsNonSuccessResponses: Bool,
+        enforcesUserResponsePolicy: Bool,
         allowsDynamicID: Bool) throws
     {
         guard let context = JSContext() else {
@@ -428,7 +433,7 @@ final class JavaScriptCoreProviderPluginEngine: ProviderPluginEngine, @unchecked
         self.context = context
         self.transport = transport
         self.responseSizeLimit = responseSizeLimit
-        self.rejectsNonSuccessResponses = rejectsNonSuccessResponses
+        self.enforcesUserResponsePolicy = enforcesUserResponsePolicy
 
         var definition: JSValue?
         let defineProvider: @convention(block) (JSValue) -> Void = { value in
@@ -747,9 +752,15 @@ final class JavaScriptCoreProviderPluginEngine: ProviderPluginEngine, @unchecked
                     throw ProviderPluginError.http("response exceeded the \(responseSizeLimit)-byte limit")
                 }
                 if worker.rejectsNonSuccessResponses, !(200..<300).contains(response.statusCode) {
+                    if let failure = ProviderPluginTransientHTTPFailure(
+                        statusCode: response.statusCode,
+                        retryAfterHeader: response.response.value(forHTTPHeaderField: "Retry-After"))
+                    {
+                        throw failure
+                    }
                     throw ProviderPluginError.http("request returned HTTP \(response.statusCode)")
                 }
-                if worker.rejectsNonSuccessResponses,
+                if worker.enforcesUserResponsePolicy,
                    let encoding = response.response.value(forHTTPHeaderField: "Content-Encoding"),
                    !encoding.isEmpty,
                    encoding.caseInsensitiveCompare("identity") != .orderedSame
@@ -764,6 +775,12 @@ final class JavaScriptCoreProviderPluginEngine: ProviderPluginEngine, @unchecked
                     _ = callbacks.resolve.value.call(withArguments: [value as Any])
                 }
             } catch {
+                if let failure = error as? ProviderPluginTransientHTTPFailure {
+                    worker.queue.async {
+                        worker.reject(callbacks.reject, error: failure)
+                    }
+                    return
+                }
                 let failure = ProviderPluginError.http(redactionValues.redact(error.localizedDescription))
                 worker.queue.async {
                     worker.reject(callbacks.reject, error: failure)
@@ -871,7 +888,7 @@ final class JavaScriptCoreProviderPluginEngine: ProviderPluginEngine, @unchecked
 
         // The broker owns representation headers so plugins cannot relax the user-plugin response boundary.
         request.setValue("application/json", forHTTPHeaderField: "Accept")
-        if self.rejectsNonSuccessResponses {
+        if self.enforcesUserResponsePolicy {
             request.setValue("identity", forHTTPHeaderField: "Accept-Encoding")
         }
         if method == "POST" {

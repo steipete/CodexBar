@@ -792,7 +792,7 @@ struct ProviderPluginRuntimeTests {
             transport: ProviderHTTPTransportHandler { _ in throw URLError(.unsupportedURL) },
             timeout: ProviderPluginRuntime.defaultTimeout,
             responseSizeLimit: ProviderPluginRuntime.maximumResponseBytes,
-            rejectsNonSuccessResponses: false,
+            enforcesUserResponsePolicy: false,
             allowsDynamicID: false,
             workerStackSizeBytes: workerStackSizeBytes)
     }

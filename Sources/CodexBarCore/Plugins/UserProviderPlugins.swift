@@ -324,7 +324,7 @@ public final class UserProviderPluginLoader: @unchecked Sendable {
             resourceBundle: self.resourceBundle,
             transport: self.transport,
             responseSizeLimit: UserProviderPlugin.maximumSourceBytes,
-            rejectsNonSuccessResponses: true,
+            enforcesUserResponsePolicy: true,
             allowsDynamicID: true)
         return UserProviderPlugin(
             fileURL: fileURL,
