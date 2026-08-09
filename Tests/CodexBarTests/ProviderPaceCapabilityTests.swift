@@ -87,6 +87,24 @@ struct ProviderPaceCapabilityTests {
         #expect(resolved.usedPercent == window.usedPercent)
     }
 
+    @Test
+    func `zai pace maps only verified coding windows`() {
+        let now = Date(timeIntervalSince1970: 1_750_000_000)
+        let capability = ZaiProviderDescriptor.descriptor.pace
+        let session = Self.window(minutes: 5 * 60, resetsAt: now.addingTimeInterval(2 * 60 * 60))
+        let weekly = Self.window(
+            minutes: Self.weeklyWindowMinutes,
+            resetsAt: now.addingTimeInterval(4 * 24 * 60 * 60))
+        let unknown = Self.window(minutes: nil, resetsAt: now.addingTimeInterval(2 * 60 * 60))
+
+        #expect(capability.resolvedKind(slot: .primary, window: session, now: now) == .session)
+        #expect(capability.resolvedKind(slot: .secondary, window: weekly, now: now) == .weekly)
+        #expect(capability.resolvedKind(slot: .primary, window: weekly, now: now) == nil)
+        #expect(capability.resolvedKind(slot: .secondary, window: session, now: now) == nil)
+        #expect(capability.supportsSessionPace(window: session, now: now))
+        #expect(!capability.supportsSessionPace(window: unknown, now: now))
+    }
+
     private static func window(minutes: Int?, resetsAt: Date?) -> RateWindow {
         RateWindow(
             usedPercent: 50,
@@ -117,7 +135,8 @@ struct ProviderPaceCapabilityTests {
                 && timeUntilReset <= TimeInterval(windowMinutes) * 60
         case .kimi:
             return window.windowMinutes == self.weeklyWindowMinutes
-        case .alibaba, .alibabatokenplan, .amp, .commandcode, .doubao, .mimo, .notion, .opencodego, .stepfun:
+        case .alibaba, .alibabatokenplan, .amp, .commandcode, .doubao, .mimo, .notion, .opencodego, .stepfun,
+             .zai:
             return window.windowMinutes == self.monthlyWindowSentinelMinutes
         default:
             return false
@@ -131,7 +150,8 @@ struct ProviderPaceCapabilityTests {
         switch provider {
         case .copilot:
             window.windowMinutes == nil
-        case .alibaba, .alibabatokenplan, .amp, .commandcode, .doubao, .mimo, .notion, .opencodego, .stepfun:
+        case .alibaba, .alibabatokenplan, .amp, .commandcode, .doubao, .mimo, .notion, .opencodego, .stepfun,
+             .zai:
             window.windowMinutes == self.monthlyWindowSentinelMinutes
         default:
             false

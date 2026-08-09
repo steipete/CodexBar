@@ -119,26 +119,30 @@ struct ZaiProviderTests {
 
     @Test
     func `plugin maps quota and model usage into stable generic details`() async throws {
-        let transport = ProviderHTTPTransportHandler { request in
-            let body = request.url?.path.hasSuffix("/quota/limit") == true
-                ? Self.quotaFixture
-                : Self.modelUsageFixture
-            return try Self.response(request: request, body: body)
-        }
-        let snapshot = try await ProviderPluginRuntime(bundledPlugin: "zai", transport: transport).fetchUsage(
-            settings: [
-                "Z_AI_REGION": "global",
-                "Z_AI_USAGE_SCOPE": "personal",
-            ],
-            secrets: ["Z_AI_API_KEY": "fixture-key"],
-            now: Date(timeIntervalSince1970: 1_785_816_000))
+        let snapshot = try await Self.pluginSnapshot(quotaFixture: Self.quotaFixture)
 
         #expect(snapshot.primary?.usedPercent == 25)
         #expect(snapshot.primary?.windowMinutes == 300)
         #expect(snapshot.secondary?.usedPercent == 9)
         #expect(snapshot.extraRateWindows?.first?.id == "zai-mcp")
+        #expect(snapshot.extraRateWindows?.first?.window.windowMinutes ==
+            ProviderPaceCapability.monthlyWindowSentinelMinutes)
         #expect(snapshot.identity?.loginMethod == "Pro")
         #expect(snapshot.details.map(\.title) == ["Quota details", "Hourly tokens", "Daily tokens"])
+    }
+
+    @Test
+    func `plugin preserves explicit MCP duration`() async throws {
+        let snapshot = try await Self.pluginSnapshot(quotaFixture: Self.explicitTimeLimitFixture)
+
+        #expect(snapshot.extraRateWindows?.first?.window.windowMinutes == 5 * 60)
+    }
+
+    @Test
+    func `plugin leaves unknown MCP cadence unset`() async throws {
+        let snapshot = try await Self.pluginSnapshot(quotaFixture: Self.unknownTimeLimitFixture)
+
+        #expect(snapshot.extraRateWindows?.first?.window.windowMinutes == nil)
     }
 
     @Test
@@ -177,12 +181,42 @@ struct ZaiProviderTests {
         return (Data(body.utf8), response)
     }
 
+    private static func pluginSnapshot(quotaFixture: String) async throws -> UsageSnapshot {
+        let transport = ProviderHTTPTransportHandler { request in
+            let body = request.url?.path.hasSuffix("/quota/limit") == true
+                ? quotaFixture
+                : Self.modelUsageFixture
+            return try Self.response(request: request, body: body)
+        }
+        return try await ProviderPluginRuntime(bundledPlugin: "zai", transport: transport).fetchUsage(
+            settings: [
+                "Z_AI_REGION": "global",
+                "Z_AI_USAGE_SCOPE": "personal",
+            ],
+            secrets: ["Z_AI_API_KEY": "fixture-key"],
+            now: Date(timeIntervalSince1970: 1_785_816_000))
+    }
+
     private static let quotaFixture = #"""
     {"code":200,"msg":"success","success":true,"data":{"planName":"Pro","limits":[
       {"type":"TOKENS_LIMIT","unit":3,"number":5,"percentage":25,"nextResetTime":1785816000000},
       {"type":"TOKENS_LIMIT","unit":6,"number":1,"percentage":9,"nextResetTime":1786291200000},
       {"type":"TIME_LIMIT","unit":5,"number":1,"usage":1000,"currentValue":224,"remaining":776,
        "percentage":22,"usageDetails":[{"modelCode":"search-prime","usage":210}]}
+    ]}}
+    """#
+
+    private static let explicitTimeLimitFixture = #"""
+    {"code":200,"msg":"success","success":true,"data":{"limits":[
+      {"type":"TOKENS_LIMIT","unit":3,"number":5,"percentage":25,"nextResetTime":1785816000000},
+      {"type":"TIME_LIMIT","unit":3,"number":5,"percentage":22,"nextResetTime":1785816000000}
+    ]}}
+    """#
+
+    private static let unknownTimeLimitFixture = #"""
+    {"code":200,"msg":"success","success":true,"data":{"limits":[
+      {"type":"TOKENS_LIMIT","unit":3,"number":5,"percentage":25,"nextResetTime":1785816000000},
+      {"type":"TIME_LIMIT","unit":0,"number":1,"percentage":22,"nextResetTime":1785816000000}
     ]}}
     """#
 
