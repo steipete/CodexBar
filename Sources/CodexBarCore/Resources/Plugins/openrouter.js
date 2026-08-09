@@ -103,7 +103,7 @@ defineProvider({
         const activityPayload = JSON.parse(activityResponse.bodyText);
         if (activityPayload && Array.isArray(activityPayload.data)) {
           openRouterActivityUsage = {
-            data: activityPayload.data.map(item => ({
+            data: activityPayload.data.map((item) => ({
               date: item.date,
               model: item.model,
               prompt_tokens: item.prompt_tokens,
@@ -115,7 +115,7 @@ defineProvider({
           };
         }
       }
-    } catch (_) {}
+    } catch {}
 
     function resetWindowUsage(reset) {
       const windowKey =
