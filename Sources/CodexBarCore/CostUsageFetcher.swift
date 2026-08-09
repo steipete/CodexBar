@@ -433,11 +433,34 @@ public struct CostUsageFetcher: Sendable {
             shouldMergePiUsage: shouldMergePiUsage,
             scanOptions: scanOptions,
             piOptions: piOptions)
-        let scanResult = try await Self.loadLocalTokenScanResult(
+        var scanResult = try await Self.loadLocalTokenScanResult(
             provider: provider,
             since: since,
             now: now,
             options: localScanOptions)
+
+        if provider == .codex,
+           let nativeCodexDaily = scanResult.nativeCodexDaily,
+           let fallback = await CCUsageCodexBridge.loadFallbackReportIfNeeded(
+               nativeReport: nativeCodexDaily,
+               historyCoverageIsEstablished: scanResult.historyCoverageIsEstablished,
+               since: since,
+               until: now,
+               calendar: scanOptions.calendar,
+               environment: environment,
+               codexHomePath: codexHomePath)
+        {
+            let effectiveDaily = CostUsageDailyReport.merged(
+                [fallback, scanResult.piDaily].compactMap(\.self))
+            scanResult = LocalTokenScanResult(
+                daily: effectiveDaily,
+                nativeCodexDaily: fallback,
+                piDaily: scanResult.piDaily,
+                projects: Self.unknownProjectBreakdown(from: effectiveDaily).map { [$0] } ?? [],
+                sessions: [],
+                staleSnapshotUpdatedAt: nil,
+                historyCoverageIsEstablished: true)
+        }
 
         if allowPricingRefresh,
            retryUnknownPricing,
@@ -480,6 +503,8 @@ public struct CostUsageFetcher: Sendable {
 
     private struct LocalTokenScanResult: Sendable {
         let daily: CostUsageDailyReport
+        let nativeCodexDaily: CostUsageDailyReport?
+        let piDaily: CostUsageDailyReport?
         let projects: [CostUsageProjectBreakdown]
         let sessions: [CostUsageSessionBreakdown]
         let staleSnapshotUpdatedAt: Date?
@@ -563,6 +588,7 @@ public struct CostUsageFetcher: Sendable {
                         sessionRoots: roots)
                 }
             }
+            let nativeCodexDaily = provider == .codex ? daily : nil
             if options.includePiSessions,
                provider == .claude || (provider == .codex && options.shouldMergePiUsage)
             {
@@ -588,6 +614,8 @@ public struct CostUsageFetcher: Sendable {
             }
             return LocalTokenScanResult(
                 daily: daily,
+                nativeCodexDaily: nativeCodexDaily,
+                piDaily: piDaily,
                 projects: projects,
                 sessions: sessions,
                 staleSnapshotUpdatedAt: staleSnapshotUpdatedAt,

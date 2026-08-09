@@ -379,6 +379,37 @@ verify_binary_arches() {
   done
 }
 
+install_optional_ccusage_helper() {
+  local source="${CODEXBAR_CCUSAGE_SOURCE:-}"
+  local required="${CODEXBAR_REQUIRE_CCUSAGE:-0}"
+  local destination="$APP/Contents/Helpers/ccusage"
+
+  case "$required" in
+    0|1) ;;
+    *)
+      echo "ERROR: CODEXBAR_REQUIRE_CCUSAGE must be 0 or 1" >&2
+      return 1
+      ;;
+  esac
+
+  if [[ -z "$source" ]]; then
+    if [[ "$required" == "1" ]]; then
+      echo "ERROR: CODEXBAR_REQUIRE_CCUSAGE=1 requires CODEXBAR_CCUSAGE_SOURCE" >&2
+      return 1
+    fi
+    return 0
+  fi
+
+  source="$(printf '%s' "$source" | sed 's#^~/#'"$HOME"'/#')"
+  if [[ ! -f "$source" ]]; then
+    echo "ERROR: CODEXBAR_CCUSAGE_SOURCE is not a file: $source" >&2
+    return 1
+  fi
+  verify_binary_arches "$source" "${ARCH_LIST[@]}"
+  cp "$source" "$destination"
+  chmod 755 "$destination"
+}
+
 install_binary() {
   local name="$1"
   local dest="$2"
@@ -509,6 +540,7 @@ strip_release_binary "$APP/Contents/Helpers/CodexBarCLI"
 # Watchdog helper: ensures `claude` probes die when CodexBar crashes/gets killed.
 install_binary "CodexBarClaudeWatchdog" "$APP/Contents/Helpers/CodexBarClaudeWatchdog"
 strip_release_binary "$APP/Contents/Helpers/CodexBarClaudeWatchdog"
+install_optional_ccusage_helper
 install_widget_extension
 strip_release_binary "$APP/Contents/PlugIns/CodexBarWidget.appex/Contents/MacOS/CodexBarWidget"
 
@@ -595,6 +627,9 @@ if [[ -d "${APP}/Contents/Helpers/CodexBar_CodexBarCore.bundle" ]]; then
 fi
 if [[ -f "${APP}/Contents/Helpers/CodexBarClaudeWatchdog" ]]; then
   codesign "${CODESIGN_ARGS[@]}" "${APP}/Contents/Helpers/CodexBarClaudeWatchdog"
+fi
+if [[ -f "${APP}/Contents/Helpers/ccusage" ]]; then
+  codesign "${CODESIGN_ARGS[@]}" "${APP}/Contents/Helpers/ccusage"
 fi
 
 # Sign widget extension if present
