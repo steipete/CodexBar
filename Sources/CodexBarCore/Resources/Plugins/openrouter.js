@@ -35,7 +35,7 @@ defineProvider({
     let creditsPayload;
     try {
       creditsPayload = JSON.parse(creditsResponse.bodyText);
-    } catch (_) {
+    } catch {
       throw ctx.fail.parseFailure("Failed to parse OpenRouter response: response was not valid JSON");
     }
     const credits = creditsPayload && creditsPayload.data;
@@ -49,8 +49,10 @@ defineProvider({
     let keyData = null;
     let keyDegradation = null;
     const injectedOptionalTimeout = ctx.__codexbarOptionalRequestTimeoutSeconds;
-    const optionalRequestTimeoutSeconds = typeof injectedOptionalTimeout === "number" &&
-      Number.isFinite(injectedOptionalTimeout) ? injectedOptionalTimeout : 1;
+    const optionalRequestTimeoutSeconds =
+      typeof injectedOptionalTimeout === "number" && Number.isFinite(injectedOptionalTimeout)
+        ? injectedOptionalTimeout
+        : 1;
     function degradationReason(error) {
       const message = error && typeof error.message === "string" ? error.message : String(error);
       if (/timed out|-1001/i.test(message)) return "Request timed out";
@@ -63,18 +65,24 @@ defineProvider({
       });
       if (keyResponse.status !== 200) keyDegradation = `Request returned HTTP ${keyResponse.status}`;
       const keyPayload = keyResponse.status === 200 ? JSON.parse(keyResponse.bodyText) : null;
-      if (keyPayload && keyPayload.data && typeof keyPayload.data === "object" &&
-          !Array.isArray(keyPayload.data)) {
+      if (keyPayload && keyPayload.data && typeof keyPayload.data === "object" && !Array.isArray(keyPayload.data)) {
         const candidate = keyPayload.data;
-        for (const field of [
-          "limit", "limit_remaining", "usage", "usage_daily", "usage_weekly", "usage_monthly",
-        ]) finite(candidate[field], `key.${field}`, true);
-        if (candidate.limit_reset !== null && candidate.limit_reset !== undefined &&
-            typeof candidate.limit_reset !== "string") throw new TypeError("key.limit_reset must be a string");
-        if (candidate.rate_limit !== null && candidate.rate_limit !== undefined &&
-            (!candidate.rate_limit || typeof candidate.rate_limit !== "object" ||
-             !Number.isInteger(candidate.rate_limit.requests) ||
-             typeof candidate.rate_limit.interval !== "string")) {
+        for (const field of ["limit", "limit_remaining", "usage", "usage_daily", "usage_weekly", "usage_monthly"])
+          finite(candidate[field], `key.${field}`, true);
+        if (
+          candidate.limit_reset !== null &&
+          candidate.limit_reset !== undefined &&
+          typeof candidate.limit_reset !== "string"
+        )
+          throw new TypeError("key.limit_reset must be a string");
+        if (
+          candidate.rate_limit !== null &&
+          candidate.rate_limit !== undefined &&
+          (!candidate.rate_limit ||
+            typeof candidate.rate_limit !== "object" ||
+            !Number.isInteger(candidate.rate_limit.requests) ||
+            typeof candidate.rate_limit.interval !== "string")
+        ) {
           throw new TypeError("key.rate_limit is invalid");
         }
         keyData = candidate;
@@ -86,9 +94,13 @@ defineProvider({
 
     function resetWindowUsage(reset) {
       const windowKey =
-        reset === "daily" ? "usage_daily" :
-        reset === "weekly" ? "usage_weekly" :
-        reset === "monthly" ? "usage_monthly" : null;
+        reset === "daily"
+          ? "usage_daily"
+          : reset === "weekly"
+            ? "usage_weekly"
+            : reset === "monthly"
+              ? "usage_monthly"
+              : null;
       if (!windowKey) return null;
       return finite(keyData[windowKey], `key.${windowKey}`, true);
     }
@@ -121,15 +133,17 @@ defineProvider({
       }
     }
 
-    const currency = value => `$${Math.max(0, value).toFixed(2)}`;
-    const details = [{
-      title: "Credits",
-      rows: [
-        { label: "Remaining", value: currency(balance) },
-        { label: "Used", value: currency(totalUsage) },
-        { label: "Total added", value: currency(totalCredits) },
-      ],
-    }];
+    const currency = (value) => `$${Math.max(0, value).toFixed(2)}`;
+    const details = [
+      {
+        title: "Credits",
+        rows: [
+          { label: "Remaining", value: currency(balance) },
+          { label: "Used", value: currency(totalUsage) },
+          { label: "Total added", value: currency(totalCredits) },
+        ],
+      },
+    ];
 
     if (keyData) {
       const rows = [];
@@ -170,11 +184,13 @@ defineProvider({
     } else {
       details.push({
         title: "API key",
-        rows: [{
-          label: "API key budget",
-          value: "Unavailable right now",
-          secondaryValue: keyDegradation,
-        }],
+        rows: [
+          {
+            label: "API key budget",
+            value: "Unavailable right now",
+            secondaryValue: keyDegradation,
+          },
+        ],
       });
     }
 

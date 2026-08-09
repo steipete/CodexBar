@@ -356,8 +356,39 @@ struct ProviderPluginDetailsParityTests {
             Self.section("Quota details", rows: [
                 Self.row("Credit quota", "10% used", "10000 limit · 9000 remaining"),
                 Self.row("Session credit quota", "5% used", "2000 limit · 1900 remaining"),
+                Self.row("Quota rate", "Off-peak", "peak in 2h 21m"),
             ]),
         ])
+    }
+
+    @Test
+    func `zai quota rate row tracks the credit-plan peak schedule`() async throws {
+        let cases: [(epoch: TimeInterval, value: String, secondary: String)] = [
+            (1_786_001_400, "Peak", "off-peak in 2h 30m"), // Thursday 07:30 UTC
+            (1_786_073_946, "Off-peak", "peak in 2h 21m"), // Friday 03:39 UTC
+            (1_786_143_600, "Off-peak", "peak in 2d 7h"), // Friday 23:00 UTC skips the weekend
+            (1_786_172_400, "Off-peak", "peak in 1d 23h"), // Saturday 07:00 UTC is off-peak all day
+        ]
+        for testCase in cases {
+            let transport = Self.transport { request in
+                guard request.url?.path.hasSuffix("/quota/limit") == true else {
+                    throw FixtureError.unexpectedURL(request.url)
+                }
+                return Self.zaiCreditQuota
+            }
+            let script = try await ProviderPluginRuntime(bundledPlugin: "zai", transport: transport)
+                .fetchUsage(
+                    settings: [
+                        "Z_AI_REGION": "global",
+                        "Z_AI_USAGE_SCOPE": "personal",
+                    ],
+                    secrets: ["Z_AI_API_KEY": "fixture-key"],
+                    now: Date(timeIntervalSince1970: testCase.epoch))
+
+            let row = try #require(script.details.first?.rows.first { $0.label == "Quota rate" })
+            #expect(row.value == testCase.value)
+            #expect(row.secondaryValue == testCase.secondary)
+        }
     }
 
     @Test

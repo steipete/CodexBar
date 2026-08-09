@@ -160,6 +160,8 @@ supply standard ECMAScript built-ins, but no browser or Node host environment. T
   positive and capped at 24 hours.
 - `ctx.date.now()`, `iso(text)`, `unixSeconds(number)`, and `unixMillis(number)` return JavaScript `Date` objects.
   `now()` uses the host refresh clock so fixtures and retries share the snapshot timestamp.
+- `ctx.date.nowMillis()` returns that same refresh clock as Unix epoch milliseconds for deterministic date arithmetic
+  (used by the z.ai quota-rate row).
 - `ctx.date.nextDailyReset(timeZoneIdentifier, hour)` returns the next wall-clock hour in an IANA time zone, including
   DST transitions. Crof uses `America/Chicago` at hour `0`.
 - `ctx.jwt.decode(token)` decodes the JSON payload segment without verifying a signature.

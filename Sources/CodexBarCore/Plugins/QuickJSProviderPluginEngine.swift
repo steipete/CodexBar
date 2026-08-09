@@ -780,8 +780,10 @@ final class QuickJSProviderPluginEngine: ProviderPluginEngine, @unchecked Sendab
         timeout: TimeInterval,
         operation: @escaping @Sendable () async throws -> Value) throws -> Value
     {
+        let fetchDeadline = self.fetchState?.deadline ?? Date().addingTimeInterval(timeout)
         let box = QuickJSBlockingResult<Value>()
         let task = Task.detached {
+            box.markStarted()
             do {
                 let value = try await operation()
                 box.finish(.success(value))
@@ -790,17 +792,7 @@ final class QuickJSProviderPluginEngine: ProviderPluginEngine, @unchecked Sendab
             }
         }
         defer { task.cancel() }
-        let fetchRemaining = self.fetchState.map { max(0, $0.deadline.timeIntervalSinceNow) } ?? timeout
-        let deadline = Date().addingTimeInterval(min(timeout, fetchRemaining))
-        while Date() < deadline {
-            if let result = box.wait(until: min(deadline, Date().addingTimeInterval(0.05))) {
-                return try result.get()
-            }
-            if let watchdog = self.watchdog, cqjs_watchdog_is_interrupted(watchdog) {
-                throw ProviderPluginError.timedOut
-            }
-        }
-        throw URLError(.timedOut)
+        return try box.value(timeout: timeout, fetchDeadline: fetchDeadline, watchdog: self.watchdog)
     }
 
     private func invoke(_ function: JSValue, argument: JSValue) throws {
@@ -996,18 +988,32 @@ private final class QuickJSSerialWorker: @unchecked Sendable {
         }
     }
 
+    /// A Thread subclass with an overridden main() instead of Thread(block:): the block closure
+    /// picks up @MainActor inference under some SDKs (Xcode 26.3), and the embedded executor
+    /// check then traps on the first job when the OS runtime enforces isolation dynamically.
+    private final class WorkerThread: Thread {
+        private let state: State
+
+        init(state: State) {
+            self.state = state
+            super.init()
+        }
+
+        override func main() {
+            defer { self.state.markStopped() }
+            while let job = self.state.next() {
+                job()
+            }
+        }
+    }
+
     private let state: State
-    private let thread: Thread
+    private let thread: WorkerThread
 
     init(name: String, stackSizeBytes: Int) {
         let state = State()
         self.state = state
-        self.thread = Thread {
-            defer { state.markStopped() }
-            while let job = state.next() {
-                job()
-            }
-        }
+        self.thread = WorkerThread(state: state)
         self.thread.name = name
         self.thread.stackSize = stackSizeBytes
         self.thread.start()
@@ -1046,7 +1052,15 @@ private final class QuickJSSerialWorker: @unchecked Sendable {
 
 final class QuickJSBlockingResult<Value: Sendable>: @unchecked Sendable {
     private let condition = NSCondition()
+    private var startedAt: Date?
     private var result: Result<Value, Error>?
+
+    func markStarted() {
+        self.condition.lock()
+        self.startedAt = Date()
+        self.condition.broadcast()
+        self.condition.unlock()
+    }
 
     func finish(_ result: Result<Value, Error>) {
         self.condition.lock()
@@ -1055,13 +1069,45 @@ final class QuickJSBlockingResult<Value: Sendable>: @unchecked Sendable {
         self.condition.unlock()
     }
 
+    func value(
+        timeout: TimeInterval,
+        fetchDeadline: Date,
+        watchdog: OpaquePointer?) throws -> Value
+    {
+        var startedAt: Date?
+        while true {
+            let deadline = startedAt.map {
+                $0.addingTimeInterval(min(timeout, max(0, fetchDeadline.timeIntervalSince($0))))
+            } ?? fetchDeadline
+            let now = Date()
+            guard now < deadline else { throw URLError(.timedOut) }
+            let state = self.wait(
+                until: min(deadline, now.addingTimeInterval(0.05)),
+                waitingForStart: startedAt == nil)
+            if let result = state.result {
+                return try result.get()
+            }
+            startedAt = state.startedAt
+            if let watchdog, cqjs_watchdog_is_interrupted(watchdog) {
+                throw ProviderPluginError.timedOut
+            }
+        }
+    }
+
     func wait(until deadline: Date) -> Result<Value, Error>? {
+        self.wait(until: deadline, waitingForStart: false).result
+    }
+
+    func wait(
+        until deadline: Date,
+        waitingForStart: Bool) -> (startedAt: Date?, result: Result<Value, Error>?)
+    {
         self.condition.lock()
         defer { self.condition.unlock() }
-        if self.result == nil {
+        if self.result == nil, !waitingForStart || self.startedAt == nil {
             _ = self.condition.wait(until: deadline)
         }
-        return self.result
+        return (self.startedAt, self.result)
     }
 
     func wait() -> Result<Value, Error> {

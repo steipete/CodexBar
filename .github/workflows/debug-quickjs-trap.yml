@@ -1,0 +1,68 @@
+name: Debug QuickJS trap
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+
+jobs:
+  debug-quickjs-trap:
+    if: github.head_ref == 'debug/quickjs-sigtrap-ci'
+    runs-on: macos-26
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Select Xcode 26.3 or 26.2
+        run: |
+          set -euo pipefail
+          for candidate in /Applications/Xcode_26.3.app /Applications/Xcode_26.2.app; do
+            if [[ -d "$candidate" ]]; then
+              sudo xcode-select -s "${candidate}/Contents/Developer"
+              echo "DEVELOPER_DIR=${candidate}/Contents/Developer" >> "$GITHUB_ENV"
+              break
+            fi
+          done
+          /usr/bin/xcodebuild -version
+
+      - name: Build tests
+        run: swift build --build-tests
+
+      - name: Enable core dumps
+        run: |
+          sudo mkdir -p /cores
+          sudo chmod 1777 /cores
+          sysctl kern.corefile kern.coredump || true
+
+      - name: Run crashing group (cores enabled)
+        run: |
+          set -x
+          ulimit -c unlimited
+          swift test --skip-build --no-parallel --filter '(^CodexBarPluginTests\.ProviderPluginParityTests/)' || true
+          swift test --skip-build --no-parallel --filter '(^CodexBarPluginTests\.ProviderPluginDetailsParityTests/)' || true
+
+      - name: Backtrace cores
+        run: |
+          set -x
+          ls -la /cores || true
+          for c in /cores/core.*; do
+            [ -e "$c" ] || continue
+            lldb -c "$c" --batch -o "thread backtrace all" -o quit || true
+          done
+
+      - name: Retry with executor checks logged (not fatal)
+        run: |
+          set -x
+          SWIFT_UNEXPECTED_EXECUTOR_LOG_LEVEL=1 SWIFT_IS_CURRENT_EXECUTOR_LEGACY_MODE_OVERRIDE=legacy \
+            swift test --skip-build --no-parallel --filter '(^CodexBarPluginTests\.ProviderPluginParityTests/)' || true
+
+      - name: Dump crash reports (patient)
+        run: |
+          sleep 90
+          reports="$HOME/Library/Logs/DiagnosticReports"
+          ls -la "$reports" || true
+          for f in "$reports"/*; do
+            [ -e "$f" ] || continue
+            echo "::group::$(basename "$f")"
+            cat "$f" || true
+            echo "::endgroup::"
+          done

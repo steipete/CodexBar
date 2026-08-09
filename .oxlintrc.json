@@ -1,0 +1,28 @@
+{
+  "categories": {
+    "correctness": "error"
+  },
+  "ignorePatterns": [
+    "Sources/CodexBarCore/Resources/Plugins/sucrase-*.min.js"
+  ],
+  "overrides": [
+    {
+      "files": ["Sources/CodexBarCore/Resources/Plugins/*.{js,ts}"],
+      "globals": {
+        "defineProvider": "readonly"
+      }
+    },
+    {
+      "files": ["docs/site.js"],
+      "env": {
+        "browser": true
+      }
+    },
+    {
+      "files": ["Scripts/*.mjs"],
+      "env": {
+        "node": true
+      }
+    }
+  ]
+}

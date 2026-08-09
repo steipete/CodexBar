@@ -1,3 +1,9 @@
+type CrofPayload = {
+  credits: unknown;
+  requests_plan?: unknown;
+  usable_requests?: unknown;
+};
+
 defineProvider({
   id: "crof",
   name: "Crof",
@@ -15,7 +21,7 @@ defineProvider({
   async fetchUsage(ctx) {
     const response = await ctx.http.getJSON("https://crof.ai/usage_api/");
     if (response.status !== 200) throw new Error(`Crof API error: HTTP ${response.status}`);
-    const payload = response.json;
+    const payload = response.json as CrofPayload;
     if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
       throw new Error("Failed to parse Crof response: expected an object");
     }
@@ -23,7 +29,7 @@ defineProvider({
       throw new Error("Failed to parse Crof response: credits must be a number");
     }
 
-    function optionalNumber(value, field) {
+    function optionalNumber(value: unknown, field: string): number | null {
       if (value === null || value === undefined) return null;
       if (typeof value !== "number" || !Number.isFinite(value)) {
         throw new Error(`Failed to parse Crof response: ${field} must be a number`);

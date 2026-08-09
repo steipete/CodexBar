@@ -12,8 +12,28 @@ const strictLocales = ["ar", "ca", "fa", "th"];
 // Catalogs that have reached full English-key coverage. New locales can remain
 // warning-only while they are being bootstrapped, then join this list once complete.
 const completeLocales = [
-  "ar", "ca", "de", "es", "fa", "fr", "gl", "id", "it", "ja", "ko", "nl", "pl", "pt-BR", "ru", "sv",
-  "th", "tr", "uk", "vi", "zh-Hans", "zh-Hant",
+  "ar",
+  "ca",
+  "de",
+  "es",
+  "fa",
+  "fr",
+  "gl",
+  "id",
+  "it",
+  "ja",
+  "ko",
+  "nl",
+  "pl",
+  "pt-BR",
+  "ru",
+  "sv",
+  "th",
+  "tr",
+  "uk",
+  "vi",
+  "zh-Hans",
+  "zh-Hant",
 ];
 const languageKeys = ["language_arabic", "language_persian", "language_thai"];
 const isTest = process.argv.includes("--test");
@@ -82,25 +102,26 @@ if (isTest) {
   assertEqual(
     tokenSignature("\\(self.store.metadata(for: self.provider).displayName) failed"),
     tokenSignature("Fehler: \\(self.store.metadata(for: self.provider).displayName)"),
-    "nested Swift interpolation");
+    "nested Swift interpolation",
+  );
   assertNotEqual(
     tokenSignature("\\(self.store.metadata(for: self.provider).displayName) failed"),
     tokenSignature("\\(self.store.metadata(for: self.provider) failed"),
-    "truncated Swift interpolation");
+    "truncated Swift interpolation",
+  );
   assertEqual(formatKeyList(["alpha", "beta"]), "alpha, beta", "short key list");
-  assertEqual(
-    formatKeyList(["alpha", "beta", "gamma", "delta"], 2),
-    "alpha, beta, ... +2 more",
-    "truncated key list");
+  assertEqual(formatKeyList(["alpha", "beta", "gamma", "delta"], 2), "alpha, beta, ... +2 more", "truncated key list");
   assertEqual(
     blankKeys({ alpha: "", beta: "  ", gamma: "ok" }, ["alpha", "beta", "gamma", "delta"]),
     ["alpha", "beta"],
-    "blank keys");
+    "blank keys",
+  );
   assertEqual([...new Set(completeLocales)], completeLocales, "unique complete locales");
   assertEqual(
     strictLocales.filter((locale) => !completeLocales.includes(locale)),
     [],
-    "strict locales are complete locales");
+    "strict locales are complete locales",
+  );
   console.log("app locale checker tests OK");
   process.exit(0);
 }
@@ -119,7 +140,7 @@ for (const completeLocale of completeLocales) {
 for (const directory of fs.readdirSync(resources).filter((name) => name.endsWith(".lproj"))) {
   const locale = directory.replace(/\.lproj$/, "");
   if (locale === "en" || locale === "Base") continue;
-  
+
   const catalog = readCatalog(locale);
   if (!catalog) continue;
 
@@ -133,7 +154,8 @@ for (const directory of fs.readdirSync(resources).filter((name) => name.endsWith
     const missingKeyList = formatKeyList(missingKeys);
     if (completeLocales.includes(locale)) {
       console.error(
-        `\x1b[31m[${locale}] Error: Missing ${missingKeys.length} keys in complete locale: ${missingKeyList}.\x1b[0m`);
+        `\x1b[31m[${locale}] Error: Missing ${missingKeys.length} keys in complete locale: ${missingKeyList}.\x1b[0m`,
+      );
       hasErrors = true;
     } else {
       console.warn(`\x1b[33m[${locale}] Warning: Missing ${missingKeys.length} keys: ${missingKeyList}.\x1b[0m`);
@@ -156,7 +178,8 @@ for (const directory of fs.readdirSync(resources).filter((name) => name.endsWith
 
   if (emptyKeys.length > 0) {
     console.error(
-      `\x1b[31m[${locale}] Error: Blank values for ${emptyKeys.length} keys: ${formatKeyList(emptyKeys)}.\x1b[0m`);
+      `\x1b[31m[${locale}] Error: Blank values for ${emptyKeys.length} keys: ${formatKeyList(emptyKeys)}.\x1b[0m`,
+    );
     hasErrors = true;
   }
 
@@ -186,7 +209,9 @@ for (const directory of fs.readdirSync(resources).filter((name) => name.endsWith
   // Warn if identical translation count exceeds 15% of the total keys (approx > 150 out of 1050)
   const identicalRatio = identicalCount / englishKeys.length;
   if (identicalRatio > 0.15) {
-    console.warn(`\x1b[33m[${locale}] Warning: High number of identical translations: ${identicalCount}/${englishKeys.length} (${(identicalRatio * 100).toFixed(1)}%)\x1b[0m`);
+    console.warn(
+      `\x1b[33m[${locale}] Warning: High number of identical translations: ${identicalCount}/${englishKeys.length} (${(identicalRatio * 100).toFixed(1)}%)\x1b[0m`,
+    );
   }
 }
 
@@ -195,7 +220,9 @@ if (hasErrors) {
   process.exit(1);
 }
 
-console.log(`\n\x1b[32mApp locales OK: Checked ${checkedCount} catalogs against ${englishKeys.length} English keys.\x1b[0m`);
+console.log(
+  `\n\x1b[32mApp locales OK: Checked ${checkedCount} catalogs against ${englishKeys.length} English keys.\x1b[0m`,
+);
 
 function assertEqual(actual, expected, label) {
   if (JSON.stringify(actual) !== JSON.stringify(expected)) {
