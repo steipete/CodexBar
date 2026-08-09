@@ -831,6 +831,11 @@ enum RPCWireError: Error, LocalizedError {
     }
 }
 
+private enum RPCRequestRaceResult<Value: Sendable>: Sendable {
+    case value(Value)
+    case timedOut
+}
+
 /// RPC helper used on background tasks; safe because we confine it to the owning task.
 private final class CodexRPCClient: @unchecked Sendable {
     // Provider-specific by design: Codex RPC owns its dedicated subprocess log category.
@@ -1012,24 +1017,29 @@ private final class CodexRPCClient: @unchecked Sendable {
         method: String,
         body: @escaping @Sendable () async throws -> T) async throws -> T
     {
-        try await withThrowingTaskGroup(of: T.self) { group in
+        try await withThrowingTaskGroup(of: RPCRequestRaceResult<T>.self) { group in
             group.addTask {
-                try await body()
+                try await .value(body())
             }
-            group.addTask { [weak self] in
+            group.addTask {
                 try await Task.sleep(for: .seconds(seconds))
-                self?.terminateProcessForTimeout(method: method)
+                return .timedOut
+            }
+
+            guard let result = try await group.next() else {
+                group.cancelAll()
                 throw RPCWireError.timeout(method: method)
             }
-            do {
-                guard let result = try await group.next() else {
-                    throw RPCWireError.timeout(method: method)
-                }
-                group.cancelAll()
-                return result
-            } catch {
-                group.cancelAll()
-                throw error
+            group.cancelAll()
+
+            switch result {
+            case let .value(value):
+                return value
+            case .timedOut:
+                // Terminating the process closes stdout. Classify that expected EOF as a
+                // timeout by selecting the timer before requesting process termination.
+                self.terminateProcessForTimeout(method: method)
+                throw RPCWireError.timeout(method: method)
             }
         }
     }
