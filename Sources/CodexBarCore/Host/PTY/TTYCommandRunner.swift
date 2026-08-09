@@ -269,6 +269,12 @@ private enum TTYCommandRunnerTestingOverrides {
     @TaskLocal static var outputLimitBytes: Int?
 }
 
+enum TTYCommandRunnerDrainReadResult {
+    case data(Data)
+    case wouldBlock
+    case closed
+}
+
 /// Executes an interactive CLI inside a pseudo-terminal and returns all captured text.
 /// Keeps it minimal so we can reuse for Codex and Claude without tmux.
 public struct TTYCommandRunner {
@@ -448,11 +454,7 @@ public struct TTYCommandRunner {
         }
     }
 
-    enum DrainReadResult {
-        case data(Data)
-        case wouldBlock
-        case closed
-    }
+    typealias DrainReadResult = TTYCommandRunnerDrainReadResult
 
     static func lowercasedASCII(_ data: Data) -> Data {
         guard !data.isEmpty else { return data }
