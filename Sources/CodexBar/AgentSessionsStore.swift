@@ -2,7 +2,7 @@ import CodexBarCore
 import Foundation
 import Observation
 
-struct AgentSessionRemoteRefreshGate {
+struct AgentSessionRefreshGate {
     private(set) var generation = 0
     private(set) var isInFlight = false
     private(set) var isPending = false
@@ -29,20 +29,39 @@ struct AgentSessionRemoteRefreshGate {
     }
 }
 
+typealias AgentSessionRemoteRefreshGate = AgentSessionRefreshGate
+
 @MainActor
 @Observable
 final class AgentSessionsStore {
     typealias LocalScan = @Sendable (_ includeFileOnlySessions: Bool) async -> [AgentSession]
+    typealias RemoteHostDiscovery = @Sendable () async -> [String]
+    typealias RemoteFetch = @Sendable (_ hosts: [String]) async -> [RemoteSessionHostResult]
+    typealias PeriodicSleep = @Sendable (_ duration: Duration) async throws -> Void
+
+    struct SchedulerState: Equatable {
+        let isStarted: Bool
+        let hasLocalPeriodicTask: Bool
+        let hasRemotePeriodicTask: Bool
+        let hasLocalImmediateTask: Bool
+        let hasRemoteImmediateTask: Bool
+    }
 
     private let settings: SettingsStore
     private let localScan: LocalScan
+    private let remoteHostDiscovery: RemoteHostDiscovery
+    private let remoteFetch: RemoteFetch
     private let remoteFetcher: RemoteSessionFetcher
-    @ObservationIgnored private var localRefreshTask: Task<Void, Never>?
-    @ObservationIgnored private var remoteRefreshTask: Task<Void, Never>?
-    @ObservationIgnored private var localRefreshInFlight = false
+    private let periodicSleep: PeriodicSleep
+    @ObservationIgnored private var localPeriodicTask: Task<Void, Never>?
+    @ObservationIgnored private var remotePeriodicTask: Task<Void, Never>?
+    @ObservationIgnored private var localImmediateTask: Task<Void, Never>?
+    @ObservationIgnored private var remoteImmediateTask: Task<Void, Never>?
+    @ObservationIgnored private var localRefreshGate = AgentSessionRefreshGate()
     @ObservationIgnored private var remoteRefreshGate = AgentSessionRemoteRefreshGate()
     @ObservationIgnored var onUpdate: (@MainActor () -> Void)?
 
+    private(set) var isStarted = false
     private(set) var localSessions: [AgentSession] = []
     private(set) var remoteHosts: [RemoteSessionHostResult] = []
     private(set) var lastUpdatedAt: Date?
@@ -57,7 +76,16 @@ final class AgentSessionsStore {
         self.localScan = { includeFileOnlySessions in
             await localScanner.scan(includeFileOnlySessions: includeFileOnlySessions)
         }
+        self.remoteHostDiscovery = {
+            await remoteFetcher.discoveredHosts()
+        }
+        self.remoteFetch = { hosts in
+            await remoteFetcher.fetch(hosts: hosts)
+        }
         self.remoteFetcher = remoteFetcher
+        self.periodicSleep = { duration in
+            try await Task.sleep(for: duration)
+        }
     }
 
     init(
@@ -67,7 +95,38 @@ final class AgentSessionsStore {
     {
         self.settings = settings
         self.localScan = localScan
+        self.remoteHostDiscovery = {
+            await remoteFetcher.discoveredHosts()
+        }
+        self.remoteFetch = { hosts in
+            await remoteFetcher.fetch(hosts: hosts)
+        }
         self.remoteFetcher = remoteFetcher
+        self.periodicSleep = { duration in
+            try await Task.sleep(for: duration)
+        }
+    }
+
+    init(
+        settings: SettingsStore,
+        localScan: @escaping LocalScan,
+        remoteHostDiscovery: @escaping RemoteHostDiscovery,
+        remoteFetch: @escaping RemoteFetch,
+        periodicSleep: @escaping PeriodicSleep = { duration in try await Task.sleep(for: duration) })
+    {
+        self.settings = settings
+        self.localScan = localScan
+        self.remoteHostDiscovery = remoteHostDiscovery
+        self.remoteFetch = remoteFetch
+        self.remoteFetcher = RemoteSessionFetcher()
+        self.periodicSleep = periodicSleep
+    }
+
+    deinit {
+        self.localPeriodicTask?.cancel()
+        self.remotePeriodicTask?.cancel()
+        self.localImmediateTask?.cancel()
+        self.remoteImmediateTask?.cancel()
     }
 
     var totalCount: Int {
@@ -78,6 +137,15 @@ final class AgentSessionsStore {
     /// behind the Agent Sessions setting because they can involve Tailscale discovery and SSH.
     var localMonitoringEnabled: Bool {
         self.settings.agentSessionsEnabled || self.settings.adaptiveActivityScanningEnabled
+    }
+
+    var schedulerState: SchedulerState {
+        SchedulerState(
+            isStarted: self.isStarted,
+            hasLocalPeriodicTask: self.localPeriodicTask != nil,
+            hasRemotePeriodicTask: self.remotePeriodicTask != nil,
+            hasLocalImmediateTask: self.localImmediateTask != nil,
+            hasRemoteImmediateTask: self.remoteImmediateTask != nil)
     }
 
     nonisolated static func latestActivityAt(in sessions: [AgentSession]) -> Date? {
@@ -98,60 +166,56 @@ final class AgentSessionsStore {
     }
 
     func start() {
-        guard self.localRefreshTask == nil, self.remoteRefreshTask == nil else { return }
-        self.localRefreshTask = Task { [weak self] in
-            while !Task.isCancelled {
-                await self?.refreshLocal()
-                try? await Task.sleep(for: .seconds(30))
-            }
-        }
-        self.remoteRefreshTask = Task { [weak self] in
-            while !Task.isCancelled {
-                await self?.refreshRemote()
-                try? await Task.sleep(for: .seconds(60))
-            }
-        }
+        guard !self.isStarted else { return }
+        self.isStarted = true
+        self.localRefreshGate.settingsDidChange()
+        self.remoteRefreshGate.settingsDidChange()
+        self.reconcilePeriodicTasks()
+        self.requestLocalRefresh()
+        self.requestRemoteRefresh()
     }
 
     func stop() {
-        self.localRefreshTask?.cancel()
-        self.remoteRefreshTask?.cancel()
-        self.localRefreshTask = nil
-        self.remoteRefreshTask = nil
+        guard self.isStarted || self.hasOwnedTasks else { return }
+        self.isStarted = false
+        self.localRefreshGate.settingsDidChange()
+        self.remoteRefreshGate.settingsDidChange()
+        self.cancelOwnedTasks()
     }
 
     func settingsDidChange(remoteConfigurationChanged: Bool = true) {
+        self.localRefreshGate.settingsDidChange()
         if remoteConfigurationChanged {
             self.remoteRefreshGate.settingsDidChange()
         }
+
+        let hadVisibleSessions = !self.localSessions.isEmpty || !self.remoteHosts.isEmpty
+        let hadActivity = self.latestLocalActivityAt != nil
         if !self.settings.agentSessionsEnabled {
             // Adaptive keeps only the timestamp signal. Retained session paths and identities
             // remain scoped to the explicitly enabled Agent Sessions UI.
             self.localSessions = []
             self.remoteHosts = []
         }
-        guard self.localMonitoringEnabled else {
+        if !self.localMonitoringEnabled {
             self.latestLocalActivityAt = nil
-            self.onUpdate?()
-            return
         }
-        guard !SettingsStore.isRunningTests else { return }
-        Task { [weak self] in
-            await self?.refreshLocal()
-            if remoteConfigurationChanged, self?.settings.agentSessionsEnabled == true {
-                await self?.refreshRemote()
-            }
+
+        self.reconcilePeriodicTasks()
+        guard self.isStarted else { return }
+        if hadVisibleSessions || (hadActivity && !self.localMonitoringEnabled) {
+            self.onUpdate?()
+        }
+        self.requestLocalRefresh()
+        if remoteConfigurationChanged {
+            self.requestRemoteRefresh()
         }
     }
 
     func refreshOnMenuOpen() {
-        guard self.localMonitoringEnabled, !SettingsStore.isRunningTests else { return }
-        Task { [weak self] in
-            await self?.refreshLocal()
-            if self?.settings.agentSessionsEnabled == true {
-                await self?.refreshRemote()
-            }
-        }
+        guard self.isStarted else { return }
+        self.requestLocalRefresh()
+        self.requestRemoteRefresh()
     }
 
     func focus(_ session: AgentSession, remoteHost: String?) {
@@ -165,19 +229,9 @@ final class AgentSessionsStore {
     }
 
     func refreshLocal() async {
-        guard self.localMonitoringEnabled, !self.localRefreshInFlight else { return }
-        let processInfo = ProcessInfo.processInfo
-        guard Self.shouldScanLocally(
-            agentSessionsEnabled: self.settings.agentSessionsEnabled,
-            adaptiveActivityScanningEnabled: self.settings.adaptiveActivityScanningEnabled,
-            lowPowerModeEnabled: processInfo.isLowPowerModeEnabled,
-            thermalState: processInfo.thermalState)
-        else { return }
-        self.localRefreshInFlight = true
-        let sessions = await self.localScan(self.settings.agentSessionsEnabled)
-        self.localRefreshInFlight = false
-        guard !Task.isCancelled, self.localMonitoringEnabled else { return }
-        self.applyLocalScanResult(sessions)
+        self.requestLocalRefresh()
+        let task = self.localImmediateTask
+        await task?.value
     }
 
     func applyLocalScanResult(_ sessions: [AgentSession], updatedAt: Date = Date()) {
@@ -196,22 +250,147 @@ final class AgentSessionsStore {
         self.onUpdate?()
     }
 
-    private func refreshRemote() async {
-        guard self.settings.agentSessionsEnabled else { return }
-        guard var generation = self.remoteRefreshGate.begin() else { return }
-        while self.settings.agentSessionsEnabled {
-            var hosts = self.manualHosts
-            await hosts.append(contentsOf: self.remoteFetcher.discoveredHosts())
-            let results = await self.remoteFetcher.fetch(hosts: hosts)
-            let outcome = self.remoteRefreshGate.finish(generation: generation)
-            guard !Task.isCancelled, self.settings.agentSessionsEnabled else { return }
-            if outcome.shouldPublish, results != self.remoteHosts {
-                self.remoteHosts = results
-                self.lastUpdatedAt = Date()
-                self.onUpdate?()
+    private var hasOwnedTasks: Bool {
+        self.localPeriodicTask != nil || self.remotePeriodicTask != nil ||
+            self.localImmediateTask != nil || self.remoteImmediateTask != nil
+    }
+
+    private func reconcilePeriodicTasks() {
+        let needsLocalScheduler = self.isStarted && self.localMonitoringEnabled
+        if needsLocalScheduler, self.localPeriodicTask == nil {
+            let periodicSleep = self.periodicSleep
+            self.localPeriodicTask = Task { [weak self] in
+                while !Task.isCancelled {
+                    do {
+                        try await periodicSleep(.seconds(30))
+                    } catch {
+                        return
+                    }
+                    guard !Task.isCancelled else { return }
+                    self?.requestLocalRefresh()
+                }
             }
-            guard outcome.shouldRetry, let nextGeneration = self.remoteRefreshGate.begin() else { return }
-            generation = nextGeneration
+        } else if !needsLocalScheduler {
+            self.localPeriodicTask?.cancel()
+            self.localPeriodicTask = nil
+            self.localImmediateTask?.cancel()
+        }
+
+        let needsRemoteScheduler = self.isStarted && self.settings.agentSessionsEnabled
+        if needsRemoteScheduler, self.remotePeriodicTask == nil {
+            let periodicSleep = self.periodicSleep
+            self.remotePeriodicTask = Task { [weak self] in
+                while !Task.isCancelled {
+                    do {
+                        try await periodicSleep(.seconds(60))
+                    } catch {
+                        return
+                    }
+                    guard !Task.isCancelled else { return }
+                    self?.requestRemoteRefresh()
+                }
+            }
+        } else if !needsRemoteScheduler {
+            self.remotePeriodicTask?.cancel()
+            self.remotePeriodicTask = nil
+            self.remoteImmediateTask?.cancel()
+        }
+    }
+
+    private func cancelOwnedTasks() {
+        self.localPeriodicTask?.cancel()
+        self.remotePeriodicTask?.cancel()
+        self.localImmediateTask?.cancel()
+        self.remoteImmediateTask?.cancel()
+        self.localPeriodicTask = nil
+        self.remotePeriodicTask = nil
+        self.localImmediateTask = nil
+        self.remoteImmediateTask = nil
+    }
+
+    private func requestLocalRefresh() {
+        guard self.isStarted, self.localMonitoringEnabled, self.localImmediateTask == nil else { return }
+        let processInfo = ProcessInfo.processInfo
+        guard Self.shouldScanLocally(
+            agentSessionsEnabled: self.settings.agentSessionsEnabled,
+            adaptiveActivityScanningEnabled: self.settings.adaptiveActivityScanningEnabled,
+            lowPowerModeEnabled: processInfo.isLowPowerModeEnabled,
+            thermalState: processInfo.thermalState)
+        else { return }
+        guard let generation = self.localRefreshGate.begin() else { return }
+
+        let includeFileOnlySessions = self.settings.agentSessionsEnabled
+        let localScan = self.localScan
+        self.localImmediateTask = Task { [weak self] in
+            guard !Task.isCancelled else {
+                self?.completeLocalRefresh(generation: generation, sessions: nil, wasCancelled: true)
+                return
+            }
+            let sessions = await localScan(includeFileOnlySessions)
+            self?.completeLocalRefresh(
+                generation: generation,
+                sessions: sessions,
+                wasCancelled: Task.isCancelled)
+        }
+    }
+
+    private func completeLocalRefresh(
+        generation: Int,
+        sessions: [AgentSession]?,
+        wasCancelled: Bool)
+    {
+        self.localImmediateTask = nil
+        let outcome = self.localRefreshGate.finish(generation: generation)
+        if !wasCancelled, outcome.shouldPublish, self.isStarted, self.localMonitoringEnabled, let sessions {
+            self.applyLocalScanResult(sessions)
+        }
+        if outcome.shouldRetry, self.isStarted, self.localMonitoringEnabled {
+            self.requestLocalRefresh()
+        }
+    }
+
+    private func requestRemoteRefresh() {
+        guard self.isStarted, self.settings.agentSessionsEnabled, self.remoteImmediateTask == nil else { return }
+        guard let generation = self.remoteRefreshGate.begin() else { return }
+
+        let manualHosts = self.manualHosts
+        let remoteHostDiscovery = self.remoteHostDiscovery
+        let remoteFetch = self.remoteFetch
+        self.remoteImmediateTask = Task { [weak self] in
+            guard !Task.isCancelled else {
+                self?.completeRemoteRefresh(generation: generation, results: nil, wasCancelled: true)
+                return
+            }
+            var hosts = manualHosts
+            await hosts.append(contentsOf: remoteHostDiscovery())
+            let results = await remoteFetch(hosts)
+            self?.completeRemoteRefresh(
+                generation: generation,
+                results: results,
+                wasCancelled: Task.isCancelled)
+        }
+    }
+
+    private func completeRemoteRefresh(
+        generation: Int,
+        results: [RemoteSessionHostResult]?,
+        wasCancelled: Bool)
+    {
+        self.remoteImmediateTask = nil
+        let outcome = self.remoteRefreshGate.finish(generation: generation)
+        if !wasCancelled,
+           outcome.shouldPublish,
+           self.isStarted,
+           self.settings.agentSessionsEnabled,
+           let results,
+           results != self.remoteHosts
+        {
+            self.remoteHosts = results
+            self.lastUpdatedAt = Date()
+            self.onUpdate?()
+        }
+        if outcome.shouldRetry, self.isStarted, self.settings.agentSessionsEnabled {
+            self.requestRemoteRefresh()
         }
     }
 
