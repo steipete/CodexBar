@@ -119,12 +119,12 @@ extension UsageStore {
     }
 
     func cloudSyncLocalAccountKeys(for provider: UsageProvider) -> Set<String> {
-        var identities: Set<String> = []
+        var identities = Set(self.cloudSyncAccountSnapshots().filter { $0.provider == provider.instanceID }
+            .map(\.accountKey))
         func insert(_ identity: String?) {
             guard let identity else { return }
             identities.insert(AccountSnapshotSyncPayload.accountKey(for: identity))
         }
-
         if let usage = self.snapshots[provider.instanceID] {
             insert(usage.identity?.accountID ?? usage.identity?.accountEmail)
         }
