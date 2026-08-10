@@ -295,16 +295,14 @@ struct UsageStoreManualTokenRefreshTests {
         }
 
         await store.refresh(forceTokenUsage: false)
+        await gate.waitForStart()
         #expect(await gate.hasFinished() == false)
 
         await gate.release()
-        try? await Task.sleep(for: .milliseconds(50))
+        await gate.waitForFinish()
         let calls = await gate.calls
-        if !calls.isEmpty {
-            #expect(calls.map(\.provider) == [.codex])
-            #expect(calls.map(\.force) == [false])
-            #expect(await gate.hasFinished())
-        }
+        #expect(calls.map(\.provider) == [.codex])
+        #expect(calls.map(\.force) == [false])
     }
 
     @Test
