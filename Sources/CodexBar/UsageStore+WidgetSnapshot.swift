@@ -122,6 +122,7 @@ extension UsageStore {
         let snapshotKeys = self.cloudSyncAccountSnapshots().filter { $0.provider == provider.instanceID }
             .map(\.accountKey)
         var identities = Set(snapshotKeys)
+        var hasDefaultCodexSnapshot = false
         func insert(_ identity: String?) {
             guard let identity else { return }
             identities.insert(AccountSnapshotSyncPayload.accountKey(for: identity))
@@ -139,7 +140,7 @@ extension UsageStore {
             insert(account.externalIdentifier)
             insert(account.id.uuidString)
         }
-        // Provider-specific by design: Claude swap subprocesses and Codex managed profiles own extra account IDs.
+        // Provider-specific by design: Claude swap subprocesses own extra IDs; Codex alone has scoped account info.
         if provider == .claude {
             for accountSnapshot in self.claudeSwapAccountSnapshots {
                 insert(accountSnapshot.snapshot?.identity?.accountID)
@@ -147,20 +148,18 @@ extension UsageStore {
                 insert("\(accountSnapshot.id.source):\(accountSnapshot.id.opaqueID)")
             }
         }
-        if provider == .codex,
-           let projection = self.settings.codexVisibleAccountProjectionForMenuDisplay
-        {
-            for account in projection.visibleAccounts {
-                insert(account.workspaceAccountID)
-                insert(account.email)
-                insert(account.id)
-                insert(account.storedAccountID?.uuidString)
+        if provider == .codex {
+            if let projection = self.settings.codexVisibleAccountProjectionForMenuDisplay {
+                for account in projection.visibleAccounts {
+                    insert(account.workspaceAccountID)
+                    insert(account.email)
+                    insert(account.id)
+                    insert(account.storedAccountID?.uuidString)
+                }
             }
+            hasDefaultCodexSnapshot = snapshotKeys.contains(AccountSnapshotSyncPayload.accountKey(for: nil))
         }
-        // Provider-specific by design: only Codex account info is loaded through the selected provider scope.
-        if identities
-            .isEmpty || (provider == .codex && snapshotKeys.contains(AccountSnapshotSyncPayload.accountKey(for: nil)))
-        {
+        if identities.isEmpty || hasDefaultCodexSnapshot {
             let fallback = self.accountInfo(for: provider)
             insert(fallback.email)
         }
