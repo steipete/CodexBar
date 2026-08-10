@@ -1,21 +1,16 @@
 Grok Cost cache retention — current-head real behavior proof
-Banner: final head (no stale short-hash only)
-Full head: 05a0f7a74e77fe362e4928d68fffa4d86fb85359
-Short:     05a0f7a7
-Time:      2026-08-10T02:43:36Z
+Banner: final head
+Time: 2026-08-10T02:44:13Z
 
 Feature under proof:
   1) 90-day mtime expiry drops stale session entries / deletes empty artifacts
   2) Cost-off invalidation bumps write generation + deletes cache
   3) Stale in-flight save (old write token) does NOT recreate the cache
 
-Implementation anchors (this head):
-  - Sources/CodexBarCore/Providers/Grok/GrokTurnUsageCache.swift
-      beginWriteToken(cacheRoot:) / invalidateAndDelete / save(writeToken:)
-  - Sources/CodexBarCore/Providers/Grok/GrokTurnUsageScanner.swift
-      captures writeToken before scan; save uses writeToken
-  - Sources/CodexBar/SettingsStore+Defaults.swift
-      costUsageEnabled=false -> invalidateAndDelete()
+Implementation (this tip):
+  - GrokTurnUsageCacheIO.beginWriteToken / invalidateAndDelete / save(writeToken:)
+  - GrokTurnUsageScanner captures writeToken before scan; save uses writeToken
+  - SettingsStore.costUsageEnabled=false -> invalidateAndDelete()
 
 Regression tests:
   - expires Grok cache entries older than max age and deletes empty artifacts
