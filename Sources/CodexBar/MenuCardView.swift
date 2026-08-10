@@ -1005,6 +1005,9 @@ extension UsageMenuCardView.Model {
                 }
             }
         }
+        if input.provider == .sub2api {
+            details = Self.sub2APILocalizedDetails(details)
+        }
         guard input.hidePersonalInfo else { return details }
         return details.compactMap { section in
             let rows = section.rows.compactMap { row in

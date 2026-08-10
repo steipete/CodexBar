@@ -471,14 +471,62 @@ extension UsageMenuCardView.Model {
             AmpProviderDescriptor.secondaryLabel(snapshot: snapshot) ?? input.metadata.weeklyLabel
         } else if input.provider == .alibabatokenplan {
             AlibabaTokenPlanProviderDescriptor.secondaryLabel(window: snapshot.secondary) ?? input.metadata.weeklyLabel
+        } else if input.provider == .sub2api {
+            "Weekly"
         } else {
             input.metadata.weeklyLabel
         }
+        let tertiaryLabel = input.provider == .sub2api
+            ? L("Monthly")
+            : input.metadata.opusLabel.map(L) ?? L("Sonnet")
         return (
             L(primaryLabel),
             L(secondaryLabel),
-            input.metadata.opusLabel.map(L) ?? L("Sonnet"),
+            tertiaryLabel,
             input.metadata.supportsOpus)
+    }
+
+    static func sub2APILocalizedDetails(_ details: [ProviderDetailSection]) -> [ProviderDetailSection] {
+        details.map { section in
+            guard section.title == "Usage summary" else { return section }
+
+            do {
+                var rows: [ProviderDetailSection.Row] = []
+                var consumedLabels: Set<String> = []
+
+                if let balance = section.rows.first(where: { $0.label == "Balance" }) {
+                    try rows.append(ProviderDetailSection.Row(
+                        label: L("Balance"),
+                        value: balance.value,
+                        secondaryValue: balance.secondaryValue))
+                    consumedLabels.insert(balance.label)
+                }
+
+                for period in [
+                    (label: "Today", requests: "Today requests", tokens: "Today tokens"),
+                    (label: "Total", requests: "All time requests", tokens: "All time tokens"),
+                ] {
+                    guard let requests = section.rows.first(where: { $0.label == period.requests }),
+                          let tokens = section.rows.first(where: { $0.label == period.tokens })
+                    else { continue }
+
+                    var secondaryParts = ["\(tokens.value) \(L("tokens"))"]
+                    if let cost = tokens.secondaryValue {
+                        secondaryParts.append("\(L("Cost")): \(cost)")
+                    }
+                    try rows.append(ProviderDetailSection.Row(
+                        label: L(period.label),
+                        value: "\(requests.value) \(L("requests"))",
+                        secondaryValue: secondaryParts.joined(separator: " · ")))
+                    consumedLabels.formUnion([period.requests, period.tokens])
+                }
+
+                rows.append(contentsOf: section.rows.filter { !consumedLabels.contains($0.label) })
+                return try ProviderDetailSection(title: L("Usage"), rows: rows, chart: section.chart)
+            } catch {
+                return section
+            }
+        }
     }
 
     static func resetText(
