@@ -9,6 +9,7 @@
 - Codex: avoid repeatedly converting historical token snapshots during cost-cache refreshes, preventing sustained CPU usage on large session histories.
 - Codex: make automatic cost-history catch-up near-idle and limit local-history scans to provider refreshes with a 15-minute energy floor.
 - Agent Sessions: stop inactive local and remote refresh schedulers from waking while monitoring is disabled.
+- Cost usage: refresh token-cost data when “Refresh all providers on menu open” is enabled, with a one-minute scan floor to avoid repeated work (#2388). Thanks @betive37!
 
 ## 0.49.1 — 2026-08-09
 
