@@ -88,6 +88,39 @@ struct UsageStoreCodexCostCatchUpTests {
     }
 
     @Test
+    func `catch-up stops when bounded progress revisits an earlier semantic state`() async throws {
+        let store = try Self.makeStore(suite: "cyclic-progress")
+        let progressKeys = ["validation-1", "validation-2", "validation-0"]
+        var advanceCount = 0
+        store._test_codexCostCatchUpStatusOverride = { _ in
+            CostUsageFetcher.CodexScanCatchUpStatus(
+                pending: true,
+                progressKey: "validation-0")
+        }
+        store._test_codexCostCatchUpAdvanceOverride = { _, _, _ in
+            advanceCount += 1
+            return CostUsageFetcher.CodexScanCatchUpStatus(
+                pending: true,
+                progressKey: progressKeys[min(advanceCount - 1, progressKeys.count - 1)])
+        }
+        store._test_codexCostCatchUpSleepOverride = { _ in
+            await Task.yield()
+        }
+        store._test_codexCostCatchUpResourceStateOverride = {
+            (.ac, false, .nominal)
+        }
+
+        store.startCodexCostCatchUpIfNeeded(mode: .accelerated)
+        await Self.waitUntil {
+            store.codexCostCatchUpTask == nil
+        }
+
+        #expect(advanceCount == 3)
+        #expect(store.codexCostCatchUpActivity?.phase == .paused)
+        #expect(store.codexCostCatchUpActivity?.pauseReason == .noProgress)
+    }
+
+    @Test
     func `catch-up continues when existing complete file backlog advances`() async throws {
         let store = try Self.makeStore(suite: "existing-complete-backlog")
         let first = CostUsageScanner.makeFileUsage(

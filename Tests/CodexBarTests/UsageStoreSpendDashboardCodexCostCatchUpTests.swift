@@ -131,6 +131,39 @@ struct UsageStoreSpendDashboardCodexCostCatchUpTests {
     }
 
     @Test
+    func `dashboard catch-up stalls a cache that revisits an earlier semantic state`() async throws {
+        let store = try Self.makeStore(suite: "cyclic-progress")
+        let accounts = [Self.account(id: "cyclic", cacheIdentity: "cache-cyclic")]
+        let progressKeys = ["validation-1", "validation-2", "validation-0"]
+        var advanceCount = 0
+        store._test_spendDashboardCodexCostCatchUpStatusOverride = { _ in
+            Self.status(pending: true, key: "validation-0", processedBytes: 25)
+        }
+        store._test_spendDashboardCodexCostCatchUpAdvanceOverride = { _, _, _ in
+            advanceCount += 1
+            return Self.status(
+                pending: true,
+                key: progressKeys[min(advanceCount - 1, progressKeys.count - 1)],
+                processedBytes: 25)
+        }
+        store._test_spendDashboardCodexCostCatchUpSleepOverride = { _ in
+            await Task.yield()
+        }
+        store._test_spendDashboardCodexCostCatchUpResourceStateOverride = {
+            (.ac, false, .nominal)
+        }
+
+        store.startSpendDashboardCodexCostCatchUpIfNeeded(accounts: accounts, mode: .accelerated)
+        await Self.waitUntil {
+            store.spendDashboardCodexCostCatchUpTask == nil
+        }
+
+        #expect(advanceCount == 3)
+        #expect(store.spendDashboardCodexCostCatchUpActivity?.phase == .paused)
+        #expect(store.spendDashboardCodexCostCatchUpActivity?.pauseReason == .noProgress)
+    }
+
+    @Test
     func `dashboard synchronization keeps an accelerated account queue accelerated`() throws {
         let store = try Self.makeStore(suite: "preserve-mode")
         let accounts = [Self.account(id: "account", cacheIdentity: "cache-account")]

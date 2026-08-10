@@ -117,7 +117,7 @@ extension UsageStore {
 
         var didChangeCache = false
         var previousActiveDuration: TimeInterval?
-        var stalledCacheIdentities: Set<String> = []
+        var (stalledCacheIdentities, seenKeysByCache) = (Set<String>(), statuses.mapValues { Set([$0.progressKey]) })
         while Self.spendDashboardCodexCatchUpIsPending(statuses) {
             do {
                 guard self.spendDashboardCodexCostCatchUpContextIsCurrent(context) else { return }
@@ -197,7 +197,7 @@ extension UsageStore {
                 didChangeCache = didChangeCache || nextStatus.progressKey != previousStatus?.progressKey
                 statuses[account.cacheIdentity] = nextStatus
                 if nextStatus.pending,
-                   nextStatus.progressKey == previousStatus?.progressKey
+                   !seenKeysByCache[account.cacheIdentity, default: []].insert(nextStatus.progressKey).inserted
                 {
                     stalledCacheIdentities.insert(account.cacheIdentity)
                 } else {
