@@ -64,6 +64,7 @@ extension UsageStore {
         }
     }
 
+    /// Builds outbound snapshots only from this Mac's UsageStore; remote fleet snapshots live in CloudSyncState.
     func cloudSyncAccountSnapshots() -> [AccountSnapshotSyncPayload] {
         let deviceID = self.settings.iCloudSyncDeviceID
         var payloads: [String: AccountSnapshotSyncPayload] = [:]

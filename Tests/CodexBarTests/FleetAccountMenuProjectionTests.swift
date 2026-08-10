@@ -42,17 +42,45 @@ struct FleetAccountMenuProjectionTests {
 
     @Test
     func `genuinely distinct remote account remains beside local usage`() {
-        let localCopy = Self.snapshot(accountKey: "local", fetchedAt: Date(timeIntervalSince1970: 200))
-        let distinct = Self.snapshot(accountKey: "remote", fetchedAt: Date(timeIntervalSince1970: 300))
+        let settings = testSettingsStore(suiteName: "FleetAccountMenuProjectionTests-distinct-remote")
+        let store = UsageStore(
+            fetcher: UsageFetcher(environment: [:]),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings,
+            startupBehavior: .testing,
+            environmentBase: [:])
+        let localIdentity = "local-account"
+        let localKey = AccountSnapshotSyncPayload.accountKey(for: localIdentity)
+        let distinctKey = AccountSnapshotSyncPayload.accountKey(for: "remote-account")
+        store.snapshots[.codex] = UsageSnapshot(
+            primary: RateWindow(
+                usedPercent: 25,
+                windowMinutes: 300,
+                resetsAt: nil,
+                resetDescription: nil),
+            secondary: nil,
+            updatedAt: Date(timeIntervalSince1970: 100),
+            identity: ProviderIdentitySnapshot(
+                providerID: .codex,
+                accountEmail: "local@example.com",
+                accountOrganization: nil,
+                loginMethod: nil,
+                accountID: localIdentity))
+        let localCopy = Self.snapshot(accountKey: localKey, fetchedAt: Date(timeIntervalSince1970: 200))
+        let distinct = Self.snapshot(accountKey: distinctKey, fetchedAt: Date(timeIntervalSince1970: 300))
+        let localAccountKeys = store.cloudSyncLocalAccountKeys(for: .codex)
+
         let projection = FleetAccountMenuPlanner.projection(
             provider: .codex,
             snapshots: [distinct, localCopy],
-            currentDeviceID: "local-device",
-            localAccountKeys: ["local"],
+            currentDeviceID: settings.iCloudSyncDeviceID,
+            localAccountKeys: localAccountKeys,
             hasLocalUsage: true)
 
+        #expect(store.cloudSyncAccountSnapshots().map(\.accountKey) == [localKey])
+        #expect(localAccountKeys == [localKey])
         #expect(projection.fallback == nil)
-        #expect(projection.additionalAccounts.map(\.accountKey) == ["remote"])
+        #expect(projection.additionalAccounts.map(\.accountKey) == [distinctKey])
     }
 
     @Test
