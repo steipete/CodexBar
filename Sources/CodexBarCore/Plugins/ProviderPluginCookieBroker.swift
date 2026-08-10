@@ -1,4 +1,3 @@
-#if canImport(JavaScriptCore)
 import Foundation
 
 #if os(macOS)
@@ -111,4 +110,3 @@ public enum UserProviderPluginCookieBroker {
         }
     }
 }
-#endif

@@ -135,6 +135,35 @@ struct PlatformGatingTests {
     }
 
     @Test
+    func `Claude CLI runtime delegates unavailable auth status to owner executable`() async throws {
+        let invocationLog = FileManager.default.temporaryDirectory
+            .appendingPathComponent("claude-cli-runtime-invocations-\(UUID().uuidString).log")
+        let binaryURL = try Self.makeClaudeCLI(loggedIn: nil, invocationLog: invocationLog)
+        defer {
+            try? FileManager.default.removeItem(at: binaryURL)
+            try? FileManager.default.removeItem(at: invocationLog)
+        }
+        let context = self.makeClaudeContext(
+            sourceMode: .cli,
+            env: ["CLAUDE_CLI_PATH": binaryURL.path])
+        let cliFetchOverride: ClaudeStatusProbe.FetchOverride = { _, _, _ in
+            Self.makeClaudeStatus()
+        }
+
+        let outcome = await ClaudeStatusProbe.withFetchOverrideForTesting(cliFetchOverride) {
+            await ClaudeProviderDescriptor.makeDescriptor().fetchPlan.fetchOutcome(
+                context: context,
+                provider: .claude)
+        }
+        let result = try outcome.result.get()
+
+        #expect(result.strategyID == "claude.cli")
+        #expect(outcome.attempts.map(\.strategyID) == ["claude.cli"])
+        #expect(outcome.attempts.map(\.wasAvailable) == [true])
+        #expect(try String(contentsOf: invocationLog, encoding: .utf8) == "auth status --json\n")
+    }
+
+    @Test
     func claudeOAuthUsageDoesNotDetectCLIVersion() {
         #expect(!CodexBarCLI.shouldDetectVersion(
             provider: .claude,
@@ -215,19 +244,19 @@ struct PlatformGatingTests {
             browserDetection: browserDetection)
     }
 
-    private static func makeClaudeCLI(loggedIn: Bool, invocationLog: URL? = nil) throws -> URL {
+    private static func makeClaudeCLI(loggedIn: Bool?, invocationLog: URL? = nil) throws -> URL {
         if let invocationLog {
             try Data().write(to: invocationLog)
         }
         let binaryURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("claude-cli-runtime-\(UUID().uuidString)")
         let recordInvocation = invocationLog.map { "printf '%s\\n' \"$*\" >> '\($0.path)'" } ?? ""
-        let loggedInJSON = loggedIn ? "true" : "false"
+        let authStatusJSON = loggedIn.map { #"{"loggedIn":\#($0)}"# } ?? "not-json"
         let script = """
         #!/bin/sh
         \(recordInvocation)
         if [ "$1" = "auth" ] && [ "$2" = "status" ]; then
-          printf '%s\\n' '{"loggedIn":\(loggedInJSON)}'
+          printf '%s\\n' '\(authStatusJSON)'
         fi
         """
         try FakeExecutable.install(script, at: binaryURL)

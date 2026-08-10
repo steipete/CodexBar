@@ -35,7 +35,9 @@ extension CursorStatusProbe {
         }
 
         // A browser fallback started by this refresh must not overwrite a concurrently committed login.
-        var cacheObservation = CookieHeaderCache.observeForConditionalMutation(provider: .cursor)
+        var cacheObservation = CookieHeaderCache.observeForConditionalMutation(
+            provider: .cursor,
+            coordinator: self.conditionalMutationCoordinator)
 
         if allowCachedSessions,
            let cached = CookieHeaderCache.load(provider: .cursor),

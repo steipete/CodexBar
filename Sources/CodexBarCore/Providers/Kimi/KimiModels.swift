@@ -18,6 +18,7 @@ struct KimiSubscriptionBalance: Codable, Sendable {
     let feature: String?
     let type: String?
     let amountUsedRatio: Double?
+    let kimiCodeUsedRatio: Double?
     let expireTime: String?
 }
 

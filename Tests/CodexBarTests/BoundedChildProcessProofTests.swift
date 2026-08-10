@@ -33,17 +33,20 @@ struct BoundedChildProcessProofTests {
         let runner = TTYCommandRunner()
         let start = ContinuousClock.now
         do {
-            _ = try runner.run(
-                binary: scriptURL.path,
-                send: "",
-                options: .init(timeout: 60, baseEnvironment: environment, initialDelay: 0))
+            _ = try TTYCommandRunner.withOutputLimitOverrideForTesting(64 * 1024) {
+                try runner.run(
+                    binary: scriptURL.path,
+                    send: "",
+                    options: .init(timeout: 60, baseEnvironment: environment, initialDelay: 0))
+            }
             Issue.record("Expected the synthetic child to exceed the PTY output limit")
         } catch TTYCommandRunner.Error.outputTooLarge {
             // Expected: the production runner propagated the bounded-output error.
         } catch {
             Issue.record("Unexpected overflow error: \(error)")
         }
-        #expect(start.duration(to: .now) < .seconds(10))
+        // A small test-only limit isolates abort latency from the host's PTY throughput.
+        #expect(start.duration(to: .now) < .seconds(5))
 
         let pidText = try String(contentsOf: pidURL, encoding: .utf8)
             .trimmingCharacters(in: .whitespacesAndNewlines)

@@ -52,26 +52,19 @@ public enum SyntheticProviderDescriptor {
     }
 
     private static func fetchPlan() -> ProviderFetchPlan {
-        #if canImport(JavaScriptCore)
-        .scriptPrototypeAPI(
-            configuration: .init(
-                provider: .synthetic,
-                plugin: "synthetic",
-                secretKey: SyntheticSettingsReader.apiKeyKey,
-                strategyID: "synthetic.api"),
-            resolveToken: { ProviderTokenResolver.token(for: .synthetic, environment: $0) },
-            missingCredentialsError: { SyntheticSettingsError.missingToken },
-            loadUsage: { apiKey, _ in
-                try await SyntheticUsageFetcher.fetchUsage(apiKey: apiKey).toUsageSnapshot()
-            })
-        #else
-        .apiToken(
-            strategyID: "synthetic.api",
-            resolveToken: { ProviderTokenResolver.token(for: .synthetic, environment: $0) },
-            missingCredentialsError: { SyntheticSettingsError.missingToken },
-            loadUsage: { apiKey, _ in
-                try await SyntheticUsageFetcher.fetchUsage(apiKey: apiKey).toUsageSnapshot()
-            })
-        #endif
+        ProviderFetchPlan(
+            sourceModes: [.auto, .api],
+            pipeline: ProviderFetchPipeline(resolveStrategies: { _ in
+                [ScriptFetchStrategy(
+                    id: "synthetic.js",
+                    provider: .synthetic,
+                    bundledPlugin: "synthetic",
+                    secretKey: SyntheticSettingsReader.apiKeyKey,
+                    sourceLabel: "api",
+                    resolveSecret: { environment in
+                        self.credentials.resolveToken(environment: environment)?.token
+                    },
+                    isEnabled: { _ in true })]
+            }))
     }
 }

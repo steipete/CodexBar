@@ -107,8 +107,15 @@ extension UsageMenuCardView.Model.Metric {
         return MenuCardHeightFingerprint.join([
             self.id,
             self.statusText == nil ? "status=0" : "status=1",
-            presentation.resetText == nil ? "reset=0" : "reset=1",
-            presentation.metaText == nil ? "meta=0" : "meta=1",
+            // The title shares horizontal space with a wrapping reset label. Track it only
+            // when that label exists so ordinary percentage ticks keep the fixed-row cache.
+            presentation.resetText == nil
+                ? "title=fixed"
+                : MenuCardHeightFingerprint.field("title", presentation.titleText),
+            // Reset and meta rows may wrap to a second line, so their text
+            // content (not just presence) can change the measured card height.
+            MenuCardHeightFingerprint.field("reset", presentation.resetText),
+            MenuCardHeightFingerprint.field("meta", presentation.metaText),
             self.detailText == nil ? "detail=0" : "detail=1",
             self.pacePercent == nil ? "pace=0" : "pace=1",
             self.paceOnTop ? "paceTop=1" : "paceTop=0",

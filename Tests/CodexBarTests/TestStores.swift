@@ -171,13 +171,14 @@ func withStatusItemControllerForTesting<T>(
     store: UsageStore,
     settings: SettingsStore,
     fetcher: UsageFetcher,
+    account: AccountInfo? = nil,
     statusBar: NSStatusBar = .system,
     operation: (StatusItemController) throws -> T) rethrows -> T
 {
     let controller = StatusItemController(
         store: store,
         settings: settings,
-        account: fetcher.loadAccountInfo(),
+        account: account ?? fetcher.loadAccountInfo(),
         updater: DisabledUpdaterController(),
         preferencesSelection: PreferencesSelection(),
         statusBar: statusBar)
@@ -191,13 +192,14 @@ func withStatusItemControllerForTesting<T>(
     store: UsageStore,
     settings: SettingsStore,
     fetcher: UsageFetcher,
+    account: AccountInfo? = nil,
     statusBar: NSStatusBar = .system,
     operation: (StatusItemController) async throws -> T) async rethrows -> T
 {
     let controller = StatusItemController(
         store: store,
         settings: settings,
-        account: fetcher.loadAccountInfo(),
+        account: account ?? fetcher.loadAccountInfo(),
         updater: DisabledUpdaterController(),
         preferencesSelection: PreferencesSelection(),
         statusBar: statusBar)

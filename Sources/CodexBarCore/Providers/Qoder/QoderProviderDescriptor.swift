@@ -78,7 +78,6 @@ public enum QoderProviderDescriptor {
             sourceModes: [.auto, .web],
             pipeline: ProviderFetchPipeline(resolveStrategies: { context in
                 let swift = QoderWebFetchStrategy()
-                #if canImport(JavaScriptCore)
                 guard ProviderPluginPrototype.isEnabled(environment: context.env) else { return [swift] }
                 return [
                     ScriptFetchStrategy(
@@ -92,9 +91,6 @@ public enum QoderProviderDescriptor {
                         }),
                     swift,
                 ]
-                #else
-                return [swift]
-                #endif
             }))
     }
 

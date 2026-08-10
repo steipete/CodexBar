@@ -1,5 +1,5 @@
 ---
-summary: "JavaScriptCore provider-plugin prototype API, safety boundary, enablement, and limitations."
+summary: "JavaScript provider-plugin prototype API, engine benchmark, safety boundary, enablement, and limitations."
 read_when:
   - Working on the JavaScript provider prototype
   - Converting a first-party provider to a bundled JavaScript resource
@@ -14,8 +14,52 @@ This document describes the bundled first-party conversion prototype. User-insta
 This prototype proves that an existing first-party `UsageProvider` can define its manifest, HTTP requests, response
 parsing, and generic `UsageSnapshot` projection in one bundled JavaScript file. It is deliberately not a user-plugin
 system: IDs remain compile-time `UsageProvider` cases and scripts ship inside CodexBar. Crof, Venice, OpenRouter,
-ClawRouter, Deepgram, and sub2api have cut over to the bundled script on JavaScriptCore platforms; their native fetch
-cores remain compiled only for the Linux CLI.
+ClawRouter, Deepgram, sub2api, Synthetic, Poe, xAI, and z.ai use the same bundled script on Apple platforms and Linux;
+their native fetch twins have been removed.
+
+The runtime selects QuickJS on every platform. QuickJS uses a 20-second in-engine interrupt watchdog, a 64 MiB heap
+limit, and a 2 MiB JavaScript stack limit. On Apple platforms, set `CODEXBAR_PLUGIN_ENGINE=jsc` or enable the
+JavaScriptCore rollback in **Settings → Debug → Provider Plugins** and restart CodexBar. An explicit engine environment
+value overrides the persisted Debug setting. JavaScriptCore remains in-tree for rollback and A/B drift detection.
+
+## Engine benchmark
+
+The test-only `ProviderPluginEngineBenchmarkTests` instrumentation compares both engines without pass/fail thresholds.
+Run it on macOS with
+`CODEXBAR_PLUGIN_BENCHMARK=1 swift test --filter ProviderPluginEngineBenchmarkTests`. The August 8, 2026 baseline below
+was captured from a Swift debug build on an Apple M3 Ultra. Creation includes loading and linting each bundled source,
+creating its runtime, and reading its manifest; values are the median of five samples in milliseconds.
+
+| Bundled plugin | JavaScriptCore | QuickJS |
+| --- | ---: | ---: |
+| clawrouter | 2.167 | 3.563 |
+| crof | 1.606 | 1.736 |
+| deepgram | 2.074 | 3.127 |
+| manus | 0.907 | 4.241 |
+| openai | 2.859 | 4.279 |
+| openrouter | 1.901 | 3.333 |
+| perplexity | 1.114 | 3.861 |
+| poe | 1.972 | 3.681 |
+| qoder | 0.863 | 2.362 |
+| sub2api | 2.848 | 4.018 |
+| synthetic | 2.617 | 5.985 |
+| t3chat | 1.521 | 1.734 |
+| venice | 1.483 | 1.881 |
+| xai | 1.359 | 2.470 |
+| zai | 2.862 | 8.986 |
+
+Fetch timings reuse one context for 50 iterations with fixture transport. Poe exercises all five history pages with
+100 entries per page, OpenRouter performs its credits and key requests, and Crof performs its single usage request.
+Memory is a rough macOS task physical-footprint delta while retaining all 15 contexts, divided by context count.
+
+| Engine | Poe (50) | OpenRouter (50) | Crof (50) | Rough peak delta/context |
+| --- | ---: | ---: | ---: | ---: |
+| JavaScriptCore | 321.237 ms | 36.424 ms | 23.917 ms | 806.4 KiB |
+| QuickJS | 1000.066 ms | 90.610 ms | 38.119 ms | 117.3 KiB |
+
+At this representative workload QuickJS trades roughly 1.6–3.1× fetch time for a much smaller measured context
+footprint. All operations stay well below the 20-second watchdog; these figures are instrumentation for future engine
+work, not a performance contract.
 
 Plugin manifests and their projected snapshots now carry a validated `ProviderInstanceID`. The prototype still maps
 that instance ID to an existing first-party `UsageProvider` before using browser-cookie brokerage or other bespoke
@@ -24,13 +68,14 @@ case therefore remain out of scope for this prototype.
 
 ## Enable and test
 
-Set `CODEXBAR_JS_PROVIDERS=1` in CodexBar's environment. Synthetic, OpenAI, z.ai, Poe, xAI, Manus,
+Set `CODEXBAR_JS_PROVIDERS=1` in CodexBar's environment. OpenAI, Manus,
 Perplexity, T3 Chat, and Qoder then prepend a script strategy to their existing pipeline.
 A missing required secret or disabled cookie source leaves the script
 strategy unavailable and permits the Swift strategy to run; a loaded script that fails does not fall back, so parity
 defects stay visible. Without the variable, the resolver returns the original Swift strategy only and does not load
-JavaScriptCore or a plugin resource for those providers. Crof, Venice, OpenRouter, ClawRouter, Deepgram, and sub2api
-always resolve only their script strategy on JavaScriptCore platforms; `CODEXBAR_JS_PROVIDERS` does not affect them.
+an engine or plugin resource for those providers. Crof, Venice, OpenRouter, ClawRouter, Deepgram, sub2api, Synthetic,
+Poe, xAI, and z.ai always resolve only their script strategy on every platform; `CODEXBAR_JS_PROVIDERS` does not affect
+them.
 
 Run the focused proof with:
 
@@ -38,6 +83,7 @@ Run the focused proof with:
 swift test --filter ProviderPluginRuntimeTests
 swift test --filter ProviderPluginParityTests
 swift test --filter ProviderPluginDetailsParityTests
+./Scripts/test-plugin-engines.sh
 ```
 
 The parity suites send canned responses through an injected `ProviderHTTPTransport`. Flag-gated providers compare the
@@ -86,9 +132,9 @@ Cookie plugins omit `auth`, declare `capabilities: ["browser-cookies"]`, and lis
 
 ## `ctx` reference
 
-`ctx` exists only as the argument to `fetchUsage`; it is not a global. JavaScriptCore supplies standard ECMAScript
-built-ins, but no browser or Node host environment. Tests assert that `fetch`, `XMLHttpRequest`, `setTimeout`, and
-`setInterval` are undefined.
+`ctx` exists only as the argument to `fetchUsage`; it is not a global. QuickJS and the JavaScriptCore rollback engine
+supply standard ECMAScript built-ins, but no browser or Node host environment. Tests assert that `fetch`,
+`XMLHttpRequest`, `setTimeout`, and `setInterval` are undefined.
 
 - `await ctx.http.getJSON(url, opts?)` performs a GET and returns `{status, headers, json}`.
 - `await ctx.http.get(url, opts?)` performs a GET and returns `{status, headers, bodyText}`.
@@ -112,7 +158,10 @@ built-ins, but no browser or Node host environment. Tests assert that `fetch`, `
   values are also substring-redacted from errors crossing back to Swift.
 - `ctx.cache.get(key)` and `ctx.cache.set(key, value, ttlSeconds)` provide an in-memory, per-context cache. TTLs are
   positive and capped at 24 hours.
-- `ctx.date.iso(text)`, `unixSeconds(number)`, and `unixMillis(number)` return JavaScript `Date` objects.
+- `ctx.date.now()`, `iso(text)`, `unixSeconds(number)`, and `unixMillis(number)` return JavaScript `Date` objects.
+  `now()` uses the host refresh clock so fixtures and retries share the snapshot timestamp.
+- `ctx.date.nowMillis()` returns that same refresh clock as Unix epoch milliseconds for deterministic date arithmetic
+  (used by the z.ai quota-rate row).
 - `ctx.date.nextDailyReset(timeZoneIdentifier, hour)` returns the next wall-clock hour in an IANA time zone, including
   DST transitions. Crof uses `America/Chicago` at hour `0`.
 - `ctx.jwt.decode(token)` decodes the JSON payload segment without verifying a signature.
@@ -166,18 +215,18 @@ bound violation fails the entire fetch with its property path.
 
 ## Concurrency and execution limit
 
-Each runtime owns one `JSContext` confined to a dedicated serial dispatch queue; `JSContext` and every `JSValue` remain
-on that executor. Promise `then`/rejection callbacks converge on a lock-protected checked continuation gate, so network,
-timeout, and script completion can resume Swift exactly once. The exported `JSContextGroupSetExecutionTimeLimit` symbol
-has no declaration in the public macOS JavaScriptCore headers, so the prototype does not bind that private SPI.
+Each runtime owns one engine context confined to a dedicated serial worker. QuickJS uses a 4 MiB native-stack thread,
+leaving guard-page margin beyond its 2 MiB JavaScript stack limit. Promise `then`/rejection callbacks converge on a
+lock-protected checked continuation gate, so network, timeout, and script completion can resume Swift exactly once.
+QuickJS's `JS_SetInterruptHandler` stops evaluation on that worker when the 20-second watchdog fires;
+the poisoned context is discarded and the next refresh creates a fresh one, which the hung-script recovery test proves.
 
-Instead, a 20-second wall-clock watchdog fails the refresh and discards the poisoned worker; the next refresh creates a
-new context on a fresh executor, which the hung-script recovery test proves. This keeps refresh callers responsive but
-cannot interrupt the abandoned JavaScriptCore thread, which may remain alive until process exit. A production plugin
-runtime needs a public interrupt API or a killable helper-process boundary before accepting untrusted scripts.
-
-The same watchdog is production-default for first-party cut-over providers. It is part of the shared runtime, not the
-prototype flag, so cut-over providers retain timeout and fresh-context recovery without `CODEXBAR_JS_PROVIDERS`.
+The same hard-interrupt watchdog is production-default for first-party cut-over providers. It is part of the shared
+runtime, not the prototype flag, so cut-over providers retain timeout and fresh-context recovery without
+`CODEXBAR_JS_PROVIDERS`. The Apple-only JavaScriptCore rollback still uses a `JSContext` and `JSValue` objects confined
+to its executor. The exported `JSContextGroupSetExecutionTimeLimit` symbol has no declaration in public macOS headers,
+so the rollback path does not bind that private SPI: its watchdog returns to the caller and discards the poisoned
+context, but it cannot interrupt the abandoned JavaScriptCore thread, which may remain alive until process exit.
 
 ## Current limitations
 

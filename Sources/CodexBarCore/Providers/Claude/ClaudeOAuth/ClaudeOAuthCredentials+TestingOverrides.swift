@@ -28,6 +28,8 @@ extension ClaudeOAuthCredentialsStore {
     @TaskLocal static var taskClaudeKeychainFingerprintStoreOverride: ClaudeKeychainFingerprintStore?
     @TaskLocal static var taskPendingCacheClearStoreOverride: ClaudeOAuthPendingCacheClearStore?
     @TaskLocal static var taskImplicitPendingCacheClearStoreOverride: ClaudeOAuthPendingCacheClearStore?
+    @TaskLocal static var taskDirectKeychainReadConsentRevocationMarkerStoreOverride:
+        DirectKeychainReadConsentRevocationMarkerStore?
     @TaskLocal static var taskUseEnvironmentCredentialsURLForTesting = false
 
     typealias OAuthCacheOperation = KeychainCacheStore.Operation
@@ -154,6 +156,28 @@ extension ClaudeOAuthCredentialsStore {
         var record: ClaudeOAuthCredentialRecord?
         var timestamp: Date?
         var profileIdentifier: String?
+    }
+
+    final class DirectKeychainReadConsentRevocationMarkerStore: @unchecked Sendable {
+        private let lock = NSLock()
+        private var value: String?
+
+        var marker: String? {
+            self.lock.withLock { self.value }
+        }
+
+        func advance() {
+            self.lock.withLock { self.value = UUID().uuidString }
+        }
+    }
+
+    static func withDirectKeychainReadConsentRevocationMarkerStoreForTesting<T>(
+        _ store: DirectKeychainReadConsentRevocationMarkerStore,
+        operation: () throws -> T) rethrows -> T
+    {
+        try self.$taskDirectKeychainReadConsentRevocationMarkerStoreOverride.withValue(store) {
+            try operation()
+        }
     }
 
     static func withClaudeKeychainOverridesForTesting<T>(

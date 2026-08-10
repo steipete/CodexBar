@@ -378,9 +378,23 @@ struct UsagePaceTextTests {
             resetsAt: now.addingTimeInterval(2 * 3600),
             resetDescription: nil)
 
-        let detail = UsagePaceText.sessionDetail(provider: .zai, window: window, now: now)
+        let detail = UsagePaceText.sessionDetail(provider: .deepseek, window: window, now: now)
 
         #expect(detail == nil)
+    }
+
+    @Test
+    func `session pace detail shows for zai five-hour window`() {
+        let now = Date(timeIntervalSince1970: 0)
+        let window = RateWindow(
+            usedPercent: 50,
+            windowMinutes: 300,
+            resetsAt: now.addingTimeInterval(2 * 3600),
+            resetDescription: nil)
+
+        let detail = UsagePaceText.sessionDetail(provider: .zai, window: window, now: now)
+
+        #expect(detail != nil)
     }
 
     @Test

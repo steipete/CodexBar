@@ -568,6 +568,17 @@ if [[ ! -d "$APP/Contents/Resources/KeyboardShortcuts_KeyboardShortcuts.bundle" 
   exit 1
 fi
 
+# The helper CLI resolves CodexBarCore resources beside its executable. Keep a
+# dedicated copy in Helpers; the app copy above remains in Contents/Resources.
+CORE_RESOURCE_BUNDLE="${PREFERRED_BUILD_DIR}/CodexBar_CodexBarCore.bundle"
+if [[ ! -d "$CORE_RESOURCE_BUNDLE" ]]; then
+  echo "ERROR: Missing CodexBarCore SwiftPM resource bundle for CodexBarCLI." >&2
+  echo "Expected: ${CORE_RESOURCE_BUNDLE}" >&2
+  exit 1
+fi
+rm -rf "$APP/Contents/Helpers/CodexBar_CodexBarCore.bundle"
+cp -R "$CORE_RESOURCE_BUNDLE" "$APP/Contents/Helpers/"
+
 # Ensure contents are writable before stripping attributes and signing.
 chmod -R u+w "$APP"
 
@@ -578,6 +589,9 @@ find "$APP" -name '._*' -delete
 # Sign helper binaries if present
 if [[ -f "${APP}/Contents/Helpers/CodexBarCLI" ]]; then
   codesign "${CODESIGN_ARGS[@]}" "${APP}/Contents/Helpers/CodexBarCLI"
+fi
+if [[ -d "${APP}/Contents/Helpers/CodexBar_CodexBarCore.bundle" ]]; then
+  codesign "${CODESIGN_ARGS[@]}" "${APP}/Contents/Helpers/CodexBar_CodexBarCore.bundle"
 fi
 if [[ -f "${APP}/Contents/Helpers/CodexBarClaudeWatchdog" ]]; then
   codesign "${CODESIGN_ARGS[@]}" "${APP}/Contents/Helpers/CodexBarClaudeWatchdog"
@@ -608,4 +622,10 @@ rm -rf "$APP_FINAL"
 mv "$APP" "$APP_FINAL"
 APP="$APP_FINAL"
 verify_packaged_app_integrity "$APP"
+# Release gate for the 0.48.0 crash class (#2738): launch the packaged binary
+# with the build checkout unreadable so a `Bundle.module`-style compile-time
+# path dependency fails packaging here instead of on user machines.
+if [[ "$LOWER_CONF" == "release" ]]; then
+  "$ROOT/Scripts/verify_packaged_app_launch.sh" "$APP"
+fi
 echo "Created $APP"

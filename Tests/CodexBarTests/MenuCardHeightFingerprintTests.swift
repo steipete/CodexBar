@@ -34,7 +34,7 @@ struct MenuCardHeightFingerprintTests {
     }
 
     @Test
-    func `height fingerprint tracks optional metric rows rather than their text`() {
+    func `height fingerprint tracks wrapping metric text content`() {
         let bare = Self.model(statusText: nil).heightFingerprint(section: "card")
         let withReset = Self.model(statusText: nil, resetText: "Resets in 2h").heightFingerprint(section: "card")
         let withMeta = Self.model(statusText: nil, detailLeftText: "20% in reserve")
@@ -52,8 +52,32 @@ struct MenuCardHeightFingerprintTests {
 
         #expect(bare != withReset)
         #expect(bare != withMeta)
-        #expect(withMeta == withChangedMeta)
-        #expect(withMeta == withFoldedForecast)
+        // Meta and reset rows can wrap to a second line, so any text change
+        // must invalidate the cached height instead of reusing a short frame.
+        #expect(withMeta != withChangedMeta)
+        #expect(withMeta != withFoldedForecast)
+    }
+
+    @Test
+    func `height fingerprint invalidates when wrapping text grows from short to long`() {
+        let shortReset = Self.model(statusText: nil, resetText: "Resets in 2h")
+            .heightFingerprint(section: "card")
+        let widerTitle = Self.model(percent: 100, statusText: nil, resetText: "Resets in 2h")
+            .heightFingerprint(section: "card")
+        let longReset = Self.model(
+            statusText: nil,
+            resetText: "Resets tomorrow at 6:00 AM after a very long localized description")
+            .heightFingerprint(section: "card")
+        let shortMeta = Self.model(statusText: nil, detailLeftText: "On pace")
+            .heightFingerprint(section: "card")
+        let longMeta = Self.model(
+            statusText: nil,
+            detailLeftText: "Estimated 2 session quotas left with a generously long localized pace explanation")
+            .heightFingerprint(section: "card")
+
+        #expect(shortReset != widerTitle)
+        #expect(shortReset != longReset)
+        #expect(shortMeta != longMeta)
     }
 
     @Test

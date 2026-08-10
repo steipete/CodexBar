@@ -16,16 +16,52 @@ public enum ClaudeAccountProfile {
         let oauthAccount: OAuthAccount?
     }
 
+    /// What Claude's plaintext account config can prove about CLI credential ownership.
+    /// `signedOut` requires positive evidence (no config file, or a cleanly parsed config with no
+    /// OAuth account); an unreadable, malformed, or unrecognized config is `indeterminate` because
+    /// it cannot establish that CLI storage is absent.
+    public enum ConfigOwnershipEvidence: Equatable, Sendable {
+        case signedIn(accountUuid: String)
+        case signedOut
+        case indeterminate
+    }
+
     public static func accountUuid(environment: [String: String]) -> String? {
-        let url = ClaudeConfigPaths.accountConfigURL(environment: environment)
-        guard let data = try? Data(contentsOf: url),
-              let decoded = try? JSONDecoder().decode(ClaudeConfigAccount.self, from: data),
-              let uuid = decoded.oauthAccount?.accountUuid?.trimmingCharacters(in: .whitespacesAndNewlines),
-              !uuid.isEmpty
-        else {
+        guard case let .signedIn(uuid) = self.configOwnershipEvidence(environment: environment) else {
             return nil
         }
         return uuid
+    }
+
+    public static func configOwnershipEvidence(environment: [String: String]) -> ConfigOwnershipEvidence {
+        let url = ClaudeConfigPaths.accountConfigURL(environment: environment)
+        let data: Data
+        do {
+            data = try Data(contentsOf: url)
+        } catch let error as NSError
+            where error.domain == NSCocoaErrorDomain
+            && (error.code == NSFileReadNoSuchFileError || error.code == NSFileNoSuchFileError)
+        {
+            // A verifiably missing config is positive evidence that no signed-in CLI exists here.
+            return .signedOut
+        } catch {
+            // Present but unreadable (permissions, I/O): cannot prove CLI storage is absent.
+            return .indeterminate
+        }
+        guard let decoded = try? JSONDecoder().decode(ClaudeConfigAccount.self, from: data) else {
+            // Malformed or unrecognized schema: cannot prove CLI storage is absent.
+            return .indeterminate
+        }
+        guard let oauthAccount = decoded.oauthAccount else {
+            return .signedOut
+        }
+        guard let uuid = oauthAccount.accountUuid?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !uuid.isEmpty
+        else {
+            // An OAuth account stanza without a usable identity is not proof of a signed-out CLI.
+            return .indeterminate
+        }
+        return .signedIn(accountUuid: uuid)
     }
 
     /// A process-local ownership key for Claude TUI reuse. Missing identity fails closed with a fresh scope.

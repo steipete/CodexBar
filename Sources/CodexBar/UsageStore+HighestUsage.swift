@@ -13,7 +13,7 @@ extension UsageStore {
         for instanceID in self.enabledProviders() {
             guard let provider = instanceID.firstPartyProvider,
                   candidateSet?.contains(provider) ?? true,
-                  let snapshot = self.snapshots[instanceID]
+                  let snapshot = self.menuBarSnapshot(for: instanceID)
             else { continue }
             guard let window = self.menuBarMetricWindowForHighestUsage(
                 provider: provider,

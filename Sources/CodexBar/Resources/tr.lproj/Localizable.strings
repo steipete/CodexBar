@@ -672,6 +672,8 @@
 "copyright" = "© 2026 Peter Steinberger. MIT Lisansı.";
 
 /* Debug Pane */
+"use_javascriptcore_plugin_engine" = "Sağlayıcı eklentileri için JavaScriptCore kullan";
+"use_javascriptcore_plugin_engine_subtitle" = "Yalnızca uyumluluk geri dönüşü. Uygulamak için CodexBar’ı yeniden başlatın; CODEXBAR_PLUGIN_ENGINE bu ayarı geçersiz kılar.";
 "section_logging" = "Günlükleme";
 "enable_file_logging" = "Dosya günlüğünü etkinleştir";
 "enable_file_logging_subtitle" = "Hata ayıklama için günlükleri %@ konumuna yaz.";
@@ -1428,3 +1430,6 @@
 "Enter every endpoint setting to review the exact network origins." = "Kullanılacak ağ kaynaklarını tam olarak incelemek için tüm uç nokta ayarlarını girin.";
 "Approve" = "Onayla";
 "Install" = "Yükle";
+"5-hour usage" = "5 saatlik kullanım";
+"7-day usage" = "7 günlük kullanım";
+"Total usage" = "Toplam kullanım";

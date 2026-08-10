@@ -67,6 +67,18 @@ browser session when the CLI surface does not expose billing.
    - Uncached input = `inputTokens - cachedReadTokens` (ACP full input minus cache).
    - Cost USD = `costUsdTicks / 1e10` when present; missing ticks are not estimated.
    - Project breakdown uses `summary.json` → `info.cwd`.
+   - **Local parse cache (privacy):** when Cost tracking is enabled for Grok,
+     CodexBar may write a bounded on-disk parse cache under the user Caches
+     directory (`~/Library/Caches/CodexBar/cost-usage/grok-turns-v*.json` on
+     macOS; same relative path under the process cache root elsewhere). The
+     cache is **local-only** (never uploaded), mirrors the Codex cost-cache
+     safety model, and exists so budget-deferred session archives can catch up
+     without re-reading every log on each refresh. Stored fields are limited to
+     session/file path keys, session and event IDs, mtime/size, optional `cwd`,
+     timestamps, model names, token totals, and reported cost when present—no
+     prompt/completion content. Load refuses oversized artifacts; save prunes
+     oldest session files by entry and byte budgets. Disable Cost for Grok (or
+     delete the cache file) to stop further writes and clear retained metadata.
 5) **Local session signals** (informational fallback)
    - Walks `~/.grok/sessions/<encoded-cwd>/<session-id>/signals.json` files (last 30 days).
    - Aggregates `totalTokensBeforeCompaction`, `contextTokensUsed`, `modelsUsed`,

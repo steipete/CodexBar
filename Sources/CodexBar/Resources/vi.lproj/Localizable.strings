@@ -662,6 +662,8 @@
 "copyright" = "© 2026 Peter Steinberger. Giấy phép MIT.";
 
 /* Debug Pane */
+"use_javascriptcore_plugin_engine" = "Dùng JavaScriptCore cho phần bổ trợ nhà cung cấp";
+"use_javascriptcore_plugin_engine_subtitle" = "Chỉ dùng để quay lui tương thích. Khởi động lại CodexBar để áp dụng; CODEXBAR_PLUGIN_ENGINE ghi đè cài đặt này.";
 "section_logging" = "Ghi nhật ký";
 "enable_file_logging" = "Cho phép ghi nhật ký tệp";
 "enable_file_logging_subtitle" = "Ghi nhật ký vào %@ để gỡ lỗi.";
@@ -1427,3 +1429,6 @@
 "Enter every endpoint setting to review the exact network origins." = "Nhập đầy đủ các cài đặt điểm cuối để xem chính xác các nguồn mạng.";
 "Approve" = "Phê duyệt";
 "Install" = "Cài đặt";
+"5-hour usage" = "Mức sử dụng 5 giờ";
+"7-day usage" = "Mức sử dụng 7 ngày";
+"Total usage" = "Tổng mức sử dụng";

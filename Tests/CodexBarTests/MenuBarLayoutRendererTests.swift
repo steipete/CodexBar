@@ -58,6 +58,32 @@ struct MenuBarLayoutRendererTests {
     }
 
     @Test
+    func `Notion secondary percentage renders and announces monthly cadence`() {
+        let renderer = MenuBarLayoutRenderer()
+        let output = renderer.render(
+            layout: MenuBarLayout(lines: [[.percent(window: .weekly)]]),
+            data: self.data(provider: .notion),
+            icon: nil,
+            options: self.options())
+
+        #expect(output.attributedTitle.string == "M 60%")
+        #expect(output.accessibilityLabel == L("%@ %@", L("Monthly"), "60%"))
+    }
+
+    @Test
+    func `Notion secondary pace announces monthly cadence`() {
+        let renderer = MenuBarLayoutRenderer()
+        let output = renderer.render(
+            layout: MenuBarLayout(lines: [[.pace(window: .weekly)]]),
+            data: self.data(provider: .notion),
+            icon: nil,
+            options: self.options())
+
+        #expect(output.attributedTitle.string == "+11%")
+        #expect(output.accessibilityLabel == L("%@ %@ %@", L("Monthly"), L("display_mode_pace").lowercased(), "+11%"))
+    }
+
+    @Test
     func `icon attachment matches the default template size and appearance`() throws {
         let renderer = MenuBarLayoutRenderer()
         let icon = NSImage(size: NSSize(width: 16, height: 16))
@@ -86,6 +112,7 @@ struct MenuBarLayoutRendererTests {
     func `missing token data keeps every sibling visible as a placeholder`() {
         let renderer = MenuBarLayoutRenderer()
         let missingData = MenuBarLayoutRenderData(
+            provider: .codex,
             iconKey: "missing",
             providerName: nil,
             accountLabel: nil,
@@ -147,6 +174,7 @@ struct MenuBarLayoutRendererTests {
     func `pace token stays a placeholder while siblings keep rendering`() {
         let renderer = MenuBarLayoutRenderer()
         let data = MenuBarLayoutRenderData(
+            provider: .codex,
             iconKey: "codex",
             providerName: "Codex",
             accountLabel: nil,
@@ -277,6 +305,41 @@ struct MenuBarLayoutRendererTests {
     }
 
     @Test
+    func `countdown uses the exact clock while caching an unchanged displayed minute`() {
+        let renderer = MenuBarLayoutRenderer()
+        let minuteStart = self.now
+        let now = minuteStart.addingTimeInterval(51)
+        let resetAt = minuteStart.addingTimeInterval(6 * 60 + 50)
+        let data = self.data(automaticResetAt: resetAt)
+        let layout = MenuBarLayout(lines: [[.resetCountdown]])
+
+        // Rounding the clock back to the wall-minute boundary reproduces the reported one-minute mismatch.
+        #expect(UsageFormatter.resetCountdownDescription(from: resetAt, now: minuteStart) == "in 7m")
+        let first = renderer.render(
+            layout: layout,
+            data: data,
+            icon: nil,
+            options: self.options(now: now))
+        #expect(first.attributedTitle.string == "in 6m")
+
+        // A different exact instant with the same visible value still hits the attributed-title cache.
+        let sameMinute = renderer.render(
+            layout: layout,
+            data: data,
+            icon: nil,
+            options: self.options(now: now.addingTimeInterval(20)))
+        #expect(first.attributedTitle === sameMinute.attributedTitle)
+
+        let nextMinute = renderer.render(
+            layout: layout,
+            data: data,
+            icon: nil,
+            options: self.options(now: now.addingTimeInterval(60)))
+        #expect(nextMinute.attributedTitle.string == "in 5m")
+        #expect(first.attributedTitle !== nextMinute.attributedTitle)
+    }
+
+    @Test
     func `usage bar follows remaining display direction`() {
         let renderer = MenuBarLayoutRenderer()
         let output = renderer.render(
@@ -303,6 +366,7 @@ struct MenuBarLayoutRendererTests {
             resetsAt: nil,
             resetDescription: "Friday at 10:00"))
         let data = MenuBarLayoutRenderData(
+            provider: .codex,
             iconKey: "codex",
             providerName: "Codex",
             accountLabel: nil,
@@ -351,8 +415,14 @@ struct MenuBarLayoutRendererTests {
             .attribute(.foregroundColor, at: textIndex, effectiveRange: nil) as? NSColor == .labelColor)
     }
 
-    private func data(automaticUsedPercent: Double = 50) -> MenuBarLayoutRenderData {
+    private func data(
+        automaticUsedPercent: Double = 50,
+        provider: UsageProvider = .codex,
+        automaticResetAt: Date? = nil)
+        -> MenuBarLayoutRenderData
+    {
         MenuBarLayoutRenderData(
+            provider: provider,
             iconKey: "codex",
             providerName: "Codex",
             accountLabel: "user@example.com",
@@ -375,7 +445,7 @@ struct MenuBarLayoutRendererTests {
             automatic: MenuBarLayoutRenderWindow(RateWindow(
                 usedPercent: automaticUsedPercent,
                 windowMinutes: 300,
-                resetsAt: self.now.addingTimeInterval(2 * 60 * 60),
+                resetsAt: automaticResetAt ?? self.now.addingTimeInterval(2 * 60 * 60),
                 resetDescription: nil)),
             sessionPace: "-8%",
             weeklyPace: "+11%",
@@ -385,14 +455,14 @@ struct MenuBarLayoutRendererTests {
             cost30d: "$20.00")
     }
 
-    private func options() -> MenuBarLayoutRenderOptions {
+    private func options(now: Date? = nil) -> MenuBarLayoutRenderOptions {
         MenuBarLayoutRenderOptions(
             size: .regular,
             highContrast: false,
             showUsed: true,
             appearanceName: "aqua",
             isDebugApp: false,
-            now: self.now)
+            now: now ?? self.now)
     }
 
     private func averageBrightness(

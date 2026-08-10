@@ -208,7 +208,7 @@ struct CostUsageScannerBreakdownTests {
         ])
         #expect(first.data[0].totalTokens == 110)
         #expect((first.data[0].costUSD ?? 0) > 0)
-        let firstCache = CostUsageCacheIO.load(provider: .codex, cacheRoot: env.cacheRoot)
+        let firstCache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
         #expect(firstCache.codexPricingKey?.hasPrefix("builtin-") == true)
 
         let secondTokenCount: [String: Any] = [
@@ -342,7 +342,7 @@ struct CostUsageScannerBreakdownTests {
             options: options)
         #expect(report.summary?.totalTokens == 66)
 
-        var cache = CostUsageCacheIO.load(provider: .codex, cacheRoot: env.cacheRoot)
+        var cache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
         var projects = CostUsageScanner.buildCodexProjectBreakdownsFromCache(
             cache: cache,
             range: CostUsageScanner.CostUsageDayRange(since: day, until: day),
@@ -376,7 +376,7 @@ struct CostUsageScannerBreakdownTests {
             until: day,
             now: day,
             options: options)
-        cache = CostUsageCacheIO.load(provider: .codex, cacheRoot: env.cacheRoot)
+        cache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
         projects = CostUsageScanner.buildCodexProjectBreakdownsFromCache(
             cache: cache,
             range: CostUsageScanner.CostUsageDayRange(since: day, until: day),
@@ -560,7 +560,7 @@ struct CostUsageScannerBreakdownTests {
             until: day,
             now: day.addingTimeInterval(1),
             options: options)
-        let samePricingCache = CostUsageCacheIO.load(provider: .codex, cacheRoot: env.cacheRoot)
+        let samePricingCache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
         #expect(abs((samePricing.summary?.totalCostUSD ?? 0) - oldDailyCost) < costTolerance)
         #expect(samePricingCache.scanSinceKey == "2026-05-04")
 
@@ -631,7 +631,7 @@ struct CostUsageScannerBreakdownTests {
 
         // Simulate a cache written by the previous formula. Its key hashed only the rates, so
         // derive that exact legacy key and verify the formula version makes the current key differ.
-        var cache = CostUsageCacheIO.load(provider: .codex, cacheRoot: env.cacheRoot)
+        var cache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
         let legacyPricingKey = "builtin-\(Self.sha256Hex(CostUsagePricing.codexBuiltInPricingFingerprint()))"
         let currentPricingKey = try #require(cache.codexPricingKey)
         #expect(currentPricingKey != legacyPricingKey)
@@ -648,7 +648,7 @@ struct CostUsageScannerBreakdownTests {
             updated.codexCostNanos = inflated
             cache.files[path] = updated
         }
-        CostUsageCacheIO.save(provider: .codex, cache: cache, cacheRoot: env.cacheRoot)
+        CostUsageStoreAccess.replace(cacheRoot: env.cacheRoot, cache: cache)
 
         // A time-only refresh is suppressed (interval 60s), so repricing here is driven solely by
         // the pricing-key mismatch from the formula version bump.
@@ -716,7 +716,7 @@ struct CostUsageScannerBreakdownTests {
             until: day,
             now: day.addingTimeInterval(1),
             options: options)
-        let cache = CostUsageCacheIO.load(provider: .codex, cacheRoot: env.cacheRoot)
+        let cache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
         let usage = cache.files.first { URL(fileURLWithPath: $0.key).lastPathComponent == fileURL.lastPathComponent }?
             .value
 
@@ -728,7 +728,7 @@ struct CostUsageScannerBreakdownTests {
     }
 
     @Test
-    func `codex incremental cache migrates legacy rows before appending delta costs`() throws {
+    func `codex incremental cache migrates legacy rows before appending delta tokens`() throws {
         let env = try CostUsageTestEnvironment()
         defer { env.cleanup() }
 
@@ -769,7 +769,7 @@ struct CostUsageScannerBreakdownTests {
             now: day,
             options: options)
 
-        var cache = CostUsageCacheIO.load(provider: .codex, cacheRoot: env.cacheRoot)
+        var cache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
         let path = try #require(cache.files.keys.first)
         var cachedUsage = try #require(cache.files[path])
         #expect(cachedUsage.sessionId == "legacy-cost-session")
@@ -794,8 +794,8 @@ struct CostUsageScannerBreakdownTests {
                 output: 0),
         ]
         cache.files[path] = cachedUsage
-        CostUsageCacheIO.save(provider: .codex, cache: cache, cacheRoot: env.cacheRoot)
-        let savedUsage = try #require(CostUsageCacheIO.load(provider: .codex, cacheRoot: env.cacheRoot).files[path])
+        CostUsageStoreAccess.replace(cacheRoot: env.cacheRoot, cache: cache)
+        let savedUsage = try #require(CostUsageStoreAccess.read(cacheRoot: env.cacheRoot).files[path])
         #expect(savedUsage.codexRows?.map(\.day) == [olderDayKey, dayKey])
 
         let secondTokenCount = self.codexTokenCount(
@@ -819,11 +819,11 @@ struct CostUsageScannerBreakdownTests {
         #expect(report.data.first?.totalTokens == 15)
         #expect(abs((report.summary?.totalCostUSD ?? 0) - expectedCost) < 0.000_000_001)
 
-        var migratedCache = CostUsageCacheIO.load(provider: .codex, cacheRoot: env.cacheRoot)
+        var migratedCache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
         let migratedUsage = try #require(migratedCache.files[path])
         #expect(migratedUsage.codexRows?.map(\.day) == [olderDayKey, dayKey, dayKey])
         #expect(migratedUsage.codexRows?.map(\.eventIndex) == [0, 1, 2])
-        #expect(migratedUsage.codexCostNanos?[dayKey] != nil)
+        #expect(migratedUsage.codexCostNanos == nil)
 
         let parsedBytes = migratedUsage.parsedBytes
         options.refreshMinIntervalSeconds = 60
@@ -833,7 +833,7 @@ struct CostUsageScannerBreakdownTests {
             until: day,
             now: day.addingTimeInterval(2),
             options: options)
-        migratedCache = CostUsageCacheIO.load(provider: .codex, cacheRoot: env.cacheRoot)
+        migratedCache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
         #expect(repeated.data.first?.totalTokens == 15)
         #expect(migratedCache.files[path]?.parsedBytes == parsedBytes)
     }
@@ -882,10 +882,10 @@ struct CostUsageScannerBreakdownTests {
             now: day,
             options: options)
 
-        var cache = CostUsageCacheIO.load(provider: .codex, cacheRoot: env.cacheRoot)
+        var cache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
         let path = try #require(cache.files.keys.first)
         cache.files[path]?.codexCostNanos = nil
-        CostUsageCacheIO.save(provider: .codex, cache: cache, cacheRoot: env.cacheRoot)
+        CostUsageStoreAccess.replace(cacheRoot: env.cacheRoot, cache: cache)
 
         let appended = try "\n" + env.jsonl([secondTokenCount])
         let handle = try FileHandle(forWritingTo: fileURL)
@@ -901,7 +901,7 @@ struct CostUsageScannerBreakdownTests {
             options: options)
         #expect(appendedReport.summary?.totalTokens == 15)
 
-        cache = CostUsageCacheIO.load(provider: .codex, cacheRoot: env.cacheRoot)
+        cache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
         let activeRows = try #require(cache.files[path]?.codexRows)
         #expect(activeRows.map(\.eventIndex) == [0, 1])
 
@@ -919,7 +919,7 @@ struct CostUsageScannerBreakdownTests {
     }
 
     @Test
-    func `codex split cache migration does not double count existing cost maps`() throws {
+    func `codex pricing metadata migration does not persist derived cost maps`() throws {
         let env = try CostUsageTestEnvironment()
         defer { env.cleanup() }
 
@@ -959,10 +959,10 @@ struct CostUsageScannerBreakdownTests {
             now: day,
             options: options)
 
-        var cache = CostUsageCacheIO.load(provider: .codex, cacheRoot: env.cacheRoot)
+        var cache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
         let path = try #require(cache.files.keys.first)
         var cachedUsage = try #require(cache.files[path])
-        let originalCostNanos = try #require(cachedUsage.codexCostNanos?[dayKey]?[normalizedModel])
+        #expect(cachedUsage.codexCostNanos == nil)
         let addedModel = CostUsagePricing.normalizeCodexModel("gpt-5.5")
         cachedUsage.codexRows = [
             CostUsageScanner.CodexUsageRow(
@@ -987,7 +987,7 @@ struct CostUsageScannerBreakdownTests {
         cachedUsage.codexStandardTokens = nil
         cachedUsage.codexPriorityTokens = nil
         cache.files[path] = cachedUsage
-        CostUsageCacheIO.save(provider: .codex, cache: cache, cacheRoot: env.cacheRoot)
+        CostUsageStoreAccess.replace(cacheRoot: env.cacheRoot, cache: cache)
 
         options.refreshMinIntervalSeconds = 60
         let report = CostUsageScanner.loadDailyReport(
@@ -999,10 +999,9 @@ struct CostUsageScannerBreakdownTests {
 
         let expectedCost = 10.0 * 2.5e-6
         #expect(abs((report.summary?.totalCostUSD ?? 0) - expectedCost) < 0.000_000_001)
-        let migratedUsage = try #require(CostUsageCacheIO.load(provider: .codex, cacheRoot: env.cacheRoot).files[path])
+        let migratedUsage = try #require(CostUsageStoreAccess.read(cacheRoot: env.cacheRoot).files[path])
         #expect(migratedUsage.codexRows?.map(\.eventIndex) == [0, 1])
-        #expect(migratedUsage.codexCostNanos?[dayKey]?[normalizedModel] == originalCostNanos)
-        #expect(migratedUsage.codexCostNanos?[dayKey]?[addedModel] == Int64((10.0 * 5e-6 * 1_000_000_000).rounded()))
+        #expect(migratedUsage.codexCostNanos == nil)
         #expect(migratedUsage.codexStandardTokens?[dayKey]?[normalizedModel] == 10)
         #expect(migratedUsage.codexStandardTokens?[dayKey]?[addedModel] == 10)
     }
@@ -1116,10 +1115,10 @@ struct CostUsageScannerBreakdownTests {
             options: options)
         #expect(wide.summary?.totalTokens == 30)
 
-        var cache = CostUsageCacheIO.load(provider: .codex, cacheRoot: env.cacheRoot)
+        var cache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
         let path = try #require(cache.files.keys.first)
         cache.files[path]?.codexTurnIDs = nil
-        CostUsageCacheIO.save(provider: .codex, cache: cache, cacheRoot: env.cacheRoot)
+        CostUsageStoreAccess.replace(cacheRoot: env.cacheRoot, cache: cache)
 
         try env.jsonl([
             self.codexTurnContext(timestamp: env.isoString(for: olderDay), model: model),
@@ -1142,7 +1141,7 @@ struct CostUsageScannerBreakdownTests {
             options: options)
         #expect(narrow.summary?.totalTokens == 12)
 
-        cache = CostUsageCacheIO.load(provider: .codex, cacheRoot: env.cacheRoot)
+        cache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
         #expect(cache.scanSinceKey == "2026-05-17")
         #expect(cache.scanUntilKey == "2026-05-19")
         #expect(cache.files[path]?.days[olderDayKey] == nil)
@@ -1207,13 +1206,13 @@ struct CostUsageScannerBreakdownTests {
             [.modificationDate: olderDay],
             ofItemAtPath: olderFile.path)
 
-        var cache = CostUsageCacheIO.load(provider: .codex, cacheRoot: env.cacheRoot)
+        var cache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
         cache.codexProjectMetadataVersion = nil
         for key in cache.files.keys {
             cache.files[key]?.projectPath = nil
             cache.files[key]?.canonicalProjectPath = nil
         }
-        CostUsageCacheIO.save(provider: .codex, cache: cache, cacheRoot: env.cacheRoot)
+        CostUsageStoreAccess.replace(cacheRoot: env.cacheRoot, cache: cache)
 
         options.refreshMinIntervalSeconds = 60
         let narrow = CostUsageScanner.loadDailyReport(
@@ -1224,7 +1223,7 @@ struct CostUsageScannerBreakdownTests {
             options: options)
         #expect(narrow.summary?.totalTokens == 10)
 
-        cache = CostUsageCacheIO.load(provider: .codex, cacheRoot: env.cacheRoot)
+        cache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
         #expect(cache.codexProjectMetadataVersion == 1)
         #expect(cache.scanSinceKey == "2026-05-17")
         #expect(cache.scanUntilKey == "2026-05-19")
@@ -1243,7 +1242,7 @@ struct CostUsageScannerBreakdownTests {
             now: day.addingTimeInterval(2),
             options: options)
         #expect(repeatedWide.summary?.totalTokens == 30)
-        cache = CostUsageCacheIO.load(provider: .codex, cacheRoot: env.cacheRoot)
+        cache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
         let rescannedProjects = CostUsageScanner.buildCodexProjectBreakdownsFromCache(
             cache: cache,
             range: CostUsageScanner.CostUsageDayRange(since: olderDay, until: day),
@@ -1904,9 +1903,9 @@ struct CostUsageScannerBreakdownTests {
         #expect(first.data[0].modelBreakdowns?.map(\.modelName) == ["gpt-5.5"])
         #expect(first.data[0].totalTokens == 132)
 
-        let newCacheURL = CostUsageCacheIO.cacheFileURL(provider: .codex, cacheRoot: env.cacheRoot)
-        #expect(newCacheURL.lastPathComponent == "codex-v11.json")
-        #expect(FileManager.default.fileExists(atPath: newCacheURL.path))
+        let databaseURL = CostUsageStore(cacheRoot: env.cacheRoot).databaseURL
+        #expect(databaseURL.lastPathComponent == "cost-usage.sqlite")
+        #expect(FileManager.default.fileExists(atPath: databaseURL.path))
         #expect(FileManager.default.fileExists(atPath: oldCacheURL.path))
 
         let second = CostUsageScanner.loadDailyReport(
@@ -2810,7 +2809,7 @@ struct CostUsageScannerBreakdownTests {
             options: options)
         #expect(second.data.first?.totalTokens == 101_000)
 
-        let cache = CostUsageCacheIO.load(provider: .codex, cacheRoot: env.cacheRoot)
+        let cache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
         let usage = cache.files.first { URL(fileURLWithPath: $0.key).lastPathComponent == fileURL.lastPathComponent }?
             .value
         #expect(usage?.hasInterleavedTotals == true)
@@ -2826,7 +2825,7 @@ struct CostUsageScannerBreakdownTests {
             options: options)
         #expect(rescanned.data.first?.totalTokens == 101_000)
 
-        let rescannedCache = CostUsageCacheIO.load(provider: .codex, cacheRoot: env.cacheRoot)
+        let rescannedCache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
         let rescannedUsage = rescannedCache.files
             .first { URL(fileURLWithPath: $0.key).lastPathComponent == fileURL.lastPathComponent }?
             .value
@@ -2902,13 +2901,13 @@ struct CostUsageScannerBreakdownTests {
             #expect(baseline.data.first?.totalTokens == 100_000, "baseline failed for \(label)")
             options.forceRescan = false
 
-            var cache = CostUsageCacheIO.load(provider: .codex, cacheRoot: env.cacheRoot)
+            var cache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
             for (path, usage) in cache.files {
                 var stripped = usage
                 mutate(&stripped)
                 cache.files[path] = stripped
             }
-            CostUsageCacheIO.save(provider: .codex, cache: cache, cacheRoot: env.cacheRoot)
+            CostUsageStoreAccess.replace(cacheRoot: env.cacheRoot, cache: cache)
 
             try env.jsonl([sessionMeta, turnContext] + initialEvents + [replayedSnapshot])
                 .write(to: fileURL, atomically: true, encoding: .utf8)
@@ -2921,7 +2920,7 @@ struct CostUsageScannerBreakdownTests {
                 options: options)
             #expect(second.data.first?.totalTokens == 100_000, "failed for missing \(label)")
 
-            let healed = CostUsageCacheIO.load(provider: .codex, cacheRoot: env.cacheRoot)
+            let healed = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
             let usage = healed.files
                 .first { URL(fileURLWithPath: $0.key).lastPathComponent == fileURL.lastPathComponent }?
                 .value
@@ -2976,7 +2975,7 @@ struct CostUsageScannerBreakdownTests {
             options: options)
         #expect(first.data.first?.totalTokens == 100_000)
 
-        var cache = CostUsageCacheIO.load(provider: .codex, cacheRoot: env.cacheRoot)
+        var cache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
         let path = try #require(cache.files.keys.first {
             URL(fileURLWithPath: $0).lastPathComponent == fileURL.lastPathComponent
         })
@@ -2987,7 +2986,7 @@ struct CostUsageScannerBreakdownTests {
         // Optional precision only: stripping the seen-set must not block incremental resume.
         usage.seenRawTotals = nil
         cache.files[path] = usage
-        CostUsageCacheIO.save(provider: .codex, cache: cache, cacheRoot: env.cacheRoot)
+        CostUsageStoreAccess.replace(cacheRoot: env.cacheRoot, cache: cache)
 
         let appendedEvents: [[String: Any]] = [
             self.codexTokenCount(
@@ -3012,7 +3011,7 @@ struct CostUsageScannerBreakdownTests {
             options: options)
         #expect(second.data.first?.totalTokens == 101_000)
 
-        let after = CostUsageCacheIO.load(provider: .codex, cacheRoot: env.cacheRoot)
+        let after = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
         let afterUsage = try #require(after.files[path])
         #expect(afterUsage.hasInterleavedTotals == true)
         #expect(afterUsage.lastRawTotalsWatermark?.input == 101_000)
@@ -3067,7 +3066,7 @@ struct CostUsageScannerBreakdownTests {
 
         // Simulate a cache entry written before the interleave tracker existed: divergent totals
         // but no watermark. Resuming incrementally from it would be unsafe.
-        var cache = CostUsageCacheIO.load(provider: .codex, cacheRoot: env.cacheRoot)
+        var cache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
         for (path, usage) in cache.files {
             var stripped = usage
             stripped.lastRawTotalsWatermark = nil
@@ -3075,7 +3074,7 @@ struct CostUsageScannerBreakdownTests {
             stripped.hasInterleavedTotals = nil
             cache.files[path] = stripped
         }
-        CostUsageCacheIO.save(provider: .codex, cache: cache, cacheRoot: env.cacheRoot)
+        CostUsageStoreAccess.replace(cacheRoot: env.cacheRoot, cache: cache)
 
         let replayedSnapshot = self.codexTokenCount(
             timestamp: env.isoString(for: day.addingTimeInterval(3)),
@@ -3093,7 +3092,7 @@ struct CostUsageScannerBreakdownTests {
             options: options)
         #expect(second.data.first?.totalTokens == 100_000)
 
-        let healed = CostUsageCacheIO.load(provider: .codex, cacheRoot: env.cacheRoot)
+        let healed = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
         let usage = healed.files.first { URL(fileURLWithPath: $0.key).lastPathComponent == fileURL.lastPathComponent }?
             .value
         #expect(usage?.lastRawTotalsWatermark != nil)
@@ -3550,11 +3549,11 @@ struct CostUsageScannerBreakdownTests {
         #expect(second.data[0].outputTokens == 8)
         #expect(second.data[0].totalTokens == 43)
 
-        var cache = CostUsageCacheIO.load(provider: .codex, cacheRoot: env.cacheRoot)
+        var cache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
         for path in cache.files.keys where cache.files[path]?.sessionId == "sess-warm-cache-active-archive" {
             cache.files[path]?.codexRows = nil
         }
-        CostUsageCacheIO.save(provider: .codex, cache: cache, cacheRoot: env.cacheRoot)
+        CostUsageStoreAccess.replace(cacheRoot: env.cacheRoot, cache: cache)
 
         let rowlessWarm = CostUsageScanner.loadDailyReport(
             provider: .codex,
@@ -3660,7 +3659,7 @@ struct CostUsageScannerBreakdownTests {
             options: options)
         #expect(narrow.summary?.totalTokens == 17)
 
-        let cache = CostUsageCacheIO.load(provider: .codex, cacheRoot: env.cacheRoot)
+        let cache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
         let archiveEntry = cache.files.first {
             URL(fileURLWithPath: $0.key).lastPathComponent == archiveURL.lastPathComponent
         }
@@ -3736,12 +3735,12 @@ struct CostUsageScannerBreakdownTests {
             options: options)
         #expect(wide.summary?.totalTokens == 33)
 
-        var cache = CostUsageCacheIO.load(provider: .codex, cacheRoot: env.cacheRoot)
+        var cache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
         let archivePath = try #require(cache.files.keys.first {
             URL(fileURLWithPath: $0).lastPathComponent == archiveURL.lastPathComponent
         })
         cache.files[archivePath]?.codexRows = nil
-        CostUsageCacheIO.save(provider: .codex, cache: cache, cacheRoot: env.cacheRoot)
+        CostUsageStoreAccess.replace(cacheRoot: env.cacheRoot, cache: cache)
 
         let narrow = CostUsageScanner.loadDailyReport(
             provider: .codex,
@@ -3751,7 +3750,7 @@ struct CostUsageScannerBreakdownTests {
             options: options)
         #expect(narrow.summary?.totalTokens == 11)
 
-        cache = CostUsageCacheIO.load(provider: .codex, cacheRoot: env.cacheRoot)
+        cache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
         let archiveUsage = try #require(cache.files[archivePath])
         let olderDayKey = CostUsageScanner.CostUsageDayRange.dayKey(from: olderDay)
         let olderPacked = try #require(archiveUsage.days[olderDayKey]?.values.first)
@@ -4995,7 +4994,7 @@ struct CostUsageScannerBreakdownTests {
         let expectedCost = parentCost + childCost
         #expect(abs((report.data[0].costUSD ?? 0) - expectedCost) < 0.000001)
 
-        let cache = CostUsageCacheIO.load(provider: .codex, cacheRoot: env.cacheRoot)
+        let cache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
         let childUsage = try #require(cache.files.values.first(where: { $0.sessionId == "child-session" }))
         #expect(childUsage.forkBaselineDependencyKey == CostUsageScanner.codexForkDependencyNotRequiredKey)
         let projects = CostUsageScanner.buildCodexProjectBreakdownsFromCache(
@@ -6359,7 +6358,7 @@ struct CostUsageScannerBreakdownTests {
             now: reportDay,
             options: options)
 
-        let cache = CostUsageCacheIO.load(provider: .codex, cacheRoot: env.cacheRoot)
+        let cache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
 
         #expect(report.data.count == 1)
         #expect(cache.files.keys.contains { $0.hasSuffix("session-recent.jsonl") })
@@ -6479,7 +6478,7 @@ struct CostUsageScannerBreakdownTests {
             now: reportDay,
             options: secondOptions)
 
-        let cache = CostUsageCacheIO.load(provider: .codex, cacheRoot: env.cacheRoot)
+        let cache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
 
         #expect(secondReport.data.count == 1)
         #expect(secondReport.data[0].inputTokens == 10)

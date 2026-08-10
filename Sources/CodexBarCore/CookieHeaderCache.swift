@@ -123,8 +123,20 @@ public enum CookieHeaderCache {
     }
 
     public struct ConditionalMutationGate: Sendable {
+        fileprivate let coordinator: ConditionalMutationCoordinator
         fileprivate let key: KeychainCacheStore.Key
         fileprivate let token: UUID
+    }
+
+    /// Coordinates interactive credential mutations with conditional background cache writes.
+    /// Production flows share one instance; tests can inject a private coordinator to isolate concurrent suites.
+    package final class ConditionalMutationCoordinator: @unchecked Sendable {
+        fileprivate let lock = NSLock()
+        fileprivate var gates: [KeychainCacheStore.Key: ConditionalMutationGateState] = [:]
+
+        package static let shared = ConditionalMutationCoordinator()
+
+        package init() {}
     }
 
     private static let log = CodexBarLog.logger(LogCategories.cookieCache)
@@ -139,18 +151,14 @@ public enum CookieHeaderCache {
     }
 
     private static let legacyMutationLock = NSLock()
-    private static let conditionalMutationGateLock = NSLock()
     private static let refreshReadSuppressionLock = NSLock()
     private nonisolated(unsafe) static var refreshReadSuppressions:
         [UUID: CookieRefreshSuppressionState] = [:]
-    private struct ConditionalMutationGateState {
+    fileprivate struct ConditionalMutationGateState {
         var generation: UInt64 = 0
         var activeTokens: Set<UUID> = []
     }
 
-    private nonisolated(unsafe) static var conditionalMutationGates: [
-        KeychainCacheStore.Key: ConditionalMutationGateState
-    ] = [:]
     private static let displayCacheLock = NSLock()
     private nonisolated(unsafe) static var displayCache: [KeychainCacheStore.Key: DisplaySnapshot] = [:]
     private nonisolated(unsafe) static var displayGenerations: [KeychainCacheStore.Key: UInt64] = [:]
@@ -1081,24 +1089,32 @@ extension CookieHeaderCache {
         provider: UsageProvider,
         scope: Scope? = nil) -> ConditionalMutationGate
     {
+        self.beginConditionalMutationGate(provider: provider, scope: scope, coordinator: .shared)
+    }
+
+    package static func beginConditionalMutationGate(
+        provider: UsageProvider,
+        scope: Scope? = nil,
+        coordinator: ConditionalMutationCoordinator) -> ConditionalMutationGate
+    {
         let key = self.key(for: provider, scope: scope)
         let token = UUID()
-        self.conditionalMutationGateLock.withLock {
-            var state = self.conditionalMutationGates[key] ?? ConditionalMutationGateState()
+        coordinator.lock.withLock {
+            var state = coordinator.gates[key] ?? ConditionalMutationGateState()
             state.generation &+= 1
             state.activeTokens.insert(token)
-            self.conditionalMutationGates[key] = state
+            coordinator.gates[key] = state
         }
-        return ConditionalMutationGate(key: key, token: token)
+        return ConditionalMutationGate(coordinator: coordinator, key: key, token: token)
     }
 
     public static func endConditionalMutationGate(_ gate: ConditionalMutationGate) {
-        self.conditionalMutationGateLock.withLock {
-            guard var state = self.conditionalMutationGates[gate.key],
+        gate.coordinator.lock.withLock {
+            guard var state = gate.coordinator.gates[gate.key],
                   state.activeTokens.remove(gate.token) != nil
             else { return }
             state.generation &+= 1
-            self.conditionalMutationGates[gate.key] = state
+            gate.coordinator.gates[gate.key] = state
         }
     }
 
@@ -1131,28 +1147,45 @@ extension CookieHeaderCache {
     }
 
     enum ConditionalMutationObservation: Sendable {
-        case authoritative(Entry?, gateGeneration: UInt64 = 0)
-        case keychainTemporarilyUnavailable(legacyEntry: Entry?, gateGeneration: UInt64 = 0)
+        case authoritative(
+            Entry?,
+            gateGeneration: UInt64 = 0,
+            coordinator: ConditionalMutationCoordinator = .shared)
+        case keychainTemporarilyUnavailable(
+            legacyEntry: Entry?,
+            gateGeneration: UInt64 = 0,
+            coordinator: ConditionalMutationCoordinator = .shared)
 
         var entry: Entry? {
             switch self {
-            case let .authoritative(entry, _): entry
+            case let .authoritative(entry, _, _): entry
             case .keychainTemporarilyUnavailable: nil
             }
         }
 
         fileprivate var gateGeneration: UInt64 {
             switch self {
-            case let .authoritative(_, gateGeneration),
-                 let .keychainTemporarilyUnavailable(_, gateGeneration):
+            case let .authoritative(_, gateGeneration, _),
+                 let .keychainTemporarilyUnavailable(_, gateGeneration, _):
                 gateGeneration
+            }
+        }
+
+        fileprivate var coordinator: ConditionalMutationCoordinator {
+            switch self {
+            case let .authoritative(_, _, coordinator),
+                 let .keychainTemporarilyUnavailable(_, _, coordinator):
+                coordinator
             }
         }
 
         /// Updates the expected cache contents after this flow clears its observed entry without
         /// accepting interactive mutations that happened after the original observation.
         func afterOwnedClear() -> Self {
-            .authoritative(nil, gateGeneration: self.gateGeneration)
+            .authoritative(
+                nil,
+                gateGeneration: self.gateGeneration,
+                coordinator: self.coordinator)
         }
     }
 
@@ -1160,39 +1193,54 @@ extension CookieHeaderCache {
     /// Keychain read failure without mistaking an untouched legacy entry for a concurrent write.
     static func observeForConditionalMutation(
         provider: UsageProvider,
-        scope: Scope? = nil) -> ConditionalMutationObservation
+        scope: Scope? = nil,
+        coordinator: ConditionalMutationCoordinator = .shared) -> ConditionalMutationObservation
     {
-        self.conditionalMutationGateLock.withLock {
+        coordinator.lock.withLock {
             let key = self.key(for: provider, scope: scope)
-            let gateGeneration = self.conditionalMutationGates[key]?.generation ?? 0
+            let gateGeneration = coordinator.gates[key]?.generation ?? 0
             if case let .visible(visible) = self.resolveRefreshRead(key: key, persisted: nil) {
-                return .authoritative(visible, gateGeneration: gateGeneration)
+                return .authoritative(
+                    visible,
+                    gateGeneration: gateGeneration,
+                    coordinator: coordinator)
             }
             do {
                 return try self.withLegacyMutationLock {
                     switch KeychainCacheStore.load(key: key, as: Entry.self) {
                     case let .found(entry):
-                        return .authoritative(entry, gateGeneration: gateGeneration)
+                        return .authoritative(
+                            entry,
+                            gateGeneration: gateGeneration,
+                            coordinator: coordinator)
                     case .temporarilyUnavailable:
                         let legacyEntry = scope == nil ? self.loadLegacyEntry(for: provider) : nil
                         return .keychainTemporarilyUnavailable(
                             legacyEntry: legacyEntry,
-                            gateGeneration: gateGeneration)
+                            gateGeneration: gateGeneration,
+                            coordinator: coordinator)
                     case .invalid:
                         KeychainCacheStore.clear(key: key)
                     case .missing:
                         break
                     }
-                    guard scope == nil else { return .authoritative(nil, gateGeneration: gateGeneration) }
+                    guard scope == nil else {
+                        return .authoritative(
+                            nil,
+                            gateGeneration: gateGeneration,
+                            coordinator: coordinator)
+                    }
                     return .authoritative(
                         self.migrateLegacyEntryIfNeededLocked(provider: provider),
-                        gateGeneration: gateGeneration)
+                        gateGeneration: gateGeneration,
+                        coordinator: coordinator)
                 }
             } catch {
                 self.log.error("Cookie cache observation lock failed: \(error)")
                 return .keychainTemporarilyUnavailable(
                     legacyEntry: nil,
-                    gateGeneration: gateGeneration)
+                    gateGeneration: gateGeneration,
+                    coordinator: coordinator)
             }
         }
     }
@@ -1211,9 +1259,9 @@ extension CookieHeaderCache {
         let trimmed = cookieHeader.trimmingCharacters(in: .whitespacesAndNewlines)
         guard let normalized = CookieHeaderNormalizer.normalize(trimmed), !normalized.isEmpty else { return false }
         let entry = Entry(cookieHeader: normalized, storedAt: now, sourceLabel: sourceLabel)
-        return self.conditionalMutationGateLock.withLock {
+        return expected.coordinator.lock.withLock {
             let key = self.key(for: provider, scope: scope)
-            let gateState = self.conditionalMutationGates[key] ?? ConditionalMutationGateState()
+            let gateState = expected.coordinator.gates[key] ?? ConditionalMutationGateState()
             guard gateState.activeTokens.isEmpty,
                   gateState.generation == expected.gateGeneration
             else { return false }
@@ -1235,9 +1283,9 @@ extension CookieHeaderCache {
         scope: Scope?) -> Bool
     {
         switch expected {
-        case let .authoritative(entry, _):
+        case let .authoritative(entry, _, _):
             return self.currentEntryMatches(entry, provider: provider, scope: scope)
-        case let .keychainTemporarilyUnavailable(expectedLegacyEntry, _):
+        case let .keychainTemporarilyUnavailable(expectedLegacyEntry, _, _):
             let key = self.key(for: provider, scope: scope)
             guard case .missing = KeychainCacheStore.load(key: key, as: Entry.self) else { return false }
             guard scope == nil else { return true }

@@ -100,6 +100,7 @@ struct ClaudeOAuthCredentialsStoreCLIStorageOwnershipTests {
             try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
             defer { try? FileManager.default.removeItem(at: tempDir) }
             let fileURL = tempDir.appendingPathComponent("credentials.json")
+            let environment = [ClaudeConfigPaths.configDirectoryEnvironmentKey: tempDir.path]
             try await ClaudeOAuthCredentialsStore.withIsolatedCredentialsFileTrackingForTesting {
                 try await ClaudeOAuthCredentialsStore.withIsolatedMemoryCacheForTesting {
                     try await ClaudeOAuthCredentialsStore.withCredentialsURLOverrideForTesting(fileURL) {
@@ -108,7 +109,7 @@ struct ClaudeOAuthCredentialsStoreCLIStorageOwnershipTests {
                             let legacyCacheKey = KeychainCacheStore.Key.oauth(provider: .claude)
                             let profileCacheKey = ClaudeOAuthCredentialsStore.cacheKeyForTesting(
                                 profileIdentifier: ClaudeOAuthCredentialsStore
-                                    .credentialsProfileIdentifier(environment: [:]))
+                                    .credentialsProfileIdentifier(environment: environment))
                             defer {
                                 KeychainCacheStore.clear(key: legacyCacheKey)
                                 KeychainCacheStore.clear(key: profileCacheKey)
@@ -158,7 +159,7 @@ struct ClaudeOAuthCredentialsStoreCLIStorageOwnershipTests {
                             }, operation: {
                                 try await ClaudeOAuthRefreshFailureGate.$shouldAttemptOverride.withValue(true) {
                                     try await ClaudeOAuthCredentialsStore.loadWithAutoRefresh(
-                                        environment: [:],
+                                        environment: environment,
                                         allowKeychainPrompt: false,
                                         respectKeychainPromptCooldown: true)
                                 }
@@ -191,15 +192,19 @@ struct ClaudeOAuthCredentialsStoreCLIStorageOwnershipTests {
                                 persistentRefHash: "matching-keychain-item")
 
                             let recordAfterCLIStorageAppears = try ClaudeOAuthCredentialsStore
-                                .withClaudeKeychainOverridesForTesting(
-                                    data: keychainData,
-                                    fingerprint: keychainFingerprint)
-                                {
-                                    try ClaudeOAuthCredentialsStore.loadRecord(
-                                        environment: [:],
-                                        allowKeychainPrompt: false,
-                                        respectKeychainPromptCooldown: true,
-                                        allowClaudeKeychainRepairWithoutPrompt: false)
+                                .withKeychainAccessOverrideForTesting(false) {
+                                    try ClaudeOAuthDirectKeychainReadConsent.withTaskOverrideForTesting(true) {
+                                        try ClaudeOAuthCredentialsStore.withClaudeKeychainOverridesForTesting(
+                                            data: keychainData,
+                                            fingerprint: keychainFingerprint)
+                                        {
+                                            try ClaudeOAuthCredentialsStore.loadRecord(
+                                                environment: environment,
+                                                allowKeychainPrompt: false,
+                                                respectKeychainPromptCooldown: true,
+                                                allowClaudeKeychainRepairWithoutPrompt: false)
+                                        }
+                                    }
                                 }
 
                             #expect(recordAfterCLIStorageAppears.credentials.accessToken == "fresh-codexbar-token")
@@ -227,18 +232,19 @@ struct ClaudeOAuthCredentialsStoreCLIStorageOwnershipTests {
             try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
             defer { try? FileManager.default.removeItem(at: tempDir) }
             let fileURL = tempDir.appendingPathComponent("credentials.json")
+            let environment = [ClaudeConfigPaths.configDirectoryEnvironmentKey: tempDir.path]
             try await ClaudeOAuthCredentialsStore.withIsolatedCredentialsFileTrackingForTesting {
                 try await ClaudeOAuthCredentialsStore.withCredentialsURLOverrideForTesting(fileURL) {
                     try await ClaudeOAuthCredentialsStore.withKeychainAccessOverrideForTesting(true) {
                         let cacheKey = ClaudeOAuthCredentialsStore.cacheKeyForTesting(
                             profileIdentifier: ClaudeOAuthCredentialsStore.credentialsProfileIdentifier(
-                                environment: [:]))
+                                environment: environment))
                         defer { KeychainCacheStore.clear(key: cacheKey) }
                         ClaudeOAuthCredentialsStore.invalidateCache()
                         let legacyCacheKey = KeychainCacheStore.Key.oauth(provider: .claude)
                         let profileCacheKey = ClaudeOAuthCredentialsStore.cacheKeyForTesting(
                             profileIdentifier: ClaudeOAuthCredentialsStore
-                                .credentialsProfileIdentifier(environment: [:]))
+                                .credentialsProfileIdentifier(environment: environment))
                         defer {
                             KeychainCacheStore.clear(key: legacyCacheKey)
                             KeychainCacheStore.clear(key: profileCacheKey)
@@ -276,7 +282,7 @@ struct ClaudeOAuthCredentialsStoreCLIStorageOwnershipTests {
                                 }, operation: {
                                     try await ClaudeOAuthRefreshFailureGate.$shouldAttemptOverride.withValue(true) {
                                         try await ClaudeOAuthCredentialsStore.loadRecordWithAutoRefresh(
-                                            environment: [:],
+                                            environment: environment,
                                             allowKeychainPrompt: false,
                                             respectKeychainPromptCooldown: true)
                                     }
@@ -301,7 +307,7 @@ struct ClaudeOAuthCredentialsStoreCLIStorageOwnershipTests {
 
                         let restartedRecord = try ClaudeOAuthCredentialsStore.withIsolatedMemoryCacheForTesting {
                             try ClaudeOAuthCredentialsStore.loadRecord(
-                                environment: [:],
+                                environment: environment,
                                 allowKeychainPrompt: false,
                                 respectKeychainPromptCooldown: true,
                                 allowClaudeKeychainRepairWithoutPrompt: false)
@@ -444,6 +450,7 @@ struct ClaudeOAuthCredentialsStoreCLIStorageOwnershipTests {
             try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
             defer { try? FileManager.default.removeItem(at: tempDir) }
             let fileURL = tempDir.appendingPathComponent("missing-credentials.json")
+            let environment = [ClaudeConfigPaths.configDirectoryEnvironmentKey: tempDir.path]
             await ClaudeOAuthCredentialsStore.withIsolatedCredentialsFileTrackingForTesting {
                 await ClaudeOAuthCredentialsStore.withIsolatedMemoryCacheForTesting {
                     await ClaudeOAuthCredentialsStore.withCredentialsURLOverrideForTesting(fileURL) {
@@ -466,7 +473,7 @@ struct ClaudeOAuthCredentialsStoreCLIStorageOwnershipTests {
                             await ClaudeOAuthRefreshFailureGate.$shouldAttemptOverride.withValue(false) {
                                 do {
                                     _ = try await ClaudeOAuthCredentialsStore.loadWithAutoRefresh(
-                                        environment: [:],
+                                        environment: environment,
                                         allowKeychainPrompt: false,
                                         respectKeychainPromptCooldown: true)
                                     Issue.record("Expected direct CodexBar refresh failure")
@@ -488,7 +495,7 @@ struct ClaudeOAuthCredentialsStoreCLIStorageOwnershipTests {
     }
 
     @Test
-    func `unrelated global Claude keychain item cannot re-own profile cache`() throws {
+    func `mismatched global Claude keychain item proves CLI storage ownership`() throws {
         let service = "com.steipete.codexbar.cache.tests.\(UUID().uuidString)"
         try self.withDeterministicCacheService(service) {
             KeychainCacheStore.setTestStoreForTesting(true)
@@ -547,7 +554,7 @@ struct ClaudeOAuthCredentialsStoreCLIStorageOwnershipTests {
                             }
 
                         #expect(record.credentials.accessToken == "codexbar-cache")
-                        #expect(record.owner == .codexbar)
+                        #expect(record.owner == .claudeCLI)
                         #expect(record.source == .cacheKeychain)
                     }
                 }

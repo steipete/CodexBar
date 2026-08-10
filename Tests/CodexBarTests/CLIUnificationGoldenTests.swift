@@ -90,10 +90,10 @@ struct CLIUnificationGoldenTests {
         Resets in 5d
         ---
         == kimi ==
-        Weekly: 70% left [========----]
+        7-day usage: 70% left [========----]
         Pace: 13% in reserve | Expected 43% used | Lasts until reset
         Resets in 4d
-        Rate Limit: 90% left [==========--]
+        5-hour usage: 90% left [==========--]
         Pace: 10% in reserve | Expected 20% used | Lasts until reset
         Resets in 4h
         ---

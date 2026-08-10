@@ -1,10 +1,11 @@
-#if canImport(JavaScriptCore)
 import Crypto
 import Foundation
 #if canImport(FoundationNetworking)
 import FoundationNetworking
 #endif
+#if canImport(JavaScriptCore)
 @preconcurrency import JavaScriptCore
+#endif
 
 public struct ProviderPluginApprovalBinding: Codable, Equatable, Sendable {
     public let instanceID: ProviderInstanceID
@@ -17,6 +18,7 @@ public struct ProviderPluginApprovalBinding: Codable, Equatable, Sendable {
 
     public init(manifest: ProviderPluginManifest, settings: [String: String]) throws {
         var origins: Set<String> = []
+        var authenticatedHTTPOrigins: Set<String> = []
         for endpoint in manifest.endpoints {
             switch endpoint {
             case let .fixed(origin):
@@ -29,11 +31,18 @@ public struct ProviderPluginApprovalBinding: Codable, Equatable, Sendable {
                     throw ProviderPluginError.invalidManifest(
                         "endpoint setting '\(key)' must contain a valid URL before approval")
                 }
-                try origins.insert(ProviderPluginOrigin.normalizedOrigin(of: url, policy: policy))
+                let origin = try ProviderPluginOrigin.normalizedOrigin(of: url, policy: policy)
+                origins.insert(origin)
+                if policy == .httpsOrPrivateNetworkHTTP, origin.hasPrefix("http://") {
+                    authenticatedHTTPOrigins.insert(origin)
+                }
             }
         }
-        if manifest.auth != nil, origins.contains(where: { $0.hasPrefix("http://") }) {
-            throw ProviderPluginError.networkPolicy("authenticated plugin origins must use HTTPS")
+        if manifest.auth != nil,
+           origins.contains(where: { $0.hasPrefix("http://") && !authenticatedHTTPOrigins.contains($0) })
+        {
+            throw ProviderPluginError.networkPolicy(
+                "authenticated HTTP requires the private-network endpoint policy and typed approval")
         }
 
         self.instanceID = manifest.id
@@ -51,10 +60,11 @@ public struct ProviderPluginApprovalBinding: Codable, Equatable, Sendable {
 
     private static func requiresTypedConfirmation(_ origin: String) -> Bool {
         guard let host = URL(string: origin)?.host?.lowercased() else { return true }
-        if host == "localhost" || host.hasSuffix(".local") {
+        let normalizedHost = host.hasSuffix(".") ? String(host.dropLast()) : host
+        if normalizedHost == "localhost" || normalizedHost.hasSuffix(".local") {
             return true
         }
-        if self.isIPv4Literal(host) || host.contains(":") {
+        if self.isIPv4Literal(normalizedHost) || normalizedHost.contains(":") {
             return true
         }
         return false
@@ -156,12 +166,14 @@ public struct UserProviderPlugin: @unchecked Sendable {
             secrets: secrets,
             manifest: self.manifest,
             environment: environment)
-        return try await self.runtime.fetchUsage(
-            settings: settings,
-            secrets: resolvedSecrets,
-            now: now,
-            cookieResolver: cookieResolver,
-            instanceCookieResolver: instanceCookieResolver)
+        return try await ProviderFetchDelayedRetry.run {
+            try await self.runtime.fetchUsage(
+                settings: settings,
+                secrets: resolvedSecrets,
+                now: now,
+                cookieResolver: cookieResolver,
+                instanceCookieResolver: instanceCookieResolver)
+        }
     }
 
     public static func environmentKey(instanceID: ProviderInstanceID, settingKey: String) -> String {
@@ -225,15 +237,30 @@ public final class UserProviderPluginLoader: @unchecked Sendable {
     private let providersDirectory: URL
     private let cacheDirectory: URL
     private let transport: any ProviderHTTPTransport
+    private let resourceBundle: Bundle?
 
-    public init(
+    public convenience init(
         providersDirectory: URL = UserProviderPluginLoader.defaultProvidersDirectory,
         cacheDirectory: URL = UserProviderPluginLoader.defaultCacheDirectory,
         transport: (any ProviderHTTPTransport)? = nil)
     {
+        self.init(
+            providersDirectory: providersDirectory,
+            cacheDirectory: cacheDirectory,
+            transport: transport,
+            resourceBundle: CodexBarCoreResources.bundle)
+    }
+
+    init(
+        providersDirectory: URL,
+        cacheDirectory: URL,
+        transport: (any ProviderHTTPTransport)?,
+        resourceBundle: Bundle?)
+    {
         self.providersDirectory = providersDirectory
         self.cacheDirectory = cacheDirectory
         self.transport = transport ?? UserProviderPluginHTTPTransport.make()
+        self.resourceBundle = resourceBundle
     }
 
     public func discover() -> [UserProviderPluginLoadResult] {
@@ -294,9 +321,10 @@ public final class UserProviderPluginLoader: @unchecked Sendable {
         }
         let runtime = try ProviderPluginRuntime(
             source: output.source,
+            resourceBundle: self.resourceBundle,
             transport: self.transport,
             responseSizeLimit: UserProviderPlugin.maximumSourceBytes,
-            rejectsNonSuccessResponses: true,
+            enforcesUserResponsePolicy: true,
             allowsDynamicID: true)
         return UserProviderPlugin(
             fileURL: fileURL,
@@ -336,16 +364,36 @@ public final class UserProviderPluginLoader: @unchecked Sendable {
         if let cached = try? String(contentsOf: cacheURL, encoding: .utf8) {
             return (cached, cacheURL, true)
         }
-        guard let resourceURL = Bundle.module.url(
+        guard let resourceBundle = self.resourceBundle else {
+            throw ProviderPluginError.load(CodexBarCoreResources.missingBundleMessage)
+        }
+        guard let resourceURL = resourceBundle.url(
             forResource: "sucrase-\(Self.sucraseVersion).min",
             withExtension: "js")
         else {
             throw ProviderPluginError.load("bundled Sucrase \(Self.sucraseVersion) resource was not found")
         }
+        let sucraseSource = try String(contentsOf: resourceURL, encoding: .utf8)
+        let output = switch ProviderPluginRuntime.resolveEngineKind(.automatic) {
+        case .automatic:
+            preconditionFailure("automatic plugin engine selection must be resolved")
+        case .javaScriptCore:
+            try Self.transpileTypeScriptWithJavaScriptCore(source: source, sucraseSource: sucraseSource)
+        case .quickJS:
+            try QuickJSProviderPluginEngine.transpileTypeScript(source: source, sucraseSource: sucraseSource)
+        }
+        try Data(output.utf8).write(to: cacheURL, options: .atomic)
+        return (output, cacheURL, false)
+    }
+
+    private static func transpileTypeScriptWithJavaScriptCore(
+        source: String,
+        sucraseSource: String) throws -> String
+    {
+        #if canImport(JavaScriptCore)
         guard let context = JSContext() else {
             throw ProviderPluginError.load("JavaScriptCore could not create a TypeScript transpiler context")
         }
-        let sucraseSource = try String(contentsOf: resourceURL, encoding: .utf8)
         context.exception = nil
         _ = context.evaluateScript(sucraseSource)
         if let exception = context.exception {
@@ -362,8 +410,10 @@ public final class UserProviderPluginLoader: @unchecked Sendable {
         guard let output = result?.toString(), !output.isEmpty else {
             throw ProviderPluginError.load("TypeScript transpilation returned no output")
         }
-        try Data(output.utf8).write(to: cacheURL, options: .atomic)
-        return (output, cacheURL, false)
+        return output
+        #else
+        throw ProviderPluginError.load("JavaScriptCore is unavailable on this platform")
+        #endif
     }
 }
 
@@ -535,11 +585,16 @@ private final class UserProviderPluginHTTPClient: NSObject, ProviderHTTPTranspor
         didReceive challenge: URLAuthenticationChallenge,
         completionHandler: @escaping @Sendable (URLSession.AuthChallengeDisposition, URLCredential?) -> Void)
     {
+        #if canImport(Darwin)
         if challenge.protectionSpace.authenticationMethod == NSURLAuthenticationMethodServerTrust {
             completionHandler(.performDefaultHandling, nil)
         } else {
             completionHandler(.cancelAuthenticationChallenge, nil)
         }
+        #else
+        _ = challenge
+        completionHandler(.performDefaultHandling, nil)
+        #endif
     }
 
     private func finish(taskIdentifier: Int, result: Result<(Data, URLResponse), Error>) {
@@ -547,4 +602,3 @@ private final class UserProviderPluginHTTPClient: NSObject, ProviderHTTPTranspor
         continuation?.resume(with: result)
     }
 }
-#endif

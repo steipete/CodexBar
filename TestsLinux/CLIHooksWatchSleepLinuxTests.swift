@@ -31,7 +31,9 @@ struct CLIHooksWatchSleepLinuxTests {
         await CodexBarCLI.sleepInterruptibly(interval: 10, stop: stop)
         let elapsedSeconds = Double(DispatchTime.now().uptimeNanoseconds - start.uptimeNanoseconds) / 1e9
 
-        #expect(elapsedSeconds < 2)
+        // The 0.3s signal must interrupt the 10s interval promptly; allow headroom for loaded
+        // CI runners (observed 2.02s on x64 under contention).
+        #expect(elapsedSeconds < 5)
     }
 
     @Test

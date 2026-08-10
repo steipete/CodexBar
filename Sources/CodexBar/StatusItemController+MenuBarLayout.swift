@@ -27,7 +27,6 @@ extension StatusItemController {
             snapshot: snapshot,
             warningFlash: warningFlash,
             now: now)
-        let minute = Date(timeIntervalSince1970: floor(now.timeIntervalSince1970 / 60) * 60)
         let appearanceName = button.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua])?.rawValue ?? "default"
         let options = MenuBarLayoutRenderOptions(
             size: self.settings.menuBarLayoutSize,
@@ -35,7 +34,7 @@ extension StatusItemController {
             showUsed: self.settings.usageBarsShowUsed,
             appearanceName: appearanceName,
             isDebugApp: Self.isDebugApp(bundleIdentifier: Bundle.main.bundleIdentifier),
-            now: minute)
+            now: now)
         let rendered = self.menuBarLayoutRenderer.render(
             layout: resolution.layout,
             data: data,
@@ -66,6 +65,7 @@ extension StatusItemController {
         let accountLabel = self.menuBarLayoutAccountLabel(provider: provider, snapshot: snapshot)
 
         return MenuBarLayoutRenderData(
+            provider: provider,
             iconKey: "\(provider.rawValue):\(warningFlash ? "warning" : "normal")",
             providerName: providerName,
             accountLabel: accountLabel,
@@ -146,7 +146,13 @@ extension StatusItemController {
             supportsAverage: self.settings.menuBarMetricSupportsAverage(for: provider),
             antigravityPrioritizeExhaustedQuotas: self.settings.antigravityPrioritizeExhaustedQuotas,
             now: now)
-        return (semanticWindows.session, semanticWindows.weekly, automatic)
+        return (
+            semanticWindows.session,
+            semanticWindows.weekly,
+            MenuBarLayoutAutomaticWindowDisplayNormalizer.normalized(
+                provider: provider,
+                snapshot: snapshot,
+                window: automatic))
     }
 
     private func setButtonLayoutContent(

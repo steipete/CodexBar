@@ -420,6 +420,7 @@ public struct ProviderUsagePresentation: Sendable {
     public let treatsExhaustedSecondaryIconWindowAsMissing: Bool
     public let primarySemanticWindow: ProviderSemanticWindow
     public let secondarySemanticWindow: ProviderSemanticWindow
+    public let menuBarLayoutSecondaryLabel: String?
     public let requestedMenuBarLaneOrders: [ProviderMenuBarMetric: [ProviderUsageLane]]
     public let automaticSelectionPrioritizesExhaustedWindow: Bool
     public let secondaryGloballyCapsPrimary: Bool
@@ -442,6 +443,7 @@ public struct ProviderUsagePresentation: Sendable {
         semanticWindowResolver: @escaping SemanticWindowResolver = Self.standardSemanticWindows,
         primarySemanticWindow: ProviderSemanticWindow = .session,
         secondarySemanticWindow: ProviderSemanticWindow = .weekly,
+        menuBarLayoutSecondaryLabel: String? = nil,
         requestedMenuBarLaneOrders: [ProviderMenuBarMetric: [ProviderUsageLane]] = [:],
         automaticSelectionPrioritizesExhaustedWindow: Bool = true,
         menuBarWindowResolver: @escaping MenuBarWindowResolver = { _ in .unhandled },
@@ -465,6 +467,7 @@ public struct ProviderUsagePresentation: Sendable {
         self.semanticWindowResolver = semanticWindowResolver
         self.primarySemanticWindow = primarySemanticWindow
         self.secondarySemanticWindow = secondarySemanticWindow
+        self.menuBarLayoutSecondaryLabel = menuBarLayoutSecondaryLabel
         self.requestedMenuBarLaneOrders = requestedMenuBarLaneOrders
         self.automaticSelectionPrioritizesExhaustedWindow = automaticSelectionPrioritizesExhaustedWindow
         self.menuBarWindowResolver = menuBarWindowResolver

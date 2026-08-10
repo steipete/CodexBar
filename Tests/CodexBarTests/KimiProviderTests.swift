@@ -827,6 +827,7 @@ struct KimiUsageResponseParsingTests {
         #expect(response.subscriptionBalance?.feature == "FEATURE_OMNI")
         #expect(response.subscriptionBalance?.type == "SUBSCRIPTION")
         #expect(response.subscriptionBalance?.amountUsedRatio == 1)
+        #expect(response.subscriptionBalance?.kimiCodeUsedRatio == 0.2854)
         #expect(response.subscriptionBalance?.expireTime == "2026-07-23T00:00:00Z")
         #expect(response.ratelimitCode7d?.ratio == 0.0946)
         #expect(response.ratelimitCode7d?.enabled == true)
@@ -1096,6 +1097,7 @@ struct KimiUsageSnapshotConversionTests {
             feature: "FEATURE_OMNI",
             type: "SUBSCRIPTION",
             amountUsedRatio: 1,
+            kimiCodeUsedRatio: nil,
             expireTime: "2026-07-23T00:00:00Z")
 
         let snapshot = KimiUsageSnapshot(
@@ -1107,7 +1109,7 @@ struct KimiUsageSnapshotConversionTests {
 
         let monthly = try #require(usageSnapshot.extraRateWindows?.first)
         #expect(monthly.id == "kimi-monthly")
-        #expect(monthly.title == "Monthly")
+        #expect(monthly.title == "Total usage")
         #expect(monthly.window.usedPercent == 100)
         #expect(monthly.window.windowMinutes == ProviderPaceCapability.monthlyWindowSentinelMinutes)
         #expect(monthly.window.resetsAt == Self.date("2026-07-23T00:00:00Z"))
@@ -1127,6 +1129,7 @@ struct KimiUsageSnapshotConversionTests {
             feature: "FEATURE_OMNI",
             type: "SUBSCRIPTION",
             amountUsedRatio: 0.7716,
+            kimiCodeUsedRatio: nil,
             expireTime: "2026-07-23T00:00:00Z")
 
         let snapshot = KimiUsageSnapshot(
@@ -1171,6 +1174,85 @@ struct KimiUsageSnapshotConversionTests {
     }
 
     @Test
+    func `hides code weekly window when it matches the primary weekly lane`() {
+        // Live Kimi responses report the same 7-day Code quota from both GetUsages (FEATURE_CODING
+        // detail) and GetSubscriptionStats (ratelimitCode7d); showing both rows duplicates one lane.
+        let now = Date()
+        let weeklyDetail = KimiUsageDetail(
+            limit: "100",
+            used: "29",
+            remaining: "71",
+            resetTime: "2026-08-13T17:02:44Z")
+        let subscriptionCodeWeeklyLimit = KimiSubscriptionRateLimit(
+            ratio: 0.2935,
+            enabled: true,
+            resetTime: "2026-08-13T17:02:43Z")
+
+        let snapshot = KimiUsageSnapshot(
+            weekly: weeklyDetail,
+            rateLimit: nil,
+            subscriptionBalance: nil,
+            subscriptionCodeWeeklyLimit: subscriptionCodeWeeklyLimit,
+            updatedAt: now)
+
+        #expect(snapshot.toUsageSnapshot().extraRateWindows == nil)
+    }
+
+    @Test
+    func `keeps code weekly window when the weekly detail is unreliable`() throws {
+        let now = Date()
+        let weeklyDetail = KimiUsageDetail(
+            limit: "100",
+            used: nil,
+            remaining: nil,
+            resetTime: nil)
+        let subscriptionCodeWeeklyLimit = KimiSubscriptionRateLimit(
+            ratio: 0,
+            enabled: true,
+            resetTime: nil)
+
+        let snapshot = KimiUsageSnapshot(
+            weekly: weeklyDetail,
+            rateLimit: nil,
+            subscriptionBalance: nil,
+            subscriptionCodeWeeklyLimit: subscriptionCodeWeeklyLimit,
+            updatedAt: now)
+        let usageSnapshot = snapshot.toUsageSnapshot()
+        let windows = try #require(usageSnapshot.extraRateWindows)
+
+        // The numeric-limit fallback creates an unreliable 0% primary lane with no duration; it must
+        // never suppress the subscription Code quota, which is the only reliable 7-day reading here.
+        #expect(usageSnapshot.primary?.windowMinutes == nil)
+        #expect(windows.map(\.id) == ["kimi-code-7d"])
+    }
+
+    @Test
+    func `keeps code weekly window when neither lane reports a reset time`() throws {
+        // Matching percentages alone cannot prove the lanes are the same quota: without reset
+        // evidence on both sides, two independent quotas could coincide, so keep the Code row.
+        let now = Date()
+        let weeklyDetail = KimiUsageDetail(
+            limit: "100",
+            used: "29",
+            remaining: "71",
+            resetTime: nil)
+        let subscriptionCodeWeeklyLimit = KimiSubscriptionRateLimit(
+            ratio: 0.2935,
+            enabled: true,
+            resetTime: nil)
+
+        let snapshot = KimiUsageSnapshot(
+            weekly: weeklyDetail,
+            rateLimit: nil,
+            subscriptionBalance: nil,
+            subscriptionCodeWeeklyLimit: subscriptionCodeWeeklyLimit,
+            updatedAt: now)
+        let windows = try #require(snapshot.toUsageSnapshot().extraRateWindows)
+
+        #expect(windows.map(\.id) == ["kimi-code-7d"])
+    }
+
+    @Test
     func `omits disabled and nonfinite subscription quota ratios`() {
         let weeklyDetail = KimiUsageDetail(
             limit: "2048",
@@ -1191,6 +1273,7 @@ struct KimiUsageSnapshotConversionTests {
                     feature: "FEATURE_OMNI",
                     type: "SUBSCRIPTION",
                     amountUsedRatio: .nan,
+                    kimiCodeUsedRatio: nil,
                     expireTime: nil),
                 subscriptionCodeWeeklyLimit: limit,
                 updatedAt: Date())

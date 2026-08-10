@@ -91,7 +91,7 @@ struct UsageMenuCardLayoutTests {
     }
 
     @Test
-    func `metric line presentation keeps used percent and reset in title row`() {
+    func `metric line presentation keeps remaining percent and reset in title row`() {
         let metric = UsageMenuCardView.Model.Metric(
             id: "weekly",
             title: "Weekly",
@@ -110,7 +110,7 @@ struct UsageMenuCardLayoutTests {
 
         let presentation = metric.linePresentation(title: metric.title)
 
-        #expect(presentation.titleText == "Weekly 31%")
+        #expect(presentation.titleText == "Weekly 69% left")
         #expect(presentation.resetText == "Resets Jul 22, 8:33 AM")
         #expect(presentation.metaText ==
             "26% in deficit · Runs out in 19h 7m (85% risk) · " +
@@ -118,7 +118,7 @@ struct UsageMenuCardLayoutTests {
     }
 
     @Test
-    func `metric title always reports used percent`() {
+    func `metric title follows configured percent style`() {
         let leftMetric = UsageMenuCardView.Model.Metric(
             id: "weekly",
             title: "Weekly",
@@ -142,12 +142,12 @@ struct UsageMenuCardLayoutTests {
             pacePercent: nil,
             paceOnTop: true)
 
-        #expect(leftMetric.linePresentation(title: leftMetric.title).titleText == "Weekly 31%")
-        #expect(usedMetric.linePresentation(title: usedMetric.title).titleText == "Weekly 31%")
+        #expect(leftMetric.linePresentation(title: leftMetric.title).titleText == "Weekly 69% left")
+        #expect(usedMetric.linePresentation(title: usedMetric.title).titleText == "Weekly 31% used")
     }
 
     @Test
-    func `metric detail remains one row as pace content grows`() {
+    func `metric detail wraps to a second row instead of truncating as pace content grows`() {
         let width: CGFloat = 296
         func card(
             detailRightText: String,
@@ -178,7 +178,39 @@ struct UsageMenuCardLayoutTests {
                 accessibilityLabel: "Est. 2 session quotas left · 6 windows until reset")))
             .sizeThatFits(in: CGSize(width: width, height: .greatestFiniteMagnitude)).height
 
-        #expect(abs(shortHeight - longHeight) < Self.heightTolerance)
+        // The meta line may wrap to two lines so tail content stays readable
+        // instead of truncating; the card grows by roughly one text line.
+        #expect(longHeight - shortHeight > Self.heightTolerance)
+        #expect(longHeight - shortHeight < 20)
+    }
+
+    @Test
+    func `metric reset wraps to a bounded second line at standard width`() {
+        let width: CGFloat = 296
+        func card(resetText: String) -> UsageMenuCardView {
+            UsageMenuCardView(model: Self.model(metrics: [
+                UsageMenuCardView.Model.Metric(
+                    id: "weekly",
+                    title: "Weekly",
+                    percent: 69,
+                    percentStyle: .left,
+                    resetText: resetText,
+                    detailText: nil,
+                    detailLeftText: nil,
+                    detailRightText: nil,
+                    pacePercent: nil,
+                    paceOnTop: true),
+            ]), width: width)
+        }
+
+        let shortHeight = NSHostingController(rootView: card(resetText: "Resets in 2h"))
+            .sizeThatFits(in: CGSize(width: width, height: .greatestFiniteMagnitude)).height
+        let longHeight = NSHostingController(rootView: card(
+            resetText: "Resets Wednesday, August 14 at 11:59 PM"))
+            .sizeThatFits(in: CGSize(width: width, height: .greatestFiniteMagnitude)).height
+
+        #expect(longHeight - shortHeight > Self.heightTolerance)
+        #expect(longHeight - shortHeight < 20)
     }
 
     private static func model(

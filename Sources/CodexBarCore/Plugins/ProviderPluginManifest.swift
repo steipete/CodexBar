@@ -1,6 +1,4 @@
-#if canImport(JavaScriptCore)
 import Foundation
-@preconcurrency import JavaScriptCore
 
 public struct ProviderPluginSetting: Equatable, Sendable {
     public enum Kind: String, Sendable {
@@ -56,6 +54,7 @@ public enum ProviderPluginEndpoint: Equatable, Hashable, Sendable {
     public enum Policy: String, Sendable {
         case https
         case httpsOrLoopbackHTTP = "https-or-loopback-http"
+        case httpsOrPrivateNetworkHTTP = "https-or-private-network-http"
     }
 
     case fixed(String)
@@ -64,9 +63,10 @@ public enum ProviderPluginEndpoint: Equatable, Hashable, Sendable {
 
 public enum ProviderPluginCapability: String, Hashable, Sendable {
     case browserCookies = "browser-cookies"
+    case httpStatus = "http-status"
 }
 
-public struct ProviderPluginManifest: @unchecked Sendable {
+public struct ProviderPluginManifest: Sendable {
     public let id: ProviderInstanceID
     public let name: String
     public let icon: ProviderPluginIcon
@@ -76,11 +76,9 @@ public struct ProviderPluginManifest: @unchecked Sendable {
     public let capabilities: Set<ProviderPluginCapability>
     public let cookieDomains: Set<String>
 
-    let fetchUsage: JSValue
-
     // Manifest parsing validates the complete security surface in one pass.
     // swiftlint:disable:next cyclomatic_complexity function_body_length
-    init(definition: JSValue, allowsDynamicID: Bool = false) throws {
+    init(definition: any ProviderPluginValue, allowsDynamicID: Bool = false) throws {
         guard definition.isObject else {
             throw ProviderPluginError.invalidManifest("defineProvider(...) requires an object")
         }
@@ -96,23 +94,23 @@ public struct ProviderPluginManifest: @unchecked Sendable {
         }
         self.id = id
         self.name = try Self.boundedString(definition, property: "name", maximumLength: 80)
-        self.icon = try Self.parseIcon(definition.forProperty("icon"), fallbackName: self.name)
+        self.icon = try Self.parseIcon(definition.property("icon"), fallbackName: self.name)
 
-        let endpointValue = definition.forProperty("endpoints")
+        let endpointValue = definition.property("endpoints")
         guard let endpointValue, endpointValue.isArray else {
             throw ProviderPluginError.invalidManifest("'endpoints' must be a non-empty array of HTTPS origins")
         }
-        let endpointCount = Int(endpointValue.forProperty("length")?.toInt32() ?? 0)
+        let endpointCount = Int(endpointValue.property("length")?.int32Value() ?? 0)
         guard (1...16).contains(endpointCount) else {
             throw ProviderPluginError.invalidManifest("'endpoints' must not be empty")
         }
         var endpoints: Set<ProviderPluginEndpoint> = []
         for index in 0..<endpointCount {
-            guard let rawEndpoint = endpointValue.atIndex(index) else {
+            guard let rawEndpoint = endpointValue.element(at: index) else {
                 throw ProviderPluginError.invalidManifest("endpoint at index \(index) is missing")
             }
             if rawEndpoint.isString {
-                try endpoints.insert(.fixed(ProviderPluginOrigin.normalizedOrigin(rawEndpoint.toString())))
+                try endpoints.insert(.fixed(ProviderPluginOrigin.normalizedOrigin(rawEndpoint.stringValue())))
                 continue
             }
             guard rawEndpoint.isObject else {
@@ -124,21 +122,28 @@ public struct ProviderPluginManifest: @unchecked Sendable {
             guard let policy = ProviderPluginEndpoint.Policy(rawValue: rawPolicy) else {
                 throw ProviderPluginError.invalidManifest("unsupported endpoint policy '\(rawPolicy)'")
             }
+            if policy == .httpsOrPrivateNetworkHTTP,
+               !allowsDynamicID,
+               id.firstPartyProvider.map(Self.bundledPrivateNetworkHTTPProviders.contains) != true
+            {
+                throw ProviderPluginError.invalidManifest(
+                    "private-network HTTP is not allowed for bundled provider '\(id.rawValue)'")
+            }
             endpoints.insert(.setting(key: key, policy: policy))
         }
         self.endpoints = endpoints
 
-        guard let settingsValue = definition.forProperty("settings"), settingsValue.isArray else {
+        guard let settingsValue = definition.property("settings"), settingsValue.isArray else {
             throw ProviderPluginError.invalidManifest("'settings' must be an array")
         }
-        let settingCount = Int(settingsValue.forProperty("length")?.toInt32() ?? 0)
+        let settingCount = Int(settingsValue.property("length")?.int32Value() ?? 0)
         guard settingCount <= 32 else {
             throw ProviderPluginError.invalidManifest("'settings' exceeds 32 entries")
         }
         var settings: [ProviderPluginSetting] = []
         var settingKeys: Set<String> = []
         for index in 0..<settingCount {
-            guard let setting = settingsValue.atIndex(index), setting.isObject else {
+            guard let setting = settingsValue.element(at: index), setting.isObject else {
                 throw ProviderPluginError.invalidManifest("setting at index \(index) must be an object")
             }
             let key = try Self.requiredString(setting, property: "key")
@@ -167,7 +172,7 @@ public struct ProviderPluginManifest: @unchecked Sendable {
         }
         self.settings = settings
 
-        if let authValue = definition.forProperty("auth"), !authValue.isUndefined, !authValue.isNull {
+        if let authValue = definition.property("auth"), !authValue.isUndefined, !authValue.isNull {
             guard authValue.isObject else {
                 throw ProviderPluginError.invalidManifest("'auth' must be an object when present")
             }
@@ -204,16 +209,16 @@ public struct ProviderPluginManifest: @unchecked Sendable {
             self.auth = nil
         }
 
-        let capabilitiesValue = definition.forProperty("capabilities")
+        let capabilitiesValue = definition.property("capabilities")
         var capabilities: Set<ProviderPluginCapability> = []
         if let capabilitiesValue, !capabilitiesValue.isUndefined, !capabilitiesValue.isNull {
             guard capabilitiesValue.isArray else {
                 throw ProviderPluginError.invalidManifest("'capabilities' must be an array when present")
             }
-            let count = Int(capabilitiesValue.forProperty("length")?.toInt32() ?? 0)
+            let count = Int(capabilitiesValue.property("length")?.int32Value() ?? 0)
             for index in 0..<count {
-                guard let value = capabilitiesValue.atIndex(index), value.isString,
-                      let capability = ProviderPluginCapability(rawValue: value.toString())
+                guard let value = capabilitiesValue.element(at: index), value.isString,
+                      let capability = ProviderPluginCapability(rawValue: value.stringValue())
                 else {
                     throw ProviderPluginError.invalidManifest("unsupported capability at index \(index)")
                 }
@@ -222,19 +227,19 @@ public struct ProviderPluginManifest: @unchecked Sendable {
         }
         self.capabilities = capabilities
 
-        let cookieDomainsValue = definition.forProperty("cookieDomains")
+        let cookieDomainsValue = definition.property("cookieDomains")
         var cookieDomains: Set<String> = []
         if let cookieDomainsValue, !cookieDomainsValue.isUndefined, !cookieDomainsValue.isNull {
             guard capabilities.contains(.browserCookies), cookieDomainsValue.isArray else {
                 throw ProviderPluginError.invalidManifest(
                     "'cookieDomains' requires the browser-cookies capability and must be an array")
             }
-            let count = Int(cookieDomainsValue.forProperty("length")?.toInt32() ?? 0)
+            let count = Int(cookieDomainsValue.property("length")?.int32Value() ?? 0)
             for index in 0..<count {
-                guard let value = cookieDomainsValue.atIndex(index), value.isString else {
+                guard let value = cookieDomainsValue.element(at: index), value.isString else {
                     throw ProviderPluginError.invalidManifest("cookie domain at index \(index) must be a string")
                 }
-                try cookieDomains.insert(Self.normalizedCookieDomain(value.toString()))
+                try cookieDomains.insert(Self.normalizedCookieDomain(value.stringValue()))
             }
             guard !cookieDomains.isEmpty else {
                 throw ProviderPluginError.invalidManifest("'cookieDomains' must not be empty")
@@ -245,33 +250,32 @@ public struct ProviderPluginManifest: @unchecked Sendable {
                 "the browser-cookies capability requires at least one declared cookie domain")
         }
         self.cookieDomains = cookieDomains
-
-        guard let fetchUsage = definition.forProperty("fetchUsage"), fetchUsage.isObject else {
-            throw ProviderPluginError.invalidManifest("'fetchUsage' must be a function")
-        }
-        self.fetchUsage = fetchUsage
     }
 
-    private static func requiredString(_ object: JSValue, property: String) throws -> String {
-        guard let value = object.forProperty(property), value.isString else {
+    private static func requiredString(_ object: any ProviderPluginValue, property: String) throws -> String {
+        guard let value = object.property(property), value.isString else {
             throw ProviderPluginError.invalidManifest("'\(property)' must be a string")
         }
-        let string = value.toString().trimmingCharacters(in: .whitespacesAndNewlines)
+        let string = value.stringValue().trimmingCharacters(in: .whitespacesAndNewlines)
         guard !string.isEmpty else {
             throw ProviderPluginError.invalidManifest("'\(property)' must not be empty")
         }
         return string
     }
 
-    private static func optionalString(_ object: JSValue, property: String) throws -> String? {
-        guard let value = object.forProperty(property), !value.isUndefined, !value.isNull else { return nil }
+    private static func optionalString(_ object: any ProviderPluginValue, property: String) throws -> String? {
+        guard let value = object.property(property), !value.isUndefined, !value.isNull else { return nil }
         guard value.isString else {
             throw ProviderPluginError.invalidManifest("'\(property)' must be a string when present")
         }
-        return value.toString()
+        return value.stringValue()
     }
 
-    private static func boundedString(_ object: JSValue, property: String, maximumLength: Int) throws -> String {
+    private static func boundedString(
+        _ object: any ProviderPluginValue,
+        property: String,
+        maximumLength: Int) throws -> String
+    {
         let value = try Self.requiredString(object, property: property)
         guard value.utf8.count <= maximumLength else {
             throw ProviderPluginError.invalidManifest("'\(property)' exceeds \(maximumLength) UTF-8 bytes")
@@ -280,7 +284,7 @@ public struct ProviderPluginManifest: @unchecked Sendable {
     }
 
     private static func optionalBoundedString(
-        _ object: JSValue,
+        _ object: any ProviderPluginValue,
         property: String,
         maximumLength: Int) throws -> String?
     {
@@ -312,7 +316,10 @@ public struct ProviderPluginManifest: @unchecked Sendable {
         }
     }
 
-    private static func parseIcon(_ value: JSValue?, fallbackName: String) throws -> ProviderPluginIcon {
+    private static func parseIcon(
+        _ value: (any ProviderPluginValue)?,
+        fallbackName: String) throws -> ProviderPluginIcon
+    {
         let fallback = String(fallbackName.prefix(1)).uppercased()
         guard let value, !value.isUndefined, !value.isNull else {
             return ProviderPluginIcon(monogram: fallback, tint: "#6B7280")
@@ -355,6 +362,9 @@ public struct ProviderPluginManifest: @unchecked Sendable {
         }
         return value
     }
+
+    /// Provider-specific by design: only LLM Proxy and LiteLLM already grant private-network HTTP authority in Swift.
+    private static let bundledPrivateNetworkHTTPProviders: Set<UsageProvider> = [.llmproxy, .litellm]
 }
 
 enum ProviderPluginOrigin {
@@ -386,6 +396,8 @@ enum ProviderPluginOrigin {
             validator.validatedURL(url.absoluteString)
         case .httpsOrLoopbackHTTP:
             validator.validatedURLAllowingLoopbackHTTP(url.absoluteString)
+        case .httpsOrPrivateNetworkHTTP:
+            validator.validatedURLAllowingPrivateNetworkHTTP(url.absoluteString)
         }
         guard let validated, validated.fragment == nil, validated.user == nil, validated.password == nil else {
             throw ProviderPluginError.networkPolicy("URL does not satisfy the declared endpoint policy")
@@ -426,4 +438,64 @@ public enum ProviderPluginError: LocalizedError, Sendable, Equatable {
         }
     }
 }
-#endif
+
+enum ProviderPluginClassifiedFailureParser {
+    private static let markerV1 = "__CODEXBAR_FAILURE__:"
+    fileprivate static let markerV2 = "__CODEXBAR_FAILURE_V2__:"
+
+    static func error(from message: String) -> ProviderFetchClassifiedError? {
+        if message.hasPrefix(self.markerV2) {
+            return self.parseV2(String(message.dropFirst(self.markerV2.count)))
+        }
+        guard message.hasPrefix(self.markerV1) else { return nil }
+        let payload = message.dropFirst(self.markerV1.count)
+        guard let separator = payload.firstIndex(of: ":"),
+              let kind = ProviderFetchClassifiedError.Kind(rawValue: String(payload[..<separator]))
+        else { return nil }
+        return ProviderFetchClassifiedError(kind: kind, message: String(payload[payload.index(after: separator)...]))
+    }
+
+    private static func parseV2(_ payload: String) -> ProviderFetchClassifiedError? {
+        guard let kindSeparator = payload.firstIndex(of: ":"),
+              let kind = ProviderFetchClassifiedError.Kind(rawValue: String(payload[..<kindSeparator]))
+        else { return nil }
+        let retryAndMessage = payload[payload.index(after: kindSeparator)...]
+        guard let retrySeparator = retryAndMessage.firstIndex(of: ":") else { return nil }
+        let retryText = String(retryAndMessage[..<retrySeparator])
+        let retryAfterSeconds = retryText.isEmpty ? nil : TimeInterval(retryText)
+        guard retryText.isEmpty || retryAfterSeconds != nil else { return nil }
+        return ProviderFetchClassifiedError(
+            kind: kind,
+            message: String(retryAndMessage[retryAndMessage.index(after: retrySeparator)...]),
+            retryAfterSeconds: retryAfterSeconds)
+    }
+}
+
+struct ProviderPluginTransientHTTPFailure: LocalizedError, Sendable {
+    private static let retryPolicy = ProviderHTTPRetryPolicy.transientIdempotent
+
+    let errorDescription: String?
+
+    init?(statusCode: Int, retryAfterHeader: String?) {
+        guard let markerMessage = Self.markerMessage(
+            statusCode: statusCode,
+            retryAfterHeader: retryAfterHeader)
+        else { return nil }
+        self.errorDescription = markerMessage
+    }
+
+    static func markerMessage(statusCode: Int, retryAfterHeader: String?) -> String? {
+        guard self.retryPolicy.retryableStatusCodes.contains(statusCode) else { return nil }
+        let kind: ProviderFetchClassifiedError.Kind = statusCode == 429 ? .rateLimited : .providerUnavailable
+        let parsedRetryAfter = retryAfterHeader
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .flatMap(TimeInterval.init)
+        let retryAfterSeconds = if let parsedRetryAfter, parsedRetryAfter.isFinite, parsedRetryAfter >= 0 {
+            parsedRetryAfter
+        } else {
+            self.retryPolicy.baseDelaySeconds
+        }
+        let message = "request returned HTTP \(statusCode)"
+        return "\(ProviderPluginClassifiedFailureParser.markerV2)\(kind.rawValue):\(retryAfterSeconds):\(message)"
+    }
+}

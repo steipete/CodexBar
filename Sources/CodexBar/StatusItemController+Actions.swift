@@ -79,6 +79,12 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
             let refreshStartedAt = Date()
             await self.store.refreshProvider(provider)
             guard !Task.isCancelled, !self.hasPreparedForAppShutdown else { return }
+            // Provider-specific by design: Codex publishes a compatible core quota model before its optional
+            // credits and OpenAI Web enrichment stages below. Incompatible cards remain frozen until the final
+            // menu reconciliation, so they never lose their loading state while still showing the old layout.
+            if provider == .codex {
+                self.menuCardRefreshMonitor.publishResolvedModelIfCompatible(for: provider)
+            }
             await self.store.refreshProviderStatus(provider)
             guard !Task.isCancelled, !self.hasPreparedForAppShutdown else { return }
             await self.store.refreshTokenUsageNow(for: provider, force: true)
@@ -362,7 +368,7 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
         }
 
         if provider == .zai {
-            return ZaiUsageFetcher.resolveDashboardURL(
+            return ZaiEndpointRouter.resolveDashboardURL(
                 region: self.settings.zaiAPIRegion,
                 environment: environment,
                 usageScope: self.settings.zaiEffectiveUsageScope())

@@ -665,6 +665,8 @@
 "copyright" = "© 2026 Peter Steinberger. MIT-licens.";
 
 /* Debug Pane */
+"use_javascriptcore_plugin_engine" = "Använd JavaScriptCore för leverantörsinsticksfiler";
+"use_javascriptcore_plugin_engine_subtitle" = "Endast kompatibilitetsåterställning. Starta om CodexBar för att tillämpa; CODEXBAR_PLUGIN_ENGINE åsidosätter inställningen.";
 "section_logging" = "Loggning";
 "enable_file_logging" = "Aktivera filloggning";
 "enable_file_logging_subtitle" = "Skriv loggar till %@ för felsökning.";
@@ -1425,3 +1427,6 @@
 "Enter every endpoint setting to review the exact network origins." = "Ange alla slutpunktsinställningar för att granska de exakta ursprungsadresserna.";
 "Approve" = "Godkänn";
 "Install" = "Installera";
+"5-hour usage" = "5-timmarsanvändning";
+"7-day usage" = "7-dagarsanvändning";
+"Total usage" = "Total användning";

@@ -674,6 +674,8 @@
 "copyright" = "© 2026 Peter Steinberger. Lisensi MIT.";
 
 /* Debug Pane */
+"use_javascriptcore_plugin_engine" = "Gunakan JavaScriptCore untuk plugin penyedia";
+"use_javascriptcore_plugin_engine_subtitle" = "Hanya untuk rollback kompatibilitas. Mulai ulang CodexBar untuk menerapkan; CODEXBAR_PLUGIN_ENGINE mengganti pengaturan ini.";
 "section_logging" = "Pencatatan";
 "enable_file_logging" = "Aktifkan pencatatan file";
 "enable_file_logging_subtitle" = "Tulis log ke %@ untuk debugging.";
@@ -1430,3 +1432,6 @@
 "Enter every endpoint setting to review the exact network origins." = "Masukkan semua pengaturan endpoint untuk meninjau origin jaringan yang tepat.";
 "Approve" = "Setujui";
 "Install" = "Pasang";
+"5-hour usage" = "Penggunaan 5 jam";
+"7-day usage" = "Penggunaan 7 hari";
+"Total usage" = "Total penggunaan";

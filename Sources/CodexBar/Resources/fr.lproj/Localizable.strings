@@ -666,6 +666,8 @@
 "copyright" = "© 2026 Peter Steinberger. Licence MIT.";
 
 /* Debug Pane */
+"use_javascriptcore_plugin_engine" = "Utiliser JavaScriptCore pour les extensions de fournisseurs";
+"use_javascriptcore_plugin_engine_subtitle" = "Repli de compatibilité uniquement. Redémarrez CodexBar pour l’appliquer ; CODEXBAR_PLUGIN_ENGINE remplace ce réglage.";
 "section_logging" = "Journalisation";
 "enable_file_logging" = "Activer la journalisation des fichiers";
 "enable_file_logging_subtitle" = "Écrivez les journaux dans %@ pour le débogage.";
@@ -1426,3 +1428,6 @@
 "Enter every endpoint setting to review the exact network origins." = "Renseignez tous les paramètres des points de terminaison pour vérifier les origines réseau exactes.";
 "Approve" = "Approuver";
 "Install" = "Installer";
+"5-hour usage" = "Utilisation sur 5 heures";
+"7-day usage" = "Utilisation sur 7 jours";
+"Total usage" = "Utilisation totale";

@@ -79,7 +79,7 @@ struct CodexCompactSubagentAccountingTests {
             }?.totalTokens == 55)
         }
 
-        let cache = CostUsageCacheIO.load(provider: .codex, cacheRoot: env.cacheRoot)
+        let cache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
         let child = try #require(cache.files.values.first { $0.sessionId == "compact-child" })
         #expect(child.days[CostUsageScanner.CostUsageDayRange.dayKey(from: day)]?[
             CostUsagePricing.normalizeCodexModel(leafModel),
@@ -139,7 +139,7 @@ struct CodexCompactSubagentAccountingTests {
         #expect(!(beforeDay.modelBreakdowns ?? []).contains {
             $0.modelName == CostUsagePricing.codexUnattributedModel
         })
-        let beforeCache = CostUsageCacheIO.load(provider: .codex, cacheRoot: env.cacheRoot)
+        let beforeCache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
         let beforeChild = try #require(beforeCache.files.values.first { $0.sessionId == "cache-child" })
         let beforeDependency = try #require(beforeChild.forkBaselineDependencyKey)
         #expect(beforeDependency == CostUsageScanner.codexForkDependencyNotRequiredKey)
@@ -165,7 +165,7 @@ struct CodexCompactSubagentAccountingTests {
         #expect(!(afterDay.modelBreakdowns ?? []).contains {
             $0.modelName == CostUsagePricing.codexUnattributedModel
         })
-        let afterCache = CostUsageCacheIO.load(provider: .codex, cacheRoot: env.cacheRoot)
+        let afterCache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
         let afterChild = try #require(afterCache.files.values.first { $0.sessionId == "cache-child" })
         #expect(afterChild.forkBaselineDependencyKey == beforeDependency)
         #expect(afterChild.days.values.allSatisfy { $0[CostUsagePricing.codexUnattributedModel] == nil })

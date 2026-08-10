@@ -31,6 +31,7 @@ public enum UsageProvider: String, CaseIterable, Sendable, Codable {
     case alibabatokenplan
     case qwencloud
     case factory
+    case fireworks
     case gemini
     case antigravity
     case copilot
@@ -86,6 +87,7 @@ public enum UsageProvider: String, CaseIterable, Sendable, Codable {
     case zoommate
     case xai
     case notion
+    case ibmbob
 }
 
 // swiftformat:enable sortDeclarations

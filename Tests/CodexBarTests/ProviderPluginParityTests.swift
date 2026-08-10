@@ -1,27 +1,11 @@
-#if canImport(JavaScriptCore)
 import Foundation
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
 import Testing
 @testable import CodexBarCore
 
 struct ProviderPluginParityTests {
-    @Test
-    func `prototype flag prepends JS without changing the default pipeline`() async {
-        let descriptor = ProviderDescriptorRegistry.descriptor(for: .synthetic)
-        let defaultStrategies = await descriptor.fetchPlan.pipeline.resolveStrategies(
-            Self.context(environment: ["SYNTHETIC_API_KEY": "fixture-key"]))
-        let prototypeStrategies = await descriptor.fetchPlan.pipeline.resolveStrategies(
-            Self.context(environment: [
-                "SYNTHETIC_API_KEY": "fixture-key",
-                ProviderPluginPrototype.environmentKey: "1",
-            ]))
-
-        #expect(defaultStrategies.map(\.id) == ["synthetic.api"])
-        #expect(prototypeStrategies.map(\.id) == ["synthetic.js", "synthetic.api"])
-        #expect(prototypeStrategies[0].shouldFallback(
-            on: ProviderPluginError.script("fixture"),
-            context: Self.context(environment: [:])) == false)
-    }
-
     @Test
     func `cut-over providers use only JS without the prototype flag`() async {
         for (provider, key) in [
@@ -30,12 +14,19 @@ struct ProviderPluginParityTests {
             (.openrouter, "OPENROUTER_API_KEY"),
             (.clawrouter, "CLAWROUTER_API_KEY"),
             (.deepgram, "DEEPGRAM_API_KEY"),
+            (.poe, "POE_API_KEY"),
             (.sub2api, "SUB2API_API_KEY"),
+            (.synthetic, "SYNTHETIC_API_KEY"),
+            (.xai, "XAI_MANAGEMENT_API_KEY"),
+            (.zai, "Z_AI_API_KEY"),
         ] {
             let descriptor = ProviderDescriptorRegistry.descriptor(for: provider)
             var environment = [key: "fixture-key"]
             if provider == .sub2api {
                 environment[Sub2APISettingsReader.baseURLEnvironmentKey] = "https://api.example.com"
+            }
+            if provider == .xai {
+                environment[XAISettingsReader.teamIDEnvironmentKey] = "team-1234"
             }
             let context = Self.context(environment: environment)
             let strategies = await descriptor.fetchPlan.pipeline.resolveStrategies(context)
@@ -97,7 +88,7 @@ struct ProviderPluginParityTests {
     }
 
     @Test
-    func `Synthetic fixture has Swift and JS snapshot parity`() async throws {
+    func `Synthetic fixture matches the cut-over golden`() async throws {
         let body = """
         {
           "plan": "Starter",
@@ -127,14 +118,36 @@ struct ProviderPluginParityTests {
         let transport = Self.transport(body: body)
         let now = Date(timeIntervalSince1970: 1_775_000_000)
 
-        let swift = try await SyntheticUsageFetcher.fetchUsage(
-            apiKey: "fixture-key",
-            now: now,
-            transport: transport).toUsageSnapshot()
         let runtime = try ProviderPluginRuntime(bundledPlugin: "synthetic", transport: transport)
         let script = try await runtime.fetchUsage(secrets: ["SYNTHETIC_API_KEY": "fixture-key"], now: now)
 
-        Self.expectCoreParity(swift, script)
+        #expect(script.primary == RateWindow(
+            usedPercent: 20,
+            windowMinutes: nil,
+            resetsAt: Date(timeIntervalSince1970: 1_776_397_451),
+            resetDescription: nil,
+            nextRegenPercent: 5))
+        #expect(script.secondary == RateWindow(
+            usedPercent: 1.9411527777777735,
+            windowMinutes: nil,
+            resetsAt: Date(timeIntervalSince1970: 1_776_403_170),
+            resetDescription: nil))
+        #expect(script.tertiary == RateWindow(
+            usedPercent: 0.8,
+            windowMinutes: nil,
+            resetsAt: Date(timeIntervalSince1970: 1_776_400_201.494),
+            resetDescription: nil))
+        #expect(script.providerCost?.used == 0.7000000000000028)
+        #expect(script.providerCost?.limit == 36)
+        #expect(script.providerCost?.currencyCode == "USD")
+        #expect(script.providerCost?.period == "Weekly")
+        #expect(script.providerCost?.resetsAt == Date(timeIntervalSince1970: 1_776_403_170))
+        #expect(script.providerCost?.nextRegenAmount == 0.72)
+        #expect(script.identity?.providerID == .synthetic)
+        #expect(script.identity?.accountEmail == nil)
+        #expect(script.identity?.accountOrganization == nil)
+        #expect(script.identity?.loginMethod == "Starter")
+        #expect(script.identity?.accountID == nil)
     }
 
     @Test
@@ -222,12 +235,15 @@ struct ProviderPluginParityTests {
                 statusCode: 200,
                 httpVersion: nil,
                 headerFields: ["Content-Type": "application/json"]))
+            if request.url?.path.hasSuffix("/key") == true {
+                try await Task.sleep(for: .milliseconds(950))
+            }
             let body = request.url?.path.hasSuffix("/key") == true ? keyBody : creditsBody
             return (Data(body.utf8), response)
         }
         let now = Date()
 
-        let runtime = try ProviderPluginRuntime(bundledPlugin: "openrouter", transport: transport)
+        let runtime = try Self.openRouterRuntime(transport: transport)
         let script = try await runtime.fetchUsage(
             secrets: ["OPENROUTER_API_KEY": "fixture-key"],
             now: now)
@@ -252,6 +268,9 @@ struct ProviderPluginParityTests {
         }}
         """#
         let transport = ProviderHTTPTransportHandler { request in
+            if request.url?.path.hasSuffix("/key") == true {
+                try await Task.sleep(for: .milliseconds(950))
+            }
             let response = try #require(HTTPURLResponse(
                 url: request.url!,
                 statusCode: 200,
@@ -262,7 +281,7 @@ struct ProviderPluginParityTests {
         }
         let now = Date()
 
-        let runtime = try ProviderPluginRuntime(bundledPlugin: "openrouter", transport: transport)
+        let runtime = try Self.openRouterRuntime(transport: transport)
         let script = try await runtime.fetchUsage(
             secrets: ["OPENROUTER_API_KEY": "fixture-key"],
             now: now)
@@ -292,12 +311,15 @@ struct ProviderPluginParityTests {
                 statusCode: 200,
                 httpVersion: nil,
                 headerFields: ["Content-Type": "application/json"]))
+            if request.url?.path.hasSuffix("/key") == true {
+                try await Task.sleep(for: .milliseconds(950))
+            }
             let body = request.url?.path.hasSuffix("/key") == true ? keyBody : creditsBody
             return (Data(body.utf8), response)
         }
         let now = Date()
 
-        let runtime = try ProviderPluginRuntime(bundledPlugin: "openrouter", transport: transport)
+        let runtime = try Self.openRouterRuntime(transport: transport)
         let script = try await runtime.fetchUsage(
             secrets: ["OPENROUTER_API_KEY": "fixture-key"],
             now: now)
@@ -322,6 +344,15 @@ struct ProviderPluginParityTests {
         }
     }
 
+    private static func openRouterRuntime(
+        transport: any ProviderHTTPTransport) throws -> ProviderPluginRuntime
+    {
+        try ProviderPluginRuntime(
+            bundledPlugin: "openrouter",
+            transport: transport,
+            contextOptions: ProviderPluginContextOptions(optionalRequestTimeoutSeconds: 15))
+    }
+
     private static func context(environment: [String: String]) -> ProviderFetchContext {
         ProviderFetchContext(
             runtime: .app,
@@ -335,26 +366,6 @@ struct ProviderPluginParityTests {
             fetcher: UsageFetcher(environment: environment),
             claudeFetcher: ProviderPluginParityClaudeFetcher(),
             browserDetection: BrowserDetection(cacheTTL: 0))
-    }
-
-    private static func expectCoreParity(_ swift: UsageSnapshot, _ script: UsageSnapshot) {
-        #expect(swift.primary == script.primary)
-        #expect(swift.secondary == script.secondary)
-        #expect(swift.tertiary == script.tertiary)
-        #expect(swift.extraRateWindows == script.extraRateWindows)
-        #expect(swift.subscriptionRenewsAt == script.subscriptionRenewsAt)
-        #expect(swift.subscriptionExpiresAt == script.subscriptionExpiresAt)
-        #expect(swift.providerCost?.used == script.providerCost?.used)
-        #expect(swift.providerCost?.limit == script.providerCost?.limit)
-        #expect(swift.providerCost?.currencyCode == script.providerCost?.currencyCode)
-        #expect(swift.providerCost?.period == script.providerCost?.period)
-        #expect(swift.providerCost?.resetsAt == script.providerCost?.resetsAt)
-        #expect(swift.providerCost?.nextRegenAmount == script.providerCost?.nextRegenAmount)
-        #expect(swift.identity?.providerID == script.identity?.providerID)
-        #expect(swift.identity?.accountEmail == script.identity?.accountEmail)
-        #expect(swift.identity?.accountOrganization == script.identity?.accountOrganization)
-        #expect(swift.identity?.loginMethod == script.identity?.loginMethod)
-        #expect(swift.identity?.accountID == script.identity?.accountID)
     }
 }
 
@@ -371,4 +382,3 @@ private struct ProviderPluginParityClaudeFetcher: ClaudeUsageFetching {
         nil
     }
 }
-#endif

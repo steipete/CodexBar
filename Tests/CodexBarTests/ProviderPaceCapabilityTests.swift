@@ -22,6 +22,10 @@ struct ProviderPaceCapabilityTests {
             Self.window(
                 minutes: Self.monthlyWindowSentinelMinutes,
                 resetsAt: now.addingTimeInterval(20 * 24 * 60 * 60)),
+            Self.window(
+                minutes: Self.monthlyWindowSentinelMinutes,
+                resetsAt: now.addingTimeInterval(20 * 24 * 60 * 60),
+                resetDescription: "MCP"),
             Self.window(minutes: 0, resetsAt: now.addingTimeInterval(60)),
             Self.window(minutes: Self.weeklyWindowMinutes, resetsAt: now.addingTimeInterval(-60)),
         ]
@@ -87,12 +91,48 @@ struct ProviderPaceCapabilityTests {
         #expect(resolved.usedPercent == window.usedPercent)
     }
 
-    private static func window(minutes: Int?, resetsAt: Date?) -> RateWindow {
+    @Test
+    func `zai pace maps only verified coding windows`() {
+        let now = Date(timeIntervalSince1970: 1_750_000_000)
+        let capability = ZaiProviderDescriptor.descriptor.pace
+        let session = Self.window(minutes: 5 * 60, resetsAt: now.addingTimeInterval(2 * 60 * 60))
+        let weekly = Self.window(
+            minutes: Self.weeklyWindowMinutes,
+            resetsAt: now.addingTimeInterval(4 * 24 * 60 * 60))
+        let unknown = Self.window(minutes: nil, resetsAt: now.addingTimeInterval(2 * 60 * 60))
+        let monthlyMCP = Self.window(
+            minutes: Self.monthlyWindowSentinelMinutes,
+            resetsAt: now.addingTimeInterval(20 * 24 * 60 * 60),
+            resetDescription: "MCP")
+        let rollingThirtyDay = Self.window(
+            minutes: Self.monthlyWindowSentinelMinutes,
+            resetsAt: now.addingTimeInterval(20 * 24 * 60 * 60),
+            resetDescription: "30 days window")
+
+        #expect(capability.resolvedKind(slot: .primary, window: session, now: now) == .session)
+        #expect(capability.resolvedKind(slot: .secondary, window: weekly, now: now) == .weekly)
+        #expect(capability.resolvedKind(slot: .primary, window: weekly, now: now) == nil)
+        #expect(capability.resolvedKind(slot: .secondary, window: session, now: now) == nil)
+        #expect(capability.supportsSessionPace(window: session, now: now))
+        #expect(!capability.supportsSessionPace(window: unknown, now: now))
+        #expect(capability.supportsResetWindowPace(window: monthlyMCP, now: now))
+        #expect(capability.usesInferredMonthlyDuration(window: monthlyMCP))
+        #expect(!capability.supportsResetWindowPace(window: rollingThirtyDay, now: now))
+        #expect(!capability.usesInferredMonthlyDuration(window: rollingThirtyDay))
+        #expect(capability.resolvedKind(slot: .primary, window: rollingThirtyDay, now: now) == nil)
+        #expect(capability.resolvedResetWindowForPace(rollingThirtyDay) == rollingThirtyDay)
+    }
+
+    private static func window(
+        minutes: Int?,
+        resetsAt: Date?,
+        resetDescription: String? = nil) -> RateWindow
+    {
         RateWindow(
             usedPercent: 50,
             windowMinutes: minutes,
             resetsAt: resetsAt,
-            resetDescription: nil)
+            resetDescription: resetDescription)
     }
 
     /// Expected provider-specific reset-window behavior, including newly declared capabilities.
@@ -117,6 +157,9 @@ struct ProviderPaceCapabilityTests {
                 && timeUntilReset <= TimeInterval(windowMinutes) * 60
         case .kimi:
             return window.windowMinutes == self.weeklyWindowMinutes
+        case .zai:
+            return window.windowMinutes == self.monthlyWindowSentinelMinutes
+                && window.resetDescription == "MCP"
         case .alibaba, .alibabatokenplan, .amp, .commandcode, .doubao, .mimo, .notion, .opencodego, .stepfun:
             return window.windowMinutes == self.monthlyWindowSentinelMinutes
         default:
@@ -131,6 +174,9 @@ struct ProviderPaceCapabilityTests {
         switch provider {
         case .copilot:
             window.windowMinutes == nil
+        case .zai:
+            window.windowMinutes == self.monthlyWindowSentinelMinutes
+                && window.resetDescription == "MCP"
         case .alibaba, .alibabatokenplan, .amp, .commandcode, .doubao, .mimo, .notion, .opencodego, .stepfun:
             window.windowMinutes == self.monthlyWindowSentinelMinutes
         default:

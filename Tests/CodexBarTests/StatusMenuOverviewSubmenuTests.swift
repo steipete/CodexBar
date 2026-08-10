@@ -153,21 +153,25 @@ extension StatusMenuTests {
         let fetcher = UsageFetcher()
         let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
         let now = Date(timeIntervalSince1970: 1_700_000_000)
-        let usage = ZaiUsageSnapshot(
-            tokenLimit: nil,
-            timeLimit: ZaiLimitEntry(
-                type: .timeLimit,
-                unit: .minutes,
-                number: 1,
-                usage: 100,
-                currentValue: 50,
-                remaining: 50,
-                percentage: 50,
-                usageDetails: [ZaiUsageDetail(modelCode: "glm-4.5", usage: 512)],
-                nextResetTime: now.addingTimeInterval(3600)),
-            planName: "Pro",
-            updatedAt: now)
-        store._setSnapshotForTesting(usage.toUsageSnapshot(), provider: .zai)
+        let detailSection = try ProviderDetailSection(title: "Quota details", rows: [
+            .init(label: "MCP quota", value: "50% used", secondaryValue: "100 limit · 50 remaining"),
+            .init(label: "glm-4.5", value: "512"),
+        ])
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(
+                usedPercent: 50,
+                windowMinutes: nil,
+                resetsAt: now.addingTimeInterval(3600),
+                resetDescription: "MCP"),
+            secondary: nil,
+            details: [detailSection],
+            updatedAt: now,
+            identity: ProviderIdentitySnapshot(
+                providerID: .zai,
+                accountEmail: nil,
+                accountOrganization: nil,
+                loginMethod: "Pro"))
+        store._setSnapshotForTesting(snapshot, provider: .zai)
 
         let controller = StatusItemController(
             store: store,

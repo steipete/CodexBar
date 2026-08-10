@@ -43,6 +43,32 @@ enum CostUsageScanner {
         case excludeVertexAI
     }
 
+    struct CodexScanWorkMetrics: Equatable, Sendable {
+        var usageRowsProcessed: Int
+        var usageRowsRepriced: Int
+    }
+
+    final class CodexScanWorkRecorder: @unchecked Sendable {
+        private let lock = NSLock()
+        private var processed = 0
+        private var repriced = 0
+
+        func record(processed: Int, repriced: Int) {
+            self.lock.lock()
+            self.processed += max(0, processed)
+            self.repriced += max(0, repriced)
+            self.lock.unlock()
+        }
+
+        func snapshot() -> CodexScanWorkMetrics {
+            self.lock.lock()
+            defer { self.lock.unlock() }
+            return CodexScanWorkMetrics(
+                usageRowsProcessed: self.processed,
+                usageRowsRepriced: self.repriced)
+        }
+    }
+
     struct Options {
         var codexSessionsRoot: URL?
         var claudeProjectsRoots: [URL]?
@@ -65,6 +91,7 @@ enum CostUsageScanner {
         var maxCodexScanDurationPerRefresh: TimeInterval?
         /// Prefer newest session files first so recent usage lands before catch-up work.
         var preferNewestCodexSessionsFirst: Bool = true
+        var codexScanWorkRecorderForTesting: CodexScanWorkRecorder?
 
         init(
             codexSessionsRoot: URL? = nil,
@@ -78,7 +105,8 @@ enum CostUsageScanner {
             maxCodexSessionFileBytes: Int64 = 256 * 1024 * 1024,
             maxCodexScanBytesPerRefresh: Int64 = 512 * 1024 * 1024,
             maxCodexScanDurationPerRefresh: TimeInterval? = nil,
-            preferNewestCodexSessionsFirst: Bool = true)
+            preferNewestCodexSessionsFirst: Bool = true,
+            codexScanWorkRecorderForTesting: CodexScanWorkRecorder? = nil)
         {
             self.codexSessionsRoot = codexSessionsRoot
             self.claudeProjectsRoots = claudeProjectsRoots
@@ -92,6 +120,7 @@ enum CostUsageScanner {
             self.maxCodexScanBytesPerRefresh = max(0, maxCodexScanBytesPerRefresh)
             self.maxCodexScanDurationPerRefresh = maxCodexScanDurationPerRefresh.map { max(0, $0) }
             self.preferNewestCodexSessionsFirst = preferNewestCodexSessionsFirst
+            self.codexScanWorkRecorderForTesting = codexScanWorkRecorderForTesting
         }
     }
 
@@ -220,6 +249,8 @@ enum CostUsageScanner {
         let cached: Int
         let output: Int
         let reasoning: Int?
+        /// Set only when the source supplied an authoritative monetary cost.
+        /// Estimated model-table pricing is resolved from token classes when reports are read.
         let knownCostNanos: Int64?
         let unpricedTokens: Int?
         let pricingModel: String?
@@ -687,6 +718,34 @@ enum CostUsageScanner {
         return checkpoints
     }
 
+    /// Extends sparse checkpoints from the persisted terminal accumulator. Only the appended
+    /// token events are folded; the already-indexed prefix is never replayed.
+    static func appendingCodexTokenCheckpoints(
+        _ events: [CostUsageCodexTokenSnapshot],
+        to checkpoints: [CostUsageCodexTokenCheckpoint],
+        startingEventIndex: Int,
+        initialState: CostUsageCodexTokenAccumulatorState) -> [CostUsageCodexTokenCheckpoint]
+    {
+        guard !events.isEmpty else { return checkpoints }
+        var accumulator = CodexSnapshotAccumulator(state: initialState)
+        var appended: [CostUsageCodexTokenCheckpoint] = []
+        var lastCheckpointOffset = checkpoints.last?.endOffset ?? 0
+        for (offset, event) in events.enumerated() {
+            _ = accumulator.apply(last: event.last, total: event.total)
+            guard let endOffset = event.endOffset else { continue }
+            let reachedStride = endOffset - lastCheckpointOffset >= Self.codexTokenCheckpointStride
+            let isLastEvent = offset == events.index(before: events.endIndex)
+            guard reachedStride || isLastEvent else { continue }
+            appended.append(CostUsageCodexTokenCheckpoint(
+                eventIndex: startingEventIndex + offset,
+                timestamp: event.timestamp,
+                endOffset: endOffset,
+                state: accumulator.state))
+            lastCheckpointOffset = endOffset
+        }
+        return checkpoints + appended
+    }
+
     static func codexTokenTimestampsAreMonotonic(
         _ events: [CostUsageCodexTokenSnapshot]) -> Bool
     {
@@ -724,6 +783,7 @@ enum CostUsageScanner {
         let resources: CodexScanResources
         let checkCancellation: CancellationCheck?
         let scanBudget: CodexScanBudget?
+        let workRecorder: CodexScanWorkRecorder?
     }
 
     final class CodexCanonicalProjectPathResolver {
@@ -821,7 +881,6 @@ enum CostUsageScanner {
         let rootsFingerprint: [String: Int64]
         let rootsChanged: Bool
         let windowExpanded: Bool
-        let needsCostCacheMigration: Bool
         let needsProjectMetadataMigration: Bool
         let modelsDevCatalog: ModelsDevCatalog?
         let codexPricingKey: String
@@ -830,7 +889,6 @@ enum CostUsageScanner {
         let priorityTurns: [String: CodexPriorityTurnMetadata]
         let priorityTurnKeys: [String: String]
         let priorityTurnIDsByDay: [String: [String]]
-        let pricingChanged: Bool
         let priorityMetadataChanged: Bool
         let priorityTurnsChanged: Bool
         let needsTurnIDCacheMigration: Bool
@@ -1909,12 +1967,11 @@ enum CostUsageScanner {
         self.codexRootsFingerprint(self.codexSessionsRoots(options: options))
     }
 
-    /// Bump when the cost FORMULA changes (not the rates) so caches written by an older formula
-    /// are invalidated and repriced. The pricing fingerprints below only capture rate constants,
-    /// so formula-only fixes would otherwise reuse stale precomputed costs.
+    /// Bump when the report pricing formula changes. Rates are resolved when reports are read;
+    /// this fingerprint only invalidates downstream presentation caches such as Workspaces snapshots.
     private static let codexCostFormulaVersion = 2
 
-    private static func codexPricingKey(modelsDevArtifact: ModelsDevCacheArtifact?) -> String {
+    static func codexPricingKey(modelsDevArtifact: ModelsDevCacheArtifact?) -> String {
         CostUsagePricingKey.codex(
             modelsDevArtifact: modelsDevArtifact,
             formulaVersion: self.codexCostFormulaVersion)
@@ -4336,14 +4393,15 @@ enum CostUsageScanner {
         let rootsFingerprint = Self.codexRootsFingerprint(roots)
         let rootsChanged = cache.roots != rootsFingerprint
         let windowExpanded = Self.requestedWindowExpandsCache(range: range, cache: cache)
-        let needsCostCacheMigration = cache.files.values.contains { Self.needsCodexCostCache($0, range: range) }
+        let needsPricingMetadataMigration = cache.files.values.contains {
+            Self.needsCodexPricingMetadata($0, range: range)
+        }
         let needsProjectMetadataMigration = cache.codexProjectMetadataVersion != Self.codexProjectMetadataVersion
         let modelsDevLoad = ModelsDevCache.load(now: now, cacheRoot: options.cacheRoot)
         let modelsDevCatalog = modelsDevLoad.artifact?.catalog
         let codexPricingKey = Self.codexPricingKey(modelsDevArtifact: modelsDevLoad.artifact)
         let codexPriorityMetadataKey = Self.codexPriorityMetadataKey(databaseURL: options.codexTraceDatabaseURL)
         let hasPriorityMetadata = codexPriorityMetadataKey.hasPrefix("sqlite:")
-        let pricingChanged = cache.codexPricingKey != nil && cache.codexPricingKey != codexPricingKey
         let priorityMetadataChanged = Self.codexPriorityMetadataChanged(
             old: cache.codexPriorityMetadataKey,
             new: codexPriorityMetadataKey)
@@ -4355,10 +4413,9 @@ enum CostUsageScanner {
         let shouldInspectPriorityTurns = options.forceRescan
             || windowExpanded
             || rootsChanged
-            || needsCostCacheMigration
+            || needsPricingMetadataMigration
             || needsProjectMetadataMigration
             || needsTurnIDCacheMigration
-            || pricingChanged
             || priorityMetadataChanged
             || refreshMs == 0
             || cache.lastScanUnixMs == 0
@@ -4386,10 +4443,9 @@ enum CostUsageScanner {
         let shouldRefresh = options.forceRescan
             || windowExpanded
             || rootsChanged
-            || needsCostCacheMigration
+            || needsPricingMetadataMigration
             || needsProjectMetadataMigration
             || needsTurnIDCacheMigration
-            || pricingChanged
             || priorityMetadataChanged
             || priorityTurnsChanged
             || refreshMs == 0
@@ -4402,7 +4458,6 @@ enum CostUsageScanner {
             rootsFingerprint: rootsFingerprint,
             rootsChanged: rootsChanged,
             windowExpanded: windowExpanded,
-            needsCostCacheMigration: needsCostCacheMigration,
             needsProjectMetadataMigration: needsProjectMetadataMigration,
             modelsDevCatalog: modelsDevCatalog,
             codexPricingKey: codexPricingKey,
@@ -4411,7 +4466,6 @@ enum CostUsageScanner {
             priorityTurns: priorityTurns,
             priorityTurnKeys: priorityTurnKeys,
             priorityTurnIDsByDay: priorityTurnIDsByDay,
-            pricingChanged: pricingChanged,
             priorityMetadataChanged: priorityMetadataChanged,
             priorityTurnsChanged: priorityTurnsChanged,
             needsTurnIDCacheMigration: needsTurnIDCacheMigration,
@@ -4421,16 +4475,13 @@ enum CostUsageScanner {
 
     private static func loadCodexCache(
         options: Options,
-        range: CostUsageDayRange) -> CostUsageCodexCacheLoadResult
+        range: CostUsageDayRange) -> CostUsageStoreLoad
     {
-        CostUsageCacheIO.loadCodexForMigration(
-            cacheRoot: options.cacheRoot,
-            calendar: range.calendar)
+        CostUsageStoreAccess.load(cacheRoot: options.cacheRoot, calendar: range.calendar)
     }
 
     private static func codexPreviousReportCandidate(
         cache: CostUsageCache,
-        incompatibleCache: CostUsageCache?,
         range: CostUsageDayRange,
         plan: CodexRefreshPlan,
         options: Options) -> CostUsageCodexPreviousReport?
@@ -4447,11 +4498,9 @@ enum CostUsageScanner {
             return previous
         }
 
-        let sourceCache: CostUsageCache? = if let incompatibleCache {
-            incompatibleCache
-        } else if !currentScanIsPending,
-                  options.forceRescan,
-                  !cache.days.isEmpty
+        let sourceCache: CostUsageCache? = if !currentScanIsPending,
+                                              options.forceRescan,
+                                              !cache.days.isEmpty
         {
             cache
         } else {
@@ -4489,12 +4538,17 @@ enum CostUsageScanner {
         return previous
     }
 
-    private static func saveCodexCache(_ cache: CostUsageCache, options: Options, range: CostUsageDayRange) {
-        // Provider-specific by design: Codex scans persist resume and report-window metadata.
-        CostUsageCacheIO.save(
-            provider: .codex,
+    private static func saveCodexCache(
+        _ cache: CostUsageCache,
+        store: CostUsageStore,
+        options: Options,
+        range: CostUsageDayRange)
+    {
+        // The serial scan queue remains the per-process writer boundary. The store actor owns
+        // the sole writable connection; app and CLI readers take independent WAL snapshots.
+        CostUsageStoreAccess.save(
+            store: store,
             cache: cache,
-            cacheRoot: options.cacheRoot,
             calendar: range.calendar,
             requestedScanWindow: (sinceKey: range.scanSinceKey, untilKey: range.scanUntilKey),
             reportWindow: (sinceKey: range.sinceKey, untilKey: range.untilKey))
@@ -4513,7 +4567,6 @@ enum CostUsageScanner {
         let plan = Self.makeCodexRefreshPlan(cache: cache, range: range, now: now, nowMs: nowMs, options: options)
         let previousReport = Self.codexPreviousReportCandidate(
             cache: cache,
-            incompatibleCache: loadedCache.incompatibleCache,
             range: range,
             plan: plan,
             options: options)
@@ -4676,7 +4729,7 @@ enum CostUsageScanner {
                 }
             }
 
-            let shouldRetainWiderWindow = !options.forceRescan && !plan.pricingChanged && !plan
+            let shouldRetainWiderWindow = !options.forceRescan && !plan
                 .priorityMetadataChanged && !plan.needsTurnIDCacheMigration && !plan.needsProjectMetadataMigration
             let retainedSinceKey = shouldRetainWiderWindow
                 ? [cachedSinceKey, range.scanSinceKey].compactMap(\.self).min() ?? range.scanSinceKey
@@ -4723,7 +4776,7 @@ enum CostUsageScanner {
             }
             cache.lastScanUnixMs = nowMs
             try checkCancellation?()
-            Self.saveCodexCache(cache, options: options, range: range)
+            Self.saveCodexCache(cache, store: loadedCache.store, options: options, range: range)
         }
 
         if let previous = Self.codexPreviousReport(
@@ -4872,15 +4925,15 @@ enum CostUsageScanner {
     {
         CodexFileScanContext(
             range: range,
-            forceFullScan: options.forceRescan || plan.windowExpanded || plan.pricingChanged
+            forceFullScan: options.forceRescan || plan.windowExpanded
                 || plan.priorityMetadataChanged || plan.needsProjectMetadataMigration,
-            dropDeferredCodexRows: options.forceRescan || plan.pricingChanged || plan.priorityMetadataChanged
-                || plan.needsTurnIDCacheMigration,
+            dropDeferredCodexRows: options.forceRescan || plan.needsTurnIDCacheMigration,
             requiresTurnIDCache: plan.needsTurnIDCacheMigration,
             changedPriorityTurnIDs: plan.changedPriorityTurnIDs,
             resources: resources,
             checkCancellation: checkCancellation,
-            scanBudget: scanBudget)
+            scanBudget: scanBudget,
+            workRecorder: options.codexScanWorkRecorderForTesting)
     }
 
     static func sortedCodexSessionFilesNewestFirst(_ files: [URL]) -> [URL] {

@@ -10,6 +10,13 @@ struct DashboardClaudeSwapInput {
 /// Projects the CLI's provider usage and cost payloads into the stable,
 /// display-oriented `/dashboard/v1/snapshot` contract.
 enum DashboardSnapshotBuilder {
+    private struct ProviderPresentation {
+        let id: String
+        let name: String
+        let enabled: Bool
+        let display: DashboardDisplayPayload
+    }
+
     // swiftlint:disable:next function_parameter_count
     static func makeSnapshot(
         usagePayloads: [ProviderPayload],
@@ -25,12 +32,6 @@ enum DashboardSnapshotBuilder {
         for cost in costPayloads {
             costByProvider[cost.provider] = cost
         }
-        let enabledProviders = Set(config.enabledProviders().compactMap(\.firstPartyProvider))
-        var sortKeys: [String: Int] = [:]
-        for (index, provider) in config.orderedProviders().enumerated() where sortKeys[provider.rawValue] == nil {
-            sortKeys[provider.rawValue] = index * 10
-        }
-
         var attachedClaudeSwap = false
         let providers = usagePayloads.enumerated().map { index, payload in
             var rowClaudeSwap: DashboardClaudeSwapInput?
@@ -39,11 +40,14 @@ enum DashboardSnapshotBuilder {
                 rowClaudeSwap = claudeSwap
                 attachedClaudeSwap = true
             }
+            let presentation = self.providerPresentation(
+                id: payload.provider,
+                config: config,
+                fallbackSortKey: 10000 + index)
             return self.makeProvider(
                 payload: payload,
                 cost: costByProvider[payload.provider],
-                enabledProviders: enabledProviders,
-                sortKey: sortKeys[payload.provider] ?? (10000 + index),
+                presentation: presentation,
                 identityMode: identityMode,
                 generatedAt: generatedAt,
                 claudeSwap: rowClaudeSwap)
@@ -60,12 +64,53 @@ enum DashboardSnapshotBuilder {
             providers: providers)
     }
 
+    static func makeShellSnapshot(
+        config: CodexBarConfig,
+        providers requestedProviders: [UsageProvider]? = nil,
+        generatedAt: Date,
+        refreshInterval: TimeInterval,
+        codexBarVersion: String?) -> DashboardSnapshotPayload
+    {
+        let providers = requestedProviders
+            ?? config.enabledProviders().compactMap(\.firstPartyProvider)
+        let rows = providers.enumerated().map { index, provider in
+            let presentation = self.providerPresentation(
+                id: provider.rawValue,
+                config: config,
+                fallbackSortKey: 10000 + index)
+            return DashboardProviderPayload(
+                id: presentation.id,
+                name: presentation.name,
+                enabled: presentation.enabled,
+                source: "",
+                status: nil,
+                identity: nil,
+                windows: [],
+                credits: nil,
+                cost: nil,
+                display: presentation.display,
+                error: nil,
+                updatedAt: nil,
+                accounts: nil,
+                accountsError: nil,
+                detail: .shell)
+        }
+        let refreshSeconds = self.dashboardRefreshSeconds(refreshInterval)
+        return DashboardSnapshotPayload(
+            schemaVersion: 1,
+            generatedAt: generatedAt,
+            staleAfterSeconds: max(180, refreshSeconds * 3),
+            host: DashboardHostPayload(
+                codexBarVersion: codexBarVersion,
+                refreshIntervalSeconds: refreshSeconds),
+            providers: rows)
+    }
+
     // swiftlint:disable:next function_parameter_count
     private static func makeProvider(
         payload: ProviderPayload,
         cost: CostPayload?,
-        enabledProviders: Set<UsageProvider>,
-        sortKey: Int,
+        presentation: ProviderPresentation,
         identityMode: DashboardIdentityMode,
         generatedAt: Date,
         claudeSwap: DashboardClaudeSwapInput?) -> DashboardProviderPayload
@@ -85,19 +130,16 @@ enum DashboardSnapshotBuilder {
             }
             : nil
         return DashboardProviderPayload(
-            id: payload.provider,
-            name: metadata?.displayName ?? payload.provider,
-            enabled: provider.map { enabledProviders.contains($0) } ?? true,
+            id: presentation.id,
+            name: presentation.name,
+            enabled: presentation.enabled,
             source: self.dashboardSource(from: payload.source),
             status: self.makeStatus(payload.status),
             identity: self.makeIdentity(provider: provider, usage: payload.usage, mode: identityMode),
             windows: self.makeWindows(provider: provider, metadata: metadata, usage: payload.usage),
             credits: self.makeCredits(payload.credits),
             cost: self.makeCost(cost, referenceDate: generatedAt),
-            display: DashboardDisplayPayload(
-                accentColor: self.hexColor(descriptor?.branding.color),
-                sortKey: sortKey,
-                priority: "normal"),
+            display: presentation.display,
             error: error,
             updatedAt: self.updatedAt(
                 payload: payload,
@@ -108,22 +150,46 @@ enum DashboardSnapshotBuilder {
             accountsError: claudeSwap?.adapterError)
     }
 
+    private static func providerPresentation(
+        id: String,
+        config: CodexBarConfig,
+        fallbackSortKey: Int) -> ProviderPresentation
+    {
+        let provider = UsageProvider(rawValue: id)
+        let descriptor = provider.map { ProviderDescriptorRegistry.descriptor(for: $0) }
+        let enabledProviders = Set(config.enabledProviders().compactMap(\.firstPartyProvider))
+        let sortKey = config.orderedProviders().firstIndex { $0.rawValue == id }.map { $0 * 10 }
+            ?? fallbackSortKey
+        return ProviderPresentation(
+            id: id,
+            name: descriptor?.metadata.displayName ?? id,
+            enabled: provider.map { enabledProviders.contains($0) } ?? true,
+            display: DashboardDisplayPayload(
+                accentColor: self.hexColor(descriptor?.branding.color),
+                sortKey: sortKey,
+                priority: "normal"))
+    }
+
     private static func makeClaudeSwapAccount(
         _ account: ProviderAccountUsageSnapshot,
         identityMode: DashboardIdentityMode,
         weeklyWorkDays: Int?,
         generatedAt: Date) -> DashboardAccountPayload
     {
-        let email = account.snapshot?.identity?.accountEmail
-        let redactedEmail = identityMode != .none && email?.contains("@") == true
+        // Provider-specific by design: claude-swap keeps the source email in displayLabel when usage is unavailable.
+        let snapshotEmail = account.snapshot?.identity?.accountEmail
+        let email = snapshotEmail?.contains("@") == true
+            ? snapshotEmail
+            : (account.displayLabel.contains("@") ? account.displayLabel : nil)
+        let presentedEmail = identityMode != .none && email?.contains("@") == true
             ? self.dashboardEmail(email, mode: identityMode)
             : nil
-        let identity = redactedEmail.map { DashboardIdentityPayload(accountEmail: $0, plan: nil) }
+        let identity = presentedEmail.map { DashboardIdentityPayload(accountEmail: $0, plan: nil) }
         // Provider-specific by design: claude-swap account windows and pace use Claude's presentation semantics.
         let metadata = ProviderDescriptorRegistry.descriptor(for: UsageProvider.claude).metadata
         return DashboardAccountPayload(
             id: "\(account.id.source):\(account.id.opaqueID)",
-            label: "Account \(account.id.opaqueID)",
+            label: presentedEmail ?? "Account \(account.id.opaqueID)",
             active: account.isActive,
             identity: identity,
             windows: self.makeWindows(provider: .claude, metadata: metadata, usage: account.snapshot),

@@ -48,7 +48,7 @@ struct UserProviderPluginTests {
     }
 
     @Test
-    func `user plugin broker owns identity encoding and rejects compressed responses`() async throws {
+    func `http status capability keeps identity encoding and compressed response rejection`() async throws {
         let fixture = try Fixture()
         defer { fixture.remove() }
         let source = """
@@ -57,6 +57,7 @@ struct UserProviderPluginTests {
           name: "Encoded Meter",
           endpoints: ["https://encoded.example"],
           settings: [],
+          capabilities: ["http-status"],
           async fetchUsage(ctx) {
             const response = await ctx.http.getJSON("https://encoded.example/usage", {
               headers: { "Accept-Encoding": "gzip" },
@@ -265,6 +266,197 @@ struct UserProviderPluginTests {
         #expect(binding.typedConfirmationOrigins == binding.origins)
     }
 
+    @Test
+    func `LLM Proxy private HTTP requires approval and keeps auth bound to the typed origin`() async throws {
+        let fixture = try Fixture()
+        defer { fixture.remove() }
+        let source = """
+        defineProvider({
+          id: "llmproxy-prototype",
+          name: "LLM Proxy Prototype",
+          endpoints: [{ setting: "BASE_URL", policy: "https-or-private-network-http" }],
+          auth: { type: "bearer", secret: "TOKEN" },
+          settings: [
+            { key: "BASE_URL", title: "Base URL", type: "plain" },
+            { key: "TOKEN", title: "API token", type: "secure" },
+          ],
+          async fetchUsage(ctx) {
+            const response = await ctx.http.getJSON(`${ctx.settings.get("BASE_URL")}/usage`);
+            return { identity: { organization: response.json.organization } };
+          },
+        });
+        """
+        let transport = RecordingTransport(responseJSON: #"{"organization":"Acme gateway"}"#)
+        let plugin = try fixture.loader(transport: transport)
+            .load(fileURL: fixture.write(name: "llmproxy.js", source: source))
+        let settings = ["BASE_URL": "http://192.168.1.20:4000"]
+        let binding = try plugin.approvalBinding(settings: settings)
+
+        #expect(binding.origins == ["http://192.168.1.20:4000"])
+        #expect(binding.typedConfirmationOrigins == binding.origins)
+        let localBinding = try plugin.approvalBinding(settings: ["BASE_URL": "http://gateway.local.:4000"])
+        #expect(localBinding.typedConfirmationOrigins == localBinding.origins)
+        await #expect(throws: UserProviderPluginError.self) {
+            _ = try await plugin.fetchUsage(
+                settings: settings,
+                secrets: ["TOKEN": "fixture-secret"],
+                approvalStore: fixture.approvals)
+        }
+        #expect(transport.requestCount == 0)
+
+        try fixture.approvals.record(binding)
+        let snapshot = try await plugin.fetchUsage(
+            settings: settings,
+            secrets: ["TOKEN": "fixture-secret"],
+            approvalStore: fixture.approvals)
+
+        #expect(snapshot.identity?.accountOrganization == "Acme gateway")
+        #expect(transport.lastRequest?.url?.absoluteString == "http://192.168.1.20:4000/usage")
+        #expect(transport.lastRequest?.value(forHTTPHeaderField: "Authorization") == "Bearer fixture-secret")
+
+        #expect(throws: ProviderPluginError.self) {
+            _ = try plugin.approvalBinding(settings: ["BASE_URL": "http://gateway.example"])
+        }
+    }
+
+    @Test
+    func `plugin CLI renders identity only snapshots`() throws {
+        let fixture = try Fixture()
+        defer { fixture.remove() }
+        let plugin = try fixture.loader(transport: RecordingTransport(responseJSON: "{}"))
+            .load(fileURL: fixture.write(name: "identity.js", source: Self.javaScriptPlugin()))
+        let snapshot = UsageSnapshot(
+            primary: nil,
+            secondary: nil,
+            tertiary: nil,
+            updatedAt: Date(),
+            identity: ProviderIdentitySnapshot(
+                providerID: plugin.manifest.id,
+                accountEmail: "user@example.com",
+                accountOrganization: "Acme",
+                loginMethod: "API key",
+                accountID: "acct-1"))
+
+        #expect(CodexBarCLI.pluginSnapshotLines(plugin: plugin, snapshot: snapshot) == [
+            "Acme Meter",
+            "Account: user@example.com",
+            "Organization: Acme",
+            "Plan: API key",
+            "Account ID: acct-1",
+        ])
+    }
+
+    @Test
+    func `NeuralWatt style Retry After failure delays once then succeeds`() async throws {
+        let fixture = try Fixture()
+        defer { fixture.remove() }
+        let transport = SequenceResponseTransport(responses: [
+            (429, #"{"error":"slow down"}"#, ["Retry-After": "0"]),
+            (200, #"{"balance":5}"#, [:]),
+        ])
+        let plugin = try fixture.loader(transport: transport).load(fileURL: fixture.write(
+            name: "neuralwatt.js",
+            source: Self.retryAfterPlugin(capabilities: #"capabilities: ["http-status"],"#)))
+        let binding = try plugin.approvalBinding(settings: [:])
+        try fixture.approvals.record(binding)
+
+        let snapshot = try await plugin.fetchUsage(
+            settings: [:],
+            secrets: [:],
+            approvalStore: fixture.approvals)
+
+        #expect(binding.capabilities == ["http-status"])
+        #expect(snapshot.providerCost?.used == 5)
+        #expect(await transport.requestCount == 2)
+    }
+
+    @Test
+    func `naive user plugin automatically retries host 429 once`() async throws {
+        let fixture = try Fixture()
+        defer { fixture.remove() }
+        let transport = SequenceResponseTransport(responses: [
+            (429, #"{"error":"slow down"}"#, ["Retry-After": "0"]),
+            (200, #"{"used":42}"#, [:]),
+        ])
+        let plugin = try fixture.loader(transport: transport).load(fileURL: fixture.write(
+            name: "naive.js",
+            source: Self.naiveUsagePlugin()))
+        try fixture.approvals.record(plugin.approvalBinding(settings: [:]))
+
+        let snapshot = try await plugin.fetchUsage(
+            settings: [:],
+            secrets: [:],
+            approvalStore: fixture.approvals)
+
+        #expect(snapshot.primary?.usedPercent == 42)
+        #expect(await transport.requestCount == 2)
+    }
+
+    @Test
+    func `host 503 without Retry After requests one second retry without sleeping`() async throws {
+        let fixture = try Fixture()
+        defer { fixture.remove() }
+        let transport = SequenceResponseTransport(responses: [
+            (503, #"{"error":"unavailable"}"#, [:]),
+            (200, #"{"used":17}"#, [:]),
+        ])
+        let plugin = try fixture.loader(transport: transport).load(fileURL: fixture.write(
+            name: "naive.js",
+            source: Self.naiveUsagePlugin()))
+        let delays = RetryDelayRecorder()
+
+        let snapshot = try await ProviderFetchDelayedRetry.run(sleeper: { seconds in
+            await delays.record(seconds)
+        }, operation: {
+            try await plugin.runtime.fetchUsage()
+        })
+
+        #expect(snapshot.primary?.usedPercent == 17)
+        #expect(await transport.requestCount == 2)
+        #expect(await delays.values == [1])
+    }
+
+    @Test
+    func `host 404 remains unclassified and fails without retry`() async throws {
+        let fixture = try Fixture()
+        defer { fixture.remove() }
+        let transport = SequenceResponseTransport(responses: [
+            (404, #"{"error":"not found"}"#, [:]),
+        ])
+        let plugin = try fixture.loader(transport: transport).load(fileURL: fixture.write(
+            name: "naive.js",
+            source: Self.naiveUsagePlugin()))
+        try fixture.approvals.record(plugin.approvalBinding(settings: [:]))
+
+        do {
+            _ = try await plugin.fetchUsage(
+                settings: [:],
+                secrets: [:],
+                approvalStore: fixture.approvals)
+            Issue.record("Expected host HTTP status rejection")
+        } catch {
+            #expect(error.localizedDescription.contains("request returned HTTP 404"))
+        }
+        #expect(await transport.requestCount == 1)
+    }
+
+    @Test
+    func `http status capability parses and unknown capability remains rejected`() throws {
+        let fixture = try Fixture()
+        defer { fixture.remove() }
+        let loader = fixture.loader(transport: RecordingTransport(responseJSON: "{}"))
+        let plugin = try loader.load(fileURL: fixture.write(
+            name: "http-status.js",
+            source: Self.retryAfterPlugin(capabilities: #"capabilities: ["http-status"],"#)))
+
+        #expect(plugin.manifest.capabilities == [.httpStatus])
+        #expect(throws: ProviderPluginError.self) {
+            _ = try loader.load(fileURL: fixture.write(
+                name: "unknown.js",
+                source: Self.retryAfterPlugin(capabilities: #"capabilities: ["unknown"],"#)))
+        }
+    }
+
     private static func javaScriptPlugin(
         id: String = "acme-meter",
         origin: String = "https://api.acme.test") -> String
@@ -299,6 +491,42 @@ struct UserProviderPluginTests {
           endpoints: ["https://delete.example"],
           settings: [],
           fetchUsage() { return { primary: { usedPercent: used } }; },
+        });
+        """
+    }
+
+    private static func retryAfterPlugin(capabilities: String = "") -> String {
+        """
+        defineProvider({
+          id: "neuralwatt-prototype",
+          name: "NeuralWatt Prototype",
+          endpoints: ["https://api.neuralwatt.test"],
+          settings: [],
+          \(capabilities)
+          async fetchUsage(ctx) {
+            const response = await ctx.http.getJSON("https://api.neuralwatt.test/v1/quota");
+            if (response.status === 429) {
+              throw ctx.fail.rateLimited("rate limited", {
+                retryAfterSeconds: Number(response.headers["retry-after"] || 1),
+              });
+            }
+            return { cost: { used: response.json.balance, currency: "USD" } };
+          },
+        });
+        """
+    }
+
+    private static func naiveUsagePlugin() -> String {
+        """
+        defineProvider({
+          id: "naive-meter",
+          name: "Naive Meter",
+          endpoints: ["https://api.naive.test"],
+          settings: [],
+          async fetchUsage(ctx) {
+            const response = await ctx.http.getJSON("https://api.naive.test/usage");
+            return { primary: { usedPercent: response.json.used } };
+          },
         });
         """
     }
@@ -339,6 +567,36 @@ private actor ResolverAccess {
 
     func record(provider _: UsageProvider, domain _: String) {
         self.calls += 1
+    }
+}
+
+private actor RetryDelayRecorder {
+    private(set) var values: [TimeInterval] = []
+
+    func record(_ seconds: TimeInterval) {
+        self.values.append(seconds)
+    }
+}
+
+private actor SequenceResponseTransport: ProviderHTTPTransport {
+    private var responses: [(status: Int, body: String, headers: [String: String])]
+    private(set) var requestCount = 0
+
+    init(responses: [(Int, String, [String: String])]) {
+        self.responses = responses
+    }
+
+    func data(for request: URLRequest) async throws -> (Data, URLResponse) {
+        self.requestCount += 1
+        let response = self.responses.removeFirst()
+        var headers = response.headers
+        headers["Content-Type"] = "application/json"
+        let httpResponse = try HTTPURLResponse(
+            url: #require(request.url),
+            statusCode: response.status,
+            httpVersion: nil,
+            headerFields: headers)!
+        return (Data(response.body.utf8), httpResponse)
     }
 }
 

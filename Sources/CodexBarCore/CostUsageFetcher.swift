@@ -304,24 +304,10 @@ public struct CostUsageFetcher: Sendable {
     {
         let roots = CostUsageScanner.codexSessionsRoots(options: options)
         let rootsFingerprint = CostUsageScanner.codexRootsFingerprint(options: options)
-        let loadedCache = CostUsageCacheIO.loadCodexForMigration(
+        let cache = CostUsageStoreAccess.read(
             cacheRoot: options.cacheRoot,
             calendar: options.calendar)
-        let cache = loadedCache.cache
         guard cache.roots == rootsFingerprint else {
-            if let incompatibleCache = loadedCache.incompatibleCache,
-               incompatibleCache.roots == rootsFingerprint
-            {
-                let staleSnapshotUpdatedAt: Date? = if incompatibleCache.lastScanUnixMs > 0 {
-                    Date(timeIntervalSince1970: TimeInterval(incompatibleCache.lastScanUnixMs) / 1000)
-                } else {
-                    nil
-                }
-                return CodexScanCatchUpStatus(
-                    pending: true,
-                    progressKey: "producer-upgrade",
-                    staleSnapshotUpdatedAt: staleSnapshotUpdatedAt)
-            }
             return CodexScanCatchUpStatus(pending: false, progressKey: "scope-mismatch")
         }
 
@@ -577,7 +563,9 @@ public struct CostUsageFetcher: Sendable {
             if provider == .codex {
                 let roots = CostUsageScanner.codexSessionsRoots(options: options.scanOptions)
                 let cache = CostUsageScanner.codexCache(
-                    CostUsageCacheIO.load(provider: .codex, cacheRoot: options.scanOptions.cacheRoot),
+                    CostUsageStoreAccess.read(
+                        cacheRoot: options.scanOptions.cacheRoot,
+                        calendar: options.scanOptions.calendar),
                     scopedTo: roots)
                 let range = CostUsageScanner.CostUsageDayRange(
                     since: since, until: now, calendar: options.scanOptions.calendar)
@@ -760,9 +748,9 @@ public struct CostUsageFetcher: Sendable {
             let roots = CostUsageScanner.codexSessionsRoots(options: options)
             let rootsFingerprint = CostUsageScanner.codexRootsFingerprint(options: options)
             let cache = CostUsageScanner.codexCache(
-                CostUsageCacheIO.loadCodexForMigration(
+                CostUsageStoreAccess.read(
                     cacheRoot: options.cacheRoot,
-                    calendar: options.calendar).cache,
+                    calendar: options.calendar),
                 scopedTo: roots)
             guard cache.timeZoneIdentifier == options.calendar.timeZone.identifier,
                   cache.roots == rootsFingerprint,
@@ -818,8 +806,8 @@ public struct CostUsageFetcher: Sendable {
             return nil
         }
 
-        // Decoding the persisted scan cache parses multi-megabyte JSON; keep it off the
-        // cooperative pool alongside the scans themselves.
+        // Snapshot assembly can touch many SQLite rows; keep it off the cooperative pool
+        // alongside the scans themselves.
         let cachedSnapshot: CachedCodexTokenSnapshotResult?? = try? await CostUsageScanExecutor.run { _ in
             let clampedHistoryDays = max(1, min(365, historyDays))
             let options = Self.resolvedScannerOptions(
@@ -838,11 +826,11 @@ public struct CostUsageFetcher: Sendable {
             let shouldMergePiUsage = scopedCodexHomePath?.isEmpty != false
             let roots = CostUsageScanner.codexSessionsRoots(options: options)
             let rootsFingerprint = CostUsageScanner.codexRootsFingerprint(options: options)
-            let loadedCache = CostUsageCacheIO.loadCodexForMigration(
+            let loadedCache = CostUsageStoreAccess.read(
                 cacheRoot: options.cacheRoot,
                 calendar: options.calendar)
             let cache = CostUsageScanner.codexCache(
-                loadedCache.cache,
+                loadedCache,
                 scopedTo: roots)
             var reports: [CostUsageDailyReport] = []
             var projects: [CostUsageProjectBreakdown] = []
@@ -892,25 +880,6 @@ public struct CostUsageFetcher: Sendable {
                                 range: range,
                                 modelsDevCacheRoot: options.cacheRoot))
                         }
-                    }
-                }
-            } else if let incompatibleCache = loadedCache.incompatibleCache,
-                      incompatibleCache.timeZoneIdentifier == range.calendar.timeZone.identifier,
-                      !incompatibleCache.days.isEmpty,
-                      incompatibleCache.roots == rootsFingerprint,
-                      !CostUsageScanner.requestedWindowExpandsCache(range: range, cache: incompatibleCache)
-            {
-                let daily = CostUsageScanner.buildCodexReportFromCache(
-                    cache: incompatibleCache,
-                    range: range,
-                    modelsDevCacheRoot: options.cacheRoot)
-                if !daily.data.isEmpty {
-                    reports.append(daily)
-                    if incompatibleCache.lastScanUnixMs > 0 {
-                        let scanAt = Date(
-                            timeIntervalSince1970: TimeInterval(incompatibleCache.lastScanUnixMs) / 1000)
-                        staleSnapshotUpdatedAt = scanAt
-                        scanTimes.append(scanAt)
                     }
                 }
             }

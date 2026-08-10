@@ -27,27 +27,73 @@ defineProvider({
 
     const labelKeys = ["name", "label", "type", "period", "scope", "title", "id"];
     const percentUsedKeys = [
-      "percentUsed", "usedPercent", "usagePercent", "usage_percent", "used_percent", "percent_used", "percent",
+      "percentUsed",
+      "usedPercent",
+      "usagePercent",
+      "usage_percent",
+      "used_percent",
+      "percent_used",
+      "percent",
     ];
-    const percentRemainingKeys = [
-      "percentRemaining", "remainingPercent", "remaining_percent", "percent_remaining",
-    ];
+    const percentRemainingKeys = ["percentRemaining", "remainingPercent", "remaining_percent", "percent_remaining"];
     const limitKeys = [
-      "limit", "messageLimit", "message_limit", "messages", "maxRequests", "max_requests", "requestLimit",
-      "request_limit", "quota", "max", "total", "capacity", "allowance",
+      "limit",
+      "messageLimit",
+      "message_limit",
+      "messages",
+      "maxRequests",
+      "max_requests",
+      "requestLimit",
+      "request_limit",
+      "quota",
+      "max",
+      "total",
+      "capacity",
+      "allowance",
     ];
     const usedKeys = [
-      "used", "usage", "usedMessages", "used_messages", "messagesUsed", "messages_used", "requests",
-      "requestCount", "request_count", "consumed", "spent",
+      "used",
+      "usage",
+      "usedMessages",
+      "used_messages",
+      "messagesUsed",
+      "messages_used",
+      "requests",
+      "requestCount",
+      "request_count",
+      "consumed",
+      "spent",
     ];
     const remainingKeys = ["remaining", "left", "available", "balance"];
     const resetKeys = [
-      "resetAt", "reset_at", "resetsAt", "resets_at", "renewAt", "renew_at", "renewsAt", "renews_at",
-      "nextTickAt", "next_tick_at", "nextRegenAt", "next_regen_at", "periodEnd", "period_end", "expiresAt",
-      "expires_at", "endAt", "end_at",
+      "resetAt",
+      "reset_at",
+      "resetsAt",
+      "resets_at",
+      "renewAt",
+      "renew_at",
+      "renewsAt",
+      "renews_at",
+      "nextTickAt",
+      "next_tick_at",
+      "nextRegenAt",
+      "next_regen_at",
+      "periodEnd",
+      "period_end",
+      "expiresAt",
+      "expires_at",
+      "endAt",
+      "end_at",
     ];
     const planKeys = [
-      "plan", "planName", "plan_name", "subscription", "subscriptionPlan", "tier", "package", "packageName",
+      "plan",
+      "planName",
+      "plan_name",
+      "subscription",
+      "subscriptionPlan",
+      "tier",
+      "package",
+      "packageName",
     ];
 
     function stringValue(value) {
@@ -88,7 +134,11 @@ defineProvider({
         if (number > 1000000000) return ctx.date.unixSeconds(number);
       }
       if (typeof value === "string") {
-        try { return ctx.date.iso(value); } catch (_) { return null; }
+        try {
+          return ctx.date.iso(value);
+        } catch {
+          return null;
+        }
       }
       return null;
     }
@@ -132,13 +182,35 @@ defineProvider({
       if (days !== null) return Math.round(days * 1440);
       const seconds = firstNumber(payload, ["windowSeconds", "window_seconds", "periodSeconds", "period_seconds"]);
       if (seconds !== null) return Math.round(seconds / 60);
-      const text = firstString(payload, ["window", "windowLabel", "window_label", "period", "periodLabel", "period_label"]);
+      const text = firstString(payload, [
+        "window",
+        "windowLabel",
+        "window_label",
+        "period",
+        "periodLabel",
+        "period_label",
+      ]);
       if (text === null) return null;
-      const match = text.toLowerCase().replace(/\s/g, "").match(/^([0-9]*\.?[0-9]+)(minutes?|mins?|m|hours?|hrs?|hr|h|days?|d)$/);
+      const match = text
+        .toLowerCase()
+        .replace(/\s/g, "")
+        .match(/^([0-9]*\.?[0-9]+)(minutes?|mins?|m|hours?|hrs?|hr|h|days?|d)$/);
       if (!match) return null;
-      const multipliers = { m: 1, min: 1, mins: 1, minute: 1, minutes: 1,
-        h: 60, hr: 60, hrs: 60, hour: 60, hours: 60,
-        d: 1440, day: 1440, days: 1440 };
+      const multipliers = {
+        m: 1,
+        min: 1,
+        mins: 1,
+        minute: 1,
+        minutes: 1,
+        h: 60,
+        hr: 60,
+        hrs: 60,
+        hour: 60,
+        hours: 60,
+        d: 1440,
+        day: 1440,
+        days: 1440,
+      };
       return Math.round(Number(match[1]) * multipliers[match[2]]);
     }
 
@@ -156,9 +228,14 @@ defineProvider({
     }
 
     function isQuota(payload) {
-      return payload && typeof payload === "object" && !Array.isArray(payload) &&
-        [limitKeys, usedKeys, remainingKeys, percentUsedKeys, percentRemainingKeys]
-          .some(keys => firstNumber(payload, keys) !== null);
+      return (
+        payload &&
+        typeof payload === "object" &&
+        !Array.isArray(payload) &&
+        [limitKeys, usedKeys, remainingKeys, percentUsedKeys, percentRemainingKeys].some(
+          (keys) => firstNumber(payload, keys) !== null,
+        )
+      );
     }
 
     function parseQuota(payload) {
@@ -173,7 +250,9 @@ defineProvider({
         if (limit === null && used !== null && remaining !== null) limit = used + remaining;
         if (used === null && limit !== null && remaining !== null) used = limit - remaining;
         if (remaining === null && limit !== null && used !== null) remaining = Math.max(0, limit - used);
-        if (limit !== null && used !== null && limit > 0) usedPercent = used / limit * 100;
+        if (limit !== null && used !== null && limit > 0) {
+          usedPercent = ctx.pct(used, limit);
+        }
       }
       if (usedPercent === null) return null;
       usedPercent = Math.max(0, Math.min(100, usedPercent));
@@ -187,9 +266,9 @@ defineProvider({
         const description = windowDescription(minutes);
         if (description !== null) window.resetDescription = description;
       }
-      const tickPercent = normalizedPercent(firstNumber(
-        payload,
-        ["tickPercent", "tick_percent", "nextTickPercent", "next_tick_percent"]));
+      const tickPercent = normalizedPercent(
+        firstNumber(payload, ["tickPercent", "tick_percent", "nextTickPercent", "next_tick_percent"]),
+      );
       if (tickPercent !== null) window.nextRegenPercent = tickPercent;
 
       const costLimit = firstCurrency(payload, ["maxCredits", "max_credits"]);
@@ -197,8 +276,12 @@ defineProvider({
       if (costLimit !== null) {
         const remaining = firstCurrency(payload, ["remainingCredits", "remaining_credits"]);
         const explicitUsed = firstCurrency(payload, ["usedCredits", "used_credits"]);
-        const used = explicitUsed !== null ? explicitUsed :
-          remaining !== null ? Math.max(0, costLimit - remaining) : usedPercent / 100 * costLimit;
+        const used =
+          explicitUsed !== null
+            ? explicitUsed
+            : remaining !== null
+              ? Math.max(0, costLimit - remaining)
+              : ctx.amountFromPercent(usedPercent, costLimit);
         cost = { used, limit: costLimit, currency: "USD", period: "Weekly" };
         if (resetsAt !== null) cost.resetsAt = resetsAt;
         const regen = firstCurrency(payload, ["nextRegenCredits", "next_regen_credits"]);
@@ -216,7 +299,9 @@ defineProvider({
       if (Array.isArray(candidate)) return candidate.flatMap(collect);
       if (!candidate || typeof candidate !== "object") return [];
       if (isQuota(candidate)) return [candidate];
-      return Object.keys(candidate).sort().flatMap(key => collect(candidate[key]));
+      return Object.keys(candidate)
+        .sort()
+        .flatMap((key) => collect(candidate[key]));
     }
 
     const data = root.data && typeof root.data === "object" ? root.data : null;
@@ -231,12 +316,22 @@ defineProvider({
 
     let parsed;
     if (slots.some(Boolean)) {
-      parsed = slots.map(value => value ? parseQuota(value) : null);
+      parsed = slots.map((value) => (value ? parseQuota(value) : null));
     } else {
       const candidates = [
-        root.quotas, root.quota, root.limits, root.usage, root.entries, root.subscription, root.data,
-        data && data.quotas, data && data.quota, data && data.limits, data && data.usage,
-        data && data.entries, data && data.subscription,
+        root.quotas,
+        root.quota,
+        root.limits,
+        root.usage,
+        root.entries,
+        root.subscription,
+        root.data,
+        data && data.quotas,
+        data && data.quota,
+        data && data.limits,
+        data && data.usage,
+        data && data.entries,
+        data && data.subscription,
       ];
       let values = [];
       for (const candidate of candidates) {
@@ -254,7 +349,7 @@ defineProvider({
       tertiary: parsed[2] ? parsed[2].window : null,
       identity: plan ? { loginMethod: plan } : {},
     };
-    const withCost = parsed.find(value => value && value.cost);
+    const withCost = parsed.find((value) => value && value.cost);
     if (withCost) snapshot.cost = withCost.cost;
     return snapshot;
   },

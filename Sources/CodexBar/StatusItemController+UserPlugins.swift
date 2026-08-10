@@ -87,6 +87,9 @@ private struct UserPluginMenuCardView: View {
                     Divider()
                     ProviderDetailSectionsContent(sections: snapshot.details, chartColor: self.tint)
                 }
+                if let identity = snapshot.identity(for: self.plugin.manifest.id) {
+                    self.identity(identity)
+                }
             } else if let error {
                 Text(error).font(.caption).foregroundStyle(.red).textSelection(.enabled)
             } else {
@@ -96,6 +99,31 @@ private struct UserPluginMenuCardView: View {
         .padding(.horizontal, UsageMenuCardLayout.horizontalPadding)
         .padding(.vertical, 8)
         .frame(width: self.width, alignment: .leading)
+    }
+
+    @ViewBuilder
+    private func identity(_ identity: ProviderIdentitySnapshot) -> some View {
+        if identity.accountEmail != nil || identity.accountOrganization != nil || identity.loginMethod != nil
+            || identity.accountID != nil
+        {
+            Divider()
+            self.identityRow("Account", identity.accountEmail)
+            self.identityRow("Organization", identity.accountOrganization)
+            self.identityRow("Plan", identity.loginMethod)
+            self.identityRow("Account ID", identity.accountID)
+        }
+    }
+
+    @ViewBuilder
+    private func identityRow(_ label: String, _ value: String?) -> some View {
+        if let value {
+            HStack {
+                Text(label).foregroundStyle(.secondary)
+                Spacer()
+                Text(value).fontWeight(.medium).textSelection(.enabled)
+            }
+            .font(.caption)
+        }
     }
 
     @ViewBuilder

@@ -21,6 +21,11 @@ enum CodexBarLaunchMode: Equatable {
 enum CodexBarEntryPoint {
     @MainActor
     static func main() {
+        // Packaging launch smoke check (#2738): force the resource loads that
+        // trapped in 0.48.0 and exit before any AppKit/UI setup.
+        if CodexBarCoreResourceSmoke.isRequested() {
+            exit(CodexBarCoreResourceSmoke.run())
+        }
         guard CodexBarLaunchMode.resolve(arguments: CommandLine.arguments) == .application else {
             return
         }
@@ -127,6 +132,7 @@ struct CodexBarApp: App {
 
     private func openSettings(pane: SettingsPane) {
         self.preferencesSelection.pane = pane
+        DockIconController.shared.promote()
         NSApp.activate(ignoringOtherApps: true)
         let outcome = SettingsWindowOpener.live().open(preferred: .appKit)
         let logger = CodexBarLog.logger(LogCategories.app)
@@ -234,12 +240,13 @@ final class SparkleUpdaterController: NSObject, UpdaterProviding, SPUUpdaterDele
     }
 
     func checkForUpdates(_ sender: Any?) {
+        DockIconController.shared.promote()
         self.controller.checkForUpdates(sender)
     }
 
     func installUpdate() {
         guard let immediateInstallHandler else {
-            self.controller.checkForUpdates(nil)
+            self.checkForUpdates(nil)
             return
         }
 
@@ -381,6 +388,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let cloudSyncState = CloudSyncState()
     private let confettiOverlayController = ScreenConfettiOverlayController()
     private let confettiLogger = CodexBarLog.logger(LogCategories.confetti)
+    private let dockIconController = DockIconController.shared
     private lazy var memoryPressureMonitor = MemoryPressureMonitor(trimAppCaches: { [weak self] in
         self?.trimRebuildableCachesForMemoryPressure() ?? MemoryPressureCacheTrimSummary()
     })
@@ -416,6 +424,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        self.dockIconController.start()
         self.memoryPressureMonitor.start()
         #if DEBUG
         self.installDebugMemoryPressureObserverIfNeeded()

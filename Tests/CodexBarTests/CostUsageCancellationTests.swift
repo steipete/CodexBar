@@ -46,8 +46,9 @@ struct CostUsageCancellationTests {
             options: options)
         #expect(report.data.count == 1)
 
-        let cacheURL = CostUsageCacheIO.cacheFileURL(provider: .codex, cacheRoot: env.cacheRoot)
-        let cacheBefore = try Data(contentsOf: cacheURL)
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        let cacheBefore = try encoder.encode(CostUsageStoreAccess.read(cacheRoot: env.cacheRoot))
 
         try self.codexSessionContents(iso: iso, tokenLineCount: 20000)
             .write(to: fileURL, atomically: true, encoding: .utf8)
@@ -70,7 +71,7 @@ struct CostUsageCancellationTests {
                 checkCancellation: checkCancellation)
         }
         #expect(checks >= 8)
-        #expect(try Data(contentsOf: cacheURL) == cacheBefore)
+        #expect(try encoder.encode(CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)) == cacheBefore)
     }
 
     @Test
@@ -126,14 +127,18 @@ private actor AsyncCancellationGate {
         self.isBlocked = true
         self.blockedContinuation?.resume()
         self.blockedContinuation = nil
-        if self.isOpen { return }
+        if self.isOpen {
+            return
+        }
         await withCheckedContinuation { continuation in
             self.openContinuation = continuation
         }
     }
 
     func waitUntilBlocked() async {
-        if self.isBlocked { return }
+        if self.isBlocked {
+            return
+        }
         await withCheckedContinuation { continuation in
             self.blockedContinuation = continuation
         }

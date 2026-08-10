@@ -1,6 +1,8 @@
-#if canImport(JavaScriptCore)
 import CodexBarCore
 import Foundation
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
 import Testing
 
 struct Sub2APIPluginGoldenTests {
@@ -179,4 +181,3 @@ private actor Sub2APIRequestRecorder {
         self.requests.append(request)
     }
 }
-#endif

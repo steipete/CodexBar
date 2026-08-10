@@ -434,6 +434,149 @@ struct StatusMenuPersistentRefreshTests {
     }
 
     @Test
+    func `refresh monitor publishes compatible core and pins it until final reconciliation`() throws {
+        let settings = self.makeSettings()
+        self.enableOnly([.codex], settings: settings)
+        let controller = self.makeController(settings: settings)
+        defer { controller.releaseStatusItemsForTesting() }
+        let monitor = controller.menuCardRefreshMonitor
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        controller.store.snapshots[.codex] = UsageSnapshot(
+            primary: RateWindow(
+                usedPercent: 10,
+                windowMinutes: 300,
+                resetsAt: now.addingTimeInterval(3600),
+                resetDescription: nil),
+            secondary: nil,
+            updatedAt: now)
+        let frozen = try #require(controller.menuCardModel(for: .codex))
+        monitor.beginManualRefresh(frozenModels: [.codex: frozen], provider: .codex)
+        defer { monitor.endManualRefresh(for: .codex) }
+
+        controller.store.snapshots[.codex] = UsageSnapshot(
+            primary: RateWindow(
+                usedPercent: 40,
+                windowMinutes: 300,
+                resetsAt: now.addingTimeInterval(3600),
+                resetDescription: nil),
+            secondary: nil,
+            updatedAt: now.addingTimeInterval(1))
+        let core = try #require(controller.menuCardModel(for: .codex))
+
+        #expect(monitor.publishResolvedModelIfCompatible(for: .codex))
+        #expect(!monitor.isManualRefreshInFlight(for: .codex))
+        #expect(monitor.model(for: .codex, fallback: frozen).metrics.map(\.percent) == core.metrics.map(\.percent))
+
+        controller.store.snapshots[.codex] = UsageSnapshot(
+            primary: RateWindow(
+                usedPercent: 40,
+                windowMinutes: 300,
+                resetsAt: now.addingTimeInterval(3600),
+                resetDescription: nil),
+            secondary: RateWindow(
+                usedPercent: 70,
+                windowMinutes: 10080,
+                resetsAt: now.addingTimeInterval(7200),
+                resetDescription: nil),
+            updatedAt: now.addingTimeInterval(2))
+        let enriched = try #require(controller.menuCardModel(for: .codex))
+        let visibleBeforeReconciliation = monitor.model(for: .codex, fallback: frozen)
+        let visibleAfterReconciliation = monitor.model(for: .codex, fallback: enriched)
+
+        #expect(visibleBeforeReconciliation.metrics.map(\.percent) == core.metrics.map(\.percent))
+        #expect(visibleAfterReconciliation.metrics.map(\.percent) == enriched.metrics.map(\.percent))
+        if ProcessInfo.processInfo.environment["CODEXBAR_REFRESH_PROBE"] == "1" {
+            print(
+                "CODEXBAR_REFRESH_PROBE compatible-layout-shift refreshing=false pinned=" +
+                    "\(visibleBeforeReconciliation.metrics.first?.percentLabel ?? "none") " +
+                    "reconciledRows=\(visibleAfterReconciliation.metrics.count)")
+        }
+    }
+
+    @Test
+    func `refresh monitor keeps incompatible core frozen until reconciliation`() throws {
+        let settings = self.makeSettings()
+        self.enableOnly([.codex], settings: settings)
+        let controller = self.makeController(settings: settings)
+        defer { controller.releaseStatusItemsForTesting() }
+        let monitor = controller.menuCardRefreshMonitor
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        controller.store.snapshots[.codex] = UsageSnapshot(
+            primary: RateWindow(
+                usedPercent: 15,
+                windowMinutes: 300,
+                resetsAt: now.addingTimeInterval(3600),
+                resetDescription: nil),
+            secondary: nil,
+            updatedAt: now)
+        let frozen = try #require(controller.menuCardModel(for: .codex))
+        monitor.beginManualRefresh(frozenModels: [.codex: frozen], provider: .codex)
+        defer { monitor.endManualRefresh(for: .codex) }
+
+        controller.store.snapshots[.codex] = UsageSnapshot(
+            primary: RateWindow(
+                usedPercent: 45,
+                windowMinutes: 300,
+                resetsAt: now.addingTimeInterval(3600),
+                resetDescription: nil),
+            secondary: RateWindow(
+                usedPercent: 65,
+                windowMinutes: 10080,
+                resetsAt: now.addingTimeInterval(7200),
+                resetDescription: nil),
+            updatedAt: now.addingTimeInterval(1))
+        let refreshed = try #require(controller.menuCardModel(for: .codex))
+
+        #expect(!monitor.publishResolvedModelIfCompatible(for: .codex))
+        #expect(monitor.isManualRefreshInFlight(for: .codex))
+        #expect(monitor.subtitle(
+            for: .codex,
+            fallback: MenuCardLiveSubtitle(text: "old", style: .info)).style == .loading)
+        #expect(monitor.model(for: .codex, fallback: frozen).metrics.map(\.percent) == frozen.metrics.map(\.percent))
+
+        monitor.endManualRefresh(for: .codex)
+        let reconciled = monitor.model(for: .codex, fallback: refreshed)
+        #expect(!monitor.isManualRefreshInFlight(for: .codex))
+        #expect(reconciled.metrics.map(\.percent) == refreshed.metrics.map(\.percent))
+        if ProcessInfo.processInfo.environment["CODEXBAR_REFRESH_PROBE"] == "1" {
+            print(
+                "CODEXBAR_REFRESH_PROBE incompatible coreRows=\(refreshed.metrics.count) " +
+                    "blockedState=refreshing reconciledState=published")
+        }
+    }
+
+    @Test
+    func `refresh monitor publishes compatible core error honestly`() throws {
+        let settings = self.makeSettings()
+        self.enableOnly([.codex], settings: settings)
+        let controller = self.makeController(settings: settings)
+        defer { controller.releaseStatusItemsForTesting() }
+        let monitor = controller.menuCardRefreshMonitor
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        controller.store.snapshots[.codex] = UsageSnapshot(
+            primary: RateWindow(
+                usedPercent: 20,
+                windowMinutes: 300,
+                resetsAt: now.addingTimeInterval(3600),
+                resetDescription: nil),
+            secondary: nil,
+            updatedAt: now)
+        let frozen = try #require(controller.menuCardModel(for: .codex))
+        monitor.beginManualRefresh(frozenModels: [.codex: frozen], provider: .codex)
+        defer { monitor.endManualRefresh(for: .codex) }
+
+        controller.store.errors[.codex] = "Synthetic core refresh failure"
+
+        #expect(monitor.publishResolvedModelIfCompatible(for: .codex))
+        #expect(!monitor.isManualRefreshInFlight(for: .codex))
+        let subtitle = monitor.subtitle(
+            for: .codex,
+            fallback: MenuCardLiveSubtitle(text: "old", style: .info))
+        #expect(subtitle.style == .error)
+        #expect(monitor.model(for: .codex, fallback: frozen).metrics.map(\.percent) == frozen.metrics.map(\.percent))
+    }
+
+    @Test
     func `manual refresh keeps frozen quota even if menu rebuilds before completion`() throws {
         let settings = self.makeSettings()
         let controller = self.makeController(settings: settings)

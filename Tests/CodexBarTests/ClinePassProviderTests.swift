@@ -67,8 +67,10 @@ struct ClinePassProviderTests {
 }
 
 struct ClinePassUsageFetcherTests {
-    @Test
-    func `parser ignores unknown limit types without dropping known windows`() throws {
+    @Test(arguments: BundledPluginTestSupport.engines)
+    func `parser ignores unknown limit types without dropping known windows`(
+        engine: ProviderPluginEngineKind) async throws
+    {
         let payload = Data(#"""
         {
           "success": true,
@@ -98,8 +100,19 @@ struct ClinePassUsageFetcherTests {
           }
         }
         """#.utf8)
+        let runtime = try BundledPluginTestSupport.runtime(
+            "clinepass",
+            engine: engine,
+            transport: ProviderHTTPTransportHandler { request in
+                let response = try #require(HTTPURLResponse(
+                    url: request.url!,
+                    statusCode: 200,
+                    httpVersion: nil,
+                    headerFields: ["Content-Type": "application/json"]))
+                return (payload, response)
+            })
 
-        let snapshot = try ClinePassUsageFetcher._parseSnapshotForTesting(payload)
+        let snapshot = try await runtime.fetchUsage(secrets: ["CLINE_API_KEY": "test-key"])
 
         #expect(snapshot.primary?.usedPercent == 12.5)
         #expect(snapshot.primary?.windowMinutes == 5 * 60)

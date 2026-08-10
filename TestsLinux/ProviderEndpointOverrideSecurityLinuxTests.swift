@@ -1,23 +1,22 @@
-@testable import CodexBarCore
 import Foundation
+@testable import CodexBarCore
 #if canImport(FoundationNetworking)
 import FoundationNetworking
 #endif
 import Testing
 
-@Suite
 struct ProviderEndpointOverrideSecurityLinuxTests {
     @Test
-    func mimoInvalidEndpointOverrideDoesNotFallbackToLocalCache() {
+    func `mimo invalid endpoint override does not fallback to local cache`() {
         #expect(MiMoWebFetchStrategy.shouldFallbackToLocal(
             error: MiMoSettingsError.invalidEndpointOverride(MiMoSettingsReader.apiURLKey)) == false)
         #expect(MiMoWebFetchStrategy.shouldFallbackToLocal(error: MiMoSettingsError.missingCookie()) == true)
         #expect(MiMoWebFetchStrategy.shouldFallbackToLocal(error: MiMoSettingsError.invalidCookie) == true)
     }
 
-    #if !canImport(JavaScriptCore)
+    #if !canImport(CQuickJS)
     @Test
-    func deepgramRejectsInsecureOverrideBeforeSendingToken() async {
+    func `deepgram rejects insecure override before sending token`() async {
         let transport = FailingTransport()
         do {
             _ = try await DeepgramUsageFetcher.fetchUsage(
@@ -34,21 +33,15 @@ struct ProviderEndpointOverrideSecurityLinuxTests {
     #endif
 
     @Test
-    func zaiRejectsInsecureQuotaOverrideBeforeSendingToken() async {
-        do {
-            _ = try await ZaiUsageFetcher.fetchUsage(
-                apiKey: "zai-test-token",
+    func `zai rejects insecure quota override before sending token`() {
+        #expect(throws: ZaiSettingsError.invalidEndpointOverride(ZaiSettingsReader.quotaURLKey)) {
+            try ZaiSettingsReader.validateEndpointOverrides(
                 environment: [ZaiSettingsReader.quotaURLKey: "http://attacker.test/quota"])
-            Issue.record("Expected ZaiSettingsError.invalidEndpointOverride")
-        } catch ZaiSettingsError.invalidEndpointOverride(ZaiSettingsReader.quotaURLKey) {
-            // Expected.
-        } catch {
-            Issue.record("Expected ZaiSettingsError.invalidEndpointOverride, got \(error)")
         }
     }
 
     @Test
-    func zaiRejectsInsecureAPIHostOverrideWhenQuotaURLIsAbsent() {
+    func `zai rejects insecure API host override when quota URL is absent`() {
         #expect(throws: ZaiSettingsError.invalidEndpointOverride(ZaiSettingsReader.apiHostKey)) {
             try ZaiSettingsReader.validateEndpointOverrides(
                 environment: [ZaiSettingsReader.apiHostKey: "http://attacker.test"])
@@ -56,47 +49,39 @@ struct ProviderEndpointOverrideSecurityLinuxTests {
     }
 
     @Test
-    func zaiQuotaResolutionIgnoresInvalidLowerPriorityAPIHost() throws {
+    func `zai quota resolution ignores invalid lower priority API host`() throws {
         let environment = [
             ZaiSettingsReader.quotaURLKey: "https://zai-proxy.test/quota",
             ZaiSettingsReader.apiHostKey: "http://attacker.test",
         ]
 
         try ZaiSettingsReader.validateQuotaEndpointOverride(environment: environment)
-        #expect(ZaiUsageFetcher.resolveQuotaURL(region: .global, environment: environment).absoluteString ==
+        #expect(ZaiEndpointRouter.resolveQuotaURL(region: .global, environment: environment).absoluteString ==
             "https://zai-proxy.test/quota")
     }
 
     @Test
-    func zaiCombinedFetchRejectsInvalidAPIHostBeforeQuotaRequest() async {
+    func `zai combined validation rejects invalid API host before quota request`() {
         let environment = [
             ZaiSettingsReader.quotaURLKey: "https://127.0.0.1:31337/quota",
             ZaiSettingsReader.apiHostKey: "http://127.0.0.1:31337",
         ]
 
-        await #expect(throws: ZaiSettingsError.invalidEndpointOverride(ZaiSettingsReader.apiHostKey)) {
-            try await ZaiUsageFetcher.fetchUsageWithModelUsage(
-                apiKey: "ZAI_CANARY_KEY",
-                environment: environment)
+        #expect(throws: ZaiSettingsError.invalidEndpointOverride(ZaiSettingsReader.apiHostKey)) {
+            try ZaiSettingsReader.validateEndpointOverrides(environment: environment)
         }
     }
 
     @Test
-    func zaiModelUsageRejectsInsecureAPIHostOverride() async {
-        do {
-            _ = try await ZaiUsageFetcher.fetchModelUsage(
-                apiKey: "zai-test-token",
+    func `zai model usage rejects insecure API host override`() {
+        #expect(throws: ZaiSettingsError.invalidEndpointOverride(ZaiSettingsReader.apiHostKey)) {
+            try ZaiSettingsReader.validateAPIHostEndpointOverride(
                 environment: [ZaiSettingsReader.apiHostKey: "http://attacker.test"])
-            Issue.record("Expected ZaiSettingsError.invalidEndpointOverride")
-        } catch ZaiSettingsError.invalidEndpointOverride(ZaiSettingsReader.apiHostKey) {
-            // Expected.
-        } catch {
-            Issue.record("Expected ZaiSettingsError.invalidEndpointOverride, got \(error)")
         }
     }
 
     @Test
-    func mimoRejectsInsecureOverrideBeforeSendingCookie() async {
+    func `mimo rejects insecure override before sending cookie`() async {
         let transport = FailingTransport()
         do {
             _ = try await MiMoUsageFetcher.fetchUsage(
@@ -112,8 +97,8 @@ struct ProviderEndpointOverrideSecurityLinuxTests {
     }
 
     @Test
-    func affectedProviderOverridesAcceptHTTPSAndBareHosts() throws {
-        #if !canImport(JavaScriptCore)
+    func `affected provider overrides accept HTTPS and bare hosts`() throws {
+        #if !canImport(CQuickJS)
         try DeepgramUsageFetcher.validateEndpointOverrides(environment: [
             DeepgramUsageFetcher.apiURLKey: "deepgram-proxy.test/v1",
         ])
@@ -136,7 +121,7 @@ struct ProviderEndpointOverrideSecurityLinuxTests {
     // HTTP is limited to loopback and explicitly private-network destinations.
 
     @Test
-    func liteLLMRejectsRemoteHTTPBaseURLBeforeSendingKey() {
+    func `lite LLM rejects remote HTTP base URL before sending key`() {
         for endpoint in Self.publicHTTPEndpoints {
             #expect(LiteLLMSettingsReader.baseURL(
                 environment: [LiteLLMSettingsReader.baseURLEnvironmentKey: endpoint]) == nil)
@@ -144,13 +129,13 @@ struct ProviderEndpointOverrideSecurityLinuxTests {
     }
 
     @Test
-    func liteLLMRejectsBaseURLWithEmbeddedCredentials() {
+    func `lite LLM rejects base URL with embedded credentials`() {
         #expect(LiteLLMSettingsReader.baseURL(
             environment: [LiteLLMSettingsReader.baseURLEnvironmentKey: "https://user@attacker.test"]) == nil)
     }
 
     @Test
-    func liteLLMAcceptsHTTPSAndPrivateNetworkHTTPBaseURLs() {
+    func `lite LLM accepts HTTPS and private network HTTP base UR ls`() {
         #expect(LiteLLMSettingsReader.baseURL(
             environment: [LiteLLMSettingsReader.baseURLEnvironmentKey: "https://litellm.example.com"])?
             .absoluteString == "https://litellm.example.com")
@@ -161,7 +146,7 @@ struct ProviderEndpointOverrideSecurityLinuxTests {
     }
 
     @Test
-    func llmProxyRejectsRemoteHTTPBaseURLBeforeSendingKey() {
+    func `llm proxy rejects remote HTTP base URL before sending key`() {
         for endpoint in Self.publicHTTPEndpoints {
             #expect(LLMProxySettingsReader.baseURL(
                 environment: [LLMProxySettingsReader.baseURLEnvironmentKey: endpoint]) == nil)
@@ -169,13 +154,13 @@ struct ProviderEndpointOverrideSecurityLinuxTests {
     }
 
     @Test
-    func llmProxyRejectsBaseURLWithEmbeddedCredentials() {
+    func `llm proxy rejects base URL with embedded credentials`() {
         #expect(LLMProxySettingsReader.baseURL(
             environment: [LLMProxySettingsReader.baseURLEnvironmentKey: "https://user@attacker.test"]) == nil)
     }
 
     @Test
-    func rejectedBaseURLStaysConfiguredSoTheErrorCanSurface() {
+    func `rejected base URL stays configured so the error can surface`() {
         // A rejected override must not read as "never configured": the strategy stays available so
         // the fetch path can report invalidEndpointOverride instead of the provider going missing.
         let liteLLM = [LiteLLMSettingsReader.baseURLEnvironmentKey: "http://attacker.test"]
@@ -190,7 +175,7 @@ struct ProviderEndpointOverrideSecurityLinuxTests {
     }
 
     @Test
-    func rejectedOverrideErrorNamesTheSettingAndTheRule() {
+    func `rejected override error names the setting and the rule`() {
         // The message has to tell the user which key to fix and what shape is accepted.
         let liteLLM = LiteLLMUsageError
             .invalidEndpointOverride(LiteLLMSettingsReader.baseURLEnvironmentKey).errorDescription ?? ""
@@ -208,7 +193,7 @@ struct ProviderEndpointOverrideSecurityLinuxTests {
     }
 
     @Test
-    func llmProxyAcceptsHTTPSAndPrivateNetworkHTTPBaseURLs() {
+    func `llm proxy accepts HTTPS and private network HTTP base UR ls`() {
         #expect(LLMProxySettingsReader.baseURL(
             environment: [LLMProxySettingsReader.baseURLEnvironmentKey: "https://proxy.example.com"])?
             .absoluteString == "https://proxy.example.com")
@@ -219,7 +204,7 @@ struct ProviderEndpointOverrideSecurityLinuxTests {
     }
 
     @Test
-    func sharedLoopbackOnlyValidatorStillRejectsPrivateNetworkHTTP() {
+    func `shared loopback only validator still rejects private network HTTP`() {
         let validator = ProviderEndpointOverrideValidator()
         #expect(validator.validatedURLAllowingLoopbackHTTP("http://127.0.0.1:4000") != nil)
         #expect(validator.validatedURLAllowingLoopbackHTTP("http://192.168.1.10:4000") == nil)

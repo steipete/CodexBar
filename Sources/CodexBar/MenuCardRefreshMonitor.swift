@@ -22,6 +22,9 @@ final class MenuCardRefreshMonitor {
     /// refreshing one provider does not stall or unfreeze another.
     private var manualRefreshProviders: Set<ProviderInstanceID> = []
     private var frozenManualRefreshModels: [ProviderInstanceID: UsageMenuCardView.Model] = [:]
+    /// Core models published before optional enrichment finishes. These keep an already-hosted card on the
+    /// refreshed quota if a later enrichment step temporarily changes the model's tracked layout.
+    private var publishedManualRefreshModels: [ProviderInstanceID: UsageMenuCardView.Model] = [:]
 
     /// True while any manual refresh (global or per-provider) is running.
     var isManualRefreshInFlight: Bool {
@@ -55,16 +58,38 @@ final class MenuCardRefreshMonitor {
         if let provider {
             self.manualRefreshProviders.remove(provider.instanceID)
             self.frozenManualRefreshModels[provider.instanceID] = nil
+            self.publishedManualRefreshModels[provider.instanceID] = nil
         } else {
             self.globalManualRefreshInFlight = false
             self.frozenManualRefreshModels.removeAll(keepingCapacity: true)
+            self.publishedManualRefreshModels.removeAll(keepingCapacity: true)
         }
+    }
+
+    /// Ends a provider-scoped refresh only when the hosted card can adopt the resolved model without a rebuild.
+    /// The published model stays pinned as a compatible fallback until the caller reaches its final reconciliation.
+    @discardableResult
+    func publishResolvedModelIfCompatible(for provider: UsageProvider) -> Bool {
+        let instanceID = provider.instanceID
+        guard self.manualRefreshProviders.contains(instanceID),
+              let frozen = self.frozenManualRefreshModels[instanceID],
+              let resolved = self.resolveModel(provider),
+              frozen.hasCompatibleTrackedLayout(with: resolved)
+        else {
+            return false
+        }
+
+        self.manualRefreshProviders.remove(instanceID)
+        self.frozenManualRefreshModels[instanceID] = nil
+        self.publishedManualRefreshModels[instanceID] = resolved
+        return true
     }
 
     func resetManualRefresh() {
         self.globalManualRefreshInFlight = false
         self.manualRefreshProviders.removeAll(keepingCapacity: true)
         self.frozenManualRefreshModels.removeAll(keepingCapacity: true)
+        self.publishedManualRefreshModels.removeAll(keepingCapacity: true)
     }
 
     func isManualRefreshInFlight(for provider: UsageProvider) -> Bool {
@@ -91,12 +116,17 @@ final class MenuCardRefreshMonitor {
             return fallback
         }
 
-        guard let resolved = self.resolveModel(provider),
-              fallback.hasCompatibleTrackedLayout(with: resolved)
-        else {
-            return fallback
+        if let resolved = self.resolveModel(provider),
+           fallback.hasCompatibleTrackedLayout(with: resolved)
+        {
+            return resolved
         }
-        return resolved
+        if let published = self.publishedManualRefreshModels[provider.instanceID],
+           fallback.hasCompatibleTrackedLayout(with: published)
+        {
+            return published
+        }
+        return fallback
     }
 
     func subtitle(

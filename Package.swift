@@ -54,6 +54,17 @@ let package = Package(
     ],
     targets: {
         var targets: [Target] = [
+            .target(
+                name: "CQuickJS",
+                path: "Sources/CQuickJS",
+                exclude: ["README.md", "LICENSE"],
+                publicHeadersPath: "include",
+                cSettings: [
+                    .define("_GNU_SOURCE"),
+                ],
+                linkerSettings: [
+                    .linkedLibrary("m", .when(platforms: [.linux])),
+                ]),
             // Both glibc and static-musl CLI builds use this target; the module map supplies sqlite3 linkage.
             .systemLibrary(
                 name: "CSQLite3",
@@ -64,6 +75,7 @@ let package = Package(
             .target(
                 name: "CodexBarCore",
                 dependencies: [
+                    "CQuickJS",
                     .target(name: "CSQLite3", condition: .when(platforms: [.linux])),
                     .product(name: "Crypto", package: "swift-crypto"),
                     .product(name: "Logging", package: "swift-log"),
@@ -86,6 +98,16 @@ let package = Package(
                     .product(name: "Crypto", package: "swift-crypto"),
                 ],
                 path: "Sources/CodexBarCLI",
+                swiftSettings: [
+                    .enableUpcomingFeature("StrictConcurrency"),
+                ],
+                linkerSettings: sqlite3LinkerSettings),
+            // Crash-test subprocess: tests SIGKILL it mid-save to prove the cost store's
+            // save cycle is atomic. Not shipped; built only as a test dependency.
+            .executableTarget(
+                name: "CodexBarCostStoreCrashProbe",
+                dependencies: ["CodexBarCore"],
+                path: "Sources/CodexBarCostStoreCrashProbe",
                 swiftSettings: [
                     .enableUpcomingFeature("StrictConcurrency"),
                 ],
@@ -128,6 +150,14 @@ let package = Package(
                 name: "AdaptiveReplayKitTests",
                 dependencies: ["AdaptiveRefreshCore", "AdaptiveReplayKit"],
                 path: "Tests/AdaptiveReplayKitTests",
+                swiftSettings: [
+                    .enableUpcomingFeature("StrictConcurrency"),
+                    .enableExperimentalFeature("SwiftTesting"),
+                ]),
+            .testTarget(
+                name: "CodexBarPluginTests",
+                dependencies: ["CodexBarCore"],
+                path: "TestsPlugin",
                 swiftSettings: [
                     .enableUpcomingFeature("StrictConcurrency"),
                     .enableExperimentalFeature("SwiftTesting"),
@@ -191,9 +221,17 @@ let package = Package(
 
         targets.append(.testTarget(
             name: "CodexBarTests",
-            dependencies: ["CodexBar", "CodexBarCore", "CodexBarCLI", "CodexBarWidget"],
+            dependencies: ["CodexBar", "CodexBarCore", "CodexBarCLI", "CodexBarCostStoreCrashProbe", "CodexBarWidget"],
             path: "Tests",
-            exclude: ["AdaptiveReplayCLITests", "AdaptiveReplayKitTests"],
+            exclude: [
+                "AdaptiveReplayCLITests",
+                "AdaptiveReplayKitTests",
+                "CodexBarTests/ProviderPluginDetailsParityTests.swift",
+                "CodexBarTests/ProviderPluginExtensionParityTests.swift",
+                "CodexBarTests/ProviderPluginParityTests.swift",
+                "CodexBarTests/ProviderPluginRuntimeTests.swift",
+                "CodexBarTests/Sub2APIPluginGoldenTests.swift",
+            ],
             resources: [
                 .copy("CodexBarTests/Fixtures"),
             ],

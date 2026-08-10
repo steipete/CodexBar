@@ -646,6 +646,68 @@ struct CLISnapshotTests {
     }
 
     @Test
+    func `zai routes verified coding windows to CLI pace`() throws {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let snapshot = UsageSnapshot(
+            primary: .init(
+                usedPercent: 50,
+                windowMinutes: 5 * 60,
+                resetsAt: now.addingTimeInterval(2.5 * 60 * 60),
+                resetDescription: "5-hour"),
+            secondary: .init(
+                usedPercent: 50,
+                windowMinutes: 7 * 24 * 60,
+                resetsAt: now.addingTimeInterval(3.5 * 24 * 60 * 60),
+                resetDescription: "weekly"),
+            tertiary: nil,
+            updatedAt: now)
+
+        let pace = try #require(CLIRenderer.providerPacePayload(provider: .zai, snapshot: snapshot, now: now))
+        #expect(pace.primary?.expectedUsedPercent == 50)
+        #expect(pace.secondary?.expectedUsedPercent == 50)
+
+        let output = CLIRenderer.renderText(
+            provider: .zai,
+            snapshot: snapshot,
+            credits: nil,
+            context: RenderContext(
+                header: "z.ai",
+                status: nil,
+                useColor: false,
+                resetStyle: .countdown),
+            now: now)
+        #expect(output.split(separator: "\n").count(where: { $0.contains("Pace: On pace") }) == 2)
+    }
+
+    @Test
+    func `zai CLI pace rejects a rolling 30-day coding limit`() {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let snapshot = UsageSnapshot(
+            primary: .init(
+                usedPercent: 50,
+                windowMinutes: ProviderPaceCapability.monthlyWindowSentinelMinutes,
+                resetsAt: now.addingTimeInterval(15 * 24 * 60 * 60),
+                resetDescription: "30 days window"),
+            secondary: nil,
+            tertiary: nil,
+            updatedAt: now)
+
+        #expect(CLIRenderer.providerPacePayload(provider: .zai, snapshot: snapshot, now: now) == nil)
+
+        let output = CLIRenderer.renderText(
+            provider: .zai,
+            snapshot: snapshot,
+            credits: nil,
+            context: RenderContext(
+                header: "z.ai",
+                status: nil,
+                useColor: false,
+                resetStyle: .countdown),
+            now: now)
+        #expect(!output.contains("Pace:"))
+    }
+
+    @Test
     func `Kimi CLI pace rejects missing and unsupported window durations`() {
         let now = Date(timeIntervalSince1970: 1_700_000_000)
         for duration: Int? in [nil, 24 * 60, 30 * 24 * 60] {
@@ -968,11 +1030,11 @@ struct CLISnapshotTests {
             updatedAt: now)
 
         let output = CLIRenderer.renderText(
-            provider: .zai,
+            provider: .deepseek,
             snapshot: snap,
             credits: nil,
             context: RenderContext(
-                header: "z.ai 0.0.0 (zai)",
+                header: "DeepSeek 0.0.0 (deepseek)",
                 status: nil,
                 useColor: false,
                 resetStyle: .countdown))
@@ -1159,19 +1221,19 @@ struct CLISnapshotTests {
             tertiary: nil,
             updatedAt: now)
 
-        // z.ai is not a session/weekly pace provider, so no pace should be emitted.
+        // DeepSeek has no descriptor pace capability, so no pace should be emitted.
         let payload = ProviderPayload(
-            provider: .zai,
+            provider: .deepseek,
             account: nil,
             version: nil,
-            source: "zai",
+            source: "deepseek",
             status: nil,
             usage: snap,
             credits: nil,
             antigravityPlanInfo: nil,
             openaiDashboard: nil,
             error: nil,
-            pace: CLIRenderer.providerPacePayload(provider: .zai, snapshot: snap, now: now))
+            pace: CLIRenderer.providerPacePayload(provider: .deepseek, snapshot: snap, now: now))
 
         let data = try JSONEncoder().encode(payload)
         let json = try #require(String(data: data, encoding: .utf8))

@@ -674,6 +674,8 @@
 "copyright" = "© 2026 Peter Steinberger. Licenza MIT.";
 
 /* Debug Pane */
+"use_javascriptcore_plugin_engine" = "Usa JavaScriptCore per i plugin dei provider";
+"use_javascriptcore_plugin_engine_subtitle" = "Solo ripristino di compatibilità. Riavvia CodexBar per applicarlo; CODEXBAR_PLUGIN_ENGINE sostituisce questa impostazione.";
 "section_logging" = "Log";
 "enable_file_logging" = "Abilita log su file";
 "enable_file_logging_subtitle" = "Scrive i log in %@ per il debug.";
@@ -1430,3 +1432,6 @@
 "Enter every endpoint setting to review the exact network origins." = "Inserisci tutte le impostazioni degli endpoint per verificare le origini di rete esatte.";
 "Approve" = "Approva";
 "Install" = "Installa";
+"5-hour usage" = "Utilizzo di 5 ore";
+"7-day usage" = "Utilizzo di 7 giorni";
+"Total usage" = "Utilizzo totale";

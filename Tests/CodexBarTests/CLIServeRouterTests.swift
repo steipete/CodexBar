@@ -146,7 +146,28 @@ struct CLIServeRouterTests {
             try CLIServeRouter.route(
                 method: "GET",
                 path: "/dashboard/v1/snapshot",
-                queryItems: [:]) == .dashboardSnapshot)
+                queryItems: [:]) == .dashboardSnapshot(provider: nil, detail: nil))
+        #expect(
+            try CLIServeRouter.route(
+                method: "GET",
+                path: "/dashboard/v1/snapshot",
+                queryItems: ["provider": "claude"]) == .dashboardSnapshot(provider: "claude", detail: nil))
+        #expect(
+            try CLIServeRouter.route(
+                method: "GET",
+                path: "/dashboard/v1/snapshot",
+                queryItems: ["detail": "shell"]) == .dashboardSnapshot(provider: nil, detail: "shell"))
+        #expect(
+            try CLIServeRouter.route(
+                method: "GET",
+                path: "/dashboard/v1/snapshot",
+                queryItems: ["detail": "full"]) == .dashboardSnapshot(provider: nil, detail: "full"))
+        #expect(
+            try CLIServeRouter.route(
+                method: "GET",
+                path: "/dashboard/v1/snapshot",
+                queryItems: ["provider": "codex", "detail": "shell"]) ==
+                .dashboardSnapshot(provider: "codex", detail: "shell"))
     }
 
     @Test
@@ -512,8 +533,8 @@ struct CLIServeRouterTests {
     }
 
     @Test
-    func `serve cache prunes expired config token entries`() async throws {
-        let cache = CLIServeResponseCache()
+    func `serve cache prunes expired config token entries`() async {
+        let (wallClock, cache) = makeServeTestCache()
 
         _ = await CodexBarCLI.cachedServeResponse(
             key: "usage::old-config",
@@ -524,7 +545,7 @@ struct CLIServeRouterTests {
         }
         #expect(await cache.cachedEntryCount() == 1)
 
-        try await Task.sleep(nanoseconds: 20_000_000)
+        wallClock.advance(by: 0.001)
         _ = await CodexBarCLI.cachedServeResponse(
             key: "usage::new-config",
             cache: cache,
@@ -548,8 +569,12 @@ struct CLIServeRouterTests {
             requestTimeout: 0.01)
         {
             _ = await counter.increment()
-            try? await Task.sleep(nanoseconds: 200_000_000)
-            return Self.response("[{\"provider\":\"codex\",\"call\":1}]")
+            do {
+                try await Task.sleep(nanoseconds: 5_000_000_000)
+                return Self.response("[{\"provider\":\"codex\",\"call\":1}]")
+            } catch {
+                return CodexBarCLI.serveTimeoutResponse()
+            }
         }
 
         #expect(timeout.status == .gatewayTimeout)
@@ -608,7 +633,7 @@ struct CLIServeRouterTests {
                         requestTimeout: 0.01)
                     {
                         _ = await counter.increment()
-                        try? await Task.sleep(nanoseconds: 200_000_000)
+                        await Self.hangPastRequestDeadline()
                         return Self.response("[{\"provider\":\"codex\"}]")
                     }
                 }
@@ -629,7 +654,7 @@ struct CLIServeRouterTests {
 
     @Test
     func `serve cache serves last good payload when refresh fails`() async {
-        let cache = CLIServeResponseCache()
+        let (wallClock, cache) = makeServeTestCache()
         let counter = ServeTestCounter()
 
         let first = await CodexBarCLI.cachedServeResponse(
@@ -643,8 +668,7 @@ struct CLIServeRouterTests {
         }
         #expect(first.status == .ok)
 
-        // Let the fresh cache entry expire so the next request re-fetches.
-        try? await Task.sleep(nanoseconds: 100_000_000)
+        wallClock.advance(by: 0.05)
 
         let failed = await CodexBarCLI.cachedServeResponse(
             key: "usage:antigravity",
@@ -663,7 +687,7 @@ struct CLIServeRouterTests {
         #expect(failedRows?.first?["call"] as? Int == 1)
         #expect(await counter.current() == 2)
 
-        try? await Task.sleep(nanoseconds: 100_000_000)
+        wallClock.advance(by: 0.05)
 
         let recovered = await CodexBarCLI.cachedServeResponse(
             key: "usage:antigravity",
@@ -681,30 +705,43 @@ struct CLIServeRouterTests {
 
     @Test
     func `cost refresh timeout serves the last good payload`() async throws {
-        let cache = CLIServeResponseCache()
+        let wallClock = ServeTestWallClock()
+        let deadline = ServeListeningSignal()
+        let releaseSource = ServeListeningSignal()
+        defer { releaseSource.signal() }
+        let operations = CLIServeOperationCoordinator<CLIServeCoordinatedResponse>(
+            sleepUntil: { _ in await deadline.wait() })
+        let cache = CLIServeResponseCache(operations: operations, wallClock: wallClock.now)
         let counter = ServeTestCounter()
 
         let first = await CodexBarCLI.cachedServeResponse(
             key: "cost:",
             cache: cache,
             refreshInterval: 0.01,
-            requestTimeout: 1)
+            requestTimeout: 0)
         {
             let call = await counter.increment()
             return Self.response("[{\"provider\":\"codex\",\"call\":\(call)}]")
         }
-        try? await Task.sleep(nanoseconds: 30_000_000)
+        wallClock.advance(by: 0.01)
 
-        let timedOut = await CodexBarCLI.cachedServeResponse(
-            key: "cost:",
-            cache: cache,
-            refreshInterval: 0.01,
-            requestTimeout: 0.01)
-        {
-            _ = await counter.increment()
-            try? await Task.sleep(nanoseconds: 200_000_000)
-            return Self.response("[{\"provider\":\"codex\",\"call\":2}]")
+        let sourceEntered = ServeListeningSignal()
+        let request = Task {
+            await CodexBarCLI.cachedServeResponse(
+                key: "cost:",
+                cache: cache,
+                refreshInterval: 0.01,
+                requestTimeout: 30)
+            {
+                let call = await counter.increment()
+                sourceEntered.signal()
+                await releaseSource.wait()
+                return Self.response("[{\"provider\":\"codex\",\"call\":\(call)}]")
+            }
         }
+        await sourceEntered.wait()
+        deadline.signal()
+        let timedOut = await request.value
 
         #expect(timedOut.status == .ok)
         let firstRows = try Self.jsonRows(first)
@@ -714,11 +751,17 @@ struct CLIServeRouterTests {
         #expect(firstRows.first?["call"] as? Int == 1)
         #expect(timedOutRows.first?["call"] as? Int == 1)
         #expect(await counter.current() == 2)
+
+        releaseSource.signal()
+        for _ in 0..<1000 where await operations.snapshot().operationCount != 0 {
+            await Task.yield()
+        }
+        #expect(await operations.snapshot().operationCount == 0)
     }
 
     @Test
     func `cost refresh keeps fresh providers while replacing timed out rows`() async throws {
-        let cache = CLIServeResponseCache()
+        let (wallClock, cache) = makeServeTestCache()
 
         _ = await CodexBarCLI.cachedServeResponse(
             key: "cost:",
@@ -733,7 +776,7 @@ struct CLIServeRouterTests {
             ]
             """)
         }
-        try? await Task.sleep(nanoseconds: 30_000_000)
+        wallClock.advance(by: 0.01)
 
         let partial = await CodexBarCLI.cachedServeResponse(
             key: "cost:",
@@ -753,14 +796,14 @@ struct CLIServeRouterTests {
         #expect(Self.row(partialRows, provider: "claude")?["call"] as? Int == 1)
         #expect(partialRows.allSatisfy { $0["error"] == nil })
 
-        try? await Task.sleep(nanoseconds: 30_000_000)
+        wallClock.advance(by: 0.01)
         let timedOut = await CodexBarCLI.cachedServeResponse(
             key: "cost:",
             cache: cache,
             refreshInterval: 0.01,
             requestTimeout: 0.01)
         {
-            try? await Task.sleep(nanoseconds: 200_000_000)
+            await Self.hangPastRequestDeadline()
             return Self.response(#"[{"provider":"codex","call":3}]"#)
         }
         let timeoutRows = try Self.jsonRows(timedOut)
@@ -770,7 +813,7 @@ struct CLIServeRouterTests {
 
     @Test
     func `serve cache replaces only failed provider account rows`() async throws {
-        let cache = CLIServeResponseCache()
+        let (wallClock, cache) = makeServeTestCache()
 
         _ = await CodexBarCLI.cachedServeResponse(
             key: "usage:",
@@ -787,7 +830,7 @@ struct CLIServeRouterTests {
             """)
         }
 
-        try? await Task.sleep(nanoseconds: 100_000_000)
+        wallClock.advance(by: 0.05)
 
         let refreshed = await CodexBarCLI.cachedServeResponse(
             key: "usage:",
@@ -813,7 +856,7 @@ struct CLIServeRouterTests {
 
     @Test
     func `serve cache retains newer per-row success across all-error refresh`() async throws {
-        let cache = CLIServeResponseCache()
+        let (wallClock, cache) = makeServeTestCache()
 
         _ = await CodexBarCLI.cachedServeResponse(
             key: "usage:",
@@ -828,7 +871,7 @@ struct CLIServeRouterTests {
             ]
             """)
         }
-        try? await Task.sleep(nanoseconds: 100_000_000)
+        wallClock.advance(by: 0.05)
 
         _ = await CodexBarCLI.cachedServeResponse(
             key: "usage:",
@@ -843,7 +886,7 @@ struct CLIServeRouterTests {
             ]
             """)
         }
-        try? await Task.sleep(nanoseconds: 100_000_000)
+        wallClock.advance(by: 0.05)
 
         let failed = await CodexBarCLI.cachedServeResponse(
             key: "usage:",
@@ -866,7 +909,7 @@ struct CLIServeRouterTests {
 
     @Test
     func `serve cache fails closed on timeout after merged rows`() async {
-        let cache = CLIServeResponseCache()
+        let (wallClock, cache) = makeServeTestCache()
 
         _ = await CodexBarCLI.cachedServeResponse(
             key: "usage:",
@@ -881,7 +924,7 @@ struct CLIServeRouterTests {
             ]
             """)
         }
-        try? await Task.sleep(nanoseconds: 100_000_000)
+        wallClock.advance(by: 0.05)
 
         _ = await CodexBarCLI.cachedServeResponse(
             key: "usage:",
@@ -896,7 +939,7 @@ struct CLIServeRouterTests {
             ]
             """)
         }
-        try? await Task.sleep(nanoseconds: 100_000_000)
+        wallClock.advance(by: 0.05)
 
         let timedOut = await CodexBarCLI.cachedServeResponse(
             key: "usage:",
@@ -904,7 +947,7 @@ struct CLIServeRouterTests {
             refreshInterval: 0.05,
             requestTimeout: 0.01)
         {
-            try? await Task.sleep(nanoseconds: 200_000_000)
+            await Self.hangPastRequestDeadline()
             return Self.response("[]")
         }
         #expect(timedOut.status == .gatewayTimeout)
@@ -914,7 +957,7 @@ struct CLIServeRouterTests {
 
     @Test
     func `serve cache fails closed on timeout after a partial refresh`() async {
-        let cache = CLIServeResponseCache()
+        let (wallClock, cache) = makeServeTestCache()
 
         _ = await CodexBarCLI.cachedServeResponse(
             key: "usage:",
@@ -924,7 +967,7 @@ struct CLIServeRouterTests {
         {
             Self.response(#"[{"provider":"codex","call":1}]"#)
         }
-        try? await Task.sleep(nanoseconds: 100_000_000)
+        wallClock.advance(by: 0.05)
 
         _ = await CodexBarCLI.cachedServeResponse(
             key: "usage:",
@@ -939,7 +982,7 @@ struct CLIServeRouterTests {
             ]
             """)
         }
-        try? await Task.sleep(nanoseconds: 100_000_000)
+        wallClock.advance(by: 0.05)
 
         let timedOut = await CodexBarCLI.cachedServeResponse(
             key: "usage:",
@@ -947,7 +990,7 @@ struct CLIServeRouterTests {
             refreshInterval: 0.05,
             requestTimeout: 0.01)
         {
-            try? await Task.sleep(nanoseconds: 200_000_000)
+            await Self.hangPastRequestDeadline()
             return Self.response("[]")
         }
         #expect(timedOut.status == .gatewayTimeout)
@@ -1001,7 +1044,7 @@ struct CLIServeRouterTests {
 
     @Test
     func `serve cache preserves newer row when another failed row has no fallback`() async throws {
-        let cache = CLIServeResponseCache()
+        let (wallClock, cache) = makeServeTestCache()
 
         _ = await CodexBarCLI.cachedServeResponse(
             key: "usage:",
@@ -1011,7 +1054,7 @@ struct CLIServeRouterTests {
         {
             Self.response(#"[{"provider":"codex","call":1}]"#)
         }
-        try? await Task.sleep(nanoseconds: 100_000_000)
+        wallClock.advance(by: 0.05)
 
         _ = await CodexBarCLI.cachedServeResponse(
             key: "usage:",
@@ -1026,7 +1069,7 @@ struct CLIServeRouterTests {
             ]
             """)
         }
-        try? await Task.sleep(nanoseconds: 100_000_000)
+        wallClock.advance(by: 0.05)
 
         let failed = await CodexBarCLI.cachedServeResponse(
             key: "usage:",
@@ -1049,7 +1092,7 @@ struct CLIServeRouterTests {
 
     @Test
     func `serve cache keeps fresh rows when a failed row has no stale match`() async throws {
-        let cache = CLIServeResponseCache()
+        let (wallClock, cache) = makeServeTestCache()
 
         _ = await CodexBarCLI.cachedServeResponse(
             key: "usage:",
@@ -1060,7 +1103,7 @@ struct CLIServeRouterTests {
             Self.response(#"[{"provider":"codex","account":"personal","call":1}]"#)
         }
 
-        try? await Task.sleep(nanoseconds: 100_000_000)
+        wallClock.advance(by: 0.05)
 
         let refreshed = await CodexBarCLI.cachedServeResponse(
             key: "usage:",
@@ -1083,7 +1126,7 @@ struct CLIServeRouterTests {
 
     @Test
     func `serve cache does not merge duplicate provider account labels`() async throws {
-        let cache = CLIServeResponseCache()
+        let (wallClock, cache) = makeServeTestCache()
 
         _ = await CodexBarCLI.cachedServeResponse(
             key: "usage:",
@@ -1099,7 +1142,7 @@ struct CLIServeRouterTests {
             """)
         }
 
-        try? await Task.sleep(nanoseconds: 100_000_000)
+        wallClock.advance(by: 0.05)
 
         let refreshed = await CodexBarCLI.cachedServeResponse(
             key: "usage:",
@@ -1129,7 +1172,7 @@ struct CLIServeRouterTests {
 
     @Test
     func `serve cache follows stable account identity across label changes`() async throws {
-        let cache = CLIServeResponseCache()
+        let (wallClock, cache) = makeServeTestCache()
 
         _ = await CodexBarCLI.cachedServeResponse(
             key: "usage:",
@@ -1141,7 +1184,7 @@ struct CLIServeRouterTests {
                 #"[{"provider":"codex","account":"old label","call":1}]"#,
                 usageCacheKeys: ["account-1"])
         }
-        try? await Task.sleep(nanoseconds: 100_000_000)
+        wallClock.advance(by: 0.05)
 
         let failed = await CodexBarCLI.cachedServeResponse(
             key: "usage:",
@@ -1161,7 +1204,7 @@ struct CLIServeRouterTests {
 
     @Test
     func `serve cache does not reuse a label for a different account identity`() async throws {
-        let cache = CLIServeResponseCache()
+        let (wallClock, cache) = makeServeTestCache()
 
         _ = await CodexBarCLI.cachedServeResponse(
             key: "usage:",
@@ -1173,7 +1216,7 @@ struct CLIServeRouterTests {
                 #"[{"provider":"codex","account":"shared","call":1}]"#,
                 usageCacheKeys: ["account-1"])
         }
-        try? await Task.sleep(nanoseconds: 100_000_000)
+        wallClock.advance(by: 0.05)
 
         let refreshed = await CodexBarCLI.cachedServeResponse(
             key: "usage:",
@@ -1198,7 +1241,7 @@ struct CLIServeRouterTests {
 
     @Test
     func `serve cache does not use whole fallback after an account switch`() async throws {
-        let cache = CLIServeResponseCache()
+        let (wallClock, cache) = makeServeTestCache()
 
         _ = await CodexBarCLI.cachedServeResponse(
             key: "usage:",
@@ -1210,7 +1253,7 @@ struct CLIServeRouterTests {
                 #"[{"provider":"codex","account":"shared","call":1}]"#,
                 usageCacheKeys: ["account-1"])
         }
-        try? await Task.sleep(nanoseconds: 100_000_000)
+        wallClock.advance(by: 0.05)
 
         let failed = await CodexBarCLI.cachedServeResponse(
             key: "usage:",
@@ -1233,7 +1276,7 @@ struct CLIServeRouterTests {
             refreshInterval: 0.05,
             requestTimeout: 0.01)
         {
-            try? await Task.sleep(nanoseconds: 200_000_000)
+            await Self.hangPastRequestDeadline()
             return Self.response(
                 #"[{"provider":"codex","account":"shared","call":3}]"#,
                 usageCacheKeys: ["account-2"])
@@ -1245,7 +1288,7 @@ struct CLIServeRouterTests {
 
     @Test
     func `serve cache prunes accounts absent from a successful snapshot`() async throws {
-        let cache = CLIServeResponseCache()
+        let (wallClock, cache) = makeServeTestCache()
 
         _ = await CodexBarCLI.cachedServeResponse(
             key: "usage:",
@@ -1255,7 +1298,7 @@ struct CLIServeRouterTests {
         {
             Self.response(#"[{"provider":"codex","account":"shared","call":1}]"#)
         }
-        try? await Task.sleep(nanoseconds: 100_000_000)
+        wallClock.advance(by: 0.05)
 
         _ = await CodexBarCLI.cachedServeResponse(
             key: "usage:",
@@ -1265,7 +1308,7 @@ struct CLIServeRouterTests {
         {
             Self.response(#"[{"provider":"antigravity","account":"work","call":2}]"#)
         }
-        try? await Task.sleep(nanoseconds: 100_000_000)
+        wallClock.advance(by: 0.05)
 
         let refreshed = await CodexBarCLI.cachedServeResponse(
             key: "usage:",
@@ -1288,7 +1331,7 @@ struct CLIServeRouterTests {
 
     @Test
     func `serve cache fails closed when all-error rows have ambiguous identities`() async throws {
-        let cache = CLIServeResponseCache()
+        let (wallClock, cache) = makeServeTestCache()
 
         _ = await CodexBarCLI.cachedServeResponse(
             key: "usage:",
@@ -1306,7 +1349,7 @@ struct CLIServeRouterTests {
                 """,
                 usageCacheKeys: [nil, nil, nil])
         }
-        try? await Task.sleep(nanoseconds: 100_000_000)
+        wallClock.advance(by: 0.05)
 
         let failed = await CodexBarCLI.cachedServeResponse(
             key: "usage:",
@@ -1343,7 +1386,7 @@ struct CLIServeRouterTests {
 
     @Test
     func `serve cache does not whole-fallback ambiguous usage after timeout`() async {
-        let cache = CLIServeResponseCache()
+        let (wallClock, cache) = makeServeTestCache()
 
         _ = await CodexBarCLI.cachedServeResponse(
             key: "usage:",
@@ -1355,7 +1398,7 @@ struct CLIServeRouterTests {
                 #"[{"provider":"antigravity","account":"first@example.com","call":1}]"#,
                 usageCacheKeys: [nil])
         }
-        try? await Task.sleep(nanoseconds: 100_000_000)
+        wallClock.advance(by: 0.05)
 
         let timedOut = await CodexBarCLI.cachedServeResponse(
             key: "usage:",
@@ -1363,7 +1406,7 @@ struct CLIServeRouterTests {
             refreshInterval: 0.05,
             requestTimeout: 0.01)
         {
-            try? await Task.sleep(nanoseconds: 200_000_000)
+            await Self.hangPastRequestDeadline()
             return Self.response(
                 #"[{"provider":"antigravity","account":"second@example.com","call":2}]"#,
                 usageCacheKeys: [nil])
@@ -1376,7 +1419,7 @@ struct CLIServeRouterTests {
 
     @Test
     func `serve cache mixed identities do not enable timeout fallback`() async {
-        let cache = CLIServeResponseCache()
+        let (wallClock, cache) = makeServeTestCache()
 
         _ = await CodexBarCLI.cachedServeResponse(
             key: "usage:",
@@ -1393,7 +1436,7 @@ struct CLIServeRouterTests {
                 """,
                 usageCacheKeys: ["account-1", nil])
         }
-        try? await Task.sleep(nanoseconds: 100_000_000)
+        wallClock.advance(by: 0.05)
 
         let timedOut = await CodexBarCLI.cachedServeResponse(
             key: "usage:",
@@ -1401,7 +1444,7 @@ struct CLIServeRouterTests {
             refreshInterval: 0.05,
             requestTimeout: 0.01)
         {
-            try? await Task.sleep(nanoseconds: 200_000_000)
+            await Self.hangPastRequestDeadline()
             return Self.response("[]", usageCacheKeys: [])
         }
         #expect(timedOut.status == .gatewayTimeout)
@@ -1512,6 +1555,15 @@ struct CLIServeRouterTests {
             Issue.record("Expected \(expected)")
         case let .failure(error):
             #expect(error == expected)
+        }
+    }
+
+    /// A refresh stand-in that outlives any request deadline. Deliberately uncancellable:
+    /// `try? await Task.sleep` returns immediately once the coordinator cancels the timed-out
+    /// operation, and that salvaged "real" response then races (and can beat) the timeout value.
+    private static func hangPastRequestDeadline() async {
+        await withUnsafeContinuation { continuation in
+            DispatchQueue.global().asyncAfter(deadline: .now() + 5) { continuation.resume() }
         }
     }
 

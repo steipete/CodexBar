@@ -52,7 +52,6 @@ public enum ClawRouterProviderDescriptor {
     }
 
     private static func fetchPlan() -> ProviderFetchPlan {
-        #if canImport(JavaScriptCore)
         ProviderFetchPlan(
             sourceModes: [.auto, .api],
             pipeline: ProviderFetchPipeline(resolveStrategies: { _ in
@@ -78,37 +77,5 @@ public enum ClawRouterProviderDescriptor {
                     },
                     isEnabled: { _ in true })]
             }))
-        #else
-        // Linux compatibility only. JavaScriptCore platforms use the bundled ClawRouter plugin above.
-        ProviderFetchPlan(
-            sourceModes: [.auto, .api],
-            pipeline: ProviderFetchPipeline(resolveStrategies: { _ in [ClawRouterAPIFetchStrategy()] }))
-        #endif
     }
 }
-
-#if !canImport(JavaScriptCore)
-struct ClawRouterAPIFetchStrategy: ProviderFetchStrategy {
-    let id = "clawrouter.api"
-    let kind: ProviderFetchKind = .apiToken
-
-    func isAvailable(_ context: ProviderFetchContext) async -> Bool {
-        ProviderTokenResolver.token(for: .clawrouter, environment: context.env) != nil
-    }
-
-    func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
-        guard let apiKey = ProviderTokenResolver.token(for: .clawrouter, environment: context.env) else {
-            throw ClawRouterUsageError.missingCredentials
-        }
-        try ClawRouterSettingsReader.validateEndpointOverride(environment: context.env)
-        let usage = try await ClawRouterUsageFetcher.fetchUsage(
-            apiKey: apiKey,
-            baseURL: ClawRouterSettingsReader.baseURL(environment: context.env))
-        return self.makeResult(usage: usage.toUsageSnapshot(), sourceLabel: "api")
-    }
-
-    func shouldFallback(on _: Error, context _: ProviderFetchContext) -> Bool {
-        false
-    }
-}
-#endif

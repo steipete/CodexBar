@@ -36,6 +36,9 @@ available for self-hosted proxies on loopback, RFC 1918, link-local, and IPv6 un
 URL that does not meet these rules is rejected, and the provider reports that `LITELLM_BASE_URL` is invalid
 instead of fetching.
 
+The native fetcher remains authoritative. Configured plugin origins cover HTTPS and loopback HTTP, but do not cover
+the existing private-network and `.local` HTTP contract without a broader host network policy.
+
 ## Data Source
 
 The provider calls:

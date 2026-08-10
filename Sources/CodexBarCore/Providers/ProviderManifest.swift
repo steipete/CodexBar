@@ -17,6 +17,7 @@ public enum ProviderManifest {
         AlibabaTokenPlanProviderDescriptor.descriptor,
         QwenCloudProviderDescriptor.descriptor,
         FactoryProviderDescriptor.descriptor,
+        FireworksProviderDescriptor.descriptor,
         GeminiProviderDescriptor.descriptor,
         AntigravityProviderDescriptor.descriptor,
         CopilotProviderDescriptor.descriptor,
@@ -72,5 +73,6 @@ public enum ProviderManifest {
         ZoomMateProviderDescriptor.descriptor,
         XAIProviderDescriptor.descriptor,
         NotionProviderDescriptor.descriptor,
+        IBMBobProviderDescriptor.descriptor,
     ]
 }

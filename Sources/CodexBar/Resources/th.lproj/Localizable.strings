@@ -672,6 +672,8 @@
 "copyright" = "© 2026 ปีเตอร์ สไตน์เบอร์เกอร์ ใบอนุญาต MIT";
 
 /* Debug Pane */
+"use_javascriptcore_plugin_engine" = "ใช้ JavaScriptCore สำหรับปลั๊กอินผู้ให้บริการ";
+"use_javascriptcore_plugin_engine_subtitle" = "ใช้เพื่อย้อนกลับด้านความเข้ากันได้เท่านั้น เริ่ม CodexBar ใหม่เพื่อใช้ค่า; CODEXBAR_PLUGIN_ENGINE จะแทนที่การตั้งค่านี้";
 "section_logging" = "การบันทึก";
 "enable_file_logging" = "เปิดใช้งานการบันทึกไฟล์";
 "enable_file_logging_subtitle" = "เขียนบันทึกไปยัง %@ เพื่อแก้ไขข้อบกพร่อง";
@@ -1430,3 +1432,6 @@
 "Enter every endpoint setting to review the exact network origins." = "กรอกการตั้งค่าปลายทางทุกค่าเพื่อตรวจสอบต้นทางเครือข่ายที่แน่นอน";
 "Approve" = "อนุมัติ";
 "Install" = "ติดตั้ง";
+"5-hour usage" = "การใช้งาน 5 ชั่วโมง";
+"7-day usage" = "การใช้งาน 7 วัน";
+"Total usage" = "การใช้งานทั้งหมด";

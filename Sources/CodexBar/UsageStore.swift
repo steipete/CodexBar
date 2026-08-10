@@ -45,6 +45,8 @@ extension UsageStore {
 
     var iconObservationToken: Int {
         _ = self.snapshots
+        _ = self.claudeSwapAccountSnapshots
+        _ = self.claudeSwapRevision
         _ = self.errors
         _ = self.diagnostics
         _ = self.knownLimitsAvailabilityByProvider
@@ -587,6 +589,17 @@ final class UsageStore {
 
     func snapshot(for instanceID: ProviderInstanceID) -> UsageSnapshot? {
         self.snapshots[instanceID]
+    }
+
+    /// The snapshot the menu-bar indicator should render for a provider instance.
+    /// When the claude-swap adapter owns Claude account presentation, the active
+    /// account's snapshot drives the bar so the indicator agrees with the account
+    /// cards shown in the menu; the ambient provider snapshot remains the fallback
+    /// whenever the adapter is disabled, below its presentation threshold, or the
+    /// active account has no usable usage windows.
+    func menuBarSnapshot(for instanceID: ProviderInstanceID) -> UsageSnapshot? {
+        // Provider-specific by design: claude-swap adapter owns Claude menu-bar presentation; see #2731.
+        self.claudeSwapMenuBarSnapshotOverride(for: instanceID) ?? self.snapshot(for: instanceID)
     }
 
     func sourceLabel(for provider: UsageProvider) -> String {

@@ -31,10 +31,10 @@ defineProvider({
       return typeof value === "string" && value.trim() ? value.trim() : fallback;
     }
     function usd(value) {
-      return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(Math.max(0, value));
+      return ctx.format.usd(Math.max(0, value));
     }
     function numberText(value) {
-      return new Intl.NumberFormat("en-US", { maximumFractionDigits: 1 }).format(value);
+      return ctx.format.number(value, { maximumFractionDigits: 1 });
     }
     function queryURL(path, range, groupBy, page) {
       const query = [
@@ -71,8 +71,13 @@ defineProvider({
           const response = await ctx.http.getJSON(queryURL(path, range, groupBy, page));
           if (response.status !== 200) throw new Error(`OpenAI ${path} error: HTTP ${response.status}`);
           const body = response.json;
-          if (!body || typeof body !== "object" || Array.isArray(body) ||
-              !Array.isArray(body.data) || typeof body.has_more !== "boolean") {
+          if (
+            !body ||
+            typeof body !== "object" ||
+            Array.isArray(body) ||
+            !Array.isArray(body.data) ||
+            typeof body.has_more !== "boolean"
+          ) {
             throw new Error(`Failed to parse OpenAI ${path} page`);
           }
           buckets.push(...body.data);
@@ -94,15 +99,29 @@ defineProvider({
       const completionBuckets = await pages("/v1/organization/usage/completions", "model");
       const daily = new Map();
       function bucket(raw) {
-        if (!raw || typeof raw !== "object" || Array.isArray(raw) ||
-            !Number.isInteger(raw.start_time) || !Number.isInteger(raw.end_time) || !Array.isArray(raw.results)) {
+        if (
+          !raw ||
+          typeof raw !== "object" ||
+          Array.isArray(raw) ||
+          !Number.isInteger(raw.start_time) ||
+          !Number.isInteger(raw.end_time) ||
+          !Array.isArray(raw.results)
+        ) {
           throw new Error("Failed to parse OpenAI usage bucket");
         }
         let value = daily.get(raw.start_time);
         if (!value) {
           value = {
-            start: raw.start_time, end: raw.end_time, cost: 0, requests: 0,
-            input: 0, cached: 0, output: 0, tokens: 0, models: new Map(), lines: new Map(),
+            start: raw.start_time,
+            end: raw.end_time,
+            cost: 0,
+            requests: 0,
+            input: 0,
+            cached: 0,
+            output: 0,
+            tokens: 0,
+            models: new Map(),
+            lines: new Map(),
           };
           daily.set(raw.start_time, value);
         }
@@ -142,54 +161,76 @@ defineProvider({
         }
       }
       const days = Array.from(daily.values()).sort((a, b) => a.start - b.start);
-      const totals = days.reduce((sum, day) => {
-        sum.cost += day.cost; sum.requests += day.requests; sum.input += day.input;
-        sum.cached += day.cached; sum.output += day.output; sum.tokens += day.tokens;
-        return sum;
-      }, { cost: 0, requests: 0, input: 0, cached: 0, output: 0, tokens: 0 });
+      const totals = days.reduce(
+        (sum, day) => {
+          sum.cost += day.cost;
+          sum.requests += day.requests;
+          sum.input += day.input;
+          sum.cached += day.cached;
+          sum.output += day.output;
+          sum.tokens += day.tokens;
+          return sum;
+        },
+        { cost: 0, requests: 0, input: 0, cached: 0, output: 0, tokens: 0 },
+      );
       const models = new Map();
       const lines = new Map();
       for (const day of days) {
         for (const [modelName, value] of day.models) {
           const model = models.get(modelName) || { requests: 0, tokens: 0 };
-          model.requests += value.requests; model.tokens += value.tokens; models.set(modelName, model);
+          model.requests += value.requests;
+          model.tokens += value.tokens;
+          models.set(modelName, model);
         }
         for (const [line, cost] of day.lines) lines.set(line, (lines.get(line) || 0) + cost);
       }
-      const topModels = Array.from(models.entries()).sort((a, b) => b[1].tokens - a[1].tokens || a[0].localeCompare(b[0]));
+      const topModels = Array.from(models.entries()).sort(
+        (a, b) => b[1].tokens - a[1].tokens || a[0].localeCompare(b[0]),
+      );
       const topLines = Array.from(lines.entries()).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
       const chartDays = days.slice(-120);
       const summaryRows = [
         { label: "Spend", value: usd(totals.cost), secondaryValue: `Last ${historyDays} days` },
         { label: "Requests", value: numberText(totals.requests) },
-        { label: "Tokens", value: numberText(totals.tokens), secondaryValue: `${numberText(totals.input)} input · ${numberText(totals.output)} output` },
+        {
+          label: "Tokens",
+          value: numberText(totals.tokens),
+          secondaryValue: `${numberText(totals.input)} input · ${numberText(totals.output)} output`,
+        },
         { label: "Cached input", value: numberText(totals.cached) },
       ];
       if (days.length > chartDays.length) {
         summaryRows.push({ label: "Chart range", value: `Last ${chartDays.length} days` });
       }
-      const details = [{
-        title: "Usage summary",
-        rows: summaryRows,
-        chart: {
-          kind: "bars",
-          title: "Daily spend",
-          unit: "USD",
-          points: chartDays.map(day => ({ label: new Date(day.start * 1000).toISOString().slice(0, 10), value: day.cost })),
+      const details = [
+        {
+          title: "Usage summary",
+          rows: summaryRows,
+          chart: {
+            kind: "bars",
+            title: "Daily spend",
+            unit: "USD",
+            points: chartDays.map((day) => ({
+              label: new Date(day.start * 1000).toISOString().slice(0, 10),
+              value: day.cost,
+            })),
+          },
         },
-      }];
+      ];
       if (topModels.length) {
         details.push({
           title: "Models",
-          rows: topModels.slice(0, 24).map(item => ({
-            label: item[0], value: `${numberText(item[1].tokens)} tokens`, secondaryValue: `${item[1].requests} requests`,
+          rows: topModels.slice(0, 24).map((item) => ({
+            label: item[0],
+            value: `${numberText(item[1].tokens)} tokens`,
+            secondaryValue: `${item[1].requests} requests`,
           })),
         });
       }
       if (topLines.length) {
         details.push({
           title: "Line items",
-          rows: topLines.slice(0, 24).map(item => ({ label: item[0], value: usd(item[1]) })),
+          rows: topLines.slice(0, 24).map((item) => ({ label: item[0], value: usd(item[1]) })),
         });
       }
       const identity = { loginMethod: projectID ? `Admin API: ${projectID}` : "Admin API" };
@@ -208,10 +249,13 @@ defineProvider({
       const granted = finite(body.total_granted, "total_granted", false);
       const used = finite(body.total_used, "total_used", false);
       const available = finite(body.total_available, "total_available", false);
-      const futureExpiries = body.grants && Array.isArray(body.grants.data)
-        ? body.grants.data.map(item => item && finite(item.expires_at, "expires_at", true))
-          .filter(value => value !== null && value * 1000 > Date.now()).sort((a, b) => a - b)
-        : [];
+      const futureExpiries =
+        body.grants && Array.isArray(body.grants.data)
+          ? body.grants.data
+              .map((item) => item && finite(item.expires_at, "expires_at", true))
+              .filter((value) => value !== null && value * 1000 > Date.now())
+              .sort((a, b) => a - b)
+          : [];
       const resetsAt = futureExpiries.length ? ctx.date.unixSeconds(futureExpiries[0]) : null;
       const primary = {
         usedPercent: granted > 0 ? ctx.pct(used, granted) : available > 0 ? 0 : 100,
@@ -224,14 +268,16 @@ defineProvider({
         primary,
         cost,
         identity: { loginMethod: `API balance: ${usd(available)}` },
-        details: [{
-          title: "API credits",
-          rows: [
-            { label: "Available", value: usd(available) },
-            { label: "Used", value: usd(used) },
-            { label: "Granted", value: usd(granted) },
-          ],
-        }],
+        details: [
+          {
+            title: "API credits",
+            rows: [
+              { label: "Available", value: usd(available) },
+              { label: "Used", value: usd(used) },
+              { label: "Granted", value: usd(granted) },
+            ],
+          },
+        ],
       };
     }
   },

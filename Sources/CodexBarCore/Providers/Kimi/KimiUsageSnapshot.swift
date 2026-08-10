@@ -119,8 +119,9 @@ extension KimiUsageSnapshot {
         }
 
         let monthlyWindow = self.subscriptionBalance.flatMap { balance -> NamedRateWindow? in
-            // Monthly = shared subscription pool (`amountUsedRatio`), not the Code-only `kimiCodeUsedRatio`:
-            // the pool is shared across features, so amountUsedRatio is the real "subscription remaining".
+            // Total usage = shared subscription pool (`amountUsedRatio`), not the Code-only
+            // `kimiCodeUsedRatio`: the pool is shared across features, so amountUsedRatio is the
+            // real "subscription remaining". Matches the official "Total usage" lane.
             guard balance.feature == nil || balance.feature == "FEATURE_OMNI" else { return nil }
             guard balance.type == nil || balance.type == "SUBSCRIPTION" else { return nil }
             guard let ratio = balance.amountUsedRatio, ratio.isFinite else { return nil }
@@ -129,7 +130,7 @@ extension KimiUsageSnapshot {
                 windowMinutes: ProviderPaceCapability.monthlyWindowSentinelMinutes,
                 resetsAt: Self.parseDate(balance.expireTime),
                 resetDescription: nil)
-            return NamedRateWindow(id: "kimi-monthly", title: "Monthly", window: window)
+            return NamedRateWindow(id: "kimi-monthly", title: "Total usage", window: window)
         }
 
         let subscriptionCodeWeeklyWindow = self.subscriptionCodeWeeklyLimit.flatMap { limit -> NamedRateWindow? in
@@ -143,7 +144,17 @@ extension KimiUsageSnapshot {
             return NamedRateWindow(id: "kimi-code-7d", title: "Code 7-day", window: window)
         }
 
-        let extraRateWindows = [monthlyWindow, subscriptionCodeWeeklyWindow].compactMap(\.self)
+        // The membership 7-day Code ratio and the FEATURE_CODING weekly detail report the same
+        // underlying quota through two endpoints. When they agree, the extra row only duplicates
+        // the primary lane, so keep it just for the cases where it genuinely diverges.
+        let showsDistinctCodeWeeklyWindow = subscriptionCodeWeeklyWindow.map { codeWeekly in
+            !Self.isEquivalentToWeeklyWindow(codeWeekly.window, weeklyWindow: weeklyWindow)
+        } ?? false
+
+        let extraRateWindows = [
+            monthlyWindow,
+            showsDistinctCodeWeeklyWindow ? subscriptionCodeWeeklyWindow : nil,
+        ].compactMap(\.self)
 
         let identity = ProviderIdentitySnapshot(
             providerID: .kimi,
@@ -159,5 +170,14 @@ extension KimiUsageSnapshot {
             providerCost: nil,
             updatedAt: self.updatedAt,
             identity: identity)
+    }
+
+    private static func isEquivalentToWeeklyWindow(_ window: RateWindow, weeklyWindow: RateWindow?) -> Bool {
+        // Suppress only on positive evidence: unreliable weekly counters deliberately withhold
+        // windowMinutes, and two lanes without reset timestamps cannot be proven to be the same quota.
+        guard let weeklyWindow, weeklyWindow.windowMinutes != nil else { return false }
+        guard abs(window.usedPercent - weeklyWindow.usedPercent) <= 1 else { return false }
+        guard let codeReset = window.resetsAt, let weeklyReset = weeklyWindow.resetsAt else { return false }
+        return abs(codeReset.timeIntervalSince(weeklyReset)) <= 5 * 60
     }
 }

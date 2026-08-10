@@ -43,6 +43,9 @@ The OpenRouter provider fetches usage data from two API endpoints:
 
 2. **Key API** (`/api/v1/key`): Returns rate limit information plus current daily, weekly, and monthly spend for your API key.
 
+The Key API is optional enrichment with a one-second production deadline. If it is slow or unavailable, CodexBar still
+shows the credits balance and labels the API-key budget as unavailable with a safe timeout, HTTP, or response diagnostic.
+
 ## Display
 
 The OpenRouter menu card shows:

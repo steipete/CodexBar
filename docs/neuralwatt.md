@@ -68,6 +68,9 @@ For tests or self-hosted/proxy setups, override the API base URL with `NEURALWAT
 - `subscription` may be `null`; prepaid balance remains visible without a subscription window.
 - Transient quota failures are retried once, including `Retry-After` handling for rate limits.
 
+The native fetcher remains authoritative because that delayed retry behavior is not expressible through the current
+plugin HTTP API, which has no retry-policy or sleep capability.
+
 ## Troubleshooting
 
 ### "Missing Neuralwatt API key"

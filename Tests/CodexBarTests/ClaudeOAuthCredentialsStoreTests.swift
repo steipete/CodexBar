@@ -411,12 +411,15 @@ struct ClaudeOAuthCredentialsStoreTests {
                 .appendingPathComponent(UUID().uuidString, isDirectory: true)
             try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
             let fileURL = tempDir.appendingPathComponent("credentials.json")
+            // Isolate from the developer's ambient Claude config: a logged-in ~/.claude.json would
+            // hand the refresh chain to the Claude CLI, and this test covers the CLI-absent path.
+            let environment = [ClaudeConfigPaths.configDirectoryEnvironmentKey: tempDir.path]
             await ClaudeOAuthCredentialsStore.withCredentialsURLOverrideForTesting(fileURL) {
                 await ClaudeOAuthCredentialsStore.withKeychainAccessOverrideForTesting(true) {
                     ClaudeOAuthCredentialsStore.invalidateCache()
                     let cacheKey = ClaudeOAuthCredentialsStore.cacheKeyForTesting(
                         profileIdentifier: ClaudeOAuthCredentialsStore.credentialsProfileIdentifier(
-                            environment: [:]))
+                            environment: environment))
                     defer { KeychainCacheStore.clear(key: cacheKey) }
 
                     let expiredData = self.makeCredentialsData(
@@ -433,7 +436,7 @@ struct ClaudeOAuthCredentialsStoreTests {
                     await ClaudeOAuthRefreshFailureGate.$shouldAttemptOverride.withValue(false) {
                         do {
                             _ = try await ClaudeOAuthCredentialsStore.loadWithAutoRefresh(
-                                environment: [:],
+                                environment: environment,
                                 allowKeychainPrompt: false,
                                 respectKeychainPromptCooldown: true)
                             Issue.record("Expected refresh failure for CodexBar-owned direct refresh path")

@@ -11,6 +11,9 @@ read_when:
 Moonshot / Kimi Open Platform is API-only. Balance is reported by `GET /v1/users/me/balance`,
 so CodexBar only needs a valid API key to show the current account balance.
 
+The native fetcher remains authoritative because this balance-only result is intentionally represented in snapshot
+identity without a rate window, cost, or detail, while the plugin contract rejects identity-only snapshots.
+
 ## Rationale
 
 Kimi API docs use the Moonshot API surface for current Kimi models: examples read
