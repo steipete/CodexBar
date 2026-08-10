@@ -154,9 +154,9 @@ struct Sub2APIMenuCardModelTests {
         #expect(model.metrics.map(\.title) == ["每日配额", "每周", "每月"])
         let usage = try #require(model.providerDetails.first)
         #expect(usage.title == "用量")
-        #expect(usage.rows.map(\.label) == ["余额", "今天", "总计"])
-        #expect(usage.rows[1].value == "4 请求")
-        #expect(usage.rows[1].secondaryValue == "1,200 token · 费用: $1.25")
+        #expect(usage.rows.map(\.label) == ["今日", "总计"])
+        #expect(usage.rows[0].value == "4 请求")
+        #expect(usage.rows[0].secondaryValue == "1,200 token · 费用: $1.25")
     }
 
     @Test
