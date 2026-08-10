@@ -165,10 +165,15 @@ enum CCUsageCodexBridge {
             }
             guard !codexAgents.isEmpty else { return nil }
 
-            let modelBreakdowns = self.mergeModelBreakdowns(codexAgents.flatMap { $0.modelBreakdowns ?? [] })
+            let rawModelBreakdowns = codexAgents.flatMap { $0.modelBreakdowns ?? [] }
+            let mergedModelBreakdowns = self.mergeModelBreakdowns(rawModelBreakdowns)
+            let modelBreakdowns = mergedModelBreakdowns.rows
             let models = Set(codexAgents.flatMap { $0.modelsUsed ?? [] })
                 .union(modelBreakdowns.map(\.modelName))
                 .sorted()
+            let costUSD = rawModelBreakdowns.isEmpty
+                ? self.repriceSingleModelAgent(codexAgents)
+                : mergedModelBreakdowns.totalCostUSD
             return CostUsageDailyReport.Entry(
                 date: day.period,
                 inputTokens: self.sum(codexAgents.map(\.inputTokens)),
@@ -176,7 +181,7 @@ enum CCUsageCodexBridge {
                 cacheReadTokens: self.sum(codexAgents.map(\.cacheReadTokens)),
                 cacheCreationTokens: self.sum(codexAgents.map(\.cacheCreationTokens)),
                 totalTokens: self.sum(codexAgents.map { $0.totalTokens ?? self.componentTotal(for: $0) }),
-                costUSD: self.sum(codexAgents.map(\.totalCost)),
+                costUSD: costUSD,
                 modelsUsed: models.isEmpty ? nil : models,
                 modelBreakdowns: modelBreakdowns.isEmpty ? nil : modelBreakdowns)
         }
@@ -193,12 +198,21 @@ enum CCUsageCodexBridge {
                 totalCostUSD: self.sum(entries.map(\.costUSD)) ?? 0))
     }
 
+    private struct MergedModelBreakdowns {
+        let rows: [CostUsageDailyReport.ModelBreakdown]
+        let totalCostUSD: Double?
+    }
+
     private static func mergeModelBreakdowns(
-        _ rows: [ModelBreakdown]) -> [CostUsageDailyReport.ModelBreakdown]
+        _ rows: [ModelBreakdown]) -> MergedModelBreakdowns
     {
         struct Accumulator {
             var tokens: [Int?] = []
-            var costs: [Double?] = []
+            var inputTokens: [Int?] = []
+            var outputTokens: [Int?] = []
+            var cacheReadTokens: [Int?] = []
+            var cacheCreationTokens: [Int?] = []
+            var hasCompleteComponents = true
         }
 
         var models: [String: Accumulator] = [:]
@@ -210,15 +224,69 @@ enum CCUsageCodexBridge {
                 row.cacheCreationTokens,
             ])
             models[row.modelName, default: Accumulator()].tokens.append(row.totalTokens ?? componentTotal)
-            models[row.modelName, default: Accumulator()].costs.append(row.cost)
+            models[row.modelName, default: Accumulator()].inputTokens.append(row.inputTokens)
+            models[row.modelName, default: Accumulator()].outputTokens.append(row.outputTokens)
+            models[row.modelName, default: Accumulator()].cacheReadTokens.append(row.cacheReadTokens)
+            models[row.modelName, default: Accumulator()].cacheCreationTokens.append(row.cacheCreationTokens)
+            if row.inputTokens == nil || row.outputTokens == nil
+                || row.cacheReadTokens == nil || row.cacheCreationTokens == nil
+            {
+                models[row.modelName, default: Accumulator()].hasCompleteComponents = false
+            }
         }
-        return models.keys.sorted().map { modelName in
+        var allCostsKnown = true
+        let merged = models.keys.sorted().map { modelName in
             let accumulator = models[modelName] ?? Accumulator()
+            let inputTokens = self.sum(accumulator.inputTokens)
+            let outputTokens = self.sum(accumulator.outputTokens)
+            let cacheReadTokens = self.sum(accumulator.cacheReadTokens)
+            let cacheCreationTokens = self.sum(accumulator.cacheCreationTokens)
+            let costUSD: Double?
+            if accumulator.hasCompleteComponents,
+               let inputTokens,
+               let outputTokens,
+               let cacheReadTokens,
+               let cacheCreationTokens,
+               let totalInputTokens = self.sum([inputTokens, cacheReadTokens, cacheCreationTokens])
+            {
+                costUSD = CostUsagePricing.codexStandardCostUSD(
+                    model: modelName,
+                    inputTokens: totalInputTokens,
+                    cachedInputTokens: cacheReadTokens,
+                    outputTokens: outputTokens,
+                    cacheWriteInputTokens: cacheCreationTokens)
+            } else {
+                costUSD = nil
+            }
+            allCostsKnown = allCostsKnown && costUSD != nil
             return CostUsageDailyReport.ModelBreakdown(
                 modelName: modelName,
-                costUSD: self.sum(accumulator.costs),
+                costUSD: costUSD,
                 totalTokens: self.sum(accumulator.tokens))
         }
+        return MergedModelBreakdowns(
+            rows: merged.isEmpty ? [] : merged,
+            totalCostUSD: allCostsKnown ? self.sum(merged.map { $0.costUSD }) : nil)
+    }
+
+    private static func repriceSingleModelAgent(_ agents: [Agent]) -> Double? {
+        let models = Set(agents.flatMap { $0.modelsUsed ?? [] })
+        guard models.count == 1,
+              let model = models.first,
+              let inputTokens = self.sum(agents.map(\.inputTokens)),
+              let outputTokens = self.sum(agents.map(\.outputTokens)),
+              let cacheReadTokens = self.sum(agents.map(\.cacheReadTokens)),
+              let cacheCreationTokens = self.sum(agents.map(\.cacheCreationTokens)),
+              let totalInputTokens = self.sum([inputTokens, cacheReadTokens, cacheCreationTokens])
+        else {
+            return nil
+        }
+        return CostUsagePricing.codexStandardCostUSD(
+            model: model,
+            inputTokens: totalInputTokens,
+            cachedInputTokens: cacheReadTokens,
+            outputTokens: outputTokens,
+            cacheWriteInputTokens: cacheCreationTokens)
     }
 
     private static func isAtLeastAsComplete(

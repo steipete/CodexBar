@@ -19,7 +19,7 @@ struct CCUsageCodexBridgeTests {
                   "cacheReadTokens": 800,
                   "cacheCreationTokens": 5,
                   "totalTokens": 955,
-                  "totalCost": 1.25,
+                  "totalCost": 999.99,
                   "modelsUsed": ["gpt-5.6-sol"],
                   "modelBreakdowns": [
                     {
@@ -28,7 +28,7 @@ struct CCUsageCodexBridgeTests {
                       "outputTokens": 30,
                       "cacheReadTokens": 800,
                       "cacheCreationTokens": 5,
-                      "cost": 1.25
+                      "cost": 999.99
                     }
                   ]
                 },
@@ -55,10 +55,66 @@ struct CCUsageCodexBridgeTests {
         #expect(report.data[0].cacheReadTokens == 800)
         #expect(report.data[0].cacheCreationTokens == 5)
         #expect(report.data[0].totalTokens == 955)
-        #expect(report.data[0].costUSD == 1.25)
+        #expect(abs((report.data[0].costUSD ?? 0) - 0.00193125) < 0.0000000001)
         #expect(report.data[0].modelBreakdowns?.first?.totalTokens == 955)
+        #expect(abs((report.data[0].modelBreakdowns?.first?.costUSD ?? 0) - 0.00193125) < 0.0000000001)
         #expect(report.summary?.totalTokens == 955)
-        #expect(report.summary?.totalCostUSD == 1.25)
+        #expect(abs((report.summary?.totalCostUSD ?? 0) - 0.00193125) < 0.0000000001)
+    }
+
+    @Test
+    func `reprices Luna and Terra from token categories instead of helper costs`() throws {
+        let json = #"""
+        {
+          "daily": [
+            {
+              "period": "2026-08-10",
+              "agents": [
+                {
+                  "agent": "codex",
+                  "inputTokens": 2000000,
+                  "outputTokens": 200000,
+                  "cacheReadTokens": 20000000,
+                  "cacheCreationTokens": 0,
+                  "totalTokens": 22200000,
+                  "totalCost": 260.0,
+                  "modelsUsed": ["gpt-5.6-luna", "gpt-5.6-terra"],
+                  "modelBreakdowns": [
+                    {
+                      "modelName": "gpt-5.6-luna",
+                      "inputTokens": 1000000,
+                      "outputTokens": 100000,
+                      "cacheReadTokens": 10000000,
+                      "cacheCreationTokens": 0,
+                      "totalTokens": 11100000,
+                      "cost": 52.0
+                    },
+                    {
+                      "modelName": "gpt-5.6-terra",
+                      "inputTokens": 1000000,
+                      "outputTokens": 100000,
+                      "cacheReadTokens": 10000000,
+                      "cacheCreationTokens": 0,
+                      "totalTokens": 11100000,
+                      "cost": 208.0
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+        """#
+
+        let report = try CCUsageCodexBridge.parseReport(Data(json.utf8))
+        let breakdowns = try #require(report.data[0].modelBreakdowns)
+        let luna = try #require(breakdowns.first { $0.modelName == "gpt-5.6-luna" })
+        let terra = try #require(breakdowns.first { $0.modelName == "gpt-5.6-terra" })
+
+        #expect(abs((luna.costUSD ?? 0) - 0.52) < 0.0000000001)
+        #expect(abs((terra.costUSD ?? 0) - 5.2) < 0.0000000001)
+        #expect(abs((report.data[0].costUSD ?? 0) - 5.72) < 0.0000000001)
+        #expect(abs((report.summary?.totalCostUSD ?? 0) - 5.72) < 0.0000000001)
     }
 
     @Test
@@ -87,7 +143,7 @@ struct CCUsageCodexBridgeTests {
         defer { fixture.cleanup() }
         let helper = try fixture.writeHelper("""
         case "$CODEX_HOME" in */codex-home) ;; *) exit 7 ;; esac
-        printf '%s\\n' '{"daily":[{"period":"2026-08-09","agents":[{"agent":"codex","inputTokens":120,"outputTokens":30,"cacheReadTokens":800,"cacheCreationTokens":5,"totalTokens":955,"totalCost":1.25,"modelsUsed":["gpt-5.6-sol"],"modelBreakdowns":[{"modelName":"gpt-5.6-sol","totalTokens":955,"cost":1.25}]}]}]}'
+        printf '%s\\n' '{"daily":[{"period":"2026-08-09","agents":[{"agent":"codex","inputTokens":120,"outputTokens":30,"cacheReadTokens":800,"cacheCreationTokens":5,"totalTokens":955,"totalCost":1.25,"modelsUsed":["gpt-5.6-sol"],"modelBreakdowns":[{"modelName":"gpt-5.6-sol","inputTokens":120,"outputTokens":30,"cacheReadTokens":800,"cacheCreationTokens":5,"totalTokens":955,"cost":1.25}]}]}]}'
         """)
 
         let report = await CCUsageCodexBridge.loadFallbackReportIfNeeded(
@@ -100,7 +156,7 @@ struct CCUsageCodexBridgeTests {
             codexHomePath: fixture.codexHome.path)
 
         #expect(report?.summary?.totalTokens == 955)
-        #expect(report?.summary?.totalCostUSD == 1.25)
+        #expect(abs((report?.summary?.totalCostUSD ?? 0) - 0.00193125) < 0.0000000001)
     }
 
     @Test
