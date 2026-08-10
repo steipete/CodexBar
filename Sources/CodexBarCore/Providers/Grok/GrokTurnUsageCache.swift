@@ -8,8 +8,14 @@ import Foundation
 /// - Entries older than ``maxEntryAge`` (by session-file mtime) are dropped on load/save.
 /// - The whole artifact is deleted when Cost tracking is disabled (see Settings) or via
 ///   `codexbar cache clear --cost` / Debug clear.
+/// - In-flight scans capture a write generation at start; after Cost-off invalidation they
+///   must not recreate the cache (``save`` rejects stale write tokens).
 public enum GrokTurnUsageCacheIO {
     private static let artifactVersion = 2
+    private static let generationLock = NSLock()
+    /// Per cache-file generation, bumped by ``invalidateAndDelete`` so concurrent scans
+    /// cannot repersist after opt-out. Keyed by resolved cache path for test isolation.
+    private nonisolated(unsafe) static var writeGenerationByPath: [String: UInt64] = [:]
 
     /// Match shared cost-cache safety budgets: decode/encode is whole-document JSON, so an
     /// unbounded local history can otherwise grow the artifact without limit and spike memory.
@@ -42,7 +48,38 @@ public enum GrokTurnUsageCacheIO {
             .appendingPathComponent("grok-turns-v\(Self.artifactVersion).json", isDirectory: false)
     }
 
+    private static func generationKey(cacheRoot: URL?) -> String {
+        self.cacheFileURL(cacheRoot: cacheRoot).path
+    }
+
+    /// Snapshot the current write generation for a scan that may later call ``save``.
+    public static func beginWriteToken(cacheRoot: URL? = nil) -> UInt64 {
+        let key = Self.generationKey(cacheRoot: cacheRoot)
+        Self.generationLock.lock()
+        defer { Self.generationLock.unlock() }
+        return Self.writeGenerationByPath[key, default: 0]
+    }
+
+    static func isWriteTokenValid(_ token: UInt64, cacheRoot: URL? = nil) -> Bool {
+        let key = Self.generationKey(cacheRoot: cacheRoot)
+        Self.generationLock.lock()
+        defer { Self.generationLock.unlock() }
+        return token == Self.writeGenerationByPath[key, default: 0]
+    }
+
+    /// Invalidate outstanding write tokens and delete the on-disk cache.
+    /// Call when Cost tracking is turned off so in-flight scans cannot recreate the artifact.
+    @discardableResult
+    public static func invalidateAndDelete(cacheRoot: URL? = nil) -> Bool {
+        let key = Self.generationKey(cacheRoot: cacheRoot)
+        Self.generationLock.lock()
+        Self.writeGenerationByPath[key, default: 0] &+= 1
+        Self.generationLock.unlock()
+        return Self.deleteCache(cacheRoot: cacheRoot)
+    }
+
     /// Remove the on-disk Grok parse cache (best-effort). Safe when the file is already gone.
+    /// Prefer ``invalidateAndDelete`` on Cost-off so concurrent saves are also aborted.
     @discardableResult
     public static func deleteCache(cacheRoot: URL? = nil) -> Bool {
         let url = self.cacheFileURL(cacheRoot: cacheRoot)
@@ -87,14 +124,24 @@ public enum GrokTurnUsageCacheIO {
         return decoded
     }
 
+    /// - Parameter writeToken: Generation from ``beginWriteToken`` at scan start. When the token
+    ///   no longer matches (Cost-off invalidation), this is a no-op and the cache stays deleted.
+    ///   Pass `nil` only for tests that intentionally write without a scan lifecycle.
+    @discardableResult
     static func save(
         cache: GrokTurnUsageCache,
         cacheRoot: URL? = nil,
         maxFileBytes: Int = GrokTurnUsageCacheIO.maxCacheFileBytes,
         maxFileEntries: Int = GrokTurnUsageCacheIO.maxCacheFileEntries,
         now: Date = Date(),
-        maxEntryAge: TimeInterval = GrokTurnUsageCacheIO.maxEntryAge)
+        maxEntryAge: TimeInterval = GrokTurnUsageCacheIO.maxEntryAge,
+        writeToken: UInt64? = nil) -> Bool
     {
+        // Stale token: Cost was disabled after this scan started — do not recreate the artifact.
+        if let writeToken, !Self.isWriteTokenValid(writeToken, cacheRoot: cacheRoot) {
+            return false
+        }
+
         let url = self.cacheFileURL(cacheRoot: cacheRoot)
         let dir = url.deletingLastPathComponent()
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
@@ -104,7 +151,7 @@ public enum GrokTurnUsageCacheIO {
         Self.pruneExpired(&cache, now: now, maxAge: maxEntryAge)
         if cache.files.isEmpty {
             _ = Self.deleteCache(cacheRoot: cacheRoot)
-            return
+            return false
         }
         Self.pruneForBudget(
             &cache,
@@ -112,22 +159,43 @@ public enum GrokTurnUsageCacheIO {
             maxFileEntries: maxFileEntries)
         if cache.files.isEmpty {
             _ = Self.deleteCache(cacheRoot: cacheRoot)
-            return
+            return false
+        }
+
+        // Re-check after pruning so a mid-scan invalidation still wins.
+        if let writeToken, !Self.isWriteTokenValid(writeToken, cacheRoot: cacheRoot) {
+            return false
         }
 
         let tmp = dir.appendingPathComponent(".tmp-grok-\(UUID().uuidString).json", isDirectory: false)
-        guard let data = try? JSONEncoder().encode(cache), !data.isEmpty else { return }
+        guard let data = try? JSONEncoder().encode(cache), !data.isEmpty else { return false }
         // Last-resort: if still over budget after entry pruning, do not persist an oversized artifact.
         guard data.count <= max(0, maxFileBytes) else {
             // Drop half the oldest files and try once more; give up rather than write unbounded.
             Self.dropOldestFiles(&cache, keepCount: max(1, cache.files.count / 2))
             guard let retry = try? JSONEncoder().encode(cache),
                   retry.count <= max(0, maxFileBytes)
-            else { return }
+            else { return false }
+            if let writeToken, !Self.isWriteTokenValid(writeToken, cacheRoot: cacheRoot) {
+                return false
+            }
             self.writeAtomically(retry, to: url, temporary: tmp)
-            return
+            // Post-write fence: if Cost was disabled during the write, drop the recreated file.
+            if let writeToken, !Self.isWriteTokenValid(writeToken, cacheRoot: cacheRoot) {
+                _ = Self.deleteCache(cacheRoot: cacheRoot)
+                return false
+            }
+            return true
+        }
+        if let writeToken, !Self.isWriteTokenValid(writeToken, cacheRoot: cacheRoot) {
+            return false
         }
         self.writeAtomically(data, to: url, temporary: tmp)
+        if let writeToken, !Self.isWriteTokenValid(writeToken, cacheRoot: cacheRoot) {
+            _ = Self.deleteCache(cacheRoot: cacheRoot)
+            return false
+        }
+        return true
     }
 
     /// Drop session-file entries whose mtime is older than `maxAge`.

@@ -322,6 +322,8 @@ public enum GrokTurnUsageScanner {
         let staleCutoff = since
         var byEventID: [String: TurnRecord] = [:]
         var cwdBySession: [String: String] = [:]
+        // Capture generation before load/scan so Cost-off invalidation can abort the final save.
+        let writeToken = GrokTurnUsageCacheIO.beginWriteToken(cacheRoot: options.cacheRoot)
         let cache = GrokTurnUsageCacheIO.load(cacheRoot: options.cacheRoot)
         var nextCache = GrokTurnUsageCache(version: cache.version)
         var cacheDirty = false
@@ -418,8 +420,12 @@ public enum GrokTurnUsageScanner {
         }
 
         // Persist parse results / drop deleted paths so later refreshes can catch up.
+        // Stale writeToken (Cost disabled mid-scan) skips save so the opt-out delete sticks.
         if nextCache != cache || cacheDirty {
-            GrokTurnUsageCacheIO.save(cache: nextCache, cacheRoot: options.cacheRoot)
+            _ = GrokTurnUsageCacheIO.save(
+                cache: nextCache,
+                cacheRoot: options.cacheRoot,
+                writeToken: writeToken)
         }
 
         let turns = byEventID.values.sorted { lhs, rhs in

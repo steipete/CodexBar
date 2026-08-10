@@ -912,7 +912,7 @@ struct SettingsStoreCoverageTests {
         settings.costUsageEnabled = true
         settings.costUsageEnabled = false
 
-        // deleteCache runs on a detached utility task; wait briefly for it.
+        // invalidateAndDelete runs on a detached utility task; wait briefly for it.
         var deleted = false
         for _ in 0..<50 {
             if !FileManager.default.fileExists(atPath: url.path) {

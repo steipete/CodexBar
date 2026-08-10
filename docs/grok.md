@@ -81,8 +81,9 @@ browser session when the CLI surface does not expose billing.
        are dropped on every load/save; a fully expired artifact is deleted.
      - **Budgets:** load refuses oversized artifacts; save prunes oldest files
        by entry and byte budgets.
-     - **Delete on Cost off:** turning Cost tracking off deletes the Grok parse
-       cache immediately (same file is also removed by
+     - **Delete on Cost off:** turning Cost tracking off bumps a write-generation
+       token and deletes the Grok parse cache so in-flight scans cannot recreate
+       the artifact after opt-out (same file is also removed by
        `codexbar cache clear --cost` / Debug → clear cost cache).
 5) **Local session signals** (informational fallback)
    - Walks `~/.grok/sessions/<encoded-cwd>/<session-id>/signals.json` files (last 30 days).

@@ -498,10 +498,10 @@ extension SettingsStore {
             if changed {
                 self.costUsageSettingsRevision &+= 1
                 // Grok local parse cache retains path/session metadata only while Cost is on.
-                // Drop it immediately on disable so the retention contract matches the opt-in toggle.
+                // Invalidate write tokens + delete so in-flight scans cannot recreate the artifact.
                 if !newValue {
                     Task.detached(priority: .utility) {
-                        GrokTurnUsageCacheIO.deleteCache()
+                        GrokTurnUsageCacheIO.invalidateAndDelete()
                     }
                 }
             }

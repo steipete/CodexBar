@@ -726,4 +726,42 @@ struct GrokTurnUsageScannerTests {
         #expect(!FileManager.default.fileExists(atPath: url.path))
         #expect(!GrokTurnUsageCacheIO.deleteCache(cacheRoot: cacheRoot))
     }
+
+    @Test
+    func `stale write token does not recreate cache after Cost-off invalidation`() {
+        let cacheRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent("grok-cache-race-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: cacheRoot) }
+
+        var cache = GrokTurnUsageCache(version: 2)
+        cache.files["/Users/REDACTED/project/updates.jsonl"] = GrokTurnUsageCachedFile(
+            mtimeUnixMs: Int64(Date().timeIntervalSince1970 * 1000),
+            size: 10,
+            sessionID: "session-redacted",
+            cwd: "/Users/REDACTED/project",
+            isPartial: false,
+            turns: [])
+
+        // Seed cache, then capture scan token and simulate Cost-off mid-scan.
+        #expect(GrokTurnUsageCacheIO.save(cache: cache, cacheRoot: cacheRoot, writeToken: nil))
+        let url = GrokTurnUsageCacheIO.cacheFileURL(cacheRoot: cacheRoot)
+        #expect(FileManager.default.fileExists(atPath: url.path))
+
+        let preScanToken = GrokTurnUsageCacheIO.beginWriteToken(cacheRoot: cacheRoot)
+        #expect(GrokTurnUsageCacheIO.invalidateAndDelete(cacheRoot: cacheRoot))
+        #expect(!FileManager.default.fileExists(atPath: url.path))
+
+        // Stale scan tries to save after opt-out — must not recreate.
+        let saved = GrokTurnUsageCacheIO.save(
+            cache: cache,
+            cacheRoot: cacheRoot,
+            writeToken: preScanToken)
+        #expect(!saved)
+        #expect(!FileManager.default.fileExists(atPath: url.path))
+
+        // Fresh token after invalidation may write again (Cost re-enabled path).
+        let freshToken = GrokTurnUsageCacheIO.beginWriteToken(cacheRoot: cacheRoot)
+        #expect(GrokTurnUsageCacheIO.save(cache: cache, cacheRoot: cacheRoot, writeToken: freshToken))
+        #expect(FileManager.default.fileExists(atPath: url.path))
+    }
 }
