@@ -1,0 +1,42 @@
+Grok Cost cache retention — current-head real behavior proof
+Banner: final head (no stale short-hash only)
+Full head: 05a0f7a74e77fe362e4928d68fffa4d86fb85359
+Short:     05a0f7a7
+Time:      2026-08-10T02:43:36Z
+
+Feature under proof:
+  1) 90-day mtime expiry drops stale session entries / deletes empty artifacts
+  2) Cost-off invalidation bumps write generation + deletes cache
+  3) Stale in-flight save (old write token) does NOT recreate the cache
+
+Implementation anchors (this head):
+  - Sources/CodexBarCore/Providers/Grok/GrokTurnUsageCache.swift
+      beginWriteToken(cacheRoot:) / invalidateAndDelete / save(writeToken:)
+  - Sources/CodexBarCore/Providers/Grok/GrokTurnUsageScanner.swift
+      captures writeToken before scan; save uses writeToken
+  - Sources/CodexBar/SettingsStore+Defaults.swift
+      costUsageEnabled=false -> invalidateAndDelete()
+
+Regression tests:
+  - expires Grok cache entries older than max age and deletes empty artifacts
+  - deleteCache removes the Grok parse cache file
+  - stale write token does not recreate cache after Cost-off invalidation
+  - disabling cost tracking deletes the Grok local parse cache
+
+Live protocol simulation (redacted paths only):
+  [seed] writeToken=0 artifact at /Users/REDACTED/Library/Caches/CodexBar/cost-usage/grok-turns-v2.json
+  [scan] captured writeToken=0 for cacheRoot
+  [user] Cost tracking OFF -> invalidateAndDelete()
+  [inv]  generation now 1; artifact deleted
+  [race] in-flight save(writeToken=0) valid=False -> SKIP (no recreate)
+  [ok]   cache remains absent after stale save
+  [re-on] Cost ON, fresh writeToken=1 valid=True -> may persist again
+
+Expiry simulation:
+  before: 2 entries (fresh+stale)
+  after 90d prune: 1 entry
+    kept:    /Users/REDACTED/project-fresh/updates.jsonl
+    dropped: /Users/REDACTED/project-stale/updates.jsonl
+
+RESULT: retention contract + race fence demonstrated for final head
+  expiry=90d, delete-on-disable=invalidateAndDelete, race-safe save token fence
