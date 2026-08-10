@@ -623,4 +623,107 @@ struct GrokTurnUsageScannerTests {
         #expect(afterBytePrune.files.count < 30)
         #expect(!afterBytePrune.files.isEmpty)
     }
+
+    @Test
+    func `expires Grok cache entries older than max age and deletes empty artifacts`() {
+        let cacheRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent("grok-cache-expire-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: cacheRoot) }
+
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let maxAge: TimeInterval = 90 * 24 * 60 * 60
+        let freshMs = Int64((now.timeIntervalSince1970 * 1000).rounded())
+        let staleMs = Int64(((now.timeIntervalSince1970 - maxAge - 86400) * 1000).rounded())
+
+        func makeFile(path: String, sessionID: String, mtimeMs: Int64) -> GrokTurnUsageCachedFile {
+            let turn = GrokTurnUsageCachedTurn(
+                from: GrokTurnUsageScanner.TurnRecord(
+                    eventID: "e-\(sessionID)",
+                    sessionID: sessionID,
+                    dayKey: "2026-08-01",
+                    timestamp: Date(timeIntervalSince1970: TimeInterval(mtimeMs) / 1000),
+                    cwd: "/tmp/\(sessionID)",
+                    inputTokens: 10,
+                    cacheReadTokens: 0,
+                    outputTokens: 1,
+                    reasoningTokens: 0,
+                    totalTokens: 11,
+                    modelCalls: 1,
+                    costUSD: nil,
+                    modelUsages: []))
+            return GrokTurnUsageCachedFile(
+                mtimeUnixMs: mtimeMs,
+                size: 100,
+                sessionID: sessionID,
+                cwd: "/tmp/\(sessionID)",
+                isPartial: false,
+                turns: [turn])
+        }
+
+        var cache = GrokTurnUsageCache(version: 2)
+        cache.files["/tmp/fresh/updates.jsonl"] = makeFile(
+            path: "/tmp/fresh/updates.jsonl",
+            sessionID: "fresh",
+            mtimeMs: freshMs)
+        cache.files["/tmp/stale/updates.jsonl"] = makeFile(
+            path: "/tmp/stale/updates.jsonl",
+            sessionID: "stale",
+            mtimeMs: staleMs)
+
+        GrokTurnUsageCacheIO.save(
+            cache: cache,
+            cacheRoot: cacheRoot,
+            now: now,
+            maxEntryAge: maxAge)
+        let loaded = GrokTurnUsageCacheIO.load(
+            cacheRoot: cacheRoot,
+            now: now,
+            maxEntryAge: maxAge)
+        #expect(loaded.files.count == 1)
+        #expect(loaded.files["/tmp/fresh/updates.jsonl"] != nil)
+        #expect(loaded.files["/tmp/stale/updates.jsonl"] == nil)
+        #expect(FileManager.default.fileExists(atPath: GrokTurnUsageCacheIO.cacheFileURL(cacheRoot: cacheRoot)
+                .path))
+
+        // Fully expired → artifact removed from disk.
+        var onlyStale = GrokTurnUsageCache(version: 2)
+        onlyStale.files["/tmp/stale2/updates.jsonl"] = makeFile(
+            path: "/tmp/stale2/updates.jsonl",
+            sessionID: "stale2",
+            mtimeMs: staleMs)
+        GrokTurnUsageCacheIO.save(
+            cache: onlyStale,
+            cacheRoot: cacheRoot,
+            now: now,
+            maxEntryAge: maxAge)
+        #expect(!FileManager.default.fileExists(atPath: GrokTurnUsageCacheIO.cacheFileURL(cacheRoot: cacheRoot)
+                .path))
+        let emptyLoad = GrokTurnUsageCacheIO.load(
+            cacheRoot: cacheRoot,
+            now: now,
+            maxEntryAge: maxAge)
+        #expect(emptyLoad.files.isEmpty)
+    }
+
+    @Test
+    func `deleteCache removes the Grok parse cache file`() {
+        let cacheRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent("grok-cache-delete-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: cacheRoot) }
+
+        var cache = GrokTurnUsageCache(version: 2)
+        cache.files["/tmp/one/updates.jsonl"] = GrokTurnUsageCachedFile(
+            mtimeUnixMs: Int64(Date().timeIntervalSince1970 * 1000),
+            size: 10,
+            sessionID: "one",
+            cwd: "/tmp/one",
+            isPartial: false,
+            turns: [])
+        GrokTurnUsageCacheIO.save(cache: cache, cacheRoot: cacheRoot)
+        let url = GrokTurnUsageCacheIO.cacheFileURL(cacheRoot: cacheRoot)
+        #expect(FileManager.default.fileExists(atPath: url.path))
+        #expect(GrokTurnUsageCacheIO.deleteCache(cacheRoot: cacheRoot))
+        #expect(!FileManager.default.fileExists(atPath: url.path))
+        #expect(!GrokTurnUsageCacheIO.deleteCache(cacheRoot: cacheRoot))
+    }
 }

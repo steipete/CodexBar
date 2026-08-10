@@ -2,31 +2,64 @@ import Foundation
 
 /// Disk cache for per-file Grok `updates.jsonl` parse results so budget-deferred archives
 /// catch up across refreshes without re-reading unchanged newest sessions every time.
-enum GrokTurnUsageCacheIO {
+///
+/// Retention contract (privacy):
+/// - Local-only under the user Caches directory; never uploaded.
+/// - Entries older than ``maxEntryAge`` (by session-file mtime) are dropped on load/save.
+/// - The whole artifact is deleted when Cost tracking is disabled (see Settings) or via
+///   `codexbar cache clear --cost` / Debug clear.
+public enum GrokTurnUsageCacheIO {
     private static let artifactVersion = 2
 
     /// Match shared cost-cache safety budgets: decode/encode is whole-document JSON, so an
     /// unbounded local history can otherwise grow the artifact without limit and spike memory.
-    static let maxCacheFileBytes: Int = 256 * 1024 * 1024
-    static let maxCacheLoadBytes: Int = 320 * 1024 * 1024
+    public static let maxCacheFileBytes: Int = 256 * 1024 * 1024
+    public static let maxCacheLoadBytes: Int = 320 * 1024 * 1024
     /// Soft cap on cached session files; oldest (by mtime) are dropped first when over budget.
-    static let maxCacheFileEntries: Int = 10000
+    public static let maxCacheFileEntries: Int = 10000
+    /// Drop session-file entries whose mtime is older than this age (privacy expiry).
+    public static let maxEntryAgeDays: Int = 90
+    public static var maxEntryAge: TimeInterval {
+        TimeInterval(maxEntryAgeDays) * 24 * 60 * 60
+    }
+
+    /// Test-only override for the default cache root so Settings disable/delete paths
+    /// do not touch the real user Caches directory.
+    nonisolated(unsafe) static var testDefaultCacheRoot: URL?
 
     private static func defaultCacheRoot() -> URL {
+        if let override = testDefaultCacheRoot {
+            return override
+        }
         let root = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first!
         return root.appendingPathComponent("CodexBar", isDirectory: true)
     }
 
-    static func cacheFileURL(cacheRoot: URL? = nil) -> URL {
+    public static func cacheFileURL(cacheRoot: URL? = nil) -> URL {
         let root = cacheRoot ?? self.defaultCacheRoot()
         return root
             .appendingPathComponent("cost-usage", isDirectory: true)
             .appendingPathComponent("grok-turns-v\(Self.artifactVersion).json", isDirectory: false)
     }
 
+    /// Remove the on-disk Grok parse cache (best-effort). Safe when the file is already gone.
+    @discardableResult
+    public static func deleteCache(cacheRoot: URL? = nil) -> Bool {
+        let url = self.cacheFileURL(cacheRoot: cacheRoot)
+        guard FileManager.default.fileExists(atPath: url.path) else { return false }
+        do {
+            try FileManager.default.removeItem(at: url)
+            return true
+        } catch {
+            return false
+        }
+    }
+
     static func load(
         cacheRoot: URL? = nil,
-        maxLoadBytes: Int = GrokTurnUsageCacheIO.maxCacheLoadBytes) -> GrokTurnUsageCache
+        maxLoadBytes: Int = GrokTurnUsageCacheIO.maxCacheLoadBytes,
+        now: Date = Date(),
+        maxEntryAge: TimeInterval = GrokTurnUsageCacheIO.maxEntryAge) -> GrokTurnUsageCache
     {
         let url = self.cacheFileURL(cacheRoot: cacheRoot)
         let fileSize = (try? FileManager.default.attributesOfItem(atPath: url.path)[.size] as? NSNumber)?
@@ -37,9 +70,18 @@ enum GrokTurnUsageCacheIO {
         }
         guard let data = try? Data(contentsOf: url),
               data.count <= maxLoadBytes,
-              let decoded = try? JSONDecoder().decode(GrokTurnUsageCache.self, from: data),
+              var decoded = try? JSONDecoder().decode(GrokTurnUsageCache.self, from: data),
               decoded.version == Self.artifactVersion
         else {
+            return GrokTurnUsageCache(version: Self.artifactVersion)
+        }
+        let beforeCount = decoded.files.count
+        Self.pruneExpired(&decoded, now: now, maxAge: maxEntryAge)
+        // Drop empty/fully-expired artifacts so path keys are not retained on disk.
+        if decoded.files.isEmpty {
+            if beforeCount > 0 || fileSize > 0 {
+                _ = Self.deleteCache(cacheRoot: cacheRoot)
+            }
             return GrokTurnUsageCache(version: Self.artifactVersion)
         }
         return decoded
@@ -49,7 +91,9 @@ enum GrokTurnUsageCacheIO {
         cache: GrokTurnUsageCache,
         cacheRoot: URL? = nil,
         maxFileBytes: Int = GrokTurnUsageCacheIO.maxCacheFileBytes,
-        maxFileEntries: Int = GrokTurnUsageCacheIO.maxCacheFileEntries)
+        maxFileEntries: Int = GrokTurnUsageCacheIO.maxCacheFileEntries,
+        now: Date = Date(),
+        maxEntryAge: TimeInterval = GrokTurnUsageCacheIO.maxEntryAge)
     {
         let url = self.cacheFileURL(cacheRoot: cacheRoot)
         let dir = url.deletingLastPathComponent()
@@ -57,10 +101,19 @@ enum GrokTurnUsageCacheIO {
 
         var cache = cache
         cache.version = Self.artifactVersion
+        Self.pruneExpired(&cache, now: now, maxAge: maxEntryAge)
+        if cache.files.isEmpty {
+            _ = Self.deleteCache(cacheRoot: cacheRoot)
+            return
+        }
         Self.pruneForBudget(
             &cache,
             maxFileBytes: maxFileBytes,
             maxFileEntries: maxFileEntries)
+        if cache.files.isEmpty {
+            _ = Self.deleteCache(cacheRoot: cacheRoot)
+            return
+        }
 
         let tmp = dir.appendingPathComponent(".tmp-grok-\(UUID().uuidString).json", isDirectory: false)
         guard let data = try? JSONEncoder().encode(cache), !data.isEmpty else { return }
@@ -75,6 +128,19 @@ enum GrokTurnUsageCacheIO {
             return
         }
         self.writeAtomically(data, to: url, temporary: tmp)
+    }
+
+    /// Drop session-file entries whose mtime is older than `maxAge`.
+    static func pruneExpired(
+        _ cache: inout GrokTurnUsageCache,
+        now: Date = Date(),
+        maxAge: TimeInterval = GrokTurnUsageCacheIO.maxEntryAge)
+    {
+        guard maxAge > 0, !cache.files.isEmpty else { return }
+        let cutoffMs = Int64(((now.timeIntervalSince1970 - maxAge) * 1000).rounded())
+        cache.files = cache.files.filter { _, file in
+            file.mtimeUnixMs >= cutoffMs
+        }
     }
 
     /// Prefer newest session files; drop oldest when over entry or encoded-size budget.
