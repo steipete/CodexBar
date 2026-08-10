@@ -5,6 +5,7 @@
 ## 0.49.1 — 2026-08-09
 
 ### Fixed
+- Codex: avoid repeatedly converting historical token snapshots during cost-cache refreshes, preventing sustained CPU usage on large session histories.
 - DeepInfra: show billing-cycle spend against a positive spending limit in the automatic menu-bar icon (#2822). Thanks @selfagency for the report!
 - z.ai: restore pace for verified 5-hour, weekly, and MCP-monthly usage windows without treating rolling 30-day limits as calendar months (#2431). Thanks @kiranmagic7!
 - Codex: publish refreshed core quota immediately while optional Credits and OpenAI Web enrichment continues, without unfreezing cards whose layout still needs reconciliation (#2799). Thanks @Yuxin-Qiao!

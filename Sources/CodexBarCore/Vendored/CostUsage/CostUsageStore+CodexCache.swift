@@ -1,5 +1,47 @@
 import Foundation
 
+enum CostUsagePersistenceAction: Equatable {
+    case reuse
+    case append(startingAt: Int)
+    case replace
+
+    func materialize<Source, Persisted>(
+        _ source: [Source],
+        transform: (Int, Source) -> Persisted?) -> [Persisted]
+    {
+        switch self {
+        case .reuse:
+            []
+        case let .append(startingAt):
+            source.enumerated().dropFirst(startingAt).compactMap { index, value in
+                transform(index, value)
+            }
+        case .replace:
+            source.enumerated().compactMap { index, value in
+                transform(index, value)
+            }
+        }
+    }
+}
+
+enum CostUsagePersistencePlanner {
+    static func action(
+        canReuse: Bool,
+        stableCursor: Bool,
+        appendSafe: Bool,
+        persistedCount: Int,
+        sourceCount: Int) -> CostUsagePersistenceAction
+    {
+        if canReuse, stableCursor, persistedCount == sourceCount {
+            return .reuse
+        }
+        if appendSafe, persistedCount <= sourceCount {
+            return .append(startingAt: persistedCount)
+        }
+        return .replace
+    }
+}
+
 extension CostUsageStore {
     static let defaultRowBudget = 25000
     static let defaultFileBudgetBytes: Int64 = 256 * 1024 * 1024
@@ -216,13 +258,10 @@ extension CostUsageStore {
         baseline: PersistedFileBaseline,
         calendar: Calendar)
     {
-        let snapshots = (usage.codexTokenSnapshots ?? []).enumerated().map {
-            Self.tokenSnapshot(path: path, eventIndex: $0.offset, snapshot: $0.element, calendar: calendar)
-        }
-        let rows = (usage.codexRows ?? []).enumerated().compactMap { index, row -> CostUsageStoreUsageRow? in
-            guard let payload = try? JSONEncoder().encode(row) else { return nil }
-            return CostUsageStoreUsageRow(path: path, rowIndex: index, payload: payload)
-        }
+        let sourceSnapshots = usage.codexTokenSnapshots ?? []
+        let sourceRows = usage.codexRows ?? []
+        let snapshotCount = sourceSnapshots.count
+        let rowCount = sourceRows.count
         let details = StoredFileDetails(
             lastTotals: usage.lastTotals,
             projectPath: usage.projectPath,
@@ -269,18 +308,41 @@ extension CostUsageStore {
         let appendSafe = baseline.canReuseRows
             && baseline.file?.scanState.fileIdentity == file.scanState.fileIdentity
             && oldParsedBytes < newParsedBytes
-        if baseline.canReuseRows, oldParsedBytes == newParsedBytes, baseline.snapshotCount == snapshots.count {
-            // Stable cursor: the persisted prefix is already authoritative.
-        } else if appendSafe, baseline.snapshotCount <= snapshots.count {
-            _ = self.appendTokenSnapshots(Array(snapshots.dropFirst(baseline.snapshotCount)))
-        } else {
+        let stableCursor = oldParsedBytes == newParsedBytes
+        let snapshotAction = CostUsagePersistencePlanner.action(
+            canReuse: baseline.canReuseRows,
+            stableCursor: stableCursor,
+            appendSafe: appendSafe,
+            persistedCount: baseline.snapshotCount,
+            sourceCount: snapshotCount)
+        let snapshots = snapshotAction.materialize(sourceSnapshots) { index, snapshot in
+            Self.tokenSnapshot(path: path, eventIndex: index, snapshot: snapshot, calendar: calendar)
+        }
+        switch snapshotAction {
+        case .reuse:
+            break
+        case .append:
+            _ = self.appendTokenSnapshots(snapshots)
+        case .replace:
             _ = self.replaceTokenSnapshots(path: path, snapshots: snapshots)
         }
-        if baseline.canReuseRows, oldParsedBytes == newParsedBytes, baseline.rowCount == rows.count {
-            // Stable cursor: metadata/aggregate updates do not rewrite historical rows.
-        } else if appendSafe, baseline.rowCount <= rows.count {
-            _ = self.appendUsageRows(Array(rows.dropFirst(baseline.rowCount)))
-        } else {
+
+        let rowAction = CostUsagePersistencePlanner.action(
+            canReuse: baseline.canReuseRows,
+            stableCursor: stableCursor,
+            appendSafe: appendSafe,
+            persistedCount: baseline.rowCount,
+            sourceCount: rowCount)
+        let rows: [CostUsageStoreUsageRow] = rowAction.materialize(sourceRows) { index, row in
+            guard let payload = try? JSONEncoder().encode(row) else { return nil }
+            return CostUsageStoreUsageRow(path: path, rowIndex: index, payload: payload)
+        }
+        switch rowAction {
+        case .reuse:
+            break
+        case .append:
+            _ = self.appendUsageRows(rows)
+        case .replace:
             _ = self.replaceUsageRows(path: path, rows: rows)
         }
         _ = self.replaceFileDayAggregates(path: path, aggregates: Self.fileAggregates(usage))
@@ -295,7 +357,7 @@ extension CostUsageStore {
         self.persistBuffers(path: path, usage: usage)
         _ = self.upsertAccumulator(CostUsageStoreAccumulator(
             path: path,
-            eventCount: snapshots.count,
+            eventCount: snapshotCount,
             nextUsageRowIndex: CostUsageScanner.nextCodexUsageRowIndex(usage.codexRows),
             countedTotals: Self.totals(usage.lastCountedTotals),
             rawTotalsBaseline: Self.totals(usage.lastRawTotalsBaseline),
