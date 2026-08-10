@@ -18,6 +18,7 @@ extension StatusItemController {
                 snapshot: snapshot,
                 error: error,
                 isRefreshing: self.store.refreshingProviders.contains(plugin.manifest.id),
+                showUsed: self.settings.usageBarsShowUsed,
                 width: width,
                 onRefresh: { [weak store = self.store] in
                     Task { @MainActor in await store?.refreshUserPlugin(plugin.manifest.id) }
@@ -37,11 +38,25 @@ extension StatusItemController {
     }
 }
 
+struct UserPluginQuotaPresentation: Equatable {
+    let percent: Double
+    let text: String
+
+    static func make(usedPercent: Double, showUsed: Bool) -> Self {
+        let used = min(100, max(0, usedPercent))
+        let remaining = 100 - used
+        return Self(
+            percent: showUsed ? used : remaining,
+            text: UsageFormatter.usageLine(remaining: remaining, used: used, showUsed: showUsed))
+    }
+}
+
 private struct UserPluginMenuCardView: View {
     let plugin: UserProviderPlugin
     let snapshot: UsageSnapshot?
     let error: String?
     let isRefreshing: Bool
+    let showUsed: Bool
     let width: CGFloat
     let onRefresh: () -> Void
 
@@ -129,15 +144,18 @@ private struct UserPluginMenuCardView: View {
     @ViewBuilder
     private func window(_ title: String, _ window: RateWindow?) -> some View {
         if let window {
+            let presentation = UserPluginQuotaPresentation.make(
+                usedPercent: window.usedPercent,
+                showUsed: self.showUsed)
             VStack(alignment: .leading, spacing: 4) {
                 HStack {
                     Text(title).foregroundStyle(.secondary)
                     Spacer()
-                    Text("\(Int(window.usedPercent.rounded()))% used").monospacedDigit()
+                    Text(presentation.text).monospacedDigit()
                 }
                 .font(.caption)
                 UsageProgressBar(
-                    percent: window.usedPercent,
+                    percent: presentation.percent,
                     tint: self.tint,
                     accessibilityLabel: "\(title) usage")
             }
