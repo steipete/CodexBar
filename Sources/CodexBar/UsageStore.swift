@@ -73,7 +73,6 @@ extension UsageStore {
                 self.probeLogs = [:]
                 guard self.startupBehavior.automaticallyStartsBackgroundWork else { return }
                 self.startTimer()
-                self.startTokenTimer()
                 self.updateProviderRuntimes()
                 let enabledNow = Set(self.settings.enabledProvidersOrdered(
                     metadataByProvider: self.providerMetadata))
@@ -342,7 +341,6 @@ final class UsageStore {
     /// In-memory only; paths and session identities never enter the refresh policy.
     @ObservationIgnored private(set) var lastCodingActivityAt: Date?
     @ObservationIgnored var adaptiveRefreshScheduledAt: Date?
-    @ObservationIgnored var tokenTimerTask: Task<Void, Never>?
     @ObservationIgnored var tokenRefreshSequenceTask: Task<Void, Never>?
     @ObservationIgnored var tokenRefreshSequenceToken: UUID?
     @ObservationIgnored var tokenRefreshSequenceProvider: ProviderInstanceID?
@@ -424,10 +422,9 @@ final class UsageStore {
     @ObservationIgnored private var hasCompletedInitialRefresh: Bool = false
     @ObservationIgnored private let providerAvailabilityCacheTTL: TimeInterval = 1
     @ObservationIgnored let accountInfoCacheTTL: TimeInterval = 30
-    /// Token scans can cause an additional widget snapshot publication. Keep the shortest automatic
-    /// cadence at five minutes so one- and two-minute provider refreshes do not exhaust WidgetKit's
-    /// reload budget or repeatedly traverse large local histories.
-    static let minimumTokenFetchTTL: TimeInterval = 5 * 60
+    /// Energy/WidgetKit floor for expensive local-history scans and their additional snapshot publications.
+    /// Faster provider refreshes still update quota/status normally, but reuse token-cost history within this TTL.
+    static let minimumTokenFetchTTL: TimeInterval = 15 * 60
 
     var tokenFetchTTL: TimeInterval? {
         Self.tokenFetchTTL(
@@ -540,7 +537,6 @@ final class UsageStore {
         }
         Task { await self.refresh(enrichmentMode: .automatic) }
         self.startTimer()
-        self.startTokenTimer()
     }
 
     var iconStyle: IconStyle {
@@ -929,7 +925,6 @@ final class UsageStore {
 
     deinit {
         self.timerTask?.cancel()
-        self.tokenTimerTask?.cancel()
         self.tokenRefreshSequenceTask?.cancel()
         self.codexCostCatchUpTask?.cancel()
         self.forcedRefreshEnrichmentTask?.cancel()

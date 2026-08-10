@@ -284,7 +284,7 @@ struct UsageStoreManualTokenRefreshTests {
     }
 
     @Test
-    func `regular refresh schedules token-cost refresh without waiting`() async {
+    func `ordinary automatic provider refresh schedules token-cost refresh without waiting`() async {
         let store = Self.makeStore()
         let gate = TokenRefreshGate()
         store._test_providerRefreshOverride = { _ in }

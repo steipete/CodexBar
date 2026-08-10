@@ -8,21 +8,6 @@ extension UsageStore {
         case providers([ProviderInstanceID])
     }
 
-    func startTokenTimer() {
-        self.tokenTimerTask?.cancel()
-        guard let wait = self.tokenFetchTTL else { return }
-        self.tokenTimerTask = Task.detached(priority: .utility) { [weak self] in
-            while !Task.isCancelled {
-                do {
-                    try await Task.sleep(for: .seconds(wait))
-                } catch {
-                    return
-                }
-                await self?.scheduleTokenRefresh()
-            }
-        }
-    }
-
     func scheduleTokenRefresh() {
         guard self.tokenRefreshSequenceTask == nil, !self.hasForcedRefreshEnrichmentInFlight else { return }
         if self.startPendingTokenRefreshRetryIfPossible() {
@@ -43,7 +28,7 @@ extension UsageStore {
            activeProvider != provider.instanceID
         {
             // A scoped user refresh can run beside unrelated scheduled work. The scheduled
-            // sequence still owns the shared slot, so the timer cannot introduce a third pass.
+            // sequence still owns the shared slot, so provider refreshes cannot introduce a third pass.
             await self.refreshTokenUsage(provider, force: true)
             self.scheduleMemoryPressureRelief()
             return

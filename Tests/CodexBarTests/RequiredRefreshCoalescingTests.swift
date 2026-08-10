@@ -397,9 +397,9 @@ extension CodexBackgroundRefreshCoalescingTests {
     }
 
     @Test
-    func `forced token tail excludes periodic token sequence`() async throws {
+    func `forced token tail excludes scheduled automatic token sequence`() async throws {
         let settings = try self.makeSettingsStore(
-            suite: "CodexBackgroundRefreshCoalescingTests-forced-token-excludes-timer")
+            suite: "CodexBackgroundRefreshCoalescingTests-forced-token-excludes-scheduled")
         settings.statusChecksEnabled = false
         settings.costUsageEnabled = true
         settings.openAIWebAccessEnabled = false
@@ -440,9 +440,9 @@ extension CodexBackgroundRefreshCoalescingTests {
     }
 
     @Test
-    func `forced enrichment excludes timer after token child completes`() async throws {
+    func `forced enrichment excludes scheduled token work after token child completes`() async throws {
         let settings = try self.makeSettingsStore(
-            suite: "CodexBackgroundRefreshCoalescingTests-forced-tail-excludes-token-timer")
+            suite: "CodexBackgroundRefreshCoalescingTests-forced-tail-excludes-scheduled-token")
         settings.statusChecksEnabled = false
         settings.costUsageEnabled = true
         settings.openAIWebAccessEnabled = false
