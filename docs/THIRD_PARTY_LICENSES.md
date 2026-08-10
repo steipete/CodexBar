@@ -33,8 +33,9 @@ OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 
 CodexBar optionally accepts a separately supplied [ccusage](https://github.com/ccusage/ccusage) executable for the
 Codex history fallback. The helper is not downloaded by CodexBar and is not committed to this repository. Packagers
-who bundle one must retain its upstream version and provenance and provide the source through
-`CODEXBAR_CCUSAGE_SOURCE`; the package script verifies that all requested app architectures are present.
+who bundle one must provide `CODEXBAR_CCUSAGE_VERSION` and `CODEXBAR_CCUSAGE_SHA256` with the source through
+`CODEXBAR_CCUSAGE_SOURCE`; the package script verifies the digest and all requested app architectures, then records
+the verified provenance beside the helper.
 
 MIT License
 

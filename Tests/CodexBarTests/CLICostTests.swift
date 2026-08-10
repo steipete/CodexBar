@@ -185,7 +185,23 @@ struct CLICostTests {
 
             #expect(object.keys.contains("historyCoverageIsEstablished"))
             #expect(object["historyCoverageIsEstablished"] as? Bool == coverage)
+            #expect(object["historyFallbackCoverageIsEstablished"] as? Bool == false)
         }
+
+        let fallbackSnapshot = CostUsageTokenSnapshot(
+            sessionTokens: 10,
+            sessionCostUSD: 0.01,
+            last30DaysTokens: 40,
+            last30DaysCostUSD: 0.04,
+            historyCoverageIsEstablished: false,
+            historyFallbackCoverageIsEstablished: true,
+            daily: [],
+            updatedAt: Date(timeIntervalSince1970: 1_700_000_000))
+        let fallbackPayload = CodexBarCLI.makeCostPayload(provider: .codex, snapshot: fallbackSnapshot, error: nil)
+        let fallbackData = try JSONEncoder().encode(fallbackPayload)
+        let fallbackObject = try #require(JSONSerialization.jsonObject(with: fallbackData) as? [String: Any])
+        #expect(fallbackObject["historyCoverageIsEstablished"] as? Bool == false)
+        #expect(fallbackObject["historyFallbackCoverageIsEstablished"] as? Bool == true)
     }
 
     @Test

@@ -459,7 +459,8 @@ public struct CostUsageFetcher: Sendable {
                 projects: Self.unknownProjectBreakdown(from: effectiveDaily).map { [$0] } ?? [],
                 sessions: [],
                 staleSnapshotUpdatedAt: nil,
-                historyCoverageIsEstablished: true)
+                historyCoverageIsEstablished: scanResult.historyCoverageIsEstablished,
+                historyFallbackCoverageIsEstablished: true)
         }
 
         if allowPricingRefresh,
@@ -496,6 +497,7 @@ public struct CostUsageFetcher: Sendable {
             historyDays: clampedHistoryDays,
             calendar: scanOptions.calendar,
             historyCoverageIsEstablished: scanResult.historyCoverageIsEstablished,
+            historyFallbackCoverageIsEstablished: scanResult.historyFallbackCoverageIsEstablished,
             projects: scanResult.projects,
             sessions: scanResult.sessions,
             updatedAt: scanResult.staleSnapshotUpdatedAt)
@@ -509,6 +511,7 @@ public struct CostUsageFetcher: Sendable {
         let sessions: [CostUsageSessionBreakdown]
         let staleSnapshotUpdatedAt: Date?
         let historyCoverageIsEstablished: Bool
+        let historyFallbackCoverageIsEstablished: Bool
     }
 
     private struct LocalTokenScanOptions: Sendable {
@@ -620,7 +623,8 @@ public struct CostUsageFetcher: Sendable {
                 sessions: sessions,
                 staleSnapshotUpdatedAt: staleSnapshotUpdatedAt,
                 historyCoverageIsEstablished: provider != .codex
-                    || Self.codexHistoryCoverageIsEstablished(options: options.scanOptions))
+                    || Self.codexHistoryCoverageIsEstablished(options: options.scanOptions),
+                historyFallbackCoverageIsEstablished: false)
         }
     }
 
@@ -1066,6 +1070,7 @@ public struct CostUsageFetcher: Sendable {
         useCurrentLocalDayForSession: Bool = true,
         calendar: Calendar = .current,
         historyCoverageIsEstablished: Bool = true,
+        historyFallbackCoverageIsEstablished: Bool = false,
         meteredCostUSD: Double? = nil,
         credentialScopeFingerprint: String? = nil,
         historyLabel: String? = nil,
@@ -1106,6 +1111,7 @@ public struct CostUsageFetcher: Sendable {
             last30DaysCostUSD: last30DaysCostUSD,
             historyDays: historyDays,
             historyCoverageIsEstablished: historyCoverageIsEstablished,
+            historyFallbackCoverageIsEstablished: historyFallbackCoverageIsEstablished,
             historyLabel: historyLabel,
             meteredCostUSD: meteredCostUSD,
             credentialScopeFingerprint: credentialScopeFingerprint,

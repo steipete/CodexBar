@@ -382,7 +382,10 @@ verify_binary_arches() {
 install_optional_ccusage_helper() {
   local source="${CODEXBAR_CCUSAGE_SOURCE:-}"
   local required="${CODEXBAR_REQUIRE_CCUSAGE:-0}"
+  local version="${CODEXBAR_CCUSAGE_VERSION:-}"
+  local expected_sha256="${CODEXBAR_CCUSAGE_SHA256:-}"
   local destination="$APP/Contents/Helpers/ccusage"
+  local provenance="$destination.provenance"
 
   case "$required" in
     0|1) ;;
@@ -397,7 +400,17 @@ install_optional_ccusage_helper() {
       echo "ERROR: CODEXBAR_REQUIRE_CCUSAGE=1 requires CODEXBAR_CCUSAGE_SOURCE" >&2
       return 1
     fi
+    rm -f "$destination" "$provenance"
     return 0
+  fi
+
+  if [[ -z "$version" || -z "$expected_sha256" ]]; then
+    echo "ERROR: CODEXBAR_CCUSAGE_SOURCE requires CODEXBAR_CCUSAGE_VERSION and CODEXBAR_CCUSAGE_SHA256" >&2
+    return 1
+  fi
+  if [[ ! "$expected_sha256" =~ ^[[:xdigit:]]{64}$ ]]; then
+    echo "ERROR: CODEXBAR_CCUSAGE_SHA256 must be a 64-character hexadecimal SHA-256 digest" >&2
+    return 1
   fi
 
   source="$(printf '%s' "$source" | sed 's#^~/#'"$HOME"'/#')"
@@ -406,8 +419,18 @@ install_optional_ccusage_helper() {
     return 1
   fi
   verify_binary_arches "$source" "${ARCH_LIST[@]}"
+  local actual_sha256
+  actual_sha256=$(shasum -a 256 "$source" | awk '{print $1}')
+  local normalized_actual normalized_expected
+  normalized_actual=$(printf '%s' "$actual_sha256" | tr '[:upper:]' '[:lower:]')
+  normalized_expected=$(printf '%s' "$expected_sha256" | tr '[:upper:]' '[:lower:]')
+  if [[ "$normalized_actual" != "$normalized_expected" ]]; then
+    echo "ERROR: ccusage SHA-256 mismatch (expected: $expected_sha256, actual: $actual_sha256)" >&2
+    return 1
+  fi
   cp "$source" "$destination"
   chmod 755 "$destination"
+  printf 'version=%s\nsha256=%s\n' "$version" "$normalized_actual" >"$provenance"
 }
 
 install_binary() {
