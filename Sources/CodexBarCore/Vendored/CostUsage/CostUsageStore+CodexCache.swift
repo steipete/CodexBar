@@ -216,13 +216,8 @@ extension CostUsageStore {
         baseline: PersistedFileBaseline,
         calendar: Calendar)
     {
-        let snapshots = (usage.codexTokenSnapshots ?? []).enumerated().map {
-            Self.tokenSnapshot(path: path, eventIndex: $0.offset, snapshot: $0.element, calendar: calendar)
-        }
-        let rows = (usage.codexRows ?? []).enumerated().compactMap { index, row -> CostUsageStoreUsageRow? in
-            guard let payload = try? JSONEncoder().encode(row) else { return nil }
-            return CostUsageStoreUsageRow(path: path, rowIndex: index, payload: payload)
-        }
+        let tokenSnapshots = usage.codexTokenSnapshots ?? []
+        let usageRows = usage.codexRows ?? []
         let details = StoredFileDetails(
             lastTotals: usage.lastTotals,
             projectPath: usage.projectPath,
@@ -269,19 +264,34 @@ extension CostUsageStore {
         let appendSafe = baseline.canReuseRows
             && baseline.file?.scanState.fileIdentity == file.scanState.fileIdentity
             && oldParsedBytes < newParsedBytes
-        if baseline.canReuseRows, oldParsedBytes == newParsedBytes, baseline.snapshotCount == snapshots.count {
+        if baseline.canReuseRows, oldParsedBytes == newParsedBytes, baseline.snapshotCount == tokenSnapshots.count {
             // Stable cursor: the persisted prefix is already authoritative.
-        } else if appendSafe, baseline.snapshotCount <= snapshots.count {
-            _ = self.appendTokenSnapshots(Array(snapshots.dropFirst(baseline.snapshotCount)))
+        } else if appendSafe, baseline.snapshotCount <= tokenSnapshots.count {
+            _ = self.appendTokenSnapshots(Self.storeTokenSnapshots(
+                path: path,
+                snapshots: tokenSnapshots,
+                startingAt: baseline.snapshotCount,
+                calendar: calendar))
         } else {
-            _ = self.replaceTokenSnapshots(path: path, snapshots: snapshots)
+            _ = self.replaceTokenSnapshots(
+                path: path,
+                snapshots: Self.storeTokenSnapshots(
+                    path: path,
+                    snapshots: tokenSnapshots,
+                    startingAt: 0,
+                    calendar: calendar))
         }
-        if baseline.canReuseRows, oldParsedBytes == newParsedBytes, baseline.rowCount == rows.count {
+        if baseline.canReuseRows, oldParsedBytes == newParsedBytes, baseline.rowCount == usageRows.count {
             // Stable cursor: metadata/aggregate updates do not rewrite historical rows.
-        } else if appendSafe, baseline.rowCount <= rows.count {
-            _ = self.appendUsageRows(Array(rows.dropFirst(baseline.rowCount)))
+        } else if appendSafe, baseline.rowCount <= usageRows.count {
+            _ = self.appendUsageRows(Self.storeUsageRows(
+                path: path,
+                rows: usageRows,
+                startingAt: baseline.rowCount))
         } else {
-            _ = self.replaceUsageRows(path: path, rows: rows)
+            _ = self.replaceUsageRows(
+                path: path,
+                rows: Self.storeUsageRows(path: path, rows: usageRows, startingAt: 0))
         }
         _ = self.replaceFileDayAggregates(path: path, aggregates: Self.fileAggregates(usage))
         _ = self.upsertForkLineage(CostUsageStoreForkLineage(
@@ -295,7 +305,7 @@ extension CostUsageStore {
         self.persistBuffers(path: path, usage: usage)
         _ = self.upsertAccumulator(CostUsageStoreAccumulator(
             path: path,
-            eventCount: snapshots.count,
+            eventCount: tokenSnapshots.count,
             nextUsageRowIndex: CostUsageScanner.nextCodexUsageRowIndex(usage.codexRows),
             countedTotals: Self.totals(usage.lastCountedTotals),
             rawTotalsBaseline: Self.totals(usage.lastRawTotalsBaseline),
@@ -579,6 +589,7 @@ extension CostUsageStore {
         snapshot: CostUsageCodexTokenSnapshot,
         calendar: Calendar) -> CostUsageStoreTokenSnapshot
     {
+        tokenSnapshotConversionForTesting?(path, eventIndex)
         let date = CostUsageScanner.dateFromTimestamp(snapshot.timestamp)
         return CostUsageStoreTokenSnapshot(
             path: path,
@@ -589,6 +600,28 @@ extension CostUsageStore {
             last: Self.totals(snapshot.last),
             total: Self.totals(snapshot.total),
             endOffset: snapshot.endOffset)
+    }
+
+    private static func storeTokenSnapshots(
+        path: String,
+        snapshots: [CostUsageCodexTokenSnapshot],
+        startingAt startIndex: Int,
+        calendar: Calendar) -> [CostUsageStoreTokenSnapshot]
+    {
+        snapshots.indices.dropFirst(startIndex).map { index in
+            Self.tokenSnapshot(path: path, eventIndex: index, snapshot: snapshots[index], calendar: calendar)
+        }
+    }
+
+    private static func storeUsageRows(
+        path: String,
+        rows: [CostUsageScanner.CodexUsageRow],
+        startingAt startIndex: Int) -> [CostUsageStoreUsageRow]
+    {
+        rows.indices.dropFirst(startIndex).compactMap { index in
+            guard let payload = try? JSONEncoder().encode(rows[index]) else { return nil }
+            return CostUsageStoreUsageRow(path: path, rowIndex: index, payload: payload)
+        }
     }
 
     private static func tokenSnapshot(from value: CostUsageStoreTokenSnapshot) -> CostUsageCodexTokenSnapshot {

@@ -77,6 +77,10 @@ actor CostUsageStore {
     /// process at a deterministic mid-save point. Never set in production.
     nonisolated(unsafe) static var saveCycleCheckpointForTesting: ((Int) -> Void)?
 
+    /// Test-only observer for snapshot rows converted during a save. Stable rows should
+    /// remain in SQLite without repeating timestamp parsing on every bounded catch-up pass.
+    nonisolated(unsafe) static var tokenSnapshotConversionForTesting: ((String, Int) -> Void)?
+
     /// Process-wide serialization keeps every writable store connection on the same queue.
     /// This matches the scan pipeline's single-writer contract without multiplying executor
     /// threads when tests or short-lived readers create several store actors.

@@ -105,6 +105,16 @@ struct CostUsageStoreCutoverTests {
             now: day,
             options: options)
 
+        let storedPath = try #require(CostUsageStoreAccess.read(cacheRoot: env.cacheRoot).files.keys.first {
+            $0.hasSuffix("linear.jsonl")
+        })
+        let conversionCounter = StoreSnapshotConversionCounter()
+        CostUsageStore.tokenSnapshotConversionForTesting = { path, _ in
+            guard path == storedPath else { return }
+            conversionCounter.increment()
+        }
+        defer { CostUsageStore.tokenSnapshotConversionForTesting = nil }
+
         try Self.append(Self.tokenLine(timestamp: timestamp, input: 2) + "\n", to: fileURL)
         let appendRecorder = CostUsageScanner.CodexScanWorkRecorder()
         options.codexScanWorkRecorderForTesting = appendRecorder
@@ -116,15 +126,15 @@ struct CostUsageStoreCutoverTests {
             options: options)
         #expect(appendRecorder.snapshot().usageRowsProcessed == 1)
         #expect(appendRecorder.snapshot().usageRowsRepriced == 1)
+        #expect(conversionCounter.value == 1)
 
-        let cache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
-        let path = try #require(cache.files.keys.first { $0.hasSuffix("linear.jsonl") })
         let store = CostUsageStore(cacheRoot: env.cacheRoot)
-        #expect(await store.fetchUsageRows(path: path).count == 2)
-        #expect(await store.fetchAccumulator(path: path)?.eventCount == 2)
+        #expect(await store.fetchUsageRows(path: storedPath).count == 2)
+        #expect(await store.fetchAccumulator(path: storedPath)?.eventCount == 2)
 
         let stableRecorder = CostUsageScanner.CodexScanWorkRecorder()
         options.codexScanWorkRecorderForTesting = stableRecorder
+        conversionCounter.reset()
         let stable = CostUsageScanner.loadDailyReport(
             provider: .codex,
             since: day,
@@ -133,6 +143,7 @@ struct CostUsageStoreCutoverTests {
             options: options)
         #expect(stableRecorder.snapshot().usageRowsProcessed == 0)
         #expect(stableRecorder.snapshot().usageRowsRepriced == 0)
+        #expect(conversionCounter.value == 0)
         #expect(stable.data == appended.data)
         #expect(stable.summary == appended.summary)
     }
@@ -181,5 +192,22 @@ struct CostUsageStoreCutoverTests {
         defer { try? handle.close() }
         try handle.seekToEnd()
         try handle.write(contentsOf: Data(contents.utf8))
+    }
+}
+
+private final class StoreSnapshotConversionCounter: @unchecked Sendable {
+    private let lock = NSLock()
+    private var count = 0
+
+    var value: Int {
+        self.lock.withLock { self.count }
+    }
+
+    func increment() {
+        self.lock.withLock { self.count += 1 }
+    }
+
+    func reset() {
+        self.lock.withLock { self.count = 0 }
     }
 }
