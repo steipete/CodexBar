@@ -119,8 +119,9 @@ extension UsageStore {
     }
 
     func cloudSyncLocalAccountKeys(for provider: UsageProvider) -> Set<String> {
-        var identities = Set(self.cloudSyncAccountSnapshots().filter { $0.provider == provider.instanceID }
-            .map(\.accountKey))
+        let snapshotKeys = self.cloudSyncAccountSnapshots().filter { $0.provider == provider.instanceID }
+            .map(\.accountKey)
+        var identities = Set(snapshotKeys)
         func insert(_ identity: String?) {
             guard let identity else { return }
             identities.insert(AccountSnapshotSyncPayload.accountKey(for: identity))
@@ -156,7 +157,10 @@ extension UsageStore {
                 insert(account.storedAccountID?.uuidString)
             }
         }
-        if identities.isEmpty {
+        // Provider-specific by design: only Codex account info is loaded through the selected provider scope.
+        if identities
+            .isEmpty || (provider == .codex && snapshotKeys.contains(AccountSnapshotSyncPayload.accountKey(for: nil)))
+        {
             let fallback = self.accountInfo(for: provider)
             insert(fallback.email)
         }

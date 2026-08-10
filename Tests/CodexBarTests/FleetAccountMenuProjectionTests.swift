@@ -139,6 +139,44 @@ struct FleetAccountMenuProjectionTests {
     }
 
     @Test
+    func `identity less local snapshot also owns the provider email alias`() {
+        let settings = testSettingsStore(suiteName: "FleetAccountMenuProjectionTests-default-email-alias")
+        let store = UsageStore(
+            fetcher: UsageFetcher(environment: [:]),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings,
+            startupBehavior: .testing,
+            environmentBase: [:])
+        store.snapshots[.codex] = UsageSnapshot(
+            primary: RateWindow(
+                usedPercent: 25,
+                windowMinutes: 300,
+                resetsAt: nil,
+                resetDescription: nil),
+            secondary: nil,
+            updatedAt: Date(timeIntervalSince1970: 100))
+        let email = "person@example.com"
+        let emailKey = AccountSnapshotSyncPayload.accountKey(for: email)
+        store.accountInfoCache[.codex] = UsageStore.AccountInfoCacheEntry(
+            account: AccountInfo(email: email, plan: nil),
+            configRevision: settings.configRevision,
+            expiresAt: .distantFuture)
+        let remote = Self.snapshot(accountKey: emailKey, fetchedAt: Date(timeIntervalSince1970: 200))
+        let localAccountKeys = store.cloudSyncLocalAccountKeys(for: .codex)
+
+        let projection = FleetAccountMenuPlanner.projection(
+            provider: .codex,
+            snapshots: [remote],
+            currentDeviceID: settings.iCloudSyncDeviceID,
+            localAccountKeys: localAccountKeys,
+            hasLocalUsage: true)
+
+        #expect(localAccountKeys == [AccountSnapshotSyncPayload.accountKey(for: nil), emailKey])
+        #expect(projection.fallback == nil)
+        #expect(projection.additionalAccounts.isEmpty)
+    }
+
+    @Test
     func `fleet badge uses compact staleness`() {
         let now = Date(timeIntervalSince1970: 10000)
 
