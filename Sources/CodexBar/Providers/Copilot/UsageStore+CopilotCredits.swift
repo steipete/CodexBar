@@ -23,16 +23,20 @@ extension UsageStore {
 
 extension UsageSnapshot {
     /// Returns a copy with the seat credits row rebuilt for `entitlement`, or `nil` when nothing
-    /// changed (no row, or a plain text row without progress — the next refresh adds the bar; the
-    /// text row is not stale). The numerator always comes from `row.progress.used`, never re-parsed
-    /// from the display string.
+    /// changed (no row, or a row that carries no numeric usage at all — the next refresh must
+    /// rebuild it). The numerator comes from `row.progress.used`, falling back to the retained
+    /// `row.usageValue` on text-only rows, never re-parsed from the display string. That fallback
+    /// is what lets a cached text-only row grow a bar the moment an entitlement is entered, even
+    /// when the follow-up refresh never lands (offline, token lost, 401).
     func updatingCopilotSeatCreditEntitlement(_ entitlement: Double?) -> UsageSnapshot? {
         guard self.details.lazy.flatMap(\.rows)
-            .contains(where: { $0.id == CopilotCreditDetailRows.seatRowID && $0.progress != nil })
+            .contains(where: {
+                $0.id == CopilotCreditDetailRows.seatRowID && ($0.progress != nil || $0.usageValue != nil)
+            })
         else { return nil }
         let details = self.details.map { section -> ProviderDetailSection in
             let rows = section.rows.map { row -> ProviderDetailSection.Row in
-                guard row.id == CopilotCreditDetailRows.seatRowID, let used = row.progress?.used
+                guard row.id == CopilotCreditDetailRows.seatRowID, let used = row.progress?.used ?? row.usageValue
                 else { return row }
                 let value: String
                 let progress: ProviderDetailSection.Row.Progress?
@@ -51,7 +55,8 @@ extension UsageSnapshot {
                     label: row.label,
                     value: value,
                     secondaryValue: row.secondaryValue,
-                    progress: progress)) ?? row
+                    progress: progress,
+                    usageValue: used)) ?? row
             }
             return (try? ProviderDetailSection(title: section.title, rows: rows, chart: section.chart)) ?? section
         }

@@ -210,13 +210,15 @@ public struct CopilotUsageFetcher: Sendable {
                 label: "Credits used",
                 value: "\(usedLabel) / \(UsageFormatter.creditsNumberString(from: seatEntitlement))",
                 secondaryValue: resetText,
-                progress: .makeProgress(used: creditsUsed, total: seatEntitlement))
+                progress: .makeProgress(used: creditsUsed, total: seatEntitlement),
+                usageValue: creditsUsed)
         } else {
             .makeRow(
                 id: CopilotCreditDetailRows.seatRowID,
                 label: "Credits used",
                 value: usedLabel,
-                secondaryValue: resetText)
+                secondaryValue: resetText,
+                usageValue: creditsUsed)
         }
         return [.makeSection(title: CopilotCreditDetailRows.sectionTitle, rows: [row])]
     }

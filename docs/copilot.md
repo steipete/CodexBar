@@ -75,7 +75,9 @@ is therefore user-entered:
 
 A configured entitlement turns the row into a progress bar ("31 / 3000") via the shared provider-detail row's
 optional progress ratio. Without one, the row stays plain text, because a bar would imply a limit CodexBar cannot
-actually know.
+actually know. Either way the row also carries the numeric credits used (`usageValue`), so editing or clearing
+the entitlement rewrites the cached row (text ↔ bar) immediately, even when the follow-up refresh never lands
+(offline, token lost, 401).
 
 ## Key files
 - `Sources/CodexBarCore/Providers/Copilot/CopilotUsageFetcher.swift`

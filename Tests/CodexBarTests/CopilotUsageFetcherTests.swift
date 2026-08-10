@@ -405,6 +405,7 @@ struct CopilotUsageFetcherTests {
         #expect(row.value == "31 / 3000")
         #expect(row.progress?.used == 31)
         #expect(row.progress?.total == 3000)
+        #expect(row.usageValue == 31)
         #expect(row.secondaryValue != nil)
         // Regression guard for #1258: credits must not resurrect a fake quota bar.
         #expect(usage.primary == nil)
@@ -448,6 +449,9 @@ struct CopilotUsageFetcherTests {
         let row = try #require(usage.detailRow(id: CopilotCreditDetailRows.seatRowID))
         #expect(row.value == "0")
         #expect(row.progress == nil)
+        // Text-only rows still carry the numeric usage so a later entitlement edit can grow
+        // the bar from the cached snapshot without a refresh.
+        #expect(row.usageValue == 0)
         #expect(usage.primary == nil)
         #expect(usage.secondary == nil)
     }

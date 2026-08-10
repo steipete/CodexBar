@@ -88,17 +88,28 @@ struct ProviderDetailSectionTests {
     }
 
     @Test
-    func `row id and progress round trip through codable`() throws {
+    func `row id progress and usage value round trip through codable`() throws {
         let row = try ProviderDetailSection.Row(
             id: "copilot-seat-credits",
             label: "Credits used",
             value: "81 / 6000",
-            progress: ProviderDetailSection.Row.Progress(used: 81, total: 6000))
+            progress: ProviderDetailSection.Row.Progress(used: 81, total: 6000),
+            usageValue: 81)
 
         let data = try JSONEncoder().encode(row)
         let decoded = try JSONDecoder().decode(ProviderDetailSection.Row.self, from: data)
 
         #expect(decoded == row)
+    }
+
+    @Test
+    func `row usage value rejects nonfinite values`() throws {
+        #expect(throws: ProviderDetailSection.ValidationError.self) {
+            _ = try ProviderDetailSection.Row(label: "Credits used", value: "31", usageValue: .infinity)
+        }
+        #expect(throws: ProviderDetailSection.ValidationError.self) {
+            _ = try ProviderDetailSection.Row(label: "Credits used", value: "31", usageValue: .nan)
+        }
     }
 
     @Test
@@ -109,6 +120,7 @@ struct ProviderDetailSectionTests {
 
         #expect(row.id == nil)
         #expect(row.progress == nil)
+        #expect(row.usageValue == nil)
         #expect(row.label == "Credits used")
     }
 

@@ -55,19 +55,30 @@ public struct ProviderDetailSection: Codable, Equatable, Sendable {
         public let value: String
         public let secondaryValue: String?
         public let progress: Progress?
+        /// Numeric usage behind the row when known, so a cached row can be rebuilt into a ratio
+        /// (or stripped back to plain text) without parsing the display string. Independent of
+        /// `progress`, which only exists when both sides of a ratio are known.
+        public let usageValue: Double?
 
         public init(
             id: String? = nil,
             label: String,
             value: String,
             secondaryValue: String? = nil,
-            progress: Progress? = nil) throws
+            progress: Progress? = nil,
+            usageValue: Double? = nil) throws
         {
             self.id = try ProviderDetailSection.optionalString(id, path: "row.id")
             self.label = try ProviderDetailSection.requiredString(label, path: "row.label")
             self.value = try ProviderDetailSection.requiredString(value, path: "row.value")
             self.secondaryValue = try ProviderDetailSection.optionalString(secondaryValue, path: "row.secondaryValue")
             self.progress = progress
+            if let usageValue {
+                guard usageValue.isFinite else {
+                    throw ValidationError("row.usageValue must be finite")
+                }
+            }
+            self.usageValue = usageValue
         }
 
         private enum CodingKeys: String, CodingKey {
@@ -76,6 +87,7 @@ public struct ProviderDetailSection: Codable, Equatable, Sendable {
             case value
             case secondaryValue
             case progress
+            case usageValue
         }
 
         public init(from decoder: Decoder) throws {
@@ -85,7 +97,8 @@ public struct ProviderDetailSection: Codable, Equatable, Sendable {
                 label: container.decode(String.self, forKey: .label),
                 value: container.decode(String.self, forKey: .value),
                 secondaryValue: container.decodeIfPresent(String.self, forKey: .secondaryValue),
-                progress: container.decodeIfPresent(Progress.self, forKey: .progress))
+                progress: container.decodeIfPresent(Progress.self, forKey: .progress),
+                usageValue: container.decodeIfPresent(Double.self, forKey: .usageValue))
         }
     }
 
@@ -225,7 +238,8 @@ extension ProviderDetailSection {
         label: String,
         value: String,
         secondaryValue: String? = nil,
-        progress: Row.Progress? = nil) -> Row
+        progress: Row.Progress? = nil,
+        usageValue: Double? = nil) -> Row
     {
         do {
             return try Row(
@@ -233,7 +247,8 @@ extension ProviderDetailSection {
                 label: self.boundedRequired(label),
                 value: self.boundedRequired(value),
                 secondaryValue: self.boundedOptional(secondaryValue),
-                progress: progress)
+                progress: progress,
+                usageValue: usageValue)
         } catch {
             preconditionFailure("Bounded provider detail row failed validation: \(error)")
         }
@@ -288,14 +303,16 @@ extension ProviderDetailSection.Row {
         label: String,
         value: String,
         secondaryValue: String? = nil,
-        progress: Progress? = nil) -> Self
+        progress: Progress? = nil,
+        usageValue: Double? = nil) -> Self
     {
         ProviderDetailSection.makeRow(
             id: id,
             label: label,
             value: value,
             secondaryValue: secondaryValue,
-            progress: progress)
+            progress: progress,
+            usageValue: usageValue)
     }
 }
 

@@ -415,7 +415,7 @@ struct UsageStoreCoverageTests {
     }
 
     @Test
-    func `copilot seat entitlement update is a no-op for a text-only seat row`() {
+    func `entering copilot seat entitlement turns a text-only row into a bar`() throws {
         let settings = Self.makeSettingsStore(suite: "UsageStoreCoverageTests-copilot-seat-text")
         let store = Self.makeUsageStore(settings: settings)
         let live = Self.makeCopilotSeatCreditsSnapshot(used: 31, entitlement: nil)
@@ -424,6 +424,17 @@ struct UsageStoreCoverageTests {
         store.lastKnownResetSnapshots[.copilot] = resetBaseline
 
         store.updateCopilotSeatCreditEntitlement(6000)
+
+        let liveRow = try #require(store.snapshot(for: .copilot)?.detailRow(id: CopilotCreditDetailRows.seatRowID))
+        #expect(liveRow.value == "31 / 6000")
+        #expect(liveRow.progress?.used == 31)
+        #expect(liveRow.progress?.total == 6000)
+        #expect(liveRow.usageValue == 31)
+        let resetRow = try #require(
+            store.lastKnownResetSnapshots[.copilot]?.detailRow(id: CopilotCreditDetailRows.seatRowID))
+        #expect(resetRow.value == "31 / 6000")
+        #expect(resetRow.progress?.total == 6000)
+
         store.updateCopilotSeatCreditEntitlement(nil)
 
         #expect(store.snapshot(for: .copilot)?.details == live.details)
@@ -431,10 +442,37 @@ struct UsageStoreCoverageTests {
     }
 
     @Test
-    func `copilot seat entitlement update still syncs stale reset baseline when live row is text-only`() throws {
+    func `copilot seat entitlement update is a no-op when the seat row has no numeric usage`() {
+        // Legacy cached rows predate `usageValue`: with neither a progress ratio nor a retained
+        // numeric usage there is nothing to rebuild from, so the row waits for the next refresh.
+        let settings = Self.makeSettingsStore(suite: "UsageStoreCoverageTests-copilot-seat-legacy")
+        let store = Self.makeUsageStore(settings: settings)
+        let row = ProviderDetailSection.Row.makeRow(
+            id: CopilotCreditDetailRows.seatRowID,
+            label: "Credits used",
+            value: "31",
+            secondaryValue: "resets Jul 1")
+        let details = [ProviderDetailSection.makeSection(title: CopilotCreditDetailRows.sectionTitle, rows: [row])]
+        let live = UsageSnapshot(
+            primary: RateWindow(usedPercent: 20, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+            secondary: nil,
+            details: details,
+            updatedAt: Date(timeIntervalSince1970: 1_780_358_400))
+        store._setSnapshotForTesting(live, provider: .copilot)
+        store.lastKnownResetSnapshots[.copilot] = live
+
+        store.updateCopilotSeatCreditEntitlement(6000)
+        store.updateCopilotSeatCreditEntitlement(nil)
+
+        #expect(store.snapshot(for: .copilot)?.details == live.details)
+        #expect(store.lastKnownResetSnapshots[.copilot]?.details == live.details)
+    }
+
+    @Test
+    func `copilot seat entitlement update syncs stale baseline when live snapshot has no seat row`() throws {
         let settings = Self.makeSettingsStore(suite: "UsageStoreCoverageTests-copilot-seat-baseline")
         let store = Self.makeUsageStore(settings: settings)
-        let live = Self.makeCopilotSeatCreditsSnapshot(used: 31, entitlement: nil)
+        let live = Self.makeCopilotSnapshot(usedPercent: 20, extraRateWindows: nil)
         store._setSnapshotForTesting(live, provider: .copilot)
         store.lastKnownResetSnapshots[.copilot] = Self.makeCopilotSeatCreditsSnapshot(used: 31, entitlement: 1500)
 
@@ -1233,13 +1271,15 @@ extension UsageStoreCoverageTests {
                 label: "Credits used",
                 value: "\(usedLabel) / \(UsageFormatter.creditsNumberString(from: entitlement))",
                 secondaryValue: "resets Jul 1",
-                progress: .makeProgress(used: used, total: entitlement))
+                progress: .makeProgress(used: used, total: entitlement),
+                usageValue: used)
         } else {
             .makeRow(
                 id: CopilotCreditDetailRows.seatRowID,
                 label: "Credits used",
                 value: usedLabel,
-                secondaryValue: "resets Jul 1")
+                secondaryValue: "resets Jul 1",
+                usageValue: used)
         }
         return UsageSnapshot(
             primary: RateWindow(usedPercent: 20, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
