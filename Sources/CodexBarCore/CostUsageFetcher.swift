@@ -312,19 +312,19 @@ public struct CostUsageFetcher: Sendable {
         }
 
         let scoped = CostUsageScanner.codexCache(cache, scopedTo: roots)
-        var progressHasher = Hasher()
-        for (path, usage) in scoped.files.sorted(by: { $0.key < $1.key }) {
-            progressHasher.combine(path)
-            progressHasher.combine(usage.codexScanFileId)
-            progressHasher.combine(usage.parsedBytes)
-            progressHasher.combine(usage.size)
-            progressHasher.combine(usage.codexScanComplete)
-        }
+        // Bounded passes can advance work without changing parsed file bytes.
+        // Directory validation can move between partitions,
+        // active lookback can discover older sessions,
+        // and buffered fork retries can resolve a parent dependency.
+        // Include each semantic cursor so the stall detector sees real progress.
+        let progressKey = self.codexScanProgressKey(
+            cache: cache,
+            scopedFiles: scoped.files)
         let hasIncompleteFile = scoped.files.values.contains { $0.codexScanComplete == false }
         let pending = cache.codexScanCatchUpPending == true || hasIncompleteFile
         return CodexScanCatchUpStatus(
             pending: pending,
-            progressKey: "\(scoped.files.count):\(progressHasher.finalize())",
+            progressKey: progressKey,
             processedBytes: cache.codexScanProcessedBytes ?? 0,
             totalBytes: cache.codexScanTotalBytes ?? 0,
             completedFiles: cache.codexScanCompletedFiles ?? 0,
@@ -1371,5 +1371,72 @@ extension CostUsageFetcher {
         }
         #endif
         return nil
+    }
+
+    static func codexScanProgressKey(
+        cache: CostUsageCache,
+        scopedFiles: [String: CostUsageFileUsage]) -> String
+    {
+        var progressHasher = Hasher()
+        // The aggregate closes the remaining bounded-work gap for already indexed files that grew:
+        // each completed stale append advances the count, while a fully parsed active append leaves
+        // it unchanged.
+        progressHasher.combine(cache.codexScanCompletedFiles)
+        // Stable file membership tracks newly completed bounded work. Mutable byte counts belong
+        // only to unfinished files: a completed live session can append between every pass without
+        // advancing the finite backlog. Buffered retries track dependency state rather than counts,
+        // so appends cannot mask a parent dependency that remains unresolved.
+        for (path, usage) in scopedFiles.sorted(by: { $0.key < $1.key }) {
+            progressHasher.combine(path)
+            progressHasher.combine(usage.codexScanFileId)
+            progressHasher.combine(usage.codexScanComplete)
+            if usage.codexScanComplete == false {
+                progressHasher.combine(usage.parsedBytes)
+                progressHasher.combine(usage.size)
+                progressHasher.combine(usage.codexJSONLResumeState?.offset)
+            }
+            let hasBufferedRetry = usage.hasBufferedCodexForkRetryLines
+            progressHasher.combine(hasBufferedRetry)
+            if hasBufferedRetry {
+                progressHasher.combine(usage.forkedFromId)
+                progressHasher.combine(usage.forkBaselineDependencyKey)
+                progressHasher.combine(usage.codexBufferedSubagentLines?.isEmpty == false)
+                progressHasher.combine(usage.codexBufferedUnresolvedForkLines?.isEmpty == false)
+            }
+        }
+
+        if let discovery = cache.codexSessionDiscovery {
+            progressHasher.combine(discovery.generation)
+            progressHasher.combine(discovery.directoryPaths.count)
+            progressHasher.combine(discovery.nextDirectoryIndex)
+            progressHasher.combine(discovery.filePaths.count)
+            progressHasher.combine(discovery.nextFileIndex)
+            progressHasher.combine(discovery.headScan?.path)
+            progressHasher.combine(discovery.headScan?.offset)
+            progressHasher.combine(discovery.headScan?.resumeState?.offset)
+            progressHasher.combine(discovery.filePathBySessionId.count)
+            progressHasher.combine(discovery.missingSessionIds.sorted())
+            progressHasher.combine(discovery.pendingSessionIds.sorted())
+            progressHasher.combine(discovery.validationDirectoryIndex)
+            progressHasher.combine(discovery.isComplete)
+        } else {
+            progressHasher.combine("no-discovery")
+        }
+
+        if let lookback = cache.codexActiveLookbackState {
+            progressHasher.combine(lookback.scanSinceKey)
+            progressHasher.combine(lookback.rootPaths.sorted())
+            for (root, dayKey) in lookback.nextDayKeyByRoot.sorted(by: { $0.key < $1.key }) {
+                progressHasher.combine(root)
+                progressHasher.combine(dayKey)
+            }
+            progressHasher.combine(lookback.completedRootPaths.sorted())
+            progressHasher.combine(lookback.pendingFilePaths.sorted())
+            progressHasher.combine(lookback.legacyRecursivePendingRootPaths.sorted())
+        } else {
+            progressHasher.combine("no-lookback")
+        }
+
+        return "v2:\(scopedFiles.count):\(progressHasher.finalize())"
     }
 }
