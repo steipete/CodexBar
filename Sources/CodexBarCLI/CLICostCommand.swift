@@ -138,7 +138,7 @@ extension CodexBarCLI {
     {
         let name = ProviderDescriptorRegistry.descriptor(for: provider).metadata.displayName
         // Provider-specific by design: Codex is an API-equivalent estimate; Grok reports local session ticks.
-        let title: String = switch provider {
+        let title = switch provider {
         case .codex:
             "\(name) API-equivalent estimate (not billed)"
         case .grok:

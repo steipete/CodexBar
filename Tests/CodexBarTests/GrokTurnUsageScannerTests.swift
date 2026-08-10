@@ -289,14 +289,14 @@ struct GrokTurnUsageScannerTests {
 
         let budget = GrokTurnUsageScanner.ScanBudget(
             maxFileBytes: maxFileBytes,
-            maxBytesPerRefresh: 10_000)
+            maxBytesPerRefresh: 10000)
         let options = GrokTurnUsageScanner.Options(
             sessionsRoot: root,
             cacheRoot: cacheRoot,
             maxSessionFileBytes: maxFileBytes,
-            maxScanBytesPerRefresh: 10_000)
+            maxScanBytesPerRefresh: 10000)
         let result = try GrokTurnUsageScanner.scanTurns(
-            since: now.addingTimeInterval(-86_400),
+            since: now.addingTimeInterval(-86400),
             until: now.addingTimeInterval(60),
             options: options,
             checkCancellation: nil,
@@ -346,7 +346,7 @@ struct GrokTurnUsageScannerTests {
             id: "old-session",
             eventID: "e-old",
             tokens: 100,
-            modifiedAt: now.addingTimeInterval(-3_600))
+            modifiedAt: now.addingTimeInterval(-3600))
         try writeSession(
             id: "new-session",
             eventID: "e-new",
@@ -358,8 +358,8 @@ struct GrokTurnUsageScannerTests {
             .appendingPathComponent("cwd", isDirectory: true)
             .appendingPathComponent("new-session", isDirectory: true)
             .appendingPathComponent("updates.jsonl")
-        let sampleSize = Int64(
-            (try FileManager.default.attributesOfItem(atPath: sampleURL.path)[.size] as? NSNumber)?
+        let sampleSize = try Int64(
+            (FileManager.default.attributesOfItem(atPath: sampleURL.path)[.size] as? NSNumber)?
                 .int64Value ?? 0)
         #expect(sampleSize > 0)
 
@@ -373,7 +373,7 @@ struct GrokTurnUsageScannerTests {
             maxScanBytesPerRefresh: sampleSize,
             preferNewestSessionsFirst: true)
         let result = try GrokTurnUsageScanner.scanTurns(
-            since: now.addingTimeInterval(-86_400),
+            since: now.addingTimeInterval(-86400),
             until: now.addingTimeInterval(60),
             options: options,
             checkCancellation: nil,
@@ -417,8 +417,8 @@ struct GrokTurnUsageScannerTests {
             try FileManager.default.setAttributes(
                 [.modificationDate: modifiedAt],
                 ofItemAtPath: url.path)
-            return Int64(
-                (try FileManager.default.attributesOfItem(atPath: url.path)[.size] as? NSNumber)?
+            return try Int64(
+                (FileManager.default.attributesOfItem(atPath: url.path)[.size] as? NSNumber)?
                     .int64Value ?? 0)
         }
 
@@ -431,7 +431,7 @@ struct GrokTurnUsageScannerTests {
             id: "old-session",
             eventID: "e-old",
             tokens: 100,
-            modifiedAt: now.addingTimeInterval(-3_600))
+            modifiedAt: now.addingTimeInterval(-3600))
         #expect(newSize > 0)
         #expect(oldSize > 0)
 
@@ -448,7 +448,7 @@ struct GrokTurnUsageScannerTests {
             maxFileBytes: perRefresh * 4,
             maxBytesPerRefresh: perRefresh)
         let firstResult = try GrokTurnUsageScanner.scanTurns(
-            since: now.addingTimeInterval(-86_400),
+            since: now.addingTimeInterval(-86400),
             until: now.addingTimeInterval(60),
             options: options,
             checkCancellation: nil,
@@ -463,7 +463,7 @@ struct GrokTurnUsageScannerTests {
             maxFileBytes: perRefresh * 4,
             maxBytesPerRefresh: perRefresh)
         let secondResult = try GrokTurnUsageScanner.scanTurns(
-            since: now.addingTimeInterval(-86_400),
+            since: now.addingTimeInterval(-86400),
             until: now.addingTimeInterval(60),
             options: options,
             checkCancellation: nil,
@@ -491,7 +491,7 @@ struct GrokTurnUsageScannerTests {
             .appendingPathComponent("cwd", isDirectory: true)
             .appendingPathComponent("stale", isDirectory: true)
         try FileManager.default.createDirectory(at: sessionDir, withIntermediateDirectories: true)
-        let ts = Int(now.addingTimeInterval(-10 * 86_400).timeIntervalSince1970)
+        let ts = Int(now.addingTimeInterval(-10 * 86400).timeIntervalSince1970)
         let line = """
         {"timestamp":\(ts),"params":{"sessionId":"stale","update":{"sessionUpdate":\
         "turn_completed","prompt_id":"p","usage":{"inputTokens":10,"cachedReadTokens":0,\
@@ -501,7 +501,7 @@ struct GrokTurnUsageScannerTests {
         let url = sessionDir.appendingPathComponent("updates.jsonl")
         try Data((line + "\n").utf8).write(to: url)
         try FileManager.default.setAttributes(
-            [.modificationDate: now.addingTimeInterval(-10 * 86_400)],
+            [.modificationDate: now.addingTimeInterval(-10 * 86400)],
             ofItemAtPath: url.path)
 
         let budget = GrokTurnUsageScanner.ScanBudget(
@@ -509,7 +509,7 @@ struct GrokTurnUsageScannerTests {
             maxBytesPerRefresh: 1024 * 1024)
         let options = GrokTurnUsageScanner.Options(sessionsRoot: root, cacheRoot: cacheRoot)
         let result = try GrokTurnUsageScanner.scanTurns(
-            since: now.addingTimeInterval(-86_400),
+            since: now.addingTimeInterval(-86400),
             until: now.addingTimeInterval(60),
             options: options,
             checkCancellation: nil,
@@ -611,17 +611,16 @@ struct GrokTurnUsageScannerTests {
                 turns: [turn])
         }
         let encodedAll = try JSONEncoder().encode(fat)
-        #expect(encodedAll.count > 2_000)
+        #expect(encodedAll.count > 2000)
         GrokTurnUsageCacheIO.save(
             cache: fat,
             cacheRoot: cacheRoot,
-            maxFileBytes: 2_000,
+            maxFileBytes: 2000,
             maxFileEntries: 100)
         let afterBytePrune = GrokTurnUsageCacheIO.load(cacheRoot: cacheRoot)
         let encodedKept = try JSONEncoder().encode(afterBytePrune)
-        #expect(encodedKept.count <= 2_000)
+        #expect(encodedKept.count <= 2000)
         #expect(afterBytePrune.files.count < 30)
         #expect(!afterBytePrune.files.isEmpty)
     }
 }
-

@@ -116,7 +116,7 @@ struct CLICostTests {
         let snap = CostUsageTokenSnapshot(
             sessionTokens: 3400,
             sessionCostUSD: 0.42,
-            last30DaysTokens: 12_000,
+            last30DaysTokens: 12000,
             last30DaysCostUSD: 1.8,
             historyDays: 30,
             daily: [],
@@ -214,7 +214,7 @@ struct CLICostTests {
         let snap = CostUsageTokenSnapshot(
             sessionTokens: 3400,
             sessionCostUSD: 0.42,
-            last30DaysTokens: 12_000,
+            last30DaysTokens: 12000,
             last30DaysCostUSD: 1.8,
             historyDays: 30,
             historyIsIncomplete: true,

@@ -535,7 +535,6 @@ struct CostHistoryChartMenuView: View {
         return [0, maxValue / 2, maxValue]
     }
 
-
     private static func peakPoint(model: Model) -> Point? {
         guard let key = model.peakKey else { return nil }
         return model.pointsByDateKey[key]

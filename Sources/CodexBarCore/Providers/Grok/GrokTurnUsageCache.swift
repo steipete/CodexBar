@@ -10,7 +10,7 @@ enum GrokTurnUsageCacheIO {
     static let maxCacheFileBytes: Int = 256 * 1024 * 1024
     static let maxCacheLoadBytes: Int = 320 * 1024 * 1024
     /// Soft cap on cached session files; oldest (by mtime) are dropped first when over budget.
-    static let maxCacheFileEntries: Int = 10_000
+    static let maxCacheFileEntries: Int = 10000
 
     private static func defaultCacheRoot() -> URL {
         let root = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first!
@@ -84,7 +84,7 @@ enum GrokTurnUsageCacheIO {
         maxFileEntries: Int)
     {
         if maxFileEntries > 0, cache.files.count > maxFileEntries {
-            Self.dropOldestFiles(&cache, keepCount: maxFileEntries)
+            self.dropOldestFiles(&cache, keepCount: maxFileEntries)
         }
         // Estimate before encoding when possible; encode only if still large after entry trim.
         guard maxFileBytes > 0 else { return }
