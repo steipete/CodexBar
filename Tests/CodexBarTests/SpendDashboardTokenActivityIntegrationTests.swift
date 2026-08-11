@@ -139,7 +139,7 @@ struct SpendDashboardTokenActivityIntegrationTests {
             request,
             cacheRootResolver: { _ in cacheRoot },
             codexSnapshotLoader: { context in
-                #expect(context.historyDays == SpendDashboardSource.scanDays)
+                #expect(context.historyDays == request.historyDays)
                 #expect(context.cacheRoot == cacheRoot)
                 return snapshot
             })
