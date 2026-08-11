@@ -492,7 +492,8 @@ enum CostUsagePricing {
         outputTokens: Int,
         cacheWriteInputTokens: Int = 0,
         modelsDevCatalog: ModelsDevCatalog? = nil,
-        modelsDevCacheRoot: URL? = nil) -> Double?
+        modelsDevCacheRoot: URL? = nil,
+        applyLongContextRates: Bool = true) -> Double?
     {
         let key = self.normalizeCodexModel(model)
         guard key != self.codexUnattributedModel else { return nil }
@@ -524,23 +525,29 @@ enum CostUsagePricing {
                     ?? lookup.pricing.inputCostPerTokenAboveThreshold
                     ?? lookup.pricing.inputCostPerToken
                     : bundledLongContext?.cacheWriteInputCostPerTokenAboveThreshold)
+            let thresholdTokens = bundled?.thresholdTokens ?? lookup.pricing.thresholdTokens
+            let inputAboveThreshold = lookup.pricing.inputCostPerTokenAboveThreshold
+                ?? bundledLongContext?.inputCostPerTokenAboveThreshold
+            let outputAboveThreshold = lookup.pricing.outputCostPerTokenAboveThreshold
+                ?? bundledLongContext?.outputCostPerTokenAboveThreshold
+            let cacheReadInputRate = lookup.pricing.cacheReadInputCostPerToken
+                ?? bundled?.cacheReadInputCostPerToken
+            let cacheWriteInputRate = lookup.pricing.cacheCreationInputCostPerToken
+                ?? bundled?.cacheWriteInputCostPerToken
             return self.codexCostUSD(
                 pricing: lookup.pricing,
-                thresholdTokens: bundled?.thresholdTokens ?? lookup.pricing.thresholdTokens,
-                inputCostPerTokenAboveThreshold: lookup.pricing.inputCostPerTokenAboveThreshold
-                    ?? bundledLongContext?.inputCostPerTokenAboveThreshold,
-                outputCostPerTokenAboveThreshold: lookup.pricing.outputCostPerTokenAboveThreshold
-                    ?? bundledLongContext?.outputCostPerTokenAboveThreshold,
-                cacheReadInputCostPerToken: lookup.pricing.cacheReadInputCostPerToken
-                    ?? bundled?.cacheReadInputCostPerToken,
+                thresholdTokens: thresholdTokens,
+                inputCostPerTokenAboveThreshold: inputAboveThreshold,
+                outputCostPerTokenAboveThreshold: outputAboveThreshold,
+                cacheReadInputCostPerToken: cacheReadInputRate,
                 cacheReadInputCostPerTokenAboveThreshold: cacheReadAboveThreshold,
-                cacheWriteInputCostPerToken: lookup.pricing.cacheCreationInputCostPerToken
-                    ?? bundled?.cacheWriteInputCostPerToken,
+                cacheWriteInputCostPerToken: cacheWriteInputRate,
                 cacheWriteInputCostPerTokenAboveThreshold: cacheWriteAboveThreshold,
                 inputTokens: inputTokens,
                 cachedInputTokens: cachedInputTokens,
                 cacheWriteInputTokens: cacheWriteInputTokens,
-                outputTokens: outputTokens)
+                outputTokens: outputTokens,
+                applyLongContextRates: applyLongContextRates)
         }
 
         guard let pricing = self.codex[key] else { return nil }
@@ -549,7 +556,31 @@ enum CostUsagePricing {
             inputTokens: inputTokens,
             cachedInputTokens: cachedInputTokens,
             cacheWriteInputTokens: cacheWriteInputTokens,
-            outputTokens: outputTokens)
+            outputTokens: outputTokens,
+            applyLongContextRates: applyLongContextRates)
+    }
+
+    /// Reprice an aggregated usage row with CodexBar's bundled standard rates.
+    ///
+    /// ccusage's daily report does not retain per-request context sizes, so applying a long-context
+    /// threshold to the whole day's aggregate would overcharge otherwise ordinary requests. The
+    /// fallback bridge uses this path instead of importing the helper's own cost fields.
+    static func codexStandardCostUSD(
+        model: String,
+        inputTokens: Int,
+        cachedInputTokens: Int,
+        outputTokens: Int,
+        cacheWriteInputTokens: Int = 0) -> Double?
+    {
+        let key = self.normalizeCodexModel(model)
+        guard key != self.codexUnattributedModel, let pricing = self.codex[key] else { return nil }
+        return self.codexCostUSD(
+            pricing: pricing,
+            inputTokens: inputTokens,
+            cachedInputTokens: cachedInputTokens,
+            cacheWriteInputTokens: cacheWriteInputTokens,
+            outputTokens: outputTokens,
+            applyLongContextRates: false)
     }
 
     static func codexPriorityCostUSD(
@@ -594,7 +625,8 @@ enum CostUsagePricing {
         inputTokens: Int,
         cachedInputTokens: Int,
         cacheWriteInputTokens: Int = 0,
-        outputTokens: Int) -> Double
+        outputTokens: Int,
+        applyLongContextRates: Bool = true) -> Double
     {
         // Codex/OpenAI reports `input_tokens` as the total prompt size, with cached reads as a
         // SUBSET of it. Cache writes (when tracked separately, e.g. Pi) are also a subset of the
@@ -606,7 +638,8 @@ enum CostUsagePricing {
         let nonCached = remainingAfterCache - cacheWrite
         let cachedRate = pricing.cacheReadInputCostPerToken ?? pricing.inputCostPerToken
 
-        let usesLongContextRates = pricing.thresholdTokens.map { totalInput > $0 } ?? false
+        let usesLongContextRates = applyLongContextRates
+            && (pricing.thresholdTokens.map { totalInput > $0 } ?? false)
         let inputRate = usesLongContextRates
             ? pricing.inputCostPerTokenAboveThreshold ?? pricing.inputCostPerToken
             : pricing.inputCostPerToken
@@ -640,7 +673,8 @@ enum CostUsagePricing {
         inputTokens: Int,
         cachedInputTokens: Int,
         cacheWriteInputTokens: Int = 0,
-        outputTokens: Int) -> Double
+        outputTokens: Int,
+        applyLongContextRates: Bool = true) -> Double
     {
         self.codexCostUSD(
             pricing: CodexPricing(
@@ -663,7 +697,8 @@ enum CostUsagePricing {
             inputTokens: inputTokens,
             cachedInputTokens: cachedInputTokens,
             cacheWriteInputTokens: cacheWriteInputTokens,
-            outputTokens: outputTokens)
+            outputTokens: outputTokens,
+            applyLongContextRates: applyLongContextRates)
     }
 
     static func claudeCostUSD(

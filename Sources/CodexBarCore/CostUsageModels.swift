@@ -88,6 +88,8 @@ public struct CostUsageTokenSnapshot: Sendable, Equatable {
     public let currencyCode: String
     public let historyDays: Int
     public let historyCoverageIsEstablished: Bool
+    /// True when a separate fallback source covers the requested history while the native scan is pending.
+    public let historyFallbackCoverageIsEstablished: Bool
     public let historyLabel: String?
     /// Provider-metered spend over the same window as `last30DaysCostUSD` — what the plan
     /// actually deducts, as opposed to the API-rate estimate. Only some providers (e.g. Cursor)
@@ -111,6 +113,7 @@ public struct CostUsageTokenSnapshot: Sendable, Equatable {
         currencyCode: String = "USD",
         historyDays: Int = 30,
         historyCoverageIsEstablished: Bool = true,
+        historyFallbackCoverageIsEstablished: Bool = false,
         historyLabel: String? = nil,
         meteredCostUSD: Double? = nil,
         credentialScopeFingerprint: String? = nil,
@@ -129,6 +132,7 @@ public struct CostUsageTokenSnapshot: Sendable, Equatable {
         self.currencyCode = normalizedCurrencyCode.isEmpty ? "XXX" : normalizedCurrencyCode
         self.historyDays = historyDays
         self.historyCoverageIsEstablished = historyCoverageIsEstablished
+        self.historyFallbackCoverageIsEstablished = historyFallbackCoverageIsEstablished
         self.historyLabel = historyLabel
         self.meteredCostUSD = meteredCostUSD
         self.credentialScopeFingerprint = credentialScopeFingerprint

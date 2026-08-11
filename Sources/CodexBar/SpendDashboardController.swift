@@ -513,6 +513,7 @@ enum SpendDashboardSource {
         encoder.append(snapshot.currencyCode)
         encoder.append(snapshot.historyDays)
         encoder.append(snapshot.historyCoverageIsEstablished)
+        encoder.append(snapshot.historyFallbackCoverageIsEstablished)
         encoder.append(snapshot.updatedAt.timeIntervalSinceReferenceDate)
         encoder.append(snapshot.last30DaysTokens)
         encoder.append(snapshot.last30DaysCostUSD)

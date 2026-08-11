@@ -98,6 +98,50 @@ extension CostUsageFetcherTests {
     }
 
     @Test
+    func `ccusage fallback does not claim native history is complete`() async throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+
+        let day = try env.makeLocalNoon(year: 2026, month: 4, day: 8)
+        try Self.writeCodexSessionFile(
+            homeRoot: env.codexHomeRoot,
+            env: env,
+            day: day,
+            filename: "incomplete.jsonl",
+            tokens: 42)
+
+        let helper = env.root.appendingPathComponent("ccusage")
+        try #"""
+        #!/bin/sh
+        set -eu
+        printf '%s\n' '{"daily":[{"period":"2026-04-08","agents":[{"agent":"codex","inputTokens":120,"outputTokens":30,"totalTokens":955,"totalCost":1.25}]}]}'
+        """#.write(to: helper, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: helper.path)
+
+        var options = CostUsageScanner.Options(
+            codexSessionsRoot: env.codexSessionsRoot,
+            claudeProjectsRoots: nil,
+            cacheRoot: env.cacheRoot,
+            maxCodexSessionFileBytes: 1,
+            maxCodexScanBytesPerRefresh: 1)
+        options.refreshMinIntervalSeconds = 0
+
+        let snapshot = try await CostUsageFetcher.loadTokenSnapshot(
+            provider: .codex,
+            environment: ["CODEXBAR_CCUSAGE_PATH": helper.path],
+            now: day,
+            historyDays: 1,
+            allowPricingRefresh: false,
+            includePiSessions: false,
+            scannerOptions: options)
+
+        #expect(snapshot.historyCoverageIsEstablished == false)
+        #expect(snapshot.historyFallbackCoverageIsEstablished)
+        #expect(snapshot.last30DaysTokens == 955)
+        #expect(snapshot.last30DaysCostUSD == 1.25)
+    }
+
+    @Test
     func `fetcher refreshes codex cache when legacy roots metadata is missing`() async throws {
         let env = try CostUsageTestEnvironment()
         defer { env.cleanup() }

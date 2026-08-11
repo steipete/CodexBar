@@ -294,6 +294,31 @@ struct SpendDashboardModelTests {
     }
 
     @Test
+    func `fallback coverage keeps dashboard totals usable while native scan is pending`() throws {
+        let snapshot = CostUsageTokenSnapshot(
+            sessionTokens: 10,
+            sessionCostUSD: 1,
+            last30DaysTokens: 10,
+            last30DaysCostUSD: 1,
+            currencyCode: "USD",
+            historyDays: 7,
+            historyCoverageIsEstablished: false,
+            historyFallbackCoverageIsEstablished: true,
+            daily: [Self.entry(day: "2026-07-16", cost: 1)],
+            updatedAt: Self.now)
+        let group = try #require(SpendDashboardModel.build(
+            inputs: [.init(provider: .codex, displayName: "Codex", snapshot: snapshot)],
+            requestedDays: 7,
+            now: Self.now,
+            calendar: Self.calendar).groups.first)
+
+        #expect(group.coveredDayCount == 7)
+        #expect(group.totalTokens == 10)
+        #expect(group.totalCost == 1)
+        #expect(group.modelHistoryCompleteness == .complete)
+    }
+
+    @Test
     func `uncovered source affects only its own currency model history`() throws {
         let covered = Self.input(id: "covered", provider: .claude, currency: "USD", cost: 4)
         let uncovered = SpendDashboardModel.ProviderInput(

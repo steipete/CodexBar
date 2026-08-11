@@ -568,7 +568,9 @@ struct SpendDashboardModel: Equatable, Sendable {
         bounds: ClosedRange<Date>,
         displayCalendar: Calendar) -> ClosedRange<Date>?
     {
-        guard input.snapshot.historyCoverageIsEstablished else { return nil }
+        guard input.snapshot.historyCoverageIsEstablished
+            || input.snapshot.historyFallbackCoverageIsEstablished
+        else { return nil }
         let sourceCoverage = Self.sourceCoverageInterval(input: input, displayCalendar: displayCalendar)
         let overlapStart = max(bounds.lowerBound, sourceCoverage.lowerBound)
         let overlapEnd = min(bounds.upperBound, sourceCoverage.upperBound)

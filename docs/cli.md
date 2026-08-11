@@ -196,6 +196,7 @@ payloads include the visible account label in `account`.
 - `sessionTokens`, `sessionCostUSD`
 - `last30DaysTokens`, `last30DaysCostUSD`
 - `historyCoverageIsEstablished`: `false` while a bounded Codex scan still has catch-up work pending; `true` once the requested history is covered.
+- `historyFallbackCoverageIsEstablished`: `true` when an opt-in fallback such as `ccusage` covers the requested history while the native Codex scan is still pending. This does not change the native coverage flag.
 - Cursor only: `meteredCostUSD` — what Cursor's plan actually deducts over the window, alongside the API-rate estimate in `last30DaysCostUSD`.
 - `daily[]`: `date`, `inputTokens`, `outputTokens`, `cacheReadTokens`, `cacheCreationTokens`, `totalTokens`, `totalCost`, `modelsUsed`, `modelBreakdowns[]` (`modelName`, `cost`)
 - Codex only: `projects[]`: `name`, `path`, `totalTokens`, `totalCost`, `daily[]`, `modelBreakdowns[]`, `sources[]`

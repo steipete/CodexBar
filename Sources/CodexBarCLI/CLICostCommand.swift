@@ -256,6 +256,7 @@ extension CodexBarCLI {
             sessionCostUSD: snapshot?.sessionCostUSD,
             historyDays: snapshot?.historyDays,
             historyCoverageIsEstablished: snapshot?.historyCoverageIsEstablished,
+            historyFallbackCoverageIsEstablished: snapshot?.historyFallbackCoverageIsEstablished,
             last30DaysTokens: snapshot?.last30DaysTokens,
             last30DaysCostUSD: snapshot?.last30DaysCostUSD,
             meteredCostUSD: snapshot?.meteredCostUSD,
@@ -490,6 +491,7 @@ struct CostPayload: Encodable, Sendable {
     let sessionCostUSD: Double?
     let historyDays: Int?
     let historyCoverageIsEstablished: Bool?
+    let historyFallbackCoverageIsEstablished: Bool?
     let last30DaysTokens: Int?
     let last30DaysCostUSD: Double?
     let meteredCostUSD: Double?
@@ -507,6 +509,7 @@ struct CostPayload: Encodable, Sendable {
         sessionCostUSD: Double?,
         historyDays: Int?,
         historyCoverageIsEstablished: Bool? = nil,
+        historyFallbackCoverageIsEstablished: Bool? = nil,
         last30DaysTokens: Int?,
         last30DaysCostUSD: Double?,
         meteredCostUSD: Double? = nil,
@@ -523,6 +526,7 @@ struct CostPayload: Encodable, Sendable {
         self.sessionCostUSD = sessionCostUSD
         self.historyDays = historyDays
         self.historyCoverageIsEstablished = historyCoverageIsEstablished
+        self.historyFallbackCoverageIsEstablished = historyFallbackCoverageIsEstablished
         self.last30DaysTokens = last30DaysTokens
         self.last30DaysCostUSD = last30DaysCostUSD
         self.meteredCostUSD = meteredCostUSD
