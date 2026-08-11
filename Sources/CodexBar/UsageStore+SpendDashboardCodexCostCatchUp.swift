@@ -31,9 +31,11 @@ extension UsageStore {
             return
         }
 
-        let scopeSignature = accounts
+        let historyDays = max(SpendDashboardSource.scanDays, self.settings.costUsageHistoryDays)
+        let accountScopeSignature = accounts
             .map { "\($0.id)|\($0.cacheIdentity)" }
             .joined(separator: "\u{0}")
+        let scopeSignature = "\(historyDays)\u{0}\(accountScopeSignature)"
         if self.spendDashboardCodexCostCatchUpTask != nil,
            self.spendDashboardCodexCostCatchUpScopeSignature == scopeSignature
         {
@@ -51,7 +53,7 @@ extension UsageStore {
         let context = SpendDashboardCodexCostCatchUpContext(
             token: token,
             accounts: accounts,
-            historyDays: SpendDashboardSource.scanDays,
+            historyDays: historyDays,
             scopeSignature: scopeSignature,
             providerConfigRevision: self.settings.providerConfigRevision(for: .codex),
             costUsageSettingsRevision: self.settings.costUsageSettingsRevision)
@@ -245,6 +247,7 @@ extension UsageStore {
             && self.spendDashboardCodexCostCatchUpScopeSignature == context.scopeSignature
             && self.settings.providerConfigRevision(for: .codex) == context.providerConfigRevision
             && self.settings.costUsageSettingsRevision == context.costUsageSettingsRevision
+            && max(SpendDashboardSource.scanDays, self.settings.costUsageHistoryDays) == context.historyDays
             && self.settings.isCostUsageEffectivelyEnabled(for: .codex)
             && self.isEnabled(.codex)
             && context.accounts.allSatisfy(SpendDashboardSource.codexAuthFingerprintMatches)

@@ -312,24 +312,119 @@ public struct CostUsageFetcher: Sendable {
         }
 
         let scoped = CostUsageScanner.codexCache(cache, scopedTo: roots)
-        var progressHasher = Hasher()
-        for (path, usage) in scoped.files.sorted(by: { $0.key < $1.key }) {
-            progressHasher.combine(path)
-            progressHasher.combine(usage.codexScanFileId)
-            progressHasher.combine(usage.parsedBytes)
-            progressHasher.combine(usage.size)
-            progressHasher.combine(usage.codexScanComplete)
-        }
         let hasIncompleteFile = scoped.files.values.contains { $0.codexScanComplete == false }
         let pending = cache.codexScanCatchUpPending == true || hasIncompleteFile
         return CodexScanCatchUpStatus(
             pending: pending,
-            progressKey: "\(scoped.files.count):\(progressHasher.finalize())",
+            progressKey: Self.codexScanCatchUpProgressKey(cache: cache, scoped: scoped),
             processedBytes: cache.codexScanProcessedBytes ?? 0,
             totalBytes: cache.codexScanTotalBytes ?? 0,
             completedFiles: cache.codexScanCompletedFiles ?? 0,
             totalFiles: cache.codexScanTotalFiles ?? 0,
             staleSnapshotUpdatedAt: pending ? cache.codexPreviousReport?.updatedAt : nil)
+    }
+
+    private static func codexScanCatchUpProgressKey(
+        cache: CostUsageCache,
+        scoped: CostUsageCache) -> String
+    {
+        var hasher = Hasher()
+        hasher.combine(cache.codexScanProcessedBytes)
+        hasher.combine(cache.codexScanTotalBytes)
+        hasher.combine(cache.codexScanCompletedFiles)
+        hasher.combine(cache.codexScanTotalFiles)
+
+        for (path, usage) in scoped.files.sorted(by: { $0.key < $1.key }) {
+            hasher.combine(path)
+            hasher.combine(usage.codexScanFileId)
+            hasher.combine(usage.parsedBytes)
+            hasher.combine(usage.size)
+            hasher.combine(usage.codexScanTargetSize)
+            hasher.combine(usage.codexScanComplete)
+            hasher.combine(usage.codexJSONLResumeState?.offset)
+            hasher.combine(usage.forkBaselineDependencyKey)
+            Self.combineCodexBufferedProgress(usage.codexBufferedSubagentLines, into: &hasher)
+            Self.combineCodexBufferedProgress(usage.codexBufferedUnresolvedForkLines, into: &hasher)
+        }
+        Self.combineCodexDiscoveryProgress(cache.codexSessionDiscovery, into: &hasher)
+        Self.combineCodexActiveLookbackProgress(cache.codexActiveLookbackState, into: &hasher)
+        return "\(scoped.files.count):\(hasher.finalize())"
+    }
+
+    private static func combineCodexBufferedProgress(
+        _ lines: [CostUsageScanner.CodexBufferedFastLine]?,
+        into hasher: inout Hasher)
+    {
+        hasher.combine(lines?.count)
+        for line in lines ?? [] {
+            hasher.combine(line.lineIndex)
+            hasher.combine(line.ordinal)
+            hasher.combine(line.endOffset)
+        }
+    }
+
+    private static func combineCodexDiscoveryProgress(
+        _ discovery: CostUsageCodexSessionDiscovery?,
+        into hasher: inout Hasher)
+    {
+        hasher.combine(discovery != nil)
+        guard let discovery else { return }
+        for root in discovery.roots.sorted() {
+            hasher.combine(root)
+        }
+        hasher.combine(discovery.generation)
+        hasher.combine(discovery.directoryPaths.count)
+        hasher.combine(discovery.nextDirectoryIndex)
+        hasher.combine(discovery.filePaths.count)
+        hasher.combine(discovery.nextFileIndex)
+        hasher.combine(discovery.directoryStamps.count)
+        hasher.combine(discovery.fileStamps.count)
+        hasher.combine(discovery.validationDirectoryIndex)
+        hasher.combine(discovery.isComplete)
+        if discovery.directoryPaths.indices.contains(discovery.nextDirectoryIndex) {
+            hasher.combine(discovery.directoryPaths[discovery.nextDirectoryIndex])
+        }
+        if discovery.filePaths.indices.contains(discovery.nextFileIndex) {
+            hasher.combine(discovery.filePaths[discovery.nextFileIndex])
+        }
+        hasher.combine(discovery.headScan?.path)
+        hasher.combine(discovery.headScan?.offset)
+        hasher.combine(discovery.headScan?.resumeState?.offset)
+        for (sessionID, path) in discovery.filePathBySessionId.sorted(by: { $0.key < $1.key }) {
+            hasher.combine(sessionID)
+            hasher.combine(path)
+        }
+        for sessionID in discovery.missingSessionIds.sorted() {
+            hasher.combine(sessionID)
+        }
+        for sessionID in discovery.pendingSessionIds.sorted() {
+            hasher.combine(sessionID)
+        }
+    }
+
+    private static func combineCodexActiveLookbackProgress(
+        _ lookback: CostUsageCodexActiveLookbackState?,
+        into hasher: inout Hasher)
+    {
+        hasher.combine(lookback != nil)
+        guard let lookback else { return }
+        hasher.combine(lookback.scanSinceKey)
+        for root in lookback.rootPaths.sorted() {
+            hasher.combine(root)
+        }
+        for (root, day) in lookback.nextDayKeyByRoot.sorted(by: { $0.key < $1.key }) {
+            hasher.combine(root)
+            hasher.combine(day)
+        }
+        for root in lookback.completedRootPaths.sorted() {
+            hasher.combine(root)
+        }
+        for path in lookback.pendingFilePaths.sorted() {
+            hasher.combine(path)
+        }
+        for root in lookback.legacyRecursivePendingRootPaths.sorted() {
+            hasher.combine(root)
+        }
     }
 
     private static func codexHistoryCoverageIsEstablished(

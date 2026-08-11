@@ -98,6 +98,119 @@ extension CostUsageFetcherTests {
     }
 
     @Test
+    func `codex catch-up progress includes discovery and active lookback cursors`() async throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+
+        let options = CostUsageScanner.Options(
+            codexSessionsRoot: env.codexSessionsRoot,
+            cacheRoot: env.cacheRoot)
+        let rootPath = env.codexSessionsRoot.path
+        let firstPath = env.codexSessionsRoot.appendingPathComponent("first.jsonl").path
+        let secondPath = env.codexSessionsRoot.appendingPathComponent("second.jsonl").path
+        var cache = CostUsageCache()
+        cache.roots = CostUsageScanner.codexRootsFingerprint(options: options)
+        cache.codexScanCatchUpPending = true
+        cache.codexSessionDiscovery = CostUsageCodexSessionDiscovery(
+            roots: [rootPath],
+            generation: "generation",
+            directoryStamps: [:],
+            directoryPaths: [rootPath],
+            nextDirectoryIndex: 0,
+            filePaths: [firstPath, secondPath],
+            nextFileIndex: 0,
+            fileStamps: [:],
+            headScan: .init(path: firstPath, offset: 32, resumeState: nil),
+            filePathBySessionId: [:],
+            missingSessionIds: [],
+            pendingSessionIds: ["pending-session"],
+            validationDirectoryIndex: 0,
+            isComplete: false)
+        cache.codexActiveLookbackState = CostUsageCodexActiveLookbackState(
+            scanSinceKey: "2026-04-01",
+            rootPaths: [rootPath],
+            nextDayKeyByRoot: [rootPath: "2026-04-02"],
+            pendingFilePaths: [firstPath])
+        CostUsageStoreAccess.replace(cacheRoot: env.cacheRoot, cache: cache)
+
+        let fetcher = CostUsageFetcher(scannerOptions: options)
+        let baseline = await fetcher.codexScanCatchUpStatus()
+        let unchanged = await fetcher.codexScanCatchUpStatus()
+        #expect(unchanged.progressKey == baseline.progressKey)
+
+        var discovery = try #require(cache.codexSessionDiscovery)
+        discovery.headScan = .init(path: firstPath, offset: 64, resumeState: nil)
+        cache.codexSessionDiscovery = discovery
+        CostUsageStoreAccess.replace(cacheRoot: env.cacheRoot, cache: cache)
+        let advancedHead = await fetcher.codexScanCatchUpStatus()
+        #expect(advancedHead.progressKey != baseline.progressKey)
+
+        discovery.nextFileIndex = 1
+        discovery.headScan = nil
+        cache.codexSessionDiscovery = discovery
+        CostUsageStoreAccess.replace(cacheRoot: env.cacheRoot, cache: cache)
+        let advancedFile = await fetcher.codexScanCatchUpStatus()
+        #expect(advancedFile.progressKey != advancedHead.progressKey)
+
+        var lookback = try #require(cache.codexActiveLookbackState)
+        lookback.nextDayKeyByRoot[rootPath] = "2026-04-03"
+        cache.codexActiveLookbackState = lookback
+        CostUsageStoreAccess.replace(cacheRoot: env.cacheRoot, cache: cache)
+        let advancedLookback = await fetcher.codexScanCatchUpStatus()
+        #expect(advancedLookback.progressKey != advancedFile.progressKey)
+    }
+
+    @Test
+    func `codex catch-up progress includes buffered retry cursors`() async throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+
+        let day = try env.makeLocalNoon(year: 2026, month: 4, day: 8)
+        try Self.writeCodexSessionFile(
+            homeRoot: env.codexHomeRoot,
+            env: env,
+            day: day,
+            filename: "buffered.jsonl",
+            tokens: 42)
+        var options = CostUsageScanner.Options(
+            codexSessionsRoot: env.codexSessionsRoot,
+            cacheRoot: env.cacheRoot)
+        options.refreshMinIntervalSeconds = 0
+        _ = try await CostUsageFetcher.loadTokenSnapshot(
+            provider: .codex,
+            now: day,
+            historyDays: 1,
+            includePiSessions: false,
+            scannerOptions: options)
+
+        var cache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
+        let path = try #require(cache.files.keys.first)
+        var usage = try #require(cache.files[path])
+        usage.codexBufferedSubagentLines = [CostUsageScanner.CodexBufferedFastLine(
+            lineIndex: 1,
+            ordinal: 1,
+            endOffset: 64,
+            line: .taskStarted(turnID: "synthetic-turn"))]
+        cache.files[path] = usage
+        cache.codexScanCatchUpPending = true
+        CostUsageStoreAccess.replace(cacheRoot: env.cacheRoot, cache: cache)
+
+        let fetcher = CostUsageFetcher(scannerOptions: options)
+        let baseline = await fetcher.codexScanCatchUpStatus()
+
+        usage.codexBufferedSubagentLines = [CostUsageScanner.CodexBufferedFastLine(
+            lineIndex: 1,
+            ordinal: 1,
+            endOffset: 128,
+            line: .taskStarted(turnID: "synthetic-turn"))]
+        cache.files[path] = usage
+        CostUsageStoreAccess.replace(cacheRoot: env.cacheRoot, cache: cache)
+        let advancedBuffer = await fetcher.codexScanCatchUpStatus()
+
+        #expect(advancedBuffer.progressKey != baseline.progressKey)
+    }
+
+    @Test
     func `fetcher refreshes codex cache when legacy roots metadata is missing`() async throws {
         let env = try CostUsageTestEnvironment()
         defer { env.cleanup() }

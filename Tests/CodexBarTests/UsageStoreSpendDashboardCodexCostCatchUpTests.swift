@@ -58,6 +58,47 @@ struct UsageStoreSpendDashboardCodexCostCatchUpTests {
         #expect(store.spendDashboardCodexCostCatchUpActivity?.fractionCompleted == 1)
     }
 
+    @Test(arguments: [123, 248, 365])
+    func `dashboard catch-up accelerates the configured history window`(historyDays: Int) async throws {
+        let receivedHistoryDays = try await Self.receivedHistoryDays(
+            configuredHistoryDays: historyDays,
+            suite: "configured-\(historyDays)")
+
+        #expect(receivedHistoryDays == historyDays)
+    }
+
+    @Test(arguments: [1, 7, 29])
+    func `dashboard catch-up retains its thirty day floor`(historyDays: Int) async throws {
+        let receivedHistoryDays = try await Self.receivedHistoryDays(
+            configuredHistoryDays: historyDays,
+            suite: "floor-\(historyDays)")
+
+        #expect(receivedHistoryDays == SpendDashboardSource.scanDays)
+    }
+
+    @Test
+    func `changing the history window replaces the active catch-up context`() throws {
+        let store = try Self.makeStore(suite: "history-context")
+        let accounts = [Self.account(id: "account", cacheIdentity: "cache-account")]
+        store.settings.costUsageHistoryDays = 30
+        store._test_spendDashboardCodexCostCatchUpStatusOverride = { _ in
+            Self.status(pending: true, key: "pending", processedBytes: 25)
+        }
+        store._test_spendDashboardCodexCostCatchUpSleepOverride = { _ in
+            try await Task.sleep(for: .seconds(60))
+        }
+
+        store.startSpendDashboardCodexCostCatchUpIfNeeded(accounts: accounts, mode: .accelerated)
+        let originalToken = try #require(store.spendDashboardCodexCostCatchUpToken)
+
+        store.settings.costUsageHistoryDays = 123
+        store.synchronizeSpendDashboardCodexCostCatchUp(accounts: accounts)
+        let replacementToken = try #require(store.spendDashboardCodexCostCatchUpToken)
+
+        #expect(replacementToken != originalToken)
+        store.cancelSpendDashboardCodexCostCatchUp()
+    }
+
     @Test
     func `a stalled account cache does not prevent a sibling cache from advancing`() async throws {
         let store = try Self.makeStore(suite: "stalled-sibling")
@@ -157,6 +198,41 @@ struct UsageStoreSpendDashboardCodexCostCatchUpTests {
             settings: settings,
             startupBehavior: .testing,
             environmentBase: [:])
+    }
+
+    private static func receivedHistoryDays(
+        configuredHistoryDays: Int,
+        suite: String) async throws -> Int
+    {
+        let store = try Self.makeStore(suite: suite)
+        let account = Self.account(id: "account", cacheIdentity: "cache-account")
+        store.settings.costUsageHistoryDays = configuredHistoryDays
+        var completed = false
+        var receivedHistoryDays: Int?
+        store._test_spendDashboardCodexCostCatchUpStatusOverride = { _ in
+            Self.status(
+                pending: !completed,
+                key: completed ? "complete" : "pending",
+                processedBytes: completed ? 100 : 25)
+        }
+        store._test_spendDashboardCodexCostCatchUpAdvanceOverride = { _, _, historyDays in
+            receivedHistoryDays = historyDays
+            completed = true
+            return Self.status(pending: false, key: "complete", processedBytes: 100)
+        }
+        store._test_spendDashboardCodexCostCatchUpSleepOverride = { _ in
+            await Task.yield()
+        }
+        store._test_spendDashboardCodexCostCatchUpResourceStateOverride = {
+            (.battery, true, .serious)
+        }
+
+        store.startSpendDashboardCodexCostCatchUpIfNeeded(accounts: [account], mode: .accelerated)
+        await Self.waitUntil {
+            store.spendDashboardCodexCostCatchUpTask == nil
+        }
+
+        return try #require(receivedHistoryDays)
     }
 
     private static func account(id: String, cacheIdentity: String) -> CodexSpendScanRequest {
