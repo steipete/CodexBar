@@ -86,7 +86,7 @@ struct ReplicateCookieStrategyTests {
     }
 
     @Test
-    func `resolveAccount fails when account props missing`() {
+    func `resolveAccount treats missing account props as invalid credentials`() {
         let html = """
         <html><body><script type="application/json" id="react-component-props-empty">{"page":{}}</script></body></html>
         """
@@ -94,8 +94,38 @@ struct ReplicateCookieStrategyTests {
         #expect {
             _ = try ReplicateUsageFetcher.resolveAccount(fromBillingHTML: html)
         } throws: { error in
-            guard case ReplicateUsageError.parseFailed = error else { return false }
+            guard case ReplicateUsageError.invalidCredentials = error else { return false }
             return true
         }
+    }
+
+    @Test
+    func `resolveAccount treats missing props scripts as invalid credentials`() {
+        let html = "<html><body><h1>Sign in</h1></body></html>"
+
+        #expect {
+            _ = try ReplicateUsageFetcher.resolveAccount(fromBillingHTML: html)
+        } throws: { error in
+            guard case ReplicateUsageError.invalidCredentials = error else { return false }
+            return true
+        }
+    }
+
+    #if os(macOS)
+    @Test
+    func `descriptor defaults automatic cookie import to Chrome only`() {
+        #expect(ProviderDescriptorRegistry.descriptor(for: .replicate).metadata.browserCookieOrder == [.chrome])
+    }
+    #endif
+
+    @Test
+    func `manual cookie source exempts Linux web CLI gate`() {
+        let settings = ProviderSettingsSnapshot.make(
+            replicate: ReplicateProviderSettings(cookieSource: .manual, manualCookieHeader: "sessionid=abc"))
+        let descriptor = ProviderDescriptorRegistry.descriptor(for: .replicate)
+        #expect(descriptor.cli.isBrowserSupportExempt(
+            sourceMode: .auto,
+            environment: [:],
+            settings: settings))
     }
 }

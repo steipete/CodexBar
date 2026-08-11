@@ -38,19 +38,23 @@ public struct ReplicateUsageFetcher: Sendable {
         _ invoicesData: Data,
         creditData: Data? = nil,
         username: String? = nil,
+        accountKind: String? = nil,
         now: Date = Date()) throws -> ReplicateUsageSummary
     {
         try self.parseSummary(
             invoicesData: invoicesData,
             creditData: creditData,
             username: username,
+            accountKind: accountKind,
             now: now)
     }
 
     public static func resolveAccount(fromBillingHTML html: String) throws -> (kind: String, username: String) {
         let payloads = self.reactComponentPropsJSONData(fromHTML: html)
+        // Same-origin sign-in HTML often returns HTTP 200 without account props.
+        // Treat that as an expired/invalid session so automatic mode can refresh cookies.
         guard !payloads.isEmpty else {
-            throw ReplicateUsageError.parseFailed("Missing react-component-props JSON")
+            throw ReplicateUsageError.invalidCredentials
         }
 
         for data in payloads {
@@ -67,7 +71,7 @@ public struct ReplicateUsageFetcher: Sendable {
             }
         }
 
-        throw ReplicateUsageError.parseFailed("Missing account kind/username")
+        throw ReplicateUsageError.invalidCredentials
     }
 
     private static func performFetch(
@@ -111,6 +115,7 @@ public struct ReplicateUsageFetcher: Sendable {
             invoicesData: invoicesResponse.data,
             creditData: creditData,
             username: trimmedUsername,
+            accountKind: accountKind,
             now: now)
     }
 
@@ -175,6 +180,7 @@ public struct ReplicateUsageFetcher: Sendable {
         invoicesData: Data,
         creditData: Data?,
         username: String?,
+        accountKind: String?,
         now: Date) throws -> ReplicateUsageSummary
     {
         let invoicesResponse: ReplicateInvoicesResponse
@@ -194,6 +200,7 @@ public struct ReplicateUsageFetcher: Sendable {
             creditBalance: creditBalance,
             spendLimit: nil,
             username: username,
+            accountKind: accountKind,
             updatedAt: now)
     }
 

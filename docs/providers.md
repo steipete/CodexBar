@@ -423,7 +423,7 @@ provider-specific cookie validation, endpoints, login detection, and error trans
 
 ## Replicate
 - Session cookie (`sessionid`) from browser auto-import or manual `Cookie:` header.
-- Cookie import order: Chrome → Firefox → Safari. Other Chromium forks use Manual mode. Automatic import reads only unexpired cookies from `replicate.com`.
+- Automatic import is Chrome-only by default; Firefox, Safari, and other Chromium forks use Manual mode. Automatic import reads only unexpired cookies from `replicate.com`.
 - Bootstraps `account: { kind, username }` from billing page React props, then reads monthly spend from the invoices API and prepaid credit from the unused-credit API.
 - The menu bar shows current calendar-month spend in dollars; the provider card shows credit balance when available.
 - Spend limit is omitted in v1 (no confirmed JSON read API).

@@ -6,6 +6,8 @@ public struct ReplicateUsageSummary: Sendable {
     public let creditBalance: Double?
     public let spendLimit: Double?
     public let username: String?
+    /// Dashboard account kind: `"user"` or `"organization"`.
+    public let accountKind: String?
     public let updatedAt: Date
 
     public init(
@@ -14,6 +16,7 @@ public struct ReplicateUsageSummary: Sendable {
         creditBalance: Double?,
         spendLimit: Double?,
         username: String?,
+        accountKind: String? = nil,
         updatedAt: Date)
     {
         self.currentMonthSpend = currentMonthSpend
@@ -21,6 +24,7 @@ public struct ReplicateUsageSummary: Sendable {
         self.creditBalance = creditBalance
         self.spendLimit = spendLimit
         self.username = username
+        self.accountKind = accountKind
         self.updatedAt = updatedAt
     }
 
@@ -34,6 +38,12 @@ public struct ReplicateUsageSummary: Sendable {
             parts.append(Self.money(limit, code: self.currencyCode) + " limit")
         }
         let detail = parts.joined(separator: " · ")
+
+        let organizationName: String? = if self.accountKind?.lowercased() == "organization" {
+            self.username
+        } else {
+            nil
+        }
 
         return UsageSnapshot(
             primary: RateWindow(
@@ -53,7 +63,7 @@ public struct ReplicateUsageSummary: Sendable {
             identity: ProviderIdentitySnapshot(
                 providerID: UsageProvider.replicate.instanceID,
                 accountEmail: nil,
-                accountOrganization: self.username,
+                accountOrganization: organizationName,
                 loginMethod: nil),
             dataConfidence: .exact)
     }

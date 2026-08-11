@@ -55,13 +55,15 @@ struct ReplicateUsageFetcherTests {
         let summary = try ReplicateUsageFetcher._parseSummaryForTesting(
             Data(invoicesJSON.utf8),
             creditData: Data(creditJSON.utf8),
-            username: "demo")
+            username: "demo",
+            accountKind: "user")
 
         #expect(abs(summary.currentMonthSpend - 12.4) <= 0.0001)
         #expect(summary.currencyCode == "USD")
         #expect(summary.creditBalance == 80.0)
         #expect(summary.spendLimit == nil)
         #expect(summary.username == "demo")
+        #expect(summary.accountKind == "user")
 
         let usage = summary.toUsageSnapshot()
         #expect(usage.primary?.usedPercent == 0)
@@ -72,12 +74,23 @@ struct ReplicateUsageFetcherTests {
         #expect(usage.providerCost?.limit == 0)
         #expect(usage.providerCost?.balance == 80.0)
         #expect(usage.identity?.providerID == UsageProvider.replicate.instanceID)
-        #expect(usage.identity?.accountOrganization == "demo")
+        #expect(usage.identity?.accountOrganization == nil)
         #expect(usage.dataConfidence == .exact)
 
         let detail = usage.primary?.resetDescription ?? ""
         #expect(detail.contains("$12.40 spent this month"))
         #expect(detail.contains("$80.00 credit"))
+    }
+
+    @Test
+    func `organization account populates identity organization`() throws {
+        let summary = try ReplicateUsageFetcher._parseSummaryForTesting(
+            Data(Self.invoicesJSON.utf8),
+            username: "acme",
+            accountKind: "organization")
+
+        let usage = summary.toUsageSnapshot()
+        #expect(usage.identity?.accountOrganization == "acme")
     }
 
     @Test

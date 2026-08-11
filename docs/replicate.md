@@ -17,16 +17,16 @@ Replicate public API tokens cannot supply spend or credit data — CodexBar requ
 
 1. Open **Settings → Providers**.
 2. Enable **Replicate**.
-3. Sign in to [Replicate Billing](https://replicate.com/account/billing) in Chrome, Firefox, or Safari.
+3. Sign in to [Replicate Billing](https://replicate.com/account/billing) in Chrome (Automatic), or any browser if you
+   will paste a Manual Cookie header.
 4. Leave Cookie source on **Automatic**, or switch to **Manual** and paste a `Cookie:` header from a request to
    `replicate.com`.
 
 Manual cookies must include a Django-style `sessionid` cookie. A `csrftoken` cookie is imported when present but is not
 required for the read-only billing GET requests CodexBar makes.
 
-Automatic import tries Chrome, Firefox (including Developer Edition), then Safari. Safari requires Full Disk Access.
-Other Chromium browsers remain available through Manual mode. Automatic import reads only unexpired cookies from
-`replicate.com`.
+Automatic import is Chrome-only by default (to avoid extra Keychain / Full Disk Access prompts). Use Manual mode for
+Firefox, Safari, or other Chromium browsers. Automatic import reads only unexpired cookies from `replicate.com`.
 
 ## Data Sources
 
@@ -64,22 +64,19 @@ codexbar usage --provider replicate --verbose
 
 ### "No Replicate session cookies found"
 
-Sign in to [Replicate Billing](https://replicate.com/account/billing) in Chrome, Firefox, or Safari, then refresh.
+Sign in to [Replicate Billing](https://replicate.com/account/billing) in Chrome (Automatic) or paste a Manual Cookie
+header, then refresh.
 
 ### "Replicate cookie header is invalid"
 
 In manual mode, paste a full `Cookie:` header from a `replicate.com` request. The header must include a `sessionid`
-cookie.
+cookie. Manual mode also works on Linux CLI without browser import.
 
 ### HTTP 401/403 or "Replicate session rejected"
 
 The billing session expired or the cookie header is stale. Sign in again, copy a fresh `Cookie:` header, or let
-Automatic mode re-import from the browser.
-
-### Safari automatic import fails
-
-Grant CodexBar **Full Disk Access** in System Settings → Privacy & Security, then sign in to Replicate in Safari and
-refresh.
+Automatic mode re-import from Chrome (stale cached headers are cleared when the billing page returns a sign-in
+session).
 
 ### Credit balance is missing
 

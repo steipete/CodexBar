@@ -11,10 +11,11 @@ public enum ReplicateProviderDescriptor {
         requiresManualCookieSource: true,
         cookieName: nil))
 
-    /// Preserve Chrome-first behavior, then Firefox and Safari; other Chromium forks remain manual-only.
+    /// Chrome-only by default to avoid extra Firefox/Safari Keychain and Full Disk Access prompts.
+    /// Use Manual cookie source for other browsers.
     private static var browserCookieOrder: BrowserCookieImportOrder? {
         #if os(macOS)
-        [.chrome, .firefox, .safari]
+        [.chrome]
         #else
         nil
         #endif
@@ -69,7 +70,11 @@ public enum ReplicateProviderDescriptor {
             cli: ProviderCLIConfig(
                 name: "replicate",
                 aliases: ["r8"],
-                versionDetector: nil))
+                versionDetector: nil,
+                browserSupportExemption: { _, _, settings in
+                    // Manual Cookie headers use plain HTTPS and never import browser data.
+                    settings?.replicate?.cookieSource == .manual
+                }))
     }
 }
 
@@ -90,7 +95,7 @@ struct ReplicateWebFetchStrategy: ProviderFetchStrategy {
                 cookieHeader: session.cookieHeader,
                 timeout: context.webTimeout)
             return self.makeResult(usage: usage, sourceLabel: "web")
-        } catch ReplicateUsageError.invalidCredentials where cookieSource != .manual {
+        } catch let error as ReplicateUsageError where cookieSource != .manual && Self.shouldRefreshCachedSession(after: error) {
             #if os(macOS)
             CookieHeaderCache.clear(provider: .replicate)
             let excludedSourceLabels = if session.wasCached {
@@ -117,6 +122,17 @@ struct ReplicateWebFetchStrategy: ProviderFetchStrategy {
             #else
             throw ReplicateUsageError.invalidCredentials
             #endif
+        }
+    }
+
+    /// Expired sessions often return same-origin sign-in HTML with HTTP 200, which surfaces as
+    /// `invalidCredentials` from account resolution. Refresh automatic/cached cookies for that case.
+    private static func shouldRefreshCachedSession(after error: ReplicateUsageError) -> Bool {
+        switch error {
+        case .invalidCredentials:
+            true
+        default:
+            false
         }
     }
 
