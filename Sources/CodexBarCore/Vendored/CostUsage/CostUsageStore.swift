@@ -33,9 +33,10 @@ actor CostUsageStore {
         }
 
         /// macOS 26+ runtimes ask this before falling back to `checkIsolated()`, and the
-        /// default implementation cannot see through `DispatchQueue.sync` — so every
-        /// `assumeIsolated` in the sync bridges below trapped on launch even though the
-        /// work really was on this queue. A queue-specific token answers accurately.
+        /// default implementation cannot see through `DispatchQueue.sync`, so it reports a
+        /// false negative for work that really is on this queue. A queue-specific token
+        /// answers accurately. The requirement does not exist on earlier runtimes, which is
+        /// why the sync bridges below must not depend on any runtime isolation check.
         @available(macOS 26.0, *)
         func isIsolatingCurrentContext() -> Bool? {
             DispatchQueue.getSpecific(key: Self.queueKey) == ObjectIdentifier(self)
@@ -123,9 +124,36 @@ actor CostUsageStore {
 }
 
 extension CostUsageStore {
+    /// Isolation bridge for the synchronous scanner entry points below.
+    ///
+    /// The `sharedExecutor.sync` hop is what actually establishes isolation; `assumeIsolated`
+    /// only re-derives that same fact through the concurrency runtime. That re-derivation is
+    /// what kept trapping. A binary linked against a pre-Swift-6 SDK selects the runtime's
+    /// legacy executor check, and that path answers "not isolated" for a custom
+    /// `SerialExecutor` without ever consulting `checkIsolated()`. Shipped bundles are exactly
+    /// that — released `CodexBar.app` carries `LC_BUILD_VERSION sdk 14.0`, while a plain
+    /// `swift build` carries the current SDK and takes the modern path, so the trap reaches
+    /// users and never dev machines. macOS 26 escaped it only because that runtime asks
+    /// `isIsolatingCurrentContext()` first (#2803), which is why the trap survived there and
+    /// still fired on macOS 15.
+    ///
+    /// Dispatch's own queue assertion is authoritative on every OS and SDK combination, so
+    /// assert with that and then hand the actor over without re-asking the runtime. This is
+    /// exactly what `assumeIsolated` does once its check passes.
+    private nonisolated func assumingStoreIsolation<T>(
+        _ operation: (isolated CostUsageStore) throws -> T) rethrows -> T
+    {
+        Self.sharedExecutor.checkIsolated()
+        typealias Isolated = (isolated CostUsageStore) throws -> T
+        typealias Unisolated = (CostUsageStore) throws -> T
+        return try withoutActuallyEscaping(operation) { (operation: @escaping Isolated) throws -> T in
+            try unsafeBitCast(operation, to: Unisolated.self)(self)
+        }
+    }
+
     nonisolated func syncLoadCodexCache(calendar: Calendar) -> CostUsageCache {
         Self.sharedExecutor.sync {
-            self.assumeIsolated { store in
+            self.assumingStoreIsolation { store in
                 store.loadCodexCache(calendar: calendar)
             }
         }
@@ -140,7 +168,7 @@ extension CostUsageStore {
         fileBudgetBytes: Int64 = CostUsageStore.defaultFileBudgetBytes) -> CostUsageStoreBudgetResult
     {
         Self.sharedExecutor.sync {
-            self.assumeIsolated { store in
+            self.assumingStoreIsolation { store in
                 store.saveCodexCache(
                     cache,
                     calendar: calendar,
