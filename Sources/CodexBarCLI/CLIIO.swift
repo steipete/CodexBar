@@ -106,10 +106,11 @@ extension CodexBarCLI {
     }
 
     static func containingAppVersion(for executableURL: URL) -> String? {
-        var currentURL = executableURL.deletingLastPathComponent()
+        var currentURL = executableURL
         let fileManager = FileManager.default
 
-        while currentURL.pathComponents.count > 1 {
+        while let ancestorURL = Self.nextAncestor(from: currentURL) {
+            currentURL = ancestorURL
             if currentURL.pathExtension == "app" {
                 let infoURL = currentURL
                     .appendingPathComponent("Contents")
@@ -119,12 +120,17 @@ extension CodexBarCLI {
                 else { return nil }
                 return Self.normalizedBundleVersion(plist["CFBundleShortVersionString"] as? String)
             }
-            let parent = currentURL.deletingLastPathComponent()
-            guard parent.pathComponents.count < currentURL.pathComponents.count else { break }
-            currentURL = parent
         }
 
         return nil
+    }
+
+    static func nextAncestor(
+        from url: URL,
+        parentProvider: (URL) -> URL = { $0.deletingLastPathComponent() }) -> URL?
+    {
+        let parent = parentProvider(url)
+        return parent.pathComponents.count < url.pathComponents.count ? parent : nil
     }
 
     static func adjacentVersionFileVersion(for executableURL: URL) -> String? {

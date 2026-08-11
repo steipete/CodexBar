@@ -224,6 +224,25 @@ final class CLIEntryTests: XCTestCase {
         XCTAssertNil(CodexBarCLI.containingAppVersion(for: URL(fileURLWithPath: "/")))
     }
 
+    func test_nextAncestorRejectsNonDecreasingParents() {
+        let current = URL(fileURLWithPath: "/synthetic/current")
+        let candidates = [
+            URL(fileURLWithPath: "/distinct/sibling"),
+            URL(fileURLWithPath: "/synthetic/current/child"),
+        ]
+
+        for candidate in candidates {
+            var calls = 0
+            let ancestor = CodexBarCLI.nextAncestor(from: current) { _ in
+                calls += 1
+                return candidate
+            }
+
+            XCTAssertNil(ancestor)
+            XCTAssertEqual(calls, 1)
+        }
+    }
+
     func test_cliVersionFollowsSymlinkedHelper() throws {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("codexbar-cli-version-symlink-\(UUID().uuidString)", isDirectory: true)
