@@ -183,7 +183,7 @@ final class OverviewTokenAllocationScreenshotTests: XCTestCase {
             displayName: "OpenRouter",
             plan: "Tiny rate",
             tokens: 8_000_000,
-            cost: 0.001,
+            cost: 0.039,
             currencyCode: "USD",
             coveredDayCount: 30,
             metricTitle: "Credits",
