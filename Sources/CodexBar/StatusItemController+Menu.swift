@@ -662,19 +662,6 @@ extension StatusItemController {
         return true
     }
 
-    private func addOverviewEmptyState(to menu: NSMenu, enabledProviders: [UsageProvider]) {
-        let resolvedProviders = self.settings.resolvedMergedOverviewProviders(
-            activeProviders: enabledProviders,
-            maxVisibleProviders: Self.maxOverviewProviders)
-        let message = resolvedProviders.isEmpty
-            ? L("No providers selected for Overview.")
-            : L("No overview data available.")
-        let item = NSMenuItem(title: message, action: nil, keyEquivalent: "")
-        item.isEnabled = false
-        item.representedObject = "overviewEmptyState"
-        menu.addItem(item)
-    }
-
     private func addMenuCards(to menu: NSMenu, context: MenuCardContext, captureMenu: NSMenu? = nil) -> Bool {
         let fleetProjection = self.fleetAccountProjection(for: context.currentProvider)
         if self.addFleetFallback(fleetProjection, to: menu, context: context) {
