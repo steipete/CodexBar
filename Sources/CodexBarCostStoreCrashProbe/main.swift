@@ -8,7 +8,10 @@ import Foundation
 //
 // Usage: CodexBarCostStoreCrashProbe <seed|save|load|crash-save> <cacheRoot> [killAfterFiles]
 
-let arguments = CommandLine.arguments
+let arguments = CommandLine.arguments.filter {
+    $0 != CostUsageStoreExecutorTestControl.suppressCurrentContextArgument
+}
+
 guard arguments.count >= 3 else {
     FileHandle.standardError.write(Data("usage: <seed|save|load|crash-save> <cacheRoot> [killAfterFiles]\n".utf8))
     exit(64)

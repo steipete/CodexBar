@@ -4,7 +4,6 @@
 
 ### Fixed
 - CLI: stop standalone version lookup from walking past the filesystem root and hanging with unbounded memory on affected macOS versions (#2856). Thanks @Manwholikespie!
-- Cost store: stop the synchronous store bridges from trapping on macOS 15, where released builds died on every launch with “Incorrect actor executor assumption” — the macOS 26 fix in #2803 left earlier runtimes on the concurrency runtime's legacy executor check, which answers “not isolated” for a custom `SerialExecutor` without consulting `checkIsolated()`. Only shipped bundles reproduce it; a local `swift build` links against a newer SDK and takes the modern path.
 
 ## 0.49.2 — 2026-08-10
 

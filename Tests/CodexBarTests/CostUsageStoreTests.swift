@@ -14,11 +14,8 @@ struct CostUsageStoreTests {
     /// wrong takes the app down on launch with "Incorrect actor executor assumption", so the
     /// bridges have to stay callable from an ordinary non-actor thread.
     ///
-    /// This covers that, but it cannot reproduce the trap, and the reason is worth recording:
-    /// the concurrency runtime resolves its executor-check mode once per process from the
-    /// *main executable*, and `swift test` runs under Apple's `xctest`, which always selects
-    /// the modern path. `CostUsageStoreExecutorIsolationTests` pins the legacy mode in a
-    /// subprocess and is the test that actually fails when these bridges regress.
+    /// The subprocess coverage in `CostUsageStoreExecutorIsolationTests` exercises the legacy
+    /// runtime path that an in-process test cannot select.
     @Test
     func `sync bridges are callable from a plain thread`() throws {
         let fixture = try StoreFixture()
