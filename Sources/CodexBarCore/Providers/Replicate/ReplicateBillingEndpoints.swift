@@ -25,12 +25,12 @@ public enum ReplicateBillingEndpoints: Sendable {
     /// - `currencyCode`: USD implied when absent (amounts are string decimals).
     /// - Period: calendar month via `started_on` / `ended_before` on the draft monthly-usage invoice.
     public static func userInvoicesURL(username: String) -> URL {
-        Self.apiURL(pathComponents: ["api", "users", username, "invoices"])
+        self.apiURL(pathComponents: ["api", "users", username, "invoices"])
     }
 
     /// GET — org-scoped invoices (same response shape as user invoices).
     public static func organizationInvoicesURL(organizationName: String) -> URL {
-        Self.apiURL(pathComponents: ["api", "organizations", organizationName, "invoices"])
+        self.apiURL(pathComponents: ["api", "organizations", organizationName, "invoices"])
     }
 
     // MARK: - Unused credit (prepaid balance)
@@ -41,24 +41,24 @@ public enum ReplicateBillingEndpoints: Sendable {
     /// - **Credit balance** (`creditBalance`): `Number(unused_credit ?? "0")` (string number).
     /// - `link_to_add_credit` (optional URL string).
     public static func userUnusedCreditURL(username: String) -> URL {
-        Self.apiURL(pathComponents: ["api", "users", username, "unused-credit"])
+        self.apiURL(pathComponents: ["api", "users", username, "unused-credit"])
     }
 
     /// GET — org-scoped unused credit.
     public static func organizationUnusedCreditURL(organizationName: String) -> URL {
-        Self.apiURL(pathComponents: ["api", "organizations", organizationName, "unused-credit"])
+        self.apiURL(pathComponents: ["api", "organizations", organizationName, "unused-credit"])
     }
 
     // MARK: - Account bootstrap (later tasks)
 
-    /// Invoices/credit URLs require `{username}` and account kind (`user` vs `organization`).
-    /// Bootstrap strategy: with session cookies, GET `dashboardURLString` and parse
-    /// `<script type="application/json" id="react-component-props-...">` for
-    /// `account: { kind, username }` from signed-in page props.
-    ///
-    /// Spend limit: no JSON read API found in the frontend bundle — only POST/form routes
-    /// (`/users/{username}/settings/set-spend-limit`, `/orgs/{organization_name}/settings/set-spend-limit`).
-    /// Omit `spendLimit` for v1 unless a live capture proves a readable field.
+    // Invoices/credit URLs require `{username}` and account kind (`user` vs `organization`).
+    // Bootstrap strategy: with session cookies, GET `dashboardURLString` and parse
+    // `<script type="application/json" id="react-component-props-...">` for
+    // `account: { kind, username }` from signed-in page props.
+    //
+    // Spend limit: no JSON read API found in the frontend bundle — only POST/form routes
+    // (`/users/{username}/settings/set-spend-limit`, `/orgs/{organization_name}/settings/set-spend-limit`).
+    // Omit `spendLimit` for v1 unless a live capture proves a readable field.
 
     private static func apiURL(pathComponents: [String]) -> URL {
         var url = URL(string: Self.baseURLString)!
