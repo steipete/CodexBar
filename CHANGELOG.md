@@ -2,6 +2,9 @@
 
 ## 0.49.3 — Unreleased
 
+### Fixed
+- CLI: stop the version lookup from walking past the filesystem root — `deleteLastPathComponent()` appends `..` at `/` rather than staying put, so the loop's path-equality guard never tripped and a binary outside a `.app` spun a core while allocating without bound. `codexbar --help` from a plain build reached 1.2 GB in 11 seconds and never printed; the CLI test suites were timing out on it.
+
 ## 0.49.2 — 2026-08-10
 
 ### Fixed

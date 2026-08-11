@@ -109,7 +109,9 @@ extension CodexBarCLI {
         var currentURL = executableURL.deletingLastPathComponent()
         let fileManager = FileManager.default
 
-        while currentURL.path != currentURL.deletingLastPathComponent().path {
+        // `deleteLastPathComponent()` appends ".." at the filesystem root instead of staying
+        // put, so a path-equality guard never trips. Component counts strictly decrease.
+        while currentURL.pathComponents.count > 1 {
             if currentURL.pathExtension == "app" {
                 let infoURL = currentURL
                     .appendingPathComponent("Contents")
@@ -119,7 +121,9 @@ extension CodexBarCLI {
                 else { return nil }
                 return Self.normalizedBundleVersion(plist["CFBundleShortVersionString"] as? String)
             }
-            currentURL.deleteLastPathComponent()
+            let parent = currentURL.deletingLastPathComponent()
+            guard parent.pathComponents.count < currentURL.pathComponents.count else { break }
+            currentURL = parent
         }
 
         return nil
