@@ -2,6 +2,20 @@ import CodexBarCore
 import Foundation
 
 enum MenuBarDisplayText {
+    static func deepSeekBalanceText(snapshot: UsageSnapshot?) -> String? {
+        guard
+            let rawValue = snapshot?.primary?.resetDescription?
+                .trimmingCharacters(in: .whitespacesAndNewlines),
+                !rawValue.isEmpty,
+                rawValue.hasPrefix("$") || rawValue.hasPrefix("¥")
+        else {
+            return nil
+        }
+
+        let balance = rawValue.split(separator: " ", maxSplits: 1).first
+        return balance.map(String.init)
+    }
+
     static func percentText(window: RateWindow?, showUsed: Bool) -> String? {
         guard let window else { return nil }
         let percent = showUsed ? window.usedPercent : window.remainingPercent
@@ -11,7 +25,9 @@ enum MenuBarDisplayText {
     static func paceText(pace: UsagePace?) -> String? {
         guard let pace else { return nil }
         let deltaValue = Int(abs(pace.deltaPercent).rounded())
-        if deltaValue == 0 { return "0%" }
+        if deltaValue == 0 {
+            return "0%"
+        }
         let sign = pace.deltaPercent >= 0 ? "+" : "-"
         return "\(sign)\(deltaValue)%"
     }

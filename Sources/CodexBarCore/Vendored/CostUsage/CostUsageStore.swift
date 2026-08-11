@@ -13,9 +13,11 @@ import CSQLite3
 actor CostUsageStore {
     private final class StoreSerialExecutor: SerialExecutor, @unchecked Sendable {
         private let queue: DispatchQueue
+        private static let queueKey = DispatchSpecificKey<ObjectIdentifier>()
 
         init(label: String) {
             self.queue = DispatchQueue(label: label, qos: .utility)
+            self.queue.setSpecific(key: Self.queueKey, value: ObjectIdentifier(self))
         }
 
         func enqueue(_ job: consuming ExecutorJob) {
@@ -28,6 +30,15 @@ actor CostUsageStore {
 
         func checkIsolated() {
             dispatchPrecondition(condition: .onQueue(self.queue))
+        }
+
+        /// macOS 26+ runtimes ask this before falling back to `checkIsolated()`, and the
+        /// default implementation cannot see through `DispatchQueue.sync` — so every
+        /// `assumeIsolated` in the sync bridges below trapped on launch even though the
+        /// work really was on this queue. A queue-specific token answers accurately.
+        @available(macOS 26.0, *)
+        func isIsolatingCurrentContext() -> Bool? {
+            DispatchQueue.getSpecific(key: Self.queueKey) == ObjectIdentifier(self)
         }
 
         func sync<T>(_ operation: () throws -> T) rethrows -> T {

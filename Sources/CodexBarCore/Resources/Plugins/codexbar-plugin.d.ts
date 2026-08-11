@@ -5,7 +5,7 @@ type CodexBarEndpoint =
   | string
   | {
       setting: string;
-      policy: "https" | "https-or-loopback-http";
+      policy: "https" | "https-or-loopback-http" | "https-or-private-network-http";
     };
 
 type CodexBarAuth =
@@ -67,6 +67,7 @@ interface CodexBarDetailSection {
 }
 
 interface CodexBarUsageSnapshot {
+  /** At least one rate window, cost, non-empty detail section, or non-empty identity field is required. */
   primary?: CodexBarRateWindow | null;
   secondary?: CodexBarRateWindow | null;
   tertiary?: CodexBarRateWindow | null;
@@ -85,6 +86,7 @@ interface CodexBarHTTPRequestOptions {
 }
 
 interface CodexBarHTTPResponse {
+  /** `http-status` exposes non-2xx responses so the plugin can take over classification from the host. */
   status: number;
   headers: Readonly<Record<string, string>>;
 }
@@ -95,6 +97,22 @@ interface CodexBarHTTPJSONResponse<T = unknown> extends CodexBarHTTPResponse {
 
 interface CodexBarHTTPTextResponse extends CodexBarHTTPResponse {
   bodyText: string;
+}
+
+interface CodexBarRetryOptions {
+  /** Requests the same one delayed retry used automatically for transient HTTP statuses; the host clamps it to 10 seconds. */
+  retryAfterSeconds: number;
+}
+
+interface CodexBarFailures {
+  authenticationExpired(message: unknown): Error;
+  missingCredential(message: unknown): Error;
+  permissionDenied(message: unknown): Error;
+  rateLimited(message: unknown, options?: CodexBarRetryOptions): Error;
+  providerUnavailable(message: unknown, options?: CodexBarRetryOptions): Error;
+  parseFailure(message: unknown): Error;
+  networkFailure(message: unknown, options?: CodexBarRetryOptions): Error;
+  apiFailure(message: unknown, options?: CodexBarRetryOptions): Error;
 }
 
 interface CodexBarPluginContext {
@@ -129,19 +147,7 @@ interface CodexBarPluginContext {
     usd(value: number): string;
     monthDay(value: Date | number | string): string;
   };
-  readonly fail: Readonly<
-    Record<
-      | "authenticationExpired"
-      | "missingCredential"
-      | "permissionDenied"
-      | "rateLimited"
-      | "providerUnavailable"
-      | "parseFailure"
-      | "networkFailure"
-      | "apiFailure",
-      (message: unknown) => Error
-    >
-  >;
+  readonly fail: Readonly<CodexBarFailures>;
   readonly env: {
     readonly timeZone: string;
   };
@@ -164,7 +170,8 @@ interface CodexBarProviderDefinition {
   endpoints: CodexBarEndpoint[];
   auth?: CodexBarAuth;
   settings: CodexBarSetting[];
-  capabilities?: Array<"browser-cookies">;
+  /** Grants declared browser-cookie access or lets the plugin observe and classify non-2xx HTTP responses. */
+  capabilities?: Array<"browser-cookies" | "http-status">;
   cookieDomains?: string[];
   fetchUsage(ctx: CodexBarPluginContext): CodexBarUsageSnapshot | Promise<CodexBarUsageSnapshot>;
 }

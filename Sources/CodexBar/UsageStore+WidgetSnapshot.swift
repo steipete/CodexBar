@@ -64,6 +64,7 @@ extension UsageStore {
         }
     }
 
+    /// Builds outbound snapshots only from this Mac's UsageStore; remote fleet snapshots live in CloudSyncState.
     func cloudSyncAccountSnapshots() -> [AccountSnapshotSyncPayload] {
         let deviceID = self.settings.iCloudSyncDeviceID
         var payloads: [String: AccountSnapshotSyncPayload] = [:]
@@ -119,12 +120,14 @@ extension UsageStore {
     }
 
     func cloudSyncLocalAccountKeys(for provider: UsageProvider) -> Set<String> {
-        var identities: Set<String> = []
+        let snapshotKeys = self.cloudSyncAccountSnapshots().filter { $0.provider == provider.instanceID }
+            .map(\.accountKey)
+        var identities = Set(snapshotKeys)
+        var hasDefaultCodexSnapshot = false
         func insert(_ identity: String?) {
             guard let identity else { return }
             identities.insert(AccountSnapshotSyncPayload.accountKey(for: identity))
         }
-
         if let usage = self.snapshots[provider.instanceID] {
             insert(usage.identity?.accountID ?? usage.identity?.accountEmail)
         }
@@ -138,7 +141,7 @@ extension UsageStore {
             insert(account.externalIdentifier)
             insert(account.id.uuidString)
         }
-        // Provider-specific by design: Claude swap subprocesses and Codex managed profiles own extra account IDs.
+        // Provider-specific by design: Claude swap subprocesses own extra IDs; Codex alone has scoped account info.
         if provider == .claude {
             for accountSnapshot in self.claudeSwapAccountSnapshots {
                 insert(accountSnapshot.snapshot?.identity?.accountID)
@@ -146,17 +149,18 @@ extension UsageStore {
                 insert("\(accountSnapshot.id.source):\(accountSnapshot.id.opaqueID)")
             }
         }
-        if provider == .codex,
-           let projection = self.settings.codexVisibleAccountProjectionForMenuDisplay
-        {
-            for account in projection.visibleAccounts {
-                insert(account.workspaceAccountID)
-                insert(account.email)
-                insert(account.id)
-                insert(account.storedAccountID?.uuidString)
+        if provider == .codex {
+            if let projection = self.settings.codexVisibleAccountProjectionForMenuDisplay {
+                for account in projection.visibleAccounts {
+                    insert(account.workspaceAccountID)
+                    insert(account.email)
+                    insert(account.id)
+                    insert(account.storedAccountID?.uuidString)
+                }
             }
+            hasDefaultCodexSnapshot = snapshotKeys.contains(AccountSnapshotSyncPayload.accountKey(for: nil))
         }
-        if identities.isEmpty {
+        if identities.isEmpty || hasDefaultCodexSnapshot {
             let fallback = self.accountInfo(for: provider)
             insert(fallback.email)
         }

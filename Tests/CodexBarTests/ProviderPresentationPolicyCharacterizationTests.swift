@@ -114,7 +114,8 @@ struct ProviderPresentationPolicyCharacterizationTests {
             (.notion, nil, false),
             (.notion, 360, true),
             (.notion, 361, false),
-            (.zai, 300, false),
+            (.zai, 300, true),
+            (.zai, 301, false),
         ]
 
         for (provider, minutes, expected) in fixtures {
@@ -126,6 +127,24 @@ struct ProviderPresentationPolicyCharacterizationTests {
             #expect(
                 (UsagePaceText.sessionPace(provider: provider, window: window, now: self.now) != nil) == expected,
                 "Unexpected session pace eligibility for \(provider.rawValue):\(String(describing: minutes))")
+        }
+    }
+
+    @Test
+    func `binding quota lanes are pinned for every provider`() {
+        let weekly: Set<UsageProvider> = [
+            .alibaba, .alibabatokenplan, .chutes, .claude, .clinepass, .commandcode,
+            .doubao, .qwencloud, .stepfun, .zai, .zenmux,
+        ]
+        let monthly: Set<UsageProvider> = [.alibaba, .clinepass, .doubao]
+
+        for provider in UsageProvider.allCases {
+            var expected: Set<ProviderUsageLane> = []
+            if weekly.contains(provider) { expected.insert(.secondary) }
+            if monthly.contains(provider) { expected.insert(.tertiary) }
+            let actual = ProviderDescriptorRegistry.descriptor(for: provider)
+                .presentation.primaryBindingQuotaLanes
+            #expect(actual == expected, "Unexpected binding quota lanes for \(provider.rawValue)")
         }
     }
 

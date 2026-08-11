@@ -196,6 +196,7 @@ public enum ClaudeProviderDescriptor {
                     return series
                 },
                 secondaryGloballyCapsPrimary: true,
+                primaryBindingQuotaLanes: [.secondary],
                 menuCard: ProviderMenuCardPresentation(
                     costVisibilityResolver: { context in
                         context.showOptionalUsage || context.snapshot?.loginMethod(for: .claude) == "Admin API"
@@ -966,11 +967,18 @@ struct ClaudeCLIFetchStrategy: ProviderFetchStrategy {
     let hasWebFallback: Bool
 
     func isAvailable(_ context: ProviderFetchContext) async -> Bool {
-        // Claude's "auth status" command is an opaque child process that may invoke /usr/bin/security itself.
-        // CodexBar cannot impose its no-UI policy on that child, so background Auto refresh must not launch it
-        // unless the user explicitly opted into Keychain access for background work.
-        let isBackgroundAppRefresh = context.runtime == .app
-            && ProviderInteractionContext.current == .background
+        guard let binary = ClaudeCLIResolver.resolvedBinaryPath(environment: context.env) else { return false }
+
+        if context.runtime == .cli {
+            // A CodexBarCLI invocation is already an explicit user action. Preserve the definitive logged-out guard,
+            // but do not let an unavailable credential-reading `auth status` child override the owner CLI's ability
+            // to provide usage. The app keeps the stricter marker policy below for prompt-free scheduled refreshes.
+            return await ClaudeCLIAuthStatusProbe.authenticationStatus(
+                binary: binary,
+                environment: context.env) != .loggedOut
+        }
+
+        let isBackgroundAppRefresh = ProviderInteractionContext.current == .background
         // Explicit OAuth may recover through the interactive owner CLI only from a user action. A scheduled
         // refresh with missing credentials must remain on the selected OAuth authority and fail without UI.
         if isBackgroundAppRefresh, context.sourceMode == .oauth {
@@ -983,18 +991,13 @@ struct ClaudeCLIFetchStrategy: ProviderFetchStrategy {
             // `claude auth status`. Background Auto therefore reuses only availability established by a
             // successful user-initiated CLI fetch in this process. The narrow exception is the owner usage
             // fetch when Keychain access is explicitly disabled; version/auth children retain the global gate.
-            guard let binary = ClaudeCLIResolver.resolvedBinaryPath(environment: context.env) else { return false }
             return ClaudeCLIBackgroundAvailability.allowsBackgroundAutoUsageFetch(
                 binary: binary,
                 environment: context.env)
         }
 
-        // The interactive Claude REPL can open browser OAuth when it starts logged out. CLI-runtime paths
-        // establish authentication through the noninteractive status command first. App user
-        // actions intentionally launch the interactive path directly so the user can complete authentication.
-        guard let binary = ClaudeCLIResolver.resolvedBinaryPath(environment: context.env) else { return false }
-        guard context.runtime == .cli else { return true }
-        return await ClaudeCLIAuthStatusProbe.isLoggedIn(binary: binary, environment: context.env)
+        // App user actions intentionally launch the interactive path directly so the user can complete authentication.
+        return true
     }
 
     func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {

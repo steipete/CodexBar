@@ -53,6 +53,19 @@ public enum DeepInfraProviderDescriptor {
                 supportsTokenCost: false,
                 noDataMessage: { "DeepInfra per-request cost history is not available in CodexBar." }),
             presentation: ProviderUsagePresentation(
+                menuBarWindowResolver: { context in
+                    guard context.metric == .automatic,
+                          let cost = context.snapshot.providerCost,
+                          cost.used.isFinite,
+                          cost.limit.isFinite,
+                          cost.limit > 0
+                    else { return .unhandled }
+                    return .resolved(RateWindow(
+                        usedPercent: min(100, max(0, cost.used / cost.limit * 100)),
+                        windowMinutes: nil,
+                        resetsAt: cost.resetsAt,
+                        resetDescription: nil))
+                },
                 menuCard: ProviderMenuCardPresentation(
                     showsPrimaryBalanceDescription: true,
                     hidesPrimaryResetWithoutDate: true,

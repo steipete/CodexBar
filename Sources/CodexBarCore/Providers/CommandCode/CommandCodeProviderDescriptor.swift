@@ -44,6 +44,8 @@ public enum CommandCodeProviderDescriptor {
                 supportsTokenCost: false,
                 noDataMessage: { "Command Code cost summary is not yet supported." }),
             pace: .calendarMonthResetWindow,
+            presentation: ProviderUsagePresentation(
+                primaryBindingQuotaLanes: [.secondary]),
             fetchPlan: ProviderFetchPlan(
                 sourceModes: [.auto, .web],
                 pipeline: ProviderFetchPipeline(resolveStrategies: { _ in [CommandCodeWebFetchStrategy()] })),

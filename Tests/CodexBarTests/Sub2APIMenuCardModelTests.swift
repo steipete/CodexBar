@@ -97,9 +97,66 @@ struct Sub2APIMenuCardModelTests {
 
         #expect(model.planText == "Enterprise")
         #expect(model.usageNotes.isEmpty)
-        #expect(model.providerDetails.first?.rows.map(\.label) == [
-            "Balance", "Today requests", "Today tokens", "All time requests", "All time tokens",
-        ])
+        let usage = try #require(model.providerDetails.first)
+        #expect(usage.title == "Usage")
+        #expect(usage.rows.map(\.label) == ["Balance", "Today", "Total"])
+        #expect(usage.rows[1].value == "4 requests")
+        #expect(usage.rows[1].secondaryValue == "1,200 tokens · Cost: $1.25")
+        #expect(usage.rows[2].value == "40 requests")
+        #expect(usage.rows[2].secondaryValue == "12,000 tokens · Cost: $25.00")
+    }
+
+    @Test
+    func `usage summary and quota labels follow the selected language`() async throws {
+        let now = Date(timeIntervalSince1970: 1_720_440_000)
+        let json = """
+        {
+          "mode": "unrestricted",
+          "subscription": {
+            "daily_usage_usd": 12,
+            "weekly_usage_usd": 70,
+            "monthly_usage_usd": 280,
+            "daily_limit_usd": 120,
+            "weekly_limit_usd": 700,
+            "monthly_limit_usd": 2800
+          },
+          "usage": {
+            "today": { "requests": 4, "total_tokens": 1200, "actual_cost": 1.25 },
+            "total": { "requests": 40, "total_tokens": 12000, "actual_cost": 25 }
+          }
+        }
+        """
+        let snapshot = try await Self.snapshot(json, now: now)
+        let metadata = try #require(ProviderDefaults.metadata[.sub2api])
+
+        let model = CodexBarLocalizationOverride.$appLanguage.withValue("zh-Hans") {
+            UsageMenuCardView.Model.make(.init(
+                provider: .sub2api,
+                metadata: metadata,
+                snapshot: snapshot,
+                credits: nil,
+                creditsError: nil,
+                dashboard: nil,
+                dashboardError: nil,
+                tokenSnapshot: nil,
+                tokenError: nil,
+                account: AccountInfo(email: nil, plan: nil),
+                isRefreshing: false,
+                lastError: nil,
+                usageBarsShowUsed: false,
+                resetTimeDisplayStyle: .countdown,
+                tokenCostUsageEnabled: false,
+                showOptionalCreditsAndExtraUsage: true,
+                hidePersonalInfo: false,
+                now: now))
+        }
+
+        #expect(model.metrics.map(\.title) == ["每日配额", "每周", "每月"])
+        let usage = try #require(model.providerDetails.first)
+        #expect(usage.title == "用量")
+        #expect(usage.rows.map(\.label) == ["今日", "总计"])
+        #expect(usage.rows[0].value == "4 请求")
+        #expect(usage.rows[0].secondaryValue == "1,200 token · 费用: $1.25")
     }
 
     @Test

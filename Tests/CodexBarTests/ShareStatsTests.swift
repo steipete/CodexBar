@@ -48,7 +48,8 @@ struct ShareStatsTests {
         #expect(text.contains("Claude · Max: 300 tokens · ~£12.00 est · 10/30 days"))
         #expect(text.contains("USD: ~$4.00 estimated · coverage 0/30 days"))
         #expect(text.contains("Cursor · Cursor Pro: Spend unavailable"))
-        #expect(text.contains("2/3 connected services report spend"))
+        #expect(text.contains("2/3 tracked services report spend"))
+        #expect(!text.contains("connected services"))
         #expect(!text.contains("£12.00 +"))
     }
 
@@ -72,7 +73,9 @@ struct ShareStatsTests {
         #expect(payload.totalTokensIsPartial)
         #expect(payload.currencies.allSatisfy { currency in currency.isPartial })
         #expect(ShareStatsFormatting.text(payload).contains("~500 tracked tokens"))
-        #expect(ShareStatsFormatting.text(payload).contains("2/6 connected services report spend"))
+        let sharedText = ShareStatsFormatting.text(payload)
+        #expect(sharedText.contains("2/6 tracked services report spend"))
+        #expect(!sharedText.contains("connected services"))
     }
 
     @Test

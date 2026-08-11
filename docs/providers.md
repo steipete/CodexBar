@@ -445,7 +445,7 @@ provider-specific cookie validation, endpoints, login detection, and error trans
 - API key via `DEEPINFRA_API_KEY` / `DEEPINFRA_TOKEN` env var or DeepInfra token accounts.
 - Reads prepaid balance, current billing-cycle spend, spending limit, and account suspension state from the billing checklist endpoint.
 - Reads current-month spend from the billing usage endpoint.
-- The automatic menu-bar metric shows the available balance; the provider card shows balance text rather than an inferred percentage, plus real spending-limit progress when configured.
+- The automatic menu-bar metric shows billing-cycle spend against a positive spending limit when available, otherwise it keeps the balance-health indicator; the provider card continues to show balance text plus real spending-limit progress when configured.
 - Status: `https://status.deepinfra.com` (link only, no auto-polling).
 - Details: `docs/deepinfra.md`.
 

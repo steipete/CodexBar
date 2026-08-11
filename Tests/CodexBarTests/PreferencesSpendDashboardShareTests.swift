@@ -75,7 +75,9 @@ struct PreferencesSpendDashboardShareTests {
         let allCurrenciesArePartial = payload.currencies.allSatisfy(\.isPartial)
         #expect(allCurrenciesArePartial)
         #expect(payload.totalTokensIsPartial)
-        #expect(ShareStatsFormatting.text(payload).contains("1/3 connected services report spend"))
+        let sharedText = ShareStatsFormatting.text(payload)
+        #expect(sharedText.contains("1/3 tracked services report spend"))
+        #expect(!sharedText.contains("connected services"))
     }
 
     @Test

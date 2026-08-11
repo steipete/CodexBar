@@ -9,6 +9,48 @@ import CSQLite3
 #endif
 
 struct CostUsageStoreTests {
+    /// The store actor runs on a custom DispatchQueue-backed `SerialExecutor`, and its
+    /// `sync*` bridges call `assumeIsolated` from inside `queue.sync`. macOS 26+ runtimes
+    /// verify that through `SerialExecutor.isIsolatingCurrentContext()`, whose default
+    /// implementation cannot see through `DispatchQueue.sync` — without an explicit
+    /// implementation the bridge traps ("Incorrect actor executor assumption") and the app
+    /// dies on launch.
+    ///
+    /// This covers the bridges from a non-actor thread. Note it does not by itself
+    /// reproduce the trap: whether `assumeIsolated` traps depends on the calling context's
+    /// current executor, and no test-harness context reproduced it (plain thread, Task, and
+    /// MainActor were all tried). The regression was verified against the app itself —
+    /// it died on launch with "Incorrect actor executor assumption" and starts cleanly now.
+    @Test
+    func `sync bridges are callable from a plain thread`() throws {
+        let fixture = try StoreFixture()
+        defer { fixture.remove() }
+        let store = CostUsageStore(cacheRoot: fixture.root)
+
+        final class Outcome: @unchecked Sendable {
+            var loadedScanStamp: Int64?
+            var savedRowCount: Int?
+        }
+        let outcome = Outcome()
+        let finished = DispatchSemaphore(value: 0)
+
+        let thread = Thread {
+            let loaded = store.syncLoadCodexCache(calendar: .current)
+            outcome.loadedScanStamp = loaded.lastScanUnixMs
+            let saved = store.syncSaveCodexCache(
+                loaded,
+                calendar: .current,
+                requestedScanWindow: (sinceKey: "2026-08-01", untilKey: "2026-08-03"))
+            outcome.savedRowCount = saved.rowCount
+            finished.signal()
+        }
+        thread.start()
+
+        #expect(finished.wait(timeout: .now() + 10) == .success)
+        #expect(outcome.loadedScanStamp == 0)
+        #expect((outcome.savedRowCount ?? -1) >= 0)
+    }
+
     @Test
     func `database lives beside the legacy artifact directory`() throws {
         let fixture = try StoreFixture()
@@ -173,6 +215,147 @@ extension CostUsageStoreTests {
 
         #expect(await store.appendTokenSnapshots([snapshot]))
         #expect(await store.fetchTokenSnapshots(path: file.path) == [snapshot])
+    }
+
+    @Test
+    func `persistence planner materializes only the delta and store preserves absolute indexes`() async throws {
+        var transformedIndexes: [Int] = []
+
+        func materialize(
+            _ action: CostUsagePersistenceAction,
+            source: [Int]) -> [Int]
+        {
+            transformedIndexes = []
+            return action.materialize(source) { index, value in
+                transformedIndexes.append(index)
+                return value
+            }
+        }
+
+        let initialAction = CostUsagePersistencePlanner.action(
+            canReuse: false,
+            stableCursor: false,
+            appendSafe: false,
+            persistedCount: 0,
+            sourceCount: 2)
+        #expect(initialAction == .replace)
+        #expect(materialize(initialAction, source: [10, 20]) == [10, 20])
+        #expect(transformedIndexes == [0, 1])
+
+        let stableAction = CostUsagePersistencePlanner.action(
+            canReuse: true,
+            stableCursor: true,
+            appendSafe: false,
+            persistedCount: 2,
+            sourceCount: 2)
+        #expect(stableAction == .reuse)
+        #expect(materialize(stableAction, source: [10, 20]).isEmpty)
+        #expect(transformedIndexes.isEmpty)
+
+        let appendAction = CostUsagePersistencePlanner.action(
+            canReuse: true,
+            stableCursor: false,
+            appendSafe: true,
+            persistedCount: 2,
+            sourceCount: 3)
+        #expect(appendAction == .append(startingAt: 2))
+        #expect(materialize(appendAction, source: [10, 20, 30]) == [30])
+        #expect(transformedIndexes == [2])
+
+        let replacementAction = CostUsagePersistencePlanner.action(
+            canReuse: true,
+            stableCursor: false,
+            appendSafe: false,
+            persistedCount: 3,
+            sourceCount: 2)
+        #expect(replacementAction == .replace)
+        #expect(materialize(replacementAction, source: [40, 50]) == [40, 50])
+        #expect(transformedIndexes == [0, 1])
+
+        let fixture = try StoreFixture()
+        defer { fixture.remove() }
+        let store = CostUsageStore(cacheRoot: fixture.root)
+        let path = "/rollouts/delta.jsonl"
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try #require(TimeZone(secondsFromGMT: 0))
+
+        func token(_ index: Int) -> CostUsageCodexTokenSnapshot {
+            CostUsageCodexTokenSnapshot(
+                timestamp: "2026-08-01T12:00:0\(index)Z",
+                last: CostUsageCodexTotals(input: index + 1, cached: 0, output: 1),
+                total: CostUsageCodexTotals(input: (index + 1) * 10, cached: 0, output: index + 1),
+                endOffset: Int64(100 + index))
+        }
+
+        func row(_ index: Int) -> CostUsageScanner.CodexUsageRow {
+            CostUsageScanner.CodexUsageRow(
+                day: "2026-08-01",
+                model: "model-\(index)",
+                turnID: "turn-\(index)",
+                eventIndex: index,
+                timestampUnixMs: Int64(1_754_046_000_000 + index),
+                input: index + 1,
+                cached: 0,
+                output: 1)
+        }
+
+        var usage = CostUsageFileUsage(
+            mtimeUnixMs: 1000,
+            size: 200,
+            days: ["2026-08-01": ["model-0": [1, 0, 1]]])
+        usage.parsedBytes = 200
+        usage.codexScanFileId = "1:42"
+        usage.codexScanComplete = true
+        usage.codexTokenTimestampsMonotonic = true
+        usage.codexTokenSnapshots = [token(0), token(1)]
+        usage.codexRows = [row(0), row(1)]
+
+        var cache = CostUsageCache()
+        cache.scanSinceKey = "2026-08-01"
+        cache.scanUntilKey = "2026-08-01"
+        cache.files = [path: usage]
+        cache.days = usage.days
+
+        func save() {
+            _ = store.syncSaveCodexCache(
+                cache,
+                calendar: calendar,
+                requestedScanWindow: (sinceKey: "2026-08-01", untilKey: "2026-08-01"))
+        }
+
+        save()
+        save()
+
+        usage.parsedBytes = 300
+        usage.size = 300
+        usage.codexTokenSnapshots = [token(0), token(1), token(2)]
+        usage.codexRows = [row(0), row(1), row(2)]
+        cache.files[path] = usage
+        save()
+
+        #expect(await store.fetchTokenSnapshots(path: path).map(\.eventIndex) == [0, 1, 2])
+        let appendedRows = await store.fetchUsageRows(path: path)
+        #expect(appendedRows.map(\.rowIndex) == [0, 1, 2])
+        #expect(try appendedRows.map {
+            try JSONDecoder().decode(CostUsageScanner.CodexUsageRow.self, from: $0.payload)
+        } == usage.codexRows)
+
+        usage.parsedBytes = 400
+        usage.size = 400
+        usage.codexScanFileId = "2:99"
+        usage.codexTokenSnapshots = [token(3), token(4)]
+        usage.codexRows = [row(3), row(4)]
+        cache.files[path] = usage
+        save()
+
+        let replacedSnapshots = await store.fetchTokenSnapshots(path: path)
+        #expect(replacedSnapshots.map(\.eventIndex) == [0, 1])
+        #expect(replacedSnapshots.map(\.timestamp) == usage.codexTokenSnapshots?.map(\.timestamp))
+        let replacedRows = await store.fetchUsageRows(path: path)
+        #expect(replacedRows.map(\.rowIndex) == [0, 1])
+        #expect(try replacedRows.map {
+            try JSONDecoder().decode(CostUsageScanner.CodexUsageRow.self, from: $0.payload)
+        } == usage.codexRows)
     }
 
     @Test

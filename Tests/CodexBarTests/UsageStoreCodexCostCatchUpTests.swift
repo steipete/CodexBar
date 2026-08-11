@@ -45,7 +45,7 @@ struct UsageStoreCodexCostCatchUpTests {
         #expect(advanceCount == 2)
         #expect(statusLoadCount == 2)
         #expect(snapshotLoadCount == 2)
-        #expect(sleepDurations.first == 8)
+        #expect(sleepDurations.first == 1998)
         #expect(store.tokenSnapshot(for: .codex)?.last30DaysCostUSD == 2)
         #expect(store.tokenSnapshotPublicationRevision(for: .codex) == 2)
         #expect(store.tokenError(for: .codex) == nil)

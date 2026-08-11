@@ -590,6 +590,35 @@ package final class SpawnedProcessGroup: @unchecked Sendable {
         return self.finishSynchronously()
     }
 
+    /// Abort a process whose output channel is no longer safe to inspect.
+    ///
+    /// Unlike normal cleanup, this deliberately avoids the system-wide output-holder scan. The caller closes
+    /// the output descriptor first, then this method targets only the launch process tree and dedicated process
+    /// group so TERM-to-KILL escalation remains bounded even when process enumeration is slow under load.
+    @discardableResult
+    package func abortSynchronously(grace: TimeInterval = 0.4) -> Int32? {
+        let grace = max(0, grace)
+        let termDeadline = Date().addingTimeInterval(grace)
+        var processIdentities = self.currentAbortProcessIdentities()
+
+        self.signalOwnedProcessGroup(SIGTERM)
+        Self.signal(processIdentities: processIdentities, signal: SIGTERM)
+
+        while self.abortTargetsRemain(processIdentities), Date() < termDeadline {
+            usleep(20000)
+        }
+
+        processIdentities.formUnion(self.currentAbortProcessIdentities())
+        self.signalOwnedProcessGroup(SIGKILL)
+        Self.signal(processIdentities: processIdentities, signal: SIGKILL)
+
+        let killDeadline = Date().addingTimeInterval(grace)
+        while self.abortTargetsRemain(processIdentities), Date() < killDeadline {
+            usleep(20000)
+        }
+        return self.finishSynchronously()
+    }
+
     @discardableResult
     package func finishSynchronously(timeout: TimeInterval = 1) -> Int32? {
         self.termination.requestReap()
@@ -751,6 +780,35 @@ package final class SpawnedProcessGroup: @unchecked Sendable {
                     .compactMap(TTYProcessTreeTerminator.processIdentity(for:)))
         }
         return identities
+    }
+
+    private func currentAbortProcessIdentities() -> Set<TTYProcessTreeTerminator.ProcessIdentity> {
+        var identities = self.observedProcessGroupMembers.snapshot
+        identities.formUnion(self.currentProcessGroupMemberIdentities())
+        guard let rootIdentity = self.rootIdentity,
+              TTYProcessTreeTerminator.isCurrent(rootIdentity)
+        else {
+            return identities
+        }
+
+        identities.insert(rootIdentity)
+        identities.formUnion(
+            TTYProcessTreeTerminator.descendantPIDs(of: self.pid)
+                .compactMap(TTYProcessTreeTerminator.processIdentity(for:)))
+        return identities
+    }
+
+    private func signalOwnedProcessGroup(_ signal: Int32) {
+        guard let rootIdentity = self.rootIdentity,
+              TTYProcessTreeTerminator.isCurrent(rootIdentity)
+        else { return }
+        _ = kill(-self.processGroup, signal)
+    }
+
+    private func abortTargetsRemain(
+        _ processIdentities: Set<TTYProcessTreeTerminator.ProcessIdentity>) -> Bool
+    {
+        processIdentities.contains(where: TTYProcessTreeTerminator.isCurrent(_:)) || self.hasResidualProcessGroup
     }
 
     private func currentOutputHolderIdentities() -> Set<TTYProcessTreeTerminator.ProcessIdentity> {

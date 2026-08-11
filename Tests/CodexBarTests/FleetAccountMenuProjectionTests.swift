@@ -41,6 +41,49 @@ struct FleetAccountMenuProjectionTests {
     }
 
     @Test
+    func `genuinely distinct remote account remains beside local usage`() {
+        let settings = testSettingsStore(suiteName: "FleetAccountMenuProjectionTests-distinct-remote")
+        let store = UsageStore(
+            fetcher: UsageFetcher(environment: [:]),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings,
+            startupBehavior: .testing,
+            environmentBase: [:])
+        let localIdentity = "local-account"
+        let localKey = AccountSnapshotSyncPayload.accountKey(for: localIdentity)
+        let distinctKey = AccountSnapshotSyncPayload.accountKey(for: "remote-account")
+        store.snapshots[.codex] = UsageSnapshot(
+            primary: RateWindow(
+                usedPercent: 25,
+                windowMinutes: 300,
+                resetsAt: nil,
+                resetDescription: nil),
+            secondary: nil,
+            updatedAt: Date(timeIntervalSince1970: 100),
+            identity: ProviderIdentitySnapshot(
+                providerID: .codex,
+                accountEmail: "local@example.com",
+                accountOrganization: nil,
+                loginMethod: nil,
+                accountID: localIdentity))
+        let localCopy = Self.snapshot(accountKey: localKey, fetchedAt: Date(timeIntervalSince1970: 200))
+        let distinct = Self.snapshot(accountKey: distinctKey, fetchedAt: Date(timeIntervalSince1970: 300))
+        let localAccountKeys = store.cloudSyncLocalAccountKeys(for: .codex)
+
+        let projection = FleetAccountMenuPlanner.projection(
+            provider: .codex,
+            snapshots: [distinct, localCopy],
+            currentDeviceID: settings.iCloudSyncDeviceID,
+            localAccountKeys: localAccountKeys,
+            hasLocalUsage: true)
+
+        #expect(store.cloudSyncAccountSnapshots().map(\.accountKey) == [localKey])
+        #expect(localAccountKeys == [localKey])
+        #expect(projection.fallback == nil)
+        #expect(projection.additionalAccounts.map(\.accountKey) == [distinctKey])
+    }
+
+    @Test
     func `fallback selects the freshest remote snapshot`() {
         let old = Self.snapshot(
             accountKey: "old",
@@ -65,6 +108,103 @@ struct FleetAccountMenuProjectionTests {
     }
 
     @Test
+    func `equal freshness remote copies choose a deterministic device`() {
+        let fetchedAt = Date(timeIntervalSince1970: 200)
+        let first = Self.snapshot(accountKey: "shared", fetchedAt: fetchedAt, deviceID: "remote-a")
+        let second = Self.snapshot(accountKey: "shared", fetchedAt: fetchedAt, deviceID: "remote-b")
+
+        let forward = FleetAccountMenuPlanner.projection(
+            provider: .codex,
+            snapshots: [first, second],
+            currentDeviceID: "local-device",
+            localAccountKeys: [],
+            hasLocalUsage: false)
+        let reversed = FleetAccountMenuPlanner.projection(
+            provider: .codex,
+            snapshots: [second, first],
+            currentDeviceID: "local-device",
+            localAccountKeys: [],
+            hasLocalUsage: false)
+
+        #expect(forward.fallback?.deviceID == "remote-b")
+        #expect(reversed.fallback?.deviceID == forward.fallback?.deviceID)
+        #expect(forward.additionalAccounts.isEmpty)
+        #expect(reversed.additionalAccounts.isEmpty)
+    }
+
+    @Test
+    func `identity less local snapshot owns the legacy default account`() {
+        let settings = testSettingsStore(suiteName: "FleetAccountMenuProjectionTests-legacy-default")
+        let store = UsageStore(
+            fetcher: UsageFetcher(environment: [:]),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings,
+            startupBehavior: .testing,
+            environmentBase: [:])
+        store.snapshots[.openrouter] = UsageSnapshot(
+            primary: RateWindow(
+                usedPercent: 25,
+                windowMinutes: 300,
+                resetsAt: nil,
+                resetDescription: nil),
+            secondary: nil,
+            updatedAt: Date(timeIntervalSince1970: 100))
+        let remote = Self.snapshot(
+            provider: .openrouter,
+            accountKey: AccountSnapshotSyncPayload.accountKey(for: nil),
+            fetchedAt: Date(timeIntervalSince1970: 200))
+
+        let projection = FleetAccountMenuPlanner.projection(
+            provider: .openrouter,
+            snapshots: [remote],
+            currentDeviceID: settings.iCloudSyncDeviceID,
+            localAccountKeys: store.cloudSyncLocalAccountKeys(for: .openrouter),
+            hasLocalUsage: true)
+
+        #expect(store.cloudSyncLocalAccountKeys(for: .openrouter) == ["default"])
+        #expect(projection.fallback == nil)
+        #expect(projection.additionalAccounts.isEmpty)
+    }
+
+    @Test
+    func `identity less local snapshot also owns the provider email alias`() {
+        let settings = testSettingsStore(suiteName: "FleetAccountMenuProjectionTests-default-email-alias")
+        let store = UsageStore(
+            fetcher: UsageFetcher(environment: [:]),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings,
+            startupBehavior: .testing,
+            environmentBase: [:])
+        store.snapshots[.codex] = UsageSnapshot(
+            primary: RateWindow(
+                usedPercent: 25,
+                windowMinutes: 300,
+                resetsAt: nil,
+                resetDescription: nil),
+            secondary: nil,
+            updatedAt: Date(timeIntervalSince1970: 100))
+        let email = "person@example.com"
+        let emailKey = AccountSnapshotSyncPayload.accountKey(for: email)
+        store.accountInfoCache[.codex] = UsageStore.AccountInfoCacheEntry(
+            account: AccountInfo(email: email, plan: nil),
+            configRevision: settings.configRevision,
+            expiresAt: .distantFuture)
+        let remote = Self.snapshot(accountKey: emailKey, fetchedAt: Date(timeIntervalSince1970: 200))
+        let localAccountKeys = store.cloudSyncLocalAccountKeys(for: .codex)
+
+        let projection = FleetAccountMenuPlanner.projection(
+            provider: .codex,
+            snapshots: [remote],
+            currentDeviceID: settings.iCloudSyncDeviceID,
+            localAccountKeys: localAccountKeys,
+            hasLocalUsage: true)
+
+        #expect(localAccountKeys == [AccountSnapshotSyncPayload.accountKey(for: nil), emailKey])
+        #expect(projection.fallback == nil)
+        #expect(projection.additionalAccounts.isEmpty)
+    }
+
+    @Test
     func `fleet badge uses compact staleness`() {
         let now = Date(timeIntervalSince1970: 10000)
 
@@ -77,12 +217,13 @@ struct FleetAccountMenuProjectionTests {
     }
 
     private static func snapshot(
+        provider: ProviderInstanceID = .codex,
         accountKey: String,
         fetchedAt: Date,
         deviceID: String = "remote-device") -> AccountSnapshotSyncPayload
     {
         AccountSnapshotSyncPayload(
-            provider: .codex,
+            provider: provider,
             deviceID: deviceID,
             accountKey: accountKey,
             fetchedAt: fetchedAt,

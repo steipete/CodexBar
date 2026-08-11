@@ -13,6 +13,8 @@ struct ClaudeCLIAuthStatusProbeTests {
         #expect(!ClaudeCLIAuthStatusProbe.parseLoggedIn(#"{"loggedIn":false,"authMethod":"none"}"#))
         #expect(!ClaudeCLIAuthStatusProbe.parseLoggedIn("not-json"))
         #expect(!ClaudeCLIAuthStatusProbe.parseLoggedIn(#"{"authMethod":"none"}"#))
+        #expect(ClaudeCLIAuthStatusProbe.parseStatus(#"{"loggedIn":false}"#) == .loggedOut)
+        #expect(ClaudeCLIAuthStatusProbe.parseStatus("not-json") == nil)
     }
 
     @Test
@@ -47,5 +49,23 @@ struct ClaudeCLIAuthStatusProbeTests {
 
         #expect(loggedIn)
         #expect(try String(contentsOf: invocationLog, encoding: .utf8) == "\(workingDirectory.path)|yes\n")
+    }
+
+    @Test
+    func `nonzero logged out status remains definitive`() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("ClaudeCLIAuthStatusProbe-\(UUID().uuidString)", isDirectory: true)
+        let binary = root.appendingPathComponent("claude")
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        try Data("#!/bin/sh\nprintf '%s\\n' '{\"loggedIn\":false}'\nexit 1\n".utf8).write(to: binary)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: binary.path)
+
+        let status = await ClaudeCLIAuthStatusProbe.authenticationStatus(
+            binary: binary.path,
+            environment: [:],
+            workingDirectory: root)
+
+        #expect(status == .loggedOut)
     }
 }

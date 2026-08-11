@@ -18,6 +18,7 @@ extension StatusItemController {
                 snapshot: snapshot,
                 error: error,
                 isRefreshing: self.store.refreshingProviders.contains(plugin.manifest.id),
+                showUsed: self.settings.usageBarsShowUsed,
                 width: width,
                 onRefresh: { [weak store = self.store] in
                     Task { @MainActor in await store?.refreshUserPlugin(plugin.manifest.id) }
@@ -37,11 +38,25 @@ extension StatusItemController {
     }
 }
 
+struct UserPluginQuotaPresentation: Equatable {
+    let percent: Double
+    let text: String
+
+    static func make(usedPercent: Double, showUsed: Bool) -> Self {
+        let used = min(100, max(0, usedPercent))
+        let remaining = 100 - used
+        return Self(
+            percent: showUsed ? used : remaining,
+            text: UsageFormatter.usageLine(remaining: remaining, used: used, showUsed: showUsed))
+    }
+}
+
 private struct UserPluginMenuCardView: View {
     let plugin: UserProviderPlugin
     let snapshot: UsageSnapshot?
     let error: String?
     let isRefreshing: Bool
+    let showUsed: Bool
     let width: CGFloat
     let onRefresh: () -> Void
 
@@ -87,6 +102,9 @@ private struct UserPluginMenuCardView: View {
                     Divider()
                     ProviderDetailSectionsContent(sections: snapshot.details, chartColor: self.tint)
                 }
+                if let identity = snapshot.identity(for: self.plugin.manifest.id) {
+                    self.identity(identity)
+                }
             } else if let error {
                 Text(error).font(.caption).foregroundStyle(.red).textSelection(.enabled)
             } else {
@@ -99,17 +117,45 @@ private struct UserPluginMenuCardView: View {
     }
 
     @ViewBuilder
+    private func identity(_ identity: ProviderIdentitySnapshot) -> some View {
+        if identity.accountEmail != nil || identity.accountOrganization != nil || identity.loginMethod != nil
+            || identity.accountID != nil
+        {
+            Divider()
+            self.identityRow("Account", identity.accountEmail)
+            self.identityRow("Organization", identity.accountOrganization)
+            self.identityRow("Plan", identity.loginMethod)
+            self.identityRow("Account ID", identity.accountID)
+        }
+    }
+
+    @ViewBuilder
+    private func identityRow(_ label: String, _ value: String?) -> some View {
+        if let value {
+            HStack {
+                Text(label).foregroundStyle(.secondary)
+                Spacer()
+                Text(value).fontWeight(.medium).textSelection(.enabled)
+            }
+            .font(.caption)
+        }
+    }
+
+    @ViewBuilder
     private func window(_ title: String, _ window: RateWindow?) -> some View {
         if let window {
+            let presentation = UserPluginQuotaPresentation.make(
+                usedPercent: window.usedPercent,
+                showUsed: self.showUsed)
             VStack(alignment: .leading, spacing: 4) {
                 HStack {
                     Text(title).foregroundStyle(.secondary)
                     Spacer()
-                    Text("\(Int(window.usedPercent.rounded()))% used").monospacedDigit()
+                    Text(presentation.text).monospacedDigit()
                 }
                 .font(.caption)
                 UsageProgressBar(
-                    percent: window.usedPercent,
+                    percent: presentation.percent,
                     tint: self.tint,
                     accessibilityLabel: "\(title) usage")
             }

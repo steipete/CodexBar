@@ -1,17 +1,48 @@
 # Changelog
 
+## 0.49.2 — 2026-08-10
+
+### Fixed
+- Sync: collapse duplicate usage rows for the same provider account across Macs, with the current Mac's configured result taking precedence over synced copies.
+- Menu cards: show session quota as exhausted until the final reset of every binding weekly/monthly plan lane, while preserving session-specific details and independent purchased credits (#2840). Thanks @Yuxin-Qiao!
+- Menu cards: keep primary usage values and long localized reset timestamps readable by stacking the row only when both cannot fit (#2846). Thanks @Yuxin-Qiao!
+- Plugins: honor the “Usage bars fill” remaining/used setting in user-installed provider cards, keeping percentage labels and bar direction aligned (#2749). Thanks @RyloRiz!
+- Sub2API: localize and group menu-card quota labels and request, token, and cost totals into a compact usage summary (#2835). Thanks @weirdo-adam!
+- Codex: avoid repeatedly converting historical token snapshots during cost-cache refreshes, preventing sustained CPU usage on large session histories.
+- Codex: make automatic cost-history catch-up near-idle and limit local-history scans to provider refreshes with a 15-minute energy floor.
+- Agent Sessions: stop inactive local and remote refresh schedulers from waking while monitoring is disabled.
+- Cost usage: refresh token-cost data when “Refresh all providers on menu open” is enabled, with a one-minute scan floor to avoid repeated work (#2388). Thanks @betive37!
+
+## 0.49.1 — 2026-08-09
+
+### Fixed
+- DeepInfra: show billing-cycle spend against a positive spending limit in the automatic menu-bar icon (#2822). Thanks @selfagency for the report!
+- z.ai: restore pace for verified 5-hour, weekly, and MCP-monthly usage windows without treating rolling 30-day limits as calendar months (#2431). Thanks @kiranmagic7!
+- Codex: publish refreshed core quota immediately while optional Credits and OpenAI Web enrichment continues, without unfreezing cards whose layout still needs reconciliation (#2799). Thanks @Yuxin-Qiao!
+- Menu bar: keep DeepSeek balances compact and consistent between saved custom layouts and their live editor preview (#2638). Thanks @Yuxin-Qiao!
+- Settings: show CodexBar in the Dock while Settings or an update dialog is open, so Check for Updates and new-version prompts reliably appear in front.
+- Claude CLI: let explicit CLI usage and Auto fallback delegate authentication to the installed Claude executable, so an unavailable browser session no longer masks usable reduced-fidelity CLI usage.
+- Sessions: make the additional SSH hosts setting visibly editable, with an accepted-format hint and accessibility help (#2804). Thanks @akshayprabhu200!
+
 ## 0.49.0 — 2026-08-09
 
 ### Added
 - Fireworks: track 30-day rated billing spend with an API key and account slug (#2687). Thanks @x0mh0x!
+- IBM Bob: track monthly Bobcoin budget and usage across subscription teams via API key (#2690). Thanks @VACInc!
+- Notion: expose monthly usage, percentage, and pace tokens in custom menu-bar layouts (#2727). Thanks @kiranmagic7!
+- z.ai: show the current peak/off-peak quota burn rate and schedule in provider details (#2721). Thanks @cruzanstx!
 
 ### Fixed
+- PTY probes: abort output-overflow children through a bounded process-group kill path, avoiding minute-long cleanup stalls under load (refs #2792).
+- PTY runner: drain short-lived commands to terminal closure after exit, preventing false empty probe results when output is still buffered.
+- Cost store: give the store actor's custom serial executor an `isIsolatingCurrentContext()` implementation — macOS 26+ runtimes consult it before `checkIsolated()`, and its default cannot see through `DispatchQueue.sync`, so every synchronous store bridge tripped "Incorrect actor executor assumption" and the app died on launch.
 - Codex: reject Standard/Fast pricing rows that exceed canonical fork-deduplicated usage, preventing copied fork rows and their Fast surcharge from inflating cost estimates (#2754). Thanks @1328189205 for the report and @Yuxin-Qiao for the initial fix and regression-test approach!
-- Claude: stop rotating Claude Code's own refresh-token chain on keychain-only installs — ownership evidence is now tri-state with indeterminate treated as CLI-owned, so delegated refreshes can never invalidate credentials CodexBar cannot read (#2745, refs #2634). Thanks @avenoxai!
+- Claude: stop rotating Claude Code's refresh-token chain on keychain-only installs — ownership evidence is tri-state with indeterminate treated as CLI-owned, delegated refreshes cannot invalidate unreadable credentials, and token-lineage changes no longer block recovery (#2745, refs #2689, #2634). Thanks @avenoxai!
 - Plugins: run the QuickJS worker and TypeScript transpiler on Thread subclasses instead of Thread(block:) closures — binaries built with the Xcode 26.3 SDK inferred @MainActor on those blocks, and macOS runtimes that enforce dynamic isolation crashed (SIGTRAP) on the first plugin fetch; this was the deterministic macOS CI shard crash since #2775 and could crash shipped builds at runtime.
 - Plugins: the QuickJS HTTP/cookie bridge now starts a request's per-call timeout when the transport actually begins executing instead of when it is scheduled, so short deadlines (like OpenRouter's one-second key fast join) no longer fire spuriously under CPU load (refs #2778).
 - Codex: preserve recently modified cost-cache sessions across complete local calendar-day windows, avoiding needless rediscovery and rescans (#2764). Thanks @Yuxin-Qiao!
 - Claude: restore OAuth usage on Claude Code 2.1.x via an explicit, default-off "Allow reading Claude Code's credentials" opt-in that reopens the direct Keychain read, freshness sync, and refresh verification together, plus an automatic Claude CLI usage fallback (labeled with reduced fidelity) when consent is off (#2634). Thanks @Astro-Han, @kes02, and @Komunikuji for the deep diagnostics!
+- Codex: decode monthly credit limits from `spend_control.individual_limit` and accept the `reset_at` spelling, so team and enterprise workspaces keep their credits payload (#2737). Thanks @guhyun9454!
 - Codex: price persisted usage from token classes when reports are read, so a cold rebuild racing the models.dev catalog can no longer permanently bake fallback rates into SQLite (#2772).
 - OpenRouter: keep optional key-quota enrichment on its one-second production fast join while making degraded results explicit and preventing loaded CI parity runs from mistaking the fallback snapshot for a golden mismatch (fixes #2778).
 - Codex: the SQLite cost store now writes each save cycle inside one transaction, so a crash or kill mid-save can never leave session rows updated against stale day aggregates — the previous state survives intact, matching the old JSON path's atomic file replace (refs #2760).
@@ -19,30 +50,27 @@
 - Codex: SQLite cost saves no longer rescan every stored row and snapshot per file — baseline counts and file lookups are precomputed once, cutting a large-corpus (1,700+ sessions) save pass from minutes of CPU to seconds (refs #2760).
 - Codex: restore JSON-cache retention semantics lost in the SQLite cutover — discovery pruning now reaches the scanner's round-tripped payload so deleted files stop resurfacing, the row budget never sacrifices in-window or recently active sessions, and fork-parent protection again drops stale lineage-only parents (refs #2760).
 - Codex: the SQLite cost store no longer deletes the whole database on transient failures — lock contention from a concurrent CLI/app writer, disk-full, or a constraint violation now preserve history and only genuine corruption or schema drift triggers a rebuild, which is now logged (refs #2760).
-- Claude: stop rotating Claude Code refresh tokens on keychain-only installs, and unblock refresh after the OAuth token lineage changes (#2745, refs #2689, #2634).
-- Menu: let long metric reset and pace details wrap to two lines instead of truncating, without clipping cached card heights (#2742). Thanks @Yuxin-Qiao!
-- Menu: let compact metric detail and reset rows wrap to a second line instead of truncating, so non-English locales keep the full pace and reset information (refs #2182). Thanks @Yuxin-Qiao!
+- Menu: let compact and long metric detail/reset rows wrap to two lines without clipping cached card heights, so localized pace and reset text stays complete (#2742, refs #2182). Thanks @Yuxin-Qiao!
 - Kimi: use official usage lane names and hide the Code 7-day row only when it duplicates the primary seven-day quota (matching percentage and reset) (#2741). Thanks @Yuxin-Qiao!
 - Menu bar: keep custom reset-countdown tokens aligned with the opened menu by using the exact display clock instead of rounding to the wall minute (#2735). Thanks @hyuntaedotkim!
 - Codex: apply a manual reset even when the provider omits the redeemed credit from the next inventory — both samples must corroborate consumption, and the exemption stays one-shot (#2728). Thanks @endless7!
 - CLI: ship and safely resolve the provider-plugin resource bundle beside standalone executables, returning a clean reinstall/update error instead of trapping when it is missing (#2756).
+- CLI: claude-swap accounts with expired or missing credentials now keep their email on the serve dashboard instead of showing a bare slot number.
 - Claude: the menu-bar indicator now renders the active claude-swap account's usage when the adapter owns account presentation (2+ accounts), instead of drawing empty bars from an ambient snapshot without usable windows (#2731). Thanks @Meldiron for the report!
+- Cursor: normalize visible membership labels for Start, Pro Trial, Pro+, Student, Ultra, and unknown plans (#2729). Thanks @olddonkey!
 - z.ai/GLM: parse `CREDIT_LIMIT` quota entries from credit-based Coding Plans (lite/standard/pro) so usage no longer sticks at 100% remaining / 0% used and the 5-hour credit window drives the primary percentage and reset time (#2724, #2712). Thanks @stuible!
 
 ### Changed
 - Provider plugins: cut ClinePass usage over to the bundled TypeScript implementation on macOS and Linux.
+- Provider plugins: accept identity-only and cost-only snapshots, support one delayed `Retry-After` retry and HTTP status matching, and allow approval-bound private-network HTTP origins.
 - Codex: cost history now lives in a single SQLite store — bounded memory at any corpus size, append-linear catch-up, and no more multi-hundred-MB JSON decode on refresh (#2760). Thanks @xx205 for the accumulator design!
 - CLI: dashboard snapshot identity now defaults to full; use `--identity redacted` to restore redacted emails.
 - Provider plugins: run the same bundled JavaScript providers and local plugin CLI on Linux through a sandboxed QuickJS engine, removing the cut-over providers' Linux-only Swift twins.
 - Provider plugins: use QuickJS on every platform with byte-identical output and hard interruption for hung scripts; Apple builds retain JavaScriptCore as an explicit rollback engine.
 
-### Fixed
-- CLI: claude-swap accounts with expired or missing credentials now keep their email on the serve dashboard instead of showing a bare slot number.
-
 ## 0.48.1 — 2026-08-07
 
 ### Fixed
-- Codex: decode the monthly credit limit from `spend_control.individual_limit` and accept the `reset_at` spelling, so team/enterprise workspaces stop dropping the whole credits payload over OAuth (#2736).
 - App: fix the 0.48.0 crash-at-launch "could not load resource bundle: CodexBar_CodexBarCore.bundle" — the new provider-plugin runtime loaded its bundled scripts through the autogenerated `Bundle.module` accessor, which only probes the app root and the build machine's compile-time path; resources now resolve through a safe accessor that checks `Contents/Resources` first, with a source-level regression gate (#2738, #2730).
 
 ### Added
@@ -54,7 +82,6 @@
 ## 0.48.0 — 2026-08-06
 
 ### Added
-- Fireworks: new provider showing 30-day spend from the account billing summary API, with Settings fields for the API key and account slug (Fireworks has no whoami endpoint and no public balance API).
 - CLI: expose Codex cost-history completeness in JSON and add an experimental provider-native-only scan mode (#2520). Thanks @NickGuAI!
 - CLI: add a built-in auto-refreshing web dashboard at `/` to `codexbar serve`.
 - CLI: the serve web dashboard renders per-account sections for claude-swap providers, and `codexbar serve --identity full` opts authorized dashboard clients into real account emails on trusted, private networks.

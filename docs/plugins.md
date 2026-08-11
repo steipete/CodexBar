@@ -56,12 +56,16 @@ defineProvider({
   letter of `name` with a neutral tint. File/SVG icons are not supported.
 - `endpoints`: 1–16 declared network origins. A fixed endpoint is a normalized HTTPS origin such as
   `https://api.example.com` (no path, query, fragment, or user info). A settings-derived endpoint is
-  `{setting: "BASE_URL", policy: "https"}` or `{setting: "BASE_URL", policy: "https-or-loopback-http"}`. Its setting
-  must be declared as `plain`. HTTP is allowed only for unauthenticated loopback targets.
+  `{setting: "BASE_URL", policy: "https"}`, `{setting: "BASE_URL", policy: "https-or-loopback-http"}`, or
+  `{setting: "BASE_URL", policy: "https-or-private-network-http"}`. Its setting must be declared as `plain`.
+  `https-or-loopback-http` preserves the unauthenticated loopback-only rule. `https-or-private-network-http` also permits
+  authenticated HTTP for loopback, RFC 1918 IPv4, IPv4 link-local, IPv6 unique-local/link-local, and `.local` targets,
+  but only through the separate typed approval described below. Public targets always require HTTPS.
 - `auth` (optional): one of the forms below. The named secret must be a declared `secure` setting.
 - `settings`: up to 32 setting definitions. Keys contain 1–64 ASCII letters, digits, or underscores and start with a
   letter. Each entry has `key`, `title`, optional `subtitle`, and `type: "plain" | "secure"` (default `secure`).
-- `capabilities` (optional): currently only `"browser-cookies"`.
+- `capabilities` (optional): `"browser-cookies"` and `"http-status"`. With `"http-status"`, the plugin observes
+  non-2xx responses itself instead of the host failing the request.
 - `cookieDomains`: required with `browser-cookies`; a non-empty list of normalized DNS host names.
 - `fetchUsage(ctx)`: function returning a snapshot object or a promise for one.
 
@@ -74,8 +78,9 @@ auth: { type: "header", header: "X-Custom-Key", secret: "API_KEY" }
 auth: { type: "authorization-scheme", scheme: "Token", secret: "API_KEY" }
 ```
 
-The host owns the authentication header; plugin request options cannot override it. Authenticated origins must be
-HTTPS. Secure settings can be overridden for CLI use with
+The host owns the authentication header; plugin request options cannot override it. Authenticated public origins must be
+HTTPS; authenticated private-network HTTP requires `https-or-private-network-http` plus typed approval. Secure settings
+can be overridden for CLI use with
 `CODEXBAR_PLUGIN_<PLUGIN_ID>_<SETTING_KEY>`, uppercased with non-alphanumeric characters replaced by underscores. For
 example, `acme-usage` and `API_KEY` use `CODEXBAR_PLUGIN_ACME_USAGE_API_KEY`.
 
@@ -98,6 +103,12 @@ so portable third-party plugins must use the host helpers below instead of ECMA-
 - `ctx.fail` creates classified errors for `authenticationExpired`, `missingCredential`, `permissionDenied`,
   `rateLimited`, `providerUnavailable`, `parseFailure`, `networkFailure`, and `apiFailure`. Throw the returned error,
   for example `throw ctx.fail.rateLimited("Provider rate limit reached")`; ordinary errors retain generic mapping.
+  Every plugin automatically gets one delayed retry when a request returns 408, 429, 500, 502, 503, or 504. A numeric
+  `Retry-After` header sets the delay; otherwise the delay is 1 second, and the host clamps it to 10 seconds. A plugin
+  that needs provider-specific handling—such as a non-numeric `Retry-After`, quota data in the error body, or a vendor
+  retry field—declares `http-status`, receives the response, and throws `ctx.fail.rateLimited(message,
+  {retryAfterSeconds})` or another transient classified failure. Both paths share one retry budget and never retry the
+  retry. Cancellation during the delay stops the retry.
 - `await ctx.browser.cookieHeader(domain)` returns a cookie header only with the `browser-cookies` capability and for a
   declared domain. The app imports from Chrome only. Cookie values are secret-equivalent and redacted.
 - `ctx.html.metaContent(html, name)` returns the first matching quoted meta value or `null`.
@@ -117,8 +128,24 @@ so portable third-party plugins must use the host helpers below instead of ECMA-
 - `ctx.pct(used, limit)` returns a finite percentage clamped to 0–100; non-positive limits map to 100.
 
 User-plugin requests run in an ephemeral session with no ambient cookies, credential store, or URL cache. Redirects are
-rejected, the timeout is 15 seconds, `Accept-Encoding: identity` is sent, compressed and non-2xx responses fail, and
-response bytes are capped at 1 MiB. Request URLs must match a declared, approved origin.
+rejected, the timeout is 15 seconds, `Accept-Encoding: identity` is sent, compressed responses always fail, and response
+bytes are capped at 1 MiB. By default, the host rejects non-2xx responses and automatically retries 408, 429, 500, 502,
+503, and 504 once, using a numeric `Retry-After` delay or 1 second when absent, clamped to 10 seconds. With `http-status`,
+the plugin instead receives `{status, headers, ...}` and owns classification, including any request for the same single
+delayed retry. Request URLs must match a declared, approved origin.
+
+```js
+capabilities: ["http-status"],
+async fetchUsage(ctx) {
+  const response = await ctx.http.getJSON("https://api.example.com/usage");
+  if (response.status === 429) {
+    const retryAfterSeconds = Number(response.headers["retry-after"] || 1);
+    throw ctx.fail.rateLimited("Rate limited", { retryAfterSeconds });
+  }
+}
+```
+
+Declaring `http-status` changes the approval binding, so an installed plugin requires re-approval after adding it.
 
 Bundled first-party providers that have cut over to JavaScript use the shared runtime's 20-second hung-script watchdog.
 A timeout fails that refresh and discards the poisoned worker so the next refresh starts with a fresh context; this is
@@ -132,7 +159,7 @@ abandoned evaluation thread can remain alive until process exit.
 
 ## Snapshot result
 
-Return at least one rate window, cost object, or detail section:
+Return at least one rate window, cost object, detail section, or non-empty identity field:
 
 ```js
 return {
@@ -161,6 +188,9 @@ Percentages must be finite and are clamped to 0–100. Window minutes are positi
 and a three-letter uppercase currency. Dates are JavaScript `Date` values or ISO-8601 strings. Snapshot identity is
 always scoped to the manifest's instance ID. Data confidence defaults to `unknown`. Details allow at most 8 sections, 24 rows per section, 120 chart points,
 and 120 characters per detail string. Wrong types and limit violations fail the whole fetch instead of truncating it.
+An identity-only snapshot is useful for balance-only or zero-usage provider states and renders its available account,
+organization, plan/login-method, and account-ID fields in the menu and CLI. An empty object, an empty `identity` object,
+or metadata such as confidence and subscription dates without displayable usage or identity remains invalid.
 
 ## TypeScript
 
@@ -191,6 +221,10 @@ Transpile failures appear as that plugin's Settings error.
 Approval records live outside plugin files under `~/Library/Application Support/CodexBar/plugin-approvals.json`. A
 change to instance ID, normalized origins, auth mode/header, secure setting names, capabilities, or cookie domains
 invalidates approval before the next request. There is no bulk approval or import path.
+
+Bundled first-party plugins do not use the interactive plugin-approval flow. The private-network HTTP policy is therefore
+accepted for bundled code only for LLM Proxy and LiteLLM, whose existing Swift providers already permit exactly those
+targets. Other bundled providers fail manifest validation if they request that policy.
 
 `codexbar plugins list` shows locally discovered plugins. `codexbar plugins fetch <id>` displays the same approval
 fields and can approve only from an interactive terminal; redirected/headless input fails closed. Browser-cookie plugins

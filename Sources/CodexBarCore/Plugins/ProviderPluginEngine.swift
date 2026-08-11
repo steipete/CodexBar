@@ -30,7 +30,7 @@ enum ProviderPluginEngineFactory {
         transport: any ProviderHTTPTransport,
         timeout: TimeInterval,
         responseSizeLimit: Int,
-        rejectsNonSuccessResponses: Bool,
+        enforcesUserResponsePolicy: Bool,
         allowsDynamicID: Bool) throws -> any ProviderPluginEngine
     {
         switch kind {
@@ -43,7 +43,7 @@ enum ProviderPluginEngineFactory {
                 preludeSource: preludeSource,
                 transport: transport,
                 responseSizeLimit: responseSizeLimit,
-                rejectsNonSuccessResponses: rejectsNonSuccessResponses,
+                enforcesUserResponsePolicy: enforcesUserResponsePolicy,
                 allowsDynamicID: allowsDynamicID)
             #else
             throw ProviderPluginError.load("JavaScriptCore is unavailable on this platform")
@@ -55,7 +55,7 @@ enum ProviderPluginEngineFactory {
                 transport: transport,
                 timeout: timeout,
                 responseSizeLimit: responseSizeLimit,
-                rejectsNonSuccessResponses: rejectsNonSuccessResponses,
+                enforcesUserResponsePolicy: enforcesUserResponsePolicy,
                 allowsDynamicID: allowsDynamicID)
         }
     }

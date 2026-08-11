@@ -528,22 +528,10 @@ private struct MetricRow: View {
                     .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
                     .lineLimit(1)
             } else {
-                HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    Text(presentation.titleText)
-                        .font(.body)
-                        .fontWeight(.medium)
-                        .lineLimit(1)
-                        .layoutPriority(1)
-                    Spacer(minLength: 8)
-                    if let resetText = presentation.resetText {
-                        Text(resetText)
-                            .font(.footnote)
-                            .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
-                            .lineLimit(2)
-                            .multilineTextAlignment(.trailing)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                }
+                MetricRowHeader(
+                    title: presentation.titleText,
+                    resetText: presentation.resetText,
+                    isHighlighted: self.isHighlighted)
                 UsageProgressBar(
                     percent: self.metric.percent,
                     tint: self.progressColor,
@@ -572,6 +560,50 @@ private struct MetricRow: View {
         .padding(self.metric.cardStyle ? 10 : 0)
         .background(self.metric.cardStyle ? Color.secondary.opacity(self.isHighlighted ? 0.2 : 0.08) : Color.clear)
         .clipShape(RoundedRectangle(cornerRadius: self.metric.cardStyle ? 10 : 0))
+    }
+}
+
+private struct MetricRowHeader: View {
+    let title: String
+    let resetText: String?
+    let isHighlighted: Bool
+
+    var body: some View {
+        if let resetText {
+            ViewThatFits(in: .horizontal) {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    self.titleLabel
+                        .fixedSize(horizontal: true, vertical: false)
+                    Spacer(minLength: 8)
+                    self.resetLabel(resetText)
+                        .fixedSize(horizontal: true, vertical: false)
+                }
+                VStack(alignment: .trailing, spacing: 2) {
+                    self.titleLabel
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    self.resetLabel(resetText)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, alignment: .trailing)
+                }
+            }
+        } else {
+            self.titleLabel
+        }
+    }
+
+    private var titleLabel: some View {
+        Text(self.title)
+            .font(.body)
+            .fontWeight(.medium)
+            .lineLimit(1)
+    }
+
+    private func resetLabel(_ resetText: String) -> some View {
+        Text(resetText)
+            .font(.footnote)
+            .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
+            .lineLimit(2)
+            .multilineTextAlignment(.trailing)
     }
 }
 
@@ -1005,6 +1037,9 @@ extension UsageMenuCardView.Model {
                 }
             }
         }
+        if input.provider == .sub2api {
+            details = Self.sub2APILocalizedDetails(details)
+        }
         guard input.hidePersonalInfo else { return details }
         return details.compactMap { section in
             let rows = section.rows.compactMap { row in
@@ -1233,6 +1268,10 @@ extension UsageMenuCardView.Model {
             metrics.append(Self.primaryMetric(
                 input: input,
                 primary: primary,
+                bindingProjection: Self.bindingQuotaProjection(
+                    input: input,
+                    primary: primary,
+                    snapshot: snapshot),
                 percentStyle: percentStyle,
                 title: labels.primary))
         }
@@ -1314,6 +1353,7 @@ extension UsageMenuCardView.Model {
     private static func primaryMetric(
         input: Input,
         primary: RateWindow,
+        bindingProjection: RateWindowBindingQuotaProjection? = nil,
         percentStyle: PercentStyle,
         title: String? = nil) -> Metric
     {
@@ -1326,13 +1366,26 @@ extension UsageMenuCardView.Model {
             primary: primary)
         Self.applyPrimaryBalancePresentation(&presentation, input: input, primary: primary)
         Self.applyPrimaryResetPresentation(&presentation, input: input, primary: primary)
-        Self.applyPrimaryPacePresentation(&presentation, input: input, primary: primary)
+        if bindingProjection == nil {
+            Self.applyPrimaryPacePresentation(&presentation, input: input, primary: primary)
+        }
         Self.applyPrimaryFinalOverrides(&presentation, input: input, primary: primary)
+        if let bindingProjection {
+            let resetWindow = RateWindow(
+                usedPercent: bindingProjection.usedPercent,
+                windowMinutes: primary.windowMinutes,
+                resetsAt: bindingProjection.resetsAt,
+                resetDescription: bindingProjection.resetDescription)
+            presentation.resetText = Self.resetText(
+                for: resetWindow,
+                style: input.resetTimeDisplayStyle,
+                now: input.now)
+        }
+        let displayedUsedPercent = bindingProjection?.usedPercent ?? primary.usedPercent
         return Metric(
             id: "primary",
             title: title ?? L(input.metadata.sessionLabel),
-            percent: Self.clamped(
-                input.usageBarsShowUsed ? primary.usedPercent : primary.remainingPercent),
+            percent: Self.clamped(input.usageBarsShowUsed ? displayedUsedPercent : 100 - displayedUsedPercent),
             percentStyle: percentStyle,
             statusText: presentation.statusText,
             resetText: presentation.resetText,

@@ -317,7 +317,20 @@ enum SpendDashboardSource {
     static func load(_ request: SpendDashboardLoadRequest) async -> SpendDashboardLoadResult {
         await self.load(
             request,
+            cacheRootResolver: { self.codexCacheRoot(for: $0) },
             codexSnapshotLoader: { context in try await self.loadCodexSnapshot(context) },
+            codexActivityLoader: { context in await self.loadCodexActivity(context) })
+    }
+
+    static func load(
+        _ request: SpendDashboardLoadRequest,
+        cacheRootResolver: @escaping CodexCacheRootResolver,
+        codexSnapshotLoader: CodexSnapshotLoader) async -> SpendDashboardLoadResult
+    {
+        await self.load(
+            request,
+            cacheRootResolver: cacheRootResolver,
+            codexSnapshotLoader: codexSnapshotLoader,
             codexActivityLoader: { context in await self.loadCodexActivity(context) })
     }
 
@@ -389,11 +402,28 @@ enum SpendDashboardSource {
         _ request: SpendDashboardLoadRequest,
         codexSnapshotLoader: CodexSnapshotLoader) async -> SpendDashboardLoadResult
     {
-        await self.load(request, codexSnapshotLoader: codexSnapshotLoader, codexActivityLoader: { _ in nil })
+        await self.load(
+            request,
+            cacheRootResolver: { self.codexCacheRoot(for: $0) },
+            codexSnapshotLoader: codexSnapshotLoader,
+            codexActivityLoader: { _ in nil })
     }
 
     static func load(
         _ request: SpendDashboardLoadRequest,
+        codexSnapshotLoader: CodexSnapshotLoader,
+        codexActivityLoader: CodexActivityLoader) async -> SpendDashboardLoadResult
+    {
+        await self.load(
+            request,
+            cacheRootResolver: { self.codexCacheRoot(for: $0) },
+            codexSnapshotLoader: codexSnapshotLoader,
+            codexActivityLoader: codexActivityLoader)
+    }
+
+    private static func load(
+        _ request: SpendDashboardLoadRequest,
+        cacheRootResolver: CodexCacheRootResolver,
         codexSnapshotLoader: CodexSnapshotLoader,
         codexActivityLoader: CodexActivityLoader) async -> SpendDashboardLoadResult
     {
@@ -408,7 +438,7 @@ enum SpendDashboardSource {
                     invalidatedSourceIDs.insert(sourceID)
                     continue
                 }
-                let cacheRoot = self.codexCacheRoot(for: account)
+                let cacheRoot = cacheRootResolver(account)
                 let snapshot = try await codexSnapshotLoader(CodexSpendSnapshotLoadContext(
                     account: account,
                     cacheRoot: cacheRoot,

@@ -87,14 +87,7 @@ struct MenuSwitchFlickerProbeTests {
         defer { try? FileManager.default.removeItem(at: directory) }
 
         var sessionWasRetainedWhileRunning = false
-        var configuration = MenuSwitchFlickerProbe.ProbeSession.Configuration()
-        configuration.switchScheduleMs = [40, 80, 120, 160, 200, 240]
-        configuration.sessionEndMs = 400
-        configuration.openMenu = {
-            // Stand-in for NSMenu's blocking tracking loop: expose the menu the
-            // way tracking would and pump the run loop until the session's
-            // timer schedule completes.
-            sessionWasRetainedWhileRunning = !MenuSwitchFlickerProbe.activeSessions.isEmpty
+        func pumpSession() {
             controller.openMenus[ObjectIdentifier(menu)] = menu
             let deadline = Date().addingTimeInterval(10)
             while let session = MenuSwitchFlickerProbe.activeSessions.last,
@@ -104,6 +97,17 @@ struct MenuSwitchFlickerProbeTests {
                 RunLoop.main.run(mode: .default, before: Date().addingTimeInterval(0.01))
             }
             controller.openMenus.removeValue(forKey: ObjectIdentifier(menu))
+        }
+
+        var configuration = MenuSwitchFlickerProbe.ProbeSession.Configuration()
+        configuration.switchScheduleMs = [40, 80, 120, 160, 200, 240]
+        configuration.sessionEndMs = 400
+        configuration.openMenu = {
+            // Stand-in for NSMenu's blocking tracking loop: expose the menu the
+            // way tracking would and pump the run loop until the session's
+            // timer schedule completes.
+            sessionWasRetainedWhileRunning = !MenuSwitchFlickerProbe.activeSessions.isEmpty
+            pumpSession()
         }
 
         MenuSwitchFlickerProbe.beginRetainedSession(
@@ -124,5 +128,31 @@ struct MenuSwitchFlickerProbeTests {
             "probe log missing sample summary: \(log)")
         let sampleCount = try #require(Int(capturedLine.split(separator: " ")[1]))
         #expect(sampleCount > 0, "probe recorded no frame samples: \(log)")
+
+        let overdueDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("flicker-probe-overdue-test-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: overdueDirectory) }
+        var overdueConfiguration = MenuSwitchFlickerProbe.ProbeSession.Configuration()
+        overdueConfiguration.switchScheduleMs = [0, 0, 0, 0, 0, 0]
+        overdueConfiguration.sessionEndMs = 0
+        overdueConfiguration.openMenu = { pumpSession() }
+
+        MenuSwitchFlickerProbe.beginRetainedSession(
+            controller: controller,
+            directory: overdueDirectory,
+            holdMode: false,
+            configuration: overdueConfiguration)
+
+        let overdueLog = try String(
+            contentsOf: overdueDirectory.appendingPathComponent("probe-log.txt"),
+            encoding: .utf8)
+        let overdueSwitches = overdueLog.split(separator: "\n").filter { $0.hasPrefix("switch#") }
+        #expect(
+            overdueSwitches.count == 6,
+            "probe did not drain overdue switches one per tick: \(overdueLog)")
+        #expect(
+            overdueSwitches.allSatisfy { $0.contains("handled=true") },
+            "probe did not handle every overdue switch: \(overdueLog)")
+        #expect(MenuSwitchFlickerProbe.activeSessions.isEmpty, "overdue session must be released")
     }
 }

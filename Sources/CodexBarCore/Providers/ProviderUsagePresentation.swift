@@ -424,6 +424,9 @@ public struct ProviderUsagePresentation: Sendable {
     public let requestedMenuBarLaneOrders: [ProviderMenuBarMetric: [ProviderUsageLane]]
     public let automaticSelectionPrioritizesExhaustedWindow: Bool
     public let secondaryGloballyCapsPrimary: Bool
+    /// Longer quota lanes that must have room before the primary session lane is usable.
+    /// Kept separate from widget policy until those surfaces adopt the same multi-lane projection.
+    public let primaryBindingQuotaLanes: Set<ProviderUsageLane>
     public let menuCard: ProviderMenuCardPresentation
     public let menu: ProviderMenuDescriptorPresentation
     public let planRow: ProviderPlanRowPresentation
@@ -451,6 +454,7 @@ public struct ProviderUsagePresentation: Sendable {
         planUtilizationSeriesNormalizer: @escaping PlanUtilizationSeriesNormalizer = { series, _ in series },
         widgetRowLimitResolver: @escaping WidgetRowLimitResolver = { _, _ in nil },
         secondaryGloballyCapsPrimary: Bool = false,
+        primaryBindingQuotaLanes: Set<ProviderUsageLane> = [],
         menuCard: ProviderMenuCardPresentation = ProviderMenuCardPresentation(),
         menu: ProviderMenuDescriptorPresentation = ProviderMenuDescriptorPresentation(),
         planRow: ProviderPlanRowPresentation = ProviderPlanRowPresentation(),
@@ -475,6 +479,7 @@ public struct ProviderUsagePresentation: Sendable {
         self.planUtilizationSeriesNormalizer = planUtilizationSeriesNormalizer
         self.widgetRowLimitResolver = widgetRowLimitResolver
         self.secondaryGloballyCapsPrimary = secondaryGloballyCapsPrimary
+        self.primaryBindingQuotaLanes = primaryBindingQuotaLanes
         self.menuCard = menuCard
         self.menu = menu
         self.planRow = planRow

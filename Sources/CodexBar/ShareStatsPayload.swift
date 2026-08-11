@@ -585,7 +585,7 @@ enum ShareStatsFormatting {
             lines.append("\(value) tracked tokens")
         }
         lines.append(
-            "\(payload.spendReportingProviderCount)/\(payload.providers.count) connected services report spend")
+            "\(payload.spendReportingProviderCount)/\(payload.providers.count) tracked services report spend")
         lines.append(contentsOf: payload.currencies.map { currency in
             let spend = currency.estimatedCost.map {
                 let value = self.currency($0, code: currency.currencyCode)

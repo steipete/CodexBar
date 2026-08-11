@@ -250,6 +250,29 @@ struct TTYCommandRunnerEnvTests {
     }
 
     @Test
+    func `fast process exit drains buffered PTY output`() throws {
+        let expected = "pty-drain-race"
+        let runner = TTYCommandRunner()
+
+        for iteration in 0..<50 {
+            let result = try runner.run(
+                binary: "/bin/echo",
+                send: "",
+                options: .init(
+                    timeout: Self.harnessPTYTimeout,
+                    extraArgs: [expected],
+                    initialDelay: 0.05,
+                    stopOnSubstrings: [expected],
+                    settleAfterStop: 0,
+                    returnOnEmptyProcessExit: true))
+            let clean = result.text.replacingOccurrences(of: "\r", with: "")
+            #expect(
+                clean.contains(expected),
+                "PTY output was missing on iteration \(iteration); completion: \(result.completion)")
+        }
+    }
+
+    @Test
     func `claude runner keeps normal working directory by default`() throws {
         let runner = TTYCommandRunner()
         let fakeClaude = try Self.makeFakeClaudeCLI()

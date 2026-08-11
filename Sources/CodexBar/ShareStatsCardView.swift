@@ -130,7 +130,7 @@ struct ShareStatsCardView: View {
     private var rankings: some View {
         HStack(alignment: .top, spacing: 46) {
             VStack(alignment: .leading, spacing: 6) {
-                self.sectionHeader("SUBSCRIPTIONS", detail: "\(self.payload.providers.count) CONNECTED")
+                self.sectionHeader("TRACKED SERVICES", detail: "\(self.payload.providers.count) TRACKED")
                 ForEach(
                     Array(self.payload.providers.prefix(self.providerDisplayLimit).enumerated()),
                     id: \.offset)
@@ -324,7 +324,7 @@ private struct ShareStatsProviderRow: View {
         } else {
             metrics.append("Spend unavailable")
         }
-        return metrics.isEmpty ? "connected" : metrics.joined(separator: " · ")
+        return metrics.isEmpty ? "tracked" : metrics.joined(separator: " · ")
     }
 }
 

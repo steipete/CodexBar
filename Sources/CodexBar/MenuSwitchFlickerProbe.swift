@@ -243,6 +243,28 @@ enum MenuSwitchFlickerProbe {
         private func tick() {
             guard let startedAt = self.startedAtOrLocateMenu() else { return }
             let now = Int((DispatchTime.now().uptimeNanoseconds - startedAt.uptimeNanoseconds) / 1_000_000)
+            if !self.holdMode,
+               self.switchScheduleIndex < self.configuration.switchScheduleMs.count,
+               now >= self.configuration.switchScheduleMs[self.switchScheduleIndex]
+            {
+                let switchIndex = self.switchScheduleIndex
+                self.switchScheduleIndex += 1
+                // Cycle through overview (segment 0) too so full-rebuild transitions
+                // are exercised alongside cached swaps.
+                let cycle: [Int?] = [
+                    self.targetSegment,
+                    0,
+                    self.originalSegment,
+                    0,
+                    self.targetSegment,
+                    self.originalSegment,
+                ]
+                let segment = cycle[switchIndex % cycle.count]
+                let handled = segment.map { self.switchSegment($0) } ?? false
+                self.log.append("switch#\(switchIndex) to segment \(String(describing: segment)) " +
+                    "at \(now)ms handled=\(handled)")
+                return
+            }
             let endMs = self.holdMode
                 ? self.configuration.holdSessionEndMs
                 : self.configuration.sessionEndMs
@@ -250,27 +272,7 @@ enum MenuSwitchFlickerProbe {
                 self.timer?.invalidate()
                 self.timer = nil
                 self.menu?.cancelTracking()
-                return
             }
-            guard !self.holdMode,
-                  self.switchScheduleIndex < self.configuration.switchScheduleMs.count,
-                  now >= self.configuration.switchScheduleMs[self.switchScheduleIndex] else { return }
-            let switchIndex = self.switchScheduleIndex
-            self.switchScheduleIndex += 1
-            // Cycle through overview (segment 0) too so full-rebuild transitions
-            // are exercised alongside cached swaps.
-            let cycle: [Int?] = [
-                self.targetSegment,
-                0,
-                self.originalSegment,
-                0,
-                self.targetSegment,
-                self.originalSegment,
-            ]
-            let segment = cycle[switchIndex % cycle.count]
-            let handled = segment.map { self.switchSegment($0) } ?? false
-            self.log.append("switch#\(switchIndex) to segment \(String(describing: segment)) " +
-                "at \(now)ms handled=\(handled)")
         }
 
         private func startedAtOrLocateMenu() -> DispatchTime? {

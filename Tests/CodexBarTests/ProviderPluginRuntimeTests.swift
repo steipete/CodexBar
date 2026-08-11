@@ -154,13 +154,19 @@ struct ProviderPluginRuntimeTests {
 
     @Test
     func `HTTP request deadline cancels a transport that exceeds it`() async throws {
+        let cancellation = TransportCancellationProbe()
         let runtime = try ProviderPluginRuntime(
             source: Self.plugin(fetchBody: """
             await ctx.http.getJSON("https://api.example.test/slow", { timeoutSeconds: 1 });
             return { primary: { usedPercent: 1 } };
             """),
             transport: ProviderHTTPTransportHandler { request in
-                try await Task.sleep(for: .seconds(5))
+                do {
+                    try await Task.sleep(for: .seconds(5))
+                } catch is CancellationError {
+                    await cancellation.markCancelled()
+                    throw CancellationError()
+                }
                 let response = try #require(HTTPURLResponse(
                     url: request.url!,
                     statusCode: 200,
@@ -168,13 +174,19 @@ struct ProviderPluginRuntimeTests {
                     headerFields: ["Content-Type": "application/json"]))
                 return (Data(#"{"used":1}"#.utf8), response)
             })
-        let startedAt = ContinuousClock.now
 
-        await #expect(throws: ProviderPluginError.self) {
+        do {
             _ = try await runtime.fetchUsage(secrets: ["TEST_KEY": "secret-value"])
+            Issue.record("Expected the request deadline to reject the plugin fetch")
+        } catch let error as ProviderPluginError {
+            guard case .script = error else {
+                Issue.record("Expected a request deadline failure, received \(error)")
+                return
+            }
+            await cancellation.waitUntilCancelled()
+        } catch {
+            Issue.record("Unexpected error: \(error)")
         }
-
-        #expect(ContinuousClock.now - startedAt < .seconds(2))
     }
 
     @Test
@@ -289,6 +301,82 @@ struct ProviderPluginRuntimeTests {
                 secrets: ["TEST_KEY": "fixture-key"])
         }
         #expect(await rejectedRequests.isEmpty)
+    }
+
+    @Test(arguments: [
+        "http://localhost:4000",
+        "http://10.0.0.8:4000",
+        "http://172.16.0.8:4000",
+        "http://192.168.1.8:4000",
+        "http://169.254.1.8:4000",
+        "http://[fc00::8]:4000",
+        "http://[fe80::8]:4000",
+        "http://gateway.local:4000",
+        "https://gateway.example:4000",
+    ])
+    func `private network endpoint policy accepts the native gateway origin set`(origin: String) async throws {
+        let requests = RequestRecorder()
+        let runtime = try ProviderPluginRuntime(
+            source: Self.plugin(
+                id: "llmproxy",
+                endpoints: #"[{ setting: "BASE_URL", policy: "https-or-private-network-http" }]"#,
+                settings: """
+                { key: "TEST_KEY", title: "API key", type: "secure" },
+                { key: "BASE_URL", title: "Base URL", type: "plain" }
+                """,
+                fetchBody: """
+                const response = await ctx.http.getJSON(`${ctx.settings.get("BASE_URL")}/usage`);
+                return { primary: { usedPercent: response.json.used } };
+                """),
+            transport: Self.transport(recorder: requests, body: #"{"used":4}"#))
+
+        let snapshot = try await runtime.fetchUsage(
+            settings: ["BASE_URL": origin],
+            secrets: ["TEST_KEY": "fixture-key"])
+
+        #expect(snapshot.primary?.usedPercent == 4)
+        #expect(await requests.first?.url?.absoluteString == "\(origin)/usage")
+    }
+
+    @Test
+    func `private network endpoint policy rejects public HTTP before transport`() async throws {
+        let requests = RequestRecorder()
+        let runtime = try ProviderPluginRuntime(
+            source: Self.plugin(
+                id: "litellm",
+                endpoints: #"[{ setting: "BASE_URL", policy: "https-or-private-network-http" }]"#,
+                settings: """
+                { key: "TEST_KEY", title: "API key", type: "secure" },
+                { key: "BASE_URL", title: "Base URL", type: "plain" }
+                """,
+                fetchBody: """
+                await ctx.http.getJSON(`${ctx.settings.get("BASE_URL")}/usage`);
+                return { primary: { usedPercent: 1 } };
+                """),
+            transport: Self.transport(recorder: requests))
+
+        await #expect(throws: ProviderPluginError.self) {
+            _ = try await runtime.fetchUsage(
+                settings: ["BASE_URL": "http://gateway.example"],
+                secrets: ["TEST_KEY": "fixture-key"])
+        }
+        #expect(await requests.isEmpty)
+    }
+
+    @Test
+    func `bundled private network policy is limited to providers with native parity`() throws {
+        _ = try ProviderPluginRuntime(source: Self.plugin(
+            id: "llmproxy",
+            endpoints: #"[{ setting: "BASE_URL", policy: "https-or-private-network-http" }]"#,
+            auth: "null",
+            settings: #"{ key: "BASE_URL", title: "Base URL", type: "plain" }"#))
+
+        #expect(throws: ProviderPluginError.self) {
+            _ = try ProviderPluginRuntime(source: Self.plugin(
+                endpoints: #"[{ setting: "BASE_URL", policy: "https-or-private-network-http" }]"#,
+                auth: "null",
+                settings: #"{ key: "BASE_URL", title: "Base URL", type: "plain" }"#))
+        }
     }
 
     @Test
@@ -410,6 +498,35 @@ struct ProviderPluginRuntimeTests {
     }
 
     @Test
+    func `identity only snapshot preserves a successful sparse provider state`() async throws {
+        let runtime = try ProviderPluginRuntime(source: Self.plugin(fetchBody: """
+        return { identity: { organization: "Moonshot", loginMethod: "Balance: $0.00" } };
+        """))
+
+        let snapshot = try await runtime.fetchUsage(secrets: ["TEST_KEY": "secret"])
+
+        #expect(snapshot.primary == nil)
+        #expect(snapshot.providerCost == nil)
+        #expect(snapshot.identity?.accountOrganization == "Moonshot")
+        #expect(snapshot.identity?.loginMethod == "Balance: $0.00")
+    }
+
+    @Test(arguments: [
+        #"return {};"#,
+        #"return { identity: {} };"#,
+        #"return { identity: { email: "  " } };"#,
+        #"return { dataConfidence: "exact" };"#,
+        #"return { subscriptionRenewsAt: "2026-09-01T00:00:00Z" };"#,
+    ])
+    func `empty and metadata only snapshots remain invalid`(fetchBody: String) async throws {
+        let runtime = try ProviderPluginRuntime(source: Self.plugin(fetchBody: fetchBody))
+
+        await #expect(throws: ProviderPluginError.self) {
+            _ = try await runtime.fetchUsage(secrets: ["TEST_KEY": "secret"])
+        }
+    }
+
+    @Test
     func `details map strictly and trim display strings`() async throws {
         let runtime = try ProviderPluginRuntime(source: Self.plugin(fetchBody: """
         return {
@@ -498,6 +615,40 @@ struct ProviderPluginRuntimeTests {
         } catch let error as ProviderFetchClassifiedError {
             #expect(error.kind == kind)
             #expect(error.message == "classified fixture")
+        } catch {
+            Issue.record("Unexpected error: \(error)")
+        }
+    }
+
+    @Test
+    func `transient classified failure preserves capped retry delay`() async throws {
+        let runtime = try ProviderPluginRuntime(source: Self.plugin(fetchBody: """
+        throw ctx.fail.rateLimited("retry later", { retryAfterSeconds: 30 });
+        """))
+
+        do {
+            _ = try await runtime.fetchUsage(secrets: ["TEST_KEY": "secret"])
+            Issue.record("Expected classified failure")
+        } catch let error as ProviderFetchClassifiedError {
+            #expect(error.kind == .rateLimited)
+            #expect(error.message == "retry later")
+            #expect(error.retryAfterSeconds == 10)
+        } catch {
+            Issue.record("Unexpected error: \(error)")
+        }
+    }
+
+    @Test
+    func `non transient classified failure rejects retry options`() async throws {
+        let runtime = try ProviderPluginRuntime(source: Self.plugin(fetchBody: """
+        throw ctx.fail.parseFailure("bad payload", { retryAfterSeconds: 1 });
+        """))
+
+        do {
+            _ = try await runtime.fetchUsage(secrets: ["TEST_KEY": "secret"])
+            Issue.record("Expected script failure")
+        } catch let error as ProviderPluginError {
+            #expect(error.localizedDescription.contains("retry options are supported only for transient failures"))
         } catch {
             Issue.record("Unexpected error: \(error)")
         }
@@ -604,6 +755,7 @@ struct ProviderPluginRuntimeTests {
     }
 
     private static func plugin(
+        id: String = "synthetic",
         endpoints: String = #"["https://api.example.test"]"#,
         auth: String = #"{ type: "bearer", secret: "TEST_KEY" }"#,
         settings: String = #"{ key: "TEST_KEY", title: "API key", type: "secure" }"#,
@@ -612,7 +764,7 @@ struct ProviderPluginRuntimeTests {
     {
         """
         defineProvider({
-          id: "synthetic",
+          id: "\(id)",
           name: "Fixture",
           endpoints: \(endpoints),
           auth: \(auth),
@@ -640,7 +792,7 @@ struct ProviderPluginRuntimeTests {
             transport: ProviderHTTPTransportHandler { _ in throw URLError(.unsupportedURL) },
             timeout: ProviderPluginRuntime.defaultTimeout,
             responseSizeLimit: ProviderPluginRuntime.maximumResponseBytes,
-            rejectsNonSuccessResponses: false,
+            enforcesUserResponsePolicy: false,
             allowsDynamicID: false,
             workerStackSizeBytes: workerStackSizeBytes)
     }
@@ -672,6 +824,26 @@ struct ProviderPluginRuntimeTests {
                 httpVersion: nil,
                 headerFields: ["Content-Type": "application/json"]))
             return (Data(body.utf8), response)
+        }
+    }
+}
+
+private actor TransportCancellationProbe {
+    private var cancelled = false
+    private var waiters: [CheckedContinuation<Void, Never>] = []
+
+    func markCancelled() {
+        self.cancelled = true
+        for waiter in self.waiters {
+            waiter.resume()
+        }
+        self.waiters.removeAll()
+    }
+
+    func waitUntilCancelled() async {
+        if self.cancelled { return }
+        await withCheckedContinuation { continuation in
+            self.waiters.append(continuation)
         }
     }
 }

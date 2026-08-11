@@ -54,6 +54,7 @@ public enum ProviderPluginEndpoint: Equatable, Hashable, Sendable {
     public enum Policy: String, Sendable {
         case https
         case httpsOrLoopbackHTTP = "https-or-loopback-http"
+        case httpsOrPrivateNetworkHTTP = "https-or-private-network-http"
     }
 
     case fixed(String)
@@ -62,6 +63,7 @@ public enum ProviderPluginEndpoint: Equatable, Hashable, Sendable {
 
 public enum ProviderPluginCapability: String, Hashable, Sendable {
     case browserCookies = "browser-cookies"
+    case httpStatus = "http-status"
 }
 
 public struct ProviderPluginManifest: Sendable {
@@ -119,6 +121,13 @@ public struct ProviderPluginManifest: Sendable {
             let rawPolicy = try Self.requiredString(rawEndpoint, property: "policy")
             guard let policy = ProviderPluginEndpoint.Policy(rawValue: rawPolicy) else {
                 throw ProviderPluginError.invalidManifest("unsupported endpoint policy '\(rawPolicy)'")
+            }
+            if policy == .httpsOrPrivateNetworkHTTP,
+               !allowsDynamicID,
+               id.firstPartyProvider.map(Self.bundledPrivateNetworkHTTPProviders.contains) != true
+            {
+                throw ProviderPluginError.invalidManifest(
+                    "private-network HTTP is not allowed for bundled provider '\(id.rawValue)'")
             }
             endpoints.insert(.setting(key: key, policy: policy))
         }
@@ -353,6 +362,9 @@ public struct ProviderPluginManifest: Sendable {
         }
         return value
     }
+
+    /// Provider-specific by design: only LLM Proxy and LiteLLM already grant private-network HTTP authority in Swift.
+    private static let bundledPrivateNetworkHTTPProviders: Set<UsageProvider> = [.llmproxy, .litellm]
 }
 
 enum ProviderPluginOrigin {
@@ -384,6 +396,8 @@ enum ProviderPluginOrigin {
             validator.validatedURL(url.absoluteString)
         case .httpsOrLoopbackHTTP:
             validator.validatedURLAllowingLoopbackHTTP(url.absoluteString)
+        case .httpsOrPrivateNetworkHTTP:
+            validator.validatedURLAllowingPrivateNetworkHTTP(url.absoluteString)
         }
         guard let validated, validated.fragment == nil, validated.user == nil, validated.password == nil else {
             throw ProviderPluginError.networkPolicy("URL does not satisfy the declared endpoint policy")
@@ -422,5 +436,66 @@ public enum ProviderPluginError: LocalizedError, Sendable, Equatable {
         case let .script(message): "Provider plugin script failed: \(message)"
         case .timedOut: "Provider plugin timed out"
         }
+    }
+}
+
+enum ProviderPluginClassifiedFailureParser {
+    private static let markerV1 = "__CODEXBAR_FAILURE__:"
+    fileprivate static let markerV2 = "__CODEXBAR_FAILURE_V2__:"
+
+    static func error(from message: String) -> ProviderFetchClassifiedError? {
+        if message.hasPrefix(self.markerV2) {
+            return self.parseV2(String(message.dropFirst(self.markerV2.count)))
+        }
+        guard message.hasPrefix(self.markerV1) else { return nil }
+        let payload = message.dropFirst(self.markerV1.count)
+        guard let separator = payload.firstIndex(of: ":"),
+              let kind = ProviderFetchClassifiedError.Kind(rawValue: String(payload[..<separator]))
+        else { return nil }
+        return ProviderFetchClassifiedError(kind: kind, message: String(payload[payload.index(after: separator)...]))
+    }
+
+    private static func parseV2(_ payload: String) -> ProviderFetchClassifiedError? {
+        guard let kindSeparator = payload.firstIndex(of: ":"),
+              let kind = ProviderFetchClassifiedError.Kind(rawValue: String(payload[..<kindSeparator]))
+        else { return nil }
+        let retryAndMessage = payload[payload.index(after: kindSeparator)...]
+        guard let retrySeparator = retryAndMessage.firstIndex(of: ":") else { return nil }
+        let retryText = String(retryAndMessage[..<retrySeparator])
+        let retryAfterSeconds = retryText.isEmpty ? nil : TimeInterval(retryText)
+        guard retryText.isEmpty || retryAfterSeconds != nil else { return nil }
+        return ProviderFetchClassifiedError(
+            kind: kind,
+            message: String(retryAndMessage[retryAndMessage.index(after: retrySeparator)...]),
+            retryAfterSeconds: retryAfterSeconds)
+    }
+}
+
+struct ProviderPluginTransientHTTPFailure: LocalizedError, Sendable {
+    private static let retryPolicy = ProviderHTTPRetryPolicy.transientIdempotent
+
+    let errorDescription: String?
+
+    init?(statusCode: Int, retryAfterHeader: String?) {
+        guard let markerMessage = Self.markerMessage(
+            statusCode: statusCode,
+            retryAfterHeader: retryAfterHeader)
+        else { return nil }
+        self.errorDescription = markerMessage
+    }
+
+    static func markerMessage(statusCode: Int, retryAfterHeader: String?) -> String? {
+        guard self.retryPolicy.retryableStatusCodes.contains(statusCode) else { return nil }
+        let kind: ProviderFetchClassifiedError.Kind = statusCode == 429 ? .rateLimited : .providerUnavailable
+        let parsedRetryAfter = retryAfterHeader
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .flatMap(TimeInterval.init)
+        let retryAfterSeconds = if let parsedRetryAfter, parsedRetryAfter.isFinite, parsedRetryAfter >= 0 {
+            parsedRetryAfter
+        } else {
+            self.retryPolicy.baseDelaySeconds
+        }
+        let message = "request returned HTTP \(statusCode)"
+        return "\(ProviderPluginClassifiedFailureParser.markerV2)\(kind.rawValue):\(retryAfterSeconds):\(message)"
     }
 }

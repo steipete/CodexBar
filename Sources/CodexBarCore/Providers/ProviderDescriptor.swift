@@ -150,6 +150,7 @@ public enum ProviderPaceDurationRule: Sendable {
     case unsupported
     case windowDurationMissing
     case windowDuration(minutes: Int)
+    case custom(@Sendable (_ window: RateWindow) -> Bool)
 
     public func matches(window: RateWindow) -> Bool {
         switch self {
@@ -159,6 +160,8 @@ public enum ProviderPaceDurationRule: Sendable {
             window.windowMinutes == nil
         case let .windowDuration(minutes):
             window.windowMinutes == minutes
+        case let .custom(predicate):
+            predicate(window)
         }
     }
 }

@@ -438,9 +438,12 @@ jobs:
 
   update-homebrew-tap:
     runs-on: ubuntu-24.04
+    timeout-minutes: 80
     needs: build-cli
     if: github.event_name == 'release'
     steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
       - name: Resolve release tag
         id: release
         env:
@@ -490,27 +493,11 @@ jobs:
           done
 
       - name: Wait for tap update
+        timeout-minutes: 70
         env:
           GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
           REQUEST_ID: ${{ steps.release.outputs.request_id }}
+          RELEASE_TAG: ${{ steps.release.outputs.tag }}
+          TAP_WAIT_TIMEOUT_SECONDS: "3900"
         shell: bash
-        run: |
-          set -euo pipefail
-          for _ in {1..20}; do
-            run_id="$(
-              gh run list \
-                --repo steipete/homebrew-tap \
-                --workflow update-formula.yml \
-                --json databaseId,displayTitle \
-                --jq '.[] | select(.displayTitle | contains(env.REQUEST_ID)) | .databaseId' 2>/tmp/codexbar-tap-run-list.err \
-                | head -n1 || true
-            )"
-            if [[ -n "$run_id" ]]; then
-              gh run watch "$run_id" --repo steipete/homebrew-tap --exit-status
-              exit 0
-            fi
-            cat /tmp/codexbar-tap-run-list.err >&2 || true
-            sleep 5
-          done
-          echo "Timed out waiting for tap workflow to appear." >&2
-          exit 1
+        run: ./Scripts/wait_for_homebrew_tap_update.sh

@@ -105,9 +105,9 @@ struct CodexCostCatchUpPolicy: Sendable {
         }
 
         let dutyCycle = switch input.powerSource {
-        case .ac: 0.20
-        case .battery: 0.05
-        case .unknown: 0.15
+        case .ac: 0.001
+        case .battery: 0.0002
+        case .unknown: 0.0005
         }
         let activeDuration = max(0, input.previousActiveDuration ?? Self.automaticBurstDuration)
         let delay = activeDuration * (1 - dutyCycle) / dutyCycle

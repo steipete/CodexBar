@@ -227,9 +227,14 @@ struct ServeCostCollectionContext: Sendable {
 actor CLIServeResponseCache {
     static let maximumStaleTTL: TimeInterval = 3600
     nonisolated let operations: CLIServeOperationCoordinator<CLIServeCoordinatedResponse>
+    nonisolated let wallClock: @Sendable () -> Date
 
-    init(operations: CLIServeOperationCoordinator<CLIServeCoordinatedResponse> = CLIServeOperationCoordinator()) {
+    init(
+        operations: CLIServeOperationCoordinator<CLIServeCoordinatedResponse> = CLIServeOperationCoordinator(),
+        wallClock: @escaping @Sendable () -> Date = { Date() })
+    {
         self.operations = operations
+        self.wallClock = wallClock
     }
 
     private struct Entry {
@@ -1100,7 +1105,7 @@ extension CodexBarCLI {
         let cacheKey = Self.serveCacheKey(
             operationKey: request.key,
             configToken: request.configFingerprint)
-        if let response = await cache.cachedResponse(for: cacheKey, now: Date()) {
+        if let response = await cache.cachedResponse(for: cacheKey, now: cache.wallClock()) {
             return response
         }
 
@@ -1111,7 +1116,7 @@ extension CodexBarCLI {
            let stale = await cache.staleResponseForRevalidation(
                for: cacheKey,
                staleTTL: policy.staleTTL,
-               now: Date())
+               now: cache.wallClock())
         {
             Task.detached {
                 _ = await Self.refreshServeResponse(
@@ -1150,12 +1155,12 @@ extension CodexBarCLI {
                     fetched.response,
                     for: cacheKey,
                     policy: policy,
-                    now: Date(),
+                    now: cache.wallClock(),
                     shouldCache: Self.shouldCacheServeResponse(fetched.response))
                 return CLIServeCoordinatedResponse(response: committed, isCommitted: true)
             },
             operation: {
-                if let response = await cache.cachedResponse(for: cacheKey, now: Date()) {
+                if let response = await cache.cachedResponse(for: cacheKey, now: cache.wallClock()) {
                     return CLIServeCoordinatedResponse(response: response, isCommitted: false)
                 }
                 let response = await makeResponse()
@@ -1171,7 +1176,7 @@ extension CodexBarCLI {
             outcome.response,
             for: cacheKey,
             policy: policy,
-            now: Date(),
+            now: cache.wallClock(),
             shouldCache: Self.shouldCacheServeResponse(outcome.response))
     }
 

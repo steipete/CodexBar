@@ -139,6 +139,9 @@ See `docs/configuration.md` for the schema.
         - `--web-debug-dump-html` (writes HTML snapshots to `/tmp` when data is missing)
     - Claude web: claude.ai API (session + weekly usage, account metadata, and prepaid Usage credits balance when
       available).
+      CLI Auto falls back to the installed Claude executable when web credentials are unavailable. This foreground
+      command delegates authentication to Claude Code; the app keeps its stricter prompt-free background availability
+      gate for scheduled refreshes.
     - Command Code web: commandcode.ai browser session cookies on macOS, or a configured manual cookie on Linux, for monthly credit usage.
     - OpenCode Go auto: local SQLite usage on macOS and Linux, with optional manual-cookie web enrichment.
     - Kilo auto: app.kilo.ai API first, then CLI auth fallback (`~/.local/share/kilo/auth.json`) on missing/unauthorized API credentials.

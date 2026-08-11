@@ -40,6 +40,7 @@ public enum ZenMuxProviderDescriptor {
                 noDataMessage: { "ZenMux cost history is not exposed by the Management API." }),
             presentation: ProviderUsagePresentation(
                 costPresenter: { _ in ProviderCostPresentation(menuCardStyle: .payAsYouGoBalance) },
+                primaryBindingQuotaLanes: [.secondary],
                 menuCard: ProviderMenuCardPresentation(
                     primaryDescriptionPlacement: .detailLeft,
                     hidesPrimaryResetWithoutDate: true)),

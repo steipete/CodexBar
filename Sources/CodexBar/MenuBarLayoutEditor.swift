@@ -617,7 +617,7 @@ private struct MenuBarLayoutChipLabel: View {
 }
 
 @MainActor
-private struct MenuBarLayoutPreview: View {
+struct MenuBarLayoutPreview: View {
     let layout: MenuBarLayout
     let provider: UsageProvider?
     @Bindable var settings: SettingsStore
@@ -646,11 +646,11 @@ private struct MenuBarLayoutPreview: View {
         MenuBarLayoutPreviewText(rendered: rendered)
     }
 
-    private func liveData(provider: UsageProvider, snapshot: UsageSnapshot) -> MenuBarLayoutRenderData {
+    func liveData(provider: UsageProvider, snapshot: UsageSnapshot) -> MenuBarLayoutRenderData {
         let now = Date()
         let session: RateWindow?
         let weekly: RateWindow?
-        let automatic: RateWindow?
+        let rawAutomatic: RateWindow?
         if provider == .codex,
            let projection = self.store.codexConsumerProjectionIfNeeded(
                for: provider,
@@ -660,14 +660,14 @@ private struct MenuBarLayoutPreview: View {
         {
             session = projection.menuBarSelectableRateWindow(for: .session)
             weekly = projection.menuBarSelectableRateWindow(for: .weekly)
-            automatic = projection.automaticMenuBarWindow()
+            rawAutomatic = projection.automaticMenuBarWindow()
         } else {
             let semanticWindows = MenuBarLayoutSemanticWindowResolver.windows(
                 provider: provider,
                 snapshot: snapshot)
             session = semanticWindows.session
             weekly = semanticWindows.weekly
-            automatic = MenuBarMetricWindowResolver.rateWindow(
+            rawAutomatic = MenuBarMetricWindowResolver.rateWindow(
                 preference: .automatic,
                 provider: provider,
                 snapshot: snapshot,
@@ -675,6 +675,10 @@ private struct MenuBarLayoutPreview: View {
                 antigravityPrioritizeExhaustedQuotas: self.settings.antigravityPrioritizeExhaustedQuotas,
                 now: now)
         }
+        let automatic = MenuBarLayoutAutomaticWindowDisplayNormalizer.normalized(
+            provider: provider,
+            snapshot: snapshot,
+            window: rawAutomatic)
         let scopedNamed = MenuBarLayoutSemanticWindowResolver.scopedWeeklyNamedWindow(snapshot: snapshot)
         let paceWindow = weekly ?? automatic
         let runsOut = paceWindow
@@ -746,7 +750,7 @@ private struct MenuBarLayoutPreview: View {
 }
 
 @MainActor
-private struct MenuBarLayoutPreviewText: NSViewRepresentable {
+struct MenuBarLayoutPreviewText: NSViewRepresentable {
     let rendered: MenuBarLayoutRenderedTitle
 
     func makeNSView(context: Context) -> NSTextField {

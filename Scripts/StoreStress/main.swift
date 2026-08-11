@@ -64,7 +64,7 @@ func delta(day: String, model: String, amount: Int64) -> CostUsageStoreDayAggreg
     value.outputTokens = amount
     value.cachedTokens = amount / 2
     value.requestCount = 1
-    value.knownCostNanos = amount * 10
+    value.authoritativeCostNanos = amount * 10
     return value
 }
 

@@ -210,6 +210,137 @@ struct ClaudeBaselineCharacterizationTests {
     }
 
     @Test
+    func `CLI explicit source delegates authentication to the configured Claude executable`() async throws {
+        let invocationLog = FileManager.default.temporaryDirectory
+            .appendingPathComponent("claude-invocations-\(UUID().uuidString).log")
+        let stubCLIPath = try self.makeStubClaudeCLI(
+            authStatusScript: "printf '%s\\n' 'not-json'",
+            invocationLog: invocationLog)
+        defer {
+            try? FileManager.default.removeItem(atPath: stubCLIPath)
+            try? FileManager.default.removeItem(at: invocationLog)
+        }
+        let settings = ProviderSettingsSnapshot.make(claude: .init(
+            usageDataSource: .cli,
+            webExtrasEnabled: false,
+            cookieSource: .off,
+            manualCookieHeader: nil))
+        let env = ["CLAUDE_CLI_PATH": stubCLIPath]
+        let fetchOverride: ClaudeStatusProbe.FetchOverride = { binary, _, _ in
+            #expect(binary == stubCLIPath)
+            return Self.makeUsageStatusSnapshot()
+        }
+
+        let outcome = await ClaudeStatusProbe.$fetchOverride.withValue(fetchOverride) {
+            await self.fetchOutcome(runtime: .cli, sourceMode: .cli, env: env, settings: settings)
+        }
+        let result = try outcome.result.get()
+
+        #expect(outcome.attempts.map(\.strategyID) == ["claude.cli"])
+        #expect(outcome.attempts.map(\.wasAvailable) == [true])
+        #expect(result.strategyID == "claude.cli")
+        #expect(result.usage.dataConfidence == .percentOnly)
+        #expect(try String(contentsOf: invocationLog, encoding: .utf8) == "auth status --json\n")
+    }
+
+    @Test
+    func `CLI auto reaches Claude executable after web credentials are unavailable`() async throws {
+        let invocationLog = FileManager.default.temporaryDirectory
+            .appendingPathComponent("claude-invocations-\(UUID().uuidString).log")
+        let stubCLIPath = try self.makeStubClaudeCLI(
+            authStatusScript: "printf '%s\\n' 'not-json'",
+            invocationLog: invocationLog)
+        defer {
+            try? FileManager.default.removeItem(atPath: stubCLIPath)
+            try? FileManager.default.removeItem(at: invocationLog)
+        }
+        let settings = ProviderSettingsSnapshot.make(claude: .init(
+            usageDataSource: .auto,
+            webExtrasEnabled: false,
+            cookieSource: .auto,
+            manualCookieHeader: nil))
+        let env = ["CLAUDE_CLI_PATH": stubCLIPath]
+        let webLoader: ClaudeWebFetchStrategy.UsageLoader = { _ in
+            throw ClaudeWebAPIFetcher.FetchError.noSessionKeyFound
+        }
+        let fetchOverride: ClaudeStatusProbe.FetchOverride = { binary, _, _ in
+            #expect(binary == stubCLIPath)
+            return Self.makeUsageStatusSnapshot()
+        }
+
+        let outcome = await ClaudeWebFetchStrategy.$usageLoaderOverrideForTesting.withValue(webLoader) {
+            await ClaudeStatusProbe.$fetchOverride.withValue(fetchOverride) {
+                await self.fetchOutcome(runtime: .cli, sourceMode: .auto, env: env, settings: settings)
+            }
+        }
+        let result = try outcome.result.get()
+
+        #expect(outcome.attempts.map(\.strategyID) == ["claude.web", "claude.cli"])
+        #expect(outcome.attempts.map(\.wasAvailable) == [true, true])
+        #expect(result.strategyID == "claude.cli")
+        #expect(result.usage.dataConfidence == .percentOnly)
+        #expect(try String(contentsOf: invocationLog, encoding: .utf8) == "auth status --json\n")
+    }
+
+    @Test(arguments: [
+        "/definitely/missing/claude",
+        "/etc/hosts",
+    ])
+    func `CLI source rejects missing and non executable Claude paths`(path: String) async {
+        let settings = ProviderSettingsSnapshot.make(claude: .init(
+            usageDataSource: .cli,
+            webExtrasEnabled: false,
+            cookieSource: .off,
+            manualCookieHeader: nil))
+        let outcome = await ClaudeCLIResolver.withResolvedBinaryPathOverrideForTesting(path) {
+            await self.fetchOutcome(
+                runtime: .cli,
+                sourceMode: .cli,
+                env: ["CLAUDE_CLI_PATH": path],
+                settings: settings)
+        }
+
+        #expect(outcome.attempts.map(\.strategyID) == ["claude.cli"])
+        #expect(outcome.attempts.map(\.wasAvailable) == [false])
+        switch outcome.result {
+        case let .failure(error as ProviderFetchError):
+            guard case .noAvailableStrategy(.claude) = error else {
+                Issue.record("Unexpected provider fetch error: \(error)")
+                return
+            }
+        case let .failure(error):
+            Issue.record("Unexpected error: \(error)")
+        case let .success(result):
+            Issue.record("Unavailable Claude executable unexpectedly produced \(result.strategyID)")
+        }
+    }
+
+    @Test
+    func `CLI source keeps definitive logged out guard`() async throws {
+        let invocationLog = FileManager.default.temporaryDirectory
+            .appendingPathComponent("claude-invocations-\(UUID().uuidString).log")
+        let stubCLIPath = try self.makeStubClaudeCLI(loggedIn: false, invocationLog: invocationLog)
+        defer {
+            try? FileManager.default.removeItem(atPath: stubCLIPath)
+            try? FileManager.default.removeItem(at: invocationLog)
+        }
+        let settings = ProviderSettingsSnapshot.make(claude: .init(
+            usageDataSource: .cli,
+            webExtrasEnabled: false,
+            cookieSource: .off,
+            manualCookieHeader: nil))
+        let outcome = await self.fetchOutcome(
+            runtime: .cli,
+            sourceMode: .cli,
+            env: ["CLAUDE_CLI_PATH": stubCLIPath],
+            settings: settings)
+
+        #expect(outcome.attempts.map(\.strategyID) == ["claude.cli"])
+        #expect(outcome.attempts.map(\.wasAvailable) == [false])
+        #expect(try String(contentsOf: invocationLog, encoding: .utf8) == "auth status --json\n")
+    }
+
+    @Test
     func `app explicit CLI remains available for interactive authentication without preflight`() async {
         let settings = ProviderSettingsSnapshot.make(claude: .init(
             usageDataSource: .cli,
@@ -698,5 +829,19 @@ struct ClaudeBaselineCharacterizationTests {
     func `Claude OAuth token heuristics reject cookie shaped inputs`() {
         #expect(!TokenAccountSupportCatalog.isClaudeOAuthToken("sessionKey=sk-ant-session"))
         #expect(!TokenAccountSupportCatalog.isClaudeOAuthToken("Cookie: sessionKey=sk-ant-session; foo=bar"))
+    }
+
+    private static func makeUsageStatusSnapshot() -> ClaudeStatusSnapshot {
+        ClaudeStatusSnapshot(
+            sessionPercentLeft: 88,
+            weeklyPercentLeft: 60,
+            opusPercentLeft: 95,
+            accountEmail: "user@example.com",
+            accountOrganization: "Example Org",
+            loginMethod: nil,
+            primaryResetDescription: "Resets 11am",
+            secondaryResetDescription: "Resets Nov 21",
+            opusResetDescription: "Resets Nov 21",
+            rawText: "stub")
     }
 }

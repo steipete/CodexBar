@@ -88,6 +88,8 @@ public enum StepFunProviderDescriptor {
                 supportsTokenCost: false,
                 noDataMessage: { "StepFun per-day cost history is not available via API." }),
             pace: .calendarMonthResetWindow,
+            presentation: ProviderUsagePresentation(
+                primaryBindingQuotaLanes: [.secondary]),
             fetchPlan: ProviderFetchPlan(
                 sourceModes: [.auto, .web],
                 pipeline: ProviderFetchPipeline(resolveStrategies: { _ in [StepFunWebFetchStrategy()] })),

@@ -87,7 +87,11 @@ defineProvider({
     }
     function window(limit) {
       const result = { usedPercent: limit.percent };
-      if ((limit.raw.type === "TOKENS_LIMIT" || limit.raw.type === "CREDIT_LIMIT") && limit.windowMinutes !== null) {
+      if (limit.raw.type === "TIME_LIMIT") {
+        const isMonthlyMCPMarker = limit.raw.unit === 5 && limit.raw.number === 1;
+        if (isMonthlyMCPMarker) result.windowMinutes = 30 * 24 * 60;
+        else if (limit.windowMinutes !== null) result.windowMinutes = limit.windowMinutes;
+      } else if (limit.windowMinutes !== null) {
         result.windowMinutes = limit.windowMinutes;
       }
       if (limit.reset !== null) result.resetsAt = ctx.date.unixMillis(limit.reset);

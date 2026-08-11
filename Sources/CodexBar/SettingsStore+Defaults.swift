@@ -882,7 +882,7 @@ extension SettingsStore {
         if normalizedActive.count <= Self.mergedOverviewLegacyWheelNavigationLimit,
            !self.mergedOverviewSelectionApplies(to: normalizedActive)
         {
-            return normalizedActive
+            return Array(normalizedActive.prefix(maxVisibleProviders))
         }
 
         let selectedSet = Set(self.mergedOverviewSelectedProviders)

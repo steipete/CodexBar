@@ -335,6 +335,9 @@ extension CostUsageScanner {
     }
 
     private static func reconciledClaudeRows(cache: CostUsageCache) -> [ClaudeUsageRow] {
+        #if DEBUG
+        recordClaudeScanWork(.reconcile)
+        #endif
         var rows: [ClaudeUsageRow] = []
         var winners: [String: (path: String, row: ClaudeUsageRow)] = [:]
 
@@ -535,13 +538,47 @@ extension CostUsageScanner {
         return [rootPath]
     }
 
+    private final class ClaudeModelsDevCatalogResolver {
+        private let now: Date
+        private let cacheRoot: URL?
+        private var catalog: ModelsDevCatalog?
+
+        init(now: Date, cacheRoot: URL?) {
+            self.now = now
+            self.cacheRoot = cacheRoot
+        }
+
+        func resolve() -> ModelsDevCatalog {
+            if let catalog = self.catalog {
+                return catalog
+            }
+            let catalog = CostUsagePricing.modelsDevCatalog(now: self.now, cacheRoot: self.cacheRoot)
+                ?? ModelsDevCatalog(providers: [:])
+            self.catalog = catalog
+            return catalog
+        }
+    }
+
+    private struct ClaudeSourceFile {
+        let url: URL
+        let stamp: CostUsageClaudeFileStamp
+    }
+
+    private struct ClaudeSourceInventory {
+        var files: [String: ClaudeSourceFile] = [:]
+
+        var stamps: [String: CostUsageClaudeFileStamp] {
+            self.files.mapValues(\.stamp)
+        }
+    }
+
     private final class ClaudeScanState {
         var cache: CostUsageCache
-        var touched: Set<String>
         let range: CostUsageDayRange
         let providerFilter: ClaudeLogProviderFilter
         let forceFullScan: Bool
-        let modelsDevCatalog: ModelsDevCatalog?
+        let changedPaths: Set<String>
+        let modelsDevCatalogResolver: ClaudeModelsDevCatalogResolver
         let modelsDevCacheRoot: URL?
         let checkCancellation: CancellationCheck?
 
@@ -550,16 +587,17 @@ extension CostUsageScanner {
             range: CostUsageDayRange,
             providerFilter: ClaudeLogProviderFilter,
             forceFullScan: Bool,
-            modelsDevCatalog: ModelsDevCatalog?,
+            changedPaths: Set<String>,
+            modelsDevCatalogResolver: ClaudeModelsDevCatalogResolver,
             modelsDevCacheRoot: URL?,
             checkCancellation: CancellationCheck?)
         {
             self.cache = cache
-            self.touched = []
             self.range = range
             self.providerFilter = providerFilter
             self.forceFullScan = forceFullScan
-            self.modelsDevCatalog = modelsDevCatalog
+            self.changedPaths = changedPaths
+            self.modelsDevCatalogResolver = modelsDevCatalogResolver
             self.modelsDevCacheRoot = modelsDevCacheRoot
             self.checkCancellation = checkCancellation
         }
@@ -573,12 +611,12 @@ extension CostUsageScanner {
     {
         try state.checkCancellation?()
         let path = url.path
-        state.touched.insert(path)
 
         if let cached = state.cache.files[path],
            cached.mtimeUnixMs == mtimeMs,
            cached.size == size,
-           !state.forceFullScan
+           !state.forceFullScan,
+           !state.changedPaths.contains(path)
         {
             return
         }
@@ -588,12 +626,15 @@ extension CostUsageScanner {
             let canIncremental = size > cached.size && startOffset > 0 && startOffset <= size
                 && cached.claudeRows != nil
             if canIncremental {
+                #if DEBUG
+                Self.recordClaudeScanWork(.transcriptParse)
+                #endif
                 let delta = try Self.parseClaudeFileCancellable(
                     fileURL: url,
                     range: state.range,
                     providerFilter: state.providerFilter,
                     startOffset: startOffset,
-                    modelsDevCatalog: state.modelsDevCatalog,
+                    modelsDevCatalog: state.modelsDevCatalogResolver.resolve(),
                     modelsDevCacheRoot: state.modelsDevCacheRoot,
                     checkCancellation: state.checkCancellation)
                 let mergedRows = Self.mergeClaudeRows(existing: cached.claudeRows ?? [], delta: delta.rows)
@@ -606,11 +647,14 @@ extension CostUsageScanner {
             }
         }
 
+        #if DEBUG
+        Self.recordClaudeScanWork(.transcriptParse)
+        #endif
         let parsed = try Self.parseClaudeFileCancellable(
             fileURL: url,
             range: state.range,
             providerFilter: state.providerFilter,
-            modelsDevCatalog: state.modelsDevCatalog,
+            modelsDevCatalog: state.modelsDevCatalogResolver.resolve(),
             modelsDevCacheRoot: state.modelsDevCacheRoot,
             checkCancellation: state.checkCancellation)
         let usage = Self.makeClaudeFileUsage(
@@ -621,67 +665,33 @@ extension CostUsageScanner {
         state.cache.files[path] = usage
     }
 
-    private static func scanClaudeRoot(
-        root: URL,
-        state: ClaudeScanState) throws
+    private static func inventoryClaudeRoots(
+        _ roots: [URL],
+        checkCancellation: CancellationCheck?) throws -> ClaudeSourceInventory
     {
-        try state.checkCancellation?()
-        let rootPath = root.path
-        let rootCandidates = Self.claudeRootCandidates(for: rootPath)
-        let prefixes = Set(rootCandidates).map { path in
-            path.hasSuffix("/") ? path : "\(path)/"
-        }
-        let rootExists = rootCandidates.contains { FileManager.default.fileExists(atPath: $0) }
+        var inventory = ClaudeSourceInventory()
 
-        guard rootExists else {
-            let stale = state.cache.files.keys.filter { path in
-                prefixes.contains(where: { path.hasPrefix($0) })
+        for root in roots {
+            try checkCancellation?()
+            let rootPath = root.path
+            let rootCandidates = Self.claudeRootCandidates(for: rootPath)
+            guard let existingRootPath = rootCandidates.first(where: { FileManager.default.fileExists(atPath: $0) })
+            else { continue }
+            let existingRoot = existingRootPath == rootPath ? root : URL(fileURLWithPath: existingRootPath)
+            guard let enumerator = FileManager.default.enumerator(
+                at: existingRoot,
+                includingPropertiesForKeys: nil,
+                options: [.skipsHiddenFiles, .skipsPackageDescendants])
+            else { continue }
+
+            for case let url as URL in enumerator {
+                try checkCancellation?()
+                guard url.pathExtension.lowercased() == "jsonl" else { continue }
+                guard let stamp = CostUsageClaudeFileStamp.read(at: url), stamp.size > 0 else { continue }
+                inventory.files[url.path] = ClaudeSourceFile(url: url, stamp: stamp)
             }
-            for path in stale {
-                state.cache.files.removeValue(forKey: path)
-            }
-            return
         }
-
-        // Always enumerate the directory tree. The per-file mtime/size cache in
-        // processClaudeFile already skips unchanged files, so the only cost here is
-        // the directory walk itself. The previous root-mtime optimization skipped
-        // enumeration entirely when the root directory mtime was unchanged, but on
-        // POSIX systems a directory mtime only updates for direct child changes —
-        // not for files created or modified inside subdirectories. This caused new
-        // session logs to go undetected until the cache was manually cleared.
-        let keys: [URLResourceKey] = [
-            .isRegularFileKey,
-            .contentModificationDateKey,
-            .fileSizeKey,
-        ]
-
-        guard let enumerator = FileManager.default.enumerator(
-            at: root,
-            includingPropertiesForKeys: keys,
-            options: [.skipsHiddenFiles, .skipsPackageDescendants])
-        else { return }
-
-        for case let url as URL in enumerator {
-            try state.checkCancellation?()
-            guard url.pathExtension.lowercased() == "jsonl" else { continue }
-            guard let values = try? url.resourceValues(forKeys: Set(keys)) else { continue }
-            guard values.isRegularFile == true else { continue }
-            let size = Int64(values.fileSize ?? 0)
-            if size <= 0 {
-                continue
-            }
-
-            let mtime = values.contentModificationDate?.timeIntervalSince1970 ?? 0
-            let mtimeMs = Int64(mtime * 1000)
-            try Self.processClaudeFile(
-                url: url,
-                size: size,
-                mtimeMs: mtimeMs,
-                state: state)
-        }
-
-        // Root mtime caching removed — see comment above.
+        return inventory
     }
 
     static func loadClaudeDaily(
@@ -691,52 +701,100 @@ extension CostUsageScanner {
         options: Options,
         checkCancellation: CancellationCheck?) throws -> CostUsageDailyReport
     {
+        let roots = self.defaultClaudeProjectsRoots(options: options)
+        let inventory = try Self.inventoryClaudeRoots(roots, checkCancellation: checkCancellation)
+        try checkCancellation?()
+
+        let cacheURL = CostUsageClaudeCacheIO.cacheFileURL(provider: provider, cacheRoot: options.cacheRoot)
+        let canonicalCachePath = cacheURL.standardizedFileURL.resolvingSymlinksInPath().path
+        let cacheArtifactStamp = CostUsageClaudeFileStamp.read(at: cacheURL)
+        let pricingURL = ModelsDevCache.cacheFileURL(cacheRoot: options.cacheRoot)
+        let pricingArtifactStamp = CostUsageClaudeFileStamp.read(at: pricingURL)
+        let reportKey = Self.claudeReportMemoKey(
+            provider: provider,
+            providerFilter: options.claudeLogProviderFilter,
+            range: range,
+            roots: roots,
+            artifactStamps: (cache: cacheArtifactStamp, pricing: pricingArtifactStamp))
+        let memo = CostUsageClaudeReportMemo.shared
+        let priorMemo = memo.entry(provider: provider, canonicalCachePath: canonicalCachePath)
+        let sourceInventory = inventory.stamps
+
+        if !options.forceRescan,
+           let priorMemo,
+           priorMemo.sourceInventory == sourceInventory,
+           priorMemo.reportKey == reportKey
+        {
+            try checkCancellation?()
+            return priorMemo.report
+        }
+
         var cache = CostUsageClaudeCacheIO.load(
             provider: provider,
             cacheRoot: options.cacheRoot,
             calendar: range.calendar)
         let nowMs = Int64(now.timeIntervalSince1970 * 1000)
-
         let refreshMs = Int64(max(0, options.refreshMinIntervalSeconds) * 1000)
         let windowExpanded = Self.requestedWindowExpandsCache(range: range, cache: cache)
+        let sourceInventoryChanged = priorMemo.map { $0.sourceInventory != sourceInventory } ?? false
+        let cacheArtifactChanged = priorMemo.map {
+            $0.reportKey.cacheArtifactStamp != cacheArtifactStamp
+        } ?? false
+        let scanConfigurationChanged = priorMemo.map {
+            $0.reportKey.scanConfiguration != reportKey.scanConfiguration
+        } ?? false
         let shouldRefresh = options.forceRescan
             || windowExpanded
+            || sourceInventoryChanged
+            || cacheArtifactChanged
+            || scanConfigurationChanged
             || refreshMs == 0
             || cache.lastScanUnixMs == 0
             || nowMs - cache.lastScanUnixMs > refreshMs
-
         let providerFilter = options.claudeLogProviderFilter
+        let hasStableProcessBaseline = priorMemo != nil
+            && !sourceInventoryChanged
+            && !cacheArtifactChanged
+            && !scanConfigurationChanged
+        let shouldMutateCache = shouldRefresh && (!hasStableProcessBaseline || options.forceRescan || windowExpanded)
+        let modelsDevCatalogResolver = ClaudeModelsDevCatalogResolver(now: now, cacheRoot: options.cacheRoot)
 
-        var touched: Set<String> = []
-
-        if shouldRefresh {
+        if shouldMutateCache {
             try checkCancellation?()
             if options.forceRescan {
                 cache = CostUsageCache()
             }
-            let modelsDevCatalog = CostUsagePricing.modelsDevCatalog(now: now, cacheRoot: options.cacheRoot)
+            let changedPaths: Set<String> = if let priorMemo {
+                Set(inventory.files.keys.filter { path in
+                    priorMemo.sourceInventory[path] != sourceInventory[path]
+                })
+            } else {
+                []
+            }
             let scanState = ClaudeScanState(
                 cache: cache,
                 range: range,
                 providerFilter: providerFilter,
-                forceFullScan: options.forceRescan || windowExpanded,
-                modelsDevCatalog: modelsDevCatalog,
+                forceFullScan: options.forceRescan || windowExpanded || scanConfigurationChanged,
+                changedPaths: changedPaths,
+                modelsDevCatalogResolver: modelsDevCatalogResolver,
                 modelsDevCacheRoot: options.cacheRoot,
                 checkCancellation: checkCancellation)
 
-            let roots = self.defaultClaudeProjectsRoots(options: options)
-            for root in roots {
-                try Self.scanClaudeRoot(
-                    root: root,
+            for path in inventory.files.keys.sorted() {
+                guard let source = inventory.files[path] else { continue }
+                try Self.processClaudeFile(
+                    url: source.url,
+                    size: source.stamp.size,
+                    mtimeMs: source.stamp.mtimeUnixMs,
                     state: scanState)
             }
             try checkCancellation?()
 
             cache = scanState.cache
-            touched = scanState.touched
             cache.roots = nil
 
-            for key in cache.files.keys where !touched.contains(key) {
+            for key in cache.files.keys where sourceInventory[key] == nil {
                 cache.files.removeValue(forKey: key)
             }
 
@@ -745,26 +803,80 @@ extension CostUsageScanner {
             cache.scanSinceKey = range.scanSinceKey
             cache.scanUntilKey = range.scanUntilKey
             cache.lastScanUnixMs = nowMs
-            try checkCancellation?()
-            CostUsageClaudeCacheIO.save(
+        }
+
+        let report = Self.buildClaudeReportFromCache(
+            cache: cache,
+            range: range,
+            modelsDevCatalogResolver: modelsDevCatalogResolver,
+            modelsDevCacheRoot: options.cacheRoot)
+        try checkCancellation?()
+
+        let committedCacheStamp: CostUsageClaudeFileStamp? = if shouldMutateCache {
+            try CostUsageClaudeCacheIO.save(
                 provider: provider,
                 cache: cache,
                 cacheRoot: options.cacheRoot,
-                calendar: range.calendar)
+                calendar: range.calendar,
+                checkCancellation: checkCancellation)
+        } else {
+            nil
         }
 
-        let modelsDevCatalog = CostUsagePricing.modelsDevCatalog(now: now, cacheRoot: options.cacheRoot)
-        return Self.buildClaudeReportFromCache(
-            cache: cache,
+        let finalCacheArtifactStamp = CostUsageClaudeFileStamp.read(at: cacheURL)
+        let finalPricingArtifactStamp = CostUsageClaudeFileStamp.read(at: pricingURL)
+        let finalReportKey = Self.claudeReportMemoKey(
+            provider: provider,
+            providerFilter: providerFilter,
             range: range,
-            modelsDevCatalog: modelsDevCatalog,
-            modelsDevCacheRoot: options.cacheRoot)
+            roots: roots,
+            artifactStamps: (cache: finalCacheArtifactStamp, pricing: finalPricingArtifactStamp))
+        let cacheArtifactIsCurrent = if shouldMutateCache {
+            committedCacheStamp != nil && finalCacheArtifactStamp == committedCacheStamp
+        } else {
+            finalCacheArtifactStamp == cacheArtifactStamp
+        }
+        if cacheArtifactIsCurrent, finalPricingArtifactStamp == pricingArtifactStamp {
+            memo.store(
+                provider: provider,
+                canonicalCachePath: canonicalCachePath,
+                sourceInventory: sourceInventory,
+                reportKey: finalReportKey,
+                report: report)
+        }
+        return report
+    }
+
+    private static func claudeReportMemoKey(
+        provider: UsageProvider,
+        providerFilter: ClaudeLogProviderFilter,
+        range: CostUsageDayRange,
+        roots: [URL],
+        artifactStamps: (cache: CostUsageClaudeFileStamp?, pricing: CostUsageClaudeFileStamp?))
+        -> CostUsageClaudeReportMemoKey
+    {
+        let providerFilterKey = switch providerFilter {
+        case .all: "all"
+        case .vertexAIOnly: "vertex-ai-only"
+        case .excludeVertexAI: "exclude-vertex-ai"
+        }
+        return CostUsageClaudeReportMemoKey(
+            provider: provider,
+            providerFilter: providerFilterKey,
+            sinceKey: range.sinceKey,
+            untilKey: range.untilKey,
+            scanSinceKey: range.scanSinceKey,
+            scanUntilKey: range.scanUntilKey,
+            timeZoneIdentifier: range.calendar.timeZone.identifier,
+            roots: roots.map { $0.standardizedFileURL.resolvingSymlinksInPath().path }.sorted(),
+            cacheArtifactStamp: artifactStamps.cache,
+            pricingArtifactStamp: artifactStamps.pricing)
     }
 
     private static func buildClaudeReportFromCache(
         cache: CostUsageCache,
         range: CostUsageDayRange,
-        modelsDevCatalog: ModelsDevCatalog? = nil,
+        modelsDevCatalogResolver: ClaudeModelsDevCatalogResolver,
         modelsDevCacheRoot: URL? = nil) -> CostUsageDailyReport
     {
         var entries: [CostUsageDailyReport.Entry] = []
@@ -777,8 +889,13 @@ extension CostUsageScanner {
         var costSeen = false
         let costScale = 1_000_000_000.0
         var repricedCosts: [ClaudeDayModelKey: ClaudeRepricedCost] = [:]
+        let rows = Self.reconciledClaudeRows(cache: cache)
+        let modelsDevCatalog = rows.isEmpty ? nil : modelsDevCatalogResolver.resolve()
 
-        for row in Self.reconciledClaudeRows(cache: cache) {
+        for row in rows {
+            #if DEBUG
+            Self.recordClaudeScanWork(.reprice)
+            #endif
             let key = ClaudeDayModelKey(day: row.dayKey, model: row.model)
             var aggregate = repricedCosts[key] ?? ClaudeRepricedCost()
             aggregate.sampleCount += 1

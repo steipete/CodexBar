@@ -48,7 +48,29 @@
     networkFailure: "network-failure",
     apiFailure: "api-failure",
   });
-  const classifiedFailure = (kind) => (message) => new Error(`__CODEXBAR_FAILURE__:${kind}:${String(message)}`);
+  const retryableFailureKinds = new Set([
+    failureKinds.rateLimited,
+    failureKinds.providerUnavailable,
+    failureKinds.networkFailure,
+    failureKinds.apiFailure,
+  ]);
+  const classifiedFailure = (kind) => (message, options) => {
+    let retryAfter = "";
+    if (options !== undefined) {
+      if (!retryableFailureKinds.has(kind)) {
+        throw new TypeError("retry options are supported only for transient failures");
+      }
+      if (!options || typeof options !== "object" || !("retryAfterSeconds" in options)) {
+        throw new TypeError("retry options require retryAfterSeconds");
+      }
+      const seconds = Number(options.retryAfterSeconds);
+      if (!Number.isFinite(seconds) || seconds < 0) {
+        throw new RangeError("retryAfterSeconds must be a non-negative finite number");
+      }
+      retryAfter = String(seconds);
+    }
+    return new Error(`__CODEXBAR_FAILURE_V2__:${kind}:${retryAfter}:${String(message)}`);
+  };
   ctx.fail = Object.freeze(
     Object.fromEntries(Object.entries(failureKinds).map(([name, kind]) => [name, classifiedFailure(kind)])),
   );

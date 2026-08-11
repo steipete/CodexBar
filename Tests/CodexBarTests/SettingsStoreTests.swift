@@ -491,6 +491,28 @@ struct SettingsStoreTests {
     }
 
     @Test
+    func `resolved merged overview providers caps stale selection fallback`() throws {
+        let suite = "SettingsStoreTests-merged-overview-stale-selection-cap"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        let configStore = testConfigStore(suiteName: suite)
+        let store = SettingsStore(
+            userDefaults: defaults,
+            configStore: configStore,
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+
+        store.mergedOverviewSelectedProviders = [.grok]
+        let activeProviders: [UsageProvider] = [.codex, .claude, .cursor]
+        let resolved = store.resolvedMergedOverviewProviders(
+            activeProviders: activeProviders,
+            maxVisibleProviders: 2)
+
+        #expect(resolved == [.codex, .claude])
+        #expect(resolved.count <= 2)
+    }
+
+    @Test
     func `reconcile merged overview selection removes unavailable without auto fill`() throws {
         let suite = "SettingsStoreTests-merged-overview-reconcile"
         let defaults = try #require(UserDefaults(suiteName: suite))

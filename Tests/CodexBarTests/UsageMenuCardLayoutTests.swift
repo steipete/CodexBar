@@ -430,6 +430,36 @@ struct UsageMenuCardLayoutTests {
         #expect(longHeight - shortHeight < 20)
     }
 
+    @Test
+    func `mixed language metric header falls back to one compact extra row at standard width`() {
+        let width: CGFloat = 296
+        func card(title: String, resetText: String) -> UsageMenuCardView {
+            UsageMenuCardView(model: Self.model(metrics: [
+                UsageMenuCardView.Model.Metric(
+                    id: "weekly",
+                    title: title,
+                    percent: 69,
+                    percentStyle: .left,
+                    resetText: resetText,
+                    detailText: nil,
+                    detailLeftText: nil,
+                    detailRightText: nil,
+                    pacePercent: nil,
+                    paceOnTop: true),
+            ]), width: width)
+        }
+
+        let shortHeight = NSHostingController(rootView: card(title: "Weekly", resetText: "Resets in 2h"))
+            .sizeThatFits(in: CGSize(width: width, height: .greatestFiniteMagnitude)).height
+        let fallbackHeight = NSHostingController(rootView: card(
+            title: "利用限度 Wöchentlich",
+            resetText: "Réinitialisation demain à 23:59"))
+            .sizeThatFits(in: CGSize(width: width, height: .greatestFiniteMagnitude)).height
+
+        #expect(fallbackHeight - shortHeight > Self.heightTolerance)
+        #expect(fallbackHeight - shortHeight < 24)
+    }
+
     private static func model(
         metrics: [UsageMenuCardView.Model.Metric] = [],
         usageNotes: [String] = [],

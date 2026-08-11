@@ -877,7 +877,7 @@ extension StatusItemController {
             return balance
         }
         if provider == .deepseek,
-           let balance = Self.deepSeekBalanceDisplayText(snapshot: snapshot)
+           let balance = MenuBarDisplayText.deepSeekBalanceText(snapshot: snapshot)
         {
             return balance
         }
@@ -997,20 +997,6 @@ extension StatusItemController {
             resetTimeDisplayStyle: self.settings.resetTimeDisplayStyle,
             showsResetTimeWhenExhausted: self.settings.menuBarShowsResetTimeWhenExhausted,
             now: now)
-    }
-
-    nonisolated static func deepSeekBalanceDisplayText(snapshot: UsageSnapshot?) -> String? {
-        guard
-            let rawValue = snapshot?.primary?.resetDescription?
-                .trimmingCharacters(in: .whitespacesAndNewlines),
-                !rawValue.isEmpty,
-                rawValue.hasPrefix("$") || rawValue.hasPrefix("¥")
-        else {
-            return nil
-        }
-
-        let balance = rawValue.split(separator: " ", maxSplits: 1).first
-        return balance.map(String.init)
     }
 
     nonisolated static func deepInfraBalanceDisplayText(snapshot: UsageSnapshot?) -> String? {

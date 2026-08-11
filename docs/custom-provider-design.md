@@ -131,8 +131,10 @@ string-aware scanner before materializing JSON, so a hostile nested payload cann
 
 ### Network and secret boundary
 
-- Require HTTPS for authenticated requests. Allow HTTP only for an unauthenticated loopback URL (`localhost`,
-  `127.0.0.0/8`, or `::1`). Reject URL user info and fragments.
+- Require HTTPS for every public origin. A settings-configured origin may use HTTP only for loopback, RFC 1918 IPv4,
+  IPv4 link-local, IPv6 unique-local/link-local, or `.local` targets under the separate typed-approval gate. This local
+  exception may be authenticated because self-hosted LLM Proxy and LiteLLM deployments require the same bearer behavior
+  their existing Swift providers support. Reject URL user info and fragments.
 - Extend `ProviderEndpointOverrideValidator`; do not create a second URL parser. Use a dedicated
   `ProviderHTTPClient` configuration that rejects every redirect, even though the shared client safely permits same-origin
   HTTPS redirects.
@@ -247,8 +249,9 @@ change.
 ## Accepted owner decisions
 
 1. Declarative provider support is worth the runtime identity migration and long-term versioned schema support.
-2. MVP may use unauthenticated loopback HTTP only under the same separate approval gate, including typed confirmation of
-   the normalized URL. Every authenticated request requires HTTPS.
+2. MVP may use private-network HTTP only under the same separate approval gate, including typed confirmation of the
+   normalized origin. Public origins always require HTTPS. Bundled first-party code may bypass interactive approval only
+   for LLM Proxy and LiteLLM, whose existing Swift implementations already grant the identical target authority.
 3. A derived per-instance environment variable plus local URL/auth approval is the only MVP secret source. Keychain
    storage is deferred; the initial design must not imply or preserve a second secret path.
 4. MVP supports one primary rate window, with cost and identity optional. Multi-window and aggregation semantics remain
