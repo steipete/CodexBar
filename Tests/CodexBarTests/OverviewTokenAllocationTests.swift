@@ -78,14 +78,17 @@ struct OverviewTokenAllocationTests {
     func `short provider coverage keeps allocation available but partial`() throws {
         let allocation = try #require(OverviewTokenAllocation(
             model: Self.model(groups: [
-                Self.group(currencyCode: "USD", rows: [
-                    Self.row(
-                        id: "codex",
-                        provider: .codex,
-                        tokens: 2_000_000,
-                        cost: 10,
-                        coveredDayCount: 8),
-                ], coveredDayCount: 8),
+                Self.group(
+                    currencyCode: "USD",
+                    rows: [
+                        Self.row(
+                            id: "codex",
+                            provider: .codex,
+                            tokens: 2_000_000,
+                            cost: 10,
+                            coveredDayCount: 8),
+                    ],
+                    coveredDayCount: 8),
             ]),
             trackedProviders: [.codex]))
 
