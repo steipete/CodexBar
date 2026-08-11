@@ -50,8 +50,9 @@ See `docs/configuration.md` for the schema.
   - Legacy provider-specific keys such as `openRouterUsage`, `clawRouterUsage`, and `sub2APIUsage` are not compatibility
     aliases; clients must read `usage.details`. Unknown legacy keys in cached or iCloud-synced snapshots are ignored
     when decoding.
-- `codexbar cost` prints token cost usage for Claude, Codex, and Cursor.
-  - Claude and Codex are scanned from local session logs without web/CLI access.
+- `codexbar cost` prints token cost usage for Claude, Codex, Cursor, and Grok.
+  - Claude, Codex, and Grok are scanned from local session logs without web/CLI access.
+  - Grok cost reads `~/.grok/sessions/**/updates.jsonl` `turn_completed` usage (including reported cost ticks when present); see `docs/grok.md`.
   - Cursor is fetched from the cookie-authenticated cursor.com dashboard API (macOS only; see `docs/cursor.md`) and honors the configured cookie source: a non-empty Manual header is required and forwarded, while Off fails explicitly instead of silently omitting Cursor.
   - `--format text|json` (default: text).
   - `--refresh` ignores cached scans.
@@ -192,13 +193,14 @@ payloads include the visible account label in `account`.
 
 ### Cost JSON payload
 `codexbar cost --format json` emits an array of payloads (one per provider).
-- `provider`, `source` (`local` for Claude/Codex log scans, `web` for Cursor dashboard data), `updatedAt`
+- `provider`, `source` (`local` for Claude/Codex/Grok log scans, `web` for Cursor dashboard data), `updatedAt`
 - `sessionTokens`, `sessionCostUSD`
 - `last30DaysTokens`, `last30DaysCostUSD`
 - `historyCoverageIsEstablished`: `false` while a bounded Codex scan still has catch-up work pending; `true` once the requested history is covered.
+- `historyIsIncomplete`: `true` when totals may undercount because some local session logs were only partially scanned (for example oversized Grok archives under a per-file budget); `false` when coverage is complete for the requested window.
 - Cursor only: `meteredCostUSD` — what Cursor's plan actually deducts over the window, alongside the API-rate estimate in `last30DaysCostUSD`.
 - `daily[]`: `date`, `inputTokens`, `outputTokens`, `cacheReadTokens`, `cacheCreationTokens`, `totalTokens`, `totalCost`, `modelsUsed`, `modelBreakdowns[]` (`modelName`, `cost`)
-- Codex only: `projects[]`: `name`, `path`, `totalTokens`, `totalCost`, `daily[]`, `modelBreakdowns[]`, `sources[]`
+- Codex and Grok: `projects[]`: `name`, `path`, `totalTokens`, `totalCost`, `daily[]`, `modelBreakdowns[]`, `sources[]` (Codex includes `sources[]`; Grok project paths come from session `summary.json` cwd)
 - `totals`: `inputTokens`, `outputTokens`, `cacheReadTokens`, `cacheCreationTokens`, `totalTokens`, `totalCost`
 - `error`: structured provider error when a fetch fails (for example Cursor requested while its cookie source is Off).
 
@@ -215,6 +217,7 @@ codexbar cost --provider codex --group-by project
 codexbar cost --provider claude --format json --pretty
 codexbar guard --provider codex --min-remaining 20 --window weekly --json
 codexbar cost --provider cursor   # Cursor dashboard cost (API-rate + Cursor-metered)
+codexbar cost --provider grok     # Grok local session-log cost (turn_completed)
 codexbar dashboard | jq '.providers[] | {id, windows, error}'
 codexbar serve --port 8080        # localhost HTTP JSON server
 codexbar serve --request-timeout 0 # disable serve request deadlines

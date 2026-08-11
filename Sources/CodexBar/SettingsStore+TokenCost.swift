@@ -106,6 +106,9 @@ extension SettingsStore {
             ] + ClaudeDesktopProjectsLocator.roots(homeDirectory: ownerHome, fileManager: fileManager)
         }()
 
+        // Grok session logs are not auto-enable sources: an absent `tokenCostUsageEnabled`
+        // preference must stay off on upgrade so existing Grok-only installs remain opt-in.
+        // Users enable Cost tracking explicitly; Grok scanning then runs via the descriptor.
         return claudeRoots.contains(where: hasAnyJsonl(in:))
     }
 }

@@ -218,25 +218,73 @@ extension UsageMenuCardView.Model {
                 providerCurrency: snapshot.currencyCode)
             return String(format: L("Cursor-metered: %@ (%@)"), amount, windowLabel.lowercased())
         }
+        var comparisonLines: [String] = []
+        if comparisonPeriodsEnabled {
+            comparisonLines.append(contentsOf: snapshot.comparisonSummaries().map {
+                Self.costWindowLine(
+                    summary: $0,
+                    currencyCode: UsageFormatter.effectiveCurrencyCode(
+                        preferred: preferredCurrencyCode,
+                        providerCurrency: snapshot.currencyCode),
+                    sourceCurrencyCode: snapshot.currencyCode)
+            })
+        }
+        // Provider-specific by design: Grok surfaces token composition on the Cost card.
+        if provider == .grok {
+            comparisonLines.append(contentsOf: Self.grokTokenDetailLines(snapshot: snapshot))
+        }
         let err = (error?.isEmpty ?? true) ? nil : error
         return TokenUsageSection(
             isRefreshing: isRefreshing,
             sessionLine: sessionLine,
             monthLine: monthLine,
             meteredLine: meteredLine,
-            comparisonLines: comparisonPeriodsEnabled
-                ? snapshot.comparisonSummaries().map {
-                    Self.costWindowLine(
-                        summary: $0,
-                        currencyCode: UsageFormatter.effectiveCurrencyCode(
-                            preferred: preferredCurrencyCode,
-                            providerCurrency: snapshot.currencyCode),
-                        sourceCurrencyCode: snapshot.currencyCode)
-                }
-                : [],
+            comparisonLines: comparisonLines,
             hintLine: Self.tokenUsageHint(provider: provider),
             errorLine: err,
             errorCopyText: (error?.isEmpty ?? true) ? nil : error)
+    }
+
+    /// Extra Cost-card lines for Grok local session stats.
+    static func grokTokenDetailLines(snapshot: CostUsageTokenSnapshot) -> [String] {
+        var lines: [String] = []
+        let input = snapshot.daily.compactMap(\.inputTokens).reduce(0, +)
+        let cache = snapshot.daily.compactMap(\.cacheReadTokens).reduce(0, +)
+        let output = snapshot.daily.compactMap(\.outputTokens).reduce(0, +)
+        if input + cache + output > 0 {
+            lines.append(String(
+                format: L("Uncached %@ · Cache %@ · Output %@"),
+                UsageFormatter.tokenCountString(input),
+                UsageFormatter.tokenCountString(cache),
+                UsageFormatter.tokenCountString(output)))
+        }
+        var modelTotals: [String: Int] = [:]
+        for entry in snapshot.daily {
+            for breakdown in entry.modelBreakdowns ?? [] {
+                modelTotals[breakdown.modelName, default: 0] += breakdown.totalTokens ?? 0
+            }
+        }
+        if !modelTotals.isEmpty {
+            let top = modelTotals.sorted { $0.value > $1.value }.prefix(3)
+            let parts = top.map { "\($0.key) \(UsageFormatter.tokenCountString($0.value))" }
+            lines.append(String(format: L("Models: %@"), parts.joined(separator: " · ")))
+        }
+        if !snapshot.projects.isEmpty {
+            let topProjects = snapshot.projects.prefix(3)
+            let parts = topProjects.map { project in
+                let tokens = project.totalTokens.map(UsageFormatter.tokenCountString) ?? "—"
+                return "\(project.name) \(tokens)"
+            }
+            lines.append(String(format: L("Top projects: %@"), parts.joined(separator: " · ")))
+        }
+        let daysWithCost = snapshot.daily.count(where: { ($0.costUSD ?? 0) > 0 })
+        if daysWithCost < snapshot.daily.count {
+            lines.append(String(
+                format: L("Cost reported on %d/%d days"),
+                daysWithCost,
+                snapshot.daily.count))
+        }
+        return lines
     }
 
     static func costWindowLine(

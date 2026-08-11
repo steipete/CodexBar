@@ -47,8 +47,18 @@ public enum GrokProviderDescriptor {
                     ProviderColor(hex: 0xFDFDFD),
                 ]),
             tokenCost: ProviderTokenCostConfig(
-                supportsTokenCost: false,
-                noDataMessage: { "Grok cost summary is not supported yet." }),
+                supportsTokenCost: true,
+                noDataMessage: { "No local Grok session usage found yet." },
+                menuHintLines: [
+                    .literal("Local Grok session logs (turn_completed)."),
+                    .literal("Chart uses daily tokens; $ only when ticks reported."),
+                ],
+                supportsTokenSnapshot: true,
+                showsHintInProviderDetails: true,
+                historyTitleStyle: .compact,
+                hintPlacement: .beforeRequestHistory,
+                chartEstimateDisclaimer: .literal(
+                    "Bars show daily tokens. Cost only when Grok reported ticks.")),
             pace: ProviderPaceCapability(resetWindowPace: .custom { window, now in
                 guard Self.primaryLabel(window: window, now: now) == "Weekly",
                       let resetsAt = window.resetsAt
@@ -59,19 +69,23 @@ public enum GrokProviderDescriptor {
                     && timeUntilReset > 0
                     && timeUntilReset <= TimeInterval(windowMinutes) * 60
             }),
-            presentation: ProviderUsagePresentation(rateWindowLabeler: { metadata, snapshot, now in
-                ProviderRateWindowLabels(
-                    primary: Self.primaryLabel(window: snapshot.primary, now: now) ?? metadata.sessionLabel,
-                    secondary: metadata.weeklyLabel,
-                    tertiary: metadata.opusLabel ?? "Sonnet",
-                    showsTertiary: metadata.supportsOpus)
-            }),
+            presentation: ProviderUsagePresentation(
+                rateWindowLabeler: { metadata, snapshot, now in
+                    ProviderRateWindowLabels(
+                        primary: Self.primaryLabel(window: snapshot.primary, now: now) ?? metadata.sessionLabel,
+                        secondary: metadata.weeklyLabel,
+                        tertiary: metadata.opusLabel ?? "Sonnet",
+                        showsTertiary: metadata.supportsOpus)
+                },
+                menuCard: ProviderMenuCardPresentation(
+                    supportsInlineTokenCostDashboard: true)),
             fetchPlan: ProviderFetchPlan(
                 sourceModes: [.auto, .cli, .web],
                 pipeline: ProviderFetchPipeline(resolveStrategies: self.resolveStrategies)),
             cli: ProviderCLIConfig(
                 name: "grok",
                 versionDetector: { _ in GrokStatusProbe.detectVersion() },
+                supportsCostCommand: true,
                 browserSupportExemption: { _, _, _ in true }))
     }
 

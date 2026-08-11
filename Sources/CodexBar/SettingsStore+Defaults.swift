@@ -497,6 +497,13 @@ extension SettingsStore {
             self.userDefaults.set(newValue, forKey: "tokenCostUsageEnabled")
             if changed {
                 self.costUsageSettingsRevision &+= 1
+                // Grok local parse cache retains path/session metadata only while Cost is on.
+                // Invalidate write tokens + delete so in-flight scans cannot recreate the artifact.
+                if !newValue {
+                    Task.detached(priority: .utility) {
+                        GrokTurnUsageCacheIO.invalidateAndDelete()
+                    }
+                }
             }
             self.noteBackgroundWorkSettingsChanged()
         }

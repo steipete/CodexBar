@@ -112,6 +112,145 @@ struct CLICostTests {
     }
 
     @Test
+    func `renders grok project grouped cost text with reported-cost semantics`() {
+        let snap = CostUsageTokenSnapshot(
+            sessionTokens: 3400,
+            sessionCostUSD: 0.42,
+            last30DaysTokens: 12000,
+            last30DaysCostUSD: 1.8,
+            historyDays: 30,
+            daily: [],
+            projects: [
+                CostUsageProjectBreakdown(
+                    name: "demo",
+                    path: "/work/demo",
+                    totalTokens: 8000,
+                    totalCostUSD: 1.1,
+                    daily: [],
+                    modelBreakdowns: nil,
+                    sources: [
+                        CostUsageProjectSourceBreakdown(
+                            name: "demo",
+                            path: "/work/demo",
+                            totalTokens: 8000,
+                            totalCostUSD: 1.1,
+                            daily: [],
+                            modelBreakdowns: nil),
+                    ]),
+                CostUsageProjectBreakdown(
+                    name: CostUsageProjectBreakdown.unknownProjectName,
+                    path: nil,
+                    totalTokens: 4000,
+                    totalCostUSD: 0.7,
+                    daily: [],
+                    modelBreakdowns: nil),
+            ],
+            updatedAt: Date(timeIntervalSince1970: 0))
+
+        let output = CodexBarCLI.renderCostText(
+            provider: .grok,
+            snapshot: snap,
+            groupBy: .project,
+            useColor: false)
+            .replacingOccurrences(of: "\u{00A0}", with: " ")
+            .replacingOccurrences(of: "$ ", with: "$")
+
+        #expect(output.contains("Grok Cost (local session logs)"))
+        #expect(output.contains("Projects (Last 30 days):"))
+        #expect(output.contains("demo: $1.10 · 8K tokens"))
+        #expect(output.contains("/work/demo"))
+        // Sole same-path self-source must not duplicate the project row.
+        #expect(!output.contains("  - demo:"))
+        #expect(output.contains("Unknown project: $0.70 · 4K tokens"))
+        #expect(output.contains("Local Grok session logs (turn_completed). Cost only when reported."))
+        #expect(!output.contains("local usage × public API prices"))
+        #expect(!output.contains("API-equivalent estimate"))
+    }
+
+    @Test
+    func `renders grok project sources when path differs from parent`() {
+        let snap = CostUsageTokenSnapshot(
+            sessionTokens: 1000,
+            sessionCostUSD: 0.1,
+            last30DaysTokens: 1000,
+            last30DaysCostUSD: 0.1,
+            historyDays: 30,
+            daily: [],
+            projects: [
+                CostUsageProjectBreakdown(
+                    name: "demo",
+                    path: "/work/demo",
+                    totalTokens: 1000,
+                    totalCostUSD: 0.1,
+                    daily: [],
+                    modelBreakdowns: nil,
+                    sources: [
+                        CostUsageProjectSourceBreakdown(
+                            name: "nested",
+                            path: "/work/demo/packages/nested",
+                            totalTokens: 1000,
+                            totalCostUSD: 0.1,
+                            daily: [],
+                            modelBreakdowns: nil),
+                    ]),
+            ],
+            updatedAt: Date(timeIntervalSince1970: 0))
+
+        let output = CodexBarCLI.renderCostText(
+            provider: .grok,
+            snapshot: snap,
+            groupBy: .project,
+            useColor: false)
+            .replacingOccurrences(of: "\u{00A0}", with: " ")
+            .replacingOccurrences(of: "$ ", with: "$")
+
+        #expect(output.contains("demo: $0.10 · 1K tokens"))
+        #expect(output.contains("  - nested: $0.10 · 1K tokens"))
+        #expect(output.contains("/work/demo/packages/nested"))
+    }
+
+    @Test
+    func `renders grok project grouped cost text with incomplete history warning`() {
+        let snap = CostUsageTokenSnapshot(
+            sessionTokens: 3400,
+            sessionCostUSD: 0.42,
+            last30DaysTokens: 12000,
+            last30DaysCostUSD: 1.8,
+            historyDays: 30,
+            historyIsIncomplete: true,
+            daily: [],
+            projects: [
+                CostUsageProjectBreakdown(
+                    name: "demo",
+                    path: "/work/demo",
+                    totalTokens: 8000,
+                    totalCostUSD: 1.1,
+                    daily: [],
+                    modelBreakdowns: nil),
+            ],
+            updatedAt: Date(timeIntervalSince1970: 0))
+
+        let output = CodexBarCLI.renderCostText(
+            provider: .grok,
+            snapshot: snap,
+            groupBy: .project,
+            useColor: false)
+
+        #expect(output.contains("Projects (Last 30 days):"))
+        #expect(output.contains("demo:"))
+        #expect(output.contains(
+            "Note: history incomplete — some session logs were only partially scanned (size/budget limits)."))
+        #expect(output.contains("Local Grok session logs (turn_completed). Cost only when reported."))
+        // Warning must appear before the source hint so partial totals are qualified.
+        let warningIdx = output.range(of: "Note: history incomplete")?.lowerBound
+        let hintIdx = output.range(of: "Local Grok session logs")?.lowerBound
+        #expect(warningIdx != nil && hintIdx != nil)
+        if let warningIdx, let hintIdx {
+            #expect(warningIdx < hintIdx)
+        }
+    }
+
+    @Test
     func `encodes cost payload JSON`() throws {
         let payload = CostPayload(
             provider: "claude",

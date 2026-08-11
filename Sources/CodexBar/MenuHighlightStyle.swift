@@ -2,10 +2,11 @@ import SwiftUI
 
 extension EnvironmentValues {
     @Entry var menuItemHighlighted: Bool = false
-    /// Optional live-refresh monitor injected into menu card views so the provider card
-    /// subtitle can reflect the in-flight "Refreshing…" state in place while the NSMenu
-    /// stays open, without rebuilding the menu during AppKit tracking.
-    @Entry var menuCardRefreshMonitor: MenuCardRefreshMonitor?
+
+    // Optional live-refresh monitor injected into menu card views so the provider card
+    // subtitle can reflect the in-flight "Refreshing…" state in place while the NSMenu
+    // stays open, without rebuilding the menu during AppKit tracking.
+    @Entry var menuCardRefreshMonitor: MenuCardRefreshMonitor? = nil
 }
 
 enum MenuHighlightStyle {

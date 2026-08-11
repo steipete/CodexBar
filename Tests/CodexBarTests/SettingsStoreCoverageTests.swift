@@ -1,7 +1,7 @@
-import CodexBarCore
 import Foundation
 import Testing
 @testable import CodexBar
+@testable import CodexBarCore
 
 @MainActor
 struct SettingsStoreCoverageTests {
@@ -502,6 +502,24 @@ struct SettingsStoreCoverageTests {
             env: [:],
             fileManager: fileManager,
             homeDirectory: desktopCodeHome))
+
+        // Grok-only local logs must not auto-enable global Cost tracking on upgrade.
+        let grokHome = fileManager.temporaryDirectory.appendingPathComponent(
+            "grok-home-\(UUID().uuidString)",
+            isDirectory: true)
+        let grokSessions = grokHome
+            .appendingPathComponent("sessions", isDirectory: true)
+            .appendingPathComponent("session-a", isDirectory: true)
+        try fileManager.createDirectory(at: grokSessions, withIntermediateDirectories: true)
+        let grokFile = grokSessions.appendingPathComponent("updates.jsonl")
+        fileManager.createFile(atPath: grokFile.path, contents: Data("{}\n".utf8))
+
+        #expect(!SettingsStore.hasAnyTokenCostUsageSources(
+            env: ["GROK_HOME": grokHome.path],
+            fileManager: fileManager,
+            homeDirectory: fileManager.temporaryDirectory.appendingPathComponent(
+                "empty-home-\(UUID().uuidString)",
+                isDirectory: true)))
     }
 
     @Test
@@ -860,6 +878,50 @@ struct SettingsStoreCoverageTests {
         fresh.preferredCurrencyCode = "GBP"
         let reloaded = Self.makeSettingsStore(userDefaults: defaults, configStore: configStore)
         #expect(reloaded.preferredCurrencyCode == "GBP")
+    }
+
+    @Test
+    func `disabling cost tracking deletes the Grok local parse cache`() async throws {
+        let cacheRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent("grok-cost-disable-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: cacheRoot, withIntermediateDirectories: true)
+        defer {
+            GrokTurnUsageCacheIO.testDefaultCacheRoot = nil
+            try? FileManager.default.removeItem(at: cacheRoot)
+        }
+        GrokTurnUsageCacheIO.testDefaultCacheRoot = cacheRoot
+
+        var cache = GrokTurnUsageCache(version: 2)
+        cache.files["/tmp/session/updates.jsonl"] = GrokTurnUsageCachedFile(
+            mtimeUnixMs: Int64(Date().timeIntervalSince1970 * 1000),
+            size: 10,
+            sessionID: "session",
+            cwd: "/tmp/session",
+            isPartial: false,
+            turns: [])
+        GrokTurnUsageCacheIO.save(cache: cache, cacheRoot: cacheRoot)
+        let url = GrokTurnUsageCacheIO.cacheFileURL(cacheRoot: nil)
+        #expect(FileManager.default.fileExists(atPath: url.path))
+
+        let suite = "SettingsStoreCoverageTests-grok-cost-disable"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        let settings = Self.makeSettingsStore(
+            userDefaults: defaults,
+            configStore: testConfigStore(suiteName: suite))
+        settings.costUsageEnabled = true
+        settings.costUsageEnabled = false
+
+        // invalidateAndDelete runs on a detached utility task; wait briefly for it.
+        var deleted = false
+        for _ in 0..<50 {
+            if !FileManager.default.fileExists(atPath: url.path) {
+                deleted = true
+                break
+            }
+            try await Task.sleep(nanoseconds: 20_000_000)
+        }
+        #expect(deleted)
     }
 
     private static func makeSettingsStore(

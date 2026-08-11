@@ -58,7 +58,34 @@ browser session when the CLI surface does not expose billing.
      returned by some successful requests. A current billing period with an
      omitted proto3 `credit_usage_percent` is treated as zero usage. This keeps
      billing visible when `grok agent stdio` returns `Method not found`.
-4) **Local session signals** (informational fallback)
+4) **Local session token cost** (Cost menu / `codexbar cost --provider grok`)
+   - Walks `~/.grok/sessions/**/updates.jsonl` for `sessionUpdate: turn_completed`.
+   - Reads per-turn `usage` (`inputTokens`, `cachedReadTokens`, `outputTokens`,
+     `totalTokens`, `costUsdTicks`, `modelUsage`) and maps into the shared
+     `CostUsageTokenSnapshot` so the Grok menu Cost card matches Codex style
+     (`Today: $X · Y tokens` / `Last N days: …`).
+   - Uncached input = `inputTokens - cachedReadTokens` (ACP full input minus cache).
+   - Cost USD = `costUsdTicks / 1e10` when present; missing ticks are not estimated.
+   - Project breakdown uses `summary.json` → `info.cwd`.
+   - **Local parse cache (privacy / retention):** when Cost tracking is enabled
+     for Grok, CodexBar may write a bounded on-disk parse cache under the user
+     Caches directory (`~/Library/Caches/CodexBar/cost-usage/grok-turns-v*.json`
+     on macOS; same relative path under the process cache root elsewhere). The
+     cache is **local-only** (never uploaded), mirrors the Codex cost-cache
+     safety model, and exists so budget-deferred session archives can catch up
+     without re-reading every log on each refresh. Stored fields are limited to
+     session/file path keys, session and event IDs, mtime/size, optional `cwd`,
+     timestamps, model names, token totals, and reported cost when present—no
+     prompt/completion content.
+     - **Expiry:** session-file entries older than **90 days** (by log mtime)
+       are dropped on every load/save; a fully expired artifact is deleted.
+     - **Budgets:** load refuses oversized artifacts; save prunes oldest files
+       by entry and byte budgets.
+     - **Delete on Cost off:** turning Cost tracking off bumps a write-generation
+       token and deletes the Grok parse cache so in-flight scans cannot recreate
+       the artifact after opt-out (same file is also removed by
+       `codexbar cache clear --cost` / Debug → clear cost cache).
+5) **Local session signals** (informational fallback)
    - Walks `~/.grok/sessions/<encoded-cwd>/<session-id>/signals.json` files (last 30 days).
    - Aggregates `totalTokensBeforeCompaction`, `contextTokensUsed`, `modelsUsed`,
      and the most recent session timestamp.
@@ -160,4 +187,5 @@ points to `https://status.x.ai`.
 - `Sources/CodexBarCore/Providers/Grok/GrokWebBillingFetcher.swift`
 - `Sources/CodexBarCore/Providers/Grok/GrokStatusProbe.swift`
 - `Sources/CodexBarCore/Providers/Grok/GrokLocalSessionScanner.swift`
+- `Sources/CodexBarCore/Providers/Grok/GrokTurnUsageScanner.swift`
 - `Sources/CodexBar/Providers/Grok/GrokProviderImplementation.swift`

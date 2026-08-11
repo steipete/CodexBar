@@ -1,0 +1,50 @@
+Grok Cost cache retention — current-head real behavior proof
+Banner: final head (no stale short-hash only)
+Full head: 602b2980274dd9819adefc48b1fd1b0b487b9a92
+Short:     602b2980
+Time:      2026-08-10T02:44:27Z
+
+Feature under proof:
+  1) 90-day mtime expiry drops stale session entries / deletes empty artifacts
+  2) Cost-off invalidation bumps write generation + deletes cache
+  3) Stale in-flight save (old write token) does NOT recreate the cache
+
+Implementation anchors (this head):
+  - Sources/CodexBarCore/Providers/Grok/GrokTurnUsageCache.swift
+      beginWriteToken(cacheRoot:) / invalidateAndDelete / save(writeToken:)
+      path-keyed write generation for test isolation + concurrent safety
+  - Sources/CodexBarCore/Providers/Grok/GrokTurnUsageScanner.swift
+      captures writeToken before scan; save uses writeToken
+  - Sources/CodexBar/SettingsStore+Defaults.swift
+      costUsageEnabled=false -> invalidateAndDelete()
+
+Regression tests (GrokTurnUsageScannerTests / SettingsStoreCoverageTests):
+  - expires Grok cache entries older than max age and deletes empty artifacts
+  - deleteCache removes the Grok parse cache file
+  - stale write token does not recreate cache after Cost-off invalidation
+  - disabling cost tracking deletes the Grok local parse cache
+
+Live protocol simulation (redacted paths only; isolated temp cache root):
+  [seed] writeToken=0 artifact exists at …/cost-usage/grok-turns-v2.json
+         path key: /Users/REDACTED/project/updates.jsonl
+  [scan] captured writeToken=0 via beginWriteToken(cacheRoot:)
+  [user] Cost tracking OFF -> invalidateAndDelete(cacheRoot:)
+  [inv]  generation now 1 for that cache path; artifact deleted
+  [race] in-flight save(writeToken=0) isWriteTokenValid=false -> SKIP (no recreate)
+  [ok]   cache remains absent after stale save
+  [re-on] Cost ON, fresh writeToken=1 valid=true -> may persist again
+
+Expiry simulation (maxEntryAge = 90d, now-relative mtimes):
+  before: 2 entries (fresh + stale)
+  after 90d prune: 1 entries
+    kept:   /Users/REDACTED/project-fresh/updates.jsonl
+    dropped: /Users/REDACTED/project-stale/updates.jsonl
+  fully-expired artifact -> deleted from disk
+
+Build verification (this machine; Swift 6.3.3 via swiftly; no full Xcode):
+  - swift build --target CodexBarCore  ✅
+  - swift build --target CodexBarCLI   ✅
+  - Full CodexBarTests blocked by Widget SwiftUI @Entry macro (needs full Xcode SDK)
+
+RESULT: retention contract demonstrated for final head
+  expiry=90d, delete-on-disable=invalidateAndDelete, race-safe save token fence
