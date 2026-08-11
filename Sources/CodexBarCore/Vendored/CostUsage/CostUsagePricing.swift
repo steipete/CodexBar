@@ -780,4 +780,40 @@ enum CostUsagePricing {
             modelID: model,
             cacheRoot: cacheRoot)
     }
+
+    static func codexAggregateCostUSD(
+        model: String,
+        inputTokens: Int,
+        cachedInputTokens: Int,
+        outputTokens: Int,
+        cacheWriteInputTokens: Int = 0,
+        modelsDevCatalog: ModelsDevCatalog? = nil,
+        modelsDevCacheRoot: URL? = nil) -> Double?
+    {
+        let key = self.normalizeCodexModel(model)
+        let modelsDevLookup = self.modelsDevLookup(
+            providerID: self.codexModelsDevProviderID,
+            model: model,
+            catalog: modelsDevCatalog,
+            cacheRoot: modelsDevCacheRoot)
+            ?? (model == key ? nil : self.modelsDevLookup(
+                providerID: self.codexModelsDevProviderID,
+                model: key,
+                catalog: modelsDevCatalog,
+                cacheRoot: modelsDevCacheRoot))
+        // Provider-specific by design: Codex aggregate totals cannot reveal request-level long-context tiers.
+        let thresholdTokens = self.codex[key]?.thresholdTokens ?? modelsDevLookup?.pricing.thresholdTokens
+        if let thresholdTokens, max(0, inputTokens) > thresholdTokens {
+            return nil
+        }
+
+        return self.codexCostUSD(
+            model: model,
+            inputTokens: inputTokens,
+            cachedInputTokens: cachedInputTokens,
+            outputTokens: outputTokens,
+            cacheWriteInputTokens: cacheWriteInputTokens,
+            modelsDevCatalog: modelsDevCatalog,
+            modelsDevCacheRoot: modelsDevCacheRoot)
+    }
 }

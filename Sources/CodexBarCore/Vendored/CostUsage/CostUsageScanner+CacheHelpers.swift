@@ -1169,6 +1169,16 @@ extension CostUsageScanner {
         }
         let uniqueDays = Self.codexFileDays(rows: uniqueRows)
         Self.mergeFileDays(existing: &usageDays, delta: uniqueDays)
+        let retainedCachedRows = context.dropDeferredCodexRows
+            ? []
+            : Self.codexRowsOutsideScanWindow(migratedCached?.codexRows, range: context.range)
+        let finalRows = Self.mergeCodexRows(
+            retainedCachedRows,
+            rows: uniqueRows,
+            sessionId: sessionId) ?? []
+        let pricedRows = Self.codexRowsWithPricingMetadata(
+            finalRows,
+            priorityTurns: context.resources.priorityTurns)
         let modeTokens = Self.codexModeTokenMaps(
             rows: uniqueRows,
             range: context.range,
@@ -1212,17 +1222,8 @@ extension CostUsageScanner {
                     ? nil
                     : Self.intMapOutsideScanWindow(migratedCached?.codexPriorityTokens, range: context.range),
                 modeTokens.priority),
-            codexTurnIDs: context.dropDeferredCodexRows
-                ? Self.codexTurnIDs(rows: uniqueRows)
-                : Self.mergeCodexTurnIDs(migratedCached?.codexTurnIDs, rows: uniqueRows),
-            codexRows: Self.codexRowsWithPricingMetadata(
-                context.dropDeferredCodexRows
-                    ? uniqueRows
-                    : Self.mergeCodexRows(
-                        migratedCached?.codexRows,
-                        rows: uniqueRows,
-                        sessionId: sessionId) ?? [],
-                priorityTurns: context.resources.priorityTurns),
+            codexTurnIDs: Self.codexTurnIDs(rows: pricedRows),
+            codexRows: pricedRows,
             codexTokenSnapshots: parsed.tokenSnapshots,
             codexTokenCheckpoints: Self.codexTokenCheckpoints(for: parsed.tokenSnapshots),
             codexTokenTimestampsMonotonic: Self.codexTokenTimestampsAreMonotonic(parsed.tokenSnapshots),
@@ -1288,6 +1289,15 @@ extension CostUsageScanner {
     {
         days.filter {
             !CostUsageDayRange.isInRange(dayKey: $0.key, since: range.scanSinceKey, until: range.scanUntilKey)
+        }
+    }
+
+    static func codexRowsOutsideScanWindow(
+        _ rows: [CodexUsageRow]?,
+        range: CostUsageDayRange) -> [CodexUsageRow]
+    {
+        (rows ?? []).filter {
+            !CostUsageDayRange.isInRange(dayKey: $0.day, since: range.scanSinceKey, until: range.scanUntilKey)
         }
     }
 
@@ -1421,16 +1431,16 @@ extension CostUsageScanner {
                 let authoritativeCost = authoritativeCostNanosByDayModel[day]?[model].map {
                     Double($0) / Self.costScale
                 }
-                let canonicalCost = CostUsagePricing.codexCostUSD(
+                let canonicalCost = CostUsagePricing.codexAggregateCostUSD(
                     model: model,
                     inputTokens: input,
                     cachedInputTokens: cached,
                     outputTokens: output,
                     modelsDevCatalog: catalogResolver.load(modelsDevCatalogLoader),
                     modelsDevCacheRoot: modelsDevCacheRoot)
-                // Physical pricing rows can retain fork-copied usage after canonical ownership
-                // has deduplicated the day/model totals. Reject the whole row-derived price so
-                // Fast uplift from the same unowned rows cannot leak into the fallback cost.
+                // Reject row-derived pricing when physical rows exceed canonical ownership. The
+                // aggregate fallback cannot infer request-level long-context tiers, so it omits an
+                // ambiguous estimate instead of pricing the entire day/model as one request.
                 let cost = rowCostIsTrusted
                     ? rowCost?.totalCostUSD ?? authoritativeCost ?? canonicalCost
                     : canonicalCost
