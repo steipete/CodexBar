@@ -210,8 +210,6 @@ final class CLIEntryTests: XCTestCase {
         XCTAssertEqual(CodexBarCLI.containingAppVersion(for: helperURL), "9.8.7")
     }
 
-    /// A binary outside any .app must stop at the filesystem root. Returning at all is the
-    /// assertion — a regression loops forever and hangs the suite rather than failing it.
     func test_containingAppVersionTerminatesOutsideAppBundle() throws {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("codexbar-cli-version-noapp-\(UUID().uuidString)", isDirectory: true)

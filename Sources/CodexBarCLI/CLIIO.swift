@@ -109,8 +109,6 @@ extension CodexBarCLI {
         var currentURL = executableURL.deletingLastPathComponent()
         let fileManager = FileManager.default
 
-        // `deleteLastPathComponent()` appends ".." at the filesystem root instead of staying
-        // put, so a path-equality guard never trips. Component counts strictly decrease.
         while currentURL.pathComponents.count > 1 {
             if currentURL.pathExtension == "app" {
                 let infoURL = currentURL
