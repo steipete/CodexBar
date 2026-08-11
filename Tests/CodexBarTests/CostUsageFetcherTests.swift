@@ -5,6 +5,55 @@ import Testing
 @Suite(.serialized)
 struct CostUsageFetcherTests {
     @Test
+    func `strict token snapshot never rebuilds a partial history cost`() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try #require(TimeZone(secondsFromGMT: 0))
+        let now = try #require(calendar.date(from: DateComponents(
+            timeZone: calendar.timeZone,
+            year: 2026,
+            month: 4,
+            day: 8,
+            hour: 12)))
+        let report = CostUsageDailyReport(
+            data: [
+                CostUsageDailyReport.Entry(
+                    date: "2026-04-07",
+                    inputTokens: 400_000,
+                    outputTokens: 2000,
+                    totalTokens: 402_000,
+                    costUSD: nil,
+                    modelsUsed: ["gpt-5.5"],
+                    modelBreakdowns: nil),
+                CostUsageDailyReport.Entry(
+                    date: "2026-04-08",
+                    inputTokens: 100,
+                    outputTokens: 10,
+                    totalTokens: 110,
+                    costUSD: 1.25,
+                    modelsUsed: ["gpt-5.4"],
+                    modelBreakdowns: nil),
+            ],
+            summary: CostUsageDailyReport.Summary(
+                totalInputTokens: 400_100,
+                totalOutputTokens: 2010,
+                totalTokens: 402_110,
+                totalCostUSD: 1.25))
+
+        let permissive = CostUsageFetcher.tokenSnapshot(from: report, now: now, calendar: calendar)
+        let strict = CostUsageFetcher.tokenSnapshot(
+            from: report,
+            now: now,
+            calendar: calendar,
+            requireCompleteCosts: true)
+
+        #expect(permissive.last30DaysCostUSD == 1.25)
+        #expect(strict.sessionCostUSD == 1.25)
+        #expect(strict.last30DaysCostUSD == nil)
+        #expect(strict.last30DaysTokens == 402_110)
+        #expect(strict.daily.count == 2)
+    }
+
+    @Test
     func `fetcher scopes codex history to selected codex home`() async throws {
         let env = try CostUsageTestEnvironment()
         defer { env.cleanup() }

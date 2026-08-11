@@ -467,12 +467,14 @@ public struct CostUsageFetcher: Sendable {
                 retryUnknownPricing: false)
         }
 
+        // Provider-specific by design: Codex must propagate unknown request-tier costs through every aggregate.
         return Self.tokenSnapshot(
             from: scanResult.daily,
             now: now,
             historyDays: clampedHistoryDays,
             calendar: scanOptions.calendar,
             historyCoverageIsEstablished: scanResult.historyCoverageIsEstablished,
+            requireCompleteCosts: provider == .codex,
             projects: scanResult.projects,
             sessions: scanResult.sessions,
             updatedAt: scanResult.staleSnapshotUpdatedAt)
@@ -576,8 +578,10 @@ public struct CostUsageFetcher: Sendable {
                 try checkCancellation()
                 if provider == .codex {
                     piDaily = piReport
+                    daily = CostUsageDailyReport.mergedRequiringCompleteCosts([daily, piReport])
+                } else {
+                    daily = CostUsageDailyReport.merged([daily, piReport])
                 }
-                daily = CostUsageDailyReport.merged([daily, piReport])
             }
             if provider == .codex {
                 projects = Self.mergedProjectBreakdowns(
@@ -889,11 +893,12 @@ public struct CostUsageFetcher: Sendable {
             // rescan on the strength of another source's scan.
             return CachedCodexTokenSnapshotResult(
                 snapshot: Self.tokenSnapshot(
-                    from: CostUsageDailyReport.merged(reports),
+                    from: CostUsageDailyReport.mergedRequiringCompleteCosts(reports),
                     now: now,
                     historyDays: clampedHistoryDays,
                     calendar: options.calendar,
                     historyCoverageIsEstablished: Self.codexHistoryCoverageIsEstablished(options: options),
+                    requireCompleteCosts: true,
                     projects: Self.mergedProjectBreakdowns(projects),
                     sessions: sessions,
                     updatedAt: scanTimes.min()),
@@ -1038,6 +1043,7 @@ public struct CostUsageFetcher: Sendable {
         useCurrentLocalDayForSession: Bool = true,
         calendar: Calendar = .current,
         historyCoverageIsEstablished: Bool = true,
+        requireCompleteCosts: Bool = false,
         meteredCostUSD: Double? = nil,
         credentialScopeFingerprint: String? = nil,
         historyLabel: String? = nil,
@@ -1063,10 +1069,16 @@ public struct CostUsageFetcher: Sendable {
         } else {
             nil
         }
-        // Prefer summary totals when present; fall back to summing daily entries.
-        let totalFromSummary = daily.summary?.totalCostUSD
+        // Prefer summary totals when present; fall back to summing daily entries. Codex uses a
+        // strict policy because a missing request-tier estimate makes every enclosing total incomplete.
+        let costsAreComplete = !requireCompleteCosts || daily.data.allSatisfy { entry in
+            entry.costUSD != nil || !Self.hasCostBearingUsage(entry)
+        }
+        let totalFromSummary = costsAreComplete ? daily.summary?.totalCostUSD : nil
         let totalFromEntries = daily.data.compactMap(\.costUSD).reduce(0, +)
-        let last30DaysCostUSD = totalFromSummary ?? (totalFromEntries > 0 ? totalFromEntries : nil)
+        let last30DaysCostUSD = costsAreComplete
+            ? totalFromSummary ?? (totalFromEntries > 0 ? totalFromEntries : nil)
+            : nil
         let totalTokensFromSummary = daily.summary?.totalTokens
         let totalTokensFromEntries = daily.data.compactMap(\.totalTokens).reduce(0, +)
         let last30DaysTokens = totalTokensFromSummary ?? (totalTokensFromEntries > 0 ? totalTokensFromEntries : nil)
@@ -1085,6 +1097,16 @@ public struct CostUsageFetcher: Sendable {
             projects: projects,
             sessions: sessions,
             updatedAt: updatedAt ?? now)
+    }
+
+    private static func hasCostBearingUsage(_ entry: CostUsageDailyReport.Entry) -> Bool {
+        let explicitOrDerivedTotal = max(
+            entry.totalTokens ?? 0,
+            (entry.inputTokens ?? 0)
+                + (entry.cacheReadTokens ?? 0)
+                + (entry.cacheCreationTokens ?? 0)
+                + (entry.outputTokens ?? 0))
+        return explicitOrDerivedTotal > 0
     }
 
     package static func resolvedCodexScanDurationPerRefresh(
@@ -1175,7 +1197,7 @@ public struct CostUsageFetcher: Sendable {
             }
         }
         return dailyByPath.map { key, reports in
-            let merged = CostUsageDailyReport.merged(reports)
+            let merged = CostUsageDailyReport.mergedRequiringCompleteCosts(reports)
             return CostUsageProjectBreakdown(
                 name: namesByPath[key] ?? CostUsageProjectBreakdown.unknownProjectName,
                 path: key.isEmpty ? nil : key,
@@ -1207,7 +1229,7 @@ public struct CostUsageFetcher: Sendable {
         sourceNamesByPath: [String: String]) -> [CostUsageProjectSourceBreakdown]
     {
         sourceDailyByPath.map { key, reports in
-            let merged = CostUsageDailyReport.merged(reports)
+            let merged = CostUsageDailyReport.mergedRequiringCompleteCosts(reports)
             return CostUsageProjectSourceBreakdown(
                 name: sourceNamesByPath[key] ?? CostUsageProjectBreakdown.unknownProjectName,
                 path: key.isEmpty ? nil : key,
@@ -1236,6 +1258,7 @@ public struct CostUsageFetcher: Sendable {
         var sawTotalTokens = false
         var costUSD: Double = 0
         var sawCost = false
+        var hasUnpricedUsage = false
 
         mutating func add(_ breakdown: CostUsageDailyReport.ModelBreakdown) {
             if let totalTokens = breakdown.totalTokens {
@@ -1245,13 +1268,15 @@ public struct CostUsageFetcher: Sendable {
             if let costUSD = breakdown.costUSD {
                 self.costUSD += costUSD
                 self.sawCost = true
+            } else if (breakdown.totalTokens ?? 0) > 0 {
+                self.hasUnpricedUsage = true
             }
         }
 
         func build(modelName: String) -> CostUsageDailyReport.ModelBreakdown {
             CostUsageDailyReport.ModelBreakdown(
                 modelName: modelName,
-                costUSD: self.sawCost ? self.costUSD : nil,
+                costUSD: self.sawCost && !self.hasUnpricedUsage ? self.costUSD : nil,
                 totalTokens: self.sawTotalTokens ? self.totalTokens : nil)
         }
     }

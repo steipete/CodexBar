@@ -1384,7 +1384,8 @@ extension CostUsageScanner {
         }
         var entries: [CostUsageDailyReport.Entry] = []
         var (totalInput, totalCacheRead, totalOutput, totalTokens) = (0, 0, 0, 0)
-        var (totalCost, costSeen) = (0.0, false)
+        var totalCost = 0.0
+        var totalCostIsComplete = true
 
         let dayKeys = self.codexReportDayKeys(cache: reportCache, range: range)
         let authoritativeCostNanosByDayModel = self.codexCostNanosByDayModel(cache: reportCache, range: range)
@@ -1408,7 +1409,7 @@ extension CostUsageScanner {
             var dayOutput = 0
             var breakdown: [CostUsageDailyReport.ModelBreakdown] = []
             var dayCost: Double = 0
-            var dayCostSeen = false
+            var dayCostIsComplete = true
 
             for model in modelNames {
                 let packed = models[model] ?? [0, 0, 0]
@@ -1456,12 +1457,13 @@ extension CostUsageScanner {
                         priorityTokens: hasModeSplit ? rowCost?.optionalPriorityTokens : nil))
                 if let cost {
                     dayCost += cost
-                    dayCostSeen = true
+                } else if input > 0 || cached > 0 || output > 0 {
+                    dayCostIsComplete = false
                 }
             }
 
             let dayTotal = dayInput + dayOutput
-            let entryCost = dayCostSeen ? dayCost : nil
+            let entryCost = dayCostIsComplete ? dayCost : nil
             entries.append(CostUsageDailyReport.Entry(
                 date: day,
                 inputTokens: dayInput,
@@ -1478,7 +1480,8 @@ extension CostUsageScanner {
             totalTokens += dayTotal
             if let entryCost {
                 totalCost += entryCost
-                costSeen = true
+            } else if dayTotal > 0 {
+                totalCostIsComplete = false
             }
         }
 
@@ -1489,7 +1492,7 @@ extension CostUsageScanner {
                 totalOutputTokens: totalOutput,
                 cacheReadTokens: totalCacheRead > 0 ? totalCacheRead : nil,
                 totalTokens: totalTokens,
-                totalCostUSD: costSeen ? totalCost : nil)
+                totalCostUSD: totalCostIsComplete ? totalCost : nil)
 
         return CostUsageDailyReport(data: entries, summary: summary)
     }

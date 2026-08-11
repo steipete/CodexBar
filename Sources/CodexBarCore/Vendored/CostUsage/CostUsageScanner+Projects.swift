@@ -118,7 +118,7 @@ extension CostUsageScanner {
         }
 
         return accumulatorsByProjectPath.map { projectPath, accumulator in
-            let merged = CostUsageDailyReport.merged(accumulator.reports)
+            let merged = CostUsageDailyReport.mergedRequiringCompleteCosts(accumulator.reports)
             let resolvedPath = projectPath.isEmpty ? nil : projectPath
             return CostUsageProjectBreakdown(
                 name: Self.codexProjectName(path: resolvedPath),
@@ -164,7 +164,7 @@ extension CostUsageScanner {
         from reportsBySourcePath: [String: [CostUsageDailyReport]]) -> [CostUsageProjectSourceBreakdown]
     {
         reportsBySourcePath.map { sourcePath, reports in
-            let merged = CostUsageDailyReport.merged(reports)
+            let merged = CostUsageDailyReport.mergedRequiringCompleteCosts(reports)
             let resolvedPath = sourcePath.isEmpty ? nil : sourcePath
             return CostUsageProjectSourceBreakdown(
                 name: Self.codexProjectName(path: resolvedPath),
@@ -194,6 +194,7 @@ extension CostUsageScanner {
         var sawTotalTokens = false
         var costUSD: Double = 0
         var sawCost = false
+        var hasUnpricedUsage = false
         var standardCostUSD: Double = 0
         var sawStandardCost = false
         var priorityCostUSD: Double = 0
@@ -211,6 +212,8 @@ extension CostUsageScanner {
             if let costUSD = breakdown.costUSD {
                 self.costUSD += costUSD
                 self.sawCost = true
+            } else if (breakdown.totalTokens ?? 0) > 0 {
+                self.hasUnpricedUsage = true
             }
             if let standardCostUSD = breakdown.standardCostUSD {
                 self.standardCostUSD += standardCostUSD
@@ -233,10 +236,10 @@ extension CostUsageScanner {
         func build(modelName: String) -> CostUsageDailyReport.ModelBreakdown {
             CostUsageDailyReport.ModelBreakdown(
                 modelName: modelName,
-                costUSD: self.sawCost ? self.costUSD : nil,
+                costUSD: self.sawCost && !self.hasUnpricedUsage ? self.costUSD : nil,
                 totalTokens: self.sawTotalTokens ? self.totalTokens : nil,
-                standardCostUSD: self.sawStandardCost ? self.standardCostUSD : nil,
-                priorityCostUSD: self.sawPriorityCost ? self.priorityCostUSD : nil,
+                standardCostUSD: self.sawStandardCost && !self.hasUnpricedUsage ? self.standardCostUSD : nil,
+                priorityCostUSD: self.sawPriorityCost && !self.hasUnpricedUsage ? self.priorityCostUSD : nil,
                 standardTokens: self.sawStandardTokens ? self.standardTokens : nil,
                 priorityTokens: self.sawPriorityTokens ? self.priorityTokens : nil)
         }

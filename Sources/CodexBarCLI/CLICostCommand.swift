@@ -144,14 +144,20 @@ extension CodexBarCLI {
             return Self.renderProjectCostText(header: header, snapshot: snapshot)
         }
 
-        let todayCost = snapshot.sessionCostUSD
-            .map { UsageFormatter.currencyString($0, currencyCode: snapshot.currencyCode) } ?? "—"
         let todayTokens = snapshot.sessionTokens.map { UsageFormatter.tokenCountString($0) }
+        let todayCost = Self.renderCostValue(
+            snapshot.sessionCostUSD,
+            tokens: snapshot.sessionTokens,
+            currencyCode: snapshot.currencyCode,
+            describeIncomplete: provider == .codex)
         let todayLine = todayTokens.map { "Today: \(todayCost) · \($0) tokens" } ?? "Today: \(todayCost)"
 
-        let monthCost = snapshot.last30DaysCostUSD
-            .map { UsageFormatter.currencyString($0, currencyCode: snapshot.currencyCode) } ?? "—"
         let monthTokens = snapshot.last30DaysTokens.map { UsageFormatter.tokenCountString($0) }
+        let monthCost = Self.renderCostValue(
+            snapshot.last30DaysCostUSD,
+            tokens: snapshot.last30DaysTokens,
+            currencyCode: snapshot.currencyCode,
+            describeIncomplete: provider == .codex)
         let historyLabel = snapshot.historyLabel
             ?? (snapshot.historyDays == 1 ? "Today" : "Last \(snapshot.historyDays) days")
         let monthLine = monthTokens.map {
@@ -181,8 +187,11 @@ extension CodexBarCLI {
             return lines.joined(separator: "\n")
         }
         for project in snapshot.projects {
-            let cost = project.totalCostUSD
-                .map { UsageFormatter.currencyString($0, currencyCode: snapshot.currencyCode) } ?? "—"
+            let cost = Self.renderCostValue(
+                project.totalCostUSD,
+                tokens: project.totalTokens,
+                currencyCode: snapshot.currencyCode,
+                describeIncomplete: true)
             let tokens = project.totalTokens.map { UsageFormatter.tokenCountString($0) }
             let summary = tokens.map { "\(cost) · \($0) tokens" } ?? cost
             lines.append("\(project.name): \(summary)")
@@ -190,8 +199,11 @@ extension CodexBarCLI {
                 lines.append("  \(path)")
             }
             for source in project.sources {
-                let sourceCost = source.totalCostUSD
-                    .map { UsageFormatter.currencyString($0, currencyCode: snapshot.currencyCode) } ?? "—"
+                let sourceCost = Self.renderCostValue(
+                    source.totalCostUSD,
+                    tokens: source.totalTokens,
+                    currencyCode: snapshot.currencyCode,
+                    describeIncomplete: true)
                 let sourceTokens = source.totalTokens.map { UsageFormatter.tokenCountString($0) }
                 let sourceSummary = sourceTokens.map { "\(sourceCost) · \($0) tokens" } ?? sourceCost
                 lines.append("  - \(source.name): \(sourceSummary)")
@@ -213,6 +225,21 @@ extension CodexBarCLI {
     private static func costHeaderLine(_ header: String, useColor: Bool) -> String {
         guard useColor else { return header }
         return "\u{001B}[1;36m\(header)\u{001B}[0m"
+    }
+
+    private static func renderCostValue(
+        _ costUSD: Double?,
+        tokens: Int?,
+        currencyCode: String,
+        describeIncomplete: Bool) -> String
+    {
+        if let costUSD {
+            return UsageFormatter.currencyString(costUSD, currencyCode: currencyCode)
+        }
+        if describeIncomplete, (tokens ?? 0) > 0 {
+            return "Unavailable (incomplete pricing data)"
+        }
+        return "—"
     }
 
     static func costProviders(from selection: ProviderSelection) -> [UsageProvider] {
@@ -261,7 +288,10 @@ extension CodexBarCLI {
             meteredCostUSD: snapshot?.meteredCostUSD,
             daily: daily,
             projects: projects,
-            totals: snapshot.flatMap(Self.costTotals(from:)),
+            // Provider-specific by design: Codex omits totals when request-tier pricing is incomplete.
+            totals: snapshot.flatMap {
+                Self.costTotals(from: $0, requireCompleteCosts: provider == .codex)
+            },
             error: error.map { Self.makeErrorPayload($0) })
     }
 
@@ -287,7 +317,10 @@ extension CodexBarCLI {
             totalTokens: breakdown.totalTokens)
     }
 
-    private static func costTotals(from snapshot: CostUsageTokenSnapshot) -> CostTotalsPayload? {
+    private static func costTotals(
+        from snapshot: CostUsageTokenSnapshot,
+        requireCompleteCosts: Bool) -> CostTotalsPayload?
+    {
         let entries = snapshot.daily
         guard !entries.isEmpty else {
             guard snapshot.last30DaysTokens != nil || snapshot.last30DaysCostUSD != nil else { return nil }
@@ -312,6 +345,7 @@ extension CodexBarCLI {
         var sawCacheCreation = false
         var sawTokens = false
         var sawCost = false
+        var hasUnpricedUsage = false
 
         for entry in entries {
             if let input = entry.inputTokens {
@@ -337,7 +371,17 @@ extension CodexBarCLI {
             if let cost = entry.costUSD {
                 totalCost += cost
                 sawCost = true
+            } else if requireCompleteCosts, Self.hasCostBearingUsage(entry) {
+                hasUnpricedUsage = true
             }
+        }
+
+        let completeCostUSD: Double? = if requireCompleteCosts, hasUnpricedUsage {
+            nil
+        } else if sawCost {
+            totalCost
+        } else {
+            snapshot.last30DaysCostUSD
         }
 
         // Prefer totals derived from daily rows; fall back to snapshot aggregates when rows omit fields.
@@ -347,7 +391,16 @@ extension CodexBarCLI {
             cacheReadTokens: sawCacheRead ? totalCacheRead : nil,
             cacheCreationTokens: sawCacheCreation ? totalCacheCreation : nil,
             totalTokens: sawTokens ? totalTokens : snapshot.last30DaysTokens,
-            totalCostUSD: sawCost ? totalCost : snapshot.last30DaysCostUSD)
+            totalCostUSD: completeCostUSD)
+    }
+
+    private static func hasCostBearingUsage(_ entry: CostUsageDailyReport.Entry) -> Bool {
+        max(
+            entry.totalTokens ?? 0,
+            (entry.inputTokens ?? 0)
+                + (entry.cacheReadTokens ?? 0)
+                + (entry.cacheCreationTokens ?? 0)
+                + (entry.outputTokens ?? 0)) > 0
     }
 
     private static func decodeCostHistoryDays(from values: ParsedValues) -> Int {

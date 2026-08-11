@@ -163,4 +163,69 @@ struct CostUsageDailyReportMergeTests {
         #expect(merged.summary?.totalTokens == 120)
         #expect(abs((merged.data.first?.costUSD ?? 0) - 1.25) < 0.000001)
     }
+
+    @Test
+    func `strict merge propagates an unpriced model through day and history totals`() throws {
+        let priced = CostUsageDailyReport(
+            data: [
+                CostUsageDailyReport.Entry(
+                    date: "2026-04-04",
+                    inputTokens: 100,
+                    outputTokens: 20,
+                    totalTokens: 120,
+                    costUSD: 1.25,
+                    modelsUsed: ["gpt-5.4"],
+                    modelBreakdowns: [
+                        CostUsageDailyReport.ModelBreakdown(
+                            modelName: "gpt-5.4",
+                            costUSD: 1.25,
+                            totalTokens: 120),
+                    ]),
+                CostUsageDailyReport.Entry(
+                    date: "2026-04-05",
+                    inputTokens: 50,
+                    outputTokens: 10,
+                    totalTokens: 60,
+                    costUSD: 0.75,
+                    modelsUsed: ["gpt-5.4"],
+                    modelBreakdowns: [
+                        CostUsageDailyReport.ModelBreakdown(
+                            modelName: "gpt-5.4",
+                            costUSD: 0.75,
+                            totalTokens: 60),
+                    ]),
+            ],
+            summary: nil)
+        let ambiguous = CostUsageDailyReport(
+            data: [
+                CostUsageDailyReport.Entry(
+                    date: "2026-04-04",
+                    inputTokens: 400_000,
+                    outputTokens: 2000,
+                    totalTokens: 402_000,
+                    costUSD: nil,
+                    modelsUsed: ["gpt-5.5"],
+                    modelBreakdowns: [
+                        CostUsageDailyReport.ModelBreakdown(
+                            modelName: "gpt-5.5",
+                            costUSD: nil,
+                            totalTokens: 402_000),
+                    ]),
+            ],
+            summary: nil)
+
+        let legacy = CostUsageDailyReport.merged([priced, ambiguous])
+        #expect(legacy.data.first?.costUSD == 1.25)
+        #expect(legacy.summary?.totalCostUSD == 2.0)
+
+        let strict = CostUsageDailyReport.mergedRequiringCompleteCosts([priced, ambiguous])
+        let affectedDay = try #require(strict.data.first { $0.date == "2026-04-04" })
+        let pricedDay = try #require(strict.data.first { $0.date == "2026-04-05" })
+        #expect(affectedDay.costUSD == nil)
+        #expect(affectedDay.modelBreakdowns?.first { $0.modelName == "gpt-5.4" }?.costUSD == 1.25)
+        #expect(affectedDay.modelBreakdowns?.first { $0.modelName == "gpt-5.5" }?.costUSD == nil)
+        #expect(pricedDay.costUSD == 0.75)
+        #expect(strict.summary?.totalCostUSD == nil)
+        #expect(strict.summary?.totalTokens == 402_180)
+    }
 }

@@ -43,6 +43,27 @@ struct CostUsageWindowSummaryTests {
     }
 
     @Test
+    func `summary does not expose a partial cost when one populated day is unpriced`() {
+        let snapshot = CostUsageTokenSnapshot(
+            sessionTokens: 500,
+            sessionCostUSD: nil,
+            last30DaysTokens: 900,
+            last30DaysCostUSD: nil,
+            historyDays: 30,
+            daily: [
+                Self.entry(day: "2026-06-30", cost: 4, tokens: 400, requests: 4),
+                Self.entry(day: "2026-07-01", cost: nil, tokens: 500, requests: 5),
+            ],
+            updatedAt: Self.now)
+
+        let summary = snapshot.summary(forLastDays: 7, calendar: Self.utcCalendar)
+        #expect(summary.entryCount == 2)
+        #expect(summary.totalCostUSD == nil)
+        #expect(summary.totalTokens == 900)
+        #expect(summary.totalRequests == 9)
+    }
+
+    @Test
     func `comparison summaries keep Gregorian entries under a Buddhist calendar`() throws {
         let bangkok = try #require(TimeZone(identifier: "Asia/Bangkok"))
         var gregorian = Calendar(identifier: .gregorian)

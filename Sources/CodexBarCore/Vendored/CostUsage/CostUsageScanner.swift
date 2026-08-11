@@ -1939,7 +1939,7 @@ enum CostUsageScanner {
 
     /// Bump when the report pricing formula changes. Rates are resolved when reports are read;
     /// this fingerprint only invalidates downstream presentation caches such as Workspaces snapshots.
-    private static let codexCostFormulaVersion = 2
+    private static let codexCostFormulaVersion = 3
 
     static func codexPricingKey(modelsDevArtifact: ModelsDevCacheArtifact?) -> String {
         CostUsagePricingKey.codex(

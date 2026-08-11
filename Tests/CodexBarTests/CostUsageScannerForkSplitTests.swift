@@ -211,6 +211,90 @@ struct CostUsageScannerForkSplitTests {
         #expect(report.summary?.totalCostUSD == nil)
     }
 
+    @Test
+    func `ambiguous model invalidates enclosing totals without hiding priced rows`() throws {
+        let fixture = try self.makePricingFixture(
+            parent: (input: 200_000, cached: 20000, output: 1000),
+            child: (input: 200_000, cached: 20000, output: 1000))
+        defer { fixture.environment.cleanup() }
+
+        var cache = try self.cacheByCopyingParentRowsIntoChild(fixture.cache)
+        let nextDay = try #require(fixture.range.calendar.date(byAdding: .day, value: 1, to: fixture.day))
+        let range = CostUsageScanner.CostUsageDayRange(
+            since: fixture.day,
+            until: nextDay,
+            calendar: fixture.range.calendar)
+        let pricedModel = "gpt-5.4"
+        let sameDayTokens = (input: 100, cached: 20, output: 10)
+        let nextDayTokens = (input: 200, cached: 40, output: 20)
+
+        let parent = try #require(cache.files.first { $0.value.sessionId == "parent-session" })
+        var parentUsage = parent.value
+        var sameDayModels = parentUsage.days[fixture.dayKey] ?? [:]
+        sameDayModels[pricedModel] = [sameDayTokens.input, sameDayTokens.cached, sameDayTokens.output]
+        parentUsage.days[fixture.dayKey] = sameDayModels
+        parentUsage.days[range.untilKey] = [
+            pricedModel: [nextDayTokens.input, nextDayTokens.cached, nextDayTokens.output],
+        ]
+        parentUsage.codexRows = (parentUsage.codexRows ?? []) + [
+            CostUsageScanner.CodexUsageRow(
+                day: fixture.dayKey,
+                model: pricedModel,
+                turnID: "same-day-priced-turn",
+                eventIndex: 1001,
+                input: sameDayTokens.input,
+                cached: sameDayTokens.cached,
+                output: sameDayTokens.output,
+                pricingModel: pricedModel,
+                pricingMode: "standard"),
+            CostUsageScanner.CodexUsageRow(
+                day: range.untilKey,
+                model: pricedModel,
+                turnID: "next-day-priced-turn",
+                eventIndex: 1002,
+                input: nextDayTokens.input,
+                cached: nextDayTokens.cached,
+                output: nextDayTokens.output,
+                pricingModel: pricedModel,
+                pricingMode: "standard"),
+        ]
+        cache.files[parent.key] = parentUsage
+
+        var canonicalSameDay = cache.days[fixture.dayKey] ?? [:]
+        canonicalSameDay[pricedModel] = [sameDayTokens.input, sameDayTokens.cached, sameDayTokens.output]
+        cache.days[fixture.dayKey] = canonicalSameDay
+        cache.days[range.untilKey] = [
+            pricedModel: [nextDayTokens.input, nextDayTokens.cached, nextDayTokens.output],
+        ]
+
+        let report = CostUsageScanner.buildCodexReportFromCache(cache: cache, range: range)
+        let affectedDay = try #require(report.data.first { $0.date == fixture.dayKey })
+        let pricedDay = try #require(report.data.first { $0.date == range.untilKey })
+        let ambiguousBreakdown = try #require(affectedDay.modelBreakdowns?.first {
+            $0.modelName == fixture.model
+        })
+        let sameDayBreakdown = try #require(affectedDay.modelBreakdowns?.first {
+            $0.modelName == pricedModel
+        })
+        let sameDayCost = try #require(CostUsagePricing.codexCostUSD(
+            model: pricedModel,
+            inputTokens: sameDayTokens.input,
+            cachedInputTokens: sameDayTokens.cached,
+            outputTokens: sameDayTokens.output))
+        let nextDayCost = try #require(CostUsagePricing.codexCostUSD(
+            model: pricedModel,
+            inputTokens: nextDayTokens.input,
+            cachedInputTokens: nextDayTokens.cached,
+            outputTokens: nextDayTokens.output))
+
+        #expect(ambiguousBreakdown.costUSD == nil)
+        #expect(abs((sameDayBreakdown.costUSD ?? 0) - sameDayCost) < 1e-12)
+        #expect(affectedDay.costUSD == nil)
+        #expect(abs((pricedDay.costUSD ?? 0) - nextDayCost) < 1e-12)
+        #expect(report.summary?.totalCostUSD == nil)
+        #expect(report.summary?.totalTokens == 402_330)
+    }
+
     private struct Fixture {
         let environment: CostUsageTestEnvironment
         let range: CostUsageScanner.CostUsageDayRange

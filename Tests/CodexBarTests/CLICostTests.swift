@@ -112,6 +112,85 @@ struct CLICostTests {
     }
 
     @Test
+    func `codex output marks incomplete aggregates without hiding tokens or priced rows`() throws {
+        let snapshot = CostUsageTokenSnapshot(
+            sessionTokens: 402_000,
+            sessionCostUSD: nil,
+            last30DaysTokens: 402_110,
+            last30DaysCostUSD: nil,
+            daily: [
+                CostUsageDailyReport.Entry(
+                    date: "2026-04-07",
+                    inputTokens: 400_000,
+                    outputTokens: 2000,
+                    totalTokens: 402_000,
+                    costUSD: nil,
+                    modelsUsed: ["gpt-5.5"],
+                    modelBreakdowns: [
+                        CostUsageDailyReport.ModelBreakdown(
+                            modelName: "gpt-5.5",
+                            costUSD: nil,
+                            totalTokens: 402_000),
+                    ]),
+                CostUsageDailyReport.Entry(
+                    date: "2026-04-08",
+                    inputTokens: 100,
+                    outputTokens: 10,
+                    totalTokens: 110,
+                    costUSD: 1.25,
+                    modelsUsed: ["gpt-5.4"],
+                    modelBreakdowns: [
+                        CostUsageDailyReport.ModelBreakdown(
+                            modelName: "gpt-5.4",
+                            costUSD: 1.25,
+                            totalTokens: 110),
+                    ]),
+            ],
+            projects: [
+                CostUsageProjectBreakdown(
+                    name: "synthetic-project",
+                    path: nil,
+                    totalTokens: 402_110,
+                    totalCostUSD: nil,
+                    daily: [],
+                    modelBreakdowns: nil,
+                    sources: [
+                        CostUsageProjectSourceBreakdown(
+                            name: "synthetic-source",
+                            path: nil,
+                            totalTokens: 402_110,
+                            totalCostUSD: nil,
+                            daily: [],
+                            modelBreakdowns: nil),
+                    ]),
+            ],
+            updatedAt: Date(timeIntervalSince1970: 1_700_000_000))
+
+        let text = CodexBarCLI.renderCostText(provider: .codex, snapshot: snapshot, useColor: false)
+        #expect(text.contains("Today: Unavailable (incomplete pricing data) · 402K tokens"))
+        #expect(text.contains("Last 30 days: Unavailable (incomplete pricing data) · 402K tokens"))
+
+        let grouped = CodexBarCLI.renderCostText(
+            provider: .codex,
+            snapshot: snapshot,
+            groupBy: .project,
+            useColor: false)
+        #expect(grouped.contains("synthetic-project: Unavailable (incomplete pricing data) · 402K tokens"))
+        #expect(grouped.contains("synthetic-source: Unavailable (incomplete pricing data) · 402K tokens"))
+
+        let payload = CodexBarCLI.makeCostPayload(provider: .codex, snapshot: snapshot, error: nil)
+        let data = try JSONEncoder().encode(payload)
+        let object = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        let totals = try #require(object["totals"] as? [String: Any])
+        let daily = try #require(object["daily"] as? [[String: Any]])
+        #expect(object["last30DaysCostUSD"] == nil)
+        #expect(totals["totalCost"] == nil)
+        #expect(totals["totalTokens"] as? Int == 402_110)
+        #expect(daily.first?["totalCost"] == nil)
+        #expect(daily.last?["totalCost"] as? Double == 1.25)
+    }
+
+    @Test
     func `encodes cost payload JSON`() throws {
         let payload = CostPayload(
             provider: "claude",

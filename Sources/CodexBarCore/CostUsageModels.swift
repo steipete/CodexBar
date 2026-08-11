@@ -153,12 +153,20 @@ public struct CostUsageTokenSnapshot: Sendable, Equatable {
             return dayKey >= startKey && dayKey <= endKey
         }
         let costs = entries.compactMap(\.costUSD)
+        let hasUnpricedUsage = entries.contains { entry in
+            entry.costUSD == nil && max(
+                entry.totalTokens ?? 0,
+                (entry.inputTokens ?? 0)
+                    + (entry.cacheReadTokens ?? 0)
+                    + (entry.cacheCreationTokens ?? 0)
+                    + (entry.outputTokens ?? 0)) > 0
+        }
         let tokens = entries.compactMap(\.totalTokens)
         let requests = entries.compactMap(\.requestCount)
         return CostUsageWindowSummary(
             days: days,
             totalTokens: tokens.isEmpty ? nil : tokens.reduce(0, +),
-            totalCostUSD: costs.isEmpty ? nil : costs.reduce(0, +),
+            totalCostUSD: costs.isEmpty || hasUnpricedUsage ? nil : costs.reduce(0, +),
             totalRequests: requests.isEmpty ? nil : requests.reduce(0, +),
             entryCount: entries.count)
     }
@@ -548,6 +556,7 @@ extension CostUsageDailyReport {
         var sawTotalTokens = false
         var costUSD: Double = 0
         var sawCost = false
+        var hasUnpricedUsage = false
         var standardCostUSD: Double = 0
         var sawStandardCost = false
         var priorityCostUSD: Double = 0
@@ -557,7 +566,7 @@ extension CostUsageDailyReport {
         var priorityTokens: Int = 0
         var sawPriorityTokens = false
 
-        mutating func add(_ breakdown: ModelBreakdown) {
+        mutating func add(_ breakdown: ModelBreakdown, requireCompleteCosts: Bool) {
             if let totalTokens = breakdown.totalTokens {
                 self.totalTokens += totalTokens
                 self.sawTotalTokens = true
@@ -565,6 +574,12 @@ extension CostUsageDailyReport {
             if let costUSD = breakdown.costUSD {
                 self.costUSD += costUSD
                 self.sawCost = true
+            } else if requireCompleteCosts,
+                      max(
+                          breakdown.totalTokens ?? 0,
+                          (breakdown.standardTokens ?? 0) + (breakdown.priorityTokens ?? 0)) > 0
+            {
+                self.hasUnpricedUsage = true
             }
             if let standardCostUSD = breakdown.standardCostUSD {
                 self.standardCostUSD += standardCostUSD
@@ -587,10 +602,10 @@ extension CostUsageDailyReport {
         func build(modelName: String) -> ModelBreakdown {
             ModelBreakdown(
                 modelName: modelName,
-                costUSD: self.sawCost ? self.costUSD : nil,
+                costUSD: self.sawCost && !self.hasUnpricedUsage ? self.costUSD : nil,
                 totalTokens: self.sawTotalTokens ? self.totalTokens : nil,
-                standardCostUSD: self.sawStandardCost ? self.standardCostUSD : nil,
-                priorityCostUSD: self.sawPriorityCost ? self.priorityCostUSD : nil,
+                standardCostUSD: self.sawStandardCost && !self.hasUnpricedUsage ? self.standardCostUSD : nil,
+                priorityCostUSD: self.sawPriorityCost && !self.hasUnpricedUsage ? self.priorityCostUSD : nil,
                 standardTokens: self.sawStandardTokens ? self.standardTokens : nil,
                 priorityTokens: self.sawPriorityTokens ? self.priorityTokens : nil)
         }
@@ -610,10 +625,11 @@ extension CostUsageDailyReport {
         var derivedTotalTokensWithoutExplicitTotal: Int = 0
         var costUSD: Double = 0
         var sawCost = false
+        var hasUnpricedUsage = false
         var modelsUsed: Set<String> = []
         var breakdowns: [String: BreakdownAccumulator] = [:]
 
-        mutating func add(_ entry: Entry) {
+        mutating func add(_ entry: Entry, requireCompleteCosts: Bool) {
             let entryDerivedTotalTokens = (entry.inputTokens ?? 0)
                 + (entry.cacheReadTokens ?? 0)
                 + (entry.cacheCreationTokens ?? 0)
@@ -643,6 +659,10 @@ extension CostUsageDailyReport {
             if let costUSD = entry.costUSD {
                 self.costUSD += costUSD
                 self.sawCost = true
+            } else if requireCompleteCosts,
+                      max(entry.totalTokens ?? 0, entryDerivedTotalTokens) > 0
+            {
+                self.hasUnpricedUsage = true
             }
             if let modelsUsed = entry.modelsUsed {
                 self.modelsUsed.formUnion(modelsUsed)
@@ -650,7 +670,7 @@ extension CostUsageDailyReport {
             if let modelBreakdowns = entry.modelBreakdowns {
                 for breakdown in modelBreakdowns {
                     var accumulator = self.breakdowns[breakdown.modelName] ?? BreakdownAccumulator()
-                    accumulator.add(breakdown)
+                    accumulator.add(breakdown, requireCompleteCosts: requireCompleteCosts)
                     self.breakdowns[breakdown.modelName] = accumulator
                     self.modelsUsed.insert(breakdown.modelName)
                 }
@@ -685,7 +705,7 @@ extension CostUsageDailyReport {
                 cacheReadTokens: self.sawCacheReadTokens ? self.cacheReadTokens : nil,
                 cacheCreationTokens: self.sawCacheCreationTokens ? self.cacheCreationTokens : nil,
                 totalTokens: totalTokens,
-                costUSD: self.sawCost ? self.costUSD : nil,
+                costUSD: self.sawCost && !self.hasUnpricedUsage ? self.costUSD : nil,
                 modelsUsed: modelsUsed,
                 modelBreakdowns: modelBreakdowns)
         }
@@ -696,17 +716,33 @@ extension CostUsageDailyReport {
     }
 
     public static func merged(_ reports: [CostUsageDailyReport]) -> CostUsageDailyReport {
-        let entries = self.mergedEntries(from: reports)
-        guard !entries.isEmpty else { return CostUsageDailyReport(data: [], summary: nil) }
-        return CostUsageDailyReport(data: entries, summary: self.mergedSummary(from: entries))
+        self.merged(reports, requireCompleteCosts: false)
     }
 
-    private static func mergedEntries(from reports: [CostUsageDailyReport]) -> [Entry] {
+    static func mergedRequiringCompleteCosts(_ reports: [CostUsageDailyReport]) -> CostUsageDailyReport {
+        self.merged(reports, requireCompleteCosts: true)
+    }
+
+    private static func merged(
+        _ reports: [CostUsageDailyReport],
+        requireCompleteCosts: Bool) -> CostUsageDailyReport
+    {
+        let entries = self.mergedEntries(from: reports, requireCompleteCosts: requireCompleteCosts)
+        guard !entries.isEmpty else { return CostUsageDailyReport(data: [], summary: nil) }
+        return CostUsageDailyReport(
+            data: entries,
+            summary: self.mergedSummary(from: entries, requireCompleteCosts: requireCompleteCosts))
+    }
+
+    private static func mergedEntries(
+        from reports: [CostUsageDailyReport],
+        requireCompleteCosts: Bool) -> [Entry]
+    {
         var dayAccumulators: [String: EntryAccumulator] = [:]
         for report in reports {
             for entry in report.data {
                 var accumulator = dayAccumulators[entry.date] ?? EntryAccumulator()
-                accumulator.add(entry)
+                accumulator.add(entry, requireCompleteCosts: requireCompleteCosts)
                 dayAccumulators[entry.date] = accumulator
             }
         }
@@ -719,7 +755,10 @@ extension CostUsageDailyReport {
             }
     }
 
-    private static func mergedSummary(from entries: [Entry]) -> Summary {
+    private static func mergedSummary(
+        from entries: [Entry],
+        requireCompleteCosts: Bool) -> Summary
+    {
         var totalInputTokens = 0
         var sawTotalInputTokens = false
         var totalOutputTokens = 0
@@ -732,6 +771,7 @@ extension CostUsageDailyReport {
         var sawTotalTokens = false
         var totalCostUSD = 0.0
         var sawTotalCostUSD = false
+        var hasUnpricedUsage = false
 
         for entry in entries {
             if let inputTokens = entry.inputTokens {
@@ -757,6 +797,8 @@ extension CostUsageDailyReport {
             if let costUSD = entry.costUSD {
                 totalCostUSD += costUSD
                 sawTotalCostUSD = true
+            } else if requireCompleteCosts, (entry.totalTokens ?? 0) > 0 {
+                hasUnpricedUsage = true
             }
         }
 
@@ -766,7 +808,7 @@ extension CostUsageDailyReport {
             cacheReadTokens: sawTotalCacheReadTokens ? totalCacheReadTokens : nil,
             cacheCreationTokens: sawTotalCacheCreationTokens ? totalCacheCreationTokens : nil,
             totalTokens: sawTotalTokens ? totalTokens : nil,
-            totalCostUSD: sawTotalCostUSD ? totalCostUSD : nil)
+            totalCostUSD: sawTotalCostUSD && !hasUnpricedUsage ? totalCostUSD : nil)
     }
 
     private static func sortedModelBreakdowns(_ breakdowns: [ModelBreakdown]) -> [ModelBreakdown] {
