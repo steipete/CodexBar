@@ -28,6 +28,11 @@ extension SettingsStore {
         {
             return nil
         }
+        // App-token usage bypasses cookie and token accounts entirely; its
+        // snapshots must never be attributed to a saved account.
+        if provider == .cursor, self.cursorUsageDataSource == .app {
+            return nil
+        }
         return self.selectedTokenAccount(for: provider)
     }
 

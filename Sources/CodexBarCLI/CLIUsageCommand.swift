@@ -439,6 +439,13 @@ extension CodexBarCLI {
         command: UsageCommandContext) async -> UsageCommandOutput
     {
         var output = UsageCommandOutput()
+        let configSource = tokenContext.preferredSourceMode(for: provider)
+        let baseSource = command.sourceModeOverride ?? configSource
+        let account = Self.effectiveUsageAccount(
+            provider: provider,
+            baseSource: baseSource,
+            selectionUsesOverride: tokenContext.selection.usesOverride,
+            account: account)
         let env = tokenContext.environment(
             base: ProcessInfo.processInfo.environment,
             provider: provider,
@@ -448,8 +455,6 @@ extension CodexBarCLI {
             for: provider,
             account: account,
             codexActiveSourceOverride: codexVisibleAccount?.selectionSource)
-        let configSource = tokenContext.preferredSourceMode(for: provider)
-        let baseSource = command.sourceModeOverride ?? configSource
         let effectiveSourceMode = tokenContext.effectiveSourceMode(
             base: baseSource,
             provider: provider,
@@ -731,6 +736,23 @@ extension CodexBarCLI {
             return nil
         }
         return nil
+    }
+
+    /// The token account a usage fetch may attribute its result to.
+    /// Cursor's App Token mode always fetches the Cursor app's own account, so
+    /// an implicitly active saved account must not own or label the result
+    /// (mirrors `SettingsStore.effectiveSelectedTokenAccount`); explicit
+    /// `--account` selections instead route through the web strategy.
+    static func effectiveUsageAccount(
+        provider: UsageProvider,
+        baseSource: ProviderSourceMode,
+        selectionUsesOverride: Bool,
+        account: ProviderTokenAccount?) -> ProviderTokenAccount?
+    {
+        if provider == .cursor, baseSource == .oauth, !selectionUsesOverride {
+            return nil
+        }
+        return account
     }
 
     static func sourceModeRequiresWebSupport(
