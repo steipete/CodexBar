@@ -1,9 +1,36 @@
 import Foundation
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
 import Testing
 @testable import CodexBarCore
 
 @Suite(.serialized)
 struct ReplicateUsageFetcherTests {
+    private static let invoicesJSON = """
+    {
+      "invoices": [
+        {
+          "id": "inv_1",
+          "type": "monthly-usage",
+          "status": "DRAFT",
+          "started_on": "2026-08-01",
+          "ended_before": null,
+          "total_cost": "12.40",
+          "total_cost_before_adjustments": "12.40"
+        }
+      ]
+    }
+    """
+
+    private static let creditJSON = """
+    { "unused_credit": "80.0", "link_to_add_credit": "https://replicate.com/account/billing#add-credit" }
+    """
+
+    private static func httpResponse(url: URL, statusCode: Int) throws -> HTTPURLResponse {
+        try #require(HTTPURLResponse(url: url, statusCode: statusCode, httpVersion: nil, headerFields: nil))
+    }
+
     @Test
     func `maps spend balance and username into usage snapshot`() throws {
         let invoicesJSON = """
@@ -91,5 +118,73 @@ struct ReplicateUsageFetcherTests {
             guard case ReplicateUsageError.parseFailed = error else { return false }
             return true
         }
+    }
+
+    @Test
+    func `http 401 maps to invalidCredentials`() async {
+        let transport = ProviderHTTPTransportStub { request in
+            let response = try Self.httpResponse(url: #require(request.url), statusCode: 401)
+            return (Data(), response)
+        }
+
+        await #expect(throws: ReplicateUsageError.invalidCredentials) {
+            _ = try await ReplicateUsageFetcher._fetchUsageForTesting(
+                cookieHeader: "sessionid=test",
+                username: "demo",
+                accountKind: "user",
+                transport: transport)
+        }
+    }
+
+    @Test
+    func `http 429 maps to rateLimited`() async {
+        let transport = ProviderHTTPTransportStub { request in
+            let response = try Self.httpResponse(url: #require(request.url), statusCode: 429)
+            return (Data(), response)
+        }
+
+        await #expect(throws: ReplicateUsageError.rateLimited) {
+            _ = try await ReplicateUsageFetcher._fetchUsageForTesting(
+                cookieHeader: "sessionid=test",
+                username: "demo",
+                accountKind: "user",
+                transport: transport)
+        }
+    }
+
+    @Test
+    func `fetches invoices then best effort unused credit`() async throws {
+        let invoicesURL = ReplicateBillingEndpoints.userInvoicesURL(username: "demo")
+        let creditURL = ReplicateBillingEndpoints.userUnusedCreditURL(username: "demo")
+        let transport = ProviderHTTPTransportStub { request in
+            guard let url = request.url else { throw URLError(.badURL) }
+            if url == invoicesURL {
+                let response = try Self.httpResponse(url: url, statusCode: 200)
+                return (Data(Self.invoicesJSON.utf8), response)
+            }
+            if url == creditURL {
+                let response = try Self.httpResponse(url: url, statusCode: 200)
+                return (Data(Self.creditJSON.utf8), response)
+            }
+            throw URLError(.unsupportedURL)
+        }
+
+        let summary = try await ReplicateUsageFetcher._fetchUsageForTesting(
+            cookieHeader: "sessionid=test; csrftoken=abc",
+            username: "demo",
+            accountKind: "user",
+            transport: transport)
+
+        #expect(abs(summary.currentMonthSpend - 12.4) <= 0.0001)
+        #expect(summary.creditBalance == 80.0)
+        #expect(summary.username == "demo")
+
+        let requests = await transport.requests()
+        #expect(requests.count == 2)
+        #expect(requests[0].url == invoicesURL)
+        #expect(requests[1].url == creditURL)
+        #expect(requests.allSatisfy { $0.value(forHTTPHeaderField: "Accept") == "application/json" })
+        #expect(requests.allSatisfy { $0.value(forHTTPHeaderField: "Cookie") == "sessionid=test; csrftoken=abc" })
+        #expect(requests.allSatisfy { $0.timeoutInterval == ReplicateBillingEndpoints.timeoutSeconds })
     }
 }

@@ -1,6 +1,39 @@
 import Foundation
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
 
 public struct ReplicateUsageFetcher: Sendable {
+    public static func fetchUsage(
+        cookieHeader: String,
+        username: String,
+        accountKind: String,
+        transport: any ProviderHTTPTransport = ProviderHTTPClient.shared,
+        now: Date = Date()) async throws -> ReplicateUsageSummary
+    {
+        try await self.performFetch(
+            cookieHeader: cookieHeader,
+            username: username,
+            accountKind: accountKind,
+            transport: transport,
+            now: now)
+    }
+
+    static func _fetchUsageForTesting(
+        cookieHeader: String,
+        username: String,
+        accountKind: String,
+        transport: any ProviderHTTPTransport,
+        now: Date = Date()) async throws -> ReplicateUsageSummary
+    {
+        try await self.performFetch(
+            cookieHeader: cookieHeader,
+            username: username,
+            accountKind: accountKind,
+            transport: transport,
+            now: now)
+    }
+
     static func _parseSummaryForTesting(
         _ invoicesData: Data,
         creditData: Data? = nil,
@@ -12,6 +45,130 @@ public struct ReplicateUsageFetcher: Sendable {
             creditData: creditData,
             username: username,
             now: now)
+    }
+
+    public static func resolveAccount(fromBillingHTML html: String) throws -> (kind: String, username: String) {
+        let payloads = self.reactComponentPropsJSONData(fromHTML: html)
+        guard !payloads.isEmpty else {
+            throw ReplicateUsageError.parseFailed("Missing react-component-props JSON")
+        }
+
+        for data in payloads {
+            guard let json = try? JSONSerialization.jsonObject(with: data, options: []) else {
+                continue
+            }
+            if let account = self.findAccount(in: json),
+               let kind = (account["kind"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines),
+               let username = (account["username"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines),
+               !kind.isEmpty,
+               !username.isEmpty
+            {
+                return (kind: kind, username: username)
+            }
+        }
+
+        throw ReplicateUsageError.parseFailed("Missing account kind/username")
+    }
+
+    private static func performFetch(
+        cookieHeader: String,
+        username: String,
+        accountKind: String,
+        transport: any ProviderHTTPTransport,
+        now: Date) async throws -> ReplicateUsageSummary
+    {
+        let header = cookieHeader.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !header.isEmpty else { throw ReplicateUsageError.missingCookie }
+
+        let trimmedUsername = username.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedUsername.isEmpty else {
+            throw ReplicateUsageError.parseFailed("Missing account username")
+        }
+
+        let invoicesURL = self.invoicesURL(username: trimmedUsername, accountKind: accountKind)
+        let invoicesRequest = self.request(url: invoicesURL, cookieHeader: header)
+
+        let invoicesResponse: ProviderHTTPResponse
+        do {
+            invoicesResponse = try await transport.response(
+                for: invoicesRequest,
+                retryPolicy: .transientIdempotent)
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch {
+            throw ReplicateUsageError.networkError(error.localizedDescription)
+        }
+
+        try self.validateStatus(invoicesResponse.statusCode)
+
+        let creditURL = self.unusedCreditURL(username: trimmedUsername, accountKind: accountKind)
+        let creditData = try await self.fetchUnusedCreditData(
+            url: creditURL,
+            cookieHeader: header,
+            transport: transport)
+
+        return try self.parseSummary(
+            invoicesData: invoicesResponse.data,
+            creditData: creditData,
+            username: trimmedUsername,
+            now: now)
+    }
+
+    private static func fetchUnusedCreditData(
+        url: URL,
+        cookieHeader: String,
+        transport: any ProviderHTTPTransport) async throws -> Data?
+    {
+        let request = self.request(url: url, cookieHeader: cookieHeader)
+        do {
+            let response = try await transport.response(for: request, retryPolicy: .transientIdempotent)
+            guard response.statusCode == 200 else { return nil }
+            return response.data
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch {
+            return nil
+        }
+    }
+
+    private static func request(url: URL, cookieHeader: String) -> URLRequest {
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.setValue(cookieHeader, forHTTPHeaderField: "Cookie")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.timeoutInterval = ReplicateBillingEndpoints.timeoutSeconds
+        return request
+    }
+
+    private static func validateStatus(_ statusCode: Int) throws {
+        switch statusCode {
+        case 200:
+            return
+        case 401, 403:
+            throw ReplicateUsageError.invalidCredentials
+        case 429:
+            throw ReplicateUsageError.rateLimited
+        default:
+            throw ReplicateUsageError.apiError(statusCode)
+        }
+    }
+
+    private static func invoicesURL(username: String, accountKind: String) -> URL {
+        switch accountKind.lowercased() {
+        case "organization":
+            ReplicateBillingEndpoints.organizationInvoicesURL(organizationName: username)
+        default:
+            ReplicateBillingEndpoints.userInvoicesURL(username: username)
+        }
+    }
+
+    private static func unusedCreditURL(username: String, accountKind: String) -> URL {
+        switch accountKind.lowercased() {
+        case "organization":
+            ReplicateBillingEndpoints.organizationUnusedCreditURL(organizationName: username)
+        default:
+            ReplicateBillingEndpoints.userUnusedCreditURL(username: username)
+        }
     }
 
     private static func parseSummary(
@@ -103,6 +260,92 @@ public struct ReplicateUsageFetcher: Sendable {
         isoFormatter.formatOptions = [.withInternetDateTime]
         return isoFormatter.date(from: value)
     }
+
+    private static func reactComponentPropsJSONData(fromHTML html: String) -> [Data] {
+        let data = Data(html.utf8)
+        var payloads: [Data] = []
+        var searchStart = data.startIndex
+
+        while searchStart < data.endIndex,
+              let idRange = data.range(of: Self.reactComponentPropsNeedle, options: [], in: searchStart..<data.endIndex)
+        {
+            guard let openTagEnd = data[idRange.upperBound...].firstIndex(of: UInt8(ascii: ">")) else {
+                searchStart = idRange.upperBound
+                continue
+            }
+            let contentStart = data.index(after: openTagEnd)
+            guard let closeRange = data.range(
+                of: Self.scriptCloseNeedle,
+                options: [],
+                in: contentStart..<data.endIndex)
+            else {
+                searchStart = idRange.upperBound
+                continue
+            }
+            let rawData = data[contentStart..<closeRange.lowerBound]
+            let trimmed = self.trimASCIIWhitespace(Data(rawData))
+            if !trimmed.isEmpty {
+                payloads.append(trimmed)
+            }
+            searchStart = closeRange.upperBound
+        }
+
+        return payloads
+    }
+
+    private static func findAccount(in value: Any) -> [String: Any]? {
+        if let dict = value as? [String: Any] {
+            if let account = dict["account"] as? [String: Any],
+               account["kind"] is String,
+               account["username"] is String
+            {
+                return account
+            }
+
+            var queue: [Any] = Array(dict.values)
+            var seen = 0
+            while !queue.isEmpty, seen < 4000 {
+                let current = queue.removeFirst()
+                seen += 1
+                if let nested = current as? [String: Any] {
+                    if let account = nested["account"] as? [String: Any],
+                       account["kind"] is String,
+                       account["username"] is String
+                    {
+                        return account
+                    }
+                    queue.append(contentsOf: nested.values)
+                } else if let array = current as? [Any] {
+                    queue.append(contentsOf: array)
+                }
+            }
+        } else if let array = value as? [Any] {
+            for element in array {
+                if let account = self.findAccount(in: element) {
+                    return account
+                }
+            }
+        }
+        return nil
+    }
+
+    private static func trimASCIIWhitespace(_ data: Data) -> Data {
+        var start = data.startIndex
+        var end = data.endIndex
+        let whitespace: Set<UInt8> = [0x09, 0x0A, 0x0D, 0x20]
+        while start < end, whitespace.contains(data[start]) {
+            start = data.index(after: start)
+        }
+        while start < end {
+            let previous = data.index(before: end)
+            guard whitespace.contains(data[previous]) else { break }
+            end = previous
+        }
+        return start == data.startIndex && end == data.endIndex ? data : Data(data[start..<end])
+    }
+
+    private static let reactComponentPropsNeedle = Data("id=\"react-component-props".utf8)
+    private static let scriptCloseNeedle = Data("</script>".utf8)
 }
 
 private struct ReplicateInvoicesResponse: Decodable {
