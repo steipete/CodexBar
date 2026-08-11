@@ -167,6 +167,21 @@ jobs:
             CODEXBAR_TEST_SHARD_COUNT=${{ matrix.shard-count }} \
             ./Scripts/test.sh
 
+      - name: Render Overview token allocation proof
+        if: ${{ matrix.shard-index == 0 }}
+        env:
+          CODEXBAR_SUPPRESS_TEST_KEYCHAIN_ACCESS: 1
+          CODEXBAR_OVERVIEW_ALLOCATION_PROOF_DIR: ${{ runner.temp }}/overview-token-allocation-proof
+        run: swift test --filter OverviewTokenAllocationScreenshotTests
+
+      - name: Upload Overview token allocation proof
+        if: ${{ matrix.shard-index == 0 }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: overview-token-allocation-proof
+          path: ${{ runner.temp }}/overview-token-allocation-proof/*.png
+          if-no-files-found: error
+
       - name: Provider plugin engine A/B goldens
         if: ${{ matrix.shard-index == 0 }}
         run: ./Scripts/test-plugin-engines.sh
