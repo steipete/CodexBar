@@ -154,8 +154,8 @@ struct ProviderArchitectureGatekeeperTests {
             Self.hash(descriptor.branding.burnDownWidgetColor, into: &burnDownFingerprint)
         }
 
-        #expect(widgetFingerprint == 16_873_014_858_015_536_126)
-        #expect(burnDownFingerprint == 8_686_456_525_451_224_704)
+        #expect(widgetFingerprint == 8_085_161_549_220_867_019)
+        #expect(burnDownFingerprint == 12_629_362_811_078_279_269)
     }
 
     @Test
@@ -197,7 +197,7 @@ struct ProviderArchitectureGatekeeperTests {
             .deepseek, .deepinfra, .mistral, .moonshot, .poe,
         ])
         #expect(Set(descriptors.filter(\.metadata.usesDetailBackedWindow).map(\.id)) == [
-            .warp, .kilo, .mistral, .deepseek, .deepinfra, .qoder, .crof, .chutes,
+            .warp, .kilo, .mistral, .deepseek, .deepinfra, .qoder, .crof, .chutes, .replicate,
         ])
         #if os(macOS)
         #expect(Set(descriptors.filter(\.tokenCost.supportsTokenSnapshot).map(\.id)) == [
@@ -2437,10 +2437,10 @@ struct ProviderArchitectureGatekeeperTests {
         AllowedProviderConstruct(
             path: "Sources/CodexBar/StatusItemController+Animation.swift",
             line: 915,
-            anchor: "if provider == .kiro {",
-            expectedProviderIDs: ["cursor", "kiro"],
-            expectedReferenceCount: 2,
-            expectedReferenceFingerprint: ["kiro@0", "cursor@8"],
+            anchor: "if provider == .replicate,",
+            expectedProviderIDs: ["cursor", "kiro", "replicate"],
+            expectedReferenceCount: 3,
+            expectedReferenceFingerprint: ["replicate@0", "kiro@5", "cursor@13"],
             reason: "This exact app-runtime bridge coordinates provider-owned state through the shared controller."),
         AllowedProviderConstruct(
             path: "Sources/CodexBar/StatusItemController+CostMenuCard.swift",

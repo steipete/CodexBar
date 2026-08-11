@@ -855,7 +855,7 @@ struct StatusItemBalanceDisplayTests {
         #expect(StatusItemController.statusItemAccessibilityTitle(isDebugApp: false) == "CodexBar")
     }
 
-    private func makeSettings(suiteName: String, provider: UsageProvider) -> SettingsStore {
+    func makeSettings(suiteName: String, provider: UsageProvider) -> SettingsStore {
         let settings = testSettingsStore(suiteName: suiteName)
         settings.statusChecksEnabled = false
         settings.refreshFrequency = .manual
@@ -871,7 +871,7 @@ struct StatusItemBalanceDisplayTests {
         return settings
     }
 
-    private func makeStoreAndController(settings: SettingsStore) -> (UsageStore, StatusItemController) {
+    func makeStoreAndController(settings: SettingsStore) -> (UsageStore, StatusItemController) {
         let fetcher = UsageFetcher()
         let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
         let controller = StatusItemController(
