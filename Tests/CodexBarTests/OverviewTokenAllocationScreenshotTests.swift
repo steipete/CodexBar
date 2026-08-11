@@ -272,6 +272,9 @@ final class OverviewTokenAllocationScreenshotTests: XCTestCase {
     }
 
     private static func menuModel(_ provider: ProofProvider) -> UsageMenuCardView.Model {
+        let costText = provider.cost.map {
+            UsageFormatter.currencyString($0, currencyCode: provider.currencyCode)
+        }
         let metric = UsageMenuCardView.Model.Metric(
             id: "proof-metric",
             title: provider.metricTitle,
@@ -300,11 +303,11 @@ final class OverviewTokenAllocationScreenshotTests: XCTestCase {
             creditsScaleText: nil,
             creditsHintText: nil,
             creditsHintCopyText: nil,
-            providerCost: provider.cost.map {
+            providerCost: costText.map {
                 UsageMenuCardView.Model.ProviderCostSection(
                     title: "Tracked spend",
                     percentUsed: nil,
-                    spendLine: "Last 30 days: \(UsageFormatter.currencyString($0, currencyCode: provider.currencyCode))",
+                    spendLine: "Last 30 days: \($0)",
                     percentLine: nil)
             },
             tokenUsage: nil,
