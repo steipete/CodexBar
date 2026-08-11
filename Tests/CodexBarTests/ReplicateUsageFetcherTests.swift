@@ -111,6 +111,34 @@ struct ReplicateUsageFetcherTests {
     }
 
     @Test
+    func `malformed credit JSON still returns spend`() throws {
+        let summary = try ReplicateUsageFetcher._parseSummaryForTesting(
+            Data(Self.invoicesJSON.utf8),
+            creditData: Data("{not json".utf8),
+            username: "demo")
+
+        #expect(abs(summary.currentMonthSpend - 12.4) <= 0.0001)
+        #expect(summary.creditBalance == nil)
+        #expect(summary.username == "demo")
+    }
+
+    @Test
+    func `invalid unused credit string still returns spend`() throws {
+        let creditJSON = """
+        { "unused_credit": "not-a-number", "link_to_add_credit": "https://replicate.com/account/billing#add-credit" }
+        """
+
+        let summary = try ReplicateUsageFetcher._parseSummaryForTesting(
+            Data(Self.invoicesJSON.utf8),
+            creditData: Data(creditJSON.utf8),
+            username: "demo")
+
+        #expect(abs(summary.currentMonthSpend - 12.4) <= 0.0001)
+        #expect(summary.creditBalance == nil)
+        #expect(summary.username == "demo")
+    }
+
+    @Test
     func `invalid root returns parse error`() {
         #expect {
             _ = try ReplicateUsageFetcher._parseSummaryForTesting(Data("[]".utf8))

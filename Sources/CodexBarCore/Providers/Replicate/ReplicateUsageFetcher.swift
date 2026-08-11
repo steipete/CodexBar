@@ -186,24 +186,7 @@ public struct ReplicateUsageFetcher: Sendable {
 
         let currentMonthSpend = try Self.currentMonthSpend(from: invoicesResponse.invoices ?? [], now: now)
 
-        var creditBalance: Double?
-        if let creditData {
-            let creditResponse: ReplicateUnusedCreditResponse
-            do {
-                creditResponse = try JSONDecoder().decode(ReplicateUnusedCreditResponse.self, from: creditData)
-            } catch {
-                throw ReplicateUsageError.parseFailed(error.localizedDescription)
-            }
-            if let rawCredit = creditResponse.unusedCredit?
-                .trimmingCharacters(in: .whitespacesAndNewlines),
-                !rawCredit.isEmpty
-            {
-                guard let parsed = Double(rawCredit) else {
-                    throw ReplicateUsageError.parseFailed("Invalid unused_credit value")
-                }
-                creditBalance = parsed
-            }
-        }
+        let creditBalance = creditData.flatMap { Self.parseOptionalCreditBalance(from: $0) }
 
         return ReplicateUsageSummary(
             currentMonthSpend: currentMonthSpend,
@@ -212,6 +195,21 @@ public struct ReplicateUsageFetcher: Sendable {
             spendLimit: nil,
             username: username,
             updatedAt: now)
+    }
+
+    private static func parseOptionalCreditBalance(from creditData: Data) -> Double? {
+        guard let creditResponse = try? JSONDecoder().decode(ReplicateUnusedCreditResponse.self, from: creditData)
+        else {
+            return nil
+        }
+        guard let rawCredit = creditResponse.unusedCredit?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+            !rawCredit.isEmpty,
+            let parsed = Double(rawCredit)
+        else {
+            return nil
+        }
+        return parsed
     }
 
     private static func currentMonthSpend(from invoices: [ReplicateInvoice], now: Date) throws -> Double {
