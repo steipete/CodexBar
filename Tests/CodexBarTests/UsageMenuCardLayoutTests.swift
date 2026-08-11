@@ -185,12 +185,34 @@ struct UsageMenuCardLayoutTests {
             modelHistoryCompleteness: .incomplete)
         let summary = OverviewSpendSummary(
             model: SpendDashboardModel(requestedDays: 30, groups: [group]),
-            connectedProviderCount: 6)
+            trackedProviders: [.codex, .claude, .openrouter, .gemini, .grok, .cursor])
 
         #expect(summary.primarySpendText == "~$759.56")
         #expect(summary.coverageText == "3 / 6 Providers")
         #expect(summary.tokenText == "~15.7M tokens")
         #expect(summary.isPartial)
+
+        let width: CGFloat = 296
+        let allocationSize = NSHostingController(rootView: OverviewSpendSummaryCardView(
+            summary: summary,
+            days: 30,
+            width: width,
+            canShare: false,
+            share: {}))
+            .sizeThatFits(in: CGSize(width: width, height: .greatestFiniteMagnitude))
+        let emptySummary = OverviewSpendSummary(
+            model: SpendDashboardModel(requestedDays: 30, groups: []),
+            trackedProviders: [.codex])
+        let emptySize = NSHostingController(rootView: OverviewSpendSummaryCardView(
+            summary: emptySummary,
+            days: 30,
+            width: width,
+            canShare: false,
+            share: {}))
+            .sizeThatFits(in: CGSize(width: width, height: .greatestFiniteMagnitude))
+
+        #expect(allocationSize.height == OverviewSpendSummaryCardView.rowHeight)
+        #expect(emptySize.height == OverviewSpendSummaryCardView.baseRowHeight)
     }
 
     @Test
@@ -229,10 +251,10 @@ struct UsageMenuCardLayoutTests {
 
         let shortCoverage = OverviewSpendSummary(
             model: model(coveredDayCount: 30),
-            connectedProviderCount: 2)
+            trackedProviders: [.codex, .openrouter])
         let fullCoverage = OverviewSpendSummary(
             model: model(coveredDayCount: 365),
-            connectedProviderCount: 2)
+            trackedProviders: [.codex, .openrouter])
 
         #expect(shortCoverage.tokenText == "~10M tokens")
         #expect(fullCoverage.tokenText == "10M tokens")

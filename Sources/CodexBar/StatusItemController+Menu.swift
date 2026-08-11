@@ -579,7 +579,7 @@ extension StatusItemController {
         let spendModel = self.overviewSpendDashboardModel(providers: enabledProviders)
         let spendSummary = OverviewSpendSummary(
             model: spendModel,
-            connectedProviderCount: enabledProviders.count)
+            trackedProviders: enabledProviders)
         let fallbackCurrencyCode = spendModel.groups.first?.currencyCode ?? "USD"
         let sharePayload = ShareStatsBuilder.make(
             model: spendModel,
@@ -609,6 +609,7 @@ extension StatusItemController {
                 spendSummary.primarySpendText,
                 spendSummary.coverageText,
                 spendSummary.tokenText ?? "",
+                spendSummary.tokenAllocation == nil ? "noAllocation" : "allocation",
             ].joined(separator: "|"),
             containsInteractiveControls: sharePayload != nil)
         menu.addItem(summaryItem)
