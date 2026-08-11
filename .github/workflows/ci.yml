@@ -156,17 +156,6 @@ jobs:
         if: ${{ matrix.shard-index == 0 }}
         run: ./Scripts/lint.sh lint-macos
 
-      - name: Swift Test
-        # Keep small batches to reduce SwiftPM process overhead without returning to one aggregate run.
-        timeout-minutes: 50
-        run: |
-          CODEXBAR_TEST_GROUP_SIZE=4 \
-            CODEXBAR_TEST_SUITE_TIMEOUT=120 \
-            CODEXBAR_TEST_RETRY_NON_TIMEOUT_FAILURES=0 \
-            CODEXBAR_TEST_SHARD_INDEX=${{ matrix.shard-index }} \
-            CODEXBAR_TEST_SHARD_COUNT=${{ matrix.shard-count }} \
-            ./Scripts/test.sh
-
       - name: Render Overview token allocation proof
         if: ${{ matrix.shard-index == 0 }}
         env:
@@ -181,6 +170,17 @@ jobs:
           name: overview-token-allocation-proof
           path: ${{ runner.temp }}/overview-token-allocation-proof/*.png
           if-no-files-found: error
+
+      - name: Swift Test
+        # Keep small batches to reduce SwiftPM process overhead without returning to one aggregate run.
+        timeout-minutes: 50
+        run: |
+          CODEXBAR_TEST_GROUP_SIZE=4 \
+            CODEXBAR_TEST_SUITE_TIMEOUT=120 \
+            CODEXBAR_TEST_RETRY_NON_TIMEOUT_FAILURES=0 \
+            CODEXBAR_TEST_SHARD_INDEX=${{ matrix.shard-index }} \
+            CODEXBAR_TEST_SHARD_COUNT=${{ matrix.shard-count }} \
+            ./Scripts/test.sh
 
       - name: Provider plugin engine A/B goldens
         if: ${{ matrix.shard-index == 0 }}

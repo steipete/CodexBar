@@ -250,7 +250,7 @@ final class OverviewTokenAllocationScreenshotTests: XCTestCase {
             ForEach(Array(providers.enumerated()), id: \.offset) { index, provider in
                 OverviewMenuCardRowView(
                     model: Self.menuModel(provider),
-                    storageText: Self.storageText(provider),
+                    storageText: nil,
                     width: Self.menuWidth,
                     emphasis: index == 0 ? .prominent : .compact)
             }
@@ -300,21 +300,16 @@ final class OverviewTokenAllocationScreenshotTests: XCTestCase {
             creditsScaleText: nil,
             creditsHintText: nil,
             creditsHintCopyText: nil,
-            providerCost: nil,
+            providerCost: provider.cost.map {
+                UsageMenuCardView.Model.ProviderCostSection(
+                    title: "Tracked spend",
+                    percentUsed: nil,
+                    spendLine: "Last 30 days: \(UsageFormatter.currencyString($0, currencyCode: provider.currencyCode))",
+                    percentLine: nil)
+            },
             tokenUsage: nil,
             placeholder: nil,
             progressColor: UsageMenuCardView.Model.progressColor(for: provider.provider))
-    }
-
-    private static func storageText(_ provider: ProofProvider) -> String {
-        let tokenText = provider.tokens
-            .map { "\(ShareStatsFormatting.compactCount($0)) tokens" }
-            ?? "Tokens unavailable"
-        guard let cost = provider.cost else {
-            return "Last 30 days: Spend unavailable · \(tokenText)"
-        }
-        let costText = UsageFormatter.currencyString(cost, currencyCode: provider.currencyCode)
-        return "Last 30 days: \(costText) · \(tokenText)"
     }
 
     private static func pngData(for view: AnyView) -> Data? {
