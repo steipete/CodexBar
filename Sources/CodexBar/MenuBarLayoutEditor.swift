@@ -175,7 +175,6 @@ struct MenuBarLayoutEditor: View {
 
     @State private var scope: MenuBarLayoutEditorScope = .all
     @State private var selectedPosition: MenuBarLayoutPosition?
-    @State private var verticalAdjustmentText: String = ""
 
     private var layout: MenuBarLayout {
         switch self.scope {
@@ -229,25 +228,6 @@ struct MenuBarLayoutEditor: View {
                     activating: self.layout,
                     for: self.persistenceProvider,
                     settings: self.settings)
-            })
-    }
-
-    private var verticalAdjustmentBinding: Binding<String> {
-        Binding(
-            get: {
-                if self.verticalAdjustmentText.isEmpty {
-                    return String(self.settings.menuBarLayoutVerticalAdjustment)
-                }
-                return self.verticalAdjustmentText
-            },
-            set: { text in
-                self.verticalAdjustmentText = text
-                guard let value = Int(text.trimmingCharacters(in: .whitespacesAndNewlines)) else { return }
-                let clamped = max(-20, min(20, value))
-                if clamped != value {
-                    self.verticalAdjustmentText = String(clamped)
-                }
-                self.settings.menuBarLayoutVerticalAdjustment = clamped
             })
     }
 
@@ -568,13 +548,26 @@ struct MenuBarLayoutEditor: View {
             }
             .pickerStyle(.menu)
 
-            TextField(L("menu_bar_layout_vertical_adjustment"), text: self.verticalAdjustmentBinding)
-                .textFieldStyle(.roundedBorder)
-                .frame(width: 72)
-                .multilineTextAlignment(.trailing)
-                .onAppear {
-                    self.verticalAdjustmentText = String(self.settings.menuBarLayoutVerticalAdjustment)
+            HStack(spacing: 8) {
+                Text(L("menu_bar_layout_vertical_adjustment"))
+                    .lineLimit(1)
+                    .fixedSize()
+
+                TextField(
+                    "",
+                    value: $settings.menuBarLayoutVerticalAdjustment,
+                    format: .number)
+                    .labelsHidden()
+                    .textFieldStyle(.roundedBorder)
+                    .multilineTextAlignment(.trailing)
+                    .monospacedDigit()
+                    .frame(width: 44)
+
+                Stepper(value: $settings.menuBarLayoutVerticalAdjustment, in: -20 ... 20, step: 1) {
+                    EmptyView()
                 }
+                .labelsHidden()
+            }
 
             Spacer()
 

@@ -1322,7 +1322,7 @@
 "menu_bar_layout_gap" = "Gap";
 "menu_bar_layout_gap_tight" = "Tight";
 "menu_bar_layout_gap_regular" = "Regular";
-"menu_bar_layout_vertical_adjustment" = "Vertical Adjustment";
+"menu_bar_layout_vertical_adjustment" = "Vertical";
 "menu_bar_layout_vertical_up_2" = "Up 2 px";
 "menu_bar_layout_vertical_up_1" = "Up 1 px";
 "menu_bar_layout_vertical_default" = "Default";
