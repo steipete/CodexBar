@@ -9,6 +9,8 @@ read_when:
 
 ## Data sources
 - Browser cookies from `opencode.ai`.
+- OpenCode Go usage API at `GET https://opencode.ai/zen/go/v1/usage`, authenticated by `OPENCODE_API_KEY` or
+  `providers[].apiKey`.
 - OpenCode Go local history from `~/.local/share/opencode/opencode.db` on macOS and Linux.
 - `POST https://opencode.ai/_server` with server function IDs:
   - `workspaces` (`def39973159c7f0483d8793a822b8dbb10d067e12c65455fcb4608459ba0234f`)
@@ -29,13 +31,14 @@ read_when:
 - Workspace override accepts a raw `wrk_…` ID or a full `https://opencode.ai/workspace/...` URL.
 - Cached cookies: Keychain cache `com.steipete.codexbar.cache` (account `cookie.opencode`, source + timestamp). Browser
   import only runs when the cached cookie fails.
-- OpenCode Go unscoped Auto mode tries quota windows and daily cost history derived from local `opencode-go` assistant
-  costs first, then falls back to web usage when local history is unavailable. Auto stays web-first when a token account,
-  manual cookie, or workspace override scopes the request, because local history is device-wide.
+- OpenCode Go unscoped Auto mode tries daily cost history derived from local `opencode-go` assistant costs first,
+  overlays authoritative API windows when an API key is configured, then falls back through the API and legacy web
+  sources when local history is unavailable. Auto stays web-first when a token account, manual cookie, or workspace
+  override scopes the request, because local history is device-wide.
 - The local monthly window is an estimate anchored at the earliest local row and can drift from the real billing
-  cycle. When a cached or manual session cookie is available, the local strategy overlays the server-reported
-  rolling/weekly/monthly percentages and reset countdowns (plus Zen balance) onto the local snapshot, keeping the
-  local daily cost history. This path never triggers a fresh browser import. When no authoritative overlay is
+  cycle. The local strategy prefers API-reported rolling/weekly/monthly percentages and reset timestamps. When no API
+  key is configured, a cached or manual session cookie can still overlay the legacy web values (plus Zen balance).
+  Both paths keep local daily cost history and never trigger a fresh browser import. When no authoritative overlay is
   available, the menu and text CLI label the quota as estimated, and JSON includes `dataConfidence: "estimated"`.
 - OpenCode Go cost history chart: `opencode.ai` has no daily-granularity endpoint, so per-day cost/request buckets
   come from local `opencode-go` assistant costs in `opencode.db`, keyed by device-local calendar day. Successful web

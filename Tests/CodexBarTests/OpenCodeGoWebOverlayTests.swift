@@ -83,6 +83,7 @@ struct OpenCodeGoWebOverlayTests {
     private func makeContext(
         includeOptionalUsage: Bool = true,
         settings: ProviderSettingsSnapshot? = nil,
+        env: [String: String] = [:],
         selectedTokenAccountID: UUID? = nil) -> ProviderFetchContext
     {
         ProviderFetchContext(
@@ -93,9 +94,9 @@ struct OpenCodeGoWebOverlayTests {
             webTimeout: 1,
             webDebugDumpHTML: false,
             verbose: false,
-            env: [:],
+            env: env,
             settings: settings,
-            fetcher: UsageFetcher(environment: [:]),
+            fetcher: UsageFetcher(environment: env),
             claudeFetcher: StubClaudeFetcher(),
             browserDetection: BrowserDetection(cacheTTL: 0),
             selectedTokenAccountID: selectedTokenAccountID)
@@ -244,6 +245,32 @@ struct OpenCodeGoWebOverlayTests {
         } catch {
             Issue.record("Expected invalidCredentials, got \(error)")
         }
+    }
+
+    @Test
+    func `local strategy prefers API usage while preserving local daily history`() async throws {
+        let observedKeys = Recorder<String>()
+        let webCalls = Recorder<String>()
+        let strategy = OpenCodeGoLocalUsageFetchStrategy(
+            localSnapshotLoader: { _ in Self.localEstimate() },
+            webUsageOverlayFetcher: { _, cookieHeader in
+                webCalls.append(cookieHeader)
+                return Self.webUsage()
+            },
+            apiUsageOverlayFetcher: { _, apiKey in
+                observedKeys.append(apiKey)
+                return Self.webUsage()
+            })
+
+        let result = try await strategy.fetch(self.makeContext(
+            settings: self.makeManualCookieSettings(),
+            env: [OpenCodeGoSettingsReader.apiKeyEnvironmentKey: "go_test"]))
+
+        #expect(result.sourceLabel == "local+api")
+        #expect(observedKeys.values == ["go_test"])
+        #expect(webCalls.values.isEmpty)
+        #expect(result.usage.tertiary?.usedPercent == 64)
+        #expect(result.usage.opencodegoUsage?.daily.count == 1)
     }
 
     @Test
