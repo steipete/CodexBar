@@ -213,7 +213,7 @@ struct ProviderArchitectureGatekeeperTests {
         ])
         #expect(descriptors.compactMap { descriptor in
             descriptor.credentials?.apiKeyDebugLabel.map { (descriptor.id, $0) }
-        }.map(\.0) == [.openai, .azureopenai, .openrouter, .elevenlabs])
+        }.map(\.0) == [.openai, .azureopenai, .opencodego, .openrouter, .elevenlabs])
 
         #expect(CodexProviderDescriptor.descriptor.tokenCost.menuHintLines == [.localized("codex_api_estimate_hint")])
         #expect(ClaudeProviderDescriptor.descriptor.tokenCost.menuHintLines == [.estimate])
