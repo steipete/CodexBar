@@ -54,7 +54,7 @@ struct SpendDashboardAllTimeDisablementTests {
             capturedInputs: [],
             unavailableSourceIDs: [],
             codexRequests: [],
-            now: Date(timeIntervalSince1970: 1_784_179_200),
+            now: self.fixtureNow,
             force: force)
     }
 
@@ -78,8 +78,11 @@ struct SpendDashboardAllTimeDisablementTests {
                     costUSD: 4,
                     modelsUsed: nil,
                     modelBreakdowns: nil)],
-                updatedAt: Date(timeIntervalSince1970: 1_784_179_200)))
+                updatedAt: self.fixtureNow))
     }
+
+    /// Noon UTC stays on July 15 in both CI's UTC zone and the local Pacific zone.
+    private static let fixtureNow = Date(timeIntervalSince1970: 1_784_116_800)
 
     private static func waitUntil(_ condition: @MainActor () -> Bool) async {
         for _ in 0..<400 {
