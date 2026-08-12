@@ -311,7 +311,7 @@ struct SpendDashboardModel: Equatable, Sendable {
             totalTokens: Self.completeIntSum(providers.map(\.totalTokens)),
             totalCost: Self.completeCostSum(providers.map(\.totalCost)),
             coveredDayCount: window.range == .allTime
-                ? summaries.map(\.coveredDayCount).min() ?? 0
+                ? Self.allTimeCommonCoverageDayCount(summaries: summaries, calendar: window.calendar)
                 : Self.commonCoverageDayCount(summaries: summaries, calendar: window.calendar),
             chartDomain: Self.chartDomain(bounds: bounds, calendar: window.calendar),
             modelHistoryCompleteness: modelHistoryCompleteness)
@@ -695,6 +695,21 @@ struct SpendDashboardModel: Equatable, Sendable {
             intersection = start...end
         }
         return Self.dayCount(in: intersection, calendar: calendar)
+    }
+
+    private static func allTimeCommonCoverageDayCount(
+        summaries: [InputSummary],
+        calendar: Calendar) -> Int
+    {
+        guard let first = summaries.first else { return 0 }
+        guard summaries.count > 1 else { return first.coveredDayCount }
+
+        var commonDays = Set(first.entries.map { calendar.startOfDay(for: $0.day) })
+        for summary in summaries.dropFirst() {
+            commonDays.formIntersection(summary.entries.map { calendar.startOfDay(for: $0.day) })
+            if commonDays.isEmpty { return 0 }
+        }
+        return commonDays.count
     }
 
     private static func dayCount(in interval: ClosedRange<Date>?, calendar: Calendar) -> Int {

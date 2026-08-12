@@ -901,6 +901,44 @@ extension SpendDashboardModelTests {
     }
 
     @Test
+    func `all time group coverage counts only days covered by every provider`() throws {
+        let start = try #require(Self.calendar.date(byAdding: .day, value: -2, to: Self.now))
+        let codex = SpendDashboardModel.ProviderInput(
+            id: "codex:fixture",
+            provider: .codex,
+            displayName: "Codex",
+            snapshot: Self.snapshot(
+                currency: "USD",
+                entries: [
+                    Self.entry(day: "2026-07-14", cost: 1),
+                    Self.entry(day: "2026-07-16", cost: 1),
+                ],
+                historyDays: 3),
+            trackedCoverage: .init(start: start, end: Self.now, coveredDayCount: 2))
+        let claude = SpendDashboardModel.ProviderInput(
+            id: "claude:fixture",
+            provider: .claude,
+            displayName: "Claude",
+            snapshot: Self.snapshot(
+                currency: "USD",
+                entries: [
+                    Self.entry(day: "2026-07-15", cost: 1),
+                    Self.entry(day: "2026-07-16", cost: 1),
+                ],
+                historyDays: 3),
+            trackedCoverage: .init(start: start, end: Self.now, coveredDayCount: 2))
+
+        let group = try #require(SpendDashboardModel.build(
+            inputs: [codex, claude],
+            range: .allTime,
+            now: Self.now,
+            calendar: Self.calendar).groups.first)
+
+        #expect(group.providers.map(\.coveredDayCount) == [2, 2])
+        #expect(group.coveredDayCount == 1)
+    }
+
+    @Test
     func `partially attributed Codex history retains its priced model rows`() throws {
         let codex = SpendDashboardModel.ProviderInput(
             provider: .codex,
