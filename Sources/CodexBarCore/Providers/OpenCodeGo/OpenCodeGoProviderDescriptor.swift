@@ -225,8 +225,9 @@ struct OpenCodeGoLocalUsageFetchStrategy: ProviderFetchStrategy {
         if let apiKey = OpenCodeGoSettingsReader.apiKey(environment: context.env) {
             do {
                 let apiSnapshot = try await self.apiUsageOverlayFetcher(context, apiKey)
+                let apiOverlay = snapshot.applyingWebUsage(apiSnapshot)
                 return SnapshotResult(
-                    snapshot: snapshot.applyingWebUsage(apiSnapshot),
+                    snapshot: try await self.preservingCookieBalance(in: apiOverlay, context: context),
                     sourceLabel: "local+api",
                     quotaIsAuthoritative: true)
             } catch is CancellationError {
@@ -302,6 +303,35 @@ struct OpenCodeGoLocalUsageFetchStrategy: ProviderFetchStrategy {
             snapshot: snapshot.withZenBalanceUSD(zenBalance),
             sourceLabel: "local",
             quotaIsAuthoritative: false)
+    }
+
+    private func preservingCookieBalance(
+        in snapshot: OpenCodeGoUsageSnapshot,
+        context: ProviderFetchContext) async throws -> OpenCodeGoUsageSnapshot
+    {
+        guard context.settings?.opencodego?.cookieSource != .off,
+              let cookie = Self.cachedOrManualCookie(context: context)
+        else { return snapshot }
+
+        do {
+            guard let webSnapshot = try await self.webUsageOverlayFetcher(context, cookie.header) else {
+                return snapshot
+            }
+            return snapshot.withZenBalanceUSD(webSnapshot.zenBalanceUSD ?? snapshot.zenBalanceUSD)
+        } catch OpenCodeGoUsageError.invalidCredentials {
+            #if os(macOS)
+            if let cached = cookie.cachedEntry {
+                _ = CookieHeaderCache.clearIfCurrent(provider: .opencodego, expected: cached)
+            }
+            #endif
+            return snapshot
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch let error as URLError where error.code == .cancelled {
+            throw CancellationError()
+        } catch {
+            return snapshot
+        }
     }
 
     static func liveWebUsageOverlay(

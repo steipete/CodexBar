@@ -248,18 +248,26 @@ struct OpenCodeGoWebOverlayTests {
     }
 
     @Test
-    func `local strategy prefers API usage while preserving local daily history`() async throws {
+    func `local strategy prefers API windows while preserving local history and web balance`() async throws {
         let observedKeys = Recorder<String>()
         let webCalls = Recorder<String>()
         let strategy = OpenCodeGoLocalUsageFetchStrategy(
             localSnapshotLoader: { _ in Self.localEstimate() },
             webUsageOverlayFetcher: { _, cookieHeader in
                 webCalls.append(cookieHeader)
-                return Self.webUsage()
+                return Self.webUsage(zenBalanceUSD: 42.5)
             },
             apiUsageOverlayFetcher: { _, apiKey in
                 observedKeys.append(apiKey)
-                return Self.webUsage()
+                return OpenCodeGoUsageSnapshot(
+                    hasMonthlyUsage: true,
+                    rollingUsagePercent: 11,
+                    weeklyUsagePercent: 22,
+                    monthlyUsagePercent: 33,
+                    rollingResetInSec: 18100,
+                    weeklyResetInSec: 266_500,
+                    monthlyResetInSec: 1_539_100,
+                    updatedAt: Self.updatedAt.addingTimeInterval(3))
             })
 
         let result = try await strategy.fetch(self.makeContext(
@@ -268,9 +276,12 @@ struct OpenCodeGoWebOverlayTests {
 
         #expect(result.sourceLabel == "local+api")
         #expect(observedKeys.values == ["go_test"])
-        #expect(webCalls.values.isEmpty)
-        #expect(result.usage.tertiary?.usedPercent == 64)
+        #expect(webCalls.values == ["auth=test"])
+        #expect(result.usage.primary?.usedPercent == 11)
+        #expect(result.usage.secondary?.usedPercent == 22)
+        #expect(result.usage.tertiary?.usedPercent == 33)
         #expect(result.usage.opencodegoUsage?.daily.count == 1)
+        #expect(result.usage.providerCost?.used == 42.5)
     }
 
     @Test
