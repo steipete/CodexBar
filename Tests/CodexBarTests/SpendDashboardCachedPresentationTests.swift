@@ -77,10 +77,15 @@ struct SpendDashboardCachedPresentationTests {
     }
 
     @Test
-    func `retained Codex totals render during refresh and clear only after convergence`() async {
+    func `retained Codex totals render during refresh and clear only after convergence`() async throws {
+        let defaultsSuite = "SpendDashboardCachedPresentationTests-\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: defaultsSuite))
+        defaults.removePersistentDomain(forName: defaultsSuite)
+        defer { defaults.removePersistentDomain(forName: defaultsSuite) }
         let gate = SpendDashboardCachedLoaderGate()
         let configuration = Self.configuration(account: "account|cache")
         let controller = SpendDashboardController(
+            userDefaults: defaults,
             requestBuilder: { mode in
                 Self.request(configuration: configuration, force: mode.forcesLoader)
             },

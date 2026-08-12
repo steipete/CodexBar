@@ -8,8 +8,12 @@ import Testing
 struct SpendDashboardAllTimeDisablementTests {
     @Test(arguments: [false, true])
     func `ledger rows clear immediately when tracking or every provider is disabled`(
-        disableTracking: Bool) async
+        disableTracking: Bool) async throws
     {
+        let defaultsSuite = "SpendDashboardAllTimeDisablementTests-\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: defaultsSuite))
+        defaults.removePersistentDomain(forName: defaultsSuite)
+        defer { defaults.removePersistentDomain(forName: defaultsSuite) }
         let fileURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("SpendDashboardAllTimeDisablementTests-\(UUID().uuidString).json")
         defer { try? FileManager.default.removeItem(at: fileURL) }
@@ -20,6 +24,7 @@ struct SpendDashboardAllTimeDisablementTests {
             sourceOwnershipFingerprints: ["claude:test-owner"])
         let input = Self.input()
         let controller = SpendDashboardController(
+            userDefaults: defaults,
             requestBuilder: { mode in Self.request(configuration: enabled, force: mode.forcesLoader) },
             loader: { _ in SpendDashboardLoadResult(inputs: [input], failedSourceIDs: []) },
             historyLedger: SpendHistoryLedger(fileURL: fileURL))
@@ -77,9 +82,9 @@ struct SpendDashboardAllTimeDisablementTests {
     }
 
     private static func waitUntil(_ condition: @MainActor () -> Bool) async {
-        for _ in 0..<1000 {
+        for _ in 0..<400 {
             if condition() { return }
-            await Task.yield()
+            try? await Task.sleep(for: .milliseconds(5))
         }
         Issue.record("Timed out waiting for controller state")
     }
