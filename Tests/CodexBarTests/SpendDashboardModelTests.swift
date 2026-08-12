@@ -872,6 +872,35 @@ struct SpendDashboardModelTests {
 
 extension SpendDashboardModelTests {
     @Test
+    func `all time uses tracked start and exact covered day count`() throws {
+        let start = try #require(Self.calendar.date(byAdding: .day, value: -44, to: Self.now))
+        let input = SpendDashboardModel.ProviderInput(
+            provider: .claude,
+            displayName: "Claude",
+            snapshot: CostUsageTokenSnapshot(
+                sessionTokens: nil,
+                sessionCostUSD: nil,
+                last30DaysTokens: 10,
+                last30DaysCostUSD: 2,
+                historyDays: 45,
+                daily: [Self.entry(day: "2026-07-16", cost: 2)],
+                updatedAt: Self.now),
+            trackedCoverage: .init(start: start, end: Self.now, coveredDayCount: 31))
+
+        let model = SpendDashboardModel.build(
+            inputs: [input],
+            range: .allTime,
+            now: Self.now,
+            calendar: Self.calendar)
+        let group = try #require(model.groups.first)
+
+        #expect(model.range == .allTime)
+        #expect(model.requestedDays == 45)
+        #expect(group.coveredDayCount == 31)
+        #expect(group.providers.first?.coverageStart == start)
+    }
+
+    @Test
     func `partially attributed Codex history retains its priced model rows`() throws {
         let codex = SpendDashboardModel.ProviderInput(
             provider: .codex,

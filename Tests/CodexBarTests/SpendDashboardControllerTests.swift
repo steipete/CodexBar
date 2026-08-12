@@ -751,6 +751,19 @@ struct SpendDashboardControllerTests {
         #expect(defaults.integer(forKey: "settingsSpendDashboardDays") == 7)
         controller.selectDays(9)
         #expect(controller.selectedDays == 30)
+
+        controller.selectRange(.allTime)
+        #expect(controller.selectedRange == .allTime)
+        #expect(defaults.integer(forKey: "settingsSpendDashboardDays") == 0)
+
+        let restored = SpendDashboardController(
+            userDefaults: defaults,
+            requestBuilder: { mode in
+                Self.request(
+                    configuration: Self.configuration(account: "unused"),
+                    force: mode.forcesLoader)
+            })
+        #expect(restored.selectedRange == .allTime)
     }
 
     private nonisolated static let fixtureNow = Date(timeIntervalSince1970: 1_784_179_200)

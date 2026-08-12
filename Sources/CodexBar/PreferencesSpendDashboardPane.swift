@@ -15,6 +15,24 @@ func spendDashboardDayRangeText(_ days: Int) -> String {
         with: codexBarLocalizedInteger(days))
 }
 
+func spendDashboardRangeText(_ range: SpendDashboardRange) -> String {
+    range.dayCount.map(spendDashboardDayRangeText) ?? L("All Time")
+}
+
+func spendDashboardAvailableHistoryText(
+    since date: Date,
+    coveredDayCount: Int,
+    calendar: Calendar = .current) -> String
+{
+    let formatter = DateFormatter()
+    formatter.calendar = calendar
+    formatter.timeZone = calendar.timeZone
+    formatter.locale = codexBarLocalizedLocale()
+    formatter.setLocalizedDateFormatFromTemplate("MMM d, yyyy")
+    return "\(L("Available history since %@", formatter.string(from: date))) · "
+        + L("%d covered days", coveredDayCount)
+}
+
 func spendDashboardRankText(_ rank: Int) -> String {
     "#\(codexBarLocalizedInteger(rank))"
 }
@@ -42,6 +60,58 @@ func codexCostCatchUpProgressText(_ activity: CodexCostCatchUpActivity) -> Strin
             + codexBarLocalizedInteger(activity.totalFiles)
     }
     return L("Loading…")
+}
+
+struct SpendDashboardHeader: View {
+    let selectedRange: SpendDashboardRange
+    let isRefreshing: Bool
+    let isCostTrackingEnabled: Bool
+    let selectRange: (SpendDashboardRange) -> Void
+    let refresh: () -> Void
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 16) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(L("Usage & Spend"))
+                    .font(.title2.weight(.semibold))
+                Text(L("Local estimated cost history across supported providers."))
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer()
+            HStack(spacing: 2) {
+                ForEach(SpendDashboardRange.allCases, id: \.self) { range in
+                    Button {
+                        self.selectRange(range)
+                    } label: {
+                        Text(spendDashboardRangeText(range))
+                            .font(.callout.weight(range == self.selectedRange ? .semibold : .regular))
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 5)
+                            .background(
+                                range == self.selectedRange ? Color.accentColor : Color.clear,
+                                in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+                            .foregroundStyle(range == self.selectedRange ? Color.white : Color.primary)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(spendDashboardRangeText(range))
+                    .accessibilityAddTraits(range == self.selectedRange ? .isSelected : [])
+                }
+            }
+            .padding(2)
+            .background(Color.secondary.opacity(0.16), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .frame(width: 210)
+
+            Button(action: self.refresh) {
+                if self.isRefreshing {
+                    ProgressView().controlSize(.small)
+                } else {
+                    Label(L("Refresh"), systemImage: "arrow.clockwise")
+                }
+            }
+            .disabled(self.isRefreshing || !self.isCostTrackingEnabled)
+        }
+    }
 }
 
 enum SpendDashboardModelHistoryPresentation: Equatable {
@@ -74,7 +144,7 @@ struct SpendDashboardPane: View {
             await SpendDashboardSource.makeRequest(settings: settings, store: store, mode: mode)
         }, cachedLoader: { request in
             await SpendDashboardSource.loadCached(request)
-        }))
+        }, historyLedger: SpendHistoryLedger()))
     }
 
     var body: some View {
@@ -128,34 +198,12 @@ struct SpendDashboardPane: View {
     }
 
     private var header: some View {
-        HStack(alignment: .top, spacing: 16) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(L("Usage & Spend"))
-                    .font(.title2.weight(.semibold))
-                Text(L("Local estimated cost history across supported providers."))
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-            }
-            Spacer()
-            Picker(L("Time range"), selection: self.daysBinding) {
-                Text(spendDashboardDayRangeText(7)).tag(7)
-                Text(spendDashboardDayRangeText(30)).tag(30)
-            }
-            .labelsHidden()
-            .pickerStyle(.segmented)
-            .frame(width: 116)
-
-            Button {
-                self.controller.refresh()
-            } label: {
-                if self.controller.isRefreshing {
-                    ProgressView().controlSize(.small)
-                } else {
-                    Label(L("Refresh"), systemImage: "arrow.clockwise")
-                }
-            }
-            .disabled(self.controller.isRefreshing || !self.settings.costUsageEnabled)
-        }
+        SpendDashboardHeader(
+            selectedRange: self.controller.selectedRange,
+            isRefreshing: self.controller.isRefreshing,
+            isCostTrackingEnabled: self.settings.costUsageEnabled,
+            selectRange: { self.controller.selectRange($0) },
+            refresh: { self.controller.refresh() })
     }
 
     @ViewBuilder
@@ -306,7 +354,10 @@ struct SpendDashboardPane: View {
             }
         } else {
             ForEach(self.controller.model.groups) { group in
-                SpendCurrencySection(group: group, requestedDays: self.controller.model.requestedDays)
+                SpendCurrencySection(
+                    group: group,
+                    range: self.controller.model.range,
+                    requestedDays: self.controller.model.requestedDays)
             }
         }
 
@@ -385,10 +436,10 @@ struct SpendDashboardPane: View {
         return names
     }
 
-    private var daysBinding: Binding<Int> {
+    private var rangeBinding: Binding<SpendDashboardRange> {
         Binding(
-            get: { self.controller.selectedDays },
-            set: { self.controller.selectDays($0) })
+            get: { self.controller.selectedRange },
+            set: { self.controller.selectRange($0) })
     }
 }
 
@@ -408,8 +459,9 @@ struct SpendDashboardEmptyState: Equatable {
     }
 }
 
-private struct SpendCurrencySection: View {
+struct SpendCurrencySection: View {
     let group: SpendDashboardModel.CurrencyGroup
+    let range: SpendDashboardRange
     let requestedDays: Int
 
     var body: some View {
@@ -425,11 +477,7 @@ private struct SpendCurrencySection: View {
                     .monospacedDigit()
             }
 
-            Text(
-                "\(L("Local estimated history")) · " +
-                    spendDashboardCoverageText(
-                        covered: self.group.coveredDayCount,
-                        requested: self.requestedDays))
+            Text(self.coverageText)
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
@@ -454,6 +502,18 @@ private struct SpendCurrencySection: View {
             SpendModelPanel(group: self.group)
             SpendDailyChart(group: self.group)
         }
+    }
+
+    private var coverageText: String {
+        if self.range == .allTime {
+            return spendDashboardAvailableHistoryText(
+                since: self.group.providers.compactMap(\.coverageStart).min()
+                    ?? self.group.chartDomain.lowerBound,
+                coveredDayCount: self.group.coveredDayCount)
+        }
+        return "\(L("Local estimated history")) · " + spendDashboardCoverageText(
+            covered: self.group.coveredDayCount,
+            requested: self.requestedDays)
     }
 }
 

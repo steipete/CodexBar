@@ -6,6 +6,40 @@ import Testing
 
 struct ShareStatsTests {
     @Test
+    func `all time share describes available tracked history honestly`() throws {
+        let group = SpendDashboardModel.CurrencyGroup(
+            currencyCode: "USD",
+            providers: [.init(
+                id: "codex:example",
+                rank: 1,
+                provider: .codex,
+                displayName: "Codex",
+                totalTokens: 100,
+                totalCost: 4,
+                coveredDayCount: 42,
+                coverageStart: Self.date)],
+            models: [],
+            dailyPoints: [],
+            totalTokens: 100,
+            totalCost: 4,
+            coveredDayCount: 42,
+            chartDomain: Self.date...Self.date,
+            modelHistoryCompleteness: .complete)
+        let model = SpendDashboardModel(
+            range: .allTime,
+            requestedDays: 60,
+            groups: [group])
+        let payload = try #require(ShareStatsBuilder.make(model: model))
+        let text = ShareStatsFormatting.text(payload)
+
+        #expect(payload.range == .allTime)
+        #expect(text.contains("available history since"))
+        #expect(text.contains("42 covered days"))
+        #expect(!text.contains("last 60 days"))
+        #expect(!text.contains("42/60"))
+    }
+
+    @Test
     func `descriptor share plan labels preserve the legacy central table`() throws {
         var fingerprint: UInt64 = 1_469_598_103_934_665_603
         for descriptor in ProviderDescriptorRegistry.all where !descriptor.metadata.sharePlanLabels.isEmpty {
@@ -43,7 +77,7 @@ struct ShareStatsTests {
 
         let text = ShareStatsFormatting.text(payload)
         #expect(text.contains("GBP: £12.00 estimated · coverage 10/30 days"))
-        #expect(text.contains("Claude · Max: 300 tokens · ~£12.00 est · 10/30 days"))
+        #expect(text.contains("Claude · Max: 300 tokens · ~£12.00 est · coverage 10/30 days"))
         #expect(text.contains("USD: Spend unavailable · coverage 0/30 days"))
         #expect(text.contains("Cursor · Cursor Pro: Spend unavailable"))
         #expect(!text.contains("£12.00 +"))

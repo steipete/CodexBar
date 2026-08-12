@@ -70,6 +70,8 @@ enum ShareStatsExporter {
     }
 
     private static func defaultFilename(_ payload: ShareStatsPayload) -> String {
-        "codexbar-subscriptions-last-\(payload.days)-days.png"
+        payload.range == .allTime
+            ? "codexbar-subscriptions-available-history.png"
+            : "codexbar-subscriptions-last-\(payload.days)-days.png"
     }
 }

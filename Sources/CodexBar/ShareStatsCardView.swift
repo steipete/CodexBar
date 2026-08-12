@@ -68,7 +68,7 @@ struct ShareStatsCardView: View {
     private var hero: some View {
         HStack(alignment: .bottom, spacing: 52) {
             VStack(alignment: .leading, spacing: 2) {
-                Text("TRACKED TOKENS · \(self.payload.days) DAYS")
+                Text(self.trackedTokensTitle)
                     .font(.system(size: 20, weight: .semibold, design: .rounded))
                     .tracking(1.8)
                     .foregroundStyle(self.secondary)
@@ -81,13 +81,13 @@ struct ShareStatsCardView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
 
             VStack(alignment: .leading, spacing: 9) {
-                Text("EST. \(self.payload.days)-DAY SPEND")
+                Text(self.spendTitle)
                     .font(.system(size: 18, weight: .semibold, design: .rounded))
                     .tracking(1.2)
                     .foregroundStyle(self.secondary)
                 ForEach(self.payload.currencies.prefix(2)) { currency in
                     HStack(alignment: .firstTextBaseline) {
-                        Text("\(currency.currencyCode) · \(currency.coveredDayCount)/\(self.payload.days)d")
+                        Text("\(currency.currencyCode) · \(self.coverageText(currency.coveredDayCount))")
                             .font(.system(size: 17, weight: .semibold, design: .rounded))
                             .foregroundStyle(self.secondary)
                         Spacer()
@@ -127,6 +127,7 @@ struct ShareStatsCardView: View {
                     ShareStatsProviderRow(
                         rank: index + 1,
                         provider: provider,
+                        range: self.payload.range,
                         days: self.payload.days,
                         color: ShareStatsPalette.color(at: index))
                 }
@@ -170,6 +171,24 @@ struct ShareStatsCardView: View {
 
     private var providerDisplayLimit: Int {
         Self.providerDisplayLimit(for: self.payload.providers.count)
+    }
+
+    private var trackedTokensTitle: String {
+        self.payload.range == .allTime
+            ? "TRACKED TOKENS · AVAILABLE HISTORY"
+            : "TRACKED TOKENS · \(self.payload.days) DAYS"
+    }
+
+    private var spendTitle: String {
+        self.payload.range == .allTime
+            ? "EST. SPEND · SINCE \(ShareStatsFormatting.dataThrough(self.payload.periodStart).uppercased())"
+            : "EST. \(self.payload.days)-DAY SPEND"
+    }
+
+    private func coverageText(_ coveredDayCount: Int) -> String {
+        self.payload.range == .allTime
+            ? "\(coveredDayCount) covered days"
+            : "\(coveredDayCount)/\(self.payload.days)d"
     }
 
     private func color(for model: ShareStatsModelPayload) -> Color {
@@ -256,6 +275,7 @@ private struct ShareStatsModelRow: View {
 private struct ShareStatsProviderRow: View {
     let rank: Int
     let provider: ShareStatsProviderPayload
+    let range: SpendDashboardRange
     let days: Int
     let color: Color
 
@@ -305,7 +325,9 @@ private struct ShareStatsProviderRow: View {
         }
         if let cost = self.provider.estimatedCost, cost.isFinite {
             metrics.append("~\(ShareStatsFormatting.currency(cost, code: self.provider.currencyCode))")
-            if self.provider.coveredDayCount < self.days {
+            if self.range == .allTime {
+                metrics.append("\(self.provider.coveredDayCount) covered days")
+            } else if self.provider.coveredDayCount < self.days {
                 metrics.append("\(self.provider.coveredDayCount)/\(self.days)d")
             }
         } else {

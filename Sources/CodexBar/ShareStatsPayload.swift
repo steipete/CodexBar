@@ -92,7 +92,9 @@ struct ShareStatsCurrencyPayload: Sendable, Equatable, Identifiable {
 }
 
 struct ShareStatsPayload: Sendable, Equatable {
+    let range: SpendDashboardRange
     let days: Int
+    let periodStart: Date
     let periodEnd: Date
     let providers: [ShareStatsProviderPayload]
     let topModels: [ShareStatsModelPayload]
@@ -286,8 +288,13 @@ enum ShareStatsBuilder {
         }
         let totalTokens = self.combinedTotalTokens(model.groups.map(\.totalTokens))
         let periodEnd = model.groups.map(\.chartDomain.upperBound).max() ?? Date()
+        let periodStart = model.groups.flatMap(\.providers).compactMap(\.coverageStart).min()
+            ?? model.groups.map(\.chartDomain.lowerBound).min()
+            ?? periodEnd
         let payload = ShareStatsPayload(
+            range: model.range,
             days: model.requestedDays,
+            periodStart: periodStart,
             periodEnd: periodEnd,
             providers: providers,
             topModels: topModels,
@@ -343,15 +350,16 @@ enum ShareStatsFormatting {
     }
 
     static func text(_ payload: ShareStatsPayload) -> String {
-        var lines = ["My AI subscriptions · last \(payload.days) days"]
+        var lines = ["My AI subscriptions · \(self.periodLabel(payload))"]
         if let tokens = payload.totalTokens {
             lines.append("\(self.compactCount(tokens)) tracked tokens")
         }
         lines.append(contentsOf: payload.currencies.map { currency in
             let spend = currency.estimatedCost.map { "\(self.currency($0, code: currency.currencyCode)) estimated" }
                 ?? "Spend unavailable"
-            return "\(currency.currencyCode): \(spend) · "
-                + "coverage \(currency.coveredDayCount)/\(payload.days) days"
+            return "\(currency.currencyCode): \(spend) · " + self.coverageLabel(
+                coveredDayCount: currency.coveredDayCount,
+                payload: payload)
         })
         lines.append(contentsOf: payload.providers.map { provider in
             var metrics: [String] = []
@@ -363,8 +371,12 @@ enum ShareStatsFormatting {
             } else {
                 metrics.append("Spend unavailable")
             }
-            if provider.estimatedCost != nil, provider.coveredDayCount < payload.days {
-                metrics.append("\(provider.coveredDayCount)/\(payload.days) days")
+            if provider.estimatedCost != nil,
+               payload.range == .allTime || provider.coveredDayCount < payload.days
+            {
+                metrics.append(self.coverageLabel(
+                    coveredDayCount: provider.coveredDayCount,
+                    payload: payload))
             }
             let subscription = provider.subscriptionName.map { " · \($0)" } ?? ""
             return "\(provider.providerName)\(subscription): \(metrics.joined(separator: " · "))"
@@ -384,5 +396,19 @@ enum ShareStatsFormatting {
         }
         lines.append("Generated locally by CodexBar · Data through \(self.dataThrough(payload.periodEnd))")
         return lines.joined(separator: "\n")
+    }
+
+    static func periodLabel(_ payload: ShareStatsPayload) -> String {
+        if payload.range == .allTime {
+            return "available history since \(self.dataThrough(payload.periodStart))"
+        }
+        return "last \(payload.days) days"
+    }
+
+    static func coverageLabel(coveredDayCount: Int, payload: ShareStatsPayload) -> String {
+        if payload.range == .allTime {
+            return "\(coveredDayCount) covered days"
+        }
+        return "coverage \(coveredDayCount)/\(payload.days) days"
     }
 }

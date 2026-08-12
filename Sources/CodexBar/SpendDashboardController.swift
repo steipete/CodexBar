@@ -802,16 +802,22 @@ final class SpendDashboardController {
     private(set) var failedSourceCount = 0
     private(set) var generation: UInt64 = 0
     private(set) var configuration: SpendDashboardConfiguration?
-    private(set) var selectedDays: Int
+    private(set) var selectedRange: SpendDashboardRange
+
+    var selectedDays: Int {
+        self.selectedRange.dayCount ?? self.model.requestedDays
+    }
 
     private static let daysDefaultsKey = "settingsSpendDashboardDays"
     private let userDefaults: UserDefaults
     private let requestBuilder: RequestBuilder
     private let cachedLoader: CachedLoader?
     private let loader: Loader
+    private let historyLedger: SpendHistoryLedger?
     private let nowProvider: @Sendable () -> Date
     private var loadTask: Task<Void, Never>?
     private var loadedInputs: [SpendDashboardModel.ProviderInput] = []
+    private var ledgerInputs: [SpendDashboardModel.ProviderInput] = []
     private var loadedAt = Date()
     private var lastSuccessfulConfiguration: SpendDashboardConfiguration?
     private var phase = LoadPhase.ordinary
@@ -821,14 +827,18 @@ final class SpendDashboardController {
         requestBuilder: @escaping RequestBuilder,
         cachedLoader: CachedLoader? = nil,
         loader: @escaping Loader = SpendDashboardSource.load,
+        historyLedger: SpendHistoryLedger? = nil,
         nowProvider: @escaping @Sendable () -> Date = { Date() })
     {
         self.userDefaults = userDefaults
         self.requestBuilder = requestBuilder
         self.cachedLoader = cachedLoader
         self.loader = loader
+        self.historyLedger = historyLedger
         self.nowProvider = nowProvider
-        self.selectedDays = Self.normalizedDays(userDefaults.integer(forKey: Self.daysDefaultsKey))
+        self.selectedRange = userDefaults.object(forKey: Self.daysDefaultsKey) == nil
+            ? .last30Days
+            : SpendDashboardRange.storedValue(userDefaults.integer(forKey: Self.daysDefaultsKey))
     }
 
     func update(configuration: SpendDashboardConfiguration, force: Bool = false) {
@@ -993,7 +1003,7 @@ final class SpendDashboardController {
                 self.startLoad(configuration: latestConfiguration, phase: .ordinary)
                 return
             }
-            self.apply(
+            await self.apply(
                 request: request,
                 result: result,
                 invalidatedSourceIDs: invalidatedSourceIDs,
@@ -1020,7 +1030,7 @@ final class SpendDashboardController {
 
         case let .reconciling(outcome):
             let reconciled = Self.merge(outcome: outcome, capture: request)
-            self.apply(
+            await self.apply(
                 request: request,
                 result: reconciled.result,
                 invalidatedSourceIDs: outcome.invalidatedSourceIDs,
@@ -1048,7 +1058,7 @@ final class SpendDashboardController {
         request: SpendDashboardLoadRequest,
         result: SpendDashboardLoadResult,
         invalidatedSourceIDs: Set<String>,
-        confirmedEmptySourceIDs: Set<String>)
+        confirmedEmptySourceIDs: Set<String>) async
     {
         let codexDisplayNames = request.configuration.codexAccountDisplayNames
         self.refreshRetainedCodexDisplayNames(codexDisplayNames)
@@ -1072,6 +1082,16 @@ final class SpendDashboardController {
         self.isRefreshing = false
         self.phase = .ordinary
         self.loadTask = nil
+        if let historyLedger = self.historyLedger {
+            let ownership = SpendHistoryLedger.ownershipScopes(
+                sourceOwnershipFingerprints: request.configuration.sourceOwnershipFingerprints,
+                codexAccountIdentities: request.configuration.codexAccountIdentities)
+            let snapshots = await historyLedger.record(
+                inputs: self.loadedInputs,
+                ownership: ownership)
+            guard self.configuration == request.configuration else { return }
+            self.ledgerInputs = snapshots.map(\.input)
+        }
         self.rebuildModel()
     }
 
@@ -1121,10 +1141,13 @@ final class SpendDashboardController {
     }
 
     func selectDays(_ days: Int) {
-        let days = Self.normalizedDays(days)
-        guard days != self.selectedDays else { return }
-        self.selectedDays = days
-        self.userDefaults.set(days, forKey: Self.daysDefaultsKey)
+        self.selectRange(SpendDashboardRange.storedValue(days))
+    }
+
+    func selectRange(_ range: SpendDashboardRange) {
+        guard range != self.selectedRange else { return }
+        self.selectedRange = range
+        self.userDefaults.set(range.rawValue, forKey: Self.daysDefaultsKey)
         self.rebuildModel()
     }
 
@@ -1145,9 +1168,10 @@ final class SpendDashboardController {
     }
 
     private func rebuildModel() {
+        let inputs = self.selectedRange == .allTime ? self.ledgerInputs : self.loadedInputs
         self.model = SpendDashboardModel.build(
-            inputs: self.loadedInputs,
-            requestedDays: self.selectedDays,
+            inputs: inputs,
+            range: self.selectedRange,
             now: self.loadedAt,
             preferredCurrencyCode: self.configuration?.preferredCurrencyCode ?? "auto")
     }
@@ -1178,7 +1202,9 @@ final class SpendDashboardController {
             provider: input.provider,
             displayName: displayName,
             modelProviderName: input.modelProviderName,
-            snapshot: input.snapshot)
+            snapshot: input.snapshot,
+            tokenActivityCache: input.tokenActivityCache,
+            trackedCoverage: input.trackedCoverage)
     }
 
     private static func sameSourceOwnership(
@@ -1226,9 +1252,5 @@ final class SpendDashboardController {
             guard !accountID.isEmpty else { return nil }
             return ("codex:\(accountID)", identity)
         })
-    }
-
-    private static func normalizedDays(_ value: Int) -> Int {
-        value == 7 ? 7 : 30
     }
 }
