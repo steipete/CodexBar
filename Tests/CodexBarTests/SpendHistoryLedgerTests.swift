@@ -141,6 +141,47 @@ struct SpendHistoryLedgerTests {
     }
 
     @Test
+    func `failed persistence keeps and returns the prior durable history`() async throws {
+        struct WriteFailure: Error {}
+
+        let fileURL = Self.tempFileURL()
+        let first = Self.input(
+            updatedAt: Self.date("2026-08-11"),
+            historyDays: 1,
+            aggregate: 1,
+            daily: [Self.entry("2026-08-11", cost: 1)])
+        _ = await SpendHistoryLedger(fileURL: fileURL).record(
+            inputs: [first],
+            ownership: ["codex": "owner"])
+        let durableData = try Data(contentsOf: fileURL)
+
+        let second = Self.input(
+            updatedAt: Self.date("2026-08-12"),
+            historyDays: 1,
+            aggregate: 2,
+            daily: [Self.entry("2026-08-12", cost: 2)])
+        let failingLedger = SpendHistoryLedger(
+            fileURL: fileURL,
+            fileWriter: { _, _ in throw WriteFailure() })
+        let returned = await failingLedger.record(
+            inputs: [second],
+            ownership: ["codex": "owner"])
+
+        #expect(returned.first?.input.snapshot.last30DaysCostUSD == 1)
+        #expect(returned.first?.input.snapshot.daily.map(\.date) == ["2026-08-11"])
+        let retained = await failingLedger.snapshots(
+            for: [second],
+            ownership: ["codex": "owner"])
+        #expect(retained.first?.input.snapshot.last30DaysCostUSD == 1)
+        #expect(try Data(contentsOf: fileURL) == durableData)
+
+        let reloaded = await SpendHistoryLedger(fileURL: fileURL).snapshots(
+            for: [second],
+            ownership: ["codex": "owner"])
+        #expect(reloaded.first?.input.snapshot.last30DaysCostUSD == 1)
+    }
+
+    @Test
     func `derives typed provider and codex ownership scopes`() {
         let scopes = SpendHistoryLedger.ownershipScopes(
             sourceOwnershipFingerprints: ["claude:config:scope:account"],

@@ -6,6 +6,8 @@ import Foundation
 /// Provider snapshots are rolling windows. This ledger keeps only days for which a provider
 /// established coverage, so an "All Time" view can distinguish tracked history from a guess.
 actor SpendHistoryLedger {
+    typealias FileWriter = @Sendable (Data, URL) throws -> Void
+
     struct Snapshot: Sendable {
         let input: SpendDashboardModel.ProviderInput
         let coverageStart: Date
@@ -56,11 +58,19 @@ actor SpendHistoryLedger {
     private static let schemaVersion = 1
     private let fileURL: URL
     private let fileManager: FileManager
+    private let fileWriter: FileWriter
     private var document: Document?
 
-    init(fileURL: URL = SpendHistoryLedger.defaultFileURL(), fileManager: FileManager = .default) {
+    init(
+        fileURL: URL = SpendHistoryLedger.defaultFileURL(),
+        fileManager: FileManager = .default,
+        fileWriter: @escaping FileWriter = { data, url in
+            try data.write(to: url, options: [.atomic])
+        })
+    {
         self.fileURL = fileURL
         self.fileManager = fileManager
+        self.fileWriter = fileWriter
     }
 
     /// Records complete provider windows and returns every matching tracked source.
@@ -69,7 +79,8 @@ actor SpendHistoryLedger {
         inputs: [SpendDashboardModel.ProviderInput],
         ownership: [String: String]) -> [Snapshot]
     {
-        var document = self.load()
+        let durableDocument = self.load()
+        var candidateDocument = durableDocument
         var changed = false
 
         for input in inputs {
@@ -77,14 +88,14 @@ actor SpendHistoryLedger {
                   let capturedDays = Self.completeDays(from: input)
             else { continue }
             let currencyCode = input.snapshot.currencyCode.uppercased()
-            let matchingIndex = document.sources.firstIndex {
+            let matchingIndex = candidateDocument.sources.firstIndex {
                 $0.sourceID == input.id &&
                     $0.provider == input.provider &&
                     $0.ownershipFingerprint == fingerprint &&
                     $0.currencyCode == currencyCode
             }
             if let matchingIndex {
-                var source = document.sources[matchingIndex]
+                var source = candidateDocument.sources[matchingIndex]
                 let priorDays = Dictionary(uniqueKeysWithValues: source.days.map { ($0.date, $0) })
                 var mergedDays = priorDays
                 for day in capturedDays {
@@ -93,12 +104,12 @@ actor SpendHistoryLedger {
                 source.displayName = input.displayName
                 source.modelProviderName = input.modelProviderName
                 source.days = mergedDays.values.sorted { $0.date < $1.date }
-                changed = changed || source.days != document.sources[matchingIndex].days ||
-                    source.displayName != document.sources[matchingIndex].displayName ||
-                    source.modelProviderName != document.sources[matchingIndex].modelProviderName
-                document.sources[matchingIndex] = source
+                changed = changed || source.days != candidateDocument.sources[matchingIndex].days ||
+                    source.displayName != candidateDocument.sources[matchingIndex].displayName ||
+                    source.modelProviderName != candidateDocument.sources[matchingIndex].modelProviderName
+                candidateDocument.sources[matchingIndex] = source
             } else {
-                document.sources.append(Source(
+                candidateDocument.sources.append(Source(
                     sourceID: input.id,
                     provider: input.provider,
                     displayName: input.displayName,
@@ -111,14 +122,16 @@ actor SpendHistoryLedger {
         }
 
         if changed {
-            document.sources.sort {
+            candidateDocument.sources.sort {
                 ($0.sourceID, $0.ownershipFingerprint, $0.currencyCode) <
                     ($1.sourceID, $1.ownershipFingerprint, $1.currencyCode)
             }
-            self.document = document
-            self.persist(document)
+            guard self.persist(candidateDocument) else {
+                return Self.snapshots(document: durableDocument, inputs: inputs, ownership: ownership)
+            }
+            self.document = candidateDocument
         }
-        return Self.snapshots(document: document, inputs: inputs, ownership: ownership)
+        return Self.snapshots(document: candidateDocument, inputs: inputs, ownership: ownership)
     }
 
     func snapshots(
@@ -141,21 +154,23 @@ actor SpendHistoryLedger {
         return document
     }
 
-    private func persist(_ document: Document) {
+    private func persist(_ document: Document) -> Bool {
         do {
             try self.fileManager.createDirectory(
                 at: self.fileURL.deletingLastPathComponent(),
                 withIntermediateDirectories: true)
             let encoder = JSONEncoder()
             encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-            try encoder.encode(document).write(to: self.fileURL, options: [.atomic])
+            try self.fileWriter(encoder.encode(document), self.fileURL)
             #if os(macOS)
-            try self.fileManager.setAttributes(
+            try? self.fileManager.setAttributes(
                 [.posixPermissions: NSNumber(value: Int16(0o600))],
                 ofItemAtPath: self.fileURL.path)
             #endif
+            return true
         } catch {
             // Best-effort local history must never make provider refresh fail.
+            return false
         }
     }
 
