@@ -130,6 +130,30 @@ extension CodexBarCLI {
         """
     }
 
+    static func hermesUsageHelp(version: String) -> String {
+        """
+        CodexBar \(version)
+
+        Usage:
+          codexbar hermes-usage [--database <path[,path...]>]
+                                [--provider <name|all>]
+                                [--format text|json] [--json] [--json-only] [--pretty]
+                                [--refresh-pricing] [--no-color]
+
+        Description:
+          Read Hermes Agent token attribution from local state.db files in SQLite read-only mode.
+          Without --database, discovers ~/.hermes/state.db and ~/.hermes/profiles/*/state.db.
+          Reports actual billed cost, Hermes estimates, subscription-included usage, and
+          API-equivalent estimates separately. Cumulative rows are not presented as exact daily history.
+          Routes such as auto/custom remain unmapped unless Hermes persisted an exact billing provider.
+
+        Examples:
+          codexbar hermes-usage
+          codexbar hermes-usage --provider codex --json --pretty
+          codexbar hermes-usage --database ~/.hermes/profiles/work/state.db --refresh-pricing
+        """
+    }
+
     static func sessionsHelp(version: String) -> String {
         """
         CodexBar \(version)
@@ -459,6 +483,8 @@ extension CodexBarCLI {
                        [--provider \(ProviderHelp.list)] [--no-color] [--pretty] [--refresh]
                        [--provider-native-only]
                        [--days <days>] [--group-by project]
+          codexbar hermes-usage [--database <path[,path...]>] [--provider <name|all>]
+                                [--format text|json] [--json] [--pretty] [--refresh-pricing]
           codexbar sessions [--json|--json-v2] [--pretty]
           codexbar sessions focus <id>
           codexbar dashboard [--pretty] [--timeout <seconds>] [--output <path>]

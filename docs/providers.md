@@ -32,6 +32,10 @@ the scan window; a 30-day selection is not labeled as complete when the availabl
 The view stays local and does not upload usage history. Refreshes retain the last successful model if a replacement
 scan fails, while provider/account configuration changes replace obsolete results.
 
+Hermes Agent attribution is available separately through `codexbar hermes-usage`. It reads local WAL-aware SQLite in
+read-only mode and does not auto-merge with native provider billing, because those sources can describe the same API
+calls. See `docs/hermes-usage.md` for provider mapping and cost semantics.
+
 | Provider | Strategies (ordered for auto) |
 | --- | --- |
 | Codex | App Auto: OAuth API (`oauth`) → CLI RPC/PTy (`codex-cli`). CLI Auto: Web dashboard (`openai-web`) → CLI RPC/PTy (`codex-cli`). |

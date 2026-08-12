@@ -53,6 +53,8 @@ enum CodexBarCLI {
                 await self.runUsageDisplay(path: invocation.path, values: invocation.parsedValues)
             case ["cost"]:
                 await self.runCost(invocation.parsedValues)
+            case ["hermes-usage"]:
+                await self.runHermesUsage(invocation.parsedValues)
             case ["sessions", "list"]:
                 await self.runSessions(invocation.parsedValues)
             case ["sessions", "focus"]:
@@ -163,6 +165,7 @@ enum CodexBarCLI {
         let cardsSignature = CommandSignature.describe(CardsOptions())
         let usageSignature = CommandSignature.describe(UsageOptions())
         let costSignature = CommandSignature.describe(CostOptions())
+        let hermesUsageSignature = CommandSignature.describe(HermesUsageOptions())
         let sessionsSignature = CommandSignature.describe(SessionsOptions())
         let sessionsFocusSignature = CommandSignature.describe(SessionsFocusOptions())
         let serveSignature = CommandSignature.describe(ServeOptions())
@@ -195,6 +198,11 @@ enum CodexBarCLI {
                 abstract: "Print local cost usage as text or JSON",
                 discussion: nil,
                 signature: costSignature),
+            CommandDescriptor(
+                name: "hermes-usage",
+                abstract: "Read local Hermes token and cost attribution",
+                discussion: nil,
+                signature: hermesUsageSignature),
             CommandDescriptor(
                 name: "sessions",
                 abstract: "List live Codex, Claude Code, pi, and OMP sessions",
