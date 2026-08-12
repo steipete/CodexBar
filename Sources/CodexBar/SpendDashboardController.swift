@@ -879,6 +879,7 @@ final class SpendDashboardController {
 
         if !invalidatedSourceIDs.isEmpty {
             self.loadedInputs.removeAll { invalidatedSourceIDs.contains($0.id) }
+            self.ledgerInputs.removeAll { invalidatedSourceIDs.contains($0.id) }
             self.failedSourceCount = 0
             self.rebuildModel()
         }
@@ -891,6 +892,7 @@ final class SpendDashboardController {
 
         guard configuration.costUsageEnabled, !configuration.providerIDs.isEmpty else {
             self.loadedInputs = []
+            self.ledgerInputs = []
             self.failedSourceCount = 0
             self.isRefreshing = false
             self.lastSuccessfulConfiguration = configuration

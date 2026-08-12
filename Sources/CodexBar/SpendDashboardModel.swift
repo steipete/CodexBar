@@ -325,7 +325,10 @@ struct SpendDashboardModel: Equatable, Sendable {
         calendar: Calendar) -> InputSummary
     {
         let coveredInterval = if range == .allTime, let trackedCoverage = input.trackedCoverage {
-            max(bounds.lowerBound, trackedCoverage.start)...min(bounds.upperBound, trackedCoverage.end)
+            Self.trackedCoverageInterval(
+                trackedCoverage,
+                bounds: bounds,
+                displayCalendar: calendar)
         } else {
             Self.coverageInterval(
                 input: input,
@@ -667,6 +670,19 @@ struct SpendDashboardModel: Equatable, Sendable {
         let sourceCoverage = Self.sourceCoverageInterval(input: input, displayCalendar: displayCalendar)
         let overlapStart = max(bounds.lowerBound, sourceCoverage.lowerBound)
         let overlapEnd = min(bounds.upperBound, sourceCoverage.upperBound)
+        guard overlapStart <= overlapEnd else { return nil }
+        return overlapStart...overlapEnd
+    }
+
+    private static func trackedCoverageInterval(
+        _ coverage: TrackedCoverage,
+        bounds: ClosedRange<Date>,
+        displayCalendar: Calendar) -> ClosedRange<Date>?
+    {
+        let coverageStart = displayCalendar.startOfDay(for: coverage.start)
+        let coverageEnd = displayCalendar.startOfDay(for: coverage.end)
+        let overlapStart = max(bounds.lowerBound, coverageStart)
+        let overlapEnd = min(bounds.upperBound, coverageEnd)
         guard overlapStart <= overlapEnd else { return nil }
         return overlapStart...overlapEnd
     }
