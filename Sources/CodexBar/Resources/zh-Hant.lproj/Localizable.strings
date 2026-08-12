@@ -1372,11 +1372,6 @@
 "menu_bar_layout_gap_tight" = "緊湊";
 "menu_bar_layout_gap_regular" = "一般";
 "menu_bar_layout_vertical_adjustment" = "垂直調整";
-"menu_bar_layout_vertical_up_2" = "上移 2 像素";
-"menu_bar_layout_vertical_up_1" = "上移 1 像素";
-"menu_bar_layout_vertical_default" = "預設";
-"menu_bar_layout_vertical_down_1" = "下移 1 像素";
-"menu_bar_layout_vertical_down_2" = "下移 2 像素";
 "menu_bar_layout_keyboard_hint" = "Delete 鍵會移除所選項目";
 "menu_bar_layout_sample_account" = "帳號";
 "menu_bar_layout_sample_runs_out" = "週五用盡";

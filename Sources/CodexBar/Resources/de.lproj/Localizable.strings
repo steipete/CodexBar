@@ -1342,11 +1342,6 @@
 "menu_bar_layout_gap_tight" = "Eng";
 "menu_bar_layout_gap_regular" = "Normal";
 "menu_bar_layout_vertical_adjustment" = "Vertikale Ausrichtung";
-"menu_bar_layout_vertical_up_2" = "Hoch 2 px";
-"menu_bar_layout_vertical_up_1" = "Hoch 1 px";
-"menu_bar_layout_vertical_default" = "Standard";
-"menu_bar_layout_vertical_down_1" = "Runter 1 px";
-"menu_bar_layout_vertical_down_2" = "Runter 2 px";
 "menu_bar_layout_keyboard_hint" = "Die Löschtaste entfernt den ausgewählten Baustein";
 "menu_bar_layout_sample_account" = "Konto";
 "menu_bar_layout_sample_runs_out" = "reicht bis Fr.";

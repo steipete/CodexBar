@@ -504,7 +504,11 @@ struct MenuBarLayoutRendererTests {
             cost30d: "$20.00")
     }
 
-    private func options(now: Date? = nil, verticalAdjustment: Int = 0, isStale: Bool = false) -> MenuBarLayoutRenderOptions {
+    private func options(
+        now: Date? = nil,
+        verticalAdjustment: Int = 0,
+        isStale: Bool = false) -> MenuBarLayoutRenderOptions
+    {
         MenuBarLayoutRenderOptions(
             size: .regular,
             highContrast: false,

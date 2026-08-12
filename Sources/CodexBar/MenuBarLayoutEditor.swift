@@ -555,7 +555,7 @@ struct MenuBarLayoutEditor: View {
 
                 TextField(
                     "",
-                    value: $settings.menuBarLayoutVerticalAdjustment,
+                    value: self.$settings.menuBarLayoutVerticalAdjustment,
                     format: .number)
                     .labelsHidden()
                     .textFieldStyle(.roundedBorder)
@@ -563,7 +563,7 @@ struct MenuBarLayoutEditor: View {
                     .monospacedDigit()
                     .frame(width: 44)
 
-                Stepper(value: $settings.menuBarLayoutVerticalAdjustment, in: -20 ... 20, step: 1) {
+                Stepper(value: self.$settings.menuBarLayoutVerticalAdjustment, in: -20...20, step: 1) {
                     EmptyView()
                 }
                 .labelsHidden()

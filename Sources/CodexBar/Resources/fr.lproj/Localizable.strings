@@ -1341,11 +1341,6 @@
 "menu_bar_layout_gap_tight" = "Serré";
 "menu_bar_layout_gap_regular" = "Normale";
 "menu_bar_layout_vertical_adjustment" = "Ajustement vertical";
-"menu_bar_layout_vertical_up_2" = "Haut de 2 px";
-"menu_bar_layout_vertical_up_1" = "Haut de 1 px";
-"menu_bar_layout_vertical_default" = "Par défaut";
-"menu_bar_layout_vertical_down_1" = "Bas de 1 px";
-"menu_bar_layout_vertical_down_2" = "Bas de 2 px";
 "menu_bar_layout_keyboard_hint" = "Supprimer retire le jeton sélectionné";
 "menu_bar_layout_sample_account" = "compte";
 "menu_bar_layout_sample_runs_out" = "épuisé ven.";

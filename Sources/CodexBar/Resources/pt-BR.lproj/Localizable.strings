@@ -1342,11 +1342,6 @@
 "menu_bar_layout_gap_tight" = "Apertado";
 "menu_bar_layout_gap_regular" = "Normal";
 "menu_bar_layout_vertical_adjustment" = "Ajuste vertical";
-"menu_bar_layout_vertical_up_2" = "Acima 2 px";
-"menu_bar_layout_vertical_up_1" = "Acima 1 px";
-"menu_bar_layout_vertical_default" = "Padrão";
-"menu_bar_layout_vertical_down_1" = "Abaixo 1 px";
-"menu_bar_layout_vertical_down_2" = "Abaixo 2 px";
 "menu_bar_layout_keyboard_hint" = "Delete remove o item selecionado";
 "menu_bar_layout_sample_account" = "conta";
 "menu_bar_layout_sample_runs_out" = "acaba sex.";
