@@ -1596,6 +1596,74 @@ extension CostUsageStoreTests {
 
 extension CostUsageStoreTests {
     @Test
+    func `narrow dashboard windows preserve wider retained cache under byte pressure`() async throws {
+        let fixture = try StoreFixture()
+        defer { fixture.remove() }
+        let store = CostUsageStore(cacheRoot: fixture.root)
+        let calendar = CostUsageScanner.CostUsageDayRange.localGregorianCalendar()
+        let retainedWindow = (sinceKey: "2025-08-15", untilKey: "2026-08-14")
+        let olderDay = "2026-01-15"
+        let recentDay = "2026-08-14"
+        let model = "gpt-5.5"
+        let olderPath = "/rollouts/older.jsonl"
+        let recentPath = "/rollouts/recent.jsonl"
+
+        func usage(day: String, mtimeUnixMs: Int64) -> CostUsageFileUsage {
+            var value = CostUsageFileUsage(
+                mtimeUnixMs: mtimeUnixMs,
+                size: 500,
+                days: [day: [model: [1, 0, 0]]])
+            value.parsedBytes = 500
+            value.codexScanComplete = true
+            return value
+        }
+
+        let olderUsage = usage(day: olderDay, mtimeUnixMs: 1)
+        let recentUsage = usage(day: recentDay, mtimeUnixMs: 2)
+        var cache = CostUsageCache()
+        cache.scanSinceKey = retainedWindow.sinceKey
+        cache.scanUntilKey = retainedWindow.untilKey
+        cache.timeZoneIdentifier = calendar.timeZone.identifier
+        cache.files = [olderPath: olderUsage, recentPath: recentUsage]
+        cache.days = olderUsage.days.merging(recentUsage.days) { _, recent in recent }
+
+        let seeded = store.syncSaveCodexCache(
+            cache,
+            calendar: calendar,
+            requestedScanWindow: retainedWindow,
+            fileBudgetBytes: 1)
+        #expect(seeded.deletedRows == 0)
+        #expect(seeded.rowCount == 2)
+
+        let dashboardWindows = [
+            (sinceKey: "2026-07-16", skipIdenticalContent: true),
+            (sinceKey: "2026-08-08", skipIdenticalContent: false),
+        ]
+        for dashboardWindow in dashboardWindows {
+            let result = store.syncSaveCodexCache(
+                cache,
+                calendar: calendar,
+                requestedScanWindow: (sinceKey: dashboardWindow.sinceKey, untilKey: recentDay),
+                fileBudgetBytes: 1,
+                skipIdenticalContent: dashboardWindow.skipIdenticalContent)
+            let report = await store.readReport(
+                sinceDay: retainedWindow.sinceKey,
+                untilDay: retainedWindow.untilKey)
+            let metadata = await store.fetchMetadata()
+
+            #expect(result.catchUpRequired == false)
+            #expect(result.deletedRows == 0)
+            #expect(result.rowCount == 2)
+            #expect(result.fileBytes > 1)
+            #expect(await store.fetchFile(path: olderPath) != nil)
+            #expect(await store.fetchFile(path: recentPath) != nil)
+            #expect(report.aggregates.map(\.day) == [olderDay, recentDay])
+            #expect(metadata.scanSinceDay == retainedWindow.sinceKey)
+            #expect(metadata.scanUntilDay == retainedWindow.untilKey)
+        }
+    }
+
+    @Test
     func `row budget deletes oldest rows to cap`() async throws {
         let fixture = try StoreFixture()
         defer { fixture.remove() }

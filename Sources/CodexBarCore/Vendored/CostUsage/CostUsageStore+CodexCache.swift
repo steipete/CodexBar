@@ -66,6 +66,9 @@ extension CostUsageStore {
         skipIdenticalContent: Bool = false) -> CostUsageStoreBudgetResult
     {
         let previous = self.readSnapshot()
+        let budgetProtectionWindow = Self.budgetProtectionWindow(
+            cache: cache,
+            requestedScanWindow: requestedScanWindow)
         if skipIdenticalContent,
            Self.persistedContentMatches(
                previous: previous,
@@ -77,8 +80,8 @@ extension CostUsageStore {
             let result = self.enforceBudgets(
                 maxRows: rowBudget,
                 maxFileBytes: fileBudgetBytes,
-                requestedSinceDay: requestedScanWindow.sinceKey,
-                requestedUntilDay: requestedScanWindow.untilKey,
+                requestedSinceDay: budgetProtectionWindow.sinceKey,
+                requestedUntilDay: budgetProtectionWindow.untilKey,
                 calendar: calendar)
             guard !result.catchUpRequired else { return result }
             Self.identicalContentPreLockCheckpointForTesting?()
@@ -157,8 +160,8 @@ extension CostUsageStore {
         let result = self.enforceBudgets(
             maxRows: rowBudget,
             maxFileBytes: fileBudgetBytes,
-            requestedSinceDay: requestedScanWindow.sinceKey,
-            requestedUntilDay: requestedScanWindow.untilKey,
+            requestedSinceDay: budgetProtectionWindow.sinceKey,
+            requestedUntilDay: budgetProtectionWindow.untilKey,
             calendar: calendar)
         if result.catchUpRequired, self.fetchMetadata().previousReportPayload == nil,
            let previous = Self.previousReport(cache: cache, calendar: calendar, reportWindow: reportWindow)
@@ -204,6 +207,21 @@ extension CostUsageStore {
         var usage = usage
         usage.codexScanComplete = usage.codexScanComplete ?? true
         return usage
+    }
+
+    private static func budgetProtectionWindow(
+        cache: CostUsageCache,
+        requestedScanWindow: (sinceKey: String, untilKey: String)) -> (sinceKey: String, untilKey: String)
+    {
+        // Report and dashboard windows are projections, not retention boundaries. Preserve the
+        // cache's retained coverage while still protecting any newly requested extension.
+        guard let retainedSinceKey = cache.scanSinceKey,
+              let retainedUntilKey = cache.scanUntilKey,
+              retainedSinceKey <= retainedUntilKey
+        else { return requestedScanWindow }
+        return (
+            sinceKey: min(retainedSinceKey, requestedScanWindow.sinceKey),
+            untilKey: max(retainedUntilKey, requestedScanWindow.untilKey))
     }
 }
 

@@ -3,6 +3,7 @@
 ## 0.49.5 — Unreleased
 
 ### Fixed
+- Codex: preserve wider retained cost history when Usage & Spend projects 7- or 30-day views under cache pressure (#2914).
 - Merged menu: provider detail cards that render the inline token/cost chart now open the cost-history submenu on hover, matching the Overview card (#2885). Thanks @SJY051!
 
 ## 0.49.4 — 2026-08-13
