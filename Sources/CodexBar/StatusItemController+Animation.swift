@@ -912,6 +912,11 @@ extension StatusItemController {
                 return spend
             }
         }
+        if provider == .replicate,
+           let spend = Self.replicateSpendDisplayText(snapshot: snapshot)
+        {
+            return spend
+        }
         if provider == .kiro {
             return Self.kiroDisplayText(
                 snapshot: snapshot,
@@ -1053,6 +1058,20 @@ extension StatusItemController {
             from: snapshot?.identity?.loginMethod,
             prefix: "API spend:",
             removingSuffix: " this month")
+    }
+
+    nonisolated static func replicateSpendDisplayText(snapshot: UsageSnapshot?) -> String? {
+        guard
+            let detail = snapshot?.primary?.resetDescription?
+                .trimmingCharacters(in: .whitespacesAndNewlines),
+                let spendDetail = detail.components(separatedBy: " · ").first?
+                    .trimmingCharacters(in: .whitespacesAndNewlines),
+                    spendDetail.hasPrefix("$"),
+                    let value = spendDetail.split(separator: " ", maxSplits: 1).first
+        else {
+            return nil
+        }
+        return String(value)
     }
 
     nonisolated static func extraUsageSpendDisplayText(snapshot: UsageSnapshot?) -> String? {

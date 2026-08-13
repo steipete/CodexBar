@@ -68,6 +68,7 @@ public enum UsageProvider: String, CaseIterable, Sendable, Codable {
     case venice
     case commandcode
     case qoder
+    case replicate
     case stepfun
     case bedrock
     case grok

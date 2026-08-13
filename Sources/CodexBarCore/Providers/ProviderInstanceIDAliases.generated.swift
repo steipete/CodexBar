@@ -52,6 +52,7 @@ extension ProviderInstanceID {
     public static let venice = UsageProvider.venice.instanceID
     public static let commandcode = UsageProvider.commandcode.instanceID
     public static let qoder = UsageProvider.qoder.instanceID
+    public static let replicate = UsageProvider.replicate.instanceID
     public static let stepfun = UsageProvider.stepfun.instanceID
     public static let bedrock = UsageProvider.bedrock.instanceID
     public static let grok = UsageProvider.grok.instanceID

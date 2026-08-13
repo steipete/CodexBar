@@ -8,7 +8,7 @@ read_when:
 
 # Providers
 
-CodexBar currently registers 69 provider IDs. Some companies expose multiple surfaces, such as Codex vs OpenAI API or
+CodexBar currently registers 70 provider IDs. Some companies expose multiple surfaces, such as Codex vs OpenAI API or
 OpenCode vs OpenCode Go, because the auth source and quota shape differ.
 
 ## Fetch strategies (current)
@@ -68,6 +68,7 @@ scan fails, while provider/account configuration changes replace obsolete result
 | Synthetic | API key from config/env → quota API (`api`). |
 | OpenRouter | API token (config, overrides env) → credits API (`api`). |
 | Perplexity | Browser cookies/manual cookie/env session token → credits API (`web`). |
+| Replicate | Browser cookies → monthly spend and prepaid credit from billing dashboard API (`web`). |
 | Xiaomi MiMo | Browser cookies → balance/token plan endpoints (`web`). |
 | Doubao | API key from config/env → Volcengine Ark chat-completions probe (`api`). |
 | Sakana AI | Manual Cookie header → billing page parser for 5-hour/weekly quota windows plus a best-effort pay-as-you-go credit balance (`web`). |
@@ -419,6 +420,16 @@ provider-specific cookie validation, endpoints, login detection, and error trans
 - Shows monthly credit gauge with pace tick and reserve/deficit estimate.
 - Status: none yet.
 - Details: `docs/abacus.md`.
+
+## Replicate
+- Session cookie (`sessionid`) from browser auto-import or manual `Cookie:` header.
+- Automatic import is Chrome-only by default; Firefox, Safari, and other Chromium forks use Manual mode. Automatic import reads only unexpired cookies from `replicate.com`.
+- Bootstraps `account: { kind, username }` from billing page React props, then reads monthly spend from the invoices API and prepaid credit from the unused-credit API.
+- The menu bar shows current calendar-month spend in dollars; the provider card shows credit balance when available.
+- Spend limit is omitted in v1 (no confirmed JSON read API).
+- Resets at end of calendar month.
+- Status: none yet.
+- Details: `docs/replicate.md`.
 
 ## Mistral
 - Session cookie (`ory_session_*`) from browser auto-import or manual `Cookie:` header.

@@ -55,6 +55,7 @@ enum ProviderImplementationManifest {
         { VeniceProviderImplementation() },
         { CommandCodeProviderImplementation() },
         { QoderProviderImplementation() },
+        { ReplicateProviderImplementation() },
         { StepFunProviderImplementation() },
         { BedrockProviderImplementation() },
         { GrokProviderImplementation() },

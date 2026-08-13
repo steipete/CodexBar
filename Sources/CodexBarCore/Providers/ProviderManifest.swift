@@ -54,6 +54,7 @@ public enum ProviderManifest {
         VeniceProviderDescriptor.descriptor,
         CommandCodeProviderDescriptor.descriptor,
         QoderProviderDescriptor.descriptor,
+        ReplicateProviderDescriptor.descriptor,
         StepFunProviderDescriptor.descriptor,
         BedrockProviderDescriptor.descriptor,
         GrokProviderDescriptor.descriptor,
