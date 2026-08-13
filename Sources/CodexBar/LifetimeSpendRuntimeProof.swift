@@ -140,6 +140,7 @@ enum LifetimeSpendRuntimeProofRunner {
     }
 
     private static let dashboardSize = CGSize(width: 900, height: 1370)
+    // Provider-specific by design: the isolated proof uses a fixed dummy Codex account identity.
     private static let accountID = "synthetic"
     private static let accountIdentity = "synthetic|lifetime-proof-v1"
 
@@ -228,6 +229,7 @@ enum LifetimeSpendRuntimeProofRunner {
     }
 
     private static var dashboardConfiguration: SpendDashboardConfiguration {
+        // Provider-specific by design: the proof exercises the Codex JSONL scanner used by lifetime history.
         SpendDashboardConfiguration(
             costUsageEnabled: true,
             preferredCurrencyCode: "USD",
@@ -265,6 +267,7 @@ enum LifetimeSpendRuntimeProofRunner {
                     request,
                     cacheRootResolver: { _ in configuration.cacheRoot },
                     codexSnapshotLoader: { context in
+                        // Provider-specific by design: the proof must invoke the real Codex cost-history scanner.
                         try await CostUsageFetcher(cacheRoot: context.cacheRoot).loadTokenSnapshot(
                             provider: .codex,
                             environment: [:],
@@ -340,6 +343,7 @@ enum LifetimeSpendRuntimeProofRunner {
             throw ProofError.privacyViolation
         }
         let visibleText = ShareStatsFormatting.text(payload)
+        // Provider-specific by design: reject the fixed dummy identity if it ever reaches rendered proof output.
         for forbidden in ["@", "/Users/", "/home/", root.path, "synthetic", "proof"]
             where visibleText.localizedCaseInsensitiveContains(forbidden)
         {
