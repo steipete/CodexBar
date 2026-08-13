@@ -181,6 +181,10 @@ public struct DeepSeekUsageSummary: Sendable, Equatable {
     public let categoryBreakdown: [DeepSeekCategoryBreakdown]
     public let daily: [DeepSeekDailyUsage]
     public let currency: String
+    public let fiveHourTokens: Int?
+    public let weeklyTokens: Int?
+    public let fiveHourCost: Double?
+    public let weeklyCost: Double?
     public let updatedAt: Date
 
     public init(
@@ -194,6 +198,10 @@ public struct DeepSeekUsageSummary: Sendable, Equatable {
         categoryBreakdown: [DeepSeekCategoryBreakdown],
         daily: [DeepSeekDailyUsage],
         currency: String,
+        fiveHourTokens: Int? = nil,
+        weeklyTokens: Int? = nil,
+        fiveHourCost: Double? = nil,
+        weeklyCost: Double? = nil,
         updatedAt: Date)
     {
         self.todayTokens = todayTokens
@@ -206,7 +214,30 @@ public struct DeepSeekUsageSummary: Sendable, Equatable {
         self.categoryBreakdown = categoryBreakdown
         self.daily = daily
         self.currency = currency
+        self.fiveHourTokens = fiveHourTokens
+        self.weeklyTokens = weeklyTokens
+        self.fiveHourCost = fiveHourCost
+        self.weeklyCost = weeklyCost
         self.updatedAt = updatedAt
+    }
+
+    func withRollingUsage(fiveHour: DeepSeekRollingUsage?, weekly: DeepSeekRollingUsage?) -> Self {
+        Self(
+            todayTokens: self.todayTokens,
+            currentMonthTokens: self.currentMonthTokens,
+            todayCost: self.todayCost,
+            currentMonthCost: self.currentMonthCost,
+            requestCount: self.requestCount,
+            currentMonthRequestCount: self.currentMonthRequestCount,
+            topModel: self.topModel,
+            categoryBreakdown: self.categoryBreakdown,
+            daily: self.daily,
+            currency: self.currency,
+            fiveHourTokens: fiveHour?.tokens,
+            weeklyTokens: weekly?.tokens,
+            fiveHourCost: fiveHour?.cost,
+            weeklyCost: weekly?.cost,
+            updatedAt: self.updatedAt)
     }
 }
 

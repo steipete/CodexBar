@@ -116,7 +116,7 @@ See [CLI configuration](docs/cli-configuration.md) for the full flow.
 - [Sakana AI](docs/sakana.md) — Manual Cookie header for 5-hour and weekly quota windows.
 - [Abacus AI](docs/abacus.md) — Browser cookie auth for ChatLLM/RouteLLM compute credit tracking.
 - [Mistral](docs/mistral.md) — Browser cookies for API spend, credit balance, and monthly-plan usage.
-- [DeepSeek](docs/deepseek.md) — API key for credit balance tracking (paid vs. granted breakdown).
+- [DeepSeek](docs/deepseek.md) — credit balance plus optional rolling 5-hour/weekly token and spend totals.
 - [Fireworks](docs/fireworks.md) — API key + account slug for 30-day spend from the billing summary API.
 - [DeepInfra](docs/deepinfra.md) — API key for prepaid balance, current-month spend, and spending-limit tracking.
 - [Moonshot / Kimi API](docs/moonshot.md) — API key for Moonshot/Kimi API account balance tracking.

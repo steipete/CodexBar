@@ -222,6 +222,16 @@ public struct DeepSeekUsageSnapshot: Sendable {
                 value: "\(cost(usage.currentMonthCost)) · \(usage.currentMonthTokens.formatted()) tokens"),
             .makeRow(label: "Requests", value: "\(usage.currentMonthRequestCount)"),
         ]
+        if usage.fiveHourTokens != nil || usage.weeklyTokens != nil
+            || usage.fiveHourCost != nil || usage.weeklyCost != nil
+        {
+            rows.insert(contentsOf: [
+                .makeRow(label: "5h tokens", value: usage.fiveHourTokens?.formatted() ?? "—"),
+                .makeRow(label: "Weekly tokens", value: usage.weeklyTokens?.formatted() ?? "—"),
+                .makeRow(label: "5h spend", value: cost(usage.fiveHourCost)),
+                .makeRow(label: "Weekly spend", value: cost(usage.weeklyCost)),
+            ], at: 0)
+        }
         if let topModel = usage.topModel {
             rows.append(.makeRow(label: "Top model", value: topModel))
         }
@@ -280,14 +290,26 @@ public struct DeepSeekUsageFetcher: Sendable {
         case cost(Data)
     }
 
+    private enum RollingUsagePayload: Sendable {
+        case fiveHourAmount(Data?)
+        case fiveHourCost(Data?)
+        case weeklyAmount(Data?)
+        case weeklyCost(Data?)
+    }
+
     private static let log = CodexBarLog.logger(LogCategories.provider(.deepseek, scope: "usage"))
     private static let balanceURL = URL(string: "https://api.deepseek.com/user/balance")!
     private static let usageAmountURL = URL(string: "https://platform.deepseek.com/api/v0/usage/amount")!
     private static let usageCostURL = URL(string: "https://platform.deepseek.com/api/v0/usage/cost")!
+    private static let usageByAPIKeyAmountURL = URL(
+        string: "https://platform.deepseek.com/api/v0/usage/by_api_key/amount")!
+    private static let usageByAPIKeyCostURL = URL(
+        string: "https://platform.deepseek.com/api/v0/usage/by_api_key/cost")!
     private static let platformUserSummaryURL = URL(
         string: "https://platform.deepseek.com/api/v0/users/get_user_summary")!
     private static let timeoutSeconds: TimeInterval = 15
     private static let optionalSummaryJoinGrace: Duration = .seconds(5)
+    private static let rollingUsageJoinGrace: Duration = .seconds(3)
     private static var apiCalendar: Calendar {
         var calendar = Calendar(identifier: .gregorian)
         calendar.locale = Locale(identifier: "en_US_POSIX")
@@ -489,6 +511,18 @@ public struct DeepSeekUsageFetcher: Sendable {
     {
         let calendar = calendar ?? self.apiCalendar
         let period = try self.usagePeriod(now: now, calendar: calendar)
+        let rollingTask = Task<(
+            fiveHour: DeepSeekRollingUsage?,
+            weekly: DeepSeekRollingUsage?), Error> {
+            await self.fetchRollingUsage(platformToken: platformToken, now: now)
+        }
+        let rollingJoinTask = Task {
+            await BoundedTaskJoin(sourceTask: rollingTask).value(joinGrace: self.rollingUsageJoinGrace)
+        }
+        defer {
+            rollingTask.cancel()
+            rollingJoinTask.cancel()
+        }
         let payloads = try await self.fetchUsagePayloads(
             fetchAmount: {
                 try await self.fetchAmount(platformToken: platformToken, month: period.month, year: period.year)
@@ -497,11 +531,18 @@ public struct DeepSeekUsageFetcher: Sendable {
                 try await self.fetchCost(platformToken: platformToken, month: period.month, year: period.year)
             })
 
-        return try DeepSeekUsageCostParser.parse(
+        let summary = try DeepSeekUsageCostParser.parse(
             amountData: payloads.amount,
             costData: payloads.cost,
             now: now,
             calendar: calendar)
+        let rolling: (fiveHour: DeepSeekRollingUsage?, weekly: DeepSeekRollingUsage?)? = switch await rollingJoinTask
+            .value
+        {
+        case let .value(value): value
+        case .failure, .timedOut: nil
+        }
+        return summary.withRollingUsage(fiveHour: rolling?.fiveHour, weekly: rolling?.weekly)
     }
 
     public static func fetchPlatformUsage(
@@ -629,6 +670,164 @@ public struct DeepSeekUsageFetcher: Sendable {
             }
             return (amount: amountData, cost: costData)
         }
+    }
+
+    private static func fetchRollingUsage(
+        platformToken: String,
+        now: Date) async -> (fiveHour: DeepSeekRollingUsage?, weekly: DeepSeekRollingUsage?)
+    {
+        let ranges = self.rollingUsageRanges(now: now)
+        let payloads = await withTaskGroup(of: RollingUsagePayload.self) { group in
+            group.addTask {
+                await .fiveHourAmount(self.optionalRollingData(
+                    url: self.usageByAPIKeyAmountURL,
+                    platformToken: platformToken,
+                    start: ranges.fiveHourStart,
+                    end: ranges.end))
+            }
+            group.addTask {
+                await .fiveHourCost(self.optionalRollingData(
+                    url: self.usageByAPIKeyCostURL,
+                    platformToken: platformToken,
+                    start: ranges.fiveHourStart,
+                    end: ranges.end))
+            }
+            group.addTask {
+                await .weeklyAmount(self.optionalRollingData(
+                    url: self.usageByAPIKeyAmountURL,
+                    platformToken: platformToken,
+                    start: ranges.weeklyStart,
+                    end: ranges.end))
+            }
+            group.addTask {
+                await .weeklyCost(self.optionalRollingData(
+                    url: self.usageByAPIKeyCostURL,
+                    platformToken: platformToken,
+                    start: ranges.weeklyStart,
+                    end: ranges.end))
+            }
+
+            var fiveHourAmount: Data?
+            var fiveHourCost: Data?
+            var weeklyAmount: Data?
+            var weeklyCost: Data?
+            for await payload in group {
+                switch payload {
+                case let .fiveHourAmount(data): fiveHourAmount = data
+                case let .fiveHourCost(data): fiveHourCost = data
+                case let .weeklyAmount(data): weeklyAmount = data
+                case let .weeklyCost(data): weeklyCost = data
+                }
+            }
+            return (fiveHourAmount, fiveHourCost, weeklyAmount, weeklyCost)
+        }
+
+        return (
+            fiveHour: self.rollingUsage(
+                amountData: payloads.0,
+                costData: payloads.1,
+                preferredCurrency: nil),
+            weekly: self.rollingUsage(
+                amountData: payloads.2,
+                costData: payloads.3,
+                preferredCurrency: nil))
+    }
+
+    private static func optionalRollingData(
+        url: URL,
+        platformToken: String,
+        start: Int64,
+        end: Int64) async -> Data?
+    {
+        do {
+            return try await self.fetchRollingData(
+                url: url,
+                platformToken: platformToken,
+                start: start,
+                end: end)
+        } catch {
+            if error is CancellationError || Task.isCancelled { return nil }
+            self.log.warning(
+                "DeepSeek rolling usage unavailable",
+                metadata: ["endpoint": url.lastPathComponent])
+            return nil
+        }
+    }
+
+    private static func fetchRollingData(
+        url: URL,
+        platformToken: String,
+        start: Int64,
+        end: Int64) async throws -> Data
+    {
+        guard var components = URLComponents(url: url, resolvingAgainstBaseURL: false) else {
+            throw DeepSeekUsageError.networkError("Invalid rolling usage URL")
+        }
+        components.queryItems = [
+            URLQueryItem(name: "start", value: String(start)),
+            URLQueryItem(name: "end", value: String(end)),
+            URLQueryItem(name: "tz", value: "0"),
+        ]
+        guard let requestURL = components.url else {
+            throw DeepSeekUsageError.networkError("Could not construct rolling usage URL")
+        }
+        var request = URLRequest(url: requestURL)
+        request.httpMethod = "GET"
+        request.setValue("Bearer \(platformToken)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("https://platform.deepseek.com/usage", forHTTPHeaderField: "Referer")
+        request.setValue(
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Safari/537.36",
+            forHTTPHeaderField: "User-Agent")
+        request.timeoutInterval = Self.timeoutSeconds
+
+        let response = try await ProviderHTTPClient.shared.response(for: request)
+        guard response.statusCode == 200 else {
+            if response.statusCode == 401 || response.statusCode == 403 {
+                throw DeepSeekUsageError.invalidPlatformToken
+            }
+            throw DeepSeekUsageError.apiError("HTTP \(response.statusCode)")
+        }
+        return response.data
+    }
+
+    static func _parseRollingUsageForTesting(
+        amountData: Data?,
+        costData: Data?,
+        preferredCurrency: String? = nil) -> DeepSeekRollingUsage?
+    {
+        self.rollingUsage(
+            amountData: amountData,
+            costData: costData,
+            preferredCurrency: preferredCurrency)
+    }
+
+    private static func rollingUsage(
+        amountData: Data?,
+        costData: Data?,
+        preferredCurrency: String?) -> DeepSeekRollingUsage?
+    {
+        let tokens = amountData.flatMap { try? DeepSeekRollingUsageParser.parseAmount($0) }
+        let costResult = costData.flatMap {
+            try? DeepSeekRollingUsageParser.parseCost($0, preferredCurrency: preferredCurrency)
+        }
+        guard tokens != nil || costResult != nil else { return nil }
+        return DeepSeekRollingUsage(
+            tokens: tokens,
+            cost: costResult?.cost,
+            currency: costResult?.currency)
+    }
+
+    static func _rollingUsageRangesForTesting(now: Date) -> (fiveHourStart: Int64, weeklyStart: Int64, end: Int64) {
+        self.rollingUsageRanges(now: now)
+    }
+
+    private static func rollingUsageRanges(now: Date) -> (fiveHourStart: Int64, weeklyStart: Int64, end: Int64) {
+        let end = Int64(now.timeIntervalSince1970.rounded(.down))
+        return (
+            fiveHourStart: end - 5 * 60 * 60,
+            weeklyStart: end - 7 * 24 * 60 * 60,
+            end: end)
     }
 
     static func _apiUsagePeriodForTesting(now: Date, calendar: Calendar? = nil) throws -> (month: Int, year: Int) {
