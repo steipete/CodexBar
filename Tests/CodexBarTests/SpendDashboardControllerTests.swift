@@ -712,123 +712,6 @@ struct SpendDashboardControllerTests {
         #expect(await gate.pendingCount == 0)
     }
 
-    @Test
-    func `disablement cancels pending work and clears safely`() async {
-        let gate = SpendDashboardLoaderGate()
-        let controller = Self.controller(gate: gate)
-        controller.update(configuration: Self.configuration(account: "enabled"))
-        await Self.waitForPendingCount(1, gate: gate)
-
-        controller.update(configuration: SpendDashboardConfiguration(
-            costUsageEnabled: false,
-            providerIDs: [UsageProvider.codex.rawValue],
-            codexAccountIdentities: ["enabled"]))
-        #expect(!controller.isRefreshing)
-        #expect(controller.model.groups.isEmpty)
-
-        await gate.resume(at: 0, result: .init(inputs: [Self.input(cost: 99)], failedSourceIDs: []))
-        await Task.yield()
-        #expect(controller.model.groups.isEmpty)
-    }
-
-    @Test
-    func `all time activity leaves uncaptured ledger gap unknown`() async throws {
-        let suite = "SpendDashboardControllerTests-activity-gap-\(UUID().uuidString)"
-        let defaults = try #require(UserDefaults(suiteName: suite))
-        defaults.removePersistentDomain(forName: suite)
-        defer { defaults.removePersistentDomain(forName: suite) }
-        let ledgerURL = FileManager.default.temporaryDirectory
-            .appendingPathComponent("\(suite).json")
-        defer { try? FileManager.default.removeItem(at: ledgerURL) }
-        let calendar = Calendar.current
-        let firstEnd = try #require(calendar.date(from: DateComponents(
-            year: 2026,
-            month: 1,
-            day: 2,
-            hour: 12)))
-        let secondEnd = try #require(calendar.date(from: DateComponents(
-            year: 2026,
-            month: 1,
-            day: 6,
-            hour: 12)))
-        let results = SpendDashboardResultQueue(results: [
-            .init(inputs: [Self.activityInput(
-                updatedAt: firstEnd,
-                days: [("2026-01-01", 10), ("2026-01-02", 20)])], failedSourceIDs: []),
-            .init(inputs: [Self.activityInput(
-                updatedAt: secondEnd,
-                days: [("2026-01-05", 50), ("2026-01-06", 60)])], failedSourceIDs: []),
-        ])
-        let configuration = SpendDashboardConfiguration(
-            costUsageEnabled: true,
-            providerIDs: [UsageProvider.claude.rawValue],
-            codexAccountIdentities: [],
-            sourceOwnershipFingerprints: ["claude:test-owner"])
-        let requestCount = SpendDashboardRequestCount()
-        let controller = SpendDashboardController(
-            userDefaults: defaults,
-            requestBuilder: { mode in
-                let count = await requestCount.next()
-                return SpendDashboardLoadRequest(
-                    configuration: configuration,
-                    capturedInputs: [],
-                    unavailableSourceIDs: count == 1 ? [] : [UsageProvider.claude.rawValue],
-                    codexRequests: [],
-                    now: count == 1 ? firstEnd : secondEnd,
-                    force: mode.forcesLoader)
-            },
-            loader: { _ in await results.next() },
-            historyLedger: SpendHistoryLedger(fileURL: ledgerURL))
-
-        controller.update(configuration: configuration)
-        await Self.waitUntil { controller.model.groups.first?.coveredDayCount == 2 }
-        controller.refresh()
-        controller.selectRange(.allTime)
-        await Self.waitUntil { controller.model.groups.first?.coveredDayCount == 4 }
-
-        #expect(controller.model.groups.first?.coveredDayCount == 4)
-        #expect(controller.model.groups.first?.totalCost == 4)
-        #expect(Self.activityTokens(on: "2026-01-03", model: controller.model, calendar: calendar) == nil)
-        #expect(Self.activityTokens(on: "2026-01-04", model: controller.model, calendar: calendar) == nil)
-        #expect(Self.activityTokens(on: "2026-01-05", model: controller.model, calendar: calendar) == 50)
-        #expect(Self.activityTokens(on: "2026-01-06", model: controller.model, calendar: calendar) == 60)
-    }
-
-    @Test
-    func `range selection persists only supported windows`() throws {
-        let suite = "SpendDashboardControllerTests-days"
-        let defaults = try #require(UserDefaults(suiteName: suite))
-        defaults.removePersistentDomain(forName: suite)
-        defer { defaults.removePersistentDomain(forName: suite) }
-        let controller = SpendDashboardController(
-            userDefaults: defaults,
-            requestBuilder: { mode in
-                Self.request(
-                    configuration: Self.configuration(account: "unused"),
-                    force: mode.forcesLoader)
-            })
-
-        #expect(controller.selectedDays == 30)
-        controller.selectDays(7)
-        #expect(controller.selectedDays == 7)
-        #expect(defaults.integer(forKey: "settingsSpendDashboardDays") == 7)
-        controller.selectDays(9)
-        #expect(controller.selectedDays == 30)
-
-        controller.selectRange(.allTime)
-        #expect(controller.selectedRange == .allTime)
-        #expect(defaults.integer(forKey: "settingsSpendDashboardDays") == 0)
-
-        let restored = SpendDashboardController(
-            userDefaults: defaults,
-            requestBuilder: { mode in
-                Self.request(
-                    configuration: Self.configuration(account: "unused"),
-                    force: mode.forcesLoader)
-            })
-        #expect(restored.selectedRange == .allTime)
-    }
-
     private nonisolated static let fixtureNow = Date(timeIntervalSince1970: 1_784_179_200)
 
     private static func dashboardController(
@@ -996,6 +879,125 @@ struct SpendDashboardControllerTests {
             await Task.yield()
         }
         Issue.record("Timed out waiting for controller state")
+    }
+}
+
+extension SpendDashboardControllerTests {
+    @Test
+    func `disablement cancels pending work and clears safely`() async {
+        let gate = SpendDashboardLoaderGate()
+        let controller = Self.controller(gate: gate)
+        controller.update(configuration: Self.configuration(account: "enabled"))
+        await Self.waitForPendingCount(1, gate: gate)
+
+        controller.update(configuration: SpendDashboardConfiguration(
+            costUsageEnabled: false,
+            providerIDs: [UsageProvider.codex.rawValue],
+            codexAccountIdentities: ["enabled"]))
+        #expect(!controller.isRefreshing)
+        #expect(controller.model.groups.isEmpty)
+
+        await gate.resume(at: 0, result: .init(inputs: [Self.input(cost: 99)], failedSourceIDs: []))
+        await Task.yield()
+        #expect(controller.model.groups.isEmpty)
+    }
+
+    @Test
+    func `range selection persists only supported windows`() throws {
+        let suite = "SpendDashboardControllerTests-days"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let controller = SpendDashboardController(
+            userDefaults: defaults,
+            requestBuilder: { mode in
+                Self.request(
+                    configuration: Self.configuration(account: "unused"),
+                    force: mode.forcesLoader)
+            })
+
+        #expect(controller.selectedDays == 30)
+        controller.selectDays(7)
+        #expect(controller.selectedDays == 7)
+        #expect(defaults.integer(forKey: "settingsSpendDashboardDays") == 7)
+        controller.selectDays(9)
+        #expect(controller.selectedDays == 30)
+
+        controller.selectRange(.allTime)
+        #expect(controller.selectedRange == .allTime)
+        #expect(defaults.integer(forKey: "settingsSpendDashboardDays") == 0)
+
+        let restored = SpendDashboardController(
+            userDefaults: defaults,
+            requestBuilder: { mode in
+                Self.request(
+                    configuration: Self.configuration(account: "unused"),
+                    force: mode.forcesLoader)
+            })
+        #expect(restored.selectedRange == .allTime)
+    }
+
+    @Test
+    func `all time activity leaves uncaptured ledger gap unknown`() async throws {
+        let suite = "SpendDashboardControllerTests-activity-gap-\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let ledgerURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("\(suite).json")
+        defer { try? FileManager.default.removeItem(at: ledgerURL) }
+        let calendar = Calendar.current
+        let firstEnd = try #require(calendar.date(from: DateComponents(
+            year: 2026,
+            month: 1,
+            day: 2,
+            hour: 12)))
+        let secondEnd = try #require(calendar.date(from: DateComponents(
+            year: 2026,
+            month: 1,
+            day: 6,
+            hour: 12)))
+        let results = SpendDashboardResultQueue(results: [
+            .init(inputs: [Self.activityInput(
+                updatedAt: firstEnd,
+                days: [("2026-01-01", 10), ("2026-01-02", 20)])], failedSourceIDs: []),
+            .init(inputs: [Self.activityInput(
+                updatedAt: secondEnd,
+                days: [("2026-01-05", 50), ("2026-01-06", 60)])], failedSourceIDs: []),
+        ])
+        let configuration = SpendDashboardConfiguration(
+            costUsageEnabled: true,
+            providerIDs: [UsageProvider.claude.rawValue],
+            codexAccountIdentities: [],
+            sourceOwnershipFingerprints: ["claude:test-owner"])
+        let requestCount = SpendDashboardRequestCount()
+        let controller = SpendDashboardController(
+            userDefaults: defaults,
+            requestBuilder: { mode in
+                let count = await requestCount.next()
+                return SpendDashboardLoadRequest(
+                    configuration: configuration,
+                    capturedInputs: [],
+                    unavailableSourceIDs: count == 1 ? [] : [UsageProvider.claude.rawValue],
+                    codexRequests: [],
+                    now: count == 1 ? firstEnd : secondEnd,
+                    force: mode.forcesLoader)
+            },
+            loader: { _ in await results.next() },
+            historyLedger: SpendHistoryLedger(fileURL: ledgerURL))
+
+        controller.update(configuration: configuration)
+        await Self.waitUntil { controller.model.groups.first?.coveredDayCount == 2 }
+        controller.refresh()
+        controller.selectRange(.allTime)
+        await Self.waitUntil { controller.model.groups.first?.coveredDayCount == 4 }
+
+        #expect(controller.model.groups.first?.coveredDayCount == 4)
+        #expect(controller.model.groups.first?.totalCost == 4)
+        #expect(Self.activityTokens(on: "2026-01-03", model: controller.model, calendar: calendar) == nil)
+        #expect(Self.activityTokens(on: "2026-01-04", model: controller.model, calendar: calendar) == nil)
+        #expect(Self.activityTokens(on: "2026-01-05", model: controller.model, calendar: calendar) == 50)
+        #expect(Self.activityTokens(on: "2026-01-06", model: controller.model, calendar: calendar) == 60)
     }
 }
 
