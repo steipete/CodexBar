@@ -27,10 +27,31 @@ struct SpendActivitySeries {
 
     let daily: [Int]
     let isCovered: [Bool]
+    /// Whether the scan window reached the day. A day can be scanned and still uncovered when the
+    /// source data is missing, which is a real gap rather than a window edge.
+    let isScanned: [Bool]
     let start: Date
     let rangeStart: Date
     let today: Date
     let calendar: Calendar
+
+    init(
+        daily: [Int],
+        isCovered: [Bool],
+        isScanned: [Bool]? = nil,
+        start: Date,
+        rangeStart: Date,
+        today: Date,
+        calendar: Calendar)
+    {
+        self.daily = daily
+        self.isCovered = isCovered
+        self.isScanned = isScanned ?? [Bool](repeating: true, count: daily.count)
+        self.start = start
+        self.rangeStart = rangeStart
+        self.today = today
+        self.calendar = calendar
+    }
 
     static func make(
         from points: [SpendDashboardModel.TokenActivityPoint],
@@ -39,8 +60,12 @@ struct SpendActivitySeries {
     {
         var totals: [Date: Int] = [:]
         var unknownDays: Set<Date> = []
+        var unscannedDays: Set<Date> = []
         for point in points {
             let day = calendar.startOfDay(for: point.day)
+            if !point.isScanned {
+                unscannedDays.insert(day)
+            }
             guard let totalTokens = point.totalTokens else {
                 totals.removeValue(forKey: day)
                 unknownDays.insert(day)
@@ -63,12 +88,14 @@ struct SpendActivitySeries {
         let cellCount = Self.weekCount * Self.dayCount
         var daily = [Int](repeating: 0, count: cellCount)
         var isCovered = [Bool](repeating: false, count: cellCount)
+        var isScanned = [Bool](repeating: false, count: cellCount)
         for index in 0..<cellCount {
             guard let date = calendar.date(byAdding: .day, value: index, to: start),
                   rangeStart...today ~= date
             else {
                 continue
             }
+            isScanned[index] = !unscannedDays.contains(date)
             guard !unknownDays.contains(date), let total = totals[date] else { continue }
             daily[index] = total
             isCovered[index] = true
@@ -76,6 +103,7 @@ struct SpendActivitySeries {
         return Self(
             daily: daily,
             isCovered: isCovered,
+            isScanned: isScanned,
             start: start,
             rangeStart: rangeStart,
             today: today,
@@ -105,13 +133,19 @@ struct SpendActivitySeries {
     func weeklyActivity() -> SpendActivityAggregateSeries {
         var values: [Int] = []
         var coverage: [Bool] = []
+        var scanned: [Bool] = []
         for start in stride(from: 0, to: self.daily.count, by: Self.dayCount) {
             let indices = start..<min(start + Self.dayCount, self.daily.count)
             let visible = indices.filter(self.isVisible)
+            let scannedVisible = visible.filter { self.isScanned[$0] }
             values.append(visible.reduce(0) { Self.saturatingAdd($0, self.daily[$1]) })
-            coverage.append(!visible.isEmpty && visible.allSatisfy { self.isCovered[$0] })
+            // A week is covered when every day the scan reached is covered. Days the scan never
+            // reached cannot make the week unavailable, otherwise the week straddling the start of
+            // a 30-day window would drop even though its scanned portion is complete.
+            coverage.append(!scannedVisible.isEmpty && scannedVisible.allSatisfy { self.isCovered[$0] })
+            scanned.append(!scannedVisible.isEmpty)
         }
-        return SpendActivityAggregateSeries(values: values, isCovered: coverage)
+        return SpendActivityAggregateSeries(values: values, isCovered: coverage, isScanned: scanned)
     }
 
     func isVisible(_ index: Int) -> Bool {
@@ -128,19 +162,40 @@ struct SpendActivitySeries {
 struct SpendActivityAggregateSeries: Equatable {
     let values: [Int]
     let isCovered: [Bool]
+    /// Whether the scan window reached any day in the week.
+    let isScanned: [Bool]
 
+    init(values: [Int], isCovered: [Bool], isScanned: [Bool]? = nil) {
+        self.values = values
+        self.isCovered = isCovered
+        self.isScanned = isScanned ?? [Bool](repeating: true, count: values.count)
+    }
+
+    /// Running total per week. The grid always spans a full year, so a scan window shorter than
+    /// 365 days leaves an unscanned prefix. That prefix must not mark the whole series
+    /// unavailable, so the running coverage starts at the first scanned week.
+    ///
+    /// An unscanned week and an unknown week are not the same thing. A week the scan never reached
+    /// carries no information either way. A week the scan reached but could not resolve is a real
+    /// gap, and every later total is then only a lower bound, so it stays unavailable.
     func cumulative() -> Self {
         var total = 0
+        var hasStarted = false
         var coverageIsComplete = true
         var cumulativeValues: [Int] = []
         var cumulativeCoverage: [Bool] = []
         for index in self.values.indices {
             total = SpendActivitySeries.saturatingAdd(total, self.values[index])
-            coverageIsComplete = coverageIsComplete && self.isCovered[index]
+            if self.isScanned[index] {
+                hasStarted = true
+            }
+            if hasStarted {
+                coverageIsComplete = coverageIsComplete && self.isCovered[index]
+            }
             cumulativeValues.append(total)
-            cumulativeCoverage.append(coverageIsComplete)
+            cumulativeCoverage.append(hasStarted && coverageIsComplete)
         }
-        return Self(values: cumulativeValues, isCovered: cumulativeCoverage)
+        return Self(values: cumulativeValues, isCovered: cumulativeCoverage, isScanned: self.isScanned)
     }
 }
 

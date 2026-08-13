@@ -69,6 +69,16 @@ struct SpendDashboardModel: Equatable, Sendable {
         /// `nil` means at least one included source cannot establish coverage for this day.
         /// This must stay distinct from a proven zero so the heatmap does not fabricate inactivity.
         let totalTokens: Int?
+        /// `false` means at least one source never scanned this day, so the gap is a window edge
+        /// rather than missing data. A `nil` total with `true` means every source scanned the day
+        /// and still cannot report it, which is a real gap the heatmap must keep visible.
+        let isScanned: Bool
+
+        init(day: Date, totalTokens: Int?, isScanned: Bool = true) {
+            self.day = day
+            self.totalTokens = totalTokens
+            self.isScanned = isScanned
+        }
 
         var id: Date {
             self.day
@@ -196,8 +206,14 @@ struct SpendDashboardModel: Equatable, Sendable {
         let hasCompleteHistory: Bool
         let isGloballyInvalid: Bool
 
+        /// Whether the scan window reached this day at all. A day outside the window is unknown
+        /// because nobody looked; a day inside it is unknown because the data itself is missing.
+        func scanned(_ day: Date) -> Bool {
+            self.coveredInterval?.contains(day) == true
+        }
+
         func tokens(on day: Date) -> Int? {
-            guard self.coveredInterval?.contains(day) == true,
+            guard self.scanned(day),
                   !self.isGloballyInvalid,
                   !self.invalidDays.contains(day)
             else { return nil }
@@ -470,7 +486,12 @@ struct SpendDashboardModel: Equatable, Sendable {
             var total = 0
             for summary in summaries {
                 guard let tokens = summary.tokens(on: day) else {
-                    return TokenActivityPoint(day: day, totalTokens: nil)
+                    // Every source must have scanned the day before an unknown counts as a real
+                    // gap. If any source never reached it, this is the edge of a scan window.
+                    return TokenActivityPoint(
+                        day: day,
+                        totalTokens: nil,
+                        isScanned: summaries.allSatisfy { $0.scanned(day) })
                 }
                 let addition = total.addingReportingOverflow(tokens)
                 total = addition.overflow ? Int.max : addition.partialValue
