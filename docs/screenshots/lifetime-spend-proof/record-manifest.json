@@ -1,0 +1,17 @@
+{
+  "allTimeCoveredDays" : 30,
+  "allTimeModelNames" : [
+    "gpt-5.4"
+  ],
+  "allTimeProviderCount" : 1,
+  "bundleIdentifier" : "com.steipete.codexbar.debug",
+  "currentWindowDays" : 30,
+  "emittedPNGs" : [
+
+  ],
+  "executableSHA256" : "838af0bb9a7a999dcccb2481f46e2425b8f16e0262b451bf74d49871d28fe039",
+  "gitCommit" : "392eb52c6",
+  "ledgerAfterSHA256" : "53691e15efae58b5cb2022b857249d1a281e853654c4669359db08fa6d4df0ae",
+  "phase" : "record",
+  "schemaVersion" : 1
+}
