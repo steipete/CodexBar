@@ -26,6 +26,17 @@ enum CodexBarEntryPoint {
         if CodexBarCoreResourceSmoke.isRequested() {
             exit(CodexBarCoreResourceSmoke.run())
         }
+        #if DEBUG
+        switch LifetimeSpendRuntimeProofConfiguration.resolve() {
+        case .notRequested:
+            break
+        case let .accepted(configuration):
+            exit(LifetimeSpendRuntimeProofRunner.execute(configuration))
+        case .rejected:
+            fputs("CodexBar lifetime proof refused its isolated root.\n", stderr)
+            exit(78)
+        }
+        #endif
         guard CodexBarLaunchMode.resolve(arguments: CommandLine.arguments) == .application else {
             return
         }
