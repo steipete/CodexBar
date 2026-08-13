@@ -188,7 +188,12 @@ enum LifetimeSpendRuntimeProofRunner {
             guard controller.model.range == .allTime,
                   controller.model.groups.count == 1,
                   controller.model.groups[0].coveredDayCount == configuration.phase.expectedCoveredDays
-            else { throw ProofError.unexpectedCoverage }
+            else {
+                throw ProofError.unexpectedCoverage(
+                    expected: configuration.phase.expectedCoveredDays,
+                    groups: controller.model.groups.count,
+                    actual: controller.model.groups.first?.coveredDayCount)
+            }
 
             let model = controller.model
             let payload = try Self.require(ShareStatsBuilder.make(model: model))
@@ -393,7 +398,7 @@ enum LifetimeSpendRuntimeProofRunner {
         case renderFailed
         case sourceFailed
         case timedOut
-        case unexpectedCoverage
+        case unexpectedCoverage(expected: Int, groups: Int, actual: Int?)
     }
 }
 #endif
