@@ -38,6 +38,10 @@ struct SpendHistoryLedgerTests {
             "2026-08-08", "2026-08-09", "2026-08-10", "2026-08-11", "2026-08-12",
         ])
         #expect(snapshot.input.snapshot.daily[1].costUSD == 0)
+        #expect(snapshot.input.snapshot.daily[1].inputTokens == 0)
+        #expect(snapshot.input.snapshot.daily[1].outputTokens == 0)
+        #expect(snapshot.input.snapshot.daily[1].totalTokens == 0)
+        #expect(snapshot.input.snapshot.daily[1].requestCount == 0)
 
         let reloaded = SpendHistoryLedger(fileURL: fileURL)
         let persisted = await reloaded.snapshots(
@@ -116,6 +120,34 @@ struct SpendHistoryLedgerTests {
         let model = try #require(snapshots.first?.input.snapshot.daily.first?.modelBreakdowns?.first)
         #expect(model.modelName == "gpt-5")
         #expect(model.costUSD == 2.5)
+    }
+
+    @Test
+    func `preserves unknown token counters for cost-only days across launches`() async throws {
+        let fileURL = Self.tempFileURL()
+        let input = Self.input(
+            updatedAt: Self.date("2026-08-12"),
+            historyDays: 1,
+            aggregate: 2.5,
+            daily: [Self.costOnlyEntry("2026-08-12", cost: 2.5, model: "gpt-5")])
+        _ = await SpendHistoryLedger(fileURL: fileURL).record(
+            inputs: [input],
+            ownership: ["codex": "owner"])
+
+        let snapshots = await SpendHistoryLedger(fileURL: fileURL).snapshots(
+            for: [input],
+            ownership: ["codex": "owner"])
+        let snapshot = try #require(snapshots.first?.input.snapshot)
+        let day = try #require(snapshot.daily.first)
+        #expect(snapshot.last30DaysTokens == nil)
+        #expect(day.inputTokens == nil)
+        #expect(day.cacheReadTokens == nil)
+        #expect(day.cacheCreationTokens == nil)
+        #expect(day.outputTokens == nil)
+        #expect(day.totalTokens == nil)
+        #expect(day.requestCount == nil)
+        #expect(day.modelBreakdowns?.first?.totalTokens == nil)
+        #expect(day.modelBreakdowns?.first?.requestCount == nil)
     }
 
     @Test
@@ -208,6 +240,84 @@ struct SpendHistoryLedgerTests {
         let permissions = try #require(attributes[.posixPermissions] as? NSNumber)
         #expect(permissions.intValue & 0o777 == 0o600)
     }
+
+    @Test
+    func `permission failure on first save leaves no unsafe ledger`() async {
+        let fileURL = Self.tempFileURL()
+        let input = Self.input(
+            updatedAt: Self.date("2026-08-12"),
+            historyDays: 1,
+            aggregate: 1,
+            daily: [Self.entry("2026-08-12", cost: 1)])
+        let ledger = SpendHistoryLedger(
+            fileURL: fileURL,
+            permissionEnforcer: { _ in false })
+
+        let snapshots = await ledger.record(
+            inputs: [input],
+            ownership: ["codex": "owner"])
+
+        #expect(snapshots.isEmpty)
+        #expect(!FileManager.default.fileExists(atPath: fileURL.path))
+    }
+
+    @Test
+    func `permission failure on update preserves verified durable bytes`() async throws {
+        let fileURL = Self.tempFileURL()
+        let first = Self.input(
+            updatedAt: Self.date("2026-08-11"),
+            historyDays: 1,
+            aggregate: 1,
+            daily: [Self.entry("2026-08-11", cost: 1)])
+        _ = await SpendHistoryLedger(fileURL: fileURL).record(
+            inputs: [first],
+            ownership: ["codex": "owner"])
+        let durableData = try Data(contentsOf: fileURL)
+
+        let second = Self.input(
+            updatedAt: Self.date("2026-08-12"),
+            historyDays: 1,
+            aggregate: 2,
+            daily: [Self.entry("2026-08-12", cost: 2)])
+        let failingLedger = SpendHistoryLedger(
+            fileURL: fileURL,
+            permissionEnforcer: { _ in false })
+        let returned = await failingLedger.record(
+            inputs: [second],
+            ownership: ["codex": "owner"])
+
+        #expect(returned.first?.input.snapshot.last30DaysCostUSD == 1)
+        #expect(try Data(contentsOf: fileURL) == durableData)
+        let reloaded = await SpendHistoryLedger(fileURL: fileURL).snapshots(
+            for: [second],
+            ownership: ["codex": "owner"])
+        #expect(reloaded.first?.input.snapshot.last30DaysCostUSD == 1)
+    }
+
+    @Test
+    func `secures a preexisting ledger with broadened permissions before loading`() async throws {
+        let fileURL = Self.tempFileURL()
+        let input = Self.input(
+            updatedAt: Self.date("2026-08-12"),
+            historyDays: 1,
+            aggregate: 1,
+            daily: [Self.entry("2026-08-12", cost: 1)])
+        _ = await SpendHistoryLedger(fileURL: fileURL).record(
+            inputs: [input],
+            ownership: ["codex": "owner"])
+        try FileManager.default.setAttributes(
+            [.posixPermissions: NSNumber(value: Int16(0o644))],
+            ofItemAtPath: fileURL.path)
+
+        let snapshots = await SpendHistoryLedger(fileURL: fileURL).snapshots(
+            for: [input],
+            ownership: ["codex": "owner"])
+
+        #expect(snapshots.first?.input.snapshot.last30DaysCostUSD == 1)
+        let attributes = try FileManager.default.attributesOfItem(atPath: fileURL.path)
+        let permissions = try #require(attributes[.posixPermissions] as? NSNumber)
+        #expect(permissions.intValue & 0o777 == 0o600)
+    }
     #endif
 
     private static func input(
@@ -217,13 +327,16 @@ struct SpendHistoryLedgerTests {
         established: Bool = true,
         daily: [CostUsageDailyReport.Entry]) -> SpendDashboardModel.ProviderInput
     {
-        SpendDashboardModel.ProviderInput(
+        let dailyTokens = daily.map(\.totalTokens)
+        return SpendDashboardModel.ProviderInput(
             provider: .codex,
             displayName: "Codex",
             snapshot: CostUsageTokenSnapshot(
                 sessionTokens: nil,
                 sessionCostUSD: nil,
-                last30DaysTokens: daily.compactMap(\.totalTokens).reduce(0, +),
+                last30DaysTokens: dailyTokens.allSatisfy { $0 != nil }
+                    ? dailyTokens.compactMap(\.self).reduce(0, +)
+                    : nil,
                 last30DaysCostUSD: aggregate,
                 historyDays: historyDays,
                 historyCoverageIsEstablished: established,
@@ -245,6 +358,23 @@ struct SpendHistoryLedgerTests {
             modelsUsed: model.map { [$0] },
             modelBreakdowns: model.map {
                 [CostUsageDailyReport.ModelBreakdown(modelName: $0, costUSD: cost, totalTokens: 3)]
+            })
+    }
+
+    private static func costOnlyEntry(
+        _ day: String,
+        cost: Double,
+        model: String? = nil) -> CostUsageDailyReport.Entry
+    {
+        CostUsageDailyReport.Entry(
+            date: day,
+            inputTokens: nil,
+            outputTokens: nil,
+            totalTokens: nil,
+            costUSD: cost,
+            modelsUsed: model.map { [$0] },
+            modelBreakdowns: model.map {
+                [CostUsageDailyReport.ModelBreakdown(modelName: $0, costUSD: cost)]
             })
     }
 

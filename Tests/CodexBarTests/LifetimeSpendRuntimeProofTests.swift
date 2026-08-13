@@ -93,5 +93,23 @@ struct LifetimeSpendRuntimeProofTests {
         ])
         #expect(resolution == .rejected)
     }
+
+    @Test
+    func `proof mode accepts only owner read write ledger permissions`() throws {
+        let ledgerURL = URL(fileURLWithPath: "/private/tmp", isDirectory: true)
+            .appendingPathComponent("codexbar-lifetime-proof-ledger.\(UUID().uuidString).json")
+        try Data("{}".utf8).write(to: ledgerURL, options: .atomic)
+        defer { try? FileManager.default.removeItem(at: ledgerURL) }
+
+        try FileManager.default.setAttributes(
+            [.posixPermissions: NSNumber(value: Int16(0o600))],
+            ofItemAtPath: ledgerURL.path)
+        #expect(LifetimeSpendRuntimeProofConfiguration.verifiedLedgerPermissions(at: ledgerURL) == "0600")
+
+        try FileManager.default.setAttributes(
+            [.posixPermissions: NSNumber(value: Int16(0o644))],
+            ofItemAtPath: ledgerURL.path)
+        #expect(LifetimeSpendRuntimeProofConfiguration.verifiedLedgerPermissions(at: ledgerURL) == nil)
+    }
 }
 #endif

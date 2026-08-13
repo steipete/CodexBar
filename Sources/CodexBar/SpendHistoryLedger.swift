@@ -7,6 +7,7 @@ import Foundation
 /// established coverage, so an "All Time" view can distinguish tracked history from a guess.
 actor SpendHistoryLedger {
     typealias FileWriter = @Sendable (Data, URL) throws -> Void
+    typealias PermissionEnforcer = @Sendable (URL) throws -> Bool
 
     struct Snapshot: Sendable {
         let input: SpendDashboardModel.ProviderInput
@@ -59,6 +60,7 @@ actor SpendHistoryLedger {
     private let fileURL: URL
     private let fileManager: FileManager
     private let fileWriter: FileWriter
+    private let permissionEnforcer: PermissionEnforcer
     private var document: Document?
 
     init(
@@ -66,11 +68,15 @@ actor SpendHistoryLedger {
         fileManager: FileManager = .default,
         fileWriter: @escaping FileWriter = { data, url in
             try data.write(to: url, options: [.atomic])
+        },
+        permissionEnforcer: @escaping PermissionEnforcer = { url in
+            try SpendHistoryLedger.enforceOwnerOnlyPermissions(at: url)
         })
     {
         self.fileURL = fileURL
         self.fileManager = fileManager
         self.fileWriter = fileWriter
+        self.permissionEnforcer = permissionEnforcer
     }
 
     /// Records complete provider windows and returns every matching tracked source.
@@ -146,7 +152,12 @@ actor SpendHistoryLedger {
 
     private func load() -> Document {
         if let document = self.document { return document }
-        let decoded = try? JSONDecoder().decode(Document.self, from: Data(contentsOf: self.fileURL))
+        let permissionsAreSafe = Self.hasOwnerOnlyPermissions(at: self.fileURL) ||
+            ((try? self.permissionEnforcer(self.fileURL)) == true &&
+                Self.hasOwnerOnlyPermissions(at: self.fileURL))
+        let decoded = permissionsAreSafe
+            ? try? JSONDecoder().decode(Document.self, from: Data(contentsOf: self.fileURL))
+            : nil
         let document = decoded?.version == Self.schemaVersion
             ? decoded ?? Document(version: Self.schemaVersion, sources: [])
             : Document(version: Self.schemaVersion, sources: [])
@@ -155,18 +166,36 @@ actor SpendHistoryLedger {
     }
 
     private func persist(_ document: Document) -> Bool {
+        let parentURL = self.fileURL.deletingLastPathComponent()
+        let candidateURL = parentURL
+            .appendingPathComponent(".\(self.fileURL.lastPathComponent).\(UUID().uuidString).tmp")
+        let backupName = ".\(self.fileURL.lastPathComponent).\(UUID().uuidString).backup"
+        let backupURL = parentURL.appendingPathComponent(backupName)
+        defer { try? self.fileManager.removeItem(at: candidateURL) }
+        defer { try? self.fileManager.removeItem(at: backupURL) }
         do {
             try self.fileManager.createDirectory(
-                at: self.fileURL.deletingLastPathComponent(),
+                at: parentURL,
                 withIntermediateDirectories: true)
             let encoder = JSONEncoder()
             encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-            try self.fileWriter(encoder.encode(document), self.fileURL)
-            #if os(macOS)
-            try? self.fileManager.setAttributes(
-                [.posixPermissions: NSNumber(value: Int16(0o600))],
-                ofItemAtPath: self.fileURL.path)
-            #endif
+            try self.fileWriter(encoder.encode(document), candidateURL)
+            guard try self.permissionEnforcer(candidateURL) else { return false }
+            if self.fileManager.fileExists(atPath: self.fileURL.path) {
+                _ = try self.fileManager.replaceItemAt(
+                    self.fileURL,
+                    withItemAt: candidateURL,
+                    backupItemName: backupName)
+            } else {
+                try self.fileManager.moveItem(at: candidateURL, to: self.fileURL)
+            }
+            guard Self.hasOwnerOnlyPermissions(at: self.fileURL) else {
+                try? self.fileManager.removeItem(at: self.fileURL)
+                if self.fileManager.fileExists(atPath: backupURL.path) {
+                    try? self.fileManager.moveItem(at: backupURL, to: self.fileURL)
+                }
+                return false
+            }
             return true
         } catch {
             // Best-effort local history must never make provider refresh fail.
@@ -269,17 +298,30 @@ actor SpendHistoryLedger {
     }
 
     private static func dayRecord(date: String, entry: CostUsageDailyReport.Entry?) -> Day {
-        Day(
+        guard let entry else {
+            return Day(
+                date: date,
+                inputTokens: 0,
+                cacheReadTokens: 0,
+                cacheCreationTokens: 0,
+                outputTokens: 0,
+                totalTokens: 0,
+                requestCount: 0,
+                cost: 0,
+                modelsUsed: nil,
+                modelBreakdowns: [])
+        }
+        return Day(
             date: date,
-            inputTokens: entry?.inputTokens ?? 0,
-            cacheReadTokens: entry?.cacheReadTokens ?? 0,
-            cacheCreationTokens: entry?.cacheCreationTokens ?? 0,
-            outputTokens: entry?.outputTokens ?? 0,
-            totalTokens: entry?.totalTokens ?? 0,
-            requestCount: entry?.requestCount ?? 0,
-            cost: entry?.costUSD ?? 0,
-            modelsUsed: entry?.modelsUsed,
-            modelBreakdowns: entry?.modelBreakdowns?.map(self.modelRecord) ?? [])
+            inputTokens: entry.inputTokens,
+            cacheReadTokens: entry.cacheReadTokens,
+            cacheCreationTokens: entry.cacheCreationTokens,
+            outputTokens: entry.outputTokens,
+            totalTokens: entry.totalTokens,
+            requestCount: entry.requestCount,
+            cost: entry.costUSD ?? 0,
+            modelsUsed: entry.modelsUsed,
+            modelBreakdowns: entry.modelBreakdowns?.map(self.modelRecord) ?? [])
     }
 
     private static func modelRecord(_ model: CostUsageDailyReport.ModelBreakdown) -> Model {
@@ -381,6 +423,28 @@ actor SpendHistoryLedger {
             ? TimeZone(secondsFromGMT: 0) ?? .gmt
             : .current
         return calendar
+    }
+
+    private static func enforceOwnerOnlyPermissions(at url: URL) throws -> Bool {
+        #if os(macOS)
+        try FileManager.default.setAttributes(
+            [.posixPermissions: NSNumber(value: Int16(0o600))],
+            ofItemAtPath: url.path)
+        return self.hasOwnerOnlyPermissions(at: url)
+        #else
+        return true
+        #endif
+    }
+
+    private static func hasOwnerOnlyPermissions(at url: URL) -> Bool {
+        #if os(macOS)
+        guard let attributes = try? FileManager.default.attributesOfItem(atPath: url.path),
+              let permissions = attributes[.posixPermissions] as? NSNumber
+        else { return false }
+        return permissions.intValue & 0o777 == 0o600
+        #else
+        return true
+        #endif
     }
 
     nonisolated static func defaultFileURL() -> URL {

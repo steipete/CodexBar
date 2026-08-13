@@ -48,14 +48,43 @@ run_phase() {
     "$APP_BINARY"
 }
 
+assert_ledger_permissions() {
+  local permissions
+  permissions=$(/usr/bin/stat -f '%Lp' "$PROOF_ROOT/spend-history.json")
+  if [[ "$permissions" != "600" ]]; then
+    echo "ERROR: proof ledger permissions are $permissions, expected 600" >&2
+    exit 1
+  fi
+}
+
+assert_manifest_permissions() {
+  local manifest="$1"
+  local permissions
+  local schema_version
+  schema_version=$(/usr/bin/plutil -extract schemaVersion raw -o - "$manifest")
+  if [[ "$schema_version" != "2" ]]; then
+    echo "ERROR: proof manifest schemaVersion is $schema_version, expected 2" >&2
+    exit 1
+  fi
+  permissions=$(/usr/bin/plutil -extract ledgerPermissions raw -o - "$manifest")
+  if [[ "$permissions" != "0600" ]]; then
+    echo "ERROR: proof manifest ledgerPermissions is $permissions, expected 0600" >&2
+    exit 1
+  fi
+}
+
 run_phase record
+assert_ledger_permissions
 run_phase reload
+assert_ledger_permissions
 
 test -s "$PROOF_ROOT/output/record-manifest.json"
 test -s "$PROOF_ROOT/output/reload-manifest.json"
 test -s "$PROOF_ROOT/output/all-time-dashboard.png"
 test -s "$PROOF_ROOT/output/all-time-share-stats.png"
 test "$(find "$PROOF_ROOT/output" -name '*.png' -type f | wc -l | tr -d ' ')" = 2
+assert_manifest_permissions "$PROOF_ROOT/output/record-manifest.json"
+assert_manifest_permissions "$PROOF_ROOT/output/reload-manifest.json"
 
 if rg -i '@|/Users/|/home/|akshay|example\.com' "$PROOF_ROOT/output"/*.json; then
   echo "ERROR: proof manifest privacy check failed" >&2

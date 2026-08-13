@@ -115,6 +115,17 @@ struct LifetimeSpendRuntimeProofConfiguration: Equatable, Sendable {
         return .accepted(Self(root: resolvedRoot, phase: phase, runID: sentinel.runID))
     }
 
+    static func verifiedLedgerPermissions(
+        at url: URL,
+        fileManager: FileManager = .default) -> String?
+    {
+        guard let attributes = try? fileManager.attributesOfItem(atPath: url.path),
+              let permissions = attributes[.posixPermissions] as? NSNumber,
+              permissions.intValue & 0o7777 == 0o600
+        else { return nil }
+        return "0600"
+    }
+
     private static func isSymbolicLink(_ path: String) -> Bool {
         var metadata = stat()
         guard lstat(path, &metadata) == 0 else { return true }
@@ -132,6 +143,7 @@ enum LifetimeSpendRuntimeProofRunner {
         let executableSHA256: String
         let ledgerBeforeSHA256: String?
         let ledgerAfterSHA256: String
+        let ledgerPermissions: String
         let currentWindowDays: Int
         let allTimeCoveredDays: Int
         let allTimeProviderCount: Int
@@ -200,14 +212,18 @@ enum LifetimeSpendRuntimeProofRunner {
             guard let ledgerAfter = Self.sha256(at: configuration.ledgerURL) else {
                 throw ProofError.missingRecordedLedger
             }
+            guard let ledgerPermissions = LifetimeSpendRuntimeProofConfiguration.verifiedLedgerPermissions(
+                at: configuration.ledgerURL)
+            else { throw ProofError.insecureLedgerPermissions }
             let manifest = Manifest(
-                schemaVersion: 1,
+                schemaVersion: 2,
                 phase: configuration.phase,
                 bundleIdentifier: Bundle.main.bundleIdentifier ?? "unknown",
                 gitCommit: Bundle.main.object(forInfoDictionaryKey: "CodexGitCommit") as? String ?? "unknown",
                 executableSHA256: Self.sha256(at: URL(fileURLWithPath: CommandLine.arguments[0])) ?? "unknown",
                 ledgerBeforeSHA256: ledgerBefore,
                 ledgerAfterSHA256: ledgerAfter,
+                ledgerPermissions: ledgerPermissions,
                 currentWindowDays: 30,
                 allTimeCoveredDays: model.groups[0].coveredDayCount,
                 allTimeProviderCount: model.groups[0].providers.count,
@@ -371,6 +387,7 @@ enum LifetimeSpendRuntimeProofRunner {
     }
 
     private enum ProofError: Error {
+        case insecureLedgerPermissions
         case missingRecordedLedger
         case privacyViolation
         case renderFailed

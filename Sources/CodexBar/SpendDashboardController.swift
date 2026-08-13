@@ -1170,12 +1170,73 @@ final class SpendDashboardController {
     }
 
     private func rebuildModel() {
-        let inputs = self.selectedRange == .allTime ? self.ledgerInputs : self.loadedInputs
+        let inputs = self.selectedRange == .allTime ? self.allTimeInputs() : self.loadedInputs
         self.model = SpendDashboardModel.build(
             inputs: inputs,
             range: self.selectedRange,
             now: self.loadedAt,
             preferredCurrencyCode: self.configuration?.preferredCurrencyCode ?? "auto")
+    }
+
+    private func allTimeInputs() -> [SpendDashboardModel.ProviderInput] {
+        let liveInputsByID = Dictionary(uniqueKeysWithValues: self.loadedInputs.map { ($0.id, $0) })
+        return self.ledgerInputs.map { ledgerInput in
+            guard Self.hasCaptureGaps(ledgerInput),
+                  let liveInput = liveInputsByID[ledgerInput.id],
+                  let tokenActivityCache = Self.establishedTokenActivity(from: liveInput)
+            else { return ledgerInput }
+            return SpendDashboardModel.ProviderInput(
+                id: ledgerInput.id,
+                provider: ledgerInput.provider,
+                displayName: ledgerInput.displayName,
+                modelProviderName: ledgerInput.modelProviderName,
+                snapshot: ledgerInput.snapshot,
+                tokenActivityCache: tokenActivityCache,
+                trackedCoverage: ledgerInput.trackedCoverage)
+        }
+    }
+
+    private static func hasCaptureGaps(_ input: SpendDashboardModel.ProviderInput) -> Bool {
+        guard let coverage = input.trackedCoverage else { return false }
+        var calendar = Calendar(identifier: .gregorian)
+        // Provider-specific by design: Mistral's persisted activity buckets are keyed by UTC calendar day.
+        calendar.timeZone = input.provider == .mistral
+            ? TimeZone(secondsFromGMT: 0) ?? .gmt
+            : .current
+        let start = calendar.startOfDay(for: coverage.start)
+        let end = calendar.startOfDay(for: coverage.end)
+        let span = (calendar.dateComponents([.day], from: start, to: end).day ?? 0) + 1
+        return coverage.coveredDayCount < max(0, span)
+    }
+
+    private static func establishedTokenActivity(
+        from input: SpendDashboardModel.ProviderInput) -> CostUsageTokenActivityCache?
+    {
+        if let tokenActivityCache = input.tokenActivityCache { return tokenActivityCache }
+        let snapshot = input.snapshot
+        guard snapshot.historyCoverageIsEstablished, snapshot.historyDays > 0 else { return nil }
+        var calendar = Calendar(identifier: .gregorian)
+        // Provider-specific by design: Mistral's live activity coverage is expressed in UTC day keys.
+        calendar.timeZone = input.provider == .mistral
+            ? TimeZone(secondsFromGMT: 0) ?? .gmt
+            : .current
+        let end = calendar.startOfDay(for: snapshot.updatedAt)
+        guard let start = calendar.date(byAdding: .day, value: -(snapshot.historyDays - 1), to: end) else {
+            return nil
+        }
+        return CostUsageTokenActivityCache(
+            daily: snapshot.daily,
+            coverageSinceKey: Self.dayKey(start, calendar: calendar),
+            coverageUntilKey: Self.dayKey(end, calendar: calendar))
+    }
+
+    private static func dayKey(_ date: Date, calendar: Calendar) -> String {
+        let components = calendar.dateComponents([.year, .month, .day], from: date)
+        return String(
+            format: "%04d-%02d-%02d",
+            components.year ?? 0,
+            components.month ?? 0,
+            components.day ?? 0)
     }
 
     private func refreshRetainedCodexDisplayNames(_ displayNamesByID: [String: String]) {
