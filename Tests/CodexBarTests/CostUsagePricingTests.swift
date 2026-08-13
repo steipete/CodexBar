@@ -2,6 +2,7 @@ import Foundation
 import Testing
 @testable import CodexBarCore
 
+// swiftlint:disable:next type_body_length
 struct CostUsagePricingTests {
     @Test
     func `normalizes codex model variants exactly`() {
@@ -19,6 +20,10 @@ struct CostUsagePricingTests {
         #expect(CostUsagePricing.normalizeCodexModel("openai/gpt-5.6-terra") == "gpt-5.6-terra")
         #expect(CostUsagePricing.normalizeCodexModel("gpt-5.6-luna") == "gpt-5.6-luna")
         #expect(CostUsagePricing.normalizeCodexModel("gpt-5.6") == "gpt-5.6-sol")
+        #expect(CostUsagePricing.normalizeCodexModel("gpt-daybreak-blue-latest") == "gpt-daybreak-blue-latest")
+        #expect(CostUsagePricing.normalizeCodexModel("gpt-daybreak-red-latest") == "gpt-daybreak-red-latest")
+        #expect(CostUsagePricing.normalizeCodexModel("daybreak-blue-latest") == "gpt-5.6-sol")
+        #expect(CostUsagePricing.normalizeCodexModel("daybreak-red-latest") == "gpt-5.6-cyber")
         // Fictitious dated suffixes only exercise normalize stripping (not released snapshot IDs).
         #expect(CostUsagePricing.normalizeCodexModel("gpt-5.6-sol-2099-01-01") == "gpt-5.6-sol")
         #expect(CostUsagePricing.normalizeCodexModel("openai/gpt-5.6-terra-2099-01-01") == "gpt-5.6-terra")
@@ -140,6 +145,185 @@ struct CostUsagePricingTests {
         #expect(luna == (90.0 * 2e-7) + (10.0 * 2e-8) + (5.0 * 1.2e-6))
         // Unsuffixed gpt-5.6 alias routes to Sol.
         #expect(alias == sol)
+    }
+
+    @Test
+    func `local daybreak blue preserves its analytics identity and has no API Fast price`() throws {
+        let root = try Self.cacheRoot()
+        let shortContext = CostUsagePricing.codexCostUSD(
+            model: "gpt-daybreak-blue-latest",
+            inputTokens: 100,
+            cachedInputTokens: 10,
+            outputTokens: 5,
+            cacheWriteInputTokens: 20,
+            modelsDevCacheRoot: root)
+        let longContext = CostUsagePricing.codexCostUSD(
+            model: "daybreak-blue-latest",
+            inputTokens: 272_001,
+            cachedInputTokens: 10,
+            outputTokens: 10,
+            cacheWriteInputTokens: 20,
+            modelsDevCacheRoot: root)
+        let fast = CostUsagePricing.codexPriorityCostUSD(
+            model: "gpt-daybreak-blue-latest",
+            inputTokens: 100,
+            cachedInputTokens: 10,
+            cacheWriteInputTokens: 20,
+            outputTokens: 5,
+            modelsDevCacheRoot: root)
+
+        #expect(shortContext == (70.0 * 5e-6) + (10.0 * 5e-7) + (20.0 * 6.25e-6) + (5.0 * 3e-5))
+        #expect(longContext == (271_971.0 * 1e-5) + (10.0 * 1e-6) + (20.0 * 1.25e-5) + (10.0 * 4.5e-5))
+        #expect(fast == nil)
+    }
+
+    @Test
+    func `daybreak red rejects undocumented cache write and long context pricing`() throws {
+        let root = try Self.cacheRoot()
+        let shortContext = CostUsagePricing.codexCostUSD(
+            model: "gpt-daybreak-red-latest",
+            inputTokens: 100,
+            cachedInputTokens: 10,
+            outputTokens: 5,
+            cacheWriteInputTokens: 20,
+            modelsDevCacheRoot: root)
+        let longContext = CostUsagePricing.codexCostUSD(
+            model: "daybreak-red-latest",
+            inputTokens: 272_001,
+            cachedInputTokens: 10,
+            outputTokens: 10,
+            cacheWriteInputTokens: 20,
+            modelsDevCacheRoot: root)
+        let fast = CostUsagePricing.codexPriorityCostUSD(
+            model: "gpt-daybreak-red-latest",
+            inputTokens: 100,
+            cachedInputTokens: 10,
+            cacheWriteInputTokens: 20,
+            outputTokens: 5,
+            modelsDevCacheRoot: root)
+
+        #expect(shortContext == nil)
+        #expect(longContext == nil)
+        #expect(fast == nil)
+    }
+
+    @Test
+    func `cyber and local daybreak red share documented-only fallback behavior`() throws {
+        let root = try Self.cacheRoot()
+        for model in ["gpt-5.6-cyber", "gpt-daybreak-red-latest"] {
+            #expect(CostUsagePricing.codexCostUSD(
+                model: model,
+                inputTokens: 100,
+                cachedInputTokens: 10,
+                outputTokens: 5,
+                cacheWriteInputTokens: 20,
+                modelsDevCacheRoot: root) == nil)
+            #expect(CostUsagePricing.codexCostUSD(
+                model: model,
+                inputTokens: 272_001,
+                cachedInputTokens: 0,
+                outputTokens: 5,
+                modelsDevCacheRoot: root) == nil)
+        }
+    }
+
+    @Test
+    func `exact models dev red pricing supplies only documented dimensions`() throws {
+        let root = try Self.seedModelsDevCache("""
+        {
+          "openai": {
+            "id": "openai",
+            "models": {
+              "gpt-daybreak-red-latest": {
+                "id": "gpt-daybreak-red-latest",
+                "cost": {
+                  "input": 12.5,
+                  "output": 75,
+                  "cache_read": 1.25,
+                  "cache_write": 15.625,
+                  "context_over_200k": {
+                    "input": 25,
+                    "output": 112.5,
+                    "cache_read": 2.5,
+                    "cache_write": 31.25
+                  }
+                }
+              }
+            }
+          }
+        }
+        """)
+
+        let shortContext = CostUsagePricing.codexCostUSD(
+            model: "gpt-daybreak-red-latest",
+            inputTokens: 100,
+            cachedInputTokens: 10,
+            outputTokens: 5,
+            cacheWriteInputTokens: 20,
+            modelsDevCacheRoot: root)
+        let longContext = CostUsagePricing.codexCostUSD(
+            model: "gpt-daybreak-red-latest",
+            inputTokens: 272_001,
+            cachedInputTokens: 10,
+            outputTokens: 10,
+            cacheWriteInputTokens: 20,
+            modelsDevCacheRoot: root)
+
+        #expect(shortContext == (70.0 * 12.5e-6) + (10.0 * 1.25e-6) + (20.0 * 15.625e-6) + (5.0 * 75e-6))
+        #expect(longContext == (271_971.0 * 25e-6) + (10.0 * 2.5e-6) + (20.0 * 31.25e-6) + (10.0 * 112.5e-6))
+    }
+
+    @Test
+    func `daybreak models dev exact aliases override bundled fallback`() throws {
+        let root = try Self.seedModelsDevCache("""
+        {
+          "openai": {
+            "id": "openai",
+            "models": {
+              "gpt-daybreak-blue-latest": {
+                "id": "gpt-daybreak-blue-latest",
+                "cost": { "input": 7, "output": 31, "cache_read": 0.7, "cache_write": 8.75 }
+              }
+            }
+          }
+        }
+        """)
+
+        let cost = CostUsagePricing.codexCostUSD(
+            model: "gpt-daybreak-blue-latest",
+            inputTokens: 100,
+            cachedInputTokens: 10,
+            outputTokens: 5,
+            cacheWriteInputTokens: 20,
+            modelsDevCacheRoot: root)
+
+        #expect(cost == (70.0 * 7e-6) + (10.0 * 0.7e-6) + (20.0 * 8.75e-6) + (5.0 * 31e-6))
+    }
+
+    @Test
+    func `provider qualified daybreak blue models dev record takes exact precedence`() throws {
+        let root = try Self.seedModelsDevCache("""
+        {
+          "openai": {
+            "id": "openai",
+            "models": {
+              "gpt-daybreak-blue-latest": {
+                "id": "gpt-daybreak-blue-latest",
+                "cost": { "input": 7, "output": 31 }
+              }
+            }
+          }
+        }
+        """)
+
+        let cost = CostUsagePricing.codexCostUSD(
+            model: "openai/gpt-daybreak-blue-latest",
+            inputTokens: 100,
+            cachedInputTokens: 0,
+            outputTokens: 5,
+            modelsDevCacheRoot: root)
+
+        #expect(cost == (100.0 * 7e-6) + (5.0 * 31e-6))
     }
 
     @Test

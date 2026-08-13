@@ -18,6 +18,11 @@ enum CostUsagePricing {
         let outputCostPerTokenAboveThreshold: Double?
         let cacheReadInputCostPerTokenAboveThreshold: Double?
         let cacheWriteInputCostPerTokenAboveThreshold: Double?
+        /// Some models publish only standard rates. Do not infer undocumented cache-write or
+        /// long-context prices from the standard input rate for those models.
+        let allowsCacheWriteInputFallback: Bool
+        let requiresExplicitLongContextPricing: Bool
+        let hasExplicitLongContextPricing: Bool
 
         init(
             inputCostPerToken: Double,
@@ -29,7 +34,10 @@ enum CostUsagePricing {
             inputCostPerTokenAboveThreshold: Double? = nil,
             outputCostPerTokenAboveThreshold: Double? = nil,
             cacheReadInputCostPerTokenAboveThreshold: Double? = nil,
-            cacheWriteInputCostPerTokenAboveThreshold: Double? = nil)
+            cacheWriteInputCostPerTokenAboveThreshold: Double? = nil,
+            allowsCacheWriteInputFallback: Bool = true,
+            requiresExplicitLongContextPricing: Bool = false,
+            hasExplicitLongContextPricing: Bool = false)
         {
             self.inputCostPerToken = inputCostPerToken
             self.outputCostPerToken = outputCostPerToken
@@ -41,6 +49,9 @@ enum CostUsagePricing {
             self.outputCostPerTokenAboveThreshold = outputCostPerTokenAboveThreshold
             self.cacheReadInputCostPerTokenAboveThreshold = cacheReadInputCostPerTokenAboveThreshold
             self.cacheWriteInputCostPerTokenAboveThreshold = cacheWriteInputCostPerTokenAboveThreshold
+            self.allowsCacheWriteInputFallback = allowsCacheWriteInputFallback
+            self.requiresExplicitLongContextPricing = requiresExplicitLongContextPricing
+            self.hasExplicitLongContextPricing = hasExplicitLongContextPricing
         }
     }
 
@@ -189,6 +200,19 @@ enum CostUsagePricing {
             outputCostPerTokenAboveThreshold: 4.5e-5,
             cacheReadInputCostPerTokenAboveThreshold: 1e-6,
             cacheWriteInputCostPerTokenAboveThreshold: 1.25e-5),
+        // Daybreak aliases may be retargeted. Keep the locally observed canonical Blue model
+        // separate for analytics while retaining the complete published Sol pricing tuple.
+        "gpt-daybreak-blue-latest": CodexPricing(
+            inputCostPerToken: 5e-6,
+            outputCostPerToken: 3e-5,
+            cacheReadInputCostPerToken: 5e-7,
+            displayLabel: nil,
+            cacheWriteInputCostPerToken: 6.25e-6,
+            thresholdTokens: 272_000,
+            inputCostPerTokenAboveThreshold: 1e-5,
+            outputCostPerTokenAboveThreshold: 4.5e-5,
+            cacheReadInputCostPerTokenAboveThreshold: 1e-6,
+            cacheWriteInputCostPerTokenAboveThreshold: 1.25e-5),
         "gpt-5.6-terra": CodexPricing(
             inputCostPerToken: 2e-6,
             outputCostPerToken: 1.2e-5,
@@ -211,6 +235,24 @@ enum CostUsagePricing {
             outputCostPerTokenAboveThreshold: 1.8e-6,
             cacheReadInputCostPerTokenAboveThreshold: 4e-8,
             cacheWriteInputCostPerTokenAboveThreshold: 5e-7),
+        // GPT-5.6 Cyber / Daybreak Red. Public rates only; cache-write, long-context,
+        // and API Fast are undocumented and stay nil.
+        "gpt-5.6-cyber": CodexPricing(
+            inputCostPerToken: 1.25e-5,
+            outputCostPerToken: 7.5e-5,
+            cacheReadInputCostPerToken: 1.25e-6,
+            displayLabel: nil,
+            allowsCacheWriteInputFallback: false,
+            requiresExplicitLongContextPricing: true),
+        // Keep the local canonical Red model distinct for analytics. Public documentation has no
+        // cache-write, long-context, Priority, or Fast rates for Daybreak Red.
+        "gpt-daybreak-red-latest": CodexPricing(
+            inputCostPerToken: 1.25e-5,
+            outputCostPerToken: 7.5e-5,
+            cacheReadInputCostPerToken: 1.25e-6,
+            displayLabel: nil,
+            allowsCacheWriteInputFallback: false,
+            requiresExplicitLongContextPricing: true),
     ]
 
     static func codexBuiltInPricingFingerprint() -> String {
@@ -232,6 +274,9 @@ enum CostUsagePricing {
                 self.optionalPricingFingerprint(pricing.outputCostPerTokenAboveThreshold),
                 self.optionalPricingFingerprint(pricing.cacheReadInputCostPerTokenAboveThreshold),
                 self.optionalPricingFingerprint(pricing.cacheWriteInputCostPerTokenAboveThreshold),
+                String(pricing.allowsCacheWriteInputFallback),
+                String(pricing.requiresExplicitLongContextPricing),
+                String(pricing.hasExplicitLongContextPricing),
                 self.optionalPricingFingerprint(self.codexAPIFastMultiplier(model: model)),
             ].joined(separator: "|"))
         }
@@ -434,6 +479,18 @@ enum CostUsagePricing {
             return "gpt-5.6-sol"
         }
 
+        // Unprefixed API aliases resolve to their documented model. The gpt-prefixed names are
+        // local Codex canonical identities, retained for separate analytics because aliases may
+        // be retargeted.
+        switch trimmed {
+        case "daybreak-blue-latest":
+            return "gpt-5.6-sol"
+        case "daybreak-red-latest":
+            return "gpt-5.6-cyber"
+        default:
+            break
+        }
+
         if self.codex[trimmed] != nil {
             return trimmed
         }
@@ -541,11 +598,12 @@ enum CostUsagePricing {
     {
         let key = self.normalizeCodexModel(model)
         guard key != self.codexUnattributedModel else { return nil }
-        let modelsDevLookup = self.modelsDevLookup(
+        let exactModelsDevLookup = self.modelsDevLookup(
             providerID: self.codexModelsDevProviderID,
             model: model,
             catalog: modelsDevCatalog,
             cacheRoot: modelsDevCacheRoot)
+        let modelsDevLookup = exactModelsDevLookup
             ?? (model == key ? nil : self.modelsDevLookup(
                 providerID: self.codexModelsDevProviderID,
                 model: key,
@@ -569,6 +627,10 @@ enum CostUsagePricing {
                     ?? lookup.pricing.inputCostPerTokenAboveThreshold
                     ?? lookup.pricing.inputCostPerToken
                     : bundledLongContext?.cacheWriteInputCostPerTokenAboveThreshold)
+            let hasExplicitLongContextPricing = lookup.pricing.inputCostPerTokenAboveThreshold != nil
+                || lookup.pricing.outputCostPerTokenAboveThreshold != nil
+                || lookup.pricing.cacheReadInputCostPerTokenAboveThreshold != nil
+                || lookup.pricing.cacheCreationInputCostPerTokenAboveThreshold != nil
             return CodexPricing(
                 inputCostPerToken: lookup.pricing.inputCostPerToken,
                 outputCostPerToken: lookup.pricing.outputCostPerToken,
@@ -583,7 +645,11 @@ enum CostUsagePricing {
                 outputCostPerTokenAboveThreshold: lookup.pricing.outputCostPerTokenAboveThreshold
                     ?? bundledLongContext?.outputCostPerTokenAboveThreshold,
                 cacheReadInputCostPerTokenAboveThreshold: cacheReadAboveThreshold,
-                cacheWriteInputCostPerTokenAboveThreshold: cacheWriteAboveThreshold)
+                cacheWriteInputCostPerTokenAboveThreshold: cacheWriteAboveThreshold,
+                allowsCacheWriteInputFallback: lookup.pricing.cacheCreationInputCostPerToken != nil
+                    || (bundled?.allowsCacheWriteInputFallback ?? true),
+                requiresExplicitLongContextPricing: bundled?.requiresExplicitLongContextPricing ?? false,
+                hasExplicitLongContextPricing: hasExplicitLongContextPricing)
         }
 
         guard let pricing = self.codex[key] else { return nil }
@@ -620,7 +686,11 @@ enum CostUsagePricing {
     /// Current public API Fast rates normalized against Standard API pricing. These are deliberately
     /// distinct from ChatGPT/Codex Fast credit multipliers, which do not represent a USD charge.
     static func codexAPIFastMultiplier(model: String) -> Double? {
-        switch self.normalizeCodexModel(model) {
+        let trimmed = model.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed == "gpt-daybreak-blue-latest" {
+            return nil
+        }
+        return switch self.normalizeCodexModel(model) {
         case "gpt-5.4", "gpt-5.4-mini", "gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna": 2
         case "gpt-5.5": 2.5
         default: nil
@@ -632,7 +702,7 @@ enum CostUsagePricing {
         inputTokens: Int,
         cachedInputTokens: Int,
         cacheWriteInputTokens: Int = 0,
-        outputTokens: Int) -> Double
+        outputTokens: Int) -> Double?
     {
         // Codex/OpenAI reports `input_tokens` as the total prompt size, with cached reads as a
         // SUBSET of it. Cache writes (when tracked separately, e.g. Pi) are also a subset of the
@@ -642,6 +712,18 @@ enum CostUsagePricing {
         let remainingAfterCache = totalInput - cached
         let cacheWrite = min(max(0, cacheWriteInputTokens), remainingAfterCache)
         let nonCached = remainingAfterCache - cacheWrite
+        if max(0, cacheWriteInputTokens) > 0,
+           pricing.cacheWriteInputCostPerToken == nil,
+           !pricing.allowsCacheWriteInputFallback
+        {
+            return nil
+        }
+        if totalInput > self.codexPriorityInputTokenLimit,
+           pricing.requiresExplicitLongContextPricing,
+           !pricing.hasExplicitLongContextPricing
+        {
+            return nil
+        }
         let cachedRate = pricing.cacheReadInputCostPerToken ?? pricing.inputCostPerToken
 
         let usesLongContextRates = pricing.thresholdTokens.map { totalInput > $0 } ?? false
