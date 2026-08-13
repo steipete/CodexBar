@@ -239,7 +239,7 @@ enum LifetimeSpendRuntimeProofRunner {
                 options: .atomic)
             return 0
         } catch {
-            fputs("CodexBar lifetime proof failed closed.\n", stderr)
+            fputs("CodexBar lifetime proof failed closed: \(String(describing: error))\n", stderr)
             return 1
         }
     }
