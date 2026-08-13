@@ -175,6 +175,8 @@ struct CostUsagePricingTests {
         #expect(shortContext == (70.0 * 5e-6) + (10.0 * 5e-7) + (20.0 * 6.25e-6) + (5.0 * 3e-5))
         #expect(longContext == (271_971.0 * 1e-5) + (10.0 * 1e-6) + (20.0 * 1.25e-5) + (10.0 * 4.5e-5))
         #expect(fast == nil)
+        #expect(CostUsagePricing.codexAPIFastMultiplier(model: "openai/gpt-daybreak-blue-latest") == nil)
+        #expect(CostUsagePricing.codexAPIFastMultiplier(model: "daybreak-blue-latest") == 2)
     }
 
     @Test
@@ -271,6 +273,44 @@ struct CostUsagePricingTests {
 
         #expect(shortContext == (70.0 * 12.5e-6) + (10.0 * 1.25e-6) + (20.0 * 15.625e-6) + (5.0 * 75e-6))
         #expect(longContext == (271_971.0 * 25e-6) + (10.0 * 2.5e-6) + (20.0 * 31.25e-6) + (10.0 * 112.5e-6))
+    }
+
+    @Test
+    func `red models dev empty long context block rejects at its resolved threshold`() throws {
+        let root = try Self.seedModelsDevCache("""
+        {
+          "openai": {
+            "id": "openai",
+            "models": {
+              "gpt-daybreak-red-latest": {
+                "id": "gpt-daybreak-red-latest",
+                "cost": {
+                  "input": 12.5,
+                  "output": 75,
+                  "cache_read": 1.25,
+                  "context_over_200k": {}
+                }
+              }
+            }
+          }
+        }
+        """)
+
+        let belowThreshold = CostUsagePricing.codexCostUSD(
+            model: "gpt-daybreak-red-latest",
+            inputTokens: 200_000,
+            cachedInputTokens: 10,
+            outputTokens: 5,
+            modelsDevCacheRoot: root)
+        let aboveThreshold = CostUsagePricing.codexCostUSD(
+            model: "gpt-daybreak-red-latest",
+            inputTokens: 200_001,
+            cachedInputTokens: 10,
+            outputTokens: 5,
+            modelsDevCacheRoot: root)
+
+        #expect(belowThreshold == (199_990.0 * 12.5e-6) + (10.0 * 1.25e-6) + (5.0 * 75e-6))
+        #expect(aboveThreshold == nil)
     }
 
     @Test

@@ -686,8 +686,9 @@ enum CostUsagePricing {
     /// Current public API Fast rates normalized against Standard API pricing. These are deliberately
     /// distinct from ChatGPT/Codex Fast credit multipliers, which do not represent a USD charge.
     static func codexAPIFastMultiplier(model: String) -> Double? {
-        let trimmed = model.trimmingCharacters(in: .whitespacesAndNewlines)
-        if trimmed == "gpt-daybreak-blue-latest" {
+        // Keep the local Blue identity ineligible even when usage qualifies it with `openai/`.
+        // The public, unprefixed Daybreak alias deliberately normalizes to Sol instead.
+        if self.normalizeCodexModel(model) == "gpt-daybreak-blue-latest" {
             return nil
         }
         return switch self.normalizeCodexModel(model) {
@@ -718,15 +719,16 @@ enum CostUsagePricing {
         {
             return nil
         }
-        if totalInput > self.codexPriorityInputTokenLimit,
-           pricing.requiresExplicitLongContextPricing,
+        let cachedRate = pricing.cacheReadInputCostPerToken ?? pricing.inputCostPerToken
+
+        let usesLongContextRates = pricing.thresholdTokens.map { totalInput > $0 } ?? false
+        let unsupportedLongContextThreshold = pricing.thresholdTokens ?? self.codexPriorityInputTokenLimit
+        if pricing.requiresExplicitLongContextPricing,
+           totalInput > unsupportedLongContextThreshold,
            !pricing.hasExplicitLongContextPricing
         {
             return nil
         }
-        let cachedRate = pricing.cacheReadInputCostPerToken ?? pricing.inputCostPerToken
-
-        let usesLongContextRates = pricing.thresholdTokens.map { totalInput > $0 } ?? false
         let inputRate = usesLongContextRates
             ? pricing.inputCostPerTokenAboveThreshold ?? pricing.inputCostPerToken
             : pricing.inputCostPerToken
