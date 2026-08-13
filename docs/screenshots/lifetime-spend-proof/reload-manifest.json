@@ -10,10 +10,11 @@
     "all-time-dashboard.png",
     "all-time-share-stats.png"
   ],
-  "executableSHA256" : "838af0bb9a7a999dcccb2481f46e2425b8f16e0262b451bf74d49871d28fe039",
-  "gitCommit" : "392eb52c6",
-  "ledgerAfterSHA256" : "0831d94056ed3275c9c451959a0c5acc9fd810fc77e2c2f0005ce2876f08811e",
-  "ledgerBeforeSHA256" : "53691e15efae58b5cb2022b857249d1a281e853654c4669359db08fa6d4df0ae",
+  "executableSHA256" : "bdb2c5709bc791c01c954fa92a172da024a204a3974c0b126c1c4e805932b3d0",
+  "gitCommit" : "63dc8594d",
+  "ledgerAfterSHA256" : "a136c1e39a84e5846e6bfe6ce4cc1081effac58ffcafa1967bcae98755c11881",
+  "ledgerBeforeSHA256" : "e3e6595544de21a620a29de409babe498c45c02e3d9ce09f04947a5094dd151b",
+  "ledgerPermissions" : "0600",
   "phase" : "reload",
-  "schemaVersion" : 1
+  "schemaVersion" : 2
 }

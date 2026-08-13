@@ -9,9 +9,10 @@
   "emittedPNGs" : [
 
   ],
-  "executableSHA256" : "838af0bb9a7a999dcccb2481f46e2425b8f16e0262b451bf74d49871d28fe039",
-  "gitCommit" : "392eb52c6",
-  "ledgerAfterSHA256" : "53691e15efae58b5cb2022b857249d1a281e853654c4669359db08fa6d4df0ae",
+  "executableSHA256" : "bdb2c5709bc791c01c954fa92a172da024a204a3974c0b126c1c4e805932b3d0",
+  "gitCommit" : "63dc8594d",
+  "ledgerAfterSHA256" : "e3e6595544de21a620a29de409babe498c45c02e3d9ce09f04947a5094dd151b",
+  "ledgerPermissions" : "0600",
   "phase" : "record",
-  "schemaVersion" : 1
+  "schemaVersion" : 2
 }
