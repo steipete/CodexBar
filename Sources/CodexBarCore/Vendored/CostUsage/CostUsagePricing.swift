@@ -715,15 +715,18 @@ enum CostUsagePricing {
         let remainingAfterCache = totalInput - cached
         let cacheWrite = min(max(0, cacheWriteInputTokens), remainingAfterCache)
         let nonCached = remainingAfterCache - cacheWrite
+        let usesLongContextRates = pricing.thresholdTokens.map { totalInput > $0 } ?? false
+        let applicableCacheWriteRate = usesLongContextRates
+            ? pricing.cacheWriteInputCostPerTokenAboveThreshold ?? pricing.cacheWriteInputCostPerToken
+            : pricing.cacheWriteInputCostPerToken
         if max(0, cacheWriteInputTokens) > 0,
-           pricing.cacheWriteInputCostPerToken == nil,
+           applicableCacheWriteRate == nil,
            !pricing.allowsCacheWriteInputFallback
         {
             return nil
         }
         let cachedRate = pricing.cacheReadInputCostPerToken ?? pricing.inputCostPerToken
 
-        let usesLongContextRates = pricing.thresholdTokens.map { totalInput > $0 } ?? false
         let unsupportedLongContextThreshold = pricing.thresholdTokens ?? self.codexPriorityInputTokenLimit
         if pricing.requiresExplicitLongContextPricing,
            totalInput > unsupportedLongContextThreshold,

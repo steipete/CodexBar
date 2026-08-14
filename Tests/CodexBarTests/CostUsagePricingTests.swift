@@ -345,6 +345,43 @@ struct CostUsagePricingTests {
     }
 
     @Test
+    func `red models dev long context cache write does not require a short context rate`() throws {
+        let root = try Self.seedModelsDevCache("""
+        {
+          "openai": {
+            "id": "openai",
+            "models": {
+              "gpt-daybreak-red-latest": {
+                "id": "gpt-daybreak-red-latest",
+                "cost": {
+                  "input": 12.5,
+                  "output": 75,
+                  "cache_read": 1.25,
+                  "context_over_200k": {
+                    "input": 25,
+                    "output": 112.5,
+                    "cache_read": 2.5,
+                    "cache_write": 31.25
+                  }
+                }
+              }
+            }
+          }
+        }
+        """)
+
+        let longContext = CostUsagePricing.codexCostUSD(
+            model: "gpt-daybreak-red-latest",
+            inputTokens: 200_001,
+            cachedInputTokens: 10,
+            outputTokens: 5,
+            cacheWriteInputTokens: 20,
+            modelsDevCacheRoot: root)
+
+        #expect(longContext == (199_971.0 * 25e-6) + (10.0 * 2.5e-6) + (20.0 * 31.25e-6) + (5.0 * 112.5e-6))
+    }
+
+    @Test
     func `daybreak models dev exact aliases override bundled fallback`() throws {
         let root = try Self.seedModelsDevCache("""
         {
