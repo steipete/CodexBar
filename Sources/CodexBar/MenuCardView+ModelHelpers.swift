@@ -552,6 +552,37 @@ extension UsageMenuCardView.Model {
         }
     }
 
+    /// Localizes DeepSeek platform detail sections (titles + row labels) at the app layer.
+    /// Core emits English labels; the app layer owns localization, mirroring `sub2APILocalizedDetails`.
+    static func deepSeekLocalizedDetails(_ details: [ProviderDetailSection]) -> [ProviderDetailSection] {
+        let labelMap: [String: String] = [
+            "Today": L("Today"),
+            "This month": L("This month"),
+            "Requests": L("Requests"),
+            "Top model": L("Top model"),
+            "Detailed usage": L("Detailed usage"),
+            "Daily tokens": L("Daily tokens"),
+            "tokens": L("tokens"),
+            "Cache-hit input": L("Cache-hit input"),
+            "Cache-miss input": L("Cache-miss input"),
+            "Output": L("Output"),
+        ]
+        return details.compactMap { section in
+            let title = section.title.flatMap { labelMap[$0] } ?? section.title
+            let rows = section.rows.compactMap { row in
+                let label = labelMap[row.label] ?? row.label
+                return try? ProviderDetailSection.Row(
+                    label: label,
+                    value: row.value,
+                    secondaryValue: row.secondaryValue)
+            }
+            return try? ProviderDetailSection(
+                title: title,
+                rows: rows,
+                chart: section.chart)
+        }
+    }
+
     static func resetText(
         for window: RateWindow,
         style: ResetTimeDisplayStyle,

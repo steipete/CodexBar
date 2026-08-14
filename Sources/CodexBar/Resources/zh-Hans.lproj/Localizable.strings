@@ -1240,7 +1240,7 @@
 "Chrome profile" = "Chrome 配置文件";
 "Choose which signed-in DeepSeek Platform session supplies detailed usage." = "选择要提供详细用量的已登录 DeepSeek Platform 会话。";
 "Detailed usage unavailable." = "详细用量不可用。";
-"Sign in to DeepSeek Platform in Chrome for detailed usage." = "请在 Chrome 中登录 DeepSeek Platform 以查看详细用量。";
+"Sign in to DeepSeek Platform in Chrome or Safari for detailed usage. Safari requires Full Disk Access for CodexBar." = "请在 Chrome 或 Safari 中登录 DeepSeek Platform 以查看详细用量。Safari 需要为 CodexBar 授予完全磁盘访问权限。";
 "Select a DeepSeek Chrome profile in Settings." = "请在“设置”中选择 DeepSeek Chrome 配置文件。";
 "Select profile…" = "选择配置文件…";
 
@@ -1411,3 +1411,10 @@
 "5-hour usage" = "5 小时用量";
 "7-day usage" = "7 天用量";
 "Total usage" = "总用量";
+
+"Detailed usage" = "详细用量";
+"Daily tokens" = "每日 token";
+"tokens" = "token";
+"Cache-hit input" = "缓存命中输入";
+"Cache-miss input" = "缓存未命中输入";
+"Output" = "输出";

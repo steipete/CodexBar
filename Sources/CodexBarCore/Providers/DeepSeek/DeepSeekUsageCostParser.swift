@@ -179,6 +179,8 @@ public struct DeepSeekUsageSummary: Sendable, Equatable {
     public let currentMonthRequestCount: Int
     public let topModel: String?
     public let categoryBreakdown: [DeepSeekCategoryBreakdown]
+    /// Cost per model (e.g. deepseek-chat / deepseek-reasoner), from the platform usage/cost endpoint.
+    public let modelCosts: [DeepSeekModelCost]
     public let daily: [DeepSeekDailyUsage]
     public let currency: String
     public let updatedAt: Date
@@ -192,6 +194,7 @@ public struct DeepSeekUsageSummary: Sendable, Equatable {
         currentMonthRequestCount: Int,
         topModel: String?,
         categoryBreakdown: [DeepSeekCategoryBreakdown],
+        modelCosts: [DeepSeekModelCost],
         daily: [DeepSeekDailyUsage],
         currency: String,
         updatedAt: Date)
@@ -204,6 +207,7 @@ public struct DeepSeekUsageSummary: Sendable, Equatable {
         self.currentMonthRequestCount = currentMonthRequestCount
         self.topModel = topModel
         self.categoryBreakdown = categoryBreakdown
+        self.modelCosts = modelCosts
         self.daily = daily
         self.currency = currency
         self.updatedAt = updatedAt
@@ -218,6 +222,16 @@ public struct DeepSeekCategoryBreakdown: Sendable, Equatable {
     public init(category: DeepSeekUsageCategory, tokens: Int, cost: Double?) {
         self.category = category
         self.tokens = tokens
+        self.cost = cost
+    }
+}
+
+public struct DeepSeekModelCost: Sendable, Equatable {
+    public let model: String
+    public let cost: Double
+
+    public init(model: String, cost: Double) {
+        self.model = model
         self.cost = cost
     }
 }
@@ -474,7 +488,7 @@ enum DeepSeekUsageCostParser {
         let monthResult = self.aggregateMonth(ctx: dailyCtx)
 
         // Model and category breakdown from totals
-        let (topModel, categoryBreakdown) = self.buildBreakdowns(
+        let (topModel, categoryBreakdown, modelCosts) = self.buildBreakdowns(
             totalAmounts: input.totalAmounts,
             totalCosts: input.totalCosts)
 
@@ -490,6 +504,7 @@ enum DeepSeekUsageCostParser {
             currentMonthRequestCount: monthResult.requests,
             topModel: topModel,
             categoryBreakdown: categoryBreakdown,
+            modelCosts: modelCosts,
             daily: dailyUsages,
             currency: input.currency,
             updatedAt: input.now)
@@ -598,9 +613,10 @@ enum DeepSeekUsageCostParser {
 
     private static func buildBreakdowns(
         totalAmounts: [DeepSeekModelUsage],
-        totalCosts: [DeepSeekCostModelUsage]) -> (String?, [DeepSeekCategoryBreakdown])
+        totalCosts: [DeepSeekCostModelUsage]) -> (String?, [DeepSeekCategoryBreakdown], [DeepSeekModelCost])
     {
         var modelTokens: [String: Int] = [:]
+        var modelCosts: [String: Double] = [:]
         var categoryTokens: [DeepSeekUsageCategory: Int] = [:]
         var categoryCosts: [DeepSeekUsageCategory: Double] = [:]
 
@@ -619,12 +635,13 @@ enum DeepSeekUsageCostParser {
         }
 
         for costUsage in totalCosts {
-            guard costUsage.model != nil else { continue }
+            guard let model = costUsage.model else { continue }
             for item in costUsage.usage ?? [] {
                 guard let category = DeepSeekUsageCategory(rawValue: item.type ?? "") else { continue }
                 if category != .request {
                     let amount = Self.parseCostAmount(item.amount)
                     categoryCosts[category, default: 0] += amount
+                    modelCosts[model, default: 0] += amount
                 }
             }
         }
@@ -642,7 +659,12 @@ enum DeepSeekUsageCostParser {
                 cost: categoryCosts[category]))
         }
 
-        return (topModel, breakdown)
+        let modelCostList = modelCosts
+            .filter { $0.value > 0 }
+            .sorted { $0.value > $1.value }
+            .map { DeepSeekModelCost(model: $0.key, cost: $0.value) }
+
+        return (topModel, breakdown, modelCostList)
     }
 
     private static func buildDailyUsages(ctx: DailyAggregationContext) -> [DeepSeekDailyUsage] {

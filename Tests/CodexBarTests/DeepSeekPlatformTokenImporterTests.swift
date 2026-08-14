@@ -253,6 +253,7 @@ struct DeepSeekPlatformTokenImporterTests {
             currentMonthRequestCount: marker,
             topModel: nil,
             categoryBreakdown: [],
+            modelCosts: [],
             daily: [],
             currency: "USD",
             updatedAt: Date(timeIntervalSince1970: 0))

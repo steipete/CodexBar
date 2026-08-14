@@ -1,4 +1,7 @@
 import Foundation
+#if canImport(CryptoKit)
+import CryptoKit
+#endif
 
 public enum DeepSeekProviderDescriptor {
     public static let descriptor: ProviderDescriptor = Self.makeDescriptor()
@@ -114,7 +117,7 @@ public enum DeepSeekProviderDescriptor {
                         let state = context.snapshot?.deepseekDetailedUsageState
                         if context.snapshot?.primary == nil {
                             if state == .webSessionRequired {
-                                return .localized(["Sign in to DeepSeek Platform in Chrome for detailed usage."])
+                                return .localized(["Sign in to DeepSeek Platform in Chrome or Safari for detailed usage. Safari requires Full Disk Access for CodexBar."])
                             }
                             if state == .profileSelectionRequired {
                                 return .localized(["Select a DeepSeek Chrome profile in Settings."])
@@ -125,7 +128,7 @@ public enum DeepSeekProviderDescriptor {
                         }
                         guard context.snapshot?.details.isEmpty == false else {
                             if state == .webSessionRequired {
-                                return .localized(["Sign in to DeepSeek Platform in Chrome for detailed usage."])
+                                return .localized(["Sign in to DeepSeek Platform in Chrome or Safari for detailed usage. Safari requires Full Disk Access for CodexBar."])
                             }
                             if state == .profileSelectionRequired {
                                 return .localized(["Select a DeepSeek Chrome profile in Settings."])
@@ -168,6 +171,55 @@ public enum DeepSeekProviderDescriptor {
         }
     }
 
+    // MARK: - Balance history recording
+
+    /// Stable per-credential key so multiple API keys keep separate histories.
+    /// Uses a namespaced non-reversible SHA-256 digest (never raw key fragments),
+    /// mirroring the profile-scope pattern in DeepSeekSettingsReader.
+    private static func balanceAccountKey(apiKey: String?) -> String {
+        guard let apiKey = apiKey?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !apiKey.isEmpty
+        else { return "default" }
+        #if canImport(CryptoKit)
+        let input = "com.steipete.codexbar.deepseek-balance-history.v1\0\(apiKey)"
+        let digest = SHA256.hash(data: Data(input.utf8))
+        return "v1:" + digest.map { String(format: "%02x", $0) }.joined()
+        #else
+        // Fallback without CryptoKit: still avoid raw fragments; use a simple hash.
+        var hasher = Hasher()
+        hasher.combine(input)
+        return "v1:" + String(hasher.finalize(), radix: 16)
+        #endif
+    }
+
+    /// Test hook: exposes the digest mapping without persisting anything.
+    static func balanceAccountKeyForTesting(apiKey: String?) -> String {
+        self.balanceAccountKey(apiKey: apiKey)
+    }
+
+    private static let balanceHistoryStore = DeepSeekBalanceHistoryStore()
+
+    /// Records the observed balance and returns a snapshot whose balance detail
+    /// includes derived consumption (today / total spend since last recharge).
+    private static func usageSnapshotRecordingBalance(
+        _ balance: DeepSeekUsageSnapshot,
+        apiKey: String?,
+        now: Date = Date()) -> UsageSnapshot
+    {
+        let accountKey = Self.balanceAccountKey(apiKey: apiKey)
+        Self.balanceHistoryStore.record(
+            balance: balance.totalBalance,
+            currency: balance.currency,
+            accountKey: accountKey,
+            at: now)
+        let consumption = Self.balanceHistoryStore.consumptionSummary(
+            for: accountKey,
+            currentBalance: balance.totalBalance,
+            currency: balance.currency,
+            now: now)
+        return balance.toUsageSnapshot(consumption: consumption)
+    }
+
     private static func loadUsage(
         apiKey: String,
         context: ProviderFetchContext,
@@ -175,14 +227,16 @@ public enum DeepSeekProviderDescriptor {
         operations: FetchOperations) async throws -> UsageSnapshot
     {
         guard context.includeOptionalUsage else {
-            return try await operations.fetchUsage(apiKey, nil, false).toUsageSnapshot()
+            let balance = try await operations.fetchUsage(apiKey, nil, false)
+            return Self.usageSnapshotRecordingBalance(balance, apiKey: apiKey)
         }
         if let session = DeepSeekSettingsReader.scopedPlatformToken(
             environment: context.env,
             selectedTokenAccountID: context.selectedTokenAccountID,
             apiKey: apiKey)
         {
-            return try await operations.fetchUsage(apiKey, session, true).toUsageSnapshot()
+            let balance = try await operations.fetchUsage(apiKey, session, true)
+            return Self.usageSnapshotRecordingBalance(balance, apiKey: apiKey)
         }
 
         return try await self.loadAutomaticUsage(
@@ -232,7 +286,7 @@ public enum DeepSeekProviderDescriptor {
         switch await resolutionJoin.value(joinGrace: optionalResolutionJoinGrace) {
         case let .value(resolution):
             try Task.checkCancellation()
-            return self.combinedSnapshot(balance: balance, resolution: resolution)
+            return self.combinedSnapshot(balance: balance, resolution: resolution, apiKey: apiKey)
         case .timedOut:
             try Task.checkCancellation()
             return self.combinedSnapshot(
@@ -240,7 +294,8 @@ public enum DeepSeekProviderDescriptor {
                 resolution: DeepSeekPlatformTokenImporter.Resolution(
                     profiles: [],
                     selectedSummary: nil,
-                    detailedUsageState: .unavailable))
+                    detailedUsageState: .unavailable),
+                apiKey: apiKey)
         case let .failure(error):
             if error is CancellationError || Task.isCancelled {
                 throw error
@@ -250,15 +305,17 @@ public enum DeepSeekProviderDescriptor {
                 resolution: DeepSeekPlatformTokenImporter.Resolution(
                     profiles: [],
                     selectedSummary: nil,
-                    detailedUsageState: .unavailable))
+                    detailedUsageState: .unavailable),
+                apiKey: apiKey)
         }
     }
 
     private static func combinedSnapshot(
         balance: DeepSeekUsageSnapshot,
-        resolution: DeepSeekPlatformTokenImporter.Resolution) -> UsageSnapshot
+        resolution: DeepSeekPlatformTokenImporter.Resolution,
+        apiKey: String? = nil) -> UsageSnapshot
     {
-        DeepSeekUsageSnapshot(
+        let snapshot = DeepSeekUsageSnapshot(
             hasBalance: balance.hasBalance,
             isAvailable: balance.isAvailable,
             currency: balance.currency,
@@ -268,7 +325,8 @@ public enum DeepSeekProviderDescriptor {
             usageSummary: resolution.selectedSummary,
             detailedUsageState: resolution.detailedUsageState,
             platformProfiles: resolution.profiles,
-            updatedAt: balance.updatedAt).toUsageSnapshot()
+            updatedAt: balance.updatedAt)
+        return Self.usageSnapshotRecordingBalance(snapshot, apiKey: apiKey)
     }
 
     fileprivate static func loadPlatformUsage(
@@ -321,7 +379,10 @@ public enum DeepSeekProviderDescriptor {
             grantedBalance: 0,
             toppedUpBalance: 0,
             updatedAt: resolution.selectedSummary?.updatedAt ?? Date())
-        return self.combinedSnapshot(balance: balance, resolution: resolution)
+        return self.combinedSnapshot(
+            balance: balance,
+            resolution: resolution,
+            apiKey: ProviderTokenResolver.token(for: .deepseek, environment: context.env))
     }
 
     static func _loadUsageForTesting(

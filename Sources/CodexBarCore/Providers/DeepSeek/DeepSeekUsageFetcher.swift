@@ -161,7 +161,9 @@ public struct DeepSeekUsageSnapshot: Sendable {
         self.updatedAt = updatedAt
     }
 
-    public func toUsageSnapshot() -> UsageSnapshot {
+    public func toUsageSnapshot(
+        consumption: DeepSeekBalanceHistoryStore.ConsumptionSummary? = nil) -> UsageSnapshot
+    {
         let symbol = self.currency == "CNY" ? "¥" : "$"
 
         let balanceDetail: String
@@ -176,7 +178,20 @@ public struct DeepSeekUsageSnapshot: Sendable {
             let total = String(format: "\(symbol)%.2f", self.totalBalance)
             let paid = String(format: "\(symbol)%.2f", self.toppedUpBalance)
             let granted = String(format: "\(symbol)%.2f", self.grantedBalance)
-            balanceDetail = "\(total) (Paid: \(paid) / Granted: \(granted))"
+            var detail = "\(total) (Paid: \(paid) / Granted: \(granted))"
+            if let consumption, consumption.totalSpent != nil || consumption.todaySpent != nil {
+                var parts: [String] = []
+                if let today = consumption.todaySpent, today > 0.0001 {
+                    parts.append("Today −\(String(format: "\(symbol)%.2f", today))")
+                }
+                if let total = consumption.totalSpent, total > 0.0001 {
+                    parts.append("Total −\(String(format: "\(symbol)%.2f", total))")
+                }
+                if !parts.isEmpty {
+                    detail += " · " + parts.joined(separator: " · ")
+                }
+            }
+            balanceDetail = detail
             usedPercent = 0
         }
 
@@ -224,6 +239,11 @@ public struct DeepSeekUsageSnapshot: Sendable {
         ]
         if let topModel = usage.topModel {
             rows.append(.makeRow(label: "Top model", value: topModel))
+        }
+        for modelCost in usage.modelCosts {
+            rows.append(.makeRow(
+                label: modelCost.model,
+                value: "\(symbol)\(String(format: "%.4f", max(0, modelCost.cost)))"))
         }
         for category in usage.categoryBreakdown {
             rows.append(.makeRow(label: Self.categoryLabel(category.category), value: category.tokens.formatted()))

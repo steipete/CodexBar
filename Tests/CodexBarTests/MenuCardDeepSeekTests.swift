@@ -18,6 +18,7 @@ struct MenuCardDeepSeekTests {
                 DeepSeekCategoryBreakdown(category: .promptCacheMissToken, tokens: 20, cost: 0.002),
                 DeepSeekCategoryBreakdown(category: .responseToken, tokens: 30, cost: 0.003),
             ],
+            modelCosts: [],
             daily: [
                 DeepSeekDailyUsage(date: "2026-05-26", totalTokens: 456, cost: 0.0456, requestCount: 8),
             ],
@@ -242,7 +243,7 @@ struct MenuCardDeepSeekTests {
             now: now))
 
         #expect(model.inlineUsageDashboard == nil)
-        #expect(model.usageNotes == ["Sign in to DeepSeek Platform in Chrome for detailed usage."])
+        #expect(model.usageNotes == ["Sign in to DeepSeek Platform in Chrome or Safari for detailed usage. Safari requires Full Disk Access for CodexBar."])
     }
 
     @Test
@@ -281,7 +282,7 @@ struct MenuCardDeepSeekTests {
             now: now))
 
         #expect(model.metrics.isEmpty)
-        #expect(model.usageNotes == ["Sign in to DeepSeek Platform in Chrome for detailed usage."])
+        #expect(model.usageNotes == ["Sign in to DeepSeek Platform in Chrome or Safari for detailed usage. Safari requires Full Disk Access for CodexBar."])
     }
 
     @Test

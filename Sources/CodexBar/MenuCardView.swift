@@ -1039,6 +1039,8 @@ extension UsageMenuCardView.Model {
         }
         if input.provider == .sub2api {
             details = Self.sub2APILocalizedDetails(details)
+        } else if input.provider == .deepseek {
+            details = Self.deepSeekLocalizedDetails(details)
         }
         guard input.hidePersonalInfo else { return details }
         return details.compactMap { section in

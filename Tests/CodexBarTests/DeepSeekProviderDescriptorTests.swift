@@ -116,6 +116,7 @@ struct DeepSeekProviderDescriptorTests {
             currentMonthRequestCount: 4,
             topModel: "deepseek-chat",
             categoryBreakdown: [],
+            modelCosts: [],
             daily: [],
             currency: "USD",
             updatedAt: Date(timeIntervalSince1970: 1))
@@ -291,6 +292,7 @@ struct DeepSeekProviderDescriptorTests {
             currentMonthRequestCount: 4,
             topModel: "deepseek-chat",
             categoryBreakdown: [],
+            modelCosts: [],
             daily: [],
             currency: "USD",
             updatedAt: Date(timeIntervalSince1970: 1))
