@@ -350,7 +350,11 @@ struct ClaudeProviderImplementation: ProviderImplementation {
         if self.shouldOpenTerminalForOAuthError(store: context.store) {
             return ("Open Terminal", .openTerminal(command: "claude"))
         }
-        guard !context.hasAccount else { return nil }
+        let swapOwnsAccountPresentation = ClaudeSwapMenuPrecedence.prefersClaudeSwap(
+            provider: context.provider,
+            accountCount: context.store.claudeSwapAccountSnapshots.count,
+            showSingleAccount: context.settings.claudeSwapShowSingleAccount)
+        guard !context.hasAccount || swapOwnsAccountPresentation else { return nil }
         return (L("Sign in with Claude Code..."), .switchAccount(.claude))
     }
 

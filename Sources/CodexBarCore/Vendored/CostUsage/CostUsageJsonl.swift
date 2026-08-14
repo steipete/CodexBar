@@ -20,7 +20,7 @@ enum CostUsageJsonl {
         }
     }
 
-    struct ResumeState: Codable {
+    struct ResumeState: Codable, Equatable {
         let offset: Int64
         fileprivate let lineStartOffset: Int64
         fileprivate let prefix: Data
@@ -35,8 +35,8 @@ enum CostUsageJsonl {
         let resumeState: ResumeState?
     }
 
-    fileprivate struct JSONTailState: Codable {
-        private enum ScalarState: Codable {
+    fileprivate struct JSONTailState: Codable, Equatable {
+        private enum ScalarState: Codable, Equatable {
             case notScalar
             case trueLiteral(Int)
             case falseLiteral(Int)
@@ -45,7 +45,7 @@ enum CostUsageJsonl {
             case invalid
         }
 
-        private enum NumberState: Codable {
+        private enum NumberState: Codable, Equatable {
             private enum ByteKind {
                 case zero
                 case digit

@@ -494,6 +494,51 @@ enum CostUsagePricing {
         modelsDevCatalog: ModelsDevCatalog? = nil,
         modelsDevCacheRoot: URL? = nil) -> Double?
     {
+        guard let pricing = self.resolvedCodexPricing(
+            model: model,
+            modelsDevCatalog: modelsDevCatalog,
+            modelsDevCacheRoot: modelsDevCacheRoot)
+        else { return nil }
+        return self.codexCostUSD(
+            pricing: pricing,
+            inputTokens: inputTokens,
+            cachedInputTokens: cachedInputTokens,
+            cacheWriteInputTokens: cacheWriteInputTokens,
+            outputTokens: outputTokens)
+    }
+
+    static func codexAggregateCostUSD(
+        model: String,
+        inputTokens: Int,
+        cachedInputTokens: Int,
+        outputTokens: Int,
+        cacheWriteInputTokens: Int = 0,
+        modelsDevCatalog: ModelsDevCatalog? = nil,
+        modelsDevCacheRoot: URL? = nil) -> Double?
+    {
+        guard let pricing = self.resolvedCodexPricing(
+            model: model,
+            modelsDevCatalog: modelsDevCatalog,
+            modelsDevCacheRoot: modelsDevCacheRoot)
+        else { return nil }
+        if let thresholdTokens = pricing.thresholdTokens,
+           max(0, inputTokens) > thresholdTokens
+        {
+            return nil
+        }
+        return self.codexCostUSD(
+            pricing: pricing,
+            inputTokens: inputTokens,
+            cachedInputTokens: cachedInputTokens,
+            cacheWriteInputTokens: cacheWriteInputTokens,
+            outputTokens: outputTokens)
+    }
+
+    private static func resolvedCodexPricing(
+        model: String,
+        modelsDevCatalog: ModelsDevCatalog?,
+        modelsDevCacheRoot: URL?) -> CodexPricing?
+    {
         let key = self.normalizeCodexModel(model)
         guard key != self.codexUnattributedModel else { return nil }
         let modelsDevLookup = self.modelsDevLookup(
@@ -524,32 +569,25 @@ enum CostUsagePricing {
                     ?? lookup.pricing.inputCostPerTokenAboveThreshold
                     ?? lookup.pricing.inputCostPerToken
                     : bundledLongContext?.cacheWriteInputCostPerTokenAboveThreshold)
-            return self.codexCostUSD(
-                pricing: lookup.pricing,
+            return CodexPricing(
+                inputCostPerToken: lookup.pricing.inputCostPerToken,
+                outputCostPerToken: lookup.pricing.outputCostPerToken,
+                cacheReadInputCostPerToken: lookup.pricing.cacheReadInputCostPerToken
+                    ?? bundled?.cacheReadInputCostPerToken,
+                displayLabel: nil,
+                cacheWriteInputCostPerToken: lookup.pricing.cacheCreationInputCostPerToken
+                    ?? bundled?.cacheWriteInputCostPerToken,
                 thresholdTokens: bundled?.thresholdTokens ?? lookup.pricing.thresholdTokens,
                 inputCostPerTokenAboveThreshold: lookup.pricing.inputCostPerTokenAboveThreshold
                     ?? bundledLongContext?.inputCostPerTokenAboveThreshold,
                 outputCostPerTokenAboveThreshold: lookup.pricing.outputCostPerTokenAboveThreshold
                     ?? bundledLongContext?.outputCostPerTokenAboveThreshold,
-                cacheReadInputCostPerToken: lookup.pricing.cacheReadInputCostPerToken
-                    ?? bundled?.cacheReadInputCostPerToken,
                 cacheReadInputCostPerTokenAboveThreshold: cacheReadAboveThreshold,
-                cacheWriteInputCostPerToken: lookup.pricing.cacheCreationInputCostPerToken
-                    ?? bundled?.cacheWriteInputCostPerToken,
-                cacheWriteInputCostPerTokenAboveThreshold: cacheWriteAboveThreshold,
-                inputTokens: inputTokens,
-                cachedInputTokens: cachedInputTokens,
-                cacheWriteInputTokens: cacheWriteInputTokens,
-                outputTokens: outputTokens)
+                cacheWriteInputCostPerTokenAboveThreshold: cacheWriteAboveThreshold)
         }
 
         guard let pricing = self.codex[key] else { return nil }
-        return self.codexCostUSD(
-            pricing: pricing,
-            inputTokens: inputTokens,
-            cachedInputTokens: cachedInputTokens,
-            cacheWriteInputTokens: cacheWriteInputTokens,
-            outputTokens: outputTokens)
+        return pricing
     }
 
     static func codexPriorityCostUSD(
@@ -626,44 +664,6 @@ enum CostUsagePricing {
             + (Double(cached) * cachedInputRate)
             + (Double(cacheWrite) * cacheWriteRate)
             + (Double(max(0, outputTokens)) * outputRate)
-    }
-
-    private static func codexCostUSD(
-        pricing: ModelsDevPricingInfo,
-        thresholdTokens: Int? = nil,
-        inputCostPerTokenAboveThreshold: Double? = nil,
-        outputCostPerTokenAboveThreshold: Double? = nil,
-        cacheReadInputCostPerToken: Double? = nil,
-        cacheReadInputCostPerTokenAboveThreshold: Double? = nil,
-        cacheWriteInputCostPerToken: Double? = nil,
-        cacheWriteInputCostPerTokenAboveThreshold: Double? = nil,
-        inputTokens: Int,
-        cachedInputTokens: Int,
-        cacheWriteInputTokens: Int = 0,
-        outputTokens: Int) -> Double
-    {
-        self.codexCostUSD(
-            pricing: CodexPricing(
-                inputCostPerToken: pricing.inputCostPerToken,
-                outputCostPerToken: pricing.outputCostPerToken,
-                cacheReadInputCostPerToken: cacheReadInputCostPerToken
-                    ?? pricing.cacheReadInputCostPerToken,
-                displayLabel: nil,
-                cacheWriteInputCostPerToken: cacheWriteInputCostPerToken
-                    ?? pricing.cacheCreationInputCostPerToken,
-                thresholdTokens: thresholdTokens ?? pricing.thresholdTokens,
-                inputCostPerTokenAboveThreshold: inputCostPerTokenAboveThreshold
-                    ?? pricing.inputCostPerTokenAboveThreshold,
-                outputCostPerTokenAboveThreshold: outputCostPerTokenAboveThreshold
-                    ?? pricing.outputCostPerTokenAboveThreshold,
-                cacheReadInputCostPerTokenAboveThreshold: cacheReadInputCostPerTokenAboveThreshold
-                    ?? pricing.cacheReadInputCostPerTokenAboveThreshold,
-                cacheWriteInputCostPerTokenAboveThreshold: cacheWriteInputCostPerTokenAboveThreshold
-                    ?? pricing.cacheCreationInputCostPerTokenAboveThreshold),
-            inputTokens: inputTokens,
-            cachedInputTokens: cachedInputTokens,
-            cacheWriteInputTokens: cacheWriteInputTokens,
-            outputTokens: outputTokens)
     }
 
     static func claudeCostUSD(

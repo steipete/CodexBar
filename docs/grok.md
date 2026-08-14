@@ -1,5 +1,5 @@
 ---
-summary: "Grok provider data sources: ACP JSON-RPC, grok.com billing fallback, OAuth credentials, and local session signals."
+summary: "Grok provider data sources: ACP JSON-RPC, CLI-proxy and grok.com billing fallbacks, OAuth credentials, and local session signals."
 read_when:
   - Debugging Grok billing/usage parsing
   - Updating `grok agent stdio` JSON-RPC integration
@@ -10,8 +10,8 @@ read_when:
 
 Grok uses xAI's official Grok Build CLI (`grok`, released 2026-05-14). Usage data is
 fetched via the ACP JSON-RPC `x.ai/billing` extension method over `grok agent stdio`
-when available, then via grok.com's billing gRPC-web endpoint using the signed-in
-browser session when the CLI surface does not expose billing.
+when available, then via the Grok CLI billing REST API using the local login token.
+The grok.com billing gRPC-web endpoint remains a best-effort fallback.
 
 ## Data sources + fallback order
 
@@ -35,9 +35,25 @@ browser session when the CLI surface does not expose billing.
      slashes, so payloads must be re-encoded with `\/` → `/` before being
      written to stdin or grok will silently drop them (12s client-side
      timeout instead of the expected error response).
-3) **grok.com billing gRPC-web fallback** (best-effort)
+3) **Grok CLI-proxy billing REST API** (primary web-path attempt)
+   - When a non-expired `~/.grok/auth.json` token exists, GETs
+     `https://cli-chat-proxy.grok.com/v1/billing?format=credits` with
+     `Authorization: Bearer <token>`, `x-xai-token-auth: xai-grok-cli`, and
+     `Accept: application/json`.
+   - Reads `config.creditUsagePercent`, falling back to
+     `onDemandUsed.val / onDemandCap.val * 100`. A parseable current period
+     without either value represents zero usage. The reset timestamp comes from
+     `config.currentPeriod.end`, then `config.billingPeriodEnd`.
+   - This is the Grok CLI's supported token-authenticated billing backend. If it
+     fails, CodexBar continues through the existing browser-cookie and legacy
+     bearer fallbacks.
+4) **grok.com billing gRPC-web fallback** (best-effort)
    - POSTs an empty gRPC-web protobuf request to
      `https://grok.com/grok_api_v2.GrokBuildBilling/GetGrokCreditsConfig`.
+   - This endpoint now requires the browser-held Web Key Exchange (WKE) keypair.
+     Cookie-only authentication can fail with gRPC status 16 and
+     `no-credentials`; signing in through Chrome alone cannot provide that proof
+     to CodexBar, so `grok login` is the recommended recovery path.
    - Uses grok.com browser session cookies. When a non-expired
      `~/.grok/auth.json` token is available, CodexBar first sends it with each
      browser session, then retries that session with cookies only.
@@ -58,7 +74,7 @@ browser session when the CLI surface does not expose billing.
      returned by some successful requests. A current billing period with an
      omitted proto3 `credit_usage_percent` is treated as zero usage. This keeps
      billing visible when `grok agent stdio` returns `Method not found`.
-4) **Local session signals** (informational fallback)
+5) **Local session signals** (informational fallback)
    - Walks `~/.grok/sessions/<encoded-cwd>/<session-id>/signals.json` files (last 30 days).
    - Aggregates `totalTokensBeforeCompaction`, `contextTokensUsed`, `modelsUsed`,
      and the most recent session timestamp.
@@ -116,6 +132,8 @@ browser session when the CLI surface does not expose billing.
 - **Primary window** = credit usage (against the subscription/included limit):
   - CLI RPC: `usedPercent` = `usage.totalUsed.val / monthlyLimit.val * 100`;
     `resetsAt` = `billingCycle.billingPeriodEnd`.
+  - CLI-proxy fallback: `usedPercent` from the JSON percent or on-demand ratio;
+    `resetsAt` from the current-period end or billing-period end.
   - grok.com fallback: `usedPercent` and `resetsAt` parsed from the gRPC-web
     billing protobuf.
   - The UI label for the live usage bar is dynamic: "Weekly" or "Monthly"
@@ -157,6 +175,7 @@ points to `https://status.x.ai`.
 - `Sources/CodexBarCore/Providers/Grok/GrokProviderDescriptor.swift`
 - `Sources/CodexBarCore/Providers/Grok/GrokAuth.swift`
 - `Sources/CodexBarCore/Providers/Grok/GrokRPCClient.swift`
+- `Sources/CodexBarCore/Providers/Grok/GrokCreditsProxyFetcher.swift`
 - `Sources/CodexBarCore/Providers/Grok/GrokWebBillingFetcher.swift`
 - `Sources/CodexBarCore/Providers/Grok/GrokStatusProbe.swift`
 - `Sources/CodexBarCore/Providers/Grok/GrokLocalSessionScanner.swift`

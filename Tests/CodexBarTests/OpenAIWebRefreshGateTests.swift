@@ -1,6 +1,7 @@
 import Foundation
 import Testing
 @testable import CodexBar
+@testable import CodexBarCore
 
 struct OpenAIWebRefreshGateTests {
     @Test
@@ -168,6 +169,109 @@ struct OpenAIWebRefreshGateTests {
             refreshInterval: 300))
 
         #expect(shouldSkip == true)
+    }
+
+    @Test
+    func `code review alone is not dashboard page history`() {
+        let snapshot = OpenAIDashboardSnapshot(
+            signedInEmail: "user@example.com",
+            codeReviewRemainingPercent: 80,
+            creditEvents: [],
+            dailyBreakdown: [],
+            usageBreakdown: [],
+            creditsPurchaseURL: nil,
+            updatedAt: Date())
+
+        #expect(!UsageStore.dashboardHasPageHistory(snapshot))
+    }
+
+    @Test
+    func `cached history without an in memory scrape stamp does not scrape`() {
+        let now = Date()
+        let shouldScrape = UsageStore.shouldAllowOpenAIDashboardPageScrape(.init(
+            force: false,
+            userInitiated: false,
+            hasHistory: true,
+            lastPageScrapeAt: nil,
+            historyUpdatedAt: now.addingTimeInterval(-60),
+            now: now,
+            refreshInterval: 300))
+
+        #expect(!shouldScrape)
+    }
+
+    @Test
+    func `page scrape stays on when history has never been collected`() {
+        let shouldScrape = UsageStore.shouldAllowOpenAIDashboardPageScrape(.init(
+            force: false,
+            userInitiated: false,
+            hasHistory: false,
+            lastPageScrapeAt: nil,
+            historyUpdatedAt: nil,
+            now: Date(),
+            refreshInterval: 300))
+
+        #expect(shouldScrape)
+    }
+
+    @Test
+    func `page scrape is skipped when recent history already exists`() {
+        let now = Date()
+        let shouldScrape = UsageStore.shouldAllowOpenAIDashboardPageScrape(.init(
+            force: false,
+            userInitiated: false,
+            hasHistory: true,
+            lastPageScrapeAt: now.addingTimeInterval(-60),
+            historyUpdatedAt: now.addingTimeInterval(-60),
+            now: now,
+            refreshInterval: 300))
+
+        #expect(!shouldScrape)
+    }
+
+    @Test
+    func `user initiated force refresh still scrapes recent history`() {
+        let now = Date()
+        let shouldScrape = UsageStore.shouldAllowOpenAIDashboardPageScrape(.init(
+            force: true,
+            userInitiated: true,
+            hasHistory: true,
+            lastPageScrapeAt: now.addingTimeInterval(-60),
+            historyUpdatedAt: now.addingTimeInterval(-60),
+            now: now,
+            refreshInterval: 300))
+
+        #expect(shouldScrape)
+    }
+
+    @Test
+    func `background force refresh does not scrape recent history`() {
+        let now = Date()
+        let shouldScrape = UsageStore.shouldAllowOpenAIDashboardPageScrape(.init(
+            force: true,
+            userInitiated: false,
+            hasHistory: true,
+            lastPageScrapeAt: now.addingTimeInterval(-60),
+            historyUpdatedAt: now.addingTimeInterval(-60),
+            now: now,
+            refreshInterval: 300))
+
+        #expect(!shouldScrape)
+    }
+
+    @Test
+    func `page scrape returns after the dashboard interval`() {
+        let now = Date()
+        let shouldScrape = UsageStore.shouldAllowOpenAIDashboardPageScrape(.init(
+            force: false,
+            userInitiated: false,
+            hasHistory: true,
+            lastPageScrapeAt: now.addingTimeInterval(-301),
+            historyUpdatedAt: now.addingTimeInterval(-301),
+            now: now,
+            refreshInterval: 300))
+
+        #expect(shouldScrape)
     }
 
     @Test

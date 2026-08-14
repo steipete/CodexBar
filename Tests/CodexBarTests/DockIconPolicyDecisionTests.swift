@@ -65,6 +65,25 @@ struct DockIconPolicyDecisionTests {
         #expect(!DockIconPolicyDecision.shouldUseRegularActivationPolicy(windows: [hidden, miniaturized, tiny]))
     }
 
+    @Test
+    func `newly presented window IDs exclude already tracked dialogs`() {
+        final class Token {}
+        let settingsToken = Token()
+        let sparkleToken = Token()
+        let settingsID = ObjectIdentifier(settingsToken)
+        let sparkleID = ObjectIdentifier(sparkleToken)
+        let previous: Set<ObjectIdentifier> = [settingsID]
+        let current: Set<ObjectIdentifier> = [settingsID, sparkleID]
+
+        let newlyPresented = DockIconPolicyDecision.newlyPresentedWindowIDs(
+            current: current,
+            previous: previous)
+
+        #expect(newlyPresented == [sparkleID])
+        #expect(!newlyPresented.contains(settingsID))
+        _ = (settingsToken, sparkleToken)
+    }
+
     private func window(
         identifier: String? = nil,
         title: String = "Window",

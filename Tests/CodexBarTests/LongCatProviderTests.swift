@@ -116,7 +116,11 @@ struct LongCatProviderTests {
         """#)
         let fuel = try self.object(#"{"totalQuota":0,"list":[]}"#)
 
-        let snapshot = LongCatUsageFetcher.buildSnapshot(account: account, tokenUsage: tokenUsage, pendingFuel: fuel)
+        let snapshot = LongCatUsageFetcher.buildSnapshot(
+            account: account,
+            tokenPackSummary: nil,
+            tokenUsage: tokenUsage,
+            pendingFuel: fuel)
         #expect(snapshot.accountName == "LongCat User")
         #expect(snapshot.totalQuota == 500_000)
         #expect(snapshot.usedQuota == 120_000)
@@ -129,12 +133,37 @@ struct LongCatProviderTests {
     }
 
     @Test
+    func `buildSnapshot prefers an active token pack lot`() throws {
+        let tokenPackSummary = try self.object(#"""
+        {"currentLot":{"totalToken":50000000,"consumedToken":1212576,"consumedRatio":0.02425152,
+                       "status":"ACTIVE"}}
+        """#)
+        let staleTokenUsage = try self.object(#"""
+        {"usage":{"totalToken":500000,"usedToken":0,"availableToken":500000}}
+        """#)
+
+        let snapshot = LongCatUsageFetcher.buildSnapshot(
+            account: nil,
+            tokenPackSummary: tokenPackSummary,
+            tokenUsage: staleTokenUsage,
+            pendingFuel: nil)
+        #expect(snapshot.totalQuota == 50_000_000)
+        #expect(snapshot.usedQuota == 1_212_576)
+        #expect(snapshot.remainingQuota == 48_787_424)
+        #expect(abs((snapshot.toUsageSnapshot().primary?.usedPercent ?? 0) - 2.425152) < 0.001)
+    }
+
+    @Test
     func `buildSnapshot sums active fuel packages`() throws {
         let fuel = try self.object(#"""
         {"totalQuota":1000,"list":[{"availableToken":600,"expireTime":1750000000000},
                                    {"availableToken":150,"expireTime":1760000000000}]}
         """#)
-        let snapshot = LongCatUsageFetcher.buildSnapshot(account: nil, tokenUsage: nil, pendingFuel: fuel)
+        let snapshot = LongCatUsageFetcher.buildSnapshot(
+            account: nil,
+            tokenPackSummary: nil,
+            tokenUsage: nil,
+            pendingFuel: fuel)
         #expect(snapshot.fuelPackTotal == 1000)
         #expect(snapshot.fuelPackRemaining == 750)
         #expect(snapshot.nearestFuelExpiry != nil)
@@ -279,24 +308,38 @@ struct LongCatProviderTests {
     }
 
     @Test
-    func `fetch maps a full live response over the transport`() async throws {
+    func `fetch uses the active token pack lot without legacy token usage`() async throws {
         let transport = LongCatScriptedTransport(results: [
             .body(#"{"code":0,"data":{"name":"Leo"}}"#),
-            .body(#"{"code":0,"data":{"usage":{"totalToken":500000,"usedToken":120000,"availableToken":380000}}}"#),
+            .body(#"""
+            {"code":0,"data":{"currentLot":{"totalToken":50000000,"consumedToken":1212576,
+             "consumedRatio":0.02425152,"status":"ACTIVE"}}}
+            """#),
             .body(#"{"code":0,"data":{"totalQuota":1000,"list":[{"availableToken":600,"expireTime":1750000000000}]}}"#),
         ])
         let snapshot = try await LongCatUsageFetcher.fetchUsage(cookieHeader: "session=x", transport: transport)
         #expect(snapshot.accountName == "Leo")
-        #expect(snapshot.totalQuota == 500_000)
-        #expect(snapshot.usedQuota == 120_000)
+        #expect(snapshot.totalQuota == 50_000_000)
+        #expect(snapshot.usedQuota == 1_212_576)
         #expect(snapshot.fuelPackTotal == 1000)
         #expect(snapshot.fuelPackRemaining == 600)
+
+        let requests = await transport.capturedRequests()
+        #expect(requests.map(\.path) == [
+            "/api/v1/user-current",
+            "/api/pay/quota/metering/token-packs/summary",
+            "/api/lc-platform/v1/pending-fuel-packages",
+        ])
+        #expect(requests[1].method == "POST")
+        #expect(requests[1].body == Data("{}".utf8))
+        #expect(requests[1].contentType == "application/json")
     }
 
     @Test
     func `fetch requires the canonical token usage response`() async {
         let transport = LongCatScriptedTransport(results: [
             .body(#"{"code":0,"data":{"name":"Leo"}}"#),
+            .body(#"{"code":0,"data":{"currentLot":null}}"#),
             .status(500),
         ])
         await #expect(throws: LongCatAPIError.apiError("HTTP 500 for /api/lc-platform/v1/tokenUsage")) {
@@ -308,6 +351,7 @@ struct LongCatProviderTests {
     func `fetch rejects malformed canonical token usage data`() async {
         let transport = LongCatScriptedTransport(results: [
             .body(#"{"code":0,"data":{"name":"Leo"}}"#),
+            .body(#"{"code":0,"data":{"currentLot":null}}"#),
             .body(#"{"code":0,"data":[]}"#),
         ])
         await #expect(throws: LongCatAPIError.parseFailed("tokenUsage data was not an object")) {
@@ -319,6 +363,7 @@ struct LongCatProviderTests {
     func `fetch rejects canonical token usage without quota fields`() async {
         let transport = LongCatScriptedTransport(results: [
             .body(#"{"code":0,"data":{"name":"Leo"}}"#),
+            .body(#"{"code":0,"data":{"currentLot":null}}"#),
             .body(#"{"code":0,"data":{"usage":{"usedToken":120000}}}"#),
         ])
         await #expect(throws: LongCatAPIError.parseFailed("tokenUsage data was missing totalToken")) {
@@ -327,9 +372,84 @@ struct LongCatProviderTests {
     }
 
     @Test
+    func `zero total token pack lot falls back to legacy token usage`() async throws {
+        let transport = LongCatScriptedTransport(results: [
+            .body(#"{"code":0,"data":{"name":"Leo"}}"#),
+            .body(#"{"code":0,"data":{"currentLot":{"totalToken":0,"consumedToken":0,"status":"ACTIVE"}}}"#),
+            .body(#"{"code":0,"data":{"usage":{"totalToken":500000,"usedToken":120000,"availableToken":380000}}}"#),
+            .body(#"{"code":0,"data":{"totalQuota":0,"list":[]}}"#),
+        ])
+
+        let snapshot = try await LongCatUsageFetcher.fetchUsage(cookieHeader: "session=x", transport: transport)
+        #expect(snapshot.totalQuota == 500_000)
+        #expect(snapshot.usedQuota == 120_000)
+        #expect(await (transport.capturedRequests()).map(\.path).contains("/api/lc-platform/v1/tokenUsage"))
+    }
+
+    @Test
+    func `expired token pack lot falls back to legacy token usage`() async throws {
+        let transport = LongCatScriptedTransport(results: [
+            .body(#"{"code":0,"data":{"name":"Leo"}}"#),
+            .body(#"{"code":0,"data":{"currentLot":{"totalToken":50000000,"status":"EXPIRED"}}}"#),
+            .body(#"{"code":0,"data":{"usage":{"totalToken":500000,"usedToken":120000}}}"#),
+            .body(#"{"code":0,"data":{"totalQuota":0,"list":[]}}"#),
+        ])
+
+        let snapshot = try await LongCatUsageFetcher.fetchUsage(cookieHeader: "session=x", transport: transport)
+        #expect(snapshot.totalQuota == 500_000)
+        #expect(snapshot.usedQuota == 120_000)
+    }
+
+    @Test(arguments: [
+        #"{"code":0,"data":{}}"#,
+        #"{"code":0,"data":{"currentLot":null}}"#,
+    ])
+    func `missing or null current token pack lot falls back to legacy token usage`(summaryBody: String) async throws {
+        let transport = LongCatScriptedTransport(results: [
+            .body(#"{"code":0,"data":{"name":"Leo"}}"#),
+            .body(summaryBody),
+            .body(#"{"code":0,"data":{"usage":{"totalToken":500000,"usedToken":120000}}}"#),
+            .body(#"{"code":0,"data":{"totalQuota":0,"list":[]}}"#),
+        ])
+
+        let snapshot = try await LongCatUsageFetcher.fetchUsage(cookieHeader: "session=x", transport: transport)
+        #expect(snapshot.totalQuota == 500_000)
+        #expect(snapshot.usedQuota == 120_000)
+    }
+
+    @Test
+    func `token pack summary server failure falls back to legacy token usage`() async throws {
+        let transport = LongCatScriptedTransport(results: [
+            .body(#"{"code":0,"data":{"name":"Leo"}}"#),
+            .status(500),
+            .body(#"{"code":0,"data":{"usage":{"totalToken":500000,"usedToken":120000}}}"#),
+            .body(#"{"code":0,"data":{"totalQuota":0,"list":[]}}"#),
+        ])
+
+        let snapshot = try await LongCatUsageFetcher.fetchUsage(cookieHeader: "session=x", transport: transport)
+        #expect(snapshot.totalQuota == 500_000)
+        #expect(snapshot.usedQuota == 120_000)
+    }
+
+    @Test
+    func `token pack summary auth failure falls back to legacy token usage`() async throws {
+        let transport = LongCatScriptedTransport(results: [
+            .body(#"{"code":0,"data":{"name":"Leo"}}"#),
+            .status(401),
+            .body(#"{"code":0,"data":{"usage":{"totalToken":500000,"usedToken":120000}}}"#),
+            .body(#"{"code":0,"data":{"totalQuota":0,"list":[]}}"#),
+        ])
+
+        let snapshot = try await LongCatUsageFetcher.fetchUsage(cookieHeader: "session=x", transport: transport)
+        #expect(snapshot.totalQuota == 500_000)
+        #expect(snapshot.usedQuota == 120_000)
+    }
+
+    @Test
     func `supplemental fuel failures do not erase primary quota`() async throws {
         let transport = LongCatScriptedTransport(results: [
             .body(#"{"code":0,"data":{"name":"Leo"}}"#),
+            .body(#"{"code":0,"data":{"currentLot":null}}"#),
             .body(#"{"code":0,"data":{"usage":{"totalToken":500000,"usedToken":120000}}}"#),
             .status(500),
         ])
@@ -343,6 +463,7 @@ struct LongCatProviderTests {
     func `supplemental fuel auth failure does not erase primary quota`() async throws {
         let transport = LongCatScriptedTransport(results: [
             .body(#"{"code":0,"data":{"name":"Leo"}}"#),
+            .body(#"{"code":0,"data":{"currentLot":null}}"#),
             .body(#"{"code":0,"data":{"usage":{"totalToken":500000,"usedToken":120000}}}"#),
             .status(401),
         ])
@@ -380,18 +501,31 @@ struct LongCatProviderTests {
 /// without a network. Returns the given results in order; an exhausted script
 /// yields an empty 200 so best-effort follow-up probes decode to nil.
 private actor LongCatScriptedTransport: ProviderHTTPTransport {
+    struct CapturedRequest: Sendable {
+        let method: String?
+        let path: String
+        let body: Data?
+        let contentType: String?
+    }
+
     enum Result {
         case status(Int)
         case body(String)
     }
 
     private var results: [Result]
+    private var captured: [CapturedRequest] = []
 
     init(results: [Result]) {
         self.results = results
     }
 
     func data(for request: URLRequest) throws -> (Data, URLResponse) {
+        self.captured.append(CapturedRequest(
+            method: request.httpMethod,
+            path: request.url?.path ?? "",
+            body: request.httpBody,
+            contentType: request.value(forHTTPHeaderField: "Content-Type")))
         let result = self.results.isEmpty ? .status(200) : self.results.removeFirst()
         let statusCode: Int
         let body: String
@@ -409,5 +543,9 @@ private actor LongCatScriptedTransport: ProviderHTTPTransport {
             httpVersion: nil,
             headerFields: nil)!
         return (Data(body.utf8), response)
+    }
+
+    func capturedRequests() -> [CapturedRequest] {
+        self.captured
     }
 }

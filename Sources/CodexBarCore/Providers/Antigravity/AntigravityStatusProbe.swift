@@ -1212,6 +1212,9 @@ public struct AntigravityStatusProbe: Sendable {
     private static func isAntigravityCommandLine(_ command: String) -> Bool {
         if command.contains("--app_data_dir") && command.contains("antigravity") { return true }
         if command.contains("antigravity.app/") || command.contains("antigravity.app\\") { return true }
+        // The renamed Gemini desktop app (#2836). Require a leading path
+        // separator so unrelated names like "notgemini.app" cannot match.
+        if command.contains("/gemini.app/") || command.contains("\\gemini.app\\") { return true }
         if command.contains("antigravity ide.app/") || command.contains("antigravity ide.app\\") { return true }
         if command.contains("/antigravity/") || command.contains("\\antigravity\\") { return true }
         return false

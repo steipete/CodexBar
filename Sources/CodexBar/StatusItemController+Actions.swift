@@ -653,9 +653,9 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
     func openTerminal(command: String) {
         let terminal = self.settings.terminalApp
 
-        if terminal == .iTerm, !terminal.isInstalled {
+        if terminal != .terminal, !terminal.isInstalled {
             CodexBarLog.logger(LogCategories.terminal).warning(
-                "iTerm is not installed, falling back to Terminal.app",
+                "\(terminal.label) is not installed, falling back to Terminal.app",
                 metadata: ["terminal": terminal.rawValue])
             Self.openTerminalInDefaultTerminal(command: command)
             return

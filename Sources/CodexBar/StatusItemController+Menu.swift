@@ -1329,8 +1329,8 @@ extension StatusItemController {
                 width: width)
             let usageSubmenu = self.makeUsageSubmenu(
                 provider: provider,
-                snapshot: self.store.snapshot(for: provider.instanceID),
                 webItems: webItems,
+                hasInlineCostDashboard: layoutModel.inlineUsageDashboard != nil,
                 width: width)
             menu.addItem(self.makeMenuCardItem(
                 usageView,
@@ -1512,8 +1512,8 @@ extension StatusItemController {
 
     private func makeUsageSubmenu(
         provider: UsageProvider,
-        snapshot: UsageSnapshot?,
         webItems: OpenAIWebMenuItems,
+        hasInlineCostDashboard: Bool,
         width: CGFloat? = nil) -> NSMenu?
     {
         if webItems.hasUsageBreakdown {
@@ -1523,11 +1523,13 @@ extension StatusItemController {
         if provider == .openai {
             return self.makeOpenAIAPIUsageSubmenu(provider: provider, width: width)
         }
-        // Mistral's top usage pane has no rate-limit bars of its own, so its cost history hangs
-        // off this row instead. Other `tokenCostRequiresProviderSnapshot` providers (e.g.
-        // opencodego) show real rate-limit bars here and get their own "Cost" row instead
-        // (see `makeCostMenuCardItem`), matching Codex/Claude's structure.
+        // Mistral's top usage pane has no rate-limit bars of its own, so its cost history always hangs
+        // off this row. Providers whose cards render an inline cost dashboard also gain cost history
+        // on the top card when the Cost Summary style permits it; Both still keeps the dedicated Cost row.
         if provider == .mistral {
+            return self.makeCostHistorySubmenu(provider: provider, width: width)
+        }
+        if hasInlineCostDashboard, self.settings.costSummaryShowsSubmenu(for: provider) {
             return self.makeCostHistorySubmenu(provider: provider, width: width)
         }
         return nil

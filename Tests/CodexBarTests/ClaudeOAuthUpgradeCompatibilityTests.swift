@@ -451,14 +451,22 @@ struct ClaudeOAuthUpgradeCompatibilityTests {
     }
 
     @Test
-    func `background Auto does not launch owner CLI before foreground establishment`() async throws {
+    func `background Auto launches owner CLI once OAuth credentials are confirmed absent`() async throws {
         let root = try Self.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
         let cli = try Self.makeFakeClaudeCLI(in: root)
         let missingCredentials = root.appendingPathComponent("missing-credentials.json")
+        // The deadlock-breaker only fires for a profile CodexBar can identify. Pin an isolated identified
+        // profile via CLAUDE_CONFIG_DIR so this does not depend on the host's real ~/.claude.json
+        // (signed in on dev machines, absent on CI).
+        try Data(#"{"oauthAccount":{"accountUuid":"upgrade-compat-account"}}"#.utf8)
+            .write(to: root.appendingPathComponent(".config.json"), options: .atomic)
         let context = try self.makePersistedOAuthContext(
             suite: "ClaudeOAuthUpgradeCompatibilityTests-auto-foreign-only",
-            environment: ["CLAUDE_CLI_PATH": cli.executable.path],
+            environment: [
+                "CLAUDE_CLI_PATH": cli.executable.path,
+                "CLAUDE_CONFIG_DIR": root.path,
+            ],
             sourceMode: .auto)
         let descriptor = ProviderDescriptorRegistry.descriptor(for: .claude)
         let strategies = await descriptor.fetchPlan.pipeline.resolveStrategies(context)
@@ -469,13 +477,20 @@ struct ClaudeOAuthUpgradeCompatibilityTests {
             #expect(binary == cli.executable.path)
             return Self.makeCLIUsageSnapshot()
         }
-        let outcome = try await KeychainAccessGate.withTaskOverrideForTesting(false) {
-            try await ClaudeOAuthKeychainPromptPreference.withTaskOverrideForTesting(.always) {
-                try await ClaudeStatusProbe.$fetchOverride.withValue(cliUsage) {
-                    try await Self.withIsolatedCredentialState(credentialsURLOverride: missingCredentials) {
-                        try await Self.withForeignKeychainTripwires(calls: calls) {
-                            await Self.withWebTripwires(calls: calls) {
-                                await descriptor.fetchOutcome(context: context)
+        // No direct-Keychain-read consent (#2634) is the real production gate here — model it explicitly
+        // instead of relying on the ambient test-shortcut that `hasTaskKeychainTestingOverride` grants once
+        // any Keychain fixture is installed. Without consent, the non-interactive absence probe used by the
+        // background-Auto deadlock-breaker resolves to `.notFound` from the missing local cache/file alone,
+        // and never reaches the foreign Keychain tripwires below.
+        let outcome = try await ClaudeOAuthDirectKeychainReadConsent.withTaskOverrideForTesting(false) {
+            try await KeychainAccessGate.withTaskOverrideForTesting(false) {
+                try await ClaudeOAuthKeychainPromptPreference.withTaskOverrideForTesting(.always) {
+                    try await ClaudeStatusProbe.$fetchOverride.withValue(cliUsage) {
+                        try await Self.withIsolatedCredentialState(credentialsURLOverride: missingCredentials) {
+                            try await Self.withForeignKeychainTripwires(calls: calls) {
+                                await Self.withWebTripwires(calls: calls) {
+                                    await descriptor.fetchOutcome(context: context)
+                                }
                             }
                         }
                     }
@@ -483,22 +498,20 @@ struct ClaudeOAuthUpgradeCompatibilityTests {
             }
         }
 
-        #expect(outcome.attempts.map(\.strategyID) == ["claude.oauth", "claude.cli", "claude.web"])
-        #expect(outcome.attempts.map(\.wasAvailable) == [true, false, false])
-        switch outcome.result {
-        case let .failure(error as ClaudeOAuthCredentialsError):
-            guard case .notFound = error else {
-                Issue.record("Expected missing OAuth credentials, got \(error)")
-                return
-            }
-        case let .failure(error):
-            Issue.record("Expected missing OAuth credentials, got \(error)")
-        case let .success(result):
-            Issue.record("Background Auto unexpectedly produced \(result.strategyID)")
-        }
+        // Without a prior foreground-established marker, background Auto now starts the owner CLI once a
+        // direct, non-interactive, no-prompt read confirms OAuth credentials are absent (not merely
+        // unreadable/denied) — the same deadlock-breaker documented on `ClaudeCLIFetchStrategy.isAvailable`.
+        // The fixture's owner CLI is logged in and returns real usage, so web is never consulted.
+        #expect(outcome.attempts.map(\.strategyID) == ["claude.oauth", "claude.cli"])
+        #expect(outcome.attempts.map(\.wasAvailable) == [true, true])
+        let result = try outcome.result.get()
+        #expect(result.strategyID == "claude.cli")
         #expect(calls.recordedOAuthTokens.isEmpty)
         #expect(calls.recordedWebCalls.isEmpty)
         #expect(calls.recordedForeignKeychainReads == 0)
+        // `ClaudeCLIFetchStrategy.fetch()` calls `loadViaCLI` directly (PTY `/usage`), not the auth-status
+        // preflight `loadViaAutoCLI` uses — `cliUsage` intercepts at the `ClaudeStatusProbe.fetch()` level,
+        // so the fixture binary is never actually spawned here and its invocation log stays empty.
         #expect(Self.cliInvocations(at: cli.invocationLog).isEmpty)
     }
 

@@ -1349,6 +1349,7 @@
 "menu_bar_layout_gap" = "Khoảng cách";
 "menu_bar_layout_gap_tight" = "Hẹp";
 "menu_bar_layout_gap_regular" = "Thường";
+"menu_bar_layout_vertical_adjustment" = "Điều chỉnh dọc";
 "menu_bar_layout_keyboard_hint" = "Delete xóa thẻ đã chọn";
 "menu_bar_layout_sample_account" = "tài khoản";
 "menu_bar_layout_sample_runs_out" = "hết vào T6";

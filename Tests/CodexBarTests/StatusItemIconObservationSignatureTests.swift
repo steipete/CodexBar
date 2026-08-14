@@ -8,7 +8,8 @@ import Testing
 struct StatusItemIconObservationSignatureTests {
     private func makeController(
         suiteName: String,
-        menuBarLayout: MenuBarLayout? = nil)
+        menuBarLayout: MenuBarLayout? = nil,
+        provider: UsageProvider = .codex)
         -> (SettingsStore, UsageStore, StatusItemController)
     {
         let settings = testSettingsStore(suiteName: suiteName)
@@ -20,23 +21,35 @@ struct StatusItemIconObservationSignatureTests {
         settings.menuBarShowsHighestUsage = false
         settings.mergeIcons = true
         settings.mergedMenuLastSelectedWasOverview = false
-        settings.selectedMenuProvider = .codex
+        settings.selectedMenuProvider = provider.instanceID
         if let menuBarLayout {
             settings.menuBarShowsBrandIconWithPercent = true
             settings.setMenuBarLayout(menuBarLayout, for: nil)
         }
 
         let registry = ProviderRegistry.shared
-        if let codexMeta = registry.metadata[.codex] {
-            settings.setProviderEnabled(provider: .codex, metadata: codexMeta, enabled: true)
+        if provider != .codex, let codexMeta = registry.metadata[.codex] {
+            settings.setProviderEnabled(provider: .codex, metadata: codexMeta, enabled: false)
         }
-        if let claudeMeta = registry.metadata[.claude] {
+        if provider != .claude, let claudeMeta = registry.metadata[.claude] {
             settings.setProviderEnabled(provider: .claude, metadata: claudeMeta, enabled: false)
+        }
+        if let providerMeta = registry.metadata[provider] {
+            settings.setProviderEnabled(provider: provider, metadata: providerMeta, enabled: true)
         }
 
         let fetcher = UsageFetcher()
-        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
-        store._setSnapshotForTesting(Self.makeSnapshot(provider: .codex, email: "icon@example.com"), provider: .codex)
+        let environmentBase = provider == .openrouter
+            ? [OpenRouterSettingsReader.envKey: "test-openrouter-key"]
+            : [:]
+        let store = UsageStore(
+            fetcher: fetcher,
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings,
+            environmentBase: environmentBase)
+        store._setSnapshotForTesting(
+            Self.makeSnapshot(provider: provider, email: "icon@example.com"),
+            provider: provider)
         let controller = StatusItemController(
             store: store,
             settings: settings,
@@ -344,6 +357,23 @@ struct StatusItemIconObservationSignatureTests {
     }
 
     @Test
+    func `custom OpenRouter balance token changes the store icon observation signature`() throws {
+        let (settings, store, controller) = self.makeController(
+            suiteName: "StatusItemIconObservationSignatureTests-openrouter-balance",
+            menuBarLayout: MenuBarLayout(lines: [[.balance]]),
+            provider: .openrouter)
+        defer { controller.releaseStatusItemsForTesting() }
+
+        settings.setMenuBarMetricPreference(.primary, for: .openrouter)
+        try store._setSnapshotForTesting(Self.makeBalanceSnapshot("$12.34"), provider: .openrouter)
+        let baseline = controller.storeIconObservationSignature()
+
+        try store._setSnapshotForTesting(Self.makeBalanceSnapshot("$9.87"), provider: .openrouter)
+
+        #expect(controller.storeIconObservationSignature() != baseline)
+    }
+
+    @Test
     func `token cost publication enters the icon refresh path without a usage change`() async {
         let (_, store, controller) = self.makeController(
             suiteName: "StatusItemIconObservationSignatureTests-custom-cost-title",
@@ -485,6 +515,21 @@ struct StatusItemIconObservationSignatureTests {
                 accountEmail: "copilot@example.com",
                 accountOrganization: nil,
                 loginMethod: "individual"))
+    }
+
+    private static func makeBalanceSnapshot(_ balance: String) throws -> UsageSnapshot {
+        let row = try ProviderDetailSection.Row(label: "Remaining", value: balance)
+        let section = try ProviderDetailSection(title: "Credits", rows: [row])
+        return UsageSnapshot(
+            primary: nil,
+            secondary: nil,
+            details: [section],
+            updatedAt: Date(timeIntervalSince1970: 100),
+            identity: ProviderIdentitySnapshot(
+                providerID: .openrouter,
+                accountEmail: nil,
+                accountOrganization: nil,
+                loginMethod: "api_key"))
     }
 
     private static func makeTokenSnapshot(

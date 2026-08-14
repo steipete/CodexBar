@@ -1348,6 +1348,7 @@
 "menu_bar_layout_gap" = "Tussenruimte";
 "menu_bar_layout_gap_tight" = "Krap";
 "menu_bar_layout_gap_regular" = "Normaal";
+"menu_bar_layout_vertical_adjustment" = "Verticale aanpassing";
 "menu_bar_layout_keyboard_hint" = "Delete verwijdert het geselecteerde token";
 "menu_bar_layout_sample_account" = "account";
 "menu_bar_layout_sample_runs_out" = "op vr.";

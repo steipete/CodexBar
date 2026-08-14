@@ -1352,6 +1352,7 @@
 "menu_bar_layout_gap" = "ระยะห่าง";
 "menu_bar_layout_gap_tight" = "ชิด";
 "menu_bar_layout_gap_regular" = "ปกติ";
+"menu_bar_layout_vertical_adjustment" = "ปรับแนวตั้ง";
 "menu_bar_layout_keyboard_hint" = "Delete ลบโทเค็นที่เลือก";
 "menu_bar_layout_sample_account" = "บัญชี";
 "menu_bar_layout_sample_runs_out" = "หมดวันศุกร์";

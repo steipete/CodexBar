@@ -43,10 +43,12 @@ struct CodexBarCoreResourcesTests {
         let sourceBundle = try #require(CodexBarCoreResources.bundle)
         let target = root.appendingPathComponent("CodexBar_CodexBarCore.\(pathExtension)")
         try FileManager.default.copyItem(at: sourceBundle.bundleURL.resolvingSymlinksInPath(), to: target)
+        let executableURL = root.appendingPathComponent("CodexBarCLI")
+        try Data().write(to: executableURL)
 
         let resolved = try #require(CodexBarCoreResources.resolve(
             mainBundle: .main,
-            executableBundleURL: root,
+            executableURL: executableURL,
             swiftPMBuildDirectory: nil))
         #expect(resolved.bundleURL.resolvingSymlinksInPath() == target.resolvingSymlinksInPath())
     }
@@ -60,7 +62,7 @@ struct CodexBarCoreResourcesTests {
 
         #expect(CodexBarCoreResources.resolve(
             mainBundle: .main,
-            executableBundleURL: root,
+            executableURL: root.appendingPathComponent("CodexBarCLI"),
             swiftPMBuildDirectory: nil) == nil)
     }
 

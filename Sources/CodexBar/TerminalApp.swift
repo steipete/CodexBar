@@ -5,6 +5,7 @@ enum TerminalApp: String, CaseIterable, Identifiable {
 
     case terminal
     case iTerm
+    case ghostty
 
     var id: String {
         self.rawValue
@@ -14,6 +15,7 @@ enum TerminalApp: String, CaseIterable, Identifiable {
         switch self {
         case .terminal: "Terminal"
         case .iTerm: "iTerm"
+        case .ghostty: "Ghostty"
         }
     }
 
@@ -21,6 +23,7 @@ enum TerminalApp: String, CaseIterable, Identifiable {
         switch self {
         case .terminal: "com.apple.Terminal"
         case .iTerm: "com.googlecode.iterm2"
+        case .ghostty: "com.mitchellh.ghostty"
         }
     }
 
@@ -110,6 +113,16 @@ enum TerminalApp: String, CaseIterable, Identifiable {
                 tell current session of newWindow
                     write text "\(escaped)"
                 end tell
+            end tell
+            """
+        case .ghostty:
+            // Requires Ghostty 1.3.0+ (first release with AppleScript support). `initial input`
+            // runs the command in the user's shell and keeps the window open afterward, matching
+            // the Terminal and iTerm behavior; older Ghostty fails here and falls back to Terminal.
+            """
+            tell application "Ghostty"
+                activate
+                new window with configuration {initial input:"\(escaped)" & linefeed}
             end tell
             """
         }

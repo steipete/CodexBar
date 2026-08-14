@@ -1327,6 +1327,7 @@
 "menu_bar_layout_gap" = "间距";
 "menu_bar_layout_gap_tight" = "紧凑";
 "menu_bar_layout_gap_regular" = "常规";
+"menu_bar_layout_vertical_adjustment" = "垂直调整";
 "menu_bar_layout_keyboard_hint" = "Delete 键会移除所选项目";
 "menu_bar_layout_sample_account" = "帐户";
 "menu_bar_layout_sample_runs_out" = "周五用尽";

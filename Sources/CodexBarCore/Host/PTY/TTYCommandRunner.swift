@@ -673,11 +673,13 @@ public struct TTYCommandRunner {
                 // Once the bounded buffer overflows, do not spend seconds sweeping every process's
                 // descriptors before signaling. Closing the master unblocks a child stuck writing,
                 // and the scoped abort escalates within its fixed grace window.
+                launchedProcess.discardReservedPTYPrimaryDescriptor()
                 try? primaryHandle.close()
                 launchedProcess.abortSynchronously()
             } else {
                 if !didTerminateSynchronously {
-                    launchedProcess.terminateSynchronously()
+                    // An early-stopped root may exit during settle while detached PTY holders remain.
+                    launchedProcess.hardStopLivePTYRootSynchronously()
                 }
                 try? primaryHandle.close()
             }

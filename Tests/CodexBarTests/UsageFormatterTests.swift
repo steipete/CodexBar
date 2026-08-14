@@ -517,6 +517,12 @@ struct UsageFormatterTests {
         #expect(explicitKRW.contains("₩"))
         #expect(!explicitKRW.contains("."))
 
+        let czkRate = exchange.rate(for: "CZK") ?? 21.0
+        #expect(abs((exchange.convert(usdAmount: 10.0, to: "CZK") ?? 0) - 10.0 * czkRate) < epsilon)
+        let explicitCZK = UsageFormatter.convertedCostString(10.0, preferredCurrency: "CZK", providerCurrency: "USD")
+        #expect(explicitCZK.contains("CZK"))
+        #expect(explicitCZK.contains("."))
+
         #expect(exchange.convert(amount: 10.0, from: "CHF", to: "USD") == nil)
         let unavailable = UsageFormatter.convertedCostString(
             10.0,
@@ -535,6 +541,7 @@ struct UsageFormatterTests {
         #expect(CurrencyExchange.requiresLiveRates(preferredCurrencyCode: "GBP"))
         #expect(CurrencyExchange.requiresLiveRates(preferredCurrencyCode: " eur "))
         #expect(CurrencyExchange.requiresLiveRates(preferredCurrencyCode: "KRW"))
+        #expect(CurrencyExchange.requiresLiveRates(preferredCurrencyCode: "CZK"))
     }
 
     @Test

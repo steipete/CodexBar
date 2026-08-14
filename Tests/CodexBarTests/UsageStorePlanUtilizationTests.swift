@@ -1330,6 +1330,102 @@ struct UsageStorePlanUtilizationTests {
 
         #expect(store.load() == [.zai: buckets])
     }
+
+    @Test
+    func `store preserves unchanged provider file identity`() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let directoryURL = root
+            .appendingPathComponent("com.steipete.codexbar", isDirectory: true)
+            .appendingPathComponent("history", isDirectory: true)
+        let providerURL = directoryURL.appendingPathComponent("codex.json")
+        let store = PlanUtilizationHistoryStore(directoryURL: directoryURL)
+        let buckets = Self.persistedBuckets(usedPercent: 12)
+
+        store.save([.codex: buckets])
+        try FileManager.default.setAttributes(
+            [.modificationDate: Date(timeIntervalSince1970: 1_600_000_000)],
+            ofItemAtPath: providerURL.path)
+        let before = try Self.persistedFileState(at: providerURL)
+
+        store.save([.codex: buckets])
+        let after = try Self.persistedFileState(at: providerURL)
+
+        #expect(after == before)
+    }
+
+    @Test
+    func `changing one provider leaves unchanged sibling file untouched`() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let directoryURL = root
+            .appendingPathComponent("com.steipete.codexbar", isDirectory: true)
+            .appendingPathComponent("history", isDirectory: true)
+        let codexURL = directoryURL.appendingPathComponent("codex.json")
+        let claudeURL = directoryURL.appendingPathComponent("claude.json")
+        let store = PlanUtilizationHistoryStore(directoryURL: directoryURL)
+        let initialCodex = Self.persistedBuckets(usedPercent: 12)
+        let changedCodex = Self.persistedBuckets(usedPercent: 64)
+        let claude = Self.persistedBuckets(usedPercent: 37)
+
+        store.save([.codex: initialCodex, .claude: claude])
+        try FileManager.default.setAttributes(
+            [.modificationDate: Date(timeIntervalSince1970: 1_600_000_000)],
+            ofItemAtPath: claudeURL.path)
+        let codexBefore = try Self.persistedFileState(at: codexURL)
+        let claudeBefore = try Self.persistedFileState(at: claudeURL)
+
+        store.save([.codex: changedCodex, .claude: claude])
+
+        let loaded = store.load()
+        let codexAfter = try Self.persistedFileState(at: codexURL)
+        let claudeAfter = try Self.persistedFileState(at: claudeURL)
+        #expect(loaded[.codex] == changedCodex)
+        #expect(loaded[.claude] == claude)
+        #expect(codexAfter.data != codexBefore.data)
+        #expect(claudeAfter == claudeBefore)
+    }
+
+    @Test
+    func `saving empty provider removes existing history file`() {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let directoryURL = root
+            .appendingPathComponent("com.steipete.codexbar", isDirectory: true)
+            .appendingPathComponent("history", isDirectory: true)
+        let providerURL = directoryURL.appendingPathComponent("codex.json")
+        let store = PlanUtilizationHistoryStore(directoryURL: directoryURL)
+
+        store.save([.codex: Self.persistedBuckets(usedPercent: 12)])
+        #expect(FileManager.default.fileExists(atPath: providerURL.path))
+
+        store.save([:])
+
+        #expect(!FileManager.default.fileExists(atPath: providerURL.path))
+    }
+
+    @Test
+    func `saving replaces malformed provider history with canonical document`() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let directoryURL = root
+            .appendingPathComponent("com.steipete.codexbar", isDirectory: true)
+            .appendingPathComponent("history", isDirectory: true)
+        let providerURL = directoryURL.appendingPathComponent("codex.json")
+        let store = PlanUtilizationHistoryStore(directoryURL: directoryURL)
+        let buckets = Self.persistedBuckets(usedPercent: 12)
+        let malformed = Data("{not-json".utf8)
+        try FileManager.default.createDirectory(
+            at: directoryURL,
+            withIntermediateDirectories: true)
+        try malformed.write(to: providerURL)
+
+        store.save([.codex: buckets])
+        let rewritten = try Data(contentsOf: providerURL)
+
+        #expect(rewritten != malformed)
+        #expect(store.load() == [.codex: buckets])
+    }
 }
 
 extension UsageStorePlanUtilizationTests {
@@ -1338,6 +1434,33 @@ extension UsageStorePlanUtilizationTests {
         let preferredAccountKey: String?
         let unscoped: [PlanUtilizationSeriesHistory]
         let accounts: [String: [PlanUtilizationSeriesHistory]]
+    }
+
+    private struct PersistedFileState: Equatable {
+        let data: Data
+        let modificationDate: Date
+        let fileNumber: UInt64
+    }
+
+    private static func persistedBuckets(usedPercent: Double) -> PlanUtilizationHistoryBuckets {
+        PlanUtilizationHistoryBuckets(
+            preferredAccountKey: nil,
+            unscoped: [
+                planSeries(name: .session, windowMinutes: 300, entries: [
+                    planEntry(at: Date(timeIntervalSince1970: 1_700_000_000), usedPercent: usedPercent),
+                ]),
+            ])
+    }
+
+    private static func persistedFileState(at url: URL) throws -> PersistedFileState {
+        let attributes = try FileManager.default.attributesOfItem(atPath: url.path)
+        let modificationDate = try #require(attributes[.modificationDate] as? Date)
+        let fileNumber = try #require(attributes[.systemFileNumber] as? NSNumber)
+        let data = try Data(contentsOf: url)
+        return PersistedFileState(
+            data: data,
+            modificationDate: modificationDate,
+            fileNumber: fileNumber.uint64Value)
     }
 
     private struct FixtureDocument: Decodable {

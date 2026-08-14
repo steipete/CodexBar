@@ -875,6 +875,31 @@ struct CostHistoryChartMenuViewTests {
 
 extension CostHistoryChartMenuViewTests {
     @Test
+    @MainActor
+    func `render fingerprint honors display currency override`() {
+        let snapshot = Self.makeSnapshot(dailyCost: 1.0)
+        let native = CostHistoryChartMenuView.renderFingerprint(from: snapshot, provider: .codex)
+        let converted = CostHistoryChartMenuView.renderFingerprint(
+            from: snapshot,
+            provider: .codex,
+            displayCurrencyCode: "CZK",
+            displayCostMultiplier: 21.0)
+        let rateRefreshed = CostHistoryChartMenuView.renderFingerprint(
+            from: snapshot,
+            provider: .codex,
+            displayCurrencyCode: "CZK",
+            displayCostMultiplier: 21.5)
+
+        #expect(native.currencyCode == snapshot.currencyCode)
+        #expect(native.costMultiplierBitPattern == 1.0.bitPattern)
+        #expect(converted.currencyCode == "CZK")
+        #expect(converted.costMultiplierBitPattern == 21.0.bitPattern)
+        #expect(rateRefreshed.costMultiplierBitPattern == 21.5.bitPattern)
+        #expect(native != converted)
+        #expect(converted != rateRefreshed)
+    }
+
+    @Test
     func `session labels distinguish concurrent uuid v7 identifiers`() {
         let first = CostHistoryChartMenuView.shortSessionID("019f6d91-970b-7e13-b08e-000000000001")
         let second = CostHistoryChartMenuView.shortSessionID("019f6d91-970b-7e13-b08e-000000000002")

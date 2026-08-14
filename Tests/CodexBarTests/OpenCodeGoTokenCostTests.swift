@@ -64,6 +64,41 @@ struct OpenCodeGoTokenCostTests {
         #expect(tokenSnapshot?.last30DaysCostUSD == 1.23)
     }
 
+    @Test
+    func `zero cost local history projects known zero instead of unavailable`() {
+        let settings = Self.makeSettings()
+        let fetcher = UsageFetcher()
+        let store = UsageStore(fetcher: fetcher, browserDetection: BrowserDetection(cacheTTL: 0), settings: settings)
+
+        let zeroCostSnapshot = OpenCodeGoUsageSnapshot(
+            hasMonthlyUsage: true,
+            rollingUsagePercent: 12,
+            weeklyUsagePercent: 57,
+            monthlyUsagePercent: 34,
+            rollingResetInSec: 3600,
+            weeklyResetInSec: 86400,
+            monthlyResetInSec: 864_000,
+            daily: [
+                CostUsageDailyReport.Entry(
+                    date: "2025-12-23",
+                    inputTokens: nil,
+                    outputTokens: nil,
+                    totalTokens: nil,
+                    requestCount: 5,
+                    costUSD: 0,
+                    modelsUsed: nil,
+                    modelBreakdowns: nil),
+            ],
+            updatedAt: Date())
+
+        let tokenSnapshot = store.tokenSnapshot(
+            fromProviderSnapshot: zeroCostSnapshot.toUsageSnapshot(),
+            provider: .opencodego)
+
+        #expect(tokenSnapshot?.last30DaysCostUSD == 0)
+        #expect(tokenSnapshot?.last30DaysTokens == nil)
+    }
+
     private static func makeSettings() -> SettingsStore {
         let suite = "OpenCodeGoTokenCostTests-\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!

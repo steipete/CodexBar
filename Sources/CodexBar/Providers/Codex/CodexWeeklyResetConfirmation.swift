@@ -178,7 +178,13 @@ struct CodexWeeklyResetConfirmation: Sendable {
             return false
         }
         let previouslyAvailableCredits = previousCredits.availableCredits(at: previousCredits.updatedAt)
-        guard !previouslyAvailableCredits.isEmpty else { return false }
+        // An explicitly observed zero-credit inventory means there was no manual reset credit to
+        // consume. Requiring consumption proof here would deadlock: the two consistent observations
+        // (initial + confirmation) are the only signal a server-side early reset has, so trust them.
+        // A nil/unknown previous inventory stays conservative and keeps demanding consumption proof.
+        guard !previouslyAvailableCredits.isEmpty else {
+            return previousCredits.availableCount == 0
+        }
         return previouslyAvailableCredits.contains { previousCredit in
             Self.inventoryConfirmsConsumption(
                 previousCredit: previousCredit,

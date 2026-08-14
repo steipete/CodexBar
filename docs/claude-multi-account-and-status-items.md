@@ -156,8 +156,8 @@ Icons semantics must be decided before implementation.
 
 The mock above shows the recommended mode and its Merge Icons conflict. It is intentionally a decision artifact, not
 an implementation screenshot. The following packaged synthetic-account proof verifies the bounded current behavior:
-the account action is now named “Sign in with Claude Code…” and no longer claims it will add a durable CodexBar account.
-No real credential, browser session, or provider call was used.
+the separate ambient OAuth action is named “Sign in with Claude Code…”, while inactive claude-swap cards retain their
+explicit “Switch Account…” action. No real credential, browser session, or provider call was used.
 
 ![Packaged synthetic Claude sign-in proof](screenshots/claude-sign-in-synthetic-proof.png)
 

@@ -59,6 +59,14 @@ package enum CostUsageStoreCrashHarness {
         self.save(self.updatedCache(), cacheRoot: cacheRoot, killAfterFiles: killAfterFiles)
     }
 
+    /// Drives the read bridge. The save entry points above only cross the store executor
+    /// through `syncSaveCodexCache`; `syncLoadCodexCache` is the bridge that runs on every
+    /// launch, so it needs its own probe. Returns the file count so a caller can tell a real
+    /// read from an empty one.
+    package static func load(cacheRoot: URL) -> Int {
+        CostUsageStoreAccess.read(cacheRoot: cacheRoot, calendar: self.fixtureCalendar).files.count
+    }
+
     private static func save(_ cache: CostUsageCache, cacheRoot: URL, killAfterFiles: Int?) -> Bool {
         if let killAfterFiles {
             CostUsageStore.saveCycleCheckpointForTesting = { persistedFiles in

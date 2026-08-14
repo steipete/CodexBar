@@ -94,6 +94,7 @@ private struct AzureOpenAIChatCompletionResponse: Decodable {
 public enum AzureOpenAIUsageFetcher {
     private static let timeoutSeconds: TimeInterval = 20
     private static let maxErrorBodyLength = 240
+    private static let v1ValidationCompletionTokenCap = 64
 
     public static func fetchUsage(
         apiKey: String,
@@ -218,7 +219,7 @@ public enum AzureOpenAIUsageFetcher {
         ]
         if self.usesV1API(apiVersion) {
             payload["model"] = deploymentName
-            payload["max_completion_tokens"] = 1
+            payload["max_completion_tokens"] = Self.v1ValidationCompletionTokenCap
         } else {
             payload["max_tokens"] = 1
         }

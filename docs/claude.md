@@ -162,7 +162,9 @@ The accepted multi-account design in
   cards. Active rows are marked `[active]`; no claude-swap row infers a plan badge.
 - Switching: an inactive account with usable source credentials shows “Switch Account…”. Clicking it runs exactly
   `cswap --switch-to <slot> --json`, validates the versioned result and requested slot, then refreshes both ambient
-  Claude usage and every claude-swap account card. Switches are serialized; no automatic switching occurs.
+  Claude usage and every claude-swap account card. Switches are serialized; no automatic switching occurs. While
+  claude-swap owns account presentation, the separate ambient OAuth action reads “Sign in with Claude Code…” and does
+  not add or switch a claude-swap account.
 - Expired, missing, unknown, or Keychain-inaccessible credentials stay non-actionable. A failed switch remains visible
   on that account without discarding its last successful usage. A running Claude Code process can take up to the
   claude-swap Keychain cache interval to observe the new account.

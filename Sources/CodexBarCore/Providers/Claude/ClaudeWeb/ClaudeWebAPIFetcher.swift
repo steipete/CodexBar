@@ -1385,6 +1385,7 @@ extension ClaudeWebAPIFetcher {
     {
         let log: (String) -> Void = { msg in logger?("[claude-web] \(msg)") }
         var cacheObservation = CookieHeaderCache.observeForConditionalMutation(provider: .claude)
+        var invalidatedCacheError: FetchError?
 
         if let cached = cacheObservation.entry,
            !cached.cookieHeader.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -1400,6 +1401,7 @@ extension ClaudeWebAPIFetcher {
                 case .unauthorized, .noSessionKeyFound, .invalidSessionKey:
                     let cleared = CookieHeaderCache.clearIfCurrent(provider: .claude, expected: cached)
                     cacheObservation = .authoritative(cleared ? nil : cached)
+                    invalidatedCacheError = error
                 default:
                     throw error
                 }
@@ -1408,17 +1410,32 @@ extension ClaudeWebAPIFetcher {
             }
         }
 
-        let sessionInfo = try extractSessionKeyInfo(browserDetection: browserDetection, logger: log)
-        log("Found session key (\(sessionInfo.cookieCount) cookies)")
+        // The claude.ai session cookie can rotate independently of the user's signed-in state, so a background
+        // refresh can see a cached cookie go stale even when the user never signed out. Still attempt browser
+        // recovery here rather than assuming it will fail: BrowserCookieAccessGate already gates the read on its
+        // own no-UI preflight (Safari never needs Keychain decryption, and a Chromium browser with a prior
+        // "Always Allow" Keychain grant is also read without a prompt), so a background attempt is not
+        // unconditionally denied. Only if that attempt itself comes back empty do we surface the original,
+        // more informative cached-auth error instead of a misleading "no session key found" — mirroring the
+        // equivalent Ollama recovery in `OllamaStatusFetchStrategy.fetchAutomatic`.
+        do {
+            let sessionInfo = try extractSessionKeyInfo(browserDetection: browserDetection, logger: log)
+            log("Found session key (\(sessionInfo.cookieCount) cookies)")
 
-        return try await self.fetchUsage(
-            using: sessionInfo,
-            options: options,
-            logger: log,
-            cachePersistence: CachePersistence(
-                sourceLabel: sessionInfo.sourceLabel,
-                expectedObservation: cacheObservation,
-                persistInitialSessionKey: true))
+            return try await self.fetchUsage(
+                using: sessionInfo,
+                options: options,
+                logger: log,
+                cachePersistence: CachePersistence(
+                    sourceLabel: sessionInfo.sourceLabel,
+                    expectedObservation: cacheObservation,
+                    persistInitialSessionKey: true))
+        } catch {
+            if let invalidatedCacheError {
+                throw invalidatedCacheError
+            }
+            throw error
+        }
     }
 }
 #endif

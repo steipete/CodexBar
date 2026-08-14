@@ -51,6 +51,15 @@ enum DockIconPolicyDecision {
     static func shouldPromoteForPresentedWindow(_ window: DockIconWindowDescriptor) -> Bool {
         window.isVisible && (window.isSettingsWindow || window.isSparkleWindow)
     }
+
+    /// Windows that became eligible for Dock promotion since the last evaluation.
+    static func newlyPresentedWindowIDs(
+        current: Set<ObjectIdentifier>,
+        previous: Set<ObjectIdentifier>)
+        -> Set<ObjectIdentifier>
+    {
+        current.subtracting(previous)
+    }
 }
 
 @MainActor
@@ -98,8 +107,10 @@ final class DockIconController: NSObject {
     }
 
     func registerSettingsWindow(_ window: NSWindow) {
+        SettingsWindowStageBehavior.applyCollectionBehavior(window)
         guard self.settingsWindow !== window else { return }
         self.settingsWindow = window
+        SettingsWindowStageBehavior.present(window)
         self.reevaluatePolicy()
     }
 
@@ -125,12 +136,26 @@ final class DockIconController: NSObject {
                 ? ObjectIdentifier(item.window)
                 : nil
         })
-        let hasNewPresentedWindow = !presentedWindowIDs.subtracting(self.presentedWindowIDs).isEmpty
+        // Capture the delta before updating stored state so we only key newly presented
+        // dialogs. Fronting every eligible window can re-key Settings over a Sparkle alert.
+        let newlyPresentedWindowIDs = DockIconPolicyDecision.newlyPresentedWindowIDs(
+            current: presentedWindowIDs,
+            previous: self.presentedWindowIDs)
+        let hasNewPresentedWindow = !newlyPresentedWindowIDs.isEmpty
         self.presentedWindowIDs = presentedWindowIDs
 
         if !presentedWindowIDs.isEmpty {
             self.isAwaitingPresentedWindow = false
             self.ensureRegularPolicy(activate: hasNewPresentedWindow)
+            if hasNewPresentedWindow {
+                for item in describedWindows where newlyPresentedWindowIDs.contains(ObjectIdentifier(item.window)) {
+                    if item.descriptor.isSettingsWindow {
+                        SettingsWindowStageBehavior.present(item.window)
+                    } else {
+                        item.window.makeKeyAndOrderFront(nil)
+                    }
+                }
+            }
         }
 
         guard self.isManagingRegularPolicy, !self.isAwaitingPresentedWindow else { return }
