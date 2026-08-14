@@ -250,7 +250,7 @@ public struct MuseUsageFetcher: Sendable {
                 cur = d.currency
             }
             cur = cur ?? g.currency
-            if bal != nil || cur != nil {
+            if bal != nil {
                 return MuseUsageSummary(balance: bal, currency: cur, modelCount: nil, updatedAt: Date())
             }
         }
