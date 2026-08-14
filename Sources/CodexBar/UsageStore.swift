@@ -1456,11 +1456,13 @@ extension UsageStore {
             return
         }
 
-        // Provider-specific by design: Cursor cost shares the dashboard-cookie source policy with status fetching.
-        // Cursor cost honors the same cookie policy as status: when the user set the cookie source
-        // to Off, skip the network fetch entirely (mirrors CursorProviderDescriptor.checkStatus).
-        if provider == .cursor, self.settings.cursorCookieSource == .off {
-            self.resetTokenUsageState(for: provider)
+        // Cursor cost reuses the status cookie policy: a Manual source forwards the manual header so
+        // cost and status share the same session; other sources fall back to auto resolution. Decided
+        // before the in-flight guard so switching to a skipped or rejected configuration clears stale
+        // cost state even while an older fetch is still running.
+        guard case let .proceed(cursorCookieHeaderOverride) =
+            self.prepareCursorCostCookieForRefresh(provider)
+        else {
             return
         }
 
@@ -1468,11 +1470,6 @@ extension UsageStore {
 
         let now = Date()
         let historyDays = self.settings.costUsageHistoryDays
-        // Cursor cost reuses the status cookie policy: a Manual source forwards the manual header so
-        // cost and status share the same session; other sources fall back to auto resolution.
-        guard case let .proceed(cursorCookieHeaderOverride) = self.prepareCursorCostCookie(for: provider) else {
-            return
-        }
         let costScope = self.tokenCostScope(for: provider)
         let costScopeSignature = self.tokenSnapshotScopeSignature(for: provider)
         let publicationRevision = self.providerPublicationRevision(for: provider)
@@ -1596,7 +1593,7 @@ extension UsageStore {
         }
     }
 
-    private func resetTokenUsageState(for provider: UsageProvider) {
+    func resetTokenUsageState(for provider: UsageProvider) {
         // Provider-specific by design: resetting Codex token state also cancels its two ledger catch-up workflows.
         if provider == .codex {
             self.cancelCodexCostCatchUp()

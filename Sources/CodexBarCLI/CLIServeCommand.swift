@@ -1478,13 +1478,17 @@ extension CodexBarCLI {
             if let error = Self.cursorCostAvailabilityError(
                 provider,
                 settings: cursorCookieSettings,
+                source: config.providerConfig(for: .cursor)?.source,
                 resolutionError: cursorCookieSettingsError)
             {
                 return Self.makeCostPayload(provider: provider, snapshot: nil, error: error)
             }
             return await fetch(
                 provider,
-                Self.cursorCostHeaderOverride(provider, settings: cursorCookieSettings))
+                Self.cursorCostHeaderOverride(
+                    provider,
+                    settings: cursorCookieSettings,
+                    source: config.providerConfig(for: .cursor)?.source))
         }
     }
 
