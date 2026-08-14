@@ -41,6 +41,27 @@ struct KimiProviderImplementation: ProviderImplementation {
     }
 
     @MainActor
+    func tokenAccountsVisibility(context: ProviderSettingsContext, support: TokenAccountSupport) -> Bool {
+        guard support.requiresManualCookieSource else { return true }
+        // Kimi has no dedicated login runner, so the multi-account editor must
+        // stay visible even before the first account exists. Otherwise users
+        // cannot discover how to add web-auth accounts.
+        return true
+    }
+
+    @MainActor
+    func applyTokenAccountCookieSource(settings: SettingsStore) {
+        if settings.kimiCookieSource != .manual {
+            settings.kimiCookieSource = .manual
+        }
+        // Token accounts are cookie-based; an API-only usage source would bypass
+        // the per-account cookie, so fall back to the web pipeline.
+        if settings.kimiUsageDataSource == .api {
+            settings.kimiUsageDataSource = .web
+        }
+    }
+
+    @MainActor
     func settingsPickers(context: ProviderSettingsContext) -> [ProviderSettingsPickerDescriptor] {
         let usageBinding = Binding(
             get: { context.settings.kimiUsageDataSource.rawValue },

@@ -1,6 +1,7 @@
 import Foundation
 
 public enum KimiSettingsReader {
+    public static let authTokenEnvironmentKey = "KIMI_AUTH_TOKEN"
     public static let apiKeyEnvironmentKeys = ["KIMI_CODE_API_KEY"]
     public static let codeAPIBaseURLEnvironmentKey = "KIMI_CODE_BASE_URL"
     public static let codeHomeEnvironmentKey = "KIMI_CODE_HOME"
@@ -9,7 +10,7 @@ public enum KimiSettingsReader {
     private static let codePlatform = "kimi_code_cli"
 
     public static func authToken(environment: [String: String] = ProcessInfo.processInfo.environment) -> String? {
-        let raw = environment["KIMI_AUTH_TOKEN"] ?? environment["kimi_auth_token"]
+        let raw = environment[self.authTokenEnvironmentKey] ?? environment["kimi_auth_token"]
         return self.cleaned(raw)
     }
 
