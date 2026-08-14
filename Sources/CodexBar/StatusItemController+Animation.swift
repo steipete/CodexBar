@@ -919,6 +919,7 @@ extension StatusItemController {
         {
             return balance
         }
+        // Provider-specific by design: This exact app-runtime bridge coordinates provider-owned state through the shared controller.
         if provider == .mistral {
             let preference = self.settings.menuBarMetricPreference(for: provider, snapshot: snapshot)
             let hasMonthlyPlan = snapshot?.extraRateWindows?.contains { $0.id == "mistral-monthly-plan" } == true
