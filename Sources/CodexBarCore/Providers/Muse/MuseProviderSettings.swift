@@ -1,10 +1,24 @@
 import Foundation
 
-public struct MuseProviderSettings: Sendable {
+public struct MuseProviderSettings: Sendable, ProviderCookieSettings {
     public let baseURL: String?
+    public let cookieSource: ProviderCookieSource
+    public let manualCookieHeader: String?
 
-    public init(baseURL: String? = nil) {
+    public init(cookieSource: ProviderCookieSource, manualCookieHeader: String?) {
+        self.baseURL = nil
+        self.cookieSource = cookieSource
+        self.manualCookieHeader = manualCookieHeader
+    }
+
+    public init(
+        baseURL: String? = nil,
+        cookieSource: ProviderCookieSource = .auto,
+        manualCookieHeader: String? = nil)
+    {
         self.baseURL = baseURL
+        self.cookieSource = cookieSource
+        self.manualCookieHeader = manualCookieHeader
     }
 }
 

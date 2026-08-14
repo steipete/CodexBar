@@ -8,13 +8,15 @@ struct MuseProviderImplementation: ProviderImplementation {
 
     @MainActor
     func presentation(context _: ProviderPresentationContext) -> ProviderPresentation {
-        ProviderPresentation { _ in "api" }
+        ProviderPresentation { _ in "web+api" }
     }
 
     @MainActor
     func observeSettings(_ settings: SettingsStore) {
         _ = settings.museAPIToken
         _ = settings.museBaseURL
+        _ = settings.museCookieSource
+        _ = settings.museCookieHeader
     }
 
     @MainActor
@@ -31,6 +33,36 @@ struct MuseProviderImplementation: ProviderImplementation {
         }
         context.settings.ensureMuseAPITokenLoaded()
         return context.settings.hasMuseAPIToken
+    }
+
+    @MainActor
+    func settingsPickers(context: ProviderSettingsContext) -> [ProviderSettingsPickerDescriptor] {
+        let cookieBinding = Binding(
+            get: { context.settings.museCookieSource.rawValue },
+            set: { raw in context.settings.museCookieSource = ProviderCookieSource(rawValue: raw) ?? .auto })
+        let cookieOptions = ProviderCookieSourceUI.options(
+            allowsOff: false,
+            keychainDisabled: context.settings.debugDisableKeychainAccess)
+        let cookieSubtitle: () -> String? = {
+            ProviderCookieSourceUI.subtitle(
+                source: context.settings.museCookieSource,
+                keychainDisabled: context.settings.debugDisableKeychainAccess,
+                auto: "Automatic imports dev.meta.ai session (Team usage).",
+                manual: "Paste Cookie header from dev.meta.ai → DevTools → Network → usage XHR.",
+                off: "Muse cookies disabled.")
+        }
+        return [
+            ProviderSettingsPickerDescriptor(
+                id: "muse-cookie-source",
+                title: "Team usage (dev.meta.ai)",
+                subtitle: "Automatic imports dev.meta.ai session.",
+                dynamicSubtitle: cookieSubtitle,
+                binding: cookieBinding,
+                options: cookieOptions,
+                isVisible: nil,
+                onChange: nil,
+                trailingText: { ProviderCookieSourceUI.cachedTrailingText(provider: .muse) }),
+        ]
     }
 
     @MainActor
@@ -52,6 +84,14 @@ struct MuseProviderImplementation: ProviderImplementation {
                         perform: {
                             NSWorkspace.shared.open(URL(string: "https://ai.developer.meta.com/")!)
                         }),
+                    ProviderSettingsActionDescriptor(
+                        id: "muse-open-usage",
+                        title: "Open Team usage (dev.meta.ai)",
+                        style: .link,
+                        isVisible: nil,
+                        perform: {
+                            NSWorkspace.shared.open(URL(string: "https://dev.meta.ai/usage")!)
+                        }),
                 ],
                 isVisible: nil,
                 onActivate: { context.settings.ensureMuseAPITokenLoaded() }),
@@ -64,6 +104,16 @@ struct MuseProviderImplementation: ProviderImplementation {
                 binding: context.stringBinding(\.museBaseURL),
                 actions: [],
                 isVisible: nil,
+                onActivate: nil),
+            ProviderSettingsFieldDescriptor(
+                id: "muse-cookie-header",
+                title: "Cookie header (manual)",
+                subtitle: "Paste Cookie header from dev.meta.ai → DevTools → Network → usage XHR → Request Headers",
+                kind: .secure,
+                placeholder: "Cookie: ...",
+                binding: context.stringBinding(\.museCookieHeader),
+                actions: [],
+                isVisible: { context.settings.museCookieSource == .manual },
                 onActivate: nil),
         ]
     }

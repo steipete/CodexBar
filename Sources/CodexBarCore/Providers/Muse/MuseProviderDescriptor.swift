@@ -13,9 +13,20 @@ public enum MuseProviderDescriptor {
     static func makeDescriptor() -> ProviderDescriptor {
         ProviderDescriptor(
             id: .muse,
-            settingsSection: .init(MuseProviderSettingsKey.self, credentialSettings: { context in
-                MuseProviderSettings(baseURL: context.config?.sanitizedBaseURL)
-            }),
+            settingsSection: .init(
+                MuseProviderSettingsKey.self,
+                cookieSettings: { settings in
+                    CookieProviderSettings(
+                        cookieSource: settings.cookieSource,
+                        manualCookieHeader: settings.manualCookieHeader)
+                },
+                credentialSettings: { context in
+                    let s = context.cookieSettings(for: .muse)
+                    return MuseProviderSettings(
+                        baseURL: context.config?.sanitizedBaseURL,
+                        cookieSource: s.cookieSource,
+                        manualCookieHeader: s.manualCookieHeader)
+                }),
             credentials: self.credentials,
             metadata: ProviderMetadata(
                 id: .muse,
@@ -34,8 +45,8 @@ public enum MuseProviderDescriptor {
                 isPrimaryProvider: false,
                 usesAccountFallback: false,
                 balanceOnly: true,
-                browserCookieOrder: nil,
-                dashboardURL: "https://ai.developer.meta.com/",
+                browserCookieOrder: ProviderBrowserCookieDefaults.defaultImportOrder,
+                dashboardURL: "https://dev.meta.ai/usage",
                 statusPageURL: nil,
                 statusLinkURL: nil),
             branding: ProviderBranding(
@@ -57,8 +68,13 @@ public enum MuseProviderDescriptor {
             presentation: ProviderUsagePresentation(
                 planRow: ProviderPlanRowPresentation(label: "Balance", stripsBalancePrefix: true)),
             fetchPlan: ProviderFetchPlan(
-                sourceModes: [.auto, .api],
-                pipeline: ProviderFetchPipeline(resolveStrategies: { _ in [MuseAPIFetchStrategy()] })),
+                sourceModes: [.auto, .web, .api],
+                pipeline: ProviderFetchPipeline(resolveStrategies: { context in
+                    var strategies: [any ProviderFetchStrategy] = []
+                    if context.sourceMode.usesWeb { strategies.append(MuseWebFetchStrategy()) }
+                    strategies.append(MuseAPIFetchStrategy())
+                    return strategies
+                })),
             cli: ProviderCLIConfig(
                 name: "muse",
                 aliases: ["meta", "metamuse"],
@@ -96,6 +112,59 @@ struct MuseAPIFetchStrategy: ProviderFetchStrategy {
 
     func shouldFallback(on _: Error, context _: ProviderFetchContext) -> Bool {
         false
+    }
+}
+
+struct MuseWebFetchStrategy: ProviderFetchStrategy {
+    let id = "muse.web"
+    let kind: ProviderFetchKind = .web
+
+    func isAvailable(_ context: ProviderFetchContext) async -> Bool {
+        guard context.sourceMode.usesWeb else { return false }
+        let settings = context.settings?.muse
+        if settings?.cookieSource == .off { return false }
+        // If manual, require header; if auto, allow browser import attempt
+        if settings?.cookieSource == .manual {
+            return CookieHeaderNormalizer.normalize(settings?.manualCookieHeader) != nil
+        }
+        return true
+    }
+
+    func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
+        // Manual cookie header (Settings → Providers → Muse → Cookie source = Manual)
+        if context.settings?.muse?.cookieSource == .manual {
+            guard let h = CookieHeaderNormalizer.normalize(context.settings?.muse?.manualCookieHeader) else {
+                throw MuseUsageError.apiError("Missing dev.meta.ai Cookie header (manual)")
+            }
+            let usage = try await MuseWebUsageFetcher.fetchUsage(cookieHeader: h, timeout: context.webTimeout)
+            return self.makeResult(usage: usage, sourceLabel: "web")
+        }
+
+        // Automatic: try cached header first, then fail to API fallback.
+        // Full browser import for dev.meta.ai (SweetCookieKit) will be wired once the
+        // Team usage XHR is reverse-engineered via a captured HAR. Until then, auto
+        // gracefully falls back to the API-key probe so the tile never goes stale.
+        if let cached = CookieHeaderCache.load(provider: .muse),
+           let header = CookieHeaderNormalizer.normalize(cached.cookieHeader)
+        {
+            do {
+                let usage = try await MuseWebUsageFetcher.fetchUsage(cookieHeader: header, timeout: context.webTimeout)
+                return self.makeResult(usage: usage, sourceLabel: "web")
+            } catch let error as MuseUsageError where error.localizedDescription.contains("No parseable") {
+                throw error
+            } catch {
+                // Cached failed — clear and fall through to API fallback
+                CookieHeaderCache.clear(provider: .muse)
+                throw MuseUsageError
+                    .apiError("No dev.meta.ai session cookies found — sign in at dev.meta.ai in Chrome/Safari")
+            }
+        }
+        throw MuseUsageError.apiError("No dev.meta.ai session cookies found — sign in at dev.meta.ai in Chrome/Safari")
+    }
+
+    func shouldFallback(on _: Error, context: ProviderFetchContext) -> Bool {
+        // Web failure should fall back to API-key probe in auto mode
+        context.sourceMode == .auto
     }
 }
 
