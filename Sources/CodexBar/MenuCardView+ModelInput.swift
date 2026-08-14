@@ -31,6 +31,9 @@ extension UsageMenuCardView.Model {
         let claudeDailyRoutinesUsageVisible: Bool
         let codexSparkUsageVisible: Bool
         let copilotBudgetExtrasEnabled: Bool
+        /// Provider details is the diagnostic surface and lists every usage lane a provider reports.
+        /// The menu and widgets stay curated and may drop lanes that carry no information.
+        let showsAllUsageLanes: Bool
         let sourceLabel: String?
         let subtitleOverride: String?
         let kiloAutoMode: Bool
@@ -72,6 +75,7 @@ extension UsageMenuCardView.Model {
             claudeDailyRoutinesUsageVisible: Bool = true,
             codexSparkUsageVisible: Bool = true,
             copilotBudgetExtrasEnabled: Bool = false,
+            showsAllUsageLanes: Bool = false,
             sourceLabel: String? = nil,
             subtitleOverride: String? = nil,
             kiloAutoMode: Bool = false,
@@ -112,6 +116,7 @@ extension UsageMenuCardView.Model {
             self.claudeDailyRoutinesUsageVisible = claudeDailyRoutinesUsageVisible
             self.codexSparkUsageVisible = codexSparkUsageVisible
             self.copilotBudgetExtrasEnabled = copilotBudgetExtrasEnabled
+            self.showsAllUsageLanes = showsAllUsageLanes
             self.sourceLabel = sourceLabel
             self.subtitleOverride = subtitleOverride
             self.kiloAutoMode = kiloAutoMode
