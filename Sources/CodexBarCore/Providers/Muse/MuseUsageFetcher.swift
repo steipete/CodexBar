@@ -12,7 +12,7 @@ public struct MuseUsageSnapshot: Sendable {
     }
 
     public func toUsageSnapshot() -> UsageSnapshot {
-        summary.toUsageSnapshot()
+        self.summary.toUsageSnapshot()
     }
 }
 
@@ -51,16 +51,14 @@ public struct MuseUsageSummary: Sendable {
             providerID: .muse,
             accountEmail: nil,
             accountOrganization: nil,
-            loginMethod: loginMethod
-        )
+            loginMethod: loginMethod)
         return UsageSnapshot(
             primary: nil,
             secondary: nil,
             tertiary: nil,
             providerCost: nil,
-            updatedAt: updatedAt,
-            identity: identity
-        )
+            updatedAt: self.updatedAt,
+            identity: identity)
     }
 }
 
@@ -90,27 +88,26 @@ public struct MuseUsageFetcher: Sendable {
     public static let defaultBaseURL = "https://api.meta.ai"
 
     private static func validatedBaseURL(_ base: String) throws -> String {
-        guard let url = URL(string: base), let scheme = url.scheme?.lowercased(), !scheme.isEmpty else {
-            throw MuseUsageError.apiError("Invalid base URL")
+        // Use the shared validator so embedded user info, encoded delimiters, missing hosts, etc. are rejected
+        guard let url = ProviderEndpointOverrideValidator().validatedURLAllowingLoopbackHTTP(base) else {
+            throw MuseUsageError.apiError("Insecure base URL — use https:// (or http://localhost for local proxy)")
         }
-        if scheme == "https" { return base }
-        if scheme == "http", let host = url.host?.lowercased(), host == "localhost" || host == "127.0.0.1" || host == "::1" {
-            return base
-        }
-        throw MuseUsageError.apiError("Insecure base URL — use https:// (or http://localhost for local proxy)")
+        let absolute = url.absoluteString
+        return absolute.hasSuffix("/") ? String(absolute.dropLast()) : absolute
     }
 
     public static func fetchUsage(
         apiKey: String,
         baseURLString: String? = nil,
-        session transport: any ProviderHTTPTransport = ProviderHTTPClient.shared
-    ) async throws -> MuseUsageSnapshot {
+        session transport: any ProviderHTTPTransport = ProviderHTTPClient.shared) async throws -> MuseUsageSnapshot
+    {
         let cleaned = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !cleaned.isEmpty else {
             throw MuseUsageError.missingCredentials
         }
 
-        let base = (baseURLString?.trimmingCharacters(in: .whitespacesAndNewlines)).flatMap { $0.isEmpty ? nil : $0 } ?? defaultBaseURL
+        let base = (baseURLString?.trimmingCharacters(in: .whitespacesAndNewlines))
+            .flatMap { $0.isEmpty ? nil : $0 } ?? self.defaultBaseURL
         let normalizedBaseRaw = base.hasSuffix("/") ? String(base.dropLast()) : base
         let normalizedBase = try validatedBaseURL(normalizedBaseRaw)
 
@@ -130,14 +127,16 @@ public struct MuseUsageFetcher: Sendable {
         for path in billingPaths {
             do {
                 if let snapshot = try await fetchBalance(
-                    base: normalizedBase, path: path, apiKey: cleaned, transport: transport
-                ) {
+                    base: normalizedBase, path: path, apiKey: cleaned, transport: transport)
+                {
                     return snapshot
                 }
             } catch {
                 lastError = error
                 // 401/403 means key invalid — surface immediately
-                if let museError = error as? MuseUsageError, case .apiError(let msg) = museError, msg.contains("401") || msg.contains("403") {
+                if let museError = error as? MuseUsageError, case let .apiError(msg) = museError,
+                   msg.contains("401") || msg.contains("403")
+                {
                     throw error
                 }
                 continue
@@ -146,10 +145,12 @@ public struct MuseUsageFetcher: Sendable {
 
         // 2) Fall back to models probe — proves key validity without billing detail
         do {
-            return try await fetchModelsProbe(base: normalizedBase, apiKey: cleaned, transport: transport)
+            return try await self.fetchModelsProbe(base: normalizedBase, apiKey: cleaned, transport: transport)
         } catch let modelsError {
             // Preserve authoritative auth errors from the models probe (401/403 means invalid key)
-            if let museError = modelsError as? MuseUsageError, case .apiError(let msg) = museError, msg.contains("401") || msg.contains("403") {
+            if let museError = modelsError as? MuseUsageError, case let .apiError(msg) = museError,
+               msg.contains("401") || msg.contains("403")
+            {
                 throw modelsError
             }
             if let last = lastError { throw last }
@@ -158,21 +159,24 @@ public struct MuseUsageFetcher: Sendable {
     }
 
     private static func fetchBalance(
-        base: String, path: String, apiKey: String, transport: any ProviderHTTPTransport
-    ) async throws -> MuseUsageSnapshot? {
+        base: String,
+        path: String,
+        apiKey: String,
+        transport: any ProviderHTTPTransport) async throws -> MuseUsageSnapshot?
+    {
         guard let url = URL(string: "\(base)\(path)") else { return nil }
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
         request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
-        request.timeoutInterval = timeoutSeconds
+        request.timeoutInterval = self.timeoutSeconds
 
         let response = try await transport.response(for: request)
 
         // 404 = endpoint not supported — try next
         if response.statusCode == 404 { return nil }
         guard (200..<300).contains(response.statusCode) else {
-            log.error("Muse balance \(path) returned HTTP \(response.statusCode)")
+            self.log.error("Muse balance \(path) returned HTTP \(response.statusCode)")
             throw MuseUsageError.apiError("HTTP \(response.statusCode) at \(path)")
         }
 
@@ -182,8 +186,8 @@ public struct MuseUsageFetcher: Sendable {
     }
 
     private static func fetchModelsProbe(
-        base: String, apiKey: String, transport: any ProviderHTTPTransport
-    ) async throws -> MuseUsageSnapshot {
+        base: String, apiKey: String, transport: any ProviderHTTPTransport) async throws -> MuseUsageSnapshot
+    {
         // Support both api.meta.ai and llm.meta.com style hosts
         let paths = ["/v1/models", "/v1/models/list"]
         var lastStatus = 0
@@ -193,7 +197,7 @@ public struct MuseUsageFetcher: Sendable {
             request.httpMethod = "GET"
             request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
             request.setValue("application/json", forHTTPHeaderField: "Accept")
-            request.timeoutInterval = timeoutSeconds
+            request.timeoutInterval = self.timeoutSeconds
 
             let response = try await transport.response(for: request)
             lastStatus = response.statusCode
@@ -206,7 +210,7 @@ public struct MuseUsageFetcher: Sendable {
                 throw MuseUsageError.apiError("HTTP \(response.statusCode) — invalid API key")
             }
             if response.statusCode == 404 { continue }
-            log.error("Muse models probe returned HTTP \(response.statusCode)")
+            self.log.error("Muse models probe returned HTTP \(response.statusCode)")
             throw MuseUsageError.apiError("HTTP \(response.statusCode)")
         }
         throw MuseUsageError.apiError("HTTP \(lastStatus) — unable to validate Muse API key")
@@ -238,15 +242,15 @@ public struct MuseUsageFetcher: Sendable {
         if let g = try? decoder.decode(Generic.self, from: data) {
             var bal: Double?
             var cur: String?
-            if let v = g.available_balance { bal = v }
-            else if let v = g.availableBalance { bal = v }
-            else if let v = g.balance { bal = v }
-            else if let v = g.total_balance.flatMap(Double.init) { bal = v }
-            else if let v = g.totalBalance.flatMap(Double.init) { bal = v }
-            else if let d = g.data {
-                if let v = d.available_balance { bal = v }
-                else if let v = d.balance { bal = v }
-                else if let v = d.total_balance.flatMap(Double.init) { bal = v }
+            bal = g.available_balance
+                ?? g.availableBalance
+                ?? g.balance
+                ?? g.total_balance.flatMap(Double.init)
+                ?? g.totalBalance.flatMap(Double.init)
+            if bal == nil, let d = g.data {
+                bal = d.available_balance
+                    ?? d.balance
+                    ?? d.total_balance.flatMap(Double.init)
                 cur = d.currency
             }
             cur = cur ?? g.currency
@@ -260,12 +264,10 @@ public struct MuseUsageFetcher: Sendable {
             func scan(_ dict: [String: Any]) -> (Double?, String?) {
                 for (k, v) in dict {
                     let lk = k.lowercased()
-                    if (lk.contains("balance") || lk.contains("credit")) && (v is Double || v is Int || v is String) {
-                        let d: Double?
-                        if let dv = v as? Double { d = dv }
-                        else if let iv = v as? Int { d = Double(iv) }
-                        else if let sv = v as? String { d = Double(sv) }
-                        else { d = nil }
+                    if lk.contains("balance") || lk.contains("credit"), v is Double || v is Int || v is String {
+                        let d: Double? = (v as? Double)
+                            ?? (v as? Int).map(Double.init)
+                            ?? (v as? String).flatMap(Double.init)
                         if let d { return (d, dict["currency"] as? String) }
                     }
                     if let nested = v as? [String: Any] {
@@ -312,7 +314,8 @@ public struct MuseUsageFetcher: Sendable {
     }
 
     public static func resolveBaseURL(string: String?) -> URL {
-        let base = (string?.trimmingCharacters(in: .whitespacesAndNewlines)).flatMap { $0.isEmpty ? nil : $0 } ?? defaultBaseURL
+        let base = (string?.trimmingCharacters(in: .whitespacesAndNewlines)).flatMap { $0.isEmpty ? nil : $0 } ?? self
+            .defaultBaseURL
         let normalized = base.hasSuffix("/") ? String(base.dropLast()) : base
         return URL(string: "\(normalized)/v1/models")!
     }

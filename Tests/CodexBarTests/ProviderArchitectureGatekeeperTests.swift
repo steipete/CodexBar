@@ -2442,7 +2442,7 @@ struct ProviderArchitectureGatekeeperTests {
             reason: "This exact app-runtime bridge coordinates provider-owned state through the shared controller."),
         AllowedProviderConstruct(
             path: "Sources/CodexBar/StatusItemController+Animation.swift",
-            line: 923,
+            line: 924,
             anchor: "if provider == .mistral {",
             expectedProviderIDs: ["cursor", "kiro", "mistral"],
             expectedReferenceCount: 3,

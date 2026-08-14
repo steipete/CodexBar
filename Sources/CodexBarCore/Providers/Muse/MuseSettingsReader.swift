@@ -5,7 +5,7 @@ public enum MuseSettingsReader: Sendable {
     public static let baseURLEnvironmentKey = "MUSE_API_URL"
 
     public static func apiKey(environment: [String: String] = ProcessInfo.processInfo.environment) -> String? {
-        for key in apiKeyEnvironmentKeys {
+        for key in self.apiKeyEnvironmentKeys {
             if let value = cleaned(environment[key]) {
                 return value
             }
@@ -14,7 +14,7 @@ public enum MuseSettingsReader: Sendable {
     }
 
     public static func baseURL(environment: [String: String] = ProcessInfo.processInfo.environment) -> String? {
-        cleaned(environment[baseURLEnvironmentKey])
+        self.cleaned(environment[self.baseURLEnvironmentKey])
     }
 
     private static func cleaned(_ raw: String?) -> String? {

@@ -4,7 +4,6 @@ import Testing
 
 @Suite(.serialized)
 struct MuseUsageFetcherTests {
-
     // MARK: - Balance parsing — require numeric balance
 
     @Test
@@ -96,8 +95,46 @@ struct MuseUsageFetcherTests {
             _ = try await MuseUsageFetcher.fetchUsage(
                 apiKey: "sk-test",
                 baseURLString: "http://evil.example.com",
-                session: MuseStubTransport { _ in fatalError("should not reach network") }
-            )
+                session: MuseStubTransport { _ in fatalError("should not reach network") })
+        } throws: { error in
+            guard case let MuseUsageError.apiError(msg) = error else { return false }
+            return msg.contains("Insecure base URL")
+        }
+    }
+
+    @Test
+    func `rejects user info in base URL`() async throws {
+        await #expect {
+            _ = try await MuseUsageFetcher.fetchUsage(
+                apiKey: "sk-test",
+                baseURLString: "https://user:pass@evil.example.com",
+                session: MuseStubTransport { _ in fatalError("should not reach network") })
+        } throws: { error in
+            guard case let MuseUsageError.apiError(msg) = error else { return false }
+            return msg.contains("Insecure base URL")
+        }
+    }
+
+    @Test
+    func `rejects encoded host delimiters`() async throws {
+        await #expect {
+            _ = try await MuseUsageFetcher.fetchUsage(
+                apiKey: "sk-test",
+                baseURLString: "https://evil%2Fexample.com",
+                session: MuseStubTransport { _ in fatalError("should not reach network") })
+        } throws: { error in
+            guard case let MuseUsageError.apiError(msg) = error else { return false }
+            return msg.contains("Insecure base URL")
+        }
+    }
+
+    @Test
+    func `rejects missing host`() async throws {
+        await #expect {
+            _ = try await MuseUsageFetcher.fetchUsage(
+                apiKey: "sk-test",
+                baseURLString: "https://",
+                session: MuseStubTransport { _ in fatalError("should not reach network") })
         } throws: { error in
             guard case let MuseUsageError.apiError(msg) = error else { return false }
             return msg.contains("Insecure base URL")
@@ -111,10 +148,17 @@ struct MuseUsageFetcherTests {
             #expect(request.value(forHTTPHeaderField: "Accept") == "application/json")
             #expect(request.timeoutInterval == 15)
             let body = #"{"available_balance": 5.0, "currency": "usd"}"#
-            let resp = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: ["Content-Type":"application/json"])!
+            let resp = HTTPURLResponse(
+                url: request.url!,
+                statusCode: 200,
+                httpVersion: nil,
+                headerFields: ["Content-Type": "application/json"])!
             return (resp, Data(body.utf8))
         }
-        let snap = try await MuseUsageFetcher.fetchUsage(apiKey: "sk-test", baseURLString: "http://127.0.0.1:8765", session: transport)
+        let snap = try await MuseUsageFetcher.fetchUsage(
+            apiKey: "sk-test",
+            baseURLString: "http://127.0.0.1:8765",
+            session: transport)
         #expect(snap.summary.balance == 5.0)
     }
 
@@ -135,7 +179,10 @@ struct MuseUsageFetcherTests {
             return (resp, Data())
         }
         await #expect {
-            _ = try await MuseUsageFetcher.fetchUsage(apiKey: "sk-test", baseURLString: "https://api.meta.ai", session: transport)
+            _ = try await MuseUsageFetcher.fetchUsage(
+                apiKey: "sk-test",
+                baseURLString: "https://api.meta.ai",
+                session: transport)
         } throws: { error in
             guard case let MuseUsageError.apiError(msg) = error else { return false }
             return msg.contains("401")
@@ -155,14 +202,20 @@ struct MuseUsageFetcherTests {
             let resp = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: [:])!
             return (resp, Data(#"{"data":[]}"#.utf8))
         }
-        let snap = try await MuseUsageFetcher.fetchUsage(apiKey: "sk-test", baseURLString: "https://api.meta.ai", session: transport)
+        let snap = try await MuseUsageFetcher.fetchUsage(
+            apiKey: "sk-test",
+            baseURLString: "https://api.meta.ai",
+            session: transport)
         #expect(snap.summary.balance == 12.34)
     }
 
     @Test
     func `missing api key throws`() async throws {
         await #expect {
-            _ = try await MuseUsageFetcher.fetchUsage(apiKey: "   ", baseURLString: nil, session: MuseStubTransport { _ in fatalError() })
+            _ = try await MuseUsageFetcher.fetchUsage(
+                apiKey: "   ",
+                baseURLString: nil,
+                session: MuseStubTransport { _ in fatalError("should not reach network") })
         } throws: { error in
             guard case MuseUsageError.missingCredentials = error else { return false }
             return true
@@ -175,8 +228,13 @@ struct MuseUsageFetcherTests {
 private final class CallsBox: @unchecked Sendable {
     private let lock = NSLock()
     private var _value = 0
-    var value: Int { lock.withLock { _value } }
-    func increment() { lock.withLock { _value += 1 } }
+    var value: Int {
+        self.lock.withLock { self._value }
+    }
+
+    func increment() {
+        self.lock.withLock { self._value += 1 }
+    }
 }
 
 private struct MuseStubTransport: ProviderHTTPTransport {
@@ -198,6 +256,7 @@ extension MuseUsageFetcher {
     static func parseBalanceForTesting(_ data: Data) throws -> MuseUsageSummary {
         try parseBalanceResponse(data: data)
     }
+
     static func parseModelsCountForTesting(_ data: Data) throws -> Int? {
         try parseModelsCount(data: data)
     }

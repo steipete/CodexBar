@@ -8,8 +8,7 @@ public enum MuseProviderDescriptor {
         precedence: .environment,
         environmentHasValue: { MuseSettingsReader.apiKey(environment: $0) != nil },
         resolve: { env in MuseSettingsReader.apiKey(environment: env) },
-        missingCredentialMessage: { _ in MuseUsageError.missingCredentials.errorDescription ?? "Missing Muse API key" }
-    )
+        missingCredentialMessage: { _ in MuseUsageError.missingCredentials.errorDescription ?? "Missing Muse API key" })
 
     static func makeDescriptor() -> ProviderDescriptor {
         ProviderDescriptor(
@@ -38,8 +37,7 @@ public enum MuseProviderDescriptor {
                 browserCookieOrder: nil,
                 dashboardURL: "https://ai.developer.meta.com/",
                 statusPageURL: nil,
-                statusLinkURL: nil
-            ),
+                statusLinkURL: nil),
             branding: ProviderBranding(
                 iconStyle: .init(provider: .muse),
                 iconResourceName: "ProviderIcon-muse",
@@ -49,25 +47,22 @@ public enum MuseProviderDescriptor {
                     ProviderColor(hex: 0x0469FF),
                     ProviderColor(hex: 0x7B61FF),
                 ],
-                widgetColor: ProviderColor(red: 0.0 / 255, green: 100 / 255, blue: 224 / 255)
-            ),
+                widgetColor: ProviderColor(red: 0.0 / 255, green: 100 / 255, blue: 224 / 255)),
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
-                noDataMessage: { "Muse cost history is not available via API. Billing is pay-as-you-go at $1.25 / $4.25 per 1M tokens." }
-            ),
+                noDataMessage: {
+                    "Muse cost history is not available via API. " +
+                        "Billing is pay-as-you-go at $1.25 / $4.25 per 1M tokens."
+                }),
             presentation: ProviderUsagePresentation(
-                planRow: ProviderPlanRowPresentation(label: "Balance", stripsBalancePrefix: true)
-            ),
+                planRow: ProviderPlanRowPresentation(label: "Balance", stripsBalancePrefix: true)),
             fetchPlan: ProviderFetchPlan(
                 sourceModes: [.auto, .api],
-                pipeline: ProviderFetchPipeline(resolveStrategies: { _ in [MuseAPIFetchStrategy()] })
-            ),
+                pipeline: ProviderFetchPipeline(resolveStrategies: { _ in [MuseAPIFetchStrategy()] })),
             cli: ProviderCLIConfig(
                 name: "muse",
                 aliases: ["meta", "metamuse"],
-                versionDetector: nil
-            )
-        )
+                versionDetector: nil))
     }
 }
 
@@ -95,8 +90,7 @@ struct MuseAPIFetchStrategy: ProviderFetchStrategy {
         let usage = try await MuseUsageFetcher.fetchUsage(
             apiKey: apiKey,
             baseURLString: baseURL,
-            session: self.transport
-        )
+            session: self.transport)
         return self.makeResult(usage: usage.toUsageSnapshot(), sourceLabel: "api")
     }
 
