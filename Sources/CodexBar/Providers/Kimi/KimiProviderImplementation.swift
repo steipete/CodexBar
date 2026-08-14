@@ -33,10 +33,21 @@ struct KimiProviderImplementation: ProviderImplementation {
 
     @MainActor
     func sourceMode(context: ProviderSourceModeContext) -> ProviderSourceMode {
+        // Token accounts are cookie-based; while any saved account exists, route
+        // refreshes through the web pipeline so each card shows that account's
+        // web quota instead of a shared API/CLI quota. This derives the mode at
+        // fetch time and never persists an override, so removing the final
+        // account automatically falls back to the user's configured source.
+        if !context.settings.tokenAccounts(for: context.provider).isEmpty {
+            return ProviderSourceMode.web
+        }
         switch context.settings.kimiUsageDataSource {
-        case .api: .api
-        case .web: .web
-        case .auto, .cli, .oauth: .auto
+        case .api:
+            return ProviderSourceMode.api
+        case .web:
+            return ProviderSourceMode.web
+        case .auto, .cli, .oauth:
+            return ProviderSourceMode.auto
         }
     }
 
@@ -51,14 +62,11 @@ struct KimiProviderImplementation: ProviderImplementation {
 
     @MainActor
     func applyTokenAccountCookieSource(settings: SettingsStore) {
+        // Cookie source must be manual so the per-account cookie header is used.
+        // The usage source itself is derived from active token accounts in
+        // `sourceMode` and is not persisted here, preserving the user's setting.
         if settings.kimiCookieSource != .manual {
             settings.kimiCookieSource = .manual
-        }
-        // Token accounts are cookie-based; an API/CLI usage source (or Auto, which
-        // may resolve to API/CLI) would bypass the per-account cookie, so force the
-        // web pipeline while token accounts are active.
-        if settings.kimiUsageDataSource != .web {
-            settings.kimiUsageDataSource = .web
         }
     }
 
