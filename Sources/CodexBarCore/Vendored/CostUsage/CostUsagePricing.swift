@@ -627,10 +627,12 @@ enum CostUsagePricing {
                     ?? lookup.pricing.inputCostPerTokenAboveThreshold
                     ?? lookup.pricing.inputCostPerToken
                     : bundledLongContext?.cacheWriteInputCostPerTokenAboveThreshold)
+            // Models that require documented long-context pricing must not treat one populated
+            // dimension as approval to fall back to short-context rates for the remaining buckets.
             let hasExplicitLongContextPricing = lookup.pricing.inputCostPerTokenAboveThreshold != nil
-                || lookup.pricing.outputCostPerTokenAboveThreshold != nil
-                || lookup.pricing.cacheReadInputCostPerTokenAboveThreshold != nil
-                || lookup.pricing.cacheCreationInputCostPerTokenAboveThreshold != nil
+                && lookup.pricing.outputCostPerTokenAboveThreshold != nil
+                && lookup.pricing.cacheReadInputCostPerTokenAboveThreshold != nil
+                && lookup.pricing.cacheCreationInputCostPerTokenAboveThreshold != nil
             return CodexPricing(
                 inputCostPerToken: lookup.pricing.inputCostPerToken,
                 outputCostPerToken: lookup.pricing.outputCostPerToken,

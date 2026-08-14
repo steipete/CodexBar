@@ -314,6 +314,37 @@ struct CostUsagePricingTests {
     }
 
     @Test
+    func `red models dev partial long context block rejects at its resolved threshold`() throws {
+        let root = try Self.seedModelsDevCache("""
+        {
+          "openai": {
+            "id": "openai",
+            "models": {
+              "gpt-daybreak-red-latest": {
+                "id": "gpt-daybreak-red-latest",
+                "cost": {
+                  "input": 12.5,
+                  "output": 75,
+                  "cache_read": 1.25,
+                  "context_over_200k": { "input": 25 }
+                }
+              }
+            }
+          }
+        }
+        """)
+
+        let aboveThreshold = CostUsagePricing.codexCostUSD(
+            model: "gpt-daybreak-red-latest",
+            inputTokens: 200_001,
+            cachedInputTokens: 10,
+            outputTokens: 5,
+            modelsDevCacheRoot: root)
+
+        #expect(aboveThreshold == nil)
+    }
+
+    @Test
     func `daybreak models dev exact aliases override bundled fallback`() throws {
         let root = try Self.seedModelsDevCache("""
         {
