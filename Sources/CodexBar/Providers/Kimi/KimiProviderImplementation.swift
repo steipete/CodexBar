@@ -54,9 +54,10 @@ struct KimiProviderImplementation: ProviderImplementation {
         if settings.kimiCookieSource != .manual {
             settings.kimiCookieSource = .manual
         }
-        // Token accounts are cookie-based; an API-only usage source would bypass
-        // the per-account cookie, so fall back to the web pipeline.
-        if settings.kimiUsageDataSource == .api {
+        // Token accounts are cookie-based; an API/CLI usage source (or Auto, which
+        // may resolve to API/CLI) would bypass the per-account cookie, so force the
+        // web pipeline while token accounts are active.
+        if settings.kimiUsageDataSource != .web {
             settings.kimiUsageDataSource = .web
         }
     }
