@@ -65,7 +65,12 @@ extension CostUsageStore {
         fileBudgetBytes: Int64 = CostUsageStore.defaultFileBudgetBytes,
         skipIdenticalContent: Bool = false) -> CostUsageStoreBudgetResult
     {
+        var cache = cache
+        Self.reconcileCompletedCodexCatchUp(cache: &cache)
         let previous = self.readSnapshot()
+        let budgetProtectionWindow = Self.budgetProtectionWindow(
+            cache: cache,
+            requestedScanWindow: requestedScanWindow)
         if skipIdenticalContent,
            Self.persistedContentMatches(
                previous: previous,
@@ -77,8 +82,8 @@ extension CostUsageStore {
             let result = self.enforceBudgets(
                 maxRows: rowBudget,
                 maxFileBytes: fileBudgetBytes,
-                requestedSinceDay: requestedScanWindow.sinceKey,
-                requestedUntilDay: requestedScanWindow.untilKey,
+                requestedSinceDay: budgetProtectionWindow.sinceKey,
+                requestedUntilDay: budgetProtectionWindow.untilKey,
                 calendar: calendar)
             guard !result.catchUpRequired else { return result }
             Self.identicalContentPreLockCheckpointForTesting?()
@@ -157,8 +162,8 @@ extension CostUsageStore {
         let result = self.enforceBudgets(
             maxRows: rowBudget,
             maxFileBytes: fileBudgetBytes,
-            requestedSinceDay: requestedScanWindow.sinceKey,
-            requestedUntilDay: requestedScanWindow.untilKey,
+            requestedSinceDay: budgetProtectionWindow.sinceKey,
+            requestedUntilDay: budgetProtectionWindow.untilKey,
             calendar: calendar)
         if result.catchUpRequired, self.fetchMetadata().previousReportPayload == nil,
            let previous = Self.previousReport(cache: cache, calendar: calendar, reportWindow: reportWindow)
@@ -205,6 +210,21 @@ extension CostUsageStore {
         usage.codexScanComplete = usage.codexScanComplete ?? true
         return usage
     }
+
+    private static func budgetProtectionWindow(
+        cache: CostUsageCache,
+        requestedScanWindow: (sinceKey: String, untilKey: String)) -> (sinceKey: String, untilKey: String)
+    {
+        // Report and dashboard windows are projections, not retention boundaries. Preserve the
+        // cache's retained coverage while still protecting any newly requested extension.
+        guard let retainedSinceKey = cache.scanSinceKey,
+              let retainedUntilKey = cache.scanUntilKey,
+              retainedSinceKey <= retainedUntilKey
+        else { return requestedScanWindow }
+        return (
+            sinceKey: min(retainedSinceKey, requestedScanWindow.sinceKey),
+            untilKey: max(retainedUntilKey, requestedScanWindow.untilKey))
+    }
 }
 
 // MARK: - Cache conversion
@@ -242,6 +262,17 @@ extension CostUsageStore {
         var canReuseRows: Bool
     }
 
+    private struct CurrentCodexRootDevice {
+        var path: String
+        var device: String
+    }
+
+    private struct RestoredCodexScanState {
+        var identity: String?
+        var isComplete: Bool
+        var validatedCurrentSnapshot = false
+    }
+
     private static func cache(from snapshot: CostUsageStoreSnapshot) -> CostUsageCache {
         var cache = CostUsageCache()
         let metadata = snapshot.metadata
@@ -256,6 +287,7 @@ extension CostUsageStore {
         cache.codexScanTotalBytes = metadata.totalBytes
         cache.codexScanCompletedFiles = metadata.completedFiles
         cache.codexScanTotalFiles = metadata.totalFiles
+        cache.codexScanInventoryPaths = metadata.scanInventoryPaths
         cache.roots = metadata.rootMtimes
         cache.codexProjectMetadataVersion = metadata.projectMetadataVersion
         cache.codexPreviousReport = metadata.previousReportPayload.flatMap {
@@ -276,6 +308,11 @@ extension CostUsageStore {
         let lineageByPath = Dictionary(uniqueKeysWithValues: snapshot.forkLineage.map { ($0.path, $0) })
         let buffersByPath = Dictionary(grouping: snapshot.bufferedLines, by: \.path)
         let accumulatorByPath = Dictionary(uniqueKeysWithValues: snapshot.accumulators.map { ($0.path, $0) })
+        let currentRootDevices = Self.currentCodexRootDevices(rootMtimes: metadata.rootMtimes)
+        var remainingIdentityValidationVisits = CostUsageScanner.codexCatchUpScanCandidateLimit
+        var deferredIdentityValidationPaths: [String] = []
+        var completedIdentityValidationPaths: [String] = []
+        var invalidatedIdentityValidationPaths: [String] = []
 
         for file in snapshot.files {
             guard let detailsData = file.scanState.detailsPayload,
@@ -290,6 +327,33 @@ extension CostUsageStore {
             let lineage = lineageByPath[file.path]
             let accumulator = accumulatorByPath[file.path]
             let buffers = buffersByPath[file.path] ?? []
+            let normalizedIdentity = Self.normalizedCodexFileIdentity(
+                file: file,
+                currentRootDevices: currentRootDevices)
+            let identityNeedsValidation = normalizedIdentity != file.scanState.fileIdentity
+            let restoredScanState: RestoredCodexScanState
+            if identityNeedsValidation, remainingIdentityValidationVisits > 0 {
+                Self.codexCatchUpReconciliationVisitForTesting?()
+                remainingIdentityValidationVisits -= 1
+                restoredScanState = Self.restoredCodexScanState(
+                    file: file,
+                    currentRootDevices: currentRootDevices,
+                    validateMetadata: true)
+                if restoredScanState.isComplete, restoredScanState.validatedCurrentSnapshot {
+                    completedIdentityValidationPaths.append(file.path)
+                } else {
+                    invalidatedIdentityValidationPaths.append(file.path)
+                }
+            } else if identityNeedsValidation {
+                deferredIdentityValidationPaths.append(file.path)
+                restoredScanState = RestoredCodexScanState(
+                    identity: file.scanState.fileIdentity,
+                    isComplete: file.scanState.isComplete)
+            } else {
+                restoredScanState = RestoredCodexScanState(
+                    identity: normalizedIdentity,
+                    isComplete: file.scanState.isComplete)
+            }
             let usage = CostUsageFileUsage(
                 mtimeUnixMs: file.mtimeUnixMs,
                 size: file.size,
@@ -333,9 +397,9 @@ extension CostUsageStore {
                         sha256: $0.sha256)
                 },
                 claudeRows: nil,
-                codexScanFileId: file.scanState.fileIdentity,
+                codexScanFileId: restoredScanState.identity,
                 codexScanTargetSize: file.scanState.targetSize,
-                codexScanComplete: file.scanState.isComplete,
+                codexScanComplete: restoredScanState.isComplete,
                 codexJSONLResumeState: file.scanState.resumePayload.flatMap {
                     try? JSONDecoder().decode(CostUsageJsonl.ResumeState.self, from: $0)
                 },
@@ -343,8 +407,309 @@ extension CostUsageStore {
                 codexBufferedUnresolvedForkLines: Self.bufferedLines(buffers, kind: .unresolvedFork))
             cache.files[file.path] = usage
         }
+        Self.enqueueDeferredCodexIdentityValidation(
+            deferredIdentityValidationPaths + invalidatedIdentityValidationPaths,
+            metadata: metadata,
+            cache: &cache)
+        Self.removeCompletedCodexIdentityValidation(
+            completedIdentityValidationPaths,
+            cache: &cache)
+        Self.reconcileCompletedCodexCatchUp(
+            cache: &cache,
+            visitLimit: remainingIdentityValidationVisits)
         cache.days = Self.days(from: snapshot.dayAggregates)
         return cache
+    }
+
+    private static func enqueueDeferredCodexIdentityValidation(
+        _ paths: [String],
+        metadata: CostUsageStoreMetadata,
+        cache: inout CostUsageCache)
+    {
+        guard !paths.isEmpty, let scanSinceKey = metadata.scanSinceDay else { return }
+        let rootPaths = (metadata.rootMtimes ?? [:]).keys.map { path in
+            Self.normalizedCodexPath(
+                URL(fileURLWithPath: path, isDirectory: true)
+                    .resolvingSymlinksInPath()
+                    .standardizedFileURL.path)
+        }.sorted()
+        guard !rootPaths.isEmpty else { return }
+        var lookback = cache.codexActiveLookbackState ?? CostUsageCodexActiveLookbackState(
+            scanSinceKey: scanSinceKey,
+            rootPaths: rootPaths,
+            completedRootPaths: rootPaths,
+            currentWindowNextDayKeyByRoot: [:],
+            currentWindowDirectoryOffsetByRoot: [:],
+            completedCurrentWindowRootPaths: rootPaths,
+            currentWindowFlatDirectoryOffsetByRoot: [:],
+            completedCurrentWindowFlatRootPaths: rootPaths)
+        var pendingPaths = Set(lookback.pendingFilePaths)
+        pendingPaths.formUnion(paths)
+        lookback.pendingFilePaths = pendingPaths.sorted()
+        cache.codexActiveLookbackState = lookback
+        cache.codexScanCatchUpPending = true
+    }
+
+    private static func removeCompletedCodexIdentityValidation(
+        _ paths: [String],
+        cache: inout CostUsageCache)
+    {
+        guard !paths.isEmpty, var lookback = cache.codexActiveLookbackState else { return }
+        let completedPathKeys = Set(paths.map(Self.normalizedCodexPath))
+        lookback.pendingFilePaths.removeAll { path in
+            completedPathKeys.contains(Self.normalizedCodexPath(path))
+        }
+        cache.codexActiveLookbackState = lookback
+    }
+
+    private static func currentCodexRootDevices(
+        rootMtimes: [String: Int64]?) -> [CurrentCodexRootDevice]
+    {
+        (rootMtimes ?? [:]).keys.compactMap { path in
+            let rootURL = URL(fileURLWithPath: path, isDirectory: true).standardizedFileURL
+            let metadata = CostUsageScanner.codexFileMetadata(fileURL: rootURL)
+            guard let device = Self.device(from: metadata.fileId) else { return nil }
+            return CurrentCodexRootDevice(path: Self.normalizedCodexPath(rootURL.path), device: device)
+        }.sorted { $0.path.count > $1.path.count }
+    }
+
+    private static func normalizedCodexFileIdentity(
+        file: CostUsageStoreFile,
+        currentRootDevices: [CurrentCodexRootDevice]) -> String?
+    {
+        guard let identity = file.scanState.fileIdentity,
+              let inode = Self.inode(from: identity)
+        else { return file.scanState.fileIdentity }
+        if let persistedInode = file.inode, persistedInode != inode {
+            return identity
+        }
+        let filePath = Self.normalizedCodexPath(file.path)
+        guard let root = currentRootDevices.first(where: { root in
+            if filePath == root.path {
+                return true
+            }
+            let prefix = root.path.hasSuffix("/") ? root.path : root.path + "/"
+            return filePath.hasPrefix(prefix)
+        }) else { return identity }
+        return "\(root.device):\(inode)"
+    }
+
+    private static func restoredCodexScanState(
+        file: CostUsageStoreFile,
+        currentRootDevices: [CurrentCodexRootDevice],
+        validateMetadata: Bool) -> RestoredCodexScanState
+    {
+        let identity = Self.normalizedCodexFileIdentity(
+            file: file,
+            currentRootDevices: currentRootDevices)
+        guard validateMetadata else {
+            return RestoredCodexScanState(identity: identity, isComplete: file.scanState.isComplete)
+        }
+
+        let fileURL = URL(fileURLWithPath: file.path)
+        let metadata = CostUsageScanner.codexFileMetadata(fileURL: fileURL)
+        guard let currentIdentity = metadata.fileId else {
+            return RestoredCodexScanState(identity: identity, isComplete: file.scanState.isComplete)
+        }
+        let metadataIsUnchanged = identity == currentIdentity
+            && file.mtimeUnixMs == metadata.mtimeUnixMs
+            && file.size == metadata.size
+        if metadataIsUnchanged {
+            return RestoredCodexScanState(
+                identity: identity,
+                isComplete: file.scanState.isComplete,
+                validatedCurrentSnapshot: true)
+        }
+
+        let isAppend = identity == currentIdentity && metadata.size > file.size
+        return RestoredCodexScanState(
+            identity: isAppend ? identity : nil,
+            isComplete: false)
+    }
+
+    private static func normalizedCodexPath(_ path: String) -> String {
+        let path = URL(fileURLWithPath: path).standardizedFileURL.path
+        if path.hasPrefix("/private/var/") {
+            return String(path.dropFirst("/private".count))
+        }
+        return path
+    }
+
+    private static func reconcileCompletedCodexCatchUp(
+        cache: inout CostUsageCache,
+        visitLimit: Int = CostUsageScanner.codexCatchUpScanCandidateLimit)
+    {
+        if var lookback = cache.codexActiveLookbackState {
+            let reconciliationLimit = max(0, min(
+                visitLimit,
+                CostUsageScanner.codexCatchUpScanCandidateLimit))
+            let candidatePaths = lookback.pendingFilePaths.prefix(reconciliationLimit)
+            var completedIdentityValidationPathKeys: Set<String> = []
+            for path in candidatePaths {
+                Self.codexCatchUpReconciliationVisitForTesting?()
+                let fileURL = URL(fileURLWithPath: path)
+                let metadata = CostUsageScanner.codexFileMetadata(fileURL: fileURL)
+                guard let fileId = metadata.fileId,
+                      let cachedEntry = Self.cachedCodexUsageEntry(for: path, cache: cache),
+                      cachedEntry.usage.codexScanComplete != false,
+                      !cachedEntry.usage.hasBufferedCodexForkRetryLines
+                else {
+                    continue
+                }
+
+                guard Self.matchesCompletedCodexFileSnapshot(
+                    usage: cachedEntry.usage,
+                    metadata: metadata,
+                    fileURL: fileURL)
+                else {
+                    continue
+                }
+
+                // APFS can expose the same volume with a different st_dev value after relaunch.
+                // Retain the inode and validate the indexed content before adopting the current identity.
+                if cachedEntry.usage.codexScanFileId != fileId,
+                   var normalized = cache.files[cachedEntry.path]
+                {
+                    normalized.codexScanFileId = fileId
+                    cache.files[cachedEntry.path] = normalized
+                    completedIdentityValidationPathKeys.insert(Self.normalizedCodexPath(path))
+                }
+            }
+            if !completedIdentityValidationPathKeys.isEmpty {
+                lookback.pendingFilePaths.removeAll { path in
+                    completedIdentityValidationPathKeys.contains(Self.normalizedCodexPath(path))
+                }
+            }
+            let rootPaths = Set(lookback.rootPaths)
+            let lookbackIsComplete = Set(lookback.completedRootPaths) == rootPaths
+                && Set(lookback.completedCurrentWindowRootPaths ?? []) == rootPaths
+                && Set(lookback.completedCurrentWindowFlatRootPaths ?? []) == rootPaths
+                && lookback.pendingFilePaths.isEmpty
+                && lookback.legacyRecursivePendingRootPaths.isEmpty
+            let awaitingExactValidation = cache.codexScanCatchUpPending == true
+                && cache.codexScanInventoryPaths == nil
+            cache.codexActiveLookbackState = lookbackIsComplete && !awaitingExactValidation ? nil : lookback
+        }
+
+        guard cache.codexScanCatchUpPending == true,
+              cache.codexActiveLookbackState == nil
+        else { return }
+        let discoveryHasPendingWork = cache.codexSessionDiscovery.map {
+            !$0.isComplete && (!$0.pendingSessionIds.isEmpty || $0.headScan != nil)
+        } ?? false
+        guard !discoveryHasPendingWork else { return }
+        let filesHavePendingWork = cache.files.values.contains {
+            $0.codexScanComplete == false || $0.hasBufferedCodexForkRetryLines
+        }
+        guard !filesHavePendingWork else { return }
+        let expectedTotalFiles = max(0, cache.codexScanTotalFiles ?? 0)
+        let reconciliationLimit = CostUsageScanner.codexCatchUpScanCandidateLimit
+        guard expectedTotalFiles <= reconciliationLimit,
+              (cache.codexScanInventoryPaths?.count ?? 0) <= reconciliationLimit
+        else { return }
+        guard let completedInventory = Self.completedCodexScanInventory(
+            cache: cache,
+            expectedTotalFiles: expectedTotalFiles)
+        else { return }
+
+        cache.codexScanCatchUpPending = false
+        cache.codexScanProcessedBytes = completedInventory.totalBytes
+        cache.codexScanTotalBytes = completedInventory.totalBytes
+        cache.codexScanCompletedFiles = completedInventory.fileCount
+        cache.codexScanTotalFiles = completedInventory.fileCount
+        cache.codexPreviousReport = nil
+    }
+
+    private static func cachedCodexUsageEntry(
+        for path: String,
+        cache: CostUsageCache) -> (path: String, usage: CostUsageFileUsage)?
+    {
+        let normalizedPath = Self.normalizedCodexPath(path)
+        var candidatePaths = [path]
+        if normalizedPath != path {
+            candidatePaths.append(normalizedPath)
+        }
+        if normalizedPath.hasPrefix("/var/") {
+            candidatePaths.append("/private" + normalizedPath)
+        }
+        var seenPaths: Set<String> = []
+        for candidatePath in candidatePaths where seenPaths.insert(candidatePath).inserted {
+            if let usage = cache.files[candidatePath] {
+                return (candidatePath, usage)
+            }
+        }
+        return nil
+    }
+
+    private static func completedCodexScanInventory(
+        cache: CostUsageCache,
+        expectedTotalFiles: Int) -> (fileCount: Int, totalBytes: Int64)?
+    {
+        guard expectedTotalFiles > 0,
+              let inventoryPaths = cache.codexScanInventoryPaths,
+              !inventoryPaths.isEmpty
+        else { return nil }
+
+        let cachedFilesByIdentity = cache.files.values.reduce(
+            into: [String: CostUsageFileUsage]())
+        { result, usage in
+            guard let identity = usage.codexScanFileId else { return }
+            result[identity] = usage
+        }
+        let cachedFilesByNormalizedPath = cache.files.reduce(
+            into: [String: CostUsageFileUsage]())
+        { result, entry in
+            result[Self.normalizedCodexPath(entry.key)] = entry.value
+        }
+
+        var seenIdentities: Set<String> = []
+        var totalBytes: Int64 = 0
+        for path in inventoryPaths {
+            let fileURL = URL(fileURLWithPath: path)
+            let metadata = CostUsageScanner.codexFileMetadata(fileURL: fileURL)
+            guard let fileId = metadata.fileId else { return nil }
+            guard seenIdentities.insert(fileId).inserted else { continue }
+            guard let usage = cache.files[path]
+                ?? cachedFilesByNormalizedPath[Self.normalizedCodexPath(path)]
+                ?? cachedFilesByIdentity[fileId],
+                usage.codexScanComplete != false,
+                !usage.hasBufferedCodexForkRetryLines,
+                Self.matchesCompletedCodexFileSnapshot(
+                    usage: usage,
+                    metadata: metadata,
+                    fileURL: fileURL)
+            else { return nil }
+            totalBytes += max(0, metadata.size)
+        }
+
+        guard seenIdentities.count == expectedTotalFiles else { return nil }
+        return (seenIdentities.count, totalBytes)
+    }
+
+    private static func matchesCompletedCodexFileSnapshot(
+        usage: CostUsageFileUsage,
+        metadata: CostUsageScanner.CodexFileMetadata,
+        fileURL: URL) -> Bool
+    {
+        guard usage.mtimeUnixMs == metadata.mtimeUnixMs,
+              usage.size == metadata.size,
+              let cachedIdentity = usage.codexScanFileId,
+              let currentIdentity = metadata.fileId
+        else { return false }
+        if cachedIdentity == currentIdentity {
+            return true
+        }
+        guard Self.inode(from: cachedIdentity) == Self.inode(from: currentIdentity) else {
+            return false
+        }
+        if metadata.size == 0 {
+            return true
+        }
+        guard let anchor = usage.codexTokenIndexAnchor else { return false }
+        return CostUsageScanner.codexTokenIndexAnchorMatches(
+            anchor,
+            fileURL: fileURL,
+            metadata: metadata)
     }
 
     private func persistFile(
@@ -483,6 +848,7 @@ extension CostUsageStore {
             totalBytes: cache.codexScanTotalBytes,
             completedFiles: cache.codexScanCompletedFiles,
             totalFiles: cache.codexScanTotalFiles,
+            scanInventoryPaths: cache.codexScanInventoryPaths,
             rootMtimes: cache.roots,
             previousReportPayload: cache.codexPreviousReport.flatMap { try? JSONEncoder().encode($0) },
             priorityTurnStatePayload: try? JSONEncoder().encode(priority),
@@ -714,9 +1080,16 @@ extension CostUsageStore {
                 scanSinceDay: $0.scanSinceKey,
                 rootPaths: $0.rootPaths,
                 nextDayByRoot: $0.nextDayKeyByRoot,
+                nextDirectoryOffsetByRoot: $0.nextDirectoryOffsetByRoot,
                 completedRootPaths: $0.completedRootPaths,
                 pendingFilePaths: $0.pendingFilePaths,
-                legacyRecursivePendingRootPaths: $0.legacyRecursivePendingRootPaths)
+                legacyRecursivePendingRootPaths: $0.legacyRecursivePendingRootPaths,
+                currentWindowNextDayKeyByRoot: $0.currentWindowNextDayKeyByRoot,
+                currentWindowDirectoryOffsetByRoot: $0.currentWindowDirectoryOffsetByRoot,
+                completedCurrentWindowRootPaths: $0.completedCurrentWindowRootPaths,
+                currentWindowFlatDirectoryOffsetByRoot: $0.currentWindowFlatDirectoryOffsetByRoot,
+                completedCurrentWindowFlatRootPaths: $0.completedCurrentWindowFlatRootPaths,
+                cacheWideMigrationQueueActive: $0.cacheWideMigrationQueueActive)
         }
     }
 
@@ -725,9 +1098,16 @@ extension CostUsageStore {
             scanSinceKey: value.scanSinceDay,
             rootPaths: value.rootPaths,
             nextDayKeyByRoot: value.nextDayByRoot,
+            nextDirectoryOffsetByRoot: value.nextDirectoryOffsetByRoot,
             completedRootPaths: value.completedRootPaths,
             pendingFilePaths: value.pendingFilePaths,
-            legacyRecursivePendingRootPaths: value.legacyRecursivePendingRootPaths)
+            legacyRecursivePendingRootPaths: value.legacyRecursivePendingRootPaths,
+            currentWindowNextDayKeyByRoot: value.currentWindowNextDayKeyByRoot,
+            currentWindowDirectoryOffsetByRoot: value.currentWindowDirectoryOffsetByRoot,
+            completedCurrentWindowRootPaths: value.completedCurrentWindowRootPaths,
+            currentWindowFlatDirectoryOffsetByRoot: value.currentWindowFlatDirectoryOffsetByRoot,
+            completedCurrentWindowFlatRootPaths: value.completedCurrentWindowFlatRootPaths,
+            cacheWideMigrationQueueActive: value.cacheWideMigrationQueueActive)
     }
 
     private static func tokenSnapshot(
@@ -797,6 +1177,10 @@ extension CostUsageStore {
 
     private static func inode(from identity: String?) -> Int64? {
         identity?.split(separator: ":").last.flatMap { Int64($0) }
+    }
+
+    private static func device(from identity: String?) -> String? {
+        identity?.split(separator: ":", maxSplits: 1).first.map(String.init)
     }
 
     private static func totals(_ value: CostUsageCodexTotals?) -> CostUsageStoreTotals? {

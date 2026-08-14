@@ -209,7 +209,159 @@ struct SpendActivityHeatmapTests {
         let weekly = series.weeklyActivity()
         #expect(weekly.values.prefix(2) == [7, 7])
         #expect(weekly.isCovered.prefix(2) == [false, true])
+        // Every day here was scanned, so the uncovered day is a real gap and every later running
+        // total stays a lower bound. See `cumulative activity starts at the first scanned week`
+        // for the window-edge case, which does recover.
         #expect(weekly.cumulative().isCovered.prefix(2) == [false, false])
+    }
+
+    @Test
+    func `cumulative activity starts at the first scanned week`() {
+        let weekly = SpendActivityAggregateSeries(
+            values: [3, 5, 7],
+            isCovered: [false, true, true],
+            isScanned: [false, true, true])
+
+        let cumulative = weekly.cumulative()
+
+        #expect(cumulative.isCovered == [false, true, true])
+        // Totals are unchanged: an unscanned week contributes whatever its covered days held.
+        #expect(cumulative.values == [3, 8, 15])
+    }
+
+    @Test
+    func `cumulative activity keeps a leading in window gap unavailable`() {
+        // Every week was scanned, so the leading unavailable week is missing data rather than a
+        // window edge. Later totals are lower bounds and must not read as complete.
+        let weekly = SpendActivityAggregateSeries(
+            values: [3, 5, 7],
+            isCovered: [false, true, true],
+            isScanned: [true, true, true])
+
+        let cumulative = weekly.cumulative()
+
+        #expect(cumulative.isCovered == [false, false, false])
+        #expect(cumulative.values == [3, 8, 15])
+    }
+
+    @Test
+    func `series separates an unscanned prefix from an in window gap`() throws {
+        let calendar = Self.calendar
+        let now = try #require(calendar.date(from: DateComponents(year: 2026, month: 8, day: 12)))
+        // A 30-day window on a 365-day grid: the first 335 days were never scanned.
+        let points = try (0..<SpendActivitySeries.rangeDayCount).map { offset -> SpendDashboardModel
+            .TokenActivityPoint in
+            let day = try #require(calendar.date(byAdding: .day, value: -offset, to: now))
+            guard offset < 30 else {
+                return .init(day: day, totalTokens: nil, isScanned: false)
+            }
+            return .init(day: day, totalTokens: 10)
+        }
+
+        let series = SpendActivitySeries.make(from: points, now: now, calendar: calendar)
+        let cumulative = series.weeklyActivity().cumulative()
+        let visibleWeeks = cumulative.isCovered.indices.filter { week in
+            (0..<SpendActivitySeries.dayCount).contains { row in
+                series.isVisible(week * SpendActivitySeries.dayCount + row)
+            }
+        }
+
+        // The unscanned prefix cannot blank the scanned window.
+        #expect(visibleWeeks.contains { cumulative.isCovered[$0] })
+        #expect(cumulative.values.last == 300)
+
+        // The same shape, but with one scanned day inside the window that cannot be resolved.
+        let gapDay = try #require(calendar.date(byAdding: .day, value: -29, to: now))
+        let withGap = points.map { point in
+            calendar.isDate(point.day, inSameDayAs: gapDay)
+                ? SpendDashboardModel.TokenActivityPoint(day: point.day, totalTokens: nil)
+                : point
+        }
+        let gapCumulative = SpendActivitySeries.make(from: withGap, now: now, calendar: calendar)
+            .weeklyActivity()
+            .cumulative()
+
+        // A real gap at the leading edge keeps every later running total unavailable.
+        #expect(!gapCumulative.isCovered.contains(true))
+    }
+
+    @Test
+    func `trailing unscanned days keep their week and later totals unavailable`() throws {
+        let calendar = Self.calendar
+        let now = try #require(calendar.date(from: DateComponents(year: 2026, month: 8, day: 12)))
+        // A stale snapshot: the scan covers now-30 ... now-2, so the two most recent days were
+        // never reached. That is missing recent data, not a window edge.
+        let points = try (0..<SpendActivitySeries.rangeDayCount).map { offset -> SpendDashboardModel
+            .TokenActivityPoint in
+            let day = try #require(calendar.date(byAdding: .day, value: -offset, to: now))
+            guard (2..<31).contains(offset) else {
+                return .init(day: day, totalTokens: nil, isScanned: false)
+            }
+            return .init(day: day, totalTokens: 10)
+        }
+
+        let series = SpendActivitySeries.make(from: points, now: now, calendar: calendar)
+        let weekly = series.weeklyActivity()
+        let cumulative = weekly.cumulative()
+
+        // The scanned interior still draws.
+        #expect(cumulative.isCovered.contains(true))
+        // The week holding the trailing unscanned days is a lower bound, so it and everything
+        // after it stay unavailable.
+        let lastWeek = weekly.isCovered.count - 1
+        #expect(weekly.isCovered[lastWeek] == false)
+        #expect(cumulative.isCovered[lastWeek] == false)
+    }
+
+    @Test
+    func `model with a 30 day scan window yields a cumulative view that still draws`() throws {
+        let now = try #require(Self.calendar.date(from: DateComponents(year: 2026, month: 7, day: 16)))
+        let formatter = DateFormatter()
+        formatter.calendar = Self.calendar
+        formatter.timeZone = Self.calendar.timeZone
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy-MM-dd"
+        let entries = try (0..<30).map { offset in
+            let day = try #require(Self.calendar.date(byAdding: .day, value: -offset, to: now))
+            return Self.entry(day: formatter.string(from: day), cost: nil, tokens: 10)
+        }
+        let model = SpendDashboardModel.build(
+            inputs: [
+                .init(
+                    provider: .claude,
+                    displayName: "Claude",
+                    snapshot: Self.snapshot(entries: entries, historyDays: 30, last30DaysTokens: 300)),
+            ],
+            requestedDays: 30,
+            now: now,
+            calendar: Self.calendar)
+        let outsideDay = try #require(Self.calendar.date(byAdding: .day, value: -30, to: now))
+        let insideDay = try #require(Self.calendar.date(byAdding: .day, value: -29, to: now))
+
+        #expect(model.tokenActivity.first { $0.day == outsideDay }?.totalTokens == nil)
+        #expect(model.tokenActivity.first { $0.day == outsideDay }?.isScanned == false)
+        #expect(model.tokenActivity.first { $0.day == insideDay }?.totalTokens == 10)
+        #expect(model.tokenActivity.first { $0.day == insideDay }?.isScanned == true)
+
+        let series = SpendActivitySeries.make(from: model.tokenActivity, now: now, calendar: Self.calendar)
+        let cumulative = series.weeklyActivity().cumulative()
+
+        // #2893: keep Cumulative from rendering blank at the default 30-day window.
+        #expect(cumulative.isCovered.contains(true))
+        #expect(cumulative.values.last == 300)
+    }
+
+    @Test
+    func `cumulative activity stays unavailable after a gap`() {
+        let weekly = SpendActivityAggregateSeries(
+            values: [1, 1, 1, 1],
+            isCovered: [true, false, true, true])
+
+        let cumulative = weekly.cumulative()
+
+        // A running total across a gap is a lower bound, so every later week stays unavailable.
+        #expect(cumulative.isCovered == [true, false, false, false])
+        #expect(cumulative.values == [1, 2, 3, 4])
     }
 
     @Test

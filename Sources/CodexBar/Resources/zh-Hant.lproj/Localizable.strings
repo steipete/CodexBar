@@ -1371,6 +1371,7 @@
 "menu_bar_layout_gap" = "間距";
 "menu_bar_layout_gap_tight" = "緊湊";
 "menu_bar_layout_gap_regular" = "一般";
+"menu_bar_layout_vertical_adjustment" = "垂直調整";
 "menu_bar_layout_keyboard_hint" = "Delete 鍵會移除所選項目";
 "menu_bar_layout_sample_account" = "帳號";
 "menu_bar_layout_sample_runs_out" = "週五用盡";

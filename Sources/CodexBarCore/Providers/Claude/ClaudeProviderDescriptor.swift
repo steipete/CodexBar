@@ -529,6 +529,7 @@ struct ClaudeOAuthFetchStrategy: ProviderFetchStrategy {
     #if DEBUG
     @TaskLocal static var nonInteractiveCredentialRecordOverride: ClaudeOAuthCredentialRecord?
     @TaskLocal static var claudeCLIAvailableOverride: Bool?
+    @TaskLocal static var directCredentialIsMissingOverride: Bool?
     #endif
 
     private func loadNonInteractiveCredentialRecord(environment: [String: String]) -> ClaudeOAuthCredentialRecord? {
@@ -547,6 +548,9 @@ struct ClaudeOAuthFetchStrategy: ProviderFetchStrategy {
 
     func directCredentialIsMissing(environment: [String: String]) -> Bool {
         #if DEBUG
+        if let override = Self.directCredentialIsMissingOverride {
+            return override
+        }
         if Self.nonInteractiveCredentialRecordOverride != nil {
             return false
         }
@@ -993,7 +997,10 @@ struct ClaudeCLIFetchStrategy: ProviderFetchStrategy {
             // fetch when Keychain access is explicitly disabled; version/auth children retain the global gate.
             return ClaudeCLIBackgroundAvailability.allowsBackgroundAutoUsageFetch(
                 binary: binary,
-                environment: context.env)
+                environment: context.env,
+                oauthCredentialsConfirmedAbsent: {
+                    ClaudeOAuthFetchStrategy().directCredentialIsMissing(environment: context.env)
+                })
         }
 
         // App user actions intentionally launch the interactive path directly so the user can complete authentication.
@@ -1020,6 +1027,9 @@ struct ClaudeCLIFetchStrategy: ProviderFetchStrategy {
         do {
             usage = try await fetcher.loadLatestUsage(model: "sonnet")
         } catch {
+            if Task.isCancelled || ClaudeOAuthFetchError.isCancellation(error) {
+                throw error
+            }
             if let backgroundAvailabilityMarker {
                 ClaudeCLIBackgroundAvailability.revoke(backgroundAvailabilityMarker)
             }
@@ -1103,10 +1113,43 @@ enum ClaudeCLIBackgroundAvailability {
             || ClaudeOAuthKeychainPromptPreference.storedMode() == .always
     }
 
-    static func allowsBackgroundAutoUsageFetch(binary: String, environment: [String: String]) -> Bool {
+    /// - Parameter oauthCredentialsConfirmedAbsent: A prompt-free, no-UI probe proving the OAuth step ahead
+    ///   of this one is durably dead (not merely denied). Consulted lazily, only when no marker exists at
+    ///   all for this profile — a marker that *is* established but denied by prompt policy or Keychain-
+    ///   disable revocation is a deliberate, already-adjudicated gate that this never second-guesses.
+    static func allowsBackgroundAutoUsageFetch(
+        binary: String,
+        environment: [String: String],
+        oauthCredentialsConfirmedAbsent: () -> Bool = { false }) -> Bool
+    {
         guard ProviderInteractionContext.current == .background else { return true }
         guard KeychainAccessGate.isExplicitlyDisabled else {
-            return self.allowsOpaqueChildExecution(binary: binary, environment: environment)
+            if self.allowsOpaqueChildExecution(binary: binary, environment: environment) {
+                return true
+            }
+            guard !self.isEstablished(binary: binary, environment: environment) else { return false }
+            // The deadlock-breaker below requires a profile CodexBar can actually identify. Without one,
+            // a failed attempt could never be recorded via `revoke()` (which needs a marker), so nothing
+            // would ever bound repeated background launches — the same fail-closed contract
+            // `identifiedSessionScope` documents for background work in general.
+            guard let marker = self.captureMarker(binary: binary, environment: environment) else { return false }
+            // A marker that was established and then revoked by a failed foreground fetch is a deliberate,
+            // already-adjudicated "not available right now" outcome — `isEstablished` alone can't see it,
+            // since revocation removes the marker from the established set. The deadlock-breaker below
+            // exists only for profiles that never reached user-initiated status at all; a revoked profile
+            // already tried and must wait for the next foreground success, not be re-permitted here.
+            if self.store.isRevoked(marker) {
+                return false
+            }
+            // The marker gate above never gets a chance to be set when the OAuth step ahead of this one
+            // is durably dead: it is only recorded by a prior *successful* user-initiated CLI fetch, and a
+            // scheduled refresh never reaches user-initiated status. Breaking that deadlock here mirrors
+            // explicit OAuth mode's own absence check (`ClaudeOAuthPlanningAvailability`). A confirmed
+            // absence of CodexBar-readable credentials does not by itself prove the interactive CLI is
+            // safe to launch unattended, so this exception still requires the same explicit background
+            // opt-in (`.always` prompt policy) that `allowsOpaqueChildExecution` requires above.
+            guard ClaudeOAuthKeychainPromptPreference.storedMode() == .always else { return false }
+            return oauthCredentialsConfirmedAbsent()
         }
         // Disable Keychain explicitly permits one owner-CLI usage attempt on a cold profile. A failed attempt
         // records revocation below, preventing each background timer tick from retrying until a foreground success.

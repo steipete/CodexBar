@@ -283,10 +283,9 @@ extension CostUsageStore {
             }
 
             var catchUpRequired = false
-            // The row budget mirrors the former entry budget: it only ever removes files the
-            // requested window does not read. In-window and recently active files are never
-            // dropped just for a row overage; the byte budget below is the sole authority
-            // that may sacrifice in-window data.
+            // The row and byte budgets only remove files outside the requested window. Once
+            // only protected data remains, preserving report fidelity takes precedence over
+            // forcing the database under its best-effort byte cap.
             while try Self.rowCount(database) > Int64(rowLimit) {
                 guard try Self.deleteOldestRetainedFile(
                     database,
@@ -305,15 +304,8 @@ extension CostUsageStore {
                     sinceDay: sinceDay,
                     untilDay: untilDay,
                     calendar: calendar,
-                    protectRequestedWindow: false)
-                else {
-                    guard try Self.stripOldestRebuildableDetail(database) else { break }
-                    catchUpRequired = true
-                    try Self.markCatchUpRequired(database)
-                    try Self.reclaimFreePages(database)
-                    fileBytes = Self.fileSize(at: self.databaseURL)
-                    continue
-                }
+                    protectRequestedWindow: true)
+                else { break }
                 catchUpRequired = true
                 try Self.reclaimFreePages(database)
                 fileBytes = Self.fileSize(at: self.databaseURL)
@@ -393,43 +385,6 @@ extension CostUsageStore {
         try self.scalarInt(database, "SELECT COUNT(*) FROM files")
     }
 
-    private static func stripOldestRebuildableDetail(_ database: OpaquePointer) throws -> Bool {
-        let statement = try self.prepare(database, """
-        SELECT f.id, f.scan_state
-        FROM files f
-        WHERE NOT EXISTS (SELECT 1 FROM buffered_lines b WHERE b.file_id = f.id)
-          AND ((SELECT COUNT(*) FROM token_snapshots t WHERE t.file_id = f.id) > 0
-            OR (SELECT COUNT(*) FROM usage_rows r WHERE r.file_id = f.id) > 0)
-        ORDER BY f.updated_at_ms, f.id
-        LIMIT 1
-        """)
-        defer { sqlite3_finalize(statement) }
-        guard sqlite3_step(statement) == SQLITE_ROW,
-              let stateData = self.columnData(statement, at: 1),
-              var state = try? JSONDecoder().decode(CostUsageStoreScanState.self, from: stateData)
-        else { return false }
-        let fileID = sqlite3_column_int64(statement, 0)
-        state.isComplete = false
-        state.resumePayload = nil
-        state.tokenTimestampsMonotonic = nil
-        state.nextUsageRowIndex = nil
-        let updatedState = try JSONEncoder().encode(state)
-        let update = try self.prepare(database, """
-        UPDATE files
-        SET parsed_bytes = 0, anchor_indexed_bytes = NULL, anchor_window_start = NULL,
-            anchor_sha256 = NULL, scan_state = ?, scan_complete = 0
-        WHERE id = ?
-        """)
-        defer { sqlite3_finalize(update) }
-        self.bind(updatedState, to: update, at: 1)
-        sqlite3_bind_int64(update, 2, fileID)
-        try self.stepDone(update, database: database)
-        try self.execute(database, "DELETE FROM token_snapshots WHERE file_id = \(fileID)")
-        try self.execute(database, "DELETE FROM usage_rows WHERE file_id = \(fileID)")
-        try self.execute(database, "DELETE FROM accumulators WHERE file_id = \(fileID)")
-        return true
-    }
-
     private static func rebuildDayAggregates(_ database: OpaquePointer) throws {
         try self.execute(database, "DELETE FROM day_aggregates")
         try self.execute(database, """
@@ -457,6 +412,7 @@ extension CostUsageStore {
             table: "scan_metadata") ?? .empty
         metadata.catchUpPending = true
         metadata.lastScanUnixMs = 0
+        metadata.scanInventoryPaths = nil
         try self.writeSingleton(metadata, database: database, table: "scan_metadata")
     }
 

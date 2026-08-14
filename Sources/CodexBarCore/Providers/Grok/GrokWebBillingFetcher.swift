@@ -37,7 +37,9 @@ public enum GrokWebBillingError: LocalizedError, Sendable {
                 "Grok web billing request failed with HTTP \(status): \(body)"
             }
         case let .rpcFailed(status, message):
-            if Self.isAuthenticationFailure(status: status, message: message) {
+            if Self.isWebKeyExchangeCredentialRejection(status: status, message: message) {
+                Self.webKeyExchangeReauthMessage
+            } else if Self.isAuthenticationFailure(status: status, message: message) {
                 Self.reauthMessage
             } else {
                 "Grok web billing RPC failed with status \(status): \(message)"
@@ -51,6 +53,15 @@ public enum GrokWebBillingError: LocalizedError, Sendable {
 
     private static let reauthMessage =
         "Grok web billing rejected credentials. Sign in to grok.com in Chrome or run `grok login` to refresh xAI auth."
+    private static let webKeyExchangeReauthMessage =
+        "grok.com billing no longer accepts browser-cookie sign-in for this endpoint. Run `grok login` so CodexBar " +
+        "can read usage via the Grok CLI token."
+
+    static func isWebKeyExchangeCredentialRejection(status: Int, message: String) -> Bool {
+        guard status == 16 else { return false }
+        let lower = message.lowercased()
+        return lower.contains("no-credentials") || lower.contains("no credentials presented")
+    }
 
     static func isAuthenticationFailure(status: Int, message: String) -> Bool {
         if status == 16 { return true }

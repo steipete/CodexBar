@@ -471,6 +471,17 @@ extension SettingsStore {
         }
     }
 
+    /// User-tunable vertical nudge for the menu bar title, clamped to -20...20.
+    /// Positive moves content up, negative moves it down; 0 keeps the optical default.
+    var menuBarLayoutVerticalAdjustment: Int {
+        get { self.defaultsState.menuBarLayoutVerticalAdjustment }
+        set {
+            let clamped = max(-20, min(20, newValue))
+            self.defaultsState.menuBarLayoutVerticalAdjustment = clamped
+            self.userDefaults.set(clamped, forKey: "menuBarLayoutVerticalAdjustment")
+        }
+    }
+
     private func persistMenuBarLayout(_ layout: MenuBarLayout, key: String) {
         guard let data = try? JSONEncoder().encode(layout) else { return }
         self.userDefaults.set(data, forKey: key)

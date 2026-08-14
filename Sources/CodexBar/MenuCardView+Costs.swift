@@ -428,6 +428,18 @@ extension UsageMenuCardView.Model {
                 percentLine: nil)
         }
 
+        if style == .payAsYouGoSpend {
+            let spend = formatCost(cost.used)
+            let periodLabel = Self.localizedPeriodLabel(cost.period ?? "This month")
+            let balanceLine = cost.balance.map { "\(L("Balance")): \(formatCost($0))" }
+            return ProviderCostSection(
+                title: L("metric_mistral_payg"),
+                percentUsed: nil,
+                spendLine: "\(periodLabel): \(spend)",
+                percentLine: nil,
+                balanceLine: balanceLine)
+        }
+
         if style == .payAsYouGoBalance {
             let balance = formatCost(cost.used)
             return ProviderCostSection(

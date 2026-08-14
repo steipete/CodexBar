@@ -1340,6 +1340,7 @@
 "menu_bar_layout_gap" = "Espacement";
 "menu_bar_layout_gap_tight" = "Serré";
 "menu_bar_layout_gap_regular" = "Normale";
+"menu_bar_layout_vertical_adjustment" = "Ajustement vertical";
 "menu_bar_layout_keyboard_hint" = "Supprimer retire le jeton sélectionné";
 "menu_bar_layout_sample_account" = "compte";
 "menu_bar_layout_sample_runs_out" = "épuisé ven.";

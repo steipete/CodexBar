@@ -60,6 +60,8 @@ public enum ProviderCostMenuCardStyle: Sendable, Equatable {
     case pointsBalance
     case prepaidCredits
     case payAsYouGoBalance
+    /// Monthly spend without a configured limit, with the remaining prepaid balance alongside it.
+    case payAsYouGoSpend
     case claude
     case apiSpend
     case clawRouter

@@ -3,7 +3,7 @@ import CodexBarCore
 
 @MainActor
 enum ProviderBrandIcon {
-    private static let size = NSSize(width: 16, height: 16)
+    private static let size = NSSize(width: 18, height: 18)
     private static var cache: [UsageProvider: NSImage] = [:]
 
     /// Lazy-loaded resource bundle for provider icons.

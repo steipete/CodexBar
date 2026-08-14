@@ -224,6 +224,32 @@ enum SettingsWindowSizing {
 }
 
 @MainActor
+enum SettingsWindowStageBehavior {
+    /// Keep Settings on the current Stage Manager stage / Space instead of
+    /// yanking focus back to wherever the window last appeared.
+    static let collectionBehavior: NSWindow.CollectionBehavior = [
+        .moveToActiveSpace,
+        .fullScreenAuxiliary,
+    ]
+
+    static func applyCollectionBehavior(_ window: NSWindow) {
+        // Assign the exact OptionSet. `.canJoinAllSpaces` is mutually exclusive
+        // with `.moveToActiveSpace`, and SwiftUI may restore a stale Space mask.
+        if window.collectionBehavior != self.collectionBehavior {
+            window.collectionBehavior = self.collectionBehavior
+        }
+    }
+
+    static func present(_ window: NSWindow) {
+        self.applyCollectionBehavior(window)
+        if window.isMiniaturized {
+            window.deminiaturize(nil)
+        }
+        window.makeKeyAndOrderFront(nil)
+    }
+}
+
+@MainActor
 enum SettingsWindowAppearance {
     typealias ResetAction = @MainActor @Sendable () -> Void
     typealias ResetScheduler = @MainActor @Sendable (@escaping ResetAction) -> Void
@@ -340,6 +366,7 @@ final class SettingsWindowAppearanceView: NSView {
 
     private func configureWindowStyle() {
         guard let window else { return }
+        SettingsWindowStageBehavior.applyCollectionBehavior(window)
         DockIconController.shared.registerSettingsWindow(window)
         if !window.styleMask.contains(.resizable) {
             window.styleMask.insert(.resizable)

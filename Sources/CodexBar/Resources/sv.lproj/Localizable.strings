@@ -1339,6 +1339,7 @@
 "menu_bar_layout_gap" = "Mellanrum";
 "menu_bar_layout_gap_tight" = "Tätt";
 "menu_bar_layout_gap_regular" = "Normal";
+"menu_bar_layout_vertical_adjustment" = "Vertikal justering";
 "menu_bar_layout_keyboard_hint" = "Delete tar bort den markerade brickan";
 "menu_bar_layout_sample_account" = "konto";
 "menu_bar_layout_sample_runs_out" = "tar slut fre.";

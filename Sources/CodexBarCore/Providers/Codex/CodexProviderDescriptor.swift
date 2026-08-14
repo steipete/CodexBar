@@ -342,7 +342,12 @@ struct CodexOAuthFetchStrategy: ProviderFetchStrategy {
             credentials: credentials,
             updatedAt: updatedAt,
             allowEmptyUsageForResetCreditEnrichment: Self.defersResetCreditFetchToApp(context))
-        return try await Self.replacingWithCLIMonthlyLimitIfAvailable(oauthResult, context: context)
+        let spendControlsResult = try await Self.applyingSpendControlsMonthlyLimit(
+            oauthResult,
+            usage: usage,
+            credentials: credentials,
+            context: context)
+        return try await Self.replacingWithCLIMonthlyLimitIfAvailable(spendControlsResult, context: context)
     }
 
     private static func shouldFetchResetCredits(_ context: ProviderFetchContext) -> Bool {
@@ -480,6 +485,91 @@ struct CodexOAuthFetchStrategy: ProviderFetchStrategy {
             diagnostic: oauthResult.diagnostic)
     }
 
+    private static func applyingSpendControlsMonthlyLimit(
+        _ result: ProviderFetchResult,
+        usage: CodexUsageResponse,
+        credentials: CodexOAuthCredentials,
+        context: ProviderFetchContext) async throws -> ProviderFetchResult
+    {
+        try await self.applyingSpendControlsMonthlyLimit(
+            result,
+            usage: usage,
+            credentials: credentials,
+            context: context,
+            fetcher: { accountId in
+                try await CodexOAuthUsageFetcher.fetchSpendControlsMonthlyUsage(
+                    accessToken: credentials.accessToken,
+                    accountId: accountId,
+                    env: context.env)
+            })
+    }
+
+    private static func applyingSpendControlsMonthlyLimit(
+        _ result: ProviderFetchResult,
+        usage: CodexUsageResponse,
+        credentials: CodexOAuthCredentials,
+        context: ProviderFetchContext,
+        fetcher: @escaping @Sendable (String) async throws -> CodexSpendControlsMonthlyUsageResponse) async throws
+        -> ProviderFetchResult
+    {
+        guard context.includeCredits,
+              CodexSpendControlsMonthlyUsageGate.shouldFetch(response: usage),
+              let accountId = self.firstNonEmptyAccountId(credentials.accountId, usage.accountId)
+        else { return result }
+
+        do {
+            let response = try await fetcher(accountId)
+            let updatedAt = result.credits?.updatedAt ?? result.usage.updatedAt
+            guard let limit = response.codexCreditLimitSnapshot(updatedAt: updatedAt) else { return result }
+            let credits = result.credits.map {
+                CreditsSnapshot(
+                    remaining: $0.remaining,
+                    events: $0.events,
+                    updatedAt: $0.updatedAt,
+                    codexCreditLimit: limit)
+            } ?? CreditsSnapshot(
+                remaining: 0,
+                events: [],
+                updatedAt: updatedAt,
+                codexCreditLimit: limit)
+            return Self.replacingCredits(in: result, with: credits)
+        } catch {
+            if error is CancellationError || Task.isCancelled {
+                throw CancellationError()
+            }
+            return result
+        }
+    }
+
+    private static func firstNonEmptyAccountId(_ candidates: String?...) -> String? {
+        for candidate in candidates {
+            if let candidate = candidate?.trimmingCharacters(in: .whitespacesAndNewlines), !candidate.isEmpty {
+                return candidate
+            }
+        }
+        return nil
+    }
+
+    private static func replacingCredits(
+        in result: ProviderFetchResult,
+        with credits: CreditsSnapshot) -> ProviderFetchResult
+    {
+        ProviderFetchResult(
+            usage: result.usage,
+            credits: credits,
+            dashboard: result.dashboard,
+            sourceLabel: result.sourceLabel,
+            strategyID: result.strategyID,
+            strategyKind: result.strategyKind,
+            diagnostic: result.diagnostic,
+            claudeOAuthKeychainPersistentRefHash: result.claudeOAuthKeychainPersistentRefHash,
+            claudeOAuthHistoryOwnerIdentifier: result.claudeOAuthHistoryOwnerIdentifier,
+            claudeOAuthCredentialOwner: result.claudeOAuthCredentialOwner,
+            claudeOAuthKeychainCredentialMismatch: result.claudeOAuthKeychainCredentialMismatch,
+            claudeOAuthKeychainCredentialAbsent: result.claudeOAuthKeychainCredentialAbsent,
+            claudeOAuthKeychainCredentialUnavailable: result.claudeOAuthKeychainCredentialUnavailable)
+    }
+
     private static func fetchResetCreditsIfRequested(
         context: ProviderFetchContext,
         credentials: CodexOAuthCredentials) async throws -> CodexRateLimitResetCreditsSnapshot?
@@ -548,6 +638,22 @@ struct CodexOAuthFetchStrategy: ProviderFetchStrategy {
 
 #if DEBUG
 extension CodexOAuthFetchStrategy {
+    static func _applySpendControlsMonthlyLimitForTesting(
+        _ result: ProviderFetchResult,
+        usage: CodexUsageResponse,
+        credentials: CodexOAuthCredentials,
+        context: ProviderFetchContext,
+        fetcher: @escaping @Sendable (String) async throws -> CodexSpendControlsMonthlyUsageResponse) async throws
+        -> ProviderFetchResult
+    {
+        try await self.applyingSpendControlsMonthlyLimit(
+            result,
+            usage: usage,
+            credentials: credentials,
+            context: context,
+            fetcher: fetcher)
+    }
+
     static func _fetchResetCreditsForTesting(
         context: ProviderFetchContext,
         credentials: CodexOAuthCredentials,

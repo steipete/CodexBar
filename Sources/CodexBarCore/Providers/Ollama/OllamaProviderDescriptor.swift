@@ -70,6 +70,12 @@ public enum OllamaProviderDescriptor {
                 name: "ollama",
                 versionDetector: nil,
                 browserSupportExemption: { sourceMode, environment, settings in
+                    let hasManualCookie = settings?.ollama?.cookieSource == .manual
+                        && !(settings?.ollama?.manualCookieHeader?
+                            .trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true)
+                    if hasManualCookie {
+                        return sourceMode == .auto || sourceMode == .web
+                    }
                     guard sourceMode == .auto else { return false }
                     let hasEnvironmentToken = environment.map {
                         ProviderTokenResolver.token(for: .ollama, environment: $0) != nil
@@ -170,15 +176,24 @@ struct OllamaStatusFetchStrategy: ProviderFetchStrategy {
             } catch {
                 if self.shouldInvalidateCachedCookie(after: error) {
                     clearCached(cached)
+                    // The ollama.com session cookie rotates independently of the user's signed-in state, so a
+                    // background refresh can see a cached cookie go stale even when the user never signed out.
+                    // BrowserCookieAccessGate already gates browser reads on its own no-UI preflight — it does
+                    // NOT always deny a background attempt (Safari never needs Keychain decryption, and a
+                    // Chromium browser with a prior "Always Allow" Keychain grant is also read without a
+                    // prompt) — so still attempt `fetchBrowser` here rather than assuming it will fail. Only
+                    // when that attempt itself fails do we surface the original auth error (not a misleading
+                    // "no session cookie" one) instead of finalizing on a user-initiated refresh's explicit
+                    // opt-in, mirroring the `shouldTryBrowserCandidates` recovery below.
+                    return try await self.fetchBrowserOrRethrow(
+                        originalError: error,
+                        fetchBrowser: fetchBrowser,
+                        storeResolved: storeResolved)
                 } else if self.shouldTryBrowserCandidates(afterCachedFailure: error) {
-                    let cachedError = error
-                    do {
-                        let resolved = try await fetchBrowser()
-                        storeResolved(resolved)
-                        return resolved.snapshot
-                    } catch {
-                        throw cachedError
-                    }
+                    return try await self.fetchBrowserOrRethrow(
+                        originalError: error,
+                        fetchBrowser: fetchBrowser,
+                        storeResolved: storeResolved)
                 } else {
                     throw error
                 }
@@ -188,6 +203,38 @@ struct OllamaStatusFetchStrategy: ProviderFetchStrategy {
         let resolved = try await fetchBrowser()
         storeResolved(resolved)
         return resolved.snapshot
+    }
+
+    /// Attempts browser-cookie recovery after a cached-cookie failure, surfacing the original failure — not
+    /// whatever `fetchBrowser` itself throws — if that attempt also fails with a generic, non-actionable error
+    /// (e.g. no browser candidates found). A specific, actionable browser-access diagnosis (Safari needs Full
+    /// Disk Access, a Chromium Keychain prompt was declined, etc.) is always more useful than the stale cached
+    /// auth error it would otherwise be swapped for, so it is re-thrown as-is instead.
+    private static func fetchBrowserOrRethrow(
+        originalError: Error,
+        fetchBrowser: () async throws -> OllamaUsageFetcher.ResolvedCookieFetch,
+        storeResolved: (OllamaUsageFetcher.ResolvedCookieFetch) -> Void) async throws -> OllamaUsageSnapshot
+    {
+        do {
+            let resolved = try await fetchBrowser()
+            storeResolved(resolved)
+            return resolved.snapshot
+        } catch let browserError where self.isActionableBrowserAccessError(browserError) {
+            throw browserError
+        } catch {
+            throw originalError
+        }
+    }
+
+    static func isActionableBrowserAccessError(_ error: Error) -> Bool {
+        switch error {
+        case OllamaUsageError.safariCookieAccessDenied,
+             OllamaUsageError.browserCookieDecryptionDenied,
+             OllamaUsageError.browserCookieDecryptionDisabled:
+            true
+        default:
+            false
+        }
     }
 
     static func shouldInvalidateCachedCookie(after error: Error) -> Bool {

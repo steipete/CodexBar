@@ -41,7 +41,7 @@ classify_path() {
   path_count=$((path_count + 1))
 
   case "$path" in
-    AGENTS.md|docs/configuration.md)
+    AGENTS.md|CLAUDE.md|docs/configuration.md)
       require_macos_tests "$path" "changes contributor or runtime configuration contracts"
       ;;
     *.md)

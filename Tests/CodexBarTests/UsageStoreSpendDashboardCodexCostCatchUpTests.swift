@@ -58,6 +58,47 @@ struct UsageStoreSpendDashboardCodexCostCatchUpTests {
         #expect(store.spendDashboardCodexCostCatchUpActivity?.fractionCompleted == 1)
     }
 
+    @Test(arguments: [123, 248, 365])
+    func `dashboard catch-up accelerates the configured history window`(historyDays: Int) async throws {
+        let receivedHistoryDays = try await Self.receivedHistoryDays(
+            configuredHistoryDays: historyDays,
+            suite: "configured-\(historyDays)")
+
+        #expect(receivedHistoryDays == historyDays)
+    }
+
+    @Test(arguments: [1, 7, 29])
+    func `dashboard catch-up retains its thirty day floor`(historyDays: Int) async throws {
+        let receivedHistoryDays = try await Self.receivedHistoryDays(
+            configuredHistoryDays: historyDays,
+            suite: "floor-\(historyDays)")
+
+        #expect(receivedHistoryDays == SpendDashboardSource.scanDays)
+    }
+
+    @Test
+    func `changing the history window replaces the active catch-up context`() throws {
+        let store = try Self.makeStore(suite: "history-context")
+        let accounts = [Self.account(id: "account", cacheIdentity: "cache-account")]
+        store.settings.costUsageHistoryDays = 30
+        store._test_spendDashboardCodexCostCatchUpStatusOverride = { _ in
+            Self.status(pending: true, key: "pending", processedBytes: 25)
+        }
+        store._test_spendDashboardCodexCostCatchUpSleepOverride = { _ in
+            try await Task.sleep(for: .seconds(60))
+        }
+
+        store.startSpendDashboardCodexCostCatchUpIfNeeded(accounts: accounts, mode: .accelerated)
+        let originalToken = try #require(store.spendDashboardCodexCostCatchUpToken)
+
+        store.settings.costUsageHistoryDays = 123
+        store.synchronizeSpendDashboardCodexCostCatchUp(accounts: accounts)
+        let replacementToken = try #require(store.spendDashboardCodexCostCatchUpToken)
+
+        #expect(replacementToken != originalToken)
+        store.cancelSpendDashboardCodexCostCatchUp()
+    }
+
     @Test
     func `a stalled account cache does not prevent a sibling cache from advancing`() async throws {
         let store = try Self.makeStore(suite: "stalled-sibling")
@@ -131,6 +172,74 @@ struct UsageStoreSpendDashboardCodexCostCatchUpTests {
     }
 
     @Test
+    func `dashboard catch-up stalls a cache that revisits an earlier semantic state`() async throws {
+        let store = try Self.makeStore(suite: "cyclic-progress")
+        let accounts = [Self.account(id: "cyclic", cacheIdentity: "cache-cyclic")]
+        let progressKeys = ["validation-1", "validation-2", "validation-0"]
+        var advanceCount = 0
+        store._test_spendDashboardCodexCostCatchUpStatusOverride = { _ in
+            Self.status(pending: true, key: "validation-0", processedBytes: 25)
+        }
+        store._test_spendDashboardCodexCostCatchUpAdvanceOverride = { _, _, _ in
+            advanceCount += 1
+            return Self.status(
+                pending: true,
+                key: progressKeys[min(advanceCount - 1, progressKeys.count - 1)],
+                processedBytes: 25)
+        }
+        store._test_spendDashboardCodexCostCatchUpSleepOverride = { _ in
+            await Task.yield()
+        }
+        store._test_spendDashboardCodexCostCatchUpResourceStateOverride = {
+            (.ac, false, .nominal)
+        }
+
+        store.startSpendDashboardCodexCostCatchUpIfNeeded(accounts: accounts, mode: .accelerated)
+        await Self.waitUntil {
+            store.spendDashboardCodexCostCatchUpTask == nil
+        }
+
+        #expect(advanceCount == 3)
+        #expect(store.spendDashboardCodexCostCatchUpActivity?.phase == .paused)
+        #expect(store.spendDashboardCodexCostCatchUpActivity?.pauseReason == .noProgress)
+    }
+
+    @Test
+    func `a same-mode dashboard reload queues a worker after the completing task`() async throws {
+        let store = try Self.makeStore(suite: "same-mode-restart")
+        let accounts = [Self.account(id: "account", cacheIdentity: "cache-account")]
+        var statusLoadCount = 0
+        var advanceCount = 0
+        store._test_spendDashboardCodexCostCatchUpStatusOverride = { _ in
+            statusLoadCount += 1
+            return Self.status(
+                pending: statusLoadCount == 2,
+                key: "status-\(statusLoadCount)",
+                processedBytes: statusLoadCount == 2 ? 25 : 100)
+        }
+        store._test_spendDashboardCodexCostCatchUpAdvanceOverride = { _, _, _ in
+            advanceCount += 1
+            return Self.status(pending: false, key: "complete", processedBytes: 100)
+        }
+        store._test_spendDashboardCodexCostCatchUpSleepOverride = { _ in
+            await Task.yield()
+        }
+        store._test_spendDashboardCodexCostCatchUpResourceStateOverride = {
+            (.ac, false, .nominal)
+        }
+
+        store.startSpendDashboardCodexCostCatchUpIfNeeded(accounts: accounts)
+        store.startSpendDashboardCodexCostCatchUpIfNeeded(accounts: accounts)
+        await Self.waitUntil {
+            store.spendDashboardCodexCostCatchUpTask == nil && statusLoadCount == 2
+        }
+
+        #expect(statusLoadCount == 2)
+        #expect(advanceCount == 1)
+        #expect(store.spendDashboardCodexCostCatchUpActivity?.phase == .complete)
+    }
+
+    @Test
     func `dashboard synchronization keeps an accelerated account queue accelerated`() throws {
         let store = try Self.makeStore(suite: "preserve-mode")
         let accounts = [Self.account(id: "account", cacheIdentity: "cache-account")]
@@ -142,6 +251,20 @@ struct UsageStoreSpendDashboardCodexCostCatchUpTests {
         #expect(originalToken != nil)
         #expect(store.spendDashboardCodexCostCatchUpToken == originalToken)
         #expect(store.spendDashboardCodexCostCatchUpMode == .accelerated)
+        store.cancelSpendDashboardCodexCostCatchUp()
+    }
+
+    @Test
+    func `stopping an active pass clears a queued restart`() throws {
+        let store = try Self.makeStore(suite: "stop-clears-restart")
+        store.spendDashboardCodexCostCatchUpTask = Task {}
+        store.spendDashboardCodexCostCatchUpPassIsRunning = true
+        store.spendDashboardCodexCostCatchUpRestartRequested = true
+
+        store.stopSpendDashboardCodexCostCatchUp()
+
+        #expect(store.spendDashboardCodexCostCatchUpStopRequested)
+        #expect(!store.spendDashboardCodexCostCatchUpRestartRequested)
         store.cancelSpendDashboardCodexCostCatchUp()
     }
 
@@ -157,6 +280,41 @@ struct UsageStoreSpendDashboardCodexCostCatchUpTests {
             settings: settings,
             startupBehavior: .testing,
             environmentBase: [:])
+    }
+
+    private static func receivedHistoryDays(
+        configuredHistoryDays: Int,
+        suite: String) async throws -> Int
+    {
+        let store = try Self.makeStore(suite: suite)
+        let account = Self.account(id: "account", cacheIdentity: "cache-account")
+        store.settings.costUsageHistoryDays = configuredHistoryDays
+        var completed = false
+        var receivedHistoryDays: Int?
+        store._test_spendDashboardCodexCostCatchUpStatusOverride = { _ in
+            Self.status(
+                pending: !completed,
+                key: completed ? "complete" : "pending",
+                processedBytes: completed ? 100 : 25)
+        }
+        store._test_spendDashboardCodexCostCatchUpAdvanceOverride = { _, _, historyDays in
+            receivedHistoryDays = historyDays
+            completed = true
+            return Self.status(pending: false, key: "complete", processedBytes: 100)
+        }
+        store._test_spendDashboardCodexCostCatchUpSleepOverride = { _ in
+            await Task.yield()
+        }
+        store._test_spendDashboardCodexCostCatchUpResourceStateOverride = {
+            (.battery, true, .serious)
+        }
+
+        store.startSpendDashboardCodexCostCatchUpIfNeeded(accounts: [account], mode: .accelerated)
+        await Self.waitUntil {
+            store.spendDashboardCodexCostCatchUpTask == nil
+        }
+
+        return try #require(receivedHistoryDays)
     }
 
     private static func account(id: String, cacheIdentity: String) -> CodexSpendScanRequest {

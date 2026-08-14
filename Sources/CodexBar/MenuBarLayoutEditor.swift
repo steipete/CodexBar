@@ -548,6 +548,27 @@ struct MenuBarLayoutEditor: View {
             }
             .pickerStyle(.menu)
 
+            HStack(spacing: 8) {
+                Text(L("menu_bar_layout_vertical_adjustment"))
+                    .lineLimit(1)
+                    .fixedSize()
+
+                TextField(
+                    "",
+                    value: self.$settings.menuBarLayoutVerticalAdjustment,
+                    format: .number)
+                    .labelsHidden()
+                    .textFieldStyle(.roundedBorder)
+                    .multilineTextAlignment(.trailing)
+                    .monospacedDigit()
+                    .frame(width: 44)
+
+                Stepper(value: self.$settings.menuBarLayoutVerticalAdjustment, in: -20...20, step: 1) {
+                    EmptyView()
+                }
+                .labelsHidden()
+            }
+
             Spacer()
 
             Text(L("menu_bar_layout_keyboard_hint"))
@@ -642,7 +663,8 @@ struct MenuBarLayoutPreview: View {
                 showUsed: self.settings.usageBarsShowUsed,
                 appearanceName: "preview",
                 isDebugApp: false,
-                now: minute))
+                now: minute,
+                verticalAdjustment: self.settings.menuBarLayoutVerticalAdjustment))
         MenuBarLayoutPreviewText(rendered: rendered)
     }
 
@@ -756,18 +778,40 @@ struct MenuBarLayoutPreview: View {
 struct MenuBarLayoutPreviewText: NSViewRepresentable {
     let rendered: MenuBarLayoutRenderedTitle
 
-    func makeNSView(context: Context) -> NSTextField {
+    func makeNSView(context: Context) -> NSStackView {
+        let stack = NSStackView()
+        self.configure(stack)
+        return stack
+    }
+
+    func updateNSView(_ stack: NSStackView, context: Context) {
+        self.configure(stack)
+    }
+
+    private func configure(_ stack: NSStackView) {
+        for subview in stack.arrangedSubviews {
+            stack.removeArrangedSubview(subview)
+            subview.removeFromSuperview()
+        }
+        stack.orientation = .horizontal
+        stack.spacing = 2
+        stack.alignment = .centerY
+        // The live status button renders an extracted leading icon as `button.image`; mirror that
+        // in the preview so an icon-leading (or icon-only) preset stays visible in Preferences.
+        if let icon = self.rendered.leadingIcon {
+            let imageView = NSImageView(image: icon)
+            imageView.imageScaling = .scaleProportionallyUpOrDown
+            imageView.contentTintColor = .labelColor
+            imageView.setContentHuggingPriority(.required, for: .horizontal)
+            stack.addArrangedSubview(imageView)
+        }
         let field = NSTextField(labelWithAttributedString: self.rendered.attributedTitle)
         field.alignment = .center
         field.lineBreakMode = .byClipping
         field.maximumNumberOfLines = 2
         field.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
-        return field
-    }
-
-    func updateNSView(_ field: NSTextField, context: Context) {
-        field.attributedStringValue = self.rendered.attributedTitle
-        field.setAccessibilityLabel(self.rendered.accessibilityLabel)
+        stack.addArrangedSubview(field)
+        stack.setAccessibilityLabel(self.rendered.accessibilityLabel)
     }
 }
 

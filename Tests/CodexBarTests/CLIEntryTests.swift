@@ -731,6 +731,24 @@ final class CLIEntryTests: XCTestCase {
             environment: ["MIMO_LOCAL_USAGE_PATH": directory.appendingPathComponent("missing.json").path]))
     }
 
+    func test_sourceModeRequiresWebSupportAllowsOllamaManualCookieOnLinuxGate() {
+        XCTAssertFalse(CodexBarCLI.sourceModeRequiresWebSupport(
+            .auto,
+            provider: .ollama,
+            settings: ProviderSettingsSnapshot.make(
+                ollama: .init(cookieSource: .manual, manualCookieHeader: "__Secure-session=manual"))))
+        XCTAssertFalse(CodexBarCLI.sourceModeRequiresWebSupport(
+            .web,
+            provider: .ollama,
+            settings: ProviderSettingsSnapshot.make(
+                ollama: .init(cookieSource: .manual, manualCookieHeader: "__Secure-session=manual"))))
+        XCTAssertTrue(CodexBarCLI.sourceModeRequiresWebSupport(
+            .web,
+            provider: .ollama,
+            settings: ProviderSettingsSnapshot.make(
+                ollama: .init(cookieSource: .manual, manualCookieHeader: "   "))))
+    }
+
     func test_sourceModeRequiresWebSupportAllowsQwenCookiesOnLinuxGate() {
         XCTAssertFalse(CodexBarCLI.sourceModeRequiresWebSupport(
             .auto,

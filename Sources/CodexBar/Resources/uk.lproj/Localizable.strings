@@ -1340,6 +1340,7 @@
 "menu_bar_layout_gap" = "Інтервал";
 "menu_bar_layout_gap_tight" = "Вузький";
 "menu_bar_layout_gap_regular" = "Звичайний";
+"menu_bar_layout_vertical_adjustment" = "Вертикальне налаштування";
 "menu_bar_layout_keyboard_hint" = "Delete видаляє вибраний елемент";
 "menu_bar_layout_sample_account" = "обліковий запис";
 "menu_bar_layout_sample_runs_out" = "закінчиться пт.";

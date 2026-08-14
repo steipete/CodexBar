@@ -80,6 +80,7 @@ actor CostUsageStore {
         "98da5914d2f6a9cd", // Pushed PR producer before retry signaling; persisted rows unchanged.
         "43609cc56f76a003", // 0.49.3 request-tier pricing; persisted row shape unchanged.
         "b975eb705f905b9a", // 0.49.0-0.49.2 SQLite producer with compatible rows.
+        "47144baa8daccf52", // This branch changes only scan scheduling, discovery, and persistence bookkeeping.
     ]
 
     /// Test-only crash injection: invoked inside `saveCodexCache`'s transaction after each
@@ -88,6 +89,9 @@ actor CostUsageStore {
     nonisolated(unsafe) static var saveCycleCheckpointForTesting: ((Int) -> Void)?
     /// Test-only interleaving point after optimistic identity succeeds and before its writer lock.
     nonisolated(unsafe) static var identicalContentPreLockCheckpointForTesting: (() -> Void)?
+
+    /// Test-only traversal proof for persisted Codex catch-up reconciliation. Never set in production.
+    nonisolated(unsafe) static var codexCatchUpReconciliationVisitForTesting: (() -> Void)?
 
     /// Process-wide serialization keeps every writable store connection on the same queue.
     /// This matches the scan pipeline's single-writer contract without multiplying executor

@@ -1,3 +1,4 @@
+// swiftlint:disable file_length
 import Foundation
 #if canImport(Darwin)
 import Darwin
@@ -10,7 +11,6 @@ import Testing
 @testable import CodexBarCore
 
 // The performance corpus and its fixtures intentionally stay together so timing gates share setup.
-// swiftlint:disable file_length
 
 /// Regression gates for the two cost-usage scan-storm classes that have shipped before:
 /// re-parsing unchanged session files on every refresh (#1387, #1392) and re-running the
@@ -18,6 +18,149 @@ import Testing
 @Suite(.serialized)
 // swiftlint:disable:next type_body_length
 struct CostUsagePerformanceGateTests {
+    @Test
+    func `time limited codex catch-up bounds oversized active day discovery`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+        CostUsageScanner.resetCodexDirectoryCursorsForTesting()
+        defer { CostUsageScanner.resetCodexDirectoryCursorsForTesting() }
+        let day = try env.makeLocalNoon(year: 2026, month: 5, day: 10)
+        let corpusSize = 1500
+        let candidateLimit = CostUsageScanner.codexCatchUpScanCandidateLimit
+        _ = try Self.writeSyntheticCodexCorpus(
+            env: env,
+            day: day,
+            files: corpusSize,
+            turnsPerFile: 1)
+
+        var options = CostUsageScanner.Options(
+            codexSessionsRoot: env.codexSessionsRoot,
+            claudeProjectsRoots: nil,
+            cacheRoot: env.cacheRoot,
+            codexTraceDatabaseURL: env.root.appendingPathComponent("missing.sqlite"),
+            maxCodexSessionFileBytes: 0,
+            maxCodexScanBytesPerRefresh: 0,
+            maxCodexScanDurationPerRefresh: 60)
+        options.refreshMinIntervalSeconds = 0
+
+        let firstRecorder = CostUsageScanner.CodexScanWorkRecorder()
+        options.codexScanWorkRecorderForTesting = firstRecorder
+        _ = CostUsageScanner.loadDailyReport(
+            provider: .codex,
+            since: day,
+            until: day,
+            now: day,
+            options: options)
+        let firstMetrics = firstRecorder.snapshot()
+        let firstCache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
+        print(
+            "[discovery-proof] first=\(firstCache.files.count), "
+                + "discovery=\(firstMetrics.codexDiscoveryVisits), "
+                + "attempts=\(firstMetrics.codexFileScanAttempts)")
+
+        #expect(firstMetrics.codexDiscoveryVisits == candidateLimit)
+        #expect(firstMetrics.codexFileScanAttempts == candidateLimit)
+        #expect(firstCache.files.count == candidateLimit)
+        #expect(firstCache.codexScanCatchUpPending == true)
+
+        CostUsageScanner.resetCodexDirectoryCursorsForTesting()
+        let relaunchedRecorder = CostUsageScanner.CodexScanWorkRecorder()
+        options.codexScanWorkRecorderForTesting = relaunchedRecorder
+        _ = CostUsageScanner.loadDailyReport(
+            provider: .codex,
+            since: day,
+            until: day,
+            now: day.addingTimeInterval(1),
+            options: options)
+        let relaunchedMetrics = relaunchedRecorder.snapshot()
+        let relaunchedCache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
+        print(
+            "[discovery-proof] relaunched=\(relaunchedCache.files.count), "
+                + "discovery=\(relaunchedMetrics.codexDiscoveryVisits), "
+                + "attempts=\(relaunchedMetrics.codexFileScanAttempts)")
+
+        #expect(relaunchedMetrics.codexDiscoveryVisits == candidateLimit)
+        #expect(relaunchedMetrics.codexFileScanAttempts == 0)
+        #expect(relaunchedCache.files.count == candidateLimit)
+        #expect(relaunchedCache.codexScanCatchUpPending == true)
+
+        let secondRecorder = CostUsageScanner.CodexScanWorkRecorder()
+        options.codexScanWorkRecorderForTesting = secondRecorder
+        _ = CostUsageScanner.loadDailyReport(
+            provider: .codex,
+            since: day,
+            until: day,
+            now: day.addingTimeInterval(2),
+            options: options)
+        let secondMetrics = secondRecorder.snapshot()
+        let secondCache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
+        print(
+            "[discovery-proof] second=\(secondCache.files.count), "
+                + "discovery=\(secondMetrics.codexDiscoveryVisits), "
+                + "visits=\(secondMetrics.codexCandidateSelectionVisits), "
+                + "attempts=\(secondMetrics.codexFileScanAttempts), "
+                + "accounting=\(secondMetrics.codexProgressAccountingVisits)")
+
+        #expect(secondMetrics.codexDiscoveryVisits == candidateLimit)
+        #expect(secondMetrics.codexCandidateSelectionVisits == candidateLimit)
+        #expect(secondMetrics.codexFileScanAttempts == candidateLimit)
+        #expect(secondMetrics.codexProgressAccountingVisits == 0)
+        #expect(secondCache.files.count == candidateLimit * 2)
+        #expect(secondCache.codexScanCatchUpPending == true)
+    }
+
+    @Test
+    func `warm codex refresh indexes cache aliases once at incident corpus scale`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+        let day = try env.makeLocalNoon(year: 2026, month: 5, day: 10)
+        let corpusSize = 1500
+        _ = try Self.writeSyntheticCodexCorpus(
+            env: env,
+            day: day,
+            files: corpusSize,
+            turnsPerFile: 1)
+
+        var options = CostUsageScanner.Options(
+            codexSessionsRoot: env.codexSessionsRoot,
+            claudeProjectsRoots: nil,
+            cacheRoot: env.cacheRoot,
+            codexTraceDatabaseURL: env.root.appendingPathComponent("missing.sqlite"))
+        options.refreshMinIntervalSeconds = 0
+        _ = CostUsageScanner.loadDailyReport(
+            provider: .codex,
+            since: day,
+            until: day,
+            now: day,
+            options: options)
+
+        let recorder = CostUsageScanner.CodexScanWorkRecorder()
+        options.codexScanWorkRecorderForTesting = recorder
+        let started = ContinuousClock.now
+        _ = CostUsageScanner.loadDailyReport(
+            provider: .codex,
+            since: day,
+            until: day,
+            now: day.addingTimeInterval(1),
+            options: options)
+        let elapsed = ContinuousClock.now - started
+        let metrics = recorder.snapshot()
+
+        // The cache identity index may inspect only the matching identity bucket per file.
+        // With unique files that is one candidate per lookup, not corpusSize² cache visits.
+        #expect(metrics.cacheAliasEntriesIndexed == corpusSize)
+        #expect(metrics.cacheAliasLookups == corpusSize)
+        #expect(metrics.cacheAliasCandidatesVisited == corpusSize)
+        #expect(metrics.usageRowsProcessed == 0)
+        #expect(elapsed < TestTimingBudget.scaled(.seconds(10)))
+        let elapsedComponents = elapsed.components
+        let elapsedMilliseconds = elapsedComponents.seconds * 1000
+            + elapsedComponents.attoseconds / 1_000_000_000_000_000
+        print(
+            "[alias-index-proof] warm refresh \(corpusSize) files: \(elapsedMilliseconds) ms, "
+                + "lookups=\(metrics.cacheAliasLookups), candidates=\(metrics.cacheAliasCandidatesVisited)")
+    }
+
     @Test
     func `warm codex refresh over an unchanged session corpus must not re-parse it`() throws {
         let env = try CostUsageTestEnvironment()
@@ -841,10 +984,10 @@ struct CostUsagePerformanceGateTests {
         let fetcher = CostUsageFetcher(scannerOptions: options)
         var status = await fetcher.codexScanCatchUpStatus()
         #expect(status.pending)
-        var progressKeys = [status.progressKey]
+        var progressStates = [(pending: status.pending, key: status.progressKey)]
         for _ in 0..<12 where status.pending {
             status = try await fetcher.advanceCodexScanCatchUp(now: day, historyDays: 1)
-            progressKeys.append(status.progressKey)
+            progressStates.append((pending: status.pending, key: status.progressKey))
         }
 
         let completedCache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
@@ -855,7 +998,9 @@ struct CostUsagePerformanceGateTests {
         #expect(!status.pending)
         #expect(completedUsage.codexScanComplete == true)
         #expect(completedUsage.parsedBytes == metadata.size)
-        #expect(zip(progressKeys, progressKeys.dropFirst()).allSatisfy(!=))
+        #expect(zip(progressStates, progressStates.dropFirst()).allSatisfy { previous, next in
+            previous.key != next.key || (previous.pending && !next.pending)
+        })
         #expect(completedReport.summary?.totalTokens == baseline.summary?.totalTokens)
         #expect(completedReport.data.map(\.totalTokens) == baseline.data.map(\.totalTokens))
     }
@@ -1529,7 +1674,6 @@ extension CostUsagePerformanceGateTests {
             maxCodexSessionFileBytes: 1024,
             maxCodexScanBytesPerRefresh: 64 * 1024 * 1024)
         options.refreshMinIntervalSeconds = 0
-
         let started = Date()
         _ = CostUsageScanner.loadDailyReport(
             provider: .codex,

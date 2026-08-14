@@ -34,14 +34,21 @@ extension StatusItemController {
             showUsed: self.settings.usageBarsShowUsed,
             appearanceName: appearanceName,
             isDebugApp: Self.isDebugApp(bundleIdentifier: Bundle.main.bundleIdentifier),
-            now: now)
+            isStale: self.store.isStale(provider: provider),
+            now: now,
+            verticalAdjustment: self.settings.menuBarLayoutVerticalAdjustment)
         let rendered = self.menuBarLayoutRenderer.render(
             layout: resolution.layout,
             data: data,
             icon: renderedIcon,
             options: options)
-        let wasCached = button.image == nil
-            && button.imagePosition == .noImage
+        let expectedImagePosition: NSControl.ImagePosition = if rendered.leadingIcon != nil {
+            rendered.attributedTitle.length > 0 ? .imageLeft : .imageOnly
+        } else {
+            .noImage
+        }
+        let wasCached = button.image === rendered.leadingIcon
+            && button.imagePosition == expectedImagePosition
             && button.attributedTitle.isEqual(to: rendered.attributedTitle)
         self.setButtonLayoutContent(rendered, for: button, statusItem: statusItem)
         return wasCached
@@ -161,8 +168,25 @@ extension StatusItemController {
         for button: NSStatusBarButton,
         statusItem: NSStatusItem)
     {
-        button.image = nil
-        button.imagePosition = .noImage
+        // A leading icon token is surfaced as the status item image so AppKit applies the
+        // system's inactive-display tinting to it, matching how other menu bar icons behave.
+        // Text tokens keep rendering through the attributed title.
+        if let icon = rendered.leadingIcon {
+            if button.image !== icon {
+                button.image = icon
+            }
+            let position: NSControl.ImagePosition = rendered.attributedTitle.length > 0 ? .imageLeft : .imageOnly
+            if button.imagePosition != position {
+                button.imagePosition = position
+            }
+        } else {
+            if button.image != nil {
+                button.image = nil
+            }
+            if button.imagePosition != .noImage {
+                button.imagePosition = .noImage
+            }
+        }
         if !button.attributedTitle.isEqual(to: rendered.attributedTitle) {
             button.attributedTitle = rendered.attributedTitle
         }
@@ -172,9 +196,12 @@ extension StatusItemController {
 
         // AppKit exposes no content-inset API on NSStatusBarButton. Explicit item length is the actual
         // status-item padding mechanism: tight removes most edge space; regular keeps the native breathing room.
-        let bounds = rendered.attributedTitle.boundingRect(
+        var bounds = rendered.attributedTitle.boundingRect(
             with: NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude),
             options: [.usesLineFragmentOrigin, .usesFontLeading])
+        if let icon = rendered.leadingIcon {
+            bounds.size.width += icon.size.width
+        }
         let horizontalPadding: CGFloat = self.settings.menuBarLayoutGap == .tight ? 3 : 10
         statusItem.length = max(18, ceil(bounds.width) + horizontalPadding)
     }

@@ -95,12 +95,20 @@ struct ProcessPipeCaptureLinuxTests {
     @Test
     func `Linux descriptor setup failure closes the read end immediately`() throws {
         let pipe = Pipe()
-        let readFileDescriptor = pipe.fileHandleForReading.fileDescriptor
         let capture = ProcessPipeCapture(pipe: pipe)
         capture.start(linuxDescriptorSetup: { descriptor in
             errno = EMFILE
             return descriptor < 0
         })
+
+        // Descriptor numbers can be reused as soon as close returns. POLLERR on this pipe's write end proves
+        // the original pipe has no remaining reader without assuming its former descriptor stays unused.
+        var writerPollDescriptor = pollfd(
+            fd: pipe.fileHandleForWriting.fileDescriptor,
+            events: 0,
+            revents: 0)
+        #expect(Glibc.poll(&writerPollDescriptor, 1, 0) == 1)
+        #expect(writerPollDescriptor.revents & Int16(POLLERR) != 0)
 
         let startedAt = ContinuousClock.now
         let data = capture.finishSynchronously(timeout: 5)
@@ -108,8 +116,6 @@ struct ProcessPipeCaptureLinuxTests {
 
         #expect(data.isEmpty)
         #expect(elapsed < .milliseconds(500))
-        #expect(Glibc.fcntl(readFileDescriptor, F_GETFD) == -1)
-        #expect(errno == EBADF)
         try pipe.fileHandleForWriting.close()
     }
 

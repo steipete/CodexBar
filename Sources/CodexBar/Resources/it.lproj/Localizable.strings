@@ -1344,6 +1344,7 @@
 "menu_bar_layout_gap" = "Spaziatura";
 "menu_bar_layout_gap_tight" = "Stretta";
 "menu_bar_layout_gap_regular" = "Normale";
+"menu_bar_layout_vertical_adjustment" = "Regolazione verticale";
 "menu_bar_layout_keyboard_hint" = "Canc rimuove il token selezionato";
 "menu_bar_layout_sample_account" = "account";
 "menu_bar_layout_sample_runs_out" = "termina ven.";

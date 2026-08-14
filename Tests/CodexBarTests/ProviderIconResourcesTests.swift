@@ -35,7 +35,7 @@ struct ProviderIconResourcesTests {
         let second = try #require(ProviderBrandIcon.image(for: .codex))
 
         #expect(first === second)
-        #expect(first.size == NSSize(width: 16, height: 16))
+        #expect(first.size == NSSize(width: 18, height: 18))
         #expect(first.isTemplate)
     }
 
@@ -46,7 +46,7 @@ struct ProviderIconResourcesTests {
 
         let image = try #require(ProviderBrandIcon.image(for: .ollama))
 
-        #expect(image.size == NSSize(width: 16, height: 16))
+        #expect(image.size == NSSize(width: 18, height: 18))
         #expect(image.isTemplate)
 
         let bitmap = try #require(NSBitmapImageRep(

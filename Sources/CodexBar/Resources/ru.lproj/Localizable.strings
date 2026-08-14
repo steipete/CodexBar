@@ -1342,6 +1342,7 @@
 "menu_bar_layout_gap" = "Интервал";
 "menu_bar_layout_gap_tight" = "Узкий";
 "menu_bar_layout_gap_regular" = "Обычный";
+"menu_bar_layout_vertical_adjustment" = "Вертикальная настройка";
 "menu_bar_layout_keyboard_hint" = "Delete удаляет выбранный элемент";
 "menu_bar_layout_sample_account" = "аккаунт";
 "menu_bar_layout_sample_runs_out" = "закончится пт.";

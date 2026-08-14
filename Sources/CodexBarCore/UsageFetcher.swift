@@ -907,6 +907,7 @@ private final class CodexRPCClient: @unchecked Sendable {
         let stdoutLineContinuation = self.stdoutLineContinuation
         let stdoutBuffer = BoundedLineBuffer()
         let process = self.process
+        let stdinPipe = self.stdinPipe
         stdoutHandle.readabilityHandler = { handle in
             let data = handle.availableData
             if data.isEmpty {
@@ -919,7 +920,9 @@ private final class CodexRPCClient: @unchecked Sendable {
             if result.didExceedLimit {
                 Self.log.warning("Codex RPC line exceeded memory limit; terminating process")
                 handle.readabilityHandler = nil
-                process.terminate()
+                DispatchQueue.global(qos: .userInitiated).async {
+                    RPCChildProcessTeardown.terminate(process: process, stdinPipe: stdinPipe)
+                }
                 stdoutLineContinuation.finish()
                 return
             }
@@ -964,10 +967,8 @@ private final class CodexRPCClient: @unchecked Sendable {
     }
 
     func shutdown() {
-        if self.process.isRunning {
-            Self.log.debug("Codex RPC stopping")
-            self.process.terminate()
-        }
+        Self.log.debug("Codex RPC stopping")
+        RPCChildProcessTeardown.terminate(process: self.process, stdinPipe: self.stdinPipe)
     }
 
     // MARK: - JSON-RPC helpers
@@ -1037,7 +1038,13 @@ private final class CodexRPCClient: @unchecked Sendable {
     private func terminateProcessForTimeout(method: String) {
         if self.process.isRunning {
             Self.log.warning("Codex RPC timed out on `\(method)`; terminating process")
-            self.process.terminate()
+        }
+        // Dispatch off the timeout task so the bounded TERM-to-KILL wait cannot delay the timeout
+        // error or let the stdout-EOF failure win the race; `shutdown()` remains the synchronous backstop.
+        let process = self.process
+        let stdinPipe = self.stdinPipe
+        DispatchQueue.global(qos: .userInitiated).async {
+            RPCChildProcessTeardown.terminate(process: process, stdinPipe: stdinPipe)
         }
     }
 

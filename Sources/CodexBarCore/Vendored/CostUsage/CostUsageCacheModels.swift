@@ -18,6 +18,7 @@ struct CostUsageCache: Codable, Equatable, @unchecked Sendable {
     var codexScanTotalBytes: Int64?
     var codexScanCompletedFiles: Int?
     var codexScanTotalFiles: Int?
+    var codexScanInventoryPaths: [String]?
     var codexPreviousReport: CostUsageCodexPreviousReport?
     var codexSessionDiscovery: CostUsageCodexSessionDiscovery?
     var codexActiveLookbackState: CostUsageCodexActiveLookbackState?
@@ -30,9 +31,16 @@ struct CostUsageCodexActiveLookbackState: Codable, Equatable {
     var scanSinceKey: String
     var rootPaths: [String]
     var nextDayKeyByRoot: [String: String] = [:]
+    var nextDirectoryOffsetByRoot: [String: Int64]?
     var completedRootPaths: [String] = []
     var pendingFilePaths: [String] = []
     var legacyRecursivePendingRootPaths: [String] = []
+    var currentWindowNextDayKeyByRoot: [String: String]?
+    var currentWindowDirectoryOffsetByRoot: [String: Int64]?
+    var completedCurrentWindowRootPaths: [String]?
+    var currentWindowFlatDirectoryOffsetByRoot: [String: Int64]?
+    var completedCurrentWindowFlatRootPaths: [String]?
+    var cacheWideMigrationQueueActive: Bool?
 }
 
 struct CostUsageCodexSessionDiscovery: Codable, Equatable {
