@@ -89,6 +89,17 @@ public struct MuseUsageFetcher: Sendable {
     private static let timeoutSeconds: TimeInterval = 15
     public static let defaultBaseURL = "https://api.meta.ai"
 
+    private static func validatedBaseURL(_ base: String) throws -> String {
+        guard let url = URL(string: base), let scheme = url.scheme?.lowercased(), !scheme.isEmpty else {
+            throw MuseUsageError.apiError("Invalid base URL")
+        }
+        if scheme == "https" { return base }
+        if scheme == "http", let host = url.host?.lowercased(), host == "localhost" || host == "127.0.0.1" || host == "::1" {
+            return base
+        }
+        throw MuseUsageError.apiError("Insecure base URL — use https:// (or http://localhost for local proxy)")
+    }
+
     public static func fetchUsage(
         apiKey: String,
         baseURLString: String? = nil,
@@ -100,7 +111,8 @@ public struct MuseUsageFetcher: Sendable {
         }
 
         let base = (baseURLString?.trimmingCharacters(in: .whitespacesAndNewlines)).flatMap { $0.isEmpty ? nil : $0 } ?? defaultBaseURL
-        let normalizedBase = base.hasSuffix("/") ? String(base.dropLast()) : base
+        let normalizedBaseRaw = base.hasSuffix("/") ? String(base.dropLast()) : base
+        let normalizedBase = try validatedBaseURL(normalizedBaseRaw)
 
         // Strategy: try balance endpoint first, fall back to models probe.
         // Meta Model API docs list /v1/models and /v1/chat/completions reliably; billing endpoint
@@ -135,9 +147,13 @@ public struct MuseUsageFetcher: Sendable {
         // 2) Fall back to models probe — proves key validity without billing detail
         do {
             return try await fetchModelsProbe(base: normalizedBase, apiKey: cleaned, transport: transport)
-        } catch {
+        } catch let modelsError {
+            // Preserve authoritative auth errors from the models probe (401/403 means invalid key)
+            if let museError = modelsError as? MuseUsageError, case .apiError(let msg) = museError, msg.contains("401") || msg.contains("403") {
+                throw modelsError
+            }
             if let last = lastError { throw last }
-            throw error
+            throw modelsError
         }
     }
 

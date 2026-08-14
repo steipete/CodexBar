@@ -914,6 +914,11 @@ extension StatusItemController {
         {
             return balance
         }
+        if provider == .muse,
+           let balance = Self.museBalanceDisplayText(snapshot: snapshot)
+        {
+            return balance
+        }
         if provider == .mistral {
             let preference = self.settings.menuBarMetricPreference(for: provider, snapshot: snapshot)
             let hasMonthlyPlan = snapshot?.extraRateWindows?.contains { $0.id == "mistral-monthly-plan" } == true
@@ -1049,6 +1054,20 @@ extension StatusItemController {
         // Provider-specific by design: Moonshot stores cash/voucher balance text in its login-method payload.
         self.displayValue(
             from: snapshot?.loginMethod(for: .moonshot),
+            prefix: "Balance:",
+            removingSuffix: "")
+            .flatMap { value in
+                value
+                    .split(separator: "·", maxSplits: 1)
+                    .first?
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+    }
+
+    nonisolated static func museBalanceDisplayText(snapshot: UsageSnapshot?) -> String? {
+        // Provider-specific by design: Muse stores balance in its login-method payload.
+        self.displayValue(
+            from: snapshot?.loginMethod(for: .muse),
             prefix: "Balance:",
             removingSuffix: "")
             .flatMap { value in
