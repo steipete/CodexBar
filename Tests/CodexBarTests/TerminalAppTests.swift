@@ -50,8 +50,8 @@ struct TerminalAppTests {
     }
 
     @Test
-    func `only two cases exist`() {
-        #expect(TerminalApp.allCases.count == 2)
+    func `only three cases exist`() {
+        #expect(TerminalApp.allCases.count == 3)
     }
 
     @Test
@@ -63,12 +63,20 @@ struct TerminalAppTests {
 
         #expect(installed == [.terminal, .iTerm])
         #expect(TerminalApp.installed { _ in nil } == [.terminal])
+
+        let ghosttyURL = URL(fileURLWithPath: "/Applications/Ghostty.app")
+        let withGhostty = TerminalApp.installed { bundleIdentifier in
+            bundleIdentifier == TerminalApp.ghostty.bundleIdentifier ? ghosttyURL : nil
+        }
+
+        #expect(withGhostty == [.terminal, .ghostty])
     }
 
     @Test
     func `picker options preserve an unavailable persisted selection`() {
         #expect(TerminalApp.pickerOptions(selected: .terminal) { _ in nil } == [.terminal])
         #expect(TerminalApp.pickerOptions(selected: .iTerm) { _ in nil } == [.terminal, .iTerm])
+        #expect(TerminalApp.pickerOptions(selected: .ghostty) { _ in nil } == [.terminal, .ghostty])
     }
 
     @Test
@@ -121,10 +129,13 @@ struct TerminalAppTests {
         let command = #"echo "hello""#
         let terminalScript = TerminalApp.terminal.appleScript(command: command)
         let iTermScript = TerminalApp.iTerm.appleScript(command: command)
+        let ghosttyScript = TerminalApp.ghostty.appleScript(command: command)
 
         #expect(terminalScript.contains(#"tell application "Terminal""#))
         #expect(terminalScript.contains(#"do script "echo \"hello\"""#))
         #expect(iTermScript.contains(#"tell application "iTerm""#))
         #expect(iTermScript.contains(#"write text "echo \"hello\"""#))
+        #expect(ghosttyScript.contains(#"tell application "Ghostty""#))
+        #expect(ghosttyScript.contains(#"new window with configuration {initial input:"echo \"hello\"" & linefeed}"#))
     }
 }

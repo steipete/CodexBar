@@ -349,6 +349,40 @@ struct CodexWeeklyResetConfirmationTests {
     }
 
     @Test
+    func `zero available reset credits confirm a server-side early weekly reset by observation`() throws {
+        let formatter = ISO8601DateFormatter()
+        let previousCapturedAt = try #require(formatter.date(from: "2026-08-13T03:36:16Z"))
+        let previousReset = try #require(formatter.date(from: "2026-08-18T00:49:16Z"))
+        let initialCapturedAt = try #require(formatter.date(from: "2026-08-13T03:41:46Z"))
+        let initialReset = try #require(formatter.date(from: "2026-08-20T03:38:06Z"))
+        let previous = self.snapshot(
+            capturedAt: previousCapturedAt,
+            weeklyUsed: 98,
+            weeklyReset: previousReset,
+            resetCredits: self.emptyResetCredits(capturedAt: previousCapturedAt))
+        let initial = self.snapshot(
+            capturedAt: initialCapturedAt,
+            weeklyUsed: 1,
+            weeklyReset: initialReset,
+            resetCredits: self.emptyResetCredits(capturedAt: initialCapturedAt))
+        let confirmation = self.snapshot(
+            capturedAt: initialCapturedAt.addingTimeInterval(30),
+            weeklyUsed: 1,
+            weeklyReset: initialReset.addingTimeInterval(30),
+            resetCredits: self.emptyResetCredits(capturedAt: initialCapturedAt.addingTimeInterval(30)))
+
+        #expect(
+            CodexWeeklyResetConfirmation.initialDecision(previous: previous, initial: initial)
+                == .requiresConfirmation)
+        #expect(
+            CodexWeeklyResetConfirmation.confirmationDecision(
+                previous: previous,
+                initial: initial,
+                confirmation: confirmation)
+                == .publishConfirmation)
+    }
+
+    @Test
     func `one missing reset credit inventory does not confirm an early manual weekly reset`() throws {
         let formatter = ISO8601DateFormatter()
         let previousCapturedAt = try #require(formatter.date(from: "2026-08-06T09:28:18Z"))

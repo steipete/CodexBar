@@ -45,6 +45,9 @@ struct CostHistoryChartMenuView: View {
     private let daily: [DailyEntry]
     private let totalCostUSD: Double?
     private let currencyCode: String
+    /// Multiplier applied to source-currency amounts at display time so labels can render
+    /// in the user's preferred currency while chart geometry stays in source values.
+    private let costMultiplier: Double
     private let historyDays: Int
     private let windowLabel: String?
     private let projects: [CostUsageProjectBreakdown]
@@ -57,6 +60,7 @@ struct CostHistoryChartMenuView: View {
         daily: [DailyEntry],
         totalCostUSD: Double?,
         currencyCode: String = "USD",
+        costMultiplier: Double = 1,
         historyDays: Int = 30,
         windowLabel: String? = nil,
         projects: [CostUsageProjectBreakdown] = [],
@@ -67,6 +71,7 @@ struct CostHistoryChartMenuView: View {
         self.daily = daily
         self.totalCostUSD = totalCostUSD
         self.currencyCode = currencyCode
+        self.costMultiplier = costMultiplier
         self.historyDays = max(1, min(365, historyDays))
         self.windowLabel = windowLabel
         self.projects = projects
@@ -106,7 +111,7 @@ struct CostHistoryChartMenuView: View {
                         AxisTick().foregroundStyle(Color.clear)
                         AxisValueLabel(centered: false) {
                             if let raw = value.as(Double.self) {
-                                Text(Self.yAxisCostString(raw, currencyCode: self.currencyCode))
+                                Text(Self.yAxisCostString(raw * self.costMultiplier, currencyCode: self.currencyCode))
                                     .font(.caption2)
                                     .foregroundStyle(Color(nsColor: .tertiaryLabelColor))
                                     .padding(.leading, 4)
@@ -843,7 +848,7 @@ struct CostHistoryChartMenuView: View {
     private func modelBreakdownTotalSubtitle(_ item: CostUsageDailyReport.ModelBreakdown) -> String? {
         UsageFormatter.modelCostDetail(
             item.modelName,
-            costUSD: item.costUSD,
+            costUSD: item.costUSD.map { $0 * self.costMultiplier },
             totalTokens: item.totalTokens,
             currencyCode: self.currencyCode)
     }
@@ -869,7 +874,7 @@ struct CostHistoryChartMenuView: View {
     }
 
     private func costString(_ value: Double) -> String {
-        Self.costString(value, currencyCode: self.currencyCode)
+        Self.costString(value * self.costMultiplier, currencyCode: self.currencyCode)
     }
 
     private static func costString(_ value: Double, currencyCode: String) -> String {
@@ -889,6 +894,7 @@ struct CostHistoryChartMenuView: View {
 extension CostHistoryChartMenuView {
     struct RenderFingerprint: Equatable {
         let currencyCode: String
+        let costMultiplierBitPattern: UInt64
         let historyDays: Int
         let windowLabel: String?
         let totalCostBitPattern: UInt64?
@@ -945,12 +951,15 @@ extension CostHistoryChartMenuView {
 
     static func renderFingerprint(
         from snapshot: CostUsageTokenSnapshot,
-        provider: UsageProvider) -> RenderFingerprint
+        provider: UsageProvider,
+        displayCurrencyCode: String? = nil,
+        displayCostMultiplier: Double = 1.0) -> RenderFingerprint
     {
         let projects = provider == .codex ? snapshot.projects : []
         let sessions = provider == .codex ? snapshot.sessions : []
         return RenderFingerprint(
-            currencyCode: snapshot.currencyCode,
+            currencyCode: displayCurrencyCode ?? snapshot.currencyCode,
+            costMultiplierBitPattern: displayCostMultiplier.bitPattern,
             historyDays: snapshot.historyDays,
             windowLabel: snapshot.historyLabel,
             totalCostBitPattern: snapshot.last30DaysCostUSD.map(\.bitPattern),

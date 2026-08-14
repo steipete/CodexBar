@@ -617,6 +617,71 @@ struct CostUsagePricingTests {
     }
 
     @Test
+    func `codex aggregate pricing uses safe base rates and rejects aggregates above thresholds`() throws {
+        let emptyRoot = try Self.cacheRoot()
+        let bundledBelowThreshold = CostUsagePricing.codexAggregateCostUSD(
+            model: "gpt-5.6-sol",
+            inputTokens: 200_000,
+            cachedInputTokens: 0,
+            outputTokens: 100,
+            modelsDevCacheRoot: emptyRoot)
+        let bundledAtThreshold = CostUsagePricing.codexAggregateCostUSD(
+            model: "gpt-5.6-sol",
+            inputTokens: 272_000,
+            cachedInputTokens: 0,
+            outputTokens: 100,
+            modelsDevCacheRoot: emptyRoot)
+        let bundledAboveThreshold = CostUsagePricing.codexAggregateCostUSD(
+            model: "gpt-5.6-sol",
+            inputTokens: 400_000,
+            cachedInputTokens: 0,
+            outputTokens: 100,
+            modelsDevCacheRoot: emptyRoot)
+        let linear = CostUsagePricing.codexAggregateCostUSD(
+            model: "gpt-5.4-mini",
+            inputTokens: 400_000,
+            cachedInputTokens: 100_000,
+            outputTokens: 100,
+            modelsDevCacheRoot: emptyRoot)
+        let catalogThresholdRoot = try Self.seedModelsDevCache("""
+        {
+          "openai": {
+            "id": "openai",
+            "models": {
+              "aggregate-threshold-model": {
+                "id": "aggregate-threshold-model",
+                "cost": {
+                  "input": 5,
+                  "output": 30,
+                  "context_over_200k": { "input": 10, "output": 45 }
+                }
+              }
+            }
+          }
+        }
+        """)
+        let catalogAtThreshold = CostUsagePricing.codexAggregateCostUSD(
+            model: "aggregate-threshold-model",
+            inputTokens: 200_000,
+            cachedInputTokens: 0,
+            outputTokens: 100,
+            modelsDevCacheRoot: catalogThresholdRoot)
+        let catalogAboveThreshold = CostUsagePricing.codexAggregateCostUSD(
+            model: "aggregate-threshold-model",
+            inputTokens: 200_001,
+            cachedInputTokens: 0,
+            outputTokens: 100,
+            modelsDevCacheRoot: catalogThresholdRoot)
+
+        #expect(bundledBelowThreshold == (200_000.0 * 5e-6) + (100.0 * 30e-6))
+        #expect(bundledAtThreshold == (272_000.0 * 5e-6) + (100.0 * 30e-6))
+        #expect(bundledAboveThreshold == nil)
+        #expect(linear == (300_000.0 * 7.5e-7) + (100_000.0 * 7.5e-8) + (100.0 * 4.5e-6))
+        #expect(catalogAtThreshold == (200_000.0 * 5e-6) + (100.0 * 30e-6))
+        #expect(catalogAboveThreshold == nil)
+    }
+
+    @Test
     func `codex models dev cached fallback uses long context input rate when cache read is absent`() throws {
         let root = try Self.seedModelsDevCache("""
         {

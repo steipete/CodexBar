@@ -23,6 +23,7 @@ public struct LongCatUsageFetcher: Sendable {
     private static let host = "https://longcat.chat"
 
     private static let userCurrentPath = "/api/v1/user-current"
+    private static let tokenPacksSummaryPath = "/api/pay/quota/metering/token-packs/summary"
     private static let tokenUsagePath = "/api/lc-platform/v1/tokenUsage"
     private static let pendingFuelPath = "/api/lc-platform/v1/pending-fuel-packages"
 
@@ -85,21 +86,43 @@ public struct LongCatUsageFetcher: Sendable {
             account = object
         }
 
-        guard let usageData = try await self.get(
-            self.tokenUsagePath,
-            authentication: authentication,
-            transport: transport,
-            required: true)
-        else {
-            throw LongCatAPIError.parseFailed("tokenUsage response was empty")
+        var tokenPackSummary: [String: Any]?
+        do {
+            if let data = try await self.post(
+                self.tokenPacksSummaryPath,
+                authentication: authentication,
+                transport: transport,
+                required: true)
+            {
+                let payload = try LongCatEnvelope.unwrap(self.json(data))
+                guard let object = payload as? [String: Any] else {
+                    throw LongCatAPIError.parseFailed("token-packs summary data was not an object")
+                }
+                tokenPackSummary = object
+            }
+        } catch {
+            Self.log.error("LongCat token-packs summary probe failed: \(error.localizedDescription)")
         }
-        let usagePayload = try LongCatEnvelope.unwrap(self.json(usageData))
-        guard let usage = usagePayload as? [String: Any] else {
-            throw LongCatAPIError.parseFailed("tokenUsage data was not an object")
-        }
-        let canonicalUsage = LongCatJSON.object(usage["usage"]) ?? usage
-        guard LongCatJSON.double(canonicalUsage["totalToken"]) != nil else {
-            throw LongCatAPIError.parseFailed("tokenUsage data was missing totalToken")
+
+        var usage: [String: Any]?
+        if self.activeTokenPackLot(from: tokenPackSummary) == nil {
+            guard let usageData = try await self.get(
+                self.tokenUsagePath,
+                authentication: authentication,
+                transport: transport,
+                required: true)
+            else {
+                throw LongCatAPIError.parseFailed("tokenUsage response was empty")
+            }
+            let usagePayload = try LongCatEnvelope.unwrap(self.json(usageData))
+            guard let usageObject = usagePayload as? [String: Any] else {
+                throw LongCatAPIError.parseFailed("tokenUsage data was not an object")
+            }
+            let canonicalUsage = LongCatJSON.object(usageObject["usage"]) ?? usageObject
+            guard LongCatJSON.double(canonicalUsage["totalToken"]) != nil else {
+                throw LongCatAPIError.parseFailed("tokenUsage data was missing totalToken")
+            }
+            usage = usageObject
         }
 
         var fuel: [String: Any]?
@@ -120,13 +143,19 @@ public struct LongCatUsageFetcher: Sendable {
             Self.log.error("LongCat supplemental fuel probe failed: \(error.localizedDescription)")
         }
 
-        return self.buildSnapshot(account: account, tokenUsage: usage, pendingFuel: fuel, now: now)
+        return self.buildSnapshot(
+            account: account,
+            tokenPackSummary: tokenPackSummary,
+            tokenUsage: usage,
+            pendingFuel: fuel,
+            now: now)
     }
 
     /// Pure extraction over the unwrapped `data` payloads. Field paths are locked
     /// against captured live responses; see `LongCatProviderTests`.
     static func buildSnapshot(
         account: [String: Any]?,
+        tokenPackSummary: [String: Any]?,
         tokenUsage: [String: Any]?,
         pendingFuel: [String: Any]?,
         now: Date = Date()) -> LongCatUsageSnapshot
@@ -137,9 +166,16 @@ public struct LongCatUsageFetcher: Sendable {
             snapshot.accountName = LongCatJSON.string(account["name"]) ?? LongCatJSON.string(account["nickName"])
         }
 
-        // Token quota: data.usage is the canonical aggregate; extData holds the
-        // per-model breakdown (LongCat-Flash-Lite, LongCat-2.0-Preview, ...).
-        if let tokenUsage {
+        if let lot = self.activeTokenPackLot(from: tokenPackSummary),
+           let total = LongCatJSON.double(lot["totalToken"])
+        {
+            let used = LongCatJSON.double(lot["consumedToken"]) ?? 0
+            snapshot.totalQuota = total
+            snapshot.usedQuota = used
+            snapshot.remainingQuota = total - used
+        } else if let tokenUsage {
+            // Legacy token quota: data.usage is the canonical aggregate; extData holds the
+            // per-model breakdown (LongCat-Flash-Lite, LongCat-2.0-Preview, ...).
             let usage = LongCatJSON.object(tokenUsage["usage"]) ?? tokenUsage
             snapshot.totalQuota = LongCatJSON.double(usage["totalToken"])
             snapshot.usedQuota = LongCatJSON.double(usage["usedToken"])
@@ -151,6 +187,17 @@ public struct LongCatUsageFetcher: Sendable {
         }
 
         return snapshot
+    }
+
+    private static func activeTokenPackLot(from summary: [String: Any]?) -> [String: Any]? {
+        guard let lot = LongCatJSON.object(summary?["currentLot"]),
+              LongCatJSON.string(lot["status"])?.uppercased() == "ACTIVE",
+              let total = LongCatJSON.double(lot["totalToken"]),
+              total > 0
+        else {
+            return nil
+        }
+        return lot
     }
 
     private static func applyFuelPackages(_ dict: [String: Any], to snapshot: inout LongCatUsageSnapshot) {
@@ -190,11 +237,44 @@ public struct LongCatUsageFetcher: Sendable {
         transport: any ProviderHTTPTransport,
         required: Bool) async throws -> Data?
     {
+        try await self.request(
+            path,
+            method: "GET",
+            authentication: authentication,
+            transport: transport,
+            required: required)
+    }
+
+    private static func post(
+        _ path: String,
+        authentication: Authentication,
+        transport: any ProviderHTTPTransport,
+        required: Bool) async throws -> Data?
+    {
+        try await self.request(
+            path,
+            method: "POST",
+            authentication: authentication,
+            transport: transport,
+            required: required)
+    }
+
+    private static func request(
+        _ path: String,
+        method: String,
+        authentication: Authentication,
+        transport: any ProviderHTTPTransport,
+        required: Bool) async throws -> Data?
+    {
         guard let url = URL(string: self.host + path) else {
             throw LongCatAPIError.invalidRequest("bad URL: \(path)")
         }
         var request = URLRequest(url: url)
-        request.httpMethod = "GET"
+        request.httpMethod = method
+        if method == "POST" {
+            request.httpBody = Data("{}".utf8)
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        }
         guard let cookieHeader = authentication.header(for: url) else {
             throw LongCatAPIError.missingCookies
         }

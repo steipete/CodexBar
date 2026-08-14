@@ -139,6 +139,17 @@ public enum ProviderVersionDetector {
         return trimmed.isEmpty ? nil : trimmed
     }
 
+    public static func claudeBinaryResolvable(
+        environment: [String: String] = ProcessInfo.processInfo.environment) -> Bool
+    {
+        #if DEBUG
+        if let whichHook {
+            return whichHook("claude") != nil
+        }
+        #endif
+        return ClaudeCLIResolver.resolvedBinaryPath(environment: environment) != nil
+    }
+
     public static func claudeVersion(
         environment: [String: String] = ProcessInfo.processInfo.environment) -> String?
     {

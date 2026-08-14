@@ -80,9 +80,14 @@ trap cleanup EXIT INT TERM
 cp -R "$APP_BUNDLE" "$SMOKE_DIR/CodexBar.app"
 SMOKE_BIN="$SMOKE_DIR/CodexBar.app/Contents/MacOS/CodexBar"
 CLI_BIN="$SMOKE_DIR/CodexBar.app/Contents/Helpers/CodexBarCLI"
+CLI_SYMLINK_DIR="$SMOKE_DIR/bin"
+CLI_SYMLINK="$CLI_SYMLINK_DIR/codexbar"
 SMOKE_LOG="$SMOKE_DIR/launch.log"
 PROBE_LOG="$SMOKE_DIR/probe.log"
 CLI_PROBE_LOG="$SMOKE_DIR/cli-probe.log"
+CLI_SYMLINK_PROBE_LOG="$SMOKE_DIR/cli-symlink-probe.log"
+mkdir -p "$CLI_SYMLINK_DIR"
+ln -s "$CLI_BIN" "$CLI_SYMLINK"
 SANDBOX_PROFILE="(version 1)
 (allow default)
 (deny file-read* (subpath \"${ROOT}\"))"
@@ -100,6 +105,14 @@ fail_with_cli_probe_log() {
   echo "----- CLI probe output (tail) -----" >&2
   tail -40 "$CLI_PROBE_LOG" >&2 || true
   echo "-----------------------------------" >&2
+  exit 1
+}
+
+fail_with_cli_symlink_probe_log() {
+  echo "ERROR: $1" >&2
+  echo "----- CLI symlink probe output (tail) -----" >&2
+  tail -40 "$CLI_SYMLINK_PROBE_LOG" >&2 || true
+  echo "-------------------------------------------" >&2
   exit 1
 }
 
@@ -130,6 +143,31 @@ if [[ "$CLI_PROBE_STATUS" -ne 0 ]] || ! grep -q "CODEXBAR_RESOURCE_SMOKE_OK" "$C
   fail_with_cli_probe_log "Launch smoke check FAILED: packaged Helpers CLI cannot load CodexBarCore resources without the build checkout. Exit status: ${CLI_PROBE_STATUS}."
 fi
 log "Launch smoke check: Helpers CLI resource probe OK."
+
+log "Launch smoke check: probing symlinked Helpers CLI resource loads with ${ROOT} unreadable."
+(
+  cd "$SMOKE_DIR"
+  exec env CODEXBAR_RESOURCE_SMOKE=1 sandbox-exec -p "$SANDBOX_PROFILE" "$CLI_SYMLINK"
+) >"$CLI_SYMLINK_PROBE_LOG" 2>&1 &
+SMOKE_PID=$!
+CLI_SYMLINK_PROBE_OK=0
+for _ in $(seq 1 60); do
+  if ! kill -0 "$SMOKE_PID" 2>/dev/null; then
+    CLI_SYMLINK_PROBE_OK=1
+    break
+  fi
+  sleep 0.5
+done
+if [[ "$CLI_SYMLINK_PROBE_OK" == "0" ]]; then
+  fail_with_cli_symlink_probe_log "Launch smoke check FAILED: symlinked Helpers CLI resource probe did not finish within 30s."
+fi
+CLI_SYMLINK_PROBE_STATUS=0
+wait "$SMOKE_PID" || CLI_SYMLINK_PROBE_STATUS=$?
+SMOKE_PID=""
+if [[ "$CLI_SYMLINK_PROBE_STATUS" -ne 0 ]] || ! grep -q "CODEXBAR_RESOURCE_SMOKE_OK" "$CLI_SYMLINK_PROBE_LOG"; then
+  fail_with_cli_symlink_probe_log "Launch smoke check FAILED: symlinked packaged Helpers CLI cannot load CodexBarCore resources without the build checkout. Exit status: ${CLI_SYMLINK_PROBE_STATUS}."
+fi
+log "Launch smoke check: symlinked Helpers CLI resource probe OK."
 
 # Phase 1 (deterministic, headless-safe): CODEXBAR_RESOURCE_SMOKE=1 makes the
 # app force the resource loads that trapped in 0.48.0 and exit before any UI.

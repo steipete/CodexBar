@@ -564,13 +564,17 @@ extension UsageStore {
                 .compactMap(\.self),
             shouldTrack: shouldTrackActiveAccount,
             environment: input.environment)
-        let credentialsChanged = shouldTrackActiveAccount && (
+        let successfulOAuth = Self.isSuccessfulClaudeOAuthOutcome(input.outcome)
+        let successfulOAuthCredentialOwner = Self.successfulClaudeOAuthCredentialOwner(input.outcome)
+        let successfulOAuthHasIndependentAuthority = successfulOAuth && (
+            successfulOAuthCredentialOwner == .environment || successfulOAuthCredentialOwner == .codexbar)
+        let activeAccountChangedDuringFetchForOutcome =
+            activeAccountChangedDuringFetch && !successfulOAuthHasIndependentAuthority
+        let credentialsChanged = shouldTrackActiveAccount && !successfulOAuthHasIndependentAuthority && (
             Self.claudeCredentialsChanged(
                 beforeFetch: input.beforeFetch,
                 changedDuringFetch: authChangedDuringFetch) || activeAccountReconciliation.changed)
-        let successfulOAuth = Self.isSuccessfulClaudeOAuthOutcome(input.outcome)
-        let successfulOAuthCredentialOwner = Self.successfulClaudeOAuthCredentialOwner(input.outcome)
-        let activeAccountMismatch = successfulOAuth && (
+        let activeAccountMismatch = successfulOAuth && successfulOAuthCredentialOwner == .claudeCLI && (
             activeAccountChangedDuringFetch || activeAccountReconciliation.changedFromPersistedIdentity)
         let quarantinedCredentialsFile = if successfulOAuthCredentialOwner == .claudeCLI {
             await Self.isClaudeCredentialsFileQuarantinedForOAuth(environment: input.environment)
@@ -591,7 +595,7 @@ extension UsageStore {
             }
         }
         let ownerCLIRecoverySucceeded = !input.ownerCLIRecoveryPass || Self.isSuccessfulClaudeCLIOutcome(input.outcome)
-        if !oauthAccountMismatch, !activeAccountChangedDuringFetch, ownerCLIRecoverySucceeded {
+        if !oauthAccountMismatch, !activeAccountChangedDuringFetchForOutcome, ownerCLIRecoverySucceeded {
             self.persistClaudeActiveAccountIdentity(
                 activeAccountReconciliation.newestIdentity,
                 environment: input.environment)
@@ -611,12 +615,12 @@ extension UsageStore {
 
         // Only the ambient CLI authority observes Claude's account/config files. Source-authority changes apply to
         // every Claude route, but retire only the live projection; configured token-account caches remain isolated.
-        if credentialsChanged || activeAccountChangedDuringFetch || sourceAuthorityChanged {
+        if credentialsChanged || activeAccountChangedDuringFetchForOutcome || sourceAuthorityChanged {
             self.clearClaudeCredentialDerivedStateForCredentialSwap()
         }
         let disposition: ClaudeRefreshDisposition = if oauthAccountMismatch {
             .retryOwnerCLI
-        } else if activeAccountChangedDuringFetch {
+        } else if activeAccountChangedDuringFetchForOutcome {
             .retry
         } else {
             .apply
@@ -768,8 +772,8 @@ extension UsageStore {
             return backfilled
         }
         guard let backfilled else { return }
-        let isClaudeOAuthSample = provider == .claude
-            && result.strategyKind == .oauth
+        self.refreshClaudeVersionAfterUserInitiatedCLIFetch(provider: provider, strategyKind: result.strategyKind)
+        let isClaudeOAuthSample = provider == .claude && result.strategyKind == .oauth
         let claudeOAuthPersistentRefHash: String? = if isClaudeOAuthSample,
                                                        result.claudeOAuthKeychainPersistentRefHash == context
                                                            .claudeOAuthHistoryPersistentRefHash

@@ -54,6 +54,9 @@ extension StatusItemController {
         let layoutPaceSignature = showBrandPercent
             ? self.storedMenuBarLayoutPaceSignature(for: provider, snapshot: snapshot)
             : nil
+        let layoutBalanceSignature = showBrandPercent
+            ? self.storedMenuBarLayoutBalanceSignature(for: provider, snapshot: snapshot)
+            : nil
 
         return [
             provider.rawValue,
@@ -71,6 +74,7 @@ extension StatusItemController {
             "layoutCost=\(layoutCostSignature ?? "nil")",
             "layoutAccount=\(layoutAccountSignature ?? "nil")",
             "layoutPace=\(layoutPaceSignature ?? "nil")",
+            "layoutBalance=\(layoutBalanceSignature ?? "nil")",
         ].joined(separator: "|")
     }
 
@@ -104,6 +108,18 @@ extension StatusItemController {
             "today=\(showsToday ? costs.today ?? "nil" : "unused")",
             "last30Days=\(showsLast30Days ? costs.last30Days ?? "nil" : "unused")",
         ].joined(separator: ",")
+    }
+
+    private func storedMenuBarLayoutBalanceSignature(
+        for provider: UsageProvider,
+        snapshot: UsageSnapshot?)
+        -> String?
+    {
+        let resolution = self.settings.menuBarLayoutResolution(for: provider)
+        guard !resolution.usesLegacyRendering,
+              resolution.layout.lines.joined().contains(.balance)
+        else { return nil }
+        return MenuBarLayoutBalanceResolver.balance(provider: provider, snapshot: snapshot)
     }
 
     /// Pace tokens change with the historical dataset, the work-day setting, and the clock — none of

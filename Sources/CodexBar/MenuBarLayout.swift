@@ -20,6 +20,7 @@ enum MenuBarLayoutToken: Codable, Hashable, Sendable {
     case resetCountdown
     case resetAbsolute
     case runsOut
+    case balance
     case costToday
     case cost30d
     case separatorDot
@@ -52,6 +53,18 @@ enum MenuBarLayoutSemanticWindowResolver {
         return (snapshot.extraRateWindows ?? [])
             .filter { $0.id.hasPrefix("claude-weekly-scoped-") && !$0.window.isSyntheticPlaceholder }
             .max { $0.window.usedPercent < $1.window.usedPercent }
+    }
+}
+
+enum MenuBarLayoutBalanceResolver {
+    static func balance(
+        provider: UsageProvider,
+        snapshot: UsageSnapshot?)
+        -> String?
+    {
+        // Provider-specific by design: only OpenRouter exposes its credit balance as the "Remaining" detail row.
+        guard provider == .openrouter else { return nil }
+        return snapshot?.detailRow(label: "Remaining")?.value
     }
 }
 
@@ -211,6 +224,10 @@ extension MenuBarLayout {
     {
         _ = iconStyle // Critters and bars keep rendering through their unchanged legacy path.
         let icon: MenuBarLayoutToken = .icon
+        // Provider-specific by design: OpenRouter Automatic historically renders remaining credit balance.
+        if provider == .openrouter, metricPreference == .automatic {
+            return MenuBarLayout(lines: [[icon, .balance]])
+        }
         switch displayMode {
         case .percent:
             if metricPreference == .primaryAndSecondary {

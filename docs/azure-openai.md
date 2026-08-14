@@ -61,7 +61,8 @@ parsed only for the returned `model` field so the menu can show deployment detai
 
 Set `AZURE_OPENAI_API_VERSION` to override the API version. When it is set to `v1`, CodexBar uses Azure's
 OpenAI-compatible v1 path, includes the deployment name as the request `model`, and uses
-`max_completion_tokens: 1`:
+`max_completion_tokens: 64`. This small total completion budget leaves room for hidden reasoning tokens while keeping
+the validation probe bounded. Dated API versions continue to request at most one output token.
 
 ```http
 POST https://resource.openai.azure.com/openai/v1/chat/completions
@@ -76,8 +77,8 @@ HTTPS. CodexBar rejects explicit `http://` endpoints, user info, and encoded hos
 Endpoint paths are preserved. CodexBar avoids duplicating a trailing `/openai` for dated API versions or a trailing
 `/openai/v1` for the v1 API when building the validation URL.
 
-Each refresh with complete, valid configuration sends this real inference request and can consume billable input and
-output tokens for the configured deployment.
+Each refresh with complete, valid configuration sends this real, potentially billable inference request. The 64-token
+v1 budget is a maximum, not automatic consumption; the deployment can consume fewer input and output tokens.
 
 ## Display
 

@@ -113,20 +113,29 @@ extension CostUsageScanner {
                 ?? ""
             let sourceKey = usage.projectPath ?? ""
             var accumulator = accumulatorsByProjectPath[projectKey] ?? CodexProjectBreakdownAccumulator()
-            accumulator.add(report: report, sourcePath: sourceKey)
+            accumulator.add(filePath: filePath, usage: usage, report: report, sourcePath: sourceKey)
             accumulatorsByProjectPath[projectKey] = accumulator
         }
 
         return accumulatorsByProjectPath.map { projectPath, accumulator in
-            let merged = CostUsageDailyReport.merged(accumulator.reports)
+            var projectCache = CostUsageCache()
+            projectCache.files = accumulator.files
+            for usage in accumulator.files.values {
+                Self.applyFileDays(cache: &projectCache, fileDays: usage.days, sign: 1)
+            }
+            let report = Self.buildCodexReportFromCache(
+                cache: projectCache,
+                range: range,
+                modelsDevCatalog: resolvedModelsDevCatalog,
+                priorityTurns: priorityTurns)
             let resolvedPath = projectPath.isEmpty ? nil : projectPath
             return CostUsageProjectBreakdown(
                 name: Self.codexProjectName(path: resolvedPath),
                 path: resolvedPath,
-                totalTokens: merged.summary?.totalTokens,
-                totalCostUSD: merged.summary?.totalCostUSD,
-                daily: merged.data,
-                modelBreakdowns: Self.codexProjectModelBreakdowns(from: merged.data),
+                totalTokens: report.summary?.totalTokens,
+                totalCostUSD: report.summary?.totalCostUSD,
+                daily: report.data,
+                modelBreakdowns: Self.codexProjectModelBreakdowns(from: report.data),
                 sources: Self.codexProjectSourceBreakdowns(from: accumulator.reportsBySourcePath))
         }
         .sorted { lhs, rhs in
@@ -151,11 +160,16 @@ extension CostUsageScanner {
     }
 
     private struct CodexProjectBreakdownAccumulator {
-        var reports: [CostUsageDailyReport] = []
+        var files: [String: CostUsageFileUsage] = [:]
         var reportsBySourcePath: [String: [CostUsageDailyReport]] = [:]
 
-        mutating func add(report: CostUsageDailyReport, sourcePath: String) {
-            self.reports.append(report)
+        mutating func add(
+            filePath: String,
+            usage: CostUsageFileUsage,
+            report: CostUsageDailyReport,
+            sourcePath: String)
+        {
+            self.files[filePath] = usage
             self.reportsBySourcePath[sourcePath, default: []].append(report)
         }
     }

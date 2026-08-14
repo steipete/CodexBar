@@ -399,9 +399,12 @@ jobs:
             exit 1
           fi
           cp -R "$CORE_RESOURCE_SOURCE" "$OUT_DIR/CodexBar_CodexBarCore.bundle"
-          RESOURCE_SMOKE_OUTPUT="$RUNNER_TEMP/codexbar-cli-resource-smoke-${{ matrix.name }}.txt"
-          CODEXBAR_RESOURCE_SMOKE=1 "$OUT_DIR/CodexBarCLI" > "$RESOURCE_SMOKE_OUTPUT"
-          grep -Fx "CODEXBAR_RESOURCE_SMOKE_OK" "$RESOURCE_SMOKE_OUTPUT"
+          DIRECT_RESOURCE_SMOKE_OUTPUT="$RUNNER_TEMP/codexbar-cli-resource-smoke-direct-${{ matrix.name }}.txt"
+          CODEXBAR_RESOURCE_SMOKE=1 "$OUT_DIR/CodexBarCLI" > "$DIRECT_RESOURCE_SMOKE_OUTPUT"
+          grep -Fx "CODEXBAR_RESOURCE_SMOKE_OK" "$DIRECT_RESOURCE_SMOKE_OUTPUT"
+          SYMLINK_RESOURCE_SMOKE_OUTPUT="$RUNNER_TEMP/codexbar-cli-resource-smoke-symlink-${{ matrix.name }}.txt"
+          CODEXBAR_RESOURCE_SMOKE=1 "$OUT_DIR/codexbar" > "$SYMLINK_RESOURCE_SMOKE_OUTPUT"
+          grep -Fx "CODEXBAR_RESOURCE_SMOKE_OK" "$SYMLINK_RESOURCE_SMOKE_OUTPUT"
 
           ASSET="CodexBarCLI-${SAFE_REF_NAME}-${{ matrix.asset-platform }}-${{ matrix.asset-arch }}.tar.gz"
           (cd "$OUT_DIR" && tar czf "$ASSET" \

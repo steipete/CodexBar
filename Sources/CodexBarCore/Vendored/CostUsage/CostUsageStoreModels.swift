@@ -146,9 +146,16 @@ struct CostUsageStoreLookbackState: Codable, Equatable, Sendable {
     var scanSinceDay: String
     var rootPaths: [String]
     var nextDayByRoot: [String: String]
+    var nextDirectoryOffsetByRoot: [String: Int64]?
     var completedRootPaths: [String]
     var pendingFilePaths: [String]
     var legacyRecursivePendingRootPaths: [String]
+    var currentWindowNextDayKeyByRoot: [String: String]?
+    var currentWindowDirectoryOffsetByRoot: [String: Int64]?
+    var completedCurrentWindowRootPaths: [String]?
+    var currentWindowFlatDirectoryOffsetByRoot: [String: Int64]?
+    var completedCurrentWindowFlatRootPaths: [String]?
+    var cacheWideMigrationQueueActive: Bool?
 }
 
 struct CostUsageStoreAccumulator: Codable, Equatable, Sendable {
@@ -176,6 +183,7 @@ struct CostUsageStoreMetadata: Codable, Equatable, Sendable {
     var totalBytes: Int64?
     var completedFiles: Int?
     var totalFiles: Int?
+    var scanInventoryPaths: [String]?
     var rootMtimes: [String: Int64]?
     var previousReportPayload: Data?
     var priorityTurnStatePayload: Data?
@@ -193,6 +201,7 @@ struct CostUsageStoreMetadata: Codable, Equatable, Sendable {
         totalBytes: nil,
         completedFiles: nil,
         totalFiles: nil,
+        scanInventoryPaths: nil,
         rootMtimes: nil,
         previousReportPayload: nil,
         priorityTurnStatePayload: nil,

@@ -24,6 +24,27 @@ struct ClaudeWebRecoveryMenuTests {
             syntheticTokenStore: NoopSyntheticTokenStore())
     }
 
+    private static func claudeSwapAccounts(count: Int) -> [ProviderAccountUsageSnapshot] {
+        guard count > 0 else { return [] }
+        let now = Date(timeIntervalSince1970: 1_782_000_000)
+        return ClaudeSwapAccountProjection.accountSnapshots(
+            from: ClaudeSwapAccountList(
+                activeAccountNumber: 1,
+                accounts: (1...count).map { number in
+                    ClaudeSwapAccountRow(
+                        number: number,
+                        email: "account\(number)@example.com",
+                        isActive: number == 1,
+                        usageStatus: .ok,
+                        fiveHour: ClaudeSwapUsageWindow(
+                            usedPercent: Double(20 + number),
+                            resetsAt: now.addingTimeInterval(3600)),
+                        sevenDay: nil,
+                        scoped: [])
+                }),
+            now: now)
+    }
+
     private func actions(
         error: String? = nil,
         source: ClaudeUsageDataSource,
@@ -31,6 +52,7 @@ struct ClaudeWebRecoveryMenuTests {
         selectedSessionKey: Bool = false,
         authenticatedAccountEmail: String? = nil,
         authenticatedOAuthWithoutEmail: Bool = false,
+        claudeSwapAccountCount: Int = 0,
         attempts: [ProviderFetchAttempt] = []) -> [(String, MenuDescriptor.MenuAction)]
     {
         let settings = self.makeSettings()
@@ -44,6 +66,7 @@ struct ClaudeWebRecoveryMenuTests {
             fetcher: fetcher,
             browserDetection: BrowserDetection(cacheTTL: 0),
             settings: settings)
+        store.claudeSwapAccountSnapshots = Self.claudeSwapAccounts(count: claudeSwapAccountCount)
         if authenticatedAccountEmail != nil || authenticatedOAuthWithoutEmail {
             store._setSnapshotForTesting(
                 UsageSnapshot(
@@ -102,6 +125,20 @@ struct ClaudeWebRecoveryMenuTests {
             $0.0 == "Switch Account..." && $0.1 == .switchAccount(.claude)
         })
         #expect(!actions.contains { $0.0 == "Sign in with Claude Code..." })
+    }
+
+    @Test
+    func `swap account presentation disambiguates ambient Claude Code sign in`() {
+        let actions = self.actions(
+            source: .auto,
+            authenticatedAccountEmail: "claude@example.com",
+            claudeSwapAccountCount: 2)
+
+        #expect(actions.contains {
+            $0.0 == "Sign in with Claude Code..." && $0.1 == .switchAccount(.claude)
+        })
+        #expect(!actions.contains { $0.0 == "Switch Account..." })
+        #expect(!actions.contains { $0.0 == "Add Account..." })
     }
 
     @Test

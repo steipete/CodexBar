@@ -93,7 +93,9 @@ struct AzureOpenAIUsageFetcherTests {
             let body = try #require(request.httpBody)
             let json = try #require(JSONSerialization.jsonObject(with: body) as? [String: Any])
             #expect(json["max_tokens"] as? Int == 1)
+            #expect(json["max_completion_tokens"] == nil)
             #expect(json["temperature"] == nil)
+            #expect(json["reasoning_effort"] == nil)
             let messages = try #require(json["messages"] as? [[String: String]])
             #expect(messages.first?["content"] == "ping")
 
@@ -164,9 +166,12 @@ struct AzureOpenAIUsageFetcherTests {
             let body = try #require(request.httpBody)
             let json = try #require(JSONSerialization.jsonObject(with: body) as? [String: Any])
             #expect(json["model"] as? String == "chat-prod")
-            #expect(json["max_completion_tokens"] as? Int == 1)
+            let completionCap = try #require(json["max_completion_tokens"] as? Int)
+            #expect(completionCap == 64)
+            #expect(completionCap <= 64)
             #expect(json["max_tokens"] == nil)
             #expect(json["temperature"] == nil)
+            #expect(json["reasoning_effort"] == nil)
 
             let response = try HTTPURLResponse(
                 url: #require(request.url),

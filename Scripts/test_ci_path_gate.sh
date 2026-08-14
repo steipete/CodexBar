@@ -57,6 +57,9 @@ assert_gate true rename-from-configuration-doc $'R100\tdocs/configuration.md\tdo
 assert_gate true agents-contract $'M\tAGENTS.md'
 assert_gate true rename-to-agents-contract $'R100\tdocs/old.md\tAGENTS.md'
 assert_gate true rename-from-agents-contract $'R100\tAGENTS.md\tdocs/new.md'
+assert_gate true claude-contract $'M\tCLAUDE.md'
+assert_gate true rename-to-claude-contract $'R100\tdocs/old.md\tCLAUDE.md'
+assert_gate true rename-from-claude-contract $'R100\tCLAUDE.md\tdocs/new.md'
 assert_gate true source $'M\tSources/CodexBar/App.swift'
 assert_gate false docs-site $'M\tdocs/index.html' $'M\tdocs/site.css' $'M\tdocs/site.js' \
   $'M\tdocs/site-locales.mjs' $'M\tdocs/social.html' $'M\tdocs/social.png' \

@@ -312,19 +312,12 @@ public struct CostUsageFetcher: Sendable {
         }
 
         let scoped = CostUsageScanner.codexCache(cache, scopedTo: roots)
-        var progressHasher = Hasher()
-        for (path, usage) in scoped.files.sorted(by: { $0.key < $1.key }) {
-            progressHasher.combine(path)
-            progressHasher.combine(usage.codexScanFileId)
-            progressHasher.combine(usage.parsedBytes)
-            progressHasher.combine(usage.size)
-            progressHasher.combine(usage.codexScanComplete)
-        }
+        let progressKey = self.codexScanProgressKey(cache: cache, scopedFiles: scoped.files)
         let hasIncompleteFile = scoped.files.values.contains { $0.codexScanComplete == false }
         let pending = cache.codexScanCatchUpPending == true || hasIncompleteFile
         return CodexScanCatchUpStatus(
             pending: pending,
-            progressKey: "\(scoped.files.count):\(progressHasher.finalize())",
+            progressKey: progressKey,
             processedBytes: cache.codexScanProcessedBytes ?? 0,
             totalBytes: cache.codexScanTotalBytes ?? 0,
             completedFiles: cache.codexScanCompletedFiles ?? 0,
@@ -1063,13 +1056,21 @@ public struct CostUsageFetcher: Sendable {
         } else {
             nil
         }
-        // Prefer summary totals when present; fall back to summing daily entries.
+        // Prefer summary totals when present; fall back to summing daily entries. A non-empty
+        // row set where every row carries an explicit value is a known total even when it sums
+        // to zero; keep nil only for genuinely missing values.
         let totalFromSummary = daily.summary?.totalCostUSD
         let totalFromEntries = daily.data.compactMap(\.costUSD).reduce(0, +)
-        let last30DaysCostUSD = totalFromSummary ?? (totalFromEntries > 0 ? totalFromEntries : nil)
+        let allEntriesCarryCost = !daily.data.isEmpty && daily.data.allSatisfy { $0.costUSD != nil }
+        let last30DaysCostUSD = totalFromSummary
+            ?? (allEntriesCarryCost ? totalFromEntries : nil)
         let totalTokensFromSummary = daily.summary?.totalTokens
         let totalTokensFromEntries = daily.data.compactMap(\.totalTokens).reduce(0, +)
-        let last30DaysTokens = totalTokensFromSummary ?? (totalTokensFromEntries > 0 ? totalTokensFromEntries : nil)
+        let allEntriesCarryTokens = !daily.data.isEmpty && daily.data.allSatisfy { $0.totalTokens != nil }
+        let last30DaysTokens = totalTokensFromSummary
+            ?? (allEntriesCarryTokens
+                ? totalTokensFromEntries
+                : nil)
 
         return CostUsageTokenSnapshot(
             sessionTokens: sessionTokens,
@@ -1340,6 +1341,110 @@ public struct CostUsageFetcher: Sendable {
 }
 
 extension CostUsageFetcher {
+    static func codexScanProgressKey(
+        cache: CostUsageCache,
+        scopedFiles: [String: CostUsageFileUsage]) -> String
+    {
+        var progressHasher = Hasher()
+        progressHasher.combine(cache.codexScanCompletedFiles)
+
+        for (path, usage) in scopedFiles.sorted(by: { $0.key < $1.key }) {
+            progressHasher.combine(path)
+            progressHasher.combine(usage.codexScanFileId)
+            progressHasher.combine(usage.codexScanComplete)
+            if usage.codexScanComplete == false {
+                progressHasher.combine(usage.parsedBytes)
+                progressHasher.combine(usage.size)
+                progressHasher.combine(usage.codexJSONLResumeState?.offset)
+            }
+            let hasBufferedRetry = usage.hasBufferedCodexForkRetryLines
+            progressHasher.combine(hasBufferedRetry)
+            if hasBufferedRetry {
+                progressHasher.combine(usage.forkedFromId)
+                progressHasher.combine(usage.forkBaselineDependencyKey)
+                progressHasher.combine(usage.codexBufferedSubagentLines?.isEmpty == false)
+                progressHasher.combine(usage.codexBufferedUnresolvedForkLines?.isEmpty == false)
+            }
+        }
+
+        if let discovery = cache.codexSessionDiscovery {
+            progressHasher.combine(discovery.generation)
+            progressHasher.combine(discovery.directoryPaths.count)
+            progressHasher.combine(discovery.nextDirectoryIndex)
+            progressHasher.combine(discovery.filePaths.count)
+            progressHasher.combine(discovery.nextFileIndex)
+            progressHasher.combine(discovery.headScan?.path)
+            progressHasher.combine(discovery.headScan?.offset)
+            progressHasher.combine(discovery.headScan?.resumeState?.offset)
+            progressHasher.combine(discovery.filePathBySessionId.count)
+            progressHasher.combine(discovery.missingSessionIds.sorted())
+            progressHasher.combine(discovery.pendingSessionIds.sorted())
+            progressHasher.combine(discovery.validationDirectoryIndex)
+            progressHasher.combine(discovery.isComplete)
+        } else {
+            progressHasher.combine("no-discovery")
+        }
+
+        if let lookback = cache.codexActiveLookbackState {
+            progressHasher.combine(lookback.scanSinceKey)
+            progressHasher.combine(lookback.rootPaths.sorted())
+            progressHasher.combine("next-day")
+            for (root, dayKey) in lookback.nextDayKeyByRoot.sorted(by: { $0.key < $1.key }) {
+                progressHasher.combine(root)
+                progressHasher.combine(dayKey)
+            }
+            progressHasher.combine("next-directory-offset")
+            progressHasher.combine(lookback.nextDirectoryOffsetByRoot == nil)
+            for (root, offset) in (lookback.nextDirectoryOffsetByRoot ?? [:]).sorted(by: { $0.key < $1.key }) {
+                progressHasher.combine(root)
+                progressHasher.combine(offset)
+            }
+            progressHasher.combine(lookback.completedRootPaths.sorted())
+            progressHasher.combine(lookback.pendingFilePaths.sorted())
+            progressHasher.combine(lookback.legacyRecursivePendingRootPaths.sorted())
+            progressHasher.combine("current-window-next-day")
+            progressHasher.combine(lookback.currentWindowNextDayKeyByRoot == nil)
+            for (root, dayKey) in (lookback.currentWindowNextDayKeyByRoot ?? [:]).sorted(by: { $0.key < $1.key }) {
+                progressHasher.combine(root)
+                progressHasher.combine(dayKey)
+            }
+            progressHasher.combine("current-window-directory-offset")
+            progressHasher.combine(lookback.currentWindowDirectoryOffsetByRoot == nil)
+            for (root, offset) in (lookback.currentWindowDirectoryOffsetByRoot ?? [:])
+                .sorted(by: { $0.key < $1.key })
+            {
+                progressHasher.combine(root)
+                progressHasher.combine(offset)
+            }
+            progressHasher.combine("completed-current-window-roots")
+            progressHasher.combine(lookback.completedCurrentWindowRootPaths == nil)
+            progressHasher.combine((lookback.completedCurrentWindowRootPaths ?? []).sorted())
+            progressHasher.combine("current-window-flat-directory-offset")
+            progressHasher.combine(lookback.currentWindowFlatDirectoryOffsetByRoot == nil)
+            for (root, offset) in (lookback.currentWindowFlatDirectoryOffsetByRoot ?? [:])
+                .sorted(by: { $0.key < $1.key })
+            {
+                progressHasher.combine(root)
+                progressHasher.combine(offset)
+            }
+            progressHasher.combine("completed-current-window-flat-roots")
+            progressHasher.combine(lookback.completedCurrentWindowFlatRootPaths == nil)
+            progressHasher.combine((lookback.completedCurrentWindowFlatRootPaths ?? []).sorted())
+            progressHasher.combine(lookback.cacheWideMigrationQueueActive)
+        } else {
+            progressHasher.combine("no-lookback")
+        }
+
+        if let inventoryPaths = cache.codexScanInventoryPaths {
+            progressHasher.combine("inventory")
+            progressHasher.combine(inventoryPaths.sorted())
+        } else {
+            progressHasher.combine("no-inventory")
+        }
+
+        return "v2:\(scopedFiles.count):\(progressHasher.finalize())"
+    }
+
     fileprivate static func loadRemoteTokenSnapshot(
         provider: UsageProvider,
         environment: [String: String],

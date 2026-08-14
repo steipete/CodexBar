@@ -1350,6 +1350,7 @@
 "menu_bar_layout_gap" = "Boşluk";
 "menu_bar_layout_gap_tight" = "Dar";
 "menu_bar_layout_gap_regular" = "Normal";
+"menu_bar_layout_vertical_adjustment" = "Dikey Ayar";
 "menu_bar_layout_keyboard_hint" = "Delete seçili belirteci kaldırır";
 "menu_bar_layout_sample_account" = "hesap";
 "menu_bar_layout_sample_runs_out" = "Cum. biter";

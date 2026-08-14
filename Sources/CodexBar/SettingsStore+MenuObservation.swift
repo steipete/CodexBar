@@ -40,6 +40,7 @@ extension SettingsStore {
         _ = self.menuBarLayoutOverrides
         _ = self.menuBarLayoutSize
         _ = self.menuBarLayoutGap
+        _ = self.menuBarLayoutVerticalAdjustment
         _ = self.copilotIconSecondaryWindowIDRaw
         _ = self.costUsageEnabled
         _ = self.codexLocalSessionCostLedgerEnabled

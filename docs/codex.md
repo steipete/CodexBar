@@ -106,8 +106,8 @@ Example:
   - `account/read`
   - `account/rateLimits/read`
 - RPC reads are bounded: initialization has a longer startup budget, and normal requests have a shorter per-method
-  timeout. On timeout, CodexBar terminates the child `codex app-server` process so the stdout reader unwinds instead
-  of leaving refresh stuck indefinitely.
+  timeout. On timeout, CodexBar closes the child `codex app-server` process's stdin and escalates from SIGTERM to
+  SIGKILL after a bounded grace period, so the stdout reader unwinds and unresponsive children cannot linger.
 - Provides:
   - Usage windows (primary + secondary) with reset timestamps.
   - Credits snapshot (balance, hasCredits, unlimited).

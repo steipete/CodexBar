@@ -8,19 +8,17 @@ import SQLite3
 import CSQLite3
 #endif
 
+// Store invariants share one fixture/helper vocabulary across focused extensions.
+// swiftlint:disable file_length
+
 struct CostUsageStoreTests {
     /// The store actor runs on a custom DispatchQueue-backed `SerialExecutor`, and its
-    /// `sync*` bridges call `assumeIsolated` from inside `queue.sync`. macOS 26+ runtimes
-    /// verify that through `SerialExecutor.isIsolatingCurrentContext()`, whose default
-    /// implementation cannot see through `DispatchQueue.sync` — without an explicit
-    /// implementation the bridge traps ("Incorrect actor executor assumption") and the app
-    /// dies on launch.
+    /// `sync*` bridges hand work to the actor from inside `queue.sync`. Getting that handoff
+    /// wrong takes the app down on launch with "Incorrect actor executor assumption", so the
+    /// bridges have to stay callable from an ordinary non-actor thread.
     ///
-    /// This covers the bridges from a non-actor thread. Note it does not by itself
-    /// reproduce the trap: whether `assumeIsolated` traps depends on the calling context's
-    /// current executor, and no test-harness context reproduced it (plain thread, Task, and
-    /// MainActor were all tried). The regression was verified against the app itself —
-    /// it died on launch with "Incorrect actor executor assumption" and starts cleanly now.
+    /// The subprocess coverage in `CostUsageStoreExecutorIsolationTests` exercises the legacy
+    /// runtime path that an in-process test cannot select.
     @Test
     func `sync bridges are callable from a plain thread`() throws {
         let fixture = try StoreFixture()
@@ -359,6 +357,332 @@ extension CostUsageStoreTests {
     }
 
     @Test
+    // swiftlint:disable:next function_body_length
+    func `identical codex cache save skips content rewrites but advances the scan timestamp`() async throws {
+        let fixture = try StoreFixture()
+        defer { fixture.remove() }
+        let store = CostUsageStore(cacheRoot: fixture.root)
+        let path = "/rollouts/stable.jsonl"
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try #require(TimeZone(secondsFromGMT: 0))
+
+        func token(_ index: Int) -> CostUsageCodexTokenSnapshot {
+            CostUsageCodexTokenSnapshot(
+                timestamp: "2026-08-01T12:00:0\(index)Z",
+                last: CostUsageCodexTotals(input: index + 1, cached: 0, output: 1),
+                total: CostUsageCodexTotals(input: (index + 1) * 10, cached: 0, output: index + 1),
+                endOffset: Int64(100 + index))
+        }
+
+        func row(_ index: Int) -> CostUsageScanner.CodexUsageRow {
+            CostUsageScanner.CodexUsageRow(
+                day: "2026-08-01",
+                model: "model-\(index)",
+                turnID: "turn-\(index)",
+                eventIndex: index,
+                timestampUnixMs: Int64(1_754_046_000_000 + index),
+                input: index + 1,
+                cached: 0,
+                output: 1)
+        }
+
+        var usage = CostUsageFileUsage(
+            mtimeUnixMs: 1000,
+            size: 200,
+            days: ["2026-08-01": ["model-0": [1, 0, 1]]])
+        usage.parsedBytes = 200
+        usage.codexScanFileId = "1:42"
+        usage.codexScanComplete = true
+        usage.codexTokenTimestampsMonotonic = true
+        usage.codexTokenSnapshots = [token(0), token(1)]
+        usage.codexRows = [row(0), row(1)]
+
+        var cache = CostUsageCache()
+        cache.scanSinceKey = "2026-08-01"
+        cache.scanUntilKey = "2026-08-01"
+        cache.files = [path: usage]
+        cache.days = usage.days
+        cache.lastScanUnixMs = 1000
+        cache.timeZoneIdentifier = calendar.timeZone.identifier
+        cache.codexPricingKey = "pricing-v1"
+        cache.codexPriorityMetadataKey = "priority-v1"
+        cache.codexProjectMetadataVersion = 7
+        cache.codexPriorityTurnKeys = ["turn-0": "priority"]
+        cache.codexPriorityTurnIDsByDay = ["2026-08-01": ["turn-0"]]
+        cache.codexScanCatchUpPending = false
+        cache.codexScanProcessedBytes = 200
+        cache.codexScanTotalBytes = 200
+        cache.codexScanCompletedFiles = 1
+        cache.codexScanTotalFiles = 1
+        cache.roots = ["/synthetic/root": 123]
+        cache.codexSessionDiscovery = CostUsageCodexSessionDiscovery(
+            roots: ["/synthetic/root"],
+            generation: "generation-v1",
+            directoryStamps: [:],
+            directoryPaths: [],
+            nextDirectoryIndex: 0,
+            filePaths: [path],
+            nextFileIndex: 1,
+            fileStamps: [:],
+            headScan: nil,
+            filePathBySessionId: ["session-1": path],
+            missingSessionIds: [],
+            pendingSessionIds: [],
+            validationDirectoryIndex: 0,
+            isComplete: true)
+        cache.codexActiveLookbackState = CostUsageCodexActiveLookbackState(
+            scanSinceKey: "2026-08-01",
+            rootPaths: ["/synthetic/root"],
+            nextDayKeyByRoot: ["/synthetic/root": "2026-08-02"])
+        cache.codexPreviousReport = CostUsageCodexPreviousReport(
+            report: CostUsageDailyReport(data: [
+                CostUsageDailyReport.Entry(
+                    date: "2026-08-01",
+                    inputTokens: 1,
+                    outputTokens: 1,
+                    totalTokens: 2,
+                    costUSD: nil,
+                    modelsUsed: nil,
+                    modelBreakdowns: nil),
+            ], summary: nil),
+            cache: cache)
+
+        func save(_ cache: CostUsageCache) {
+            _ = store.syncSaveCodexCache(
+                cache,
+                calendar: calendar,
+                requestedScanWindow: (sinceKey: "2026-08-01", untilKey: "2026-08-01"),
+                skipIdenticalContent: true)
+        }
+
+        save(cache)
+
+        #expect(await store.setWALAutoCheckpointForTesting(0))
+        #expect(await store.truncateWALForTesting())
+        let dbURL = store.databaseURL
+        let walURL = URL(fileURLWithPath: dbURL.path + "-wal")
+        struct Footprint: Equatable {
+            var size: Int64
+            var mtime: Date?
+        }
+
+        func footprint() -> [URL: Footprint] {
+            var out: [URL: Footprint] = [:]
+            for url in [dbURL, walURL] {
+                if let attributes = try? FileManager.default.attributesOfItem(atPath: url.path) {
+                    out[url] = Footprint(
+                        size: (attributes[.size] as? NSNumber)?.int64Value ?? 0,
+                        mtime: attributes[.modificationDate] as? Date)
+                }
+            }
+            return out
+        }
+
+        let before = footprint()
+        let snapshotBefore = await store.readSnapshot()
+        _ = await store.persistenceWriteMetricsForTesting(resetPageCounter: true)
+        let countersBefore = await store.persistenceWriteMetricsForTesting()
+
+        // A later scan pass over unchanged files stamps a new timestamp: the content tables
+        // stay untouched, but the durable timestamp advances so refresh debounce survives
+        // cache reloads and app restarts.
+        var reread = CostUsageStoreAccess.read(cacheRoot: fixture.root, calendar: calendar)
+        #expect(reread.files[path] != nil)
+        reread.lastScanUnixMs = 2000
+        let noOpResult = store.syncSaveCodexCache(
+            reread,
+            calendar: calendar,
+            requestedScanWindow: (sinceKey: "2026-08-01", untilKey: "2026-08-01"),
+            skipIdenticalContent: true)
+
+        let after = footprint()
+        let countersAfter = await store.persistenceWriteMetricsForTesting(resetPageCounter: true)
+        var expectedSnapshot = snapshotBefore
+        expectedSnapshot.metadata.lastScanUnixMs = 2000
+        #expect(await store.readSnapshot() == expectedSnapshot)
+        #expect(countersAfter.rows - countersBefore.rows == 1)
+        #expect(countersAfter.pages <= 2)
+        #expect(noOpResult.deletedRows == 0)
+        #expect(after[dbURL]?.size == before[dbURL]?.size)
+        #expect(after[walURL]?.size ?? 0 > 0)
+        #expect(after[walURL]?.mtime != before[walURL]?.mtime)
+        #expect(await store.fetchTokenSnapshots(path: path).map(\.eventIndex) == [0, 1])
+        #expect(await store.fetchUsageRows(path: path).count == 2)
+        let reloaded = CostUsageStoreAccess.read(cacheRoot: fixture.root, calendar: calendar)
+        #expect(reloaded.lastScanUnixMs == 2000)
+
+        // Repeating the unchanged scan checkpoints at most the prior metadata frame, then emits
+        // exactly one new metadata-row change. Both files are measured using SQLite's real `-wal`
+        // path; no claim of zero physical writes is made.
+        var repeated = reloaded
+        repeated.lastScanUnixMs = 2500
+        let repeatBefore = footprint()
+        let repeatCountersBefore = await store.persistenceWriteMetricsForTesting()
+        save(repeated)
+        let repeatAfter = footprint()
+        let repeatCountersAfter = await store.persistenceWriteMetricsForTesting(resetPageCounter: true)
+        #expect(repeatCountersAfter.rows - repeatCountersBefore.rows == 1)
+        #expect(repeatCountersAfter.pages <= 2)
+        #expect(repeatAfter[dbURL]?.size == repeatBefore[dbURL]?.size)
+        #expect(repeatAfter[walURL]?.size == after[walURL]?.size)
+        #expect(repeatAfter[dbURL]?.mtime != nil)
+        #expect(repeatAfter[walURL]?.mtime != repeatBefore[walURL]?.mtime)
+        print("[no-op-write-proof] first before=\(before) after=\(after)")
+        print("[no-op-write-proof] repeat before=\(repeatBefore) after=\(repeatAfter)")
+
+        // A real content change still uses the full all-or-nothing save.
+        var changed = repeated
+        changed.lastScanUnixMs = 3000
+        changed.files[path]?.parsedBytes = 201
+        changed.files[path]?.codexTokenSnapshots = [token(0), token(1), token(2)]
+        changed.files[path]?.codexRows = [row(0), row(1), row(2)]
+        let changedCountersBefore = await store.persistenceWriteMetricsForTesting()
+        save(changed)
+        let changedCountersAfter = await store.persistenceWriteMetricsForTesting(resetPageCounter: true)
+
+        #expect(changedCountersAfter.rows - changedCountersBefore.rows > 1)
+        #expect(await store.fetchTokenSnapshots(path: path).map(\.eventIndex) == [0, 1, 2])
+
+        // Tightening the byte budget still runs enforcement before any identical-content
+        // return, but requested-window content is protected, so the cap becomes best-effort
+        // and the unchanged save completes without requesting a rescan.
+        let tightenedBudget = store.syncSaveCodexCache(
+            CostUsageStoreAccess.read(cacheRoot: fixture.root, calendar: calendar),
+            calendar: calendar,
+            requestedScanWindow: (sinceKey: "2026-08-01", untilKey: "2026-08-01"),
+            fileBudgetBytes: 1,
+            skipIdenticalContent: true)
+        #expect(tightenedBudget.catchUpRequired == false)
+        #expect(tightenedBudget.fileBytes > 1)
+        #expect(await store.fetchUsageRows(path: path).count == 3)
+    }
+
+    @Test
+    func `identical scanner save preserves content committed before the writer lock`() async throws {
+        let fixture = try StoreFixture()
+        defer { fixture.remove() }
+        let store = CostUsageStore(cacheRoot: fixture.root)
+        let path = "/rollouts/recheck.jsonl"
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try #require(TimeZone(secondsFromGMT: 0))
+
+        var usage = CostUsageFileUsage(
+            mtimeUnixMs: 1000,
+            size: 100,
+            days: ["2026-08-01": ["gpt-5.6-sol": [10, 2, 1]]])
+        usage.parsedBytes = 100
+        usage.codexScanFileId = "1:42"
+        usage.codexScanComplete = true
+        var cache = CostUsageCache()
+        cache.scanSinceKey = "2026-08-01"
+        cache.scanUntilKey = "2026-08-01"
+        cache.timeZoneIdentifier = calendar.timeZone.identifier
+        cache.files = [path: usage]
+        cache.days = usage.days
+        cache.lastScanUnixMs = 1000
+
+        func save(_ value: CostUsageCache) -> CostUsageStoreBudgetResult {
+            store.syncSaveCodexCache(
+                value,
+                calendar: calendar,
+                requestedScanWindow: (sinceKey: "2026-08-01", untilKey: "2026-08-01"),
+                skipIdenticalContent: true)
+        }
+
+        _ = save(cache)
+        var reread = CostUsageStoreAccess.read(cacheRoot: fixture.root, calendar: calendar)
+        reread.lastScanUnixMs = 2000
+        let interloper = try SQLiteTestConnection(url: store.databaseURL)
+        var checkpointError: Error?
+        CostUsageStore.identicalContentPreLockCheckpointForTesting = {
+            do {
+                try interloper.execute("UPDATE files SET parsed_bytes = 999 WHERE path = '\(path)'")
+            } catch {
+                checkpointError = error
+            }
+        }
+        defer { CostUsageStore.identicalContentPreLockCheckpointForTesting = nil }
+
+        let result = save(reread)
+
+        #expect(checkpointError == nil)
+        #expect(result.catchUpRequired)
+        #expect(await store.rebuildCount == 0)
+        #expect(await store.fetchFile(path: path)?.parsedBytes == 999)
+        #expect(CostUsageStoreAccess.read(cacheRoot: fixture.root, calendar: calendar).lastScanUnixMs == 1000)
+
+        CostUsageStore.identicalContentPreLockCheckpointForTesting = nil
+        var refreshed = CostUsageStoreAccess.read(cacheRoot: fixture.root, calendar: calendar)
+        refreshed.lastScanUnixMs = 3000
+        let retried = save(refreshed)
+        #expect(!retried.catchUpRequired)
+        #expect(await store.fetchFile(path: path)?.parsedBytes == 999)
+        #expect(CostUsageStoreAccess.read(cacheRoot: fixture.root, calendar: calendar).lastScanUnixMs == 3000)
+    }
+
+    @Test(.timeLimit(.minutes(1)))
+    func `identical scanner save reports retry while the writer lock is unavailable`() async throws {
+        let fixture = try StoreFixture()
+        defer { fixture.remove() }
+        let store = CostUsageStore(cacheRoot: fixture.root)
+        let path = "/rollouts/locked-save.jsonl"
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try #require(TimeZone(secondsFromGMT: 0))
+
+        var usage = CostUsageFileUsage(
+            mtimeUnixMs: 1000,
+            size: 100,
+            days: ["2026-08-01": ["gpt-5.6-sol": [10, 2, 1]]])
+        usage.parsedBytes = 100
+        usage.codexScanFileId = "1:42"
+        usage.codexScanComplete = true
+        var cache = CostUsageCache()
+        cache.scanSinceKey = "2026-08-01"
+        cache.scanUntilKey = "2026-08-01"
+        cache.timeZoneIdentifier = calendar.timeZone.identifier
+        cache.files = [path: usage]
+        cache.days = usage.days
+        cache.lastScanUnixMs = 1000
+
+        func save(_ value: CostUsageCache) -> CostUsageStoreBudgetResult {
+            store.syncSaveCodexCache(
+                value,
+                calendar: calendar,
+                requestedScanWindow: (sinceKey: "2026-08-01", untilKey: "2026-08-01"),
+                skipIdenticalContent: true)
+        }
+
+        _ = save(cache)
+        var reread = CostUsageStoreAccess.read(cacheRoot: fixture.root, calendar: calendar)
+        reread.lastScanUnixMs = 2000
+        let holder = try SQLiteTestConnection(url: store.databaseURL)
+        try holder.execute("BEGIN IMMEDIATE")
+        try holder.execute("INSERT OR REPLACE INTO meta(key, value) VALUES ('save-holder', '1')")
+
+        let blocked = save(reread)
+
+        #expect(blocked.catchUpRequired)
+        #expect(await store.rebuildCount == 0)
+        #expect(CostUsageStoreAccess.read(cacheRoot: fixture.root, calendar: calendar).lastScanUnixMs == 1000)
+
+        var changed = reread
+        changed.files[path]?.parsedBytes = 200
+        changed.lastScanUnixMs = 2500
+        let blockedFullSave = store.syncSaveCodexCache(
+            changed,
+            calendar: calendar,
+            requestedScanWindow: (sinceKey: "2026-08-01", untilKey: "2026-08-01"))
+        #expect(blockedFullSave.catchUpRequired)
+        #expect(await store.fetchFile(path: path)?.parsedBytes == 100)
+        #expect(CostUsageStoreAccess.read(cacheRoot: fixture.root, calendar: calendar).lastScanUnixMs == 1000)
+
+        try holder.execute("COMMIT")
+        let retried = save(reread)
+        #expect(!retried.catchUpRequired)
+        #expect(CostUsageStoreAccess.read(cacheRoot: fixture.root, calendar: calendar).lastScanUnixMs == 2000)
+    }
+
+    @Test
     func `day aggregate inserts and reads by model`() async throws {
         let fixture = try StoreFixture()
         defer { fixture.remove() }
@@ -520,6 +844,73 @@ extension CostUsageStoreTests {
     }
 
     @Test
+    func `two stores advance freshness monotonically without losing current metadata`() async throws {
+        let fixture = try StoreFixture()
+        defer { fixture.remove() }
+        let first = CostUsageStore(cacheRoot: fixture.root)
+        let second = CostUsageStore(cacheRoot: fixture.root)
+        var stale = Self.metadata()
+        stale.lastScanUnixMs = 100
+        #expect(await first.setMetadata(stale))
+
+        // Simulate a second owner committing richer metadata after the first owner obtained
+        // its stale input. The freshness operation must re-read this whole payload under its
+        // writer lock rather than writing fields copied from the stale caller.
+        var current = stale
+        current.lastScanUnixMs = 250
+        current.scanSinceDay = "2026-07-01"
+        current.scanUntilDay = "2026-08-11"
+        current.pricingKey = "pricing-v2"
+        current.priorityMetadataKey = "priority-v2"
+        current.catchUpPending = false
+        current.rootMtimes = ["/current/root": 999]
+        current.previousReportPayload = Data([9, 8, 7])
+        current.priorityTurnStatePayload = Data([6, 5, 4])
+        current.projectMetadataVersion = 9
+        #expect(await second.setMetadata(current))
+
+        #expect(await first.advanceLastScanUnixMs(200))
+        #expect(await first.fetchMetadata() == current)
+        #expect(await second.advanceLastScanUnixMs(300))
+        var expected = current
+        expected.lastScanUnixMs = 300
+        #expect(await first.fetchMetadata() == expected)
+
+        var catchUp = expected
+        catchUp.catchUpPending = true
+        catchUp.lastScanUnixMs = 0
+        #expect(await second.setMetadata(catchUp))
+        #expect(await first.advanceLastScanUnixMs(400))
+        #expect(await first.fetchMetadata() == catchUp)
+    }
+
+    @Test(.timeLimit(.minutes(1)))
+    func `held writer lock makes freshness advance fail soft without rebuilding`() async throws {
+        let fixture = try StoreFixture()
+        defer { fixture.remove() }
+        let store = CostUsageStore(cacheRoot: fixture.root)
+        var metadata = Self.metadata()
+        metadata.catchUpPending = false
+        #expect(await store.setMetadata(metadata))
+
+        let holder = try SQLiteTestConnection(url: store.databaseURL)
+        try holder.execute("BEGIN IMMEDIATE")
+        try holder.execute("INSERT OR REPLACE INTO meta(key, value) VALUES ('freshness-holder', '1')")
+
+        #expect(await store.advanceLastScanUnixMs(500) == false)
+        #expect(await store.rebuildCount == 0)
+        #expect(FileManager.default.fileExists(atPath: store.databaseURL.path))
+
+        try holder.execute("COMMIT")
+        #expect(await store.fetchMetadata() == metadata)
+        #expect(await store.advanceLastScanUnixMs(500))
+        var expected = metadata
+        expected.lastScanUnixMs = 500
+        #expect(await store.fetchMetadata() == expected)
+        #expect(await store.rebuildCount == 0)
+    }
+
+    @Test
     func `terminal accumulator round trips all state`() async throws {
         let fixture = try StoreFixture()
         defer { fixture.remove() }
@@ -610,6 +1001,93 @@ extension CostUsageStoreTests {
 
 extension CostUsageStoreTests {
     @Test
+    func `compatible predecessor parser hash adopts without rebuilding`() async throws {
+        let fixture = try StoreFixture()
+        defer { fixture.remove() }
+        #expect(CostUsageStore.compatiblePredecessorParserHashes == [
+            "98da5914d2f6a9cd",
+            "43609cc56f76a003",
+            "b975eb705f905b9a",
+            "47144baa8daccf52",
+        ])
+        let predecessorHash = "43609cc56f76a003"
+        let predecessorVersion = CostUsageStore.combinedSchemaVersion(
+            base: CostUsageStore.baseSchemaVersion,
+            parserHash: predecessorHash)
+        let predecessor = CostUsageStore(
+            cacheRoot: fixture.root,
+            schemaVersion: predecessorVersion,
+            parserHash: predecessorHash)
+        let file = Self.file(path: "/rollouts/compatible.jsonl", day: "2026-08-01")
+        let token = Self.snapshot(path: file.path, eventIndex: 0)
+        let usageRow = CostUsageStoreUsageRow(path: file.path, rowIndex: 0, payload: Data([8, 9, 10]))
+        let aggregate = Self.aggregate(day: "2026-08-01", model: "gpt-5.6-sol", scale: 1)
+        let lineage = Self.lineage(path: file.path)
+        let line = Self.bufferedLine(path: file.path, kind: .subagent, index: 0)
+        let discovery = Self.discoveryState(paths: [file.path])
+        let lookback = CostUsageStoreLookbackState(
+            scanSinceDay: "2026-08-01",
+            rootPaths: ["/root"],
+            nextDayByRoot: ["/root": "2026-08-02"],
+            completedRootPaths: [],
+            pendingFilePaths: [file.path],
+            legacyRecursivePendingRootPaths: [])
+        let accumulator = Self.accumulator(path: file.path)
+        let metadata = Self.metadata()
+        #expect(await predecessor.upsertFile(file))
+        #expect(await predecessor.appendTokenSnapshots([token]))
+        #expect(await predecessor.replaceUsageRows(path: file.path, rows: [usageRow]))
+        #expect(await predecessor.replaceFileDayAggregates(path: file.path, aggregates: [aggregate]))
+        #expect(await predecessor.mergeDayAggregates([aggregate]))
+        #expect(await predecessor.upsertForkLineage(lineage))
+        #expect(await predecessor.replaceBufferedLines(path: file.path, kind: .subagent, lines: [line]))
+        #expect(await predecessor.setDiscoveryState(discovery))
+        #expect(await predecessor.setLookbackState(lookback))
+        #expect(await predecessor.upsertAccumulator(accumulator))
+        #expect(await predecessor.setMetadata(metadata))
+        let before = await predecessor.readSnapshot()
+
+        let current = CostUsageStore(cacheRoot: fixture.root)
+        let after = await current.readSnapshot()
+        #expect(after == before)
+        #expect(await current.rebuildCount == 0)
+        #expect(await current.configuration()?.userVersion == Int(CostUsageStore.schemaVersion))
+        let connection = try SQLiteTestConnection(url: fixture.databaseURL, readOnly: true)
+        #expect(try connection.scalarInt(
+            "SELECT COUNT(*) FROM meta WHERE key = 'parser_hash' AND value = '\(CodexParserHash.value)'") == 1)
+    }
+
+    @Test(.timeLimit(.minutes(1)))
+    func `concurrent predecessor adoption never rebuilds a valid store`() async throws {
+        let fixture = try StoreFixture()
+        defer { fixture.remove() }
+        let predecessorHash = "b975eb705f905b9a"
+        let predecessorVersion = CostUsageStore.combinedSchemaVersion(
+            base: CostUsageStore.baseSchemaVersion,
+            parserHash: predecessorHash)
+        let predecessor = CostUsageStore(
+            cacheRoot: fixture.root,
+            schemaVersion: predecessorVersion,
+            parserHash: predecessorHash)
+        let metadata = Self.metadata()
+        #expect(await predecessor.setMetadata(metadata))
+
+        let stores = (0..<16).map { _ in CostUsageStore(cacheRoot: fixture.root) }
+        await withTaskGroup(of: Void.self) { group in
+            for store in stores {
+                group.addTask {
+                    #expect(await store.fetchMetadata() == metadata)
+                    #expect(await store.rebuildCount == 0)
+                }
+            }
+        }
+        let connection = try SQLiteTestConnection(url: fixture.databaseURL, readOnly: true)
+        #expect(try connection.scalarInt("PRAGMA user_version") == Int64(CostUsageStore.schemaVersion))
+        #expect(try connection.scalarInt(
+            "SELECT COUNT(*) FROM meta WHERE key = 'parser_hash' AND value = '\(CodexParserHash.value)'") == 1)
+    }
+
+    @Test
     func `version mismatch drops and recreates`() async throws {
         let fixture = try StoreFixture()
         defer { fixture.remove() }
@@ -640,6 +1118,76 @@ extension CostUsageStoreTests {
 
         #expect(await store.fetchMetadata() == .empty)
         #expect(await store.rebuildCount == 1)
+    }
+
+    @Test
+    func `v0_49_2 parser hash upgrades without rebuilding completed files`() async throws {
+        let fixture = try StoreFixture()
+        defer { fixture.remove() }
+        let previousParserHash = "b975eb705f905b9a"
+        let previousSchemaVersion = CostUsageStore.combinedSchemaVersion(
+            base: CostUsageStore.baseSchemaVersion,
+            parserHash: previousParserHash)
+        let previousStore = CostUsageStore(
+            cacheRoot: fixture.root,
+            schemaVersion: previousSchemaVersion,
+            parserHash: previousParserHash)
+        let file = Self.file(path: "/rollouts/completed.jsonl", day: "2026-08-01")
+        #expect(await previousStore.upsertFile(file))
+
+        let upgradedStore = CostUsageStore(cacheRoot: fixture.root)
+
+        #expect(await upgradedStore.fetchFile(path: file.path) == file)
+        #expect(await upgradedStore.rebuildCount == 0)
+        #expect(await upgradedStore.configuration()?.userVersion == Int(CostUsageStore.schemaVersion))
+        let connection = try SQLiteTestConnection(url: fixture.databaseURL, readOnly: true)
+        #expect(try connection.scalarInt(
+            "SELECT COUNT(*) FROM meta WHERE key = 'parser_hash' AND value = '\(CodexParserHash.value)'") == 1)
+    }
+
+    @Test
+    func `compatible predecessor hash with mismatched version still rebuilds`() async throws {
+        let fixture = try StoreFixture()
+        defer { fixture.remove() }
+        let predecessorHash = "b975eb705f905b9a"
+        let predecessorVersion = CostUsageStore.combinedSchemaVersion(
+            base: CostUsageStore.baseSchemaVersion,
+            parserHash: predecessorHash)
+        let predecessor = CostUsageStore(
+            cacheRoot: fixture.root,
+            schemaVersion: predecessorVersion,
+            parserHash: predecessorHash)
+        #expect(await predecessor.setMetadata(Self.metadata()))
+        try SQLiteTestConnection.execute(
+            at: fixture.databaseURL,
+            sql: "PRAGMA user_version = \(predecessorVersion + 1)")
+
+        let current = CostUsageStore(cacheRoot: fixture.root)
+        #expect(await current.fetchMetadata() == .empty)
+        #expect(await current.rebuildCount == 1)
+    }
+
+    @Test
+    func `compatible predecessor hash without incremental auto vacuum still rebuilds`() async throws {
+        let fixture = try StoreFixture()
+        defer { fixture.remove() }
+        let predecessorHash = "b975eb705f905b9a"
+        let predecessorVersion = CostUsageStore.combinedSchemaVersion(
+            base: CostUsageStore.baseSchemaVersion,
+            parserHash: predecessorHash)
+        try FileManager.default.createDirectory(
+            at: fixture.databaseURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true)
+        try SQLiteTestConnection.execute(at: fixture.databaseURL, sql: """
+        CREATE TABLE meta(key TEXT PRIMARY KEY, value TEXT NOT NULL);
+        INSERT INTO meta(key, value) VALUES ('parser_hash', '\(predecessorHash)');
+        PRAGMA user_version = \(predecessorVersion);
+        """)
+
+        let current = CostUsageStore(cacheRoot: fixture.root)
+        #expect(await current.fetchMetadata() == .empty)
+        #expect(await current.rebuildCount == 1)
+        #expect(await current.configuration()?.autoVacuumMode == 2)
     }
 
     @Test
@@ -983,7 +1531,7 @@ extension CostUsageStoreTests {
 
 extension CostUsageStoreTests {
     @Test
-    func `save preserves an existing complete previous report across repeated trims`() async throws {
+    func `save preserves an existing previous report when protected data exceeds the byte cap`() async throws {
         let fixture = try StoreFixture()
         defer { fixture.remove() }
         let store = CostUsageStore(cacheRoot: fixture.root)
@@ -1030,7 +1578,7 @@ extension CostUsageStoreTests {
             reportWindow: (sinceKey: "2026-06-01", untilKey: "2026-07-01"),
             fileBudgetBytes: 1)
 
-        #expect(result.catchUpRequired)
+        #expect(result.catchUpRequired == false)
         let metadata = await store.fetchMetadata()
         let payload = try #require(metadata.previousReportPayload)
         let preserved = try JSONDecoder().decode(CostUsageCodexPreviousReport.self, from: payload)
@@ -1040,7 +1588,7 @@ extension CostUsageStoreTests {
     }
 
     @Test
-    func `save catch up report honors a non-gregorian system calendar`() async throws {
+    func `save over byte cap keeps non-gregorian in window report intact`() async throws {
         let fixture = try StoreFixture()
         defer { fixture.remove() }
         let store = CostUsageStore(cacheRoot: fixture.root)
@@ -1063,13 +1611,12 @@ extension CostUsageStoreTests {
             requestedScanWindow: (sinceKey: "2026-06-01", untilKey: "2026-07-01"),
             reportWindow: (sinceKey: "2026-06-01", untilKey: "2026-07-01"),
             fileBudgetBytes: 1)
+        let report = await store.readReport(sinceDay: "2026-06-01", untilDay: "2026-07-01")
 
-        #expect(result.catchUpRequired)
-        let metadata = await store.fetchMetadata()
-        let payload = try #require(metadata.previousReportPayload)
-        let previous = try JSONDecoder().decode(CostUsageCodexPreviousReport.self, from: payload)
-        #expect(previous.data.contains { $0.date == "2026-06-05" })
-        #expect(previous.data.contains { $0.date == "1483-06-05" } == false)
+        #expect(result.catchUpRequired == false)
+        #expect(await store.fetchMetadata().previousReportPayload == nil)
+        #expect(report.aggregates.map(\.day) == ["2026-06-05"])
+        #expect(report.aggregates.contains { $0.day == "1483-06-05" } == false)
     }
 }
 
@@ -1174,35 +1721,49 @@ extension CostUsageStoreTests {
     }
 
     @Test
-    func `in window byte budget trim marks catch up and preserves previous report`() async throws {
+    func `byte budget preserves in window data across repeated enforcement`() async throws {
         let fixture = try StoreFixture()
         defer { fixture.remove() }
         let store = CostUsageStore(cacheRoot: fixture.root)
-        let previous = Data("previous-report".utf8)
-        var metadata = CostUsageStoreMetadata.empty
-        metadata.lastScanUnixMs = 1234
-        metadata.previousReportPayload = previous
-        #expect(await store.setMetadata(metadata))
+        let day = "2026-08-01"
+        let model = "gpt-5.5"
         for (index, path) in ["/rollouts/one.jsonl", "/rollouts/two.jsonl"].enumerated() {
-            #expect(await store.upsertFile(Self.file(path: path, day: "2026-08-01", updatedAt: Int64(index))))
-            let row = CostUsageStoreUsageRow(
+            let file = Self.file(path: path, day: day, updatedAt: Int64(index))
+            #expect(await store.upsertFile(file))
+            #expect(await store.replaceUsageRows(path: path, rows: [CostUsageStoreUsageRow(
                 path: path,
                 rowIndex: 0,
-                payload: Data(repeating: UInt8(index), count: 256 * 1024))
-            #expect(await store.replaceUsageRows(path: path, rows: [row]))
+                payload: Data(repeating: UInt8(index), count: 256 * 1024))]))
+            #expect(await store.replaceFileDayAggregates(
+                path: path,
+                aggregates: [Self.aggregate(day: day, model: model, scale: 1)]))
         }
+        #expect(await store.mergeDayAggregates([Self.aggregate(day: day, model: model, scale: 2)]))
 
-        let result = await store.enforceBudgets(
+        let first = await store.enforceBudgets(
             maxRows: .max,
             maxFileBytes: 1,
-            requestedSinceDay: "2026-08-01",
-            requestedUntilDay: "2026-08-02")
-        let retained = await store.fetchMetadata()
+            requestedSinceDay: day,
+            requestedUntilDay: day)
+        let second = await store.enforceBudgets(
+            maxRows: .max,
+            maxFileBytes: 1,
+            requestedSinceDay: day,
+            requestedUntilDay: day)
+        let report = await store.readReport(sinceDay: day, untilDay: day)
 
-        #expect(result.catchUpRequired)
-        #expect(retained.catchUpPending)
-        #expect(retained.lastScanUnixMs == 0)
-        #expect(retained.previousReportPayload == previous)
+        #expect(first.catchUpRequired == false)
+        #expect(second.catchUpRequired == false)
+        #expect(first.deletedRows == 0)
+        #expect(second.deletedRows == 0)
+        #expect(first.rowCount == 2)
+        #expect(second.rowCount == 2)
+        #expect(first.fileBytes > 1)
+        #expect(second.fileBytes > 1)
+        #expect(await store.fetchUsageRows(path: "/rollouts/one.jsonl").count == 1)
+        #expect(await store.fetchUsageRows(path: "/rollouts/two.jsonl").count == 1)
+        #expect(report.aggregates == [Self.aggregate(day: day, model: model, scale: 2)])
+        #expect(await store.fetchMetadata().catchUpPending == false)
     }
 
     @Test
@@ -1230,19 +1791,19 @@ extension CostUsageStoreTests {
     }
 
     @Test
-    func `byte budget strips detail from a protected file instead of stalling`() async throws {
+    func `byte budget removes only data outside the requested window`() async throws {
         let fixture = try StoreFixture()
         defer { fixture.remove() }
         let store = CostUsageStore(cacheRoot: fixture.root)
-        var file = Self.file(path: "/rollouts/resuming.jsonl", day: "2026-08-01")
-        file.scanState.isComplete = false
-        #expect(await store.upsertFile(file))
-        #expect(await store.appendTokenSnapshots([Self.snapshot(path: file.path, eventIndex: 0)]))
-        #expect(await store.replaceUsageRows(path: file.path, rows: [CostUsageStoreUsageRow(
-            path: file.path,
-            rowIndex: 0,
-            payload: Data(repeating: 7, count: 256 * 1024))]))
-        #expect(await store.upsertAccumulator(Self.accumulator(path: file.path)))
+        let stale = Self.file(path: "/rollouts/stale.jsonl", day: "2026-06-01", updatedAt: 0)
+        let current = Self.file(path: "/rollouts/current.jsonl", day: "2026-08-01", updatedAt: 1)
+        for file in [stale, current] {
+            #expect(await store.upsertFile(file))
+            #expect(await store.replaceUsageRows(path: file.path, rows: [CostUsageStoreUsageRow(
+                path: file.path,
+                rowIndex: 0,
+                payload: Data(repeating: 7, count: 256 * 1024))]))
+        }
 
         let result = await store.enforceBudgets(
             maxRows: .max,
@@ -1250,23 +1811,21 @@ extension CostUsageStoreTests {
             requestedSinceDay: "2026-08-01",
             requestedUntilDay: "2026-08-02")
 
-        let stripped = try #require(await store.fetchFile(path: file.path))
-        #expect(result.catchUpRequired)
-        #expect(stripped.parsedBytes == 0)
-        #expect(stripped.scanState.isComplete == false)
-        #expect(stripped.scanState.resumePayload == nil)
-        #expect(await store.fetchTokenSnapshots(path: file.path).isEmpty)
-        #expect(await store.fetchUsageRows(path: file.path).isEmpty)
-        #expect(await store.fetchAccumulator(path: file.path) == nil)
-        #expect(await store.fetchMetadata().catchUpPending)
+        #expect(result.deletedRows == 1)
+        #expect(result.rowCount == 1)
+        #expect(result.fileBytes > 1)
+        #expect(await store.fetchFile(path: stale.path) == nil)
+        #expect(await store.fetchFile(path: current.path) != nil)
+        #expect(await store.fetchUsageRows(path: current.path).count == 1)
+        #expect(await store.fetchMetadata().catchUpPending == false)
     }
 
     @Test
-    func `byte budget compacts a fork parent required by a surviving child`() async throws {
+    func `byte budget preserves fork parent detail required by a surviving child`() async throws {
         let fixture = try StoreFixture()
         defer { fixture.remove() }
         let store = CostUsageStore(cacheRoot: fixture.root)
-        var parent = Self.file(path: "/rollouts/parent.jsonl", day: "2026-08-01", updatedAt: 1)
+        var parent = Self.file(path: "/rollouts/parent.jsonl", day: "2026-06-01", updatedAt: 1)
         parent.sessionID = "parent-session"
         #expect(await store.upsertFile(parent))
         #expect(await store.upsertForkLineage(CostUsageStoreForkLineage(
@@ -1295,14 +1854,13 @@ extension CostUsageStoreTests {
             requestedSinceDay: "2026-08-01",
             requestedUntilDay: "2026-08-02")
 
-        // The parent cannot be deleted while the incomplete child still needs its baseline,
-        // so byte pressure compacts its rebuildable detail instead.
-        let compacted = try #require(await store.fetchFile(path: parent.path))
-        #expect(result.catchUpRequired)
-        #expect(compacted.parsedBytes == 0)
-        #expect(compacted.scanState.isComplete == false)
-        #expect(await store.fetchUsageRows(path: parent.path).isEmpty)
+        let retained = try #require(await store.fetchFile(path: parent.path))
+        #expect(result.catchUpRequired == false)
+        #expect(retained.parsedBytes == parent.parsedBytes)
+        #expect(retained.scanState.isComplete)
+        #expect(await store.fetchUsageRows(path: parent.path).count == 1)
         #expect(await store.fetchFile(path: child.path) != nil)
+        #expect(await store.fetchMetadata().catchUpPending == false)
     }
 
     @Test
@@ -1486,6 +2044,7 @@ extension CostUsageStoreTests {
             totalBytes: 200,
             completedFiles: 2,
             totalFiles: 4,
+            scanInventoryPaths: ["/root/2026/08/01/session.jsonl"],
             rootMtimes: ["/root": 123],
             previousReportPayload: Data([2, 4, 6]),
             priorityTurnStatePayload: Data([1, 3, 5]),

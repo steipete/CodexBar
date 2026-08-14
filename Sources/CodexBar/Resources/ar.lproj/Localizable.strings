@@ -1352,6 +1352,7 @@
 "menu_bar_layout_gap" = "المسافة";
 "menu_bar_layout_gap_tight" = "ضيّق";
 "menu_bar_layout_gap_regular" = "عادي";
+"menu_bar_layout_vertical_adjustment" = "الضبط العمودي";
 "menu_bar_layout_keyboard_hint" = "يحذف Delete العنصر المحدد";
 "menu_bar_layout_sample_account" = "حساب";
 "menu_bar_layout_sample_runs_out" = "ينفد الجمعة";

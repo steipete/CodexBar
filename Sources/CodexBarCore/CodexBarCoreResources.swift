@@ -1,3 +1,6 @@
+#if canImport(Darwin)
+import Darwin
+#endif
 import Foundation
 
 /// Safe resolver for CodexBarCore's SwiftPM resource bundle.
@@ -17,7 +20,7 @@ public enum CodexBarCoreResources {
 
     static func resolve(
         mainBundle: Bundle,
-        executableBundleURL: URL? = nil,
+        executableURL: URL? = nil,
         swiftPMBuildDirectory: URL? = Self.defaultSwiftPMBuildDirectory) -> Bundle?
     {
         let name = "CodexBar_CodexBarCore"
@@ -40,7 +43,10 @@ public enum CodexBarCoreResources {
             }
         }
 
-        let executableDirectory = executableBundleURL ?? mainBundle.bundleURL
+        let executableDirectory = (executableURL ?? Self.runningExecutableURL(bundle: mainBundle))?
+            .resolvingSymlinksInPath()
+            .deletingLastPathComponent()
+            ?? mainBundle.bundleURL
         for swiftPMBundleName in swiftPMBundleNames {
             let executableCandidate = executableDirectory.appendingPathComponent(swiftPMBundleName)
             if let bundle = Bundle(url: executableCandidate) {
@@ -60,6 +66,28 @@ public enum CodexBarCoreResources {
             }
         }
         return nil
+    }
+
+    private static func runningExecutableURL(bundle: Bundle) -> URL? {
+        if let executableURL = bundle.executableURL {
+            return executableURL
+        }
+
+        #if canImport(Darwin)
+        var size: UInt32 = 0
+        guard _NSGetExecutablePath(nil, &size) != 0 else { return nil }
+        var buffer = [Int8](repeating: 0, count: Int(size))
+        guard _NSGetExecutablePath(&buffer, &size) == 0 else { return nil }
+        let pathBytes = buffer.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }
+        guard let path = String(bytes: pathBytes, encoding: .utf8) else { return nil }
+        return URL(fileURLWithPath: path)
+        #elseif os(Linux)
+        let path = "/proc/self/exe"
+        guard FileManager.default.fileExists(atPath: path) else { return nil }
+        return URL(fileURLWithPath: path)
+        #else
+        return nil
+        #endif
     }
 
     private static let defaultSwiftPMBuildDirectory: URL = {

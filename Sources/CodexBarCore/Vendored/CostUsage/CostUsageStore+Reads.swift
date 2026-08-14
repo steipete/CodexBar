@@ -98,42 +98,18 @@ extension CostUsageStore {
     }
 
     func readSnapshot() -> CostUsageStoreSnapshot {
-        let empty = CostUsageStoreSnapshot(
-            metadata: .empty,
-            files: [],
-            tokenSnapshots: [],
-            usageRows: [],
-            fileDayAggregates: [],
-            dayAggregates: [],
-            forkLineage: [],
-            bufferedLines: [],
-            discoveryState: nil,
-            lookbackState: nil,
-            accumulators: [])
-        return self.withDatabase(default: empty) { database in
+        self.withDatabase(default: Self.emptySnapshot) { database in
             try Self.inReadTransaction(database) {
-                try CostUsageStoreSnapshot(
-                    metadata: Self.readSingleton(
-                        CostUsageStoreMetadata.self,
-                        database: database,
-                        table: "scan_metadata") ?? .empty,
-                    files: Self.readFiles(database),
-                    tokenSnapshots: Self.readTokenSnapshots(database, path: nil),
-                    usageRows: Self.readUsageRows(database, path: nil),
-                    fileDayAggregates: Self.readFileDayAggregates(database, path: nil),
-                    dayAggregates: Self.readDayAggregates(database, sinceDay: nil, untilDay: nil),
-                    forkLineage: Self.readForkLineage(database, path: nil),
-                    bufferedLines: Self.readBufferedLines(database, path: nil, kind: nil),
-                    discoveryState: Self.readSingleton(
-                        CostUsageStoreDiscoveryState.self,
-                        database: database,
-                        table: "discovery_state"),
-                    lookbackState: Self.readSingleton(
-                        CostUsageStoreLookbackState.self,
-                        database: database,
-                        table: "lookback_state"),
-                    accumulators: Self.readAccumulators(database, path: nil))
+                try Self.readSnapshot(database)
             }
+        }
+    }
+
+    /// Reads from the caller's current transaction. The save path uses this after acquiring
+    /// its writer lock so content identity and the following write share one SQLite snapshot.
+    func readSnapshotInCurrentTransaction() -> CostUsageStoreSnapshot {
+        self.withDatabase(default: Self.emptySnapshot) { database in
+            try Self.readSnapshot(database)
         }
     }
 
@@ -148,6 +124,47 @@ extension CostUsageStore {
         }
     }
 
+    /// SQLite connection counters used by persistence regression tests. These count logical
+    /// row changes and cache pages flushed by this connection; they supplement, but are not a
+    /// substitute for, filesystem-level write evidence.
+    func persistenceWriteMetricsForTesting(resetPageCounter: Bool = false) -> (rows: Int, pages: Int) {
+        self.withDatabase(default: (rows: 0, pages: 0)) { database in
+            var current: Int32 = 0
+            var highwater: Int32 = 0
+            let result = sqlite3_db_status(
+                database,
+                SQLITE_DBSTATUS_CACHE_WRITE,
+                &current,
+                &highwater,
+                resetPageCounter ? 1 : 0)
+            guard result == SQLITE_OK else { throw StoreError.sqlite(result) }
+            return (rows: Int(sqlite3_total_changes(database)), pages: Int(current))
+        }
+    }
+
+    func setWALAutoCheckpointForTesting(_ pages: Int32) -> Bool {
+        self.withDatabase(default: false) { database in
+            let result = sqlite3_wal_autocheckpoint(database, pages)
+            guard result == SQLITE_OK else { throw StoreError.sqlite(result) }
+            return true
+        }
+    }
+
+    func truncateWALForTesting() -> Bool {
+        self.withDatabase(default: false) { database in
+            var logFrames: Int32 = 0
+            var checkpointedFrames: Int32 = 0
+            let result = sqlite3_wal_checkpoint_v2(
+                database,
+                nil,
+                SQLITE_CHECKPOINT_TRUNCATE,
+                &logFrames,
+                &checkpointedFrames)
+            guard result == SQLITE_OK else { throw StoreError.sqlite(result) }
+            return true
+        }
+    }
+
     private func readSingleton<Value: Decodable>(_ type: Value.Type, table: String) -> Value? {
         self.withDatabase(default: nil) { database in
             try Self.readSingleton(type, database: database, table: table)
@@ -158,6 +175,45 @@ extension CostUsageStore {
 // MARK: - Read implementations
 
 extension CostUsageStore {
+    private static var emptySnapshot: CostUsageStoreSnapshot {
+        CostUsageStoreSnapshot(
+            metadata: .empty,
+            files: [],
+            tokenSnapshots: [],
+            usageRows: [],
+            fileDayAggregates: [],
+            dayAggregates: [],
+            forkLineage: [],
+            bufferedLines: [],
+            discoveryState: nil,
+            lookbackState: nil,
+            accumulators: [])
+    }
+
+    private static func readSnapshot(_ database: OpaquePointer) throws -> CostUsageStoreSnapshot {
+        try CostUsageStoreSnapshot(
+            metadata: self.readSingleton(
+                CostUsageStoreMetadata.self,
+                database: database,
+                table: "scan_metadata") ?? .empty,
+            files: self.readFiles(database),
+            tokenSnapshots: self.readTokenSnapshots(database, path: nil),
+            usageRows: self.readUsageRows(database, path: nil),
+            fileDayAggregates: self.readFileDayAggregates(database, path: nil),
+            dayAggregates: self.readDayAggregates(database, sinceDay: nil, untilDay: nil),
+            forkLineage: self.readForkLineage(database, path: nil),
+            bufferedLines: self.readBufferedLines(database, path: nil, kind: nil),
+            discoveryState: self.readSingleton(
+                CostUsageStoreDiscoveryState.self,
+                database: database,
+                table: "discovery_state"),
+            lookbackState: self.readSingleton(
+                CostUsageStoreLookbackState.self,
+                database: database,
+                table: "lookback_state"),
+            accumulators: self.readAccumulators(database, path: nil))
+    }
+
     private static let fileSelectSQL = """
     SELECT path, inode, mtime_ms, size, parsed_bytes, anchor_indexed_bytes,
            anchor_window_start, anchor_sha256, scan_state, scan_target_size,

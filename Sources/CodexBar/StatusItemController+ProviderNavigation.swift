@@ -31,7 +31,7 @@ extension StatusItemController {
     private func refreshProviderSelectionRendering() {
         self.updateAnimationState()
         self.updateBlinkingState()
-        let phase: Double? = self.needsMenuBarIconAnimation() ? self.animationPhase : nil
+        let phase: Double? = self.activeLoadingAnimationPhase()
         self.applyIcon(phase: phase)
     }
 
