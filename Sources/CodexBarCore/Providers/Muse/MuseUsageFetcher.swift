@@ -293,15 +293,22 @@ public struct MuseUsageFetcher: Sendable {
             let id: String?
             let name: String?
         }
+        // Require explicit data/models array — {} with no array is malformed and must not be treated as valid auth
         let dec = JSONDecoder()
         if let r = try? dec.decode(ModelsResponse.self, from: data) {
-            return r.data?.count ?? r.models?.count
+            if let c = r.data?.count ?? r.models?.count {
+                return c
+            }
+            // Both arrays absent → malformed payload, not a valid models list
+            throw MuseUsageError.parseFailed("Models response missing data/models array")
         }
         if let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
             if let arr = obj["data"] as? [Any] { return arr.count }
             if let arr = obj["models"] as? [Any] { return arr.count }
+            // No recognizable array → malformed
+            throw MuseUsageError.parseFailed("Models response missing data/models array")
         }
-        return nil
+        throw MuseUsageError.parseFailed("Invalid models JSON")
     }
 
     public static func resolveBaseURL(string: String?) -> URL {
