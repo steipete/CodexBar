@@ -199,7 +199,8 @@ public enum MuseWebUsageFetcher: Sendable {
     }
 
     static func parseUsageGraphQL(data: Data) throws -> UsageSnapshot? {
-        // Try JSON parse first
+        // Muse LLMD-C shape: data.team.{requests_metrics,input_token_metrics,output_token_metrics,spend_cost_metrics}
+        if let snap = parseTeamUsage(data: data) { return snap }
         guard let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return nil }
         /// Common Comet shape: {data: {viewer: {team: {usage: {...}}}}} or {data: {llmdc_usage: {...}}}
         /// We recursively search for token/cost keys.
@@ -257,6 +258,77 @@ public enum MuseWebUsageFetcher: Sendable {
             return Self.snapshot(from: metrics)
         }
         return nil
+    }
+
+    // MARK: - LLMD-C team usage (meta.ai)
+
+    static func parseTeamUsage(data: Data) -> UsageSnapshot? {
+        guard let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let dataDict = obj["data"] as? [String: Any],
+              let team = dataDict["team"] as? [String: Any] else { return nil }
+
+        func sumCategorical(in metricsKey: String, identifier: String) -> Double? {
+            guard let arr = team[metricsKey] as? [[String: Any]] else { return nil }
+            for entry in arr where (entry["identifier"] as? String) == identifier {
+                guard let cat = entry["categorical_data"] as? [[String: Any]] else { continue }
+                var sum: Double = 0
+                var hasValue = false
+                for point in cat {
+                    if let v = point["value"] as? Int { sum += Double(v); hasValue = true; continue }
+                    if let v = point["value"] as? Double { sum += v; hasValue = true; continue }
+                    if let dict = point["value"] as? [String: Any],
+                       let amt = dict["amount_with_offset"] as? String,
+                       let cents = Double(amt)
+                    {
+                        sum += cents / 100.0; hasValue = true; continue
+                    }
+                    if let dict = point["value"] as? [String: Any],
+                       let amt = dict["amount_with_offset"] as? Int
+                    {
+                        sum += Double(amt) / 100.0; hasValue = true
+                    }
+                }
+                if hasValue { return sum }
+            }
+            return nil
+        }
+
+        let requests = sumCategorical(in: "requests_metrics", identifier: "num_requests")
+        let promptTokens = sumCategorical(in: "input_token_metrics", identifier: "num_prompt_tokens")
+        let outputTokens = sumCategorical(in: "output_token_metrics", identifier: "num_completion_tokens")
+        let totalTokens = (promptTokens ?? 0) + (outputTokens ?? 0)
+        let cost = sumCategorical(in: "spend_cost_metrics", identifier: "usage_billable_cost")
+
+        guard requests != nil || promptTokens != nil || outputTokens != nil || cost != nil else { return nil }
+
+        var parts: [String] = []
+        if let r = requests { parts.append("\(Int(r)) requests") }
+        if totalTokens > 0 { parts.append("\(Int(totalTokens)) tokens") }
+        if let c = cost, c > 0 { parts.append(String(format: "$%.2f", c)) }
+        // Daily breakdown for the last value (today) — useful for quick glance
+        let todayRequests = (team["requests_metrics"] as? [[String: Any]])?
+            .first(where: { $0["identifier"] as? String == "num_requests" })?["categorical_data"] as? [[String: Any]]
+        _ = todayRequests
+        let login = parts.isEmpty ? "Team usage" : "Team usage: \(parts.joined(separator: " · "))"
+        let identity = ProviderIdentitySnapshot(
+            providerID: .muse,
+            accountEmail: nil,
+            accountOrganization: nil,
+            loginMethod: login)
+        // Surface totals as cost snapshot (balanceOnly provider — bars stay empty)
+        return UsageSnapshot(
+            primary: nil,
+            secondary: nil,
+            tertiary: nil,
+            providerCost: cost.map {
+                ProviderCostSnapshot(
+                    used: $0,
+                    limit: $0,
+                    currencyCode: "USD",
+                    updatedAt: Date())
+            },
+            updatedAt: Date(),
+            identity: identity)
     }
 
     private static func snapshot(from metrics: (tokens: Double?, cost: Double?, requests: Double?)) -> UsageSnapshot {
