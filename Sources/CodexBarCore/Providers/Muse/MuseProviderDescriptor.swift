@@ -140,25 +140,36 @@ struct MuseWebFetchStrategy: ProviderFetchStrategy {
             return self.makeResult(usage: usage, sourceLabel: "web")
         }
 
-        // Automatic: try cached header first, then fail to API fallback.
-        // Full browser import for dev.meta.ai (SweetCookieKit) will be wired once the
-        // Team usage XHR is reverse-engineered via a captured HAR. Until then, auto
-        // gracefully falls back to the API-key probe so the tile never goes stale.
-        if let cached = CookieHeaderCache.load(provider: .muse),
+        // Automatic: try cached header, then fresh browser import for dev.meta.ai
+        if let cached = CookieHeaderCache.load(provider: UsageProvider.muse),
            let header = CookieHeaderNormalizer.normalize(cached.cookieHeader)
         {
             do {
                 let usage = try await MuseWebUsageFetcher.fetchUsage(cookieHeader: header, timeout: context.webTimeout)
                 return self.makeResult(usage: usage, sourceLabel: "web")
-            } catch let error as MuseUsageError where error.localizedDescription.contains("No parseable") {
-                throw error
             } catch {
-                // Cached failed — clear and fall through to API fallback
-                CookieHeaderCache.clear(provider: .muse)
-                throw MuseUsageError
-                    .apiError("No dev.meta.ai session cookies found — sign in at dev.meta.ai in Chrome/Safari")
+                CookieHeaderCache.clear(provider: UsageProvider.muse)
             }
         }
+        #if os(macOS)
+        do {
+            let logger: ((String) -> Void)? = context.verbose ? { msg in CodexBarLog.logger(LogCategories.provider(
+                .muse,
+                scope: "web-usage")).verbose(msg) } : nil
+            if let session = try MuseCookieImporter.importCookieHeader(
+                browserDetection: context.browserDetection,
+                logger: logger),
+                let header = CookieHeaderNormalizer.normalize(session.cookieHeader)
+            {
+                CookieHeaderCache.store(
+                    provider: UsageProvider.muse,
+                    cookieHeader: header,
+                    sourceLabel: session.sourceLabel)
+                let usage = try await MuseWebUsageFetcher.fetchUsage(cookieHeader: header, timeout: context.webTimeout)
+                return self.makeResult(usage: usage, sourceLabel: "web")
+            }
+        } catch {}
+        #endif
         throw MuseUsageError.apiError("No dev.meta.ai session cookies found — sign in at dev.meta.ai in Chrome/Safari")
     }
 
