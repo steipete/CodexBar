@@ -113,6 +113,9 @@ public enum MuseWebUsageFetcher: Sendable {
         guard let variablesJSON = try? JSONSerialization.data(withJSONObject: variables),
               let variablesString = String(data: variablesJSON, encoding: .utf8) else { return nil }
 
+        // Fallbacks from verified 2026-08-15 HAR — required when HTML harvest fails (manual llm_sess header)
+        let fallbackLSD = "swTyN9fDdqKU_GTgO9R99v"
+        let fallbackDTSG = "NAfztM7dBcJpLZtKyHd2yP1ZxiMHdL1phWeJUuHvbBqWTSL1XGLJeqw:41:1786723018"
         var bodyParams: [String: String] = [
             "av": "1530727316779396",
             "__user": "0",
@@ -121,14 +124,14 @@ public enum MuseWebUsageFetcher: Sendable {
             "__hs": "20680.HYP:comet_plat_default_pkg.2.1...0",
             "dpr": "2",
             "__ccg": "EXCELLENT",
-            "__rev": rev ?? "1045266458",
+            "__rev": rev ?? "1045282065",
             "__s": "qd8x56:htjz0d:eqz030",
-            "__hsi": hsi ?? "7674111655354614736",
+            "__hsi": hsi ?? "7674254844748149098",
             "__comet_req": "71",
-            "fb_dtsg": fbDtsg ?? "",
+            "fb_dtsg": fbDtsg ?? fallbackDTSG,
             "jazoest": "25548",
-            "lsd": lsd ?? "Udy05zOkCC_e4JXEF5WQUL",
-            "__spin_r": rev ?? "1045266458",
+            "lsd": lsd ?? fallbackLSD,
+            "__spin_r": rev ?? "1045282065",
             "__spin_b": "trunk",
             "__spin_t": String(Int(Date().timeIntervalSince1970)),
             "fb_api_caller_class": "RelayModern",
