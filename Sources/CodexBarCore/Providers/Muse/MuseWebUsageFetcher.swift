@@ -283,17 +283,25 @@ public enum MuseWebUsageFetcher: Sendable {
     // MARK: - Helpers for token extraction from HTML
 
     static func extractTeamId(from html: String) -> String? {
-        // team_id=3747295692075251 or "teamId":"374..." or team_id": "374..."
+        // Handles: team_id=374..., "teamId":"374...", "teamId":374..., team_id:374..., teamId%3D374...
         let patterns = [
             #"team_id=(\d{5,})"#,
-            #""teamId"\s*:\s*"(\d+)""#,
-            #""team_id"\s*:\s*"(\d+)""#,
-            #"teamId\\":\\"(\d+)""#,
+            #"team_id%3D(\d{5,})"#,
+            #""teamId"\s*:\s*"?(\d{5,})"?""#,
+            #""team_id"\s*:\s*"?(\d{5,})"?""#,
+            #"teamId\\":\\?"?(\d{5,})\\?""#,
+            #"team_id\\":\\?"?(\d{5,})\\?""#,
+            #"\bteamId\b[^0-9]{0,20}(\d{10,})"#,
+            #"\bteam_id\b[^0-9]{0,20}(\d{10,})"#,
         ]
         for pat in patterns {
             if let r = html.range(of: pat, options: .regularExpression) {
                 let sub = String(html[r])
-                if let m = sub.range(of: #"\d{5,}"#, options: .regularExpression) { return String(sub[m]) }
+                if let m = sub.range(of: #"\d{10,}"#, options: .regularExpression) {
+                    let candidate = String(sub[m])
+                    // Avoid tiny IDs (5 digits) — real team_ids are ~16 digits
+                    if candidate.count >= 10 { return candidate }
+                }
             }
         }
         return nil
