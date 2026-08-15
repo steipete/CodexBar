@@ -15,7 +15,7 @@ struct UsageCommandContext {
     let resetStyle: ResetTimeDisplayStyle
     let weeklyWorkDays: Int?
     let jsonOnly: Bool
-    let includeAllCodexAccounts: Bool
+    var includeAllAccounts: Bool
     let fetcher: UsageFetcher
     let claudeFetcher: ClaudeUsageFetcher
     let browserDetection: BrowserDetection
@@ -41,6 +41,8 @@ private struct UsageSuccessRenderInput {
     let provider: UsageProvider
     let accountLabel: String?
     let cacheAccountKey: String?
+    let accountIsActive: Bool?
+    let accountCollectionError: String?
     let version: String?
     let source: String
     let status: ProviderStatusPayload?
@@ -179,7 +181,7 @@ extension CodexBarCLI {
             resetStyle: resetStyle,
             weeklyWorkDays: weeklyWorkDays,
             jsonOnly: output.jsonOnly,
-            includeAllCodexAccounts: tokenSelection.allAccounts && providerList == [.codex],
+            includeAllAccounts: tokenSelection.allAccounts,
             fetcher: fetcher,
             claudeFetcher: claudeFetcher,
             browserDetection: browserDetection,
@@ -257,16 +259,22 @@ extension CodexBarCLI {
         tokenContext: TokenAccountCLIContext,
         command: UsageCommandContext) async -> UsageCommandOutput
     {
-        // Provider-specific by design: Codex can enumerate reconciled live, managed, and profile-home accounts.
-        if provider == .codex, command.includeAllCodexAccounts {
+        // Provider-specific by design: Codex reconciles accounts beyond token-account config.
+        if provider == .codex, command.includeAllAccounts {
             var output = UsageCommandOutput()
-            let accounts = tokenContext.visibleCodexAccounts().visibleAccounts
+            let projection = tokenContext.visibleCodexAccounts()
+            let accounts = projection.visibleAccounts
+            let accountCollectionError = projection.hasUnreadableAddedAccountStore
+                ? "Managed Codex account storage is unreadable."
+                : nil
             let selections: [CodexVisibleAccount?] = accounts.isEmpty ? [nil] : accounts.map { Optional($0) }
             for visibleAccount in selections {
                 let result = await Self.fetchUsageOutput(
                     provider: provider,
                     account: nil,
                     codexVisibleAccount: visibleAccount,
+                    accountIsActive: visibleAccount.map { projection.activeVisibleAccountID == $0.id },
+                    accountCollectionError: accountCollectionError,
                     status: status,
                     tokenContext: tokenContext,
                     command: command)
@@ -277,7 +285,9 @@ extension CodexBarCLI {
 
         let accounts: [ProviderTokenAccount]
         do {
-            accounts = try tokenContext.resolvedAccounts(for: provider)
+            accounts = try tokenContext.resolvedAccounts(
+                for: provider,
+                includeAllAccounts: command.includeAllAccounts)
         } catch {
             return Self.usageOutputForAccountResolutionError(
                 provider: provider,
@@ -288,6 +298,7 @@ extension CodexBarCLI {
 
         let selections = Self.accountSelections(from: accounts)
         var output = UsageCommandOutput()
+        let activeAccountID = tokenContext.activeConfiguredAccountID(for: provider)
         let accountRefreshDelay = TokenAccountSupportCatalog
             .support(for: provider)?.minimumDelayBetweenAccountRefreshes
         for (index, account) in selections.enumerated() {
@@ -301,6 +312,7 @@ extension CodexBarCLI {
             let result = await Self.fetchUsageOutput(
                 provider: provider,
                 account: account,
+                accountIsActive: account.map { activeAccountID == $0.id },
                 status: status,
                 tokenContext: tokenContext,
                 command: command)
@@ -348,6 +360,8 @@ extension CodexBarCLI {
         provider: UsageProvider,
         accountLabel: String?,
         cacheAccountKey: String?,
+        accountIsActive: Bool?,
+        accountCollectionError: String?,
         version: String?,
         source: String,
         status: ProviderStatusPayload?,
@@ -362,6 +376,8 @@ extension CodexBarCLI {
             provider: provider,
             account: accountLabel,
             cacheAccountKey: cacheAccountKey,
+            accountIsActive: accountIsActive,
+            accountCollectionError: accountCollectionError,
             version: version,
             source: source,
             status: status,
@@ -418,6 +434,8 @@ extension CodexBarCLI {
                 provider: input.provider,
                 accountLabel: input.accountLabel,
                 cacheAccountKey: input.cacheAccountKey,
+                accountIsActive: input.accountIsActive,
+                accountCollectionError: input.accountCollectionError,
                 version: input.version,
                 source: input.source,
                 status: input.status,
@@ -434,6 +452,8 @@ extension CodexBarCLI {
         provider: UsageProvider,
         account: ProviderTokenAccount?,
         codexVisibleAccount: CodexVisibleAccount? = nil,
+        accountIsActive: Bool? = nil,
+        accountCollectionError: String? = nil,
         status: ProviderStatusPayload?,
         tokenContext: TokenAccountCLIContext,
         command: UsageCommandContext) async -> UsageCommandOutput
@@ -470,7 +490,9 @@ extension CodexBarCLI {
                 provider: provider,
                 account: (
                     label: account?.label ?? codexVisibleAccount?.menuDisplayName,
-                    cacheKey: cacheAccountKey),
+                    cacheKey: cacheAccountKey,
+                    isActive: accountIsActive,
+                    collectionError: accountCollectionError),
                 source: effectiveSourceMode.rawValue,
                 status: status,
                 command: command)
@@ -539,6 +561,8 @@ extension CodexBarCLI {
                     provider: provider,
                     accountLabel: account?.label ?? codexVisibleAccount?.menuDisplayName,
                     cacheAccountKey: cacheAccountKey,
+                    accountIsActive: accountIsActive,
+                    accountCollectionError: accountCollectionError,
                     version: version,
                     source: source,
                     status: status,
@@ -558,6 +582,8 @@ extension CodexBarCLI {
                     provider: provider,
                     account: account?.label ?? codexVisibleAccount?.menuDisplayName,
                     cacheAccountKey: cacheAccountKey,
+                    accountIsActive: accountIsActive,
+                    accountCollectionError: accountCollectionError,
                     source: effectiveSourceMode.rawValue,
                     status: status,
                     error: error,
@@ -671,7 +697,7 @@ extension CodexBarCLI {
 
     private static func webSourceUnsupportedOutput(
         provider: UsageProvider,
-        account: (label: String?, cacheKey: String?),
+        account: (label: String?, cacheKey: String?, isActive: Bool?, collectionError: String?),
         source: String,
         status: ProviderStatusPayload?,
         command: UsageCommandContext) -> UsageCommandOutput
@@ -688,6 +714,8 @@ extension CodexBarCLI {
                 provider: provider,
                 account: account.label,
                 cacheAccountKey: account.cacheKey,
+                accountIsActive: account.isActive,
+                accountCollectionError: account.collectionError,
                 source: source,
                 status: status,
                 error: error,

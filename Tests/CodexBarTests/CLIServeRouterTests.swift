@@ -29,18 +29,22 @@ struct CLIServeRouterTests {
     }
 
     @Test
-    func `usage operation fingerprint separates dashboard account mode`() {
+    func `usage operation fingerprint separates account collection mode`() {
         let allAccounts = CodexBarCLI.serveUsageOperationFingerprint(
             configFingerprint: "config",
-            includeAllCodexAccounts: true)
+            includeAllAccounts: true)
         let selectedAccount = CodexBarCLI.serveUsageOperationFingerprint(
             configFingerprint: "config",
-            includeAllCodexAccounts: false)
+            includeAllAccounts: false)
 
         #expect(allAccounts != selectedAccount)
         #expect(allAccounts == CodexBarCLI.serveUsageOperationFingerprint(
             configFingerprint: "config",
-            includeAllCodexAccounts: true))
+            includeAllAccounts: true))
+        #expect(allAccounts != CodexBarCLI.serveUsageOperationFingerprint(
+            configFingerprint: "config",
+            includeAllAccounts: true,
+            selectedAccountOnlyProviders: [.claude]))
     }
 
     @Test

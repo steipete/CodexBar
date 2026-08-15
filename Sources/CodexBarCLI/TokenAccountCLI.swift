@@ -66,7 +66,10 @@ struct TokenAccountCLIContext {
         }
     }
 
-    func resolvedAccounts(for provider: UsageProvider) throws -> [ProviderTokenAccount] {
+    func resolvedAccounts(
+        for provider: UsageProvider,
+        includeAllAccounts: Bool = false) throws -> [ProviderTokenAccount]
+    {
         guard TokenAccountSupportCatalog.support(for: provider) != nil else { return [] }
         guard let data = self.accountsByProvider[provider], !data.accounts.isEmpty else {
             if self.selection.usesOverride {
@@ -75,7 +78,7 @@ struct TokenAccountCLIContext {
             return []
         }
 
-        if self.selection.allAccounts {
+        if includeAllAccounts || self.selection.allAccounts {
             return data.accounts
         }
 
@@ -96,6 +99,11 @@ struct TokenAccountCLIContext {
 
         let clamped = data.clampedActiveIndex()
         return [data.accounts[clamped]]
+    }
+
+    func activeConfiguredAccountID(for provider: UsageProvider) -> UUID? {
+        guard let data = self.accountsByProvider[provider], !data.accounts.isEmpty else { return nil }
+        return data.accounts[data.clampedActiveIndex()].id
     }
 
     func settingsSnapshot(

@@ -179,7 +179,8 @@ struct ServeUsageContext: Sendable {
     let providerTimeout: TimeInterval?
     let providerDeadline: ContinuousClock.Instant?
     let providerOperations: CLIServeOperationCoordinator<UsageCommandOutput>
-    let includeAllCodexAccounts: Bool
+    let includeAllAccounts: Bool
+    let selectedAccountOnlyProviders: Set<UsageProvider>
     let persistCLISessions: Bool
 
     init(
@@ -189,7 +190,8 @@ struct ServeUsageContext: Sendable {
         providerTimeout: TimeInterval?,
         providerDeadline: ContinuousClock.Instant?,
         providerOperations: CLIServeOperationCoordinator<UsageCommandOutput>,
-        includeAllCodexAccounts: Bool = true,
+        includeAllAccounts: Bool = true,
+        selectedAccountOnlyProviders: Set<UsageProvider> = [],
         persistCLISessions: Bool = true)
     {
         self.config = config
@@ -198,7 +200,8 @@ struct ServeUsageContext: Sendable {
         self.providerTimeout = providerTimeout
         self.providerDeadline = providerDeadline
         self.providerOperations = providerOperations
-        self.includeAllCodexAccounts = includeAllCodexAccounts
+        self.includeAllAccounts = includeAllAccounts
+        self.selectedAccountOnlyProviders = selectedAccountOnlyProviders
         self.persistCLISessions = persistCLISessions
     }
 }
@@ -997,7 +1000,10 @@ extension CodexBarCLI {
                                 providerTimeout: providerTimeout,
                                 providerDeadline: providerDeadline,
                                 providerOperations: runtime.providerOperations,
-                                includeAllCodexAccounts: false),
+                                selectedAccountOnlyProviders: Self.dashboardClaudeSwapIsEligible(
+                                    config: snapshot.config)
+                                    ? [.claude]
+                                    : []),
                             costCollection: ServeCostCollectionContext(
                                 configFingerprint: snapshot.cacheToken,
                                 providerTimeout: providerTimeout,
@@ -1267,7 +1273,7 @@ extension CodexBarCLI {
             resetStyle: Self.resetTimeDisplayStyleFromDefaults(),
             weeklyWorkDays: Self.weeklyProgressWorkDaysFromDefaults(),
             jsonOnly: true,
-            includeAllCodexAccounts: context.includeAllCodexAccounts,
+            includeAllAccounts: context.includeAllAccounts,
             fetcher: UsageFetcher(),
             claudeFetcher: ClaudeUsageFetcher(browserDetection: browserDetection),
             browserDetection: browserDetection,
@@ -1279,25 +1285,32 @@ extension CodexBarCLI {
             providers: selection.asList,
             configFingerprint: Self.serveUsageOperationFingerprint(
                 configFingerprint: context.configFingerprint,
-                includeAllCodexAccounts: context.includeAllCodexAccounts),
+                includeAllAccounts: context.includeAllAccounts,
+                selectedAccountOnlyProviders: context.selectedAccountOnlyProviders),
             deadline: context.providerDeadline,
             operations: context.providerOperations)
         { provider in
-            await ProviderInteractionContext.$current.withValue(.background) {
+            var scopedCommand = command
+            scopedCommand.includeAllAccounts = context.includeAllAccounts
+                && !context.selectedAccountOnlyProviders.contains(provider)
+            let providerCommand = scopedCommand
+            return await ProviderInteractionContext.$current.withValue(.background) {
                 await Self.fetchUsageOutputs(
                     provider: provider,
                     status: nil,
                     tokenContext: tokenContext,
-                    command: command)
+                    command: providerCommand)
             }
         }
     }
 
     static func serveUsageOperationFingerprint(
         configFingerprint: String,
-        includeAllCodexAccounts: Bool) -> String
+        includeAllAccounts: Bool,
+        selectedAccountOnlyProviders: Set<UsageProvider> = []) -> String
     {
-        "\(configFingerprint):codex-accounts=\(includeAllCodexAccounts ? "all" : "selected")"
+        let selectedOnly = selectedAccountOnlyProviders.map(\.rawValue).sorted().joined(separator: ",")
+        return "\(configFingerprint):accounts=\(includeAllAccounts ? "all" : "selected"):selected-only=\(selectedOnly)"
     }
 
     /// Adapts the shared dashboard snapshot producer to the authenticated HTTP

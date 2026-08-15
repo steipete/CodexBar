@@ -217,6 +217,8 @@ extension CodexBarCLI {
           beyond a trusted network segment.
           Snapshot identity defaults to full account emails. --identity redacted hides
           email local parts and is recommended whenever responses cross a network.
+          /usage fetches every configured account; dashboard snapshots nest providers
+          with multiple accounts under providers[].accounts.
 
         Endpoints:
           GET /                    Built-in web dashboard

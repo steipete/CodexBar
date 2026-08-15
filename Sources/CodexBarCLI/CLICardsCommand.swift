@@ -167,7 +167,7 @@ extension CodexBarCLI {
             resetStyle: resetStyle,
             weeklyWorkDays: weeklyWorkDays,
             jsonOnly: output.jsonOnly,
-            includeAllCodexAccounts: tokenSelection.allAccounts && providerList == [.codex],
+            includeAllAccounts: tokenSelection.allAccounts,
             fetcher: fetcher,
             claudeFetcher: claudeFetcher,
             browserDetection: browserDetection,

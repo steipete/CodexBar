@@ -1,4 +1,5 @@
 import CodexBarCore
+import Crypto
 import Foundation
 
 struct DashboardClaudeSwapInput {
@@ -17,6 +18,11 @@ enum DashboardSnapshotBuilder {
         let display: DashboardDisplayPayload
     }
 
+    private struct ProviderUsageGroup {
+        let id: String
+        var payloads: [ProviderPayload]
+    }
+
     // swiftlint:disable:next function_parameter_count
     static func makeSnapshot(
         usagePayloads: [ProviderPayload],
@@ -32,21 +38,20 @@ enum DashboardSnapshotBuilder {
         for cost in costPayloads {
             costByProvider[cost.provider] = cost
         }
-        var attachedClaudeSwap = false
-        let providers = usagePayloads.enumerated().map { index, payload in
-            var rowClaudeSwap: DashboardClaudeSwapInput?
-            // Provider-specific by design: claude-swap account data belongs only on the first Claude row.
-            if !attachedClaudeSwap, UsageProvider(rawValue: payload.provider) == .claude {
-                rowClaudeSwap = claudeSwap
-                attachedClaudeSwap = true
-            }
+        let usageGroups = self.groupUsagePayloads(usagePayloads)
+        let providers = usageGroups.enumerated().map { index, group in
+            let payload = group.payloads.first { $0.accountIsActive == true } ?? group.payloads[0]
+            // Provider-specific by design: claude-swap remains Claude's preferred account source when enabled.
+            let rowClaudeSwap = UsageProvider(rawValue: group.id) == .claude ? claudeSwap : nil
             let presentation = self.providerPresentation(
-                id: payload.provider,
+                id: group.id,
                 config: config,
                 fallbackSortKey: 10000 + index)
             return self.makeProvider(
                 payload: payload,
-                cost: costByProvider[payload.provider],
+                accountPayloads: group.payloads,
+                cost: costByProvider[group.id],
+                config: config,
                 presentation: presentation,
                 identityMode: identityMode,
                 generatedAt: generatedAt,
@@ -62,6 +67,20 @@ enum DashboardSnapshotBuilder {
                 codexBarVersion: codexBarVersion,
                 refreshIntervalSeconds: refreshSeconds),
             providers: providers)
+    }
+
+    private static func groupUsagePayloads(_ payloads: [ProviderPayload]) -> [ProviderUsageGroup] {
+        var groups: [ProviderUsageGroup] = []
+        var indexByProvider: [String: Int] = [:]
+        for payload in payloads {
+            if let index = indexByProvider[payload.provider] {
+                groups[index].payloads.append(payload)
+            } else {
+                indexByProvider[payload.provider] = groups.count
+                groups.append(ProviderUsageGroup(id: payload.provider, payloads: [payload]))
+            }
+        }
+        return groups
     }
 
     static func makeShellSnapshot(
@@ -109,7 +128,9 @@ enum DashboardSnapshotBuilder {
     // swiftlint:disable:next function_parameter_count
     private static func makeProvider(
         payload: ProviderPayload,
+        accountPayloads: [ProviderPayload],
         cost: CostPayload?,
+        config: CodexBarConfig,
         presentation: ProviderPresentation,
         identityMode: DashboardIdentityMode,
         generatedAt: Date,
@@ -120,15 +141,37 @@ enum DashboardSnapshotBuilder {
         let metadata = descriptor?.metadata
 
         let error = payload.error ?? cost?.error
-        let accounts = claudeSwap?.adapterError == nil
-            ? claudeSwap?.accounts?.map { account in
-                self.makeClaudeSwapAccount(
-                    account,
-                    identityMode: identityMode,
-                    weeklyWorkDays: claudeSwap?.weeklyWorkDays,
-                    generatedAt: generatedAt)
-            }
-            : nil
+        let accounts: [DashboardAccountPayload]?
+        let accountsError: String?
+        if let claudeSwap {
+            accounts = claudeSwap.adapterError == nil
+                ? claudeSwap.accounts?.map { account in
+                    self.makeClaudeSwapAccount(
+                        account,
+                        identityMode: identityMode,
+                        weeklyWorkDays: claudeSwap.weeklyWorkDays,
+                        generatedAt: generatedAt)
+                }
+                : nil
+            accountsError = claudeSwap.adapterError
+        } else {
+            let expectedAccountCount = provider.flatMap {
+                config.providerConfig(for: $0.instanceID)?.tokenAccounts?.accounts.count
+            } ?? 0
+            let shouldProjectAccounts = accountPayloads.count > 1 || expectedAccountCount > 1
+            accounts = shouldProjectAccounts
+                ? accountPayloads.enumerated().map { index, accountPayload in
+                    self.makeAccount(
+                        accountPayload,
+                        index: index,
+                        identityMode: identityMode)
+                }
+                : nil
+            accountsError = accountPayloads.compactMap(\.accountCollectionError).first
+                ?? (expectedAccountCount > accountPayloads.count
+                    ? "Failed to collect usage for every configured account."
+                    : nil)
+        }
         return DashboardProviderPayload(
             id: presentation.id,
             name: presentation.name,
@@ -147,7 +190,44 @@ enum DashboardSnapshotBuilder {
                 error: error,
                 generatedAt: generatedAt),
             accounts: accounts,
-            accountsError: claudeSwap?.adapterError)
+            accountsError: accountsError)
+    }
+
+    private static func makeAccount(
+        _ payload: ProviderPayload,
+        index: Int,
+        identityMode: DashboardIdentityMode) -> DashboardAccountPayload
+    {
+        let provider = UsageProvider(rawValue: payload.provider)
+        let metadata = provider.map { ProviderDescriptorRegistry.descriptor(for: $0).metadata }
+        let rawIdentifier = payload.cacheAccountKey
+            ?? "\(payload.provider):\(payload.account ?? "account-\(index + 1)")"
+        let identifier = SHA256.hash(data: Data(rawIdentifier.utf8))
+            .map { String(format: "%02x", $0) }
+            .joined()
+        return DashboardAccountPayload(
+            id: "account:\(identifier)",
+            label: self.dashboardAccountLabel(payload.account, index: index, mode: identityMode),
+            active: payload.accountIsActive == true,
+            identity: self.makeIdentity(provider: provider, usage: payload.usage, mode: identityMode),
+            windows: self.makeWindows(provider: provider, metadata: metadata, usage: payload.usage),
+            pace: payload.pace,
+            error: payload.error?.message,
+            updatedAt: payload.usage?.updatedAt)
+    }
+
+    private static func dashboardAccountLabel(
+        _ rawLabel: String?,
+        index: Int,
+        mode: DashboardIdentityMode) -> String
+    {
+        let fallback = "Account \(index + 1)"
+        guard mode != .none,
+              let label = rawLabel?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !label.isEmpty
+        else { return fallback }
+        guard mode == .redacted, label.contains("@") else { return label }
+        return self.dashboardEmail(label, mode: mode) ?? fallback
     }
 
     private static func providerPresentation(

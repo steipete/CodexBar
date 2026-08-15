@@ -8,6 +8,10 @@ struct ProviderPayload: Encodable {
     let provider: String
     let account: String?
     let cacheAccountKey: String?
+    /// Internal account-selection metadata for dashboard projection. This is deliberately
+    /// excluded from the public `/usage` payload, whose schema remains unchanged.
+    let accountIsActive: Bool?
+    let accountCollectionError: String?
     let version: String?
     let source: String
     let status: ProviderStatusPayload?
@@ -38,6 +42,8 @@ struct ProviderPayload: Encodable {
         provider: UsageProvider,
         account: String?,
         cacheAccountKey: String? = nil,
+        accountIsActive: Bool? = nil,
+        accountCollectionError: String? = nil,
         version: String?,
         source: String,
         status: ProviderStatusPayload?,
@@ -52,6 +58,8 @@ struct ProviderPayload: Encodable {
         self.provider = provider.rawValue
         self.account = account
         self.cacheAccountKey = cacheAccountKey
+        self.accountIsActive = accountIsActive
+        self.accountCollectionError = accountCollectionError
         self.version = version
         self.source = source
         self.status = status
@@ -68,6 +76,8 @@ struct ProviderPayload: Encodable {
         providerID: String,
         account: String?,
         cacheAccountKey: String? = nil,
+        accountIsActive: Bool? = nil,
+        accountCollectionError: String? = nil,
         version: String?,
         source: String,
         status: ProviderStatusPayload?,
@@ -82,6 +92,8 @@ struct ProviderPayload: Encodable {
         self.provider = providerID
         self.account = account
         self.cacheAccountKey = cacheAccountKey
+        self.accountIsActive = accountIsActive
+        self.accountCollectionError = accountCollectionError
         self.version = version
         self.source = source
         self.status = status

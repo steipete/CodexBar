@@ -211,7 +211,9 @@ extension CodexBarCLI {
                     startedAt: startedAt,
                     requestTimeout: timeout),
                 providerOperations: providerOperations,
-                includeAllCodexAccounts: false,
+                selectedAccountOnlyProviders: Self.dashboardClaudeSwapIsEligible(config: configSnapshot.config)
+                    ? [.claude]
+                    : [],
                 persistCLISessions: false),
             costCollection: ServeCostCollectionContext(
                 configFingerprint: configSnapshot.cacheToken,

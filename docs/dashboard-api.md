@@ -192,15 +192,19 @@ The snapshot is a stable display contract, not a raw dump of provider internals.
 }
 ```
 
-### Multi-account providers (claude-swap)
+### Multi-account providers
 
-When the claude-swap integration is enabled, the Claude provider row additionally includes an `accounts` array. This
-is an additive schema-v1 extension: other provider rows and Claude rows without the integration keep their existing
-shape. An account's `label` is its email when known and otherwise falls back to its slot label; `identity` is present
-whenever claude-swap reports an email, independently of whether that account's usage fetch succeeds. Both fields follow
-the dashboard identity mode: full by default, or redacted with `--identity redacted`.
-A failure limited to one account stays in that account's `error`; a failure of the whole adapter sets `accountsError`
-while leaving the ambient Claude row intact.
+When a provider has multiple configured token accounts, its provider row additionally includes an `accounts` array
+using the same account order and active selection as the app. Codex uses its reconciled visible accounts, including
+managed and profile-home accounts. A single-account provider keeps the previous shape without `accounts`.
+
+The opt-in claude-swap integration remains Claude's preferred account source when enabled. Its account `label` is the
+email when known and otherwise falls back to its slot label; `identity` is present whenever claude-swap reports an
+email, independently of whether that account's usage fetch succeeds. Account labels and identity follow the dashboard
+identity mode: full by default, or redacted with `--identity redacted`.
+
+A failure limited to one account stays in that account's `error`. A failure of the whole account collection sets
+`accountsError` while preserving the provider row and any account results already collected.
 
 ```json
 {
@@ -258,18 +262,18 @@ while leaving the ambient Claude row intact.
 - `providers[].display`: UI hints for ordering and coloring.
 - `providers[].error`: Provider error payload when the latest fetch failed.
 - `providers[].updatedAt`: Best-known update timestamp for the provider row.
-- `providers[].accounts`: Ordered local multi-account entries when an integration supplies them; an enabled source
-  with no accounts emits `[]`.
-  - `id`: Stable source and slot identifier, such as `claude-swap:2`.
+- `providers[].accounts`: Ordered local multi-account entries. The field is absent for single-account providers; an
+  enabled claude-swap source with no accounts emits `[]`.
+  - `id`: Stable opaque account identifier. Claude-swap retains its source and slot form, such as `claude-swap:2`.
   - `label`: Account email when known, otherwise a slot label such as `Account 2`; email labels follow the dashboard
     identity mode.
   - `active`: Whether this is the source's active account.
-  - `identity`: Account email with a `null` plan whenever claude-swap reports one, even if usage fetching fails;
-    otherwise `null`. The email local part is hidden only in redacted mode.
+  - `identity`: Account email and plan when available, or `null`. Claude-swap reports a `null` plan. The email local
+    part is hidden only in redacted mode.
   - `windows`: Account-local session, weekly, and scoped windows in the same shape as `providers[].windows`.
   - `pace`: Account-local primary, secondary, and tertiary pace values when computable. Each pace value contains
     `stage`, `deltaPercent`, `expectedUsedPercent`, `willLastToReset`, `etaSeconds`, `runOutProbability`, and `summary`.
   - `error`: Account-local diagnostic, or `null`.
   - `updatedAt`: Account snapshot update timestamp, or `null`.
-- `providers[].accountsError`: Whole-adapter diagnostic when account collection fails; `accounts` is then absent and
-  the ambient provider data remains available.
+- `providers[].accountsError`: Account-collection diagnostic when the full configured account set cannot be projected;
+  provider data and any collected account rows remain available.

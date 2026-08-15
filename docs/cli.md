@@ -181,11 +181,13 @@ The CLI reads multi-account tokens from the same resolved config file as the app
 - Select by index (1-based): `--account-index <n>`.
 - Fetch all accounts for the provider: `--all-accounts`.
 Account selection flags require a single provider (`--provider claude`, etc.).
+`codexbar serve` fetches every configured token account for `/usage` and projects providers with multiple accounts into
+`providers[].accounts` in `/dashboard/v1/snapshot`.
 For Claude, token accounts accept either `sessionKey` cookies or OAuth access tokens (`sk-ant-oat...`).
 OAuth usage requires the `user:profile` scope; inference-only tokens will return an error.
 
 ### Codex accounts
-For Codex, `--all-accounts` and `codexbar serve` enumerate the same visible accounts as the app switcher:
+For Codex, `--all-accounts` and `codexbar serve` enumerate the same reconciled visible accounts as the app switcher:
 managed Codex accounts from `managed-codex-accounts.json` plus the live system account when present.
 Each fetch is scoped to that account's Codex home before the normal Codex web/OAuth/CLI strategy runs, and JSON
 payloads include the visible account label in `account`.
