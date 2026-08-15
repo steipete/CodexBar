@@ -104,7 +104,8 @@ public enum DeepSeekProviderDescriptor {
                 widgetColor: ProviderColor(red: 82 / 255, green: 125 / 255, blue: 240 / 255)),
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
-                noDataMessage: { "DeepSeek per-day cost history is not available via API." }),
+                noDataMessage: { "DeepSeek per-day cost history is not available via API." },
+                supportsTokenSnapshot: true),
             presentation: ProviderUsagePresentation(
                 menuCard: ProviderMenuCardPresentation(
                     usageNotesResolver: { context in
@@ -144,7 +145,8 @@ public enum DeepSeekProviderDescriptor {
             cli: ProviderCLIConfig(
                 name: "deepseek",
                 aliases: ["deep-seek", "ds"],
-                versionDetector: nil),
+                versionDetector: nil,
+                supportsCostCommand: true),
             configNormalizer: { config in
                 config.deepseekProfileID = config.sanitizedDeepSeekProfileID
                 config.deepseekProfileScope = config.sanitizedDeepSeekProfileScope

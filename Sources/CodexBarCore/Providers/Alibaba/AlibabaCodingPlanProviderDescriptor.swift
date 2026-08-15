@@ -82,7 +82,8 @@ public enum AlibabaCodingPlanProviderDescriptor {
                 ]),
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
-                noDataMessage: { "Alibaba Coding Plan cost summary is not supported." }),
+                noDataMessage: { "Alibaba Coding Plan cost summary is not supported." },
+                supportsTokenSnapshot: true),
             pace: .calendarMonthResetWindow,
             presentation: ProviderUsagePresentation(
                 primaryBindingQuotaLanes: [.secondary, .tertiary],
@@ -93,7 +94,8 @@ public enum AlibabaCodingPlanProviderDescriptor {
             cli: ProviderCLIConfig(
                 name: "alibaba-coding-plan",
                 aliases: ["alibaba", "bailian"],
-                versionDetector: nil))
+                versionDetector: nil,
+                supportsCostCommand: true))
     }
 
     private static func resolveStrategies(context: ProviderFetchContext) async -> [any ProviderFetchStrategy] {

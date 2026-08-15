@@ -91,7 +91,8 @@ public enum ZaiProviderDescriptor {
                 ]),
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
-                noDataMessage: { "z.ai cost summary is not supported." }),
+                noDataMessage: { "z.ai cost summary is not supported." },
+                supportsTokenSnapshot: true),
             pace: ProviderPaceCapability(
                 resetWindowPace: .custom { window, _ in
                     Self.isMonthlyMCPWindow(window)
@@ -118,7 +119,8 @@ public enum ZaiProviderDescriptor {
             cli: ProviderCLIConfig(
                 name: "zai",
                 aliases: ["z.ai"],
-                versionDetector: nil))
+                versionDetector: nil,
+                supportsCostCommand: true))
     }
 
     private static func isMonthlyMCPWindow(_ window: RateWindow) -> Bool {

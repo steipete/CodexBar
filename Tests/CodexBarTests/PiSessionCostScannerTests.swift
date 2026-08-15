@@ -1301,6 +1301,138 @@ extension PiSessionCostScannerTests {
         #expect(expandedReport.summary?.totalTokens == 45)
     }
 
+    @Test
+    func `pi scanner prices China provider sessions with provider scoped models dev catalogs`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+
+        let day = try env.makeLocalNoon(year: 2026, month: 7, day: 18)
+        let catalog = try Self.modelsDevCatalog("""
+        {
+          "alibaba": {
+            "id": "alibaba",
+            "models": {
+              "qwen3.7-max": { "id": "qwen3.7-max", "cost": { "input": 99, "output": 99 } }
+            }
+          },
+          "alibaba-coding-plan": {
+            "id": "alibaba-coding-plan",
+            "models": {
+              "qwen3.7-max": {
+                "id": "qwen3.7-max",
+                "cost": { "input": 0, "output": 0, "cache_read": 0, "cache_write": 0 }
+              }
+            }
+          },
+          "alibaba-token-plan": {
+            "id": "alibaba-token-plan",
+            "models": {
+              "qwen3.7-plus": { "id": "qwen3.7-plus", "cost": { "input": 1, "output": 3 } }
+            }
+          },
+          "zai": {
+            "id": "zai",
+            "models": {
+              "glm-5v-turbo": {
+                "id": "glm-5v-turbo",
+                "cost": { "input": 5, "output": 22, "cache_read": 1.2, "cache_write": 0 }
+              }
+            }
+          },
+          "zhipuai": {
+            "id": "zhipuai",
+            "models": {
+              "glm-5v-turbo": { "id": "glm-5v-turbo", "cost": { "input": 99, "output": 199 } }
+            }
+          },
+          "deepseek": {
+            "id": "deepseek",
+            "models": {
+              "deepseek-v4-pro": {
+                "id": "deepseek-v4-pro",
+                "cost": { "input": 0.435, "output": 0.87, "cache_read": 0.003625 }
+              }
+            }
+          }
+        }
+        """)
+        #expect(ModelsDevCache.save(catalog: catalog, fetchedAt: day, cacheRoot: env.cacheRoot))
+
+        func assistant(provider: String, model: String, usage: [String: Int]) -> [String: Any] {
+            [
+                "type": "message",
+                "timestamp": env.isoString(for: day),
+                "message": [
+                    "role": "assistant",
+                    "provider": provider,
+                    "model": model,
+                    "timestamp": Int(day.timeIntervalSince1970 * 1000),
+                    "usage": usage,
+                ],
+            ]
+        }
+
+        _ = try env.writePiSessionFile(
+            relativePath: "2026-07-18T10-00-00-000Z_china-models.jsonl",
+            contents: env.jsonl([
+                assistant(
+                    provider: "alibaba-coding-plan",
+                    model: "qwen3.7-max",
+                    usage: ["input": 100, "output": 50, "totalTokens": 150]),
+                assistant(
+                    provider: "alibaba-token-plan",
+                    model: "qwen3.7-plus",
+                    usage: ["input": 1_000_000, "output": 1_000_000, "totalTokens": 2_000_000]),
+                assistant(
+                    provider: "zai",
+                    model: "glm-5v-turbo",
+                    usage: ["input": 100, "cacheRead": 10, "cacheWrite": 20, "output": 50, "totalTokens": 180]),
+                assistant(
+                    provider: "deepseek",
+                    model: "deepseek-v4-pro",
+                    usage: ["input": 1000, "cacheRead": 100, "output": 500, "totalTokens": 1600]),
+            ]))
+
+        let options = PiSessionCostScanner.Options(
+            piSessionsRoot: env.piSessionsRoot,
+            cacheRoot: env.cacheRoot,
+            refreshMinIntervalSeconds: 0)
+
+        let alibaba = PiSessionCostScanner.loadDailyReport(
+            provider: .alibaba,
+            since: day,
+            until: day,
+            now: day,
+            options: options)
+        let tokenPlan = PiSessionCostScanner.loadDailyReport(
+            provider: .alibabatokenplan,
+            since: day,
+            until: day,
+            now: day,
+            options: options)
+        let zai = PiSessionCostScanner.loadDailyReport(
+            provider: .zai,
+            since: day,
+            until: day,
+            now: day,
+            options: options)
+        let deepSeek = PiSessionCostScanner.loadDailyReport(
+            provider: .deepseek,
+            since: day,
+            until: day,
+            now: day,
+            options: options)
+
+        #expect(alibaba.data.first?.totalTokens == 150)
+        #expect(alibaba.data.first?.costUSD == 0)
+        #expect(tokenPlan.data.first?.totalTokens == 2_000_000)
+        #expect(abs((tokenPlan.data.first?.costUSD ?? 0) - 4) < 0.0000001)
+        #expect(zai.data.first?.totalTokens == 180)
+        #expect(abs((zai.data.first?.costUSD ?? 0) - 0.001612) < 0.0000001)
+        #expect(deepSeek.data.first?.totalTokens == 1600)
+        #expect(abs((deepSeek.data.first?.costUSD ?? 0) - 0.0008703625) < 0.0000001)
+    }
+
     private static func modelsDevCatalog(inputCostPerMillion: Double) throws -> ModelsDevCatalog {
         let json = """
         {

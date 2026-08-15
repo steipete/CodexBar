@@ -53,6 +53,185 @@ struct ModelsDevPricingTests {
     }
 
     @Test
+    func `provider lookup resolves current China API models`() throws {
+        let catalog = try Self.catalog("""
+        {
+          "alibaba": {
+            "id": "alibaba",
+            "name": "Alibaba",
+            "models": {}
+          },
+          "alibaba-coding-plan": {
+            "id": "alibaba-coding-plan",
+            "name": "Alibaba Coding Plan",
+            "models": {
+              "qwen3.7-max": {
+                "id": "qwen3.7-max",
+                "name": "Qwen3.7 Max",
+                "cost": {
+                  "input": 2.5,
+                  "output": 7.5,
+                  "cache_read": 0.5,
+                  "cache_write": 3.125
+                },
+                "limit": {
+                  "context": 1000000
+                }
+              },
+              "qwen3.7-plus": {
+                "id": "qwen3.7-plus",
+                "name": "Qwen3.7 Plus",
+                "cost": {
+                  "input": 0.5,
+                  "output": 3,
+                  "cache_read": 0.05,
+                  "cache_write": 0.625
+                },
+                "limit": {
+                  "context": 1000000
+                }
+              }
+            }
+          },
+          "alibaba-token-plan": {
+            "id": "alibaba-token-plan",
+            "name": "Alibaba Token Plan",
+            "models": {
+              "qwen3.7-plus": {
+                "id": "qwen3.7-plus",
+                "name": "Qwen3.7 Plus",
+                "cost": {
+                  "input": 0,
+                  "output": 0,
+                  "cache_read": 0,
+                  "cache_write": 0
+                },
+                "limit": {
+                  "context": 1000000
+                }
+              }
+            }
+          },
+          "zai": {
+            "id": "zai",
+            "name": "z.ai",
+            "models": {
+              "glm-5v-turbo": {
+                "id": "glm-5v-turbo",
+                "name": "GLM-5V-Turbo",
+                "cost": {
+                  "input": 1.2,
+                  "output": 4,
+                  "cache_read": 0.24,
+                  "cache_write": 0
+                },
+                "limit": {
+                  "context": 200000
+                }
+              }
+            }
+          },
+          "deepseek": {
+            "id": "deepseek",
+            "name": "DeepSeek",
+            "models": {
+              "deepseek-v4-pro": {
+                "id": "deepseek-v4-pro",
+                "name": "DeepSeek V4 Pro",
+                "cost": {
+                  "input": 0.435,
+                  "output": 0.87,
+                  "cache_read": 0.003625
+                },
+                "limit": {
+                  "context": 1000000
+                }
+              }
+            }
+          }
+        }
+        """)
+
+        let qwenMax = try #require(CostUsagePricing.modelsDevPricing(
+            provider: .alibaba,
+            model: "qwen3.7-max",
+            catalog: catalog))
+        let qwenPlus = try #require(CostUsagePricing.modelsDevPricing(
+            provider: .alibabatokenplan,
+            model: "qwen3.7-plus",
+            catalog: catalog))
+        let glmTurbo = try #require(CostUsagePricing.modelsDevPricing(
+            provider: .zai,
+            model: "glm-5v-turbo",
+            catalog: catalog))
+        let deepSeekPro = try #require(CostUsagePricing.modelsDevPricing(
+            provider: .deepseek,
+            model: "deepseek-v4-pro",
+            catalog: catalog))
+
+        #expect(qwenMax.pricing.inputCostPerToken == 2.5 / 1_000_000.0)
+        #expect(qwenMax.pricing.cacheCreationInputCostPerToken == 3.125 / 1_000_000.0)
+        #expect(qwenMax.pricing.contextWindow == 1_000_000)
+        #expect(qwenPlus.pricing.modelName == "Qwen3.7 Plus")
+        #expect(qwenPlus.pricing.outputCostPerToken == 0)
+        #expect(glmTurbo.pricing.inputCostPerToken == 1.2 / 1_000_000.0)
+        #expect(glmTurbo.pricing.outputCostPerToken == 4 / 1_000_000.0)
+        #expect(glmTurbo.pricing.cacheCreationInputCostPerToken == 0)
+        #expect(deepSeekPro.pricing.inputCostPerToken == 0.435 / 1_000_000.0)
+        #expect(deepSeekPro.pricing.cacheReadInputCostPerToken == 0.003625 / 1_000_000.0)
+        #expect(CostUsagePricing.modelsDevPricing(
+            provider: .deepseek,
+            model: "qwen3.7-max",
+            catalog: catalog) == nil)
+    }
+
+    @Test
+    func `alibaba plan providers do not fall back to direct api pricing`() throws {
+        let catalog = try Self.catalog("""
+        {
+          "alibaba": {
+            "id": "alibaba",
+            "name": "Alibaba",
+            "models": {
+              "qwen3.7-max": {
+                "id": "qwen3.7-max",
+                "name": "Qwen3.7 Max",
+                "cost": {
+                  "input": 2.5,
+                  "output": 7.5,
+                  "cache_read": 0.5,
+                  "cache_write": 3.125
+                },
+                "limit": {
+                  "context": 1000000
+                }
+              }
+            }
+          },
+          "alibaba-coding-plan": {
+            "id": "alibaba-coding-plan",
+            "name": "Alibaba Coding Plan",
+            "models": {}
+          },
+          "alibaba-token-plan": {
+            "id": "alibaba-token-plan",
+            "name": "Alibaba Token Plan",
+            "models": {}
+          }
+        }
+        """)
+
+        #expect(CostUsagePricing.modelsDevPricing(
+            provider: .alibaba,
+            model: "qwen3.7-max",
+            catalog: catalog) == nil)
+        #expect(CostUsagePricing.modelsDevPricing(
+            provider: .alibabatokenplan,
+            model: "qwen3.7-max",
+            catalog: catalog) == nil)
+    }
+
+    @Test
     func `converts models dev per million token prices to per token prices`() throws {
         let pricing = try #require(try Self.fixtureCatalog().pricing(
             providerID: "anthropic",

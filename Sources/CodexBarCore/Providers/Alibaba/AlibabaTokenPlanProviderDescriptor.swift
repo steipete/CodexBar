@@ -93,7 +93,8 @@ public enum AlibabaTokenPlanProviderDescriptor {
                 ]),
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
-                noDataMessage: { "Alibaba Token Plan cost summary is not supported." }),
+                noDataMessage: { "Alibaba Token Plan cost summary is not supported." },
+                supportsTokenSnapshot: true),
             pace: .calendarMonthResetWindow,
             presentation: ProviderUsagePresentation(
                 primaryBindingQuotaLanes: [.secondary],
@@ -105,6 +106,7 @@ public enum AlibabaTokenPlanProviderDescriptor {
                 name: "alibaba-token-plan",
                 aliases: ["alibaba-token", "bailian-token-plan"],
                 versionDetector: nil,
+                supportsCostCommand: true,
                 browserSupportExemption: { _, _, settings in
                     // Manual cookies use plain URLSession; only browser import is platform-bound.
                     settings?.alibabaTokenPlan?.cookieSource == .manual
