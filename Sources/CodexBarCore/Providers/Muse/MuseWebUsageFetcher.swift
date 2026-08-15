@@ -308,16 +308,77 @@ public enum MuseWebUsageFetcher: Sendable {
         if let r = requests { parts.append("\(Int(r)) requests") }
         if totalTokens > 0 { parts.append("\(Int(totalTokens)) tokens") }
         if let c = cost, c > 0 { parts.append(String(format: "$%.2f", c)) }
-        // Daily breakdown for the last value (today) — useful for quick glance
-        let todayRequests = (team["requests_metrics"] as? [[String: Any]])?
-            .first(where: { $0["identifier"] as? String == "num_requests" })?["categorical_data"] as? [[String: Any]]
-        _ = todayRequests
         let login = parts.isEmpty ? "Team usage" : "Team usage: \(parts.joined(separator: " · "))"
         let identity = ProviderIdentitySnapshot(
             providerID: .muse,
             accountEmail: nil,
             accountOrganization: nil,
             loginMethod: login)
+
+        // Build daily history for detail view and tokenUsage sparkline
+        let dailyPoints: [(dayKey: String, totalTokens: Int?, costUSD: Double?)] = {
+            var byDay: [String: (tokens: Int?, cost: Double?)] = [:]
+            func collectTokens(_ key: String, _ ident: String) {
+                guard let arr = team[key] as? [[String: Any]] else { return }
+                for entry in arr where (entry["identifier"] as? String) == ident {
+                    guard let cat = entry["categorical_data"] as? [[String: Any]] else { continue }
+                    for p in cat {
+                        guard let k = p["category"] as? String else { continue }
+                        let v = p["value"]
+                        var tokens: Int?
+                        if let i = v as? Int { tokens = i }
+                        if tokens == nil, let d = v as? Double { tokens = Int(d) }
+                        let cur = byDay[k] ?? (nil, nil)
+                        byDay[k] = (tokens, cur.cost)
+                    }
+                }
+            }
+            func collectPrompt() {
+                collectTokens("input_token_metrics", "num_prompt_tokens")
+            }
+            func collectOutput() {
+                guard let arr = team["output_token_metrics"] as? [[String: Any]] else { return }
+                for entry in arr where (entry["identifier"] as? String) == "num_completion_tokens" {
+                    guard let cat = entry["categorical_data"] as? [[String: Any]] else { continue }
+                    for p in cat {
+                        guard let k = p["category"] as? String else { continue }
+                        let add: Int? = (p["value"] as? Int) ?? (p["value"] as? Double).map { Int($0) }
+                        let cur = byDay[k] ?? (nil, nil)
+                        let newTokens = (cur.tokens ?? 0) + (add ?? 0)
+                        byDay[k] = (newTokens == 0 && cur.tokens == nil ? add : newTokens, cur.cost)
+                    }
+                }
+            }
+            func collectCost() {
+                guard let arr = team["spend_cost_metrics"] as? [[String: Any]] else { return }
+                for entry in arr where (entry["identifier"] as? String) == "usage_billable_cost" {
+                    guard let cat = entry["categorical_data"] as? [[String: Any]] else { continue }
+                    for p in cat {
+                        guard let k = p["category"] as? String else { continue }
+                        let dict = p["value"] as? [String: Any]
+                        let cents: Double? = (dict?["amount_with_offset"] as? String).flatMap(Double.init)
+                            ?? (dict?["amount_with_offset"] as? Int).map { Double($0) }
+                        let usd = cents.map { $0 / 100.0 }
+                        let cur = byDay[k] ?? (nil, nil)
+                        byDay[k] = (cur.tokens, usd)
+                    }
+                }
+            }
+            collectPrompt(); collectOutput(); collectCost()
+            return byDay.map { k, v in (dayKey: k, totalTokens: v.tokens, costUSD: v.cost) }
+                .sorted { $0.dayKey < $1.dayKey }
+        }()
+
+        let detailRows: [ProviderDetailSection.Row] = dailyPoints.compactMap { pt in
+            let tok = pt.totalTokens.map { "\($0) tokens" } ?? "—"
+            let usd = pt.costUSD.map { String(format: "$%.2f", $0) } ?? "—"
+            return try? ProviderDetailSection.Row(label: pt.dayKey, value: "\(tok) · \(usd)")
+        }
+        let detail: [ProviderDetailSection] = {
+            guard !detailRows.isEmpty else { return [] }
+            return (try? ProviderDetailSection(title: "Daily usage", rows: detailRows)).map { [$0] } ?? []
+        }()
+
         // Surface totals as cost snapshot (balanceOnly provider — bars stay empty)
         return UsageSnapshot(
             primary: nil,
@@ -330,6 +391,7 @@ public enum MuseWebUsageFetcher: Sendable {
                     currencyCode: "USD",
                     updatedAt: Date())
             },
+            details: detail,
             updatedAt: Date(),
             identity: identity)
     }
