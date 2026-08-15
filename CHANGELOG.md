@@ -7,6 +7,7 @@
 - Usage bars: make workday tick marks configurable with hidden, subtle, and high-contrast appearances (#2904, #2950). Thanks @dstier-git!
 - Settings: allow minimizing the Settings window while keeping its Dock tile available for restoring it (#2945). Thanks @Yuxin-Qiao!
 - Widgets: opt-in display of Claude model-scoped weekly quotas (for example Fable) projected from the shared usage snapshot, off by default (#2645). Thanks @alfredjbclaw!
+- Copilot: add a per-seat "Credits used" row with a user-entered credit entitlement that turns the row into a usage bar — GitHub publishes no credit entitlement on any documented endpoint, so a row without one stays plain text, and the row only appears when it carries real signal (token-based billing, unlimited quota, or actual consumption) (#2593). Thanks @KSEGIT!
 
 ### Fixed
 - Menu: apply the cost summary display style to every provider's menu card, so Submenu only hides inline cost rows for z.ai and other providers (#2976). Thanks @ar0nbg!
@@ -41,9 +42,6 @@
 - Provider status: omit status-page transport errors from menus until a real status fetch succeeds, while preserving the last successful status through later fetch failures (#2925). Thanks @tomarai85!
 
 ## 0.49.6 — 2026-08-14
-
-### Added
-- Copilot: add a per-seat "Credits used" row with a user-entered credit entitlement that turns the row into a usage bar — GitHub publishes no credit entitlement on any documented endpoint, so a row without one stays plain text, and the row only appears when it carries real signal (token-based billing, unlimited quota, or actual consumption) (#2593). Thanks @KSEGIT!
 
 ### Fixed
 - Antigravity: hide untouched model families from compact menu cards and widgets while keeping unknown-usage families visible and preserving every family in provider details and all-untouched states (#2875). Thanks @urda!
