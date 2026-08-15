@@ -75,7 +75,7 @@ enum PiSessionCostScanner {
 
     private static let costScale = 1_000_000_000.0
     /// Bump for Pi-only cost formula changes not represented by the parser or pricing fingerprints.
-    private static let costFormulaVersion = 1
+    private static let costFormulaVersion = 2
     private static let maxLineBytes = 16 * 1024 * 1024
     private static let maxSafeRoundedInt = Double(Int.max) - 1
     private static let sessionStartFilenameRegex = try? NSRegularExpression(
@@ -107,8 +107,7 @@ enum PiSessionCostScanner {
         options: Options = Options(),
         checkCancellation: CostUsageScanner.CancellationCheck?) throws -> CostUsageDailyReport
     {
-        // Provider-specific by design: Pi records only OpenAI Codex and Anthropic sessions with distinct pricing.
-        guard provider == .codex || provider == .claude else {
+        guard self.supportsPiSessionProvider(provider) else {
             return CostUsageDailyReport(data: [], summary: nil)
         }
 
@@ -225,6 +224,7 @@ enum PiSessionCostScanner {
         cacheRoot: URL? = nil,
         calendar: Calendar = .current) -> CachedDailyReportResult?
     {
+        // Provider-specific by design: cached Pi reports are only supported for Codex and Claude.
         guard provider == .codex || provider == .claude else { return nil }
 
         let range = CostUsageScanner.CostUsageDayRange(since: since, until: until, calendar: calendar)
@@ -249,6 +249,7 @@ enum PiSessionCostScanner {
 
     private static func pricingContext(now: Date, cacheRoot: URL?) -> ModelsDevPricingContext {
         let modelsDevArtifact = ModelsDevCache.load(now: now, cacheRoot: cacheRoot).artifact
+        // Provider-specific by design: Pi pricing pulls models.dev catalogs only for the supported vendors.
         return ModelsDevPricingContext(
             catalog: modelsDevArtifact?.catalog,
             cacheRoot: cacheRoot,
@@ -256,7 +257,13 @@ enum PiSessionCostScanner {
                 modelsDevArtifact: modelsDevArtifact,
                 formulaVersion: Self.costFormulaVersion,
                 parserHash: CodexParserHash.value,
-                modelsDevProviderIDs: ["anthropic", "openai"]))
+                modelsDevProviderIDs: [
+                    "anthropic",
+                    "google",
+                    "google-vertex",
+                    "openai",
+                    "xai",
+                ]))
     }
 
     private static func requestedWindowExpandsCache(
@@ -830,6 +837,7 @@ enum PiSessionCostScanner {
         pricingDate: Date? = nil,
         pricingContext: ModelsDevPricingContext? = nil) -> Double?
     {
+        // Provider-specific by design: Pi cost calculation uses Codex/Claude-specific pricing normalizers.
         switch provider {
         case .codex:
             // Pi records input, cache reads, and cache writes as disjoint counts. Codex pricing
@@ -854,7 +862,11 @@ enum PiSessionCostScanner {
                 modelsDevCatalog: pricingContext?.catalog,
                 modelsDevCacheRoot: pricingContext?.cacheRoot)
         default:
-            nil
+            self.modelsDevCostUSD(
+                provider: provider,
+                model: modelName,
+                usage: usage,
+                pricingContext: pricingContext)
         }
     }
 
@@ -878,14 +890,70 @@ enum PiSessionCostScanner {
 
 extension PiSessionCostScanner {
     private static func mappedProvider(fromPiProvider provider: String) -> UsageProvider? {
+        // Provider-specific by design: Pi provider strings map to their respective UsageProvider values.
         switch provider.lowercased() {
         case "openai-codex":
             .codex
         case "anthropic":
             .claude
+        case "google", "gemini":
+            .gemini
+        case "google-vertex", "vertexai", "vertex-ai":
+            .vertexai
+        case "xai", "x.ai", "grok":
+            .grok
         default:
             nil
         }
+    }
+
+    private static func supportsPiSessionProvider(_ provider: UsageProvider) -> Bool {
+        switch provider {
+        case .codex, .claude, .gemini, .vertexai, .grok:
+            true
+        default:
+            false
+        }
+    }
+
+    private static func modelsDevCostUSD(
+        provider: UsageProvider,
+        model: String,
+        usage: PiPackedUsage,
+        pricingContext: ModelsDevPricingContext?) -> Double?
+    {
+        guard let lookup = CostUsagePricing.modelsDevPricing(
+            provider: provider,
+            model: model,
+            catalog: pricingContext?.catalog,
+            cacheRoot: pricingContext?.cacheRoot)
+        else { return nil }
+
+        let pricing = lookup.pricing
+        let totalInput = max(0, usage.inputTokens + usage.cacheReadTokens + usage.cacheWriteTokens)
+        let cached = min(max(0, usage.cacheReadTokens), totalInput)
+        let remainingAfterCache = totalInput - cached
+        let cacheWrite = min(max(0, usage.cacheWriteTokens), remainingAfterCache)
+        let nonCached = remainingAfterCache - cacheWrite
+        let usesLongContextRates = pricing.thresholdTokens.map { totalInput > $0 } ?? false
+        let inputRate = usesLongContextRates
+            ? pricing.inputCostPerTokenAboveThreshold ?? pricing.inputCostPerToken
+            : pricing.inputCostPerToken
+        let cachedInputRate = usesLongContextRates
+            ? pricing.cacheReadInputCostPerTokenAboveThreshold ?? pricing.cacheReadInputCostPerToken ?? inputRate
+            : pricing.cacheReadInputCostPerToken ?? pricing.inputCostPerToken
+        let cacheWriteRate = usesLongContextRates
+            ? pricing.cacheCreationInputCostPerTokenAboveThreshold ?? pricing
+            .cacheCreationInputCostPerToken ?? inputRate
+            : pricing.cacheCreationInputCostPerToken ?? inputRate
+        let outputRate = usesLongContextRates
+            ? pricing.outputCostPerTokenAboveThreshold ?? pricing.outputCostPerToken
+            : pricing.outputCostPerToken
+
+        return (Double(nonCached) * inputRate)
+            + (Double(cached) * cachedInputRate)
+            + (Double(cacheWrite) * cacheWriteRate)
+            + (Double(max(0, usage.outputTokens)) * outputRate)
     }
 
     private static func buildReport(

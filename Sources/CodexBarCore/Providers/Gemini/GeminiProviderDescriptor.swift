@@ -45,7 +45,8 @@ public enum GeminiProviderDescriptor {
                 burnDownWidgetColor: ProviderColor(red: 0.420, green: 0.440, blue: 0.900)),
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
-                noDataMessage: { "Gemini cost summary is not supported." }),
+                noDataMessage: { "Gemini cost summary is not supported." },
+                supportsTokenSnapshot: true),
             presentation: ProviderUsagePresentation(
                 identityPresenter: { provider, snapshot in
                     guard let plan = snapshot.loginMethod(for: provider), !plan.isEmpty else {
@@ -61,7 +62,8 @@ public enum GeminiProviderDescriptor {
             cli: ProviderCLIConfig(
                 name: "gemini",
                 binaryLocator: { BinaryLocator.resolveGeminiBinary() },
-                versionDetector: { _ in ProviderVersionDetector.geminiVersion() }))
+                versionDetector: { _ in ProviderVersionDetector.geminiVersion() },
+                supportsCostCommand: true))
     }
 }
 

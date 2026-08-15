@@ -48,7 +48,8 @@ public enum VertexAIProviderDescriptor {
                 pipeline: ProviderFetchPipeline(resolveStrategies: { _ in [VertexAIOAuthFetchStrategy()] })),
             cli: ProviderCLIConfig(
                 name: "vertexai",
-                versionDetector: nil))
+                versionDetector: nil,
+                supportsCostCommand: true))
     }
 }
 
