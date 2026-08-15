@@ -9,8 +9,14 @@ public enum MuseCookieImporter {
     private static let cookieDomains = [
         "dev.meta.ai",
         "ai.developer.meta.com",
+        "developer.meta.com",
         "www.meta.ai",
         "meta.ai",
+        // Comet/FB infra — dev.meta.ai auth rides on facebook.com cookies (c_user/xs/datr/fb_dtsg)
+        "facebook.com",
+        "www.facebook.com",
+        "meta.com",
+        "www.meta.com",
     ]
 
     private static let sessionCookieNames: Set<String> = [
