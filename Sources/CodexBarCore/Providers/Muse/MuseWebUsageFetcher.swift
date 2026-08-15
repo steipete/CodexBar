@@ -84,7 +84,6 @@ public enum MuseWebUsageFetcher: Sendable {
                 rev = self.extractRev(from: html)
                 hsi = self.extractHsi(from: html)
                 if teamId == nil {
-                    // Also try query string of dashboard redirect (some setups include project_id)
                     teamId = self.extractTeamId(from: resp.data)
                 }
             }
