@@ -1261,7 +1261,6 @@
 "Chrome profile" = "Chrome プロファイル";
 "Choose which signed-in DeepSeek Platform session supplies detailed usage." = "詳細な使用状況を取得する、ログイン済みの DeepSeek Platform セッションを選択します。";
 "Detailed usage unavailable." = "詳細な使用状況を取得できません。";
-"Sign in to DeepSeek Platform in Chrome for detailed usage." = "詳細な使用状況を確認するには、Chrome で DeepSeek Platform にログインしてください。";
 "Select a DeepSeek Chrome profile in Settings." = "設定で DeepSeek の Chrome プロファイルを選択してください。";
 "Select profile…" = "プロファイルを選択…";
 
@@ -1433,3 +1432,9 @@
 "5-hour usage" = "5時間の使用量";
 "7-day usage" = "7日間の使用量";
 "Total usage" = "合計使用量";
+"Cache-hit input" = "Cache-hit input";
+"Cache-miss input" = "Cache-miss input";
+"Daily tokens" = "Daily tokens";
+"Detailed usage" = "Detailed usage";
+"Output" = "Output";
+"Sign in to DeepSeek Platform in Chrome or Safari for detailed usage. Safari requires Full Disk Access for CodexBar." = "Sign in to DeepSeek Platform in Chrome or Safari for detailed usage. Safari requires Full Disk Access for CodexBar.";

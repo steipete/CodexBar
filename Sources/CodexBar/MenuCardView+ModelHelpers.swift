@@ -576,10 +576,21 @@ extension UsageMenuCardView.Model {
                     value: row.value,
                     secondaryValue: row.secondaryValue)
             }
+            let chart = section.chart.flatMap { chart in
+                try? ProviderDetailSection.Chart(
+                    kind: chart.kind,
+                    title: chart.title.flatMap { labelMap[$0] } ?? chart.title,
+                    unit: chart.unit.flatMap { labelMap[$0] } ?? chart.unit,
+                    points: chart.points.compactMap { point in
+                        try? ProviderDetailSection.Chart.Point(
+                            label: labelMap[point.label] ?? point.label,
+                            value: point.value)
+                    })
+            }
             return try? ProviderDetailSection(
                 title: title,
                 rows: rows,
-                chart: section.chart)
+                chart: chart)
         }
     }
 

@@ -464,6 +464,82 @@ struct DeepSeekProviderDescriptorTests {
         #expect(strategies.map(\.id) == ["deepseek.api"])
     }
 
+    @Test
+    func `web-only balance history is scoped to the selected profile`() async throws {
+        // Regression: web-only (no API key) refreshes used to fall back to the
+        // shared "default" history key, so switching DeepSeek profiles mixed
+        // one account's balance changes into another's spend/recharge.
+        let summary = DeepSeekUsageSummary(
+            todayTokens: 1,
+            currentMonthTokens: 1,
+            todayCost: 0,
+            currentMonthCost: 0,
+            requestCount: 1,
+            currentMonthRequestCount: 1,
+            topModel: nil,
+            categoryBreakdown: [],
+            modelCosts: [],
+            daily: [],
+            currency: "USD",
+            updatedAt: Date(timeIntervalSince1970: 1))
+        let profile = DeepSeekPlatformProfile(id: "chrome:Personal", name: "Chrome — Personal")
+        let operations = DeepSeekProviderDescriptor.FetchOperations(
+            fetchUsage: { _, _, _ in Self.balance },
+            resolveAutomaticSession: { _, _, _, _, _, _ in
+                DeepSeekPlatformTokenImporter.Resolution(
+                    profiles: [profile],
+                    selectedSummary: summary,
+                    selectedProfileID: profile.id,
+                    detailedUsageState: .available)
+            })
+
+        // First refresh records a baseline for this profile.
+        _ = try await DeepSeekProviderDescriptor._loadUsageForTesting(
+            apiKey: "",
+            context: Self.makeContext(sourceMode: .auto),
+            optionalResolutionJoinGrace: .seconds(1),
+            operations: operations)
+
+        // A different profile must NOT see the first profile's history.
+        let otherProfile = DeepSeekPlatformProfile(id: "chrome:Work", name: "Chrome — Work")
+        let otherOperations = DeepSeekProviderDescriptor.FetchOperations(
+            fetchUsage: { _, _, _ in Self.balance },
+            resolveAutomaticSession: { _, _, _, _, _, _ in
+                DeepSeekPlatformTokenImporter.Resolution(
+                    profiles: [otherProfile],
+                    selectedSummary: summary,
+                    selectedProfileID: otherProfile.id,
+                    detailedUsageState: .available)
+            })
+        let snapshot = try await DeepSeekProviderDescriptor._loadUsageForTesting(
+            apiKey: "",
+            context: Self.makeContext(sourceMode: .auto),
+            optionalResolutionJoinGrace: .seconds(1),
+            operations: otherOperations)
+
+        // No spend can be derived yet for the new profile (fresh history).
+        // The balance line stays a plain balance with no "Total −" suffix.
+        #expect(snapshot.primary?.resetDescription?.contains("Total −") == false)
+    }
+
+    @Test
+    func `profile scoped balance keys differ from api keys and default`() throws {
+        let apiKeyDigest = DeepSeekProviderDescriptor.balanceAccountKeyForTesting(apiKey: "test-credential-aaaaaaaaaaaaaaaa")
+        let profileDigest = DeepSeekProviderDescriptor.balanceAccountKeyForTesting(apiKey: nil, profileID: "chrome:Personal")
+        let otherProfileDigest = DeepSeekProviderDescriptor.balanceAccountKeyForTesting(apiKey: nil, profileID: "chrome:Work")
+
+        // Web-only profile scope must be distinct from API-key scope and from default.
+        #expect(profileDigest.hasPrefix("v1:"))
+        #expect(profileDigest != apiKeyDigest)
+        #expect(profileDigest != otherProfileDigest)
+        #expect(profileDigest != "default")
+        // Same profile maps to the same digest.
+        #expect(
+            DeepSeekProviderDescriptor.balanceAccountKeyForTesting(apiKey: nil, profileID: "chrome:Personal") == profileDigest)
+        // Nil profile still falls back to default for legacy behavior.
+        #expect(DeepSeekProviderDescriptor.balanceAccountKeyForTesting(apiKey: nil) == "default")
+    }
+
     private static let balance = DeepSeekUsageSnapshot(
         isAvailable: true,
         currency: "USD",

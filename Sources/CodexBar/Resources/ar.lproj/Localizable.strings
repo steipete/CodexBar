@@ -970,7 +970,6 @@
 "Today cash" = "اليوم نقدا";
 "DeepSeek 30 day token usage trend" = "DeepSeek اتجاه استخدام الرموز خلال 30 يوما";
 "Detailed usage unavailable." = "الاستخدام التفصيلي غير متاح.";
-"Sign in to DeepSeek Platform in Chrome for detailed usage." = "سجّل الدخول إلى منصة DeepSeek في Chrome لعرض الاستخدام التفصيلي.";
 "Select a DeepSeek Chrome profile in Settings." = "حدد ملف تعريف Chrome لـ DeepSeek في الإعدادات.";
 "DeepSeek this month token usage trend" = "اتجاه استخدام رموز DeepSeek لهذا الشهر";
 "Chrome profile" = "ملف تعريف Chrome";
@@ -1436,3 +1435,9 @@
 "5-hour usage" = "الاستخدام خلال 5 ساعات";
 "7-day usage" = "الاستخدام خلال 7 أيام";
 "Total usage" = "إجمالي الاستخدام";
+"Cache-hit input" = "Cache-hit input";
+"Cache-miss input" = "Cache-miss input";
+"Daily tokens" = "Daily tokens";
+"Detailed usage" = "Detailed usage";
+"Output" = "Output";
+"Sign in to DeepSeek Platform in Chrome or Safari for detailed usage. Safari requires Full Disk Access for CodexBar." = "Sign in to DeepSeek Platform in Chrome or Safari for detailed usage. Safari requires Full Disk Access for CodexBar.";

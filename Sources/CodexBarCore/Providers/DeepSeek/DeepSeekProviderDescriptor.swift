@@ -176,15 +176,29 @@ public enum DeepSeekProviderDescriptor {
     /// Stable per-credential key so multiple API keys keep separate histories.
     /// Uses a namespaced non-reversible SHA-256 digest (never raw key fragments),
     /// mirroring the profile-scope pattern in DeepSeekSettingsReader.
-    private static func balanceAccountKey(apiKey: String?) -> String {
-        guard let apiKey = apiKey?.trimmingCharacters(in: .whitespacesAndNewlines),
-              !apiKey.isEmpty
-        else { return "default" }
+    /// When no API key is configured (web-only), the selected browser profile
+    /// supplies the scope so different accounts never share a "default" history.
+    private static func balanceAccountKey(apiKey: String?, profileID: String? = nil) -> String {
         #if canImport(CryptoKit)
-        let input = "com.steipete.codexbar.deepseek-balance-history.v1\0\(apiKey)"
+        let input: String
+        if let apiKey = apiKey?.trimmingCharacters(in: .whitespacesAndNewlines), !apiKey.isEmpty {
+            input = "com.steipete.codexbar.deepseek-balance-history.v1\0\(apiKey)"
+        } else if let profileID = profileID?.trimmingCharacters(in: .whitespacesAndNewlines), !profileID.isEmpty {
+            input = "com.steipete.codexbar.deepseek-balance-history.profile.v1\0\(profileID)"
+        } else {
+            return "default"
+        }
         let digest = SHA256.hash(data: Data(input.utf8))
         return "v1:" + digest.map { String(format: "%02x", $0) }.joined()
         #else
+        let input: String
+        if let apiKey = apiKey?.trimmingCharacters(in: .whitespacesAndNewlines), !apiKey.isEmpty {
+            input = "com.steipete.codexbar.deepseek-balance-history.v1\0\(apiKey)"
+        } else if let profileID = profileID?.trimmingCharacters(in: .whitespacesAndNewlines), !profileID.isEmpty {
+            input = "com.steipete.codexbar.deepseek-balance-history.profile.v1\0\(profileID)"
+        } else {
+            return "default"
+        }
         // Fallback without CryptoKit: still avoid raw fragments; use a simple hash.
         var hasher = Hasher()
         hasher.combine(input)
@@ -193,30 +207,34 @@ public enum DeepSeekProviderDescriptor {
     }
 
     /// Test hook: exposes the digest mapping without persisting anything.
-    static func balanceAccountKeyForTesting(apiKey: String?) -> String {
-        self.balanceAccountKey(apiKey: apiKey)
+    static func balanceAccountKeyForTesting(apiKey: String?, profileID: String? = nil) -> String {
+        self.balanceAccountKey(apiKey: apiKey, profileID: profileID)
     }
 
     private static let balanceHistoryStore = DeepSeekBalanceHistoryStore()
 
     /// Records the observed balance and returns a snapshot whose balance detail
     /// includes derived consumption (today / total spend since last recharge).
+    /// Consumption is derived from the previous history BEFORE the fresh sample
+    /// is recorded, so a recharge baseline is never overwritten by the refresh
+    /// that follows it.
     private static func usageSnapshotRecordingBalance(
         _ balance: DeepSeekUsageSnapshot,
         apiKey: String?,
+        profileID: String? = nil,
         now: Date = Date()) -> UsageSnapshot
     {
-        let accountKey = Self.balanceAccountKey(apiKey: apiKey)
-        Self.balanceHistoryStore.record(
-            balance: balance.totalBalance,
-            currency: balance.currency,
-            accountKey: accountKey,
-            at: now)
+        let accountKey = Self.balanceAccountKey(apiKey: apiKey, profileID: profileID)
         let consumption = Self.balanceHistoryStore.consumptionSummary(
             for: accountKey,
             currentBalance: balance.totalBalance,
             currency: balance.currency,
             now: now)
+        Self.balanceHistoryStore.record(
+            balance: balance.totalBalance,
+            currency: balance.currency,
+            accountKey: accountKey,
+            at: now)
         return balance.toUsageSnapshot(consumption: consumption)
     }
 
@@ -326,7 +344,10 @@ public enum DeepSeekProviderDescriptor {
             detailedUsageState: resolution.detailedUsageState,
             platformProfiles: resolution.profiles,
             updatedAt: balance.updatedAt)
-        return Self.usageSnapshotRecordingBalance(snapshot, apiKey: apiKey)
+        return Self.usageSnapshotRecordingBalance(
+            snapshot,
+            apiKey: apiKey,
+            profileID: resolution.selectedProfileID)
     }
 
     fileprivate static func loadPlatformUsage(

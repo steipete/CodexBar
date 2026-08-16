@@ -99,6 +99,13 @@ public struct DeepSeekBalanceHistoryStore: @unchecked Sendable {
 
     // MARK: - Recording
 
+    /// Combines the account key with the currency so USD and CNY histories are
+    /// never mixed: switching wallets must not subtract unrelated balances.
+    private static func scopedKey(accountKey: String, currency: String) -> String {
+        let key = accountKey.isEmpty ? "default" : accountKey
+        return "\(key)|\(currency.uppercased())"
+    }
+
     /// Records a balance sample for the given account key. Per local day only
     /// the first and the last sample are retained; older days are pruned to a
     /// 90-day window.
@@ -109,7 +116,7 @@ public struct DeepSeekBalanceHistoryStore: @unchecked Sendable {
         at capturedAt: Date = Date())
     {
         guard balance.isFinite, balance >= 0 else { return }
-        let key = accountKey.isEmpty ? "default" : accountKey
+        let key = Self.scopedKey(accountKey: accountKey, currency: currency)
         self.lock.lock()
         defer { self.lock.unlock() }
 
@@ -163,7 +170,7 @@ public struct DeepSeekBalanceHistoryStore: @unchecked Sendable {
         currency: String,
         now: Date = Date()) -> ConsumptionSummary
     {
-        let key = accountKey.isEmpty ? "default" : accountKey
+        let key = Self.scopedKey(accountKey: accountKey, currency: currency)
         self.lock.lock()
         let payload = self.loadLocked()
         self.lock.unlock()

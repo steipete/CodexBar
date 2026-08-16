@@ -14,17 +14,20 @@ enum DeepSeekPlatformTokenImporter {
         let profiles: [DeepSeekPlatformProfile]
         let selectedSummary: DeepSeekUsageSummary?
         let selectedBalance: DeepSeekUsageSnapshot?
+        let selectedProfileID: String?
         let detailedUsageState: DeepSeekDetailedUsageState
 
         init(
             profiles: [DeepSeekPlatformProfile],
             selectedSummary: DeepSeekUsageSummary?,
             selectedBalance: DeepSeekUsageSnapshot? = nil,
+            selectedProfileID: String? = nil,
             detailedUsageState: DeepSeekDetailedUsageState)
         {
             self.profiles = profiles
             self.selectedSummary = selectedSummary
             self.selectedBalance = selectedBalance
+            self.selectedProfileID = selectedProfileID
             self.detailedUsageState = detailedUsageState
         }
     }
@@ -64,7 +67,11 @@ enum DeepSeekPlatformTokenImporter {
         logger: (@Sendable (String) -> Void)? = nil) async -> Resolution
     {
         #if os(macOS)
-        let candidates = self.importTokens(browserDetection: browserDetection, logger: logger)
+        let includeSafari = selectedProfileID?.hasPrefix("safari:") ?? false
+        let candidates = self.importTokens(
+            browserDetection: browserDetection,
+            includeSafari: includeSafari,
+            logger: logger)
         guard !Task.isCancelled else {
             return Resolution(profiles: [], selectedSummary: nil, detailedUsageState: .unavailable)
         }
@@ -104,13 +111,15 @@ enum DeepSeekPlatformTokenImporter {
     #if os(macOS)
     static func importTokens(
         browserDetection: BrowserDetection,
+        includeSafari: Bool = false,
         logger: (@Sendable (String) -> Void)? = nil,
         localStorage: BrowserLocalStorageAPI = .live) -> [TokenInfo]
     {
         let log: @Sendable (String) -> Void = { message in logger?("[deepseek-storage] \(message)") }
 
-        // Safari stores localStorage in WebKit sqlite files; Chromium browsers use leveldb.
-        let safariTokens = Self.importSafariTokens(logger: log)
+        // Safari's protected container is only read when the user explicitly
+        // selected a Safari profile; routine refreshes stay Chrome-only.
+        let safariTokens = includeSafari ? Self.importSafariTokens(logger: log) : []
         let chromeTokens = Self.importChromiumTokens(
             browserDetection: browserDetection,
             logger: log,
@@ -428,9 +437,14 @@ enum DeepSeekPlatformTokenImporter {
                 profiles: profiles,
                 selectedSummary: sessionData.summary,
                 selectedBalance: sessionData.balance,
+                selectedProfileID: selected.id,
                 detailedUsageState: sessionData.detailedUsageState)
         }
-        return Resolution(profiles: profiles, selectedSummary: nil, detailedUsageState: .unavailable)
+        return Resolution(
+            profiles: profiles,
+            selectedSummary: nil,
+            selectedProfileID: selected.id,
+            detailedUsageState: .unavailable)
     }
 
     private static func validate(

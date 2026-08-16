@@ -142,6 +142,46 @@ final class DeepSeekBalanceHistoryStoreTests: XCTestCase {
         XCTAssertEqual(summaryB.totalSpent ?? -1, 20, accuracy: 0.0001)
     }
 
+    func testCurrenciesArePartitionedPerAccountKey() {
+        let store = self.makeStore()
+        // Same logical account, different wallet currencies must not mix history:
+        // switching USD → CNY must not subtract unrelated balances.
+        store.record(balance: 100, currency: "USD", accountKey: "default", at: self.date(14, hour: 9))
+        store.record(balance: 200, currency: "CNY", accountKey: "default", at: self.date(14, hour: 10))
+
+        let usdSummary = store.consumptionSummary(
+            for: "default",
+            currentBalance: 90,
+            currency: "USD",
+            now: self.date(15, hour: 14))
+        let cnySummary = store.consumptionSummary(
+            for: "default",
+            currentBalance: 190,
+            currency: "CNY",
+            now: self.date(15, hour: 14))
+
+        // USD history is 100 → 90: spend 10.
+        XCTAssertEqual(usdSummary.totalSpent ?? -1, 10, accuracy: 0.0001)
+        // CNY history is 200 → 190: spend 10, untouched by the USD record.
+        XCTAssertEqual(cnySummary.totalSpent ?? -1, 10, accuracy: 0.0001)
+        // Currency symbol follows the queried currency, not the other partition.
+        XCTAssertEqual(usdSummary.currency, "$")
+        XCTAssertEqual(cnySummary.currency, "¥")
+    }
+
+    func testCurrencySwitchWithoutHistoryStartsFresh() {
+        let store = self.makeStore()
+        store.record(balance: 100, currency: "USD", accountKey: "default", at: self.date(14, hour: 9))
+        // First CNY observation ever: no CNY baseline, so no spend is reported.
+        let cnySummary = store.consumptionSummary(
+            for: "default",
+            currentBalance: 50,
+            currency: "CNY",
+            now: self.date(15, hour: 14))
+        XCTAssertNil(cnySummary.totalSpent)
+        XCTAssertNil(cnySummary.todaySpent)
+    }
+
     func testPersistenceRoundTrip() {
         let fileURL = self.directoryURL.appendingPathComponent("history.json")
         let store = DeepSeekBalanceHistoryStore(
