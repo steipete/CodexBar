@@ -305,9 +305,18 @@ public enum MuseWebUsageFetcher: Sendable {
         guard requests != nil || promptTokens != nil || outputTokens != nil || cost != nil else { return nil }
 
         var parts: [String] = []
-        if let r = requests { parts.append("\(Int(r)) requests") }
-        if totalTokens > 0 { parts.append("\(Int(totalTokens)) tokens") }
-        if let c = cost, c > 0 { parts.append(String(format: "$%.2f", c)) }
+        if let r = requests {
+            let rStr = Self.localizedCount(Int(r))
+            parts.append("\(rStr) requests")
+        }
+        if totalTokens > 0 {
+            let tStr = UsageFormatter.tokenCountString(Int(totalTokens))
+            parts.append("\(tStr) tokens")
+        }
+        if let c = cost, c > 0 {
+            let cStr = Self.localizedCost(c)
+            parts.append(cStr)
+        }
         let login = parts.isEmpty ? "Team usage" : "Team usage: \(parts.joined(separator: " · "))"
         let identity = ProviderIdentitySnapshot(
             providerID: .muse,
@@ -370,8 +379,8 @@ public enum MuseWebUsageFetcher: Sendable {
         }()
 
         let detailRows: [ProviderDetailSection.Row] = dailyPoints.compactMap { pt in
-            let tok = pt.totalTokens.map { "\($0) tokens" } ?? "—"
-            let usd = pt.costUSD.map { String(format: "$%.2f", $0) } ?? "—"
+            let tok = pt.totalTokens.map { UsageFormatter.tokenCountString($0) + " tokens" } ?? "—"
+            let usd = pt.costUSD.map { Self.localizedCost($0) } ?? "—"
             return try? ProviderDetailSection.Row(label: pt.dayKey, value: "\(tok) · \(usd)")
         }
         let detail: [ProviderDetailSection] = {
@@ -398,9 +407,13 @@ public enum MuseWebUsageFetcher: Sendable {
 
     private static func snapshot(from metrics: (tokens: Double?, cost: Double?, requests: Double?)) -> UsageSnapshot {
         var parts: [String] = []
-        if let t = metrics.tokens { parts.append("\(Int(t)) tokens") }
-        if let c = metrics.cost { parts.append(String(format: "$%.2f", c)) }
-        if let r = metrics.requests { parts.append("\(Int(r)) req") }
+        if let t = metrics.tokens {
+            parts.append("\(UsageFormatter.tokenCountString(Int(t))) tokens")
+        }
+        if let c = metrics.cost { parts.append(Self.localizedCost(c)) }
+        if let r = metrics.requests {
+            parts.append("\(Self.localizedCount(Int(r))) req")
+        }
         let login = parts.isEmpty ? "Team usage" : "Team usage: \(parts.joined(separator: " · "))"
         let identity = ProviderIdentitySnapshot(
             providerID: .muse,
@@ -526,7 +539,7 @@ public enum MuseWebUsageFetcher: Sendable {
         }
         guard let t = total ?? (input != nil || output != nil ? (input ?? 0) + (output ?? 0) : nil),
               t > 0 else { return nil }
-        let login = "Team usage: \(Int(t)) tokens"
+        let login = "Team usage: \(UsageFormatter.tokenCountString(Int(t))) tokens"
         let identity = ProviderIdentitySnapshot(
             providerID: .muse,
             accountEmail: nil,
@@ -546,5 +559,24 @@ public enum MuseWebUsageFetcher: Sendable {
               html.contains("Team usage") || html.contains("total tokens") || html.contains("Token usage")
         else { return nil }
         return nil
+    }
+
+    // MARK: - Formatting
+
+    private static func localizedCount(_ value: Int) -> String {
+        let f = NumberFormatter()
+        f.numberStyle = .decimal
+        f.locale = Locale.current
+        return f.string(from: NSNumber(value: value)) ?? "\(value)"
+    }
+
+    private static func localizedCost(_ value: Double) -> String {
+        let f = NumberFormatter()
+        f.numberStyle = .currency
+        f.currencyCode = "USD"
+        f.locale = Locale.current
+        f.maximumFractionDigits = 2
+        f.minimumFractionDigits = 2
+        return f.string(from: NSNumber(value: value)) ?? String(format: "$%.2f", value)
     }
 }
