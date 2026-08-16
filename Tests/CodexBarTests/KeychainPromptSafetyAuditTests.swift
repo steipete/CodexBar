@@ -116,13 +116,11 @@ struct KeychainPromptSafetyAuditTests {
     }
 
     @Test
-    func `tests do not call Security item APIs except no UI query coverage`() throws {
+    func `tests do not call Security item APIs outside this source audit`() throws {
         let securityItemCalls = ["SecItemCopyMatching", "SecItemUpdate", "SecItemAdd", "SecItemDelete"]
-        let offenders = try Self.swiftTestFiles().filter { file in
+        let offenders = try Self.swiftTestFiles(excludingSelf: true).filter { file in
             let text = try Self.readFile(file)
             return securityItemCalls.contains(where: text.contains)
-                && !file.path.hasSuffix("Tests/CodexBarTests/KeychainNoUIQueryTests.swift")
-                && !file.path.hasSuffix("Tests/CodexBarTests/KeychainPromptSafetyAuditTests.swift")
         }
 
         #expect(offenders.isEmpty, "Unexpected direct Security item access in tests: \(offenders.map(\.path))")
@@ -140,6 +138,26 @@ struct KeychainPromptSafetyAuditTests {
             }
 
         #expect(offenders.isEmpty, "Security item access bypasses KeychainSecurity: \(offenders.map(\.path))")
+    }
+
+    @Test
+    func `production Security item gateway consumes the user access gate`() throws {
+        let source = try Self.readRepoFile("Sources/CodexBarCore/KeychainSecurity.swift")
+        #expect(source.contains("keychainAccessDisabled: KeychainAccessGate.isDisabled"))
+
+        let operationCalls = [
+            ("public static func copyMatching(", "SecItemCopyMatching"),
+            ("public static func update(", "SecItemUpdate"),
+            ("public static func add(", "SecItemAdd"),
+            ("public static func delete(", "SecItemDelete"),
+        ]
+        for (declaration, securityCall) in operationCalls {
+            let declarationRange = try #require(source.range(of: declaration))
+            let operationSource = source[declarationRange.lowerBound...]
+            let securityCallRange = try #require(operationSource.range(of: securityCall))
+            let gatewayPath = operationSource[..<securityCallRange.lowerBound]
+            #expect(gatewayPath.contains("guard self.currentItemOperationBlockReason() == nil else"))
+        }
     }
 
     @Test

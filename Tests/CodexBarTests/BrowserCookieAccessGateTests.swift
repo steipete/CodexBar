@@ -105,5 +105,22 @@ struct BrowserCookieAccessGateTests {
         // any preflight or interaction check — in the background just as in a user-initiated refresh.
         #expect(self.evaluate(.safari, preflight: .interactionRequired, interaction: .background))
     }
+
+    @Test
+    func `record reads suppress SweetCookieKit interaction only in the background`() {
+        let backgroundDisallowed = ProviderInteractionContext.$current.withValue(.background) {
+            BrowserCookieAccessGate.withRecordReadInteractionPolicy {
+                BrowserCookieKeychainAccessGate.isUserInteractionDisallowed
+            }
+        }
+        let userInitiatedDisallowed = ProviderInteractionContext.$current.withValue(.userInitiated) {
+            BrowserCookieAccessGate.withRecordReadInteractionPolicy {
+                BrowserCookieKeychainAccessGate.isUserInteractionDisallowed
+            }
+        }
+
+        #expect(backgroundDisallowed)
+        #expect(userInitiatedDisallowed == false)
+    }
 }
 #endif

@@ -91,16 +91,6 @@ struct KeychainNoUIQueryTests {
     }
 
     @Test
-    func `preflight query executes without invalid UI policy`() {
-        let query = KeychainAccessPreflight.makeGenericPasswordPreflightQuery(
-            service: "codexbar.keychain.noui.\(UUID().uuidString)",
-            account: nil)
-        var result: AnyObject?
-        let status = SecItemCopyMatching(query as CFDictionary, &result)
-        #expect(status == errSecItemNotFound || status == errSecInteractionNotAllowed)
-    }
-
-    @Test
     func `processes block every Security item operation before system access`() {
         guard ProcessInfo.processInfo.environment[KeychainTestSafety.allowAccessEnvironmentKey] != "1" else {
             return
@@ -143,6 +133,19 @@ struct KeychainNoUIQueryTests {
         #expect(KeychainTestSafety.shouldIsolateUserStateUnderTests(
             processName: "swiftpm-testing-helper",
             environment: [KeychainTestSafety.allowAccessEnvironmentKey: "1"]) == false)
+    }
+
+    @Test
+    func `item operation policy distinguishes the user gate from test suppression`() {
+        #expect(KeychainSecurity.itemOperationBlockReason(
+            keychainAccessDisabled: true,
+            testSafetyBlocked: false) == .keychainAccessDisabled)
+        #expect(KeychainSecurity.itemOperationBlockReason(
+            keychainAccessDisabled: false,
+            testSafetyBlocked: true) == .testSafetySuppressed)
+        #expect(KeychainSecurity.itemOperationBlockReason(
+            keychainAccessDisabled: false,
+            testSafetyBlocked: false) == nil)
     }
 }
 #endif

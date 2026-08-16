@@ -37,23 +37,23 @@ read_when:
 ## Keychain Prompts (Development)
 
 ### First Launch After Fresh Clone
-You'll see **one keychain prompt per stored credential** on the first launch. This is a **one-time migration** that converts existing keychain items to use `kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly`.
+CodexBar does not run a prompt-capable startup Keychain migration. Unified config migration reads retired stores and
+clears them only after every source was readable and the new config was persisted. If a source is unreadable, cleanup
+and migration completion are deferred to a later launch.
 
 ### Subsequent Rebuilds
-The migration flag is stored in UserDefaults, so migrated CodexBar-owned items should not prompt again. Ad-hoc
-signing can still prompt for other keychain surfaces; use `./Scripts/compile_and_run.sh --clear-adhoc-keychain`
-when you intentionally want to reset ad-hoc keychain state.
+Ad-hoc development builds can still prompt for browser or provider-owned items because their code-signing identity is
+not stable. Use a consistently signed packaged bundle for intentional live credential validation. Routine tests must
+use the repository's suppression-safe test harness and never query the real Keychain.
 
 ### Why This Happens
-- Ad-hoc signed development builds change code signature on every rebuild
-- macOS keychain normally prompts when signature changes
-- We use `ThisDeviceOnly` accessibility to prevent prompts
-- Migration runs once to convert any existing items
+- Keychain access control checks the executable's code signature and designated requirement.
+- Ad-hoc builds and changed identities may no longer match an existing grant.
+- Chromium and provider apps can rotate or recreate their foreign-owned items, replacing prior grants.
+- `ThisDeviceOnly` accessibility controls item availability and syncing; it does not repair a code-signature ACL
+  mismatch or prevent authorization prompts.
 
-### Reset Migration (Testing)
-```bash
-defaults delete com.steipete.codexbar KeychainMigrationV1Completed
-```
+See [Keychain prompts](keychain-prompts.md) for the current user-facing boundary and safe troubleshooting.
 
 ## Augment Cookie Refresh
 
@@ -166,14 +166,8 @@ ls -lt ~/Library/Logs/DiagnosticReports/CodexBar* | head -5
 ```
 
 ### Keychain Prompts Keep Appearing
-```bash
-# Verify migration completed
-defaults read com.steipete.codexbar KeychainMigrationV1Completed
-# Should output: 1
-
-# Check migration logs
-log show --predicate 'category == "keychain-migration"' --last 5m
-```
+Confirm the prompt's requested item and requesting binary, then check for another running or installed CodexBar copy.
+Do not validate a fix by querying the real Keychain from routine tests. See [Keychain prompts](keychain-prompts.md).
 
 ### Cookies Not Refreshing
 1. Check the browser is supported by the Augment provider metadata

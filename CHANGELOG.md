@@ -5,6 +5,9 @@
 ### Added
 - CLI: add `codexbar cost --group-by session` for per-conversation Codex session cost breakdowns in text output (#2854). Thanks @Yuxin-Qiao!
 
+### Fixed
+- Keychain: keep background browser imports non-interactive, honor the global access gate, retire the obsolete prompt-capable startup migration, and retry unreadable unified migrations without clearing secrets.
+
 ## 0.50.1 — 2026-08-16
 
 ### Added

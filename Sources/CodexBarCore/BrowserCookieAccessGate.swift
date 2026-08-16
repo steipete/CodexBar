@@ -181,6 +181,13 @@ public enum BrowserCookieAccessGate {
         }
     }
 
+    static func withRecordReadInteractionPolicy<T>(_ operation: () throws -> T) rethrows -> T {
+        guard ProviderInteractionContext.current == .background else {
+            return try operation()
+        }
+        return try BrowserCookieKeychainAccessGate.withUserInteractionDisallowed(operation)
+    }
+
     public static func recordIfNeeded(_ error: Error, now: Date = Date()) {
         guard let error = error as? BrowserCookieError else { return }
         guard case .accessDenied = error else { return }
@@ -397,7 +404,9 @@ extension BrowserCookieClient {
         guard BrowserCookieAccessGate.shouldAttempt(browser) else { return [] }
         guard BrowserCookieAccessGate.claimExplicitRetryCookieReadIfNeeded(for: browser) else { return [] }
         do {
-            let records = try self.records(matching: query, in: browser, logger: logger)
+            let records = try BrowserCookieAccessGate.withRecordReadInteractionPolicy {
+                try self.records(matching: query, in: browser, logger: logger)
+            }
             BrowserCookieAccessGate.recordAllowed(for: browser)
             return records
         } catch {
