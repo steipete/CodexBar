@@ -269,6 +269,14 @@ extension SettingsStore {
         }
     }
 
+    var workdayTickAppearance: WorkdayTickAppearance {
+        get { WorkdayTickAppearance(rawValue: self.defaultsState.workdayTickAppearanceRaw) ?? .subtle }
+        set {
+            self.defaultsState.workdayTickAppearanceRaw = newValue.rawValue
+            self.userDefaults.set(newValue.rawValue, forKey: "workdayTickAppearance")
+        }
+    }
+
     var usageBarsShowUsed: Bool {
         get { self.defaultsState.usageBarsShowUsed }
         set {

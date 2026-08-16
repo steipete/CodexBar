@@ -51,6 +51,13 @@ extension UsageMenuCardView.Model {
                 id = "monthly"
                 paceDetail = nil
             }
+            let workdayMarkerPercents: [Double] = if lane == .weekly, input.workdayTickAppearance != .hidden {
+                workDayMarkerPercents(
+                    workDays: input.workDaysPerWeek,
+                    windowMinutes: window.windowMinutes)
+            } else {
+                []
+            }
 
             return Metric(
                 id: id,
@@ -66,11 +73,8 @@ extension UsageMenuCardView.Model {
                 warningMarkerPercents: Self.warningMarkerPercents(
                     thresholds: lane.quotaWarningWindow.flatMap { input.quotaWarningThresholds[$0] },
                     showUsed: input.usageBarsShowUsed),
-                workdayMarkerPercents: lane == .weekly
-                    ? workDayMarkerPercents(
-                        workDays: input.workDaysPerWeek,
-                        windowMinutes: window.windowMinutes)
-                    : [],
+                workdayMarkerPercents: workdayMarkerPercents,
+                workdayTickAppearance: input.workdayTickAppearance,
                 sessionEquivalentDetail: lane == .weekly
                     ? Self.sessionEquivalentDetail(input: input, weeklyWindow: window, weeklyWindowID: nil)
                     : nil)

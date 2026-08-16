@@ -3,6 +3,33 @@
     <channel>
         <title>CodexBar</title>
         <item>
+            <title>0.50.0</title>
+            <pubDate>Sat, 15 Aug 2026 00:40:03 -0700</pubDate>
+            <link>https://raw.githubusercontent.com/steipete/CodexBar/main/appcast.xml</link>
+            <sparkle:version>121</sparkle:version>
+            <sparkle:shortVersionString>0.50.0</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <description><![CDATA[<h2>CodexBar 0.50.0</h2>
+<h3>Added</h3>
+<ul>
+<li>Cursor: on macOS, prefer Cursor.app&#x27;s read-only local session in Automatic mode, persist validated sessions securely, and surface account mismatches before falling back to browser cookies (#2398). Thanks @markmay for the direction!</li>
+<li>Cost history: add a Tokens/Cost switch to daily status-menu charts, defaulting Codex to exact local token totals and marking incomplete local history as refreshing (#2930). Thanks @Carl723000!</li>
+<li>Menu bar layout: add a compact run-out forecast token that shows only the predicted duration (#2865). Thanks @gnattu!</li>
+</ul>
+<h3>Fixed</h3>
+<ul>
+<li>Codex: replace OpenAI login instructions with accurate rate-limit guidance when the CLI uses Amazon Bedrock or another custom backend without ChatGPT authentication (#2679). Thanks @italo-drm!</li>
+<li>Widgets: let macOS desktop styling remove the Burn Down widgets&#x27; gradient container background (#2367). Thanks @FrancisKa!</li>
+<li>Grok: label the current weekly credit window near reset instead of falling back to the ambiguous “Credits” title (#2929). Thanks @byteofsam!</li>
+<li>Codex: show Business accounts&#x27; monthly credit remaining in the provider switcher when no session or weekly rate-limit window is available, and keep quota indicators visible on the selected provider tab (#2926). Thanks @jey3dayo!</li>
+<li>Gemini: offer the Antigravity provider migration when local OAuth recovery cannot use Gemini CLI and an <code>agy</code> or Antigravity installation is available (#2808). Thanks @axisrow!</li>
+<li>Provider status: omit status-page transport errors from menus until a real status fetch succeeds, while preserving the last successful status through later fetch failures (#2925). Thanks @tomarai85!</li>
+</ul>
+<p><a href="https://github.com/steipete/CodexBar/blob/main/CHANGELOG.md">View full changelog</a></p>
+]]></description>
+            <enclosure url="https://github.com/steipete/CodexBar/releases/download/v0.50.0/CodexBar-macos-universal-0.50.0.zip" length="63173025" type="application/octet-stream" sparkle:edSignature="jOmuKSZIdgIS8GCk0g9rjx8CG1cwlGijAf6H4C2UcmIwj77nWgOKNa6Tt7yow8KL6vVtX8PvqayuMuq/yOnPCQ=="/>
+        </item>
+        <item>
             <title>0.49.6</title>
             <pubDate>Fri, 14 Aug 2026 02:28:05 -0700</pubDate>
             <link>https://raw.githubusercontent.com/steipete/CodexBar/main/appcast.xml</link>
@@ -48,40 +75,6 @@
 <p><a href="https://github.com/steipete/CodexBar/blob/main/CHANGELOG.md">View full changelog</a></p>
 ]]></description>
             <enclosure url="https://github.com/steipete/CodexBar/releases/download/v0.49.5/CodexBar-macos-universal-0.49.5.zip" length="62793687" type="application/octet-stream" sparkle:edSignature="wEB2dd4SeAGYDzFRtb7HmxMAsQgKsTU94s8y6NPlV6agfhYPIdYkQNPejiPVqG66EyO1fopCVVozEVWOksTDCg=="/>
-        </item>
-        <item>
-            <title>0.49.4</title>
-            <pubDate>Thu, 13 Aug 2026 09:47:09 -0700</pubDate>
-            <link>https://raw.githubusercontent.com/steipete/CodexBar/main/appcast.xml</link>
-            <sparkle:version>118</sparkle:version>
-            <sparkle:shortVersionString>0.49.4</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <description><![CDATA[<h2>CodexBar 0.49.4</h2>
-<h3>Added</h3>
-<ul>
-<li>Terminal picker: offer Ghostty 1.3+ as a default terminal for Open Terminal and provider login commands, falling back to Terminal.app when unavailable (#2830). Thanks @darwinz!</li>
-<li>Currency: Czech koruna (CZK) in the preferred-currency picker (#2886). Thanks @vAhyThe!</li>
-</ul>
-<h3>Fixed</h3>
-<ul>
-<li>Codex: confirm a legitimate server-side early weekly reset when the account has zero available reset credits, instead of preserving a stale weekly percentage forever (#2790, #2897). Thanks @kcharlan for the report and @luantu for the fix!</li>
-<li>Ollama: keep recovering via browser cookies when a cached session cookie expires during a background refresh, instead of spuriously demanding re-sign-in (#2072, #2814). Thanks @fishcharlie for the report and @axisrow for the fix!</li>
-<li>Claude: gate the background CLI usage fetch on confirmed-absent OAuth credentials so transient credential states no longer trigger unwanted CLI launches (#2813). Thanks @axisrow!</li>
-<li>Cost history: keep a genuine zero 30-day cost or token total distinct from unavailable data when every daily row carries explicit values (#2896). Thanks @Yuxin-Qiao!</li>
-<li>Claude: refresh the detected CLI version after a successful manual CLI usage fetch, so the provider pane no longer shows &quot;not detected&quot; when the gated startup probe could not run <code>claude --version</code> (#2899).</li>
-<li>Token activity: draw the Cumulative running total at the default 30-day history window instead of a blank grid, and keep the week clipped by the scan window (#2893). Thanks @urda!</li>
-<li>LongCat: read live usage from the token-packs summary endpoint, falling back to the legacy token-usage endpoint when no active token lot is available (#2670).</li>
-<li>Antigravity: detect Google&#x27;s renamed Gemini desktop app (<code>com.google.GeminiMacOS</code>, <code>Gemini.app</code>) for OAuth client discovery and language-server process matching, alongside the legacy Antigravity identifiers (#2836). Thanks @wxomi for the report and diagnostics!</li>
-<li>Cost history: avoid reporting partial token or cost totals when any daily row lacks that value.</li>
-<li>CLI: escalate RPC child teardown (codex app-server, grok agent stdio) from SIGTERM to SIGKILL with a bounded wait and stdin EOF, preventing orphaned children and file-descriptor exhaustion in long-running serve (#2789). Thanks @psl75011 and @simonsteiner!</li>
-<li>PTY probes: bound hard-stop latency while still cleaning session-escaped output holders.</li>
-<li>Codex: stop the hidden ChatGPT dashboard WebView from staying resident after usage refresh, so idle WebKit helper processes can return to zero.</li>
-<li>Cost history: honor the preferred display currency throughout the detail chart and refresh converted labels when exchange rates change (#2887). Thanks @vAhyThe!</li>
-<li>Codex: preserve requested Spend Dashboard history when the local cost cache exceeds its byte budget, rather than deleting in-window sessions or repeatedly rebuilding protected data (#2823). Thanks @WillStark for the report and @Whiteknight07 for the initial fix!</li>
-</ul>
-<p><a href="https://github.com/steipete/CodexBar/blob/main/CHANGELOG.md">View full changelog</a></p>
-]]></description>
-            <enclosure url="https://github.com/steipete/CodexBar/releases/download/v0.49.4/CodexBar-macos-universal-0.49.4.zip" length="62255578" type="application/octet-stream" sparkle:edSignature="Ko7sTZHV2IA3mmkEgOl8JQHAaZtR4hFXj9n9rmE/ah1NFsWpi0nxItXidvm/QULXYXhvNh4rvi/4pF4Aiv/JDQ=="/>
         </item>
         <item>
             <title>0.14.0</title>

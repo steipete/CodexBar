@@ -42,6 +42,7 @@ extension UsageMenuCardView.Model {
         let sessionEquivalentForecast: SessionEquivalentForecast?
         let quotaWarningThresholds: [QuotaWarningWindow: [Int]]
         let workDaysPerWeek: Int?
+        let workdayTickAppearance: WorkdayTickAppearance
         let usesLiveSubtitle: Bool
         let preferredCurrencyCode: String
         let now: Date
@@ -84,6 +85,7 @@ extension UsageMenuCardView.Model {
             sessionEquivalentForecast: SessionEquivalentForecast? = nil,
             quotaWarningThresholds: [QuotaWarningWindow: [Int]] = [:],
             workDaysPerWeek: Int? = nil,
+            workdayTickAppearance: WorkdayTickAppearance = .subtle,
             usesLiveSubtitle: Bool = false,
             preferredCurrencyCode: String = "auto",
             now: Date)
@@ -125,6 +127,7 @@ extension UsageMenuCardView.Model {
             self.sessionEquivalentForecast = sessionEquivalentForecast
             self.quotaWarningThresholds = quotaWarningThresholds
             self.workDaysPerWeek = workDaysPerWeek
+            self.workdayTickAppearance = workdayTickAppearance
             self.usesLiveSubtitle = usesLiveSubtitle
             self.preferredCurrencyCode = preferredCurrencyCode
             self.now = now

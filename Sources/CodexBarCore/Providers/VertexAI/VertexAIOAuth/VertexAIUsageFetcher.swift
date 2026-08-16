@@ -95,6 +95,24 @@ public enum VertexAIUsageFetcher {
             projectId: projectId,
             filter: limitFilter)
 
+        return try Self.makeQuotaUsageResponse(
+            usageSeries: usageSeries,
+            limitSeries: limitSeries)
+    }
+
+    static func parseQuotaUsage(usageData: Data, limitData: Data) throws -> VertexAIUsageResponse {
+        let decoder = JSONDecoder()
+        let usageResponse = try decoder.decode(MonitoringTimeSeriesResponse.self, from: usageData)
+        let limitResponse = try decoder.decode(MonitoringTimeSeriesResponse.self, from: limitData)
+        return try Self.makeQuotaUsageResponse(
+            usageSeries: usageResponse.timeSeries ?? [],
+            limitSeries: limitResponse.timeSeries ?? [])
+    }
+
+    private static func makeQuotaUsageResponse(
+        usageSeries: [MonitoringTimeSeries],
+        limitSeries: [MonitoringTimeSeries]) throws -> VertexAIUsageResponse
+    {
         let usageByKey = Self.aggregate(series: usageSeries)
         let limitByKey = Self.aggregate(series: limitSeries)
 
@@ -104,10 +122,15 @@ public enum VertexAIUsageFetcher {
 
         var maxPercent: Double?
         var matchedCount = 0
-        var matchedKeys: Set<QuotaKey> = []
-        for (key, limit) in limitByKey {
-            guard limit > 0, let usage = usageByKey[key] else { continue }
-            matchedKeys.insert(key)
+        var matchedUsageKeys: Set<QuotaKey> = []
+        var matchedLimitKeys: Set<QuotaKey> = []
+        for (usageKey, usage) in usageByKey {
+            guard let (limitKey, limit) = Self.matchingLimit(
+                for: usageKey,
+                in: limitByKey)
+            else { continue }
+            matchedUsageKeys.insert(usageKey)
+            matchedLimitKeys.insert(limitKey)
             matchedCount += 1
             let percent = (usage / limit) * 100.0
             maxPercent = max(maxPercent ?? percent, percent)
@@ -117,8 +140,8 @@ public enum VertexAIUsageFetcher {
             throw VertexAIFetchError.noData
         }
 
-        let unmatchedUsage = Set(usageByKey.keys).subtracting(matchedKeys).count
-        let unmatchedLimit = Set(limitByKey.keys).subtracting(matchedKeys).count
+        let unmatchedUsage = Set(usageByKey.keys).subtracting(matchedUsageKeys).count
+        let unmatchedLimit = Set(limitByKey.keys).subtracting(matchedLimitKeys).count
         Self.log.debug("Quota series preview", metadata: [
             "usageKeys": Self.previewKeys(usageByKey),
             "limitKeys": Self.previewKeys(limitByKey),
@@ -138,6 +161,24 @@ public enum VertexAIUsageFetcher {
             resetsAt: nil,
             resetDescription: nil,
             rawData: nil)
+    }
+
+    private static func matchingLimit(
+        for usageKey: QuotaKey,
+        in limitByKey: [QuotaKey: Double]) -> (key: QuotaKey, value: Double)?
+    {
+        if let exactLimit = limitByKey[usageKey], exactLimit > 0 {
+            return (usageKey, exactLimit)
+        }
+
+        guard usageKey.limitName.isEmpty else { return nil }
+        let candidates = limitByKey.filter { limitKey, limit in
+            limit > 0
+                && limitKey.quotaMetric == usageKey.quotaMetric
+                && limitKey.location == usageKey.location
+        }
+        guard candidates.count == 1, let candidate = candidates.first else { return nil }
+        return candidate
     }
 
     private struct MonitoringTimeSeriesResponse: Decodable {
@@ -276,8 +317,12 @@ public enum VertexAIUsageFetcher {
     }
 
     private static func pointValue(from point: MonitoringPoint) -> Double? {
-        if let doubleValue = point.value.doubleValue { return doubleValue }
-        if let int64Value = point.value.int64Value { return Double(int64Value) }
+        if let doubleValue = point.value.doubleValue {
+            return doubleValue
+        }
+        if let int64Value = point.value.int64Value {
+            return Double(int64Value)
+        }
         return nil
     }
 

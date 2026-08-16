@@ -608,6 +608,11 @@
 "show_quota_warning_markers_subtitle" = "Рисует отметки порогов на индикаторах использования, если настроены предупреждения о квотах.";
 "weekly_progress_work_days_title" = "Рабочие дни для недельного прогресса";
 "weekly_progress_work_days_subtitle" = "Задаёт рабочие дни для недельных отметок использования и расчёта темпа.";
+"workday_tick_appearance_title" = "Вид отметок рабочих дней";
+"workday_tick_appearance_subtitle" = "Выберите, как отображать границы рабочих дней на недельных полосах использования.";
+"workday_tick_appearance_hidden" = "Скрыты";
+"workday_tick_appearance_subtle" = "Ненавязчивые";
+"workday_tick_appearance_high_contrast" = "Высокий контраст";
 "show_provider_changelog_links_title" = "Показывать ссылки на журналы изменений провайдеров";
 "show_provider_changelog_links_subtitle" = "Добавляет в меню ссылки на заметки к релизам для поддерживаемых CLI-провайдеров.";
 "show_credits_extra_usage_title" = "Показывать кредиты и доп. использование";

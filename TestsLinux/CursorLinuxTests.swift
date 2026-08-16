@@ -6,32 +6,8 @@ import Testing
 
 struct CursorLinuxTests {
     @Test
-    func `Cursor database path honors absolute XDG config home`() {
-        let path = CursorAppAuthStore.resolveDefaultDBPath(
-            home: "/home/test",
-            environment: ["XDG_CONFIG_HOME": "/custom/config"])
-        #expect(path == "/custom/config/Cursor/User/globalStorage/state.vscdb")
-    }
-
-    @Test
-    func `Cursor database path falls back to dot config`() {
-        let path = CursorAppAuthStore.resolveDefaultDBPath(
-            home: "/home/test",
-            environment: [:])
-        #expect(path == "/home/test/.config/Cursor/User/globalStorage/state.vscdb")
-    }
-
-    @Test
-    func `Cursor database path rejects relative XDG config home`() {
-        let path = CursorAppAuthStore.resolveDefaultDBPath(
-            home: "/home/test",
-            environment: ["XDG_CONFIG_HOME": "relative/config"])
-        #expect(path == "/home/test/.config/Cursor/User/globalStorage/state.vscdb")
-    }
-
-    @Test
-    func `Cursor automatic source does not require macOS web support`() {
-        #expect(!CodexBarCLI.sourceModeRequiresWebSupport(
+    func `Cursor automatic source without manual cookies requires macOS web support`() {
+        #expect(CodexBarCLI.sourceModeRequiresWebSupport(
             .auto,
             provider: .cursor,
             settings: ProviderSettingsSnapshot.make(
@@ -44,6 +20,14 @@ struct CursorLinuxTests {
     }
 
     @Test
+    func `Cursor usage split labels match Cursor and Third Party`() {
+        let metadata = CursorProviderDescriptor.descriptor.metadata
+        #expect(metadata.sessionLabel == "Total")
+        #expect(metadata.weeklyLabel == "Cursor")
+        #expect(metadata.opusLabel == "Third Party")
+    }
+
+    @Test
     func `Cursor manual cookie does not require macOS web support`() {
         #expect(!CodexBarCLI.sourceModeRequiresWebSupport(
             .web,
@@ -52,6 +36,17 @@ struct CursorLinuxTests {
                 cursor: .init(
                     cookieSource: .manual,
                     manualCookieHeader: "WorkosCursorSessionToken=test"))))
+    }
+
+    @Test
+    func `empty Cursor manual cookie still requires macOS web support`() {
+        #expect(CodexBarCLI.sourceModeRequiresWebSupport(
+            .web,
+            provider: .cursor,
+            settings: ProviderSettingsSnapshot.make(
+                cursor: .init(
+                    cookieSource: .manual,
+                    manualCookieHeader: "  "))))
     }
 
     @Test

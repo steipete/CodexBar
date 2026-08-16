@@ -713,7 +713,11 @@ public struct OllamaUsageFetcher: Sendable {
         logger: ((String) -> Void)? = nil) throws -> String?
     {
         if let rawOverride = override?.trimmingCharacters(in: .whitespacesAndNewlines), !rawOverride.isEmpty {
-            let normalized = if rawOverride.rangeOfCharacter(from: .newlines) == nil,
+            let lowercased = rawOverride.lowercased()
+            let isCookieCapture = rawOverride.rangeOfCharacter(from: .newlines) != nil
+                || lowercased.hasPrefix("cookie:")
+                || lowercased.hasPrefix("curl ")
+            let normalized = if !isCookieCapture,
                                 hasRecognizedOllamaSessionCookie(in: rawOverride)
             {
                 rawOverride

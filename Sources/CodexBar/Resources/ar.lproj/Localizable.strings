@@ -613,6 +613,11 @@
 "show_quota_warning_markers_subtitle" = "ارسم علامات عتبة على أشرطة الاستخدام عند تكوين تحذيرات الحصص.";
 "weekly_progress_work_days_title" = "أيام العمل الأسبوعية للتقدم";
 "weekly_progress_work_days_subtitle" = "حدد أيام عمل لمؤشرات شريط الاستخدام الأسبوعي وحسابات السرعة.";
+"workday_tick_appearance_title" = "مظهر علامات أيام العمل";
+"workday_tick_appearance_subtitle" = "اختر كيفية ظهور حدود أيام العمل على أشرطة الاستخدام الأسبوعية.";
+"workday_tick_appearance_hidden" = "مخفية";
+"workday_tick_appearance_subtle" = "خفيفة";
+"workday_tick_appearance_high_contrast" = "تباين عالٍ";
 "show_provider_changelog_links_title" = "اعرض روابط سجل التغييرات لمزود الخدمة";
 "show_provider_changelog_links_subtitle" = "يضيف روابط ملاحظات الإصدار لمزودي الخدمة المدعومين بدعم CLI إلى القائمة.";
 "show_credits_extra_usage_title" = "اعتمادات العرض + الاستخدام الإضافي";

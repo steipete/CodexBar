@@ -590,6 +590,11 @@
 "show_quota_warning_markers_subtitle" = "Draw threshold tick marks on usage bars when quota warnings are configured.";
 "weekly_progress_work_days_title" = "Work days";
 "weekly_progress_work_days_subtitle" = "Set work days for weekly usage-bar markers and pace calculations.";
+"workday_tick_appearance_title" = "Workday tick appearance";
+"workday_tick_appearance_subtitle" = "Choose how workday boundaries appear on weekly usage bars.";
+"workday_tick_appearance_hidden" = "Hidden";
+"workday_tick_appearance_subtle" = "Subtle";
+"workday_tick_appearance_high_contrast" = "High contrast";
 "show_provider_changelog_links_title" = "Show provider changelog links";
 "show_provider_changelog_links_subtitle" = "Adds release-notes links for supported CLI-backed providers to the menu.";
 "show_credits_extra_usage_title" = "Show credits & extra usage";

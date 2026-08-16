@@ -591,6 +591,11 @@
 "show_quota_warning_markers_subtitle" = "Dibuixa marques de llindar a les barres d'ús quan hi ha avisos de quota configurats.";
 "weekly_progress_work_days_title" = "Dies laborables del progrés setmanal";
 "weekly_progress_work_days_subtitle" = "Definiu els dies laborables per als marcadors de les barres d'ús setmanal i els càlculs de ritme.";
+"workday_tick_appearance_title" = "Aparença de les marques dels dies laborables";
+"workday_tick_appearance_subtitle" = "Trieu com es mostren els límits dels dies laborables a les barres d'ús setmanal.";
+"workday_tick_appearance_hidden" = "Ocultes";
+"workday_tick_appearance_subtle" = "Subtils";
+"workday_tick_appearance_high_contrast" = "Contrast alt";
 "show_provider_changelog_links_title" = "Mostreu els enllaços al registre de canvis del proveïdor";
 "show_provider_changelog_links_subtitle" = "Afegiu al menú enllaços a les notes de versió dels proveïdors compatibles basats en CLI.";
 "show_credits_extra_usage_title" = "Mostreu crèdits + ús addicional";

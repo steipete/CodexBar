@@ -1,0 +1,27 @@
+{
+  "timeSeries": [
+    {
+      "metric": {
+        "type": "serviceruntime.googleapis.com/quota/allocation/usage",
+        "labels": {
+          "quota_metric": "aiplatform.googleapis.com/reasoning_engine_service_entities"
+        }
+      },
+      "resource": {
+        "type": "consumer_quota",
+        "labels": {
+          "location": "us-west1",
+          "project_id": "redacted-project",
+          "service": "aiplatform.googleapis.com"
+        }
+      },
+      "points": [
+        {
+          "value": {
+            "int64Value": "1"
+          }
+        }
+      ]
+    }
+  ]
+}

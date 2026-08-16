@@ -61,7 +61,7 @@ public enum GrokProviderDescriptor {
             }),
             presentation: ProviderUsagePresentation(rateWindowLabeler: { metadata, snapshot, now in
                 ProviderRateWindowLabels(
-                    primary: Self.primaryLabel(window: snapshot.primary, now: now) ?? metadata.sessionLabel,
+                    primary: Self.displayLabel(window: snapshot.primary, now: now) ?? metadata.sessionLabel,
                     secondary: metadata.weeklyLabel,
                     tertiary: metadata.opusLabel ?? "Sonnet",
                     showsTertiary: metadata.supportsOpus)
@@ -101,6 +101,17 @@ public enum GrokProviderDescriptor {
     public static func primaryLabel(resetsAt: Date?, now: Date = .now) -> String? {
         guard let resetsAt else { return nil }
         return self.primaryLabel(duration: resetsAt.timeIntervalSince(now))
+    }
+
+    /// Grok's current untyped credits surface is the weekly credit pool (#2929). Keep explicit
+    /// durations authoritative, but do not lose the weekly label near the end of an untyped window.
+    public static func displayLabel(window: RateWindow?, now: Date = .now) -> String? {
+        guard let window else { return nil }
+        if let label = self.primaryLabel(window: window, now: now) {
+            return label
+        }
+        guard window.windowMinutes == nil, window.resetsAt != nil else { return nil }
+        return "Weekly"
     }
 
     private static func primaryLabel(duration seconds: TimeInterval) -> String? {

@@ -75,7 +75,7 @@ enum PiSessionCostScanner {
 
     private static let costScale = 1_000_000_000.0
     /// Bump for Pi-only cost formula changes not represented by the parser or pricing fingerprints.
-    private static let costFormulaVersion = 1
+    private static let costFormulaVersion = 2
     private static let maxLineBytes = 16 * 1024 * 1024
     private static let maxSafeRoundedInt = Double(Int.max) - 1
     private static let sessionStartFilenameRegex = try? NSRegularExpression(
@@ -256,7 +256,7 @@ enum PiSessionCostScanner {
                 modelsDevArtifact: modelsDevArtifact,
                 formulaVersion: Self.costFormulaVersion,
                 parserHash: CodexParserHash.value,
-                modelsDevProviderIDs: ["anthropic", "openai"]))
+                modelsDevProviderIDs: CostUsagePricing.codexModelsDevProviderIDs.union(["anthropic"])))
     }
 
     private static func requestedWindowExpandsCache(

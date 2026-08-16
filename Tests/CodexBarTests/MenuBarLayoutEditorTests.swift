@@ -7,6 +7,12 @@ import UniformTypeIdentifiers
 
 struct MenuBarLayoutEditorTests {
     @Test
+    func `time palette lists the compact run out token with a clear label`() {
+        #expect(MenuBarLayoutPaletteTokens.time.contains(.runsOutCompact))
+        #expect(MenuBarLayoutToken.runsOutCompact.editorLabel(provider: .codex) == "Runs out (compact)")
+    }
+
+    @Test
     func `Notion secondary editor labels use monthly cadence`() {
         let percent = MenuBarLayoutToken.percent(window: .weekly)
         let pace = MenuBarLayoutToken.pace(window: .weekly)

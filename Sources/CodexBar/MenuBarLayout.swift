@@ -20,6 +20,7 @@ enum MenuBarLayoutToken: Codable, Hashable, Sendable {
     case resetCountdown
     case resetAbsolute
     case runsOut
+    case runsOutCompact
     case balance
     case costToday
     case cost30d

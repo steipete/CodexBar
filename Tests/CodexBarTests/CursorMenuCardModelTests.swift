@@ -5,6 +5,45 @@ import Testing
 
 struct CursorMenuCardModelTests {
     @Test
+    func `chosen app session account identity is visible on the card`() throws {
+        let now = Date(timeIntervalSince1970: 0)
+        let metadata = try #require(ProviderDefaults.metadata[.cursor])
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(usedPercent: 25, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+            secondary: nil,
+            tertiary: nil,
+            updatedAt: now,
+            identity: ProviderIdentitySnapshot(
+                providerID: .cursor,
+                accountEmail: nil,
+                accountOrganization: nil,
+                loginMethod: "Cursor Pro",
+                accountID: "auth0|app-user"))
+
+        let model = UsageMenuCardView.Model.make(.init(
+            provider: .cursor,
+            metadata: metadata,
+            snapshot: snapshot,
+            credits: nil,
+            creditsError: nil,
+            dashboard: nil,
+            dashboardError: nil,
+            tokenSnapshot: nil,
+            tokenError: nil,
+            account: AccountInfo(email: "web@example.com", plan: nil),
+            isRefreshing: false,
+            lastError: nil,
+            usageBarsShowUsed: false,
+            resetTimeDisplayStyle: .countdown,
+            tokenCostUsageEnabled: false,
+            showOptionalCreditsAndExtraUsage: true,
+            hidePersonalInfo: false,
+            now: now))
+
+        #expect(model.email == "app-user")
+    }
+
+    @Test
     func `team pool shows personal spend and changes height fingerprint`() throws {
         let now = Date(timeIntervalSince1970: 0)
         let metadata = try #require(ProviderDefaults.metadata[.cursor])
@@ -98,7 +137,7 @@ struct CursorMenuCardModelTests {
             hidePersonalInfo: false,
             now: now))
 
-        #expect(model.metrics.map(\.title) == ["Total", "Auto", "API"])
+        #expect(model.metrics.map(\.title) == ["Total", "Cursor", "Third Party"])
         for metric in model.metrics {
             #expect(metric.percentLabel == "10% left")
             #expect(metric.detailLeftText == "10% in deficit")
@@ -145,7 +184,7 @@ struct CursorMenuCardModelTests {
             hidePersonalInfo: false,
             now: now))
 
-        #expect(model.metrics.map(\.title) == ["Total", "Auto", "API"])
+        #expect(model.metrics.map(\.title) == ["Total", "Cursor", "Third Party"])
         for metric in model.metrics {
             #expect(metric.percentLabel == "0% left")
             #expect(metric.detailLeftText == nil)

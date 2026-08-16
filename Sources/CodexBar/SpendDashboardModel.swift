@@ -301,13 +301,17 @@ struct SpendDashboardModel: Equatable, Sendable {
             : entries.isEmpty
             ? (coveredDayCount > 0 && hasCompleteTokenHistory ? 0 : nil)
             : Self.completeIntSum(entries.map { Self.nonnegative($0.entry.totalTokens) })
-        let hasCompleteCostHistory = Self.hasCompleteCostHistory(input, displayCalendar: calendar)
-        let costAggregateIsConsistent = input.snapshot.last30DaysCostUSD == nil || hasCompleteCostHistory
+        let hasConsistentCostHistory = Self.hasConsistentCostHistory(input, displayCalendar: calendar)
+        let costAggregateIsConsistent = input.snapshot.last30DaysCostUSD == nil || hasConsistentCostHistory
         let invalidCostHistory = hasInvalidCostHistory || !costAggregateIsConsistent
         let totalCost = invalidCostHistory
             ? nil
             : entries.isEmpty
-            ? (coveredDayCount > 0 && hasCompleteCostHistory ? 0 : nil)
+            ? (coveredDayCount > 0 && hasConsistentCostHistory ? 0 : nil)
+            : hasConsistentCostHistory
+            ? Self.safeCostSum(entries.compactMap {
+                Self.validCost($0.entry.costUSD).map { $0 * costMultiplier }
+            })
             : Self.completeCostSum(entries.map {
                 Self.validCost($0.entry.costUSD).map { $0 * costMultiplier }
             })
@@ -382,7 +386,9 @@ struct SpendDashboardModel: Equatable, Sendable {
         return abs(lhs - rhs) <= tolerance
     }
 
-    private static func hasCompleteCostHistory(
+    /// A completed Codex scan can carry an authoritative priced subtotal while exact request-tier
+    /// evidence leaves some model/day rows unpriceable. Those explicit gaps do not contradict the subtotal.
+    private static func hasConsistentCostHistory(
         _ input: ProviderInput,
         displayCalendar: Calendar) -> Bool
     {
@@ -395,7 +401,14 @@ struct SpendDashboardModel: Equatable, Sendable {
                 continue
             }
             guard coverage.contains(day) else { continue }
-            guard let cost = validCost(entry.costUSD) else { return false }
+            guard let cost = validCost(entry.costUSD) else {
+                // Provider-specific by design: only the Codex ledger carries explicit unpriceable model/day evidence.
+                guard input.snapshot.historyCoverageIsEstablished,
+                      input.provider == .codex,
+                      Self.hasExplicitlyUnpriceableCodexCost(entry)
+                else { return false }
+                continue
+            }
             dailyTotal += cost
             guard dailyTotal.isFinite else { return false }
         }

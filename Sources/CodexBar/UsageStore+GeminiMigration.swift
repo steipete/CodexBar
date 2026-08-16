@@ -2,7 +2,12 @@ import CodexBarCore
 
 extension UsageStore {
     static func isGeminiConsumerTierDeprecationError(_ error: Error?) -> Bool {
-        (error as? GeminiStatusProbeError) == .consumerTierDeprecated
+        switch error as? GeminiStatusProbeError {
+        case .consumerTierDeprecated, .oauthCredentialsUnavailableWithAntigravity:
+            true
+        default:
+            false
+        }
     }
 
     func observeGeminiConsumerTierDeprecation(from error: Error) {

@@ -607,6 +607,11 @@
 "show_quota_warning_markers_subtitle" = "Dessinez des coches de seuil sur les barres d’utilisation lorsque des avertissements de quota sont configurés.";
 "weekly_progress_work_days_title" = "Jours de travail hebdomadaires";
 "weekly_progress_work_days_subtitle" = "Définit les jours ouvrés pour les repères des barres d’utilisation hebdomadaire et le calcul du rythme.";
+"workday_tick_appearance_title" = "Apparence des repères de jours ouvrés";
+"workday_tick_appearance_subtitle" = "Choisissez l’apparence des limites des jours ouvrés sur les barres d’utilisation hebdomadaire.";
+"workday_tick_appearance_hidden" = "Masqués";
+"workday_tick_appearance_subtle" = "Discrets";
+"workday_tick_appearance_high_contrast" = "Contraste élevé";
 "show_provider_changelog_links_title" = "Afficher les liens du journal des modifications du fournisseur";
 "show_provider_changelog_links_subtitle" = "Ajoute au menu des liens de notes de version pour les fournisseurs pris en charge par CLI.";
 "show_credits_extra_usage_title" = "Afficher les crédits + utilisation supplémentaire";

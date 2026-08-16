@@ -604,6 +604,7 @@ struct ProvidersPane: View {
                 .weekly: self.quotaWarningMarkerThresholds(provider: provider, window: .weekly),
             ],
             workDaysPerWeek: self.settings.weeklyProgressWorkDays,
+            workdayTickAppearance: self.settings.workdayTickAppearance,
             now: now)
         return UsageMenuCardView.Model.make(input)
     }

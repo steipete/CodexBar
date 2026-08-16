@@ -25,6 +25,48 @@ struct CostUsageFetcherUnknownModelPricingTests {
     }
 
     @Test
+    func `fetcher reprices a provider qualified model after an on demand catalog refresh`() async throws {
+        let fixture = try UnknownModelPricingFixture()
+        defer { fixture.environment.cleanup() }
+        let qualifiedTurnContext: [String: Any] = [
+            "type": "turn_context",
+            "timestamp": fixture.environment.isoString(for: fixture.day),
+            "payload": ["model": "opencode-go/deepseek-v4-flash"],
+        ]
+        let qualifiedTokenCount: [String: Any] = [
+            "type": "event_msg",
+            "timestamp": fixture.environment.isoString(for: fixture.day.addingTimeInterval(1)),
+            "payload": [
+                "type": "token_count",
+                "info": [
+                    "total_token_usage": [
+                        "input_tokens": 100,
+                        "cached_input_tokens": 20,
+                        "output_tokens": 10,
+                    ],
+                ],
+            ],
+        ]
+        _ = try fixture.environment.writeCodexSessionFile(
+            day: fixture.day,
+            filename: "unknown-qualified-model.jsonl",
+            contents: fixture.environment.jsonl([qualifiedTurnContext, qualifiedTokenCount]))
+
+        let snapshot = try await CostUsageFetcher.loadTokenSnapshot(
+            provider: .codex,
+            now: fixture.day,
+            refreshPricingInBackground: false,
+            scannerOptions: fixture.options,
+            modelsDevClient: ModelsDevClient(transport: CostUsageFetcherModelsDevTransport(
+                data: fixture.refreshedCatalog)))
+
+        let breakdown = try #require(snapshot.daily
+            .flatMap { $0.modelBreakdowns ?? [] }
+            .first { $0.modelName == "opencode-go/deepseek-v4-flash" })
+        #expect(abs((breakdown.costUSD ?? 0) - 0.0000084) < 0.0000001)
+    }
+
+    @Test
     func `pricing retry preserves disabled pi session merging`() async throws {
         let fixture = try UnknownModelPricingFixture()
         defer { fixture.environment.cleanup() }
@@ -221,6 +263,15 @@ private struct UnknownModelPricingFixture {
           "openai": {
             "id": "openai",
             "models": { "gpt-new": { "id": "gpt-new", "cost": { "input": 2, "output": 8 } } }
+          },
+          "opencode-go": {
+            "id": "opencode-go",
+            "models": {
+              "deepseek-v4-flash": {
+                "id": "deepseek-v4-flash",
+                "cost": { "input": 0.07, "output": 0.14 }
+              }
+            }
           },
           "anthropic": {
             "id": "anthropic",

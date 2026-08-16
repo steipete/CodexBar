@@ -127,7 +127,9 @@ extension SpendDashboardModel {
             return self.validCost(entry.costUSD) != nil
         }
 
-        guard let entryCost = validCost(entry.costUSD) else { return false }
+        guard let entryCost = validCost(entry.costUSD) else {
+            return self.hasExplicitlyUnpriceableCodexCost(entry)
+        }
         var pricedCost = 0.0
         var sawPricedBreakdown = false
         for breakdown in entry.modelBreakdowns ?? [] {
@@ -151,6 +153,19 @@ extension SpendDashboardModel {
             }
         }
         return sawPricedBreakdown && Self.costsMatch(entryCost, pricedCost)
+    }
+
+    static func hasExplicitlyUnpriceableCodexCost(_ entry: CostUsageDailyReport.Entry) -> Bool {
+        guard entry.costUSD == nil,
+              let breakdowns = entry.modelBreakdowns,
+              !breakdowns.isEmpty
+        else { return false }
+
+        return breakdowns.allSatisfy { breakdown in
+            !breakdown.modelName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                && breakdown.costUSD == nil
+                && Self.nonnegative(breakdown.totalTokens) != nil
+        }
     }
 
     private static func hasCompleteModelCostCoverage(_ entry: CostUsageDailyReport.Entry) -> Bool {

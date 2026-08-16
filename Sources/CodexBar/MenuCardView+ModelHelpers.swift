@@ -239,6 +239,7 @@ extension UsageMenuCardView.Model {
                 paceOnTop: metric.paceOnTop,
                 warningMarkerPercents: metric.warningMarkerPercents,
                 workdayMarkerPercents: metric.workdayMarkerPercents,
+                workdayTickAppearance: metric.workdayTickAppearance,
                 cardStyle: metric.cardStyle,
                 sessionEquivalentDetail: metric.sessionEquivalentDetail)
         }
@@ -478,7 +479,7 @@ extension UsageMenuCardView.Model {
         } else if input.provider == .crof {
             CrofProviderDescriptor.primaryLabel(snapshot: snapshot)
         } else if input.provider == .grok {
-            GrokProviderDescriptor.primaryLabel(window: snapshot.primary, now: input.now) ?? input.metadata.sessionLabel
+            GrokProviderDescriptor.displayLabel(window: snapshot.primary, now: input.now) ?? input.metadata.sessionLabel
         } else if input.provider == .doubao {
             DoubaoProviderDescriptor.primaryLabel(window: snapshot.primary) ?? input.metadata.sessionLabel
         } else if input.provider == .sub2api {

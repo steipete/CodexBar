@@ -606,6 +606,11 @@
 "show_quota_warning_markers_subtitle" = "Rita tröskelmarkeringar på användningsstaplar när kvotvarningar är konfigurerade.";
 "weekly_progress_work_days_title" = "Arbetsdagar i veckoförlopp";
 "weekly_progress_work_days_subtitle" = "Ställ in arbetsdagar för markeringar i veckostaplar och tempoberäkningar.";
+"workday_tick_appearance_title" = "Utseende för arbetsdagsmarkeringar";
+"workday_tick_appearance_subtitle" = "Välj hur arbetsdagsgränser visas i veckans användningsstaplar.";
+"workday_tick_appearance_hidden" = "Dolda";
+"workday_tick_appearance_subtle" = "Diskreta";
+"workday_tick_appearance_high_contrast" = "Hög kontrast";
 "show_provider_changelog_links_title" = "Visa länkar till leverantörers ändringsloggar";
 "show_provider_changelog_links_subtitle" = "Lägger till länkar till utgåvekommentarer för stödda CLI-baserade leverantörer i menyn.";
 "show_credits_extra_usage_title" = "Visa krediter och extra användning";

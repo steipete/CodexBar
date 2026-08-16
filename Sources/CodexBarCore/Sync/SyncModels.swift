@@ -231,6 +231,7 @@ public struct SyncedPreferences: Codable, Sendable {
     public var quotaWarningOnScreenAlertEnabled: Bool
     public var quotaWarningMarkersVisible: Bool
     public var weeklyProgressWorkDays: Int?
+    public var workdayTickAppearance: String?
     public var usageBarsShowUsed: Bool
     public var resetTimesShowAbsolute: Bool
     public var costUsageEnabled: Bool
@@ -262,6 +263,7 @@ public struct SyncedPreferences: Codable, Sendable {
         quotaWarningOnScreenAlertEnabled: Bool,
         quotaWarningMarkersVisible: Bool,
         weeklyProgressWorkDays: Int?,
+        workdayTickAppearance: String? = nil,
         usageBarsShowUsed: Bool,
         resetTimesShowAbsolute: Bool,
         costUsageEnabled: Bool,
@@ -292,6 +294,7 @@ public struct SyncedPreferences: Codable, Sendable {
         self.quotaWarningOnScreenAlertEnabled = quotaWarningOnScreenAlertEnabled
         self.quotaWarningMarkersVisible = quotaWarningMarkersVisible
         self.weeklyProgressWorkDays = weeklyProgressWorkDays
+        self.workdayTickAppearance = workdayTickAppearance
         self.usageBarsShowUsed = usageBarsShowUsed
         self.resetTimesShowAbsolute = resetTimesShowAbsolute
         self.costUsageEnabled = costUsageEnabled

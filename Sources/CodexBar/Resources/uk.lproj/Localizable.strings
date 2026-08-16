@@ -607,6 +607,11 @@
 "show_quota_warning_markers_subtitle" = "Малюйте порогові позначки на панелях використання, коли налаштовано попередження про квоту.";
 "weekly_progress_work_days_title" = "Щотижневі робочі дні";
 "weekly_progress_work_days_subtitle" = "Задайте робочі дні для позначок на смугах тижневого використання та розрахунків темпу.";
+"workday_tick_appearance_title" = "Вигляд позначок робочих днів";
+"workday_tick_appearance_subtitle" = "Виберіть, як відображати межі робочих днів на смугах тижневого використання.";
+"workday_tick_appearance_hidden" = "Приховані";
+"workday_tick_appearance_subtle" = "Ненав’язливі";
+"workday_tick_appearance_high_contrast" = "Високий контраст";
 "show_provider_changelog_links_title" = "Показати посилання журналу змін провайдера";
 "show_provider_changelog_links_subtitle" = "Додає в меню посилання на примітки до випуску для підтримуваних постачальників, що підтримують CLI.";
 "show_credits_extra_usage_title" = "Показати кредити + додаткове використання";

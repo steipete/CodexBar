@@ -60,7 +60,11 @@ public enum OpenCodeGoProviderDescriptor {
                 noDataMessage: {
                     "No OpenCode Go local usage history found in ~/.local/share/opencode/opencode.db."
                 }),
-            pace: .calendarMonthResetWindow,
+            pace: ProviderPaceCapability(
+                resetWindowPace: .windowDuration(minutes: ProviderPaceCapability.monthlyWindowSentinelMinutes),
+                inferredMonthlyDuration: .windowDuration(minutes: ProviderPaceCapability.monthlyWindowSentinelMinutes),
+                primary: .session(maximumMinutes: 300),
+                secondary: .weekly),
             history: .alwaysTracked,
             presentation: ProviderUsagePresentation(
                 costPresenter: { snapshot in

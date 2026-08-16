@@ -131,6 +131,24 @@ enum MultiAccountMenuLayout: String, CaseIterable, Identifiable {
     }
 }
 
+enum WorkdayTickAppearance: String, CaseIterable, Identifiable {
+    case hidden
+    case subtle
+    case highContrast
+
+    var id: String {
+        self.rawValue
+    }
+
+    var label: String {
+        switch self {
+        case .hidden: L("workday_tick_appearance_hidden")
+        case .subtle: L("workday_tick_appearance_subtle")
+        case .highContrast: L("workday_tick_appearance_high_contrast")
+        }
+    }
+}
+
 enum CostSummaryDisplayStyle: String, CaseIterable, Identifiable {
     case inlineSummary
     case costSubmenu
@@ -450,6 +468,8 @@ extension SettingsStore {
             userDefaults.set(true, forKey: "quotaWarningMarkersVisible")
         }
         let weeklyProgressWorkDays = userDefaults.object(forKey: "weeklyProgressWorkDays") as? Int
+        let workdayTickAppearanceRaw = userDefaults.string(forKey: "workdayTickAppearance")
+            ?? WorkdayTickAppearance.subtle.rawValue
         let usageBarsShowUsed = userDefaults.object(forKey: "usageBarsShowUsed") as? Bool ?? false
         let resetTimesShowAbsolute = userDefaults.object(forKey: "resetTimesShowAbsolute") as? Bool ?? false
         let providerChangelogLinksEnabled = userDefaults.object(
@@ -585,6 +605,7 @@ extension SettingsStore {
             quotaWarningOnScreenAlertEnabled: quotaWarnings.onScreenAlertEnabled,
             quotaWarningMarkersVisible: quotaWarningMarkersVisible,
             weeklyProgressWorkDays: weeklyProgressWorkDays,
+            workdayTickAppearanceRaw: workdayTickAppearanceRaw,
             usageBarsShowUsed: usageBarsShowUsed,
             resetTimesShowAbsolute: resetTimesShowAbsolute,
             providerChangelogLinksEnabled: providerChangelogLinksEnabled,

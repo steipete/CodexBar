@@ -606,6 +606,11 @@
 "show_quota_warning_markers_subtitle" = "設定配額提醒後，在使用量條上繪製門檻刻度標記。";
 "weekly_progress_work_days_title" = "每週進度工作日標記";
 "weekly_progress_work_days_subtitle" = "設定用於每週用量條刻度與進度計算的工作日。";
+"workday_tick_appearance_title" = "工作日刻度外觀";
+"workday_tick_appearance_subtitle" = "選擇工作日邊界在每週用量條上的顯示方式。";
+"workday_tick_appearance_hidden" = "隱藏";
+"workday_tick_appearance_subtle" = "柔和";
+"workday_tick_appearance_high_contrast" = "高對比度";
 "show_provider_changelog_links_title" = "顯示提供者版本資訊連結";
 "show_provider_changelog_links_subtitle" = "在選單中為支援的 CLI 提供者新增發行說明連結。";
 "show_credits_extra_usage_title" = "顯示額度 + 額外使用量";

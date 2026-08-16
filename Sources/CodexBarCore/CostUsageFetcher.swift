@@ -616,9 +616,13 @@ public struct CostUsageFetcher: Sendable {
         }
     }
 
-    private struct UnknownPricingRefreshRequest: Sendable {
+    private struct ModelsDevPricingTarget: Hashable, Sendable {
         let providerID: String
-        let modelIDs: Set<String>
+        let modelID: String
+    }
+
+    private struct UnknownPricingRefreshRequest: Sendable {
+        let targets: Set<ModelsDevPricingTarget>
         let now: Date
         let cacheRoot: URL?
         let client: ModelsDevClient
@@ -632,22 +636,24 @@ public struct CostUsageFetcher: Sendable {
         client: ModelsDevClient) -> UnknownPricingRefreshRequest?
     {
         guard provider == .codex || provider == .claude else { return nil }
-        let unknownModelIDs = Set(daily.data.flatMap { entry in
-            entry.modelBreakdowns?.compactMap { breakdown -> String? in
-                guard breakdown.costUSD == nil else { return nil }
-                if provider == .codex,
-                   CostUsagePricing.isCodexUnattributedModel(breakdown.modelName)
-                {
-                    return nil
+        var targets = Set<ModelsDevPricingTarget>()
+        for entry in daily.data {
+            for breakdown in entry.modelBreakdowns ?? [] {
+                guard breakdown.costUSD == nil else { continue }
+                if provider == .codex {
+                    guard !CostUsagePricing.isCodexUnattributedModel(breakdown.modelName) else { continue }
+                    for target in CostUsagePricing.codexModelsDevPricingTargets(for: breakdown.modelName) {
+                        targets.insert(ModelsDevPricingTarget(providerID: target.providerID, modelID: target.modelID))
+                    }
+                } else {
+                    targets.insert(ModelsDevPricingTarget(providerID: "anthropic", modelID: breakdown.modelName))
                 }
-                return breakdown.modelName
-            } ?? []
-        })
-        guard !unknownModelIDs.isEmpty else { return nil }
+            }
+        }
+        guard !targets.isEmpty else { return nil }
 
         return UnknownPricingRefreshRequest(
-            providerID: provider == .codex ? "openai" : "anthropic",
-            modelIDs: unknownModelIDs,
+            targets: targets,
             now: now,
             cacheRoot: cacheRoot,
             client: client)
@@ -657,23 +663,30 @@ public struct CostUsageFetcher: Sendable {
         _ request: UnknownPricingRefreshRequest,
         inBackground: Bool) async -> Bool
     {
-        if inBackground {
-            Task.detached(priority: .utility) {
-                _ = await ModelsDevPricingPipeline.refreshForUnknownModelsIfNeeded(
-                    providerID: request.providerID,
-                    modelIDs: request.modelIDs,
+        func refreshTargets() async -> Bool {
+            let targetsByProvider = Dictionary(grouping: request.targets, by: \.providerID)
+            for providerID in targetsByProvider.keys.sorted() {
+                let modelIDs = Set(targetsByProvider[providerID, default: []].map(\.modelID))
+                let outcome = await ModelsDevPricingPipeline.refreshForUnknownModelsIfNeeded(
+                    providerID: providerID,
+                    modelIDs: modelIDs,
                     now: request.now,
                     cacheRoot: request.cacheRoot,
                     client: request.client)
+                if outcome == .pricingAvailable {
+                    return true
+                }
             }
             return false
         }
-        return await ModelsDevPricingPipeline.refreshForUnknownModelsIfNeeded(
-            providerID: request.providerID,
-            modelIDs: request.modelIDs,
-            now: request.now,
-            cacheRoot: request.cacheRoot,
-            client: request.client) == .pricingAvailable
+
+        if inBackground {
+            Task.detached(priority: .utility) {
+                _ = await refreshTargets()
+            }
+            return false
+        }
+        return await refreshTargets()
     }
 
     static func loadCachedCodexTokenSnapshot(

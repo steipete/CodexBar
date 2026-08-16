@@ -34,6 +34,19 @@ struct MenuPane: View {
                     })
 
                 SettingsMenuPicker(
+                    selection: self.$settings.workdayTickAppearance,
+                    options: MenuSettingsMenuOptions.workdayTickAppearances,
+                    label: {
+                        SettingsRowLabel(
+                            L("workday_tick_appearance_title"),
+                            subtitle: L("workday_tick_appearance_subtitle"))
+                    },
+                    optionLabel: { appearance in
+                        Text(appearance.label)
+                    })
+                    .disabled(self.settings.weeklyProgressWorkDays == nil)
+
+                SettingsMenuPicker(
                     selection: self.$settings.resetTimesOption,
                     options: MenuSettingsMenuOptions.resetTimes,
                     label: { Text(L("reset_times_title")) },

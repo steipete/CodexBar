@@ -282,7 +282,7 @@ public struct AntigravityStatusSnapshot: Sendable {
         }
     }
 
-    static func isQuotaSummaryWindowID(_ id: String) -> Bool {
+    public static func isQuotaSummaryWindowID(_ id: String) -> Bool {
         id.hasPrefix(self.quotaSummaryWindowIDPrefix)
     }
 

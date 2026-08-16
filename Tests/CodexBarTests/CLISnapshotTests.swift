@@ -1470,4 +1470,105 @@ struct CLISnapshotTests {
         #expect(!output.contains("Cost:"))
         #expect(!output.contains(" / 0.0"))
     }
+
+    @Test
+    func `renders opencode go session and weekly pace lines`() {
+        let now = Date()
+        let snap = UsageSnapshot(
+            primary: .init(
+                usedPercent: 20,
+                windowMinutes: 300,
+                resetsAt: now.addingTimeInterval(2 * 60 * 60),
+                resetDescription: nil),
+            secondary: .init(
+                usedPercent: 23,
+                windowMinutes: 10080,
+                resetsAt: now.addingTimeInterval(5 * 24 * 3600),
+                resetDescription: nil),
+            tertiary: nil,
+            updatedAt: now)
+
+        let output = CLIRenderer.renderText(
+            provider: .opencodego,
+            snapshot: snap,
+            credits: nil,
+            context: RenderContext(
+                header: "OpenCode Go (web)",
+                status: nil,
+                useColor: false,
+                resetStyle: .countdown),
+            now: now)
+
+        #expect(output.contains("5-hour: 80% left"))
+        // 2h remaining of a 5h window => 3h elapsed => 60% expected; opencode go is not codex so no headroom suffix.
+        #expect(output.contains("Pace: 40% in reserve | Expected 60% used | Lasts until reset"))
+        #expect(output.contains("Weekly: 77% left"))
+        // 5d remaining of a 7d window => 2d elapsed => 28.57% expected (29% displayed), delta -5.57 => -6 displayed.
+        #expect(output.contains("Pace: 6% in reserve | Expected 29% used | Lasts until reset"))
+        #expect(!output.contains("1.5× headroom"))
+    }
+
+    @Test
+    func `returns opencode go pace payload for primary and secondary`() throws {
+        let now = Date()
+        let snap = UsageSnapshot(
+            primary: .init(
+                usedPercent: 20,
+                windowMinutes: 300,
+                resetsAt: now.addingTimeInterval(2 * 60 * 60),
+                resetDescription: nil),
+            secondary: .init(
+                usedPercent: 23,
+                windowMinutes: 10080,
+                resetsAt: now.addingTimeInterval(5 * 24 * 3600),
+                resetDescription: nil),
+            tertiary: nil,
+            updatedAt: now)
+
+        let pace = try #require(CLIRenderer.providerPacePayload(provider: .opencodego, snapshot: snap, now: now))
+        #expect(pace.primary != nil)
+        #expect(pace.primary?.stage == "farBehind")
+        #expect(pace.primary?.deltaPercent == -40)
+        #expect(pace.primary?.expectedUsedPercent == 60)
+        #expect(pace.primary?.summary == "40% in reserve | Expected 60% used | Lasts until reset")
+        #expect(pace.secondary != nil)
+        #expect(pace.secondary?.stage == "slightlyBehind")
+        #expect(pace.secondary?.deltaPercent == -6)
+        #expect(pace.secondary?.expectedUsedPercent == 29)
+        #expect(pace.secondary?.summary == "6% in reserve | Expected 29% used | Lasts until reset")
+    }
+
+    @Test
+    func `returns opencode go primary-only pace when weekly usage is missing`() throws {
+        let now = Date()
+        let snap = UsageSnapshot(
+            primary: .init(
+                usedPercent: 20,
+                windowMinutes: 300,
+                resetsAt: now.addingTimeInterval(2 * 60 * 60),
+                resetDescription: nil),
+            secondary: nil,
+            tertiary: nil,
+            updatedAt: now)
+
+        let pace = try #require(CLIRenderer.providerPacePayload(provider: .opencodego, snapshot: snap, now: now))
+        #expect(pace.primary != nil)
+        #expect(pace.secondary == nil)
+    }
+
+    @Test
+    func `hides opencode go primary pace when window exceeds five hours`() {
+        let now = Date()
+        let snap = UsageSnapshot(
+            primary: .init(
+                usedPercent: 20,
+                windowMinutes: 400,
+                resetsAt: now.addingTimeInterval(2 * 60 * 60),
+                resetDescription: nil),
+            secondary: nil,
+            tertiary: nil,
+            updatedAt: now)
+
+        #expect(CLIRenderer.providerPacePayload(provider: .opencodego, snapshot: snap, now: now) == nil)
+    }
 }

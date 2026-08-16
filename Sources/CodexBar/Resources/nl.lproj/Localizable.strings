@@ -607,6 +607,11 @@
 "show_quota_warning_markers_subtitle" = "Teken drempelmarkeringen op gebruiksbalken wanneer quotawaarschuwingen zijn geconfigureerd.";
 "weekly_progress_work_days_title" = "Wekelijkse voortgang werkdagen";
 "weekly_progress_work_days_subtitle" = "Stel werkdagen in voor markeringen op wekelijkse gebruiksbalken en tempoberekeningen.";
+"workday_tick_appearance_title" = "Weergave van werkdagmarkeringen";
+"workday_tick_appearance_subtitle" = "Kies hoe werkdaggrenzen op wekelijkse gebruiksbalken worden weergegeven.";
+"workday_tick_appearance_hidden" = "Verborgen";
+"workday_tick_appearance_subtle" = "Subtiel";
+"workday_tick_appearance_high_contrast" = "Hoog contrast";
 "show_provider_changelog_links_title" = "Toon provider changelog-links";
 "show_provider_changelog_links_subtitle" = "Voegt koppelingen naar release-opmerkingen voor ondersteunde CLI-ondersteunde providers toe aan het menu.";
 "show_credits_extra_usage_title" = "Toon credits + extra gebruik";

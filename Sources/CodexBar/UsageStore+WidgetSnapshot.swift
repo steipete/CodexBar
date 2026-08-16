@@ -418,7 +418,7 @@ extension UsageStore {
                 return "Requests"
             }
             if provider == .grok,
-               let dyn = GrokProviderDescriptor.primaryLabel(window: snapshot.primary)
+               let dyn = GrokProviderDescriptor.displayLabel(window: snapshot.primary)
             {
                 return dyn
             }

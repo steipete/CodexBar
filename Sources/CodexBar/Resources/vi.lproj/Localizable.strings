@@ -603,6 +603,11 @@
 "show_quota_warning_markers_subtitle" = "Vẽ dấu kiểm ngưỡng trên thanh Mức sử dụng khi cảnh báo Hạn mức được định cấu hình.";
 "weekly_progress_work_days_title" = "Tiến độ ngày làm việc hàng tuần";
 "weekly_progress_work_days_subtitle" = "Đặt ngày làm việc cho các vạch trên thanh sử dụng hằng tuần và phép tính nhịp độ.";
+"workday_tick_appearance_title" = "Kiểu vạch ngày làm việc";
+"workday_tick_appearance_subtitle" = "Chọn cách hiển thị ranh giới ngày làm việc trên thanh sử dụng hằng tuần.";
+"workday_tick_appearance_hidden" = "Ẩn";
+"workday_tick_appearance_subtle" = "Nhẹ";
+"workday_tick_appearance_high_contrast" = "Tương phản cao";
 "show_provider_changelog_links_title" = "Hiển thị Nhà cung cấp liên kết nhật ký thay đổi";
 "show_provider_changelog_links_subtitle" = "Thêm liên kết ghi chú phát hành cho các nhà cung cấp được hỗ trợ CLI vào menu.";
 "show_credits_extra_usage_title" = "Hiển thị tín dụng + phần Mức sử dụng";

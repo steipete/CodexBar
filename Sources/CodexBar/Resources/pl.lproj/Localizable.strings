@@ -615,6 +615,11 @@
 "show_quota_warning_markers_subtitle" = "Rysuje znaczniki progów na paskach użycia, gdy skonfigurowano ostrzeżenia limitu.";
 "weekly_progress_work_days_title" = "Dni robocze postępu tygodniowego";
 "weekly_progress_work_days_subtitle" = "Rysuje znaczniki granic dni na tygodniowych paskach użycia.";
+"workday_tick_appearance_title" = "Wygląd znaczników dni roboczych";
+"workday_tick_appearance_subtitle" = "Wybierz sposób wyświetlania granic dni roboczych na tygodniowych paskach użycia.";
+"workday_tick_appearance_hidden" = "Ukryte";
+"workday_tick_appearance_subtle" = "Subtelne";
+"workday_tick_appearance_high_contrast" = "Wysoki kontrast";
 "show_provider_changelog_links_title" = "Pokaż linki do changelogów dostawców";
 "show_provider_changelog_links_subtitle" = "Dodaje linki do informacji o wydaniach dla obsługiwanych dostawców CLI w menu.";
 "show_credits_extra_usage_title" = "Pokaż kredyty + dodatkowe użycie";

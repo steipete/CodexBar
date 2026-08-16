@@ -3,6 +3,7 @@ import Foundation
 import Testing
 @testable import CodexBar
 
+@MainActor
 struct GrokMenuCardModelTests {
     @Test
     func `weekly CLI quota shows projection and pace marker`() throws {
@@ -79,21 +80,69 @@ struct GrokMenuCardModelTests {
     }
 
     @Test
-    func `unclassified quota does not show weekly projection`() throws {
+    func `weekly web quota near reset keeps its label without projection`() throws {
         let now = Date(timeIntervalSince1970: 0)
         let model = try Self.model(
             now: now,
             window: RateWindow(
                 usedPercent: 50,
                 windowMinutes: nil,
-                resetsAt: now.addingTimeInterval(2 * 24 * 3600),
+                resetsAt: now.addingTimeInterval(2 * 3600),
                 resetDescription: nil))
 
         let metric = try #require(model.metrics.first { $0.id == "primary" })
-        #expect(metric.title == "Credits")
+        #expect(metric.title == "Weekly")
         #expect(metric.detailLeftText == nil)
         #expect(metric.detailRightText == nil)
         #expect(metric.pacePercent == nil)
+    }
+
+    @Test
+    func `weekly web quota near reset keeps its label in the detail menu`() throws {
+        let suite = "GrokMenuCardModelTests-detail-menu"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let settings = SettingsStore(
+            userDefaults: defaults,
+            configStore: testConfigStore(suiteName: suite),
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+        settings.statusChecksEnabled = false
+        let store = UsageStore(
+            fetcher: UsageFetcher(environment: [:]),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings)
+        let now = Date()
+        store._setSnapshotForTesting(
+            UsageSnapshot(
+                primary: RateWindow(
+                    usedPercent: 50,
+                    windowMinutes: nil,
+                    resetsAt: now.addingTimeInterval(2 * 3600),
+                    resetDescription: nil),
+                secondary: nil,
+                tertiary: nil,
+                updatedAt: now,
+                identity: nil),
+            provider: .grok)
+
+        let descriptor = MenuDescriptor.build(
+            provider: .grok,
+            store: store,
+            settings: settings,
+            account: AccountInfo(email: nil, plan: nil),
+            updateReady: false,
+            includeContextualActions: false)
+        let lines = descriptor.sections
+            .flatMap(\.entries)
+            .compactMap { entry -> String? in
+                guard case let .text(text, _) = entry else { return nil }
+                return text
+            }
+
+        #expect(lines.contains(where: { $0.hasPrefix("Weekly:") }))
+        #expect(!lines.contains(where: { $0.hasPrefix("Credits:") }))
     }
 
     private static func model(now: Date, window: RateWindow) throws -> UsageMenuCardView.Model {

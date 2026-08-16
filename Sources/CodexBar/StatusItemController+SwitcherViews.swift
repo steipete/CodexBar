@@ -1039,6 +1039,14 @@ extension ProviderSwitcherView {
         }
     }
 
+    func _test_quotaIndicatorVisibility() -> [(trackHidden: Bool, fillHidden: Bool)] {
+        self.buttons.compactMap { button in
+            self.quotaIndicators[ObjectIdentifier(button)].map { indicator in
+                (indicator.track.isHidden, indicator.fill.isHidden)
+            }
+        }
+    }
+
     func _test_quotaIndicatorFillFrames() -> [NSRect] {
         self.buttons.compactMap { button in
             self.quotaIndicators[ObjectIdentifier(button)]?.fill.frame
@@ -1112,9 +1120,10 @@ extension ProviderSwitcherView {
 
     private func updateQuotaIndicatorVisibility(for view: NSView) {
         guard let indicator = self.quotaIndicators[ObjectIdentifier(view)] else { return }
-        let isSelected = (view as? NSButton)?.state == .on
-        indicator.track.isHidden = isSelected
-        indicator.fill.isHidden = isSelected || indicator.fillRatio <= 0
+        // Keep the provider's quota visible while its tab is selected as well. The
+        // indicator is the cross-provider status cue, not part of the selection chrome.
+        indicator.track.isHidden = false
+        indicator.fill.isHidden = indicator.fillRatio <= 0
     }
 
     fileprivate static func updateQuotaIndicatorFill(

@@ -599,6 +599,11 @@
 "show_quota_warning_markers_subtitle" = "Dibuja marcas de umbral en las barras de uso cuando hay avisos de cuota configurados.";
 "weekly_progress_work_days_title" = "Días laborables del progreso semanal";
 "weekly_progress_work_days_subtitle" = "Define los días laborables para los marcadores de las barras de uso semanal y los cálculos de ritmo.";
+"workday_tick_appearance_title" = "Aspecto de las marcas de días laborables";
+"workday_tick_appearance_subtitle" = "Elige cómo aparecen los límites de los días laborables en las barras de uso semanal.";
+"workday_tick_appearance_hidden" = "Ocultas";
+"workday_tick_appearance_subtle" = "Sutiles";
+"workday_tick_appearance_high_contrast" = "Contraste alto";
 "show_provider_changelog_links_title" = "Mostrar enlaces al registro de cambios del proveedor";
 "show_provider_changelog_links_subtitle" = "Añade al menú enlaces a las notas de versión de los proveedores compatibles basados en CLI.";
 "show_credits_extra_usage_title" = "Mostrar créditos + uso adicional";

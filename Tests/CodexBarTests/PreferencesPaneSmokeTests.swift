@@ -98,6 +98,7 @@ struct PreferencesPaneSmokeTests {
         #expect(MenuBarSettingsMenuOptions.switcherRows == SwitcherRowsOption.allCases)
         #expect(MenuSettingsMenuOptions.weeklyProgressWorkDays == [nil, 4, 5, 7])
         #expect(MenuSettingsMenuOptions.weeklyProgressWorkDaysLabel(nil) == L("Automatic"))
+        #expect(MenuSettingsMenuOptions.workdayTickAppearances == WorkdayTickAppearance.allCases)
         #expect(MenuSettingsMenuOptions.multiAccountLayouts == MultiAccountMenuLayout.allCases)
         #expect(MenuSettingsMenuOptions.usageBarsFill == UsageBarsFillOption.allCases)
         #expect(MenuSettingsMenuOptions.resetTimes == ResetTimesOption.allCases)
@@ -108,12 +109,14 @@ struct PreferencesPaneSmokeTests {
         let settings = Self.makeSettingsStore(suite: suite)
         settings.menuBarDisplayMode = .resetTime
         settings.weeklyProgressWorkDays = 7
+        settings.workdayTickAppearance = .highContrast
         settings.multiAccountMenuLayout = .stacked
         settings.costSummaryDisplayStyle = .costSubmenu
 
         let reloaded = Self.makeSettingsStore(suite: suite, reset: false)
         #expect(reloaded.menuBarDisplayMode == .resetTime)
         #expect(reloaded.weeklyProgressWorkDays == 7)
+        #expect(reloaded.workdayTickAppearance == .highContrast)
         #expect(reloaded.multiAccountMenuLayout == .stacked)
         #expect(reloaded.costSummaryDisplayStyle == .costSubmenu)
     }

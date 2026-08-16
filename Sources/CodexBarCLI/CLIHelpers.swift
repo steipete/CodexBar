@@ -195,6 +195,22 @@ extension CodexBarCLI {
         return UserDefaults.standard.object(forKey: "weeklyProgressWorkDays") as? Int
     }
 
+    /// The app's "Hide personal information" privacy toggle. Read per request so the
+    /// serve dashboard follows the setting without a restart, the same way reset style
+    /// and weekly work days already do.
+    static func hidePersonalInfoFromDefaults() -> Bool {
+        let domains = [
+            "com.steipete.codexbar",
+            "com.steipete.codexbar.debug",
+        ]
+        for domain in domains {
+            if let value = UserDefaults(suiteName: domain)?.object(forKey: "hidePersonalInfo") as? Bool {
+                return value
+            }
+        }
+        return UserDefaults.standard.object(forKey: "hidePersonalInfo") as? Bool ?? false
+    }
+
     static func fetchProviderUsage(
         provider: UsageProvider,
         context: ProviderFetchContext) async -> ProviderFetchOutcome

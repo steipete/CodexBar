@@ -615,6 +615,11 @@
 "show_quota_warning_markers_subtitle" = "Gambar tanda centang ambang batas pada bilah penggunaan saat peringatan kuota dikonfigurasi.";
 "weekly_progress_work_days_title" = "Hari kerja progres mingguan";
 "weekly_progress_work_days_subtitle" = "Atur hari kerja untuk penanda bilah penggunaan mingguan dan perhitungan pace.";
+"workday_tick_appearance_title" = "Tampilan tanda hari kerja";
+"workday_tick_appearance_subtitle" = "Pilih tampilan batas hari kerja pada bilah penggunaan mingguan.";
+"workday_tick_appearance_hidden" = "Tersembunyi";
+"workday_tick_appearance_subtle" = "Samar";
+"workday_tick_appearance_high_contrast" = "Kontras tinggi";
 "show_provider_changelog_links_title" = "Tampilkan tautan changelog penyedia";
 "show_provider_changelog_links_subtitle" = "Menambahkan tautan catatan rilis untuk penyedia berbasis CLI yang didukung ke menu.";
 "show_credits_extra_usage_title" = "Tampilkan kredit + penggunaan ekstra";

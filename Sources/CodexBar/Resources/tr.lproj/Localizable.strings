@@ -613,6 +613,11 @@
 "show_quota_warning_markers_subtitle" = "Kota uyarıları yapılandırıldığında kullanım çubuklarına eşik çizgileri çizer.";
 "weekly_progress_work_days_title" = "Haftalık ilerleme iş günleri";
 "weekly_progress_work_days_subtitle" = "Haftalık kullanım çubuğu işaretleri ve tempo hesaplamaları için iş günlerini ayarlar.";
+"workday_tick_appearance_title" = "İş günü işaretlerinin görünümü";
+"workday_tick_appearance_subtitle" = "İş günü sınırlarının haftalık kullanım çubuklarında nasıl görüneceğini seçin.";
+"workday_tick_appearance_hidden" = "Gizli";
+"workday_tick_appearance_subtle" = "Hafif";
+"workday_tick_appearance_high_contrast" = "Yüksek kontrast";
 "show_provider_changelog_links_title" = "Sağlayıcı değişiklik günlüğü bağlantılarını göster";
 "show_provider_changelog_links_subtitle" = "Desteklenen CLI destekli sağlayıcılar için menüye sürüm notları bağlantıları ekler.";
 "show_credits_extra_usage_title" = "Krediler + ekstra kullanımı göster";

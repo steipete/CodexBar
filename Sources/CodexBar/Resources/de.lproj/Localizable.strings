@@ -605,6 +605,11 @@
 "show_quota_warning_markers_subtitle" = "Zeichnen Sie Schwellenwertmarkierungen auf Nutzungsbalken, wenn Kontingentwarnungen konfiguriert sind.";
 "weekly_progress_work_days_title" = "Wöchentliche Fortschrittsarbeitstage";
 "weekly_progress_work_days_subtitle" = "Legt Arbeitstage für Markierungen in wöchentlichen Nutzungsbalken und Tempo-Berechnungen fest.";
+"workday_tick_appearance_title" = "Darstellung der Arbeitstagsmarkierungen";
+"workday_tick_appearance_subtitle" = "Wähle, wie Arbeitstagsgrenzen in wöchentlichen Nutzungsbalken erscheinen.";
+"workday_tick_appearance_hidden" = "Ausgeblendet";
+"workday_tick_appearance_subtle" = "Dezent";
+"workday_tick_appearance_high_contrast" = "Hoher Kontrast";
 "show_provider_changelog_links_title" = "Links zum Änderungsprotokoll des Anbieters anzeigen";
 "show_provider_changelog_links_subtitle" = "Fügt dem Menü Versionshinweise-Links für unterstützte CLI-gestützte Anbieter hinzu.";
 "show_credits_extra_usage_title" = "Credits + zusätzliche Nutzung anzeigen";

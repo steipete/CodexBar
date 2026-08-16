@@ -604,6 +604,11 @@
 "show_quota_warning_markers_subtitle" = "Desenha marcas de limite nas barras de uso quando os alertas de cota estão configurados.";
 "weekly_progress_work_days_title" = "Dias úteis no progresso semanal";
 "weekly_progress_work_days_subtitle" = "Define os dias úteis para marcadores das barras de uso semanal e cálculos de ritmo.";
+"workday_tick_appearance_title" = "Aparência das marcas de dias úteis";
+"workday_tick_appearance_subtitle" = "Escolha como os limites dos dias úteis aparecem nas barras de uso semanal.";
+"workday_tick_appearance_hidden" = "Ocultas";
+"workday_tick_appearance_subtle" = "Sutis";
+"workday_tick_appearance_high_contrast" = "Alto contraste";
 "show_provider_changelog_links_title" = "Mostrar links de changelog dos provedores";
 "show_provider_changelog_links_subtitle" = "Adiciona links de notas de versão para provedores baseados em CLI compatíveis no menu.";
 "show_credits_extra_usage_title" = "Mostrar créditos + uso extra";

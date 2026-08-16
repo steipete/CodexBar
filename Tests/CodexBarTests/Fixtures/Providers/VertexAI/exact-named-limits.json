@@ -1,0 +1,52 @@
+{
+  "timeSeries": [
+    {
+      "metric": {
+        "type": "serviceruntime.googleapis.com/quota/limit",
+        "labels": {
+          "limit_name": "GenerateContentRequestsPerMinutePerProjectPerBaseModel",
+          "quota_metric": "aiplatform.googleapis.com/generate_content_requests"
+        }
+      },
+      "resource": {
+        "type": "consumer_quota",
+        "labels": {
+          "location": "global",
+          "project_id": "redacted-project",
+          "service": "aiplatform.googleapis.com"
+        }
+      },
+      "points": [
+        {
+          "value": {
+            "int64Value": "100"
+          }
+        }
+      ]
+    },
+    {
+      "metric": {
+        "type": "serviceruntime.googleapis.com/quota/limit",
+        "labels": {
+          "limit_name": "GenerateContentRequestsPerMinutePerProject",
+          "quota_metric": "aiplatform.googleapis.com/generate_content_requests"
+        }
+      },
+      "resource": {
+        "type": "consumer_quota",
+        "labels": {
+          "location": "global",
+          "project_id": "redacted-project",
+          "service": "aiplatform.googleapis.com"
+        }
+      },
+      "points": [
+        {
+          "value": {
+            "int64Value": "50"
+          }
+        }
+      ]
+    }
+  ]
+}

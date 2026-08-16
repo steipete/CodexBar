@@ -51,6 +51,115 @@ struct CostUsagePricingTests {
     }
 
     @Test
+    func `codex cost resolves OpenCodex provider qualified models`() throws {
+        let root = try Self.seedModelsDevCache("""
+        {
+          "deepseek": {
+            "id": "deepseek",
+            "models": {
+              "deepseek-v4-flash": {
+                "id": "deepseek-v4-flash",
+                "cost": { "input": 0.14, "output": 0.28 }
+              }
+            }
+          },
+          "kimi-for-coding": {
+            "id": "kimi-for-coding",
+            "models": {
+              "k3": {
+                "id": "k3",
+                "cost": { "input": 0, "output": 0 }
+              }
+            }
+          },
+          "opencode": {
+            "id": "opencode",
+            "models": {
+              "deepseek-v4-flash-free": {
+                "id": "deepseek-v4-flash-free",
+                "cost": { "input": 0, "output": 0 }
+              }
+            }
+          },
+          "opencode-go": {
+            "id": "opencode-go",
+            "models": {
+              "deepseek-v4-flash": {
+                "id": "deepseek-v4-flash",
+                "cost": { "input": 0.07, "output": 0.14 }
+              }
+            }
+          }
+        }
+        """)
+
+        let opencodeGo = CostUsagePricing.codexCostUSD(
+            model: "opencode-go/deepseek-v4-flash",
+            inputTokens: 100,
+            cachedInputTokens: 10,
+            outputTokens: 5,
+            modelsDevCacheRoot: root)
+        let opencodeFree = CostUsagePricing.codexCostUSD(
+            model: "opencode-free/deepseek-v4-flash-free",
+            inputTokens: 100,
+            cachedInputTokens: 10,
+            outputTokens: 5,
+            modelsDevCacheRoot: root)
+        let kimi = CostUsagePricing.codexCostUSD(
+            model: "kimi-coding/k3",
+            inputTokens: 100,
+            cachedInputTokens: 10,
+            outputTokens: 5,
+            modelsDevCacheRoot: root)
+        let deepseek = CostUsagePricing.codexCostUSD(
+            model: "deepseek/deepseek-v4-flash",
+            inputTokens: 100,
+            cachedInputTokens: 10,
+            outputTokens: 5,
+            modelsDevCacheRoot: root)
+
+        #expect(opencodeGo == (100.0 * 0.07e-6) + (5.0 * 0.14e-6))
+        #expect(opencodeFree == 0)
+        #expect(kimi == 0)
+        #expect(deepseek == (100.0 * 0.14e-6) + (5.0 * 0.28e-6))
+    }
+
+    @Test
+    func `codex cost does not cross charge an unknown provider prefix`() throws {
+        let root = try Self.seedModelsDevCache("""
+        {
+          "openai": {
+            "id": "openai",
+            "models": {
+              "deepseek-v4-flash": {
+                "id": "deepseek-v4-flash",
+                "cost": { "input": 99, "output": 199 }
+              }
+            }
+          },
+          "unlisted-route": {
+            "id": "unlisted-route",
+            "models": {
+              "deepseek-v4-flash": {
+                "id": "deepseek-v4-flash",
+                "cost": { "input": 1, "output": 1 }
+              }
+            }
+          }
+        }
+        """)
+
+        let cost = CostUsagePricing.codexCostUSD(
+            model: "unlisted-route/deepseek-v4-flash",
+            inputTokens: 100,
+            cachedInputTokens: 0,
+            outputTokens: 5,
+            modelsDevCacheRoot: root)
+
+        #expect(cost == nil)
+    }
+
+    @Test
     func `codex cost supports gpt51 codex max`() {
         let cost = CostUsagePricing.codexCostUSD(
             model: "gpt-5.1-codex-max",

@@ -42,6 +42,8 @@ The UI does not change the transport threat model: `codexbar serve` is plain HTT
   ordering through each row's `display.sortKey`.
 - Identity defaults to full account emails. Pass `--identity redacted` to hide email local parts. Provider failures stay
   in their rows without discarding healthy rows.
+- `codexbar serve` differs on one point: without `--identity` it follows the app's "Hide personal information" setting
+  per request, so the web UI matches the menu UI. `codexbar dashboard` always defaults to full identity.
 - A valid full, partial, empty, or all-error snapshot exits `0`. Command-wide setup or encoding failure writes a
   diagnostic to stderr and exits non-zero without writing a substitute document to stdout.
 - Stdout contains exactly one JSON document plus a trailing newline. `--pretty` changes formatting only;
@@ -73,7 +75,7 @@ codexbar serve --dashboard-token YOUR_TOKEN
 Transport is **plain HTTP**. There is no TLS in `codexbar serve`, which means:
 
 - The bearer token crosses the network **in cleartext on every request**. Anyone who can observe the path (same Wi-Fi, ARP spoofing, a compromised switch, your ISP on a routed path) can capture the token and replay it until the server restarts with a new one.
-- The response bodies — plan labels, usage percentages, cost figures, and full account emails by default — cross the network in cleartext too. On non-loopback binds, use `--identity redacted` to hide email local parts unless clients need full identity.
+- The response bodies — plan labels, usage percentages, cost figures, and account emails — cross the network in cleartext too. On non-loopback binds, pass `--identity redacted` to hide email local parts unless clients need full identity. Pin the flag rather than relying on the app's privacy setting, which a later GUI change can flip back.
 - Because non-loopback binds gate `/usage`, `/cost`, and `/dashboard/v1/snapshot` behind the same token, a passive observer sees your account data but an active client without the token gets `401` on every data route. Only the account-free static UI at `/` and `/health` are unauthenticated off-loopback.
 
 Deployments, from safest to least safe:
@@ -99,7 +101,7 @@ Deployments, from safest to least safe:
    CODEXBAR_DASHBOARD_TOKEN=... codexbar serve --host 0.0.0.0 --allow-plain-http --identity redacted
    ```
 
-   A non-loopback `--host` refuses to start without a token, and refuses to start without `--allow-plain-http` — passing that flag is the explicit, operational acceptance that cleartext bearer transport is fine on this network. Full account emails are included in dashboard responses by default, so `--identity redacted` is recommended for these deployments. The token gates all data routes, and the server logs a one-line warning at startup.
+   A non-loopback `--host` refuses to start without a token, and refuses to start without `--allow-plain-http` — passing that flag is the explicit, operational acceptance that cleartext bearer transport is fine on this network. Account emails are included in dashboard responses unless redacted, and an absent flag follows a GUI setting that can change, so pin `--identity redacted` for these deployments. The token gates all data routes, and the server logs a one-line warning at startup.
 
 The server compares tokens in constant time (fixed-length SHA-256 digest comparison), so timing does not leak a matching prefix. That protects the comparison, not the transport: on plain HTTP the token is still readable in transit.
 
@@ -137,7 +139,7 @@ After a fresh cache entry expires, `codexbar serve` may answer immediately with 
 
 ## Payload
 
-The snapshot is a stable display contract, not a raw dump of provider internals. Identity defaults to full account emails and plan labels. Pass `--identity redacted` to replace email local parts with `redacted` while keeping domains and plan labels.
+The snapshot is a stable display contract, not a raw dump of provider internals. Identity defaults to full account emails and plan labels. Pass `--identity redacted` to replace email local parts with `redacted` while keeping domains and plan labels. On `codexbar serve` an absent `--identity` follows the app's "Hide personal information" setting instead of the full default.
 
 ```json
 {

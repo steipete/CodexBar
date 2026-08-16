@@ -44,6 +44,7 @@ struct UsageMenuCardView: View {
             let paceOnTop: Bool
             let warningMarkerPercents: [Double]
             let workdayMarkerPercents: [Double]
+            let workdayTickAppearance: WorkdayTickAppearance
             let cardStyle: Bool
             let sessionEquivalentDetail: UsagePaceText.SessionEquivalentDetail?
 
@@ -61,6 +62,7 @@ struct UsageMenuCardView: View {
                 paceOnTop: Bool,
                 warningMarkerPercents: [Double] = [],
                 workdayMarkerPercents: [Double] = [],
+                workdayTickAppearance: WorkdayTickAppearance = .subtle,
                 cardStyle: Bool = false,
                 sessionEquivalentDetail: UsagePaceText.SessionEquivalentDetail? = nil)
             {
@@ -77,6 +79,7 @@ struct UsageMenuCardView: View {
                 self.paceOnTop = paceOnTop
                 self.warningMarkerPercents = warningMarkerPercents
                 self.workdayMarkerPercents = workdayMarkerPercents
+                self.workdayTickAppearance = workdayTickAppearance
                 self.cardStyle = cardStyle
                 self.sessionEquivalentDetail = sessionEquivalentDetail
             }
@@ -539,7 +542,8 @@ private struct MetricRow: View {
                     pacePercent: self.metric.pacePercent,
                     paceOnTop: self.metric.paceOnTop,
                     warningMarkerPercents: self.metric.warningMarkerPercents,
-                    workdayMarkerPercents: self.metric.workdayMarkerPercents)
+                    workdayMarkerPercents: self.metric.workdayMarkerPercents,
+                    workdayTickAppearance: self.metric.workdayTickAppearance)
                 if let metaText = presentation.metaText {
                     Text(metaText)
                         .font(.footnote)
@@ -1079,6 +1083,13 @@ extension UsageMenuCardView.Model {
         if let email = snapshot?.accountEmail(for: provider), !email.isEmpty {
             return email
         }
+        // Provider-specific by design: Cursor app auth can expose only a subject ID, so its card needs this fallback.
+        if provider == .cursor,
+           let accountID = snapshot?.identity(for: .cursor)?.accountID?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !accountID.isEmpty
+        {
+            return accountID.split(separator: "|", omittingEmptySubsequences: true).last.map(String.init) ?? accountID
+        }
         if metadata.usesAccountFallback || accountIsAuthoritative,
            let email = account.email, !email.isEmpty
         {
@@ -1525,9 +1536,12 @@ extension UsageMenuCardView.Model {
             warningMarkerPercents: Self.warningMarkerPercents(
                 thresholds: input.quotaWarningThresholds[.weekly],
                 showUsed: input.usageBarsShowUsed),
-            workdayMarkerPercents: workDayMarkerPercents(
-                workDays: input.workDaysPerWeek,
-                windowMinutes: weekly.windowMinutes),
+            workdayMarkerPercents: input.workdayTickAppearance == .hidden
+                ? []
+                : workDayMarkerPercents(
+                    workDays: input.workDaysPerWeek,
+                    windowMinutes: weekly.windowMinutes),
+            workdayTickAppearance: input.workdayTickAppearance,
             sessionEquivalentDetail: Self.sessionEquivalentDetail(
                 input: input,
                 weeklyWindow: weekly,

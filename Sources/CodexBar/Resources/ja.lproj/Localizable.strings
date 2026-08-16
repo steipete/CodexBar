@@ -604,6 +604,11 @@
 "show_quota_warning_markers_subtitle" = "クォータ警告が設定されている場合、使用量バーにしきい値の目盛りを描画します。";
 "weekly_progress_work_days_title" = "週間進捗の作業日";
 "weekly_progress_work_days_subtitle" = "週間使用量バーの目盛りとペース計算に使用する作業日を設定します。";
+"workday_tick_appearance_title" = "稼働日の目盛りの表示";
+"workday_tick_appearance_subtitle" = "週間使用量バーで稼働日の境界をどのように表示するか選択します。";
+"workday_tick_appearance_hidden" = "非表示";
+"workday_tick_appearance_subtle" = "控えめ";
+"workday_tick_appearance_high_contrast" = "高コントラスト";
 "show_provider_changelog_links_title" = "プロバイダの変更履歴リンクを表示";
 "show_provider_changelog_links_subtitle" = "対応する CLI ベースのプロバイダのリリースノートへのリンクをメニューに追加します。";
 "show_credits_extra_usage_title" = "クレジットと追加使用量を表示";

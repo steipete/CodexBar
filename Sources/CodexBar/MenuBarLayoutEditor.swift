@@ -43,6 +43,10 @@ struct MenuBarLayoutDragItem: Codable, Hashable, Transferable, Sendable {
     static let lineBreak = Self(content: .lineBreak, source: nil, sourceLayout: nil)
 }
 
+enum MenuBarLayoutPaletteTokens {
+    static let time: [MenuBarLayoutToken] = [.resetCountdown, .resetAbsolute, .runsOut, .runsOutCompact]
+}
+
 enum MenuBarLayoutEditorMutations {
     static func append(_ component: MenuBarLayoutToken, to layout: MenuBarLayout) -> MenuBarLayout {
         var lines = layout.lines
@@ -255,7 +259,7 @@ struct MenuBarLayoutEditor: View {
             MenuBarLayoutPaletteGroup(
                 id: "time",
                 title: L("menu_bar_layout_group_time"),
-                tokens: [.resetCountdown, .resetAbsolute, .runsOut],
+                tokens: MenuBarLayoutPaletteTokens.time,
                 includesLineBreak: false),
             MenuBarLayoutPaletteGroup(
                 id: "money",
@@ -689,8 +693,12 @@ struct MenuBarLayoutPreview: View {
                 snapshot: snapshot)
             session = semanticWindows.session
             weekly = semanticWindows.weekly
+            // Provider-specific by design: Mistral's automatic lane can explicitly select its Monthly Plan window.
+            let automaticPreference = provider == .mistral
+                ? self.settings.menuBarMetricPreference(for: provider, snapshot: snapshot)
+                : .automatic
             rawAutomatic = MenuBarMetricWindowResolver.rateWindow(
-                preference: .automatic,
+                preference: automaticPreference,
                 provider: provider,
                 snapshot: snapshot,
                 supportsAverage: self.settings.menuBarMetricSupportsAverage(for: provider),
@@ -713,6 +721,7 @@ struct MenuBarLayoutPreview: View {
             .flatMap { UsagePaceText.weeklyDetail(provider: provider, pace: $0, now: now).rightLabel }
         let cost = self.store.tokenSnapshotForCurrentProviderConfig(for: provider)?.snapshot
         let costToday = MenuBarLayoutCostResolver.todayCostUSD(snapshot: cost, now: now)
+        let automaticRenderWindow = MenuBarLayoutRenderWindow(automatic)
         return MenuBarLayoutRenderData(
             provider: provider,
             iconKey: provider.rawValue,
@@ -722,7 +731,11 @@ struct MenuBarLayoutPreview: View {
             weekly: MenuBarLayoutRenderWindow(weekly),
             scopedWeekly: MenuBarLayoutRenderWindow(scopedNamed?.window),
             scopedWeeklyTitle: scopedNamed?.title,
-            automatic: MenuBarLayoutRenderWindow(automatic),
+            automatic: automaticRenderWindow,
+            // Provider-specific by design: Mistral uses spend text when its automatic lane has no percentage window.
+            automaticText: provider == .mistral && automaticRenderWindow == nil
+                ? StatusItemController.mistralSpendDisplayText(snapshot: snapshot)
+                : nil,
             sessionPace: self.store.menuBarLayoutPaceText(
                 provider: provider,
                 window: session,
@@ -778,10 +791,11 @@ struct MenuBarLayoutPreview: View {
             scopedWeekly: MenuBarLayoutRenderWindow(scopedWeekly),
             scopedWeeklyTitle: "Fable only",
             automatic: MenuBarLayoutRenderWindow(session),
+            automaticText: nil,
             sessionPace: samplePace(session),
             weeklyPace: samplePace(weekly),
             automaticPace: samplePace(session),
-            runsOut: L("menu_bar_layout_sample_runs_out"),
+            runsOut: L("Runs out in %@", "1d 16h"),
             // Provider-specific by design: only OpenRouter previews the Balance palette token.
             balance: provider == .openrouter ? "$12.34" : nil,
             costToday: "$1.25",
@@ -898,6 +912,7 @@ extension MenuBarLayoutToken {
         case .resetCountdown: L("menu_bar_layout_token_resets_in")
         case .resetAbsolute: L("menu_bar_layout_token_reset_at")
         case .runsOut: L("menu_bar_layout_token_runs_out")
+        case .runsOutCompact: "\(L("menu_bar_layout_token_runs_out")) (compact)"
         case .balance: L("Balance")
         case .costToday: L("menu_bar_layout_token_cost_today")
         case .cost30d: L("menu_bar_layout_token_cost_30d")
@@ -923,7 +938,7 @@ extension MenuBarLayoutToken {
         case .usageBar: "chart.bar.fill"
         case .resetCountdown: "timer"
         case .resetAbsolute: "clock"
-        case .runsOut: "hourglass.bottomhalf.filled"
+        case .runsOut, .runsOutCompact: "hourglass.bottomhalf.filled"
         case .balance: "creditcard"
         case .costToday: "dollarsign.circle"
         case .cost30d: "calendar.badge.clock"

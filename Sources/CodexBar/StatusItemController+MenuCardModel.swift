@@ -156,6 +156,7 @@ extension StatusItemController {
                 .weekly: self.quotaWarningMarkerThresholds(provider: target, window: .weekly),
             ],
             workDaysPerWeek: self.settings.weeklyProgressWorkDays,
+            workdayTickAppearance: self.settings.workdayTickAppearance,
             usesLiveSubtitle: surface == .liveCard,
             preferredCurrencyCode: self.settings.preferredCurrencyCode,
             now: now)

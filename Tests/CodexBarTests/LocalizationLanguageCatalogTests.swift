@@ -370,9 +370,20 @@ struct LocalizationLanguageCatalogTests {
             let title = catalog["weekly_progress_work_days_title"]?.trimmingCharacters(in: .whitespacesAndNewlines)
             let subtitle = catalog["weekly_progress_work_days_subtitle"]?
                 .trimmingCharacters(in: .whitespacesAndNewlines)
+            let appearanceKeys = [
+                "workday_tick_appearance_title",
+                "workday_tick_appearance_subtitle",
+                "workday_tick_appearance_hidden",
+                "workday_tick_appearance_subtle",
+                "workday_tick_appearance_high_contrast",
+            ]
 
             #expect(title?.isEmpty == false, "Missing workday title in \(catalogURL.lastPathComponent)")
             #expect(subtitle?.isEmpty == false, "Missing workday subtitle in \(catalogURL.lastPathComponent)")
+            for key in appearanceKeys {
+                let value = catalog[key]?.trimmingCharacters(in: .whitespacesAndNewlines)
+                #expect(value?.isEmpty == false, "Missing \(key) in \(catalogURL.lastPathComponent)")
+            }
         }
     }
 

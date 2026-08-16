@@ -10,7 +10,7 @@ enum CostUsagePricingKey {
         modelsDevArtifact: ModelsDevCacheArtifact?,
         formulaVersion: Int,
         parserHash: String? = nil,
-        modelsDevProviderIDs: Set<String> = ["openai"]) -> String
+        modelsDevProviderIDs: Set<String> = CostUsagePricing.codexModelsDevProviderIDs) -> String
     {
         var parts = [
             "costFormulaVersion=\(formulaVersion)",

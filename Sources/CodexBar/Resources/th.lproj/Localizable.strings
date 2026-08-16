@@ -613,6 +613,11 @@
 "show_quota_warning_markers_subtitle" = "วาดเครื่องหมายถูกเกณฑ์บนแถบการใช้งานเมื่อมีการกําหนดค่าคําเตือนโควต้า";
 "weekly_progress_work_days_title" = "วันทํางานความคืบหน้ารายสัปดาห์";
 "weekly_progress_work_days_subtitle" = "กําหนดวันทํางานสําหรับเครื่องหมายแถบการใช้งานรายสัปดาห์และการคํานวณความเร็ว";
+"workday_tick_appearance_title" = "ลักษณะขีดวันทำงาน";
+"workday_tick_appearance_subtitle" = "เลือกวิธีแสดงขอบเขตวันทำงานบนแถบการใช้งานรายสัปดาห์";
+"workday_tick_appearance_hidden" = "ซ่อน";
+"workday_tick_appearance_subtle" = "ละเอียดอ่อน";
+"workday_tick_appearance_high_contrast" = "คอนทราสต์สูง";
 "show_provider_changelog_links_title" = "แสดงลิงก์บันทึกการเปลี่ยนแปลงของผู้ให้บริการ";
 "show_provider_changelog_links_subtitle" = "เพิ่มลิงก์บันทึกประจํารุ่นสําหรับผู้ให้บริการที่ได้รับการสนับสนุน CLI ในเมนู";
 "show_credits_extra_usage_title" = "แสดงเครดิต + การใช้งานเพิ่มเติม";

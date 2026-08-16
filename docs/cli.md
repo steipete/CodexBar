@@ -85,7 +85,7 @@ See `docs/configuration.md` for the schema.
   - `--output <path>` atomically writes the snapshot to a file (`0644`) instead of stdout — staged in the destination directory, fsync'd, then renamed over the target so readers never observe a partial document. The parent directory must already exist (it is not created), and stdout stays silent on success.
   - Starts no HTTP server and requires no dashboard bearer token. See `docs/dashboard-api.md` for the shared payload contract.
 - `codexbar serve` starts a foreground HTTP server for usage and cost JSON, a token-gated dashboard snapshot, and a built-in web UI at `/`.
-  - Dashboard snapshot identity defaults to full account emails; use `--identity redacted` to hide email local parts, especially when responses cross a network.
+  - Dashboard snapshot identity follows the app's "Hide personal information" setting when `--identity` is absent: the toggle on redacts email local parts, off keeps full emails. The setting is read per request, so a change applies without a serve restart. Pass `--identity redacted` or `--identity full` to pin the mode and ignore the app setting, especially when responses cross a network.
   - `--host <host>` accepts `localhost` or an IPv4 address and defaults to `127.0.0.1`; `localhost` is normalized to `127.0.0.1`. Binding a non-loopback host requires a dashboard token **and** `--allow-plain-http` (see `docs/dashboard-api.md` for the threat model).
   - `--port <port>` defaults to `8080`.
   - `--refresh-interval <seconds>` defaults to `60` and controls the in-memory response cache TTL.

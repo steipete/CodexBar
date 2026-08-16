@@ -596,6 +596,11 @@
 "show_quota_warning_markers_subtitle" = "할당량 경고가 구성된 경우 사용량 막대에 임계값 눈금 표시를 그립니다.";
 "weekly_progress_work_days_title" = "주간 진행률 근무일";
 "weekly_progress_work_days_subtitle" = "주간 사용량 막대 눈금과 페이스 계산에 사용할 근무일을 설정합니다.";
+"workday_tick_appearance_title" = "근무일 눈금 모양";
+"workday_tick_appearance_subtitle" = "주간 사용량 막대에 근무일 경계를 표시하는 방식을 선택합니다.";
+"workday_tick_appearance_hidden" = "숨김";
+"workday_tick_appearance_subtle" = "은은하게";
+"workday_tick_appearance_high_contrast" = "고대비";
 "show_provider_changelog_links_title" = "공급자 변경 로그 링크 표시";
 "show_provider_changelog_links_subtitle" = "지원되는 CLI 기반 공급자의 릴리스 노트 링크를 메뉴에 추가합니다.";
 "show_credits_extra_usage_title" = "크레딧 + 추가 사용량 표시";

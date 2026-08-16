@@ -72,6 +72,34 @@ struct MenuCardQuotaWarningMarkerTests {
     }
 
     @Test
+    func `high contrast workday boundary is full height and ninety six percent wider`() {
+        let scales: [CGFloat] = [1, 2, 3]
+
+        for scale in scales {
+            let rect = UsageProgressBar.workdayMarkerRect(
+                x: 50,
+                size: CGSize(width: 100, height: 6),
+                scale: scale,
+                appearance: .highContrast)
+
+            #expect(rect.width == 1.96)
+            #expect(rect.height == 6)
+            #expect(rect.minY == 0)
+            #expect(abs(rect.midX - 50) <= 1 / scale)
+        }
+    }
+
+    @Test
+    func `hidden workday appearance removes boundary markers`() {
+        let markers = UsageProgressBar.resolvedMarkers(
+            warningPercents: [80],
+            workdayPercents: [20, 40, 60, 80],
+            workdayAppearance: .hidden)
+
+        #expect(markers == [.init(percent: 80, kind: .quotaWarning)])
+    }
+
+    @Test
     func `quota warning wins when marker kinds overlap`() {
         let markers = UsageProgressBar.resolvedMarkers(
             warningPercents: [50, 80],

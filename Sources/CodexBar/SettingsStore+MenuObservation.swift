@@ -23,6 +23,7 @@ extension SettingsStore {
         _ = self.quotaWarningOnScreenAlertEnabled
         _ = self.quotaWarningMarkersVisible
         _ = self.weeklyProgressWorkDays
+        _ = self.workdayTickAppearance
         _ = self.usageBarsShowUsed
         _ = self.resetTimesShowAbsolute
         _ = self.providerChangelogLinksEnabled
