@@ -1113,8 +1113,6 @@
 "minimax_service_music_generation" = "音樂生成";
 "minimax_service_coding_plan_search" = "Coding Plan 搜尋";
 "Clearing removes old plan-mode files." = "會移除舊的 plan-mode 檔案。";
-"%.0f%% %@" = "%2$@ %1$.0f%%";
-"<1%% %@" = "%1$@ <1%%";
 "%@: %@%% used" = "%@：已使用 %@%%";
 "terminal_app_subtitle" = "「開啟終端」動作使用的終端";
 "Admin API key" = "Admin API 金鑰";
@@ -1221,56 +1219,10 @@
 
 /* Runtime localization for dynamic strings */
 "Cached: %1$@ • %2$@" = "已快取：%1$@ • %2$@";
-"Cached values from %@." = "使用 %@ 的快取值。";
-"Codex CLI is not signed in. Run `codex login --device-auth`, then refresh." = "Codex CLI 尚未登入。請執行 `codex login --device-auth`，然後重新整理。";
-"Codex CLI missing. Install via `npm i -g @openai/codex` (or bun install) and restart." = "缺少 Codex CLI。請用 `npm i -g @openai/codex` 安裝（或使用 bun install），然後重新啟動。";
-"Codex session expired. Sign in again." = "Codex 工作階段已過期。請重新登入。";
-"OpenAI web refresh was interrupted. Refresh OpenAI cookies and try again." = "OpenAI Web 重新整理已中斷。請重新整理 OpenAI Cookie 後再試一次。";
-"OpenAI web refresh timed out. Refresh OpenAI cookies and try again." = "OpenAI Web 重新整理逾時。請重新整理 OpenAI Cookie 後再試一次。";
-"OpenAI web refresh hit a network error. Check your connection, then refresh OpenAI cookies and try again." = "OpenAI Web 重新整理遇到網路錯誤。請檢查連線，然後重新整理 OpenAI Cookie 後再試一次。";
-"Codex usage is temporarily unavailable. Try refreshing." = "Codex 使用量暫時無法取得。請嘗試重新整理。";
-"Last OpenAI dashboard refresh failed: %1$@. Cached values from %2$@." = "上次 OpenAI 儀表板重新整理失敗：%1$@。使用 %2$@ 的快取值。";
-"Last Codex credits refresh failed: %1$@. Cached values from %2$@." = "上次 Codex 額度重新整理失敗：%1$@。使用 %2$@ 的快取值。";
-"OpenAI web dashboard refresh timed out. CodexBar will retry after the refresh cooldown." = "OpenAI Web 儀表板重新整理逾時。CodexBar 會在重新整理冷卻時間後重試。";
 "Codex account changed; importing browser cookies…" = "Codex 帳號已變更；正在匯入瀏覽器 Cookie…";
-"Managed Codex account data is unavailable." = "無法取得託管 Codex 帳號資料。";
-"Fix the managed account store before importing OpenAI cookies." = "請先修復託管帳號儲存區，再匯入 OpenAI Cookie。";
-"Fix the managed account store before refreshing OpenAI web data." = "請先修復託管帳號儲存區，再重新整理 OpenAI Web 資料。";
-"The selected managed Codex account is unavailable." = "所選託管 Codex 帳號無法使用。";
-"Pick another Codex account before importing OpenAI cookies." = "請先選擇另一個 Codex 帳號，再匯入 OpenAI Cookie。";
-"Pick another Codex account before refreshing OpenAI web data." = "請先選擇另一個 Codex 帳號，再重新整理 OpenAI Web 資料。";
-"The selected Codex profile has no verified account email." = "所選 Codex 設定檔沒有已驗證的帳號電子郵件。";
-"Refresh the profile before importing OpenAI cookies." = "請先重新整理設定檔，再匯入 OpenAI Cookie。";
-"Refresh the profile before refreshing OpenAI web data." = "請先重新整理設定檔，再重新整理 OpenAI Web 資料。";
-"No matching OpenAI web session found." = "找不到相符的 OpenAI Web 工作階段。";
-"No matching OpenAI web session found for %@." = "找不到 %@ 的相符 OpenAI Web 工作階段。";
-"OpenAI cookies are for %@." = "OpenAI Cookie 屬於 %@。";
-"OpenAI cookies are for %1$@, not %2$@." = "OpenAI Cookie 屬於 %1$@，不是 %2$@。";
-"Codex credits are still loading; will retry shortly." = "Codex 額度仍在載入；稍後會重試。";
-"Could Not Identify GitHub Account" = "無法識別 GitHub 帳號";
-"GitHub login succeeded, but CodexBar could not verify which account it belongs to. Please try again." = "GitHub 登入成功，但 CodexBar 無法確認這屬於哪個帳號。請再試一次。";
-"Token Refreshed" = "Token 已重新整理";
-"Account Added" = "已新增帳號";
-"Login Successful" = "登入成功";
-"Login Failed" = "登入失敗";
-"You can close this window and return to CodexBar." = "你可以關閉此視窗並返回 CodexBar。";
-"You can close this window and try again." = "你可以關閉此視窗後再試一次。";
 "Requesting login…" = "正在要求登入…";
 "Waiting in browser…" = "正在瀏覽器中等待…";
-"Managed account storage unavailable" = "託管帳號儲存區無法使用";
 "Managed Codex login in progress…" = "託管 Codex 登入進行中…";
-"%d percent" = "%d%%";
-"Settings unavailable." = "無法取得設定。";
-"Failed to resolve Kilo credentials." = "無法解析 Kilo 憑證。";
-"Failed to load organizations." = "無法載入組織。";
-"Hidden" = "隱藏";
-"Credits left" = "剩餘額度";
-"Percent left" = "剩餘百分比";
-"Credits + percent" = "額度 + 百分比";
-"Used / total" = "已用 / 總量";
-"Overage credits at zero" = "歸零時顯示超額額度";
-"Overage cost at zero" = "歸零時顯示超額費用";
-"Overage credits + cost at zero" = "歸零時顯示超額額度 + 費用";
 
 /* Settings sidebar redesign */
 "Enable" = "啟用";
@@ -1301,7 +1253,6 @@
 "Chrome profile" = "Chrome 設定檔";
 "Choose which signed-in DeepSeek Platform session supplies detailed usage." = "選擇要提供詳細使用量的已登入 DeepSeek Platform 工作階段。";
 "Detailed usage unavailable." = "無法取得詳細使用量。";
-"Sign in to DeepSeek Platform in Chrome for detailed usage." = "請在 Chrome 中登入 DeepSeek Platform 以查看詳細使用量。";
 "Select a DeepSeek Chrome profile in Settings." = "請在「設定」中選擇 DeepSeek Chrome 設定檔。";
 "Select profile…" = "選擇設定檔…";
 
@@ -1468,3 +1419,9 @@
 "5-hour usage" = "5 小時用量";
 "7-day usage" = "7 天用量";
 "Total usage" = "總用量";
+"Cache-hit input" = "Cache-hit input";
+"Cache-miss input" = "Cache-miss input";
+"Daily tokens" = "Daily tokens";
+"Detailed usage" = "Detailed usage";
+"Output" = "Output";
+"Sign in to DeepSeek Platform in Chrome or Safari for detailed usage. Safari requires Full Disk Access for CodexBar." = "Sign in to DeepSeek Platform in Chrome or Safari for detailed usage. Safari requires Full Disk Access for CodexBar.";

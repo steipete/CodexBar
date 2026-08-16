@@ -1000,3 +1000,140 @@ struct DeepSeekUsageCostParserAuthorizationTests {
         }
     }
 }
+
+extension DeepSeekUsageCostParserTests {
+    @Test
+    func `parse aggregates per-model costs from cost payload`() throws {
+        let amountJSON = """
+        {
+          "code": 0,
+          "data": {
+            "biz_code": 0,
+            "biz_data": {
+              "total": [
+                {
+                  "model": "deepseek-chat",
+                  "usage": [
+                    {"type": "PROMPT_CACHE_HIT_TOKEN", "amount": "1000"},
+                    {"type": "PROMPT_CACHE_MISS_TOKEN", "amount": "500"},
+                    {"type": "RESPONSE_TOKEN", "amount": "200"},
+                    {"type": "REQUEST", "amount": "10"}
+                  ]
+                },
+                {
+                  "model": "deepseek-reasoner",
+                  "usage": [
+                    {"type": "PROMPT_CACHE_HIT_TOKEN", "amount": "800"},
+                    {"type": "RESPONSE_TOKEN", "amount": "300"},
+                    {"type": "REQUEST", "amount": "5"}
+                  ]
+                }
+              ],
+              "days": []
+            }
+          }
+        }
+        """
+        let costJSON = """
+        {
+          "code": 0,
+          "data": {
+            "biz_code": 0,
+            "biz_data": [
+              {
+                "total": [
+                  {
+                    "model": "deepseek-chat",
+                    "usage": [
+                      {"type": "PROMPT_CACHE_HIT_TOKEN", "amount": "0.5"},
+                      {"type": "PROMPT_CACHE_MISS_TOKEN", "amount": "1.0"},
+                      {"type": "RESPONSE_TOKEN", "amount": "2.0"},
+                      {"type": "REQUEST", "amount": "0"}
+                    ]
+                  },
+                  {
+                    "model": "deepseek-reasoner",
+                    "usage": [
+                      {"type": "PROMPT_CACHE_HIT_TOKEN", "amount": "1.5"},
+                      {"type": "RESPONSE_TOKEN", "amount": "3.0"},
+                      {"type": "REQUEST", "amount": "0"}
+                    ]
+                  }
+                ],
+                "days": [],
+                "currency": "CNY"
+              }
+            ]
+          }
+        }
+        """
+        let summary = try DeepSeekUsageCostParser.parse(
+            amountData: Data(amountJSON.utf8),
+            costData: Data(costJSON.utf8),
+            now: self.fixtureNow,
+            calendar: self.fixtureCalendar)
+
+        #expect(summary.currency == "CNY")
+        // deepseek-chat: 0.5 + 1.0 + 2.0 = 3.5 ; deepseek-reasoner: 1.5 + 3.0 = 4.5
+        #expect(summary.modelCosts.count == 2)
+        let chat = summary.modelCosts.first { $0.model == "deepseek-chat" }
+        let reasoner = summary.modelCosts.first { $0.model == "deepseek-reasoner" }
+        #expect(chat?.cost == 3.5)
+        #expect(reasoner?.cost == 4.5)
+        // Sorted descending by cost
+        #expect(summary.modelCosts.first?.model == "deepseek-reasoner")
+    }
+
+    @Test
+    func `parse omits zero-cost models from modelCosts`() throws {
+        let amountJSON = """
+        {
+          "code": 0,
+          "data": {
+            "biz_code": 0,
+            "biz_data": {
+              "total": [
+                {
+                  "model": "deepseek-chat",
+                  "usage": [
+                    {"type": "RESPONSE_TOKEN", "amount": "100"},
+                    {"type": "REQUEST", "amount": "1"}
+                  ]
+                }
+              ],
+              "days": []
+            }
+          }
+        }
+        """
+        let costJSON = """
+        {
+          "code": 0,
+          "data": {
+            "biz_code": 0,
+            "biz_data": [
+              {
+                "total": [
+                  {
+                    "model": "deepseek-chat",
+                    "usage": [
+                      {"type": "RESPONSE_TOKEN", "amount": "0"},
+                      {"type": "REQUEST", "amount": "0"}
+                    ]
+                  }
+                ],
+                "days": [],
+                "currency": "CNY"
+              }
+            ]
+          }
+        }
+        """
+        let summary = try DeepSeekUsageCostParser.parse(
+            amountData: Data(amountJSON.utf8),
+            costData: Data(costJSON.utf8),
+            now: self.fixtureNow,
+            calendar: self.fixtureCalendar)
+        #expect(summary.modelCosts.isEmpty)
+    }
+}

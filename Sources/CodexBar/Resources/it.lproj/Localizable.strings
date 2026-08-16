@@ -980,7 +980,6 @@
 "Chrome profile" = "Profilo Chrome";
 "Choose which signed-in DeepSeek Platform session supplies detailed usage." = "Scegli quale sessione di DeepSeek Platform con accesso effettuato fornisce l'utilizzo dettagliato.";
 "Detailed usage unavailable." = "Utilizzo dettagliato non disponibile.";
-"Sign in to DeepSeek Platform in Chrome for detailed usage." = "Accedi a DeepSeek Platform in Chrome per l'utilizzo dettagliato.";
 "Select a DeepSeek Chrome profile in Settings." = "Seleziona un profilo Chrome di DeepSeek nelle Impostazioni.";
 "Select profile…" = "Seleziona profilo…";
 "cache-hit input" = "input cache-hit";
@@ -1441,3 +1440,9 @@
 "5-hour usage" = "Utilizzo di 5 ore";
 "7-day usage" = "Utilizzo di 7 giorni";
 "Total usage" = "Utilizzo totale";
+"Cache-hit input" = "Input con hit di cache";
+"Cache-miss input" = "Input con miss di cache";
+"Daily tokens" = "Token giornalieri";
+"Detailed usage" = "Utilizzo dettagliato";
+"Output" = "Uscita";
+"Sign in to DeepSeek Platform in Chrome or Safari for detailed usage. Safari requires Full Disk Access for CodexBar." = "Accedi a DeepSeek Platform in Chrome o Safari per un utilizzo dettagliato. Safari richiede l'accesso completo al disco per CodexBar.";

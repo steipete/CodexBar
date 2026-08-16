@@ -37,7 +37,7 @@ CodexBar resolves the Platform `userToken` in this order:
 
 1. An explicitly supplied `DEEPSEEK_PLATFORM_TOKEN` / `DEEPSEEK_USER_TOKEN` or a legacy
    `providers[].cookieHeader` value preserved from an existing config.
-2. A prompt-free read of `userToken` from the `https://platform.deepseek.com` local-storage origin in Chrome.
+2. A prompt-free read of `userToken` from the `https://platform.deepseek.com` local-storage origin in **Chrome** or **Safari** (macOS). Safari data lives under `~/Library/Containers/com.apple.Safari/.../WebsiteData` and is only readable when the app has **Full Disk Access** (System Settings → Privacy & Security → Full Disk Access). Chrome/Chromium profiles (Chrome, Edge, Brave, Arc, …) are read via leveldb and need no extra permission.
 
 The legacy config value remains a compatibility fallback so upgrading cannot silently erase a working browser-only
 session. An unscoped legacy or environment token is never combined with an API-key balance; API enrichment requires
@@ -55,7 +55,8 @@ refreshes do not probe every profile, and a temporary network failure does not e
 If the selected session expires, CodexBar asks before switching to another valid profile.
 
 If no session is valid, the menu keeps the API-key balance when one exists; otherwise it asks the user to sign in to
-DeepSeek Platform in Chrome. Authentication failures returned as top-level or nested DeepSeek codes `40002` and
+DeepSeek Platform in Chrome or Safari. On macOS, a Safari-only setup requires granting CodexBar **Full Disk Access**
+so the app can read Safari's local-storage database; without it, Safari sessions cannot be imported. Authentication failures returned as top-level or nested DeepSeek codes `40002` and
 `40003` are treated as expired sessions.
 
 ## Usage details

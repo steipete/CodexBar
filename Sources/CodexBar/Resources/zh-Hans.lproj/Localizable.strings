@@ -216,7 +216,6 @@
 "Login failed" = "登录失败";
 "Login shell PATH (startup capture)" = "登录 shell PATH（启动时捕获）";
 "Login timed out" = "登录超时";
-"Low Power Mode" = "低功耗模式";
 "MCP details" = "MCP 详情";
 "Managed Codex accounts unavailable" = "托管 Codex 账户不可用";
 "Managed account storage is unreadable. Live account access is still available, " = "托管账户存储不可读。实时账户访问仍可用，";
@@ -268,7 +267,6 @@
 "Open menu" = "打开菜单";
 "Open token file" = "打开令牌文件";
 "OpenAI cookies" = "OpenAI Cookie";
-"OpenAI web battery saver" = "OpenAI 网页省电";
 "OpenAI web extras" = "OpenAI Web 附加功能";
 "Option A" = "选项 A";
 "Option B" = "选项 B";
@@ -303,7 +301,6 @@
 "Quit CodexBar" = "退出 CodexBar";
 "Random (default)" = "随机（默认）";
 "Reads local usage logs. Shows today + last 30 days cost in the menu." = "读取本地用量日志。在菜单中显示今天及所选历史窗口的费用。";
-"Runs automatic provider, local usage, and storage refreshes no more often than every 30 minutes. Manual refresh remains available." = "自动供应商刷新、本地用量扫描和存储扫描最多每 30 分钟运行一次；仍可随时手动刷新。";
 "Refresh" = "刷新";
 "Refreshing" = "正在刷新";
 "Refresh cadence" = "刷新频率";
@@ -1245,7 +1242,7 @@
 "Chrome profile" = "Chrome 配置文件";
 "Choose which signed-in DeepSeek Platform session supplies detailed usage." = "选择要提供详细用量的已登录 DeepSeek Platform 会话。";
 "Detailed usage unavailable." = "详细用量不可用。";
-"Sign in to DeepSeek Platform in Chrome for detailed usage." = "请在 Chrome 中登录 DeepSeek Platform 以查看详细用量。";
+"Sign in to DeepSeek Platform in Chrome or Safari for detailed usage. Safari requires Full Disk Access for CodexBar." = "请在 Chrome 或 Safari 中登录 DeepSeek Platform 以查看详细用量。Safari 需要为 CodexBar 授予完全磁盘访问权限。";
 "Select a DeepSeek Chrome profile in Settings." = "请在“设置”中选择 DeepSeek Chrome 配置文件。";
 "Select profile…" = "选择配置文件…";
 
@@ -1416,3 +1413,10 @@
 "5-hour usage" = "5 小时用量";
 "7-day usage" = "7 天用量";
 "Total usage" = "总用量";
+
+"Detailed usage" = "详细用量";
+"Daily tokens" = "每日 token";
+"tokens" = "token";
+"Cache-hit input" = "缓存命中输入";
+"Cache-miss input" = "缓存未命中输入";
+"Output" = "输出";

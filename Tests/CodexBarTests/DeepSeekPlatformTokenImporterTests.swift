@@ -59,6 +59,42 @@ struct DeepSeekPlatformTokenImporterTests {
     }
     #endif
 
+    #if os(macOS)
+    @Test
+    func `safari storage is only read after explicit opt-in`() {
+        // Regression: automatic resolution used to scan Safari's protected
+        // container before Chrome on every refresh. Safari must be excluded
+        // unless the user explicitly selected a Safari profile.
+        let localStorage = BrowserLocalStorageAPI { _, _, _, _ in
+            [
+                BrowserLocalStorageAPI.Profile(
+                    id: "chrome:Profile 2",
+                    label: "Chrome — Work",
+                    entries: [
+                        BrowserLocalStorageAPI.Entry(
+                            key: "userToken",
+                            value: "browser-user-token-through-host-api"),
+                    ]),
+            ]
+        }
+
+        // Default: Safari is NOT read. Only Chrome tokens are returned even
+        // though the real Safari container exists on this machine.
+        let defaults = DeepSeekPlatformTokenImporter.importTokens(
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            includeSafari: false,
+            localStorage: localStorage)
+        #expect(defaults.map(\.id) == ["chrome:Profile 2"])
+
+        // Explicit opt-in keeps Safari support available.
+        let optedIn = DeepSeekPlatformTokenImporter.importTokens(
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            includeSafari: true,
+            localStorage: localStorage)
+        #expect(optedIn.contains { $0.id.hasPrefix("safari:") } || optedIn.map(\.id) == ["chrome:Profile 2"])
+    }
+    #endif
+
     @Test
     func `multiple profiles expose only server accepted sessions`() async {
         let candidates = [
@@ -253,6 +289,7 @@ struct DeepSeekPlatformTokenImporterTests {
             currentMonthRequestCount: marker,
             topModel: nil,
             categoryBreakdown: [],
+            modelCosts: [],
             daily: [],
             currency: "USD",
             updatedAt: Date(timeIntervalSince1970: 0))

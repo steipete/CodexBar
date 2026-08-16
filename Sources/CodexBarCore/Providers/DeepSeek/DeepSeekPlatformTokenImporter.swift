@@ -1,4 +1,7 @@
 import Foundation
+#if os(macOS)
+import SQLite3
+#endif
 
 enum DeepSeekPlatformTokenImporter {
     struct TokenInfo: Sendable, Equatable {
@@ -11,17 +14,20 @@ enum DeepSeekPlatformTokenImporter {
         let profiles: [DeepSeekPlatformProfile]
         let selectedSummary: DeepSeekUsageSummary?
         let selectedBalance: DeepSeekUsageSnapshot?
+        let selectedProfileID: String?
         let detailedUsageState: DeepSeekDetailedUsageState
 
         init(
             profiles: [DeepSeekPlatformProfile],
             selectedSummary: DeepSeekUsageSummary?,
             selectedBalance: DeepSeekUsageSnapshot? = nil,
+            selectedProfileID: String? = nil,
             detailedUsageState: DeepSeekDetailedUsageState)
         {
             self.profiles = profiles
             self.selectedSummary = selectedSummary
             self.selectedBalance = selectedBalance
+            self.selectedProfileID = selectedProfileID
             self.detailedUsageState = detailedUsageState
         }
     }
@@ -61,7 +67,11 @@ enum DeepSeekPlatformTokenImporter {
         logger: (@Sendable (String) -> Void)? = nil) async -> Resolution
     {
         #if os(macOS)
-        let candidates = self.importTokens(browserDetection: browserDetection, logger: logger)
+        let includeSafari = selectedProfileID?.hasPrefix("safari:") ?? false
+        let candidates = self.importTokens(
+            browserDetection: browserDetection,
+            includeSafari: includeSafari,
+            logger: logger)
         guard !Task.isCancelled else {
             return Resolution(profiles: [], selectedSummary: nil, detailedUsageState: .unavailable)
         }
@@ -101,15 +111,40 @@ enum DeepSeekPlatformTokenImporter {
     #if os(macOS)
     static func importTokens(
         browserDetection: BrowserDetection,
+        includeSafari: Bool = false,
         logger: (@Sendable (String) -> Void)? = nil,
         localStorage: BrowserLocalStorageAPI = .live) -> [TokenInfo]
     {
         let log: @Sendable (String) -> Void = { message in logger?("[deepseek-storage] \(message)") }
+
+        // Safari's protected container is only read when the user explicitly
+        // selected a Safari profile; routine refreshes stay Chrome-only.
+        let safariTokens = includeSafari ? Self.importSafariTokens(logger: log) : []
+        let chromeTokens = Self.importChromiumTokens(
+            browserDetection: browserDetection,
+            logger: log,
+            localStorage: localStorage)
+
+        var results: [TokenInfo] = []
+        results.append(contentsOf: safariTokens)
+        results.append(contentsOf: chromeTokens)
+
+        if results.isEmpty {
+            log("No DeepSeek userToken found in browser local storage")
+        }
+        return results
+    }
+
+    private static func importChromiumTokens(
+        browserDetection: BrowserDetection,
+        logger: @escaping @Sendable (String) -> Void,
+        localStorage: BrowserLocalStorageAPI) -> [TokenInfo]
+    {
         let profiles = localStorage.profiles(
             for: "https://platform.deepseek.com",
             browsers: [.chrome],
             using: browserDetection,
-            logger: log)
+            logger: logger)
 
         var results: [TokenInfo] = []
         for profile in profiles {
@@ -117,18 +152,173 @@ enum DeepSeekPlatformTokenImporter {
             guard let entry = profile.entries.first(where: { $0.key == "userToken" }),
                   let token = self.extractUserToken(from: entry.value)
             else {
-                log("No DeepSeek userToken found in \(profile.id)")
+                logger("No DeepSeek userToken found in \(profile.id)")
                 continue
             }
 
-            log("Found DeepSeek platform token in \(profile.id)")
+            logger("Found DeepSeek platform token in \(profile.id)")
             results.append(TokenInfo(id: profile.id, token: token, sourceLabel: profile.label))
         }
+        return results
+    }
 
-        if results.isEmpty {
-            log("No DeepSeek userToken found in Chrome local storage")
+    /// Reads the DeepSeek `userToken` from Safari's WebKit local storage
+    /// (WebsiteData/Default/<origin>/LocalStorage/localstorage.sqlite3).
+    private static func importSafariTokens(
+        logger: (@Sendable (String) -> Void)? = nil) -> [TokenInfo]
+    {
+        let log: (String) -> Void = { msg in logger?("[deepseek-safari] \(msg)") }
+        let root = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Library")
+            .appendingPathComponent("Containers")
+            .appendingPathComponent("com.apple.Safari")
+            .appendingPathComponent("Data")
+            .appendingPathComponent("Library")
+            .appendingPathComponent("WebKit")
+            .appendingPathComponent("WebsiteData")
+            .appendingPathComponent("Default")
+
+        guard FileManager.default.fileExists(atPath: root.path),
+              let enumerator = FileManager.default.enumerator(
+                  at: root,
+                  includingPropertiesForKeys: [.isRegularFileKey],
+                  options: [.skipsHiddenFiles])
+        else {
+            return []
+        }
+
+        var results: [TokenInfo] = []
+        for case let fileURL as URL in enumerator {
+            guard !Task.isCancelled else { return results }
+            guard fileURL.lastPathComponent == "origin" else { continue }
+            guard (try? fileURL.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile) == true else {
+                continue
+            }
+            guard let data = try? Data(contentsOf: fileURL, options: [.mappedIfSafe]) else { continue }
+            let ascii = String(data: data, encoding: .utf8) ?? String(data: data, encoding: .isoLatin1) ?? ""
+            guard ascii.contains("platform.deepseek.com") || ascii.contains("deepseek.com") else {
+                continue
+            }
+
+            let storageURL = fileURL.deletingLastPathComponent()
+                .appendingPathComponent("LocalStorage")
+                .appendingPathComponent("localstorage.sqlite3")
+            guard FileManager.default.fileExists(atPath: storageURL.path) else { continue }
+            guard let token = self.readUserTokenFromSafariSQLite(dbURL: storageURL, logger: log) else {
+                log("No DeepSeek userToken in Safari storage \(storageURL.path)")
+                continue
+            }
+            let host = self.safariOriginHost(from: ascii) ?? "platform.deepseek.com"
+            log("Found DeepSeek platform token in Safari (\(host))")
+            results.append(TokenInfo(id: "safari:\(host)", token: token, sourceLabel: "Safari (\(host))"))
         }
         return results
+    }
+
+    private static func safariOriginHost(from ascii: String) -> String? {
+        let targets = ["platform.deepseek.com", "deepseek.com"]
+        for host in targets where ascii.contains(host) {
+            return host
+        }
+        return nil
+    }
+
+    private static func readUserTokenFromSafariSQLite(
+        dbURL: URL,
+        logger: ((String) -> Void)? = nil) -> String?
+    {
+        var db: OpaquePointer?
+        guard sqlite3_open_v2(dbURL.path, &db, SQLITE_OPEN_READONLY, nil) == SQLITE_OK else {
+            if let c = sqlite3_errmsg(db) {
+                logger?("Safari local storage open failed: \(String(cString: c))")
+            }
+            return nil
+        }
+        defer { sqlite3_close(db) }
+        sqlite3_busy_timeout(db, 250)
+
+        let tables = Self.safariTableNames(db: db, logger: logger)
+        let table = tables.contains("ItemTable") ? "ItemTable"
+            : (tables.contains("localstorage") ? "localstorage" : nil)
+        guard let table else {
+            logger?("Safari local storage missing ItemTable/localstorage tables (found: \(tables.sorted()))")
+            return nil
+        }
+
+        let token = Self.safariLocalStorageValue(db: db, table: table, key: "userToken")
+        guard let token, !token.isEmpty else {
+            logger?("Safari local storage missing userToken")
+            return nil
+        }
+        return self.extractUserToken(from: token)
+    }
+
+    private static func safariTableNames(db: OpaquePointer?, logger: ((String) -> Void)? = nil) -> Set<String> {
+        let sql = "SELECT name FROM sqlite_master WHERE type='table'"
+        var stmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {
+            if let c = sqlite3_errmsg(db) {
+                logger?("Safari local storage table query failed: \(String(cString: c))")
+            }
+            return []
+        }
+        defer { sqlite3_finalize(stmt) }
+        var names = Set<String>()
+        while true {
+            let step = sqlite3_step(stmt)
+            if step == SQLITE_ROW {
+                if let c = sqlite3_column_text(stmt, 0) {
+                    names.insert(String(cString: c))
+                }
+            } else {
+                if step != SQLITE_DONE, let c = sqlite3_errmsg(db) {
+                    logger?("Safari local storage table query failed: \(String(cString: c))")
+                }
+                break
+            }
+        }
+        return names
+    }
+
+    private static func safariLocalStorageValue(db: OpaquePointer?, table: String, key: String) -> String? {
+        let sql = "SELECT value FROM \(table) WHERE key = ? LIMIT 1"
+        var stmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return nil }
+        defer { sqlite3_finalize(stmt) }
+        let transient = unsafeBitCast(-1, to: sqlite3_destructor_type.self)
+        _ = key.withCString { cString in
+            sqlite3_bind_text(stmt, 1, cString, -1, transient)
+        }
+        guard sqlite3_step(stmt) == SQLITE_ROW else { return nil }
+        return Self.safariSQLiteValue(stmt: stmt, index: 0)
+    }
+
+    private static func safariSQLiteValue(stmt: OpaquePointer?, index: Int32) -> String? {
+        let type = sqlite3_column_type(stmt, index)
+        switch type {
+        case SQLITE_TEXT:
+            guard let c = sqlite3_column_text(stmt, index) else { return nil }
+            return String(cString: c)
+        case SQLITE_BLOB:
+            guard let bytes = sqlite3_column_blob(stmt, index) else { return nil }
+            let count = Int(sqlite3_column_bytes(stmt, index))
+            return Self.safariValueData(Data(bytes: bytes, count: count))
+        default:
+            return nil
+        }
+    }
+
+    private static func safariValueData(_ data: Data) -> String? {
+        if let decoded = String(data: data, encoding: .utf16LittleEndian) {
+            return decoded.trimmingCharacters(in: .controlCharacters)
+        }
+        if let decoded = String(data: data, encoding: .utf8) {
+            return decoded.trimmingCharacters(in: .controlCharacters)
+        }
+        if let decoded = String(data: data, encoding: .isoLatin1) {
+            return decoded.trimmingCharacters(in: .controlCharacters)
+        }
+        return nil
     }
 
     #endif
@@ -247,9 +437,14 @@ enum DeepSeekPlatformTokenImporter {
                 profiles: profiles,
                 selectedSummary: sessionData.summary,
                 selectedBalance: sessionData.balance,
+                selectedProfileID: selected.id,
                 detailedUsageState: sessionData.detailedUsageState)
         }
-        return Resolution(profiles: profiles, selectedSummary: nil, detailedUsageState: .unavailable)
+        return Resolution(
+            profiles: profiles,
+            selectedSummary: nil,
+            selectedProfileID: selected.id,
+            detailedUsageState: .unavailable)
     }
 
     private static func validate(

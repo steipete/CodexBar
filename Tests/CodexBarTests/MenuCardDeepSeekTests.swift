@@ -18,6 +18,7 @@ struct MenuCardDeepSeekTests {
                 DeepSeekCategoryBreakdown(category: .promptCacheMissToken, tokens: 20, cost: 0.002),
                 DeepSeekCategoryBreakdown(category: .responseToken, tokens: 30, cost: 0.003),
             ],
+            modelCosts: [],
             daily: [
                 DeepSeekDailyUsage(date: "2026-05-26", totalTokens: 456, cost: 0.0456, requestCount: 8),
             ],
@@ -242,7 +243,7 @@ struct MenuCardDeepSeekTests {
             now: now))
 
         #expect(model.inlineUsageDashboard == nil)
-        #expect(model.usageNotes == ["Sign in to DeepSeek Platform in Chrome for detailed usage."])
+        #expect(model.usageNotes == ["Sign in to DeepSeek Platform in Chrome or Safari for detailed usage. Safari requires Full Disk Access for CodexBar."])
     }
 
     @Test
@@ -281,7 +282,7 @@ struct MenuCardDeepSeekTests {
             now: now))
 
         #expect(model.metrics.isEmpty)
-        #expect(model.usageNotes == ["Sign in to DeepSeek Platform in Chrome for detailed usage."])
+        #expect(model.usageNotes == ["Sign in to DeepSeek Platform in Chrome or Safari for detailed usage. Safari requires Full Disk Access for CodexBar."])
     }
 
     @Test
@@ -342,5 +343,29 @@ struct MenuCardDeepSeekTests {
 
         #expect(model.inlineUsageDashboard == nil)
         #expect(model.usageNotes.isEmpty)
+    }
+
+    @Test
+    func `deepseek chart metadata is localized with the detail rows`() throws {
+        // Regression: the chart title/unit were forwarded untranslated while
+        // rows were localized, so zh-Hans showed English chart headers.
+        let englishSection = try ProviderDetailSection(
+            title: "Detailed usage",
+            rows: [
+                try ProviderDetailSection.Row(label: "Today", value: "1"),
+            ],
+            chart: try ProviderDetailSection.Chart(
+                kind: .bars,
+                title: "Daily tokens",
+                unit: "tokens",
+                points: [try ProviderDetailSection.Chart.Point(label: "2026-05-26", value: 456)]))
+        let localized = UsageMenuCardView.Model.deepSeekLocalizedDetails([englishSection])
+        let chart = try #require(localized.first?.chart)
+
+        // Both the title and the unit go through the label map.
+        #expect(chart.title == L("Daily tokens"))
+        #expect(chart.unit == L("tokens"))
+        // Points keep their (date) labels untouched.
+        #expect(chart.points.map(\.label) == ["2026-05-26"])
     }
 }

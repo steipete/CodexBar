@@ -128,6 +128,7 @@ struct DeepSeekUsageFetcherTests {
             categoryBreakdown: [
                 DeepSeekCategoryBreakdown(category: .promptCacheHitToken, tokens: 123, cost: 1.23),
             ],
+            modelCosts: [],
             daily: [],
             currency: "USD",
             updatedAt: updatedAt)
