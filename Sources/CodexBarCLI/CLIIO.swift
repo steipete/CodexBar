@@ -31,6 +31,8 @@ extension CodexBarCLI {
             print(Self.usageHelp(version: version))
         case "cost":
             print(Self.costHelp(version: version))
+        case "hermes-usage":
+            print(Self.hermesUsageHelp(version: version))
         case "sessions", "focus":
             print(Self.sessionsHelp(version: version))
         case "dashboard":

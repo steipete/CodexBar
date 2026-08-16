@@ -412,6 +412,10 @@ extension CodexBarCLI {
         CommandSignature.describe(CostOptions())
     }
 
+    static func _hermesUsageSignatureForTesting() -> CommandSignature {
+        CommandSignature.describe(HermesUsageOptions())
+    }
+
     static func _cacheSignatureForTesting() -> CommandSignature {
         CommandSignature.describe(CacheOptions())
     }

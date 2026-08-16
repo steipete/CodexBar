@@ -56,6 +56,13 @@ See `docs/configuration.md` for the schema.
   - `--format text|json` (default: text).
   - `--refresh` ignores cached scans.
   - `--provider-native-only` is experimental and excludes pi and OMP session mirrors from Claude and Codex history.
+- `codexbar hermes-usage` reads provider/model/task token attribution from local Hermes Agent `state.db` files.
+  - Discovery covers the default Hermes home and named profiles; `--database <path[,path...]>` sets an explicit scope.
+  - SQLite remains read-only and WAL-aware. No Hermes OAuth token, provider API key, or browser cookie is read.
+  - Actual billed cost, Hermes estimates, subscription-included usage, and models.dev API-equivalent estimates are
+    separate JSON fields; unknown values stay `null`, never fabricated `$0`.
+  - The report is a cumulative current snapshot, not exact daily history, and is not auto-merged with provider-native
+    billing sources because that could count the same API call twice. See `docs/hermes-usage.md`.
 - `codexbar cards` prints a one-shot usage snapshot as a responsive terminal card grid.
   - Reuses the same provider, source, account, credits, and status flags as `codexbar usage`.
   - Account lines and plan badges are included in the card grid by default.
@@ -213,6 +220,7 @@ codexbar cost                     # cost usage (default 30-day window + today)
 codexbar cost --days 90           # choose a 1...365 day cost window
 codexbar cost --provider codex --group-by project
 codexbar cost --provider claude --format json --pretty
+codexbar hermes-usage --provider codex --json --pretty
 codexbar guard --provider codex --min-remaining 20 --window weekly --json
 codexbar cost --provider cursor   # Cursor dashboard cost (API-rate + Cursor-metered)
 codexbar dashboard | jq '.providers[] | {id, windows, error}'

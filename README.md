@@ -74,6 +74,13 @@ printf '%s' "$ELEVENLABS_API_KEY" | codexbar config set-api-key --provider eleve
 `set-api-key` trims the piped value, stores it with restrictive config-file permissions, and enables the provider by default. Use `--no-enable` to only save the key, or `--api-key <key>` for one-off local scripts where shell history is not a concern.
 See [CLI configuration](docs/cli-configuration.md) for the full flow.
 
+### Hermes Agent local usage
+
+`codexbar hermes-usage` reads local Hermes `state.db` attribution in SQLite read-only mode and reports mapped
+provider/model/task tokens. Billed cost, subscription-included usage, Hermes estimates, and API-equivalent estimates
+remain separate; the source is not automatically merged with provider-native billing totals. See
+[Hermes Agent local usage](docs/hermes-usage.md).
+
 ## Providers
 
 - [Codex](docs/codex.md) — OAuth API or local Codex CLI, plus optional OpenAI web dashboard extras.
