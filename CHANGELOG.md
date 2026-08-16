@@ -4,6 +4,7 @@
 
 ### Fixed
 - Vertex AI: match Cloud Monitoring quota usage without a `limit_name` to its unambiguous same-metric, same-location limit, restoring quota percentages (#2958). Thanks @MachApple!
+- Codex: stop printing ungated `[codex notify]` and `[codex stderr]` diagnostics from the CLI, routing them to the debug log instead (#2952).
 
 ## 0.50.0 — 2026-08-15
 
