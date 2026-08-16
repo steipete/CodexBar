@@ -1318,10 +1318,21 @@ extension KiroStatusProbe {
     {
         let accepted = self.shouldAcceptPipeResult(result, for: kind)
         guard accepted else { return false }
-        if !Self.isLoginRequired(result.output), now > deadline {
+        try Self.ensureAcceptedResultBeforeDeadline(
+            output: result.output,
+            deadline: deadline,
+            now: now)
+        return true
+    }
+
+    static func ensureAcceptedResultBeforeDeadline(
+        output: String,
+        deadline: ContinuousClock.Instant,
+        now: ContinuousClock.Instant) throws
+    {
+        if !self.isLoginRequired(output), now > deadline {
             throw KiroStatusProbeError.timeout
         }
-        return true
     }
 
     private func shouldAcceptPTYResult(_ result: KiroCLIResult, for kind: KiroCommandKind) -> Bool {

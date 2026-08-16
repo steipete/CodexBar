@@ -5,6 +5,26 @@ import Testing
 @Suite(.serialized)
 struct KiroTransportRaceTests {
     @Test
+    func `accepted transport result after the shared deadline is rejected`() {
+        let output = """
+        Estimated Usage | resets on 2026-06-01 | KIRO FREE
+        Credits (12.50 of 50 covered in plan)
+        ████████████████████ 25%
+        """
+        let deadline = ContinuousClock().now
+
+        #expect {
+            try KiroStatusProbe.ensureAcceptedResultBeforeDeadline(
+                output: output,
+                deadline: deadline,
+                now: deadline.advanced(by: .nanoseconds(1)))
+        } throws: { error in
+            guard case KiroStatusProbeError.timeout = error else { return false }
+            return true
+        }
+    }
+
+    @Test
     func `empty nonzero pipe exit falls back to PTY`() async throws {
         let cliURL = try self.makeCLI(
             """
@@ -29,8 +49,8 @@ struct KiroTransportRaceTests {
             """)
         defer { try? FileManager.default.removeItem(at: cliURL.deletingLastPathComponent()) }
 
-        let snapshot = try await KiroStatusProbe(
-            cliBinaryResolver: { cliURL.path },
+        let snapshot = try await KiroProcessTestSupport.makeFunctionalProbe(
+            cliURL: cliURL,
             pipeTimeoutCap: 0.2).fetch()
 
         #expect(snapshot.planName == "KIRO FREE")
