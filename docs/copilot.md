@@ -59,11 +59,29 @@ Copilot uses GitHub OAuth device flow and the Copilot internal usage API for pri
   is enabled.
   - Product budget: `copilot`
   - SKU budgets: `copilot_premium_request`, `copilot_agent_premium_request`, `spark_premium_request`
+- Seat AI credits: `quota_snapshots.premium_interactions.credits_used` → the shared "Credits used" provider-detail
+  row, shown only when it carries real signal (token-based billing, unlimited quota, nonzero credits, or a
+  configured seat entitlement) so a metered Pro/Individual seat never grows a permanent "0 credits used" row.
+  Deliberately not summed with `chat`/`completions` credits — GitHub can report the same pool under multiple
+  snapshot keys, and summing would double-count.
 - Reset dates are not provided by the API.
 - Plan label from `copilotPlan`.
+
+## AI credit entitlements
+GitHub does not publish an included-credit entitlement on any documented endpoint — all 8 billing endpoints plus
+`budgets`, `cost-centers`, and `usage/summary` were probed, and none returns a ceiling for the seat. The denominator
+is therefore user-entered:
+- Preferences → Providers → Copilot → "Included AI credits (per seat)"
+
+A configured entitlement turns the row into a progress bar ("31 / 3000") via the shared provider-detail row's
+optional progress ratio. Without one, the row stays plain text, because a bar would imply a limit CodexBar cannot
+actually know. Either way the row also carries the numeric credits used (`usageValue`), so editing or clearing
+the entitlement rewrites the cached row (text ↔ bar) immediately, even when the follow-up refresh never lands
+(offline, token lost, 401).
 
 ## Key files
 - `Sources/CodexBarCore/Providers/Copilot/CopilotUsageFetcher.swift`
 - `Sources/CodexBarCore/Providers/Copilot/CopilotDeviceFlow.swift`
+- `Sources/CodexBarCore/Providers/Copilot/CopilotCreditEntitlementParser.swift`
 - `Sources/CodexBar/Providers/Copilot/CopilotLoginFlow.swift`
 - `Sources/CodexBar/CopilotTokenStore.swift` (legacy migration helper)

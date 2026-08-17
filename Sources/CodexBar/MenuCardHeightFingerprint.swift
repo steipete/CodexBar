@@ -43,9 +43,11 @@ extension [ProviderDetailSection] {
                 MenuCardHeightFingerprint.field("title", section.title),
                 MenuCardHeightFingerprint.join(section.rows.map { row in
                     MenuCardHeightFingerprint.join([
+                        MenuCardHeightFingerprint.field("id", row.id),
                         MenuCardHeightFingerprint.field("label", row.label),
                         MenuCardHeightFingerprint.field("value", row.value),
                         MenuCardHeightFingerprint.field("secondary", row.secondaryValue),
+                        "progress=\(row.progress == nil ? "0" : "1")",
                     ])
                 }),
                 section.chart.map { chart in

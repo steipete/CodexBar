@@ -541,6 +541,39 @@ struct ProviderSettingsDescriptorTests {
     }
 
     @Test
+    func `copilot seat credit entitlement field writes through to the settings snapshot`() throws {
+        let fixture = try self.makeSettingsFixture(suite: "ProviderSettingsDescriptorTests-copilot-seat-entitlement")
+        let context = fixture.settingsContext(provider: .copilot)
+
+        let fields = CopilotProviderImplementation().settingsFields(context: context)
+        let field = try #require(fields.first { $0.id == "copilot-seat-credit-entitlement" })
+        field.binding.wrappedValue = "3000"
+
+        #expect(fixture.settings.copilotSeatCreditEntitlementRaw == "3000")
+        #expect(fixture.settings.copilotSettingsSnapshot(tokenOverride: nil).seatCreditEntitlement == 3000)
+    }
+
+    @Test
+    func `copilot seat credit entitlement field writes to the selected account`() throws {
+        let fixture = try self.makeSettingsFixture(suite: "ProviderSettingsDescriptorTests-copilot-seat-account")
+        fixture.settings.copilotSeatCreditEntitlementRaw = "3000"
+        fixture.settings.addTokenAccount(provider: .copilot, label: "Work", token: "token-1")
+        let context = fixture.settingsContext(provider: .copilot)
+
+        let fields = CopilotProviderImplementation().settingsFields(context: context)
+        let field = try #require(fields.first { $0.id == "copilot-seat-credit-entitlement" })
+        // The field surfaces the global fallback until the account sets its own value.
+        #expect(field.binding.wrappedValue == "3000")
+
+        field.binding.wrappedValue = "1500"
+
+        let account = try #require(fixture.settings.selectedTokenAccount(for: .copilot))
+        #expect(account.seatCreditEntitlement == "1500")
+        #expect(fixture.settings.copilotSeatCreditEntitlementRaw == "3000")
+        #expect(fixture.settings.copilotSettingsSnapshot(tokenOverride: nil).seatCreditEntitlement == 1500)
+    }
+
+    @Test
     func `kimi exposes usage source picker plus api and cookie fields`() throws {
         let fixture = try self.makeSettingsFixture(suite: "ProviderSettingsDescriptorTests-kimi")
         let context = fixture.settingsContext(provider: .kimi)

@@ -356,6 +356,136 @@ struct UsageStoreCoverageTests {
     }
 
     @Test
+    func `updating copilot seat entitlement syncs row and reset baseline`() throws {
+        let settings = Self.makeSettingsStore(suite: "UsageStoreCoverageTests-copilot-seat-update")
+        let store = Self.makeUsageStore(settings: settings)
+        store._setSnapshotForTesting(
+            Self.makeCopilotSeatCreditsSnapshot(used: 31, entitlement: 3000),
+            provider: .copilot)
+        store.lastKnownResetSnapshots[.copilot] = Self.makeCopilotSeatCreditsSnapshot(used: 31, entitlement: 1500)
+
+        store.updateCopilotSeatCreditEntitlement(6000)
+
+        let liveRow = try #require(store.snapshot(for: .copilot)?.detailRow(id: CopilotCreditDetailRows.seatRowID))
+        #expect(liveRow.value == "31 / 6000")
+        #expect(liveRow.progress?.used == 31)
+        #expect(liveRow.progress?.total == 6000)
+        let resetRow = try #require(
+            store.lastKnownResetSnapshots[.copilot]?.detailRow(id: CopilotCreditDetailRows.seatRowID))
+        #expect(resetRow.value == "31 / 6000")
+        #expect(resetRow.progress?.total == 6000)
+    }
+
+    @Test
+    func `clearing copilot seat entitlement strips denominator and progress`() throws {
+        let settings = Self.makeSettingsStore(suite: "UsageStoreCoverageTests-copilot-seat-clear")
+        let store = Self.makeUsageStore(settings: settings)
+        store._setSnapshotForTesting(
+            Self.makeCopilotSeatCreditsSnapshot(used: 31, entitlement: 3000),
+            provider: .copilot)
+        store.lastKnownResetSnapshots[.copilot] = Self.makeCopilotSeatCreditsSnapshot(used: 31, entitlement: 3000)
+
+        store.updateCopilotSeatCreditEntitlement(nil)
+
+        let liveRow = try #require(store.snapshot(for: .copilot)?.detailRow(id: CopilotCreditDetailRows.seatRowID))
+        #expect(liveRow.value == "31")
+        #expect(liveRow.progress == nil)
+        let resetRow = try #require(
+            store.lastKnownResetSnapshots[.copilot]?.detailRow(id: CopilotCreditDetailRows.seatRowID))
+        #expect(resetRow.value == "31")
+        #expect(resetRow.progress == nil)
+    }
+
+    @Test
+    func `copilot seat entitlement update is a no-op without a seat row`() {
+        let settings = Self.makeSettingsStore(suite: "UsageStoreCoverageTests-copilot-seat-missing")
+        let store = Self.makeUsageStore(settings: settings)
+        let live = Self.makeCopilotSnapshot(usedPercent: 20, extraRateWindows: nil)
+        let resetBaseline = Self.makeCopilotSnapshot(usedPercent: 10, extraRateWindows: nil)
+        store._setSnapshotForTesting(live, provider: .copilot)
+        store.lastKnownResetSnapshots[.copilot] = resetBaseline
+
+        store.updateCopilotSeatCreditEntitlement(6000)
+        store.updateCopilotSeatCreditEntitlement(nil)
+
+        #expect(store.snapshot(for: .copilot)?.details == live.details)
+        #expect(store.snapshot(for: .copilot)?.primary?.usedPercent == 20)
+        #expect(store.lastKnownResetSnapshots[.copilot]?.details == resetBaseline.details)
+        #expect(store.lastKnownResetSnapshots[.copilot]?.primary?.usedPercent == 10)
+    }
+
+    @Test
+    func `entering copilot seat entitlement turns a text-only row into a bar`() throws {
+        let settings = Self.makeSettingsStore(suite: "UsageStoreCoverageTests-copilot-seat-text")
+        let store = Self.makeUsageStore(settings: settings)
+        let live = Self.makeCopilotSeatCreditsSnapshot(used: 31, entitlement: nil)
+        let resetBaseline = Self.makeCopilotSeatCreditsSnapshot(used: 31, entitlement: nil)
+        store._setSnapshotForTesting(live, provider: .copilot)
+        store.lastKnownResetSnapshots[.copilot] = resetBaseline
+
+        store.updateCopilotSeatCreditEntitlement(6000)
+
+        let liveRow = try #require(store.snapshot(for: .copilot)?.detailRow(id: CopilotCreditDetailRows.seatRowID))
+        #expect(liveRow.value == "31 / 6000")
+        #expect(liveRow.progress?.used == 31)
+        #expect(liveRow.progress?.total == 6000)
+        #expect(liveRow.usageValue == 31)
+        let resetRow = try #require(
+            store.lastKnownResetSnapshots[.copilot]?.detailRow(id: CopilotCreditDetailRows.seatRowID))
+        #expect(resetRow.value == "31 / 6000")
+        #expect(resetRow.progress?.total == 6000)
+
+        store.updateCopilotSeatCreditEntitlement(nil)
+
+        #expect(store.snapshot(for: .copilot)?.details == live.details)
+        #expect(store.lastKnownResetSnapshots[.copilot]?.details == resetBaseline.details)
+    }
+
+    @Test
+    func `copilot seat entitlement update is a no-op when the seat row has no numeric usage`() {
+        // Legacy cached rows predate `usageValue`: with neither a progress ratio nor a retained
+        // numeric usage there is nothing to rebuild from, so the row waits for the next refresh.
+        let settings = Self.makeSettingsStore(suite: "UsageStoreCoverageTests-copilot-seat-legacy")
+        let store = Self.makeUsageStore(settings: settings)
+        let row = ProviderDetailSection.Row.makeRow(
+            id: CopilotCreditDetailRows.seatRowID,
+            label: "Credits used",
+            value: "31",
+            secondaryValue: "resets Jul 1")
+        let details = [ProviderDetailSection.makeSection(title: CopilotCreditDetailRows.sectionTitle, rows: [row])]
+        let live = UsageSnapshot(
+            primary: RateWindow(usedPercent: 20, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+            secondary: nil,
+            details: details,
+            updatedAt: Date(timeIntervalSince1970: 1_780_358_400))
+        store._setSnapshotForTesting(live, provider: .copilot)
+        store.lastKnownResetSnapshots[.copilot] = live
+
+        store.updateCopilotSeatCreditEntitlement(6000)
+        store.updateCopilotSeatCreditEntitlement(nil)
+
+        #expect(store.snapshot(for: .copilot)?.details == live.details)
+        #expect(store.lastKnownResetSnapshots[.copilot]?.details == live.details)
+    }
+
+    @Test
+    func `copilot seat entitlement update syncs stale baseline when live snapshot has no seat row`() throws {
+        let settings = Self.makeSettingsStore(suite: "UsageStoreCoverageTests-copilot-seat-baseline")
+        let store = Self.makeUsageStore(settings: settings)
+        let live = Self.makeCopilotSnapshot(usedPercent: 20, extraRateWindows: nil)
+        store._setSnapshotForTesting(live, provider: .copilot)
+        store.lastKnownResetSnapshots[.copilot] = Self.makeCopilotSeatCreditsSnapshot(used: 31, entitlement: 1500)
+
+        store.updateCopilotSeatCreditEntitlement(6000)
+
+        #expect(store.snapshot(for: .copilot)?.details == live.details)
+        let resetRow = try #require(
+            store.lastKnownResetSnapshots[.copilot]?.detailRow(id: CopilotCreditDetailRows.seatRowID))
+        #expect(resetRow.value == "31 / 6000")
+        #expect(resetRow.progress?.total == 6000)
+    }
+
+    @Test
     func `permission prompt errors are detected for notifications`() {
         let errors: [LocalizedTestError] = [
             LocalizedTestError("Waiting for folder trust prompt"),
@@ -1131,6 +1261,31 @@ extension UsageStoreCoverageTests {
             id: "copilot-budget-test",
             title: "Budget - Copilot",
             window: RateWindow(usedPercent: 50, windowMinutes: nil, resetsAt: nil, resetDescription: nil))
+    }
+
+    private static func makeCopilotSeatCreditsSnapshot(used: Double, entitlement: Double?) -> UsageSnapshot {
+        let usedLabel = UsageFormatter.creditsNumberString(from: used)
+        let row: ProviderDetailSection.Row = if let entitlement {
+            .makeRow(
+                id: CopilotCreditDetailRows.seatRowID,
+                label: "Credits used",
+                value: "\(usedLabel) / \(UsageFormatter.creditsNumberString(from: entitlement))",
+                secondaryValue: "resets Jul 1",
+                progress: .makeProgress(used: used, total: entitlement),
+                usageValue: used)
+        } else {
+            .makeRow(
+                id: CopilotCreditDetailRows.seatRowID,
+                label: "Credits used",
+                value: usedLabel,
+                secondaryValue: "resets Jul 1",
+                usageValue: used)
+        }
+        return UsageSnapshot(
+            primary: RateWindow(usedPercent: 20, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+            secondary: nil,
+            details: [.makeSection(title: CopilotCreditDetailRows.sectionTitle, rows: [row])],
+            updatedAt: Date(timeIntervalSince1970: 1_780_358_400))
     }
 
     private static func enableOnly(_ enabledProvider: UsageProvider, settings: SettingsStore) throws {

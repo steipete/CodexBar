@@ -18,6 +18,7 @@ struct CopilotProviderImplementation: ProviderImplementation {
         _ = settings.copilotBudgetExtrasEnabled
         _ = settings.copilotBudgetCookieSource
         _ = settings.copilotBudgetCookieHeader
+        _ = settings.copilotSeatCreditEntitlementRaw
     }
 
     @MainActor
@@ -155,7 +156,15 @@ struct CopilotProviderImplementation: ProviderImplementation {
 
     @MainActor
     func settingsFields(context: ProviderSettingsContext) -> [ProviderSettingsFieldDescriptor] {
-        [
+        let seatEntitlementBinding = Binding(
+            get: { context.settings.copilotEffectiveSeatCreditEntitlementRaw },
+            set: { newValue in
+                context.settings.copilotEffectiveSeatCreditEntitlementRaw = newValue
+                // Rewrite the cached row locally so a stale denominator/bar never survives a failed
+                // (or offline) refresh; no network call here.
+                context.store.updateCopilotSeatCreditEntitlement(CopilotCreditEntitlementParser.parse(newValue))
+            })
+        return [
             ProviderSettingsFieldDescriptor(
                 id: "copilot-budget-cookie-header",
                 title: "Manual GitHub Cookie header",
@@ -186,6 +195,17 @@ struct CopilotProviderImplementation: ProviderImplementation {
                 kind: .plain,
                 placeholder: "github.com",
                 binding: context.stringBinding(\.copilotEnterpriseHost),
+                actions: [],
+                isVisible: nil,
+                onActivate: nil),
+            ProviderSettingsFieldDescriptor(
+                id: "copilot-seat-credit-entitlement",
+                title: "Included AI credits (per seat)",
+                subtitle: "GitHub does not publish this value. Enter it to show a usage bar. " +
+                    "Applies to the selected GitHub account.",
+                kind: .plain,
+                placeholder: "e.g. 3000",
+                binding: seatEntitlementBinding,
                 actions: [],
                 isVisible: nil,
                 onActivate: nil),

@@ -44,6 +44,7 @@ struct SettingsDefaultsState {
     var menuBarLayoutVerticalAdjustment: Int
     var copilotBudgetExtrasEnabled: Bool
     var copilotIconSecondaryWindowIDRaw: String
+    var copilotSeatCreditEntitlementRaw: String
     var costUsageEnabled: Bool
     var codexLocalSessionCostLedgerEnabled: Bool
     var costUsageHistoryDays: Int

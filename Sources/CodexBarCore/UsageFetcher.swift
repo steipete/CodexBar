@@ -236,6 +236,10 @@ public struct UsageSnapshot: Codable, Sendable {
         self.replacing(extraRateWindows: .value(extraRateWindows))
     }
 
+    public func with(details: [ProviderDetailSection]) -> UsageSnapshot {
+        self.replacing(details: .value(details))
+    }
+
     public func withCodexResetCredits(_ resetCredits: CodexRateLimitResetCreditsSnapshot?) -> UsageSnapshot {
         self.replacing(codexResetCredits: .value(resetCredits))
     }
@@ -374,6 +378,10 @@ public struct UsageSnapshot: Codable, Sendable {
 
     public func detailRow(label: String) -> ProviderDetailSection.Row? {
         self.details.lazy.flatMap(\.rows).first { $0.label == label }
+    }
+
+    public func detailRow(id: String) -> ProviderDetailSection.Row? {
+        self.details.lazy.flatMap(\.rows).first { $0.id == id }
     }
 
     public func rateLimitsUnavailable(for provider: UsageProvider) -> Bool {

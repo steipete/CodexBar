@@ -685,6 +685,15 @@ extension SettingsStore {
         }
     }
 
+    var copilotSeatCreditEntitlementRaw: String {
+        get { self.defaultsState.copilotSeatCreditEntitlementRaw }
+        set {
+            self.defaultsState.copilotSeatCreditEntitlementRaw = newValue
+            self.userDefaults.set(newValue, forKey: "copilotSeatCreditEntitlement")
+            self.noteBackgroundWorkSettingsChanged()
+        }
+    }
+
     private var claudeWebExtrasEnabledRaw: Bool {
         get { self.defaultsState.claudeWebExtrasEnabledRaw }
         set {

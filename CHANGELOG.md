@@ -28,6 +28,7 @@
 - Usage bars: make workday tick marks configurable with hidden, subtle, and high-contrast appearances (#2904, #2950). Thanks @dstier-git!
 - Settings: allow minimizing the Settings window while keeping its Dock tile available for restoring it (#2945). Thanks @Yuxin-Qiao!
 - Widgets: opt-in display of Claude model-scoped weekly quotas (for example Fable) projected from the shared usage snapshot, off by default (#2645). Thanks @alfredjbclaw!
+- Copilot: add a per-seat "Credits used" row with a user-entered credit entitlement that turns the row into a usage bar — GitHub publishes no credit entitlement on any documented endpoint, so a row without one stays plain text, and the row only appears when it carries real signal (token-based billing, unlimited quota, or actual consumption) (#2593). Thanks @KSEGIT!
 
 ### Fixed
 - Claude: let Auto reuse a working CLI fallback when OAuth Keychain access is revoked by Claude Code token rotation, distinguish revoked access from missing credentials, and keep last-known quota history visible with its capture age when every live source fails (#2516). Thanks @axisrow and everyone who supplied forensics!

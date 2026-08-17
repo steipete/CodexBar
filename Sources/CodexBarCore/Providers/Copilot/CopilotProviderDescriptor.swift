@@ -115,7 +115,8 @@ struct CopilotAPIFetchStrategy: ProviderFetchStrategy {
         }
         let fetcher = CopilotUsageFetcher(
             token: token,
-            enterpriseHost: context.settings?.copilot?.enterpriseHost)
+            enterpriseHost: context.settings?.copilot?.enterpriseHost,
+            seatEntitlement: context.settings?.copilot?.seatCreditEntitlement)
         let usage = try await fetcher.fetch()
         let snap = await self.addBudgetWindowsIfNeeded(to: usage, token: token, context: context)
         return self.makeResult(
