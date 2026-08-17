@@ -370,6 +370,23 @@ public struct CostUsageFetcher: Sendable {
         return options
     }
 
+    private static func resolvedPiScannerOptions(
+        _ override: PiSessionCostScanner.Options?,
+        scannerOptions: CostUsageScanner.Options,
+        forceRefresh: Bool,
+        bypassScannerDebounce: Bool) -> PiSessionCostScanner.Options
+    {
+        var options = override ?? PiSessionCostScanner.Options()
+        if options.cacheRoot == nil {
+            options.cacheRoot = scannerOptions.cacheRoot
+        }
+        options.calendar = scannerOptions.calendar
+        if forceRefresh || bypassScannerDebounce {
+            options.refreshMinIntervalSeconds = 0
+        }
+        return options
+    }
+
     static func loadTokenSnapshot(
         provider: UsageProvider,
         environment: [String: String] = ProcessInfo.processInfo.environment,
@@ -411,9 +428,6 @@ public struct CostUsageFetcher: Sendable {
             codexHomePath: codexHomePath)
         // Rolling window is inclusive, so a 30-day display starts 29 days before `now`.
         let since = options.calendar.date(byAdding: .day, value: -(clampedHistoryDays - 1), to: now) ?? now
-        let scopedCodexHomePath = codexHomePath?.trimmingCharacters(in: .whitespacesAndNewlines)
-        // Provider-specific by design: scoped Codex homes exclude ambient Pi sessions from managed-profile totals.
-        let shouldMergePiUsage = provider != .codex || scopedCodexHomePath?.isEmpty != false
         await Self.refreshPricingIfAllowed(
             options: PricingRefreshOptions(
                 provider: provider,
@@ -427,24 +441,19 @@ public struct CostUsageFetcher: Sendable {
         Self.configureScannerRefresh(
             &options,
             provider: provider,
-            allowVertexClaudeFallback: allowVertexClaudeFallback,
             forceRefresh: forceRefresh,
             bypassScannerDebounce: bypassScannerDebounce)
-        var resolvedPiOptions = overridePiScannerOptions ?? PiSessionCostScanner.Options()
-        if resolvedPiOptions.cacheRoot == nil {
-            resolvedPiOptions.cacheRoot = options.cacheRoot
-        }
-        resolvedPiOptions.calendar = options.calendar
-        if forceRefresh || bypassScannerDebounce {
-            resolvedPiOptions.refreshMinIntervalSeconds = 0
-        }
-        let piOptions = resolvedPiOptions
+        let piOptions = Self.resolvedPiScannerOptions(
+            overridePiScannerOptions,
+            scannerOptions: options,
+            forceRefresh: forceRefresh,
+            bypassScannerDebounce: bypassScannerDebounce)
 
         let scanOptions = options
         let localScanOptions = LocalTokenScanOptions(
             allowVertexClaudeFallback: allowVertexClaudeFallback,
             includePiSessions: includePiSessions,
-            shouldMergePiUsage: shouldMergePiUsage,
+            codexHomePath: codexHomePath,
             scanOptions: scanOptions,
             piOptions: piOptions)
         let scanResult = try await Self.loadLocalTokenScanResult(
@@ -503,7 +512,7 @@ public struct CostUsageFetcher: Sendable {
     private struct LocalTokenScanOptions: Sendable {
         let allowVertexClaudeFallback: Bool
         let includePiSessions: Bool
-        let shouldMergePiUsage: Bool
+        let codexHomePath: String?
         let scanOptions: CostUsageScanner.Options
         let piOptions: PiSessionCostScanner.Options
     }
@@ -577,8 +586,10 @@ public struct CostUsageFetcher: Sendable {
                         sessionRoots: roots)
                 }
             }
-            if options.includePiSessions,
-               provider == .claude || (provider == .codex && options.shouldMergePiUsage)
+            if Self.shouldMergePiSessions(
+                provider: provider,
+                includePiSessions: options.includePiSessions,
+                codexHomePath: options.codexHomePath)
             {
                 let piReport = try PiSessionCostScanner.loadDailyReportCancellable(
                     provider: provider,
@@ -625,7 +636,7 @@ public struct CostUsageFetcher: Sendable {
     {
         guard options.isAllowed,
               options.retryUnknown,
-              options.provider == .codex || options.provider == .claude
+              self.usesModelsDevPricing(options.provider)
         else { return }
 
         if options.inBackground {
@@ -656,18 +667,24 @@ public struct CostUsageFetcher: Sendable {
         cacheRoot: URL?,
         client: ModelsDevClient) -> UnknownPricingRefreshRequest?
     {
-        guard provider == .codex || provider == .claude else { return nil }
+        guard provider == .codex || provider == .claude || modelsDevRefreshProviderID(for: provider) != nil
+        else { return nil }
         var targets = Set<ModelsDevPricingTarget>()
         for entry in daily.data {
             for breakdown in entry.modelBreakdowns ?? [] {
                 guard breakdown.costUSD == nil else { continue }
-                if provider == .codex {
+                switch provider {
+                case .codex:
                     guard !CostUsagePricing.isCodexUnattributedModel(breakdown.modelName) else { continue }
                     for target in CostUsagePricing.codexModelsDevPricingTargets(for: breakdown.modelName) {
                         targets.insert(ModelsDevPricingTarget(providerID: target.providerID, modelID: target.modelID))
                     }
-                } else {
+                case .claude:
                     targets.insert(ModelsDevPricingTarget(providerID: "anthropic", modelID: breakdown.modelName))
+                default:
+                    if let providerID = Self.modelsDevRefreshProviderID(for: provider) {
+                        targets.insert(ModelsDevPricingTarget(providerID: providerID, modelID: breakdown.modelName))
+                    }
                 }
             }
         }
@@ -1167,15 +1184,11 @@ public struct CostUsageFetcher: Sendable {
     private static func configureScannerRefresh(
         _ options: inout CostUsageScanner.Options,
         provider: UsageProvider,
-        allowVertexClaudeFallback: Bool,
         forceRefresh: Bool,
         bypassScannerDebounce: Bool)
     {
-        if provider == .vertexai {
-            options.claudeLogProviderFilter = allowVertexClaudeFallback ? .all : .vertexAIOnly
-        } else if provider == .claude {
-            options.claudeLogProviderFilter = .excludeVertexAI
-        }
+        // `claudeLogProviderFilter` is configured in `resolvedScannerOptions` so it is available
+        // to every caller, not only this path.
         if forceRefresh || bypassScannerDebounce {
             options.refreshMinIntervalSeconds = 0
         }
@@ -1502,6 +1515,39 @@ extension CostUsageFetcher {
         }
 
         return "v2:\(scopedFiles.count):\(progressHasher.finalize())"
+    }
+
+    fileprivate static func shouldMergePiSessions(
+        provider: UsageProvider,
+        includePiSessions: Bool,
+        codexHomePath: String?) -> Bool
+    {
+        let scopedCodexHomePath = codexHomePath?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let shouldMergePiUsage = provider != .codex || scopedCodexHomePath?.isEmpty != false
+        return includePiSessions
+            && (provider == .claude
+                || (provider == .codex && shouldMergePiUsage)
+                || provider == .kimi
+                || provider == .moonshot)
+    }
+
+    fileprivate static func usesModelsDevPricing(_ provider: UsageProvider) -> Bool {
+        self.modelsDevRefreshProviderID(for: provider) != nil
+    }
+
+    fileprivate static func modelsDevRefreshProviderID(for provider: UsageProvider) -> String? {
+        switch provider {
+        case .codex:
+            "openai"
+        case .claude:
+            "anthropic"
+        case .kimi:
+            "kimi-for-coding"
+        case .moonshot:
+            "moonshotai"
+        default:
+            nil
+        }
     }
 
     fileprivate static func loadRemoteTokenSnapshot(

@@ -1,0 +1,731 @@
+diff --git a/Sources/CodexBarCLI/CLICostCommand.swift b/Sources/CodexBarCLI/CLICostCommand.swift
+index fcf4c0d9..dd86af8f 100644
+--- a/Sources/CodexBarCLI/CLICostCommand.swift
++++ b/Sources/CodexBarCLI/CLICostCommand.swift
+@@ -5,11 +5,11 @@ import Foundation
+ extension CodexBarCLI {
+     private static let costSupportedProviders: Set<UsageProvider> = {
+         #if os(macOS)
+-        [.claude, .codex, .cursor]
++        [.claude, .codex, .cursor, .alibaba, .alibabatokenplan, .zai, .deepseek]
+         #else
+         // Cursor cost relies on the macOS-only dashboard fetch path; `supportsTokenSnapshot(.cursor)`
+         // is false elsewhere, so don't advertise Cursor cost where it can only fail.
+-        [.claude, .codex]
++        [.claude, .codex, .alibaba, .alibabatokenplan, .zai, .deepseek]
+         #endif
+     }()
+ 
+diff --git a/Sources/CodexBarCore/CostUsageFetcher.swift b/Sources/CodexBarCore/CostUsageFetcher.swift
+index 8147bb7d..7131c26d 100644
+--- a/Sources/CodexBarCore/CostUsageFetcher.swift
++++ b/Sources/CodexBarCore/CostUsageFetcher.swift
+@@ -355,7 +355,8 @@ public struct CostUsageFetcher: Sendable {
+     private static func resolvedScannerOptions(
+         _ override: CostUsageScanner.Options?,
+         provider: UsageProvider,
+-        codexHomePath: String?) -> CostUsageScanner.Options
++        codexHomePath: String?,
++        allowVertexClaudeFallback: Bool = false) -> CostUsageScanner.Options
+     {
+         var options = override ?? CostUsageScanner.Options()
+         if provider == .codex,
+@@ -365,6 +366,11 @@ public struct CostUsageFetcher: Sendable {
+             options.codexSessionsRoot = URL(fileURLWithPath: codexHomePath, isDirectory: true)
+                 .appendingPathComponent("sessions", isDirectory: true)
+         }
++        if provider == .vertexai {
++            options.claudeLogProviderFilter = allowVertexClaudeFallback ? .all : .vertexAIOnly
++        } else if provider == .claude {
++            options.claudeLogProviderFilter = .excludeVertexAI
++        }
+         return options
+     }
+ 
+@@ -406,11 +412,10 @@ public struct CostUsageFetcher: Sendable {
+         var options = Self.resolvedScannerOptions(
+             overrideScannerOptions,
+             provider: provider,
+-            codexHomePath: codexHomePath)
++            codexHomePath: codexHomePath,
++            allowVertexClaudeFallback: allowVertexClaudeFallback)
+         // Rolling window is inclusive, so a 30-day display starts 29 days before `now`.
+         let since = options.calendar.date(byAdding: .day, value: -(clampedHistoryDays - 1), to: now) ?? now
+-        let scopedCodexHomePath = codexHomePath?.trimmingCharacters(in: .whitespacesAndNewlines)
+-        let shouldMergePiUsage = provider != .codex || scopedCodexHomePath?.isEmpty != false
+         await Self.refreshPricingIfAllowed(
+             options: PricingRefreshOptions(
+                 provider: provider,
+@@ -424,7 +429,6 @@ public struct CostUsageFetcher: Sendable {
+         Self.configureScannerRefresh(
+             &options,
+             provider: provider,
+-            allowVertexClaudeFallback: allowVertexClaudeFallback,
+             forceRefresh: forceRefresh,
+             bypassScannerDebounce: bypassScannerDebounce)
+         var resolvedPiOptions = overridePiScannerOptions ?? PiSessionCostScanner.Options()
+@@ -441,7 +445,7 @@ public struct CostUsageFetcher: Sendable {
+         let localScanOptions = LocalTokenScanOptions(
+             allowVertexClaudeFallback: allowVertexClaudeFallback,
+             includePiSessions: includePiSessions,
+-            shouldMergePiUsage: shouldMergePiUsage,
++            codexHomePath: codexHomePath,
+             scanOptions: scanOptions,
+             piOptions: piOptions)
+         let scanResult = try await Self.loadLocalTokenScanResult(
+@@ -500,7 +504,7 @@ public struct CostUsageFetcher: Sendable {
+     private struct LocalTokenScanOptions: Sendable {
+         let allowVertexClaudeFallback: Bool
+         let includePiSessions: Bool
+-        let shouldMergePiUsage: Bool
++        let codexHomePath: String?
+         let scanOptions: CostUsageScanner.Options
+         let piOptions: PiSessionCostScanner.Options
+     }
+@@ -570,8 +574,10 @@ public struct CostUsageFetcher: Sendable {
+                         sessionRoots: roots)
+                 }
+             }
+-            if options.includePiSessions,
+-               provider == .claude || (provider == .codex && options.shouldMergePiUsage)
++            if Self.shouldMergePiSessions(
++                provider: provider,
++                includePiSessions: options.includePiSessions,
++                codexHomePath: options.codexHomePath)
+             {
+                 let piReport = try PiSessionCostScanner.loadDailyReportCancellable(
+                     provider: provider,
+@@ -618,7 +624,7 @@ public struct CostUsageFetcher: Sendable {
+     {
+         guard options.isAllowed,
+               options.retryUnknown,
+-              options.provider == .codex || options.provider == .claude
++              self.usesModelsDevPricing(options.provider)
+         else { return }
+ 
+         if options.inBackground {
+@@ -645,7 +651,7 @@ public struct CostUsageFetcher: Sendable {
+         cacheRoot: URL?,
+         client: ModelsDevClient) -> UnknownPricingRefreshRequest?
+     {
+-        guard provider == .codex || provider == .claude else { return nil }
++        guard let providerID = self.modelsDevRefreshProviderID(for: provider) else { return nil }
+         let unknownModelIDs = Set(daily.data.flatMap { entry in
+             entry.modelBreakdowns?.compactMap { breakdown -> String? in
+                 guard breakdown.costUSD == nil else { return nil }
+@@ -660,7 +666,7 @@ public struct CostUsageFetcher: Sendable {
+         guard !unknownModelIDs.isEmpty else { return nil }
+ 
+         return UnknownPricingRefreshRequest(
+-            providerID: provider == .codex ? "openai" : "anthropic",
++            providerID: providerID,
+             modelIDs: unknownModelIDs,
+             now: now,
+             cacheRoot: cacheRoot,
+@@ -933,7 +939,7 @@ public struct CostUsageFetcher: Sendable {
+     /// macOS-only because it reuses the macOS Cursor session resolution.
+     static func supportsTokenSnapshot(_ provider: UsageProvider) -> Bool {
+         switch provider {
+-        case .codex, .claude, .vertexai, .bedrock:
++        case .codex, .claude, .vertexai, .bedrock, .alibaba, .alibabatokenplan, .zai, .deepseek:
+             return true
+         case .cursor:
+             #if os(macOS)
+@@ -1143,15 +1149,11 @@ public struct CostUsageFetcher: Sendable {
+     private static func configureScannerRefresh(
+         _ options: inout CostUsageScanner.Options,
+         provider: UsageProvider,
+-        allowVertexClaudeFallback: Bool,
+         forceRefresh: Bool,
+         bypassScannerDebounce: Bool)
+     {
+-        if provider == .vertexai {
+-            options.claudeLogProviderFilter = allowVertexClaudeFallback ? .all : .vertexAIOnly
+-        } else if provider == .claude {
+-            options.claudeLogProviderFilter = .excludeVertexAI
+-        }
++        // `claudeLogProviderFilter` is configured in `resolvedScannerOptions` so it is available
++        // to every caller, not only this path.
+         if forceRefresh || bypassScannerDebounce {
+             options.refreshMinIntervalSeconds = 0
+         }
+@@ -1376,6 +1378,45 @@ public struct CostUsageFetcher: Sendable {
+ }
+ 
+ extension CostUsageFetcher {
++    fileprivate static func shouldMergePiSessions(
++        provider: UsageProvider,
++        includePiSessions: Bool,
++        codexHomePath: String?) -> Bool
++    {
++        let scopedCodexHomePath = codexHomePath?.trimmingCharacters(in: .whitespacesAndNewlines)
++        let shouldMergePiUsage = provider != .codex || scopedCodexHomePath?.isEmpty != false
++        return includePiSessions
++            && (provider == .claude
++                || (provider == .codex && shouldMergePiUsage)
++                || provider == .alibaba
++                || provider == .alibabatokenplan
++                || provider == .zai
++                || provider == .deepseek)
++    }
++
++    fileprivate static func usesModelsDevPricing(_ provider: UsageProvider) -> Bool {
++        self.modelsDevRefreshProviderID(for: provider) != nil
++    }
++
++    fileprivate static func modelsDevRefreshProviderID(for provider: UsageProvider) -> String? {
++        switch provider {
++        case .codex:
++            "openai"
++        case .claude:
++            "anthropic"
++        case .alibaba:
++            "alibaba-coding-plan"
++        case .alibabatokenplan:
++            "alibaba-token-plan"
++        case .zai:
++            "zai"
++        case .deepseek:
++            "deepseek"
++        default:
++            nil
++        }
++    }
++
+     fileprivate static func loadRemoteTokenSnapshot(
+         provider: UsageProvider,
+         environment: [String: String],
+diff --git a/Sources/CodexBarCore/Generated/CodexParserHash.generated.swift b/Sources/CodexBarCore/Generated/CodexParserHash.generated.swift
+index 7401a124..90f007ab 100644
+--- a/Sources/CodexBarCore/Generated/CodexParserHash.generated.swift
++++ b/Sources/CodexBarCore/Generated/CodexParserHash.generated.swift
+@@ -1,5 +1,5 @@
+ // Generated by Scripts/regenerate-codex-parser-hash.sh. Do not edit by hand.
+ 
+ enum CodexParserHash {
+-    static let value = "843ca061c36bbea1"
++    static let value = "222327f7abfb4b96"
+ }
+diff --git a/Sources/CodexBarCore/PiSessionCostScanner.swift b/Sources/CodexBarCore/PiSessionCostScanner.swift
+index 4ecdbd3d..d62a0208 100644
+--- a/Sources/CodexBarCore/PiSessionCostScanner.swift
++++ b/Sources/CodexBarCore/PiSessionCostScanner.swift
+@@ -75,7 +75,7 @@ enum PiSessionCostScanner {
+ 
+     private static let costScale = 1_000_000_000.0
+     /// Bump for Pi-only cost formula changes not represented by the parser or pricing fingerprints.
+-    private static let costFormulaVersion = 1
++    private static let costFormulaVersion = 2
+     private static let maxLineBytes = 16 * 1024 * 1024
+     private static let maxSafeRoundedInt = Double(Int.max) - 1
+     private static let sessionStartFilenameRegex = try? NSRegularExpression(
+@@ -107,7 +107,7 @@ enum PiSessionCostScanner {
+         options: Options = Options(),
+         checkCancellation: CostUsageScanner.CancellationCheck?) throws -> CostUsageDailyReport
+     {
+-        guard provider == .codex || provider == .claude else {
++        guard self.supportsPiSessionProvider(provider) else {
+             return CostUsageDailyReport(data: [], summary: nil)
+         }
+ 
+@@ -224,7 +224,7 @@ enum PiSessionCostScanner {
+         cacheRoot: URL? = nil,
+         calendar: Calendar = .current) -> CachedDailyReportResult?
+     {
+-        guard provider == .codex || provider == .claude else { return nil }
++        guard self.supportsPiSessionProvider(provider) else { return nil }
+ 
+         let range = CostUsageScanner.CostUsageDayRange(since: since, until: until, calendar: calendar)
+         let cache = PiSessionCostCacheIO.load(cacheRoot: cacheRoot)
+@@ -255,7 +255,18 @@ enum PiSessionCostScanner {
+                 modelsDevArtifact: modelsDevArtifact,
+                 formulaVersion: Self.costFormulaVersion,
+                 parserHash: CodexParserHash.value,
+-                modelsDevProviderIDs: ["anthropic", "openai"]))
++                modelsDevProviderIDs: [
++                    "alibaba",
++                    "alibaba-coding-plan",
++                    "alibaba-coding-plan-cn",
++                    "alibaba-token-plan",
++                    "alibaba-token-plan-cn",
++                    "anthropic",
++                    "deepseek",
++                    "openai",
++                    "zai",
++                    "zai-coding-plan",
++                ]))
+     }
+ 
+     private static func requestedWindowExpandsCache(
+@@ -852,7 +863,11 @@ enum PiSessionCostScanner {
+                 modelsDevCatalog: pricingContext?.catalog,
+                 modelsDevCacheRoot: pricingContext?.cacheRoot)
+         default:
+-            nil
++            self.modelsDevCostUSD(
++                provider: provider,
++                model: modelName,
++                usage: usage,
++                pricingContext: pricingContext)
+         }
+     }
+ 
+@@ -881,11 +896,28 @@ extension PiSessionCostScanner {
+             .codex
+         case "anthropic":
+             .claude
++        case "alibaba", "alibaba-coding-plan", "qwen", "qwen-code":
++            .alibaba
++        case "alibaba-token-plan":
++            .alibabatokenplan
++        case "zai", "z.ai", "z-ai":
++            .zai
++        case "deepseek":
++            .deepseek
+         default:
+             nil
+         }
+     }
+ 
++    private static func supportsPiSessionProvider(_ provider: UsageProvider) -> Bool {
++        switch provider {
++        case .codex, .claude, .alibaba, .alibabatokenplan, .zai, .deepseek:
++            true
++        default:
++            false
++        }
++    }
++
+     private static func buildReport(
+         provider: UsageProvider,
+         cache: PiSessionCostCache,
+@@ -1114,3 +1146,45 @@ extension PiSessionCostScanner {
+         }
+     }
+ }
++
++extension PiSessionCostScanner {
++    private static func modelsDevCostUSD(
++        provider: UsageProvider,
++        model: String,
++        usage: PiPackedUsage,
++        pricingContext: ModelsDevPricingContext?) -> Double?
++    {
++        guard let lookup = CostUsagePricing.modelsDevPricing(
++            provider: provider,
++            model: model,
++            catalog: pricingContext?.catalog,
++            cacheRoot: pricingContext?.cacheRoot)
++        else { return nil }
++
++        let pricing = lookup.pricing
++        let totalInput = max(0, usage.inputTokens + usage.cacheReadTokens + usage.cacheWriteTokens)
++        let cached = min(max(0, usage.cacheReadTokens), totalInput)
++        let remainingAfterCache = totalInput - cached
++        let cacheWrite = min(max(0, usage.cacheWriteTokens), remainingAfterCache)
++        let nonCached = remainingAfterCache - cacheWrite
++        let usesLongContextRates = pricing.thresholdTokens.map { totalInput > $0 } ?? false
++        let inputRate = usesLongContextRates
++            ? pricing.inputCostPerTokenAboveThreshold ?? pricing.inputCostPerToken
++            : pricing.inputCostPerToken
++        let cachedInputRate = usesLongContextRates
++            ? pricing.cacheReadInputCostPerTokenAboveThreshold ?? pricing.cacheReadInputCostPerToken ?? inputRate
++            : pricing.cacheReadInputCostPerToken ?? pricing.inputCostPerToken
++        let cacheWriteRate = usesLongContextRates
++            ? pricing.cacheCreationInputCostPerTokenAboveThreshold ?? pricing
++            .cacheCreationInputCostPerToken ?? inputRate
++            : pricing.cacheCreationInputCostPerToken ?? inputRate
++        let outputRate = usesLongContextRates
++            ? pricing.outputCostPerTokenAboveThreshold ?? pricing.outputCostPerToken
++            : pricing.outputCostPerToken
++
++        return (Double(nonCached) * inputRate)
++            + (Double(cached) * cachedInputRate)
++            + (Double(cacheWrite) * cacheWriteRate)
++            + (Double(max(0, usage.outputTokens)) * outputRate)
++    }
++}
+diff --git a/Sources/CodexBarCore/Vendored/CostUsage/CostUsagePricing.swift b/Sources/CodexBarCore/Vendored/CostUsage/CostUsagePricing.swift
+index 1bd0c5e6..f936cb82 100644
+--- a/Sources/CodexBarCore/Vendored/CostUsage/CostUsagePricing.swift
++++ b/Sources/CodexBarCore/Vendored/CostUsage/CostUsagePricing.swift
+@@ -765,6 +765,46 @@ enum CostUsagePricing {
+         ModelsDevCache.load(now: now, cacheRoot: cacheRoot).artifact?.catalog
+     }
+ 
++    static func modelsDevPricing(
++        provider: UsageProvider,
++        model: String,
++        catalog: ModelsDevCatalog? = nil,
++        cacheRoot: URL? = nil) -> ModelsDevPricingLookup?
++    {
++        for providerID in self.modelsDevProviderIDs(for: provider) {
++            if let lookup = self.modelsDevLookup(
++                providerID: providerID,
++                model: model,
++                catalog: catalog,
++                cacheRoot: cacheRoot)
++            {
++                return lookup
++            }
++        }
++        return nil
++    }
++
++    private static func modelsDevProviderIDs(for provider: UsageProvider) -> [String] {
++        switch provider {
++        case .codex, .openai, .azureopenai:
++            [self.codexModelsDevProviderID]
++        case .claude:
++            [self.claudeModelsDevProviderID]
++        case .alibaba:
++            ["alibaba-coding-plan", "alibaba-coding-plan-cn"]
++        case .alibabatokenplan:
++            ["alibaba-token-plan", "alibaba-token-plan-cn"]
++        case .zai:
++            ["zai", "zai-coding-plan"]
++        case .deepseek:
++            ["deepseek"]
++        case .deepinfra:
++            ["deepinfra"]
++        default:
++            []
++        }
++    }
++
+     private static func modelsDevLookup(
+         providerID: String,
+         model: String,
+diff --git a/Tests/CodexBarTests/ModelsDevPricingTests.swift b/Tests/CodexBarTests/ModelsDevPricingTests.swift
+index a0da2f63..54b65b1f 100644
+--- a/Tests/CodexBarTests/ModelsDevPricingTests.swift
++++ b/Tests/CodexBarTests/ModelsDevPricingTests.swift
+@@ -52,6 +52,185 @@ struct ModelsDevPricingTests {
+         #expect(vertex.pricing.inputCostPerToken == 3.1 / 1_000_000.0)
+     }
+ 
++    @Test
++    func `provider lookup resolves current China API models`() throws {
++        let catalog = try Self.catalog("""
++        {
++          "alibaba": {
++            "id": "alibaba",
++            "name": "Alibaba",
++            "models": {}
++          },
++          "alibaba-coding-plan": {
++            "id": "alibaba-coding-plan",
++            "name": "Alibaba Coding Plan",
++            "models": {
++              "qwen3.7-max": {
++                "id": "qwen3.7-max",
++                "name": "Qwen3.7 Max",
++                "cost": {
++                  "input": 2.5,
++                  "output": 7.5,
++                  "cache_read": 0.5,
++                  "cache_write": 3.125
++                },
++                "limit": {
++                  "context": 1000000
++                }
++              },
++              "qwen3.7-plus": {
++                "id": "qwen3.7-plus",
++                "name": "Qwen3.7 Plus",
++                "cost": {
++                  "input": 0.5,
++                  "output": 3,
++                  "cache_read": 0.05,
++                  "cache_write": 0.625
++                },
++                "limit": {
++                  "context": 1000000
++                }
++              }
++            }
++          },
++          "alibaba-token-plan": {
++            "id": "alibaba-token-plan",
++            "name": "Alibaba Token Plan",
++            "models": {
++              "qwen3.7-plus": {
++                "id": "qwen3.7-plus",
++                "name": "Qwen3.7 Plus",
++                "cost": {
++                  "input": 0,
++                  "output": 0,
++                  "cache_read": 0,
++                  "cache_write": 0
++                },
++                "limit": {
++                  "context": 1000000
++                }
++              }
++            }
++          },
++          "zai": {
++            "id": "zai",
++            "name": "z.ai",
++            "models": {
++              "glm-5v-turbo": {
++                "id": "glm-5v-turbo",
++                "name": "GLM-5V-Turbo",
++                "cost": {
++                  "input": 1.2,
++                  "output": 4,
++                  "cache_read": 0.24,
++                  "cache_write": 0
++                },
++                "limit": {
++                  "context": 200000
++                }
++              }
++            }
++          },
++          "deepseek": {
++            "id": "deepseek",
++            "name": "DeepSeek",
++            "models": {
++              "deepseek-v4-pro": {
++                "id": "deepseek-v4-pro",
++                "name": "DeepSeek V4 Pro",
++                "cost": {
++                  "input": 0.435,
++                  "output": 0.87,
++                  "cache_read": 0.003625
++                },
++                "limit": {
++                  "context": 1000000
++                }
++              }
++            }
++          }
++        }
++        """)
++
++        let qwenMax = try #require(CostUsagePricing.modelsDevPricing(
++            provider: .alibaba,
++            model: "qwen3.7-max",
++            catalog: catalog))
++        let qwenPlus = try #require(CostUsagePricing.modelsDevPricing(
++            provider: .alibabatokenplan,
++            model: "qwen3.7-plus",
++            catalog: catalog))
++        let glmTurbo = try #require(CostUsagePricing.modelsDevPricing(
++            provider: .zai,
++            model: "glm-5v-turbo",
++            catalog: catalog))
++        let deepSeekPro = try #require(CostUsagePricing.modelsDevPricing(
++            provider: .deepseek,
++            model: "deepseek-v4-pro",
++            catalog: catalog))
++
++        #expect(qwenMax.pricing.inputCostPerToken == 2.5 / 1_000_000.0)
++        #expect(qwenMax.pricing.cacheCreationInputCostPerToken == 3.125 / 1_000_000.0)
++        #expect(qwenMax.pricing.contextWindow == 1_000_000)
++        #expect(qwenPlus.pricing.modelName == "Qwen3.7 Plus")
++        #expect(qwenPlus.pricing.outputCostPerToken == 0)
++        #expect(glmTurbo.pricing.inputCostPerToken == 1.2 / 1_000_000.0)
++        #expect(glmTurbo.pricing.outputCostPerToken == 4 / 1_000_000.0)
++        #expect(glmTurbo.pricing.cacheCreationInputCostPerToken == 0)
++        #expect(deepSeekPro.pricing.inputCostPerToken == 0.435 / 1_000_000.0)
++        #expect(deepSeekPro.pricing.cacheReadInputCostPerToken == 0.003625 / 1_000_000.0)
++        #expect(CostUsagePricing.modelsDevPricing(
++            provider: .deepseek,
++            model: "qwen3.7-max",
++            catalog: catalog) == nil)
++    }
++
++    @Test
++    func `alibaba plan providers do not fall back to direct api pricing`() throws {
++        let catalog = try Self.catalog("""
++        {
++          "alibaba": {
++            "id": "alibaba",
++            "name": "Alibaba",
++            "models": {
++              "qwen3.7-max": {
++                "id": "qwen3.7-max",
++                "name": "Qwen3.7 Max",
++                "cost": {
++                  "input": 2.5,
++                  "output": 7.5,
++                  "cache_read": 0.5,
++                  "cache_write": 3.125
++                },
++                "limit": {
++                  "context": 1000000
++                }
++              }
++            }
++          },
++          "alibaba-coding-plan": {
++            "id": "alibaba-coding-plan",
++            "name": "Alibaba Coding Plan",
++            "models": {}
++          },
++          "alibaba-token-plan": {
++            "id": "alibaba-token-plan",
++            "name": "Alibaba Token Plan",
++            "models": {}
++          }
++        }
++        """)
++
++        #expect(CostUsagePricing.modelsDevPricing(
++            provider: .alibaba,
++            model: "qwen3.7-max",
++            catalog: catalog) == nil)
++        #expect(CostUsagePricing.modelsDevPricing(
++            provider: .alibabatokenplan,
++            model: "qwen3.7-max",
++            catalog: catalog) == nil)
++    }
++
+     @Test
+     func `converts models dev per million token prices to per token prices`() throws {
+         let pricing = try #require(try Self.fixtureCatalog().pricing(
+diff --git a/Tests/CodexBarTests/PiSessionCostScannerTests.swift b/Tests/CodexBarTests/PiSessionCostScannerTests.swift
+index 677b807f..84c6ff01 100644
+--- a/Tests/CodexBarTests/PiSessionCostScannerTests.swift
++++ b/Tests/CodexBarTests/PiSessionCostScannerTests.swift
+@@ -1301,6 +1301,138 @@ extension PiSessionCostScannerTests {
+         #expect(expandedReport.summary?.totalTokens == 45)
+     }
+ 
++    @Test
++    func `pi scanner prices China provider sessions with provider scoped models dev catalogs`() throws {
++        let env = try CostUsageTestEnvironment()
++        defer { env.cleanup() }
++
++        let day = try env.makeLocalNoon(year: 2026, month: 7, day: 18)
++        let catalog = try Self.modelsDevCatalog("""
++        {
++          "alibaba": {
++            "id": "alibaba",
++            "models": {
++              "qwen3.7-max": { "id": "qwen3.7-max", "cost": { "input": 99, "output": 99 } }
++            }
++          },
++          "alibaba-coding-plan": {
++            "id": "alibaba-coding-plan",
++            "models": {
++              "qwen3.7-max": {
++                "id": "qwen3.7-max",
++                "cost": { "input": 0, "output": 0, "cache_read": 0, "cache_write": 0 }
++              }
++            }
++          },
++          "alibaba-token-plan": {
++            "id": "alibaba-token-plan",
++            "models": {
++              "qwen3.7-plus": { "id": "qwen3.7-plus", "cost": { "input": 1, "output": 3 } }
++            }
++          },
++          "zai": {
++            "id": "zai",
++            "models": {
++              "glm-5v-turbo": {
++                "id": "glm-5v-turbo",
++                "cost": { "input": 5, "output": 22, "cache_read": 1.2, "cache_write": 0 }
++              }
++            }
++          },
++          "zhipuai": {
++            "id": "zhipuai",
++            "models": {
++              "glm-5v-turbo": { "id": "glm-5v-turbo", "cost": { "input": 99, "output": 199 } }
++            }
++          },
++          "deepseek": {
++            "id": "deepseek",
++            "models": {
++              "deepseek-v4-pro": {
++                "id": "deepseek-v4-pro",
++                "cost": { "input": 0.435, "output": 0.87, "cache_read": 0.003625 }
++              }
++            }
++          }
++        }
++        """)
++        #expect(ModelsDevCache.save(catalog: catalog, fetchedAt: day, cacheRoot: env.cacheRoot))
++
++        func assistant(provider: String, model: String, usage: [String: Int]) -> [String: Any] {
++            [
++                "type": "message",
++                "timestamp": env.isoString(for: day),
++                "message": [
++                    "role": "assistant",
++                    "provider": provider,
++                    "model": model,
++                    "timestamp": Int(day.timeIntervalSince1970 * 1000),
++                    "usage": usage,
++                ],
++            ]
++        }
++
++        _ = try env.writePiSessionFile(
++            relativePath: "2026-07-18T10-00-00-000Z_china-models.jsonl",
++            contents: env.jsonl([
++                assistant(
++                    provider: "alibaba-coding-plan",
++                    model: "qwen3.7-max",
++                    usage: ["input": 100, "output": 50, "totalTokens": 150]),
++                assistant(
++                    provider: "alibaba-token-plan",
++                    model: "qwen3.7-plus",
++                    usage: ["input": 1_000_000, "output": 1_000_000, "totalTokens": 2_000_000]),
++                assistant(
++                    provider: "zai",
++                    model: "glm-5v-turbo",
++                    usage: ["input": 100, "cacheRead": 10, "cacheWrite": 20, "output": 50, "totalTokens": 180]),
++                assistant(
++                    provider: "deepseek",
++                    model: "deepseek-v4-pro",
++                    usage: ["input": 1000, "cacheRead": 100, "output": 500, "totalTokens": 1600]),
++            ]))
++
++        let options = PiSessionCostScanner.Options(
++            piSessionsRoot: env.piSessionsRoot,
++            cacheRoot: env.cacheRoot,
++            refreshMinIntervalSeconds: 0)
++
++        let alibaba = PiSessionCostScanner.loadDailyReport(
++            provider: .alibaba,
++            since: day,
++            until: day,
++            now: day,
++            options: options)
++        let tokenPlan = PiSessionCostScanner.loadDailyReport(
++            provider: .alibabatokenplan,
++            since: day,
++            until: day,
++            now: day,
++            options: options)
++        let zai = PiSessionCostScanner.loadDailyReport(
++            provider: .zai,
++            since: day,
++            until: day,
++            now: day,
++            options: options)
++        let deepSeek = PiSessionCostScanner.loadDailyReport(
++            provider: .deepseek,
++            since: day,
++            until: day,
++            now: day,
++            options: options)
++
++        #expect(alibaba.data.first?.totalTokens == 150)
++        #expect(alibaba.data.first?.costUSD == 0)
++        #expect(tokenPlan.data.first?.totalTokens == 2_000_000)
++        #expect(abs((tokenPlan.data.first?.costUSD ?? 0) - 4) < 0.0000001)
++        #expect(zai.data.first?.totalTokens == 180)
++        #expect(abs((zai.data.first?.costUSD ?? 0) - 0.001612) < 0.0000001)
++        #expect(deepSeek.data.first?.totalTokens == 1600)
++        #expect(abs((deepSeek.data.first?.costUSD ?? 0) - 0.0008703625) < 0.0000001)
++    }
++
+     private static func modelsDevCatalog(inputCostPerMillion: Double) throws -> ModelsDevCatalog {
+         let json = """
+         {

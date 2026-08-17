@@ -1,0 +1,50 @@
+            catalog: catalog) == nil)
+    }
+
+    @Test
+    func `converts models dev per million token prices to per token prices`() throws {
+        let pricing = try #require(try Self.fixtureCatalog().pricing(
+            providerID: "anthropic",
+            modelID: "claude-sonnet-4-6")?
+            .pricing)
+
+        #expect(pricing.inputCostPerToken == 3 / 1_000_000.0)
+        #expect(pricing.outputCostPerToken == 15 / 1_000_000.0)
+        #expect(pricing.cacheReadInputCostPerToken == 0.3 / 1_000_000.0)
+        #expect(pricing.cacheCreationInputCostPerToken == 3.75 / 1_000_000.0)
+        #expect(pricing.thresholdTokens == 200_000)
+        #expect(pricing.inputCostPerTokenAboveThreshold == 6 / 1_000_000.0)
+        #expect(pricing.outputCostPerTokenAboveThreshold == 22.5 / 1_000_000.0)
+        #expect(pricing.cacheReadInputCostPerTokenAboveThreshold == 0.6 / 1_000_000.0)
+        #expect(pricing.cacheCreationInputCostPerTokenAboveThreshold == 7.5 / 1_000_000.0)
+    }
+
+    @Test
+    func `stale cache is still readable`() throws {
+        let root = try Self.cacheRoot()
+        let old = Date(timeIntervalSince1970: 1)
+        try ModelsDevCache.save(catalog: Self.fixtureCatalog(), fetchedAt: old, cacheRoot: root)
+
+        let load = ModelsDevCache.load(
+            now: Date(timeIntervalSince1970: 1 + ModelsDevCache.ttlSeconds + 1),
+            cacheRoot: root)
+
+        #expect(load.artifact != nil)
+        #expect(load.isStale)
+        #expect(load.error == nil)
+    }
+
+    @Test
+    func `pipeline lookup reads cached pricing`() throws {
+        let root = try Self.cacheRoot()
+        try ModelsDevCache.save(catalog: Self.fixtureCatalog(), fetchedAt: Date(), cacheRoot: root)
+
+        let lookup = try #require(ModelsDevPricingPipeline.lookup(
+            providerID: "openai",
+            modelID: "gpt-4o-mini",
+            cacheRoot: root))
+
+        #expect(lookup.pricing.inputCostPerToken == 0.15 / 1_000_000.0)
+    }
+
+    @Test

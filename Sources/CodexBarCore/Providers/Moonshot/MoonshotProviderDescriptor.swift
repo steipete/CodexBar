@@ -69,7 +69,8 @@ public enum MoonshotProviderDescriptor {
                 ]),
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: false,
-                noDataMessage: { "Moonshot / Kimi Open Platform cost summary is not available." }),
+                noDataMessage: { "Moonshot / Kimi Open Platform cost summary is not available." },
+                supportsTokenSnapshot: true),
             presentation: ProviderUsagePresentation(
                 planRow: ProviderPlanRowPresentation(label: "Balance", stripsBalancePrefix: true)),
             fetchPlan: ProviderFetchPlan(
@@ -78,7 +79,8 @@ public enum MoonshotProviderDescriptor {
             cli: ProviderCLIConfig(
                 name: "moonshot",
                 aliases: [],
-                versionDetector: nil),
+                versionDetector: nil,
+                supportsCostCommand: true),
             configNormalizer: { config in
                 guard config.sanitizedAPIKey != nil, config.sanitizedAPIKeyRegion == nil else { return }
                 config.apiKeyRegion = config.sanitizedRegion ?? MoonshotRegion.international.rawValue

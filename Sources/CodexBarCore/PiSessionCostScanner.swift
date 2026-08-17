@@ -107,8 +107,7 @@ enum PiSessionCostScanner {
         options: Options = Options(),
         checkCancellation: CostUsageScanner.CancellationCheck?) throws -> CostUsageDailyReport
     {
-        // Provider-specific by design: Pi records only OpenAI Codex and Anthropic sessions with distinct pricing.
-        guard provider == .codex || provider == .claude else {
+        guard self.supportsPiSessionProvider(provider) else {
             return CostUsageDailyReport(data: [], summary: nil)
         }
 
@@ -256,7 +255,11 @@ enum PiSessionCostScanner {
                 modelsDevArtifact: modelsDevArtifact,
                 formulaVersion: Self.costFormulaVersion,
                 parserHash: CodexParserHash.value,
-                modelsDevProviderIDs: CostUsagePricing.codexModelsDevProviderIDs.union(["anthropic"])))
+                modelsDevProviderIDs: CostUsagePricing.codexModelsDevProviderIDs.union([
+                    "anthropic",
+                    "moonshotai",
+                    "moonshotai-cn",
+                ])))
     }
 
     private static func requestedWindowExpandsCache(
@@ -822,7 +825,9 @@ enum PiSessionCostScanner {
             costSampleCount: costUSD == nil ? 0 : 1,
             usageSampleCount: 1)
     }
+}
 
+extension PiSessionCostScanner {
     private static func computedCostUSD(
         provider: UsageProvider,
         modelName: String,
@@ -854,8 +859,52 @@ enum PiSessionCostScanner {
                 modelsDevCatalog: pricingContext?.catalog,
                 modelsDevCacheRoot: pricingContext?.cacheRoot)
         default:
-            nil
+            self.modelsDevCostUSD(
+                provider: provider,
+                model: modelName,
+                usage: usage,
+                pricingContext: pricingContext)
         }
+    }
+
+    private static func modelsDevCostUSD(
+        provider: UsageProvider,
+        model: String,
+        usage: PiPackedUsage,
+        pricingContext: ModelsDevPricingContext?) -> Double?
+    {
+        guard let lookup = CostUsagePricing.modelsDevPricing(
+            provider: provider,
+            model: model,
+            catalog: pricingContext?.catalog,
+            cacheRoot: pricingContext?.cacheRoot)
+        else { return nil }
+
+        let pricing = lookup.pricing
+        let totalInput = max(0, usage.inputTokens + usage.cacheReadTokens + usage.cacheWriteTokens)
+        let cached = min(max(0, usage.cacheReadTokens), totalInput)
+        let remainingAfterCache = totalInput - cached
+        let cacheWrite = min(max(0, usage.cacheWriteTokens), remainingAfterCache)
+        let nonCached = remainingAfterCache - cacheWrite
+        let usesLongContextRates = pricing.thresholdTokens.map { totalInput > $0 } ?? false
+        let inputRate = usesLongContextRates
+            ? pricing.inputCostPerTokenAboveThreshold ?? pricing.inputCostPerToken
+            : pricing.inputCostPerToken
+        let cachedInputRate = usesLongContextRates
+            ? pricing.cacheReadInputCostPerTokenAboveThreshold ?? pricing.cacheReadInputCostPerToken ?? inputRate
+            : pricing.cacheReadInputCostPerToken ?? pricing.inputCostPerToken
+        let cacheWriteRate = usesLongContextRates
+            ? pricing.cacheCreationInputCostPerTokenAboveThreshold ?? pricing
+            .cacheCreationInputCostPerToken ?? inputRate
+            : pricing.cacheCreationInputCostPerToken ?? inputRate
+        let outputRate = usesLongContextRates
+            ? pricing.outputCostPerTokenAboveThreshold ?? pricing.outputCostPerToken
+            : pricing.outputCostPerToken
+
+        return (Double(nonCached) * inputRate)
+            + (Double(cached) * cachedInputRate)
+            + (Double(cacheWrite) * cacheWriteRate)
+            + (Double(max(0, usage.outputTokens)) * outputRate)
     }
 
     private static func readNonNegativeInt(_ value: Any?) -> Int {
@@ -883,8 +932,21 @@ extension PiSessionCostScanner {
             .codex
         case "anthropic":
             .claude
+        case "kimi", "kimi-for-coding":
+            .kimi
+        case "moonshot", "moonshotai", "moonshotai-cn":
+            .moonshot
         default:
             nil
+        }
+    }
+
+    private static func supportsPiSessionProvider(_ provider: UsageProvider) -> Bool {
+        switch provider {
+        case .codex, .claude, .kimi, .moonshot:
+            true
+        default:
+            false
         }
     }
 
