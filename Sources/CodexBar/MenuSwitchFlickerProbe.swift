@@ -2,6 +2,7 @@ import AppKit
 import CoreGraphics
 import Foundation
 import ImageIO
+import ScreenCaptureKit
 import UniformTypeIdentifiers
 
 /// Self-driving diagnostic for provider tab-switch rendering artifacts. Inert
@@ -15,8 +16,8 @@ import UniformTypeIdentifiers
 ///   Swift Concurrency main-actor jobs do not run; all main-thread driving uses
 ///   a common-modes `Timer`.
 /// - The interesting frames appear while the main thread is busy rebuilding the
-///   menu, so captures run on a background thread: `CGWindowListCreateImage`
-///   reads the WindowServer's current composite without touching AppKit.
+///   menu, so captures run on a background thread: ScreenCaptureKit reads the
+///   WindowServer composite without touching AppKit.
 @MainActor
 enum MenuSwitchFlickerProbe {
     private nonisolated static let processStart = DispatchTime.now()
@@ -111,6 +112,9 @@ enum MenuSwitchFlickerProbe {
         private var storage: [Sample] = []
         private var frameIndex = 0
         private var running = true
+        private var contentFilter: SCContentFilter?
+        private var contentFilterLookupFailed = false
+        private var captureInFlight = false
 
         init(windowID: CGWindowID, start: DispatchTime, directory: URL) {
             self.windowID = windowID
@@ -140,25 +144,82 @@ enum MenuSwitchFlickerProbe {
                 guard keepRunning, index < Self.maxFrameCount else { return }
                 let elapsed = Double(DispatchTime.now().uptimeNanoseconds - self.start.uptimeNanoseconds)
                     / 1_000_000
-                // Include framing so the window shadow / material edge is captured too.
-                let image = CGWindowListCreateImage(
-                    .null,
-                    .optionIncludingWindow,
-                    self.windowID,
-                    [.bestResolution])
                 let bounds = self.currentBounds() ?? .null
-                var wroteFrame = false
-                if let image {
-                    let name = String(format: "frame-%04d-%07.1fms.png", index, elapsed)
-                    MenuSwitchFlickerProbe.writePNG(image, to: self.directory.appendingPathComponent(name))
-                    wroteFrame = true
-                }
+                let wroteFrame = self.captureCompositeIfPossible(index: index, elapsed: elapsed)
                 self.lock.lock()
                 self.frameIndex += 1
                 self.storage.append(Sample(elapsedMs: elapsed, bounds: bounds, wroteFrame: wroteFrame))
                 self.lock.unlock()
                 usleep(3000)
             }
+        }
+
+        private func captureCompositeIfPossible(index: Int, elapsed: Double) -> Bool {
+            self.lock.lock()
+            let alreadyInFlight = self.captureInFlight
+            self.lock.unlock()
+            guard !alreadyInFlight, let filter = self.resolvedContentFilter() else {
+                return false
+            }
+
+            let configuration = SCStreamConfiguration()
+            configuration.showsCursor = false
+            if let bounds = self.currentBounds(), bounds.width > 1, bounds.height > 1 {
+                configuration.width = Int(bounds.width * 2)
+                configuration.height = Int(bounds.height * 2)
+            }
+
+            self.lock.lock()
+            self.captureInFlight = true
+            self.lock.unlock()
+            let directory = self.directory
+            SCScreenshotManager
+                .captureImage(contentFilter: filter, configuration: configuration) { [weak self] image, _ in
+                    if let image {
+                        let name = String(format: "frame-%04d-%07.1fms.png", index, elapsed)
+                        MenuSwitchFlickerProbe.writePNG(image, to: directory.appendingPathComponent(name))
+                    }
+                    self?.lock.lock()
+                    self?.captureInFlight = false
+                    self?.lock.unlock()
+                }
+            return true
+        }
+
+        private func resolvedContentFilter() -> SCContentFilter? {
+            self.lock.lock()
+            if let contentFilter = self.contentFilter {
+                self.lock.unlock()
+                return contentFilter
+            }
+            let lookupFailed = self.contentFilterLookupFailed
+            self.lock.unlock()
+            if lookupFailed { return nil }
+
+            let windowID = self.windowID
+            let semaphore = DispatchSemaphore(value: 0)
+            SCShareableContent.getExcludingDesktopWindows(false, onScreenWindowsOnly: false) { [lock] content, _ in
+                if let window = content?.windows.first(where: { $0.windowID == windowID }) {
+                    lock.lock()
+                    self.contentFilter = SCContentFilter(desktopIndependentWindow: window)
+                    lock.unlock()
+                }
+                semaphore.signal()
+            }
+            if semaphore.wait(timeout: .now() + .milliseconds(250)) == .timedOut {
+                self.lock.lock()
+                self.contentFilterLookupFailed = true
+                self.lock.unlock()
+                return nil
+            }
+
+            self.lock.lock()
+            let filter = self.contentFilter
+            if filter == nil {
+                self.contentFilterLookupFailed = true
+            }
+            self.lock.unlock()
+            return filter
         }
 
         private func currentBounds() -> CGRect? {

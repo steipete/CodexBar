@@ -68,7 +68,8 @@ struct ProviderSettingsDescriptorTests {
 
     @Test
     func `kiro reauthentication waits for the explicit settings action`() async throws {
-        let fixture = try self.makeSettingsFixture(suite: "ProviderSettingsDescriptorTests-kiro-login")
+        let fixture = try self.makeSettingsFixture(
+            suite: "ProviderSettingsDescriptorTests-kiro-login")
         var loginCount = 0
         let context = fixture.settingsContext(provider: .kiro) {
             loginCount += 1
@@ -76,7 +77,8 @@ struct ProviderSettingsDescriptorTests {
 
         let groups = KiroProviderImplementation().settingsActions(context: context)
         let group = try #require(groups.first(where: { $0.id == "kiro-cli-login" }))
-        let action = try #require(group.actions.first(where: { $0.id == "kiro-cli-login-reauthenticate" }))
+        let action = try #require(
+            group.actions.first(where: { $0.id == "kiro-cli-login-reauthenticate" }))
 
         #expect(loginCount == 0)
         #expect(group.title.contains("Kiro"))
@@ -90,7 +92,8 @@ struct ProviderSettingsDescriptorTests {
 
     @Test
     func `codex reauthentication remains account scoped`() throws {
-        let fixture = try self.makeSettingsFixture(suite: "ProviderSettingsDescriptorTests-codex-login-scope")
+        let fixture = try self.makeSettingsFixture(
+            suite: "ProviderSettingsDescriptorTests-codex-login-scope")
         let context = fixture.settingsContext(provider: .codex)
 
         #expect(CodexProviderImplementation().settingsActions(context: context).isEmpty)
@@ -98,7 +101,8 @@ struct ProviderSettingsDescriptorTests {
 
     @Test
     func `openai exposes project id setting`() throws {
-        let fixture = try self.makeSettingsFixture(suite: "ProviderSettingsDescriptorTests-openai-project")
+        let fixture = try self.makeSettingsFixture(
+            suite: "ProviderSettingsDescriptorTests-openai-project")
         let context = fixture.settingsContext(provider: .openai)
 
         let fields = OpenAIAPIProviderImplementation().settingsFields(context: context)
@@ -107,15 +111,21 @@ struct ProviderSettingsDescriptorTests {
 
         #expect(project.title == "Project ID")
         #expect(project.subtitle.contains(OpenAIAPISettingsReader.projectIDEnvironmentKey))
-        #expect(fixture.settings[providerConfig: .openai, field: .secretWorkspace(logField: "projectID")] == "proj_abc")
+        #expect(
+            fixture.settings[
+                providerConfig: .openai, field: .secretWorkspace(logField: "projectID"),
+            ]
+                == "proj_abc")
         #expect(fixture.settings.providerConfig(for: .openai)?.sanitizedWorkspaceID == "proj_abc")
     }
 
     @Test
     func `open code cookie refresh commits replacement through user initiated gate`() async throws {
-        let fixture = try self.makeSettingsFixture(suite: "ProviderSettingsDescriptorTests-opencode-refresh")
+        let fixture = try self.makeSettingsFixture(
+            suite: "ProviderSettingsDescriptorTests-opencode-refresh")
         let context = fixture.settingsContext(provider: .opencode)
-        let picker = try #require(OpenCodeProviderImplementation().settingsPickers(context: context).first)
+        let picker = try #require(
+            OpenCodeProviderImplementation().settingsPickers(context: context).first)
         let action = try #require(picker.trailingActions.first)
         let service = "com.steipete.codexbar.tests.settings-cookie-refresh.\(UUID().uuidString)"
         var observedInteraction: ProviderInteraction?
@@ -146,7 +156,8 @@ struct ProviderSettingsDescriptorTests {
                 await action.perform()
 
                 #expect(observedInteraction == .userInitiated)
-                #expect(CookieHeaderCache.load(provider: .opencode)?.cookieHeader == "new-test-cookie")
+                #expect(
+                    CookieHeaderCache.load(provider: .opencode)?.cookieHeader == "new-test-cookie")
                 #expect(picker.trailingText?()?.contains("Test new") == true)
             }
         }
@@ -154,7 +165,8 @@ struct ProviderSettingsDescriptorTests {
 
     @Test
     func `ollama automatic cookie source exposes validated refresh action`() throws {
-        let fixture = try self.makeSettingsFixture(suite: "ProviderSettingsDescriptorTests-ollama-refresh")
+        let fixture = try self.makeSettingsFixture(
+            suite: "ProviderSettingsDescriptorTests-ollama-refresh")
         let context = fixture.settingsContext(provider: .ollama)
         let pickers = OllamaProviderImplementation().settingsPickers(context: context)
         let picker = try #require(pickers.first { $0.id == "ollama-cookie-source" })
@@ -175,10 +187,43 @@ struct ProviderSettingsDescriptorTests {
     }
 
     @Test
+    func `xAI cookie refresh succeeds from the live session without a staged rewrite`() async throws {
+        let fixture = try self.makeSettingsFixture(
+            suite: "ProviderSettingsDescriptorTests-xai-refresh")
+        fixture.settings.xaiUsageDataSource = .web
+        fixture.settings.xaiCookieSource = .auto
+        let context = fixture.settingsContext(provider: .xai)
+        let pickers = XAIProviderImplementation().settingsPickers(context: context)
+        let picker = try #require(pickers.first { $0.id == "xai-cookie-source" })
+        let action = try #require(picker.trailingActions.first)
+        var observedInteraction: ProviderInteraction?
+
+        #expect(action.id == "xai-reimport-cookie")
+        #expect(action.isVisible?() == true)
+
+        fixture.store._test_providerRefreshOverride = { provider in
+            observedInteraction = ProviderInteractionContext.current
+            fixture.store.snapshots[provider.instanceID] = UsageSnapshot(
+                primary: nil,
+                secondary: nil,
+                updatedAt: Date())
+            fixture.store.lastSourceLabels[provider.instanceID] = "web"
+        }
+        defer { fixture.store._test_providerRefreshOverride = nil }
+
+        await action.perform()
+
+        #expect(observedInteraction == .userInitiated)
+        #expect(context.statusText("xai-cookie-refresh-status") == nil)
+    }
+
+    @Test
     func `open code go cookie refresh rejects local fallback cookie`() async throws {
-        let fixture = try self.makeSettingsFixture(suite: "ProviderSettingsDescriptorTests-opencodego-validation")
+        let fixture = try self.makeSettingsFixture(
+            suite: "ProviderSettingsDescriptorTests-opencodego-validation")
         let context = fixture.settingsContext(provider: .opencodego)
-        let picker = try #require(OpenCodeGoProviderImplementation().settingsPickers(context: context).first)
+        let picker = try #require(
+            OpenCodeGoProviderImplementation().settingsPickers(context: context).first)
         let action = try #require(picker.trailingActions.first)
         let service = "com.steipete.codexbar.tests.settings-cookie-validation.\(UUID().uuidString)"
 
@@ -203,7 +248,8 @@ struct ProviderSettingsDescriptorTests {
 
                 await action.perform()
 
-                #expect(CookieHeaderCache.load(provider: .opencodego)?.cookieHeader == "old-test-cookie")
+                #expect(
+                    CookieHeaderCache.load(provider: .opencodego)?.cookieHeader == "old-test-cookie")
                 #expect(picker.trailingText?() == L("Failed"))
             }
         }
@@ -211,11 +257,14 @@ struct ProviderSettingsDescriptorTests {
 
     @Test
     func `open code cookie refresh rejects missing validation snapshot`() async throws {
-        let fixture = try self.makeSettingsFixture(suite: "ProviderSettingsDescriptorTests-opencode-validation")
+        let fixture = try self.makeSettingsFixture(
+            suite: "ProviderSettingsDescriptorTests-opencode-validation")
         let context = fixture.settingsContext(provider: .opencode)
-        let picker = try #require(OpenCodeProviderImplementation().settingsPickers(context: context).first)
+        let picker = try #require(
+            OpenCodeProviderImplementation().settingsPickers(context: context).first)
         let action = try #require(picker.trailingActions.first)
-        let service = "com.steipete.codexbar.tests.settings-cookie-missing-snapshot.\(UUID().uuidString)"
+        let service =
+            "com.steipete.codexbar.tests.settings-cookie-missing-snapshot.\(UUID().uuidString)"
         fixture.store.snapshots[.opencode] = UsageSnapshot(
             primary: nil,
             secondary: nil,
@@ -239,7 +288,8 @@ struct ProviderSettingsDescriptorTests {
 
                 await action.perform()
 
-                #expect(CookieHeaderCache.load(provider: .opencode)?.cookieHeader == "old-test-cookie")
+                #expect(
+                    CookieHeaderCache.load(provider: .opencode)?.cookieHeader == "old-test-cookie")
                 #expect(picker.trailingText?() == L("Failed"))
             }
         }
@@ -247,9 +297,11 @@ struct ProviderSettingsDescriptorTests {
 
     @Test
     func `open code cookie refresh respects denial cooldown and preserves cookie`() async throws {
-        let fixture = try self.makeSettingsFixture(suite: "ProviderSettingsDescriptorTests-opencode-cooldown")
+        let fixture = try self.makeSettingsFixture(
+            suite: "ProviderSettingsDescriptorTests-opencode-cooldown")
         let context = fixture.settingsContext(provider: .opencode)
-        let picker = try #require(OpenCodeProviderImplementation().settingsPickers(context: context).first)
+        let picker = try #require(
+            OpenCodeProviderImplementation().settingsPickers(context: context).first)
         let action = try #require(picker.trailingActions.first)
         let service = "com.steipete.codexbar.tests.settings-cookie-cooldown.\(UUID().uuidString)"
         var cooldownRespected = false
@@ -272,7 +324,8 @@ struct ProviderSettingsDescriptorTests {
                 await action.perform()
 
                 #expect(cooldownRespected)
-                #expect(CookieHeaderCache.load(provider: .opencode)?.cookieHeader == "old-test-cookie")
+                #expect(
+                    CookieHeaderCache.load(provider: .opencode)?.cookieHeader == "old-test-cookie")
                 #expect(picker.trailingText?() == L("Failed"))
             }
         }
@@ -280,37 +333,47 @@ struct ProviderSettingsDescriptorTests {
 
     @Test
     func `antigravity usage source picker clarifies local ide and agy`() throws {
-        let fixture = try self.makeSettingsFixture(suite: "ProviderSettingsDescriptorTests-antigravity-source")
+        let fixture = try self.makeSettingsFixture(
+            suite: "ProviderSettingsDescriptorTests-antigravity-source")
         let context = fixture.settingsContext(provider: .antigravity)
 
         let pickers = AntigravityProviderImplementation().settingsPickers(context: context)
-        let usagePicker = try #require(pickers.first(where: { $0.id == "antigravity-usage-source" }))
+        let usagePicker = try #require(
+            pickers.first(where: { $0.id == "antigravity-usage-source" }))
 
-        #expect(usagePicker.options.map(\.title) == ["Auto", "Google OAuth", "Local API / agy CLI"])
-        #expect(usagePicker.subtitle ==
-            "Auto tries Antigravity app, agy CLI, then IDE; OAuth follows for selected or signed-in accounts.")
+        #expect(
+            usagePicker.options.map(\.title) == ["Auto", "Google OAuth", "Local API / agy CLI"])
+        #expect(
+            usagePicker.subtitle
+                == "Auto tries Antigravity app, agy CLI, then IDE; OAuth follows for selected or signed-in accounts.")
     }
 
     @Test
-    func `antigravity exhausted five hour and weekly priority names both surfaces and persists across reopen`() throws {
+    func `antigravity exhausted quota priority persists across reopen`() throws {
         let suite = "ProviderSettingsDescriptorTests-antigravity-ranking"
         let fixture = try self.makeSettingsFixture(suite: suite)
         let context = fixture.settingsContext(provider: .antigravity)
 
         let toggles = AntigravityProviderImplementation().settingsToggles(context: context)
-        let toggle = try #require(toggles.first { $0.id == "antigravity-prioritize-exhausted-quotas" })
+        let toggle = try #require(
+            toggles.first { $0.id == "antigravity-prioritize-exhausted-quotas" })
 
         #expect(toggle.title == "Prioritize exhausted quotas")
-        #expect(toggle.subtitle ==
-            "Optional. In Automatic mode, let exhausted five-hour or weekly lanes outrank still-usable model " +
-            "families. Applies to the menu bar and Overview ranking.")
+        #expect(
+            toggle.subtitle
+                == "Optional. In Automatic mode, let exhausted five-hour or weekly lanes outrank still-usable model "
+                + "families. Applies to the menu bar and Overview ranking.")
         #expect(toggle.binding.wrappedValue == false)
-        #expect(fixture.settings.providerConfig(for: .antigravity)?.antigravityPrioritizeExhaustedQuotas == nil)
+        #expect(
+            fixture.settings.providerConfig(for: .antigravity)?.antigravityPrioritizeExhaustedQuotas
+                == nil)
 
         toggle.binding.wrappedValue = true
 
         #expect(fixture.settings.antigravityPrioritizeExhaustedQuotas)
-        #expect(fixture.settings.providerConfig(for: .antigravity)?.antigravityPrioritizeExhaustedQuotas == true)
+        #expect(
+            fixture.settings.providerConfig(for: .antigravity)?.antigravityPrioritizeExhaustedQuotas
+                == true)
 
         let reopened = try SettingsStore(
             userDefaults: #require(UserDefaults(suiteName: suite)),
@@ -330,16 +393,19 @@ struct ProviderSettingsDescriptorTests {
 
     @Test
     func `codex exposes open AI web extras toggle as default off opt in`() throws {
-        let fixture = try self.makeSettingsFixture(suite: "ProviderSettingsDescriptorTests-codex-openai-toggle")
+        let fixture = try self.makeSettingsFixture(
+            suite: "ProviderSettingsDescriptorTests-codex-openai-toggle")
         let context = fixture.settingsContext(provider: .codex)
 
         let toggles = CodexProviderImplementation().settingsToggles(context: context)
-        let extrasToggle = try #require(toggles.first(where: { $0.id == "codex-openai-web-extras" }))
+        let extrasToggle = try #require(
+            toggles.first(where: { $0.id == "codex-openai-web-extras" }))
         #expect(extrasToggle.binding.wrappedValue == false)
         #expect(extrasToggle.subtitle.contains("Optional."))
         #expect(extrasToggle.subtitle.contains("Turn this on"))
 
-        let batterySaverToggle = try #require(toggles.first(where: { $0.id == "codex-openai-web-battery-saver" }))
+        let batterySaverToggle = try #require(
+            toggles.first(where: { $0.id == "codex-openai-web-battery-saver" }))
         #expect(batterySaverToggle.binding.wrappedValue == false)
         #expect(batterySaverToggle.isVisible?() == false)
 
@@ -359,7 +425,8 @@ struct ProviderSettingsDescriptorTests {
         #expect(pickers.contains(where: { $0.id == "claude-cookie-source" }))
         let toggles = ClaudeProviderImplementation().settingsToggles(context: context)
         #expect(!toggles.contains(where: { $0.id == "claude-peak-hours" }))
-        let keychainPicker = try #require(pickers.first(where: { $0.id == "claude-keychain-prompt-policy" }))
+        let keychainPicker = try #require(
+            pickers.first(where: { $0.id == "claude-keychain-prompt-policy" }))
         let optionIDs = Set(keychainPicker.options.map(\.id))
         #expect(optionIDs.contains(ClaudeOAuthKeychainPromptMode.never.rawValue))
         #expect(optionIDs.contains(ClaudeOAuthKeychainPromptMode.onlyOnUserAction.rawValue))
@@ -369,12 +436,14 @@ struct ProviderSettingsDescriptorTests {
 
     @Test
     func `claude daily routines toggle follows global optional usage setting`() throws {
-        let fixture = try self.makeSettingsFixture(suite: "ProviderSettingsDescriptorTests-claude-routines")
+        let fixture = try self.makeSettingsFixture(
+            suite: "ProviderSettingsDescriptorTests-claude-routines")
         let context = fixture.settingsContext(provider: .claude)
         let toggles = ClaudeProviderImplementation().settingsToggles(context: context)
-        let routinesToggle = try #require(toggles.first {
-            $0.id == "claude-daily-routines-usage-visible"
-        })
+        let routinesToggle = try #require(
+            toggles.first {
+                $0.id == "claude-daily-routines-usage-visible"
+            })
 
         #expect(routinesToggle.binding.wrappedValue)
         #expect(routinesToggle.isEnabled?() == true)
@@ -388,12 +457,14 @@ struct ProviderSettingsDescriptorTests {
 
     @Test
     func `claude model scoped widget usage toggle is default off and independent`() throws {
-        let fixture = try self.makeSettingsFixture(suite: "ProviderSettingsDescriptorTests-claude-model-scoped-widget")
+        let fixture = try self.makeSettingsFixture(
+            suite: "ProviderSettingsDescriptorTests-claude-model-scoped-widget")
         let context = fixture.settingsContext(provider: .claude)
         let toggles = ClaudeProviderImplementation().settingsToggles(context: context)
-        let widgetToggle = try #require(toggles.first {
-            $0.id == "claude-model-scoped-weekly-usage-visible"
-        })
+        let widgetToggle = try #require(
+            toggles.first {
+                $0.id == "claude-model-scoped-weekly-usage-visible"
+            })
 
         #expect(widgetToggle.binding.wrappedValue == false)
         #expect(widgetToggle.isEnabled == nil)
@@ -408,12 +479,14 @@ struct ProviderSettingsDescriptorTests {
 
     @Test
     func `claude single swap account toggle persists and follows integration visibility`() throws {
-        let fixture = try self.makeSettingsFixture(suite: "ProviderSettingsDescriptorTests-claude-swap-single")
+        let fixture = try self.makeSettingsFixture(
+            suite: "ProviderSettingsDescriptorTests-claude-swap-single")
         let context = fixture.settingsContext(provider: .claude)
         let toggles = ClaudeProviderImplementation().settingsToggles(context: context)
-        let singleAccountToggle = try #require(toggles.first {
-            $0.id == "claude-swap-show-single-account"
-        })
+        let singleAccountToggle = try #require(
+            toggles.first {
+                $0.id == "claude-swap-show-single-account"
+            })
 
         #expect(singleAccountToggle.binding.wrappedValue == false)
         #expect(singleAccountToggle.isVisible?() == false)
@@ -423,7 +496,9 @@ struct ProviderSettingsDescriptorTests {
         singleAccountToggle.binding.wrappedValue = true
 
         #expect(fixture.settings.claudeSwapShowSingleAccount)
-        #expect(fixture.settings.configSnapshot.providerConfig(for: .claude)?.claudeSwapShowSingleAccount == true)
+        #expect(
+            fixture.settings.configSnapshot.providerConfig(for: .claude)?
+                .claudeSwapShowSingleAccount == true)
     }
 
     @Test
@@ -435,20 +510,23 @@ struct ProviderSettingsDescriptorTests {
         let context = fixture.settingsContext(provider: .claude)
 
         let pickers = ClaudeProviderImplementation().settingsPickers(context: context)
-        let keychainPicker = try #require(pickers.first(where: { $0.id == "claude-keychain-prompt-policy" }))
+        let keychainPicker = try #require(
+            pickers.first(where: { $0.id == "claude-keychain-prompt-policy" }))
         #expect(keychainPicker.isVisible?() ?? true)
         #expect(keychainPicker.binding.wrappedValue == ClaudeOAuthKeychainPromptMode.never.rawValue)
     }
 
     @Test
     func `claude avoid keychain prompts toggle is disabled when global keychain disabled`() throws {
-        let fixture = try self.makeSettingsFixture(suite: "ProviderSettingsDescriptorTests-claude-prompt-free-disabled")
+        let fixture = try self.makeSettingsFixture(
+            suite: "ProviderSettingsDescriptorTests-claude-prompt-free-disabled")
         fixture.settings.debugDisableKeychainAccess = true
         fixture.settings.claudeOAuthPromptFreeCredentialsEnabled = true
         let context = fixture.settingsContext(provider: .claude)
 
         let toggles = ClaudeProviderImplementation().settingsToggles(context: context)
-        let promptFreeToggle = try #require(toggles.first(where: { $0.id == "claude-oauth-prompt-free-credentials" }))
+        let promptFreeToggle = try #require(
+            toggles.first(where: { $0.id == "claude-oauth-prompt-free-credentials" }))
         #expect(promptFreeToggle.isEnabled?() == false)
         #expect(promptFreeToggle.binding.wrappedValue == true)
 
@@ -462,12 +540,14 @@ struct ProviderSettingsDescriptorTests {
 
     @Test
     func `claude keychain prompt policy picker disabled when global keychain disabled`() throws {
-        let fixture = try self.makeSettingsFixture(suite: "ProviderSettingsDescriptorTests-claude-keychain-disabled")
+        let fixture = try self.makeSettingsFixture(
+            suite: "ProviderSettingsDescriptorTests-claude-keychain-disabled")
         fixture.settings.debugDisableKeychainAccess = true
         let context = fixture.settingsContext(provider: .claude)
 
         let pickers = ClaudeProviderImplementation().settingsPickers(context: context)
-        let keychainPicker = try #require(pickers.first(where: { $0.id == "claude-keychain-prompt-policy" }))
+        let keychainPicker = try #require(
+            pickers.first(where: { $0.id == "claude-keychain-prompt-policy" }))
         #expect(keychainPicker.isEnabled?() == false)
         let subtitle = keychainPicker.dynamicSubtitle?() ?? ""
         #expect(subtitle.localizedCaseInsensitiveContains("inactive"))
@@ -475,7 +555,8 @@ struct ProviderSettingsDescriptorTests {
 
     @Test
     func `claude web extras auto disables when leaving CLI`() throws {
-        let fixture = try self.makeSettingsFixture(suite: "ProviderSettingsDescriptorTests-claude-invariant")
+        let fixture = try self.makeSettingsFixture(
+            suite: "ProviderSettingsDescriptorTests-claude-invariant")
         let settings = fixture.settings
         settings.debugMenuEnabled = true
         settings.claudeUsageDataSource = .cli
@@ -502,13 +583,15 @@ struct ProviderSettingsDescriptorTests {
 
     @Test
     func `copilot budget secondary picker appears before cookie picker`() throws {
-        let fixture = try self.makeSettingsFixture(suite: "ProviderSettingsDescriptorTests-copilot-budget-pickers")
+        let fixture = try self.makeSettingsFixture(
+            suite: "ProviderSettingsDescriptorTests-copilot-budget-pickers")
         fixture.settings.copilotBudgetExtrasEnabled = true
         let context = fixture.settingsContext(provider: .copilot)
 
         let pickers = CopilotProviderImplementation().settingsPickers(context: context)
 
-        #expect(pickers.map(\.id) == ["copilot-icon-secondary-window", "copilot-budget-cookie-source"])
+        #expect(
+            pickers.map(\.id) == ["copilot-icon-secondary-window", "copilot-budget-cookie-source"])
         #expect(pickers.first?.title == "Menu bar secondary metric")
         #expect(pickers.first?.placement == .menuBar)
         #expect(pickers.last?.placement == .connection)
@@ -516,7 +599,8 @@ struct ProviderSettingsDescriptorTests {
 
     @Test
     func `kiro menu bar display picker uses the menu bar placement`() throws {
-        let fixture = try self.makeSettingsFixture(suite: "ProviderSettingsDescriptorTests-kiro-placement")
+        let fixture = try self.makeSettingsFixture(
+            suite: "ProviderSettingsDescriptorTests-kiro-placement")
         let context = fixture.settingsContext(provider: .kiro)
 
         let pickers = KiroProviderImplementation().settingsPickers(context: context)
@@ -527,7 +611,8 @@ struct ProviderSettingsDescriptorTests {
 
     @Test
     func `copilot manual cookie field is labelled and refreshable`() throws {
-        let fixture = try self.makeSettingsFixture(suite: "ProviderSettingsDescriptorTests-copilot-budget-field")
+        let fixture = try self.makeSettingsFixture(
+            suite: "ProviderSettingsDescriptorTests-copilot-budget-field")
         fixture.settings.copilotBudgetExtrasEnabled = true
         fixture.settings.copilotBudgetCookieSource = .manual
         let context = fixture.settingsContext(provider: .copilot)
@@ -551,9 +636,10 @@ struct ProviderSettingsDescriptorTests {
 
         let usagePicker = try #require(pickers.first(where: { $0.id == "kimi-usage-source" }))
         #expect(usagePicker.options.map(\.id) == ["auto", "api", "web"])
-        #expect(usagePicker.subtitle ==
-            "Kimi Code subscription usage from api.kimi.com. Auto tries your configured API key, then a signed-in " +
-            "Kimi Code CLI credential, then web cookies. China Open Platform balance is a separate provider.")
+        #expect(
+            usagePicker.subtitle
+                == "Kimi Code subscription usage from api.kimi.com. Auto tries your configured API key, then a signed-in "
+                + "Kimi Code CLI credential, then web cookies. China Open Platform balance is a separate provider.")
         #expect(usagePicker.placement == .connection)
         #expect(usagePicker.trailingText?() == nil)
         fixture.store.lastSourceLabels[.kimi] = "Kimi Code CLI"
@@ -565,7 +651,8 @@ struct ProviderSettingsDescriptorTests {
 
     @Test
     func `kimi presentation follows selected source label`() throws {
-        let fixture = try self.makeSettingsFixture(suite: "ProviderSettingsDescriptorTests-kimi-presentation")
+        let fixture = try self.makeSettingsFixture(
+            suite: "ProviderSettingsDescriptorTests-kimi-presentation")
         fixture.settings.kimiUsageDataSource = .api
         let metadata = try #require(ProviderDescriptorRegistry.metadata[.kimi])
         let context = fixture.presentationContext(provider: .kimi, metadata: metadata)
@@ -579,7 +666,8 @@ struct ProviderSettingsDescriptorTests {
 
     @Test
     func `deepgram exposes api key and project id fields`() throws {
-        let fixture = try self.makeSettingsFixture(suite: "ProviderSettingsDescriptorTests-deepgram")
+        let fixture = try self.makeSettingsFixture(
+            suite: "ProviderSettingsDescriptorTests-deepgram")
         let context = fixture.settingsContext(provider: .deepgram)
 
         let implementation = DeepgramProviderImplementation()
@@ -595,7 +683,8 @@ struct ProviderSettingsDescriptorTests {
 
     @Test
     func `alibaba presentation follows store source label`() throws {
-        let fixture = try self.makeSettingsFixture(suite: "ProviderSettingsDescriptorTests-alibaba-presentation")
+        let fixture = try self.makeSettingsFixture(
+            suite: "ProviderSettingsDescriptorTests-alibaba-presentation")
         let metadata = try #require(ProviderDescriptorRegistry.metadata[.alibaba])
         let context = fixture.presentationContext(provider: .alibaba, metadata: metadata)
 
@@ -610,7 +699,8 @@ struct ProviderSettingsDescriptorTests {
 extension ProviderSettingsDescriptorTests {
     @Test
     func `zoommate presentation surfaces web rather than an undetected version`() throws {
-        let fixture = try self.makeSettingsFixture(suite: "ProviderSettingsDescriptorTests-zoommate-presentation")
+        let fixture = try self.makeSettingsFixture(
+            suite: "ProviderSettingsDescriptorTests-zoommate-presentation")
         let metadata = try #require(ProviderDescriptorRegistry.metadata[.zoommate])
         let context = fixture.presentationContext(provider: .zoommate, metadata: metadata)
 
@@ -624,7 +714,8 @@ extension ProviderSettingsDescriptorTests {
 
     @Test
     func `devin presentation follows store source label`() throws {
-        let fixture = try self.makeSettingsFixture(suite: "ProviderSettingsDescriptorTests-devin-presentation")
+        let fixture = try self.makeSettingsFixture(
+            suite: "ProviderSettingsDescriptorTests-devin-presentation")
         fixture.store.lastSourceLabels[.devin] = "web"
         let metadata = try #require(ProviderDescriptorRegistry.metadata[.devin])
         let context = fixture.presentationContext(provider: .devin, metadata: metadata)
@@ -640,18 +731,23 @@ extension ProviderSettingsDescriptorTests {
 extension ProviderSettingsDescriptorTests {
     @Test
     func `alibaba token plan settings expose cookie controls`() throws {
-        let fixture = try self.makeSettingsFixture(suite: "ProviderSettingsDescriptorTests-alibaba-token-plan-settings")
+        let fixture = try self.makeSettingsFixture(
+            suite: "ProviderSettingsDescriptorTests-alibaba-token-plan-settings")
         fixture.settings.alibabaTokenPlanCookieSource = .manual
         let context = fixture.settingsContext(provider: .alibabatokenplan)
         let implementation = AlibabaTokenPlanProviderImplementation()
         let pickers = implementation.settingsPickers(context: context)
         let fields = implementation.settingsFields(context: context)
-        let regionPicker = try #require(pickers.first(where: { $0.id == "alibaba-token-plan-region" }))
+        let regionPicker = try #require(
+            pickers.first(where: { $0.id == "alibaba-token-plan-region" }))
 
         #expect(pickers.contains(where: { $0.id == "alibaba-token-plan-cookie-source" }))
-        #expect(Set(regionPicker.options.map(\.id)) == ["intl", "cn", "intl-personal", "cn-personal"])
+        #expect(
+            Set(regionPicker.options.map(\.id)) == ["intl", "cn", "intl-personal", "cn-personal"])
         #expect(fields.contains(where: { $0.id == "alibaba-token-plan-cookie" }))
-        #expect(fields.first?.actions.contains(where: { $0.id == "alibaba-token-plan-open-dashboard" }) == true)
+        #expect(
+            fields.first?.actions.contains(where: { $0.id == "alibaba-token-plan-open-dashboard" })
+                == true)
     }
 
     @Test
@@ -670,7 +766,8 @@ extension ProviderSettingsDescriptorTests {
             updatedAt: Date())
         let context = fixture.settingsContext(provider: .deepseek)
 
-        let picker = try #require(DeepSeekProviderImplementation().settingsPickers(context: context).first)
+        let picker = try #require(
+            DeepSeekProviderImplementation().settingsPickers(context: context).first)
         #expect(picker.options.map(\.id) == ["", "chrome:Default", "chrome:Profile 2"])
         #expect(picker.binding.wrappedValue.isEmpty)
         let configRevision = fixture.settings.configRevision
@@ -680,19 +777,26 @@ extension ProviderSettingsDescriptorTests {
 
         picker.binding.wrappedValue = "chrome:Profile 2"
         #expect(fixture.settings.deepseekProfileID(apiKey: apiKey) == "chrome:Profile 2")
-        #expect(fixture.settings.providerConfig(for: .deepseek)?.sanitizedDeepSeekProfileID == "chrome:Profile 2")
-        let expectedScope = try #require(DeepSeekSettingsReader.profileScope(
-            selectedTokenAccountID: nil,
-            apiKey: apiKey))
-        #expect(fixture.settings.providerConfig(for: .deepseek)?.sanitizedDeepSeekProfileScope == expectedScope)
+        #expect(
+            fixture.settings.providerConfig(for: .deepseek)?.sanitizedDeepSeekProfileID
+                == "chrome:Profile 2")
+        let expectedScope = try #require(
+            DeepSeekSettingsReader.profileScope(
+                selectedTokenAccountID: nil,
+                apiKey: apiKey))
+        #expect(
+            fixture.settings.providerConfig(for: .deepseek)?.sanitizedDeepSeekProfileScope
+                == expectedScope)
         #expect(fixture.settings.configRevision == configRevision)
         #expect(fixture.settings.backgroundWorkSettingsRevision == backgroundWorkRevision)
-        #expect(fixture.settings.providerConfigRevision(for: .deepseek) == providerConfigRevision + 1)
+        #expect(
+            fixture.settings.providerConfigRevision(for: .deepseek) == providerConfigRevision + 1)
         #expect(fixture.store.snapshots[.deepseek]?.updatedAt == snapshot?.updatedAt)
-        #expect(fixture.store.snapshots[.deepseek]?.deepseekPlatformProfiles.map(\.id) == [
-            "chrome:Default",
-            "chrome:Profile 2",
-        ])
+        #expect(
+            fixture.store.snapshots[.deepseek]?.deepseekPlatformProfiles.map(\.id) == [
+                "chrome:Default",
+                "chrome:Profile 2",
+            ])
     }
 
     @Test
@@ -712,13 +816,17 @@ extension ProviderSettingsDescriptorTests {
             ],
             updatedAt: Date())
 
-        let picker = try #require(DeepSeekProviderImplementation()
-            .settingsPickers(context: fixture.settingsContext(provider: .deepseek)).first)
+        let picker = try #require(
+            DeepSeekProviderImplementation()
+                .settingsPickers(context: fixture.settingsContext(provider: .deepseek)).first)
         picker.binding.wrappedValue = "chrome:Profile 2"
 
         #expect(fixture.settings.deepseekProfileID(apiKey: nil) == "chrome:Profile 2")
-        #expect(fixture.settings.providerConfig(for: .deepseek)?.sanitizedDeepSeekProfileScope != nil)
-        #expect(fixture.store.deepseekProfileTransitionSnapshot?.primary?.resetDescription == "Refreshing")
+        #expect(
+            fixture.settings.providerConfig(for: .deepseek)?.sanitizedDeepSeekProfileScope != nil)
+        #expect(
+            fixture.store.deepseekProfileTransitionSnapshot?.primary?.resetDescription
+                == "Refreshing")
 
         await fixture.store.applySelectedOutcome(
             ProviderFetchOutcome(
@@ -728,13 +836,18 @@ extension ProviderSettingsDescriptorTests {
             account: nil,
             fallbackSnapshot: nil)
 
-        #expect(fixture.store.deepseekProfileTransitionSnapshot?.primary?.resetDescription == "Unavailable")
-        #expect(fixture.store.deepseekProfileTransitionSnapshot?.primary?.resetDescription?.contains("$8.06") == false)
+        #expect(
+            fixture.store.deepseekProfileTransitionSnapshot?.primary?.resetDescription
+                == "Unavailable")
+        #expect(
+            fixture.store.deepseekProfileTransitionSnapshot?.primary?.resetDescription?.contains(
+                "$8.06") == false)
     }
 
     @Test
     func `deepseek profile picker stays visible while switching profiles`() throws {
-        let fixture = try self.makeSettingsFixture(suite: "ProviderSettingsDescriptorTests-deepseek-profile-switch")
+        let fixture = try self.makeSettingsFixture(
+            suite: "ProviderSettingsDescriptorTests-deepseek-profile-switch")
         let snapshot = UsageSnapshot(
             primary: nil,
             secondary: nil,
@@ -748,7 +861,8 @@ extension ProviderSettingsDescriptorTests {
         fixture.store.refreshingProviders.insert(.deepseek)
         let context = fixture.settingsContext(provider: .deepseek)
 
-        let picker = try #require(DeepSeekProviderImplementation().settingsPickers(context: context).first)
+        let picker = try #require(
+            DeepSeekProviderImplementation().settingsPickers(context: context).first)
         #expect(picker.options.map(\.id) == ["", "chrome:Default", "chrome:Profile 2"])
         #expect(picker.binding.wrappedValue.isEmpty)
         #expect(picker.dynamicSubtitle?() == "Refreshing")
@@ -775,12 +889,15 @@ extension ProviderSettingsDescriptorTests {
             account: nil,
             fallbackSnapshot: nil)
 
-        #expect(fixture.store.deepseekProfileTransitionSnapshot?.primary?.resetDescription == "Unavailable")
+        #expect(
+            fixture.store.deepseekProfileTransitionSnapshot?.primary?.resetDescription
+                == "Unavailable")
     }
 
     @Test
     func `deepseek settings keeps balance while live snapshot is switching`() throws {
-        let fixture = try self.makeSettingsFixture(suite: "ProviderSettingsDescriptorTests-deepseek-balance-switch")
+        let fixture = try self.makeSettingsFixture(
+            suite: "ProviderSettingsDescriptorTests-deepseek-balance-switch")
         fixture.store.lastKnownResetSnapshots[.deepseek] = UsageSnapshot(
             primary: RateWindow(
                 usedPercent: 0,
@@ -805,7 +922,8 @@ extension ProviderSettingsDescriptorTests {
 
     @Test
     func `deepseek profile transition survives selected api token cache invalidation`() throws {
-        let fixture = try self.makeSettingsFixture(suite: "ProviderSettingsDescriptorTests-deepseek-token-transition")
+        let fixture = try self.makeSettingsFixture(
+            suite: "ProviderSettingsDescriptorTests-deepseek-token-transition")
         fixture.settings.addTokenAccount(provider: .deepseek, label: "cv", token: "test-token")
         let snapshot = try UsageSnapshot(
             primary: RateWindow(
@@ -814,9 +932,11 @@ extension ProviderSettingsDescriptorTests {
                 resetsAt: nil,
                 resetDescription: "$8.06 (Paid: $8.06 / Granted: $0.00)"),
             secondary: nil,
-            details: [ProviderDetailSection(rows: [
-                ProviderDetailSection.Row(label: "Today", value: "$0.1000 · 100 tokens"),
-            ])],
+            details: [
+                ProviderDetailSection(rows: [
+                    ProviderDetailSection.Row(label: "Today", value: "$0.1000 · 100 tokens"),
+                ]),
+            ],
             deepseekDetailedUsageState: .available,
             deepseekPlatformProfiles: [
                 DeepSeekPlatformProfile(id: "chrome:Default", name: "Chrome — Personal"),
@@ -826,7 +946,8 @@ extension ProviderSettingsDescriptorTests {
         fixture.store.snapshots[.deepseek] = snapshot
         fixture.store.lastKnownResetSnapshots[.deepseek] = snapshot
         let context = fixture.settingsContext(provider: .deepseek)
-        let picker = try #require(DeepSeekProviderImplementation().settingsPickers(context: context).first)
+        let picker = try #require(
+            DeepSeekProviderImplementation().settingsPickers(context: context).first)
 
         picker.binding.wrappedValue = "chrome:Profile 2"
         fixture.store.refreshingProviders.insert(.deepseek)
@@ -841,9 +962,11 @@ extension ProviderSettingsDescriptorTests {
         #expect(model.metrics.first?.statusText == "$8.06 (Paid: $8.06 / Granted: $0.00)")
         #expect(model.inlineUsageDashboard == nil)
         #expect(model.usageNotes.isEmpty)
-        #expect(!ProvidersPane(settings: fixture.settings, store: fixture.store)
-            ._test_providerSubtitle(.deepseek).contains("usage not fetched yet"))
-        let transitionPicker = try #require(DeepSeekProviderImplementation().settingsPickers(context: context).first)
+        #expect(
+            !ProvidersPane(settings: fixture.settings, store: fixture.store)
+                ._test_providerSubtitle(.deepseek).contains("usage not fetched yet"))
+        let transitionPicker = try #require(
+            DeepSeekProviderImplementation().settingsPickers(context: context).first)
         #expect(transitionPicker.options.map(\.id) == ["chrome:Default", "chrome:Profile 2"])
         #expect(!(transitionPicker.isEnabled?() ?? true))
 
@@ -857,7 +980,8 @@ extension ProviderSettingsDescriptorTests {
 
     @Test
     func `deepseek selected account success clears its profile transition`() async throws {
-        let fixture = try self.makeSettingsFixture(suite: "ProviderSettingsDescriptorTests-deepseek-transition-success")
+        let fixture = try self.makeSettingsFixture(
+            suite: "ProviderSettingsDescriptorTests-deepseek-transition-success")
         fixture.store.snapshots[.deepseek] = UsageSnapshot(
             primary: RateWindow(
                 usedPercent: 0,
@@ -878,25 +1002,30 @@ extension ProviderSettingsDescriptorTests {
 
         await fixture.store.applySelectedOutcome(
             ProviderFetchOutcome(
-                result: .success(ProviderFetchResult(
-                    usage: refreshed,
-                    credits: nil,
-                    dashboard: nil,
-                    sourceLabel: "api",
-                    strategyID: "deepseek.api",
-                    strategyKind: .apiToken)),
+                result: .success(
+                    ProviderFetchResult(
+                        usage: refreshed,
+                        credits: nil,
+                        dashboard: nil,
+                        sourceLabel: "api",
+                        strategyID: "deepseek.api",
+                        strategyKind: .apiToken)),
                 attempts: []),
             provider: .deepseek,
             account: nil,
             fallbackSnapshot: nil)
 
         #expect(fixture.store.deepseekProfileTransitionSnapshot == nil)
-        #expect(fixture.store.presentationSnapshot(for: .deepseek)?.primary?.resetDescription == "$7.50")
+        #expect(
+            fixture.store.presentationSnapshot(for: .deepseek)?.primary?.resetDescription == "$7.50")
     }
 
     @Test
-    func `deepseek timeout keeps the validated profile catalog with the refreshed balance`() async throws {
-        let fixture = try self.makeSettingsFixture(suite: "ProviderSettingsDescriptorTests-deepseek-timeout-catalog")
+    func `deepseek timeout keeps the validated profile catalog with the refreshed balance`()
+        async throws
+    {
+        let fixture = try self.makeSettingsFixture(
+            suite: "ProviderSettingsDescriptorTests-deepseek-timeout-catalog")
         fixture.store.snapshots[.deepseek] = UsageSnapshot(
             primary: RateWindow(
                 usedPercent: 0,
@@ -924,13 +1053,14 @@ extension ProviderSettingsDescriptorTests {
 
         await fixture.store.applySelectedOutcome(
             ProviderFetchOutcome(
-                result: .success(ProviderFetchResult(
-                    usage: refreshedBalance,
-                    credits: nil,
-                    dashboard: nil,
-                    sourceLabel: "api",
-                    strategyID: "deepseek.api",
-                    strategyKind: .apiToken)),
+                result: .success(
+                    ProviderFetchResult(
+                        usage: refreshedBalance,
+                        credits: nil,
+                        dashboard: nil,
+                        sourceLabel: "api",
+                        strategyID: "deepseek.api",
+                        strategyKind: .apiToken)),
                 attempts: []),
             provider: .deepseek,
             account: nil,
@@ -938,18 +1068,21 @@ extension ProviderSettingsDescriptorTests {
 
         #expect(fixture.store.deepseekProfileTransitionSnapshot == nil)
         #expect(fixture.store.snapshots[.deepseek]?.primary?.resetDescription == "$7.50")
-        #expect(fixture.store.snapshots[.deepseek]?.deepseekPlatformProfiles.map(\.id) == [
-            "chrome:Default",
-            "chrome:Profile 2",
-        ])
-        let picker = try #require(DeepSeekProviderImplementation()
-            .settingsPickers(context: fixture.settingsContext(provider: .deepseek)).first)
+        #expect(
+            fixture.store.snapshots[.deepseek]?.deepseekPlatformProfiles.map(\.id) == [
+                "chrome:Default",
+                "chrome:Profile 2",
+            ])
+        let picker = try #require(
+            DeepSeekProviderImplementation()
+                .settingsPickers(context: fixture.settingsContext(provider: .deepseek)).first)
         #expect(picker.options.map(\.id) == ["", "chrome:Default", "chrome:Profile 2"])
     }
 
     @Test
     func `deepseek selected account failure preserves its balance only transition`() async throws {
-        let fixture = try self.makeSettingsFixture(suite: "ProviderSettingsDescriptorTests-deepseek-transition-failure")
+        let fixture = try self.makeSettingsFixture(
+            suite: "ProviderSettingsDescriptorTests-deepseek-transition-failure")
         fixture.store.snapshots[.deepseek] = try UsageSnapshot(
             primary: RateWindow(
                 usedPercent: 0,
@@ -957,9 +1090,11 @@ extension ProviderSettingsDescriptorTests {
                 resetsAt: nil,
                 resetDescription: "$8.06"),
             secondary: nil,
-            details: [ProviderDetailSection(rows: [
-                ProviderDetailSection.Row(label: "Today", value: "100 tokens"),
-            ])],
+            details: [
+                ProviderDetailSection(rows: [
+                    ProviderDetailSection.Row(label: "Today", value: "100 tokens"),
+                ]),
+            ],
             deepseekDetailedUsageState: .available,
             updatedAt: Date())
         fixture.store.beginDeepSeekProfileTransition()
@@ -973,13 +1108,15 @@ extension ProviderSettingsDescriptorTests {
             fallbackSnapshot: nil)
 
         #expect(fixture.store.deepseekProfileTransitionSnapshot != nil)
-        #expect(fixture.store.presentationSnapshot(for: .deepseek)?.primary?.resetDescription == "$8.06")
+        #expect(
+            fixture.store.presentationSnapshot(for: .deepseek)?.primary?.resetDescription == "$8.06")
         #expect(fixture.store.presentationSnapshot(for: .deepseek)?.details.isEmpty == true)
     }
 
     @Test
     func `disabling deepseek clears a failed profile transition`() async throws {
-        let fixture = try self.makeSettingsFixture(suite: "ProviderSettingsDescriptorTests-deepseek-disable-transition")
+        let fixture = try self.makeSettingsFixture(
+            suite: "ProviderSettingsDescriptorTests-deepseek-disable-transition")
         fixture.store.snapshots[.deepseek] = UsageSnapshot(
             primary: RateWindow(
                 usedPercent: 0,
@@ -1020,15 +1157,17 @@ extension ProviderSettingsDescriptorTests {
             ],
             updatedAt: Date())
 
-        let picker = try #require(DeepSeekProviderImplementation()
-            .settingsPickers(context: fixture.settingsContext(provider: .deepseek)).first)
+        let picker = try #require(
+            DeepSeekProviderImplementation()
+                .settingsPickers(context: fixture.settingsContext(provider: .deepseek)).first)
         #expect(picker.options.map(\.id) == ["", "chrome:Profile 2"])
         #expect(picker.binding.wrappedValue.isEmpty)
     }
 
     @Test
     func `deepseek profile transition does not cross api token account selection`() throws {
-        let fixture = try self.makeSettingsFixture(suite: "ProviderSettingsDescriptorTests-deepseek-account-transition")
+        let fixture = try self.makeSettingsFixture(
+            suite: "ProviderSettingsDescriptorTests-deepseek-account-transition")
         fixture.settings.addTokenAccount(provider: .deepseek, label: "Personal", token: "token-1")
         fixture.settings.addTokenAccount(provider: .deepseek, label: "Work", token: "token-2")
         let workAccount = try #require(fixture.settings.selectedTokenAccount(for: .deepseek))
@@ -1057,7 +1196,8 @@ extension ProviderSettingsDescriptorTests {
 
     @Test
     func `replacing a deepseek key in the same account clears its profile selection`() throws {
-        let fixture = try self.makeSettingsFixture(suite: "ProviderSettingsDescriptorTests-deepseek-replaced-key")
+        let fixture = try self.makeSettingsFixture(
+            suite: "ProviderSettingsDescriptorTests-deepseek-replaced-key")
         fixture.settings.addTokenAccount(provider: .deepseek, label: "Account", token: "old-key")
         let account = try #require(fixture.settings.selectedTokenAccount(for: .deepseek))
         fixture.settings.setDeepSeekProfileID("chrome:Default", apiKey: account.token)
@@ -1069,12 +1209,15 @@ extension ProviderSettingsDescriptorTests {
             token: "new-key")
 
         #expect(fixture.settings.deepseekProfileID(apiKey: "new-key").isEmpty)
-        #expect(fixture.settings.providerConfig(for: .deepseek)?.sanitizedDeepSeekProfileID == "chrome:Default")
+        #expect(
+            fixture.settings.providerConfig(for: .deepseek)?.sanitizedDeepSeekProfileID
+                == "chrome:Default")
     }
 
     @Test
     func `deepseek detailed usage requires cost extras and active api token account`() throws {
-        let fixture = try self.makeSettingsFixture(suite: "ProviderSettingsDescriptorTests-deepseek-account-usage")
+        let fixture = try self.makeSettingsFixture(
+            suite: "ProviderSettingsDescriptorTests-deepseek-account-usage")
         fixture.settings.showOptionalCreditsAndExtraUsage = true
         fixture.settings.costSummaryOption = .inlineSummary
         #expect(fixture.settings.costSummaryShowsInline(for: .deepseek))
@@ -1084,55 +1227,64 @@ extension ProviderSettingsDescriptorTests {
         let active = try #require(fixture.settings.selectedTokenAccount(for: .deepseek))
         let inactive = try #require(accounts.first(where: { $0.id != active.id }))
 
-        #expect(ProviderTokenAccountSelection.shouldIncludeOptionalUsage(
-            provider: .deepseek,
-            settings: fixture.settings,
-            override: TokenAccountOverride(provider: .deepseek, account: active)))
-        #expect(!ProviderTokenAccountSelection.shouldIncludeOptionalUsage(
-            provider: .deepseek,
-            settings: fixture.settings,
-            override: TokenAccountOverride(provider: .deepseek, account: inactive)))
+        #expect(
+            ProviderTokenAccountSelection.shouldIncludeOptionalUsage(
+                provider: .deepseek,
+                settings: fixture.settings,
+                override: TokenAccountOverride(provider: .deepseek, account: active)))
+        #expect(
+            !ProviderTokenAccountSelection.shouldIncludeOptionalUsage(
+                provider: .deepseek,
+                settings: fixture.settings,
+                override: TokenAccountOverride(provider: .deepseek, account: inactive)))
         fixture.settings.costSummaryOption = .costSubmenu
         #expect(!fixture.settings.costSummaryShowsInline(for: .deepseek))
-        #expect(ProviderTokenAccountSelection.shouldIncludeOptionalUsage(
-            provider: .deepseek,
-            settings: fixture.settings,
-            override: TokenAccountOverride(provider: .deepseek, account: active)))
+        #expect(
+            ProviderTokenAccountSelection.shouldIncludeOptionalUsage(
+                provider: .deepseek,
+                settings: fixture.settings,
+                override: TokenAccountOverride(provider: .deepseek, account: active)))
         fixture.settings.costSummaryOption = .both
         #expect(fixture.settings.costSummaryShowsInline(for: .deepseek))
         fixture.settings.costSummaryOption = .off
         #expect(!fixture.settings.costSummaryShowsInline(for: .deepseek))
-        #expect(!ProviderTokenAccountSelection.shouldIncludeOptionalUsage(
-            provider: .deepseek,
-            settings: fixture.settings,
-            override: TokenAccountOverride(provider: .deepseek, account: active)))
+        #expect(
+            !ProviderTokenAccountSelection.shouldIncludeOptionalUsage(
+                provider: .deepseek,
+                settings: fixture.settings,
+                override: TokenAccountOverride(provider: .deepseek, account: active)))
         fixture.settings.showOptionalCreditsAndExtraUsage = false
-        #expect(!ProviderTokenAccountSelection.shouldIncludeOptionalUsage(
-            provider: .codex,
-            settings: fixture.settings,
-            override: nil))
+        #expect(
+            !ProviderTokenAccountSelection.shouldIncludeOptionalUsage(
+                provider: .codex,
+                settings: fixture.settings,
+                override: nil))
         fixture.settings.costSummaryOption = .inlineSummary
-        #expect(!ProviderTokenAccountSelection.shouldIncludeOptionalUsage(
-            provider: .deepseek,
-            settings: fixture.settings,
-            override: TokenAccountOverride(provider: .deepseek, account: active)))
+        #expect(
+            !ProviderTokenAccountSelection.shouldIncludeOptionalUsage(
+                provider: .deepseek,
+                settings: fixture.settings,
+                override: TokenAccountOverride(provider: .deepseek, account: active)))
     }
 
     @Test
     func `provider settings labels an empty transition as refreshing`() {
-        #expect(ProviderMetricsInlineView.placeholderText(
-            isEnabled: true,
-            isRefreshing: true,
-            modelPlaceholder: nil) == "Refreshing")
-        #expect(ProviderMetricsInlineView.placeholderText(
-            isEnabled: true,
-            isRefreshing: false,
-            modelPlaceholder: nil) == "No usage yet")
+        #expect(
+            ProviderMetricsInlineView.placeholderText(
+                isEnabled: true,
+                isRefreshing: true,
+                modelPlaceholder: nil) == "Refreshing")
+        #expect(
+            ProviderMetricsInlineView.placeholderText(
+                isEnabled: true,
+                isRefreshing: false,
+                modelPlaceholder: nil) == "No usage yet")
     }
 
     @Test
     func `deepseek hides profile picker when only one validated profile remains`() throws {
-        let fixture = try self.makeSettingsFixture(suite: "ProviderSettingsDescriptorTests-deepseek-single-profile")
+        let fixture = try self.makeSettingsFixture(
+            suite: "ProviderSettingsDescriptorTests-deepseek-single-profile")
         fixture.store.snapshots[.deepseek] = UsageSnapshot(
             primary: nil,
             secondary: nil,
@@ -1214,7 +1366,9 @@ extension ProviderSettingsDescriptorTests {
         }
 
         @MainActor
-        func presentationContext(provider: UsageProvider, metadata: ProviderMetadata) -> ProviderPresentationContext {
+        func presentationContext(provider: UsageProvider, metadata: ProviderMetadata)
+            -> ProviderPresentationContext
+        {
             ProviderPresentationContext(
                 provider: provider,
                 settings: self.settings,

@@ -139,7 +139,7 @@ See [CLI configuration](docs/cli-configuration.md) for the full flow.
 - [Chutes](docs/chutes.md) — API key for subscription usage, rolling and monthly quota windows, and pay-as-you-go quotas.
 - [Neuralwatt](docs/neuralwatt.md) — API key for subscription kWh usage and prepaid credit balance.
 - [ZenMux](docs/zenmux.md) — Management API key for rolling five-hour and seven-day quota windows plus PAYG balance.
-- [xAI](docs/xai.md) — Management API key + team ID for prepaid credit balance and daily platform spend.
+- [xAI](docs/xai.md) — Management API prepaid credits, or SuperGrok OAuth / grok.com browser tokens for subscription usage.
 - [IBM Bob](docs/ibm-bob.md) — API key for monthly Bobcoin budget and usage across subscription teams.
 - Open to new providers: [provider authoring guide](docs/provider.md).
 

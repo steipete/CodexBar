@@ -70,6 +70,11 @@ protocol ProviderImplementation: Sendable {
     @MainActor
     func applyTokenAccountCookieSource(settings: SettingsStore)
 
+    /// Optional override for the token-account editor's "Open token file" button.
+    /// Return true when the provider opened its own file.
+    @MainActor
+    func openTokenAccountsFile() -> Bool
+
     /// Optional provider-specific menu entries for the usage section.
     @MainActor
     func appendUsageMenuEntries(context: ProviderMenuUsageContext, entries: inout [ProviderMenuEntry])
@@ -172,6 +177,11 @@ extension ProviderImplementation {
 
     @MainActor
     func applyTokenAccountCookieSource(settings _: SettingsStore) {}
+
+    @MainActor
+    func openTokenAccountsFile() -> Bool {
+        false
+    }
 
     @MainActor
     func appendUsageMenuEntries(context _: ProviderMenuUsageContext, entries _: inout [ProviderMenuEntry]) {}

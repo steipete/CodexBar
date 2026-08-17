@@ -115,6 +115,10 @@ extension UsageStore {
         Self.isSubscriptionPlan(self.loginMethod(for: .claude))
     }
 
+    func isXAISuperGrok() -> Bool {
+        XAIOAuthUsageMapper.isSuperGrokFamily(self.loginMethod(for: .xai))
+    }
+
     /// Determines if a login method string indicates a Claude subscription plan.
     /// Known subscription indicators: Max, Pro, Ultra, Team (case-insensitive).
     nonisolated static func isSubscriptionPlan(_ loginMethod: String?) -> Bool {

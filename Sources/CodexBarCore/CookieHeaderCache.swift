@@ -406,6 +406,18 @@ public enum CookieHeaderCache {
         }
     }
 
+    /// Durable entry only. Refresh gates hide `load` so a reimport can run; this still
+    /// returns the last committed session when that reimport fails.
+    public static func loadPersisted(provider: UsageProvider, scope: Scope? = nil) -> Entry? {
+        let key = self.key(for: provider, scope: scope)
+        switch KeychainCacheStore.load(key: key, as: Entry.self) {
+        case let .found(entry):
+            return entry
+        case .temporarilyUnavailable, .invalid, .missing:
+            return nil
+        }
+    }
+
     static func loadSerialized(provider: UsageProvider, scope: Scope? = nil) -> Entry? {
         do {
             return try self.withLegacyMutationLock {

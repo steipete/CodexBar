@@ -2,8 +2,20 @@
 
 ## 0.51.1 — Unreleased
 
+### Added
+- xAI: add SuperGrok OAuth and Chrome grok.com browser-token auth beside the Management API, so subscription credits can be tracked without a management key.
+
 ### Fixed
 - Cost history chart: localize the Projects, Conversations, session, and standard/fast mode labels that previously stayed English for all 23 app languages (#2983). Thanks @Yuxin-Qiao!
+- xAI: keep Browser cookies as a live fetch strategy instead of failing with no available fetch strategy.
+- xAI: open grok.com usage (`https://grok.com/?_s=usage`) from Usage Dashboard for SuperGrok OAuth and cookie sessions, instead of the Management API console.
+- xAI: show SuperGrok vs SuperGrok Heavy from the credits `subscriptionTier` instead of hardcoding SuperGrok, and keep Heavy's omitted usage percent as unknown.
+- xAI: keep SuperGrok OAuth on the Browser cookies path so grok.com cookie-only WKE failures do not block a working CLI-proxy session.
+- xAI: treat Cookie Refresh as success when the web session still works, even if Chrome did not rewrite the cached header.
+- xAI: allow Chrome Safe Storage on Browser cookies Refresh and usage-source changes, matching Auto.
+- xAI: keep Auto available when SuperGrok cookies are the live credential, instead of showing "unavailable in the current environment" after spend already loaded.
+- xAI: open `~/.grok/auth.json` from a labeled action beside the Grok CLI-credentials toggle, not from Open token file.
+
 
 ## 0.51.0 — 2026-08-16
 

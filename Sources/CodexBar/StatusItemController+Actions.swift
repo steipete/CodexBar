@@ -381,11 +381,13 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
         }
 
         let meta = self.store.metadata(for: provider)
-        let urlString: String? = if provider == .claude, self.store.isClaudeSubscription() {
-            meta.subscriptionDashboardURL ?? meta.dashboardURL
-        } else {
-            meta.dashboardURL
-        }
+        let usesSubscriptionDashboard =
+            (provider == .claude && self.store.isClaudeSubscription())
+            || (provider == .xai && self.store.isXAISuperGrok())
+        let urlString: String? =
+            usesSubscriptionDashboard
+                ? (meta.subscriptionDashboardURL ?? meta.dashboardURL)
+                : meta.dashboardURL
 
         guard let urlString else { return nil }
         return URL(string: urlString)

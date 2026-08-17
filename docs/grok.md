@@ -13,6 +13,8 @@ fetched via the ACP JSON-RPC `x.ai/billing` extension method over `grok agent st
 when available, then via the Grok CLI billing REST API using the local login token.
 The grok.com billing gRPC-web endpoint remains a best-effort fallback.
 
+Consumer SuperGrok credits can also be tracked on the [xAI provider](xai.md) via a pasted browser token or Chrome grok.com cookies. That path owns its own token store and does not share identity with this provider.
+
 ## Data sources + fallback order
 
 1) **`~/.grok/auth.json` (primary identity source)**

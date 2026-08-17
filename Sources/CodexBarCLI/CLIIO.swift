@@ -1,3 +1,5 @@
+import Foundation
+
 #if canImport(Darwin)
 import Darwin
 #elseif canImport(Glibc)
@@ -5,7 +7,6 @@ import Glibc
 #elseif canImport(Musl)
 import Musl
 #endif
-import Foundation
 
 extension CodexBarCLI {
     static func writeStderr(_ string: String) {
@@ -82,7 +83,8 @@ extension CodexBarCLI {
         guard _NSGetExecutablePath(nil, &size) != 0 else { return nil }
         var buffer = [Int8](repeating: 0, count: Int(size))
         guard _NSGetExecutablePath(&buffer, &size) == 0 else { return nil }
-        return String(cString: buffer)
+        let utf8 = buffer.prefix { $0 != 0 }.map(UInt8.init(bitPattern:))
+        return String(bytes: utf8, encoding: .utf8)
         #elseif os(Linux)
         let path = "/proc/self/exe"
         guard FileManager.default.fileExists(atPath: path) else { return nil }
@@ -112,11 +114,13 @@ extension CodexBarCLI {
         while let ancestorURL = Self.nextAncestor(from: currentURL) {
             currentURL = ancestorURL
             if currentURL.pathExtension == "app" {
-                let infoURL = currentURL
-                    .appendingPathComponent("Contents")
-                    .appendingPathComponent("Info.plist")
+                let infoURL =
+                    currentURL
+                        .appendingPathComponent("Contents")
+                        .appendingPathComponent("Info.plist")
                 guard let data = fileManager.contents(atPath: infoURL.path),
-                      let plist = try? PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any]
+                      let plist = try? PropertyListSerialization.propertyList(from: data, format: nil)
+                      as? [String: Any]
                 else { return nil }
                 return Self.normalizedBundleVersion(plist["CFBundleShortVersionString"] as? String)
             }
@@ -134,9 +138,10 @@ extension CodexBarCLI {
     }
 
     static func adjacentVersionFileVersion(for executableURL: URL) -> String? {
-        let versionURL = executableURL
-            .deletingLastPathComponent()
-            .appendingPathComponent("VERSION")
+        let versionURL =
+            executableURL
+                .deletingLastPathComponent()
+                .appendingPathComponent("VERSION")
         guard let raw = try? String(contentsOf: versionURL, encoding: .utf8) else {
             return nil
         }

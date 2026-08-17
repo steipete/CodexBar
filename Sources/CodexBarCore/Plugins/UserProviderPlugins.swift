@@ -1,5 +1,6 @@
 import Crypto
 import Foundation
+
 #if canImport(FoundationNetworking)
 import FoundationNetworking
 #endif
@@ -72,9 +73,10 @@ public struct ProviderPluginApprovalBinding: Codable, Equatable, Sendable {
 
     private static func isIPv4Literal(_ host: String) -> Bool {
         let parts = host.split(separator: ".", omittingEmptySubsequences: false)
-        return parts.count == 4 && parts.allSatisfy { part in
-            !part.isEmpty && part.allSatisfy(\.isNumber) && Int(part).map { (0...255).contains($0) } == true
-        }
+        return parts.count == 4
+            && parts.allSatisfy { part in
+                !part.isEmpty && part.allSatisfy(\.isNumber) && Int(part).map { (0...255).contains($0) } == true
+            }
     }
 }
 
@@ -266,18 +268,23 @@ public final class UserProviderPluginLoader: @unchecked Sendable {
     public func discover() -> [UserProviderPluginLoadResult] {
         let urls: [URL]
         do {
-            try FileManager.default.createDirectory(at: self.providersDirectory, withIntermediateDirectories: true)
+            try FileManager.default.createDirectory(
+                at: self.providersDirectory, withIntermediateDirectories: true)
             urls = try FileManager.default.contentsOfDirectory(
                 at: self.providersDirectory,
                 includingPropertiesForKeys: [.isRegularFileKey, .fileSizeKey],
                 options: [.skipsHiddenFiles])
                 .filter { ["js", "ts"].contains($0.pathExtension.lowercased()) }
-                .sorted { $0.lastPathComponent.localizedStandardCompare($1.lastPathComponent) == .orderedAscending }
+                .sorted {
+                    $0.lastPathComponent.localizedStandardCompare($1.lastPathComponent) == .orderedAscending
+                }
         } catch {
-            return [UserProviderPluginLoadResult(
-                fileURL: self.providersDirectory,
-                plugin: nil,
-                error: "Could not scan plugins directory: \(error.localizedDescription)")]
+            return [
+                UserProviderPluginLoadResult(
+                    fileURL: self.providersDirectory,
+                    plugin: nil,
+                    error: "Could not scan plugins directory: \(error.localizedDescription)"),
+            ]
         }
 
         var seen = Set(UsageProvider.allCases.map(\.instanceID))
@@ -290,7 +297,8 @@ public final class UserProviderPluginLoader: @unchecked Sendable {
                 }
                 return UserProviderPluginLoadResult(fileURL: url, plugin: plugin, error: nil)
             } catch {
-                return UserProviderPluginLoadResult(fileURL: url, plugin: nil, error: error.localizedDescription)
+                return UserProviderPluginLoadResult(
+                    fileURL: url, plugin: nil, error: error.localizedDescription)
             }
         }
     }
@@ -314,11 +322,12 @@ public final class UserProviderPluginLoader: @unchecked Sendable {
             throw ProviderPluginError.load("plugin source is not valid UTF-8")
         }
         let hash = SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
-        let output: (source: String, cacheURL: URL?, cacheHit: Bool) = if fileURL.pathExtension.lowercased() == "ts" {
-            try self.transpile(source: source, hash: hash, sourceFileURL: fileURL)
-        } else {
-            (source, nil, false)
-        }
+        let output: (source: String, cacheURL: URL?, cacheHit: Bool) =
+            if fileURL.pathExtension.lowercased() == "ts" {
+                try self.transpile(source: source, hash: hash, sourceFileURL: fileURL)
+            } else {
+                (source, nil, false)
+            }
         let runtime = try ProviderPluginRuntime(
             source: output.source,
             resourceBundle: self.resourceBundle,
@@ -342,11 +351,13 @@ public final class UserProviderPluginLoader: @unchecked Sendable {
             throw ProviderPluginError.invalidManifest(
                 "provider id '\(validated.manifest.id.rawValue)' collides with another provider")
         }
-        try FileManager.default.createDirectory(at: self.providersDirectory, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(
+            at: self.providersDirectory, withIntermediateDirectories: true)
         let destination = self.providersDirectory.appendingPathComponent(fileURL.lastPathComponent)
         guard destination.standardizedFileURL != fileURL.standardizedFileURL else { return validated }
         guard !FileManager.default.fileExists(atPath: destination.path) else {
-            throw ProviderPluginError.load("a plugin named '\(destination.lastPathComponent)' is already installed")
+            throw ProviderPluginError.load(
+                "a plugin named '\(destination.lastPathComponent)' is already installed")
         }
         try FileManager.default.copyItem(at: fileURL, to: destination)
         return try self.load(fileURL: destination)
@@ -357,7 +368,8 @@ public final class UserProviderPluginLoader: @unchecked Sendable {
         hash: String,
         sourceFileURL: URL) throws -> (String, URL?, Bool)
     {
-        try FileManager.default.createDirectory(at: self.cacheDirectory, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(
+            at: self.cacheDirectory, withIntermediateDirectories: true)
         let sourceName = sourceFileURL.deletingPathExtension().lastPathComponent
         let cacheURL = self.cacheDirectory
             .appendingPathComponent("\(sourceName)-\(hash)-sucrase-\(Self.sucraseVersion).js")
@@ -367,21 +379,24 @@ public final class UserProviderPluginLoader: @unchecked Sendable {
         guard let resourceBundle = self.resourceBundle else {
             throw ProviderPluginError.load(CodexBarCoreResources.missingBundleMessage)
         }
-        guard let resourceURL = resourceBundle.url(
-            forResource: "sucrase-\(Self.sucraseVersion).min",
-            withExtension: "js")
+        guard
+            let resourceURL = resourceBundle.url(
+                forResource: "sucrase-\(Self.sucraseVersion).min",
+                withExtension: "js")
         else {
             throw ProviderPluginError.load("bundled Sucrase \(Self.sucraseVersion) resource was not found")
         }
         let sucraseSource = try String(contentsOf: resourceURL, encoding: .utf8)
-        let output = switch ProviderPluginRuntime.resolveEngineKind(.automatic) {
-        case .automatic:
-            preconditionFailure("automatic plugin engine selection must be resolved")
-        case .javaScriptCore:
-            try Self.transpileTypeScriptWithJavaScriptCore(source: source, sucraseSource: sucraseSource)
-        case .quickJS:
-            try QuickJSProviderPluginEngine.transpileTypeScript(source: source, sucraseSource: sucraseSource)
-        }
+        let output =
+            switch ProviderPluginRuntime.resolveEngineKind(.automatic) {
+            case .automatic:
+                preconditionFailure("automatic plugin engine selection must be resolved")
+            case .javaScriptCore:
+                try Self.transpileTypeScriptWithJavaScriptCore(source: source, sucraseSource: sucraseSource)
+            case .quickJS:
+                try QuickJSProviderPluginEngine.transpileTypeScript(
+                    source: source, sucraseSource: sucraseSource)
+            }
         try Data(output.utf8).write(to: cacheURL, options: .atomic)
         return (output, cacheURL, false)
     }
@@ -392,20 +407,23 @@ public final class UserProviderPluginLoader: @unchecked Sendable {
     {
         #if canImport(JavaScriptCore)
         guard let context = JSContext() else {
-            throw ProviderPluginError.load("JavaScriptCore could not create a TypeScript transpiler context")
+            throw ProviderPluginError.load(
+                "JavaScriptCore could not create a TypeScript transpiler context")
         }
         context.exception = nil
         _ = context.evaluateScript(sucraseSource)
         if let exception = context.exception {
-            throw ProviderPluginError.load("Sucrase failed to initialize: \(exception.toString() ?? "unknown error")")
+            throw ProviderPluginError.load(
+                "Sucrase failed to initialize: \(exception.toString() ?? "unknown error")")
         }
         context.setObject(source, forKeyedSubscript: "__codexbarTypeScriptSource" as NSString)
         context.exception = nil
         let result = context.evaluateScript(
             "sucrase.transform(__codexbarTypeScriptSource, {transforms:['typescript']}).code")
         if let exception = context.exception {
-            throw ProviderPluginError
-                .load("TypeScript transpilation failed: \(exception.toString() ?? "unknown error")")
+            throw
+                ProviderPluginError
+                    .load("TypeScript transpilation failed: \(exception.toString() ?? "unknown error")")
         }
         guard let output = result?.toString(), !output.isEmpty else {
             throw ProviderPluginError.load("TypeScript transpilation returned no output")
@@ -433,9 +451,10 @@ public enum UserProviderPluginRegistry {
         let results = loader.discover()
         self.lock.withLock {
             self.store.results = results
-            self.store.byID = Dictionary(uniqueKeysWithValues: results.compactMap { result in
-                result.plugin.map { ($0.manifest.id, $0) }
-            })
+            self.store.byID = Dictionary(
+                uniqueKeysWithValues: results.compactMap { result in
+                    result.plugin.map { ($0.manifest.id, $0) }
+                })
         }
         return results
     }
@@ -463,7 +482,8 @@ public enum UserProviderPluginManager {
         if FileManager.default.fileExists(atPath: plugin.fileURL.path) {
             try FileManager.default.removeItem(at: plugin.fileURL)
         }
-        let directory = plugin.transpiledCacheURL?.deletingLastPathComponent()
+        let directory =
+            plugin.transpiledCacheURL?.deletingLastPathComponent()
             ?? UserProviderPluginLoader.defaultCacheDirectory
         if FileManager.default.fileExists(atPath: directory.path) {
             let prefix = plugin.fileURL.deletingPathExtension().lastPathComponent + "-"
@@ -492,7 +512,8 @@ private enum UserProviderPluginHTTPTransport {
     }
 }
 
-private final class UserProviderPluginHTTPClient: NSObject, ProviderHTTPTransport, URLSessionDataDelegate,
+private final class UserProviderPluginHTTPClient: NSObject, ProviderHTTPTransport,
+    URLSessionDataDelegate,
     @unchecked Sendable
 {
     private struct RequestState {
@@ -579,26 +600,29 @@ private final class UserProviderPluginHTTPClient: NSObject, ProviderHTTPTranspor
         self.finish(taskIdentifier: task.taskIdentifier, result: result)
     }
 
+    private func finish(taskIdentifier: Int, result: Result<(Data, URLResponse), Error>) {
+        let continuation = self.lock.withLock {
+            self.states.removeValue(forKey: taskIdentifier)?.continuation
+        }
+        continuation?.resume(with: result)
+    }
+}
+
+extension UserProviderPluginHTTPClient {
     func urlSession(
         _: URLSession,
         task _: URLSessionTask,
-        didReceive challenge: URLAuthenticationChallenge,
-        completionHandler: @escaping @Sendable (URLSession.AuthChallengeDisposition, URLCredential?) -> Void)
+        didReceive challenge: URLAuthenticationChallenge) async
+        -> (URLSession.AuthChallengeDisposition, URLCredential?)
     {
         #if canImport(Darwin)
         if challenge.protectionSpace.authenticationMethod == NSURLAuthenticationMethodServerTrust {
-            completionHandler(.performDefaultHandling, nil)
-        } else {
-            completionHandler(.cancelAuthenticationChallenge, nil)
+            return (.performDefaultHandling, nil)
         }
+        return (.cancelAuthenticationChallenge, nil)
         #else
         _ = challenge
-        completionHandler(.performDefaultHandling, nil)
+        return (.performDefaultHandling, nil)
         #endif
-    }
-
-    private func finish(taskIdentifier: Int, result: Result<(Data, URLResponse), Error>) {
-        let continuation = self.lock.withLock { self.states.removeValue(forKey: taskIdentifier)?.continuation }
-        continuation?.resume(with: result)
     }
 }

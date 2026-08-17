@@ -7,13 +7,15 @@ import Testing
 struct XAIProviderTests {
     @Test
     func `settings reader trims whitespace and quotes`() {
-        #expect(XAISettingsReader.apiKey(environment: [
-            XAISettingsReader.apiKeyEnvironmentKey: "  'fixture-management-key'  ",
-        ]) == "fixture-management-key")
+        #expect(
+            XAISettingsReader.apiKey(environment: [
+                XAISettingsReader.apiKeyEnvironmentKey: "  'fixture-management-key'  ",
+            ]) == "fixture-management-key")
         #expect(XAISettingsReader.apiKey(environment: [:]) == nil)
-        #expect(XAISettingsReader.teamID(environment: [
-            XAISettingsReader.teamIDEnvironmentKey: " \"team-1234\" ",
-        ]) == "team-1234")
+        #expect(
+            XAISettingsReader.teamID(environment: [
+                XAISettingsReader.teamIDEnvironmentKey: " \"team-1234\" ",
+            ]) == "team-1234")
         #expect(XAISettingsReader.teamID(environment: [:]) == nil)
     }
 
@@ -26,10 +28,13 @@ struct XAIProviderTests {
             XAISettingsReader.apiKeyEnvironmentKey: "fixture-management-key",
             XAISettingsReader.teamIDEnvironmentKey: "team/../other",
         ])
-        let strategy = try #require(await XAIProviderDescriptor.descriptor.fetchPlan.pipeline
-            .resolveStrategies(missing).first)
+        let strategy = try #require(
+            await XAIProviderDescriptor.descriptor.fetchPlan.pipeline
+                .resolveStrategies(missing).first)
 
-        for (context, expected) in [(missing, XAISettingsError.missingTeamID), (invalid, .invalidTeamID)] {
+        for (context, expected) in [
+            (missing, XAISettingsError.missingTeamID), (invalid, .invalidTeamID),
+        ] {
             do {
                 _ = try await strategy.fetch(context)
                 Issue.record("Expected xAI team ID validation error")
@@ -82,9 +87,10 @@ struct XAIProviderTests {
         #expect(await transport.requests().count == 2)
         #expect(snapshot.providerCost?.used == 10)
         #expect(snapshot.detailRow(label: "Last 30 days")?.value == "$1.76")
-        #expect(snapshot.details.first?.chart?.points.map(\.label) == [
-            "2027-01-13", "2027-01-14", "2027-01-15",
-        ])
+        #expect(
+            snapshot.details.first?.chart?.points.map(\.label) == [
+                "2027-01-13", "2027-01-14", "2027-01-15",
+            ])
         #expect(snapshot.dataConfidence == .exact)
     }
 
@@ -135,9 +141,10 @@ struct XAIProviderTests {
         #expect(degraded.details.first?.chart == nil)
         #expect(degraded.dataConfidence == .exact)
 
-        let partial = try await Self.fetch(usageBody: Self.usageFixture.replacingOccurrences(
-            of: #""limitReached": false"#,
-            with: #""limitReached": true"#))
+        let partial = try await Self.fetch(
+            usageBody: Self.usageFixture.replacingOccurrences(
+                of: #""limitReached": false"#,
+                with: #""limitReached": true"#))
         #expect(partial.detailRow(label: "Last 30 days (partial)")?.value == "$1.76")
         #expect(partial.dataConfidence == .estimated)
     }
@@ -146,29 +153,35 @@ struct XAIProviderTests {
     func `descriptor registry menu card and CLI retain xAI presentation`() async throws {
         let descriptor = ProviderDescriptorRegistry.descriptor(for: .xai)
         #expect(descriptor.metadata.displayName == "xAI")
-        #expect(descriptor.fetchPlan.sourceModes == [.auto, .api])
-        #expect(try #require(ProviderImplementationRegistry.implementation(for: .xai)) is XAIProviderImplementation)
+        #expect(descriptor.metadata.dashboardURL == "https://console.x.ai")
+        #expect(
+            descriptor.metadata.subscriptionDashboardURL == XAIOAuthUsageMapper.superGrokUsageDashboardURL)
+        #expect(descriptor.fetchPlan.sourceModes == [.auto, .api, .oauth, .web])
+        #expect(
+            try #require(ProviderImplementationRegistry.implementation(for: .xai))
+                is XAIProviderImplementation)
 
         let snapshot = try await Self.fetch()
-        let model = UsageMenuCardView.Model.make(.init(
-            provider: .xai,
-            metadata: descriptor.metadata,
-            snapshot: snapshot,
-            credits: nil,
-            creditsError: nil,
-            dashboard: nil,
-            dashboardError: nil,
-            tokenSnapshot: nil,
-            tokenError: nil,
-            account: AccountInfo(email: nil, plan: nil),
-            isRefreshing: false,
-            lastError: nil,
-            usageBarsShowUsed: true,
-            resetTimeDisplayStyle: .countdown,
-            tokenCostUsageEnabled: false,
-            showOptionalCreditsAndExtraUsage: true,
-            hidePersonalInfo: false,
-            now: Date(timeIntervalSince1970: 1_800_000_000)))
+        let model = UsageMenuCardView.Model.make(
+            .init(
+                provider: .xai,
+                metadata: descriptor.metadata,
+                snapshot: snapshot,
+                credits: nil,
+                creditsError: nil,
+                dashboard: nil,
+                dashboardError: nil,
+                tokenSnapshot: nil,
+                tokenError: nil,
+                account: AccountInfo(email: nil, plan: nil),
+                isRefreshing: false,
+                lastError: nil,
+                usageBarsShowUsed: true,
+                resetTimeDisplayStyle: .countdown,
+                tokenCostUsageEnabled: false,
+                showOptionalCreditsAndExtraUsage: true,
+                hidePersonalInfo: false,
+                now: Date(timeIntervalSince1970: 1_800_000_000)))
         #expect(model.providerCost?.spendLine == "Balance: $10.00")
 
         let text = CLIRenderer.renderText(
@@ -198,6 +211,34 @@ struct XAIProviderTests {
         #expect(XAISettingsReader.apiKey(environment: environment) == "config-key")
         #expect(XAISettingsReader.teamID(environment: environment) == "config-team")
         #expect(ProviderConfigEnvironment.supportsAPIKeyOverride(for: .xai))
+    }
+
+    @Test
+    func `auto cookie source does not mark xAI unavailable`() throws {
+        let suite = "XAIProviderTests-auto-cookie-available"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        let settings = SettingsStore(
+            userDefaults: defaults,
+            configStore: testConfigStore(suiteName: suite),
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+        settings.xaiUsageDataSource = .auto
+        settings.xaiCookieSource = .auto
+        let store = UsageStore(
+            fetcher: UsageFetcher(environment: [:]),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings,
+            environmentBase: [:])
+
+        #expect(
+            XAIProviderImplementation().isAvailable(
+                context: ProviderAvailabilityContext(
+                    provider: .xai,
+                    settings: settings,
+                    environment: [:])))
+        #expect(store.isProviderAvailable(.xai))
+        #expect(store.unavailableMessage(for: .xai) == nil)
     }
 
     private static func fetch(
@@ -239,11 +280,12 @@ struct XAIProviderTests {
     }
 
     private static func response(url: URL, body: String, statusCode: Int = 200) -> (Data, URLResponse) {
-        let response = HTTPURLResponse(
-            url: url,
-            statusCode: statusCode,
-            httpVersion: "HTTP/1.1",
-            headerFields: ["Content-Type": "application/json"]) ?? HTTPURLResponse()
+        let response =
+            HTTPURLResponse(
+                url: url,
+                statusCode: statusCode,
+                httpVersion: "HTTP/1.1",
+                headerFields: ["Content-Type": "application/json"]) ?? HTTPURLResponse()
         return (Data(body.utf8), response)
     }
 
