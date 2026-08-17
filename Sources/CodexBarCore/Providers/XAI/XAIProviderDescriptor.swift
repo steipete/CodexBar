@@ -1,18 +1,7 @@
 import Foundation
-import SweetCookieKit
 
 public enum XAIProviderDescriptor {
     public static let descriptor: ProviderDescriptor = Self.makeDescriptor()
-
-    /// Chrome-only by default so enabling/refreshing xAI does not probe other browsers'
-    /// Safe Storage. Same grok.com session as the Grok importer.
-    private static var browserCookieOrder: BrowserCookieImportOrder? {
-        #if os(macOS)
-        [.chrome]
-        #else
-        return nil
-        #endif
-    }
 
     private static let credentials = ProviderCredentialAdapter(
         supportsAPIKeyOverride: true,
@@ -100,7 +89,7 @@ public enum XAIProviderDescriptor {
                 defaultEnabled: false,
                 widgetSelectable: false,
                 debugLogUnavailableMessage: "xAI debug log not yet implemented",
-                browserCookieOrder: self.browserCookieOrder,
+                browserCookieOrder: ProviderBrowserCookieDefaults.defaultImportOrder,
                 dashboardURL: "https://console.x.ai",
                 subscriptionDashboardURL: XAIOAuthUsageMapper.superGrokUsageDashboardURL,
                 statusPageURL: nil,

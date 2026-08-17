@@ -243,12 +243,10 @@ struct XAIOAuthTests {
     }
 
     @Test
-    func `chrome is the only default xAI cookie browser`() {
-        #if os(macOS)
-        #expect(XAIProviderDescriptor.descriptor.metadata.browserCookieOrder == [.chrome])
-        #else
-        #expect(XAIProviderDescriptor.descriptor.metadata.browserCookieOrder == nil)
-        #endif
+    func `xAI cookie browsers use the shared default import order`() {
+        #expect(
+            XAIProviderDescriptor.descriptor.metadata.browserCookieOrder
+                == ProviderBrowserCookieDefaults.defaultImportOrder)
     }
 
     @Test

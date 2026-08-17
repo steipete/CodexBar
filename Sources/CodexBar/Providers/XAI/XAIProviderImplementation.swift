@@ -132,7 +132,7 @@ struct XAIProviderImplementation: ProviderImplementation {
             ProviderCookieSourceUI.subtitle(
                 source: context.settings.xaiCookieSource,
                 keychainDisabled: context.settings.debugDisableKeychainAccess,
-                auto: "Automatic imports grok.com cookies from Chrome.",
+                auto: "Automatic imports grok.com cookies from installed browsers.",
                 manual: "Paste a Cookie header from a grok.com request.",
                 off: "xAI SuperGrok cookies are disabled.")
         }
@@ -164,7 +164,7 @@ struct XAIProviderImplementation: ProviderImplementation {
             ProviderSettingsPickerDescriptor(
                 id: "xai-cookie-source",
                 title: "Cookie source",
-                subtitle: "Automatic imports grok.com cookies from Chrome.",
+                subtitle: "Automatic imports grok.com cookies from installed browsers.",
                 dynamicSubtitle: cookieSubtitle,
                 binding: cookieBinding,
                 options: cookieOptions,

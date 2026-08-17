@@ -15,6 +15,8 @@
 - xAI: allow Chrome Safe Storage on Browser cookies Refresh and usage-source changes, matching Auto.
 - xAI: keep Auto available when SuperGrok cookies are the live credential, instead of showing "unavailable in the current environment" after spend already loaded.
 - xAI: open `~/.grok/auth.json` from a labeled action beside the Grok CLI-credentials toggle, not from Open token file.
+- xAI: import grok.com cookies through the shared default browser order, not a Chrome-only or hand-rolled list.
+
 
 
 ## 0.51.0 — 2026-08-16

@@ -10,7 +10,7 @@ public enum XAICookieImporter {
     private static let cookieClient = BrowserCookieClient()
     private static let cookieDomains = ["grok.com"]
     private static let cookieImportOrder: BrowserCookieImportOrder =
-        ProviderDefaults.metadata[.xai]?.browserCookieOrder ?? [.chrome]
+        ProviderDefaults.metadata[.xai]?.browserCookieOrder ?? Browser.defaultImportOrder
 
     public struct SessionInfo: Sendable {
         public let cookies: [HTTPCookie]

@@ -51,7 +51,7 @@ printf '%s' "$XAI_MANAGEMENT_API_KEY" | codexbar config set-api-key --provider x
 
 Paste a SuperGrok bearer token into xAI token accounts, or set `XAI_OAUTH_TOKEN`. CodexBar classifies `xai-…` as a Management key, `Cookie:` / `name=value` as a web session, and other bearers as SuperGrok OAuth.
 
-Chrome-only cookie import from `grok.com` is available for the web source (user-initiated / app runtime only). grok.com gRPC billing often rejects cookie-only sessions that lack a browser-held WKE keypair; paste an OAuth token when that happens.
+Cookie import from `grok.com` uses the shared default browser order (`ProviderBrowserCookieDefaults`, then `cookieImportCandidates`) so only installed, allowed browsers are probed. grok.com gRPC billing often rejects cookie-only sessions that lack a browser-held WKE keypair; paste an OAuth token when that happens.
 
 An off-by-default toggle can read `~/.grok/auth.json` from `grok login`. That file is read-only. CodexBar never refreshes or writes it, and never copies Grok-provider identity onto the xAI card.
 
