@@ -249,6 +249,7 @@ struct MenuBarLayoutEditor: View {
                     .percent(window: .session),
                     .percent(window: .weekly),
                     .percent(window: .scopedWeekly),
+                ] + self.providerLaneTokens + [
                     .percent(window: .automatic),
                     .usageBar,
                     .pace(window: .session),
@@ -272,6 +273,10 @@ struct MenuBarLayoutEditor: View {
                 tokens: [.separatorDot, .space],
                 includesLineBreak: true),
         ]
+    }
+
+    private var providerLaneTokens: [MenuBarLayoutToken] {
+        MenuBarLayoutLane.available(for: self.persistenceProvider).map { .lanePercent(lane: $0) }
     }
 
     var body: some View {
@@ -727,6 +732,9 @@ struct MenuBarLayoutPreview: View {
             iconKey: provider.rawValue,
             providerName: L(self.store.metadata(for: provider).displayName),
             accountLabel: self.settings.hidePersonalInfo ? nil : snapshot.accountEmail(for: provider),
+            primary: MenuBarLayoutRenderWindow(snapshot.primary),
+            secondary: MenuBarLayoutRenderWindow(snapshot.secondary),
+            tertiary: MenuBarLayoutRenderWindow(snapshot.tertiary),
             session: MenuBarLayoutRenderWindow(session),
             weekly: MenuBarLayoutRenderWindow(weekly),
             scopedWeekly: MenuBarLayoutRenderWindow(scopedNamed?.window),
@@ -786,6 +794,9 @@ struct MenuBarLayoutPreview: View {
             iconKey: "\(provider.rawValue)-representative",
             providerName: L(self.store.metadata(for: provider).displayName),
             accountLabel: self.settings.hidePersonalInfo ? nil : L("menu_bar_layout_sample_account"),
+            primary: MenuBarLayoutRenderWindow(session),
+            secondary: MenuBarLayoutRenderWindow(weekly),
+            tertiary: MenuBarLayoutRenderWindow(scopedWeekly),
             session: MenuBarLayoutRenderWindow(session),
             weekly: MenuBarLayoutRenderWindow(weekly),
             scopedWeekly: MenuBarLayoutRenderWindow(scopedWeekly),
@@ -876,6 +887,9 @@ extension MenuBarLayoutGap {
 
 extension MenuBarLayoutToken {
     func editorLabel(provider: UsageProvider?) -> String {
+        if case let .lanePercent(lane) = self {
+            return self.laneEditorLabel(lane: lane, provider: provider)
+        }
         if let providerLabel = self.providerEditorLabel(provider: provider) {
             return providerLabel
         }
@@ -904,6 +918,7 @@ extension MenuBarLayoutToken {
         case .percent(window: .weekly): L("menu_bar_layout_token_weekly")
         case .percent(window: .scopedWeekly): L("menu_bar_layout_token_scoped_weekly")
         case .percent(window: .automatic): L("menu_bar_layout_token_auto")
+        case let .lanePercent(lane): L("%@ %@", lane.rawValue.capitalized, "%")
         case .pace(window: .session): L("menu_bar_layout_token_session_pace")
         case .pace(window: .weekly): L("menu_bar_layout_token_weekly_pace")
         case .pace(window: .scopedWeekly): L("menu_bar_layout_token_weekly_pace")
@@ -921,6 +936,17 @@ extension MenuBarLayoutToken {
         }
     }
 
+    private func laneEditorLabel(lane: MenuBarLayoutLane, provider: UsageProvider?) -> String {
+        guard let provider else { return L("%@ %@", lane.rawValue.capitalized, "%") }
+        let metadata = ProviderDescriptorRegistry.descriptor(for: provider).metadata
+        let label = switch lane {
+        case .primary: metadata.sessionLabel
+        case .secondary: metadata.weeklyLabel
+        case .tertiary: metadata.opusLabel ?? "Tertiary"
+        }
+        return L("%@ %@", L(label), "%")
+    }
+
     func editorAccessibilityLabel(provider: UsageProvider?) -> String {
         switch self {
         case .separatorDot: L("menu_bar_layout_token_separator_accessibility")
@@ -933,7 +959,7 @@ extension MenuBarLayoutToken {
         case .icon: "app.dashed"
         case .providerName: "textformat"
         case .accountLabel: "person.crop.circle"
-        case .percent: "percent"
+        case .percent, .lanePercent: "percent"
         case .pace: "speedometer"
         case .usageBar: "chart.bar.fill"
         case .resetCountdown: "timer"

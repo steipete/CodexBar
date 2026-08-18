@@ -18,6 +18,9 @@ struct MenuBarLayoutTests {
                 .percent(window: .session),
                 .percent(window: .weekly),
                 .percent(window: .automatic),
+                .lanePercent(lane: .primary),
+                .lanePercent(lane: .secondary),
+                .lanePercent(lane: .tertiary),
                 .pace(window: .session),
                 .pace(window: .weekly),
                 .pace(window: .automatic),
@@ -112,6 +115,21 @@ struct MenuBarLayoutTests {
 
         #expect(windows.session == nil)
         #expect(windows.weekly == nil)
+    }
+
+    @Test
+    func `Cursor lane tokens use the provider row labels`() {
+        #expect(MenuBarLayoutToken.lanePercent(lane: .primary).editorLabel(provider: .cursor) == "Total %")
+        #expect(MenuBarLayoutToken.lanePercent(lane: .secondary).editorLabel(provider: .cursor) == "Cursor %")
+        #expect(MenuBarLayoutToken.lanePercent(lane: .tertiary).editorLabel(provider: .cursor) == "Third Party %")
+    }
+
+    @Test
+    func `direct lane tokens only expose provider supported metrics`() {
+        #expect(MenuBarLayoutLane.available(for: nil).isEmpty)
+        #expect(MenuBarLayoutLane.available(for: .mistral).isEmpty)
+        #expect(MenuBarLayoutLane.available(for: .openrouter) == [.primary])
+        #expect(MenuBarLayoutLane.available(for: .cursor) == [.primary, .secondary, .tertiary])
     }
 
     @Test

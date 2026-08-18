@@ -8,11 +8,32 @@ enum PercentWindow: String, CaseIterable, Codable, Hashable, Sendable {
     case automatic
 }
 
+enum MenuBarLayoutLane: String, CaseIterable, Codable, Hashable, Sendable {
+    case primary
+    case secondary
+    case tertiary
+
+    static func available(for provider: UsageProvider?) -> [Self] {
+        guard let provider else { return [] }
+        let capabilities = ProviderDescriptorRegistry.descriptor(for: provider).menuBarMetrics
+        return Self.allCases.filter { capabilities.supports($0.providerMetric) }
+    }
+
+    private var providerMetric: ProviderMenuBarMetric {
+        switch self {
+        case .primary: .primary
+        case .secondary: .secondary
+        case .tertiary: .tertiary
+        }
+    }
+}
+
 enum MenuBarLayoutToken: Codable, Hashable, Sendable {
     case icon
     case providerName
     case accountLabel
     case percent(window: PercentWindow)
+    case lanePercent(lane: MenuBarLayoutLane)
     /// Signed pace delta for a window, e.g. `+11%` when usage runs ahead of the sustainable rate.
     /// `runsOut` answers "when does this end"; this token answers "how far off the even rate am I".
     case pace(window: PercentWindow)
