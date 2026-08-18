@@ -26,6 +26,14 @@ enum ProviderPluginSnapshotMapper {
         var estimatedRequests = 0
     }
 
+    private struct CostUsageAggregation {
+        let daily: [CostUsageDailyReport.Entry]
+        let totalTokens: Int
+        let totalRequests: Int
+        let totalCost: Double
+        let totalEstimatedCost: Double
+    }
+
     static func map(
         _ value: any ProviderPluginValue,
         provider: ProviderInstanceID,
@@ -307,7 +315,42 @@ enum ProviderPluginSnapshotMapper {
             throw ProviderPluginError.invalidSnapshot("costUsage.entries exceeds 10000 entries")
         }
 
-        let parsedEntries = try (0..<count).map { index in
+        let parsedEntries = try self.costUsageEntries(
+            entriesValue,
+            count: count,
+            windowStartDate: windowStartDate,
+            windowEndDate: windowEndDate)
+        let aggregation = try self.aggregateCostUsageEntries(parsedEntries)
+        let meteredCost = aggregation.totalCost - aggregation.totalEstimatedCost
+        let provenance: CostProvenance = if aggregation.totalEstimatedCost > 0 {
+            meteredCost > 0 ? .mixed : .listPriceEstimate
+        } else {
+            .vendorMetered
+        }
+        return CostUsageTokenSnapshot(
+            sessionTokens: nil,
+            sessionCostUSD: nil,
+            sessionRequests: nil,
+            last30DaysTokens: aggregation.totalTokens,
+            last30DaysCostUSD: aggregation.totalCost,
+            last30DaysRequests: aggregation.totalRequests,
+            currencyCode: currency,
+            historyDays: historyDays,
+            historyCoverageIsEstablished: true,
+            historyLabel: historyLabel,
+            meteredCostUSD: aggregation.totalEstimatedCost > 0 && meteredCost > 0 ? meteredCost : nil,
+            costProvenance: provenance,
+            daily: aggregation.daily,
+            updatedAt: windowEndDate)
+    }
+
+    private static func costUsageEntries(
+        _ entriesValue: any ProviderPluginValue,
+        count: Int,
+        windowStartDate: Date,
+        windowEndDate: Date) throws -> [CostUsageParsedEntry]
+    {
+        try (0..<count).map { index in
             guard let entry = entriesValue.element(at: index), entry.isObject, !entry.isArray else {
                 throw ProviderPluginError.invalidSnapshot("costUsage.entries[\(index)] must be an object")
             }
@@ -343,13 +386,11 @@ enum ProviderPluginSnapshotMapper {
                 throw ProviderPluginError.invalidSnapshot(
                     "\(path).estimatedCost must be nonnegative and no greater than cost")
             }
-            let model = try self.optionalString(entry, property: "model", path: path)
-
             let rowTokens = inputTokens.addingReportingOverflow(outputTokens)
             guard !rowTokens.overflow else {
                 throw ProviderPluginError.invalidSnapshot("\(path) token total overflowed")
             }
-            return CostUsageParsedEntry(
+            return try CostUsageParsedEntry(
                 date: date,
                 inputTokens: inputTokens,
                 outputTokens: outputTokens,
@@ -357,9 +398,13 @@ enum ProviderPluginSnapshotMapper {
                 requests: requests,
                 cost: cost,
                 estimatedCost: estimatedCost,
-                model: model)
+                model: self.optionalString(entry, property: "model", path: path))
         }
+    }
 
+    private static func aggregateCostUsageEntries(
+        _ parsedEntries: [CostUsageParsedEntry]) throws -> CostUsageAggregation
+    {
         var grouped: [String: CostUsageAccumulator] = [:]
         for entry in parsedEntries {
             let key = "\(entry.date)\u{1F}\(entry.model ?? "")"
@@ -430,55 +475,40 @@ enum ProviderPluginSnapshotMapper {
             dailyGrouped[date] = daily
         }
 
-        let entries = try dailyGrouped.keys.sorted().map { date in
-            let daily = dailyGrouped[date]!
+        let daily = try dailyGrouped.keys.sorted().map { date in
+            let accumulator = dailyGrouped[date]!
             let totalTokens = try self.checkedSum(
-                daily.inputTokens, daily.outputTokens, path: "costUsage token total")
+                accumulator.inputTokens, accumulator.outputTokens, path: "costUsage token total")
             let breakdowns = breakdownsByDate[date]
             return CostUsageDailyReport.Entry(
                 date: date,
-                inputTokens: daily.inputTokens,
-                outputTokens: daily.outputTokens,
-                reasoningTokens: daily.hasReasoningTokens ? daily.reasoningTokens : nil,
+                inputTokens: accumulator.inputTokens,
+                outputTokens: accumulator.outputTokens,
+                reasoningTokens: accumulator.hasReasoningTokens ? accumulator.reasoningTokens : nil,
                 totalTokens: totalTokens,
-                requestCount: daily.requests,
-                costUSD: daily.cost,
+                requestCount: accumulator.requests,
+                costUSD: accumulator.cost,
                 modelsUsed: breakdowns?.map(\.modelName),
                 modelBreakdowns: breakdowns,
-                estimatedRequestCount: daily.estimatedRequests > 0 ? daily.estimatedRequests : nil)
+                estimatedRequestCount: accumulator.estimatedRequests > 0 ? accumulator.estimatedRequests : nil)
         }
-        let totalTokens = try entries.compactMap(\.totalTokens).reduce(0) {
+        let totalTokens = try daily.compactMap(\.totalTokens).reduce(0) {
             try self.checkedSum($0, $1, path: "costUsage token total")
         }
-        let totalRequests = try entries.compactMap(\.requestCount).reduce(0) {
+        let totalRequests = try daily.compactMap(\.requestCount).reduce(0) {
             try self.checkedSum($0, $1, path: "costUsage request total")
         }
-        let totalCost = entries.compactMap(\.costUSD).reduce(0, +)
+        let totalCost = daily.compactMap(\.costUSD).reduce(0, +)
         let totalEstimatedCost = parsedEntries.reduce(0) { $0 + $1.estimatedCost }
         guard totalCost.isFinite, totalEstimatedCost.isFinite else {
             throw ProviderPluginError.invalidSnapshot("costUsage cost total overflowed")
         }
-        let meteredCost = totalCost - totalEstimatedCost
-        let provenance: CostProvenance = if totalEstimatedCost > 0 {
-            meteredCost > 0 ? .mixed : .listPriceEstimate
-        } else {
-            .vendorMetered
-        }
-        return CostUsageTokenSnapshot(
-            sessionTokens: nil,
-            sessionCostUSD: nil,
-            sessionRequests: nil,
-            last30DaysTokens: totalTokens,
-            last30DaysCostUSD: totalCost,
-            last30DaysRequests: totalRequests,
-            currencyCode: currency,
-            historyDays: historyDays,
-            historyCoverageIsEstablished: true,
-            historyLabel: historyLabel,
-            meteredCostUSD: totalEstimatedCost > 0 && meteredCost > 0 ? meteredCost : nil,
-            costProvenance: provenance,
-            daily: entries,
-            updatedAt: windowEndDate)
+        return CostUsageAggregation(
+            daily: daily,
+            totalTokens: totalTokens,
+            totalRequests: totalRequests,
+            totalCost: totalCost,
+            totalEstimatedCost: totalEstimatedCost)
     }
 
     private static func checkedSum(_ lhs: Int, _ rhs: Int, path: String) throws -> Int {
