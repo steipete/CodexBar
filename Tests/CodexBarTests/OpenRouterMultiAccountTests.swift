@@ -1,9 +1,9 @@
-import CodexBarCore
 import Commander
 import Foundation
 import Testing
 @testable import CodexBar
 @testable import CodexBarCLI
+@testable import CodexBarCore
 
 private actor OpenRouterAccountFetchRecorder {
     struct Request: Sendable {
