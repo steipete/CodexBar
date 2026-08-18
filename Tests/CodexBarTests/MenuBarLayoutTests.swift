@@ -127,15 +127,22 @@ struct MenuBarLayoutTests {
             .separatorDot,
         ]])
 
-        #expect(layout.legacyCompatible == MenuBarLayout(lines: [[
+        #expect(layout.legacyCompatible() == MenuBarLayout(lines: [[
             .icon,
             .percent(window: .session),
             .percent(window: .weekly),
             .percent(window: .automatic),
             .separatorDot,
         ]]))
+        #expect(layout.legacyCompatible(for: .kimi) == MenuBarLayout(lines: [[
+            .icon,
+            .percent(window: .weekly),
+            .percent(window: .session),
+            .percent(window: .automatic),
+            .separatorDot,
+        ]]))
         #expect(layout.selectedLanes == Set(MenuBarLayoutLane.allCases))
-        #expect(layout.legacyCompatible.selectedLanes.isEmpty)
+        #expect(layout.legacyCompatible().selectedLanes.isEmpty)
     }
 
     @Test
@@ -492,6 +499,76 @@ struct MenuBarLayoutTests {
         let reloaded = Self.reloadSettingsStore(settings)
         #expect(reloaded.menuBarLayout == global)
         #expect(reloaded.menuBarLayoutOverrides[.cursor] == cursor)
+        #expect(reloaded.menuBarLayoutOverrides[.claude] == claude)
+    }
+
+    @Test
+    @MainActor
+    func `Kimi lane overrides dual-write reversed semantic windows`() throws {
+        let settings = testSettingsStore(suiteName: "MenuBarLayoutTests-kimi-downgrade")
+        let kimi = MenuBarLayout(lines: [[
+            .icon,
+            .lanePercent(lane: .primary),
+            .lanePercent(lane: .secondary),
+        ]])
+        settings.setMenuBarLayout(kimi, for: .kimi)
+
+        let legacyOverrides = try #require(settings.userDefaults.data(forKey: MenuBarLayoutUserDefaultsKey.overrides))
+        let legacyMap = try JSONDecoder().decode([String: PreLanePercentMenuBarLayout].self, from: legacyOverrides)
+        #expect(legacyMap["kimi"] == PreLanePercentMenuBarLayout(lines: [[
+            .icon,
+            .percent(window: .weekly),
+            .percent(window: .session),
+        ]]))
+
+        let reloaded = Self.reloadSettingsStore(settings)
+        #expect(reloaded.menuBarLayoutOverrides[.kimi] == kimi)
+    }
+
+    @Test
+    @MainActor
+    func `lane layout load prefers a legacy blob edited by an older release`() throws {
+        let settings = testSettingsStore(suiteName: "MenuBarLayoutTests-lane-downgrade-edit")
+        let current = MenuBarLayout(lines: [[.icon, .lanePercent(lane: .primary)]])
+        let edited = MenuBarLayout(lines: [[.icon, .percent(window: .weekly)]])
+        settings.setMenuBarLayout(current, for: nil)
+        try settings.userDefaults.set(
+            JSONEncoder().encode(edited),
+            forKey: MenuBarLayoutUserDefaultsKey.layout)
+
+        let reloaded = Self.reloadSettingsStore(settings)
+        #expect(reloaded.menuBarLayout == edited)
+    }
+
+    @Test
+    @MainActor
+    func `lane layout load keeps current lanes when the legacy blob is the fallback`() throws {
+        let settings = testSettingsStore(suiteName: "MenuBarLayoutTests-lane-legacy-echo")
+        let current = MenuBarLayout(lines: [[.icon, .lanePercent(lane: .secondary)]])
+        settings.setMenuBarLayout(current, for: nil)
+        let fallback = current.legacyCompatible()
+        try settings.userDefaults.set(
+            JSONEncoder().encode(fallback),
+            forKey: MenuBarLayoutUserDefaultsKey.layout)
+
+        let reloaded = Self.reloadSettingsStore(settings)
+        #expect(reloaded.menuBarLayout == current)
+    }
+
+    @Test
+    @MainActor
+    func `lane override load prefers a legacy dictionary edited by an older release`() throws {
+        let settings = testSettingsStore(suiteName: "MenuBarLayoutTests-lane-override-downgrade-edit")
+        let cursor = MenuBarLayout(lines: [[.icon, .lanePercent(lane: .secondary)]])
+        let claude = try #require(MenuBarLayoutPreset.compactStacked.layout)
+        settings.setMenuBarLayout(cursor, for: .cursor)
+        settings.setMenuBarLayout(claude, for: .claude)
+        try settings.userDefaults.set(
+            JSONEncoder().encode(["claude": claude]),
+            forKey: MenuBarLayoutUserDefaultsKey.overrides)
+
+        let reloaded = Self.reloadSettingsStore(settings)
+        #expect(reloaded.menuBarLayoutOverrides[.cursor] == nil)
         #expect(reloaded.menuBarLayoutOverrides[.claude] == claude)
     }
 

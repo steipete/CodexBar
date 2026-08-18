@@ -860,22 +860,17 @@ extension SettingsStore {
     }
 
     private static func loadMenuBarLayout(userDefaults: UserDefaults) -> MenuBarLayout? {
-        if let layout = self
-            .decodeMenuBarLayout(userDefaults.data(forKey: MenuBarLayoutUserDefaultsKey.layoutCurrent))
-        {
-            return layout
-        }
-        return self.decodeMenuBarLayout(userDefaults.data(forKey: MenuBarLayoutUserDefaultsKey.layout))
+        MenuBarLayoutPersistence.preferredLayout(
+            current: self.decodeMenuBarLayout(userDefaults.data(forKey: MenuBarLayoutUserDefaultsKey.layoutCurrent)),
+            legacy: self.decodeMenuBarLayout(userDefaults.data(forKey: MenuBarLayoutUserDefaultsKey.layout)))
     }
 
     private static func loadMenuBarLayoutOverrides(userDefaults: UserDefaults) -> [String: MenuBarLayout] {
-        if let overrides = self.decodeMenuBarLayoutOverrides(
-            userDefaults.data(forKey: MenuBarLayoutUserDefaultsKey.overridesCurrent))
-        {
-            return overrides
-        }
-        return self.decodeMenuBarLayoutOverrides(userDefaults.data(forKey: MenuBarLayoutUserDefaultsKey.overrides))
-            ?? [:]
+        MenuBarLayoutPersistence.preferredOverrides(
+            current: self.decodeMenuBarLayoutOverrides(
+                userDefaults.data(forKey: MenuBarLayoutUserDefaultsKey.overridesCurrent)),
+            legacy: self.decodeMenuBarLayoutOverrides(
+                userDefaults.data(forKey: MenuBarLayoutUserDefaultsKey.overrides)))
     }
 
     private static func decodeMenuBarLayout(_ data: Data?) -> MenuBarLayout? {

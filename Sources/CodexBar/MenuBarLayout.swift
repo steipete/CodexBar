@@ -81,13 +81,14 @@ enum MenuBarLayoutToken: Codable, Hashable, Sendable {
     }
 
     /// Maps `lanePercent` onto tokens a 0.53.x decoder already understands so a downgrade keeps a
-    /// layout instead of dropping the whole blob.
-    var legacyCompatible: MenuBarLayoutToken {
+    /// layout instead of dropping the whole blob. Direct lanes follow the provider's semantic
+    /// windows: Kimi's primary is weekly, so a Kimi override does not swap 7-day and 5-hour.
+    func legacyCompatible(for provider: UsageProvider? = nil) -> MenuBarLayoutToken {
         switch self {
-        case .lanePercent(.primary): .percent(window: .session)
-        case .lanePercent(.secondary): .percent(window: .weekly)
-        case .lanePercent(.tertiary): .percent(window: .automatic)
-        default: self
+        case let .lanePercent(lane):
+            .percent(window: MenuBarLayout.legacyPercentWindow(for: lane, provider: provider))
+        default:
+            self
         }
     }
 }
@@ -182,8 +183,10 @@ struct MenuBarLayout: Codable, Hashable, Sendable {
         Set(self.lines.joined().compactMap(\.selectedLane))
     }
 
-    var legacyCompatible: MenuBarLayout {
-        MenuBarLayout(lines: self.lines.map { $0.map(\.legacyCompatible) })
+    func legacyCompatible(for provider: UsageProvider? = nil) -> MenuBarLayout {
+        MenuBarLayout(lines: self.lines.map { line in
+            line.map { $0.legacyCompatible(for: provider) }
+        })
     }
 }
 
@@ -360,6 +363,50 @@ extension MenuBarLayout {
         switch window {
         case .session: .session
         case .weekly: .weekly
+        }
+    }
+
+    static func legacyPercentWindow(for lane: MenuBarLayoutLane, provider: UsageProvider?) -> PercentWindow {
+        switch lane {
+        case .primary: self.percentWindow(for: .primary, provider: provider)
+        case .secondary: self.percentWindow(for: .secondary, provider: provider)
+        case .tertiary: .automatic
+        }
+    }
+}
+
+enum MenuBarLayoutPersistence {
+    static func preferredLayout(current: MenuBarLayout?, legacy: MenuBarLayout?) -> MenuBarLayout? {
+        if let current {
+            if let legacy, current.legacyCompatible() != legacy {
+                return legacy
+            }
+            return current
+        }
+        return legacy
+    }
+
+    static func preferredOverrides(
+        current: [String: MenuBarLayout]?,
+        legacy: [String: MenuBarLayout]?)
+        -> [String: MenuBarLayout]
+    {
+        guard let current else { return legacy ?? [:] }
+        guard let legacy else { return current }
+        guard Self.overridesAgree(current: current, legacy: legacy) else {
+            return legacy
+        }
+        return current
+    }
+
+    static func overridesAgree(
+        current: [String: MenuBarLayout],
+        legacy: [String: MenuBarLayout])
+        -> Bool
+    {
+        guard Set(current.keys) == Set(legacy.keys) else { return false }
+        return current.allSatisfy { key, layout in
+            layout.legacyCompatible(for: UsageProvider(rawValue: key)) == legacy[key]
         }
     }
 }
