@@ -693,6 +693,8 @@ public struct CostUsageFetcher: Sendable {
             for breakdown in entry.modelBreakdowns ?? [] {
                 guard breakdown.costUSD == nil else { continue }
                 if provider == .codex {
+                    guard OpenCodexRouteDispatcher.countsTowardCodexSubscription(modelName: breakdown.modelName)
+                    else { continue }
                     guard !CostUsagePricing.isCodexUnattributedModel(breakdown.modelName) else { continue }
                     for target in CostUsagePricing.codexModelsDevPricingTargets(for: breakdown.modelName) {
                         targets.insert(ModelsDevPricingTarget(providerID: target.providerID, modelID: target.modelID))
@@ -807,7 +809,10 @@ public struct CostUsageFetcher: Sendable {
                 .sorted()
                 .map { day -> CostUsageDailyReport.Entry in
                     var total = 0
-                    for packed in cache.days[day, default: [:]].values {
+                    for (model, packed) in cache.days[day, default: [:]] {
+                        guard OpenCodexRouteDispatcher.countsTowardCodexSubscription(modelName: model) else {
+                            continue
+                        }
                         for value in [packed[safe: 0] ?? 0, packed[safe: 2] ?? 0] {
                             let addition = total.addingReportingOverflow(max(0, value))
                             total = addition.overflow ? Int.max : addition.partialValue

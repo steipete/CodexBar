@@ -38,7 +38,8 @@ struct CreditsHistoryChartMenuView: View {
                     ForEach(model.points) { point in
                         BarMark(
                             x: .value(L("Day"), point.date, unit: .day),
-                            y: .value(L("Credits used"), point.creditsUsed))
+                            y: .value(L("Credits used"), point.creditsUsed),
+                            width: .ratio(ChartBarHoverSelection.barWidthRatio))
                             .foregroundStyle(Self.barColor)
                     }
                     if let peak = Self.peakPoint(model: model) {
@@ -46,7 +47,8 @@ struct CreditsHistoryChartMenuView: View {
                         BarMark(
                             x: .value(L("Day"), peak.date, unit: .day),
                             yStart: .value(L("Cap start"), capStart),
-                            yEnd: .value(L("Cap end"), peak.creditsUsed))
+                            yEnd: .value(L("Cap end"), peak.creditsUsed),
+                            width: .ratio(ChartBarHoverSelection.barWidthRatio))
                             .foregroundStyle(Color(nsColor: .systemYellow))
                     }
                 }
@@ -221,29 +223,9 @@ struct CreditsHistoryChartMenuView: View {
 
     private func selectionBandRect(model: Model, proxy: ChartProxy, geo: GeometryProxy) -> CGRect? {
         guard let key = self.selectedDayKey else { return nil }
-        guard let plotAnchor = proxy.plotFrame else { return nil }
-        let plotFrame = geo[plotAnchor]
-        guard let index = model.dayDates.firstIndex(where: { $0.dayKey == key }) else { return nil }
-        let date = model.dayDates[index].date
-        guard let x = proxy.position(forX: date) else { return nil }
-
-        if model.dayDates.count <= 1 {
-            return CGRect(
-                x: plotFrame.origin.x,
-                y: plotFrame.origin.y,
-                width: plotFrame.width,
-                height: plotFrame.height)
-        }
-
-        // Use the calendar day slot width (always 1 day on the time axis) so the band is the
-        // same size for every bar regardless of gaps in the data.
-        let nextDayX = proxy.position(forX: ChartBarHoverSelection.nextCalendarDay(after: date)) ?? (x + 20)
-        let slotWidth = abs(nextDayX - x)
-        let barHalfWidth = slotWidth * 0.25 + 2
-
-        let left = plotFrame.origin.x + x - barHalfWidth
-        let right = plotFrame.origin.x + x + barHalfWidth
-        return CGRect(x: left, y: plotFrame.origin.y, width: right - left, height: plotFrame.height)
+        guard let index = model.selectableDayDates.firstIndex(where: { $0.dayKey == key }) else { return nil }
+        guard let geometry = self.hoverGeometry(model: model, proxy: proxy, geo: geo) else { return nil }
+        return geometry.bars[index].frame
     }
 
     private func updateSelection(
@@ -257,49 +239,32 @@ struct CreditsHistoryChartMenuView: View {
             return
         }
 
-        guard let plotAnchor = proxy.plotFrame else { return }
-        let plotFrame = geo[plotAnchor]
-        guard plotFrame.contains(location) else { return }
+        guard let geometry = self.hoverGeometry(model: model, proxy: proxy, geo: geo),
+              let selection = ChartBarHoverSelection.selection(
+                  at: location,
+                  plotFrame: geometry.plotFrame,
+                  bars: geometry.bars)
+        else { return }
+        let key = model.selectableDayDates[selection.index].dayKey
 
-        let xInPlot = location.x - plotFrame.origin.x
-        guard let date: Date = proxy.value(atX: xInPlot) else { return }
-        guard let nearest = self.nearestDayKey(to: date, model: model) else { return }
-
-        // Stay on the last selected bar when cursor is in the gap between bars; only switch
-        // selection when the cursor is over the bar's own visual body.
-        // Skip this gate for single-day charts: no gap exists, and selectionBandRect
-        // already covers the full plot width in that case.
-        if model.selectableDayDates.count > 1,
-           let nearestEntry = model.selectableDayDates.first(where: { $0.dayKey == nearest }),
-           let barX = proxy.position(forX: nearestEntry.date)
-        {
-            let nextDayX = proxy.position(forX: ChartBarHoverSelection.nextCalendarDay(after: nearestEntry.date)) ??
-                (barX + 20)
-            let slotWidth = abs(nextDayX - barX)
-            guard ChartBarHoverSelection.accepts(
-                distanceFromBarCenter: abs(location.x - (plotFrame.origin.x + barX)),
-                barHalfWidth: slotWidth * 0.25 + 2,
-                selectableCount: model.selectableDayDates.count)
-            else { return }
-        }
-
-        if self.selectedDayKey != nearest {
-            self.selectedDayKey = nearest
+        if self.selectedDayKey != key {
+            self.selectedDayKey = key
         }
     }
 
-    private func nearestDayKey(to date: Date, model: Model) -> String? {
-        guard !model.selectableDayDates.isEmpty else { return nil }
-        var best: (key: String, distance: TimeInterval)?
-        for entry in model.selectableDayDates {
-            let dist = abs(entry.date.timeIntervalSince(date))
-            if let cur = best {
-                if dist < cur.distance { best = (entry.dayKey, dist) }
-            } else {
-                best = (entry.dayKey, dist)
-            }
-        }
-        return best?.key
+    private func hoverGeometry(
+        model: Model,
+        proxy: ChartProxy,
+        geo: GeometryProxy) -> (plotFrame: CGRect, bars: [ChartBarHoverSelection.Bar])?
+    {
+        guard let plotAnchor = proxy.plotFrame else { return nil }
+        let plotFrame = geo[plotAnchor]
+        guard let bars = ChartBarHoverSelection.calendarDayBars(
+            dates: model.selectableDayDates.map(\.date),
+            plotFrame: plotFrame,
+            position: { proxy.position(forX: $0) })
+        else { return nil }
+        return (plotFrame, bars)
     }
 
     private func detailLines(model: Model) -> (primary: String, secondary: String?) {

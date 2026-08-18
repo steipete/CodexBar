@@ -147,7 +147,8 @@ struct CostHistoryChartMenuView: View {
                     ForEach(model.points) { point in
                         BarMark(
                             x: .value(L("Day"), point.date, unit: .day),
-                            y: .value(activeMetric.title, point.value))
+                            y: .value(activeMetric.title, point.value),
+                            width: .ratio(ChartBarHoverSelection.barWidthRatio))
                             .foregroundStyle(model.barColor)
                     }
                     if let peak = Self.peakPoint(model: model) {
@@ -155,7 +156,8 @@ struct CostHistoryChartMenuView: View {
                         BarMark(
                             x: .value(L("Day"), peak.date, unit: .day),
                             yStart: .value(L("Cap start"), capStart),
-                            yEnd: .value(L("Cap end"), peak.value))
+                            yEnd: .value(L("Cap end"), peak.value),
+                            width: .ratio(ChartBarHoverSelection.barWidthRatio))
                             .foregroundStyle(Color(nsColor: .systemYellow))
                     }
                 }
@@ -773,20 +775,9 @@ struct CostHistoryChartMenuView: View {
 
     private func selectionBandRect(model: Model, proxy: ChartProxy, geo: GeometryProxy) -> CGRect? {
         guard let key = self.selectedDateKey else { return nil }
-        guard let plotAnchor = proxy.plotFrame else { return nil }
-        let plotFrame = geo[plotAnchor]
         guard let index = model.dateKeys.firstIndex(where: { $0.key == key }) else { return nil }
-        let date = model.dateKeys[index].date
-        guard let x = proxy.position(forX: date) else { return nil }
-
-        // Use the calendar day slot width so the band stays the same size regardless of data gaps.
-        let nextDayX = proxy.position(forX: ChartBarHoverSelection.nextCalendarDay(after: date)) ?? (x + 20)
-        let slotWidth = abs(nextDayX - x)
-        let barHalfWidth = slotWidth * 0.25 + 2
-
-        let left = plotFrame.origin.x + x - barHalfWidth
-        let right = plotFrame.origin.x + x + barHalfWidth
-        return CGRect(x: left, y: plotFrame.origin.y, width: right - left, height: plotFrame.height)
+        guard let geometry = self.hoverGeometry(model: model, proxy: proxy, geo: geo) else { return nil }
+        return geometry.bars[index].frame
     }
 
     private func updateSelection(
@@ -799,31 +790,32 @@ struct CostHistoryChartMenuView: View {
         // model-breakdown scroller remains interactive. The selection resets with the menu view.
         guard let location else { return }
 
-        guard let plotAnchor = proxy.plotFrame else { return }
+        guard let geometry = self.hoverGeometry(model: model, proxy: proxy, geo: geo),
+              let selection = ChartBarHoverSelection.selection(
+                  at: location,
+                  plotFrame: geometry.plotFrame,
+                  bars: geometry.bars)
+        else { return }
+        let key = model.dateKeys[selection.index].key
+
+        if self.selectedDateKey != key {
+            self.selectedDateKey = key
+        }
+    }
+
+    private func hoverGeometry(
+        model: Model,
+        proxy: ChartProxy,
+        geo: GeometryProxy) -> (plotFrame: CGRect, bars: [ChartBarHoverSelection.Bar])?
+    {
+        guard let plotAnchor = proxy.plotFrame else { return nil }
         let plotFrame = geo[plotAnchor]
-        guard plotFrame.contains(location) else { return }
-
-        let xInPlot = location.x - plotFrame.origin.x
-        guard let date: Date = proxy.value(atX: xInPlot) else { return }
-        guard let nearest = self.nearestDateKey(to: date, model: model) else { return }
-
-        // Stay on the last selected bar when cursor is in the gap between bars.
-        if let nearestEntry = model.dateKeys.first(where: { $0.key == nearest }),
-           let barX = proxy.position(forX: nearestEntry.date)
-        {
-            let nextDayX = proxy.position(forX: ChartBarHoverSelection.nextCalendarDay(after: nearestEntry.date)) ??
-                (barX + 20)
-            let slotWidth = abs(nextDayX - barX)
-            guard ChartBarHoverSelection.accepts(
-                distanceFromBarCenter: abs(location.x - (plotFrame.origin.x + barX)),
-                barHalfWidth: slotWidth * 0.25 + 2,
-                selectableCount: model.dateKeys.count)
-            else { return }
-        }
-
-        if self.selectedDateKey != nearest {
-            self.selectedDateKey = nearest
-        }
+        guard let bars = ChartBarHoverSelection.calendarDayBars(
+            dates: model.dateKeys.map(\.date),
+            plotFrame: plotFrame,
+            position: { proxy.position(forX: $0) })
+        else { return nil }
+        return (plotFrame, bars)
     }
 
     private func projectSummary(_ project: CostUsageProjectBreakdown) -> String {
@@ -891,22 +883,6 @@ struct CostHistoryChartMenuView: View {
             .map { self.costString($0) } ?? "—"
         guard let totalTokens = source.totalTokens else { return cost }
         return "\(cost) · \(L("%@ tokens", UsageFormatter.tokenCountString(totalTokens)))"
-    }
-
-    private func nearestDateKey(to date: Date, model: Model) -> String? {
-        guard !model.dateKeys.isEmpty else { return nil }
-        var best: (key: String, distance: TimeInterval)?
-        for entry in model.dateKeys {
-            let dist = abs(entry.date.timeIntervalSince(date))
-            if let cur = best {
-                if dist < cur.distance {
-                    best = (entry.key, dist)
-                }
-            } else {
-                best = (entry.key, dist)
-            }
-        }
-        return best?.key
     }
 
     private func detailContent(selectedDateKey: String?, model: Model) -> DetailContent {
