@@ -409,4 +409,79 @@ enum MenuBarLayoutPersistence {
             layout.legacyCompatible(for: UsageProvider(rawValue: key)) == legacy[key]
         }
     }
+
+    /// Pre-V2 installs only have the legacy keys. Materialize V2 plus an older-readable projection
+    /// at load so an immediate downgrade does not need an editor write first. Leave both keys
+    /// untouched when they disagree: that is an older-release edit.
+    static func needsStartupDualWrite(current: MenuBarLayout?, legacy: MenuBarLayout?) -> Bool {
+        switch (current, legacy) {
+        case (nil, .some): true
+        case (.some, nil): true
+        default: false
+        }
+    }
+
+    static func needsStartupDualWrite(
+        current: [String: MenuBarLayout]?,
+        legacy: [String: MenuBarLayout]?)
+        -> Bool
+    {
+        switch (current, legacy) {
+        case (nil, let legacy?): !legacy.isEmpty
+        case (let current?, nil): !current.isEmpty
+        default: false
+        }
+    }
+
+    static func encoded(
+        _ layout: MenuBarLayout,
+        provider: UsageProvider? = nil)
+        throws -> (current: Data, legacy: Data)
+    {
+        let encoder = JSONEncoder()
+        let current = try encoder.encode(layout)
+        let legacy = try encoder.encode(layout.legacyCompatible(for: provider))
+        return (current, legacy)
+    }
+
+    static func encodedOverrides(_ overrides: [String: MenuBarLayout]) throws -> (current: Data, legacy: Data) {
+        let encoder = JSONEncoder()
+        let legacyOverrides = Dictionary(uniqueKeysWithValues: overrides.map { key, layout in
+            (key, layout.legacyCompatible(for: UsageProvider(rawValue: key)))
+        })
+        return try (encoder.encode(overrides), encoder.encode(legacyOverrides))
+    }
+
+    static func loadLayout(
+        current: MenuBarLayout?,
+        legacy: MenuBarLayout?,
+        into userDefaults: UserDefaults)
+        -> MenuBarLayout?
+    {
+        let preferred = self.preferredLayout(current: current, legacy: legacy)
+        if let preferred,
+           self.needsStartupDualWrite(current: current, legacy: legacy),
+           let blobs = try? self.encoded(preferred)
+        {
+            userDefaults.set(blobs.current, forKey: MenuBarLayoutUserDefaultsKey.layoutCurrent)
+            userDefaults.set(blobs.legacy, forKey: MenuBarLayoutUserDefaultsKey.layout)
+        }
+        return preferred
+    }
+
+    static func loadOverrides(
+        current: [String: MenuBarLayout]?,
+        legacy: [String: MenuBarLayout]?,
+        into userDefaults: UserDefaults)
+        -> [String: MenuBarLayout]
+    {
+        let preferred = self.preferredOverrides(current: current, legacy: legacy)
+        if self.needsStartupDualWrite(current: current, legacy: legacy),
+           let blobs = try? self.encodedOverrides(preferred)
+        {
+            userDefaults.set(blobs.current, forKey: MenuBarLayoutUserDefaultsKey.overridesCurrent)
+            userDefaults.set(blobs.legacy, forKey: MenuBarLayoutUserDefaultsKey.overrides)
+        }
+        return preferred
+    }
 }

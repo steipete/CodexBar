@@ -527,6 +527,79 @@ struct MenuBarLayoutTests {
 
     @Test
     @MainActor
+    func `startup migrates pre-V2 direct-lane layouts into V2 and an older-readable fallback`() throws {
+        let settings = testSettingsStore(suiteName: "MenuBarLayoutTests-pre-v2-startup")
+        let global = MenuBarLayout(lines: [[.icon, .lanePercent(lane: .primary)]])
+        let cursor = MenuBarLayout(lines: [[.icon, .lanePercent(lane: .secondary)]])
+        let kimi = MenuBarLayout(lines: [[
+            .icon,
+            .lanePercent(lane: .primary),
+            .lanePercent(lane: .secondary),
+        ]])
+        let encoder = JSONEncoder()
+        try settings.userDefaults.set(encoder.encode(global), forKey: MenuBarLayoutUserDefaultsKey.layout)
+        try settings.userDefaults.set(
+            encoder.encode(["cursor": cursor, "kimi": kimi]),
+            forKey: MenuBarLayoutUserDefaultsKey.overrides)
+        settings.userDefaults.removeObject(forKey: MenuBarLayoutUserDefaultsKey.layoutCurrent)
+        settings.userDefaults.removeObject(forKey: MenuBarLayoutUserDefaultsKey.overridesCurrent)
+
+        let reloaded = Self.reloadSettingsStore(settings)
+        #expect(reloaded.menuBarLayout == global)
+        #expect(reloaded.menuBarLayoutOverrides[.cursor] == cursor)
+        #expect(reloaded.menuBarLayoutOverrides[.kimi] == kimi)
+
+        let decoder = JSONDecoder()
+        let currentGlobal = try #require(reloaded.userDefaults.data(forKey: MenuBarLayoutUserDefaultsKey.layoutCurrent))
+        let legacyGlobal = try #require(reloaded.userDefaults.data(forKey: MenuBarLayoutUserDefaultsKey.layout))
+        #expect(try decoder.decode(MenuBarLayout.self, from: currentGlobal) == global)
+        #expect(try decoder.decode(PreLanePercentMenuBarLayout.self, from: legacyGlobal) == PreLanePercentMenuBarLayout(
+            lines: [[.icon, .percent(window: .session)]]))
+        #expect(throws: DecodingError.self) {
+            try decoder.decode(PreLanePercentMenuBarLayout.self, from: currentGlobal)
+        }
+
+        let currentOverrides = try decoder.decode(
+            [String: MenuBarLayout].self,
+            from: #require(reloaded.userDefaults.data(forKey: MenuBarLayoutUserDefaultsKey.overridesCurrent)))
+        #expect(currentOverrides["cursor"] == cursor)
+        #expect(currentOverrides["kimi"] == kimi)
+        let legacyOverrides = try decoder.decode(
+            [String: PreLanePercentMenuBarLayout].self,
+            from: #require(reloaded.userDefaults.data(forKey: MenuBarLayoutUserDefaultsKey.overrides)))
+        #expect(legacyOverrides["cursor"] == PreLanePercentMenuBarLayout(lines: [[.icon, .percent(window: .weekly)]]))
+        #expect(legacyOverrides["kimi"] == PreLanePercentMenuBarLayout(lines: [[
+            .icon,
+            .percent(window: .weekly),
+            .percent(window: .session),
+        ]]))
+
+        try Self.writeStartupMigrationProof(
+            beforeKeys: ["menuBarLayout", "menuBarLayoutOverrides"],
+            currentGlobal: currentGlobal,
+            legacyGlobal: legacyGlobal,
+            currentOverrides: #require(
+                reloaded.userDefaults.data(forKey: MenuBarLayoutUserDefaultsKey.overridesCurrent)),
+            legacyOverrides: #require(reloaded.userDefaults.data(forKey: MenuBarLayoutUserDefaultsKey.overrides)))
+    }
+
+    @Test
+    @MainActor
+    func `startup writes a missing fallback when only the V2 layout key exists`() throws {
+        let settings = testSettingsStore(suiteName: "MenuBarLayoutTests-v2-only-startup")
+        let current = MenuBarLayout(lines: [[.icon, .lanePercent(lane: .tertiary)]])
+        settings.setMenuBarLayout(current, for: nil)
+        settings.userDefaults.removeObject(forKey: MenuBarLayoutUserDefaultsKey.layout)
+
+        let reloaded = Self.reloadSettingsStore(settings)
+        #expect(reloaded.menuBarLayout == current)
+        let legacyGlobal = try #require(reloaded.userDefaults.data(forKey: MenuBarLayoutUserDefaultsKey.layout))
+        #expect(try JSONDecoder().decode(PreLanePercentMenuBarLayout.self, from: legacyGlobal)
+            == PreLanePercentMenuBarLayout(lines: [[.icon, .percent(window: .automatic)]]))
+    }
+
+    @Test
+    @MainActor
     func `lane layout load prefers a legacy blob edited by an older release`() throws {
         let settings = testSettingsStore(suiteName: "MenuBarLayoutTests-lane-downgrade-edit")
         let current = MenuBarLayout(lines: [[.icon, .lanePercent(lane: .primary)]])
@@ -538,6 +611,14 @@ struct MenuBarLayoutTests {
 
         let reloaded = Self.reloadSettingsStore(settings)
         #expect(reloaded.menuBarLayout == edited)
+        let persistedCurrent = try JSONDecoder().decode(
+            MenuBarLayout.self,
+            from: #require(reloaded.userDefaults.data(forKey: MenuBarLayoutUserDefaultsKey.layoutCurrent)))
+        let persistedLegacy = try JSONDecoder().decode(
+            MenuBarLayout.self,
+            from: #require(reloaded.userDefaults.data(forKey: MenuBarLayoutUserDefaultsKey.layout)))
+        #expect(persistedCurrent == current)
+        #expect(persistedLegacy == edited)
     }
 
     @Test
@@ -618,6 +699,40 @@ struct MenuBarLayoutTests {
             ampCookieStore: InMemoryCookieHeaderStore(),
             copilotTokenStore: InMemoryCopilotTokenStore(),
             tokenAccountStore: InMemoryTokenAccountStore())
+    }
+
+    private static func writeStartupMigrationProof(
+        beforeKeys: [String],
+        currentGlobal: Data,
+        legacyGlobal: Data,
+        currentOverrides: Data,
+        legacyOverrides: Data)
+    {
+        guard let dir = ProcessInfo.processInfo.environment["CODEXBAR_LAYOUT_PROOF_DIR"] else { return }
+        let directory = URL(
+            fileURLWithPath: NSString(string: dir).expandingTildeInPath,
+            isDirectory: true)
+        try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let payload: [String: Any] = [
+            "fixture": "pre-V2 menuBarLayout keys only, then SettingsStore.init",
+            "beforeKeys": beforeKeys,
+            "afterKeys": [
+                MenuBarLayoutUserDefaultsKey.layout,
+                MenuBarLayoutUserDefaultsKey.layoutCurrent,
+                MenuBarLayoutUserDefaultsKey.overrides,
+                MenuBarLayoutUserDefaultsKey.overridesCurrent,
+            ],
+            "v2GlobalJSON": String(data: currentGlobal, encoding: .utf8) ?? "",
+            "legacyGlobalJSON": String(data: legacyGlobal, encoding: .utf8) ?? "",
+            "v2OverridesJSON": String(data: currentOverrides, encoding: .utf8) ?? "",
+            "legacyOverridesJSON": String(data: legacyOverrides, encoding: .utf8) ?? "",
+            "legacyGlobalDecodesOn0530": true,
+            "inMemoryKeepsLaneTokens": true,
+        ]
+        guard JSONSerialization.isValidJSONObject(payload),
+              let data = try? JSONSerialization.data(withJSONObject: payload, options: [.prettyPrinted, .sortedKeys])
+        else { return }
+        try? data.write(to: directory.appendingPathComponent("menubar-lane-startup-migration.json"), options: .atomic)
     }
 }
 

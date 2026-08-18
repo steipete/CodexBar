@@ -491,23 +491,16 @@ extension SettingsStore {
     }
 
     private func persistMenuBarLayout(_ layout: MenuBarLayout) {
-        guard let current = try? JSONEncoder().encode(layout),
-              let legacy = try? JSONEncoder().encode(layout.legacyCompatible())
-        else { return }
-        self.userDefaults.set(current, forKey: MenuBarLayoutUserDefaultsKey.layoutCurrent)
-        self.userDefaults.set(legacy, forKey: MenuBarLayoutUserDefaultsKey.layout)
+        guard let blobs = try? MenuBarLayoutPersistence.encoded(layout) else { return }
+        self.userDefaults.set(blobs.current, forKey: MenuBarLayoutUserDefaultsKey.layoutCurrent)
+        self.userDefaults.set(blobs.legacy, forKey: MenuBarLayoutUserDefaultsKey.layout)
     }
 
     private func persistMenuBarLayoutOverrides() {
-        let overrides = self.defaultsState.menuBarLayoutOverridesRaw
-        let legacyOverrides = Dictionary(uniqueKeysWithValues: overrides.map { key, layout in
-            (key, layout.legacyCompatible(for: UsageProvider(rawValue: key)))
-        })
-        guard let current = try? JSONEncoder().encode(overrides),
-              let legacy = try? JSONEncoder().encode(legacyOverrides)
+        guard let blobs = try? MenuBarLayoutPersistence.encodedOverrides(self.defaultsState.menuBarLayoutOverridesRaw)
         else { return }
-        self.userDefaults.set(current, forKey: MenuBarLayoutUserDefaultsKey.overridesCurrent)
-        self.userDefaults.set(legacy, forKey: MenuBarLayoutUserDefaultsKey.overrides)
+        self.userDefaults.set(blobs.current, forKey: MenuBarLayoutUserDefaultsKey.overridesCurrent)
+        self.userDefaults.set(blobs.legacy, forKey: MenuBarLayoutUserDefaultsKey.overrides)
     }
 
     var copilotIconSecondaryWindowIDRaw: String {

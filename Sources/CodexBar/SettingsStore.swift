@@ -860,17 +860,19 @@ extension SettingsStore {
     }
 
     private static func loadMenuBarLayout(userDefaults: UserDefaults) -> MenuBarLayout? {
-        MenuBarLayoutPersistence.preferredLayout(
+        MenuBarLayoutPersistence.loadLayout(
             current: self.decodeMenuBarLayout(userDefaults.data(forKey: MenuBarLayoutUserDefaultsKey.layoutCurrent)),
-            legacy: self.decodeMenuBarLayout(userDefaults.data(forKey: MenuBarLayoutUserDefaultsKey.layout)))
+            legacy: self.decodeMenuBarLayout(userDefaults.data(forKey: MenuBarLayoutUserDefaultsKey.layout)),
+            into: userDefaults)
     }
 
     private static func loadMenuBarLayoutOverrides(userDefaults: UserDefaults) -> [String: MenuBarLayout] {
-        MenuBarLayoutPersistence.preferredOverrides(
+        MenuBarLayoutPersistence.loadOverrides(
             current: self.decodeMenuBarLayoutOverrides(
                 userDefaults.data(forKey: MenuBarLayoutUserDefaultsKey.overridesCurrent)),
             legacy: self.decodeMenuBarLayoutOverrides(
-                userDefaults.data(forKey: MenuBarLayoutUserDefaultsKey.overrides)))
+                userDefaults.data(forKey: MenuBarLayoutUserDefaultsKey.overrides)),
+            into: userDefaults)
     }
 
     private static func decodeMenuBarLayout(_ data: Data?) -> MenuBarLayout? {
