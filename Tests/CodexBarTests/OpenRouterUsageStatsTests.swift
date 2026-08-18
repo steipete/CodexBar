@@ -5,6 +5,28 @@ import Testing
 
 struct OpenRouterPluginGoldenTests {
     @Test
+    func `production strategy resolves configured management key`() throws {
+        let config = ProviderConfig(
+            id: .openrouter,
+            pluginSecrets: [
+                OpenRouterSettingsReader.managementAPIKeyEnvironmentKey: "configured-management-key",
+            ])
+        let contribution = try #require(OpenRouterProviderDescriptor.descriptor.settingsSection
+            .credentialContribution(context: ProviderCredentialSettingsContext(config: config, account: nil)))
+        let settings = ProviderSettingsSnapshot(contributions: [contribution])
+        let values = try #require(OpenRouterProviderDescriptor.scriptValues(
+            environment: [
+                OpenRouterSettingsReader.envKey: "standard-key",
+                OpenRouterSettingsReader.apiURLEnvironmentKey: "https://proxy.example/api/v1",
+            ],
+            settings: settings))
+
+        #expect(values.secrets[OpenRouterSettingsReader.envKey] == "standard-key")
+        #expect(values.secrets[OpenRouterSettingsReader.managementAPIKeyEnvironmentKey] == "configured-management-key")
+        #expect(values.settings[OpenRouterSettingsReader.apiURLEnvironmentKey] == "https://proxy.example/api/v1")
+    }
+
+    @Test
     func `key quota fixture matches the production golden`() async throws {
         let snapshot = try await Self.fetch(keyBody: #"{"data":{"limit":20,"usage":5}}"#)
 
@@ -88,6 +110,43 @@ struct OpenRouterPluginGoldenTests {
         #expect(usage.detailRow(label: "This week")?.value == "$0.74")
         #expect(usage.detailRow(label: "This month")?.value == "$4.56")
         #expect(usage.detailRow(label: "Rate limit")?.value == "120 requests / 10s")
+    }
+
+    @Test
+    func `management key activity stays on official origin when API base is overridden`() async throws {
+        let requests = OpenRouterRequestRecorder()
+        let runtime = try ProviderPluginRuntime(
+            bundledPlugin: "openrouter",
+            transport: ProviderHTTPTransportHandler { request in
+                await requests.append(request)
+                let path = request.url?.path ?? ""
+                if path.hasSuffix("/activity") {
+                    return try Self.response(request, body: #"{"data":[]}"#)
+                }
+                if path.hasSuffix("/key") {
+                    return try Self.response(request, body: #"{"data":{"limit":20,"usage":5}}"#)
+                }
+                return try Self.response(request, body: Self.defaultCreditsBody)
+            })
+
+        _ = try await runtime.fetchUsage(
+            settings: [
+                OpenRouterSettingsReader.apiURLEnvironmentKey: "https://proxy.example/api/v1",
+            ],
+            secrets: [
+                OpenRouterSettingsReader.envKey: "standard-key",
+                OpenRouterSettingsReader.managementAPIKeyEnvironmentKey: "management-key",
+            ])
+        let recorded = await requests.requests
+        let activity = recorded.filter { $0.url?.path.hasSuffix("/activity") == true }
+        let ordinary = recorded.filter { $0.url?.path.hasSuffix("/activity") != true }
+
+        #expect(activity.count == 2)
+        #expect(activity.allSatisfy { $0.url?.host == "openrouter.ai" })
+        #expect(activity.allSatisfy { $0.value(forHTTPHeaderField: "Authorization") == "Bearer management-key" })
+        #expect(ordinary.count == 2)
+        #expect(ordinary.allSatisfy { $0.url?.host == "proxy.example" })
+        #expect(ordinary.allSatisfy { $0.value(forHTTPHeaderField: "Authorization") == "Bearer standard-key" })
     }
 
     @Test

@@ -1,5 +1,14 @@
 import Foundation
 
+struct OpenRouterProviderSettings: Sendable {
+    let managementAPIKey: String?
+}
+
+enum OpenRouterProviderSettingsKey: ProviderSettingsSectionKey {
+    static let providerID: ProviderInstanceID = .openrouter
+    typealias Section = OpenRouterProviderSettings
+}
+
 public enum OpenRouterProviderDescriptor {
     public static let descriptor: ProviderDescriptor = Self.makeDescriptor()
     private static let credentials = ProviderCredentialAdapter.apiKey(
@@ -32,6 +41,12 @@ public enum OpenRouterProviderDescriptor {
         ProviderDescriptor(
             id: .openrouter,
             menuBarMetrics: ProviderMenuBarMetricCapabilities(supported: [.automatic, .primary]),
+            settingsSection: .init(OpenRouterProviderSettingsKey.self, credentialSettings: { context in
+                OpenRouterProviderSettings(
+                    managementAPIKey: context.config?.pluginSecrets?[
+                        OpenRouterSettingsReader.managementAPIKeyEnvironmentKey,
+                    ])
+            }),
             credentials: self.credentials,
             config: ProviderConfigCapabilities(supportsEnterpriseHost: true),
             metadata: ProviderMetadata(
@@ -91,24 +106,35 @@ public enum OpenRouterProviderDescriptor {
                         try OpenRouterSettingsReader.validateEndpointOverrides(environment: context.env)
                     },
                     resolveValues: { context in
-                        guard let token = self.credentials.resolveToken(environment: context.env)?.token else {
-                            return nil
-                        }
-                        var settings = [
-                            OpenRouterSettingsReader.apiURLEnvironmentKey:
-                                OpenRouterSettingsReader.apiURL(environment: context.env).absoluteString,
-                            OpenRouterSettingsReader.clientTitleEnvironmentKey:
-                                OpenRouterSettingsReader.clientTitle(environment: context.env),
-                        ]
-                        if let referer = OpenRouterSettingsReader.httpReferer(environment: context.env) {
-                            settings[OpenRouterSettingsReader.httpRefererEnvironmentKey] = referer
-                        }
-                        return ScriptFetchStrategy.Values(
-                            settings: settings,
-                            secrets: [OpenRouterSettingsReader.envKey: token])
+                        self.scriptValues(environment: context.env, settings: context.settings)
                     },
                     isEnabled: { _ in true })]
             }))
+    }
+
+    static func scriptValues(
+        environment: [String: String],
+        settings providerSettings: ProviderSettingsSnapshot?) -> ScriptFetchStrategy.Values?
+    {
+        guard let token = self.credentials.resolveToken(environment: environment)?.token else { return nil }
+        var settings = [
+            OpenRouterSettingsReader.apiURLEnvironmentKey:
+                OpenRouterSettingsReader.apiURL(environment: environment).absoluteString,
+            OpenRouterSettingsReader.clientTitleEnvironmentKey:
+                OpenRouterSettingsReader.clientTitle(environment: environment),
+        ]
+        if let referer = OpenRouterSettingsReader.httpReferer(environment: environment) {
+            settings[OpenRouterSettingsReader.httpRefererEnvironmentKey] = referer
+        }
+        var secrets = [OpenRouterSettingsReader.envKey: token]
+        let configuredManagementKey = providerSettings?[OpenRouterProviderSettingsKey.self]?.managementAPIKey
+        if let managementKey = OpenRouterSettingsReader.managementAPIKey(
+            environment: environment,
+            configured: configuredManagementKey)
+        {
+            secrets[OpenRouterSettingsReader.managementAPIKeyEnvironmentKey] = managementKey
+        }
+        return ScriptFetchStrategy.Values(settings: settings, secrets: secrets)
     }
 }
 

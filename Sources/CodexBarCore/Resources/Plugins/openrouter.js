@@ -115,7 +115,8 @@ defineProvider({
         const today = now.toISOString().slice(0, 10);
         const cutoffDate = new Date(now.getTime() - 29 * 24 * 60 * 60 * 1000);
         const cutoff = cutoffDate.toISOString().slice(0, 10);
-        const activityURL = `${base}/activity`;
+        // A management credential must never follow the user-configurable API base to a proxy.
+        const activityURL = "https://openrouter.ai/api/v1/activity";
         const [historyResponse, todayResponse] = await Promise.all([
           ctx.http.get(activityURL, {
             timeoutSeconds: optionalRequestTimeoutSeconds,
