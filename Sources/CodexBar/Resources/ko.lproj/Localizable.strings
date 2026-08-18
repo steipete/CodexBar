@@ -1297,6 +1297,12 @@
 "By subscription" = "구독별";
 "No model-level history" = "모델별 내역이 없습니다";
 "Daily estimated spend" = "일별 예상 지출";
+"Hourly estimated spend" = "시간별 예상 지출";
+"Hour" = "시간";
+"%d hours of usage data across %d services" = "%d시간 사용 데이터, %d개 서비스";
+"1 hour of usage data across 1 service" = "1시간 사용 데이터, 1개 서비스";
+"%d hours of usage data across 1 service" = "%d시간 사용 데이터, 1개 서비스";
+"1 hour of usage data across %d services" = "1시간 사용 데이터, %d개 서비스";
 "≈%d full 5h windows of weekly left · %d windows until reset" = "주간 한도 약 %d개의 전체 5시간 창 남음 · 재설정까지 %d개 창";
 "Weekly cannot run out before reset at this pace" = "이 속도라면 재설정 전에 주간 한도를 소진할 수 없습니다";
 "Weekly can run out ≈%d windows early" = "주간 한도가 약 %d개 창 일찍 소진될 수 있습니다";

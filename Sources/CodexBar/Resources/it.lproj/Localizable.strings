@@ -1331,6 +1331,12 @@
 "By subscription" = "Per abbonamento";
 "No model-level history" = "Nessuna cronologia a livello di modello";
 "Daily estimated spend" = "Spesa giornaliera stimata";
+"Hourly estimated spend" = "Spesa oraria stimata";
+"Hour" = "Ora";
+"%d hours of usage data across %d services" = "%d ore di dati di utilizzo su %d servizi";
+"1 hour of usage data across 1 service" = "1 ora di dati di utilizzo su 1 servizio";
+"%d hours of usage data across 1 service" = "%d ore di dati di utilizzo su 1 servizio";
+"1 hour of usage data across %d services" = "1 ora di dati di utilizzo su %d servizi";
 "≈%d full 5h windows of weekly left · %d windows until reset" = "≈%d finestre complete da 5 h di quota settimanale · %d finestre al reset";
 "Weekly cannot run out before reset at this pace" = "La quota settimanale non può esaurirsi prima del reset a questo ritmo";
 "Weekly can run out ≈%d windows early" = "La quota settimanale può esaurirsi ≈%d finestre prima";

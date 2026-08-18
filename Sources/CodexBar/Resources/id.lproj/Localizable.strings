@@ -1331,6 +1331,12 @@
 "By subscription" = "Berdasarkan langganan";
 "No model-level history" = "Tidak ada riwayat tingkat model";
 "Daily estimated spend" = "Perkiraan pengeluaran harian";
+"Hourly estimated spend" = "Perkiraan pengeluaran per jam";
+"Hour" = "Jam";
+"%d hours of usage data across %d services" = "%d jam data penggunaan di %d layanan";
+"1 hour of usage data across 1 service" = "1 jam data penggunaan di 1 layanan";
+"%d hours of usage data across 1 service" = "%d jam data penggunaan di 1 layanan";
+"1 hour of usage data across %d services" = "1 jam data penggunaan di %d layanan";
 "≈%d full 5h windows of weekly left · %d windows until reset" = "≈%d jendela 5 jam penuh dari kuota mingguan tersisa · %d jendela hingga reset";
 "Weekly cannot run out before reset at this pace" = "Kuota mingguan tidak dapat habis sebelum reset dengan laju ini";
 "Weekly can run out ≈%d windows early" = "Kuota mingguan dapat habis ≈%d jendela lebih awal";

@@ -1093,10 +1093,11 @@ final class SpendDashboardController {
                 else { return }
                 let cachedResult = await cachedLoader(cachedRequest)
                 guard !Task.isCancelled,
-                      generation == self.generation,
-                      cachedRequest.configuration == self.configuration
+                      generation == self.generation
                 else { return }
-                self.applyCached(request: cachedRequest, result: cachedResult)
+                if cachedRequest.configuration == self.configuration {
+                    self.applyCached(request: cachedRequest, result: cachedResult)
+                }
             }
             let request = await self.requestBuilder(phase.buildMode)
             guard !Task.isCancelled,
@@ -1330,9 +1331,15 @@ final class SpendDashboardController {
     }
 
     func refreshDateWindow(now: Date? = nil) {
-        self.loadedAt = now ?? self.nowProvider()
+        let now = now ?? self.nowProvider()
+        let calendar = self.configuration?.bucketCalendar ?? .current
+        let previousDay = calendar.startOfDay(for: self.loadedAt)
+        let nextDay = calendar.startOfDay(for: now)
+        self.loadedAt = now
         self.rebuildModel()
         guard let configuration else { return }
+        guard previousDay != nextDay || self.lastSuccessfulConfiguration == nil || self.failedSourceCount > 0
+        else { return }
         let nextPhase: LoadPhase = self.phase.manualRefreshOutstanding ? .forcing : .ordinary
         self.startLoad(configuration: configuration, phase: nextPhase)
     }

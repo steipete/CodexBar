@@ -1329,6 +1329,12 @@
 "By subscription" = "По подпискам";
 "No model-level history" = "Нет истории по моделям";
 "Daily estimated spend" = "Предполагаемые ежедневные расходы";
+"Hourly estimated spend" = "Предполагаемые почасовые расходы";
+"Hour" = "Час";
+"%d hours of usage data across %d services" = "%d часов данных использования по %d службам";
+"1 hour of usage data across 1 service" = "1 час данных использования по 1 службе";
+"%d hours of usage data across 1 service" = "%d часов данных использования по 1 службе";
+"1 hour of usage data across %d services" = "1 час данных использования по %d службам";
 "≈%d full 5h windows of weekly left · %d windows until reset" = "≈%d полных 5-часовых окон недельного лимита · %d окон до сброса";
 "Weekly cannot run out before reset at this pace" = "При таком темпе недельный лимит не может закончиться до сброса";
 "Weekly can run out ≈%d windows early" = "Недельный лимит может закончиться на ≈%d окон раньше";

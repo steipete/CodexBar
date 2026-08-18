@@ -1331,6 +1331,12 @@
 "By subscription" = "حسب الاشتراك";
 "No model-level history" = "لا يوجد سجل على مستوى النموذج";
 "Daily estimated spend" = "الإنفاق اليومي التقديري";
+"Hourly estimated spend" = "الإنفاق الساعي التقديري";
+"Hour" = "ساعة";
+"%d hours of usage data across %d services" = "%d ساعات من بيانات الاستخدام عبر %d خدمات";
+"1 hour of usage data across 1 service" = "ساعة واحدة من بيانات الاستخدام عبر خدمة واحدة";
+"%d hours of usage data across 1 service" = "%d ساعات من بيانات الاستخدام عبر خدمة واحدة";
+"1 hour of usage data across %d services" = "ساعة واحدة من بيانات الاستخدام عبر %d خدمات";
 "≈%d full 5h windows of weekly left · %d windows until reset" = "≈%d نافذة كاملة مدتها 5 ساعات متبقية من الأسبوعي · %d نافذة حتى إعادة التعيين";
 "Weekly cannot run out before reset at this pace" = "لا يمكن أن ينفد الحد الأسبوعي قبل إعادة التعيين بهذه الوتيرة";
 "Weekly can run out ≈%d windows early" = "قد ينفد الحد الأسبوعي مبكرًا بنحو %d نافذة";

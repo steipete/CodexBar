@@ -1328,6 +1328,12 @@
 "By subscription" = "Por assinatura";
 "No model-level history" = "Sem histórico por modelo";
 "Daily estimated spend" = "Gasto diário estimado";
+"Hourly estimated spend" = "Gasto horário estimado";
+"Hour" = "Hora";
+"%d hours of usage data across %d services" = "%d horas de dados de uso em %d serviços";
+"1 hour of usage data across 1 service" = "1 hora de dados de uso em 1 serviço";
+"%d hours of usage data across 1 service" = "%d horas de dados de uso em 1 serviço";
+"1 hour of usage data across %d services" = "1 hora de dados de uso em %d serviços";
 "≈%d full 5h windows of weekly left · %d windows until reset" = "≈%d janelas completas de 5 h da cota semanal · %d janelas até a renovação";
 "Weekly cannot run out before reset at this pace" = "A cota semanal não pode acabar antes da renovação nesse ritmo";
 "Weekly can run out ≈%d windows early" = "A cota semanal pode acabar ≈%d janelas antes";

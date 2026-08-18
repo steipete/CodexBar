@@ -1358,6 +1358,12 @@
 "By subscription" = "依訂閱";
 "No model-level history" = "尚無模型層級歷史";
 "Daily estimated spend" = "每日預估支出";
+"Hourly estimated spend" = "每小時預估支出";
+"Hour" = "小時";
+"%d hours of usage data across %d services" = "%d 小時用量，涵蓋 %d 個服務";
+"1 hour of usage data across 1 service" = "1 小時用量，涵蓋 1 個服務";
+"%d hours of usage data across 1 service" = "%d 小時用量，涵蓋 1 個服務";
+"1 hour of usage data across %d services" = "1 小時用量，涵蓋 %d 個服務";
 "≈%d full 5h windows of weekly left · %d windows until reset" = "每週額度約剩 %d 個完整 5 小時視窗 · 距重置還有 %d 個視窗";
 "Weekly cannot run out before reset at this pace" = "依此速度，每週額度無法在重置前用完";
 "Weekly can run out ≈%d windows early" = "每週額度可能提前約 %d 個視窗用完";

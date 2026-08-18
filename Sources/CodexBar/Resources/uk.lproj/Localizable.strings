@@ -1327,6 +1327,12 @@
 "By subscription" = "За підписками";
 "No model-level history" = "Немає історії за моделями";
 "Daily estimated spend" = "Орієнтовні щоденні витрати";
+"Hourly estimated spend" = "Орієнтовні погодинні витрати";
+"Hour" = "Година";
+"%d hours of usage data across %d services" = "%d годин даних використання для %d служб";
+"1 hour of usage data across 1 service" = "1 година даних використання для 1 служби";
+"%d hours of usage data across 1 service" = "%d годин даних використання для 1 служби";
+"1 hour of usage data across %d services" = "1 година даних використання для %d служб";
 "≈%d full 5h windows of weekly left · %d windows until reset" = "≈%d повних 5-годинних вікон тижневого ліміту · %d вікон до скидання";
 "Weekly cannot run out before reset at this pace" = "За такого темпу тижневий ліміт не може вичерпатися до скидання";
 "Weekly can run out ≈%d windows early" = "Тижневий ліміт може вичерпатися на ≈%d вікон раніше";

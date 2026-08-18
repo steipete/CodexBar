@@ -1329,6 +1329,12 @@
 "By subscription" = "Aboneliğe göre";
 "No model-level history" = "Model düzeyinde geçmiş yok";
 "Daily estimated spend" = "Günlük tahmini harcama";
+"Hourly estimated spend" = "Saatlik tahmini harcama";
+"Hour" = "Saat";
+"%d hours of usage data across %d services" = "%d saat kullanım verisi, %d hizmet";
+"1 hour of usage data across 1 service" = "1 saat kullanım verisi, 1 hizmet";
+"%d hours of usage data across 1 service" = "%d saat kullanım verisi, 1 hizmet";
+"1 hour of usage data across %d services" = "1 saat kullanım verisi, %d hizmet";
 "≈%d full 5h windows of weekly left · %d windows until reset" = "Haftalık kotadan ≈%d tam 5 saatlik pencere kaldı · sıfırlamaya %d pencere";
 "Weekly cannot run out before reset at this pace" = "Bu hızda haftalık kota sıfırlamadan önce tükenemez";
 "Weekly can run out ≈%d windows early" = "Haftalık kota ≈%d pencere erken tükenebilir";

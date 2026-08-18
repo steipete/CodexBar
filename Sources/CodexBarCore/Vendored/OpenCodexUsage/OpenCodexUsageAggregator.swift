@@ -47,6 +47,13 @@ enum OpenCodexUsageAggregator {
         var models: [String: ModelAccumulator] = [:]
     }
 
+    struct HourAccumulator {
+        var tokens = 0
+        var cost: Double = 0
+        var sawTokens = false
+        var sawCost = false
+    }
+
     static func snapshot(
         entries: [OpenCodexUsageEntry],
         now: Date,
@@ -71,6 +78,7 @@ enum OpenCodexUsageAggregator {
 
         var daysByKey: [String: DayAccumulator] = [:]
         var sessions: [String: SessionAccumulator] = [:]
+        var hoursByStart: [Date: HourAccumulator] = [:]
         for entry in windowed {
             let dayKey = CostUsageLocalDay.key(from: entry.timestamp, calendar: calendar)
             var day = daysByKey[dayKey] ?? DayAccumulator()
@@ -83,6 +91,11 @@ enum OpenCodexUsageAggregator {
             session.requests += 1
             Self.merge(entry, into: &session, customPricing: customPricing)
             sessions[sessionID] = session
+
+            let hour = calendar.dateInterval(of: .hour, for: entry.timestamp)?.start ?? entry.timestamp
+            var hourBucket = hoursByStart[hour] ?? HourAccumulator()
+            Self.merge(entry, into: &hourBucket, customPricing: customPricing)
+            hoursByStart[hour] = hourBucket
         }
 
         let daily = daysByKey.keys.sorted().compactMap { key -> CostUsageDailyReport.Entry? in
@@ -108,6 +121,14 @@ enum OpenCodexUsageAggregator {
                 return lhs.lastActivity > rhs.lastActivity
             }
             return lhs.sessionID < rhs.sessionID
+        }
+
+        let hourly = hoursByStart.keys.sorted().map { hour in
+            let bucket = hoursByStart[hour] ?? HourAccumulator()
+            return CostUsageHourlyEntry(
+                hour: hour,
+                totalTokens: bucket.sawTokens ? bucket.tokens : nil,
+                costUSD: bucket.sawCost ? bucket.cost : nil)
         }
 
         let todayEntry = CostUsageTokenSnapshot.entry(
@@ -137,6 +158,7 @@ enum OpenCodexUsageAggregator {
             costProvenance: .listPriceEstimate,
             daily: daily,
             sessions: Array(sessionRows.prefix(64)),
+            hourly: hourly,
             updatedAt: now)
     }
 
@@ -211,6 +233,21 @@ enum OpenCodexUsageAggregator {
         var model = session.models[entry.model] ?? ModelAccumulator()
         self.merge(entry, cost: cost, into: &model)
         session.models[entry.model] = model
+    }
+
+    private static func merge(
+        _ entry: OpenCodexUsageEntry,
+        into hour: inout HourAccumulator,
+        customPricing: CostUsageCustomPricing)
+    {
+        if let tokens = entry.resolvedTotalTokens {
+            hour.tokens += tokens
+            hour.sawTokens = true
+        }
+        if let cost = self.listPriceUSD(entry: entry, customPricing: customPricing) {
+            hour.cost += cost
+            hour.sawCost = true
+        }
     }
 
     private static func merge(

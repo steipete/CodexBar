@@ -93,6 +93,18 @@ public struct CostUsageSessionBreakdown: Sendable, Equatable, Identifiable {
     }
 }
 
+public struct CostUsageHourlyEntry: Sendable, Equatable {
+    public let hour: Date
+    public let totalTokens: Int?
+    public let costUSD: Double?
+
+    public init(hour: Date, totalTokens: Int?, costUSD: Double?) {
+        self.hour = hour
+        self.totalTokens = totalTokens
+        self.costUSD = costUSD
+    }
+}
+
 public struct CostUsageTokenSnapshot: Sendable, Equatable {
     public let sessionTokens: Int?
     public let sessionCostUSD: Double?
@@ -117,6 +129,8 @@ public struct CostUsageTokenSnapshot: Sendable, Equatable {
     public let daily: [CostUsageDailyReport.Entry]
     public let projects: [CostUsageProjectBreakdown]
     public let sessions: [CostUsageSessionBreakdown]
+    /// Per-request hour buckets. Empty for native Codex/Claude day logs; OpenCodex fills this.
+    public let hourly: [CostUsageHourlyEntry]
     public let updatedAt: Date
 
     public init(
@@ -136,6 +150,7 @@ public struct CostUsageTokenSnapshot: Sendable, Equatable {
         daily: [CostUsageDailyReport.Entry],
         projects: [CostUsageProjectBreakdown] = [],
         sessions: [CostUsageSessionBreakdown] = [],
+        hourly: [CostUsageHourlyEntry] = [],
         updatedAt: Date)
     {
         self.sessionTokens = sessionTokens
@@ -155,6 +170,7 @@ public struct CostUsageTokenSnapshot: Sendable, Equatable {
         self.daily = daily
         self.projects = projects
         self.sessions = sessions
+        self.hourly = hourly
         self.updatedAt = updatedAt
     }
 
