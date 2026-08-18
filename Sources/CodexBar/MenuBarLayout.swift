@@ -74,6 +74,23 @@ enum MenuBarLayoutToken: Codable, Hashable, Sendable {
     case cost30d
     case separatorDot
     case space
+
+    var selectedLane: MenuBarLayoutLane? {
+        if case let .lanePercent(lane) = self { return lane }
+        return nil
+    }
+
+    /// Maps `lanePercent` onto tokens a 0.53.x decoder already understands so a downgrade keeps a
+    /// layout instead of dropping the whole blob. Direct lanes follow the provider's semantic
+    /// windows: Kimi's primary is weekly, so a Kimi override does not swap 7-day and 5-hour.
+    func legacyCompatible(for provider: UsageProvider? = nil) -> MenuBarLayoutToken {
+        switch self {
+        case let .lanePercent(lane):
+            .percent(window: MenuBarLayout.legacyPercentWindow(for: lane, provider: provider))
+        default:
+            self
+        }
+    }
 }
 
 enum MenuBarLayoutSemanticWindowResolver {
@@ -161,6 +178,23 @@ struct MenuBarLayout: Codable, Hashable, Sendable {
         }
         return Array(lines[firstContentLine...].prefix(2))
     }
+
+    var selectedLanes: Set<MenuBarLayoutLane> {
+        Set(self.lines.joined().compactMap(\.selectedLane))
+    }
+
+    func legacyCompatible(for provider: UsageProvider? = nil) -> MenuBarLayout {
+        MenuBarLayout(lines: self.lines.map { line in
+            line.map { $0.legacyCompatible(for: provider) }
+        })
+    }
+}
+
+enum MenuBarLayoutUserDefaultsKey {
+    static let layout = "menuBarLayout"
+    static let layoutCurrent = "menuBarLayoutV2"
+    static let overrides = "menuBarLayoutOverrides"
+    static let overridesCurrent = "menuBarLayoutOverridesV2"
 }
 
 enum MenuBarLayoutPreset: String, CaseIterable, Identifiable, Sendable {
@@ -330,5 +364,124 @@ extension MenuBarLayout {
         case .session: .session
         case .weekly: .weekly
         }
+    }
+
+    static func legacyPercentWindow(for lane: MenuBarLayoutLane, provider: UsageProvider?) -> PercentWindow {
+        switch lane {
+        case .primary: self.percentWindow(for: .primary, provider: provider)
+        case .secondary: self.percentWindow(for: .secondary, provider: provider)
+        case .tertiary: .automatic
+        }
+    }
+}
+
+enum MenuBarLayoutPersistence {
+    static func preferredLayout(current: MenuBarLayout?, legacy: MenuBarLayout?) -> MenuBarLayout? {
+        if let current {
+            if let legacy, current.legacyCompatible() != legacy {
+                return legacy
+            }
+            return current
+        }
+        return legacy
+    }
+
+    static func preferredOverrides(
+        current: [String: MenuBarLayout]?,
+        legacy: [String: MenuBarLayout]?)
+        -> [String: MenuBarLayout]
+    {
+        guard let current else { return legacy ?? [:] }
+        guard let legacy else { return current }
+        guard Self.overridesAgree(current: current, legacy: legacy) else {
+            return legacy
+        }
+        return current
+    }
+
+    static func overridesAgree(
+        current: [String: MenuBarLayout],
+        legacy: [String: MenuBarLayout])
+        -> Bool
+    {
+        guard Set(current.keys) == Set(legacy.keys) else { return false }
+        return current.allSatisfy { key, layout in
+            layout.legacyCompatible(for: UsageProvider(rawValue: key)) == legacy[key]
+        }
+    }
+
+    /// Pre-V2 installs only have the legacy keys. Materialize V2 plus an older-readable projection
+    /// at load so an immediate downgrade does not need an editor write first. Leave both keys
+    /// untouched when they disagree: that is an older-release edit.
+    static func needsStartupDualWrite(current: MenuBarLayout?, legacy: MenuBarLayout?) -> Bool {
+        switch (current, legacy) {
+        case (nil, .some): true
+        case (.some, nil): true
+        default: false
+        }
+    }
+
+    static func needsStartupDualWrite(
+        current: [String: MenuBarLayout]?,
+        legacy: [String: MenuBarLayout]?)
+        -> Bool
+    {
+        switch (current, legacy) {
+        case (nil, let legacy?): !legacy.isEmpty
+        case (let current?, nil): !current.isEmpty
+        default: false
+        }
+    }
+
+    static func encoded(
+        _ layout: MenuBarLayout,
+        provider: UsageProvider? = nil)
+        throws -> (current: Data, legacy: Data)
+    {
+        let encoder = JSONEncoder()
+        let current = try encoder.encode(layout)
+        let legacy = try encoder.encode(layout.legacyCompatible(for: provider))
+        return (current, legacy)
+    }
+
+    static func encodedOverrides(_ overrides: [String: MenuBarLayout]) throws -> (current: Data, legacy: Data) {
+        let encoder = JSONEncoder()
+        let legacyOverrides = Dictionary(uniqueKeysWithValues: overrides.map { key, layout in
+            (key, layout.legacyCompatible(for: UsageProvider(rawValue: key)))
+        })
+        return try (encoder.encode(overrides), encoder.encode(legacyOverrides))
+    }
+
+    static func loadLayout(
+        current: MenuBarLayout?,
+        legacy: MenuBarLayout?,
+        into userDefaults: UserDefaults)
+        -> MenuBarLayout?
+    {
+        let preferred = self.preferredLayout(current: current, legacy: legacy)
+        if let preferred,
+           self.needsStartupDualWrite(current: current, legacy: legacy),
+           let blobs = try? self.encoded(preferred)
+        {
+            userDefaults.set(blobs.current, forKey: MenuBarLayoutUserDefaultsKey.layoutCurrent)
+            userDefaults.set(blobs.legacy, forKey: MenuBarLayoutUserDefaultsKey.layout)
+        }
+        return preferred
+    }
+
+    static func loadOverrides(
+        current: [String: MenuBarLayout]?,
+        legacy: [String: MenuBarLayout]?,
+        into userDefaults: UserDefaults)
+        -> [String: MenuBarLayout]
+    {
+        let preferred = self.preferredOverrides(current: current, legacy: legacy)
+        if self.needsStartupDualWrite(current: current, legacy: legacy),
+           let blobs = try? self.encodedOverrides(preferred)
+        {
+            userDefaults.set(blobs.current, forKey: MenuBarLayoutUserDefaultsKey.overridesCurrent)
+            userDefaults.set(blobs.legacy, forKey: MenuBarLayoutUserDefaultsKey.overrides)
+        }
+        return preferred
     }
 }
