@@ -866,6 +866,72 @@ struct PiSessionCostScannerTests {
 
 extension PiSessionCostScannerTests {
     @Test
+    func `pi scanner uses historical GPT-5_6 rates before July 2026 cutoff`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+
+        let beforeDay = try env.makeLocalNoon(year: 2026, month: 7, day: 29)
+        let afterDay = try env.makeLocalNoon(year: 2026, month: 7, day: 30)
+        func assistant(day: Date) -> [String: Any] {
+            [
+                "type": "message",
+                "timestamp": env.isoString(for: day),
+                "message": [
+                    "role": "assistant",
+                    "provider": "openai-codex",
+                    "model": "openai/gpt-5.6-terra",
+                    "timestamp": Int(day.timeIntervalSince1970 * 1000),
+                    "usage": [
+                        "input": 90,
+                        "output": 5,
+                        "cacheRead": 10,
+                        "cacheWrite": 0,
+                        "totalTokens": 105,
+                    ],
+                ],
+            ]
+        }
+
+        _ = try env.writePiSessionFile(
+            relativePath: "2026-07-historical-pricing.jsonl",
+            contents: env.jsonl([
+                assistant(day: beforeDay),
+                assistant(day: afterDay),
+            ]))
+
+        let options = PiSessionCostScanner.Options(
+            piSessionsRoot: env.piSessionsRoot,
+            cacheRoot: env.cacheRoot,
+            refreshMinIntervalSeconds: 0)
+        let report = PiSessionCostScanner.loadDailyReport(
+            provider: .codex,
+            since: beforeDay,
+            until: afterDay,
+            now: afterDay,
+            options: options)
+
+        let beforeRow = try #require(report.data.first(where: { $0.date == "2026-07-29" }))
+        let afterRow = try #require(report.data.first(where: { $0.date == "2026-07-30" }))
+        let beforeExpected = try #require(CostUsagePricing.codexCostUSD(
+            model: "gpt-5.6-terra",
+            inputTokens: 100,
+            cachedInputTokens: 10,
+            outputTokens: 5,
+            pricingDate: beforeDay))
+        let afterExpected = try #require(CostUsagePricing.codexCostUSD(
+            model: "gpt-5.6-terra",
+            inputTokens: 100,
+            cachedInputTokens: 10,
+            outputTokens: 5,
+            pricingDate: afterDay))
+        let beforeCost = try #require(beforeRow.costUSD)
+        let afterCost = try #require(afterRow.costUSD)
+        #expect(abs(beforeCost - beforeExpected) < 1e-7)
+        #expect(abs(afterCost - afterExpected) < 1e-7)
+        #expect(beforeCost > afterCost)
+    }
+
+    @Test
     func `scanner counts duplicate pi and omp session ids once`() throws {
         let env = try CostUsageTestEnvironment()
         defer { env.cleanup() }

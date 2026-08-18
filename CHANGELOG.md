@@ -4,6 +4,8 @@
 
 - Added direct primary/secondary/tertiary usage lane tokens to provider-specific menu bar layouts, so Cursor layouts can pin `Total %`, `Cursor %`, or `Third Party %` (#3038, #3039). Thanks @giuseppebisemi!
 - Keep custom menu bar layouts when an older release reads the new usage-lane tokens, map Kimi lanes through its reversed semantic windows, honor layout edits made in the older release, and refresh direct tertiary lanes when they change independently.
+- Fixed GPT-5.6 Terra/Luna historical cost aggregates to use the rates in effect on each request day instead of silently repricing pre-2026-07-30 usage at the cut rates (#2671, #3037). Thanks @Yuxin-Qiao!
+- Union spend dashboard token activity across sources with partial coverage instead of blanking days any single source missed (#3042). Thanks @Yuxin-Qiao!
 - Keep Copy JSON alongside a new save-to-file panel for Usage & Spend JSON exports (#3032). Thanks @Yuxin-Qiao!
 - Keep model rows with cost visible on the spend dashboard when only some breakdowns report tokens (#3045). Thanks @Yuxin-Qiao!
 - Show spend dashboard row metrics as cost and tokens together instead of cost-only (#3043). Thanks @Yuxin-Qiao!

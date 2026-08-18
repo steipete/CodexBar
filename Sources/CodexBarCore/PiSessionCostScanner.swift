@@ -842,6 +842,7 @@ enum PiSessionCostScanner {
                 cachedInputTokens: usage.cacheReadTokens,
                 outputTokens: usage.outputTokens,
                 cacheWriteInputTokens: usage.cacheWriteTokens,
+                pricingDate: pricingDate,
                 modelsDevCatalog: pricingContext?.catalog,
                 modelsDevCacheRoot: pricingContext?.cacheRoot)
         case .claude:

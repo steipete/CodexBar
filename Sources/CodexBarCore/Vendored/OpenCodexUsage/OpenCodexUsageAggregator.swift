@@ -297,7 +297,8 @@ enum OpenCodexUsageAggregator {
             inputTokens: input,
             cachedInputTokens: cacheRead,
             outputTokens: output,
-            cacheWriteInputTokens: cacheWrite)
+            cacheWriteInputTokens: cacheWrite,
+            pricingDate: entry.timestamp)
     }
 
     private static func add(_ lhs: Int?, _ rhs: Int?) -> Int? {

@@ -201,4 +201,59 @@ struct OpenCodexUsageParserTests {
         #expect(snapshot.daily[0].inputTokens == 9)
         #expect(snapshot.daily[0].requestCount == 1)
     }
+
+    @Test
+    func `OpenCodex aggregator uses historical GPT-5_6 rates before July 2026 cutoff`() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try #require(TimeZone(secondsFromGMT: 0))
+        let beforeCutoff = Date(timeIntervalSince1970: 1_785_369_599)
+        let afterCutoff = Date(timeIntervalSince1970: 1_785_369_601)
+        let usage = OpenCodexTokenUsage(
+            inputTokens: 100,
+            outputTokens: 5,
+            cacheReadInputTokens: 10,
+            totalTokens: 105)
+        let snapshot = OpenCodexUsageAggregator.snapshot(
+            entries: [
+                OpenCodexUsageEntry(
+                    requestID: "before",
+                    timestamp: beforeCutoff,
+                    provider: "openai",
+                    model: "gpt-5.6-terra",
+                    usageStatus: .reported,
+                    usage: usage,
+                    totalTokens: 105),
+                OpenCodexUsageEntry(
+                    requestID: "after",
+                    timestamp: afterCutoff,
+                    provider: "openai",
+                    model: "gpt-5.6-terra",
+                    usageStatus: .reported,
+                    usage: usage,
+                    totalTokens: 105),
+            ],
+            now: afterCutoff,
+            historyDays: 7,
+            calendar: calendar)
+
+        let beforeDay = try #require(snapshot.daily.first(where: { $0.date == "2026-07-29" }))
+        let afterDay = try #require(snapshot.daily.first(where: { $0.date == "2026-07-30" }))
+        let beforeExpected = try #require(CostUsagePricing.codexCostUSD(
+            model: "gpt-5.6-terra",
+            inputTokens: 100,
+            cachedInputTokens: 10,
+            outputTokens: 5,
+            pricingDate: beforeCutoff))
+        let afterExpected = try #require(CostUsagePricing.codexCostUSD(
+            model: "gpt-5.6-terra",
+            inputTokens: 100,
+            cachedInputTokens: 10,
+            outputTokens: 5,
+            pricingDate: afterCutoff))
+        let beforeCost = try #require(beforeDay.costUSD)
+        let afterCost = try #require(afterDay.costUSD)
+        #expect(abs(beforeCost - beforeExpected) < 1e-7)
+        #expect(abs(afterCost - afterExpected) < 1e-7)
+        #expect(beforeCost > afterCost)
+    }
 }
