@@ -118,6 +118,39 @@ struct MenuBarLayoutTests {
     }
 
     @Test
+    func `lane percent tokens map to older-readable percent tokens`() {
+        let layout = MenuBarLayout(lines: [[
+            .icon,
+            .lanePercent(lane: .primary),
+            .lanePercent(lane: .secondary),
+            .lanePercent(lane: .tertiary),
+            .separatorDot,
+        ]])
+
+        #expect(layout.legacyCompatible == MenuBarLayout(lines: [[
+            .icon,
+            .percent(window: .session),
+            .percent(window: .weekly),
+            .percent(window: .automatic),
+            .separatorDot,
+        ]]))
+        #expect(layout.selectedLanes == Set(MenuBarLayoutLane.allCases))
+        #expect(layout.legacyCompatible.selectedLanes.isEmpty)
+    }
+
+    @Test
+    func `legacy layout JSON without lanePercent cannot decode current lane tokens`() throws {
+        let current = try JSONEncoder().encode(MenuBarLayout(lines: [[
+            .icon,
+            .lanePercent(lane: .secondary),
+        ]]))
+
+        #expect(throws: DecodingError.self) {
+            try JSONDecoder().decode(PreLanePercentMenuBarLayout.self, from: current)
+        }
+    }
+
+    @Test
     func `Cursor lane tokens use the provider row labels`() {
         #expect(MenuBarLayoutToken.lanePercent(lane: .primary).editorLabel(provider: .cursor) == "Total %")
         #expect(MenuBarLayoutToken.lanePercent(lane: .secondary).editorLabel(provider: .cursor) == "Cursor %")
@@ -416,6 +449,70 @@ struct MenuBarLayoutTests {
     }
 
     @Test
+    @MainActor
+    func `lane layouts dual-write an older-readable fallback`() throws {
+        let settings = testSettingsStore(suiteName: "MenuBarLayoutTests-lane-downgrade")
+        let global = MenuBarLayout(lines: [[.icon, .lanePercent(lane: .primary)]])
+        let cursor = MenuBarLayout(lines: [[.icon, .lanePercent(lane: .secondary)]])
+        let claude = try #require(MenuBarLayoutPreset.compactStacked.layout)
+
+        settings.setMenuBarLayout(global, for: nil)
+        settings.setMenuBarLayout(cursor, for: .cursor)
+        settings.setMenuBarLayout(claude, for: .claude)
+
+        let encoder = JSONEncoder()
+        let decoder = JSONDecoder()
+        let currentGlobal = try #require(settings.userDefaults.data(forKey: MenuBarLayoutUserDefaultsKey.layoutCurrent))
+        let legacyGlobal = try #require(settings.userDefaults.data(forKey: MenuBarLayoutUserDefaultsKey.layout))
+        let currentOverrides = try #require(
+            settings.userDefaults.data(forKey: MenuBarLayoutUserDefaultsKey.overridesCurrent))
+        let legacyOverrides = try #require(settings.userDefaults.data(forKey: MenuBarLayoutUserDefaultsKey.overrides))
+
+        #expect(try decoder.decode(MenuBarLayout.self, from: currentGlobal) == global)
+        #expect(try decoder.decode(PreLanePercentMenuBarLayout.self, from: legacyGlobal) == PreLanePercentMenuBarLayout(
+            lines: [[.icon, .percent(window: .session)]]))
+        #expect(throws: DecodingError.self) {
+            try decoder.decode(PreLanePercentMenuBarLayout.self, from: currentGlobal)
+        }
+
+        let currentMap = try decoder.decode([String: MenuBarLayout].self, from: currentOverrides)
+        #expect(currentMap["cursor"] == cursor)
+        #expect(currentMap["claude"] == claude)
+
+        let legacyMap = try decoder.decode([String: PreLanePercentMenuBarLayout].self, from: legacyOverrides)
+        let expectedClaudeLegacy = try decoder.decode(
+            PreLanePercentMenuBarLayout.self,
+            from: encoder.encode(claude))
+        #expect(legacyMap["cursor"] == PreLanePercentMenuBarLayout(lines: [[.icon, .percent(window: .weekly)]]))
+        #expect(legacyMap["claude"] == expectedClaudeLegacy)
+        #expect(throws: DecodingError.self) {
+            try decoder.decode([String: PreLanePercentMenuBarLayout].self, from: currentOverrides)
+        }
+
+        let reloaded = Self.reloadSettingsStore(settings)
+        #expect(reloaded.menuBarLayout == global)
+        #expect(reloaded.menuBarLayoutOverrides[.cursor] == cursor)
+        #expect(reloaded.menuBarLayoutOverrides[.claude] == claude)
+    }
+
+    @Test
+    @MainActor
+    func `lane layout load falls back to the legacy blob when the current key is missing`() throws {
+        let settings = testSettingsStore(suiteName: "MenuBarLayoutTests-lane-legacy-only")
+        let fallback = MenuBarLayout(lines: [[.icon, .percent(window: .weekly)]])
+        try settings.userDefaults.set(
+            JSONEncoder().encode(fallback),
+            forKey: MenuBarLayoutUserDefaultsKey.layout)
+        try settings.userDefaults.set(
+            JSONEncoder().encode(["cursor": fallback]),
+            forKey: MenuBarLayoutUserDefaultsKey.overrides)
+
+        let reloaded = Self.reloadSettingsStore(settings)
+        #expect(reloaded.menuBarLayout == fallback)
+        #expect(reloaded.menuBarLayoutOverrides[.cursor] == fallback)
+    }
+
+    @Test
     func `preset application matches and manual edit becomes custom`() throws {
         let preset = MenuBarLayoutPreset.percentAndReset
         let layout = try #require(preset.layout)
@@ -445,4 +542,28 @@ struct MenuBarLayoutTests {
             copilotTokenStore: InMemoryCopilotTokenStore(),
             tokenAccountStore: InMemoryTokenAccountStore())
     }
+}
+
+/// Mirrors the 0.53.x `MenuBarLayoutToken` surface so downgrade tests can prove `lanePercent`
+/// never lands in the legacy UserDefaults blobs.
+private enum PreLanePercentMenuBarLayoutToken: Codable, Equatable {
+    case icon
+    case providerName
+    case accountLabel
+    case percent(window: PercentWindow)
+    case pace(window: PercentWindow)
+    case usageBar
+    case resetCountdown
+    case resetAbsolute
+    case runsOut
+    case runsOutCompact
+    case balance
+    case costToday
+    case cost30d
+    case separatorDot
+    case space
+}
+
+private struct PreLanePercentMenuBarLayout: Codable, Equatable {
+    let lines: [[PreLanePercentMenuBarLayoutToken]]
 }

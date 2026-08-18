@@ -408,7 +408,7 @@ extension SettingsStore {
         }
         set {
             self.defaultsState.storedMenuBarLayout = newValue
-            self.persistMenuBarLayout(newValue, key: "menuBarLayout")
+            self.persistMenuBarLayout(newValue)
         }
     }
 
@@ -490,14 +490,22 @@ extension SettingsStore {
         }
     }
 
-    private func persistMenuBarLayout(_ layout: MenuBarLayout, key: String) {
-        guard let data = try? JSONEncoder().encode(layout) else { return }
-        self.userDefaults.set(data, forKey: key)
+    private func persistMenuBarLayout(_ layout: MenuBarLayout) {
+        guard let current = try? JSONEncoder().encode(layout),
+              let legacy = try? JSONEncoder().encode(layout.legacyCompatible)
+        else { return }
+        self.userDefaults.set(current, forKey: MenuBarLayoutUserDefaultsKey.layoutCurrent)
+        self.userDefaults.set(legacy, forKey: MenuBarLayoutUserDefaultsKey.layout)
     }
 
     private func persistMenuBarLayoutOverrides() {
-        guard let data = try? JSONEncoder().encode(self.defaultsState.menuBarLayoutOverridesRaw) else { return }
-        self.userDefaults.set(data, forKey: "menuBarLayoutOverrides")
+        let overrides = self.defaultsState.menuBarLayoutOverridesRaw
+        let legacyOverrides = overrides.mapValues(\.legacyCompatible)
+        guard let current = try? JSONEncoder().encode(overrides),
+              let legacy = try? JSONEncoder().encode(legacyOverrides)
+        else { return }
+        self.userDefaults.set(current, forKey: MenuBarLayoutUserDefaultsKey.overridesCurrent)
+        self.userDefaults.set(legacy, forKey: MenuBarLayoutUserDefaultsKey.overrides)
     }
 
     var copilotIconSecondaryWindowIDRaw: String {

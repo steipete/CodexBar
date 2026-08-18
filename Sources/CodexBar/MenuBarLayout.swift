@@ -74,6 +74,22 @@ enum MenuBarLayoutToken: Codable, Hashable, Sendable {
     case cost30d
     case separatorDot
     case space
+
+    var selectedLane: MenuBarLayoutLane? {
+        if case let .lanePercent(lane) = self { return lane }
+        return nil
+    }
+
+    /// Maps `lanePercent` onto tokens a 0.53.x decoder already understands so a downgrade keeps a
+    /// layout instead of dropping the whole blob.
+    var legacyCompatible: MenuBarLayoutToken {
+        switch self {
+        case .lanePercent(.primary): .percent(window: .session)
+        case .lanePercent(.secondary): .percent(window: .weekly)
+        case .lanePercent(.tertiary): .percent(window: .automatic)
+        default: self
+        }
+    }
 }
 
 enum MenuBarLayoutSemanticWindowResolver {
@@ -161,6 +177,21 @@ struct MenuBarLayout: Codable, Hashable, Sendable {
         }
         return Array(lines[firstContentLine...].prefix(2))
     }
+
+    var selectedLanes: Set<MenuBarLayoutLane> {
+        Set(self.lines.joined().compactMap(\.selectedLane))
+    }
+
+    var legacyCompatible: MenuBarLayout {
+        MenuBarLayout(lines: self.lines.map { $0.map(\.legacyCompatible) })
+    }
+}
+
+enum MenuBarLayoutUserDefaultsKey {
+    static let layout = "menuBarLayout"
+    static let layoutCurrent = "menuBarLayoutV2"
+    static let overrides = "menuBarLayoutOverrides"
+    static let overridesCurrent = "menuBarLayoutOverridesV2"
 }
 
 enum MenuBarLayoutPreset: String, CaseIterable, Identifiable, Sendable {
