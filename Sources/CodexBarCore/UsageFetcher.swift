@@ -146,6 +146,8 @@ public struct UsageSnapshot: Codable, Sendable {
     public let tertiary: RateWindow?
     public let extraRateWindows: [NamedRateWindow]?
     public let providerCost: ProviderCostSnapshot?
+    /// Live provider-reported cost history supplied through the generic plugin contract.
+    public let costUsage: CostUsageTokenSnapshot?
     public let details: [ProviderDetailSection]
     public let deepseekDetailedUsageState: DeepSeekDetailedUsageState
     public let deepseekPlatformProfiles: [DeepSeekPlatformProfile]
@@ -191,6 +193,7 @@ public struct UsageSnapshot: Codable, Sendable {
         tertiary: RateWindow? = nil,
         extraRateWindows: [NamedRateWindow]? = nil,
         providerCost: ProviderCostSnapshot? = nil,
+        costUsage: CostUsageTokenSnapshot? = nil,
         details: [ProviderDetailSection] = [],
         deepseekDetailedUsageState: DeepSeekDetailedUsageState = .notRequested,
         deepseekPlatformProfiles: [DeepSeekPlatformProfile] = [],
@@ -215,6 +218,7 @@ public struct UsageSnapshot: Codable, Sendable {
         self.tertiary = tertiary
         self.extraRateWindows = extraRateWindows
         self.providerCost = providerCost
+        self.costUsage = costUsage
         self.details = details
         self.deepseekDetailedUsageState = deepseekDetailedUsageState
         self.deepseekPlatformProfiles = deepseekPlatformProfiles
@@ -263,6 +267,7 @@ public struct UsageSnapshot: Codable, Sendable {
         self.tertiary = try container.decodeIfPresent(RateWindow.self, forKey: .tertiary)
         self.extraRateWindows = try container.decodeIfPresent([NamedRateWindow].self, forKey: .extraRateWindows)
         self.providerCost = try container.decodeIfPresent(ProviderCostSnapshot.self, forKey: .providerCost)
+        self.costUsage = nil // Live-only provider history; refresh from the authoritative source.
         self.details = try container.decodeIfPresent([ProviderDetailSection].self, forKey: .details) ?? []
         try ProviderDetailSection.validateSections(self.details)
         self.deepseekDetailedUsageState = .notRequested // Live-only fetch state
@@ -479,6 +484,7 @@ public struct UsageSnapshot: Codable, Sendable {
             tertiary: tertiary.resolving(self.tertiary),
             extraRateWindows: extraRateWindows.resolving(self.extraRateWindows),
             providerCost: self.providerCost,
+            costUsage: self.costUsage,
             details: details.resolving(self.details),
             deepseekDetailedUsageState: deepseekDetailedUsageState.resolving(self.deepseekDetailedUsageState),
             deepseekPlatformProfiles: deepseekPlatformProfiles.resolving(self.deepseekPlatformProfiles),

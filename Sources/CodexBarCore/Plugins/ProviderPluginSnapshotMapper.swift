@@ -2,6 +2,29 @@ import Foundation
 
 enum ProviderPluginSnapshotMapper {
     private static let maximumStringBytes = 256
+    private static let maximumJavaScriptSafeInteger = 9_007_199_254_740_991.0
+
+    private struct CostUsageParsedEntry {
+        let date: String
+        let inputTokens: Int
+        let outputTokens: Int
+        let reasoningTokens: Int?
+        let requests: Int
+        let cost: Double
+        let estimatedCost: Double
+        let model: String?
+    }
+
+    private struct CostUsageAccumulator {
+        var inputTokens = 0
+        var outputTokens = 0
+        var reasoningTokens = 0
+        var hasReasoningTokens = false
+        var requests = 0
+        var cost = 0.0
+        var estimatedCost = 0.0
+        var estimatedRequests = 0
+    }
 
     static func map(
         _ value: any ProviderPluginValue,
@@ -17,6 +40,7 @@ enum ProviderPluginSnapshotMapper {
         let tertiary = try self.window(value, property: "tertiary")
         let extraRateWindows = try self.extraWindows(value)
         let providerCost = try self.cost(value, now: now)
+        let costUsage = try self.costUsage(value)
         let details = try self.details(value)
         let identity = try self.identity(value, provider: provider)
         let subscriptionRenewsAt = try self.optionalDate(value, property: "subscriptionRenewsAt")
@@ -25,6 +49,7 @@ enum ProviderPluginSnapshotMapper {
 
         guard primary != nil || secondary != nil || tertiary != nil || !(extraRateWindows?.isEmpty ?? true)
             || providerCost != nil
+            || costUsage != nil
             || !details.isEmpty
             || self.hasMeaningfulIdentity(identity)
         else {
@@ -38,6 +63,7 @@ enum ProviderPluginSnapshotMapper {
             tertiary: tertiary,
             extraRateWindows: extraRateWindows,
             providerCost: providerCost,
+            costUsage: costUsage,
             details: details,
             subscriptionExpiresAt: subscriptionExpiresAt,
             subscriptionRenewsAt: subscriptionRenewsAt,
@@ -241,6 +267,228 @@ enum ProviderPluginSnapshotMapper {
             updatedAt: now)
     }
 
+    private static func costUsage(
+        _ root: any ProviderPluginValue) throws -> CostUsageTokenSnapshot?
+    {
+        guard let value = root.property("costUsage"), !value.isUndefined, !value.isNull else { return nil }
+        guard value.isObject, !value.isArray else {
+            throw ProviderPluginError.invalidSnapshot("costUsage must be an object")
+        }
+        let currency = try self.requiredString(value, property: "currency", path: "costUsage")
+        guard currency.range(of: "^[A-Z]{3}$", options: .regularExpression) != nil else {
+            throw ProviderPluginError.invalidSnapshot(
+                "costUsage.currency must be a three-letter uppercase currency literal")
+        }
+        let historyDays = try self.requiredPositiveInteger(
+            value,
+            property: "historyDays",
+            path: "costUsage")
+        guard historyDays <= 366 else {
+            throw ProviderPluginError.invalidSnapshot("costUsage.historyDays exceeds 366")
+        }
+        let historyLabel = try self.optionalString(value, property: "historyLabel", path: "costUsage")
+        let windowEnd = try self.requiredString(value, property: "windowEnd", path: "costUsage")
+        guard windowEnd.range(of: "^[0-9]{4}-[0-9]{2}-[0-9]{2}$", options: .regularExpression) != nil,
+              let windowEndDate = CostUsageDateParser.parse("\(windowEnd)T12:00:00Z")
+        else {
+            throw ProviderPluginError.invalidSnapshot("costUsage.windowEnd must be a valid YYYY-MM-DD date")
+        }
+        var utcCalendar = Calendar(identifier: .gregorian)
+        utcCalendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let windowStartDate = utcCalendar.date(
+            byAdding: .day,
+            value: -(historyDays - 1),
+            to: windowEndDate) ?? windowEndDate
+        guard let entriesValue = value.property("entries"), entriesValue.isArray else {
+            throw ProviderPluginError.invalidSnapshot("costUsage.entries must be an array")
+        }
+        let count = Int(entriesValue.property("length")?.int32Value() ?? 0)
+        guard count <= 10000 else {
+            throw ProviderPluginError.invalidSnapshot("costUsage.entries exceeds 10000 entries")
+        }
+
+        let parsedEntries = try (0..<count).map { index in
+            guard let entry = entriesValue.element(at: index), entry.isObject, !entry.isArray else {
+                throw ProviderPluginError.invalidSnapshot("costUsage.entries[\(index)] must be an object")
+            }
+            let path = "costUsage.entries[\(index)]"
+            let date = try self.requiredString(entry, property: "date", path: path)
+            guard date.range(of: "^[0-9]{4}-[0-9]{2}-[0-9]{2}$", options: .regularExpression) != nil,
+                  let entryDate = CostUsageDateParser.parse("\(date)T12:00:00Z")
+            else {
+                throw ProviderPluginError.invalidSnapshot("\(path).date must be a valid YYYY-MM-DD date")
+            }
+            guard entryDate >= windowStartDate, entryDate <= windowEndDate else {
+                throw ProviderPluginError.invalidSnapshot("\(path).date falls outside the declared history window")
+            }
+            let inputTokens = try self.requiredNonnegativeInteger(entry, property: "inputTokens", path: path)
+            let outputTokens = try self.requiredNonnegativeInteger(entry, property: "outputTokens", path: path)
+            let reasoningTokens = try self.optionalNonnegativeInteger(
+                entry,
+                property: "reasoningTokens",
+                path: path)
+            if let reasoningTokens, reasoningTokens > outputTokens {
+                throw ProviderPluginError.invalidSnapshot("\(path).reasoningTokens must not exceed outputTokens")
+            }
+            let requests = try self.requiredNonnegativeInteger(entry, property: "requests", path: path)
+            let cost = try self.requiredFiniteNumber(entry, property: "cost", path: path)
+            guard cost >= 0 else {
+                throw ProviderPluginError.invalidSnapshot("\(path).cost must be nonnegative")
+            }
+            let estimatedCost = try self.optionalFiniteNumber(
+                entry,
+                property: "estimatedCost",
+                path: path) ?? 0
+            guard estimatedCost >= 0, estimatedCost <= cost else {
+                throw ProviderPluginError.invalidSnapshot(
+                    "\(path).estimatedCost must be nonnegative and no greater than cost")
+            }
+            let model = try self.optionalString(entry, property: "model", path: path)
+
+            let rowTokens = inputTokens.addingReportingOverflow(outputTokens)
+            guard !rowTokens.overflow else {
+                throw ProviderPluginError.invalidSnapshot("\(path) token total overflowed")
+            }
+            return CostUsageParsedEntry(
+                date: date,
+                inputTokens: inputTokens,
+                outputTokens: outputTokens,
+                reasoningTokens: reasoningTokens,
+                requests: requests,
+                cost: cost,
+                estimatedCost: estimatedCost,
+                model: model)
+        }
+
+        var grouped: [String: CostUsageAccumulator] = [:]
+        for entry in parsedEntries {
+            let key = "\(entry.date)\u{1F}\(entry.model ?? "")"
+            var accumulator = grouped[key] ?? CostUsageAccumulator()
+            accumulator.inputTokens = try self.checkedSum(
+                accumulator.inputTokens, entry.inputTokens, path: "costUsage input token total")
+            accumulator.outputTokens = try self.checkedSum(
+                accumulator.outputTokens, entry.outputTokens, path: "costUsage output token total")
+            if let reasoningTokens = entry.reasoningTokens {
+                accumulator.reasoningTokens = try self.checkedSum(
+                    accumulator.reasoningTokens, reasoningTokens, path: "costUsage reasoning token total")
+                accumulator.hasReasoningTokens = true
+            }
+            accumulator.requests = try self.checkedSum(
+                accumulator.requests, entry.requests, path: "costUsage request total")
+            accumulator.cost += entry.cost
+            accumulator.estimatedCost += entry.estimatedCost
+            if entry.estimatedCost > 0 {
+                accumulator.estimatedRequests = try self.checkedSum(
+                    accumulator.estimatedRequests, entry.requests, path: "costUsage estimated request total")
+            }
+            guard accumulator.cost.isFinite, accumulator.estimatedCost.isFinite else {
+                throw ProviderPluginError.invalidSnapshot("costUsage cost total overflowed")
+            }
+            grouped[key] = accumulator
+        }
+
+        var dailyGrouped: [String: CostUsageAccumulator] = [:]
+        var breakdownsByDate: [String: [CostUsageDailyReport.ModelBreakdown]] = [:]
+        for key in grouped.keys.sorted() {
+            let parts = key.split(separator: "\u{1F}", maxSplits: 1, omittingEmptySubsequences: false)
+            let date = String(parts[0])
+            let model = parts.count > 1 && !parts[1].isEmpty ? String(parts[1]) : nil
+            let accumulator = grouped[key]!
+            let totalTokens = try self.checkedSum(
+                accumulator.inputTokens, accumulator.outputTokens, path: "costUsage token total")
+            if let breakdown = model.map({
+                CostUsageDailyReport.ModelBreakdown(
+                    modelName: $0,
+                    costUSD: accumulator.cost,
+                    totalTokens: totalTokens,
+                    requestCount: accumulator.requests,
+                    inputTokens: accumulator.inputTokens,
+                    outputTokens: accumulator.outputTokens,
+                    reasoningTokens: accumulator.hasReasoningTokens ? accumulator.reasoningTokens : nil)
+            }) {
+                breakdownsByDate[date, default: []].append(breakdown)
+            }
+            var daily = dailyGrouped[date] ?? CostUsageAccumulator()
+            daily.inputTokens = try self.checkedSum(
+                daily.inputTokens, accumulator.inputTokens, path: "costUsage daily input token total")
+            daily.outputTokens = try self.checkedSum(
+                daily.outputTokens, accumulator.outputTokens, path: "costUsage daily output token total")
+            daily.reasoningTokens = try self.checkedSum(
+                daily.reasoningTokens, accumulator.reasoningTokens, path: "costUsage daily reasoning token total")
+            daily.hasReasoningTokens = daily.hasReasoningTokens || accumulator.hasReasoningTokens
+            daily.requests = try self.checkedSum(
+                daily.requests, accumulator.requests, path: "costUsage daily request total")
+            daily.estimatedRequests = try self.checkedSum(
+                daily.estimatedRequests,
+                accumulator.estimatedRequests,
+                path: "costUsage daily estimated request total")
+            daily.cost += accumulator.cost
+            daily.estimatedCost += accumulator.estimatedCost
+            guard daily.cost.isFinite, daily.estimatedCost.isFinite else {
+                throw ProviderPluginError.invalidSnapshot("costUsage daily cost total overflowed")
+            }
+            dailyGrouped[date] = daily
+        }
+
+        let entries = try dailyGrouped.keys.sorted().map { date in
+            let daily = dailyGrouped[date]!
+            let totalTokens = try self.checkedSum(
+                daily.inputTokens, daily.outputTokens, path: "costUsage token total")
+            let breakdowns = breakdownsByDate[date]
+            return CostUsageDailyReport.Entry(
+                date: date,
+                inputTokens: daily.inputTokens,
+                outputTokens: daily.outputTokens,
+                reasoningTokens: daily.hasReasoningTokens ? daily.reasoningTokens : nil,
+                totalTokens: totalTokens,
+                requestCount: daily.requests,
+                costUSD: daily.cost,
+                modelsUsed: breakdowns?.map(\.modelName),
+                modelBreakdowns: breakdowns,
+                estimatedRequestCount: daily.estimatedRequests > 0 ? daily.estimatedRequests : nil)
+        }
+        let totalTokens = try entries.compactMap(\.totalTokens).reduce(0) {
+            try self.checkedSum($0, $1, path: "costUsage token total")
+        }
+        let totalRequests = try entries.compactMap(\.requestCount).reduce(0) {
+            try self.checkedSum($0, $1, path: "costUsage request total")
+        }
+        let totalCost = entries.compactMap(\.costUSD).reduce(0, +)
+        let totalEstimatedCost = parsedEntries.reduce(0) { $0 + $1.estimatedCost }
+        guard totalCost.isFinite, totalEstimatedCost.isFinite else {
+            throw ProviderPluginError.invalidSnapshot("costUsage cost total overflowed")
+        }
+        let meteredCost = totalCost - totalEstimatedCost
+        let provenance: CostProvenance = if totalEstimatedCost > 0 {
+            meteredCost > 0 ? .mixed : .listPriceEstimate
+        } else {
+            .vendorMetered
+        }
+        return CostUsageTokenSnapshot(
+            sessionTokens: nil,
+            sessionCostUSD: nil,
+            sessionRequests: nil,
+            last30DaysTokens: totalTokens,
+            last30DaysCostUSD: totalCost,
+            last30DaysRequests: totalRequests,
+            currencyCode: currency,
+            historyDays: historyDays,
+            historyCoverageIsEstablished: true,
+            historyLabel: historyLabel,
+            meteredCostUSD: totalEstimatedCost > 0 && meteredCost > 0 ? meteredCost : nil,
+            costProvenance: provenance,
+            daily: entries,
+            updatedAt: windowEndDate)
+    }
+
+    private static func checkedSum(_ lhs: Int, _ rhs: Int, path: String) throws -> Int {
+        let sum = lhs.addingReportingOverflow(rhs)
+        guard !sum.overflow, Double(sum.partialValue) <= self.maximumJavaScriptSafeInteger else {
+            throw ProviderPluginError.invalidSnapshot("\(path) overflowed")
+        }
+        return sum.partialValue
+    }
+
     private static func identity(
         _ root: any ProviderPluginValue,
         provider: ProviderInstanceID) throws -> ProviderIdentitySnapshot?
@@ -293,8 +541,42 @@ enum ProviderPluginSnapshotMapper {
         path: String) throws -> Int?
     {
         guard let number = try self.optionalFiniteNumber(value, property: property, path: path) else { return nil }
-        guard number.rounded() == number, number > 0, number <= Double(Int.max) else {
+        guard number.rounded() == number, number > 0, number <= self.maximumJavaScriptSafeInteger else {
             throw ProviderPluginError.invalidSnapshot("\(path).\(property) must be a positive integer")
+        }
+        return Int(number)
+    }
+
+    private static func requiredPositiveInteger(
+        _ value: any ProviderPluginValue,
+        property: String,
+        path: String) throws -> Int
+    {
+        guard let result = try self.optionalPositiveInteger(value, property: property, path: path) else {
+            throw ProviderPluginError.invalidSnapshot("\(path).\(property) is required")
+        }
+        return result
+    }
+
+    private static func requiredNonnegativeInteger(
+        _ value: any ProviderPluginValue,
+        property: String,
+        path: String) throws -> Int
+    {
+        guard let result = try self.optionalNonnegativeInteger(value, property: property, path: path) else {
+            throw ProviderPluginError.invalidSnapshot("\(path).\(property) is required")
+        }
+        return result
+    }
+
+    private static func optionalNonnegativeInteger(
+        _ value: any ProviderPluginValue,
+        property: String,
+        path: String) throws -> Int?
+    {
+        guard let number = try self.optionalFiniteNumber(value, property: property, path: path) else { return nil }
+        guard number.rounded() == number, number >= 0, number <= self.maximumJavaScriptSafeInteger else {
+            throw ProviderPluginError.invalidSnapshot("\(path).\(property) must be a nonnegative integer")
         }
         return Int(number)
     }

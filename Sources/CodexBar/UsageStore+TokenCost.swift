@@ -462,6 +462,8 @@ extension UsageStore {
                 usage.daily.isEmpty ? nil : usage
                     .toCostUsageTokenSnapshot(historyDays: windowDays)
             }
+        case .openrouter:
+            return snapshot?.costUsage
         default:
             return nil
         }
@@ -469,7 +471,7 @@ extension UsageStore {
 
     nonisolated static func tokenCostRequiresProviderSnapshot(_ provider: UsageProvider) -> Bool {
         switch provider {
-        case .mistral, .openai, .opencodego:
+        case .mistral, .openai, .opencodego, .openrouter:
             true
         default:
             false

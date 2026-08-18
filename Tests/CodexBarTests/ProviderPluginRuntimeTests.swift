@@ -119,6 +119,44 @@ struct ProviderPluginRuntimeTests {
     }
 
     @Test
+    func `HTTP broker can select another declared secure auth secret`() async throws {
+        let requests = RequestRecorder()
+        let runtime = try ProviderPluginRuntime(
+            source: Self.plugin(
+                settings: """
+                { key: "TEST_KEY", title: "API key", type: "secure" },
+                { key: "MANAGEMENT_KEY", title: "Management key", type: "secure" }
+                """,
+                fetchBody: """
+                const response = await ctx.http.getJSON("https://api.example.test/usage", {
+                  authSecret: "MANAGEMENT_KEY",
+                });
+                return { primary: { usedPercent: response.json.used } };
+                """),
+            transport: Self.transport(recorder: requests, body: #"{"used":42}"#))
+
+        _ = try await runtime.fetchUsage(secrets: [
+            "TEST_KEY": "standard-secret",
+            "MANAGEMENT_KEY": "management-secret",
+        ])
+
+        let request = try #require(await requests.first)
+        #expect(request.value(forHTTPHeaderField: "Authorization") == "Bearer management-secret")
+    }
+
+    @Test
+    func `HTTP broker rejects auth override to undeclared secret`() async throws {
+        let runtime = try ProviderPluginRuntime(source: Self.plugin(fetchBody: """
+        await ctx.http.getJSON("https://api.example.test/usage", { authSecret: "OTHER_KEY" });
+        return { primary: { usedPercent: 1 } };
+        """))
+
+        await #expect(throws: ProviderPluginError.self) {
+            _ = try await runtime.fetchUsage(secrets: ["TEST_KEY": "secret", "OTHER_KEY": "other"])
+        }
+    }
+
+    @Test
     func `HTTP request deadline defaults to fifteen seconds and accepts bounded override`() async throws {
         let requests = RequestRecorder()
         let runtime = try ProviderPluginRuntime(

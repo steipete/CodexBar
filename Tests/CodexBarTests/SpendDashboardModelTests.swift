@@ -1190,6 +1190,29 @@ extension SpendDashboardModelTests {
         #expect(week.groups[0].meteredCost == nil)
         #expect(month.groups[0].meteredCost == 4.5)
     }
+
+    @Test
+    func `vendor reported daily spend keeps vendor metered provenance`() throws {
+        let snapshot = CostUsageTokenSnapshot(
+            sessionTokens: nil,
+            sessionCostUSD: nil,
+            last30DaysTokens: 10,
+            last30DaysCostUSD: 3.5,
+            costProvenance: .vendorMetered,
+            daily: [Self.entry(day: "2026-07-16", cost: 3.5)],
+            updatedAt: Self.now)
+        let input = SpendDashboardModel.ProviderInput(
+            provider: .openrouter,
+            displayName: "OpenRouter",
+            snapshot: snapshot)
+
+        let model = SpendDashboardModel.build(inputs: [input], requestedDays: 30, now: Self.now)
+        let group = try #require(model.groups.first)
+
+        #expect(group.totalCost == 3.5)
+        #expect(group.provenance == .vendorMetered)
+        #expect(group.meteredCost == nil)
+    }
 }
 
 extension SpendDashboardModelTests {

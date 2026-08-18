@@ -10,6 +10,12 @@ defineProvider({
       subtitle: "OpenRouter API key used for credits and key quota.",
       type: "secure",
     },
+    {
+      key: "OPENROUTER_MANAGEMENT_API_KEY",
+      title: "Management API key",
+      subtitle: "Optional key used only for exact 30-day Activity spend.",
+      type: "secure",
+    },
     { key: "OPENROUTER_API_URL", title: "API URL", type: "plain" },
     { key: "OPENROUTER_HTTP_REFERER", title: "HTTP referer", type: "plain" },
     { key: "OPENROUTER_X_TITLE", title: "Client title", type: "plain" },
@@ -48,6 +54,9 @@ defineProvider({
     const balance = Math.max(0, totalCredits - totalUsage);
     let keyData = null;
     let keyDegradation = null;
+    let costUsage = null;
+    let activityDegradation = null;
+    const managementKeyConfigured = Boolean(ctx.settings.getSecret("OPENROUTER_MANAGEMENT_API_KEY"));
     const injectedOptionalTimeout = ctx.__codexbarOptionalRequestTimeoutSeconds;
     const optionalRequestTimeoutSeconds =
       typeof injectedOptionalTimeout === "number" && Number.isFinite(injectedOptionalTimeout)
@@ -91,6 +100,159 @@ defineProvider({
       keyDegradation = degradationReason(error);
     }
     if (!keyData && !keyDegradation) keyDegradation = "Response was unavailable";
+
+    function activityDegradationReason(status, error) {
+      if (status === 403) return "Management API key required";
+      if (status) return `Request returned HTTP ${status}`;
+      return degradationReason(error);
+    }
+
+    if (!managementKeyConfigured) {
+      activityDegradation = "Management API key not configured";
+    } else
+      try {
+        const now = ctx.date.now();
+        const today = now.toISOString().slice(0, 10);
+        const cutoffDate = new Date(now.getTime() - 29 * 24 * 60 * 60 * 1000);
+        const cutoff = cutoffDate.toISOString().slice(0, 10);
+        const activityURL = `${base}/activity`;
+        const [historyResponse, todayResponse] = await Promise.all([
+          ctx.http.get(activityURL, {
+            timeoutSeconds: optionalRequestTimeoutSeconds,
+            authSecret: "OPENROUTER_MANAGEMENT_API_KEY",
+          }),
+          ctx.http.get(`${activityURL}?date=${encodeURIComponent(today)}`, {
+            timeoutSeconds: optionalRequestTimeoutSeconds,
+            authSecret: "OPENROUTER_MANAGEMENT_API_KEY",
+          }),
+        ]);
+        if (historyResponse.status !== 200 || todayResponse.status !== 200) {
+          const failed = historyResponse.status !== 200 ? historyResponse : todayResponse;
+          activityDegradation = activityDegradationReason(failed.status);
+        } else {
+          const payloads = [historyResponse, todayResponse].map((response) => JSON.parse(response.bodyText));
+          const rows = payloads.flatMap((payload) => {
+            if (!payload || !Array.isArray(payload.data)) throw new TypeError("activity.data must be an array");
+            return payload.data;
+          });
+          if (rows.length > 20000) throw new TypeError("activity.data exceeds 20000 rows");
+          const seen = new Map();
+          const entries = [];
+          let aggregateInputTokens = 0;
+          let aggregateOutputTokens = 0;
+          let aggregateReasoningTokens = 0;
+          let aggregateRequests = 0;
+          let aggregateCost = 0;
+          let aggregateEstimatedCost = 0;
+          for (const [index, row] of rows.entries()) {
+            if (!row || typeof row !== "object" || Array.isArray(row)) {
+              throw new TypeError(`activity.data[${index}] must be an object`);
+            }
+            const date = typeof row.date === "string" ? row.date.trim() : "";
+            if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+              throw new TypeError(`activity.data[${index}].date must be YYYY-MM-DD`);
+            }
+            const parsedDate = new Date(`${date}T00:00:00Z`);
+            if (!Number.isFinite(parsedDate.getTime()) || parsedDate.toISOString().slice(0, 10) !== date) {
+              throw new TypeError(`activity.data[${index}].date must be a real calendar date`);
+            }
+            if (date > today) throw new TypeError(`activity.data[${index}].date must not be in the future`);
+            if (date < cutoff) continue;
+            const rawModel = row.model_permaslug ?? row.model;
+            const model = typeof rawModel === "string" && rawModel.trim() ? rawModel.trim() : null;
+            if (model !== null && model.length > 64) {
+              throw new TypeError(`activity.data[${index}].model exceeds 64 characters`);
+            }
+            const inputTokens = finite(row.prompt_tokens, `activity.data[${index}].prompt_tokens`, false);
+            const outputTokens = finite(row.completion_tokens, `activity.data[${index}].completion_tokens`, false);
+            const reasoningTokens = finite(row.reasoning_tokens, `activity.data[${index}].reasoning_tokens`, true);
+            const requests = finite(row.requests, `activity.data[${index}].requests`, false);
+            const meteredCost = finite(row.usage, `activity.data[${index}].usage`, false);
+            const estimatedCost =
+              finite(row.byok_usage_inference, `activity.data[${index}].byok_usage_inference`, true) ?? 0;
+            const cost = meteredCost + estimatedCost;
+            for (const [field, value] of [
+              ["prompt_tokens", inputTokens],
+              ["completion_tokens", outputTokens],
+              ["reasoning_tokens", reasoningTokens],
+              ["requests", requests],
+            ]) {
+              if (value !== null && (!Number.isSafeInteger(value) || value < 0)) {
+                throw new TypeError(`activity.data[${index}].${field} must be a nonnegative safe integer`);
+              }
+            }
+            if (reasoningTokens !== null && reasoningTokens > outputTokens) {
+              throw new TypeError(`activity.data[${index}].reasoning_tokens must not exceed completion_tokens`);
+            }
+            if (meteredCost < 0 || estimatedCost < 0 || !Number.isFinite(cost)) {
+              throw new TypeError(`activity.data[${index}] spend must be finite and nonnegative`);
+            }
+            if (!Number.isSafeInteger(inputTokens + outputTokens)) {
+              throw new TypeError(`activity.data[${index}] token total overflowed`);
+            }
+            const identity = JSON.stringify([
+              date,
+              model,
+              row.endpoint_id || null,
+              row.provider_name || null,
+              row.workspace_id || null,
+            ]);
+            const signature = JSON.stringify([
+              inputTokens,
+              outputTokens,
+              reasoningTokens,
+              requests,
+              meteredCost,
+              estimatedCost,
+            ]);
+            if (seen.has(identity)) {
+              if (seen.get(identity) !== signature) {
+                throw new TypeError(`activity.data[${index}] conflicts with a duplicate activity row`);
+              }
+              continue;
+            }
+            seen.set(identity, signature);
+            aggregateInputTokens += inputTokens;
+            aggregateOutputTokens += outputTokens;
+            aggregateReasoningTokens += reasoningTokens ?? 0;
+            aggregateRequests += requests;
+            aggregateCost += cost;
+            aggregateEstimatedCost += estimatedCost;
+            if (
+              !Number.isSafeInteger(aggregateInputTokens) ||
+              !Number.isSafeInteger(aggregateOutputTokens) ||
+              !Number.isSafeInteger(aggregateReasoningTokens) ||
+              !Number.isSafeInteger(aggregateRequests)
+            ) {
+              throw new TypeError("activity aggregate exceeded the safe integer range");
+            }
+            if (!Number.isFinite(aggregateCost) || !Number.isFinite(aggregateEstimatedCost)) {
+              throw new TypeError("activity spend aggregate overflowed");
+            }
+            entries.push({
+              date,
+              inputTokens,
+              outputTokens,
+              reasoningTokens,
+              requests,
+              cost,
+              estimatedCost,
+              model,
+            });
+            if (entries.length > 10000) throw new TypeError("activity.data exceeds 10000 distinct rows");
+          }
+          costUsage = {
+            currency: "USD",
+            historyDays: 30,
+            historyLabel: "Last 30 days (UTC)",
+            windowEnd: today,
+            entries,
+          };
+        }
+      } catch (error) {
+        activityDegradation = activityDegradationReason(null, error);
+      }
+    if (!costUsage && !activityDegradation) activityDegradation = "Response was unavailable";
 
     function resetWindowUsage(reset) {
       const windowKey =
@@ -194,10 +356,24 @@ defineProvider({
       });
     }
 
+    if (!costUsage) {
+      details.push({
+        title: "Spend history",
+        rows: [
+          {
+            label: "Last 30 days",
+            value: "Unavailable right now",
+            secondaryValue: activityDegradation,
+          },
+        ],
+      });
+    }
+
     const result = {
       identity: { loginMethod: `Balance: ${currency(balance)}` },
       details,
     };
+    if (costUsage) result.costUsage = costUsage;
     if (primary) result.primary = primary;
     return result;
   },

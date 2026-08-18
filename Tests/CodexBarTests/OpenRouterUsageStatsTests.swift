@@ -82,6 +82,8 @@ struct OpenRouterPluginGoldenTests {
         #expect(recorded[1].timeoutInterval == 1)
         #expect(recorded[1].value(forHTTPHeaderField: "HTTP-Referer") == nil)
         #expect(recorded[1].value(forHTTPHeaderField: "X-Title") == nil)
+        #expect(usage.detailRow(label: "Last 30 days")?.value == "Unavailable right now")
+        #expect(usage.detailRow(label: "Last 30 days")?.secondaryValue == "Management API key not configured")
         #expect(usage.detailRow(label: "Today")?.value == "$0.12")
         #expect(usage.detailRow(label: "This week")?.value == "$0.74")
         #expect(usage.detailRow(label: "This month")?.value == "$4.56")
@@ -215,6 +217,210 @@ struct OpenRouterPluginGoldenTests {
         try await Task.sleep(for: .milliseconds(600))
     }
 
+    @Test
+    func `activity rows aggregate by UTC day and model into exact thirty day spend`() async throws {
+        let activityBody = #"""
+        {"data":[
+          {
+            "date":"2026-08-17",
+            "model":"openai/gpt-5.6",
+            "endpoint_id":"endpoint-a",
+            "provider_name":"OpenAI",
+            "prompt_tokens":100,
+            "completion_tokens":50,
+            "reasoning_tokens":10,
+            "requests":2,
+            "usage":12.345
+          },
+          {
+            "date":"2026-08-17",
+            "model":"x-ai/grok-4",
+            "endpoint_id":"endpoint-b",
+            "provider_name":"OpenAI",
+            "prompt_tokens":2,
+            "completion_tokens":3,
+            "reasoning_tokens":1,
+            "requests":1,
+            "usage":0.005
+          },
+          {
+            "date":"2026-08-16",
+            "model":"anthropic/claude-opus-4.1",
+            "endpoint_id":"endpoint-c",
+            "provider_name":"Anthropic",
+            "prompt_tokens":300,
+            "completion_tokens":100,
+            "reasoning_tokens":0,
+            "requests":4,
+            "usage":27.44
+          }
+        ]}
+        """#
+        let now = Date(timeIntervalSince1970: 1_787_079_600) // 2026-08-18T12:00:00Z; stable injected clock.
+        let usage = try await Self.fetch(activityBody: activityBody, now: now)
+        let cost = try #require(usage.costUsage)
+
+        #expect(cost.historyDays == 30)
+        #expect(cost.historyCoverageIsEstablished)
+        #expect(cost.currencyCode == "USD")
+        #expect(cost.costProvenance == .vendorMetered)
+        #expect(cost.last30DaysTokens == 555)
+        #expect(cost.last30DaysRequests == 7)
+        #expect(abs((cost.last30DaysCostUSD ?? -1) - 39.79) < 1e-9)
+        #expect(cost.last30DaysCostUSD?.isFinite == true)
+        #expect(cost.daily.count == 2)
+
+        let august17 = try #require(cost.daily.first { $0.date == "2026-08-17" })
+        #expect(august17.inputTokens == 102)
+        #expect(august17.outputTokens == 53)
+        #expect(august17.reasoningTokens == 11)
+        #expect(august17.totalTokens == 155)
+        #expect(august17.requestCount == 3)
+        #expect(abs((august17.costUSD ?? -1) - 12.35) < 1e-9)
+        #expect(august17.costUSD?.isFinite == true)
+        #expect(august17.modelsUsed == ["openai/gpt-5.6", "x-ai/grok-4"])
+        #expect(august17.modelBreakdowns?.count == 2)
+
+        let model = try #require(august17.modelBreakdowns?.first)
+        #expect(model.modelName == "openai/gpt-5.6")
+        #expect(model.inputTokens == 100)
+        #expect(model.outputTokens == 50)
+        #expect(model.reasoningTokens == 10)
+        #expect(model.totalTokens == 150)
+        #expect(model.requestCount == 2)
+        #expect(abs((model.costUSD ?? -1) - 12.345) < 1e-9)
+    }
+
+    @Test
+    func `activity spend includes BYOK estimate without double counting reasoning tokens`() async throws {
+        let activityBody = #"""
+        {"data":[{
+          "date":"2026-08-17",
+          "model":"openai/gpt-5.6",
+          "endpoint_id":"endpoint-a",
+          "prompt_tokens":100,
+          "completion_tokens":50,
+          "reasoning_tokens":20,
+          "requests":2,
+          "usage":1.25,
+          "byok_usage_inference":0.75
+        }]}
+        """#
+        let usage = try await Self.fetch(activityBody: activityBody)
+        let cost = try #require(usage.costUsage)
+
+        #expect(cost.last30DaysCostUSD == 2.0)
+        #expect(cost.meteredCostUSD == 1.25)
+        #expect(cost.last30DaysTokens == 150)
+        #expect(cost.costProvenance == .mixed)
+        #expect(cost.daily.first?.estimatedRequestCount == 2)
+    }
+
+    @Test
+    func `BYOK only activity is labeled as estimated spend`() async throws {
+        let activityBody = #"""
+        {"data":[{
+          "date":"2026-08-17",
+          "model_permaslug":"openai/gpt-5.6",
+          "endpoint_id":"endpoint-a",
+          "prompt_tokens":10,
+          "completion_tokens":5,
+          "reasoning_tokens":2,
+          "requests":1,
+          "usage":0,
+          "byok_usage_inference":0.75
+        }]}
+        """#
+        let usage = try await Self.fetch(activityBody: activityBody)
+        let cost = try #require(usage.costUsage)
+
+        #expect(cost.last30DaysCostUSD == 0.75)
+        #expect(cost.meteredCostUSD == nil)
+        #expect(cost.costProvenance == .listPriceEstimate)
+    }
+
+    @Test
+    func `activity permission failure preserves credits and quota`() async throws {
+        let requests = OpenRouterRequestRecorder()
+        let runtime = try ProviderPluginRuntime(
+            bundledPlugin: "openrouter",
+            transport: ProviderHTTPTransportHandler { request in
+                await requests.append(request)
+                let path = request.url?.path ?? ""
+                if path.hasSuffix("/activity") {
+                    return try Self.response(request, body: #"{"error":"forbidden"}"#, statusCode: 403)
+                }
+                if path.hasSuffix("/key") {
+                    return try Self.response(request, body: #"{"data":{"limit":20,"usage":5}}"#)
+                }
+                return try Self.response(request, body: Self.defaultCreditsBody)
+            })
+
+        let usage = try await runtime.fetchUsage(secrets: [
+            OpenRouterSettingsReader.envKey: "fixture-key",
+            "OPENROUTER_MANAGEMENT_API_KEY": "fixture-management-key",
+        ])
+        let recorded = await requests.requests
+
+        #expect(usage.costUsage == nil)
+        #expect(usage.detailRow(label: "Remaining")?.value == "$60.00")
+        #expect(usage.detailRow(label: "Last 30 days")?.secondaryValue == "Management API key required")
+        #expect(recorded.count == 4)
+    }
+
+    @Test(arguments: [
+        #"""
+        {"data":[{
+          "date":"2026-08-17", "model":"openai/gpt-5.6",
+          "prompt_tokens":1e400, "completion_tokens":1, "reasoning_tokens":0,
+          "requests":1, "usage":1
+        }]}
+        """#,
+        #"""
+        {"data":[
+          {
+            "date":"2026-08-17", "model":"openai/gpt-5.6",
+            "prompt_tokens":5000000000000000000, "completion_tokens":0, "reasoning_tokens":0,
+            "requests":1, "usage":1
+          },
+          {
+            "date":"2026-08-17", "model":"openai/gpt-5.6",
+            "prompt_tokens":5000000000000000000, "completion_tokens":0, "reasoning_tokens":0,
+            "requests":1, "usage":1
+          }
+        ]}
+        """#,
+        #"""
+        {"data":[
+          {
+            "date":"2026-08-17", "model":"openai/gpt-5.6", "endpoint_id":"same",
+            "prompt_tokens":1, "completion_tokens":1, "reasoning_tokens":0,
+            "requests":1, "usage":1
+          },
+          {
+            "date":"2026-08-17", "model":"openai/gpt-5.6", "endpoint_id":"same",
+            "prompt_tokens":2, "completion_tokens":1, "reasoning_tokens":0,
+            "requests":1, "usage":1
+          }
+        ]}
+        """#,
+        #"""
+        {"data":[{
+          "date":"2026-02-31", "model":"openai/gpt-5.6",
+          "prompt_tokens":1, "completion_tokens":1, "reasoning_tokens":0,
+          "requests":1, "usage":1
+        }]}
+        """#,
+    ])
+    func `nonfinite or overflowing activity never publishes a cost snapshot`(activityBody: String) async throws {
+        let usage = try await Self.fetch(activityBody: activityBody)
+
+        #expect(usage.costUsage == nil)
+        #expect(usage.detailRow(label: "Remaining")?.value == "$60.00")
+        #expect(usage.detailRow(label: "Last 30 days")?.value == "Unavailable right now")
+        #expect(usage.detailRow(label: "Last 30 days")?.secondaryValue == "Response was invalid")
+    }
+
     private static let defaultCreditsBody = #"{"data":{"total_credits":100,"total_usage":40}}"#
 
     private static func fetch(
@@ -231,6 +437,31 @@ struct OpenRouterPluginGoldenTests {
                 keyBody: keyBody,
                 keyStatus: keyStatus))
         return try await runtime.fetchUsage(secrets: [OpenRouterSettingsReader.envKey: "fixture-key"])
+    }
+
+    private static func fetch(
+        activityBody: String,
+        now: Date = Date(timeIntervalSince1970: 1_787_079_600)) async throws -> UsageSnapshot
+    {
+        let runtime = try ProviderPluginRuntime(
+            bundledPlugin: "openrouter",
+            transport: ProviderHTTPTransportHandler { request in
+                let body = switch request.url?.path {
+                case let path? where path.hasSuffix("/activity"):
+                    activityBody
+                case let path? where path.hasSuffix("/key"):
+                    #"{"data":{"limit":20,"usage":5}}"#
+                default:
+                    Self.defaultCreditsBody
+                }
+                return try Self.response(request, body: body)
+            })
+        return try await runtime.fetchUsage(
+            secrets: [
+                OpenRouterSettingsReader.envKey: "fixture-key",
+                "OPENROUTER_MANAGEMENT_API_KEY": "fixture-management-key",
+            ],
+            now: now)
     }
 
     private static func transport(

@@ -97,6 +97,32 @@ struct OverviewSpendSummaryTests {
         #expect(summary.isPartial)
     }
 
+    @Test
+    func `six selected providers sum only finite eligible spend and remain partial`() {
+        let group = self.group(
+            providers: [
+                self.provider(.claude, tokens: 2_000_000, cost: 35.09),
+                self.provider(.openrouter, tokens: nil, cost: 39.79),
+            ],
+            totalTokens: 2_000_000,
+            totalCost: 35.09 + 39.79,
+            coverage: CostUsageCoverageCounts(priced: 2),
+            provenance: .vendorMetered)
+
+        let summary = OverviewSpendSummary(
+            model: SpendDashboardModel(requestedDays: 30, groups: [group]),
+            providerCount: 6)
+
+        #expect((35.09 + 39.79).isFinite)
+        #expect(summary.primarySpendText == "~$74.88")
+        #expect(summary.providerCoverageText == "2 of 6 subscriptions have spend")
+        #expect(summary.tokenText == "~2M tokens")
+        #expect(summary.historyCoverageText == "Coverage: 0 / 30")
+        #expect(summary.pricingCoverageText == "Priced 2 · Unpriced 0 · Unmetered 0 · Estimated 0")
+        #expect(summary.provenanceText == "Plan metered")
+        #expect(summary.isPartial)
+    }
+
     private func provider(
         _ provider: UsageProvider,
         tokens: Int?,

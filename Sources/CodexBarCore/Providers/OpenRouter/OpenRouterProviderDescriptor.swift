@@ -63,8 +63,8 @@ public enum OpenRouterProviderDescriptor {
                 ],
                 widgetColor: ProviderColor(red: 111 / 255, green: 66 / 255, blue: 193 / 255)),
             tokenCost: ProviderTokenCostConfig(
-                supportsTokenCost: false,
-                noDataMessage: { "OpenRouter cost summary is not yet supported." }),
+                supportsTokenCost: true,
+                noDataMessage: { "OpenRouter 30-day spend requires a management API key." }),
             presentation: ProviderUsagePresentation(
                 menuCard: ProviderMenuCardPresentation(
                     showsCreditsSection: false,

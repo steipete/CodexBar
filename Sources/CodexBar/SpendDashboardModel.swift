@@ -448,7 +448,8 @@ struct SpendDashboardModel: Equatable, Sendable {
         var tokenMix = CostUsageTokenMix()
         var coverage = CostUsageCoverageCounts()
         var metered: Double?
-        var sawMetered = false
+        var hasMeteredCostAmount = false
+        var sawVendorMeteredProvenance = false
         var sawEstimate = false
         for summary in scopedSummaries {
             for windowEntry in summary.entries {
@@ -459,14 +460,26 @@ struct SpendDashboardModel: Equatable, Sendable {
                let meteredCost = summary.input.snapshot.meteredCostUSD,
                days >= summary.input.snapshot.historyDays
             {
-                sawMetered = true
+                hasMeteredCostAmount = true
                 metered = (metered ?? 0) + meteredCost * summary.costMultiplier
             }
             if summary.totalCost != nil {
-                sawEstimate = true
+                switch summary.input.snapshot.costProvenance {
+                case .vendorMetered:
+                    sawVendorMeteredProvenance = true
+                case .listPriceEstimate:
+                    sawEstimate = true
+                case .mixed:
+                    sawVendorMeteredProvenance = true
+                    sawEstimate = true
+                case .unknown:
+                    // Preserve the existing conservative display for legacy snapshots that
+                    // predate explicit provenance.
+                    sawEstimate = true
+                }
             }
         }
-        let provenance: CostProvenance = switch (sawMetered, sawEstimate) {
+        let provenance: CostProvenance = switch (sawVendorMeteredProvenance, sawEstimate) {
         case (true, true): .mixed
         case (true, false): .vendorMetered
         case (false, true): .listPriceEstimate
@@ -487,7 +500,7 @@ struct SpendDashboardModel: Equatable, Sendable {
             tokenMix: tokenMix,
             coverage: coverage,
             provenance: provenance,
-            meteredCost: sawMetered ? metered : nil,
+            meteredCost: hasMeteredCostAmount ? metered : nil,
             sessions: Self.sessionRows(summaries: summaries, bounds: bounds, calendar: calendar),
             overflowModelCount: overflowCount,
             selectedDay: selectedDay)
@@ -1034,8 +1047,8 @@ struct SpendDashboardModel: Equatable, Sendable {
     }
 
     private static func bucketCalendar(for provider: UsageProvider, displayCalendar: Calendar) -> Calendar {
-        guard provider == .mistral else { return displayCalendar }
-        // Mistral labels both daily buckets and snapshot coverage by UTC day. Map each UTC boundary into the
+        guard provider == .mistral || provider == .openrouter else { return displayCalendar }
+        // Mistral and OpenRouter label daily buckets and snapshot coverage by UTC day. Map each UTC boundary into the
         // containing local dashboard day instead of reinterpreting the label as a local date.
         return self.gregorianCalendar(timeZone: TimeZone(secondsFromGMT: 0) ?? .gmt)
     }

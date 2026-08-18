@@ -896,7 +896,21 @@ final class JavaScriptCoreProviderPluginEngine: ProviderPluginEngine, @unchecked
         }
 
         if let auth = self.manifest.auth {
-            guard let secret = secrets[auth.secret], !secret.isEmpty else {
+            var secretName = auth.secret
+            if let requestedSecret = options.forProperty("authSecret"),
+               !requestedSecret.isUndefined,
+               !requestedSecret.isNull
+            {
+                guard requestedSecret.isString else {
+                    throw ProviderPluginError.secretAccess("request auth secret must name a declared secure setting")
+                }
+                secretName = requestedSecret.toString()
+                guard self.manifest.settings.first(where: { $0.key == secretName })?.kind == .secure else {
+                    throw ProviderPluginError.secretAccess(
+                        "request auth secret must name a declared secure setting")
+                }
+            }
+            guard let secret = secrets[secretName], !secret.isEmpty else {
                 throw ProviderPluginError.secretAccess("required auth secret is unavailable")
             }
             let authValue = switch auth.type {

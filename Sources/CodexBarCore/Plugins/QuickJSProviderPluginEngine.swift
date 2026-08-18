@@ -730,7 +730,17 @@ final class QuickJSProviderPluginEngine: ProviderPluginEngine, @unchecked Sendab
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         }
         if let auth = self.manifest.auth {
-            guard let credential = secrets[auth.secret], !credential.isEmpty else {
+            var secretName = auth.secret
+            if let requestedSecret = options["authSecret"] {
+                guard let requestedSecret = requestedSecret as? String,
+                      self.manifest.settings.first(where: { $0.key == requestedSecret })?.kind == .secure
+                else {
+                    throw ProviderPluginError.secretAccess(
+                        "request auth secret must name a declared secure setting")
+                }
+                secretName = requestedSecret
+            }
+            guard let credential = secrets[secretName], !credential.isEmpty else {
                 throw ProviderPluginError.secretAccess("required auth secret is unavailable")
             }
             let value = switch auth.type {
