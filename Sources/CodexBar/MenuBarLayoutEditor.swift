@@ -695,6 +695,9 @@ struct MenuBarLayoutPreview: View {
         let session: RateWindow?
         let weekly: RateWindow?
         let rawAutomatic: RateWindow?
+        let primary: RateWindow?
+        let secondary: RateWindow?
+        let tertiary = snapshot.tertiary
         if provider == .codex,
            let projection = self.store.codexConsumerProjectionIfNeeded(
                for: provider,
@@ -705,6 +708,8 @@ struct MenuBarLayoutPreview: View {
             session = projection.menuBarSelectableRateWindow(for: .session)
             weekly = projection.menuBarSelectableRateWindow(for: .weekly)
             rawAutomatic = projection.automaticMenuBarWindow()
+            primary = session
+            secondary = weekly
         } else {
             let semanticWindows = MenuBarLayoutSemanticWindowResolver.windows(
                 provider: provider,
@@ -722,6 +727,8 @@ struct MenuBarLayoutPreview: View {
                 supportsAverage: self.settings.menuBarMetricSupportsAverage(for: provider),
                 antigravityPrioritizeExhaustedQuotas: self.settings.antigravityPrioritizeExhaustedQuotas,
                 now: now)
+            primary = snapshot.primary
+            secondary = snapshot.secondary
         }
         let automatic = MenuBarLayoutAutomaticWindowDisplayNormalizer.normalized(
             provider: provider,
@@ -746,9 +753,9 @@ struct MenuBarLayoutPreview: View {
             providerName: L(self.store.metadata(for: provider).displayName),
             accountLabel: self.settings.hidePersonalInfo ? nil : snapshot.accountEmail(for: provider),
             laneLabels: MenuBarLayoutLaneLabels(provider: provider, snapshot: snapshot),
-            primary: MenuBarLayoutRenderWindow(snapshot.primary),
-            secondary: MenuBarLayoutRenderWindow(snapshot.secondary),
-            tertiary: MenuBarLayoutRenderWindow(snapshot.tertiary),
+            primary: MenuBarLayoutRenderWindow(primary),
+            secondary: MenuBarLayoutRenderWindow(secondary),
+            tertiary: MenuBarLayoutRenderWindow(tertiary),
             session: MenuBarLayoutRenderWindow(session),
             weekly: MenuBarLayoutRenderWindow(weekly),
             scopedWeekly: MenuBarLayoutRenderWindow(scopedNamed?.window),

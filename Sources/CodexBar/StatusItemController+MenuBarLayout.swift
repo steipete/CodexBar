@@ -2,6 +2,15 @@ import AppKit
 import CodexBarCore
 import Foundation
 
+struct MenuBarLayoutWindows {
+    let primary: RateWindow?
+    let secondary: RateWindow?
+    let tertiary: RateWindow?
+    let session: RateWindow?
+    let weekly: RateWindow?
+    let automatic: RateWindow?
+}
+
 extension StatusItemController {
     func applyStoredMenuBarLayoutIfNeeded(
         provider: UsageProvider,
@@ -83,9 +92,9 @@ extension StatusItemController {
             providerName: providerName,
             accountLabel: accountLabel,
             laneLabels: MenuBarLayoutLaneLabels(provider: provider, snapshot: snapshot),
-            primary: MenuBarLayoutRenderWindow(snapshot?.primary),
-            secondary: MenuBarLayoutRenderWindow(snapshot?.secondary),
-            tertiary: MenuBarLayoutRenderWindow(snapshot?.tertiary),
+            primary: MenuBarLayoutRenderWindow(windows.primary),
+            secondary: MenuBarLayoutRenderWindow(windows.secondary),
+            tertiary: MenuBarLayoutRenderWindow(windows.tertiary),
             session: MenuBarLayoutRenderWindow(windows.session),
             weekly: MenuBarLayoutRenderWindow(windows.weekly),
             scopedWeekly: MenuBarLayoutRenderWindow(scopedNamed?.window),
@@ -150,7 +159,7 @@ extension StatusItemController {
         provider: UsageProvider,
         snapshot: UsageSnapshot?,
         now: Date)
-        -> (session: RateWindow?, weekly: RateWindow?, automatic: RateWindow?)
+        -> MenuBarLayoutWindows
     {
         if provider == .codex,
            let projection = self.store.codexConsumerProjectionIfNeeded(
@@ -162,7 +171,13 @@ extension StatusItemController {
             let session = projection.menuBarSelectableRateWindow(for: .session)
             let weekly = projection.menuBarSelectableRateWindow(for: .weekly)
             let automatic = projection.automaticMenuBarWindow()
-            return (session, weekly, automatic)
+            return MenuBarLayoutWindows(
+                primary: session,
+                secondary: weekly,
+                tertiary: snapshot?.tertiary,
+                session: session,
+                weekly: weekly,
+                automatic: automatic)
         }
 
         let semanticWindows = MenuBarLayoutSemanticWindowResolver.windows(
@@ -179,10 +194,13 @@ extension StatusItemController {
             supportsAverage: self.settings.menuBarMetricSupportsAverage(for: provider),
             antigravityPrioritizeExhaustedQuotas: self.settings.antigravityPrioritizeExhaustedQuotas,
             now: now)
-        return (
-            semanticWindows.session,
-            semanticWindows.weekly,
-            MenuBarLayoutAutomaticWindowDisplayNormalizer.normalized(
+        return MenuBarLayoutWindows(
+            primary: snapshot?.primary,
+            secondary: snapshot?.secondary,
+            tertiary: snapshot?.tertiary,
+            session: semanticWindows.session,
+            weekly: semanticWindows.weekly,
+            automatic: MenuBarLayoutAutomaticWindowDisplayNormalizer.normalized(
                 provider: provider,
                 snapshot: snapshot,
                 window: automatic))
