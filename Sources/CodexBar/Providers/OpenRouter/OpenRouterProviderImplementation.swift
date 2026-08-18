@@ -18,6 +18,14 @@ struct OpenRouterProviderImplementation: ProviderImplementation {
     }
 
     @MainActor
+    func settingsSnapshot(context: ProviderSettingsSnapshotContext) -> ProviderSettingsSnapshotContribution? {
+        ProviderDescriptorRegistry.descriptor(for: self.id).settingsSection.credentialContribution(
+            context: ProviderCredentialSettingsContext(
+                config: context.settings.providerConfig(for: self.id),
+                account: nil))
+    }
+
+    @MainActor
     func isAvailable(context: ProviderAvailabilityContext) -> Bool {
         if OpenRouterSettingsReader.apiToken(environment: context.environment) != nil {
             return true
