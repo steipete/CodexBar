@@ -1737,11 +1737,11 @@ struct ProviderArchitectureGatekeeperTests {
             reason: "This exact shared construct dispatches a provider-owned capability at the generic integration boundary."),
         AllowedProviderConstruct(
             path: "Sources/CodexBar/IconRenderer.swift",
-            line: 668,
+            line: 708,
             anchor: "let twistGemini = decorations.contains(.gemini)",
-            expectedProviderIDs: ["antigravity", "factory", "gemini", "warp"],
-            expectedReferenceCount: 4,
-            expectedReferenceFingerprint: ["gemini@0", "antigravity@1", "factory@2", "warp@3"],
+            expectedProviderIDs: ["antigravity", "factory", "gemini", "grok", "warp"],
+            expectedReferenceCount: 5,
+            expectedReferenceFingerprint: ["gemini@0", "antigravity@1", "factory@2", "warp@3", "grok@4"],
             reason: "This exact shared renderer maps provider-owned presentation data into the generic UI model."),
         AllowedProviderConstruct(
             path: "Sources/CodexBar/InlineUsageDashboardContent.swift",

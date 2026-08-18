@@ -98,13 +98,15 @@ public enum GrokProviderDescriptor {
                         && timeUntilReset > 0
                         && timeUntilReset <= TimeInterval(windowMinutes) * 60
                 }),
-            presentation: ProviderUsagePresentation(rateWindowLabeler: { metadata, snapshot, now in
-                ProviderRateWindowLabels(
-                    primary: Self.displayLabel(window: snapshot.primary, now: now) ?? metadata.sessionLabel,
-                    secondary: metadata.weeklyLabel,
-                    tertiary: metadata.opusLabel ?? "Sonnet",
-                    showsTertiary: metadata.supportsOpus)
-            }),
+            presentation: ProviderUsagePresentation(
+                rateWindowLabeler: { metadata, snapshot, now in
+                    ProviderRateWindowLabels(
+                        primary: Self.displayLabel(window: snapshot.primary, now: now) ?? metadata.sessionLabel,
+                        secondary: metadata.weeklyLabel,
+                        tertiary: metadata.opusLabel ?? "Sonnet",
+                        showsTertiary: metadata.supportsOpus)
+                },
+                iconDecorations: [.grok]),
             fetchPlan: ProviderFetchPlan(
                 sourceModes: [.auto, .cli, .oauth, .web],
                 pipeline: ProviderFetchPipeline(resolveStrategies: self.resolveStrategies)),
