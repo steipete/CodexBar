@@ -257,6 +257,14 @@ extension SettingsStore {
         }
     }
 
+    var paceVisible: Bool {
+        get { self.defaultsState.paceVisible }
+        set {
+            self.defaultsState.paceVisible = newValue
+            self.userDefaults.set(newValue, forKey: "paceVisible")
+        }
+    }
+
     var weeklyProgressWorkDays: Int? {
         get { self.defaultsState.weeklyProgressWorkDays }
         set {

@@ -67,6 +67,27 @@ struct CloudSyncSettingsTests {
     }
 
     @Test
+    func `legacy synced preferences without pace visibility decode compatibly`() throws {
+        let fixture = try self.makeFixture("legacy-pace-visible")
+        let payload = PreferencesSyncPayload(preferences: fixture.store.syncedPreferences)
+        let encoded = try CanonicalSyncJSON.encode(payload)
+        var object = try #require(JSONSerialization.jsonObject(with: encoded) as? [String: Any])
+        var preferences = try #require(object["preferences"] as? [String: Any])
+        preferences.removeValue(forKey: "paceVisible")
+        object["preferences"] = preferences
+        let legacyData = try JSONSerialization.data(withJSONObject: object)
+
+        let decoded = try CanonicalSyncJSON.decode(PreferencesSyncPayload.self, from: legacyData)
+
+        #expect(decoded.preferences.paceVisible == nil)
+
+        // An absent key must leave the local value untouched, not reset it.
+        fixture.store.paceVisible = false
+        fixture.store.applySyncedPreferences(decoded.preferences)
+        #expect(fixture.store.paceVisible == false)
+    }
+
+    @Test
     func `config watcher suppresses self writes and observes external atomic replacement`() async throws {
         let directory = FileManager.default.temporaryDirectory
             .appendingPathComponent("ConfigFileWatcherTests-\(UUID().uuidString)", isDirectory: true)

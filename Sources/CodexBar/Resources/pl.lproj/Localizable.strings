@@ -625,6 +625,8 @@
 "display_mode_subtitle" = "Wybierz, co pokazywać na pasku menu (Tempo pokazuje użycie względem oczekiwanego).";
 "show_quota_warning_markers_title" = "Pokaż znaczniki ostrzeżeń limitu";
 "show_quota_warning_markers_subtitle" = "Rysuje znaczniki progów na paskach użycia, gdy skonfigurowano ostrzeżenia limitu.";
+"show_pace_title" = "Pokaż tempo";
+"show_pace_subtitle" = "Pokazuje pasek wyprzedzenia lub opóźnienia oraz tekst prognozy na paskach użycia.";
 "weekly_progress_work_days_title" = "Dni robocze postępu tygodniowego";
 "weekly_progress_work_days_subtitle" = "Rysuje znaczniki granic dni na tygodniowych paskach użycia.";
 "workday_tick_appearance_title" = "Wygląd znaczników dni roboczych";

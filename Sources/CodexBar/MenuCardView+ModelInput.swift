@@ -43,6 +43,7 @@ extension UsageMenuCardView.Model {
         let quotaWarningThresholds: [QuotaWarningWindow: [Int]]
         let workDaysPerWeek: Int?
         let workdayTickAppearance: WorkdayTickAppearance
+        let paceVisible: Bool
         let usesLiveSubtitle: Bool
         let preferredCurrencyCode: String
         let now: Date
@@ -86,6 +87,7 @@ extension UsageMenuCardView.Model {
             quotaWarningThresholds: [QuotaWarningWindow: [Int]] = [:],
             workDaysPerWeek: Int? = nil,
             workdayTickAppearance: WorkdayTickAppearance = .subtle,
+            paceVisible: Bool = true,
             usesLiveSubtitle: Bool = false,
             preferredCurrencyCode: String = "auto",
             now: Date)
@@ -128,6 +130,7 @@ extension UsageMenuCardView.Model {
             self.quotaWarningThresholds = quotaWarningThresholds
             self.workDaysPerWeek = workDaysPerWeek
             self.workdayTickAppearance = workdayTickAppearance
+            self.paceVisible = paceVisible
             self.usesLiveSubtitle = usesLiveSubtitle
             self.preferredCurrencyCode = preferredCurrencyCode
             self.now = now

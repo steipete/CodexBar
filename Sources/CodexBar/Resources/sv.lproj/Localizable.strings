@@ -616,6 +616,8 @@
 "display_mode_subtitle" = "Välj vad som ska visas i menyraden (takt visar användning mot förväntat).";
 "show_quota_warning_markers_title" = "Visa kvotvarningsmarkörer";
 "show_quota_warning_markers_subtitle" = "Rita tröskelmarkeringar på användningsstaplar när kvotvarningar är konfigurerade.";
+"show_pace_title" = "Visa takt";
+"show_pace_subtitle" = "Visar remsan för försprång eller eftersläpning och prognostexten på användningsstaplarna.";
 "weekly_progress_work_days_title" = "Arbetsdagar i veckoförlopp";
 "weekly_progress_work_days_subtitle" = "Ställ in arbetsdagar för markeringar i veckostaplar och tempoberäkningar.";
 "workday_tick_appearance_title" = "Utseende för arbetsdagsmarkeringar";

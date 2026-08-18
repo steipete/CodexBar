@@ -609,6 +609,8 @@
 "display_mode_subtitle" = "Elige qué mostrar en la barra de menús (Ritmo muestra el uso frente al previsto).";
 "show_quota_warning_markers_title" = "Mostrar marcadores de aviso de cuota";
 "show_quota_warning_markers_subtitle" = "Dibuja marcas de umbral en las barras de uso cuando hay avisos de cuota configurados.";
+"show_pace_title" = "Mostrar el ritmo";
+"show_pace_subtitle" = "Muestra la franja de adelanto o retraso y el texto de previsión en las barras de uso.";
 "weekly_progress_work_days_title" = "Días laborables del progreso semanal";
 "weekly_progress_work_days_subtitle" = "Define los días laborables para los marcadores de las barras de uso semanal y los cálculos de ritmo.";
 "workday_tick_appearance_title" = "Aspecto de las marcas de días laborables";

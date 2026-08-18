@@ -623,6 +623,8 @@
 "display_mode_subtitle" = "انتخاب کنید که در نوار منو چه چیزی نمایش داده شود (Pace میزان مصرف در مقابل مورد انتظار را نشان می دهد).";
 "show_quota_warning_markers_title" = "نشانگرهای هشدار سهمیه را نشان دهید";
 "show_quota_warning_markers_subtitle" = "علامت تیک آستانه را روی نوارهای استفاده هنگام پیکربندی هشدارهای سهمیه رسم کنید.";
+"show_pace_title" = "نمایش آهنگ مصرف";
+"show_pace_subtitle" = "نوار جلوتر یا عقب‌تر بودن و متن پیش‌بینی را روی نوارهای مصرف نشان می‌دهد.";
 "weekly_progress_work_days_title" = "روزهای کاری پیشرفت هفتگی";
 "weekly_progress_work_days_subtitle" = "روزهای کاری را برای نشانگرهای نوار مصرف هفتگی و محاسبات سرعت تعیین کنید.";
 "workday_tick_appearance_title" = "نمایش نشانه‌های روز کاری";

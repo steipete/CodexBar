@@ -617,6 +617,8 @@
 "display_mode_subtitle" = "Kies wat u wilt weergeven in de menubalk (Tempo toont gebruik vs. verwacht).";
 "show_quota_warning_markers_title" = "Toon waarschuwingsmarkeringen voor quota";
 "show_quota_warning_markers_subtitle" = "Teken drempelmarkeringen op gebruiksbalken wanneer quotawaarschuwingen zijn geconfigureerd.";
+"show_pace_title" = "Tempo tonen";
+"show_pace_subtitle" = "Toont de streep voor voor- of achterstand en de prognosetekst op de gebruiksbalken.";
 "weekly_progress_work_days_title" = "Wekelijkse voortgang werkdagen";
 "weekly_progress_work_days_subtitle" = "Stel werkdagen in voor markeringen op wekelijkse gebruiksbalken en tempoberekeningen.";
 "workday_tick_appearance_title" = "Weergave van werkdagmarkeringen";

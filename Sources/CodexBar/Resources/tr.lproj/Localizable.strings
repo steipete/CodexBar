@@ -623,6 +623,8 @@
 "display_mode_subtitle" = "Menü çubuğunda ne gösterileceğini seçin (Hız, kullanımı beklentiyle karşılaştırır).";
 "show_quota_warning_markers_title" = "Kota uyarı işaretlerini göster";
 "show_quota_warning_markers_subtitle" = "Kota uyarıları yapılandırıldığında kullanım çubuklarına eşik çizgileri çizer.";
+"show_pace_title" = "Hızı göster";
+"show_pace_subtitle" = "Kullanım çubuklarında öndeyken veya gerideyken görünen şeridi ve tahmin metnini gösterir.";
 "weekly_progress_work_days_title" = "Haftalık ilerleme iş günleri";
 "weekly_progress_work_days_subtitle" = "Haftalık kullanım çubuğu işaretleri ve tempo hesaplamaları için iş günlerini ayarlar.";
 "workday_tick_appearance_title" = "İş günü işaretlerinin görünümü";

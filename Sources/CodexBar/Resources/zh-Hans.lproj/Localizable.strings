@@ -599,6 +599,8 @@
 "display_mode_subtitle" = "选择菜单栏中显示的内容（进度会显示实际用量与预期的对比）。";
 "show_quota_warning_markers_title" = "显示配额预警标记";
 "show_quota_warning_markers_subtitle" = "配置配额预警后，在用量条上绘制阈值刻度标记。";
+"show_pace_title" = "显示用量节奏";
+"show_pace_subtitle" = "在用量条上显示领先或落后的标记线和预测文本。";
 "show_provider_changelog_links_title" = "显示提供商变更日志链接";
 "show_provider_changelog_links_subtitle" = "在菜单中为支持的 CLI 提供商添加发布说明链接。";
 "show_credits_extra_usage_title" = "显示额度 + 额外用量";

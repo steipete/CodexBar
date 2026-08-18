@@ -613,6 +613,8 @@
 "display_mode_subtitle" = "Chọn nội dung sẽ hiển thị trong thanh menu (Tốc độ hiển thị Mức sử dụng so với dự kiến).";
 "show_quota_warning_markers_title" = "Hiển thị Hạn mức dấu cảnh báo";
 "show_quota_warning_markers_subtitle" = "Vẽ dấu kiểm ngưỡng trên thanh Mức sử dụng khi cảnh báo Hạn mức được định cấu hình.";
+"show_pace_title" = "Hiển thị nhịp độ";
+"show_pace_subtitle" = "Hiển thị vạch vượt trước hoặc chậm hơn và văn bản dự báo trên thanh sử dụng.";
 "weekly_progress_work_days_title" = "Tiến độ ngày làm việc hàng tuần";
 "weekly_progress_work_days_subtitle" = "Đặt ngày làm việc cho các vạch trên thanh sử dụng hằng tuần và phép tính nhịp độ.";
 "workday_tick_appearance_title" = "Kiểu vạch ngày làm việc";

@@ -616,6 +616,8 @@
 "display_mode_subtitle" = "選擇選單列要顯示的內容（進度會比較目前用量和時間進度）。";
 "show_quota_warning_markers_title" = "顯示配額提醒標記";
 "show_quota_warning_markers_subtitle" = "設定配額提醒後，在使用量條上繪製門檻刻度標記。";
+"show_pace_title" = "顯示用量節奏";
+"show_pace_subtitle" = "在用量條上顯示領先或落後的標記線和預測文字。";
 "weekly_progress_work_days_title" = "每週進度工作日標記";
 "weekly_progress_work_days_subtitle" = "設定用於每週用量條刻度與進度計算的工作日。";
 "workday_tick_appearance_title" = "工作日刻度外觀";

@@ -625,6 +625,8 @@
 "display_mode_subtitle" = "Scegli cosa mostrare nella barra menu (Andamento confronta utilizzo e atteso).";
 "show_quota_warning_markers_title" = "Mostra indicatori avviso quota";
 "show_quota_warning_markers_subtitle" = "Disegna tacche soglia sulle barre quando gli avvisi quota sono configurati.";
+"show_pace_title" = "Mostra il ritmo";
+"show_pace_subtitle" = "Mostra la striscia di anticipo o ritardo e il testo di previsione sulle barre di utilizzo.";
 "weekly_progress_work_days_title" = "Giorni lavorativi progresso settimanale";
 "weekly_progress_work_days_subtitle" = "Disegna i confini giornalieri sulle barre settimanali.";
 "workday_tick_appearance_title" = "Aspetto delle tacche dei giorni lavorativi";

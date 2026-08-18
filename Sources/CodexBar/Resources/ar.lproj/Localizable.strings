@@ -623,6 +623,8 @@
 "display_mode_subtitle" = "اختر ما تريد عرضه في شريط القائمة (Pace يظهر الاستخدام مقابل المتوقع).";
 "show_quota_warning_markers_title" = "عرض علامات التحذير من الحصص";
 "show_quota_warning_markers_subtitle" = "ارسم علامات عتبة على أشرطة الاستخدام عند تكوين تحذيرات الحصص.";
+"show_pace_title" = "إظهار وتيرة الاستخدام";
+"show_pace_subtitle" = "يعرض شريط التقدم أو التأخر ونص التوقعات على أشرطة الاستخدام.";
 "weekly_progress_work_days_title" = "أيام العمل الأسبوعية للتقدم";
 "weekly_progress_work_days_subtitle" = "حدد أيام عمل لمؤشرات شريط الاستخدام الأسبوعي وحسابات السرعة.";
 "workday_tick_appearance_title" = "مظهر علامات أيام العمل";

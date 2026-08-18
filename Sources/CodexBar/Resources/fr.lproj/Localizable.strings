@@ -617,6 +617,8 @@
 "display_mode_subtitle" = "Choisissez ce que vous voulez afficher dans la barre de menu (Pace affiche l'utilisation par rapport à celle attendue).";
 "show_quota_warning_markers_title" = "Afficher les marqueurs d'avertissement de quota";
 "show_quota_warning_markers_subtitle" = "Dessinez des coches de seuil sur les barres d’utilisation lorsque des avertissements de quota sont configurés.";
+"show_pace_title" = "Afficher le rythme";
+"show_pace_subtitle" = "Affiche la bande d'avance ou de retard et le texte de prévision sur les barres d'utilisation.";
 "weekly_progress_work_days_title" = "Jours de travail hebdomadaires";
 "weekly_progress_work_days_subtitle" = "Définit les jours ouvrés pour les repères des barres d’utilisation hebdomadaire et le calcul du rythme.";
 "workday_tick_appearance_title" = "Apparence des repères de jours ouvrés";

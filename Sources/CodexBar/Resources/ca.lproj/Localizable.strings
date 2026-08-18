@@ -601,6 +601,8 @@
 "display_mode_subtitle" = "Trieu què es mostra a la barra de menús (Ritme mostra l'ús respecte al previst).";
 "show_quota_warning_markers_title" = "Mostreu els marcadors d'avís de quota";
 "show_quota_warning_markers_subtitle" = "Dibuixa marques de llindar a les barres d'ús quan hi ha avisos de quota configurats.";
+"show_pace_title" = "Mostra el ritme";
+"show_pace_subtitle" = "Mostra la franja d'avançament o retard i el text de previsió a les barres d'ús.";
 "weekly_progress_work_days_title" = "Dies laborables del progrés setmanal";
 "weekly_progress_work_days_subtitle" = "Definiu els dies laborables per als marcadors de les barres d'ús setmanal i els càlculs de ritme.";
 "workday_tick_appearance_title" = "Aparença de les marques dels dies laborables";

@@ -603,6 +603,8 @@
 "display_mode_subtitle" = "Choose what to show in the menu bar (Pace shows usage vs. expected).";
 "show_quota_warning_markers_title" = "Show quota warning markers";
 "show_quota_warning_markers_subtitle" = "Draw threshold tick marks on usage bars when quota warnings are configured.";
+"show_pace_title" = "Show pace";
+"show_pace_subtitle" = "Show the ahead/behind stripe and forecast text on usage bars.";
 "weekly_progress_work_days_title" = "Work days";
 "weekly_progress_work_days_subtitle" = "Set work days for weekly usage-bar markers and pace calculations.";
 "workday_tick_appearance_title" = "Workday tick appearance";

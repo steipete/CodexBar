@@ -614,6 +614,8 @@
 "display_mode_subtitle" = "Escolha o que mostrar na barra de menus (Ritmo mostra uso vs. esperado).";
 "show_quota_warning_markers_title" = "Mostrar marcadores de alerta de cota";
 "show_quota_warning_markers_subtitle" = "Desenha marcas de limite nas barras de uso quando os alertas de cota estão configurados.";
+"show_pace_title" = "Mostrar o ritmo";
+"show_pace_subtitle" = "Mostra a faixa de adiantamento ou atraso e o texto de previsão nas barras de uso.";
 "weekly_progress_work_days_title" = "Dias úteis no progresso semanal";
 "weekly_progress_work_days_subtitle" = "Define os dias úteis para marcadores das barras de uso semanal e cálculos de ritmo.";
 "workday_tick_appearance_title" = "Aparência das marcas de dias úteis";
