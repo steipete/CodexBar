@@ -905,7 +905,15 @@ final class JavaScriptCoreProviderPluginEngine: ProviderPluginEngine, @unchecked
                 guard managementAuth.isBoolean,
                       managementAuth.toBool(),
                       self.manifest.id.firstPartyProvider == .openrouter,
-                      self.manifest.settings.first(where: { $0.key == managementSecret })?.kind == .secure
+                      self.manifest.settings.first(where: { $0.key == managementSecret })?.kind == .secure,
+                      method == "GET",
+                      url.scheme?.lowercased() == "https",
+                      url.host?.lowercased() == "openrouter.ai",
+                      url.port == nil,
+                      url.user == nil,
+                      url.password == nil,
+                      url.path == "/api/v1/activity",
+                      url.fragment == nil
                 else {
                     throw ProviderPluginError.secretAccess(
                         "OpenRouter management auth is unavailable for this plugin")
