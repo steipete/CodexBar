@@ -897,6 +897,8 @@ final class JavaScriptCoreProviderPluginEngine: ProviderPluginEngine, @unchecked
 
         if let auth = self.manifest.auth {
             var secretName = auth.secret
+            // Provider-specific by design: first-party OpenRouter Activity uses a separately scoped management key,
+            // and the broker pins that exceptional credential to the official read-only endpoint.
             if let managementAuth = options.forProperty("openRouterManagementAuth"),
                !managementAuth.isUndefined,
                !managementAuth.isNull
