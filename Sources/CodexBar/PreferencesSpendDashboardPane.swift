@@ -2,6 +2,7 @@ import AppKit
 import Charts
 import CodexBarCore
 import SwiftUI
+import UniformTypeIdentifiers
 
 func spendDashboardDayRangeText(_ days: Int) -> String {
     if days >= SpendDashboardSource.scanDays {
@@ -411,6 +412,12 @@ struct SpendDashboardPane: View {
     private var shareAction: some View {
         HStack {
             Button {
+                self.copyJSON()
+            } label: {
+                Label(L("Copy JSON"), systemImage: "doc.on.doc")
+            }
+            .disabled(self.controller.model.groups.isEmpty)
+            Button {
                 self.exportJSON()
             } label: {
                 Label(L("Export JSON"), systemImage: "square.and.arrow.down")
@@ -427,18 +434,16 @@ struct SpendDashboardPane: View {
         }
     }
 
-    private func exportJSON() {
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-        encoder.dateEncodingStrategy = .iso8601
-        let payload = SpendDashboardExportPayload.make(
+    private func copyJSON() {
+        _ = SpendDashboardJSONExporter.copyToPasteboard(
             model: self.controller.model,
             hiddenSourceIDs: self.settings.spendDashboardHiddenSourceIDs)
-        guard let data = try? encoder.encode(payload),
-              let json = String(bytes: data, encoding: .utf8)
-        else { return }
-        NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(json, forType: .string)
+    }
+
+    private func exportJSON() {
+        _ = SpendDashboardJSONExporter.save(
+            model: self.controller.model,
+            hiddenSourceIDs: self.settings.spendDashboardHiddenSourceIDs)
     }
 
     private var sharePayload: ShareStatsPayload? {
@@ -1024,6 +1029,75 @@ struct SpendDashboardExportPayload: Encodable, Sendable {
                     })
             },
             hiddenSourceIDs: hiddenSourceIDs)
+    }
+}
+
+enum SpendDashboardJSONExporter {
+    static func encodedData(model: SpendDashboardModel, hiddenSourceIDs: [String]) throws -> Data {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        encoder.dateEncodingStrategy = .iso8601
+        return try encoder.encode(
+            SpendDashboardExportPayload.make(model: model, hiddenSourceIDs: hiddenSourceIDs))
+    }
+
+    static func defaultFilename(days: Int) -> String {
+        if days >= SpendDashboardSource.scanDays {
+            return "codexbar-spend-all-time.json"
+        }
+        return "codexbar-spend-last-\(days)-days.json"
+    }
+
+    static func write(_ data: Data, to url: URL) throws {
+        try data.write(to: url, options: .atomic)
+    }
+
+    @MainActor
+    static func copyToPasteboard(
+        model: SpendDashboardModel,
+        hiddenSourceIDs: [String],
+        pasteboard: NSPasteboard = .general) -> Bool
+    {
+        guard let data = try? self.encodedData(model: model, hiddenSourceIDs: hiddenSourceIDs),
+              let json = String(bytes: data, encoding: .utf8)
+        else {
+            NSSound.beep()
+            return false
+        }
+        pasteboard.clearContents()
+        return pasteboard.setString(json, forType: .string)
+    }
+
+    @MainActor
+    static func save(
+        model: SpendDashboardModel,
+        hiddenSourceIDs: [String],
+        chooseDestination: ((String) -> URL?)? = nil) -> Bool
+    {
+        guard let data = try? self.encodedData(model: model, hiddenSourceIDs: hiddenSourceIDs) else {
+            NSSound.beep()
+            return false
+        }
+        let filename = self.defaultFilename(days: model.requestedDays)
+        let url: URL?
+        if let chooseDestination {
+            url = chooseDestination(filename)
+        } else {
+            let panel = NSSavePanel()
+            panel.allowedContentTypes = [.json]
+            panel.canCreateDirectories = true
+            panel.nameFieldStringValue = filename
+            guard panel.runModal() == .OK else { return false }
+            url = panel.url
+        }
+        guard let url else { return false }
+        do {
+            try self.write(data, to: url)
+            return true
+        } catch {
+            NSSound.beep()
+            return false
+        }
     }
 }
 

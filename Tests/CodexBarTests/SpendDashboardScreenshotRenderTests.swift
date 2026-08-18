@@ -61,6 +61,7 @@ final class SpendDashboardScreenshotRenderTests: XCTestCase {
         let renders: [(String, AnyView)] = [
             ("usage-spend-30d", AnyView(Self.chrome(selectedDays: 30, group: thirtyGroup))),
             ("usage-spend-all", AnyView(Self.chrome(selectedDays: SpendDashboardSource.scanDays, group: allGroup))),
+            ("usage-spend-export-actions", AnyView(Self.exportActionsChrome())),
             (
                 "overview-spend-summary",
                 AnyView(
@@ -116,6 +117,25 @@ final class SpendDashboardScreenshotRenderTests: XCTestCase {
         }
         .padding(24)
         .frame(width: 760)
+        .background(Color(nsColor: .windowBackgroundColor))
+    }
+
+    private static func exportActionsChrome() -> some View {
+        HStack {
+            Button {} label: {
+                Label("Copy JSON", systemImage: "doc.on.doc")
+            }
+            Button {} label: {
+                Label("Export JSON", systemImage: "square.and.arrow.down")
+            }
+            Spacer()
+            Button {} label: {
+                Label("Share Stats…", systemImage: "square.and.arrow.up")
+            }
+        }
+        .padding(24)
+        .frame(width: 760)
+        .environment(\.locale, Locale(identifier: "en_US_POSIX"))
         .background(Color(nsColor: .windowBackgroundColor))
     }
 

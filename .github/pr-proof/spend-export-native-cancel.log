@@ -1,0 +1,7 @@
+panel: NSSavePanel
+action: cancel
+destination: none
+filesCreated: 0
+directoryUnchanged: true
+screenshot: spend-export-cancel-panel.png
+injectedDestination: false

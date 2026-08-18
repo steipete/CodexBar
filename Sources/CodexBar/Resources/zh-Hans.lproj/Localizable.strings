@@ -1325,6 +1325,7 @@
 "Include OpenCodex usage logs" = "纳入 OpenCodex 用量日志";
 "Hide native Codex when OpenCodex is present" = "存在 OpenCodex 时隐藏原生 Codex";
 "Export JSON" = "导出 JSON";
+"Copy JSON" = "复制 JSON";
 "Sources" = "来源";
 "OpenCodex" = "OpenCodex";
 "≈%d full 5h windows of weekly left · %d windows until reset" = "每周额度约剩 %d 个完整 5 小时窗口 · 距重置还有 %d 个窗口";

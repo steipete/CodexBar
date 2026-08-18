@@ -1487,5 +1487,6 @@
 "Include OpenCodex usage logs" = "Include OpenCodex usage logs";
 "Hide native Codex when OpenCodex is present" = "Hide native Codex when OpenCodex is present";
 "Export JSON" = "Export JSON";
+"Copy JSON" = "คัดลอก JSON";
 "Sources" = "Sources";
 "OpenCodex" = "OpenCodex";

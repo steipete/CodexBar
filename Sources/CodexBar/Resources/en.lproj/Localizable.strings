@@ -1330,6 +1330,7 @@
 "Include OpenCodex usage logs" = "Include OpenCodex usage logs";
 "Hide native Codex when OpenCodex is present" = "Hide native Codex when OpenCodex is present";
 "Export JSON" = "Export JSON";
+"Copy JSON" = "Copy JSON";
 "Sources" = "Sources";
 "OpenCodex" = "OpenCodex";
 "≈%d full 5h windows of weekly left · %d windows until reset" = "≈%d full 5h windows of weekly left · %d windows until reset";
