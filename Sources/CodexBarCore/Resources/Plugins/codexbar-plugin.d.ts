@@ -106,8 +106,6 @@ interface CodexBarUsageSnapshot {
 interface CodexBarHTTPRequestOptions {
   headers?: Readonly<Record<string, string>>;
   timeoutSeconds?: number;
-  /** Use another declared secure setting with the provider's configured auth scheme. */
-  authSecret?: string;
 }
 
 interface CodexBarHTTPResponse {

@@ -897,18 +897,20 @@ final class JavaScriptCoreProviderPluginEngine: ProviderPluginEngine, @unchecked
 
         if let auth = self.manifest.auth {
             var secretName = auth.secret
-            if let requestedSecret = options.forProperty("authSecret"),
-               !requestedSecret.isUndefined,
-               !requestedSecret.isNull
+            if let managementAuth = options.forProperty("openRouterManagementAuth"),
+               !managementAuth.isUndefined,
+               !managementAuth.isNull
             {
-                guard requestedSecret.isString else {
-                    throw ProviderPluginError.secretAccess("request auth secret must name a declared secure setting")
-                }
-                secretName = requestedSecret.toString()
-                guard self.manifest.settings.first(where: { $0.key == secretName })?.kind == .secure else {
+                let managementSecret = "OPENROUTER_MANAGEMENT_API_KEY"
+                guard managementAuth.isBoolean,
+                      managementAuth.toBool(),
+                      self.manifest.id.firstPartyProvider == .openrouter,
+                      self.manifest.settings.first(where: { $0.key == managementSecret })?.kind == .secure
+                else {
                     throw ProviderPluginError.secretAccess(
-                        "request auth secret must name a declared secure setting")
+                        "OpenRouter management auth is unavailable for this plugin")
                 }
+                secretName = managementSecret
             }
             guard let secret = secrets[secretName], !secret.isEmpty else {
                 throw ProviderPluginError.secretAccess("required auth secret is unavailable")

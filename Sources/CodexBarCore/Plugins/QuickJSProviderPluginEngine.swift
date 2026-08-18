@@ -731,14 +731,17 @@ final class QuickJSProviderPluginEngine: ProviderPluginEngine, @unchecked Sendab
         }
         if let auth = self.manifest.auth {
             var secretName = auth.secret
-            if let requestedSecret = options["authSecret"] {
-                guard let requestedSecret = requestedSecret as? String,
-                      self.manifest.settings.first(where: { $0.key == requestedSecret })?.kind == .secure
+            if let managementAuth = options["openRouterManagementAuth"] {
+                let managementSecret = "OPENROUTER_MANAGEMENT_API_KEY"
+                guard let managementAuth = managementAuth as? Bool,
+                      managementAuth,
+                      self.manifest.id.firstPartyProvider == .openrouter,
+                      self.manifest.settings.first(where: { $0.key == managementSecret })?.kind == .secure
                 else {
                     throw ProviderPluginError.secretAccess(
-                        "request auth secret must name a declared secure setting")
+                        "OpenRouter management auth is unavailable for this plugin")
                 }
-                secretName = requestedSecret
+                secretName = managementSecret
             }
             guard let credential = secrets[secretName], !credential.isEmpty else {
                 throw ProviderPluginError.secretAccess("required auth secret is unavailable")

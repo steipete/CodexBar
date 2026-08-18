@@ -120,11 +120,11 @@ defineProvider({
         const [historyResponse, todayResponse] = await Promise.all([
           ctx.http.get(activityURL, {
             timeoutSeconds: optionalRequestTimeoutSeconds,
-            authSecret: "OPENROUTER_MANAGEMENT_API_KEY",
+            openRouterManagementAuth: true,
           }),
           ctx.http.get(`${activityURL}?date=${encodeURIComponent(today)}`, {
             timeoutSeconds: optionalRequestTimeoutSeconds,
-            authSecret: "OPENROUTER_MANAGEMENT_API_KEY",
+            openRouterManagementAuth: true,
           }),
         ]);
         if (historyResponse.status !== 200 || todayResponse.status !== 200) {

@@ -25,7 +25,9 @@
       const hostOptions = { bodyJSON };
       if (opts.headers !== undefined) hostOptions.headers = opts.headers;
       if (opts.timeoutSeconds !== undefined) hostOptions.timeoutSeconds = opts.timeoutSeconds;
-      if (opts.authSecret !== undefined) hostOptions.authSecret = opts.authSecret;
+      if (opts.openRouterManagementAuth !== undefined) {
+        hostOptions.openRouterManagementAuth = opts.openRouterManagementAuth;
+      }
       return new Promise((resolve, reject) => host.http(String(url), hostOptions, "POST", true, resolve, reject));
     },
   });
