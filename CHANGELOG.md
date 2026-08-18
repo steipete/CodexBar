@@ -2,9 +2,11 @@
 
 ## 0.53.1 — Unreleased
 
+- Usage & Spend: chart OpenCodex spend by request hour when proxy logs are enabled, without inventing hourly totals from native Codex session timestamps.
 - Added direct primary/secondary/tertiary usage lane tokens to provider-specific menu bar layouts, so Cursor layouts can pin `Total %`, `Cursor %`, or `Third Party %` (#3038, #3039). Thanks @giuseppebisemi!
 - Keep custom menu bar layouts when an older release reads the new usage-lane tokens, map Kimi lanes through its reversed semantic windows, honor layout edits made in the older release, and refresh direct tertiary lanes when they change independently.
 - Fixed the cost, credits, and usage-breakdown charts so the hover highlight aligns with the bar under the cursor instead of sitting half a day off (#3040, #3049).
+- Chart OpenCodex spend by per-request hour in the pinned timezone instead of session last-activity (#3031). Thanks @Yuxin-Qiao!
 - Fan OpenCodex usage into the matching Codex, OpenCode Go, Kimi, and DeepSeek subscription rows and exclude routed models from Codex session spend totals (#3044, #3046, #3047). Thanks @Yuxin-Qiao!
 - Fixed GPT-5.6 Terra/Luna historical cost aggregates to use the rates in effect on each request day instead of silently repricing pre-2026-07-30 usage at the cut rates (#2671, #3037). Thanks @Yuxin-Qiao!
 - Union spend dashboard token activity across sources with partial coverage instead of blanking days any single source missed (#3042). Thanks @Yuxin-Qiao!

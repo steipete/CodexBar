@@ -1331,6 +1331,12 @@
 "By subscription" = "แยกตามการสมัครสมาชิก";
 "No model-level history" = "ไม่มีประวัติระดับโมเดล";
 "Daily estimated spend" = "ค่าใช้จ่ายรายวันโดยประมาณ";
+"Hourly estimated spend" = "ค่าใช้จ่ายรายชั่วโมงโดยประมาณ";
+"Hour" = "ชั่วโมง";
+"%d hours of usage data across %d services" = "ข้อมูลการใช้งาน %d ชั่วโมง จาก %d บริการ";
+"1 hour of usage data across 1 service" = "ข้อมูลการใช้งาน 1 ชั่วโมง จาก 1 บริการ";
+"%d hours of usage data across 1 service" = "ข้อมูลการใช้งาน %d ชั่วโมง จาก 1 บริการ";
+"1 hour of usage data across %d services" = "ข้อมูลการใช้งาน 1 ชั่วโมง จาก %d บริการ";
 "≈%d full 5h windows of weekly left · %d windows until reset" = "เหลือโควตารายสัปดาห์ ≈%d ช่วงเต็ม 5 ชม. · อีก %d ช่วงจนรีเซ็ต";
 "Weekly cannot run out before reset at this pace" = "ด้วยอัตรานี้ โควตารายสัปดาห์จะไม่หมดก่อนรีเซ็ต";
 "Weekly can run out ≈%d windows early" = "โควตารายสัปดาห์อาจหมดเร็วขึ้น ≈%d ช่วง";

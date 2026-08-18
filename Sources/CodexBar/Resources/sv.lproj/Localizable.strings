@@ -1326,6 +1326,12 @@
 "By subscription" = "Per abonnemang";
 "No model-level history" = "Ingen historik på modellnivå";
 "Daily estimated spend" = "Uppskattade dagliga utgifter";
+"Hourly estimated spend" = "Uppskattade utgifter per timme";
+"Hour" = "Timme";
+"%d hours of usage data across %d services" = "%d timmar användningsdata över %d tjänster";
+"1 hour of usage data across 1 service" = "1 timme användningsdata över 1 tjänst";
+"%d hours of usage data across 1 service" = "%d timmar användningsdata över 1 tjänst";
+"1 hour of usage data across %d services" = "1 timme användningsdata över %d tjänster";
 "≈%d full 5h windows of weekly left · %d windows until reset" = "≈%d fulla 5-timmarsfönster av veckokvoten kvar · %d fönster till återställning";
 "Weekly cannot run out before reset at this pace" = "Veckokvoten kan inte ta slut före återställningen i den här takten";
 "Weekly can run out ≈%d windows early" = "Veckokvoten kan ta slut ≈%d fönster tidigare";

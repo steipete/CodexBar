@@ -58,10 +58,75 @@ final class SpendDashboardScreenshotRenderTests: XCTestCase {
         XCTAssertFalse(thirtyGroup.models.contains { $0.modelName == "MiniMax-M3" })
         XCTAssertTrue(allGroup.models.contains { $0.modelName == "MiniMax-M3" })
 
+        let hourlyHours = [9, 10, 11, 14, 16].map { hour -> (Date, Double) in
+            let date = calendar.date(from: DateComponents(year: 2026, month: 8, day: 17, hour: hour)) ?? now
+            let cost = [9: 0.4, 10: 1.1, 11: 0.7, 14: 0.9, 16: 0.3][hour] ?? 0.5
+            return (date, cost)
+        }
+        let openCodex = SpendDashboardModel.ProviderInput(
+            id: SpendDashboardModel.openCodexSourceID,
+            provider: .codex,
+            displayName: "OpenCodex",
+            snapshot: CostUsageTokenSnapshot(
+                sessionTokens: 80,
+                sessionCostUSD: 3.4,
+                last30DaysTokens: 80,
+                last30DaysCostUSD: 3.4,
+                historyDays: 7,
+                costProvenance: .listPriceEstimate,
+                daily: [Self.entry(day: recentDay, cost: 3.4, tokens: 80, model: "gpt-5.4")],
+                hourly: hourlyHours.map { CostUsageHourlyEntry(hour: $0.0, totalTokens: 16, costUSD: $0.1) },
+                updatedAt: now),
+            sourceKind: .openCodex)
+        let nativeCodex = SpendDashboardModel.ProviderInput(
+            id: "codex",
+            provider: .codex,
+            displayName: "Codex",
+            snapshot: CostUsageTokenSnapshot(
+                sessionTokens: 40,
+                sessionCostUSD: 2.1,
+                last30DaysTokens: 40,
+                last30DaysCostUSD: 2.1,
+                historyDays: 7,
+                costProvenance: .listPriceEstimate,
+                daily: [Self.entry(day: recentDay, cost: 2.1, tokens: 40, model: "gpt-5.4")],
+                sessions: [
+                    CostUsageSessionBreakdown(
+                        sessionID: "native-1",
+                        lastActivity: now,
+                        inputTokens: 30,
+                        cachedInputTokens: nil,
+                        outputTokens: 10,
+                        totalTokens: 40,
+                        requestCount: 1,
+                        costUSD: 2.1,
+                        modelBreakdowns: []),
+                ],
+                updatedAt: now))
+        let hourly = SpendDashboardModel.build(
+            inputs: [openCodex, nativeCodex],
+            requestedDays: 7,
+            now: now,
+            calendar: calendar)
+        let selectedDay = calendar.startOfDay(for: now)
+        let selected = SpendDashboardModel.build(
+            inputs: [openCodex, nativeCodex],
+            requestedDays: 7,
+            now: now,
+            calendar: calendar,
+            selectedDay: selectedDay)
+        let hourlyGroup = try XCTUnwrap(hourly.groups.first)
+        let selectedGroup = try XCTUnwrap(selected.groups.first)
+        XCTAssertFalse(hourlyGroup.hourlyPoints.isEmpty)
+        XCTAssertEqual(Set(hourlyGroup.hourlyPoints.map(\.sourceID)), [SpendDashboardModel.openCodexSourceID])
+        XCTAssertEqual(selectedGroup.hourlyChartDomain?.lowerBound, selectedDay)
+
         let renders: [(String, AnyView)] = [
             ("usage-spend-30d", AnyView(Self.chrome(selectedDays: 30, group: thirtyGroup))),
             ("usage-spend-all", AnyView(Self.chrome(selectedDays: SpendDashboardSource.scanDays, group: allGroup))),
             ("usage-spend-export-actions", AnyView(Self.exportActionsChrome())),
+            ("usage-spend-hourly", AnyView(Self.chrome(selectedDays: 7, group: hourlyGroup))),
+            ("usage-spend-hourly-selected-day", AnyView(Self.chrome(selectedDays: 7, group: selectedGroup))),
             (
                 "overview-spend-summary",
                 AnyView(
@@ -117,6 +182,8 @@ final class SpendDashboardScreenshotRenderTests: XCTestCase {
         }
         .padding(24)
         .frame(width: 760)
+        .environment(\.locale, Locale(identifier: "en_US_POSIX"))
+        .environment(\.timeZone, group.timeZone)
         .background(Color(nsColor: .windowBackgroundColor))
     }
 

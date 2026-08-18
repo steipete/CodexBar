@@ -1312,6 +1312,12 @@
 "By subscription" = "By subscription";
 "No model-level history" = "No model-level history";
 "Daily estimated spend" = "Daily estimated spend";
+"Hourly estimated spend" = "Hourly estimated spend";
+"Hour" = "Hour";
+"%d hours of usage data across %d services" = "%d hours of usage data across %d services";
+"1 hour of usage data across 1 service" = "1 hour of usage data across 1 service";
+"%d hours of usage data across 1 service" = "%d hours of usage data across 1 service";
+"1 hour of usage data across %d services" = "1 hour of usage data across %d services";
 "Input" = "Input";
 "Output" = "Output";
 "Cache write" = "Cache write";

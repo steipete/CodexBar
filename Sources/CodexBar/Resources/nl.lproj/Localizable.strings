@@ -1327,6 +1327,12 @@
 "By subscription" = "Per abonnement";
 "No model-level history" = "Geen geschiedenis op modelniveau";
 "Daily estimated spend" = "Geschatte dagelijkse uitgaven";
+"Hourly estimated spend" = "Geschatte uitgaven per uur";
+"Hour" = "Uur";
+"%d hours of usage data across %d services" = "%d uur gebruiksdata over %d diensten";
+"1 hour of usage data across 1 service" = "1 uur gebruiksdata over 1 dienst";
+"%d hours of usage data across 1 service" = "%d uur gebruiksdata over 1 dienst";
+"1 hour of usage data across %d services" = "1 uur gebruiksdata over %d diensten";
 "≈%d full 5h windows of weekly left · %d windows until reset" = "≈%d volledige vensters van 5 uur aan weeklimiet over · %d vensters tot reset";
 "Weekly cannot run out before reset at this pace" = "Het weeklimiet kan bij dit tempo niet vóór de reset opraken";
 "Weekly can run out ≈%d windows early" = "Het weeklimiet kan ≈%d vensters eerder opraken";

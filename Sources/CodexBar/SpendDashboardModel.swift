@@ -182,6 +182,9 @@ struct SpendDashboardModel: Equatable, Sendable {
         let overflowModelCount: Int
         let displayedModels: [ModelRow]
         let selectedDay: Date?
+        let hourlyPoints: [HourlyPoint]
+        let hourlyChartDomain: ClosedRange<Date>?
+        let timeZone: TimeZone
 
         var id: String {
             self.currencyCode
@@ -204,7 +207,10 @@ struct SpendDashboardModel: Equatable, Sendable {
             meteredCost: Double? = nil,
             sessions: [SessionRow] = [],
             overflowModelCount: Int = 0,
-            selectedDay: Date? = nil)
+            selectedDay: Date? = nil,
+            hourlyPoints: [HourlyPoint] = [],
+            hourlyChartDomain: ClosedRange<Date>? = nil,
+            timeZone: TimeZone = .current)
         {
             self.currencyCode = currencyCode
             self.providers = providers
@@ -224,6 +230,9 @@ struct SpendDashboardModel: Equatable, Sendable {
             self.overflowModelCount = overflowModelCount
             self.displayedModels = Array(models.prefix(Self.modelRowDisplayLimit))
             self.selectedDay = selectedDay
+            self.hourlyPoints = hourlyPoints
+            self.hourlyChartDomain = hourlyChartDomain
+            self.timeZone = timeZone
         }
 
         static let modelRowDisplayLimit = 8
@@ -241,12 +250,16 @@ struct SpendDashboardModel: Equatable, Sendable {
     }
 
     struct HourlyPoint: Identifiable, Equatable, Sendable {
+        let sourceID: String
+        let provider: UsageProvider
+        let providerName: String
         let hour: Date
-        let tokens: Int
-        let cost: Double?
+        let cost: Double
+        let stackStart: Double
+        let stackEnd: Double
 
-        var id: Date {
-            self.hour
+        var id: String {
+            "\(self.sourceID):\(Int(self.hour.timeIntervalSince1970))"
         }
     }
 
@@ -254,7 +267,6 @@ struct SpendDashboardModel: Equatable, Sendable {
     let groups: [CurrencyGroup]
     let availableSources: [SourceFilterItem]
     let tokenActivity: [TokenActivityPoint]
-    let hourlyPoints: [HourlyPoint]
     let selectedDay: Date?
 
     static let tokenActivityDayCount = 365
@@ -265,14 +277,12 @@ struct SpendDashboardModel: Equatable, Sendable {
         groups: [CurrencyGroup],
         availableSources: [SourceFilterItem] = [],
         tokenActivity: [TokenActivityPoint] = [],
-        hourlyPoints: [HourlyPoint] = [],
         selectedDay: Date? = nil)
     {
         self.requestedDays = requestedDays
         self.groups = groups
         self.availableSources = availableSources
         self.tokenActivity = tokenActivity
-        self.hourlyPoints = hourlyPoints
         self.selectedDay = selectedDay
     }
 
@@ -326,11 +336,6 @@ struct SpendDashboardModel: Equatable, Sendable {
             availableSources: availableSources,
             tokenActivity: Self.tokenActivity(
                 inputs: visibleInputs,
-                now: now,
-                calendar: calculationCalendar),
-            hourlyPoints: Self.hourlyPoints(
-                inputs: visibleInputs,
-                days: days,
                 now: now,
                 calendar: calculationCalendar),
             selectedDay: selectedDay.map { calculationCalendar.startOfDay(for: $0) })
@@ -473,6 +478,11 @@ struct SpendDashboardModel: Equatable, Sendable {
         case (false, false): .unknown
         }
         let overflowCount = max(0, modelSummary.rows.count - CurrencyGroup.modelRowDisplayLimit)
+        let hourlyPoints = Self.hourlyPoints(
+            summaries: summaries,
+            selectedDay: selectedDay,
+            bounds: bounds,
+            calendar: calendar)
         return CurrencyGroup(
             currencyCode: currencyCode,
             providers: providers,
@@ -490,7 +500,13 @@ struct SpendDashboardModel: Equatable, Sendable {
             meteredCost: sawMetered ? metered : nil,
             sessions: Self.sessionRows(summaries: summaries, bounds: bounds, calendar: calendar),
             overflowModelCount: overflowCount,
-            selectedDay: selectedDay)
+            selectedDay: selectedDay,
+            hourlyPoints: hourlyPoints,
+            hourlyChartDomain: Self.hourlyChartDomain(
+                points: hourlyPoints,
+                selectedDay: selectedDay,
+                calendar: calendar),
+            timeZone: calendar.timeZone)
     }
 
     private static func summaries(_ summaries: [InputSummary], matching selectedDay: Date?) -> [InputSummary] {
@@ -1146,29 +1162,75 @@ struct SpendDashboardModel: Equatable, Sendable {
         return Array(rows.prefix(12))
     }
 
-    static func hourlyPoints(
-        inputs: [ProviderInput],
-        days: Int,
-        now: Date,
+    private static func hourlyPoints(
+        summaries: [InputSummary],
+        selectedDay: Date?,
+        bounds: ClosedRange<Date>,
         calendar: Calendar) -> [HourlyPoint]
     {
-        let today = calendar.startOfDay(for: now)
-        guard let windowStart = calendar.date(byAdding: .day, value: -(days - 1), to: today) else { return [] }
-        var totals: [Date: (tokens: Int, cost: Double)] = [:]
-        for input in inputs {
-            for session in input.snapshot.sessions {
-                let hour = calendar.dateInterval(of: .hour, for: session.lastActivity)?.start ?? session.lastActivity
-                guard hour >= windowStart else { continue }
-                let current = totals[hour] ?? (0, 0)
-                totals[hour] = (
-                    current.tokens + max(0, session.totalTokens ?? 0),
-                    current.cost + max(0, session.costUSD ?? 0))
+        var aggregates: [DailyKey: DailyAccumulator] = [:]
+        for summary in summaries where !summary.hasInvalidCostHistory {
+            let input = summary.input
+            for entry in input.snapshot.hourly {
+                let hourDay = calendar.startOfDay(for: entry.hour)
+                guard bounds.contains(hourDay) else { continue }
+                if let selectedDay, !calendar.isDate(entry.hour, inSameDayAs: selectedDay) {
+                    continue
+                }
+                let key = DailyKey(day: entry.hour, sourceID: input.id)
+                var aggregate = aggregates[key] ?? DailyAccumulator(
+                    provider: input.provider,
+                    providerName: input.displayName,
+                    cost: 0)
+                if let cost = Self.validCost(entry.costUSD).map({ $0 * summary.costMultiplier }) {
+                    aggregate.cost = Self.add(cost, to: aggregate.cost, overflowed: &aggregate.overflowed)
+                } else {
+                    aggregate.invalid = true
+                }
+                aggregates[key] = aggregate
             }
         }
-        return totals.keys.sorted().map { hour in
-            let value = totals[hour] ?? (0, 0)
-            return HourlyPoint(hour: hour, tokens: value.tokens, cost: value.cost > 0 ? value.cost : nil)
+
+        let byHour = Dictionary(grouping: aggregates, by: { $0.key.day })
+        return byHour.keys.sorted().flatMap { hour -> [HourlyPoint] in
+            let rows = (byHour[hour] ?? [])
+                .filter { !$0.value.invalid && !$0.value.overflowed && $0.value.cost != nil }
+                .sorted { $0.key.sourceID < $1.key.sourceID }
+            guard let total = Self.completeCostSum(rows.map(\.value.cost)), total.isFinite else { return [] }
+            var cursor = 0.0
+            var points: [HourlyPoint] = []
+            for (key, value) in rows {
+                guard let cost = value.cost else { return [] }
+                let start = cursor
+                cursor += cost
+                points.append(HourlyPoint(
+                    sourceID: key.sourceID,
+                    provider: value.provider,
+                    providerName: value.providerName,
+                    hour: hour,
+                    cost: cost,
+                    stackStart: start,
+                    stackEnd: cursor))
+            }
+            return points
         }
+    }
+
+    private static func hourlyChartDomain(
+        points: [HourlyPoint],
+        selectedDay: Date?,
+        calendar: Calendar) -> ClosedRange<Date>?
+    {
+        if let selectedDay {
+            let start = calendar.startOfDay(for: selectedDay)
+            let end = calendar.date(byAdding: .day, value: 1, to: start) ?? start
+            return start...end
+        }
+        guard let first = points.map(\.hour).min(),
+              let last = points.map(\.hour).max(),
+              let end = calendar.date(byAdding: .hour, value: 1, to: last)
+        else { return nil }
+        return first...end
     }
 }
 

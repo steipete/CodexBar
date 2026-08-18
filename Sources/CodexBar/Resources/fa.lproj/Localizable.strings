@@ -1331,6 +1331,12 @@
 "By subscription" = "بر اساس اشتراک";
 "No model-level history" = "تاریخچه‌ای در سطح مدل وجود ندارد";
 "Daily estimated spend" = "برآورد هزینه روزانه";
+"Hourly estimated spend" = "برآورد هزینه ساعتی";
+"Hour" = "ساعت";
+"%d hours of usage data across %d services" = "%d ساعت داده استفاده در %d سرویس";
+"1 hour of usage data across 1 service" = "1 ساعت داده استفاده در 1 سرویس";
+"%d hours of usage data across 1 service" = "%d ساعت داده استفاده در 1 سرویس";
+"1 hour of usage data across %d services" = "1 ساعت داده استفاده در %d سرویس";
 "≈%d full 5h windows of weekly left · %d windows until reset" = "حدود %d بازه کامل ۵ ساعته از سهم هفتگی مانده · %d بازه تا بازنشانی";
 "Weekly cannot run out before reset at this pace" = "با این روند، سهم هفتگی پیش از بازنشانی تمام نمی‌شود";
 "Weekly can run out ≈%d windows early" = "سهم هفتگی ممکن است حدود %d بازه زودتر تمام شود";
