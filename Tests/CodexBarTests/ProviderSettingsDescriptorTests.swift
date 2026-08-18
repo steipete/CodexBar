@@ -112,6 +112,26 @@ struct ProviderSettingsDescriptorTests {
     }
 
     @Test
+    func `openrouter exposes a secure management key setting`() throws {
+        let fixture = try self.makeSettingsFixture(suite: "ProviderSettingsDescriptorTests-openrouter-management")
+        let context = fixture.settingsContext(provider: .openrouter)
+
+        let fields = OpenRouterProviderImplementation().settingsFields(context: context)
+        let managementKey = try #require(fields.first(where: { $0.id == "openrouter-management-api-key" }))
+        managementKey.binding.wrappedValue = " fixture-management-key "
+
+        #expect(managementKey.title == "Management API key")
+        #expect(managementKey.kind == .secure)
+        #expect(managementKey.binding.wrappedValue == "fixture-management-key")
+        #expect(fixture.settings.providerConfig(for: .openrouter)?.pluginSecrets?[
+            OpenRouterSettingsReader.managementAPIKeyEnvironmentKey,
+        ] == "fixture-management-key")
+
+        managementKey.binding.wrappedValue = " "
+        #expect(fixture.settings.providerConfig(for: .openrouter)?.pluginSecrets == nil)
+    }
+
+    @Test
     func `open code cookie refresh commits replacement through user initiated gate`() async throws {
         let fixture = try self.makeSettingsFixture(suite: "ProviderSettingsDescriptorTests-opencode-refresh")
         let context = fixture.settingsContext(provider: .opencode)

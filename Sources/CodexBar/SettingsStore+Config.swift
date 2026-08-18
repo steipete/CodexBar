@@ -65,6 +65,25 @@ extension SettingsStore {
             set: { self[providerConfig: provider, field: field] = $0 })
     }
 
+    func providerConfigSecretBinding(
+        provider: UsageProvider,
+        key: String,
+        logField: String) -> Binding<String>
+    {
+        Binding(
+            get: {
+                self.configSnapshot.providerConfig(for: provider.instanceID)?.pluginSecrets?[key] ?? ""
+            },
+            set: { value in
+                self.updateProviderConfig(provider: provider) { entry in
+                    var secrets = entry.pluginSecrets ?? [:]
+                    secrets[key] = self.normalizedConfigValue(value)
+                    entry.pluginSecrets = secrets.isEmpty ? nil : secrets
+                }
+                self.logSecretUpdate(provider: provider, field: logField, value: value)
+            })
+    }
+
     func providerCookieSourceBinding(
         provider: UsageProvider,
         fallback: ProviderCookieSource) -> Binding<ProviderCookieSource>

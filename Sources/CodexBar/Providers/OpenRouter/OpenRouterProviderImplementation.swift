@@ -64,6 +64,18 @@ struct OpenRouterProviderImplementation: ProviderImplementation {
                 actions: [],
                 isVisible: nil,
                 onActivate: nil),
+            ProviderSettingsFieldDescriptor(
+                id: "openrouter-management-api-key",
+                title: "Management API key",
+                subtitle: "Optional. Enables exact 30-day account spend from OpenRouter Activity.",
+                kind: .secure,
+                placeholder: "sk-or-v1-...",
+                binding: context.providerConfigSecretBinding(
+                    key: OpenRouterSettingsReader.managementAPIKeyEnvironmentKey,
+                    logField: "managementAPIKey"),
+                actions: [],
+                isVisible: nil,
+                onActivate: nil),
         ]
     }
 }
