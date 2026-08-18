@@ -91,6 +91,27 @@ struct MenuBarLayoutRendererTests {
     }
 
     @Test
+    func `Amp lane percentages announce snapshot presentation labels`() {
+        let renderer = MenuBarLayoutRenderer()
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(usedPercent: 10, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+            secondary: RateWindow(usedPercent: 9, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+            updatedAt: Date())
+        let output = renderer.render(
+            layout: MenuBarLayout(lines: [[
+                .lanePercent(lane: .primary),
+                .lanePercent(lane: .secondary),
+            ]]),
+            data: self.data(
+                provider: .amp,
+                laneLabels: MenuBarLayoutLaneLabels(provider: .amp, snapshot: snapshot)),
+            icon: nil,
+            options: self.options())
+
+        #expect(output.accessibilityLabel == "Other usage 10%, Orb usage 9%")
+    }
+
+    @Test
     func `Notion secondary pace announces monthly cadence`() {
         let renderer = MenuBarLayoutRenderer()
         let output = renderer.render(
@@ -189,6 +210,7 @@ struct MenuBarLayoutRendererTests {
             iconKey: "missing",
             providerName: nil,
             accountLabel: nil,
+            laneLabels: MenuBarLayoutLaneLabels(provider: .codex, snapshot: nil),
             primary: nil,
             secondary: nil,
             tertiary: nil,
@@ -274,6 +296,7 @@ struct MenuBarLayoutRendererTests {
             iconKey: "codex",
             providerName: "Codex",
             accountLabel: nil,
+            laneLabels: MenuBarLayoutLaneLabels(provider: .codex, snapshot: nil),
             primary: nil,
             secondary: nil,
             tertiary: nil,
@@ -495,6 +518,7 @@ struct MenuBarLayoutRendererTests {
             iconKey: "codex",
             providerName: "Codex",
             accountLabel: nil,
+            laneLabels: MenuBarLayoutLaneLabels(provider: .codex, snapshot: nil),
             primary: nil,
             secondary: nil,
             tertiary: nil,
@@ -588,6 +612,7 @@ struct MenuBarLayoutRendererTests {
     private func data(
         automaticUsedPercent: Double = 50,
         provider: UsageProvider = .codex,
+        laneLabels: MenuBarLayoutLaneLabels? = nil,
         automaticResetAt: Date? = nil)
         -> MenuBarLayoutRenderData
     {
@@ -596,6 +621,7 @@ struct MenuBarLayoutRendererTests {
             iconKey: "codex",
             providerName: "Codex",
             accountLabel: "user@example.com",
+            laneLabels: laneLabels ?? MenuBarLayoutLaneLabels(provider: provider, snapshot: nil),
             primary: MenuBarLayoutRenderWindow(RateWindow(
                 usedPercent: 10,
                 windowMinutes: 30 * 24 * 60,

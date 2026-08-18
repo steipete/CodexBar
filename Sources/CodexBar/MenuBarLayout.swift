@@ -13,10 +13,13 @@ enum MenuBarLayoutLane: String, CaseIterable, Codable, Hashable, Sendable {
     case secondary
     case tertiary
 
-    static func available(for provider: UsageProvider?) -> [Self] {
+    static func available(for provider: UsageProvider?, snapshot: UsageSnapshot? = nil) -> [Self] {
         guard let provider else { return [] }
         let capabilities = ProviderDescriptorRegistry.descriptor(for: provider).menuBarMetrics
-        return Self.allCases.filter { capabilities.supports($0.providerMetric) }
+        return Self.allCases.filter { lane in
+            guard capabilities.supports(lane.providerMetric) else { return false }
+            return lane != .tertiary || !capabilities.tertiaryRequiresWindow || snapshot?.tertiary != nil
+        }
     }
 
     private var providerMetric: ProviderMenuBarMetric {
@@ -24,6 +27,30 @@ enum MenuBarLayoutLane: String, CaseIterable, Codable, Hashable, Sendable {
         case .primary: .primary
         case .secondary: .secondary
         case .tertiary: .tertiary
+        }
+    }
+}
+
+struct MenuBarLayoutLaneLabels: Hashable {
+    let primary: String
+    let secondary: String
+    let tertiary: String
+
+    init(provider: UsageProvider, snapshot: UsageSnapshot?) {
+        let descriptor = ProviderDescriptorRegistry.descriptor(for: provider)
+        let labels = snapshot.map {
+            descriptor.presentation.rateWindowLabels(metadata: descriptor.metadata, snapshot: $0)
+        }
+        self.primary = L(labels?.primary ?? descriptor.metadata.sessionLabel)
+        self.secondary = L(labels?.secondary ?? descriptor.metadata.weeklyLabel)
+        self.tertiary = L(labels?.tertiary ?? descriptor.metadata.opusLabel ?? "Tertiary")
+    }
+
+    func label(for lane: MenuBarLayoutLane) -> String {
+        switch lane {
+        case .primary: self.primary
+        case .secondary: self.secondary
+        case .tertiary: self.tertiary
         }
     }
 }

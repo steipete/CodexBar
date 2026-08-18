@@ -125,11 +125,38 @@ struct MenuBarLayoutTests {
     }
 
     @Test
+    func `Amp lane tokens use snapshot presentation labels`() {
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(usedPercent: 10, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+            secondary: RateWindow(usedPercent: 20, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+            updatedAt: Date())
+
+        #expect(MenuBarLayoutToken.lanePercent(lane: .primary)
+            .editorLabel(provider: .amp, snapshot: snapshot) == "Other usage %")
+        #expect(MenuBarLayoutToken.lanePercent(lane: .secondary)
+            .editorLabel(provider: .amp, snapshot: snapshot) == "Orb usage %")
+    }
+
+    @Test
     func `direct lane tokens only expose provider supported metrics`() {
         #expect(MenuBarLayoutLane.available(for: nil).isEmpty)
         #expect(MenuBarLayoutLane.available(for: .mistral).isEmpty)
         #expect(MenuBarLayoutLane.available(for: .openrouter) == [.primary])
-        #expect(MenuBarLayoutLane.available(for: .cursor) == [.primary, .secondary, .tertiary])
+        #expect(MenuBarLayoutLane.available(for: .cursor) == [.primary, .secondary])
+
+        let legacySnapshot = UsageSnapshot(primary: nil, secondary: nil, updatedAt: Date())
+        #expect(MenuBarLayoutLane.available(for: .cursor, snapshot: legacySnapshot) == [.primary, .secondary])
+
+        let usageSnapshot = UsageSnapshot(
+            primary: nil,
+            secondary: nil,
+            tertiary: RateWindow(usedPercent: 17, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+            updatedAt: Date())
+        #expect(MenuBarLayoutLane.available(for: .cursor, snapshot: usageSnapshot) == [
+            .primary,
+            .secondary,
+            .tertiary,
+        ])
     }
 
     @Test

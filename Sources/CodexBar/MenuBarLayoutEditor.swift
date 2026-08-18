@@ -211,6 +211,10 @@ struct MenuBarLayoutEditor: View {
         }
     }
 
+    private var persistenceSnapshot: UsageSnapshot? {
+        self.persistenceProvider.flatMap { self.store.snapshot(for: $0.instanceID) }
+    }
+
     private var sizeBinding: Binding<MenuBarLayoutSize> {
         Binding(
             get: { self.settings.menuBarLayoutSize },
@@ -276,7 +280,8 @@ struct MenuBarLayoutEditor: View {
     }
 
     private var providerLaneTokens: [MenuBarLayoutToken] {
-        MenuBarLayoutLane.available(for: self.persistenceProvider).map { .lanePercent(lane: $0) }
+        MenuBarLayoutLane.available(for: self.persistenceProvider, snapshot: self.persistenceSnapshot)
+            .map { .lanePercent(lane: $0) }
     }
 
     var body: some View {
@@ -418,7 +423,9 @@ struct MenuBarLayoutEditor: View {
                         self.selectedPosition = position
                     } label: {
                         MenuBarLayoutChipLabel(
-                            title: token.editorLabel(provider: self.persistenceProvider),
+                            title: token.editorLabel(
+                                provider: self.persistenceProvider,
+                                snapshot: self.persistenceSnapshot),
                             systemImage: token.editorSystemImage,
                             isSelected: self.selectedPosition == position)
                             .draggable(MenuBarLayoutDragItem.placed(token, at: position, in: self.layout))
@@ -432,7 +439,9 @@ struct MenuBarLayoutEditor: View {
                     .dropDestination(for: MenuBarLayoutDragItem.self) { items, _ in
                         self.insert(items.first, at: position)
                     }
-                    .accessibilityLabel(token.editorAccessibilityLabel(provider: self.persistenceProvider))
+                    .accessibilityLabel(token.editorAccessibilityLabel(
+                        provider: self.persistenceProvider,
+                        snapshot: self.persistenceSnapshot))
                     .accessibilityHint(L("menu_bar_layout_chip_hint"))
                     .accessibilityAction(named: L("Remove")) {
                         self.remove(at: position)
@@ -503,7 +512,9 @@ struct MenuBarLayoutEditor: View {
                         self.write(MenuBarLayoutEditorMutations.append(token, to: self.layout))
                     } label: {
                         MenuBarLayoutChipLabel(
-                            title: token.editorLabel(provider: self.persistenceProvider),
+                            title: token.editorLabel(
+                                provider: self.persistenceProvider,
+                                snapshot: self.persistenceSnapshot),
                             systemImage: token.editorSystemImage,
                             isSelected: false)
                     }
@@ -514,7 +525,9 @@ struct MenuBarLayoutEditor: View {
                         return .handled
                     }
                     .draggable(MenuBarLayoutDragItem.palette(token))
-                    .accessibilityLabel(token.editorAccessibilityLabel(provider: self.persistenceProvider))
+                    .accessibilityLabel(token.editorAccessibilityLabel(
+                        provider: self.persistenceProvider,
+                        snapshot: self.persistenceSnapshot))
                     .accessibilityHint(L("menu_bar_layout_palette_hint"))
                 }
                 if group.includesLineBreak {
@@ -732,6 +745,7 @@ struct MenuBarLayoutPreview: View {
             iconKey: provider.rawValue,
             providerName: L(self.store.metadata(for: provider).displayName),
             accountLabel: self.settings.hidePersonalInfo ? nil : snapshot.accountEmail(for: provider),
+            laneLabels: MenuBarLayoutLaneLabels(provider: provider, snapshot: snapshot),
             primary: MenuBarLayoutRenderWindow(snapshot.primary),
             secondary: MenuBarLayoutRenderWindow(snapshot.secondary),
             tertiary: MenuBarLayoutRenderWindow(snapshot.tertiary),
@@ -794,6 +808,7 @@ struct MenuBarLayoutPreview: View {
             iconKey: "\(provider.rawValue)-representative",
             providerName: L(self.store.metadata(for: provider).displayName),
             accountLabel: self.settings.hidePersonalInfo ? nil : L("menu_bar_layout_sample_account"),
+            laneLabels: MenuBarLayoutLaneLabels(provider: provider, snapshot: nil),
             primary: MenuBarLayoutRenderWindow(session),
             secondary: MenuBarLayoutRenderWindow(weekly),
             tertiary: MenuBarLayoutRenderWindow(scopedWeekly),
@@ -886,9 +901,9 @@ extension MenuBarLayoutGap {
 }
 
 extension MenuBarLayoutToken {
-    func editorLabel(provider: UsageProvider?) -> String {
+    func editorLabel(provider: UsageProvider?, snapshot: UsageSnapshot? = nil) -> String {
         if case let .lanePercent(lane) = self {
-            return self.laneEditorLabel(lane: lane, provider: provider)
+            return self.laneEditorLabel(lane: lane, provider: provider, snapshot: snapshot)
         }
         if let providerLabel = self.providerEditorLabel(provider: provider) {
             return providerLabel
@@ -936,21 +951,21 @@ extension MenuBarLayoutToken {
         }
     }
 
-    private func laneEditorLabel(lane: MenuBarLayoutLane, provider: UsageProvider?) -> String {
+    private func laneEditorLabel(
+        lane: MenuBarLayoutLane,
+        provider: UsageProvider?,
+        snapshot: UsageSnapshot?)
+        -> String
+    {
         guard let provider else { return L("%@ %@", lane.rawValue.capitalized, "%") }
-        let metadata = ProviderDescriptorRegistry.descriptor(for: provider).metadata
-        let label = switch lane {
-        case .primary: metadata.sessionLabel
-        case .secondary: metadata.weeklyLabel
-        case .tertiary: metadata.opusLabel ?? "Tertiary"
-        }
-        return L("%@ %@", L(label), "%")
+        let label = MenuBarLayoutLaneLabels(provider: provider, snapshot: snapshot).label(for: lane)
+        return L("%@ %@", label, "%")
     }
 
-    func editorAccessibilityLabel(provider: UsageProvider?) -> String {
+    func editorAccessibilityLabel(provider: UsageProvider?, snapshot: UsageSnapshot? = nil) -> String {
         switch self {
         case .separatorDot: L("menu_bar_layout_token_separator_accessibility")
-        default: self.editorLabel(provider: provider)
+        default: self.editorLabel(provider: provider, snapshot: snapshot)
         }
     }
 

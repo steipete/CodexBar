@@ -26,6 +26,7 @@ struct MenuBarLayoutRenderData: Hashable {
     let iconKey: String
     let providerName: String?
     let accountLabel: String?
+    let laneLabels: MenuBarLayoutLaneLabels
     let primary: MenuBarLayoutRenderWindow?
     let secondary: MenuBarLayoutRenderWindow?
     let tertiary: MenuBarLayoutRenderWindow?
@@ -475,7 +476,7 @@ final class MenuBarLayoutRenderer {
             rateWindow: rateWindow,
             automaticText: nil,
             showUsed: showUsed)
-        let label = Self.laneLabel(lane, provider: data.provider)
+        let label = data.laneLabels.label(for: lane)
         let accessibility = resolvedValue.isAvailable
             ? L("%@ %@", label, resolvedValue.text)
             : L("%@ unavailable", label)
@@ -619,16 +620,6 @@ final class MenuBarLayoutRenderer {
         case .secondary: data.secondary
         case .tertiary: data.tertiary
         }
-    }
-
-    private static func laneLabel(_ lane: MenuBarLayoutLane, provider: UsageProvider) -> String {
-        let metadata = ProviderDescriptorRegistry.descriptor(for: provider).metadata
-        let label = switch lane {
-        case .primary: metadata.sessionLabel
-        case .secondary: metadata.weeklyLabel
-        case .tertiary: metadata.opusLabel ?? "Tertiary"
-        }
-        return L(label)
     }
 
     private static func pace(

@@ -82,6 +82,7 @@ extension StatusItemController {
             iconKey: "\(provider.rawValue):\(warningFlash ? "warning" : "normal")",
             providerName: providerName,
             accountLabel: accountLabel,
+            laneLabels: MenuBarLayoutLaneLabels(provider: provider, snapshot: snapshot),
             primary: MenuBarLayoutRenderWindow(snapshot?.primary),
             secondary: MenuBarLayoutRenderWindow(snapshot?.secondary),
             tertiary: MenuBarLayoutRenderWindow(snapshot?.tertiary),
