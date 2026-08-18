@@ -65,7 +65,7 @@ defineProvider({
     function degradationReason(error) {
       const message = error && typeof error.message === "string" ? error.message : String(error);
       if (/timed out|-1001/i.test(message)) return "Request timed out";
-      if (/json|parse|invalid|must be/i.test(message)) return "Response was invalid";
+      if (/json|parse|invalid|must be|conflict|duplicate/i.test(message)) return "Response was invalid";
       return "Request failed";
     }
     try {
