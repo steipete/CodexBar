@@ -276,8 +276,11 @@ extension UsageStore {
                 statuses[account.cacheIdentity] = await override(account)
             } else {
                 statuses[account.cacheIdentity] = await CostUsageFetcher(
-                    cacheRoot: SpendDashboardSource.codexCacheRoot(for: account))
-                    .codexScanCatchUpStatus(codexHomePath: account.homePath)
+                    cacheRoot: SpendDashboardSource.codexCacheRoot(for: account),
+                    calendar: self.settings.costUsageBucketCalendar)
+                    .codexScanCatchUpStatus(
+                        codexHomePath: account.homePath,
+                        calendar: self.settings.costUsageBucketCalendar)
             }
         }
         return statuses
@@ -291,11 +294,14 @@ extension UsageStore {
         if let override = self._test_spendDashboardCodexCostCatchUpAdvanceOverride {
             return try await override(account, now, historyDays)
         }
-        return try await CostUsageFetcher(cacheRoot: SpendDashboardSource.codexCacheRoot(for: account))
+        return try await CostUsageFetcher(
+            cacheRoot: SpendDashboardSource.codexCacheRoot(for: account),
+            calendar: self.settings.costUsageBucketCalendar)
             .advanceCodexScanCatchUp(
                 now: now,
                 codexHomePath: account.homePath,
-                historyDays: historyDays)
+                historyDays: historyDays,
+                calendar: self.settings.costUsageBucketCalendar)
     }
 
     private func spendDashboardCodexCostCatchUpDecision(

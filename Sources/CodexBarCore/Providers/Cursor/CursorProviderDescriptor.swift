@@ -33,8 +33,8 @@ public enum CursorProviderDescriptor {
                 id: .cursor,
                 displayName: "Cursor",
                 sessionLabel: "Total",
-                weeklyLabel: "Auto",
-                opusLabel: "API",
+                weeklyLabel: "Cursor",
+                opusLabel: "Third Party",
                 supportsOpus: true,
                 supportsCredits: false,
                 creditsHint: "",
@@ -94,8 +94,9 @@ public enum CursorProviderDescriptor {
                 supportsCostCommand: self.supportsCostCommand,
                 browserSupportExemption: { _, _, settings in
                     #if os(Linux)
-                    // Linux uses Cursor app auth and manual cookies; browser import remains macOS-only.
-                    settings?.cursor?.cookieSource != .off
+                    // Linux supports manual cookies; browser and Cursor.app imports remain macOS-only.
+                    settings?.cursor?.cookieSource == .manual &&
+                        CookieHeaderNormalizer.normalize(settings?.cursor?.manualCookieHeader) != nil
                     #else
                     false
                     #endif
@@ -148,7 +149,13 @@ struct CursorStatusFetchStrategy: ProviderFetchStrategy {
     func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
         let probe = CursorStatusProbe(browserDetection: context.browserDetection)
         let manual = Self.manualCookieHeader(from: context)
-        let snap = try await probe.fetch(cookieHeaderOverride: manual)
+        let logger: ((String) -> Void)? = context.verbose
+            ? { message in CodexBarLog.logger(LogCategories.provider(.cursor)).verbose(message) }
+            : nil
+        let snap = try await probe.fetch(
+            cookieHeaderOverride: manual,
+            allowAppAuthFallback: context.sourceMode != .web,
+            logger: logger)
         return self.makeResult(
             usage: snap.toUsageSnapshot(),
             sourceLabel: "web")

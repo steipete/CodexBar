@@ -204,7 +204,10 @@ struct CostUsageScannerBreakdownTests {
             CostUsageDailyReport.ModelBreakdown(
                 modelName: "gpt-5.2-codex",
                 costUSD: first.data[0].costUSD,
-                totalTokens: 110),
+                totalTokens: 110,
+                inputTokens: 100,
+                outputTokens: 10,
+                cacheReadTokens: 20),
         ])
         #expect(first.data[0].totalTokens == 110)
         #expect((first.data[0].costUSD ?? 0) > 0)

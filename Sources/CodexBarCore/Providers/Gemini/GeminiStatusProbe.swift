@@ -105,6 +105,7 @@ public enum GeminiStatusProbeError: LocalizedError, Sendable, Equatable {
     case notLoggedIn
     case unsupportedAuthType(String)
     case consumerTierDeprecated
+    case oauthCredentialsUnavailableWithAntigravity
     case parseFailed(String)
     case timedOut
     case apiError(String)
@@ -119,6 +120,8 @@ public enum GeminiStatusProbeError: LocalizedError, Sendable, Equatable {
             "Gemini \(authType) auth not supported. Use Google account (OAuth) instead."
         case .consumerTierDeprecated:
             GeminiConsumerTierMigration.deprecationError
+        case .oauthCredentialsUnavailableWithAntigravity:
+            GeminiConsumerTierMigration.localAntigravityHandoffError
         case let .parseFailed(msg):
             "Could not parse Gemini usage: \(msg)"
         case .timedOut:
@@ -172,9 +175,16 @@ public enum GeminiUserTierId: String, Sendable {
 }
 
 public struct GeminiStatusProbe: Sendable {
+    private struct OAuthRecoveryContext: Sendable {
+        let oauthClientResolver: @Sendable () -> GeminiOAuthConfig.ClientCredentials?
+        let antigravityAvailability: @Sendable () -> Bool
+    }
+
     public var timeout: TimeInterval = 10.0
     public var homeDirectory: String
     public var dataLoader: @Sendable (URLRequest) async throws -> (Data, URLResponse)
+    private var oauthClientResolver: @Sendable () -> GeminiOAuthConfig.ClientCredentials?
+    private var antigravityAvailability: @Sendable () -> Bool
     private static let log = CodexBarLog.logger(LogCategories.provider(.gemini, scope: "probe"))
     private static let quotaEndpoint = "https://cloudcode-pa.googleapis.com/v1internal:retrieveUserQuota"
     private static let loadCodeAssistEndpoint = "https://cloudcode-pa.googleapis.com/v1internal:loadCodeAssist"
@@ -191,6 +201,22 @@ public struct GeminiStatusProbe: Sendable {
         self.timeout = timeout
         self.homeDirectory = homeDirectory
         self.dataLoader = dataLoader
+        self.oauthClientResolver = { Self.extractOAuthCredentials() }
+        self.antigravityAvailability = { GeminiConsumerTierMigration.isAntigravityAvailable() }
+    }
+
+    init(
+        timeout: TimeInterval = 10.0,
+        homeDirectory: String = NSHomeDirectory(),
+        dataLoader: @escaping @Sendable (URLRequest) async throws -> (Data, URLResponse) = Self.defaultDataLoader,
+        oauthClientResolver: @escaping @Sendable () -> GeminiOAuthConfig.ClientCredentials?,
+        antigravityAvailability: @escaping @Sendable () -> Bool)
+    {
+        self.timeout = timeout
+        self.homeDirectory = homeDirectory
+        self.dataLoader = dataLoader
+        self.oauthClientResolver = oauthClientResolver
+        self.antigravityAvailability = antigravityAvailability
     }
 
     /// Reads the current Gemini auth type from settings.json
@@ -227,7 +253,9 @@ public struct GeminiStatusProbe: Sendable {
         let snap = try await Self.fetchViaAPI(
             timeout: self.timeout,
             homeDirectory: self.homeDirectory,
-            dataLoader: self.dataLoader)
+            dataLoader: self.dataLoader,
+            oauthClientResolver: self.oauthClientResolver,
+            antigravityAvailability: self.antigravityAvailability)
 
         Self.log.info("Gemini API fetch ok", metadata: [
             "dailyPercentLeft": "\(snap.dailyPercentLeft ?? -1)",
@@ -240,7 +268,9 @@ public struct GeminiStatusProbe: Sendable {
     private static func fetchViaAPI(
         timeout: TimeInterval,
         homeDirectory: String,
-        dataLoader: @escaping @Sendable (URLRequest) async throws -> (Data, URLResponse)) async throws
+        dataLoader: @escaping @Sendable (URLRequest) async throws -> (Data, URLResponse),
+        oauthClientResolver: @escaping @Sendable () -> GeminiOAuthConfig.ClientCredentials?,
+        antigravityAvailability: @escaping @Sendable () -> Bool) async throws
         -> GeminiStatusSnapshot
     {
         let creds = try Self.loadCredentials(homeDirectory: homeDirectory)
@@ -273,7 +303,10 @@ public struct GeminiStatusProbe: Sendable {
                 refreshToken: refreshToken,
                 timeout: timeout,
                 homeDirectory: homeDirectory,
-                dataLoader: dataLoader)
+                dataLoader: dataLoader,
+                recoveryContext: OAuthRecoveryContext(
+                    oauthClientResolver: oauthClientResolver,
+                    antigravityAvailability: antigravityAvailability))
             idToken = (try? Self.loadCredentials(homeDirectory: homeDirectory).idToken) ?? idToken
         }
         guard let accessToken else {
@@ -804,7 +837,8 @@ public struct GeminiStatusProbe: Sendable {
         refreshToken: String,
         timeout: TimeInterval,
         homeDirectory: String,
-        dataLoader: @escaping @Sendable (URLRequest) async throws -> (Data, URLResponse)) async throws
+        dataLoader: @escaping @Sendable (URLRequest) async throws -> (Data, URLResponse),
+        recoveryContext: OAuthRecoveryContext) async throws
         -> String
     {
         guard let url = URL(string: tokenRefreshEndpoint) else {
@@ -816,13 +850,16 @@ public struct GeminiStatusProbe: Sendable {
         request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
         request.timeoutInterval = timeout
 
-        guard let oauthCreds = Self.extractOAuthCredentials() else {
+        guard let oauthCreds = recoveryContext.oauthClientResolver() else {
             Self.log.error("Could not extract OAuth credentials from Gemini CLI")
+            if recoveryContext.antigravityAvailability() {
+                throw GeminiStatusProbeError.oauthCredentialsUnavailableWithAntigravity
+            }
             throw GeminiStatusProbeError.apiError(GeminiConsumerTierMigration.oauthRecoveryError)
         }
 
         let body = [
-            "client_id=\(oauthCreds.clientId)",
+            "client_id=\(oauthCreds.clientID)",
             "client_secret=\(oauthCreds.clientSecret)",
             "refresh_token=\(refreshToken)",
             "grant_type=refresh_token",
@@ -1094,20 +1131,24 @@ public struct GeminiStatusProbe: Sendable {
 }
 
 extension GeminiStatusProbe {
-    fileprivate static func extractOAuthCredentials() -> OAuthClientCredentials? {
+    fileprivate static func extractOAuthCredentials() -> GeminiOAuthConfig.ClientCredentials? {
         if let resolved = GeminiOAuthConfig.environmentClient() {
-            return OAuthClientCredentials(clientId: resolved.clientID, clientSecret: resolved.clientSecret)
+            return resolved
         }
         if let path = GeminiOAuthConfig.configuredOAuth2JSPath,
            let credentials = Self.parseOAuthCredentials(fromFile: path)
         {
-            return credentials
+            return GeminiOAuthConfig.ClientCredentials(
+                clientID: credentials.clientId,
+                clientSecret: credentials.clientSecret)
         }
         if let credentials = Self.discoverOAuthCredentialsFromInstalledCLI() {
-            return OAuthClientCredentials(clientId: credentials.clientID, clientSecret: credentials.clientSecret)
+            return credentials
         }
         if let credentials = Self.discoverOAuthCredentialsFromKnownInstallPaths() {
-            return credentials
+            return GeminiOAuthConfig.ClientCredentials(
+                clientID: credentials.clientId,
+                clientSecret: credentials.clientSecret)
         }
         return nil
     }

@@ -195,6 +195,7 @@ public struct GroqConsoleUsageSnapshot: Codable, Equatable, Sendable {
             last30DaysCostUSD: total.costUSD,
             last30DaysRequests: total.requests,
             historyDays: self.historyDays,
+            costProvenance: .vendorMetered,
             daily: daily,
             updatedAt: self.updatedAt)
     }
@@ -215,7 +216,9 @@ public struct GroqConsoleUsageSnapshot: Codable, Equatable, Sendable {
             }
         }
         return totals.values.sorted {
-            if $0.totalTokens == $1.totalTokens { return $0.name < $1.name }
+            if $0.totalTokens == $1.totalTokens {
+                return $0.name < $1.name
+            }
             return $0.totalTokens > $1.totalTokens
         }
     }

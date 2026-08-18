@@ -345,7 +345,7 @@ struct ProviderStorageFootprintTests {
             settings: settings,
             environmentBase: ["CODEX_HOME": codexHome.path])
         settings.providerStorageFootprintsEnabled = true
-        settings.backgroundWorkLowPowerModeEnabled = true
+        settings.backgroundWorkLowPowerModePreference = .on
         store.managedCodexAccountsForStorageOverride = []
 
         await store.refreshStorageFootprintsForOverviewNow()

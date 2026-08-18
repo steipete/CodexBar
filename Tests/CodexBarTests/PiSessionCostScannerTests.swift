@@ -1092,6 +1092,78 @@ extension PiSessionCostScannerTests {
     }
 
     @Test
+    func `pi scanner reprices unchanged claude files when vendor rates change`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+
+        let day = try env.makeLocalNoon(year: 2026, month: 7, day: 10)
+        let model = "deepseek-v4-flash"
+        func assistant(at timestamp: Date) -> [String: Any] {
+            [
+                "type": "message",
+                "timestamp": env.isoString(for: timestamp),
+                "message": [
+                    "role": "assistant",
+                    "provider": "anthropic",
+                    "model": model,
+                    "timestamp": Int(timestamp.timeIntervalSince1970 * 1000),
+                    "usage": [
+                        "input": 150_000,
+                        "output": 0,
+                        "totalTokens": 150_000,
+                    ],
+                ],
+            ]
+        }
+        _ = try env.writePiSessionFile(
+            relativePath: "2026-07-10T10-00-00-000Z_claude-vendor-catalog-change.jsonl",
+            contents: env.jsonl([
+                assistant(at: day.addingTimeInterval(-1)),
+                assistant(at: day),
+            ]))
+
+        let firstCatalog = try Self.deepSeekModelsDevCatalog(inputCostPerMillion: 4)
+        #expect(ModelsDevCache.save(catalog: firstCatalog, fetchedAt: day, cacheRoot: env.cacheRoot))
+        let options = PiSessionCostScanner.Options(
+            piSessionsRoot: env.piSessionsRoot,
+            cacheRoot: env.cacheRoot,
+            refreshMinIntervalSeconds: 3600)
+        let firstReport = PiSessionCostScanner.loadDailyReport(
+            provider: .claude,
+            since: day,
+            until: day,
+            now: day,
+            options: options)
+        let firstCache = PiSessionCostCacheIO.load(cacheRoot: env.cacheRoot)
+        let firstPricingKey = try #require(firstCache.pricingKey)
+        #expect(firstReport.data.first?.totalTokens == 300_000)
+        #expect(abs((firstReport.data.first?.costUSD ?? 0) - 1.2) < 0.0000001)
+
+        let secondCatalog = try Self.deepSeekModelsDevCatalog(inputCostPerMillion: 8)
+        #expect(ModelsDevCache.save(
+            catalog: secondCatalog,
+            fetchedAt: day.addingTimeInterval(1),
+            cacheRoot: env.cacheRoot))
+        #expect(PiSessionCostScanner.loadCachedDailyReport(
+            provider: .claude,
+            since: day,
+            until: day,
+            now: day.addingTimeInterval(1),
+            cacheRoot: env.cacheRoot) == nil)
+
+        let secondReport = PiSessionCostScanner.loadDailyReport(
+            provider: .claude,
+            since: day,
+            until: day,
+            now: day.addingTimeInterval(2),
+            options: options)
+        let secondCache = PiSessionCostCacheIO.load(cacheRoot: env.cacheRoot)
+        #expect(secondCache.pricingKey != firstPricingKey)
+        #expect(secondReport.data.first?.totalTokens == 300_000)
+        #expect(abs((secondReport.data.first?.costUSD ?? 0) - 2.4) < 0.0000001)
+    }
+
+    @Test
     func `pi pricing key ignores catalog fetch time when rates are unchanged`() throws {
         let env = try CostUsageTestEnvironment()
         defer { env.cleanup() }
@@ -1159,11 +1231,11 @@ extension PiSessionCostScannerTests {
               }
             }
           },
-          "google": {
-            "id": "google",
+          "groq": {
+            "id": "groq",
             "models": {
-              "gemini-test": {
-                "id": "gemini-test",
+              "groq-test": {
+                "id": "groq-test",
                 "cost": { "input": 1, "output": 2 }
               }
             }
@@ -1209,11 +1281,11 @@ extension PiSessionCostScannerTests {
               }
             }
           },
-          "google": {
-            "id": "google",
+          "groq": {
+            "id": "groq",
             "models": {
-              "gemini-test": {
-                "id": "gemini-test",
+              "groq-test": {
+                "id": "groq-test",
                 "cost": { "input": 99, "output": 199 }
               }
             }
@@ -1336,6 +1408,26 @@ extension PiSessionCostScannerTests {
                   "output": 15,
                   "cache_read": 0.3,
                   "cache_write": 3.75
+                }
+              }
+            }
+          }
+        }
+        """
+        return try self.modelsDevCatalog(json)
+    }
+
+    private static func deepSeekModelsDevCatalog(inputCostPerMillion: Double) throws -> ModelsDevCatalog {
+        let json = """
+        {
+          "deepseek": {
+            "id": "deepseek",
+            "models": {
+              "deepseek-v4-flash": {
+                "id": "deepseek-v4-flash",
+                "cost": {
+                  "input": \(inputCostPerMillion),
+                  "output": 0.28
                 }
               }
             }

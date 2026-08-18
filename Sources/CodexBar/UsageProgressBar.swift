@@ -39,6 +39,7 @@ struct UsageProgressBar: View {
     let paceOnTop: Bool
     let warningMarkerPercents: [Double]
     let workdayMarkerPercents: [Double]
+    let workdayTickAppearance: WorkdayTickAppearance
     @Environment(\.menuItemHighlighted) private var isHighlighted
     @Environment(\.displayScale) private var displayScale
 
@@ -49,7 +50,8 @@ struct UsageProgressBar: View {
         pacePercent: Double? = nil,
         paceOnTop: Bool = true,
         warningMarkerPercents: [Double] = [],
-        workdayMarkerPercents: [Double] = [])
+        workdayMarkerPercents: [Double] = [],
+        workdayTickAppearance: WorkdayTickAppearance = .subtle)
     {
         self.percent = percent
         self.tint = tint
@@ -58,6 +60,7 @@ struct UsageProgressBar: View {
         self.paceOnTop = paceOnTop
         self.warningMarkerPercents = warningMarkerPercents
         self.workdayMarkerPercents = workdayMarkerPercents
+        self.workdayTickAppearance = workdayTickAppearance
     }
 
     private var clamped: Double {
@@ -80,7 +83,8 @@ struct UsageProgressBar: View {
             let showTip = self.pacePercent != nil && tipWidth > 0.5
             let markers = Self.resolvedMarkers(
                 warningPercents: self.warningMarkerPercents,
-                workdayPercents: self.workdayMarkerPercents)
+                workdayPercents: self.workdayMarkerPercents,
+                workdayAppearance: self.workdayTickAppearance)
 
             let cornerRadius = size.height / 2
             let cornerSize = CGSize(width: cornerRadius, height: cornerRadius)
@@ -122,10 +126,16 @@ struct UsageProgressBar: View {
                         markerStripePath,
                         with: .color(Self.warningMarkerColor(isHighlighted: self.isHighlighted)))
                 case .workdayBoundary:
-                    let markerRect = Self.workdayMarkerRect(x: x, size: size, scale: scale)
+                    let markerRect = Self.workdayMarkerRect(
+                        x: x,
+                        size: size,
+                        scale: scale,
+                        appearance: self.workdayTickAppearance)
                     context.fill(
                         Path(markerRect),
-                        with: .color(Self.workdayMarkerColor(isHighlighted: self.isHighlighted)))
+                        with: .color(Self.workdayMarkerColor(
+                            isHighlighted: self.isHighlighted,
+                            appearance: self.workdayTickAppearance)))
                 }
             }
 
@@ -163,7 +173,8 @@ struct UsageProgressBar: View {
         var parts = [L("%d percent", Self.displayPercent(self.clamped))]
         let markers = Self.resolvedMarkers(
             warningPercents: self.warningMarkerPercents,
-            workdayPercents: self.workdayMarkerPercents)
+            workdayPercents: self.workdayMarkerPercents,
+            workdayAppearance: self.workdayTickAppearance)
         let warnings = markers.filter { $0.kind == .quotaWarning }.map(Self.markerPercentText)
         let workdays = markers.filter { $0.kind == .workdayBoundary }.map(Self.markerPercentText)
         if !warnings.isEmpty {
@@ -177,10 +188,11 @@ struct UsageProgressBar: View {
 
     nonisolated static func resolvedMarkers(
         warningPercents: [Double],
-        workdayPercents: [Double]) -> [Marker]
+        workdayPercents: [Double],
+        workdayAppearance: WorkdayTickAppearance = .subtle) -> [Marker]
     {
         let warnings = Self.normalizedMarkerPercents(warningPercents)
-        let workdays = Self.normalizedMarkerPercents(workdayPercents)
+        let workdays = workdayAppearance == .hidden ? [] : Self.normalizedMarkerPercents(workdayPercents)
             .filter { workday in !warnings.contains { abs($0 - workday) < 0.001 } }
         return (
             warnings.map { Marker(percent: $0, kind: .quotaWarning) } +
@@ -288,10 +300,25 @@ struct UsageProgressBar: View {
             height: markerRect.height)
     }
 
-    nonisolated static func workdayMarkerRect(x: CGFloat, size: CGSize, scale rawScale: CGFloat) -> CGRect {
+    nonisolated static func workdayMarkerRect(
+        x: CGFloat,
+        size: CGSize,
+        scale rawScale: CGFloat,
+        appearance: WorkdayTickAppearance = .subtle) -> CGRect
+    {
         let scale = max(rawScale, 1)
-        let width = 1 / scale
-        let height = max(1 / scale, size.height * 0.5)
+        let width: CGFloat
+        let height: CGFloat
+        switch appearance {
+        case .hidden:
+            return .zero
+        case .subtle:
+            width = 1 / scale
+            height = max(1 / scale, size.height * 0.5)
+        case .highContrast:
+            width = max(1 / scale, 1.96)
+            height = size.height
+        }
         let align: (CGFloat) -> CGFloat = { value in
             (value * scale).rounded() / scale
         }
@@ -311,8 +338,26 @@ struct UsageProgressBar: View {
         isHighlighted ? .white.opacity(0.96) : .primary.opacity(0.68)
     }
 
-    nonisolated static func workdayMarkerColor(isHighlighted: Bool) -> Color {
-        isHighlighted ? .white.opacity(0.55) : .primary.opacity(0.30)
+    nonisolated static func workdayMarkerColor(
+        isHighlighted: Bool,
+        appearance: WorkdayTickAppearance = .subtle) -> Color
+    {
+        switch appearance {
+        case .hidden:
+            .clear
+        case .subtle:
+            if isHighlighted {
+                .white.opacity(0.55)
+            } else {
+                .primary.opacity(0.30)
+            }
+        case .highContrast:
+            if isHighlighted {
+                .white.opacity(0.96)
+            } else {
+                .primary.opacity(0.85)
+            }
+        }
     }
 
     private nonisolated static func displayPercent(_ percent: Double) -> Int {

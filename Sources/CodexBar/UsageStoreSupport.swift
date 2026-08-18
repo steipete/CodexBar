@@ -118,8 +118,14 @@ extension UsageStore {
     func _setTokenSnapshotForTesting(_ snapshot: CostUsageTokenSnapshot?, provider: UsageProvider) {
         if let snapshot {
             self.publishTokenSnapshot(snapshot, for: provider)
+            if Self.usesSpendDashboardIndependentTokenSnapshot(provider) {
+                self._setSpendDashboardTokenSnapshotForTesting(snapshot, for: provider)
+            }
         } else {
             self.clearTokenSnapshot(for: provider)
+            if Self.usesSpendDashboardIndependentTokenSnapshot(provider) {
+                self.clearSpendDashboardTokenSnapshot(for: provider)
+            }
         }
     }
 

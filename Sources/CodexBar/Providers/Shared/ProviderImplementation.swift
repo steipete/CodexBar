@@ -52,19 +52,26 @@ protocol ProviderImplementation: Sendable {
 
     /// Optional provider-specific organizations selection rendered in the Providers pane.
     @MainActor
-    func settingsOrganizations(context: ProviderSettingsContext) -> ProviderSettingsOrganizationsDescriptor?
+    func settingsOrganizations(context: ProviderSettingsContext)
+        -> ProviderSettingsOrganizationsDescriptor?
 
     /// Optional visibility gate for token account settings.
     @MainActor
-    func tokenAccountsVisibility(context: ProviderSettingsContext, support: TokenAccountSupport) -> Bool
+    func tokenAccountsVisibility(context: ProviderSettingsContext, support: TokenAccountSupport)
+        -> Bool
 
     /// Optional provider-specific settings snapshot contribution.
     @MainActor
-    func settingsSnapshot(context: ProviderSettingsSnapshotContext) -> ProviderSettingsSnapshotContribution?
+    func settingsSnapshot(context: ProviderSettingsSnapshotContext)
+        -> ProviderSettingsSnapshotContribution?
 
     /// Optional primary action for the shared token-account editor.
     @MainActor
     func runTokenAccountPrimaryAction(context: ProviderSettingsContext) async
+
+    /// Return true if the provider opened its own token file. False keeps the CodexBar config.
+    @MainActor
+    func openTokenFile(context: ProviderSettingsContext) -> Bool
 
     /// Optional hook to update provider settings when token accounts change.
     @MainActor
@@ -72,15 +79,18 @@ protocol ProviderImplementation: Sendable {
 
     /// Optional provider-specific menu entries for the usage section.
     @MainActor
-    func appendUsageMenuEntries(context: ProviderMenuUsageContext, entries: inout [ProviderMenuEntry])
+    func appendUsageMenuEntries(
+        context: ProviderMenuUsageContext, entries: inout [ProviderMenuEntry])
 
     /// Optional provider-specific menu entries for the actions section.
     @MainActor
-    func appendActionMenuEntries(context: ProviderMenuActionContext, entries: inout [ProviderMenuEntry])
+    func appendActionMenuEntries(
+        context: ProviderMenuActionContext, entries: inout [ProviderMenuEntry])
 
     /// Optional override for the login/switch account menu action.
     @MainActor
-    func loginMenuAction(context: ProviderMenuLoginContext) -> (label: String, action: MenuDescriptor.MenuAction)?
+    func loginMenuAction(context: ProviderMenuLoginContext) -> (
+        label: String, action: MenuDescriptor.MenuAction)?
 
     /// Optional provider-specific login flow. Returns whether to refresh after completion.
     @MainActor
@@ -152,18 +162,24 @@ extension ProviderImplementation {
     }
 
     @MainActor
-    func settingsOrganizations(context _: ProviderSettingsContext) -> ProviderSettingsOrganizationsDescriptor? {
+    func settingsOrganizations(context _: ProviderSettingsContext)
+        -> ProviderSettingsOrganizationsDescriptor?
+    {
         nil
     }
 
     @MainActor
-    func tokenAccountsVisibility(context: ProviderSettingsContext, support: TokenAccountSupport) -> Bool {
+    func tokenAccountsVisibility(context: ProviderSettingsContext, support: TokenAccountSupport)
+        -> Bool
+    {
         guard support.requiresManualCookieSource else { return true }
         return !context.settings.tokenAccounts(for: context.provider).isEmpty
     }
 
     @MainActor
-    func settingsSnapshot(context _: ProviderSettingsSnapshotContext) -> ProviderSettingsSnapshotContribution? {
+    func settingsSnapshot(context _: ProviderSettingsSnapshotContext)
+        -> ProviderSettingsSnapshotContribution?
+    {
         ProviderDescriptorRegistry.descriptor(for: self.id).settingsSection.defaultContribution
     }
 
@@ -171,13 +187,20 @@ extension ProviderImplementation {
     func runTokenAccountPrimaryAction(context _: ProviderSettingsContext) async {}
 
     @MainActor
+    func openTokenFile(context _: ProviderSettingsContext) -> Bool {
+        false
+    }
+
+    @MainActor
     func applyTokenAccountCookieSource(settings _: SettingsStore) {}
 
     @MainActor
-    func appendUsageMenuEntries(context _: ProviderMenuUsageContext, entries _: inout [ProviderMenuEntry]) {}
+    func appendUsageMenuEntries(
+        context _: ProviderMenuUsageContext, entries _: inout [ProviderMenuEntry]) {}
 
     @MainActor
-    func appendActionMenuEntries(context _: ProviderMenuActionContext, entries _: inout [ProviderMenuEntry]) {}
+    func appendActionMenuEntries(
+        context _: ProviderMenuActionContext, entries _: inout [ProviderMenuEntry]) {}
 
     @MainActor
     func loginMenuAction(context _: ProviderMenuLoginContext)

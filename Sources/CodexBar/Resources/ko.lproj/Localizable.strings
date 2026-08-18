@@ -1,7 +1,15 @@
 /* Korean (한국어) localization for CodexBar */
 
 /* iCloud Sync */
+"+ %d more" = "+ %d개 더";
+"Conversations (%@)" = "대화 (%@)";
+"Fast" = "빠름";
 "iCloud Sync" = "iCloud Sync";
+"Projects" = "프로젝트";
+"Session %@" = "세션 %@";
+"Std" = "표준";
+"Show all (%d)" = "모두 보기(%d)";
+"Show less" = "간략히 보기";
 "Sync settings and providers across your Macs via iCloud" = "Sync settings and providers across your Macs via iCloud";
 "Include API keys, cookies, and tokens" = "Include API keys, cookies, and tokens";
 "Sync usage snapshots" = "Sync usage snapshots";
@@ -495,6 +503,10 @@
 "quota_depleted_title" = "할당량 소진 및 복원";
 "quota_warning_notifications_subtitle" = "세션 또는 주간 할당량 잔여량이 설정된 임곗값을 넘으면 경고합니다.";
 "threshold_warnings_title" = "임곗값 경고";
+"provider_accent_color_title" = "강조 색상";
+"provider_accent_color_footer" = "이 제공자의 사용량 막대, 차트, 전환 탭 색상을 설정합니다.";
+"provider_accent_color_hex_label" = "16진수 색상 값";
+"provider_accent_color_reset" = "기본값 사용";
 "quota_warnings_title" = "할당량 경고";
 "quota_warning_session" = "세션";
 "quota_warning_session_capitalized" = "세션";
@@ -596,6 +608,11 @@
 "show_quota_warning_markers_subtitle" = "할당량 경고가 구성된 경우 사용량 막대에 임계값 눈금 표시를 그립니다.";
 "weekly_progress_work_days_title" = "주간 진행률 근무일";
 "weekly_progress_work_days_subtitle" = "주간 사용량 막대 눈금과 페이스 계산에 사용할 근무일을 설정합니다.";
+"workday_tick_appearance_title" = "근무일 눈금 모양";
+"workday_tick_appearance_subtitle" = "주간 사용량 막대에 근무일 경계를 표시하는 방식을 선택합니다.";
+"workday_tick_appearance_hidden" = "숨김";
+"workday_tick_appearance_subtle" = "은은하게";
+"workday_tick_appearance_high_contrast" = "고대비";
 "show_provider_changelog_links_title" = "공급자 변경 로그 링크 표시";
 "show_provider_changelog_links_subtitle" = "지원되는 CLI 기반 공급자의 릴리스 노트 링크를 메뉴에 추가합니다.";
 "show_credits_extra_usage_title" = "크레딧 + 추가 사용량 표시";
@@ -639,6 +656,15 @@
 "keychain_access_caption" = "모든 키체인 읽기 및 쓰기를 사용 안 함으로 설정합니다. 항상 허용을 클릭한 후에도 macOS가 'Chrome/Brave/Edge Safe Storage'를 계속 요청하는 경우 사용하세요. 사용 시 브라우저 쿠키 가져오기를 사용할 수 없으며, 공급자에서 Cookie 헤더를 직접 붙여넣으세요. CLI를 통한 Claude/Codex OAuth는 계속 작동합니다.";
 "disable_keychain_access_title" = "키체인 접근 사용 안 함";
 "disable_keychain_access_subtitle" = "사용 시 모든 키체인 접근을 차단합니다.";
+"Re-authenticate" = "다시 인증";
+"kiro_reauthenticate_title" = "Kiro CLI 로그인";
+"kiro_reauthenticate_subtitle" = "세션이 만료되면 'kiro-cli login'을 실행하여 갱신합니다.";
+"Kiro CLI not found" = "Kiro CLI를 찾을 수 없음";
+"Install kiro-cli and try again." = "kiro-cli를 설치한 후 다시 시도하십시오.";
+"Could not start kiro-cli login" = "kiro-cli login을 시작할 수 없음";
+"Kiro login timed out" = "Kiro 로그인 시간 초과";
+"kiro-cli login exited with status %d." = "kiro-cli login이 상태 %d(으)로 종료되었습니다.";
+"Kiro login failed" = "Kiro 로그인 실패";
 "about_tagline" = "토큰이 결코 바닥나지 않기를—에이전트 한도를 늘 확인하세요.";
 "link_github" = "GitHub";
 "link_website" = "웹사이트";
@@ -1258,6 +1284,9 @@
 "Native currencies stay separate; Codex account rows exclude Pi session history." = "각 통화는 별도로 유지되며 Codex 계정 행에서는 Pi 세션 기록이 제외됩니다.";
 "Spend unavailable" = "지출 정보 없음";
 "Model breakdown unavailable" = "모델별 내역을 사용할 수 없습니다";
+"Partial estimate" = "부분 추정치";
+"Partial model breakdown" = "부분 모델 내역";
+"%d of %d subscriptions have spend" = "%d / %d개 구독에 지출 데이터가 있습니다";
 "Local estimated history" = "로컬 예상 내역";
 "Coverage" = "포함 범위";
 "Estimated spend" = "예상 지출";
@@ -1400,3 +1429,27 @@
 "5-hour usage" = "5시간 사용량";
 "7-day usage" = "7일 사용량";
 "Total usage" = "총 사용량";
+"claude_oauth_keychain_access_revoked" = "Claude Code의 토큰 교체로 Claude 키체인 접근 권한이 취소되었습니다. 새로 고침을 클릭해 접근 권한을 다시 부여하거나 Claude 사용량 소스를 CLI/Web으로 전환하세요.";
+"claude_showing_last_known_usage" = "마지막으로 확인된 사용량을 표시 중입니다(캡처: %@).";
+/* Spend dashboard cost analysis */
+"90d" = "90d";
+"Input" = "Input";
+"Output" = "Output";
+"Cache write" = "Cache write";
+"Reasoning" = "Reasoning";
+"Sessions" = "Sessions";
+"Projects" = "Projects";
+"Plan metered" = "Plan metered";
+"List-price equivalent" = "List-price equivalent";
+"Metered and list-price" = "Metered and list-price";
+"List-price equivalent — not a billing receipt." = "List-price equivalent — not a billing receipt.";
+"Priced" = "Priced";
+"Unpriced" = "Unpriced";
+"Unmetered" = "Unmetered";
+"Estimated" = "Estimated";
+"Other models" = "Other models";
+"Include OpenCodex usage logs" = "Include OpenCodex usage logs";
+"Hide native Codex when OpenCodex is present" = "Hide native Codex when OpenCodex is present";
+"Export JSON" = "Export JSON";
+"Sources" = "Sources";
+"OpenCodex" = "OpenCodex";

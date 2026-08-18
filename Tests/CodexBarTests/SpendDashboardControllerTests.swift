@@ -48,7 +48,7 @@ struct SpendDashboardControllerTests {
         #expect(contexts.first?.cacheRoot.lastPathComponent == "inactive-cache")
         #expect(contexts.first?.now == now)
         #expect(contexts.first?.force == false)
-        #expect(contexts.first?.historyDays == 30)
+        #expect(contexts.first?.historyDays == SpendDashboardSource.scanDays)
         #expect(contexts.first?.refreshPricingInBackground == false)
         #expect(contexts.first?.includePiSessions == false)
     }
@@ -533,7 +533,7 @@ struct SpendDashboardControllerTests {
     }
 
     @Test
-    func `history scope change drops stale spend when replacement refresh is unconfirmed`() async {
+    func `menu history scope change does not drop spend dashboard ownership`() async {
         let settings = testSettingsStore(suiteName: "SpendDashboardControllerTests-history-scope")
         settings.costUsageEnabled = true
         for provider in UsageProvider.allCases {
@@ -556,14 +556,14 @@ struct SpendDashboardControllerTests {
 
         settings.costUsageHistoryDays = 7
         let replacementConfiguration = SpendDashboardSource.configuration(settings: settings, store: store)
-        #expect(firstConfiguration.sourceOwnershipFingerprints != replacementConfiguration.sourceOwnershipFingerprints)
+        #expect(firstConfiguration.sourceOwnershipFingerprints == replacementConfiguration.sourceOwnershipFingerprints)
         #expect(store.tokenSnapshotForCurrentProviderConfig(for: .claude) == nil)
 
         controller.update(configuration: replacementConfiguration)
-        #expect(controller.model.groups.isEmpty)
+        #expect(controller.model.groups.first?.totalCost == 5)
         await Self.waitUntil { !controller.isRefreshing }
-        #expect(controller.model.groups.isEmpty)
-        #expect(controller.failedSourceCount == 1)
+        #expect(controller.model.groups.first?.totalCost == 5)
+        #expect(controller.failedSourceCount == 0)
     }
 
     @Test
@@ -749,8 +749,14 @@ struct SpendDashboardControllerTests {
         controller.selectDays(7)
         #expect(controller.selectedDays == 7)
         #expect(defaults.integer(forKey: "settingsSpendDashboardDays") == 7)
+        controller.selectDays(SpendDashboardSource.scanDays)
+        #expect(controller.selectedDays == SpendDashboardSource.scanDays)
+        #expect(defaults.integer(forKey: "settingsSpendDashboardDays") == SpendDashboardSource.scanDays)
         controller.selectDays(9)
         #expect(controller.selectedDays == 30)
+        controller.selectDays(90)
+        #expect(controller.selectedDays == 90)
+        #expect(defaults.integer(forKey: "settingsSpendDashboardDays") == 90)
     }
 
     private nonisolated static let fixtureNow = Date(timeIntervalSince1970: 1_784_179_200)
@@ -771,7 +777,7 @@ struct SpendDashboardControllerTests {
             nowProvider: { Self.fixtureNow })
     }
 
-    private static func controller(gate: SpendDashboardLoaderGate) -> SpendDashboardController {
+    static func controller(gate: SpendDashboardLoaderGate) -> SpendDashboardController {
         let controllerBox = SpendDashboardControllerBox()
         let captureStore = SpendDashboardCapturedInputStore()
         let controller = SpendDashboardController(
@@ -849,7 +855,7 @@ struct SpendDashboardControllerTests {
             snapshot: snapshot)
     }
 
-    private static func waitForPendingCount(_ count: Int, gate: SpendDashboardLoaderGate) async {
+    static func waitForPendingCount(_ count: Int, gate: SpendDashboardLoaderGate) async {
         for _ in 0..<1000 {
             if await gate.pendingCount == count {
                 return
@@ -869,7 +875,7 @@ struct SpendDashboardControllerTests {
         Issue.record("Timed out waiting for \(count) pending Codex loads")
     }
 
-    private static func waitUntil(_ condition: @MainActor () -> Bool) async {
+    static func waitUntil(_ condition: @MainActor () -> Bool) async {
         for _ in 0..<1000 {
             if condition() {
                 return
@@ -1245,7 +1251,7 @@ private actor SpendDashboardCodexSnapshotGate {
     }
 }
 
-private actor SpendDashboardLoaderGate {
+actor SpendDashboardLoaderGate {
     private var continuations: [CheckedContinuation<SpendDashboardLoadResult, Never>] = []
 
     var pendingCount: Int {

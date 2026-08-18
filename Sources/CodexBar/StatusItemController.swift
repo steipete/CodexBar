@@ -7,6 +7,7 @@ import QuartzCore
 
 @MainActor
 protocol StatusItemControlling: AnyObject {
+    func setSettingsOpenHandler(_ handler: @escaping @MainActor (SettingsPane?) -> Void)
     func openMenuFromShortcut()
     func runLoginFlowFromSettings(provider: UsageProvider) async
     func celebrationOriginPoint(for provider: UsageProvider?) -> CGPoint?
@@ -249,6 +250,7 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
     }
 
     let preferencesSelection: PreferencesSelection
+    var settingsOpenHandler: (@MainActor (SettingsPane?) -> Void)?
     var animationDriver: DisplayLinkDriver?
     var animationPhase: Double = 0
     var animationPattern: LoadingPattern = .knightRider
@@ -809,10 +811,6 @@ final class StatusItemController: NSObject, NSMenuDelegate, StatusItemControllin
         self.expectedVisibleStatusItemAutosaveNames = expectedVisibleAutosaveNames
         self.updateAnimationState()
         self.updateBlinkingState()
-    }
-
-    func isEnabled(_ provider: UsageProvider) -> Bool {
-        self.store.isEnabled(provider)
     }
 
     private func refreshMenusForLoginStateChange() {

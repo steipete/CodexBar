@@ -120,7 +120,7 @@ public enum DeepSeekProviderDescriptor {
                                 return .localized(["Select a DeepSeek Chrome profile in Settings."])
                             }
                         }
-                        guard context.tokenCostInlineDashboardEnabled, context.showOptionalUsage else {
+                        guard context.costSummaryInlineEnabled, context.showOptionalUsage else {
                             return .unhandled
                         }
                         guard context.snapshot?.details.isEmpty == false else {
@@ -137,7 +137,9 @@ public enum DeepSeekProviderDescriptor {
                     showsPrimaryBalanceDescription: true,
                     hidesPrimaryResetWithoutDate: true,
                     movePrimaryDetailToStatus: { _ in true }),
-                menu: ProviderMenuDescriptorPresentation(primaryDescriptionIsDetail: { _ in true })),
+                menu: ProviderMenuDescriptorPresentation(primaryDescriptionIsDetail: { _ in true }),
+                optionalDetails: ProviderOptionalDetailsPresentation(
+                    costSummaryTitles: ["Detailed usage"])),
             fetchPlan: ProviderFetchPlan(
                 sourceModes: [.auto, .api, .web],
                 pipeline: ProviderFetchPipeline(resolveStrategies: self.resolveStrategies)),

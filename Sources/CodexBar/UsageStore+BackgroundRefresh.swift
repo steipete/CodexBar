@@ -55,6 +55,7 @@ extension UsageStore {
             self.clearClaudeSwapAccountState()
         }
         self.clearTokenSnapshot(for: provider)
+        self.clearSpendDashboardTokenSnapshot(for: provider)
         self.tokenErrors[provider.instanceID] = nil
         self.providerStorageFootprints.removeValue(forKey: provider.instanceID)
         self.failureGates[provider.instanceID]?.reset()

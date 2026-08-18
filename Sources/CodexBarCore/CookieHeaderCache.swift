@@ -1189,6 +1189,18 @@ extension CookieHeaderCache {
         }
     }
 
+    enum ConditionalMutationResult: Equatable, Sendable {
+        case stored
+        case rejected
+        case storageUnavailable
+    }
+
+    private enum ConditionalObservationMatch {
+        case matches
+        case changed
+        case storageUnavailable
+    }
+
     /// Captures enough state to conditionally persist an asynchronous refresh after a transient
     /// Keychain read failure without mistaking an untouched legacy entry for a concurrent write.
     static func observeForConditionalMutation(
@@ -1256,40 +1268,98 @@ extension CookieHeaderCache {
         sourceLabel: String,
         now: Date = Date()) -> Bool
     {
+        self.storeIfObservationCurrentResult(
+            provider: provider,
+            scope: scope,
+            expected: expected,
+            cookieHeader: cookieHeader,
+            sourceLabel: sourceLabel,
+            now: now) == .stored
+    }
+
+    static func storeIfObservationCurrentResult(
+        provider: UsageProvider,
+        scope: Scope? = nil,
+        expected: ConditionalMutationObservation,
+        cookieHeader: String,
+        sourceLabel: String,
+        now: Date = Date()) -> ConditionalMutationResult
+    {
         let trimmed = cookieHeader.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let normalized = CookieHeaderNormalizer.normalize(trimmed), !normalized.isEmpty else { return false }
+        guard let normalized = CookieHeaderNormalizer.normalize(trimmed), !normalized.isEmpty else { return .rejected }
         let entry = Entry(cookieHeader: normalized, storedAt: now, sourceLabel: sourceLabel)
         return expected.coordinator.lock.withLock {
             let key = self.key(for: provider, scope: scope)
             let gateState = expected.coordinator.gates[key] ?? ConditionalMutationGateState()
             guard gateState.activeTokens.isEmpty,
                   gateState.generation == expected.gateGeneration
-            else { return false }
+            else { return .rejected }
             do {
                 return try self.withLegacyMutationLock {
-                    guard self.currentStateMatches(expected, provider: provider, scope: scope) else { return false }
-                    return self.storeLocked(entry: entry, provider: provider, scope: scope, sourceLabel: sourceLabel)
+                    switch self.currentObservationMatch(expected, provider: provider, scope: scope) {
+                    case .changed:
+                        return .rejected
+                    case .storageUnavailable:
+                        return .storageUnavailable
+                    case .matches:
+                        break
+                    }
+                    if self.storeLocked(
+                        entry: entry,
+                        provider: provider,
+                        scope: scope,
+                        sourceLabel: sourceLabel)
+                    {
+                        return .stored
+                    }
+                    if case .temporarilyUnavailable = KeychainCacheStore.load(key: key, as: Entry.self) {
+                        return .storageUnavailable
+                    }
+                    return .rejected
                 }
             } catch {
                 self.log.error("Cookie cache observed store lock failed: \(error)")
-                return false
+                return .rejected
             }
         }
     }
 
-    private static func currentStateMatches(
+    private static func currentObservationMatch(
         _ expected: ConditionalMutationObservation,
         provider: UsageProvider,
-        scope: Scope?) -> Bool
+        scope: Scope?) -> ConditionalObservationMatch
     {
+        let key = self.key(for: provider, scope: scope)
+        if case let .visible(visible) = self.resolveRefreshRead(key: key, persisted: nil) {
+            return self.optionalEntriesMatch(visible, expected.entry) ? .matches : .changed
+        }
         switch expected {
         case let .authoritative(entry, _, _):
-            return self.currentEntryMatches(entry, provider: provider, scope: scope)
+            switch KeychainCacheStore.load(key: key, as: Entry.self) {
+            case let .found(current):
+                return self.entriesMatch(current, entry) ? .matches : .changed
+            case .missing:
+                if scope == nil, let legacy = self.loadLegacyEntry(for: provider) {
+                    return self.entriesMatch(legacy, entry) ? .matches : .changed
+                }
+                return entry == nil ? .matches : .changed
+            case .temporarilyUnavailable:
+                return .storageUnavailable
+            case .invalid:
+                return .changed
+            }
         case let .keychainTemporarilyUnavailable(expectedLegacyEntry, _, _):
-            let key = self.key(for: provider, scope: scope)
-            guard case .missing = KeychainCacheStore.load(key: key, as: Entry.self) else { return false }
-            guard scope == nil else { return true }
-            return self.optionalEntriesMatch(self.loadLegacyEntry(for: provider), expectedLegacyEntry)
+            switch KeychainCacheStore.load(key: key, as: Entry.self) {
+            case .missing:
+                guard scope == nil else { return .matches }
+                return self.optionalEntriesMatch(self.loadLegacyEntry(for: provider), expectedLegacyEntry)
+                    ? .matches
+                    : .changed
+            case .temporarilyUnavailable:
+                return .storageUnavailable
+            case .found, .invalid:
+                return .changed
+            }
         }
     }
 

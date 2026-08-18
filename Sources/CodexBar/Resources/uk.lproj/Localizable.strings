@@ -1,7 +1,15 @@
 /* Ukrainian localization for CodexBar */
 
 /* iCloud Sync */
+"+ %d more" = "Ще %d";
+"Conversations (%@)" = "Розмови (%@)";
+"Fast" = "Швидко";
 "iCloud Sync" = "iCloud Sync";
+"Projects" = "Проєкти";
+"Session %@" = "Сесія %@";
+"Std" = "Стандарт";
+"Show all (%d)" = "Показати всі (%d)";
+"Show less" = "Показати менше";
 "Sync settings and providers across your Macs via iCloud" = "Sync settings and providers across your Macs via iCloud";
 "Include API keys, cookies, and tokens" = "Include API keys, cookies, and tokens";
 "Sync usage snapshots" = "Sync usage snapshots";
@@ -500,6 +508,10 @@
 "quota_depleted_title" = "Вичерпання та відновлення квоти";
 "quota_warning_notifications_subtitle" = "Попереджає, коли залишок сеансу або тижневої квоти перевищує налаштовані порогові значення.";
 "threshold_warnings_title" = "Попередження про порогові значення";
+"provider_accent_color_title" = "Акцентний колір";
+"provider_accent_color_footer" = "Задає колір смуг використання, графіків і вкладки перемикача цього провайдера.";
+"provider_accent_color_hex_label" = "Шістнадцяткове значення кольору";
+"provider_accent_color_reset" = "Використовувати типовий";
 "quota_warnings_title" = "Попередження про квоту";
 "quota_warning_session" = "сесії";
 "quota_warning_session_capitalized" = "Сесія";
@@ -607,6 +619,11 @@
 "show_quota_warning_markers_subtitle" = "Малюйте порогові позначки на панелях використання, коли налаштовано попередження про квоту.";
 "weekly_progress_work_days_title" = "Щотижневі робочі дні";
 "weekly_progress_work_days_subtitle" = "Задайте робочі дні для позначок на смугах тижневого використання та розрахунків темпу.";
+"workday_tick_appearance_title" = "Вигляд позначок робочих днів";
+"workday_tick_appearance_subtitle" = "Виберіть, як відображати межі робочих днів на смугах тижневого використання.";
+"workday_tick_appearance_hidden" = "Приховані";
+"workday_tick_appearance_subtle" = "Ненав’язливі";
+"workday_tick_appearance_high_contrast" = "Високий контраст";
 "show_provider_changelog_links_title" = "Показати посилання журналу змін провайдера";
 "show_provider_changelog_links_subtitle" = "Додає в меню посилання на примітки до випуску для підтримуваних постачальників, що підтримують CLI.";
 "show_credits_extra_usage_title" = "Показати кредити + додаткове використання";
@@ -652,6 +669,15 @@
 "keychain_access_caption" = "Вимкніть усі функції читання та запису Keychain. Використовуйте це, якщо macOS постійно запитує «Chrome/Brave/Edge Safe Storage» навіть після натискання «Завжди дозволяти». Імпорт файлів cookie браузера недоступний, якщо ввімкнено; вставте заголовки файлів cookie вручну в Провайдери. Claude/Codex OAuth через CLI все ще працює.";
 "disable_keychain_access_title" = "Вимкнути доступ Keychain";
 "disable_keychain_access_subtitle" = "Запобігає будь-якому доступу Keychain, коли ввімкнено.";
+"Re-authenticate" = "Повторно автентифікуватися";
+"kiro_reauthenticate_title" = "Вхід у Kiro CLI";
+"kiro_reauthenticate_subtitle" = "Запускає «kiro-cli login», щоб оновити сеанс після завершення терміну дії.";
+"Kiro CLI not found" = "Kiro CLI не знайдено";
+"Install kiro-cli and try again." = "Установіть kiro-cli та повторіть спробу.";
+"Could not start kiro-cli login" = "Не вдалося запустити kiro-cli login";
+"Kiro login timed out" = "Час очікування входу в Kiro вичерпано";
+"kiro-cli login exited with status %d." = "kiro-cli login завершився зі статусом %d.";
+"Kiro login failed" = "Не вдалося ввійти в Kiro";
 
 /* About Pane */
 "about_tagline" = "Нехай ваші токени ніколи не закінчаться — пам’ятайте про ліміти агентів.";
@@ -1290,6 +1316,9 @@
 "Native currencies stay separate; Codex account rows exclude Pi session history." = "Вихідні валюти залишаються розділеними; рядки облікових записів Codex не включають історію сеансів Pi.";
 "Spend unavailable" = "Витрати недоступні";
 "Model breakdown unavailable" = "Розподіл за моделями недоступний";
+"Partial estimate" = "Часткова оцінка";
+"Partial model breakdown" = "Часткова розбивка за моделями";
+"%d of %d subscriptions have spend" = "У %d з %d підписок є дані про витрати";
 "Local estimated history" = "Локальна історія оцінок";
 "Coverage" = "Охоплення";
 "Estimated spend" = "Орієнтовні витрати";
@@ -1432,3 +1461,27 @@
 "5-hour usage" = "Використання за 5 годин";
 "7-day usage" = "Використання за 7 днів";
 "Total usage" = "Загальне використання";
+"claude_oauth_keychain_access_revoked" = "Доступ до В’язки ключів Claude було відкликано через ротацію токена в Claude Code. Натисніть «Оновити», щоб повторно надати доступ, або перемкніть джерело використання Claude на CLI/Web.";
+"claude_showing_last_known_usage" = "Показано останні відомі дані про використання (отримано %@).";
+/* Spend dashboard cost analysis */
+"90d" = "90d";
+"Input" = "Input";
+"Output" = "Output";
+"Cache write" = "Cache write";
+"Reasoning" = "Reasoning";
+"Sessions" = "Sessions";
+"Projects" = "Projects";
+"Plan metered" = "Plan metered";
+"List-price equivalent" = "List-price equivalent";
+"Metered and list-price" = "Metered and list-price";
+"List-price equivalent — not a billing receipt." = "List-price equivalent — not a billing receipt.";
+"Priced" = "Priced";
+"Unpriced" = "Unpriced";
+"Unmetered" = "Unmetered";
+"Estimated" = "Estimated";
+"Other models" = "Other models";
+"Include OpenCodex usage logs" = "Include OpenCodex usage logs";
+"Hide native Codex when OpenCodex is present" = "Hide native Codex when OpenCodex is present";
+"Export JSON" = "Export JSON";
+"Sources" = "Sources";
+"OpenCodex" = "OpenCodex";

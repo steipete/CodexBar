@@ -232,6 +232,12 @@ shared OAuth file can still be used as a fallback credential source.
 - Some Antigravity local/CLI model config entries include reset metadata but omit `remainingFraction`. Those windows stay
   in `extraRateWindows` for reset context and are marked with `usageKnown: false`; clients should not render their
   `usedPercent` as a real exhausted quota.
+- Antigravity reports every model family the plan covers, so an account that only uses Gemini still receives a
+  Claude/GPT pair pinned at 0%. Menu cards and widgets hide a family once every lane in it reports known zero usage.
+  A family with unknown usage stays visible, and every family remains visible when all are untouched, for example
+  right after a weekly reset. Provider details is the diagnostic surface and always lists every family, the same
+  principle it already applies to cost data. The filter is display-only: the snapshot, CLI output, and menu-bar
+  ranking still see every window, and menu-bar selection ranks by highest used, so an untouched family never wins.
 
 ## Constraints
 - Internal protocol; fields may change.

@@ -19,7 +19,7 @@ struct CodexOAuthResetCreditFetchTests {
     }
 
     @Test
-    func `app defers reset credit GET while CLI attempts it once on failure`() async throws {
+    func `app uses winning OAuth credentials while CLI follows credits flag`() async throws {
         let credentials = Self.credentials()
         let recorder = CodexOAuthResetCreditFetchRecorder()
         let fetcher: @Sendable (CodexOAuthCredentials) async throws -> CodexRateLimitResetCreditsSnapshot = { _ in
@@ -32,14 +32,14 @@ struct CodexOAuthResetCreditFetchTests {
             credentials: credentials,
             fetcher: fetcher)
         #expect(appResult == nil)
-        #expect(await recorder.requestCount() == 0)
+        #expect(await recorder.requestCount() == 1)
 
         let cliResult = try await CodexOAuthFetchStrategy._fetchResetCreditsForTesting(
             context: Self.context(runtime: .cli),
             credentials: credentials,
             fetcher: fetcher)
         #expect(cliResult == nil)
-        #expect(await recorder.requestCount() == 1)
+        #expect(await recorder.requestCount() == 2)
     }
 
     @Test
@@ -107,12 +107,12 @@ struct CodexOAuthResetCreditFetchTests {
     }
 
     @Test
-    func `O auth strategy defers app inventory and CLI follows credits flag`() {
+    func `O auth strategy fetches app inventory and CLI follows credits flag`() {
         let appContext = Self.context(runtime: .app, includeCredits: false, includeOptionalUsage: false)
         let cliNoCreditsContext = Self.context(runtime: .cli, includeCredits: false, includeOptionalUsage: true)
         let cliCreditsContext = Self.context(runtime: .cli, includeCredits: true, includeOptionalUsage: false)
 
-        #expect(CodexOAuthFetchStrategy._shouldFetchResetCreditsForTesting(appContext) == false)
+        #expect(CodexOAuthFetchStrategy._shouldFetchResetCreditsForTesting(appContext))
         #expect(CodexOAuthFetchStrategy._shouldFetchResetCreditsForTesting(cliNoCreditsContext) == false)
         #expect(CodexOAuthFetchStrategy._shouldFetchResetCreditsForTesting(cliCreditsContext))
     }

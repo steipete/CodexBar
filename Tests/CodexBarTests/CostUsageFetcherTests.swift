@@ -5,6 +5,61 @@ import Testing
 @Suite(.serialized)
 struct CostUsageFetcherTests {
     @Test
+    func `native codex sessions survive when pi usage is present but pi merge is disabled`() async throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+
+        let day = try env.makeLocalNoon(year: 2026, month: 4, day: 8)
+        try Self.writeCodexSessionFile(
+            homeRoot: env.codexHomeRoot,
+            env: env,
+            day: day,
+            filename: "native.jsonl",
+            tokens: 100)
+        _ = try env.writePiSessionFile(
+            relativePath: "2026-04-08T10-00-00-000Z_mixed.jsonl",
+            contents: env.jsonl([[
+                "type": "message",
+                "timestamp": env.isoString(for: day),
+                "message": [
+                    "role": "assistant",
+                    "provider": "openai-codex",
+                    "model": "openai/gpt-5.4",
+                    "timestamp": Int(day.timeIntervalSince1970 * 1000),
+                    "usage": ["input": 50, "output": 5, "totalTokens": 55],
+                ],
+            ]]))
+
+        var options = CostUsageScanner.Options(
+            codexSessionsRoot: env.codexSessionsRoot,
+            cacheRoot: env.cacheRoot)
+        options.refreshMinIntervalSeconds = 0
+        let piOptions = PiSessionCostScanner.Options(
+            piSessionsRoot: env.piSessionsRoot,
+            cacheRoot: env.cacheRoot,
+            refreshMinIntervalSeconds: 0)
+
+        let merged = try await CostUsageFetcher.loadTokenSnapshot(
+            provider: .codex,
+            now: day,
+            historyDays: 1,
+            includePiSessions: true,
+            scannerOptions: options,
+            piScannerOptions: piOptions)
+        let nativeOnly = try await CostUsageFetcher.loadTokenSnapshot(
+            provider: .codex,
+            now: day.addingTimeInterval(1),
+            historyDays: 1,
+            includePiSessions: false,
+            scannerOptions: options,
+            piScannerOptions: piOptions)
+
+        #expect(merged.sessions.isEmpty)
+        #expect(nativeOnly.sessionTokens == 100)
+        #expect(nativeOnly.sessions.count == 1)
+    }
+
+    @Test
     func `fetcher scopes codex history to selected codex home`() async throws {
         let env = try CostUsageTestEnvironment()
         defer { env.cleanup() }
@@ -56,6 +111,31 @@ struct CostUsageFetcherTests {
 }
 
 extension CostUsageFetcherTests {
+    @Test
+    func `completed empty codex scan publishes known zero totals`() async throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+
+        let day = try env.makeLocalNoon(year: 2026, month: 4, day: 8)
+        var options = CostUsageScanner.Options(
+            codexSessionsRoot: env.codexSessionsRoot,
+            cacheRoot: env.cacheRoot)
+        options.refreshMinIntervalSeconds = 0
+
+        let snapshot = try await CostUsageFetcher.loadTokenSnapshot(
+            provider: .codex,
+            now: day,
+            historyDays: 1,
+            includePiSessions: false,
+            scannerOptions: options)
+
+        #expect(snapshot.historyCoverageIsEstablished)
+        #expect(snapshot.sessionTokens == 0)
+        #expect(snapshot.sessionCostUSD == 0)
+        #expect(snapshot.last30DaysTokens == 0)
+        #expect(snapshot.last30DaysCostUSD == 0)
+    }
+
     @Test
     func `codex history coverage follows pending catch up`() async throws {
         let env = try CostUsageTestEnvironment()

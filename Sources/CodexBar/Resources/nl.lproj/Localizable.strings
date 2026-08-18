@@ -1,7 +1,15 @@
 /* Dutch localization for CodexBar */
 
 /* iCloud Sync */
+"+ %d more" = "+ %d meer";
+"Conversations (%@)" = "Gesprekken (%@)";
+"Fast" = "Snel";
 "iCloud Sync" = "iCloud Sync";
+"Projects" = "Projecten";
+"Session %@" = "Sessie %@";
+"Std" = "Std";
+"Show all (%d)" = "Alles tonen (%d)";
+"Show less" = "Minder tonen";
 "Sync settings and providers across your Macs via iCloud" = "Sync settings and providers across your Macs via iCloud";
 "Include API keys, cookies, and tokens" = "Include API keys, cookies, and tokens";
 "Sync usage snapshots" = "Sync usage snapshots";
@@ -500,6 +508,10 @@
 "quota_depleted_title" = "Quotum uitgeput en hersteld";
 "quota_warning_notifications_subtitle" = "Waarschuwt wanneer het resterende sessie- of wekelijkse quotum de geconfigureerde drempels overschrijdt.";
 "threshold_warnings_title" = "Drempelwaarschuwingen";
+"provider_accent_color_title" = "Accentkleur";
+"provider_accent_color_footer" = "Stelt de kleur in van de gebruiksbalken, grafieken en schakeltab van deze aanbieder.";
+"provider_accent_color_hex_label" = "Hexadecimale kleurwaarde";
+"provider_accent_color_reset" = "Standaard gebruiken";
 "quota_warnings_title" = "Quotumwaarschuwingen";
 "quota_warning_session" = "sessie";
 "quota_warning_session_capitalized" = "Sessie";
@@ -607,6 +619,11 @@
 "show_quota_warning_markers_subtitle" = "Teken drempelmarkeringen op gebruiksbalken wanneer quotawaarschuwingen zijn geconfigureerd.";
 "weekly_progress_work_days_title" = "Wekelijkse voortgang werkdagen";
 "weekly_progress_work_days_subtitle" = "Stel werkdagen in voor markeringen op wekelijkse gebruiksbalken en tempoberekeningen.";
+"workday_tick_appearance_title" = "Weergave van werkdagmarkeringen";
+"workday_tick_appearance_subtitle" = "Kies hoe werkdaggrenzen op wekelijkse gebruiksbalken worden weergegeven.";
+"workday_tick_appearance_hidden" = "Verborgen";
+"workday_tick_appearance_subtle" = "Subtiel";
+"workday_tick_appearance_high_contrast" = "Hoog contrast";
 "show_provider_changelog_links_title" = "Toon provider changelog-links";
 "show_provider_changelog_links_subtitle" = "Voegt koppelingen naar release-opmerkingen voor ondersteunde CLI-ondersteunde providers toe aan het menu.";
 "show_credits_extra_usage_title" = "Toon credits + extra gebruik";
@@ -652,6 +669,15 @@
 "keychain_access_caption" = "Schakel alle lees- en schrijfbewerkingen van de sleutelhanger uit. Gebruik dit als macOS blijft vragen om 'Chrome/Brave/Edge Safe Storage', zelfs nadat u op Altijd toestaan ​​hebt geklikt. Browsercookie-import is niet beschikbaar als deze is ingeschakeld; plak Cookie-headers handmatig in Providers. Claude/Codex OAuth via de CLI werkt nog steeds.";
 "disable_keychain_access_title" = "Schakel sleutelhangertoegang uit";
 "disable_keychain_access_subtitle" = "Voorkomt elke sleutelhangertoegang indien ingeschakeld.";
+"Re-authenticate" = "Opnieuw authenticeren";
+"kiro_reauthenticate_title" = "Aanmelden bij Kiro CLI";
+"kiro_reauthenticate_subtitle" = "Voert 'kiro-cli login' uit om je sessie te vernieuwen wanneer deze is verlopen.";
+"Kiro CLI not found" = "Kiro CLI niet gevonden";
+"Install kiro-cli and try again." = "Installeer kiro-cli en probeer het opnieuw.";
+"Could not start kiro-cli login" = "Kan kiro-cli login niet starten";
+"Kiro login timed out" = "Time-out bij aanmelden bij Kiro";
+"kiro-cli login exited with status %d." = "kiro-cli login is afgesloten met status %d.";
+"Kiro login failed" = "Aanmelden bij Kiro mislukt";
 
 /* About Pane */
 "about_tagline" = "Moge uw tokens nooit opraken: houd de limieten van agenten in het oog.";
@@ -1290,6 +1316,9 @@
 "Native currencies stay separate; Codex account rows exclude Pi session history." = "Oorspronkelijke valuta’s blijven gescheiden; rijen met Codex-accounts sluiten Pi-sessiegeschiedenis uit.";
 "Spend unavailable" = "Uitgaven niet beschikbaar";
 "Model breakdown unavailable" = "Uitsplitsing per model niet beschikbaar";
+"Partial estimate" = "Gedeeltelijke schatting";
+"Partial model breakdown" = "Gedeeltelijke modeluitsplitsing";
+"%d of %d subscriptions have spend" = "%d van %d abonnementen hebben uitgaven";
 "Local estimated history" = "Lokaal geschatte geschiedenis";
 "Coverage" = "Dekking";
 "Estimated spend" = "Geschatte uitgaven";
@@ -1432,3 +1461,27 @@
 "5-hour usage" = "5-uursgebruik";
 "7-day usage" = "7-dagengebruik";
 "Total usage" = "Totaal gebruik";
+"claude_oauth_keychain_access_revoked" = "De toegang tot de Claude-sleutelhanger is ingetrokken door de tokenrotatie van Claude Code. Klik op Vernieuwen om opnieuw toegang te verlenen of zet de Claude-gebruiksbron op CLI/Web.";
+"claude_showing_last_known_usage" = "De laatst bekende gebruiksgegevens worden weergegeven (vastgelegd: %@).";
+/* Spend dashboard cost analysis */
+"90d" = "90d";
+"Input" = "Input";
+"Output" = "Output";
+"Cache write" = "Cache write";
+"Reasoning" = "Reasoning";
+"Sessions" = "Sessions";
+"Projects" = "Projects";
+"Plan metered" = "Plan metered";
+"List-price equivalent" = "List-price equivalent";
+"Metered and list-price" = "Metered and list-price";
+"List-price equivalent — not a billing receipt." = "List-price equivalent — not a billing receipt.";
+"Priced" = "Priced";
+"Unpriced" = "Unpriced";
+"Unmetered" = "Unmetered";
+"Estimated" = "Estimated";
+"Other models" = "Other models";
+"Include OpenCodex usage logs" = "Include OpenCodex usage logs";
+"Hide native Codex when OpenCodex is present" = "Hide native Codex when OpenCodex is present";
+"Export JSON" = "Export JSON";
+"Sources" = "Sources";
+"OpenCodex" = "OpenCodex";

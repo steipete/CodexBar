@@ -94,6 +94,18 @@ struct ClaudeProviderImplementation: ProviderImplementation {
 
         return [
             ProviderSettingsToggleDescriptor(
+                id: "claude-model-scoped-weekly-usage-visible",
+                title: "Show model-specific weekly usage in widgets",
+                subtitle: "Shows model-specific Claude quotas, such as Fable, in desktop widgets.",
+                binding: context.boolBinding(\.claudeModelScopedWeeklyUsageVisible),
+                statusText: nil,
+                actions: [],
+                isVisible: nil,
+                isEnabled: nil,
+                onChange: nil,
+                onAppDidBecomeActive: nil,
+                onAppearWhenEnabled: nil),
+            ProviderSettingsToggleDescriptor(
                 id: "claude-daily-routines-usage-visible",
                 title: "Show Daily Routines usage",
                 subtitle: [

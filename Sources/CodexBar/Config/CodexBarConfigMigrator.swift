@@ -25,6 +25,7 @@ struct CodexBarConfigMigrator {
         var didUpdate = false
         var sawLegacySecrets = false
         var sawLegacyAccounts = false
+        var legacyLoadFailures: [String] = []
     }
 
     static func loadOrMigrate(
@@ -50,8 +51,13 @@ struct CodexBarConfigMigrator {
             if existing == nil {
                 self.applyLegacyOrderAndToggles(userDefaults: userDefaults, config: &config, state: &state)
             }
-            self.migrateLegacySecrets(userDefaults: userDefaults, stores: stores, config: &config, state: &state)
-            self.migrateLegacyAccounts(stores: stores, config: &config, state: &state)
+            self.migrateLegacySecrets(
+                userDefaults: userDefaults,
+                stores: stores,
+                config: &config,
+                state: &state,
+                log: log)
+            self.migrateLegacyAccounts(stores: stores, config: &config, state: &state, log: log)
         }
 
         var didPersistUpdates = true
@@ -65,6 +71,13 @@ struct CodexBarConfigMigrator {
         }
 
         guard didPersistUpdates else {
+            return config.normalized()
+        }
+
+        guard state.legacyLoadFailures.isEmpty else {
+            log.error(
+                "Legacy migration deferred because one or more sources were unreadable",
+                metadata: ["stores": state.legacyLoadFailures.joined(separator: ",")])
             return config.normalized()
         }
 
@@ -100,33 +113,36 @@ struct CodexBarConfigMigrator {
         userDefaults: UserDefaults,
         stores: LegacyStores,
         config: inout CodexBarConfig,
-        state: inout MigrationState)
+        state: inout MigrationState,
+        log: CodexBarLogger)
     {
         // Provider-specific by design: this one-shot migration names the retired per-provider secret stores.
         self.migrateTokenProviders(
             [
-                (.zai, stores.zaiTokenStore.loadToken),
-                (.synthetic, stores.syntheticTokenStore.loadToken),
-                (.copilot, stores.copilotTokenStore.loadToken),
+                (.zai, "zai-token", stores.zaiTokenStore.loadToken),
+                (.synthetic, "synthetic-token", stores.syntheticTokenStore.loadToken),
+                (.copilot, "copilot-token", stores.copilotTokenStore.loadToken),
             ],
             config: &config,
-            state: &state)
+            state: &state,
+            log: log)
 
         self.migrateCookieProviders(
             [
-                (.codex, stores.codexCookieStore.loadCookieHeader),
-                (.claude, stores.claudeCookieStore.loadCookieHeader),
-                (.cursor, stores.cursorCookieStore.loadCookieHeader),
-                (.factory, stores.factoryCookieStore.loadCookieHeader),
-                (.augment, stores.augmentCookieStore.loadCookieHeader),
-                (.amp, stores.ampCookieStore.loadCookieHeader),
+                (.codex, "codex-cookie", stores.codexCookieStore.loadCookieHeader),
+                (.claude, "claude-cookie", stores.claudeCookieStore.loadCookieHeader),
+                (.cursor, "cursor-cookie", stores.cursorCookieStore.loadCookieHeader),
+                (.factory, "factory-cookie", stores.factoryCookieStore.loadCookieHeader),
+                (.augment, "augment-cookie", stores.augmentCookieStore.loadCookieHeader),
+                (.amp, "amp-cookie", stores.ampCookieStore.loadCookieHeader),
             ],
             config: &config,
-            state: &state)
+            state: &state,
+            log: log)
 
-        self.migrateMiniMax(userDefaults: userDefaults, stores: stores, config: &config, state: &state)
-        self.migrateKimi(userDefaults: userDefaults, stores: stores, config: &config, state: &state)
-        self.migrateOpenCode(userDefaults: userDefaults, stores: stores, config: &config, state: &state)
+        self.migrateMiniMax(userDefaults: userDefaults, stores: stores, config: &config, state: &state, log: log)
+        self.migrateKimi(userDefaults: userDefaults, stores: stores, config: &config, state: &state, log: log)
+        self.migrateOpenCode(userDefaults: userDefaults, stores: stores, config: &config, state: &state, log: log)
     }
 
     private static func applyLegacyCookieSources(
@@ -181,12 +197,18 @@ struct CodexBarConfigMigrator {
     }
 
     private static func migrateTokenProviders(
-        _ providers: [(UsageProvider, () throws -> String?)],
+        _ providers: [(UsageProvider, String, () throws -> String?)],
         config: inout CodexBarConfig,
-        state: inout MigrationState)
+        state: inout MigrationState,
+        log: CodexBarLogger)
     {
-        for (provider, loader) in providers {
-            let token = try? loader()
+        for (provider, store, loader) in providers {
+            let token = self.loadLegacyString(
+                provider: provider,
+                store: store,
+                state: &state,
+                log: log,
+                loader: loader)
             if token != nil {
                 state.sawLegacySecrets = true
             }
@@ -197,12 +219,18 @@ struct CodexBarConfigMigrator {
     }
 
     private static func migrateCookieProviders(
-        _ providers: [(UsageProvider, () throws -> String?)],
+        _ providers: [(UsageProvider, String, () throws -> String?)],
         config: inout CodexBarConfig,
-        state: inout MigrationState)
+        state: inout MigrationState,
+        log: CodexBarLogger)
     {
-        for (provider, loader) in providers {
-            let header = try? loader()
+        for (provider, store, loader) in providers {
+            let header = self.loadLegacyString(
+                provider: provider,
+                store: store,
+                state: &state,
+                log: log,
+                loader: loader)
             if header != nil {
                 state.sawLegacySecrets = true
             }
@@ -216,11 +244,22 @@ struct CodexBarConfigMigrator {
         userDefaults: UserDefaults,
         stores: LegacyStores,
         config: inout CodexBarConfig,
-        state: inout MigrationState)
+        state: inout MigrationState,
+        log: CodexBarLogger)
     {
         // Provider-specific by design: MiniMax formerly split API token, region, and cookie across legacy stores.
-        let token = try? stores.minimaxAPITokenStore.loadToken()
-        let header = try? stores.minimaxCookieStore.loadCookieHeader()
+        let token = self.loadLegacyString(
+            provider: .minimax,
+            store: "minimax-api-token",
+            state: &state,
+            log: log,
+            loader: stores.minimaxAPITokenStore.loadToken)
+        let header = self.loadLegacyString(
+            provider: .minimax,
+            store: "minimax-cookie",
+            state: &state,
+            log: log,
+            loader: stores.minimaxCookieStore.loadCookieHeader)
         if token != nil || header != nil {
             state.sawLegacySecrets = true
         }
@@ -241,10 +280,16 @@ struct CodexBarConfigMigrator {
         userDefaults: UserDefaults,
         stores: LegacyStores,
         config: inout CodexBarConfig,
-        state: inout MigrationState)
+        state: inout MigrationState,
+        log: CodexBarLogger)
     {
         // Provider-specific by design: Kimi's legacy cookie could live in Keychain or kimiManualCookieHeader.
-        var token = try? stores.kimiTokenStore.loadToken()
+        var token = self.loadLegacyString(
+            provider: .kimi,
+            store: "kimi-token",
+            state: &state,
+            log: log,
+            loader: stores.kimiTokenStore.loadToken)
         if token?.isEmpty ?? true {
             token = userDefaults.string(forKey: "kimiManualCookieHeader")
         }
@@ -260,10 +305,16 @@ struct CodexBarConfigMigrator {
         userDefaults: UserDefaults,
         stores: LegacyStores,
         config: inout CodexBarConfig,
-        state: inout MigrationState)
+        state: inout MigrationState,
+        log: CodexBarLogger)
     {
         // Provider-specific by design: OpenCode's retired store paired its cookie with opencodeWorkspaceID.
-        let header = try? stores.opencodeCookieStore.loadCookieHeader()
+        let header = self.loadLegacyString(
+            provider: .opencode,
+            store: "opencode-cookie",
+            state: &state,
+            log: log,
+            loader: stores.opencodeCookieStore.loadCookieHeader)
         if header != nil {
             state.sawLegacySecrets = true
         }
@@ -282,9 +333,22 @@ struct CodexBarConfigMigrator {
     private static func migrateLegacyAccounts(
         stores: LegacyStores,
         config: inout CodexBarConfig,
-        state: inout MigrationState)
+        state: inout MigrationState,
+        log: CodexBarLogger)
     {
-        guard let accounts = try? stores.tokenAccountStore.loadAccounts(), !accounts.isEmpty else { return }
+        let accounts: [UsageProvider: ProviderTokenAccountData]
+        do {
+            accounts = try stores.tokenAccountStore.loadAccounts()
+        } catch {
+            self.recordLegacyLoadFailure(
+                provider: nil,
+                store: "token-accounts",
+                error: error,
+                state: &state,
+                log: log)
+            return
+        }
+        guard !accounts.isEmpty else { return }
         state.sawLegacyAccounts = true
         for (provider, data) in accounts where !data.accounts.isEmpty {
             self.updateProvider(provider, config: &config, state: &state) { entry in
@@ -293,6 +357,43 @@ struct CodexBarConfigMigrator {
                 return true
             }
         }
+    }
+
+    private static func loadLegacyString(
+        provider: UsageProvider,
+        store: String,
+        state: inout MigrationState,
+        log: CodexBarLogger,
+        loader: () throws -> String?) -> String?
+    {
+        do {
+            return try loader()
+        } catch {
+            self.recordLegacyLoadFailure(
+                provider: provider,
+                store: store,
+                error: error,
+                state: &state,
+                log: log)
+            return nil
+        }
+    }
+
+    private static func recordLegacyLoadFailure(
+        provider: UsageProvider?,
+        store: String,
+        error: Error,
+        state: inout MigrationState,
+        log: CodexBarLogger)
+    {
+        state.legacyLoadFailures.append(store)
+        log.error(
+            "Failed to load legacy migration source",
+            metadata: [
+                "provider": provider?.rawValue ?? "multiple",
+                "store": store,
+                "error": error.localizedDescription,
+            ])
     }
 
     private static func updateProvider(

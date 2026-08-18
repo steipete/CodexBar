@@ -85,6 +85,27 @@ extension SettingsStore {
         self.configSnapshot.providerConfig(for: provider.instanceID)?.quotaWarnings ?? QuotaWarningConfig()
     }
 
+    /// The user accent override for a provider, or nil when the provider keeps its shipped color.
+    func accentColorOverride(for provider: UsageProvider) -> ProviderColor? {
+        guard let raw = self.configSnapshot.providerConfig(for: provider.instanceID)?.accentColor else { return nil }
+        return ProviderColor(hexString: raw)
+    }
+
+    /// The color a provider paints with: the user override when one exists, otherwise the shipped brand color.
+    func accentColor(for provider: UsageProvider) -> ProviderColor {
+        self.accentColorOverride(for: provider)
+            ?? ProviderDescriptorRegistry.descriptor(for: provider).branding.color
+    }
+
+    /// Stores an accent override, or clears it when `color` is nil. Clearing restores the shipped color,
+    /// which descriptors hold as a compile-time constant and this never writes over.
+    func setAccentColorOverride(_ color: ProviderColor?, for provider: UsageProvider) {
+        guard self.accentColorOverride(for: provider) != color else { return }
+        self.updateProviderConfig(provider: provider, affectsBackgroundWork: false) { entry in
+            entry.accentColor = color?.hexString
+        }
+    }
+
     func resolvedQuotaWarningThresholds(provider: UsageProvider, window: QuotaWarningWindow) -> [Int] {
         self.quotaWarningConfig(for: provider).thresholds(
             for: window,

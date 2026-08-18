@@ -831,6 +831,11 @@ enum RPCWireError: Error, LocalizedError {
     }
 }
 
+private enum RPCRequestRaceResult<Value: Sendable>: Sendable {
+    case value(Value)
+    case timedOut
+}
+
 /// RPC helper used on background tasks; safe because we confine it to the owning task.
 private final class CodexRPCClient: @unchecked Sendable {
     // Provider-specific by design: Codex RPC owns its dedicated subprocess log category.
@@ -844,12 +849,6 @@ private final class CodexRPCClient: @unchecked Sendable {
     private var nextID = 1
     private let initializeTimeoutSeconds: TimeInterval
     private let requestTimeoutSeconds: TimeInterval
-
-    private static func debugWriteStderr(_ message: String) {
-        #if !os(Linux)
-        fputs(message, stderr)
-        #endif
-    }
 
     init(
         executable: String = "codex", // Provider-specific by design: this RPC client launches Codex app-server.
@@ -943,7 +942,7 @@ private final class CodexRPCClient: @unchecked Sendable {
             }
             guard let text = String(data: data, encoding: .utf8), !text.isEmpty else { return }
             for line in text.split(whereSeparator: \.isNewline) {
-                Self.debugWriteStderr("[codex stderr] \(line)\n")
+                Self.log.debug("[codex stderr] \(line)")
             }
         }
     }
@@ -992,7 +991,7 @@ private final class CodexRPCClient: @unchecked Sendable {
                 let message = try await self.readNextMessage()
 
                 if message["id"] == nil, let methodName = message["method"] as? String {
-                    Self.debugWriteStderr("[codex notify] \(methodName)\n")
+                    Self.log.debug("[codex notify] \(methodName)")
                     continue
                 }
 
@@ -1013,24 +1012,29 @@ private final class CodexRPCClient: @unchecked Sendable {
         method: String,
         body: @escaping @Sendable () async throws -> T) async throws -> T
     {
-        try await withThrowingTaskGroup(of: T.self) { group in
+        try await withThrowingTaskGroup(of: RPCRequestRaceResult<T>.self) { group in
             group.addTask {
-                try await body()
+                try await .value(body())
             }
-            group.addTask { [weak self] in
+            group.addTask {
                 try await Task.sleep(for: .seconds(seconds))
-                self?.terminateProcessForTimeout(method: method)
+                return .timedOut
+            }
+
+            guard let result = try await group.next() else {
+                group.cancelAll()
                 throw RPCWireError.timeout(method: method)
             }
-            do {
-                guard let result = try await group.next() else {
-                    throw RPCWireError.timeout(method: method)
-                }
-                group.cancelAll()
-                return result
-            } catch {
-                group.cancelAll()
-                throw error
+            group.cancelAll()
+
+            switch result {
+            case let .value(value):
+                return value
+            case .timedOut:
+                // Terminating the process closes stdout. Classify that expected EOF as a
+                // timeout by selecting the timer before requesting process termination.
+                self.terminateProcessForTimeout(method: method)
+                throw RPCWireError.timeout(method: method)
             }
         }
     }
@@ -1196,7 +1200,7 @@ public struct UsageFetcher: Sendable {
                     credits: credits,
                     identity: usage?.identity)
             }
-            throw error
+            throw CodexCLIBackendRateLimitError.classify(error, environment: self.environment) ?? error
         }
     }
 

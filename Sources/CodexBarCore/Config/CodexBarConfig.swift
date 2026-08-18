@@ -187,6 +187,8 @@ public struct ProviderConfig: Codable, Sendable, Identifiable {
     public var enterpriseHost: String?
     public var tokenAccounts: ProviderTokenAccountData?
     public var quotaWarnings: QuotaWarningConfig?
+    /// User override for the provider brand color, as `#RRGGBB`. Nil keeps the descriptor default.
+    public var accentColor: String?
     /// Arbitrary user-plugin values stay scoped to the provider instance. Secure values are redacted from config dumps.
     public var pluginSettings: [String: String]?
     public var pluginSecrets: [String: String]?
@@ -206,6 +208,7 @@ public struct ProviderConfig: Codable, Sendable, Identifiable {
         enterpriseHost: String? = nil,
         tokenAccounts: ProviderTokenAccountData? = nil,
         quotaWarnings: QuotaWarningConfig? = nil,
+        accentColor: String? = nil,
         pluginSettings: [String: String]? = nil,
         pluginSecrets: [String: String]? = nil)
     {
@@ -222,6 +225,7 @@ public struct ProviderConfig: Codable, Sendable, Identifiable {
         self.enterpriseHost = enterpriseHost
         self.tokenAccounts = tokenAccounts
         self.quotaWarnings = quotaWarnings
+        self.accentColor = accentColor
         self.pluginSettings = pluginSettings
         self.pluginSecrets = pluginSecrets
         self.extensionValues = [:]

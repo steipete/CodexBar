@@ -13,4 +13,19 @@ public enum GeminiConsumerTierMigration {
     accounts blocked by the June 2026 Gemini CLI shutdown should use CodexBar's Antigravity \
     provider instead. Workspace and education accounts should keep using Gemini.
     """
+
+    public static let localAntigravityHandoffError = """
+    Could not refresh Gemini OAuth credentials from Gemini CLI. Enable CodexBar's Antigravity \
+    provider, sign in to Antigravity or run `agy`, then refresh.
+    """
+
+    static func isAntigravityAvailable() -> Bool {
+        if BinaryLocator.resolveAntigravityBinary() != nil {
+            return true
+        }
+
+        return AntigravityOAuthConfig.candidateOAuthClientArtifactURLs().contains {
+            FileManager.default.fileExists(atPath: $0.path)
+        }
+    }
 }

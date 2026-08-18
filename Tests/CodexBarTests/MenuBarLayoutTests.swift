@@ -27,6 +27,7 @@ struct MenuBarLayoutTests {
                 .resetCountdown,
                 .resetAbsolute,
                 .runsOut,
+                .runsOutCompact,
                 .balance,
                 .costToday,
                 .cost30d,
@@ -39,6 +40,16 @@ struct MenuBarLayoutTests {
         let decoded = try JSONDecoder().decode(MenuBarLayout.self, from: data)
 
         #expect(decoded == layout)
+    }
+
+    @Test
+    func `run out token discriminators stay stable`() throws {
+        let labeled = try JSONEncoder().encode(MenuBarLayoutToken.runsOut)
+        let compact = try JSONEncoder().encode(MenuBarLayoutToken.runsOutCompact)
+
+        #expect(String(bytes: labeled, encoding: .utf8) == #"{"runsOut":{}}"#)
+        #expect(String(bytes: compact, encoding: .utf8) == #"{"runsOutCompact":{}}"#)
+        #expect(try JSONDecoder().decode(MenuBarLayoutToken.self, from: labeled) == .runsOut)
     }
 
     @Test

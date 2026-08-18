@@ -940,3 +940,126 @@ struct StatusItemBalanceDisplayTests {
             updatedAt: Date()).toUsageSnapshot()
     }
 }
+
+extension StatusItemBalanceDisplayTests {
+    @Test
+    func `stored Mistral icon and percent layout preserves selected monthly plan`() {
+        let settings = self.makeSettings(
+            suiteName: "StatusItemBalanceDisplayTests-mistral-custom-layout-monthly-plan",
+            provider: .mistral)
+        settings.setMenuBarMetricPreference(.monthlyPlan, for: .mistral)
+        let layout = MenuBarLayout(lines: [[.icon, .percent(window: .automatic)]])
+        settings.setMenuBarLayout(layout, for: nil)
+        let (store, controller) = self.makeStoreAndController(settings: settings)
+        defer { controller.releaseStatusItemsForTesting() }
+        let snapshot = MistralUsageSnapshot(
+            totalCost: 1.2345,
+            currency: "EUR",
+            currencySymbol: "€",
+            totalInputTokens: 10000,
+            totalOutputTokens: 5000,
+            totalCachedTokens: 0,
+            modelCount: 2,
+            startDate: nil,
+            endDate: nil,
+            updatedAt: Date())
+            .toUsageSnapshot()
+            .with(extraRateWindows: [
+                NamedRateWindow(
+                    id: "mistral-monthly-plan",
+                    title: "Monthly Plan",
+                    window: RateWindow(
+                        usedPercent: 42,
+                        windowMinutes: nil,
+                        resetsAt: nil,
+                        resetDescription: nil)),
+            ])
+
+        store._setSnapshotForTesting(snapshot, provider: .mistral)
+        store._setErrorForTesting(nil, provider: .mistral)
+
+        let statusItemData = controller.menuBarLayoutRenderData(
+            provider: .mistral,
+            snapshot: snapshot,
+            warningFlash: false)
+        let previewData = MenuBarLayoutPreview(
+            layout: layout,
+            provider: .mistral,
+            settings: settings,
+            store: store)
+            .liveData(provider: .mistral, snapshot: snapshot)
+
+        for data in [statusItemData, previewData] {
+            let rendered = MenuBarLayoutRenderer().render(
+                layout: layout,
+                data: data,
+                icon: NSImage(size: NSSize(width: 16, height: 16)),
+                options: MenuBarLayoutRenderOptions(
+                    size: .regular,
+                    highContrast: false,
+                    showUsed: true,
+                    appearanceName: "aqua",
+                    isDebugApp: false,
+                    now: Date()))
+
+            #expect(data.automatic?.usedPercent == 42)
+            #expect(data.automaticText == nil)
+            #expect(rendered.attributedTitle.string.hasSuffix("42%"))
+            #expect(rendered.accessibilityLabel.contains("42%"))
+        }
+    }
+
+    @Test
+    func `stored Mistral icon and percent layout uses api spend in status item and preview`() {
+        let settings = self.makeSettings(
+            suiteName: "StatusItemBalanceDisplayTests-mistral-custom-layout",
+            provider: .mistral)
+        let layout = MenuBarLayout(lines: [[.icon, .percent(window: .automatic)]])
+        settings.setMenuBarLayout(layout, for: nil)
+        let (store, controller) = self.makeStoreAndController(settings: settings)
+        defer { controller.releaseStatusItemsForTesting() }
+        let snapshot = MistralUsageSnapshot(
+            totalCost: 1.2345,
+            currency: "EUR",
+            currencySymbol: "€",
+            totalInputTokens: 10000,
+            totalOutputTokens: 5000,
+            totalCachedTokens: 0,
+            modelCount: 2,
+            startDate: nil,
+            endDate: nil,
+            updatedAt: Date()).toUsageSnapshot()
+
+        store._setSnapshotForTesting(snapshot, provider: .mistral)
+        store._setErrorForTesting(nil, provider: .mistral)
+
+        let statusItemData = controller.menuBarLayoutRenderData(
+            provider: .mistral,
+            snapshot: snapshot,
+            warningFlash: false)
+        let previewData = MenuBarLayoutPreview(
+            layout: layout,
+            provider: .mistral,
+            settings: settings,
+            store: store)
+            .liveData(provider: .mistral, snapshot: snapshot)
+
+        for data in [statusItemData, previewData] {
+            let rendered = MenuBarLayoutRenderer().render(
+                layout: layout,
+                data: data,
+                icon: NSImage(size: NSSize(width: 16, height: 16)),
+                options: MenuBarLayoutRenderOptions(
+                    size: .regular,
+                    highContrast: false,
+                    showUsed: true,
+                    appearanceName: "aqua",
+                    isDebugApp: false,
+                    now: Date()))
+
+            #expect(data.automatic == nil)
+            #expect(rendered.attributedTitle.string.hasSuffix("€1.2345"))
+            #expect(rendered.accessibilityLabel.contains("€1.2345"))
+        }
+    }
+}

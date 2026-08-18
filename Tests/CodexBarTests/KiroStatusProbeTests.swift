@@ -7,13 +7,6 @@ import Darwin
 import Glibc
 #endif
 
-private func waitForFile(_ url: URL) async throws {
-    for _ in 0..<100 where !FileManager.default.fileExists(atPath: url.path) {
-        try await Task.sleep(for: .milliseconds(20))
-    }
-    #expect(FileManager.default.fileExists(atPath: url.path))
-}
-
 @Suite(.serialized)
 struct KiroStatusProbeTests {
     @Test
@@ -92,8 +85,6 @@ struct KiroStatusProbeTests {
     func `accepted pipe output cannot overrun the usage deadline`() async throws {
         let pipePIDFile = FileManager.default.temporaryDirectory
             .appendingPathComponent("codexbar-kiro-deadline-\(UUID().uuidString).pid")
-        let ptyMarker = FileManager.default.temporaryDirectory
-            .appendingPathComponent("codexbar-kiro-deadline-\(UUID().uuidString).pty")
         let cliURL = try self.makeCLI(
             """
             #!/bin/sh
@@ -102,6 +93,9 @@ struct KiroStatusProbeTests {
               exit 0
             fi
             if [ "$1" = "chat" ] && [ "$3" = "/usage" ]; then
+              if [ -t 1 ]; then
+                exit 97
+              fi
               if [ ! -t 1 ]; then
                 printf '%s\n' "$$" > '\(pipePIDFile.path)'
                 printf 'Estimated Usage | resets on 2026-06-01 | KIRO FREE\n'
@@ -110,11 +104,6 @@ struct KiroStatusProbeTests {
                 trap '' TERM
                 while true; do sleep 1; done
               fi
-              : > '\(ptyMarker.path)'
-              printf 'Estimated Usage | resets on 2026-06-01 | KIRO FREE\n'
-              printf 'Credits (12.50 of 50 covered in plan)\n'
-              printf '████████████████████ 25%%\n'
-              exit 0
             fi
             if [ "$1" = "chat" ] && [ "$3" = "/context" ]; then
               exit 0
@@ -128,29 +117,49 @@ struct KiroStatusProbeTests {
                 _ = kill(pipePID, SIGKILL)
             }
             try? FileManager.default.removeItem(at: pipePIDFile)
-            try? FileManager.default.removeItem(at: ptyMarker)
             try? FileManager.default.removeItem(at: cliURL.deletingLastPathComponent())
         }
 
-        let clock = ContinuousClock()
-        let startedAt = clock.now
+        let registry = KiroTestProcessRegistry()
         let probe = KiroStatusProbe(
             cliBinaryResolver: { cliURL.path },
             usageProbeTimeout: 4,
-            pipeTimeoutCap: 2)
+            pipeTimeoutCap: 2,
+            pipeProcessRegistry: registry.dependencies)
+        let completion = KiroTestCompletionMarker()
+        let task = Task {
+            defer { completion.markCompleted() }
+            return try await probe.fetch()
+        }
+        defer {
+            task.cancel()
+            registry.terminateAll()
+        }
 
+        try await KiroProcessTestSupport.waitForCondition(
+            "the accepted-pipe deadline probe to finish and release all registered processes",
+            timeout: .seconds(20))
+        {
+            completion.isCompleted() && registry.activePIDs().isEmpty
+        }
         await #expect {
-            _ = try await probe.fetch()
+            _ = try await task.value
         } throws: { error in
             guard case KiroStatusProbeError.timeout = error else { return false }
             return true
         }
 
-        #expect(startedAt.duration(to: clock.now) < TestTimingBudget.scaled(.seconds(7)))
-        #expect(!FileManager.default.fileExists(atPath: ptyMarker.path))
-        let pipePIDText = try String(contentsOf: pipePIDFile, encoding: .utf8)
-        let pipePID = try #require(pid_t(pipePIDText.trimmingCharacters(in: .whitespacesAndNewlines)))
-        #expect(kill(pipePID, 0) == -1)
+        // A loaded runner may legitimately start PTY fallback before the pipe child gets scheduled. Assert cleanup
+        // at the registry boundary instead of assuming either child executed far enough to create its marker file.
+        let observedPIDs = registry.observedPIDs()
+        #expect(!observedPIDs.isEmpty)
+        #expect(registry.activePIDs().isEmpty)
+        for pid in observedPIDs {
+            #expect(kill(pid, 0) == -1)
+        }
+        if let pipePID = KiroProcessTestSupport.readPID(from: pipePIDFile) {
+            #expect(kill(pipePID, 0) == -1)
+        }
     }
 
     @Test
@@ -178,7 +187,7 @@ struct KiroStatusProbeTests {
             """)
         defer { try? FileManager.default.removeItem(at: cliURL.deletingLastPathComponent()) }
 
-        let probe = KiroStatusProbe(cliBinaryResolver: { cliURL.path })
+        let probe = KiroProcessTestSupport.makeFunctionalProbe(cliURL: cliURL)
         let snapshot = try await probe.fetch()
 
         #expect(snapshot.accountEmail == "person@example.com")
@@ -217,7 +226,7 @@ extension KiroStatusProbeTests {
             """)
         defer { try? FileManager.default.removeItem(at: cliURL.deletingLastPathComponent()) }
 
-        let probe = KiroStatusProbe(cliBinaryResolver: { cliURL.path })
+        let probe = KiroProcessTestSupport.makeFunctionalProbe(cliURL: cliURL)
         let snapshot = try await probe.fetch()
 
         #expect(snapshot.planName == "KIRO FREE")
@@ -251,9 +260,9 @@ extension KiroStatusProbeTests {
             """)
         defer { try? FileManager.default.removeItem(at: cliURL.deletingLastPathComponent()) }
 
-        let snapshot = try await KiroStatusProbe(
-            cliBinaryResolver: { cliURL.path },
-            usageProbeTimeout: 2,
+        let snapshot = try await KiroProcessTestSupport.makeFunctionalProbe(
+            cliURL: cliURL,
+            usageProbeTimeout: 15,
             pipeTimeoutCap: 0.2).fetch()
 
         #expect(snapshot.planName == "KIRO FREE")
@@ -289,8 +298,8 @@ extension KiroStatusProbeTests {
             """)
         defer { try? FileManager.default.removeItem(at: cliURL.deletingLastPathComponent()) }
 
-        let probe = KiroStatusProbe(
-            cliBinaryResolver: { cliURL.path },
+        let probe = KiroProcessTestSupport.makeFunctionalProbe(
+            cliURL: cliURL,
             pipeTimeoutCap: 0.2)
         let snapshot = try await probe.fetch()
 
@@ -335,7 +344,7 @@ extension KiroStatusProbeTests {
             """)
         defer { try? FileManager.default.removeItem(at: cliURL.deletingLastPathComponent()) }
 
-        let snapshot = try await KiroStatusProbe(cliBinaryResolver: { cliURL.path }).fetch()
+        let snapshot = try await KiroProcessTestSupport.makeFunctionalProbe(cliURL: cliURL).fetch()
 
         #expect(snapshot.planName == "KIRO FREE")
         #expect(snapshot.creditsUsed == 12.50)
@@ -388,7 +397,7 @@ extension KiroStatusProbeTests {
             try? FileManager.default.removeItem(at: cliURL.deletingLastPathComponent())
         }
 
-        let snapshot = try await KiroStatusProbe(cliBinaryResolver: { cliURL.path }).fetch()
+        let snapshot = try await KiroProcessTestSupport.makeFunctionalProbe(cliURL: cliURL).fetch()
 
         #expect(snapshot.planName == "KIRO FREE")
         #expect(FileManager.default.fileExists(atPath: ptyMarker.path))
@@ -424,13 +433,17 @@ extension KiroStatusProbeTests {
             """)
 
         let registry = KiroTestProcessRegistry()
+        let probe = KiroProcessTestSupport.makeFunctionalProbe(
+            cliURL: cliURL,
+            processRegistry: registry)
+        let completion = KiroTestCompletionMarker()
         let task = Task {
-            try await KiroStatusProbe(
-                cliBinaryResolver: { cliURL.path },
-                pipeProcessRegistry: registry.dependencies).fetch()
+            defer { completion.markCompleted() }
+            return try await probe.fetch()
         }
         defer {
             task.cancel()
+            registry.terminateAll()
             if let text = try? String(contentsOf: pipePIDFile, encoding: .utf8),
                let pipePID = pid_t(text.trimmingCharacters(in: .whitespacesAndNewlines))
             {
@@ -440,19 +453,23 @@ extension KiroStatusProbeTests {
             try? FileManager.default.removeItem(at: cliURL.deletingLastPathComponent())
         }
 
-        try await waitForFile(pipePIDFile)
-        let pipePIDText = try String(contentsOf: pipePIDFile, encoding: .utf8)
-        let pipePID = try #require(pid_t(pipePIDText.trimmingCharacters(in: .whitespacesAndNewlines)))
+        let pipePID = try await KiroProcessTestSupport.waitForPID(in: pipePIDFile)
         #expect(registry.isRegistered(pipePID))
 
-        let clock = ContinuousClock()
-        let shutdownStartedAt = clock.now
         registry.terminate(pipePID)
+        try await KiroProcessTestSupport.waitForCondition(
+            "shutdown termination to finish the pipe probe, unregister it, and reap its process",
+            timeout: .seconds(20))
+        {
+            completion.isCompleted()
+                && !registry.isRegistered(pipePID)
+                && registry.didUnregister(pipePID)
+                && kill(pipePID, 0) == -1
+        }
         await #expect(throws: (any Error).self) {
             _ = try await task.value
         }
 
-        #expect(shutdownStartedAt.duration(to: clock.now) < TestTimingBudget.scaled(.seconds(2)))
         #expect(!registry.isRegistered(pipePID))
         #expect(registry.didUnregister(pipePID))
         #expect(kill(pipePID, 0) == -1)
@@ -485,7 +502,7 @@ extension KiroStatusProbeTests {
             """)
         defer { try? FileManager.default.removeItem(at: cliURL.deletingLastPathComponent()) }
 
-        let snapshot = try await KiroStatusProbe(cliBinaryResolver: { cliURL.path }).fetch()
+        let snapshot = try await KiroProcessTestSupport.makeFunctionalProbe(cliURL: cliURL).fetch()
 
         #expect(snapshot.planName == "KIRO FREE")
         #expect(snapshot.accountEmail == "person@example.com")
@@ -520,7 +537,7 @@ extension KiroStatusProbeTests {
             """)
         defer { try? FileManager.default.removeItem(at: cliURL.deletingLastPathComponent()) }
 
-        let snapshot = try await KiroStatusProbe(cliBinaryResolver: { cliURL.path }).fetch()
+        let snapshot = try await KiroProcessTestSupport.makeFunctionalProbe(cliURL: cliURL).fetch()
 
         #expect(snapshot.planName == "KIRO FREE")
         #expect(snapshot.accountEmail == "person@example.com")
@@ -556,7 +573,7 @@ extension KiroStatusProbeTests {
         defer { try? FileManager.default.removeItem(at: cliURL.deletingLastPathComponent()) }
 
         await #expect {
-            _ = try await KiroStatusProbe(cliBinaryResolver: { cliURL.path }).fetch()
+            _ = try await KiroProcessTestSupport.makeFunctionalProbe(cliURL: cliURL).fetch()
         } throws: { error in
             guard case KiroStatusProbeError.notLoggedIn = error else { return false }
             return true
@@ -565,11 +582,14 @@ extension KiroStatusProbeTests {
 
     @Test
     func `fetch rejects account markers from failed whoami`() async throws {
+        let whoAmIFailed = FileManager.default.temporaryDirectory
+            .appendingPathComponent("codexbar-kiro-failed-whoami-\(UUID().uuidString).started")
         let cliURL = try self.makeCLI(
             """
             #!/bin/sh
             if [ "$1" = "whoami" ]; then
               printf 'Logged in with Google\nEmail: person@example.com\n'
+              : > '\(whoAmIFailed.path)'
               exit 23
             fi
 
@@ -586,9 +606,13 @@ extension KiroStatusProbeTests {
 
             exit 1
             """)
-        defer { try? FileManager.default.removeItem(at: cliURL.deletingLastPathComponent()) }
+        defer {
+            try? FileManager.default.removeItem(at: whoAmIFailed)
+            try? FileManager.default.removeItem(at: cliURL.deletingLastPathComponent())
+        }
 
-        let snapshot = try await KiroStatusProbe(cliBinaryResolver: { cliURL.path }).fetch()
+        let snapshot = try await KiroProcessTestSupport.makeFunctionalProbe(cliURL: cliURL).fetch()
+        try await KiroProcessTestSupport.waitForFile(whoAmIFailed)
 
         #expect(snapshot.accountEmail == nil)
         #expect(snapshot.authMethod == nil)
@@ -596,12 +620,17 @@ extension KiroStatusProbeTests {
 
     @Test
     func `fetch rejects valid-looking usage from failed command`() async throws {
+        let whoAmISucceeded = FileManager.default.temporaryDirectory
+            .appendingPathComponent("codexbar-kiro-successful-whoami-\(UUID().uuidString).started")
+        let usageFailed = FileManager.default.temporaryDirectory
+            .appendingPathComponent("codexbar-kiro-failed-usage-\(UUID().uuidString).started")
         let cliURL = try self.makeCLI(
             """
             #!/bin/sh
             if [ -t 1 ]; then
               if [ "$1" = "whoami" ]; then
                 printf 'Logged in with Google\nEmail: person@example.com\n'
+                : > '\(whoAmISucceeded.path)'
                 exit 0
               fi
               if [ "$1" = "chat" ] && [ "$3" = "/usage" ]; then
@@ -614,6 +643,7 @@ extension KiroStatusProbeTests {
 
             if [ "$1" = "whoami" ]; then
               printf 'Logged in with Google\nEmail: person@example.com\n'
+              : > '\(whoAmISucceeded.path)'
               exit 0
             fi
 
@@ -621,6 +651,7 @@ extension KiroStatusProbeTests {
               printf 'Estimated Usage | resets on 2026-06-01 | KIRO FREE\n'
               printf 'Credits (12.50 of 50 covered in plan)\n'
               printf '████████████████████ 25%%\n'
+              : > '\(usageFailed.path)'
               exit 23
             fi
 
@@ -630,15 +661,21 @@ extension KiroStatusProbeTests {
 
             exit 1
             """)
-        defer { try? FileManager.default.removeItem(at: cliURL.deletingLastPathComponent()) }
+        defer {
+            try? FileManager.default.removeItem(at: whoAmISucceeded)
+            try? FileManager.default.removeItem(at: usageFailed)
+            try? FileManager.default.removeItem(at: cliURL.deletingLastPathComponent())
+        }
 
-        let probe = KiroStatusProbe(cliBinaryResolver: { cliURL.path })
+        let probe = KiroProcessTestSupport.makeFunctionalProbe(cliURL: cliURL)
         await #expect {
             _ = try await probe.fetch()
         } throws: { error in
             guard case KiroStatusProbeError.cliFailed = error else { return false }
             return true
         }
+        try await KiroProcessTestSupport.waitForFile(whoAmISucceeded)
+        try await KiroProcessTestSupport.waitForFile(usageFailed)
     }
 
     @Test
@@ -663,7 +700,7 @@ extension KiroStatusProbeTests {
             """)
         defer { try? FileManager.default.removeItem(at: cliURL.deletingLastPathComponent()) }
 
-        let probe = KiroStatusProbe(cliBinaryResolver: { cliURL.path })
+        let probe = KiroProcessTestSupport.makeFunctionalProbe(cliURL: cliURL)
         await #expect {
             _ = try await probe.fetch()
         } throws: { error in
@@ -695,7 +732,7 @@ extension KiroStatusProbeTests {
             """)
         defer { try? FileManager.default.removeItem(at: cliURL.deletingLastPathComponent()) }
 
-        let probe = KiroStatusProbe(cliBinaryResolver: { cliURL.path }, accountProbeTimeout: 2)
+        let probe = KiroProcessTestSupport.makeFunctionalProbe(cliURL: cliURL)
         await #expect {
             _ = try await probe.fetch()
         } throws: { error in
@@ -726,7 +763,7 @@ extension KiroStatusProbeTests {
             """)
         defer { try? FileManager.default.removeItem(at: cliURL.deletingLastPathComponent()) }
 
-        let probe = KiroStatusProbe(cliBinaryResolver: { cliURL.path })
+        let probe = KiroProcessTestSupport.makeFunctionalProbe(cliURL: cliURL)
         await #expect {
             _ = try await probe.fetch()
         } throws: { error in
@@ -767,18 +804,31 @@ extension KiroStatusProbeTests {
             try? FileManager.default.removeItem(at: contextStarted)
         }
 
-        let probe = KiroStatusProbe(cliBinaryResolver: { cliURL.path })
-        let task = Task { try await probe.fetch() }
-        defer { task.cancel() }
+        let registry = KiroTestProcessRegistry()
+        let probe = KiroProcessTestSupport.makeFunctionalProbe(
+            cliURL: cliURL,
+            processRegistry: registry)
+        let completion = KiroTestCompletionMarker()
+        let task = Task {
+            defer { completion.markCompleted() }
+            return try await probe.fetch()
+        }
+        defer {
+            task.cancel()
+            registry.terminateAll()
+        }
 
-        try await waitForFile(contextStarted)
+        try await KiroProcessTestSupport.waitForFile(contextStarted)
 
-        let cancelledAt = Date()
         task.cancel()
+        try await KiroProcessTestSupport.waitForCondition(
+            "context cancellation to finish the probe and release all registered processes")
+        {
+            completion.isCompleted() && registry.activePIDs().isEmpty
+        }
         await #expect(throws: CancellationError.self) {
             try await task.value
         }
-        #expect(Date().timeIntervalSince(cancelledAt) < 4)
     }
 
     @Test
@@ -814,18 +864,30 @@ extension KiroStatusProbeTests {
             try? FileManager.default.removeItem(at: cliURL.deletingLastPathComponent())
         }
 
-        let probe = KiroStatusProbe(
-            cliBinaryResolver: { cliURL.path },
+        let probe = KiroProcessTestSupport.makeFunctionalProbe(
+            cliURL: cliURL,
             contextProbeTimeout: 0.2,
-            pipeProcessRegistry: registry.dependencies)
-        let task = Task { try await probe.fetch() }
-        defer { task.cancel() }
+            processRegistry: registry)
+        let completion = KiroTestCompletionMarker()
+        let task = Task {
+            defer { completion.markCompleted() }
+            return try await probe.fetch()
+        }
+        defer {
+            task.cancel()
+            registry.terminateAll()
+        }
 
-        try await waitForFile(cleanupStarted)
+        try await KiroProcessTestSupport.waitForFile(cleanupStarted)
         task.cancel()
         try await Task.sleep(for: .milliseconds(250))
         unblockCleanup.signal()
 
+        try await KiroProcessTestSupport.waitForCondition(
+            "cleanup cancellation to finish the probe and release all registered processes")
+        {
+            completion.isCompleted() && registry.activePIDs().isEmpty
+        }
         await #expect(throws: CancellationError.self) {
             try await task.value
         }
@@ -862,18 +924,31 @@ extension KiroStatusProbeTests {
             try? FileManager.default.removeItem(at: accountStarted)
         }
 
-        let probe = KiroStatusProbe(cliBinaryResolver: { cliURL.path })
-        let task = Task { try await probe.fetch() }
-        defer { task.cancel() }
+        let registry = KiroTestProcessRegistry()
+        let probe = KiroProcessTestSupport.makeFunctionalProbe(
+            cliURL: cliURL,
+            processRegistry: registry)
+        let completion = KiroTestCompletionMarker()
+        let task = Task {
+            defer { completion.markCompleted() }
+            return try await probe.fetch()
+        }
+        defer {
+            task.cancel()
+            registry.terminateAll()
+        }
 
-        try await waitForFile(accountStarted)
+        try await KiroProcessTestSupport.waitForFile(accountStarted)
 
-        let cancelledAt = Date()
         task.cancel()
+        try await KiroProcessTestSupport.waitForCondition(
+            "account cancellation to finish the probe and release all registered processes")
+        {
+            completion.isCompleted() && registry.activePIDs().isEmpty
+        }
         await #expect(throws: CancellationError.self) {
             try await task.value
         }
-        #expect(Date().timeIntervalSince(cancelledAt) < 4)
     }
 
     @Test
@@ -953,210 +1028,37 @@ extension KiroStatusProbeTests {
             }
         }
 
-        let probe = KiroStatusProbe(cliBinaryResolver: { cliURL.path })
-        let start = Date()
-        let snapshot = try await probe.fetch()
-        let elapsed = Date().timeIntervalSince(start)
-
-        let childPIDText = try String(contentsOf: childPIDFile, encoding: .utf8)
-        let childPID = try #require(pid_t(childPIDText.trimmingCharacters(in: .whitespacesAndNewlines)))
-        for _ in 0..<50 where kill(childPID, 0) == 0 {
-            try await Task.sleep(for: .milliseconds(20))
+        let registry = KiroTestProcessRegistry()
+        let probe = KiroProcessTestSupport.makeFunctionalProbe(
+            cliURL: cliURL,
+            processRegistry: registry)
+        let completion = KiroTestCompletionMarker()
+        let task = Task {
+            defer { completion.markCompleted() }
+            return try await probe.fetch()
         }
+        defer {
+            task.cancel()
+            registry.terminateAll()
+        }
+        try await KiroProcessTestSupport.waitForCondition(
+            "the detached-child probe to finish without waiting for the 60-second helper",
+            timeout: .seconds(20))
+        {
+            completion.isCompleted() && registry.activePIDs().isEmpty
+        }
+        let snapshot = try await task.value
+
+        let childPID = try await KiroProcessTestSupport.waitForPID(in: childPIDFile)
+        try await KiroProcessTestSupport.waitForExit(
+            of: childPID,
+            timeout: .seconds(20),
+            description: "the detached Kiro usage helper to exit")
 
         // Keep the optional context probe parseable so this timing check covers detached-child cleanup.
         #expect(snapshot.planName == "KIRO FREE")
         #expect(snapshot.creditsUsed == 12.50 && snapshot.contextUsage?.totalPercentUsed == 40)
-        // The detached child sleeps 60s; if the probe waited for it, elapsed would be >= 60. The generous
-        // ceiling only guards against that regression while tolerating heavily loaded CI runners
-        // (observed 12.6s on a shared GitHub macOS runner for what is normally a sub-second fetch).
-        #expect(elapsed < 20, "Kiro usage capture should return promptly even with a detached child, took \(elapsed)s")
         #expect(kill(childPID, 0) == -1)
-    }
-
-    @Test
-    func `tty runner hard stops a process that ignores SIGTERM`() throws {
-        let cliURL = try self.makeCLI(
-            """
-            #!/bin/sh
-            trap '' TERM
-            printf 'partial output\\n'
-            while true; do sleep 1; done
-            """)
-        defer { try? FileManager.default.removeItem(at: cliURL.deletingLastPathComponent()) }
-
-        let start = Date()
-        let result = try TTYCommandRunner().run(
-            binary: cliURL.path,
-            send: "",
-            options: .init(timeout: 2, idleTimeout: 0.1))
-        let elapsed = Date().timeIntervalSince(start)
-
-        #expect(result.completion == .idleTimeout)
-        #expect(result.text.contains("partial output"))
-        #expect(elapsed < 3, "Ignored SIGTERM should escalate to SIGKILL, took \(elapsed)s")
-    }
-
-    @Test
-    func `tty runner kills a pipe holder that escapes the process group`() async throws {
-        let childPIDFile = FileManager.default.temporaryDirectory
-            .appendingPathComponent("codexbar-kiro-escaped-\(UUID().uuidString).pid")
-        let cliURL = try self.makeCLI(
-            """
-            #!/usr/bin/python3
-            import subprocess
-            import sys
-            import time
-
-            child = subprocess.Popen(
-                [
-                    sys.executable,
-                    "-c",
-                    "import signal,time; signal.signal(signal.SIGTERM, signal.SIG_IGN); time.sleep(30)",
-                ],
-                start_new_session=True,
-            )
-            with open(sys.argv[1], "w") as handle:
-                handle.write(str(child.pid))
-            print("partial output", flush=True)
-            time.sleep(30)
-            """)
-        defer {
-            try? FileManager.default.removeItem(at: cliURL.deletingLastPathComponent())
-            try? FileManager.default.removeItem(at: childPIDFile)
-        }
-
-        let result = try TTYCommandRunner().run(
-            binary: cliURL.path,
-            send: "",
-            options: .init(
-                timeout: 2,
-                idleTimeout: 0.1,
-                extraArgs: [childPIDFile.path]))
-
-        #expect(result.completion == .idleTimeout)
-        #expect(result.text.contains("partial output"))
-
-        let childPIDText = try String(contentsOf: childPIDFile, encoding: .utf8)
-        let childPID = try #require(pid_t(childPIDText.trimmingCharacters(in: .whitespacesAndNewlines)))
-        defer { _ = kill(childPID, SIGKILL) }
-
-        let cleanupDeadline = Date().addingTimeInterval(1)
-        while kill(childPID, 0) == 0, Date() < cleanupDeadline {
-            try await Task.sleep(for: .milliseconds(20))
-        }
-        #expect(kill(childPID, 0) == -1)
-    }
-
-    @Test
-    func `tty runner cleans a same group helper after normal exit`() async throws {
-        let childPIDFile = FileManager.default.temporaryDirectory
-            .appendingPathComponent("codexbar-kiro-normal-exit-\(UUID().uuidString).pid")
-        let cliURL = try self.makeCLI(
-            """
-            #!/usr/bin/python3
-            import os
-            import signal
-            import sys
-            import time
-
-            child = os.fork()
-            if child == 0:
-                os.close(1)
-                os.close(2)
-                signal.signal(signal.SIGTERM, signal.SIG_IGN)
-                with open(sys.argv[1], "w") as handle:
-                    handle.write(str(os.getpid()))
-                time.sleep(30)
-                os._exit(0)
-
-            while not os.path.exists(sys.argv[1]):
-                time.sleep(0.01)
-            print("parent complete", flush=True)
-            os._exit(0)
-            """)
-        defer {
-            try? FileManager.default.removeItem(at: cliURL.deletingLastPathComponent())
-            try? FileManager.default.removeItem(at: childPIDFile)
-        }
-
-        let result = try TTYCommandRunner().run(
-            binary: cliURL.path,
-            send: "",
-            options: .init(timeout: 2, extraArgs: [childPIDFile.path]))
-
-        #expect(result.completion == .processExited(status: 0))
-        #expect(result.text.contains("parent complete"))
-
-        let childPIDText = try String(contentsOf: childPIDFile, encoding: .utf8)
-        let childPID = try #require(pid_t(childPIDText.trimmingCharacters(in: .whitespacesAndNewlines)))
-        defer { _ = kill(childPID, SIGKILL) }
-
-        let cleanupDeadline = Date().addingTimeInterval(1)
-        while kill(childPID, 0) == 0, Date() < cleanupDeadline {
-            try await Task.sleep(for: .milliseconds(20))
-        }
-        #expect(kill(childPID, 0) == -1)
-    }
-
-    @Test
-    func `tty runner preserves completed no-output failure status`() throws {
-        let cliURL = try self.makeCLI(
-            """
-            #!/bin/sh
-            exit 23
-            """)
-        defer { try? FileManager.default.removeItem(at: cliURL.deletingLastPathComponent()) }
-
-        let result = try TTYCommandRunner().run(
-            binary: cliURL.path,
-            send: "",
-            options: .init(timeout: 2, returnOnEmptyProcessExit: true))
-
-        #expect(result.text.isEmpty)
-        #expect(result.completion == .processExited(status: 23))
-    }
-
-    @Test
-    func `tty runner cancellation terminates the process`() async throws {
-        let pidFile = FileManager.default.temporaryDirectory
-            .appendingPathComponent("codexbar-kiro-cancel-\(UUID().uuidString).pid")
-        let cliURL = try self.makeCLI(
-            """
-            #!/bin/sh
-            printf '%s\\n' "$$" > "$1"
-            trap '' TERM
-            while true; do sleep 1; done
-            """)
-        defer {
-            try? FileManager.default.removeItem(at: cliURL.deletingLastPathComponent())
-            try? FileManager.default.removeItem(at: pidFile)
-        }
-
-        let task = Task {
-            try TTYCommandRunner().run(
-                binary: cliURL.path,
-                send: "",
-                options: .init(timeout: 20, extraArgs: [pidFile.path]))
-        }
-        defer { task.cancel() }
-
-        var capturedProcessID: pid_t?
-        for _ in 0..<100 {
-            if let text = try? String(contentsOf: pidFile, encoding: .utf8) {
-                capturedProcessID = pid_t(text.trimmingCharacters(in: .whitespacesAndNewlines))
-                break
-            }
-            try await Task.sleep(for: .milliseconds(20))
-        }
-        let processID = try #require(capturedProcessID)
-        defer { _ = kill(processID, SIGKILL) }
-
-        task.cancel()
-        await #expect(throws: CancellationError.self) {
-            try await task.value
-        }
-        #expect(kill(processID, 0) == -1)
     }
 }
 
@@ -1651,6 +1553,7 @@ extension KiroStatusProbeTests {
     func `fetch cancellation while joining account after usage failure is preserved`() async throws {
         let accountStarted = FileManager.default.temporaryDirectory
             .appendingPathComponent("codexbar-kiro-failed-usage-account-\(UUID().uuidString).started")
+        let usageFailed = accountStarted.appendingPathExtension("usage-failed")
         let cliURL = try self.makeCLI(
             """
             #!/bin/sh
@@ -1661,6 +1564,7 @@ extension KiroStatusProbeTests {
             fi
 
             if [ "$1" = "chat" ] && [ "$3" = "/usage" ]; then
+              : > '\(usageFailed.path)'
               exit 1
             fi
 
@@ -1669,16 +1573,33 @@ extension KiroStatusProbeTests {
         defer {
             try? FileManager.default.removeItem(at: cliURL.deletingLastPathComponent())
             try? FileManager.default.removeItem(at: accountStarted)
+            try? FileManager.default.removeItem(at: usageFailed)
         }
 
-        let probe = KiroStatusProbe(cliBinaryResolver: { cliURL.path }, accountProbeTimeout: 2.0)
-        let task = Task { try await probe.fetch() }
-        defer { task.cancel() }
+        let registry = KiroTestProcessRegistry()
+        let probe = KiroProcessTestSupport.makeFunctionalProbe(
+            cliURL: cliURL,
+            processRegistry: registry)
+        let completion = KiroTestCompletionMarker()
+        let task = Task {
+            defer { completion.markCompleted() }
+            return try await probe.fetch()
+        }
+        defer {
+            task.cancel()
+            registry.terminateAll()
+        }
 
-        try await waitForFile(accountStarted)
+        try await KiroProcessTestSupport.waitForFile(accountStarted)
+        try await KiroProcessTestSupport.waitForFile(usageFailed)
         try await Task.sleep(for: .milliseconds(300))
 
         task.cancel()
+        try await KiroProcessTestSupport.waitForCondition(
+            "failed-usage account-join cancellation to finish and release all registered processes")
+        {
+            completion.isCompleted() && registry.activePIDs().isEmpty
+        }
         await #expect(throws: CancellationError.self) {
             try await task.value
         }

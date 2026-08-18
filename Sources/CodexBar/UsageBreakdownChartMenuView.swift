@@ -91,7 +91,7 @@ struct UsageBreakdownChartMenuView: View {
                         AxisGridLine().foregroundStyle(Color.clear)
                         AxisTick().foregroundStyle(Color.clear)
                         if let date = value.as(Date.self) {
-                            AxisValueLabel(anchor: Self.xAxisLabelAnchor(for: date, axisDates: model.axisDates)) {
+                            AxisValueLabel(anchor: ChartAxisLabelLayout.barCenteredAnchor) {
                                 Text(date, format: .dateTime.month(.abbreviated).day())
                                     .font(.caption2)
                                     .foregroundStyle(Color(nsColor: .tertiaryLabelColor))
@@ -321,16 +321,6 @@ struct UsageBreakdownChartMenuView: View {
             return [firstDate]
         }
         return [firstDate, lastDate]
-    }
-
-    private static func xAxisLabelAnchor(for date: Date, axisDates: [Date]) -> UnitPoint {
-        if let first = axisDates.first, Calendar.current.isDate(date, inSameDayAs: first) {
-            return .topLeading
-        }
-        if let last = axisDates.last, Calendar.current.isDate(date, inSameDayAs: last) {
-            return .topTrailing
-        }
-        return .top
     }
 
     private static func dateFromDayKey(_ key: String) -> Date? {

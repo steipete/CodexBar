@@ -62,7 +62,7 @@ extension CodexBarCLI {
         CodexBar \(version)
 
         Usage:
-          codexbar usage [--format text|json]
+          codexbar usage [--format text|json|toon]
                        [--json]
                        [--json-only]
                        [--json-output] [--log-level <trace|verbose|debug|info|warning|error|critical>] [-v|--verbose]
@@ -72,8 +72,10 @@ extension CodexBarCLI {
                        [--web-timeout <seconds>] [--web-debug-dump-html] [--antigravity-plan-debug] [--augment-debug]
 
         Description:
-          Print usage from enabled providers as text (default) or JSON. Honors your in-app toggles.
+          Print usage from enabled providers as text (default), JSON, or TOON. Honors your in-app toggles.
           Output format: use --json (or --format json) for JSON on stdout; use --json-output for JSON logs on stderr.
+          --format toon emits the same payload as --format json, rendered as TOON (github.com/toon-format/spec)
+          for token-cheaper agent consumption.
           Source behavior is provider-specific:
           - Codex: OpenAI web dashboard (usage limits, credits remaining, code review remaining, usage breakdown).
             Auto falls back to Codex CLI only when cookies are missing.
@@ -102,6 +104,7 @@ extension CodexBarCLI {
           codexbar usage --provider all --json
           codexbar usage --status
           codexbar usage --provider codex --source web --format json --pretty
+          codexbar usage --format toon --provider claude
         """
     }
 
@@ -116,7 +119,7 @@ extension CodexBarCLI {
                        [--json-output] [--log-level <trace|verbose|debug|info|warning|error|critical>] [-v|--verbose]
                        [--provider \(ProviderHelp.list)]
                        [--no-color] [--pretty] [--refresh] [--provider-native-only]
-                       [--days <days>] [--group-by project]
+                       [--days <days>] [--group-by project|session]
 
         Description:
           Print local token cost usage from Claude/Codex native logs plus supported pi and OMP sessions.
@@ -126,6 +129,7 @@ extension CodexBarCLI {
         Examples:
           codexbar cost
           codexbar cost --provider codex --group-by project
+          codexbar cost --provider codex --group-by session
           codexbar cost --provider claude --format json --pretty
         """
     }
@@ -443,7 +447,7 @@ extension CodexBarCLI {
         CodexBar \(version)
 
         Usage:
-          codexbar [--format text|json]
+          codexbar [--format text|json|toon]
                   [--json]
                   [--json-only]
                   [--json-output] [--log-level <trace|verbose|debug|info|warning|error|critical>] [-v|--verbose]
@@ -458,7 +462,7 @@ extension CodexBarCLI {
                        [--json-output] [--log-level <trace|verbose|debug|info|warning|error|critical>] [-v|--verbose]
                        [--provider \(ProviderHelp.list)] [--no-color] [--pretty] [--refresh]
                        [--provider-native-only]
-                       [--days <days>] [--group-by project]
+                       [--days <days>] [--group-by project|session]
           codexbar sessions [--json|--json-v2] [--pretty]
           codexbar sessions focus <id>
           codexbar dashboard [--pretty] [--timeout <seconds>] [--output <path>]
@@ -496,6 +500,7 @@ extension CodexBarCLI {
         Examples:
           codexbar
           codexbar --format json --provider all --pretty
+          codexbar --format toon --provider claude
           codexbar --provider all --json
           codexbar --provider gemini
           codexbar cards --provider all --status

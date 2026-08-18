@@ -72,8 +72,10 @@ struct SpendDashboardCachedPresentationTests {
         #expect(result.inputs.count == 1)
         #expect(result.inputs.first?.id == "codex:profile")
         #expect(result.inputs.first?.snapshot.sessionTokens == 42)
-        #expect(result.inputs.first?.snapshot.projects.isEmpty == true)
-        #expect(result.inputs.first?.snapshot.sessions.isEmpty == true)
+        // The cached prefill now carries project/session breakdowns so the pane's
+        // Projects panel renders from cache exactly like the live path.
+        #expect(result.inputs.first?.snapshot.projects.isEmpty == false)
+        #expect(result.inputs.first?.snapshot.sessions.isEmpty == false)
     }
 
     @Test

@@ -1,7 +1,15 @@
 /* Swedish localization for CodexBar */
 
 /* iCloud Sync */
+"+ %d more" = "+ %d till";
+"Conversations (%@)" = "Konversationer (%@)";
+"Fast" = "Snabbt";
 "iCloud Sync" = "iCloud Sync";
+"Projects" = "Projekt";
+"Session %@" = "Session %@";
+"Std" = "Std";
+"Show all (%d)" = "Visa alla (%d)";
+"Show less" = "Visa färre";
 "Sync settings and providers across your Macs via iCloud" = "Sync settings and providers across your Macs via iCloud";
 "Include API keys, cookies, and tokens" = "Include API keys, cookies, and tokens";
 "Sync usage snapshots" = "Sync usage snapshots";
@@ -500,6 +508,10 @@
 "quota_depleted_title" = "Kvoten tar slut och återställs";
 "quota_warning_notifications_subtitle" = "Varnar när återstående sessions- eller veckokvot passerar inställda trösklar.";
 "threshold_warnings_title" = "Tröskelvarningar";
+"provider_accent_color_title" = "Accentfärg";
+"provider_accent_color_footer" = "Anger färgen på användningsstaplarna, diagrammen och växlarfliken för den här leverantören.";
+"provider_accent_color_hex_label" = "Hexadecimalt färgvärde";
+"provider_accent_color_reset" = "Använd standard";
 "quota_warnings_title" = "Kvotvarningar";
 "quota_warning_session" = "session";
 "quota_warning_session_capitalized" = "Session";
@@ -606,6 +618,11 @@
 "show_quota_warning_markers_subtitle" = "Rita tröskelmarkeringar på användningsstaplar när kvotvarningar är konfigurerade.";
 "weekly_progress_work_days_title" = "Arbetsdagar i veckoförlopp";
 "weekly_progress_work_days_subtitle" = "Ställ in arbetsdagar för markeringar i veckostaplar och tempoberäkningar.";
+"workday_tick_appearance_title" = "Utseende för arbetsdagsmarkeringar";
+"workday_tick_appearance_subtitle" = "Välj hur arbetsdagsgränser visas i veckans användningsstaplar.";
+"workday_tick_appearance_hidden" = "Dolda";
+"workday_tick_appearance_subtle" = "Diskreta";
+"workday_tick_appearance_high_contrast" = "Hög kontrast";
 "show_provider_changelog_links_title" = "Visa länkar till leverantörers ändringsloggar";
 "show_provider_changelog_links_subtitle" = "Lägger till länkar till utgåvekommentarer för stödda CLI-baserade leverantörer i menyn.";
 "show_credits_extra_usage_title" = "Visa krediter och extra användning";
@@ -651,6 +668,15 @@
 "keychain_access_caption" = "Inaktivera all läsning och skrivning i Nyckelring. Använd detta om macOS fortsätter fråga om 'Chrome/Brave/Edge Safe Storage' även efter att du klickat på Tillåt alltid. Import av webbläsarcookies är inte tillgänglig när detta är aktiverat. Klistra in Cookie-headers manuellt under Leverantörer. Claude/Codex OAuth via CLI fungerar fortfarande.";
 "disable_keychain_access_title" = "Inaktivera åtkomst till Nyckelring";
 "disable_keychain_access_subtitle" = "Förhindrar all åtkomst till Nyckelring när det är aktiverat.";
+"Re-authenticate" = "Autentisera igen";
+"kiro_reauthenticate_title" = "Kiro CLI-inloggning";
+"kiro_reauthenticate_subtitle" = "Kör ”kiro-cli login” för att förnya sessionen när den har löpt ut.";
+"Kiro CLI not found" = "Kiro CLI hittades inte";
+"Install kiro-cli and try again." = "Installera kiro-cli och försök igen.";
+"Could not start kiro-cli login" = "Det gick inte att starta kiro-cli login";
+"Kiro login timed out" = "Tidsgränsen för Kiro-inloggningen överskreds";
+"kiro-cli login exited with status %d." = "kiro-cli login avslutades med status %d.";
+"Kiro login failed" = "Kiro-inloggningen misslyckades";
 
 /* About Pane */
 "about_tagline" = "Må dina token aldrig ta slut – håll agentgränserna synliga.";
@@ -1289,6 +1315,9 @@
 "Native currencies stay separate; Codex account rows exclude Pi session history." = "Ursprungliga valutor hålls åtskilda; rader för Codex-konton utesluter Pi-sessionshistorik.";
 "Spend unavailable" = "Utgifter ej tillgängliga";
 "Model breakdown unavailable" = "Modellfördelning ej tillgänglig";
+"Partial estimate" = "Delvis uppskattning";
+"Partial model breakdown" = "Delvis modellfördelning";
+"%d of %d subscriptions have spend" = "%d av %d prenumerationer har utgifter";
 "Local estimated history" = "Lokal uppskattad historik";
 "Coverage" = "Täckning";
 "Estimated spend" = "Uppskattade utgifter";
@@ -1431,3 +1460,27 @@
 "5-hour usage" = "5-timmarsanvändning";
 "7-day usage" = "7-dagarsanvändning";
 "Total usage" = "Total användning";
+"claude_oauth_keychain_access_revoked" = "Åtkomsten till Claudes nyckelring återkallades när Claude Code roterade token. Klicka på Uppdatera för att ge åtkomst igen, eller byt Claudes användningskälla till CLI/Web.";
+"claude_showing_last_known_usage" = "Visar senast kända användning, registrerad %@.";
+/* Spend dashboard cost analysis */
+"90d" = "90d";
+"Input" = "Input";
+"Output" = "Output";
+"Cache write" = "Cache write";
+"Reasoning" = "Reasoning";
+"Sessions" = "Sessions";
+"Projects" = "Projects";
+"Plan metered" = "Plan metered";
+"List-price equivalent" = "List-price equivalent";
+"Metered and list-price" = "Metered and list-price";
+"List-price equivalent — not a billing receipt." = "List-price equivalent — not a billing receipt.";
+"Priced" = "Priced";
+"Unpriced" = "Unpriced";
+"Unmetered" = "Unmetered";
+"Estimated" = "Estimated";
+"Other models" = "Other models";
+"Include OpenCodex usage logs" = "Include OpenCodex usage logs";
+"Hide native Codex when OpenCodex is present" = "Hide native Codex when OpenCodex is present";
+"Export JSON" = "Export JSON";
+"Sources" = "Sources";
+"OpenCodex" = "OpenCodex";

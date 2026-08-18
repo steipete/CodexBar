@@ -68,11 +68,11 @@ struct ShareStatsCardView: View {
     private var hero: some View {
         HStack(alignment: .bottom, spacing: 52) {
             VStack(alignment: .leading, spacing: 2) {
-                Text("TRACKED TOKENS · \(self.payload.days) DAYS")
+                Text("TRACKED TOKENS · \(self.periodLabel)")
                     .font(.system(size: 20, weight: .semibold, design: .rounded))
                     .tracking(1.8)
                     .foregroundStyle(self.secondary)
-                Text(self.payload.totalTokens.map(ShareStatsFormatting.compactCount) ?? "—")
+                Text(self.trackedTokensText)
                     .font(.system(size: 104, weight: .semibold, design: .rounded))
                     .monospacedDigit()
                     .lineLimit(1)
@@ -81,19 +81,17 @@ struct ShareStatsCardView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
 
             VStack(alignment: .leading, spacing: 9) {
-                Text("EST. \(self.payload.days)-DAY SPEND")
+                Text("EST. \(self.spendLabel)")
                     .font(.system(size: 18, weight: .semibold, design: .rounded))
                     .tracking(1.2)
                     .foregroundStyle(self.secondary)
                 ForEach(self.payload.currencies.prefix(2)) { currency in
                     HStack(alignment: .firstTextBaseline) {
-                        Text("\(currency.currencyCode) · \(currency.coveredDayCount)/\(self.payload.days)d")
+                        Text("\(currency.currencyCode) · \(currency.coveredDayCount)/\(self.coverageDenominator)")
                             .font(.system(size: 17, weight: .semibold, design: .rounded))
                             .foregroundStyle(self.secondary)
                         Spacer()
-                        Text(currency.estimatedCost.map {
-                            ShareStatsFormatting.currency($0, code: currency.currencyCode)
-                        } ?? "Unavailable")
+                        Text(self.spendText(for: currency))
                             .font(.system(size: 32, weight: .semibold, design: .rounded))
                             .monospacedDigit()
                             .lineLimit(1)
@@ -170,6 +168,34 @@ struct ShareStatsCardView: View {
 
     private var providerDisplayLimit: Int {
         Self.providerDisplayLimit(for: self.payload.providers.count)
+    }
+
+    private var isAllTime: Bool {
+        self.payload.days >= SpendDashboardSource.scanDays
+    }
+
+    private var periodLabel: String {
+        self.isAllTime ? "ALL" : "\(self.payload.days) DAYS"
+    }
+
+    private var spendLabel: String {
+        self.isAllTime ? "ALL-TIME SPEND" : "\(self.payload.days)-DAY SPEND"
+    }
+
+    private var trackedTokensText: String {
+        guard let tokens = self.payload.totalTokens else { return "—" }
+        let formatted = ShareStatsFormatting.compactCount(tokens)
+        return self.payload.hasPartialTokens ? "~\(formatted)" : formatted
+    }
+
+    private var coverageDenominator: String {
+        self.isAllTime ? "all" : "\(self.payload.days)d"
+    }
+
+    private func spendText(for currency: ShareStatsCurrencyPayload) -> String {
+        guard let cost = currency.estimatedCost else { return "Unavailable" }
+        let formatted = ShareStatsFormatting.currency(cost, code: currency.currencyCode)
+        return currency.isPartial ? "~\(formatted)" : formatted
     }
 
     private func color(for model: ShareStatsModelPayload) -> Color {

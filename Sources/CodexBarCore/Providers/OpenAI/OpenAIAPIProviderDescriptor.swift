@@ -71,7 +71,9 @@ public enum OpenAIAPIProviderDescriptor {
                             return projected
                         }
                         return snapshot == nil ? tokenSnapshot : nil
-                    })),
+                    }),
+                optionalDetails: ProviderOptionalDetailsPresentation(
+                    costSummaryTitles: ["Usage summary"])),
             fetchPlan: self.fetchPlan(),
             cli: ProviderCLIConfig(
                 name: "openai",

@@ -10,11 +10,13 @@ enum CostUsagePricingKey {
         modelsDevArtifact: ModelsDevCacheArtifact?,
         formulaVersion: Int,
         parserHash: String? = nil,
-        modelsDevProviderIDs: Set<String> = ["openai"]) -> String
+        modelsDevProviderIDs: Set<String> = CostUsagePricing.codexModelsDevProviderIDs,
+        customPricingFingerprint: String = CostUsageCustomPricing.load().fingerprint) -> String
     {
         var parts = [
             "costFormulaVersion=\(formulaVersion)",
             "builtInPricing:\n\(CostUsagePricing.codexBuiltInPricingFingerprint())",
+            "customPricing=\(customPricingFingerprint)",
         ]
         if let parserHash {
             parts.append("parserHash=\(parserHash)")

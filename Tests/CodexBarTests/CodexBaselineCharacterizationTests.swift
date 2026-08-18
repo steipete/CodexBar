@@ -153,9 +153,9 @@ struct CodexBaselineCharacterizationTests {
     }
 
     @Test
-    func `explicit fetch plan modes keep single Codex strategy selection`() async {
+    func `explicit fetch plan modes keep Codex strategy selection`() async {
         let appCases: [(ProviderSourceMode, [String])] = [
-            (.oauth, ["codex.oauth"]),
+            (.oauth, ["codex.oauth", "codex.oauth-native-refresh-cli"]),
             (.cli, ["codex.cli"]),
             (.web, ["codex.web.dashboard"]),
         ]

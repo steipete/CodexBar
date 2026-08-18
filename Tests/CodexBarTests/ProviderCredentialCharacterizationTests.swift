@@ -211,6 +211,7 @@ struct ProviderCredentialCharacterizationTests {
             (.litellm, "LITELLM_API_KEY"),
             (.sub2api, "SUB2API_API_KEY"),
             (.ibmbob, "BOBSHELL_API_KEY"),
+            (.grok, "GROK_OAUTH_TOKEN"),
         ]
         let cookieProviders: [UsageProvider] = [
             .claude, .cursor, .opencode, .opencodego, .factory, .minimax, .manus,

@@ -928,7 +928,10 @@ enum UsageHistoryChartMode {
 enum WidgetColors {
     static func color(for instanceID: ProviderInstanceID) -> Color {
         guard let provider = instanceID.firstPartyProvider else { return .secondary }
-        let color = ProviderDescriptorRegistry.descriptor(for: provider).branding.widgetColor
+        // The widget cannot read ~/.codexbar/config.json, so it resolves the user override from the
+        // copy the app mirrors into the App Group.
+        let color = ProviderAccentColors.sharedOverride(for: instanceID)
+            ?? ProviderDescriptorRegistry.descriptor(for: provider).branding.widgetColor
         return Color(red: color.red, green: color.green, blue: color.blue)
     }
 }

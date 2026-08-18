@@ -61,8 +61,17 @@ extension SettingsStore {
         self.bumpConfigRevision(.local(reason: reason, affectsBackgroundWork: affectsBackgroundWork))
     }
 
-    func updateProviderConfig(provider: UsageProvider, mutate: (inout ProviderConfig) -> Void) {
-        self.updateConfig(reason: "provider-\(provider.rawValue)", affectsBackgroundWork: true) { config in
+    /// Pass `affectsBackgroundWork: false` for a purely cosmetic change, so open menus and status items
+    /// rebuild without triggering a provider refresh.
+    func updateProviderConfig(
+        provider: UsageProvider,
+        affectsBackgroundWork: Bool = true,
+        mutate: (inout ProviderConfig) -> Void)
+    {
+        self.updateConfig(
+            reason: "provider-\(provider.rawValue)",
+            affectsBackgroundWork: affectsBackgroundWork)
+        { config in
             if let index = config.providers.firstIndex(where: { $0.id == provider.instanceID }) {
                 var entry = config.providers[index]
                 mutate(&entry)

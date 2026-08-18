@@ -1,7 +1,15 @@
 /* Brazilian Portuguese localization for CodexBar */
 
 /* iCloud Sync */
+"+ %d more" = "+ %d mais";
+"Conversations (%@)" = "Conversas (%@)";
+"Fast" = "Rápido";
 "iCloud Sync" = "iCloud Sync";
+"Projects" = "Projetos";
+"Session %@" = "Sessão %@";
+"Std" = "Padrão";
+"Show all (%d)" = "Mostrar tudo (%d)";
+"Show less" = "Mostrar menos";
 "Sync settings and providers across your Macs via iCloud" = "Sync settings and providers across your Macs via iCloud";
 "Include API keys, cookies, and tokens" = "Include API keys, cookies, and tokens";
 "Sync usage snapshots" = "Sync usage snapshots";
@@ -497,6 +505,10 @@
 "quota_depleted_title" = "Cota esgotada e restaurada";
 "quota_warning_notifications_subtitle" = "Avisa quando a cota restante da sessão ou da semana fica abaixo dos limites configurados.";
 "threshold_warnings_title" = "Alertas de limite";
+"provider_accent_color_title" = "Cor de destaque";
+"provider_accent_color_footer" = "Define a cor das barras de uso, dos gráficos e da aba do seletor deste provedor.";
+"provider_accent_color_hex_label" = "Valor de cor hexadecimal";
+"provider_accent_color_reset" = "Usar padrão";
 "quota_warnings_title" = "Alertas de cota";
 "quota_warning_session" = "sessão";
 "quota_warning_session_capitalized" = "Sessão";
@@ -604,6 +616,11 @@
 "show_quota_warning_markers_subtitle" = "Desenha marcas de limite nas barras de uso quando os alertas de cota estão configurados.";
 "weekly_progress_work_days_title" = "Dias úteis no progresso semanal";
 "weekly_progress_work_days_subtitle" = "Define os dias úteis para marcadores das barras de uso semanal e cálculos de ritmo.";
+"workday_tick_appearance_title" = "Aparência das marcas de dias úteis";
+"workday_tick_appearance_subtitle" = "Escolha como os limites dos dias úteis aparecem nas barras de uso semanal.";
+"workday_tick_appearance_hidden" = "Ocultas";
+"workday_tick_appearance_subtle" = "Sutis";
+"workday_tick_appearance_high_contrast" = "Alto contraste";
 "show_provider_changelog_links_title" = "Mostrar links de changelog dos provedores";
 "show_provider_changelog_links_subtitle" = "Adiciona links de notas de versão para provedores baseados em CLI compatíveis no menu.";
 "show_credits_extra_usage_title" = "Mostrar créditos + uso extra";
@@ -649,6 +666,15 @@
 "keychain_access_caption" = "Desativa todas as leituras e gravações do Keychain. A importação de cookies do navegador fica indisponível; cole cabeçalhos Cookie manualmente em Provedores.";
 "disable_keychain_access_title" = "Desativar acesso ao Keychain";
 "disable_keychain_access_subtitle" = "Impede qualquer acesso ao Keychain quando ativado.";
+"Re-authenticate" = "Autenticar novamente";
+"kiro_reauthenticate_title" = "Login no Kiro CLI";
+"kiro_reauthenticate_subtitle" = "Executa “kiro-cli login” para renovar sua sessão quando ela expirar.";
+"Kiro CLI not found" = "Kiro CLI não encontrado";
+"Install kiro-cli and try again." = "Instale o kiro-cli e tente novamente.";
+"Could not start kiro-cli login" = "Não foi possível iniciar kiro-cli login";
+"Kiro login timed out" = "O login no Kiro expirou";
+"kiro-cli login exited with status %d." = "kiro-cli login foi encerrado com o status %d.";
+"Kiro login failed" = "Falha no login do Kiro";
 
 /* About Pane */
 "about_tagline" = "Que seus tokens nunca acabem — mantenha os limites dos agentes à vista.";
@@ -1291,6 +1317,9 @@
 "Native currencies stay separate; Codex account rows exclude Pi session history." = "As moedas originais permanecem separadas; as linhas de contas do Codex excluem o histórico de sessões do Pi.";
 "Spend unavailable" = "Gastos indisponíveis";
 "Model breakdown unavailable" = "Detalhamento por modelo indisponível";
+"Partial estimate" = "Estimativa parcial";
+"Partial model breakdown" = "Detalhamento parcial de modelos";
+"%d of %d subscriptions have spend" = "%d de %d assinaturas têm gastos";
 "Local estimated history" = "Histórico local estimado";
 "Coverage" = "Cobertura";
 "Estimated spend" = "Gastos estimados";
@@ -1433,3 +1462,27 @@
 "5-hour usage" = "Uso de 5 horas";
 "7-day usage" = "Uso de 7 dias";
 "Total usage" = "Uso total";
+"claude_oauth_keychain_access_revoked" = "O acesso às Chaves do Claude foi revogado pela rotação do token do Claude Code. Clique em Atualizar para conceder o acesso novamente ou altere a fonte de uso do Claude para CLI/Web.";
+"claude_showing_last_known_usage" = "Exibindo o último uso conhecido, capturado %@.";
+/* Spend dashboard cost analysis */
+"90d" = "90d";
+"Input" = "Input";
+"Output" = "Output";
+"Cache write" = "Cache write";
+"Reasoning" = "Reasoning";
+"Sessions" = "Sessions";
+"Projects" = "Projects";
+"Plan metered" = "Plan metered";
+"List-price equivalent" = "List-price equivalent";
+"Metered and list-price" = "Metered and list-price";
+"List-price equivalent — not a billing receipt." = "List-price equivalent — not a billing receipt.";
+"Priced" = "Priced";
+"Unpriced" = "Unpriced";
+"Unmetered" = "Unmetered";
+"Estimated" = "Estimated";
+"Other models" = "Other models";
+"Include OpenCodex usage logs" = "Include OpenCodex usage logs";
+"Hide native Codex when OpenCodex is present" = "Hide native Codex when OpenCodex is present";
+"Export JSON" = "Export JSON";
+"Sources" = "Sources";
+"OpenCodex" = "OpenCodex";

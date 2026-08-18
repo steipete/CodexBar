@@ -322,6 +322,18 @@ struct OllamaUsageFetcherTests {
         #expect(resolved?.contains("wos-session=abc") == true)
     }
 
+    @Test(arguments: [
+        "Cookie: aid=aux; wos-session=abc; theme=dark",
+        "curl https://ollama.com/settings -H 'Cookie: aid=aux; wos-session=abc; theme=dark'",
+    ])
+    func `manual mode strips capture syntax when workos session follows another cookie`(header: String) throws {
+        let resolved = try OllamaUsageFetcher.resolveManualCookieHeader(
+            override: header,
+            manualCookieMode: true)
+
+        #expect(resolved == "aid=aux; wos-session=abc; theme=dark")
+    }
+
     @Test
     func `retry policy retries only for auth errors`() {
         #expect(OllamaUsageFetcher.shouldRetryWithNextCookieCandidate(after: OllamaUsageError.invalidCredentials))

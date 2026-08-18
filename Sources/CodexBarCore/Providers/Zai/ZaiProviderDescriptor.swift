@@ -113,7 +113,9 @@ public enum ZaiProviderDescriptor {
                         context.snapshot.primary,
                         context.snapshot.secondary))
                 },
-                primaryBindingQuotaLanes: [.secondary]),
+                primaryBindingQuotaLanes: [.secondary],
+                optionalDetails: ProviderOptionalDetailsPresentation(
+                    costSummaryTitles: ["Hourly tokens", "Daily tokens"])),
             fetchPlan: self.fetchPlan(),
             cli: ProviderCLIConfig(
                 name: "zai",

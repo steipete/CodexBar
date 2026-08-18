@@ -493,7 +493,7 @@ extension HistoricalUsagePaceTests {
             windowMinutes: 10080,
             resetsAt: now.addingTimeInterval(4 * 24 * 60 * 60),
             resetDescription: nil)
-        // Barely into the window: below the 3% expected-usage floor, so pace stays unavailable.
+        // Barely into the window: below even the 1% menu-token floor, so pace stays unavailable.
         let tooEarly = RateWindow(
             usedPercent: 1,
             windowMinutes: 10080,
@@ -504,6 +504,159 @@ extension HistoricalUsagePaceTests {
         #expect(store.menuBarLayoutPaceText(provider: .zai, window: reserve, now: now) == "-13%")
         #expect(store.menuBarLayoutPaceText(provider: .zai, window: tooEarly, now: now) == nil)
         #expect(store.menuBarLayoutPaceText(provider: .zai, window: nil, now: now) == nil)
+    }
+
+    @MainActor
+    @Test
+    func `menu bar pace token shows pace inside the early window band`() throws {
+        let suite = "HistoricalUsagePaceTests-menu-bar-early-window-\(UUID().uuidString)"
+        let store = try Self.makeUsageStoreForBackfillTests(
+            suite: suite,
+            historyFileURL: Self.makeTempURL())
+
+        let now = Date(timeIntervalSince1970: 0)
+        // 4 of 168 hours elapsed => 2.38% expected usage, inside the 1-3% band where the menu-bar
+        // token still shows pace but the menu card keeps the 3% floor.
+        let barelyIntoWindow = RateWindow(
+            usedPercent: 5,
+            windowMinutes: 10080,
+            resetsAt: now.addingTimeInterval(7 * 24 * 60 * 60 - 4 * 60 * 60),
+            resetDescription: nil)
+
+        #expect(store.menuBarLayoutPaceText(provider: .zai, window: barelyIntoWindow, now: now) == nil)
+        #expect(store.weeklyPace(provider: .zai, window: barelyIntoWindow, now: now) == nil)
+        #expect(
+            store.menuBarLayoutPaceText(
+                provider: .zai,
+                window: barelyIntoWindow,
+                now: now,
+                minimumElapsedPercent: 1)
+                == "+3%")
+        let pace = try #require(
+            store.weeklyPace(
+                provider: .zai,
+                window: barelyIntoWindow,
+                now: now,
+                minimumElapsedPercent: 1))
+        #expect(abs(pace.expectedUsedPercent - (4.0 / 168.0 * 100.0)) < 0.001)
+        #expect(abs(pace.deltaPercent - (5 - 4.0 / 168.0 * 100.0)) < 0.001)
+    }
+
+    @MainActor
+    @Test
+    func `weekly menu token uses elapsed progress when learned pace is below its floor`() throws {
+        let store = try Self.makeUsageStoreForBackfillTests(
+            suite: "HistoricalUsagePaceTests-codex-early-learned-pace-\(UUID().uuidString)",
+            historyFileURL: Self.makeTempURL())
+        let now = Date(timeIntervalSince1970: 0)
+        let windowMinutes = 10080
+        let duration = TimeInterval(windowMinutes) * 60
+        let resetsAt = now.addingTimeInterval(duration - 4 * 60 * 60)
+        let window = RateWindow(
+            usedPercent: 5,
+            windowMinutes: windowMinutes,
+            resetsAt: resetsAt,
+            resetDescription: nil)
+        let flatEarlyCurve = (0..<CodexHistoricalDataset.gridPointCount).map { index in
+            let progress = Double(index) / Double(CodexHistoricalDataset.gridPointCount - 1)
+            return progress < 0.1 ? 0 : ((progress - 0.1) / 0.9) * 100
+        }
+        let dataset = CodexHistoricalDataset(weeks: (0..<20).map { index in
+            HistoricalWeekProfile(
+                resetsAt: resetsAt.addingTimeInterval(-duration * Double(index + 1)),
+                windowMinutes: windowMinutes,
+                curve: flatEarlyCurve)
+        })
+        store._setCodexHistoricalDatasetForTesting(
+            dataset,
+            accountKey: store.codexOwnershipContext().canonicalKey)
+
+        #expect(store.weeklyPace(provider: .codex, window: window, now: now) == nil)
+        let pace = try #require(
+            store.weeklyPace(
+                provider: .codex,
+                window: window,
+                now: now,
+                minimumElapsedPercent: 1))
+        #expect(pace.expectedUsedPercent < 1)
+        #expect(store.menuBarLayoutPaceText(
+            provider: .codex,
+            window: window,
+            now: now,
+            minimumElapsedPercent: 1) != nil)
+    }
+
+    @MainActor
+    @Test
+    func `weekly menu token uses the resolved calendar month for elapsed progress`() throws {
+        let store = try Self.makeUsageStoreForBackfillTests(
+            suite: "HistoricalUsagePaceTests-calendar-month-elapsed-\(UUID().uuidString)",
+            historyFileURL: Self.makeTempURL())
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try #require(TimeZone(secondsFromGMT: 0))
+        let now = try #require(calendar.date(from: DateComponents(
+            calendar: calendar,
+            timeZone: calendar.timeZone,
+            year: 2026,
+            month: 2,
+            day: 1,
+            hour: 7)))
+        let resetsAt = try #require(calendar.date(from: DateComponents(
+            calendar: calendar,
+            timeZone: calendar.timeZone,
+            year: 2026,
+            month: 3,
+            day: 1)))
+        let window = RateWindow(
+            usedPercent: 5,
+            windowMinutes: 30 * 24 * 60,
+            resetsAt: resetsAt,
+            resetDescription: nil)
+
+        let pace = try #require(
+            store.weeklyPace(
+                provider: .amp,
+                window: window,
+                now: now,
+                minimumElapsedPercent: 1))
+        #expect(pace.expectedUsedPercent > 1)
+    }
+
+    @MainActor
+    @Test
+    func `menu bar layout pace opens weekly early but floors session and automatic at three percent`() throws {
+        let (store, controller) = try Self.makeStoreAndControllerForMenuBarPaceTests(
+            suite: "HistoricalUsagePaceTests-menu-bar-early-window-floors-\(UUID().uuidString)")
+        defer { controller.releaseStatusItemsForTesting() }
+        let now = Date(timeIntervalSince1970: 0)
+        // Session window 2 minutes in of 120: 1.67% expected. Weekly window 4 hours in of 7 days:
+        // 2.38% expected, inside the 1-3% band that only the weekly token may open early.
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(
+                usedPercent: 5,
+                windowMinutes: 120,
+                resetsAt: now.addingTimeInterval(118 * 60),
+                resetDescription: nil),
+            secondary: RateWindow(
+                usedPercent: 5,
+                windowMinutes: 10080,
+                resetsAt: now.addingTimeInterval(7 * 24 * 60 * 60 - 4 * 60 * 60),
+                resetDescription: nil),
+            updatedAt: now)
+
+        store._setSnapshotForTesting(snapshot, provider: .zai)
+        store._setErrorForTesting(nil, provider: .zai)
+
+        let data = controller.menuBarLayoutRenderData(
+            provider: .zai,
+            snapshot: snapshot,
+            warningFlash: false,
+            now: now)
+
+        #expect(data.sessionPace == nil)
+        #expect(data.automaticPace == nil)
+        #expect(data.weeklyPace == "+3%")
+        #expect(data.runsOut == nil)
     }
 
     @MainActor

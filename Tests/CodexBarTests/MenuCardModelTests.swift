@@ -308,7 +308,7 @@ struct ProviderInlineDashboardModelTests {
             usageBarsShowUsed: false,
             resetTimeDisplayStyle: .countdown,
             tokenCostUsageEnabled: false,
-            tokenCostInlineDashboardEnabled: true,
+            costSummaryInlineEnabled: true,
             showOptionalCreditsAndExtraUsage: true,
             hidePersonalInfo: false,
             now: now))
@@ -421,6 +421,7 @@ struct ProviderInlineDashboardModelTests {
             usageBarsShowUsed: false,
             resetTimeDisplayStyle: .countdown,
             tokenCostUsageEnabled: false,
+            costSummaryInlineEnabled: true,
             showOptionalCreditsAndExtraUsage: true,
             hidePersonalInfo: false,
             now: now))

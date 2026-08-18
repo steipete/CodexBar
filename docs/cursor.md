@@ -8,15 +8,29 @@ read_when:
 
 # Cursor provider
 
-Cursor is primarily web-backed. Usage is fetched via browser cookies, with legacy stored-session cookies and Cursor.app local auth as fallbacks.
+On macOS, Cursor can reuse Cursor.app's local session or a cursor.com browser session. Automatic mode prefers a usable
+Cursor.app session and falls back to cookies when the app token is missing, expired, invalid, or rejected.
 
 ## Data sources + fallback order
 
-1) **Cached cookie header** (preferred)
+1) **Cursor.app local auth** (preferred in Automatic mode)
+   - Reads Cursor.app's VS Code-style global state DB for `ItemTable` key `cursorAuth/accessToken`.
+   - Files consulted by SQLite:
+     - macOS main DB: `~/Library/Application Support/Cursor/User/globalStorage/state.vscdb`
+     - Active WAL sidecars when present: `state.vscdb-wal` and `state.vscdb-shm`
+   - The database is opened read-only. Active WAL state is read normally; an idle WAL-mode main file with no
+     sidecars uses SQLite immutable mode so CodexBar does not recreate files in Cursor's directory.
+   - The token is used only while its JWT expiry is more than 60 seconds away. CodexBar never refreshes it.
+   - A validated derived session is also persisted owner-only at
+     `~/Library/Application Support/CodexBar/cursor-session.json` through the standard credential-file writer.
+   - When an already-cached cookie exposes a different email or subject, CodexBar logs the mismatch and keeps the
+     chosen Cursor.app identity on the usage snapshot/card. It does not combine app usage with browser identity.
+
+2) **Cached cookie header**
    - Stored after successful browser import.
    - Keychain cache: `com.steipete.codexbar.cache` (account `cookie.cursor`).
 
-2) **Browser cookie import**
+3) **Browser cookie import**
    - Cookie order from provider metadata (default: Safari → Chrome → Firefox).
    - Domain filters: `cursor.com`, `cursor.sh`.
    - Cookie names required (any one counts):
@@ -24,19 +38,13 @@ Cursor is primarily web-backed. Usage is fetched via browser cookies, with legac
      - `__Secure-next-auth.session-token`
      - `next-auth.session-token`
 
-3) **Stored session cookies** (fallback)
+4) **Stored session cookies** (fallback)
    - Legacy sessions captured by older CodexBar releases remain readable.
    - Stored at: `~/Library/Application Support/CodexBar/cursor-session.json`.
 
-4) **Cursor.app local auth** (last fallback)
-   - Reads Cursor.app's VS Code-style global state DB for the local app bearer token.
-   - File:
-     - macOS: `~/Library/Application Support/Cursor/User/globalStorage/state.vscdb`
-     - Linux: `$XDG_CONFIG_HOME/Cursor/User/globalStorage/state.vscdb` (default `~/.config/Cursor/...`)
-   - Used only after cookie/session sources fail so existing account-selection precedence stays stable.
-   - On Linux, this is the primary automatic source because browser import is macOS-only.
-   - Derives Cursor's first-party web-session cookie, then uses the same usage and account endpoints as browser sessions.
-   - Account identity comes from that authenticated session; cached app profile fields are not mixed across accounts.
+On macOS, explicit `--source web` skips Cursor.app local auth and uses only the cookie ladder. A configured Manual cookie
+header remains an explicit override. `codexbar usage --provider cursor --source auto --verbose` prints the selected
+automatic path and is the quickest live-read check after Cursor login.
 
 Manual option:
 - Preferences → Providers → Cursor → Cookie source → Manual.
@@ -68,8 +76,7 @@ Manual option:
 - Firefox: `~/Library/Application Support/Firefox/Profiles/*/cookies.sqlite`
 
 ## Linux CLI
-- `codexbar usage --provider cursor` reads the signed-in Cursor app's access token from the Linux global state DB and reuses the same `cursor.com` usage endpoints as macOS.
-- Automatic browser cookie import and the external-browser Add/Switch flow are macOS app features.
+- Cursor.app session import, automatic browser cookie import, and the external-browser Add/Switch flow are macOS app features.
 - Manual cookie headers from `~/.config/codexbar/config.json` (or legacy `~/.codexbar/config.json`) work on Linux.
 
 ## Local storage footprint
@@ -90,7 +97,7 @@ The cost summary's Cursor section is opt-in: it only fetches when **Show cost su
 Unlike Claude and Codex cost (scanned from local session logs on this machine), Cursor cost is remote, account-wide data from the cursor.com dashboard, so it covers usage from every machine on the account.
 
 Auth reuses the exact status-probe session resolution and cookie-source policy:
-- **Auto**: cached cookie header → browser cookie import → stored WebKit session → Cursor.app local auth.
+- **Auto**: Cursor.app local auth → cached cookie header → browser cookie import → stored session.
 - **Manual**: a non-empty pasted cookie header is required and forwarded as-is, so cost and status share the same session; an empty header fails closed instead of falling back to another account.
 - **Off**: the fetch is skipped in the app; `codexbar cost --provider cursor` fails explicitly and `/cost` returns a provider error row.
 
@@ -108,12 +115,13 @@ Caching: the app holds the snapshot for an in-memory hourly TTL, keyed by the hi
 
 ## Snapshot mapping
 - Primary: plan usage percent (included plan).
-- Secondary: Auto + Composer usage percent.
-- Tertiary: API (named model) usage percent.
+- Secondary: Cursor (Cursor models) usage percent.
+- Tertiary: Third Party usage percent.
 - Provider cost: Extra usage USD. A capped individual budget wins; team accounts without a user cap use the shared team on-demand budget.
 - Reset: billing cycle end date.
 
 ## Key files
+- `Sources/CodexBarCore/Providers/Cursor/CursorAppAuth.swift`
 - `Sources/CodexBarCore/Providers/Cursor/CursorStatusProbe.swift`
 - `Sources/CodexBar/CursorLoginRunner.swift` (login flow)
 - `Sources/CodexBar/Providers/Cursor/CursorLoginFlow.swift` (menu integration)

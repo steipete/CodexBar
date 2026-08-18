@@ -144,6 +144,100 @@ final class MenuLayoutScreenshotRenderTests: XCTestCase {
         print("Wrote \(url.path)")
     }
 
+    func test_renderEarlyWeeklyPaceTokenProof() throws {
+        guard let dir = ProcessInfo.processInfo.environment["CODEXBAR_PACE_SCREENSHOT_DIR"] else {
+            throw XCTSkip("Set CODEXBAR_PACE_SCREENSHOT_DIR to render the early-window pace token proof.")
+        }
+        let directory = URL(fileURLWithPath: dir, isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+
+        let settings = testSettingsStore(suiteName: "MenuLayoutScreenshotRenderTests-pace")
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = true
+        settings.selectedMenuProvider = UsageProvider.zai.instanceID
+        if let metadata = ProviderRegistry.shared.metadata[.zai] {
+            settings.setProviderEnabled(provider: .zai, metadata: metadata, enabled: true)
+        }
+        let fetcher = UsageFetcher()
+        let store = UsageStore(
+            fetcher: fetcher,
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings)
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: AccountInfo(email: nil, plan: nil),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: testStatusBar())
+        defer { controller.releaseStatusItemsForTesting() }
+        let now = Self.now
+        // Weekly window 4 hours in of 7 days (2.38% expected): inside the 1-3% band only the
+        // weekly token opens early. The session window is 2 minutes in of 120 (1.67% expected)
+        // and stays hidden on its 3% floor.
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(
+                usedPercent: 5,
+                windowMinutes: 120,
+                resetsAt: now.addingTimeInterval(118 * 60),
+                resetDescription: nil),
+            secondary: RateWindow(
+                usedPercent: 5,
+                windowMinutes: 10080,
+                resetsAt: now.addingTimeInterval(7 * 24 * 60 * 60 - 4 * 60 * 60),
+                resetDescription: nil),
+            updatedAt: now)
+        store._setSnapshotForTesting(snapshot, provider: .zai)
+        store._setErrorForTesting(nil, provider: .zai)
+
+        func renderedRow(window: PercentWindow) -> MenuBarLayoutRenderedTitle {
+            let layout = MenuBarLayout(lines: [[
+                .percent(window: window),
+                .separatorDot,
+                .pace(window: window),
+            ]])
+            let data = controller.menuBarLayoutRenderData(
+                provider: .zai,
+                snapshot: snapshot,
+                warningFlash: false,
+                now: now)
+            return MenuBarLayoutRenderer().render(
+                layout: layout,
+                data: data,
+                icon: nil,
+                options: MenuBarLayoutRenderOptions(
+                    size: .regular,
+                    highContrast: false,
+                    showUsed: true,
+                    appearanceName: "proof",
+                    isDebugApp: false,
+                    now: now))
+        }
+
+        let view = AnyView(VStack(alignment: .leading, spacing: 14) {
+            Text("Early weekly window pace tokens (synthetic snapshot)")
+                .font(.headline)
+            Self.proofRow(title: "Weekly token: pace visible (+3%, 1% floor)") {
+                MenuBarLayoutPreviewText(rendered: renderedRow(window: .weekly))
+            }
+            Self.proofRow(title: "Session token: pace hidden (3% floor)") {
+                MenuBarLayoutPreviewText(rendered: renderedRow(window: .session))
+            }
+            Self.proofRow(title: "Automatic token: pace hidden (3% floor)") {
+                MenuBarLayoutPreviewText(rendered: renderedRow(window: .automatic))
+            }
+        }
+        .padding(18)
+        .frame(width: 430)
+        .background(Color(nsColor: .windowBackgroundColor)))
+
+        let data = try XCTUnwrap(Self.pngData(for: view), "early-window pace proof render failed")
+        let url = directory.appendingPathComponent("early-weekly-pace-token-proof.png")
+        try data.write(to: url, options: .atomic)
+        print("Wrote \(url.path)")
+    }
+
     // MARK: - Fixture
 
     private static func screenshotAccounts() -> [ProviderAccountUsageSnapshot] {

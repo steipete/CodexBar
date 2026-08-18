@@ -17,6 +17,8 @@ extension KiroStatusProbeTests {
         let lateChildPIDFile = childPIDFile.appendingPathExtension("late-child")
         let rootTermChildPIDFile = childPIDFile.appendingPathExtension("root-term-child")
         let preKillSnapshotTriggerFile = childPIDFile.appendingPathExtension("pre-kill-snapshot")
+        let fixtureReadyFile = childPIDFile.appendingPathExtension("ready")
+        let beginOutputFile = childPIDFile.appendingPathExtension("begin-output")
         let cliURL = try self.makeHardStopCLI()
         defer {
             for pidFile in [childPIDFile, termChildPIDFile, lateChildPIDFile, rootTermChildPIDFile] {
@@ -27,7 +29,9 @@ extension KiroStatusProbeTests {
                 }
                 try? FileManager.default.removeItem(at: pidFile)
             }
-            try? FileManager.default.removeItem(at: preKillSnapshotTriggerFile)
+            for file in [preKillSnapshotTriggerFile, fixtureReadyFile, beginOutputFile] {
+                try? FileManager.default.removeItem(at: file)
+            }
             try? FileManager.default.removeItem(at: cliURL.deletingLastPathComponent())
         }
 
@@ -37,71 +41,71 @@ extension KiroStatusProbeTests {
         let discoveryDelay = hardStopBudget + 1
         let cleanupMaxLifetime = discoveryDelay + 15
         let preKillSnapshotTriggerPath = preKillSnapshotTriggerFile.path
+        let cleanupStarted = KiroTestInstantMarker()
         #expect(!FileManager.default.fileExists(atPath: preKillSnapshotTriggerPath))
-        let start = Date()
-        let result = try SpawnedProcessGroup.withOutputHolderDiscoveryDelayForTesting(discoveryDelay) {
-            try SpawnedProcessGroup.withOutputHolderCleanupMaxLifetimeForTesting(cleanupMaxLifetime) {
-                try SpawnedProcessGroup.withOutputHolderPreKillSnapshotHookForTesting {
-                    Self.touchFile(atPath: preKillSnapshotTriggerPath)
-                } operation: {
-                    try SpawnedProcessGroup.withOutputHolderPreKillDelayForTesting(0.5) {
-                        try TTYCommandRunner().run(
-                            binary: cliURL.path,
-                            send: "",
-                            options: .init(
-                                timeout: 4,
-                                idleTimeout: 0.1,
-                                extraArgs: [
-                                    childPIDFile.path,
-                                    termChildPIDFile.path,
-                                    lateChildPIDFile.path,
-                                    rootTermChildPIDFile.path,
-                                    preKillSnapshotTriggerPath,
-                                ],
-                                initialDelay: 0,
-                                settleAfterStop: 0))
+        let runnerTask = Task.detached {
+            try SpawnedProcessGroup.withOutputHolderDiscoveryDelayForTesting(discoveryDelay) {
+                try SpawnedProcessGroup.withOutputHolderCleanupMaxLifetimeForTesting(cleanupMaxLifetime) {
+                    try SpawnedProcessGroup.withOutputHolderPreKillSnapshotHookForTesting {
+                        try? KiroProcessTestSupport.touch(preKillSnapshotTriggerFile)
+                    } operation: {
+                        try SpawnedProcessGroup.withOutputHolderPreKillDelayForTesting(0.5) {
+                            try TTYCommandRunner().run(
+                                binary: cliURL.path,
+                                send: "",
+                                options: .init(
+                                    timeout: 30,
+                                    idleTimeout: 0.1,
+                                    extraArgs: [
+                                        childPIDFile.path,
+                                        termChildPIDFile.path,
+                                        lateChildPIDFile.path,
+                                        rootTermChildPIDFile.path,
+                                        preKillSnapshotTriggerPath,
+                                        fixtureReadyFile.path,
+                                        beginOutputFile.path,
+                                    ],
+                                    initialDelay: 0,
+                                    settleAfterStop: 0),
+                                onURLDetected: {
+                                    cleanupStarted.mark()
+                                })
+                        }
                     }
                 }
             }
         }
-        let elapsed = Date().timeIntervalSince(start)
-        print("PTY hard-stop latency: \(String(format: "%.3f", elapsed))s")
+        do {
+            try await KiroProcessTestSupport.waitForFile(fixtureReadyFile)
+        } catch {
+            runnerTask.cancel()
+            _ = try? await runnerTask.value
+            throw error
+        }
+        try KiroProcessTestSupport.touch(beginOutputFile)
+        let result = try await runnerTask.value
+        let startedAt = try #require(cleanupStarted.value())
+        let elapsed = startedAt.duration(to: ContinuousClock().now)
+        print("PTY hard-stop latency after fixture readiness: \(elapsed)")
 
         #expect(result.completion == .idleTimeout)
         let snapshot = try KiroStatusProbe().parse(output: result.text)
         #expect(snapshot.planName == "KIRO FREE")
         #expect(snapshot.creditsUsed == 12.50)
         #expect(
-            elapsed < hardStopBudget,
+            elapsed < .seconds(hardStopBudget),
             "Delayed holder discovery should not extend the PTY hard stop, took \(elapsed)s")
 
-        let childPIDText = try String(contentsOf: childPIDFile, encoding: .utf8)
-        let childPID = try #require(pid_t(childPIDText.trimmingCharacters(in: .whitespacesAndNewlines)))
-        for _ in 0..<1000 where !FileManager.default.fileExists(atPath: termChildPIDFile.path) {
-            try await Task.sleep(for: .milliseconds(20))
-        }
-        let termChildPIDText = try String(contentsOf: termChildPIDFile, encoding: .utf8)
-        let termChildPID = try #require(pid_t(termChildPIDText.trimmingCharacters(in: .whitespacesAndNewlines)))
-        for _ in 0..<1000 where !FileManager.default.fileExists(atPath: lateChildPIDFile.path) {
-            try await Task.sleep(for: .milliseconds(20))
-        }
-        let lateChildPIDText = try String(contentsOf: lateChildPIDFile, encoding: .utf8)
-        let lateChildPID = try #require(pid_t(lateChildPIDText.trimmingCharacters(in: .whitespacesAndNewlines)))
+        let childPID = try await KiroProcessTestSupport.waitForPID(in: childPIDFile)
+        let termChildPID = try await KiroProcessTestSupport.waitForPID(in: termChildPIDFile)
+        let lateChildPID = try await KiroProcessTestSupport.waitForPID(in: lateChildPIDFile)
         #expect(FileManager.default.fileExists(atPath: preKillSnapshotTriggerPath))
-        for _ in 0..<1000 where !FileManager.default.fileExists(atPath: rootTermChildPIDFile.path) {
-            try await Task.sleep(for: .milliseconds(20))
-        }
-        let rootTermChildPIDText = try String(contentsOf: rootTermChildPIDFile, encoding: .utf8)
-        let rootTermChildPID = try #require(
-            pid_t(rootTermChildPIDText.trimmingCharacters(in: .whitespacesAndNewlines)))
+        let rootTermChildPID = try await KiroProcessTestSupport.waitForPID(in: rootTermChildPIDFile)
 
-        let cleanupDeadline = Date().addingTimeInterval(20)
-        while kill(childPID, 0) == 0 || kill(termChildPID, 0) == 0 || kill(lateChildPID, 0) == 0
-            || kill(rootTermChildPID, 0) == 0,
-            Date() < cleanupDeadline
-        {
-            try await Task.sleep(for: .milliseconds(20))
-        }
+        try await KiroProcessTestSupport.waitForExit(
+            of: [childPID, termChildPID, lateChildPID, rootTermChildPID],
+            timeout: .seconds(20),
+            description: "all delayed PTY holder cleanup processes to exit")
         #expect(kill(childPID, 0) == -1)
         #expect(kill(termChildPID, 0) == -1)
         #expect(kill(lateChildPID, 0) == -1)
@@ -114,6 +118,8 @@ extension KiroStatusProbeTests {
             .appendingPathComponent("codexbar-kiro-settle-holder-\(UUID().uuidString).pid")
         let allowRootExitFile = holderPIDFile.appendingPathExtension("allow-root-exit")
         let rootExitedFile = holderPIDFile.appendingPathExtension("root-exited")
+        let fixtureReadyFile = holderPIDFile.appendingPathExtension("ready")
+        let beginOutputFile = holderPIDFile.appendingPathExtension("begin-output")
         let cliURL = try self.makeSettleExitHardStopCLI()
         defer {
             if let text = try? String(contentsOf: holderPIDFile, encoding: .utf8),
@@ -121,7 +127,7 @@ extension KiroStatusProbeTests {
             {
                 _ = kill(holderPID, SIGKILL)
             }
-            for file in [holderPIDFile, allowRootExitFile, rootExitedFile] {
+            for file in [holderPIDFile, allowRootExitFile, rootExitedFile, fixtureReadyFile, beginOutputFile] {
                 try? FileManager.default.removeItem(at: file)
             }
             try? FileManager.default.removeItem(at: cliURL.deletingLastPathComponent())
@@ -131,28 +137,47 @@ extension KiroStatusProbeTests {
         let discoveryDelay = hardStopBudget + 1
         let cleanupMaxLifetime = discoveryDelay + 15
         let allowRootExitPath = allowRootExitFile.path
+        let cleanupStarted = KiroTestInstantMarker()
         #expect(!FileManager.default.fileExists(atPath: allowRootExitPath))
         #expect(!FileManager.default.fileExists(atPath: rootExitedFile.path))
 
-        let start = Date()
-        let result = try SpawnedProcessGroup.withOutputHolderDiscoveryDelayForTesting(discoveryDelay) {
-            try SpawnedProcessGroup.withOutputHolderCleanupMaxLifetimeForTesting(cleanupMaxLifetime) {
-                try TTYCommandRunner().run(
-                    binary: cliURL.path,
-                    send: "",
-                    options: .init(
-                        timeout: 4 * TestTimingBudget.slowdownFactor,
-                        idleTimeout: 0,
-                        extraArgs: [holderPIDFile.path, allowRootExitPath, rootExitedFile.path],
-                        initialDelay: 0,
-                        settleAfterStop: 0.6 * TestTimingBudget.slowdownFactor),
-                    onURLDetected: {
-                        Self.touchFile(atPath: allowRootExitPath)
-                    })
+        let runnerTask = Task.detached {
+            try SpawnedProcessGroup.withOutputHolderDiscoveryDelayForTesting(discoveryDelay) {
+                try SpawnedProcessGroup.withOutputHolderCleanupMaxLifetimeForTesting(cleanupMaxLifetime) {
+                    try TTYCommandRunner().run(
+                        binary: cliURL.path,
+                        send: "",
+                        options: .init(
+                            timeout: 30,
+                            idleTimeout: 0,
+                            extraArgs: [
+                                holderPIDFile.path,
+                                allowRootExitPath,
+                                rootExitedFile.path,
+                                fixtureReadyFile.path,
+                                beginOutputFile.path,
+                            ],
+                            initialDelay: 0,
+                            settleAfterStop: 0.6 * TestTimingBudget.slowdownFactor),
+                        onURLDetected: {
+                            cleanupStarted.mark()
+                            try? KiroProcessTestSupport.touch(allowRootExitFile)
+                        })
+                }
             }
         }
-        let elapsed = Date().timeIntervalSince(start)
-        print("PTY settle-exit hard-stop latency: \(String(format: "%.3f", elapsed))s")
+        do {
+            try await KiroProcessTestSupport.waitForFile(fixtureReadyFile)
+        } catch {
+            runnerTask.cancel()
+            _ = try? await runnerTask.value
+            throw error
+        }
+        try KiroProcessTestSupport.touch(beginOutputFile)
+        let result = try await runnerTask.value
+        let startedAt = try #require(cleanupStarted.value())
+        let elapsed = startedAt.duration(to: ContinuousClock().now)
+        print("PTY settle-exit hard-stop latency after fixture readiness: \(elapsed)")
 
         #expect(result.completion == .processExited(status: 0))
         #expect(FileManager.default.fileExists(atPath: rootExitedFile.path))
@@ -160,15 +185,14 @@ extension KiroStatusProbeTests {
         #expect(snapshot.planName == "KIRO FREE")
         #expect(snapshot.creditsUsed == 12.50)
         #expect(
-            elapsed < hardStopBudget,
+            elapsed < .seconds(hardStopBudget),
             "Delayed holder discovery should not extend cleanup after a settle exit, took \(elapsed)s")
 
-        let holderPIDText = try String(contentsOf: holderPIDFile, encoding: .utf8)
-        let holderPID = try #require(pid_t(holderPIDText.trimmingCharacters(in: .whitespacesAndNewlines)))
-        let cleanupDeadline = Date().addingTimeInterval(20)
-        while kill(holderPID, 0) == 0, Date() < cleanupDeadline {
-            try await Task.sleep(for: .milliseconds(20))
-        }
+        let holderPID = try await KiroProcessTestSupport.waitForPID(in: holderPIDFile)
+        try await KiroProcessTestSupport.waitForExit(
+            of: holderPID,
+            timeout: .seconds(20),
+            description: "the delayed settle PTY holder to exit")
         #expect(kill(holderPID, 0) == -1)
     }
 
@@ -240,8 +264,13 @@ extension KiroStatusProbeTests {
             raise RuntimeError("root TERM child started before TERM")
         if os.path.exists(sys.argv[5]):
             raise RuntimeError("pre-kill snapshot trigger existed before cleanup")
+        with open(sys.argv[6], "w"):
+            pass
+        while not os.path.exists(sys.argv[7]):
+            time.sleep(0.01)
         print("Estimated Usage | resets on 2026-06-01 | KIRO FREE", flush=True)
         print("Credits (12.50 of 50 covered in plan)", flush=True)
+        print("https://example.com/idle-stop-ready", flush=True)
         print("████████████████████ 25%", flush=True)
         time.sleep(30)
         """
@@ -278,6 +307,10 @@ extension KiroStatusProbeTests {
         os.waitpid(intermediate, 0)
         while not os.path.exists(sys.argv[1]):
             time.sleep(0.01)
+        with open(sys.argv[4], "w"):
+            pass
+        while not os.path.exists(sys.argv[5]):
+            time.sleep(0.01)
         print("Estimated Usage | resets on 2026-06-01 | KIRO FREE", flush=True)
         print("Credits (12.50 of 50 covered in plan)", flush=True)
         print("https://example.com/idle-stop-ready", flush=True)
@@ -292,12 +325,6 @@ extension KiroStatusProbeTests {
         try script.write(to: cliURL, atomically: true, encoding: .utf8)
         try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: cliURL.path)
         return cliURL
-    }
-
-    private static func touchFile(atPath path: String) {
-        let fileDescriptor = open(path, O_WRONLY | O_CREAT | O_CLOEXEC, S_IRUSR | S_IWUSR)
-        guard fileDescriptor >= 0 else { return }
-        _ = close(fileDescriptor)
     }
 }
 #endif

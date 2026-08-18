@@ -1,7 +1,15 @@
 /* Turkish localization for CodexBar */
 
 /* iCloud Sync */
+"+ %d more" = "+ %d daha";
+"Conversations (%@)" = "Konuşmalar (%@)";
+"Fast" = "Hızlı";
 "iCloud Sync" = "iCloud Sync";
+"Projects" = "Projeler";
+"Session %@" = "Oturum %@";
+"Std" = "Std";
+"Show all (%d)" = "Tümünü göster (%d)";
+"Show less" = "Daha az göster";
 "Sync settings and providers across your Macs via iCloud" = "Sync settings and providers across your Macs via iCloud";
 "Include API keys, cookies, and tokens" = "Include API keys, cookies, and tokens";
 "Sync usage snapshots" = "Sync usage snapshots";
@@ -485,6 +493,10 @@
 "quota_depleted_title" = "Kota tükenmesi ve yenilenmesi";
 "quota_warning_notifications_subtitle" = "Oturum veya haftalık kalan kota yapılandırılan eşikleri geçtiğinde uyarır.";
 "threshold_warnings_title" = "Eşik uyarıları";
+"provider_accent_color_title" = "Vurgu rengi";
+"provider_accent_color_footer" = "Bu sağlayıcının kullanım çubuklarının, grafiklerinin ve geçiş sekmesinin rengini belirler.";
+"provider_accent_color_hex_label" = "Onaltılık renk değeri";
+"provider_accent_color_reset" = "Varsayılanı kullan";
 "quota_warnings_title" = "Kota uyarıları";
 "quota_warning_session" = "oturum";
 "quota_warning_session_capitalized" = "Oturum";
@@ -613,6 +625,11 @@
 "show_quota_warning_markers_subtitle" = "Kota uyarıları yapılandırıldığında kullanım çubuklarına eşik çizgileri çizer.";
 "weekly_progress_work_days_title" = "Haftalık ilerleme iş günleri";
 "weekly_progress_work_days_subtitle" = "Haftalık kullanım çubuğu işaretleri ve tempo hesaplamaları için iş günlerini ayarlar.";
+"workday_tick_appearance_title" = "İş günü işaretlerinin görünümü";
+"workday_tick_appearance_subtitle" = "İş günü sınırlarının haftalık kullanım çubuklarında nasıl görüneceğini seçin.";
+"workday_tick_appearance_hidden" = "Gizli";
+"workday_tick_appearance_subtle" = "Hafif";
+"workday_tick_appearance_high_contrast" = "Yüksek kontrast";
 "show_provider_changelog_links_title" = "Sağlayıcı değişiklik günlüğü bağlantılarını göster";
 "show_provider_changelog_links_subtitle" = "Desteklenen CLI destekli sağlayıcılar için menüye sürüm notları bağlantıları ekler.";
 "show_credits_extra_usage_title" = "Krediler + ekstra kullanımı göster";
@@ -658,6 +675,15 @@
 "keychain_access_caption" = "Tüm Anahtarlık okuma ve yazmalarını devre dışı bırakın. macOS 'Chrome/Brave/Edge Güvenli Depolama' için sürekli istem gösteriyorsa ve Her Zaman İzin Ver'e tıkladıktan sonra bile devam ediyorsa bunu kullanın. Etkinleştirildiğinde tarayıcı çerez içe aktarımı kullanılamaz; Sağlayıcılar bölümünden Çerez başlıklarını el ile yapıştırın. CLI üzerinden Claude/Codex OAuth hâlâ çalışır.";
 "disable_keychain_access_title" = "Anahtarlık erişimini devre dışı bırak";
 "disable_keychain_access_subtitle" = "Etkinleştirildiğinde tüm Anahtarlık erişimini engeller.";
+"Re-authenticate" = "Yeniden kimlik doğrula";
+"kiro_reauthenticate_title" = "Kiro CLI oturumu";
+"kiro_reauthenticate_subtitle" = "Süreniz dolduğunda oturumu yenilemek için 'kiro-cli login' komutunu çalıştırır.";
+"Kiro CLI not found" = "Kiro CLI bulunamadı";
+"Install kiro-cli and try again." = "kiro-cli'yi yükleyip tekrar deneyin.";
+"Could not start kiro-cli login" = "kiro-cli login başlatılamadı";
+"Kiro login timed out" = "Kiro oturum açma zaman aşımına uğradı";
+"kiro-cli login exited with status %d." = "kiro-cli login %d durumuyla sonlandı.";
+"Kiro login failed" = "Kiro oturumu açılamadı";
 
 /* About Pane */
 "about_tagline" = "Jetonlarınız hiç bitmesin—ajan limitlerini göz önünde bulundurun.";
@@ -1292,6 +1318,9 @@
 "Native currencies stay separate; Codex account rows exclude Pi session history." = "Kaynak para birimleri ayrı tutulur; Codex hesap satırlarına Pi oturum geçmişi dahil edilmez.";
 "Spend unavailable" = "Harcama verisi kullanılamıyor";
 "Model breakdown unavailable" = "Model dökümü kullanılamıyor";
+"Partial estimate" = "Kısmi tahmin";
+"Partial model breakdown" = "Kısmi model dökümü";
+"%d of %d subscriptions have spend" = "%d / %d abonelikte harcama var";
 "Local estimated history" = "Yerel tahmini geçmiş";
 "Coverage" = "Kapsam";
 "Estimated spend" = "Tahmini harcama";
@@ -1434,3 +1463,27 @@
 "5-hour usage" = "5 saatlik kullanım";
 "7-day usage" = "7 günlük kullanım";
 "Total usage" = "Toplam kullanım";
+"claude_oauth_keychain_access_revoked" = "Claude Anahtar Zinciri erişimi, Claude Code'un belirteç yenilemesi nedeniyle iptal edildi. Erişimi yeniden vermek için Yenile'ye tıklayın veya Claude Kullanım kaynağını CLI/Web olarak değiştirin.";
+"claude_showing_last_known_usage" = "Bilinen son kullanım gösteriliyor (yakalanma zamanı: %@).";
+/* Spend dashboard cost analysis */
+"90d" = "90d";
+"Input" = "Input";
+"Output" = "Output";
+"Cache write" = "Cache write";
+"Reasoning" = "Reasoning";
+"Sessions" = "Sessions";
+"Projects" = "Projects";
+"Plan metered" = "Plan metered";
+"List-price equivalent" = "List-price equivalent";
+"Metered and list-price" = "Metered and list-price";
+"List-price equivalent — not a billing receipt." = "List-price equivalent — not a billing receipt.";
+"Priced" = "Priced";
+"Unpriced" = "Unpriced";
+"Unmetered" = "Unmetered";
+"Estimated" = "Estimated";
+"Other models" = "Other models";
+"Include OpenCodex usage logs" = "Include OpenCodex usage logs";
+"Hide native Codex when OpenCodex is present" = "Hide native Codex when OpenCodex is present";
+"Export JSON" = "Export JSON";
+"Sources" = "Sources";
+"OpenCodex" = "OpenCodex";

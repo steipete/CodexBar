@@ -5,7 +5,7 @@ import Testing
 
 extension StatusMenuTests {
     @Test
-    func `open AI API primary dashboard ignores optional cost summary toggle`() throws {
+    func `open AI API primary dashboard follows cost summary toggle`() throws {
         self.disableMenuCardsForTesting()
         let settings = self.makeSettings()
         settings.statusChecksEnabled = false
@@ -50,7 +50,7 @@ extension StatusMenuTests {
         defer { controller.releaseStatusItemsForTesting() }
 
         let model = try #require(controller.menuCardModel(for: .openai))
-        #expect(model.inlineUsageDashboard != nil)
+        #expect(model.inlineUsageDashboard == nil)
         #expect(model.tokenUsage == nil)
     }
 
@@ -155,7 +155,7 @@ extension StatusMenuTests {
     }
 
     @Test
-    func `mistral native billing submenus ignore optional local cost preferences`() throws {
+    func `mistral native billing follows cost summary preferences`() throws {
         StatusItemController.menuCardRenderingEnabled = true
         StatusItemController.setMenuRefreshEnabledForTesting(false)
         defer { self.disableMenuCardsForTesting() }
@@ -207,14 +207,14 @@ extension StatusMenuTests {
         defer { controller.releaseStatusItemsForTesting() }
 
         let model = try #require(controller.menuCardModel(for: .mistral))
-        #expect(model.inlineUsageDashboard != nil)
+        #expect(model.inlineUsageDashboard == nil)
         #expect(model.tokenUsage == nil)
-        #expect(controller.makeOverviewRowSubmenu(provider: .mistral, model: model, width: 320) != nil)
+        #expect(controller.makeOverviewRowSubmenu(provider: .mistral, model: model, width: 320) == nil)
 
         let menu = controller.makeMenu(for: .mistral)
         controller.menuWillOpen(menu)
         let usageItem = menu.items.first { ($0.representedObject as? String) == "menuCardUsage" }
-        #expect(usageItem?.submenu != nil)
+        #expect(usageItem?.submenu == nil)
 
         settings.costUsageEnabled = true
         settings.costSummaryDisplayStyle = .both

@@ -1,14 +1,15 @@
 ---
-summary: "Codex OAuth resolver: tokens, refresh, usage endpoint, and fetch strategy wiring."
+summary: "Codex OAuth resolver: read-only tokens, CLI-owned refresh, usage endpoint, and fetch strategy wiring."
 read_when:
   - Adding or modifying Codex OAuth usage fetching
   - Debugging auth.json parsing or token refresh behavior
   - Adjusting Codex provider source selection
 ---
 
-# Codex OAuth Resolver Implementation Plan
+# Codex OAuth resolver
 
-> Replicate Codex's direct OAuth token usage in CodexBar instead of calling the CLI.
+> Read Codex's OAuth tokens for usage in CodexBar while leaving refresh and persistence to the
+> Codex CLI that owns `auth.json`.
 
 ## Background
 
@@ -17,7 +18,8 @@ Currently, CodexBar fetches Codex usage by:
 2. Sending `/status` command
 3. Parsing the text output
 
-This is slow and unreliable. The goal is to directly read Codex's OAuth tokens and call the same API endpoints that Codex uses internally.
+This is slow and unreliable. CodexBar now reads OAuth tokens for usage and calls the same API
+endpoints that Codex uses internally, while stale native credentials are recovered by the CLI.
 
 ---
 
@@ -42,32 +44,20 @@ This is slow and unreliable. The goal is to directly read Codex's OAuth tokens a
 
 **Source:** `codex-rs/core/src/auth/storage.rs`
 
-### Token Refresh
+### Token Freshness and Ownership
 
-**Endpoint:** `POST https://auth.openai.com/oauth/token`
+Codex CLI owns the refresh endpoint and the refresh-token lifecycle for the native
+`CODEX_HOME/auth.json`. CodexBar may inspect `last_refresh` to decide whether a usage snapshot is
+stale, but its usage path must not redeem that token or write a replacement file. Instead:
 
-**Request:**
-```json
-{
-  "client_id": "app_EMoamEEZ73f0CkXaXp7hrann",
-  "grant_type": "refresh_token",
-  "refresh_token": "<refresh_token>",
-  "scope": "openid profile email"
-}
-```
+- stale native credentials produce `nativeRefreshRequired` and route to Codex CLI recovery;
+- stale legacy/OpenCode credentials produce `readOnlySource` and fail closed because there is no
+  safe writer handoff; and
+- `CodexTokenRefresher` is not part of the shared-file usage path.
 
-**Response:**
-```json
-{
-  "id_token": "eyJ...",
-  "access_token": "eyJ...",
-  "refresh_token": "..."
-}
-```
-
-**Refresh Interval:** 8 days (from `TOKEN_REFRESH_INTERVAL` constant)
-
-**Source:** `codex-rs/core/src/auth.rs:504-545`
+The Codex CLI refresh interval is 8 days (from `TOKEN_REFRESH_INTERVAL`); the source reference is
+`codex-rs/core/src/auth.rs:504-545`. The refresh endpoint is documented here for ownership
+context only, not as a CodexBar usage action.
 
 ### Usage API
 
@@ -83,10 +73,9 @@ ChatGPT-Account-Id: <account_id>
 User-Agent: codex-cli
 ```
 
-**Quick checks**
-- Command: `cat ~/.codex/auth.json`
-- Command: `curl -H "Authorization: Bearer <access_token>" -H "ChatGPT-Account-Id: <account_id>" -H "User-Agent: codex-cli" https://chatgpt.com/backend-api/wham/usage`
-- Command: `CodexBarCLI usage --provider codex --source oauth --json --pretty`
+Use fixture credentials in an isolated `CODEX_HOME` for diagnostics. Do not print the native auth
+file or put bearer tokens in shell history. The safe product-level check is
+`CodexBarCLI usage --provider codex --source oauth --json --pretty` with an isolated environment.
 
 **Response:**
 ```json
@@ -124,7 +113,7 @@ User-Agent: codex-cli
 |------|----------|---------|
 | `CodexOAuthCredentials.swift` | `Sources/CodexBarCore/Providers/Codex/CodexOAuth/` | Token storage model + loader |
 | `CodexOAuthUsageFetcher.swift` | `Sources/CodexBarCore/Providers/Codex/CodexOAuth/` | API client for usage endpoint |
-| `CodexTokenRefresher.swift` | `Sources/CodexBarCore/Providers/Codex/CodexOAuth/` | Token refresh logic |
+| `CodexTokenRefresher.swift` | `Sources/CodexBarCore/Providers/Codex/CodexOAuth/` | Refresh-error classification and isolated transport tests; not shared-file usage ownership |
 
 ### Files to Modify
 
@@ -136,125 +125,19 @@ User-Agent: codex-cli
 
 ### Step 1: CodexOAuthCredentials.swift
 
-```swift
-import Foundation
+The credential store exposes a read-only usage contract:
 
-public struct CodexOAuthCredentials: Sendable {
-    public let accessToken: String
-    public let refreshToken: String
-    public let idToken: String?
-    public let accountId: String?
-    public let lastRefresh: Date?
-
-    public var needsRefresh: Bool {
-        guard let last = lastRefresh else { return true }
-        let eightDays: TimeInterval = 8 * 24 * 3600
-        return Date().timeIntervalSince(last) > eightDays
-    }
-}
-
-public enum CodexOAuthCredentialsError: LocalizedError {
-    case notFound
-    case decodeFailed(String)
-    case missingTokens
-
-    public var errorDescription: String? {
-        switch self {
-        case .notFound:
-            "Codex auth.json not found. Run `codex` to log in."
-        case .decodeFailed(let msg):
-            "Failed to decode Codex credentials: \(msg)"
-        case .missingTokens:
-            "Codex auth.json exists but contains no tokens."
-        }
-    }
-}
-
-public enum CodexOAuthCredentialsStore {
-    private static var authFilePath: URL {
-        let home = FileManager.default.homeDirectoryForCurrentUser
-        // Respect CODEX_HOME if set
-        if let codexHome = ProcessInfo.processInfo.environment["CODEX_HOME"],
-           !codexHome.isEmpty {
-            return URL(fileURLWithPath: codexHome).appendingPathComponent("auth.json")
-        }
-        return home.appendingPathComponent(".codex/auth.json")
-    }
-
-    public static func load() throws -> CodexOAuthCredentials {
-        let url = authFilePath
-        guard FileManager.default.fileExists(atPath: url.path) else {
-            throw CodexOAuthCredentialsError.notFound
-        }
-
-        let data = try Data(contentsOf: url)
-        guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            throw CodexOAuthCredentialsError.decodeFailed("Invalid JSON")
-        }
-
-        // Check for API key auth (no tokens needed for refresh)
-        if let apiKey = json["OPENAI_API_KEY"] as? String, !apiKey.isEmpty {
-            return CodexOAuthCredentials(
-                accessToken: apiKey,
-                refreshToken: "",
-                idToken: nil,
-                accountId: nil,
-                lastRefresh: nil)
-        }
-
-        guard let tokens = json["tokens"] as? [String: Any],
-              let accessToken = tokens["access_token"] as? String,
-              let refreshToken = tokens["refresh_token"] as? String else {
-            throw CodexOAuthCredentialsError.missingTokens
-        }
-
-        let idToken = tokens["id_token"] as? String
-        let accountId = tokens["account_id"] as? String
-
-        let lastRefresh: Date? = {
-            guard let str = json["last_refresh"] as? String else { return nil }
-            let formatter = ISO8601DateFormatter()
-            formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-            return formatter.date(from: str) ?? ISO8601DateFormatter().date(from: str)
-        }()
-
-        return CodexOAuthCredentials(
-            accessToken: accessToken,
-            refreshToken: refreshToken,
-            idToken: idToken,
-            accountId: accountId,
-            lastRefresh: lastRefresh)
-    }
-
-    public static func save(_ credentials: CodexOAuthCredentials) throws {
-        let url = authFilePath
-
-        // Read existing file to preserve structure
-        var json: [String: Any] = [:]
-        if let data = try? Data(contentsOf: url),
-           let existing = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
-            json = existing
-        }
-
-        var tokens: [String: Any] = [
-            "access_token": credentials.accessToken,
-            "refresh_token": credentials.refreshToken
-        ]
-        if let idToken = credentials.idToken {
-            tokens["id_token"] = idToken
-        }
-        if let accountId = credentials.accountId {
-            tokens["account_id"] = accountId
-        }
-
-        json["tokens"] = tokens
-        json["last_refresh"] = ISO8601DateFormatter().string(from: Date())
-
-        let data = try JSONSerialization.data(withJSONObject: json, options: [.prettyPrinted, .sortedKeys])
-        try data.write(to: url, options: .atomic)
-    }
-}
-```
+- `loadForUsage(env:allowExternalSources:)` gives native `CODEX_HOME/auth.json` precedence and
+  only considers legacy Codex/OpenCode files when the explicit external-source setting is on.
+- Credentials carry their source, freshness, access token, account scope, and refresh metadata;
+  account IDs are normalized before JWT fallback is attempted.
+- `load()` and `loadOAuthTokens()` are parsing entry points. They do not refresh a token or write a
+  file.
+- `save(...)` is guarded by the credential source and rejects external files that cannot safely
+  persist refresh material. The usage strategy never calls it for shared auth refreshes; native
+  `auth.json` refresh remains Codex CLI-owned.
+- Missing, malformed, stale-native, and stale-external states remain distinct so the provider can
+  choose CLI recovery or a fail-closed error without silently changing credential ownership.
 
 ---
 
@@ -386,219 +269,37 @@ public enum CodexOAuthUsageFetcher {
 
 ### Step 3: CodexTokenRefresher.swift
 
-```swift
-import Foundation
+The usage path must not call `CodexTokenRefresher.refresh` for a credential loaded from native,
+legacy, or OpenCode auth files. The type is retained for refresh-error classification and isolated
+transport tests, but ownership is handled as follows:
 
-public enum CodexTokenRefresher {
-    private static let refreshEndpoint = URL(string: "https://auth.openai.com/oauth/token")!
-    private static let clientID = "app_EMoamEEZ73f0CkXaXp7hrann"
-
-    public enum RefreshError: LocalizedError {
-        case expired
-        case revoked
-        case reused
-        case networkError(Error)
-        case invalidResponse(String)
-
-        public var errorDescription: String? {
-            switch self {
-            case .expired:
-                "Refresh token expired. Please run `codex` to log in again."
-            case .revoked:
-                "Refresh token was revoked. Please run `codex` to log in again."
-            case .reused:
-                "Refresh token was already used. Please run `codex` to log in again."
-            case .networkError(let error):
-                "Network error during token refresh: \(error.localizedDescription)"
-            case .invalidResponse(let msg):
-                "Invalid refresh response: \(msg)"
-            }
-        }
-    }
-
-    public static func refresh(_ credentials: CodexOAuthCredentials) async throws -> CodexOAuthCredentials {
-        guard !credentials.refreshToken.isEmpty else {
-            // API key auth - no refresh needed
-            return credentials
-        }
-
-        var request = URLRequest(url: refreshEndpoint)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-
-        let body: [String: String] = [
-            "client_id": clientID,
-            "grant_type": "refresh_token",
-            "refresh_token": credentials.refreshToken,
-            "scope": "openid profile email"
-        ]
-        request.httpBody = try JSONSerialization.data(withJSONObject: body)
-
-        let (data, response): (Data, URLResponse)
-        do {
-            (data, response) = try await URLSession.shared.data(for: request)
-        } catch {
-            throw RefreshError.networkError(error)
-        }
-
-        guard let http = response as? HTTPURLResponse else {
-            throw RefreshError.invalidResponse("No HTTP response")
-        }
-
-        if http.statusCode == 401 {
-            // Parse error code to classify failure
-            if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-               let errorCode = (json["error"] as? [String: Any])?["code"] as? String
-                              ?? json["error"] as? String
-                              ?? json["code"] as? String {
-                switch errorCode.lowercased() {
-                case "refresh_token_expired": throw RefreshError.expired
-                case "refresh_token_reused": throw RefreshError.reused
-                case "refresh_token_invalidated": throw RefreshError.revoked
-                default: throw RefreshError.expired
-                }
-            }
-            throw RefreshError.expired
-        }
-
-        guard http.statusCode == 200 else {
-            throw RefreshError.invalidResponse("Status \(http.statusCode)")
-        }
-
-        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            throw RefreshError.invalidResponse("Invalid JSON")
-        }
-
-        let newAccessToken = json["access_token"] as? String ?? credentials.accessToken
-        let newRefreshToken = json["refresh_token"] as? String ?? credentials.refreshToken
-        let newIdToken = json["id_token"] as? String ?? credentials.idToken
-
-        return CodexOAuthCredentials(
-            accessToken: newAccessToken,
-            refreshToken: newRefreshToken,
-            idToken: newIdToken,
-            accountId: credentials.accountId,
-            lastRefresh: Date())
-    }
-}
-```
+- `CodexOAuthFetchStrategy` throws `nativeRefreshRequired` for stale native credentials;
+- `CodexOAuthNativeRefreshCLIStrategy` delegates that recovery to Codex CLI;
+- stale external credentials throw `readOnlySource` and never reach a refresh request; and
+- no refresh response is published back to a shared `auth.json` by CodexBar.
 
 ---
 
 ### Step 4: Update CodexProviderDescriptor.swift
 
-Add OAuth to `sourceModes` and create new strategy:
+The production strategy is source-aware. Keep the following flow in sync with the provider
+implementation instead of copying an OAuth-only fetch example:
 
-```swift
-// In makeDescriptor(), update fetchPlan:
-fetchPlan: ProviderFetchPlan(
-    sourceModes: [.auto, .oauth, .web, .cli],  // Add .oauth
-    pipeline: ProviderFetchPipeline(resolveStrategies: self.resolveStrategies)),
+1. `CodexOAuthCredentialsStore.loadForUsage` reads the ambient `CODEX_HOME` first. Legacy Codex
+   and OpenCode files are considered only when the explicit external-source setting is enabled.
+2. `CodexOAuthFetchStrategy` uses that credential snapshot for the usage and reset-credit
+   requests. It never redeems or saves a refresh token from the usage path.
+3. A stale native snapshot throws `CodexOAuthCredentialsError.nativeRefreshRequired`; the explicit
+   OAuth plan routes that state to `CodexOAuthNativeRefreshCLIStrategy`, which delegates recovery
+   to Codex CLI. A stale legacy/OpenCode snapshot throws `.readOnlySource` and fails closed because
+   there is no safe writer handoff.
+4. Auto mode falls back to the CLI only for recoverable native OAuth or credential errors. Stale
+   external sources, managed workspace scope, transient API errors, decode failures, and network
+   failures remain visible instead of launching an unrelated or unscoped CLI recovery.
 
-// Update resolveStrategies:
-private static func resolveStrategies(context: ProviderFetchContext) async -> [any ProviderFetchStrategy] {
-    let oauth = CodexOAuthFetchStrategy()
-    let cli = CodexCLIUsageStrategy()
-    let web = CodexWebDashboardStrategy()
-
-    switch context.sourceMode {
-    case .oauth:
-        return [oauth]
-    case .web:
-        return [web]
-    case .cli:
-        return [cli]
-    case .auto:
-        // OAuth first (fast), CLI fallback
-        if context.runtime == .cli {
-            return [web, cli]
-        }
-        return [oauth, cli]
-    }
-}
-
-// Add new strategy:
-struct CodexOAuthFetchStrategy: ProviderFetchStrategy {
-    let id: String = "codex.oauth"
-    let kind: ProviderFetchKind = .oauth
-
-    func isAvailable(_ context: ProviderFetchContext) async -> Bool {
-        (try? CodexOAuthCredentialsStore.load()) != nil
-    }
-
-    func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
-        var creds = try CodexOAuthCredentialsStore.load()
-
-        // Refresh if needed (8+ days old)
-        if creds.needsRefresh && !creds.refreshToken.isEmpty {
-            creds = try await CodexTokenRefresher.refresh(creds)
-            try CodexOAuthCredentialsStore.save(creds)
-        }
-
-        let usage = try await CodexOAuthUsageFetcher.fetchUsage(
-            accessToken: creds.accessToken,
-            accountId: creds.accountId)
-
-        return makeResult(
-            usage: Self.mapUsage(usage),
-            credits: Self.mapCredits(usage.credits),
-            sourceLabel: "oauth")
-    }
-
-    func shouldFallback(on error: Error, context: ProviderFetchContext) -> Bool {
-        // Fallback to CLI on auth errors
-        if let fetchError = error as? CodexOAuthFetchError {
-            switch fetchError {
-            case .unauthorized: return true
-            default: return false
-            }
-        }
-        if error is CodexOAuthCredentialsError { return true }
-        if error is CodexTokenRefresher.RefreshError { return true }
-        return false
-    }
-
-    private static func mapUsage(_ response: CodexUsageResponse) -> UsageSnapshot {
-        let primary: RateWindow? = response.rateLimit?.primaryWindow.map { window in
-            RateWindow(
-                usedPercent: Double(window.usedPercent),
-                windowMinutes: window.limitWindowSeconds / 60,
-                resetsAt: Date(timeIntervalSince1970: TimeInterval(window.resetAt)),
-                resetDescription: nil)
-        }
-
-        let secondary: RateWindow? = response.rateLimit?.secondaryWindow.map { window in
-            RateWindow(
-                usedPercent: Double(window.usedPercent),
-                windowMinutes: window.limitWindowSeconds / 60,
-                resetsAt: Date(timeIntervalSince1970: TimeInterval(window.resetAt)),
-                resetDescription: nil)
-        }
-
-        let identity = ProviderIdentitySnapshot(
-            providerID: .codex,
-            accountEmail: nil,
-            accountOrganization: nil,
-            loginMethod: response.planType.rawValue)
-
-        return UsageSnapshot(
-            primary: primary ?? RateWindow(usedPercent: 0, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
-            secondary: secondary,
-            tertiary: nil,
-            providerCost: nil,
-            updatedAt: Date(),
-            identity: identity)
-    }
-
-    private static func mapCredits(_ credits: CodexUsageResponse.CreditDetails?) -> CreditsSnapshot? {
-        guard let credits else { return nil }
-        return CreditsSnapshot(
-            hasCredits: credits.hasCredits,
-            unlimited: credits.unlimited,
-            balance: credits.balance)
-    }
-}
-```
+The key invariant is that the credential snapshot used for the usage request is also passed to
+reset-credit enrichment; reloading `auth.json` after a refresh would reintroduce the shared-file
+race this design is intended to avoid.
 
 ---
 
@@ -606,8 +307,8 @@ struct CodexOAuthFetchStrategy: ProviderFetchStrategy {
 
 | Constant | Value | Source |
 |----------|-------|--------|
-| Client ID | `app_EMoamEEZ73f0CkXaXp7hrann` | `auth.rs:618` |
-| Refresh URL | `https://auth.openai.com/oauth/token` | `auth.rs:66` |
+| Refresh owner | Codex CLI | `auth.rs:66`, `auth.rs:618` |
+| Refresh URL | `https://auth.openai.com/oauth/token` (CLI-owned; not a CodexBar usage action) | `auth.rs:66` |
 | Usage URL | `https://chatgpt.com/backend-api/wham/usage` (default) | `client.rs:163` |
 | Token refresh interval | 8 days | `auth.rs:59` |
 | Auth file | `~/.codex/auth.json` | `storage.rs` |
@@ -616,11 +317,14 @@ struct CodexOAuthFetchStrategy: ProviderFetchStrategy {
 
 ## Testing
 
-1. Ensure `~/.codex/auth.json` exists (run `codex` to log in first)
-2. Run CodexBar with debug logging enabled
-3. Verify OAuth strategy is selected and API calls succeed
-4. Test token refresh by manually setting `last_refresh` to old date
-5. Test fallback by temporarily renaming auth.json
+1. Use fixture files or an isolated `CODEX_HOME`; never test by modifying a real shared auth file.
+2. Verify native `CODEX_HOME` precedence and opt-in external-source discovery with
+   `CodexOAuthCredentialReadTests`.
+3. Verify fresh credentials make usage and reset-credit requests from the same in-memory snapshot.
+4. Verify stale native credentials select Codex CLI recovery and stale external credentials fail
+   closed without a refresh request or file write.
+5. Verify missing, unauthorized, decode, and network errors follow the source-aware fallback
+   policy; run `swift test --filter CodexOAuth` and `make check`.
 
 ---
 
@@ -628,8 +332,8 @@ struct CodexOAuthFetchStrategy: ProviderFetchStrategy {
 
 | Error | Behavior |
 |-------|----------|
-| No auth.json | Fall back to CLI strategy |
-| Token expired | Attempt refresh, fall back to CLI on failure |
-| Refresh failed | Log error, fall back to CLI |
-| API error | Fall back to CLI |
-| Network error | Retry with backoff, then fall back |
+| No native auth file | Auto mode may continue to its next configured strategy; explicit OAuth reports the credential error |
+| Stale native credentials | Throw `nativeRefreshRequired` and delegate to Codex CLI; never refresh in-process |
+| Stale legacy/OpenCode credentials | Throw `readOnlySource`; fail closed because there is no safe writer handoff |
+| Unauthorized OAuth response | Fall back only when the active source mode permits a recoverable CLI strategy |
+| Decode, server, or network error | Surface the original error; do not launch unrelated CLI recovery |

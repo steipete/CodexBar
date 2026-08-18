@@ -59,6 +59,7 @@ struct MiniMaxMenuCardBillingTests {
             usageBarsShowUsed: true,
             resetTimeDisplayStyle: .countdown,
             tokenCostUsageEnabled: false,
+            costSummaryInlineEnabled: true,
             showOptionalCreditsAndExtraUsage: true,
             hidePersonalInfo: false,
             now: now))
@@ -84,6 +85,7 @@ struct MiniMaxMenuCardBillingTests {
             usageBarsShowUsed: true,
             resetTimeDisplayStyle: .countdown,
             tokenCostUsageEnabled: false,
+            costSummaryInlineEnabled: true,
             showOptionalCreditsAndExtraUsage: false,
             hidePersonalInfo: false,
             now: now))

@@ -2,12 +2,11 @@ import CodexBarCore
 import Foundation
 
 extension SettingsStore {
-    func costSummaryShowsInlineDashboard(for provider: UsageProvider) -> Bool {
-        // Provider-specific by design: DeepSeek's API exposes a balance card but no token-cost submenu data.
-        if provider == .deepseek {
-            return self.costUsageEnabled
-        }
-        return self.isCostUsageEffectivelyEnabled(for: provider) &&
+    func costSummaryShowsInline(for provider: UsageProvider) -> Bool {
+        // Provider-specific by design: Codex's local ledger can enable its summary without the global scanner.
+        let isEnabled = self.costUsageEnabled ||
+            (provider == .codex && self.codexLocalSessionCostLedgerEnabled)
+        return isEnabled &&
             self.costSummaryDisplayStyle.showsInlineSummary
     }
 

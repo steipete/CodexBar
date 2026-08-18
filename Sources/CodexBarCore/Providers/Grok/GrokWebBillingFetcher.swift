@@ -1,4 +1,5 @@
 import Foundation
+
 #if canImport(FoundationNetworking)
 import FoundationNetworking
 #endif
@@ -6,10 +7,20 @@ import FoundationNetworking
 public struct GrokWebBillingSnapshot: Sendable, Equatable {
     public let usedPercent: Double?
     public let resetsAt: Date?
+    public let subscriptionTier: String?
 
-    public init(usedPercent: Double?, resetsAt: Date?) {
+    public init(usedPercent: Double?, resetsAt: Date?, subscriptionTier: String? = nil) {
         self.usedPercent = usedPercent
         self.resetsAt = resetsAt
+        self.subscriptionTier = subscriptionTier
+    }
+
+    /// Overlay the CLI settings plan name. Usage percent stays on the existing credits rules.
+    func applying(subscriptionTier raw: String?) -> GrokWebBillingSnapshot {
+        GrokWebBillingSnapshot(
+            usedPercent: self.usedPercent,
+            resetsAt: self.resetsAt,
+            subscriptionTier: GrokPlan.displayName(from: raw) ?? self.subscriptionTier)
     }
 }
 
@@ -54,8 +65,8 @@ public enum GrokWebBillingError: LocalizedError, Sendable {
     private static let reauthMessage =
         "Grok web billing rejected credentials. Sign in to grok.com in Chrome or run `grok login` to refresh xAI auth."
     private static let webKeyExchangeReauthMessage =
-        "grok.com billing no longer accepts browser-cookie sign-in for this endpoint. Run `grok login` so CodexBar " +
-        "can read usage via the Grok CLI token."
+        "grok.com billing no longer accepts browser-cookie sign-in for this endpoint. Run `grok login` so CodexBar "
+            + "can read usage via the Grok CLI token."
 
     static func isWebKeyExchangeCredentialRejection(status: Int, message: String) -> Bool {
         guard status == 16 else { return false }
@@ -64,16 +75,16 @@ public enum GrokWebBillingError: LocalizedError, Sendable {
     }
 
     static func isAuthenticationFailure(status: Int, message: String) -> Bool {
-        if status == 16 { return true }
+        if status == 16 {
+            return true
+        }
         guard status == 7 else { return false }
         let lower = message.lowercased()
-        return lower.contains("bad-credentials") ||
-            lower.contains("unauthenticated") ||
-            (lower.contains("oauth2") && lower.contains("could not be validated")) ||
-            (lower.contains("access token") &&
-                (lower.contains("invalid") ||
-                    lower.contains("expired") ||
-                    lower.contains("could not be validated")))
+        return lower.contains("bad-credentials") || lower.contains("unauthenticated")
+            || (lower.contains("oauth2") && lower.contains("could not be validated"))
+            || (lower.contains("access token")
+                && (lower.contains("invalid") || lower.contains("expired")
+                    || lower.contains("could not be validated")))
     }
 }
 
@@ -154,10 +165,11 @@ public enum GrokWebBillingFetcher {
     }
 
     private static func classified(_ error: Error, principalType: String?) -> Error {
-        guard principalType?.trimmingCharacters(in: .whitespacesAndNewlines)
-            .caseInsensitiveCompare("team") == .orderedSame,
-            case let GrokWebBillingError.rpcFailed(status, message) = error,
-            self.isTeamBillingUnavailable(status: status, message: message)
+        guard
+            principalType?.trimmingCharacters(in: .whitespacesAndNewlines)
+                .caseInsensitiveCompare("team") == .orderedSame,
+                case let GrokWebBillingError.rpcFailed(status, message) = error,
+                self.isTeamBillingUnavailable(status: status, message: message)
         else {
             return error
         }
@@ -200,7 +212,8 @@ public enum GrokWebBillingFetcher {
             let body = String(data: response.data.prefix(400), encoding: .utf8) ?? ""
             throw GrokWebBillingError.requestFailed(response.statusCode, body)
         }
-        try Self.validateGRPCStatusFields(Self.grpcHeaderFields(from: response.response.allHeaderFields))
+        try Self.validateGRPCStatusFields(
+            Self.grpcHeaderFields(from: response.response.allHeaderFields))
         try Self.validateGRPCWebTrailers(response.data)
 
         return try Self.parseGRPCWebResponse(response.data)
@@ -211,19 +224,25 @@ public enum GrokWebBillingFetcher {
             return urlError.code == .timedOut || urlError.code == .networkConnectionLost
         }
         if case let GrokWebBillingError.requestFailed(status, body) = error {
-            if [408, 502, 503, 504].contains(status) { return true }
+            if [408, 502, 503, 504].contains(status) {
+                return true
+            }
             return body.localizedCaseInsensitiveContains("timeout")
                 || body.localizedCaseInsensitiveContains("deadline")
         }
         guard case let GrokWebBillingError.rpcFailed(status, message) = error else { return false }
-        if status == 4 { return true }
+        if status == 4 {
+            return true
+        }
         guard status == 1 else { return false }
         return message.localizedCaseInsensitiveContains("timeout")
             || message.localizedCaseInsensitiveContains("deadline")
             || message.localizedCaseInsensitiveContains("expired")
     }
 
-    static func parseGRPCWebResponse(_ data: Data, now: Date = Date()) throws -> GrokWebBillingSnapshot {
+    static func parseGRPCWebResponse(_ data: Data, now: Date = Date()) throws
+        -> GrokWebBillingSnapshot
+    {
         var payloads = Self.grpcWebDataFrames(from: data)
         if payloads.isEmpty, Self.looksLikeProtobufPayload(data) {
             payloads = [data]
@@ -250,21 +269,21 @@ public enum GrokWebBillingFetcher {
             return (field.path, Date(timeIntervalSince1970: TimeInterval(raw)))
         }
         let futureResetFields = resetFields.filter { $0.date > now }
-        let reset = futureResetFields
-            .filter { $0.path == [1, 5, 1] }
-            .map(\.date)
-            .min() ?? futureResetFields
-            .map(\.date)
-            .min()
+        let reset =
+            futureResetFields
+                .filter { $0.path == [1, 5, 1] }
+                .map(\.date)
+                .min()
+                ?? futureResetFields
+                .map(\.date)
+                .min()
 
         let hasUsagePeriod = scan.varintFields.contains { field in
-            field.path.starts(with: [1, 6]) ||
-                (field.path == [1, 8, 1] && (field.value == 1 || field.value == 2))
+            field.path.starts(with: [1, 6])
+                || (field.path == [1, 8, 1] && (field.value == 1 || field.value == 2))
         }
-        let noUsageYet = parsedPercent == nil &&
-            scan.fixed32Fields.isEmpty &&
-            reset != nil &&
-            hasUsagePeriod
+        let noUsageYet =
+            parsedPercent == nil && scan.fixed32Fields.isEmpty && reset != nil && hasUsagePeriod
         guard let percent = parsedPercent ?? (noUsageYet ? 0 : nil) else {
             throw GrokWebBillingError.parseFailed
         }
@@ -285,7 +304,8 @@ public enum GrokWebBillingFetcher {
         while index < bytes.count {
             guard index + 5 <= bytes.count else { return [] }
             let flags = bytes[index]
-            let length = (Int(bytes[index + 1]) << 24)
+            let length =
+                (Int(bytes[index + 1]) << 24)
                 | (Int(bytes[index + 2]) << 16)
                 | (Int(bytes[index + 3]) << 8)
                 | Int(bytes[index + 4])
@@ -327,7 +347,8 @@ public enum GrokWebBillingFetcher {
                 .trimmingCharacters(in: .whitespacesAndNewlines)
                 .lowercased()
             guard normalizedKey.hasPrefix("grpc-") else { continue }
-            fields[normalizedKey] = String(describing: value)
+            fields[normalizedKey] =
+                String(describing: value)
                 .trimmingCharacters(in: .whitespacesAndNewlines)
                 .removingPercentEncoding ?? ""
         }
@@ -340,7 +361,8 @@ public enum GrokWebBillingFetcher {
         var index = 0
         while index + 5 <= bytes.count {
             let flags = bytes[index]
-            let length = (Int(bytes[index + 1]) << 24)
+            let length =
+                (Int(bytes[index + 1]) << 24)
                 | (Int(bytes[index + 2]) << 16)
                 | (Int(bytes[index + 3]) << 8)
                 | Int(bytes[index + 4])
@@ -353,9 +375,10 @@ public enum GrokWebBillingFetcher {
                     let key = line[..<separator]
                         .trimmingCharacters(in: .whitespacesAndNewlines)
                         .lowercased()
-                    let value = line[line.index(after: separator)...]
-                        .trimmingCharacters(in: .whitespacesAndNewlines)
-                        .removingPercentEncoding ?? ""
+                    let value =
+                        line[line.index(after: separator)...]
+                            .trimmingCharacters(in: .whitespacesAndNewlines)
+                            .removingPercentEncoding ?? ""
                     fields[key] = value
                 }
             }
@@ -441,14 +464,16 @@ public enum GrokWebBillingFetcher {
                 index = end
             case 5:
                 guard index + 4 <= bytes.count else { return (scan, nextOrder) }
-                let bitPattern = UInt32(bytes[index])
+                let bitPattern =
+                    UInt32(bytes[index])
                     | (UInt32(bytes[index + 1]) << 8)
                     | (UInt32(bytes[index + 2]) << 16)
                     | (UInt32(bytes[index + 3]) << 24)
-                scan.fixed32Fields.append(ProtobufScan.Fixed32Field(
-                    path: fieldPath,
-                    value: Float(bitPattern: bitPattern),
-                    order: nextOrder))
+                scan.fixed32Fields.append(
+                    ProtobufScan.Fixed32Field(
+                        path: fieldPath,
+                        value: Float(bitPattern: bitPattern),
+                        order: nextOrder))
                 nextOrder += 1
                 index += 4
             default:
@@ -466,7 +491,9 @@ public enum GrokWebBillingFetcher {
             let byte = bytes[index]
             index += 1
             value |= UInt64(byte & 0x7F) << shift
-            if byte & 0x80 == 0 { return value }
+            if byte & 0x80 == 0 {
+                return value
+            }
             shift += 7
         }
         return nil

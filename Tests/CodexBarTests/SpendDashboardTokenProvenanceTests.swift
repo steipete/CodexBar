@@ -157,10 +157,10 @@ struct SpendDashboardTokenProvenanceTests {
         #expect(loadCount == 2)
         #expect(controller.model.groups.isEmpty)
         #expect(controller.failedSourceCount == 0)
-        #expect(store.tokenSnapshot(for: .bedrock) == nil)
-        let publication = store.tokenSnapshotPublicationForCurrentProviderConfig(for: .bedrock)
+        #expect(store.tokenSnapshot(for: .bedrock)?.last30DaysCostUSD == 4)
+        let publication = store.spendDashboardTokenSnapshotPublicationForCurrentConfig(for: .bedrock)
         #expect(publication?.snapshot == nil)
-        #expect(publication?.publicationRevision == 2)
+        #expect(publication?.publicationRevision == 1)
     }
 
     @Test

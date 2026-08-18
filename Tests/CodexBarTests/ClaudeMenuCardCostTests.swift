@@ -132,6 +132,7 @@ struct ClaudeMenuCardCostTests {
             usageBarsShowUsed: false,
             resetTimeDisplayStyle: .countdown,
             tokenCostUsageEnabled: false,
+            costSummaryInlineEnabled: true,
             showOptionalCreditsAndExtraUsage: false,
             hidePersonalInfo: false,
             now: now))

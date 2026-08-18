@@ -204,7 +204,9 @@ struct ManagedCodexAccountServiceTests {
 
         #expect(account.providerAccountID == "workspace-team")
         #expect(account.workspaceLabel == "Team")
-        #expect(credentials.accountId == "workspace-team")
+        // Workspace selection is CodexBar-owned metadata; the Codex CLI auth file remains untouched.
+        #expect(credentials.accountId == "workspace-personal")
+        #expect(store.snapshot.account(id: account.id)?.workspaceAccountID == "workspace-team")
         #expect(store.snapshot.accounts.count == 1)
     }
 

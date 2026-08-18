@@ -41,7 +41,7 @@ extension UsageMenuCardView.Model {
         switch menuCard.usageNotes(context: ProviderUsageNotesContext(
             snapshot: input.snapshot,
             isRefreshing: input.isRefreshing,
-            tokenCostInlineDashboardEnabled: input.tokenCostInlineDashboardEnabled,
+            costSummaryInlineEnabled: input.costSummaryInlineEnabled,
             showOptionalUsage: input.showOptionalCreditsAndExtraUsage))
         {
         case let .openAIAPI(usage):
@@ -87,13 +87,14 @@ extension UsageMenuCardView.Model {
     /// Provider branding color for the inline usage bars, matching the provider's switcher tab and
     /// detailed cost-history chart.
     static func inlineDashboardBarColor(for provider: UsageProvider) -> Color {
-        let color = ProviderDescriptorRegistry.descriptor(for: provider).branding.color
+        let color = ProviderAccentPalette.color(for: provider)
         return Color(red: color.red, green: color.green, blue: color.blue)
     }
 
     private static func resolveInlineUsageDashboard(input: Input) -> InlineUsageDashboardModel? {
         let menuCard = ProviderDescriptorRegistry.descriptor(for: input.provider).presentation.menuCard
         if menuCard.usesProviderCostHistoryAsPrimaryDashboard,
+           input.costSummaryInlineEnabled,
            let tokenSnapshot = primaryCostHistorySnapshot(input: input),
            !tokenSnapshot.daily.isEmpty
         {
@@ -104,7 +105,7 @@ extension UsageMenuCardView.Model {
                 preferredCurrencyCode: input.preferredCurrencyCode)
         }
         if menuCard.supportsInlineTokenCostDashboard,
-           input.tokenCostInlineDashboardEnabled,
+           input.costSummaryInlineEnabled,
            let tokenSnapshot = input.tokenSnapshot,
            !tokenSnapshot.daily.isEmpty || tokenSnapshot.meteredCostUSD != nil
         {

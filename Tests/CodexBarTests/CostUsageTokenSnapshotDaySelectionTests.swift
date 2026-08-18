@@ -192,6 +192,36 @@ struct CostUsageTokenSnapshotDaySelectionTests {
     }
 
     @Test
+    func `token snapshot reports known zero for an established empty history`() throws {
+        let now = try Self.localNoon(year: 2026, month: 5, day: 18)
+        let snapshot = CostUsageFetcher.tokenSnapshot(
+            from: CostUsageDailyReport(data: [], summary: nil),
+            now: now,
+            historyCoverageIsEstablished: true)
+
+        #expect(snapshot.sessionCostUSD == 0)
+        #expect(snapshot.sessionTokens == 0)
+        #expect(snapshot.last30DaysCostUSD == 0)
+        #expect(snapshot.last30DaysTokens == 0)
+        #expect(snapshot.historyCoverageIsEstablished)
+    }
+
+    @Test
+    func `token snapshot keeps an unestablished empty history unavailable`() throws {
+        let now = try Self.localNoon(year: 2026, month: 5, day: 18)
+        let snapshot = CostUsageFetcher.tokenSnapshot(
+            from: CostUsageDailyReport(data: [], summary: nil),
+            now: now,
+            historyCoverageIsEstablished: false)
+
+        #expect(snapshot.sessionCostUSD == nil)
+        #expect(snapshot.sessionTokens == nil)
+        #expect(snapshot.last30DaysCostUSD == nil)
+        #expect(snapshot.last30DaysTokens == nil)
+        #expect(!snapshot.historyCoverageIsEstablished)
+    }
+
+    @Test
     func `token snapshot does not report a partial cost from mixed present and missing rows`() throws {
         let now = try Self.localNoon(year: 2026, month: 5, day: 18)
         let report = CostUsageDailyReport(

@@ -25,6 +25,7 @@ struct OpenCodeMenuCardCostTests {
             usageBarsShowUsed: false,
             resetTimeDisplayStyle: .countdown,
             tokenCostUsageEnabled: false,
+            costSummaryInlineEnabled: true,
             showOptionalCreditsAndExtraUsage: true,
             hidePersonalInfo: false,
             now: now))

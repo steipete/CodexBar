@@ -75,7 +75,8 @@ extension UsageStore {
                     historyDays: historyDays,
                     cursorCookieHeaderOverride: cursorCookieHeaderOverride,
                     allowPricingRefresh: allowPricingRefresh,
-                    bypassScannerDebounce: true)
+                    bypassScannerDebounce: true,
+                    calendar: self.settings.costUsageBucketCalendar)
             }
             group.addTask {
                 try await Task.sleep(nanoseconds: UInt64(timeoutSeconds * 1_000_000_000))
@@ -154,6 +155,8 @@ extension UsageStore {
     func clearTokenSnapshots() {
         self.tokenSnapshots.removeAll()
         self.tokenSnapshotPublications.removeAll()
+        self.spendDashboardTokenPublications.removeAll()
+        self.spendDashboardTokenPublicationRevisions.removeAll()
     }
 
     func installProviderDerivedTokenSnapshot(from snapshot: UsageSnapshot, for provider: UsageProvider) {
@@ -226,7 +229,8 @@ extension UsageStore {
                 await self.costUsageFetcher.loadCachedCodexTokenSnapshotResult(
                     now: now,
                     codexHomePath: scope.codexHomePath,
-                    historyDays: historyDays)
+                    historyDays: historyDays,
+                    calendar: self.settings.costUsageBucketCalendar)
                     .map {
                         (
                             snapshot: $0.snapshot,
@@ -317,10 +321,29 @@ extension UsageStore {
     }
 
     func tokenSnapshotScopeSignature(for provider: UsageProvider) -> String {
+        self.tokenSnapshotScopeSignature(
+            for: provider,
+            historyDays: self.settings.costUsageHistoryDays,
+            includeSettingsRevision: true)
+    }
+
+    func spendDashboardTokenSnapshotScopeSignature(for provider: UsageProvider) -> String {
+        self.tokenSnapshotScopeSignature(
+            for: provider,
+            historyDays: SpendDashboardSource.scanDays,
+            includeSettingsRevision: false)
+    }
+
+    func tokenSnapshotScopeSignature(
+        for provider: UsageProvider,
+        historyDays: Int,
+        includeSettingsRevision: Bool) -> String
+    {
         let scope = self.tokenCostScope(for: provider)
-        let historyDays = self.settings.costUsageHistoryDays
-        let base = "\(scope.signature)|historyDays=\(historyDays)" +
-            "|settingsRevision=\(self.settings.costUsageSettingsRevision)"
+        var base = "\(scope.signature)|historyDays=\(historyDays)"
+        if includeSettingsRevision {
+            base += "|settingsRevision=\(self.settings.costUsageSettingsRevision)"
+        }
         guard provider == .cursor else {
             return base
         }
@@ -337,18 +360,22 @@ extension UsageStore {
         return self.cursorCostScopeSignature(
             historyDays: historyDays,
             source: source,
-            credentialFingerprint: credentialFingerprint)
+            credentialFingerprint: credentialFingerprint,
+            includeSettingsRevision: includeSettingsRevision)
     }
 
     func cursorCostScopeSignature(
         historyDays: Int,
         source: ProviderCookieSource,
-        credentialFingerprint: String) -> String
+        credentialFingerprint: String,
+        includeSettingsRevision: Bool = true) -> String
     {
         let scope = self.tokenCostScope(for: .cursor)
-        return "\(scope.signature)|historyDays=\(historyDays)" +
-            "|settingsRevision=\(self.settings.costUsageSettingsRevision)" +
-            "|cursorCookie=\(source.rawValue):\(credentialFingerprint)"
+        var signature = "\(scope.signature)|historyDays=\(historyDays)"
+        if includeSettingsRevision {
+            signature += "|settingsRevision=\(self.settings.costUsageSettingsRevision)"
+        }
+        return "\(signature)|cursorCookie=\(source.rawValue):\(credentialFingerprint)"
     }
 
     func tokenRefreshCanReuseCurrentSnapshot(
@@ -401,7 +428,8 @@ extension UsageStore {
         provider: UsageProvider,
         historyDays: Int,
         initialSignature: String,
-        snapshot: CostUsageTokenSnapshot) -> String
+        snapshot: CostUsageTokenSnapshot,
+        includeSettingsRevision: Bool = true) -> String
     {
         guard provider == .cursor,
               self.settings.cursorCookieSource == .auto,
@@ -410,29 +438,32 @@ extension UsageStore {
         return self.cursorCostScopeSignature(
             historyDays: historyDays,
             source: .auto,
-            credentialFingerprint: fingerprint)
+            credentialFingerprint: fingerprint,
+            includeSettingsRevision: includeSettingsRevision)
     }
 
     func tokenSnapshot(
         fromProviderSnapshot snapshot: UsageSnapshot?,
-        provider: UsageProvider)
+        provider: UsageProvider,
+        historyDays: Int? = nil)
         -> CostUsageTokenSnapshot?
     {
+        let windowDays = historyDays ?? self.settings.costUsageHistoryDays
         switch provider {
         case .openai:
-            snapshot?.openAIAPIUsage?.toCostUsageTokenSnapshot()
+            return snapshot?.openAIAPIUsage?.toCostUsageTokenSnapshot()
         case .mistral:
-            snapshot?.mistralUsage?.toCostUsageTokenSnapshot(historyDays: self.settings.costUsageHistoryDays)
+            return snapshot?.mistralUsage?.toCostUsageTokenSnapshot(historyDays: windowDays)
         case .opencodego:
             // Web-only source mode and machines with no readable local database leave
             // `opencodegoUsage.daily` empty; a non-nil-but-dataless projection would still
             // surface a Cost row whose history submenu has nothing to render.
-            snapshot?.opencodegoUsage.flatMap { usage in
+            return snapshot?.opencodegoUsage.flatMap { usage in
                 usage.daily.isEmpty ? nil : usage
-                    .toCostUsageTokenSnapshot(historyDays: self.settings.costUsageHistoryDays)
+                    .toCostUsageTokenSnapshot(historyDays: windowDays)
             }
         default:
-            nil
+            return nil
         }
     }
 

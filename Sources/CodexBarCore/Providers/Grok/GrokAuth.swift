@@ -50,6 +50,24 @@ public struct GrokCredentials: Sendable {
         self.createTime = createTime
     }
 
+    public static func pasted(accessToken: String) -> GrokCredentials {
+        GrokCredentials(
+            accessToken: accessToken,
+            refreshToken: nil,
+            scope: "",
+            authMode: "oidc",
+            userId: nil,
+            email: nil,
+            firstName: nil,
+            lastName: nil,
+            teamId: nil,
+            principalType: nil,
+            oidcIssuer: nil,
+            oidcClientId: nil,
+            expiresAt: nil,
+            createTime: nil)
+    }
+
     public var displayName: String? {
         let parts = [self.firstName, self.lastName].compactMap { $0?.nilIfEmpty }
         guard !parts.isEmpty else { return nil }
@@ -117,7 +135,22 @@ public enum GrokCredentialsStore {
         self.grokHomeURL(env: env, fileManager: fileManager).appendingPathComponent("auth.json")
     }
 
-    public static func load(env: [String: String] = ProcessInfo.processInfo.environment) throws -> GrokCredentials {
+    /// Prefer the Grok Build token file. If `grok login` has not created it yet, open `~/.grok`
+    /// instead of inventing an empty auth.json.
+    public static func tokenFileURLToOpen(
+        env: [String: String] = ProcessInfo.processInfo.environment,
+        fileManager: FileManager = .default) -> URL
+    {
+        let url = self.authFileURL(env: env, fileManager: fileManager)
+        if fileManager.fileExists(atPath: url.path) {
+            return url
+        }
+        return self.grokHomeURL(env: env, fileManager: fileManager)
+    }
+
+    public static func load(env: [String: String] = ProcessInfo.processInfo.environment) throws
+        -> GrokCredentials
+    {
         let url = self.authFileURL(env: env)
         guard FileManager.default.fileExists(atPath: url.path) else {
             throw GrokCredentialsError.notFound
@@ -164,7 +197,9 @@ public enum GrokCredentialsStore {
             createTime: Self.parseDate(entry["create_time"]))
     }
 
-    private static func selectPreferredEntry(in root: [String: Any]) -> (scope: String, entry: [String: Any])? {
+    private static func selectPreferredEntry(in root: [String: Any]) -> (
+        scope: String, entry: [String: Any])?
+    {
         var oidcCandidate: (String, [String: Any])?
         var legacyCandidate: (String, [String: Any])?
         for (scope, value) in root {

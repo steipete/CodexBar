@@ -1,7 +1,15 @@
 /* Thai localization for CodexBar */
 
 /* iCloud Sync */
+"+ %d more" = "+ อีก %d รายการ";
+"Conversations (%@)" = "บทสนทนา (%@)";
+"Fast" = "เร็ว";
 "iCloud Sync" = "iCloud Sync";
+"Projects" = "โปรเจกต์";
+"Session %@" = "เซสชัน %@";
+"Std" = "มาตรฐาน";
+"Show all (%d)" = "แสดงทั้งหมด (%d)";
+"Show less" = "แสดงน้อยลง";
 "Sync settings and providers across your Macs via iCloud" = "Sync settings and providers across your Macs via iCloud";
 "Include API keys, cookies, and tokens" = "Include API keys, cookies, and tokens";
 "Sync usage snapshots" = "Sync usage snapshots";
@@ -485,6 +493,10 @@
 "quota_depleted_title" = "โควต้าหมดและกลับมาใช้งานได้";
 "quota_warning_notifications_subtitle" = "เตือนเมื่อเซสชันหรือโควต้ารายสัปดาห์ที่เหลืออยู่ข้ามเกณฑ์ที่กําหนดค่าไว้";
 "threshold_warnings_title" = "คำเตือนตามเกณฑ์";
+"provider_accent_color_title" = "สีเน้น";
+"provider_accent_color_footer" = "กำหนดสีของแถบการใช้งาน แผนภูมิ และแท็บสลับของผู้ให้บริการนี้";
+"provider_accent_color_hex_label" = "ค่าสีฐานสิบหก";
+"provider_accent_color_reset" = "ใช้ค่าเริ่มต้น";
 "quota_warnings_title" = "คําเตือนโควต้า";
 "quota_warning_session" = "เซสชั่น";
 "quota_warning_session_capitalized" = "เซสชั่น";
@@ -613,6 +625,11 @@
 "show_quota_warning_markers_subtitle" = "วาดเครื่องหมายถูกเกณฑ์บนแถบการใช้งานเมื่อมีการกําหนดค่าคําเตือนโควต้า";
 "weekly_progress_work_days_title" = "วันทํางานความคืบหน้ารายสัปดาห์";
 "weekly_progress_work_days_subtitle" = "กําหนดวันทํางานสําหรับเครื่องหมายแถบการใช้งานรายสัปดาห์และการคํานวณความเร็ว";
+"workday_tick_appearance_title" = "ลักษณะขีดวันทำงาน";
+"workday_tick_appearance_subtitle" = "เลือกวิธีแสดงขอบเขตวันทำงานบนแถบการใช้งานรายสัปดาห์";
+"workday_tick_appearance_hidden" = "ซ่อน";
+"workday_tick_appearance_subtle" = "ละเอียดอ่อน";
+"workday_tick_appearance_high_contrast" = "คอนทราสต์สูง";
 "show_provider_changelog_links_title" = "แสดงลิงก์บันทึกการเปลี่ยนแปลงของผู้ให้บริการ";
 "show_provider_changelog_links_subtitle" = "เพิ่มลิงก์บันทึกประจํารุ่นสําหรับผู้ให้บริการที่ได้รับการสนับสนุน CLI ในเมนู";
 "show_credits_extra_usage_title" = "แสดงเครดิต + การใช้งานเพิ่มเติม";
@@ -658,6 +675,15 @@
 "keychain_access_caption" = "ปิดใช้งานการอ่านและเขียน Keychain ทั้งหมด ใช้ตัวเลือกนี้หาก macOS ยังคงแจ้งให้ 'Chrome/Brave/Edge ที่เก็บข้อมูลที่ปลอดภัย' แม้ว่าจะคลิกอนุญาตเสมอแล้วก็ตาม การนําเข้าคุกกี้ของเบราว์เซอร์ไม่พร้อมใช้งานในขณะที่เปิดใช้งาน วางส่วนหัวของคุกกี้ด้วยตนเองในผู้ให้บริการ Claude/Codex OAuth ผ่าน CLI ยังคงใช้งานได้";
 "disable_keychain_access_title" = "ปิดใช้งานการเข้าถึง Keychain";
 "disable_keychain_access_subtitle" = "ป้องกันการเข้าถึง Keychain ใดๆ ขณะเปิดใช้งาน";
+"Re-authenticate" = "ยืนยันตัวตนอีกครั้ง";
+"kiro_reauthenticate_title" = "เข้าสู่ระบบ Kiro CLI";
+"kiro_reauthenticate_subtitle" = "เรียกใช้ “kiro-cli login” เพื่อต่ออายุเซสชันเมื่อหมดอายุ";
+"Kiro CLI not found" = "ไม่พบ Kiro CLI";
+"Install kiro-cli and try again." = "ติดตั้ง kiro-cli แล้วลองอีกครั้ง";
+"Could not start kiro-cli login" = "ไม่สามารถเริ่ม kiro-cli login ได้";
+"Kiro login timed out" = "การเข้าสู่ระบบ Kiro หมดเวลา";
+"kiro-cli login exited with status %d." = "kiro-cli login สิ้นสุดด้วยสถานะ %d";
+"Kiro login failed" = "การเข้าสู่ระบบ Kiro ล้มเหลว";
 
 /* About Pane */
 "about_tagline" = "ขอให้โทเค็นของคุณไม่มีวันหมด ให้คํานึงถึงขีดจํากัดของเจ้าหน้าที่";
@@ -1294,6 +1320,9 @@
 "Native currencies stay separate; Codex account rows exclude Pi session history." = "สกุลเงินต้นทางแยกจากกัน แถวบัญชี Codex ไม่รวมประวัติเซสชัน Pi";
 "Spend unavailable" = "ไม่มีข้อมูลค่าใช้จ่าย";
 "Model breakdown unavailable" = "ไม่มีรายละเอียดแยกตามโมเดล";
+"Partial estimate" = "ประมาณการบางส่วน";
+"Partial model breakdown" = "รายละเอียดโมเดลบางส่วน";
+"%d of %d subscriptions have spend" = "%d จาก %d การสมัครมีข้อมูลการใช้จ่าย";
 "Local estimated history" = "ประวัติโดยประมาณในเครื่อง";
 "Coverage" = "ความครอบคลุม";
 "Estimated spend" = "ค่าใช้จ่ายโดยประมาณ";
@@ -1436,3 +1465,27 @@
 "5-hour usage" = "การใช้งาน 5 ชั่วโมง";
 "7-day usage" = "การใช้งาน 7 วัน";
 "Total usage" = "การใช้งานทั้งหมด";
+"claude_oauth_keychain_access_revoked" = "สิทธิ์เข้าถึงพวงกุญแจ Claude ถูกเพิกถอนจากการหมุนเวียนโทเค็นของ Claude Code คลิกรีเฟรชเพื่อให้สิทธิ์อีกครั้ง หรือเปลี่ยนแหล่งที่มาการใช้งาน Claude เป็น CLI/Web";
+"claude_showing_last_known_usage" = "กำลังแสดงการใช้งานล่าสุดที่ทราบ ซึ่งบันทึกเมื่อ %@";
+/* Spend dashboard cost analysis */
+"90d" = "90d";
+"Input" = "Input";
+"Output" = "Output";
+"Cache write" = "Cache write";
+"Reasoning" = "Reasoning";
+"Sessions" = "Sessions";
+"Projects" = "Projects";
+"Plan metered" = "Plan metered";
+"List-price equivalent" = "List-price equivalent";
+"Metered and list-price" = "Metered and list-price";
+"List-price equivalent — not a billing receipt." = "List-price equivalent — not a billing receipt.";
+"Priced" = "Priced";
+"Unpriced" = "Unpriced";
+"Unmetered" = "Unmetered";
+"Estimated" = "Estimated";
+"Other models" = "Other models";
+"Include OpenCodex usage logs" = "Include OpenCodex usage logs";
+"Hide native Codex when OpenCodex is present" = "Hide native Codex when OpenCodex is present";
+"Export JSON" = "Export JSON";
+"Sources" = "Sources";
+"OpenCodex" = "OpenCodex";

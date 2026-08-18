@@ -346,6 +346,39 @@ struct CursorImportedSessionScanningTests {
     }
 
     @Test
+    func `resolved session keeps successful result while Keychain is temporarily unavailable`() async throws {
+        let probe = CursorStatusProbe(browserDetection: BrowserDetection(cacheTTL: 0))
+        let session = Self.makeSessionInfo(sourceLabel: "Background", cookieValue: "background")
+        let service = "cursor-keychain-unavailable-\(UUID().uuidString)"
+        let legacyBase = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+
+        try await KeychainCacheStore.withServiceOverrideForTesting(service) {
+            try await CookieHeaderCache.withLegacyBaseURLOverrideForTesting(legacyBase) {
+                KeychainCacheStore.setTestStoreForTesting(true)
+                defer { KeychainCacheStore.setTestStoreForTesting(false) }
+
+                let outcome = try await KeychainCacheStore.withLoadFailureStatusOverrideForTesting(
+                    errSecInteractionNotAllowed)
+                {
+                    let observation = CookieHeaderCache.observeForConditionalMutation(provider: .cursor)
+                    return try await probe.resolveImportedSession(
+                        session,
+                        perform: { cookieHeader, _ in cookieHeader },
+                        log: { _ in },
+                        cacheObservation: observation)
+                }
+
+                guard case let .succeeded(cookieHeader) = outcome else {
+                    Issue.record("Expected the successful result to remain usable")
+                    return
+                }
+                #expect(cookieHeader == session.cookieHeader)
+            }
+        }
+    }
+
+    @Test
     func `imported session scan continues after non auth failure until later success`() async {
         let probe = CursorStatusProbe(browserDetection: BrowserDetection(cacheTTL: 0))
         let expected = CursorStatusSnapshot(

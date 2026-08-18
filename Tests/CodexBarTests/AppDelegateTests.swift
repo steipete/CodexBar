@@ -50,6 +50,7 @@ struct AppDelegateTests {
         // construction happens once after launch
         appDelegate.applicationDidFinishLaunching(Notification(name: NSApplication.didFinishLaunchingNotification))
         #expect(factoryCalls == 1)
+        #expect(dummyStatusController.didSetSettingsOpenHandler)
 
         // idempotent on subsequent calls
         appDelegate.applicationDidFinishLaunching(Notification(name: NSApplication.didFinishLaunchingNotification))
@@ -65,6 +66,11 @@ struct AppDelegateTests {
 @MainActor
 private final class DummyStatusController: StatusItemControlling {
     private(set) var shutdowns = 0
+    private(set) var didSetSettingsOpenHandler = false
+
+    func setSettingsOpenHandler(_: @escaping @MainActor (SettingsPane?) -> Void) {
+        self.didSetSettingsOpenHandler = true
+    }
 
     func openMenuFromShortcut() {}
     func runLoginFlowFromSettings(provider _: UsageProvider) async {}

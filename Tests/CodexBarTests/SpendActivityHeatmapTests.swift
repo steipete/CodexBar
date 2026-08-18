@@ -475,6 +475,22 @@ struct SpendActivityHeatmapTests {
             locale: locale) == "Aug 1, 2026: Unavailable")
     }
 
+    @Test
+    func `uncovered heatmap days do not produce a drill-down selection`() throws {
+        let calendar = Self.calendar
+        let start = try #require(calendar.date(from: DateComponents(year: 2026, month: 8, day: 2)))
+        let series = SpendActivitySeries(
+            daily: [10, 0],
+            isCovered: [true, false],
+            start: start,
+            rangeStart: start,
+            today: start,
+            calendar: calendar)
+        #expect(SpendActivityDaySelection.day(from: series, at: 0, selectedDay: nil) == start)
+        #expect(SpendActivityDaySelection.day(from: series, at: 1, selectedDay: nil) == nil)
+        #expect(SpendActivityDaySelection.day(from: series, at: 0, selectedDay: start) == nil)
+    }
+
     private static var calendar: Calendar {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(secondsFromGMT: 0)!

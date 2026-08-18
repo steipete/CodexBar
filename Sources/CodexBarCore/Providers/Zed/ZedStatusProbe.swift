@@ -244,6 +244,9 @@ public struct ZedKeychainCredentialsReader: ZedCredentialsReading, Sendable {
     public init() {}
 
     public func loadCredentials(serviceURL: String) throws -> ZedCredentials? {
+        guard !KeychainAccessGate.isDisabled else {
+            throw ZedStatusProbeError.keychainUnavailable
+        }
         if let credentials = try self.loadInternetPasswordCredentials(server: serviceURL) {
             return credentials
         }

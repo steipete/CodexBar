@@ -47,6 +47,9 @@ func `FileManagedCodexAccountStore round trip`() throws {
     #expect(contents.contains("\n  \"accounts\""))
     #expect(accountsRange.lowerBound < versionRange.lowerBound)
     #expect(contents.contains("\"activeAccountID\"") == false)
+    let attributes = try FileManager.default.attributesOfItem(atPath: fileURL.path)
+    let permissions = (attributes[.posixPermissions] as? NSNumber)?.uint16Value
+    #expect(permissions.map { $0 & 0o077 } == 0)
 }
 
 @Test

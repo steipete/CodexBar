@@ -68,6 +68,39 @@ extension StatusMenuTests {
     }
 
     @Test
+    func `hosted menu cards suppress native appkit highlight drawing`() {
+        let previousRendering = StatusItemController.menuCardRenderingEnabled
+        StatusItemController.menuCardRenderingEnabled = true
+        defer { StatusItemController.menuCardRenderingEnabled = previousRendering }
+
+        let settings = self.makeSettings()
+        settings.statusChecksEnabled = false
+        let controller = self.makeRecyclingController(settings: settings)
+        defer { controller.releaseStatusItemsForTesting() }
+
+        let informational = controller.makeMenuCardItem(Text("Info"), id: "info", width: 300)
+        let embedded = controller.makeMenuCardItem(
+            Text("Embedded"),
+            id: "embedded",
+            width: 300,
+            containsInteractiveControls: true)
+        let clickable = controller.makeMenuCardItem(Text("Click"), id: "click", width: 300, onClick: {})
+        let submenu = controller.makeMenuCardItem(
+            Text("Submenu"),
+            id: "submenu",
+            width: 300,
+            submenu: NSMenu())
+
+        for item in [informational, embedded, clickable, submenu] {
+            #expect(item is MenuCardMenuItem)
+            #expect(!item.isHighlighted)
+        }
+        #expect(embedded.isEnabled)
+        #expect(clickable.isEnabled)
+        #expect(submenu.isEnabled)
+    }
+
+    @Test
     func `embedded controls stay enabled without highlighting the card`() {
         StatusItemController.setMenuRefreshEnabledForTesting(false)
         let previousRendering = StatusItemController.menuCardRenderingEnabled

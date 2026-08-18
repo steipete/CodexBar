@@ -68,7 +68,7 @@ extension UsageCommandOutput {
 
 extension CodexBarCLI {
     static func runUsage(_ values: ParsedValues) async {
-        let output = CLIOutputPreferences.from(values: values)
+        let output = Self.resolveUsageOutputPreferences(from: values)
         let config = Self.loadConfig(output: output)
         let provider = Self.decodeProvider(from: values, config: config)
         let format = output.format
@@ -222,16 +222,46 @@ extension CodexBarCLI {
             payload.append(contentsOf: output.payload)
         }
 
+        Self.printUsageOutput(
+            format: format,
+            toonRequested: output.toonRequested,
+            sections: sections,
+            payload: payload,
+            pretty: output.pretty)
+
+        Self.exit(code: exitCode, output: output, kind: exitCode == .success ? .runtime : .provider)
+    }
+
+    /// TOON piggybacks on the JSON fetch/render pipeline (same data, denser rendering at print time)
+    /// rather than being a first-class `OutputFormat` case, so it doesn't ripple into every other
+    /// command's exhaustive `switch format` sites. `toonRequested` also travels on the returned
+    /// preferences so early-exit error paths (`Self.exit`, `Self.loadConfig`) render TOON instead of
+    /// silently falling back to JSON. `allowsToon` is opt-in here and nowhere else: `cost`, `cache`,
+    /// `config`, `hooks`, and `diagnose` advertise only `text | json`, so they keep the legacy
+    /// decoder that ignores unrecognized `--format` values.
+    static func resolveUsageOutputPreferences(from values: ParsedValues) -> CLIOutputPreferences {
+        CLIOutputPreferences.from(values: values, allowsToon: true)
+    }
+
+    private static func printUsageOutput(
+        format: OutputFormat,
+        toonRequested: Bool,
+        sections: [String],
+        payload: [ProviderPayload],
+        pretty: Bool)
+    {
+        if toonRequested {
+            print(ToonFormatter.encode(payload))
+            return
+        }
         switch format {
         case .text:
             if !sections.isEmpty {
                 print(sections.joined(separator: "\n\n"))
             }
         case .json:
-            Self.printJSON(payload, pretty: output.pretty)
+            printJSON(payload, pretty: pretty)
         }
-
-        Self.exit(code: exitCode, output: output, kind: exitCode == .success ? .runtime : .provider)
     }
 
     static func appAutoVerifierArgumentError(
@@ -532,7 +562,8 @@ extension CodexBarCLI {
             let notes = Self.usageTextNotes(
                 provider: provider,
                 sourceMode: effectiveSourceMode,
-                resolvedSourceLabel: source) + (result.diagnostic.map { [$0] } ?? [])
+                resolvedSourceLabel: source,
+                dataConfidence: usage.dataConfidence) + (result.diagnostic.map { [$0] } ?? [])
 
             Self.appendSuccessRenderOutput(
                 UsageSuccessRenderInput(

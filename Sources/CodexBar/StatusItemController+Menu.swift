@@ -578,6 +578,32 @@ extension StatusItemController {
         let t0 = CACurrentMediaTime()
         defer { self.logChartRenderDurationIfSlow("addOverviewRows(\(rows.count))", startedAt: t0) }
 
+        let spendProviders = overviewProviders.filter { self.settings.costSummaryShowsInline(for: $0) }
+        let spendModel = self.overviewSpendDashboardModel(providers: spendProviders)
+        if !spendModel.groups.isEmpty {
+            let spendSummary = OverviewSpendSummary(
+                model: spendModel,
+                providerCount: spendProviders.count)
+            let summaryItem = self.makeMenuCardItem(
+                OverviewSpendSummaryCardView(
+                    summary: spendSummary,
+                    days: spendModel.requestedDays,
+                    width: menuWidth),
+                id: "overviewSpendSummary",
+                width: menuWidth,
+                heightCacheScope: "overviewSpendSummary",
+                heightCacheFingerprint: [
+                    spendSummary.primarySpendText,
+                    spendSummary.providerCoverageText,
+                    spendSummary.tokenText ?? "",
+                    spendSummary.historyCoverageText,
+                    spendSummary.pricingCoverageText,
+                    spendSummary.provenanceText,
+                ].joined(separator: "|"))
+            menu.addItem(summaryItem)
+            menu.addItem(.separator())
+        }
+
         for (index, row) in rows.enumerated() {
             let identifier = "\(Self.overviewRowIdentifierPrefix)\(row.provider.rawValue)"
             let storageText = self.store.storageFootprintText(for: row.provider)
@@ -1483,13 +1509,13 @@ extension StatusItemController {
             return self.makeUsageBreakdownSubmenu(width: width)
         }
         // Provider-specific by design: OpenAI and Mistral attach cost history to their provider usage row.
-        if provider == .openai {
+        if provider == .openai, self.settings.costSummaryShowsSubmenu(for: provider) {
             return self.makeOpenAIAPIUsageSubmenu(provider: provider, width: width)
         }
-        // Mistral's top usage pane has no rate-limit bars of its own, so its cost history always hangs
-        // off this row. Providers whose cards render an inline cost dashboard also gain cost history
-        // on the top card when the Cost Summary style permits it; Both still keeps the dedicated Cost row.
-        if provider == .mistral {
+        // Mistral's top usage pane has no rate-limit bars of its own, so its cost history hangs off this row
+        // when the Cost Summary style permits it. Other inline cost dashboards follow the same submenu policy;
+        // Both still keeps the dedicated Cost row.
+        if provider == .mistral, self.settings.costSummaryShowsSubmenu(for: provider) {
             return self.makeCostHistorySubmenu(provider: provider, width: width)
         }
         if hasInlineCostDashboard, self.settings.costSummaryShowsSubmenu(for: provider) {

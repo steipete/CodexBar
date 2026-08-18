@@ -171,21 +171,13 @@ Wondering if CodexBar scans your disk? It doesn’t crawl your filesystem; it re
 ## macOS permissions (why they’re needed)
 - **Full Disk Access (optional)**: only required to read Safari cookies/local storage for web-based providers. If you don’t grant it, use another supported browser, manual cookies/API keys, OAuth, or CLI/local sources where that provider supports them.
 - **Keychain access (prompted by macOS)**:
-  - Chromium cookie import needs the browser “Safe Storage” key to decrypt cookies.
-  - Claude OAuth bootstrap may read the Claude CLI Keychain item when CodexBar has no usable cached credentials.
-  - CodexBar may use Keychain for browser cookie decryption, cached cookie headers, and OAuth/device-flow credentials where those sources require it.
-  - **How do I prevent those keychain alerts?**
-    - Open **Keychain Access.app** → login keychain → search the prompted item (for Claude OAuth, usually “Claude Code-credentials”).
-    - Open the item → **Access Control** → add `CodexBar.app` under “Always allow access by these applications”.
-    - Prefer adding just CodexBar (avoid “Allow all applications” unless you want it wide open).
-    - Relaunch CodexBar after saving.
-    - Reference screenshot: ![Keychain access control](docs/keychain-allow.png)
-  - **How to do the same for the browser?**
-    - Find the browser’s “Safe Storage” key (e.g., “Chrome Safe Storage”, “Brave Safe Storage”, “Microsoft Edge Safe Storage”).
-    - Open the item → **Access Control** → add `CodexBar.app` under “Always allow access by these applications”.
-    - This removes the prompt when CodexBar decrypts cookies for that browser.
-  - **Last resort — stop all Keychain reads entirely**: if "Always Allow" doesn't stick (e.g., macOS resets the ACL after a Chromium update or a `partition_id` reset), open **CodexBar → Settings → Advanced → Keychain access** and enable **Disable Keychain access**. CodexBar will no longer touch the Keychain. Browser-cookie-based providers will be skipped, but Claude/Codex OAuth via the CLI still works (it reads `~/.codex` / `~/.claude` config files, not the Keychain).
-  - **Prompt after uninstall?** Deleting the app prevents a new launch from that bundle, but an already-running CodexBar process can keep requesting Keychain access until it quits. Check for that process, a Login Item, another installed copy, or a prompt that names a different requesting binary/path. See [Keychain prompt troubleshooting](docs/keychain-prompts.md) for safe checks and what to include in a support report without sharing secrets.
+  Chromium cookie import needs the browser’s Safe Storage item, and an explicitly enabled Claude OAuth repair may
+  read Claude Code’s own Keychain item. Background CodexBar paths fail or skip instead of requesting authorization;
+  a user-initiated import or repair can still show the macOS prompt. **Settings → Advanced → Disable Keychain
+  access** blocks CodexBar-owned Keychain operations and browser decryption, but cannot constrain provider-owned CLIs
+  that CodexBar launches. Manual cookie headers, API keys, and file-backed sources remain alternatives where
+  supported. See [Keychain prompts](docs/keychain-prompts.md) for Allow Once vs. Always Allow, recurring grants, and
+  safe troubleshooting.
 - **Files & Folders prompts (folder/volume access)**: CodexBar launches provider CLIs and local probes for some providers. If those helpers read a project directory or external drive, macOS may ask CodexBar for that folder/volume (e.g., Desktop or an external volume). This is driven by the helper’s working directory, not background disk scanning.
 - **What we do not request in the background**: no Screen Recording or Accessibility permissions; user-triggered helper actions may ask macOS for Automation permission to open Terminal. No passwords are stored (browser cookies are reused when you opt in).
 

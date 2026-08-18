@@ -113,6 +113,10 @@ public struct ProviderFetchResult: Sendable {
     public let sourceLabel: String
     public let strategyID: String
     public let strategyKind: ProviderFetchKind
+    /// True when the Codex OAuth strategy already attempted reset-credit enrichment with its
+    /// winning in-memory credential snapshot. Generic enrichment must not reload auth.json after
+    /// that attempt fails, or it could attach another account's credits to this usage result.
+    public let codexResetCreditsAttempted: Bool
     /// Optional live diagnostic retained alongside an otherwise usable snapshot.
     public let diagnostic: String?
     /// Transient account ownership evidence for plan-utilization history.
@@ -137,6 +141,7 @@ public struct ProviderFetchResult: Sendable {
         sourceLabel: String,
         strategyID: String,
         strategyKind: ProviderFetchKind,
+        codexResetCreditsAttempted: Bool = false,
         diagnostic: String? = nil,
         claudeOAuthKeychainPersistentRefHash: String? = nil,
         claudeOAuthHistoryOwnerIdentifier: String? = nil,
@@ -151,6 +156,7 @@ public struct ProviderFetchResult: Sendable {
         self.sourceLabel = sourceLabel
         self.strategyID = strategyID
         self.strategyKind = strategyKind
+        self.codexResetCreditsAttempted = codexResetCreditsAttempted
         self.diagnostic = diagnostic
         self.claudeOAuthKeychainPersistentRefHash = claudeOAuthKeychainPersistentRefHash
         self.claudeOAuthHistoryOwnerIdentifier = claudeOAuthHistoryOwnerIdentifier

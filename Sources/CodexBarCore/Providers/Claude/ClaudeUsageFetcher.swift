@@ -1589,6 +1589,8 @@ extension ClaudeUsageFetcher {
             "missingAccessToken"
         case .notFound:
             "notFound"
+        case .keychainAccessRevoked:
+            "keychainAccessRevoked"
         case let .keychainError(status):
             "keychainError:\(status)"
         case .readFailed:

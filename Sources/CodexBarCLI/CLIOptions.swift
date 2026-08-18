@@ -36,7 +36,7 @@ struct UsageOptions: CommanderParsable {
     @Flag(name: .long("all-accounts"), help: "Fetch all token accounts, or all visible Codex accounts")
     var allAccounts: Bool = false
 
-    @Option(name: .long("format"), help: "Output format: text | json")
+    @Option(name: .long("format"), help: "Output format: text | json | toon (toon: structured, agent-friendly)")
     var format: OutputFormat?
 
     @Flag(name: .long("json"), help: "")

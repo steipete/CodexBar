@@ -65,11 +65,17 @@ extension StatusItemController {
         let scopedNamed = MenuBarLayoutSemanticWindowResolver.scopedWeeklyNamedWindow(snapshot: snapshot)
         let paceWindow = windows.weekly ?? windows.automatic
         let runsOut = paceWindow
-            .flatMap { self.store.weeklyPace(provider: provider, window: $0, now: now) }
+            .flatMap {
+                self.store.weeklyPace(
+                    provider: provider,
+                    window: $0,
+                    now: now)
+            }
             .flatMap { UsagePaceText.weeklyDetail(provider: provider, pace: $0, now: now).rightLabel }
         let costStrings = self.menuBarLayoutCostStrings(provider: provider, now: now)
         let providerName = L(self.store.metadata(for: provider).displayName)
         let accountLabel = self.menuBarLayoutAccountLabel(provider: provider, snapshot: snapshot)
+        let automatic = MenuBarLayoutRenderWindow(windows.automatic)
 
         return MenuBarLayoutRenderData(
             provider: provider,
@@ -80,9 +86,20 @@ extension StatusItemController {
             weekly: MenuBarLayoutRenderWindow(windows.weekly),
             scopedWeekly: MenuBarLayoutRenderWindow(scopedNamed?.window),
             scopedWeeklyTitle: scopedNamed?.title,
-            automatic: MenuBarLayoutRenderWindow(windows.automatic),
-            sessionPace: self.store.menuBarLayoutPaceText(provider: provider, window: windows.session, now: now),
-            weeklyPace: self.store.menuBarLayoutPaceText(provider: provider, window: windows.weekly, now: now),
+            automatic: automatic,
+            // Provider-specific by design: Mistral uses spend text when its automatic lane has no percentage window.
+            automaticText: provider == .mistral && automatic == nil
+                ? Self.mistralSpendDisplayText(snapshot: snapshot)
+                : nil,
+            sessionPace: self.store.menuBarLayoutPaceText(
+                provider: provider,
+                window: windows.session,
+                now: now),
+            weeklyPace: self.store.menuBarLayoutPaceText(
+                provider: provider,
+                window: windows.weekly,
+                now: now,
+                minimumElapsedPercent: 1),
             automaticPace: self.store.menuBarLayoutPaceText(
                 provider: provider,
                 window: windows.automatic,
@@ -147,8 +164,12 @@ extension StatusItemController {
         let semanticWindows = MenuBarLayoutSemanticWindowResolver.windows(
             provider: provider,
             snapshot: snapshot)
+        // Provider-specific by design: Mistral's automatic lane can explicitly select its Monthly Plan window.
+        let automaticPreference = provider == .mistral
+            ? self.settings.menuBarMetricPreference(for: provider, snapshot: snapshot)
+            : .automatic
         let automatic = MenuBarMetricWindowResolver.rateWindow(
-            preference: .automatic,
+            preference: automaticPreference,
             provider: provider,
             snapshot: snapshot,
             supportsAverage: self.settings.menuBarMetricSupportsAverage(for: provider),

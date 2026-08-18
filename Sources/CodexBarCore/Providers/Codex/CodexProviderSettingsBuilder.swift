@@ -6,19 +6,22 @@ public struct CodexProviderSettingsBuilderInput: Sendable {
     public let manualCookieHeader: String?
     public let reconciliationSnapshot: CodexAccountReconciliationSnapshot
     public let resolvedActiveSource: CodexResolvedActiveSource
+    public let allowExternalOAuthSources: Bool
 
     public init(
         usageDataSource: CodexUsageDataSource,
         cookieSource: ProviderCookieSource,
         manualCookieHeader: String?,
         reconciliationSnapshot: CodexAccountReconciliationSnapshot,
-        resolvedActiveSource: CodexResolvedActiveSource)
+        resolvedActiveSource: CodexResolvedActiveSource,
+        allowExternalOAuthSources: Bool = false)
     {
         self.usageDataSource = usageDataSource
         self.cookieSource = cookieSource
         self.manualCookieHeader = manualCookieHeader
         self.reconciliationSnapshot = reconciliationSnapshot
         self.resolvedActiveSource = resolvedActiveSource
+        self.allowExternalOAuthSources = allowExternalOAuthSources
     }
 }
 
@@ -77,6 +80,13 @@ public enum CodexProviderSettingsBuilder {
         case let .profileHome(path):
             snapshot.profileHomeAccount(path: path) == nil
         }
+        let managedWorkspaceAccountID: String? = switch input.resolvedActiveSource.resolvedSource {
+        case .liveSystem, .profileHome:
+            nil
+        case .managedAccount:
+            input.reconciliationSnapshot.activeStoredAccount?.workspaceAccountID
+                ?? input.reconciliationSnapshot.activeStoredAccount?.providerAccountID
+        }
 
         return ProviderSettingsSnapshot.CodexProviderSettings(
             usageDataSource: input.usageDataSource,
@@ -88,6 +98,8 @@ public enum CodexProviderSettingsBuilder {
                 && snapshot.activeStoredAccount == nil,
             profileAccountTargetUnavailable: profileAccountTargetUnavailable,
             openAIWebCacheScope: openAIWebCacheScope,
-            dashboardAuthorityKnownOwners: CodexKnownOwnerCatalog.candidates(from: snapshot))
+            dashboardAuthorityKnownOwners: CodexKnownOwnerCatalog.candidates(from: snapshot),
+            allowExternalOAuthSources: input.allowExternalOAuthSources,
+            managedWorkspaceAccountID: managedWorkspaceAccountID)
     }
 }

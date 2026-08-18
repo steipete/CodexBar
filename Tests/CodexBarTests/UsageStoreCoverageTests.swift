@@ -246,6 +246,14 @@ struct UsageStoreCoverageTests {
                     windowMinutes: ProviderPaceCapability.monthlyWindowSentinelMinutes,
                     resetsAt: now.addingTimeInterval(29 * 24 * 60 * 60),
                     resetDescription: "renews in 29 days"),
+                extraRateWindows: [NamedRateWindow(
+                    id: "amp-free",
+                    title: "Amp Free",
+                    window: RateWindow(
+                        usedPercent: 39,
+                        windowMinutes: 1440,
+                        resetsAt: now.addingTimeInterval(8 * 60 * 60),
+                        resetDescription: "resets daily"))],
                 updatedAt: now,
                 identity: ProviderIdentitySnapshot(
                     providerID: .amp,
@@ -255,9 +263,22 @@ struct UsageStoreCoverageTests {
             provider: .amp)
 
         let model = ProvidersPane(settings: settings, store: store)._test_menuCardModel(for: .amp)
+        let descriptor = MenuDescriptor.build(
+            provider: .amp,
+            store: store,
+            settings: settings,
+            account: AccountInfo(email: nil, plan: nil),
+            updateReady: false,
+            includeContextualActions: false,
+            now: now)
+        let menuLines = descriptor.sections.flatMap(\.entries).compactMap { entry -> String? in
+            guard case let .text(text, _) = entry else { return nil }
+            return text
+        }
 
-        #expect(model.metrics.map(\.title) == ["Other usage", "Orb usage"])
+        #expect(model.metrics.map(\.title) == ["Other usage", "Orb usage", "Amp Free"])
         #expect(model.planText == "Megawatt")
+        #expect(menuLines.contains { $0.hasPrefix("Amp Free:") })
     }
 
     @Test
@@ -939,8 +960,37 @@ extension UsageStoreCoverageTests {
 
         #expect(scheduled.map(\.attempt) == [1])
         #expect(scheduled.map(\.delay) == [15])
-        #expect(store.statuses[.codex]?.indicator == .unknown)
-        #expect(store.statuses[.codex]?.description?.isEmpty == false)
+        #expect(store.statuses[.codex] == nil)
+    }
+
+    @Test
+    func `status transport failure preserves last successful provider status`() async throws {
+        let settings = Self.makeSettingsStore(suite: "UsageStoreCoverageTests-status-failure-preserves-success")
+        settings.refreshFrequency = .manual
+        settings.statusChecksEnabled = true
+        try Self.enableOnly(.codex, settings: settings)
+
+        let store = Self.makeUsageStore(settings: settings)
+        let updatedAt = Date(timeIntervalSince1970: 1_750_000_000)
+        store.statuses[.codex] = ProviderStatus(
+            indicator: .major,
+            description: "Service disruption",
+            updatedAt: updatedAt)
+        store._test_providerStatusFetchOverride = { _ in
+            throw URLError(.timedOut)
+        }
+        defer {
+            store._test_providerStatusFetchOverride = nil
+            store.startupConnectivityRetryTask?.cancel()
+            store.startupConnectivityRetryTask = nil
+        }
+
+        await store.refreshProviderStatus(.codex)
+
+        let status = try #require(store.statuses[.codex])
+        #expect(status.indicator == .major)
+        #expect(status.description == "Service disruption")
+        #expect(status.updatedAt == updatedAt)
     }
 
     @Test

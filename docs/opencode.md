@@ -35,7 +35,8 @@ read_when:
 - The local monthly window is an estimate anchored at the earliest local row and can drift from the real billing
   cycle. When a cached or manual session cookie is available, the local strategy overlays the server-reported
   rolling/weekly/monthly percentages and reset countdowns (plus Zen balance) onto the local snapshot, keeping the
-  local daily cost history. This path never triggers a fresh browser import.
+  local daily cost history. This path never triggers a fresh browser import. When no authoritative overlay is
+  available, the menu and text CLI label the quota as estimated, and JSON includes `dataConfidence: "estimated"`.
 - OpenCode Go cost history chart: `opencode.ai` has no daily-granularity endpoint, so per-day cost/request buckets
   come from local `opencode-go` assistant costs in `opencode.db`, keyed by device-local calendar day. Successful web
   usage remains workspace-scoped and is never blended with device-wide local costs, so it does not show cost history.

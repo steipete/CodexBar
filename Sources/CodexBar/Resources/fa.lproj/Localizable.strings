@@ -1,7 +1,15 @@
 /* Persian localization for CodexBar */
 
 /* iCloud Sync */
+"+ %d more" = "+ %d مورد دیگر";
+"Conversations (%@)" = "گفتگوها (%@)";
+"Fast" = "سریع";
 "iCloud Sync" = "iCloud Sync";
+"Projects" = "پروژه‌ها";
+"Session %@" = "نشست %@";
+"Std" = "استاندارد";
+"Show all (%d)" = "نمایش همه (%d)";
+"Show less" = "نمایش کمتر";
 "Sync settings and providers across your Macs via iCloud" = "Sync settings and providers across your Macs via iCloud";
 "Include API keys, cookies, and tokens" = "Include API keys, cookies, and tokens";
 "Sync usage snapshots" = "Sync usage snapshots";
@@ -485,6 +493,10 @@
 "quota_depleted_title" = "اتمام و بازیابی سهمیه";
 "quota_warning_notifications_subtitle" = "هشدار می دهد وقتی سهمیه نشست یا هفتگی باقی مانده از آستانه های پیکربندی شده عبور کند.";
 "threshold_warnings_title" = "هشدارهای آستانه";
+"provider_accent_color_title" = "رنگ تأکید";
+"provider_accent_color_footer" = "رنگ نوارهای مصرف، نمودارها و زبانه جابه‌جایی این ارائه‌دهنده را تعیین می‌کند.";
+"provider_accent_color_hex_label" = "مقدار رنگ هگزادسیمال";
+"provider_accent_color_reset" = "استفاده از پیش‌فرض";
 "quota_warnings_title" = "هشدارهای سهمیه";
 "quota_warning_session" = "جلسه";
 "quota_warning_session_capitalized" = "جلسه";
@@ -613,6 +625,11 @@
 "show_quota_warning_markers_subtitle" = "علامت تیک آستانه را روی نوارهای استفاده هنگام پیکربندی هشدارهای سهمیه رسم کنید.";
 "weekly_progress_work_days_title" = "روزهای کاری پیشرفت هفتگی";
 "weekly_progress_work_days_subtitle" = "روزهای کاری را برای نشانگرهای نوار مصرف هفتگی و محاسبات سرعت تعیین کنید.";
+"workday_tick_appearance_title" = "نمایش نشانه‌های روز کاری";
+"workday_tick_appearance_subtitle" = "نحوهٔ نمایش مرز روزهای کاری در نوارهای مصرف هفتگی را انتخاب کنید.";
+"workday_tick_appearance_hidden" = "پنهان";
+"workday_tick_appearance_subtle" = "ملایم";
+"workday_tick_appearance_high_contrast" = "کنتراست بالا";
 "show_provider_changelog_links_title" = "لینک های تغییرات ارائه دهنده را نمایش دهید";
 "show_provider_changelog_links_subtitle" = "لینک های یادداشت های انتشار برای ارائه دهندگان پشتیبانی شده با پشتیبانی CLI به منو اضافه می شود.";
 "show_credits_extra_usage_title" = "نمایش اعتبارها + استفاده اضافی";
@@ -658,6 +675,15 @@
 "keychain_access_caption" = "تمام قابلیت های خواندن و نوشتن Keychain را غیرفعال کنید. اگر macOS حتی بعد از کلیک روی همیشه اجازه مدام درخواست «ذخیره سازی امن» Chrome/Brave/Edge کند، از این گزینه استفاده کنید. وارد کردن کوکی مرورگر در حالت فعال بودن در دسترس نیست؛ هدرهای کوکی را به صورت دستی در Providers پیست کنید. Claude/Codex OAuth از طریق CLI هنوز کار می کند.";
 "disable_keychain_access_title" = "غیرفعال کردن دسترسی Keychain";
 "disable_keychain_access_subtitle" = "در حالت فعال بودن از هرگونه دسترسی Keychain جلوگیری می کند.";
+"Re-authenticate" = "احراز هویت مجدد";
+"kiro_reauthenticate_title" = "ورود به Kiro CLI";
+"kiro_reauthenticate_subtitle" = "برای تازه‌سازی نشست منقضی‌شده، «kiro-cli login» را اجرا می‌کند.";
+"Kiro CLI not found" = "Kiro CLI پیدا نشد";
+"Install kiro-cli and try again." = "kiro-cli را نصب کنید و دوباره تلاش کنید.";
+"Could not start kiro-cli login" = "شروع kiro-cli login ممکن نشد";
+"Kiro login timed out" = "مهلت ورود به Kiro به پایان رسید";
+"kiro-cli login exited with status %d." = "kiro-cli login با وضعیت %d خارج شد.";
+"Kiro login failed" = "ورود به Kiro ناموفق بود";
 
 /* About Pane */
 "about_tagline" = "امیدوارم توکن های شما هرگز تمام نشوند—محدودیت های عامل را در نظر داشته باشید.";
@@ -1294,6 +1320,9 @@
 "Native currencies stay separate; Codex account rows exclude Pi session history." = "ارزهای اصلی جدا نگه داشته می‌شوند؛ ردیف‌های حساب Codex تاریخچه نشست‌های Pi را دربر نمی‌گیرند.";
 "Spend unavailable" = "هزینه در دسترس نیست";
 "Model breakdown unavailable" = "تفکیک مدل در دسترس نیست";
+"Partial estimate" = "برآورد جزئی";
+"Partial model breakdown" = "جزئیات ناقص مدلها";
+"%d of %d subscriptions have spend" = "%d از %d اشتراک دارای هزینه هستند";
 "Local estimated history" = "تاریخچه برآورد محلی";
 "Coverage" = "پوشش";
 "Estimated spend" = "برآورد هزینه";
@@ -1436,3 +1465,27 @@
 "5-hour usage" = "مصرف ۵ ساعته";
 "7-day usage" = "مصرف ۷ روزه";
 "Total usage" = "مصرف کل";
+"claude_oauth_keychain_access_revoked" = "دسترسی به Keychain کلود با چرخش توکن Claude Code لغو شد. برای اعطای مجدد دسترسی روی «تازه‌سازی» کلیک کنید، یا منبع استفاده Claude را به CLI/Web تغییر دهید.";
+"claude_showing_last_known_usage" = "آخرین میزان استفاده شناخته‌شده که در %@ ثبت شده نمایش داده می‌شود.";
+/* Spend dashboard cost analysis */
+"90d" = "90d";
+"Input" = "Input";
+"Output" = "Output";
+"Cache write" = "Cache write";
+"Reasoning" = "Reasoning";
+"Sessions" = "Sessions";
+"Projects" = "Projects";
+"Plan metered" = "Plan metered";
+"List-price equivalent" = "List-price equivalent";
+"Metered and list-price" = "Metered and list-price";
+"List-price equivalent — not a billing receipt." = "List-price equivalent — not a billing receipt.";
+"Priced" = "Priced";
+"Unpriced" = "Unpriced";
+"Unmetered" = "Unmetered";
+"Estimated" = "Estimated";
+"Other models" = "Other models";
+"Include OpenCodex usage logs" = "Include OpenCodex usage logs";
+"Hide native Codex when OpenCodex is present" = "Hide native Codex when OpenCodex is present";
+"Export JSON" = "Export JSON";
+"Sources" = "Sources";
+"OpenCodex" = "OpenCodex";

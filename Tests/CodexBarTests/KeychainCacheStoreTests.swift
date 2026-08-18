@@ -168,7 +168,7 @@ struct KeychainCacheStoreTests {
 
     #if os(macOS)
     @Test
-    func `unsafe cache ACL is unusable for credential planning`() {
+    func `unsafe cache ACL remains unavailable without interaction`() {
         let service = "cache-preflight-\(UUID().uuidString)"
         let key = KeychainCacheStore.Key(category: "test", identifier: UUID().uuidString)
         let observed = LockIsolated<(String, String?)?>(nil)
@@ -191,10 +191,10 @@ struct KeychainCacheStoreTests {
         #expect(observed.value?.0 == service)
         #expect(observed.value?.1 == key.account)
         switch result {
-        case .missing:
+        case .temporarilyUnavailable:
             break
-        case .found, .invalid, .temporarilyUnavailable:
-            Issue.record("Expected an unsafe cache item to behave as missing")
+        case .found, .invalid, .missing:
+            Issue.record("Expected an unsafe cache item to remain unavailable")
         }
     }
 

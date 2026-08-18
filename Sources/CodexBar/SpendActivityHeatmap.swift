@@ -20,6 +20,14 @@ enum SpendActivityViewMode: String, CaseIterable, Identifiable {
     }
 }
 
+enum SpendActivityDaySelection {
+    static func day(from series: SpendActivitySeries, at index: Int, selectedDay: Date?) -> Date? {
+        guard series.isCovered.indices.contains(index), series.isCovered[index] else { return nil }
+        let day = series.date(at: index).map { series.calendar.startOfDay(for: $0) }
+        return day == selectedDay ? nil : day
+    }
+}
+
 struct SpendActivitySeries {
     static let weekCount = 53
     static let dayCount = 7
@@ -364,13 +372,22 @@ enum SpendActivityAccessibility {
 struct SpendActivityHeatmapView: View {
     let points: [SpendDashboardModel.TokenActivityPoint]
     let now: Date
+    let selectedDay: Date?
+    let onSelectDay: ((Date?) -> Void)?
 
     @AppStorage("spendActivityViewMode") private var mode: SpendActivityViewMode = .daily
     @State private var series: SpendActivitySeries
 
-    init(points: [SpendDashboardModel.TokenActivityPoint], now: Date = Date()) {
+    init(
+        points: [SpendDashboardModel.TokenActivityPoint],
+        now: Date = Date(),
+        selectedDay: Date? = nil,
+        onSelectDay: ((Date?) -> Void)? = nil)
+    {
         self.points = points
         self.now = now
+        self.selectedDay = selectedDay
+        self.onSelectDay = onSelectDay
         self._series = State(initialValue: SpendActivitySeries.make(from: points, now: now))
     }
 
@@ -411,7 +428,10 @@ struct SpendActivityHeatmapView: View {
             if hasActivity || hasUnknownCoverage {
                 switch self.mode {
                 case .daily:
-                    SpendActivityDailyGrid(series: self.series)
+                    SpendActivityDailyGrid(
+                        series: self.series,
+                        selectedDay: self.selectedDay,
+                        onSelectDay: self.onSelectDay)
                     self.dailyLegend
                 case .weekly:
                     SpendActivityWeekGrid(
@@ -496,6 +516,8 @@ struct SpendActivityHeatmapView: View {
 
 private struct SpendActivityDailyGrid: View {
     let series: SpendActivitySeries
+    var selectedDay: Date?
+    var onSelectDay: ((Date?) -> Void)?
 
     @State private var hoveredIndex: Int?
     @State private var keyboardIndex: Int?
@@ -546,6 +568,9 @@ private struct SpendActivityDailyGrid: View {
                             self.hoveredIndex = nil
                         }
                     }
+                    .gesture(SpatialTapGesture().onEnded { event in
+                        self.handleTap(at: event.location, pitch: pitch)
+                    })
                     .offset(x: gridFrame.minX)
                 }
             }
@@ -660,6 +685,12 @@ private struct SpendActivityDailyGrid: View {
         guard col >= 0, col < self.columns, row >= 0, row < self.rows else { return nil }
         let index = col * self.rows + row
         return self.isVisibleCell(index) ? index : nil
+    }
+
+    private func handleTap(at location: CGPoint, pitch: CGFloat) {
+        guard let onSelectDay, let index = self.cellIndex(at: location, pitch: pitch) else { return }
+        guard self.series.isCovered.indices.contains(index), self.series.isCovered[index] else { return }
+        onSelectDay(SpendActivityDaySelection.day(from: self.series, at: index, selectedDay: self.selectedDay))
     }
 
     private func isVisibleCell(_ index: Int) -> Bool {

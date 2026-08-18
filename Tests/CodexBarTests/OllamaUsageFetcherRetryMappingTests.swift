@@ -2,6 +2,15 @@ import Foundation
 import Testing
 @testable import CodexBarCore
 
+private let ollamaUsageHTML = """
+<div>
+  <span>Session usage</span>
+  <span>1.2% used</span>
+  <span>Weekly usage</span>
+  <span>3.4% used</span>
+</div>
+"""
+
 @Suite(.serialized)
 struct OllamaUsageFetcherRetryMappingTests {
     private func makeContext(
@@ -766,15 +775,7 @@ struct OllamaUsageFetcherRetryMappingTests {
 
         OllamaRetryMappingStubURLProtocol.handler = { request in
             let url = try #require(request.url)
-            let body = """
-            <div>
-              <span>Session usage</span>
-              <span>1.2% used</span>
-              <span>Weekly usage</span>
-              <span>3.4% used</span>
-            </div>
-            """
-            return Self.makeResponse(url: url, body: body, statusCode: 200)
+            return Self.makeResponse(url: url, body: ollamaUsageHTML, statusCode: 200)
         }
         let recorder = OllamaSessionFinishRecorder()
         let fetcher = self.makeCookieFetcher(finishURLSession: { session in
@@ -818,20 +819,28 @@ struct OllamaUsageFetcherRetryMappingTests {
         OllamaRetryMappingStubURLProtocol.handler = { request in
             #expect(request.value(forHTTPHeaderField: "Cookie") == "__Secure-session=account-token")
             let url = try #require(request.url)
-            let body = """
-            <div>
-              <span>Session usage</span>
-              <span>1.2% used</span>
-              <span>Weekly usage</span>
-              <span>3.4% used</span>
-            </div>
-            """
-            return Self.makeResponse(url: url, body: body, statusCode: 200)
+            return Self.makeResponse(url: url, body: ollamaUsageHTML, statusCode: 200)
         }
 
         let fetcher = self.makeCookieFetcher()
         _ = try await fetcher.fetch(
             cookieHeaderOverride: settings.manualCookieHeader,
+            manualCookieMode: true)
+    }
+
+    @Test
+    func `manual workos capture sends normalized outgoing cookie header`() async throws {
+        defer { OllamaRetryMappingStubURLProtocol.handler = nil }
+
+        OllamaRetryMappingStubURLProtocol.handler = { request in
+            #expect(request.value(forHTTPHeaderField: "Cookie") == "aid=aux; wos-session=account-token; theme=dark")
+            let url = try #require(request.url)
+            return Self.makeResponse(url: url, body: ollamaUsageHTML, statusCode: 200)
+        }
+
+        let fetcher = self.makeCookieFetcher()
+        _ = try await fetcher.fetch(
+            cookieHeaderOverride: "Cookie: aid=aux; wos-session=account-token; theme=dark",
             manualCookieMode: true)
     }
 

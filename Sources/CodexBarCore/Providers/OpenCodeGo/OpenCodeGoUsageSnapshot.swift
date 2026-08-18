@@ -175,6 +175,7 @@ public struct OpenCodeGoUsageSnapshot: Sendable {
         CostUsageFetcher.tokenSnapshot(
             from: CostUsageDailyReport(data: self.daily, summary: nil),
             now: self.updatedAt,
-            historyDays: historyDays)
+            historyDays: historyDays,
+            costProvenance: .listPriceEstimate)
     }
 }

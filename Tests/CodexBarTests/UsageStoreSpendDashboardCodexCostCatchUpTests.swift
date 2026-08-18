@@ -58,26 +58,17 @@ struct UsageStoreSpendDashboardCodexCostCatchUpTests {
         #expect(store.spendDashboardCodexCostCatchUpActivity?.fractionCompleted == 1)
     }
 
-    @Test(arguments: [123, 248, 365])
-    func `dashboard catch-up accelerates the configured history window`(historyDays: Int) async throws {
+    @Test(arguments: [1, 7, 29, 123, 248, 365])
+    func `dashboard catch-up uses the spend scan window`(historyDays: Int) async throws {
         let receivedHistoryDays = try await Self.receivedHistoryDays(
             configuredHistoryDays: historyDays,
             suite: "configured-\(historyDays)")
-
-        #expect(receivedHistoryDays == historyDays)
-    }
-
-    @Test(arguments: [1, 7, 29])
-    func `dashboard catch-up retains its thirty day floor`(historyDays: Int) async throws {
-        let receivedHistoryDays = try await Self.receivedHistoryDays(
-            configuredHistoryDays: historyDays,
-            suite: "floor-\(historyDays)")
 
         #expect(receivedHistoryDays == SpendDashboardSource.scanDays)
     }
 
     @Test
-    func `changing the history window replaces the active catch-up context`() throws {
+    func `history days below the scan window keep the active catch-up context`() throws {
         let store = try Self.makeStore(suite: "history-context")
         let accounts = [Self.account(id: "account", cacheIdentity: "cache-account")]
         store.settings.costUsageHistoryDays = 30
@@ -95,7 +86,7 @@ struct UsageStoreSpendDashboardCodexCostCatchUpTests {
         store.synchronizeSpendDashboardCodexCostCatchUp(accounts: accounts)
         let replacementToken = try #require(store.spendDashboardCodexCostCatchUpToken)
 
-        #expect(replacementToken != originalToken)
+        #expect(replacementToken == originalToken)
         store.cancelSpendDashboardCodexCostCatchUp()
     }
 

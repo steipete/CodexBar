@@ -160,12 +160,15 @@ enum DashboardSnapshotBuilder {
         let enabledProviders = Set(config.enabledProviders().compactMap(\.firstPartyProvider))
         let sortKey = config.orderedProviders().firstIndex { $0.rawValue == id }.map { $0 * 10 }
             ?? fallbackSortKey
+        let accentOverride = ProviderInstanceID(rawValue: id)
+            .flatMap { config.providerConfig(for: $0)?.accentColor }
+            .flatMap { ProviderColor(hexString: $0) }
         return ProviderPresentation(
             id: id,
             name: descriptor?.metadata.displayName ?? id,
             enabled: provider.map { enabledProviders.contains($0) } ?? true,
             display: DashboardDisplayPayload(
-                accentColor: self.hexColor(descriptor?.branding.color),
+                accentColor: self.hexColor(accentOverride ?? descriptor?.branding.color),
                 sortKey: sortKey,
                 priority: "normal"))
     }
@@ -286,6 +289,13 @@ enum DashboardSnapshotBuilder {
         usage: UsageSnapshot?) -> [DashboardWindowPayload]
     {
         guard let usage else { return [] }
+        // Provider-specific by design: Antigravity's primary and secondary are representatives
+        // copied out of its own quota-summary lanes so the icon and menu bar have standard slots
+        // to read. Emitting all three repeats two lanes under the generic session and weekly
+        // labels, so the dashboard renders the summary lanes alone, one per quota bucket.
+        if provider == .antigravity, let windows = self.antigravityQuotaSummaryWindows(usage) {
+            return windows
+        }
         let labels = self.rateWindowLabels(provider: provider, metadata: metadata, usage: usage)
         var windows: [DashboardWindowPayload] = []
         // Provider-specific by design: Amp subscription payloads model balance and orb as non-time-window kinds.
@@ -307,6 +317,17 @@ enum DashboardSnapshotBuilder {
         }
 
         return windows
+    }
+
+    /// Display lanes for an Antigravity quota-summary snapshot, or `nil` when the snapshot has no
+    /// summary lanes and must keep the standard primary and secondary rows. Every family stays
+    /// visible: the dashboard is a detail surface, so only the duplicated representatives go away.
+    private static func antigravityQuotaSummaryWindows(_ usage: UsageSnapshot) -> [DashboardWindowPayload]? {
+        let extras = usage.extraRateWindows ?? []
+        guard extras.contains(where: { AntigravityStatusSnapshot.isQuotaSummaryWindowID($0.id) }) else {
+            return nil
+        }
+        return extras.map { self.makeWindow(kind: $0.id, label: $0.title, window: $0.window) }
     }
 
     private struct RateWindowLabels {

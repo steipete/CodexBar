@@ -1,7 +1,15 @@
 /* Russian localization for CodexBar */
 
 /* iCloud Sync */
+"+ %d more" = "Ещё %d";
+"Conversations (%@)" = "Диалоги (%@)";
+"Fast" = "Быстро";
 "iCloud Sync" = "iCloud Sync";
+"Projects" = "Проекты";
+"Session %@" = "Сессия %@";
+"Std" = "Стандарт";
+"Show all (%d)" = "Показать все (%d)";
+"Show less" = "Показать меньше";
 "Sync settings and providers across your Macs via iCloud" = "Sync settings and providers across your Macs via iCloud";
 "Include API keys, cookies, and tokens" = "Include API keys, cookies, and tokens";
 "Sync usage snapshots" = "Sync usage snapshots";
@@ -501,6 +509,10 @@
 "quota_depleted_title" = "Исчерпание и восстановление квоты";
 "quota_warning_notifications_subtitle" = "Предупреждает, когда остаток сессионной или недельной квоты пересекает заданные пороги.";
 "threshold_warnings_title" = "Предупреждения о порогах";
+"provider_accent_color_title" = "Акцентный цвет";
+"provider_accent_color_footer" = "Задаёт цвет полос использования, графиков и вкладки переключателя этого провайдера.";
+"provider_accent_color_hex_label" = "Шестнадцатеричное значение цвета";
+"provider_accent_color_reset" = "Использовать по умолчанию";
 "quota_warnings_title" = "Предупреждения о квотах";
 "quota_warning_session" = "сеанс";
 "quota_warning_session_capitalized" = "Сеанс";
@@ -608,6 +620,11 @@
 "show_quota_warning_markers_subtitle" = "Рисует отметки порогов на индикаторах использования, если настроены предупреждения о квотах.";
 "weekly_progress_work_days_title" = "Рабочие дни для недельного прогресса";
 "weekly_progress_work_days_subtitle" = "Задаёт рабочие дни для недельных отметок использования и расчёта темпа.";
+"workday_tick_appearance_title" = "Вид отметок рабочих дней";
+"workday_tick_appearance_subtitle" = "Выберите, как отображать границы рабочих дней на недельных полосах использования.";
+"workday_tick_appearance_hidden" = "Скрыты";
+"workday_tick_appearance_subtle" = "Ненавязчивые";
+"workday_tick_appearance_high_contrast" = "Высокий контраст";
 "show_provider_changelog_links_title" = "Показывать ссылки на журналы изменений провайдеров";
 "show_provider_changelog_links_subtitle" = "Добавляет в меню ссылки на заметки к релизам для поддерживаемых CLI-провайдеров.";
 "show_credits_extra_usage_title" = "Показывать кредиты и доп. использование";
@@ -653,6 +670,15 @@
 "keychain_access_caption" = "Отключает все операции чтения и записи Keychain. Используйте это, если macOS продолжает запрашивать «Chrome/Brave/Edge Safe Storage» даже после нажатия «Всегда разрешать». Импорт cookie браузера недоступен, пока настройка включена; вставьте заголовки Cookie вручную в разделе «Провайдеры». Claude/Codex OAuth через CLI по-прежнему работает.";
 "disable_keychain_access_title" = "Отключить доступ к Keychain";
 "disable_keychain_access_subtitle" = "Блокирует любой доступ к Keychain, пока настройка включена.";
+"Re-authenticate" = "Повторно пройти аутентификацию";
+"kiro_reauthenticate_title" = "Вход в Kiro CLI";
+"kiro_reauthenticate_subtitle" = "Запускает «kiro-cli login», чтобы обновить истёкший сеанс.";
+"Kiro CLI not found" = "Kiro CLI не найден";
+"Install kiro-cli and try again." = "Установите kiro-cli и повторите попытку.";
+"Could not start kiro-cli login" = "Не удалось запустить kiro-cli login";
+"Kiro login timed out" = "Время ожидания входа в Kiro истекло";
+"kiro-cli login exited with status %d." = "kiro-cli login завершился со статусом %d.";
+"Kiro login failed" = "Не удалось войти в Kiro";
 
 /* About Pane */
 "about_tagline" = "Пусть ваши токены никогда не закончатся — помните об ограничениях агентов.";
@@ -1292,6 +1318,9 @@
 "Native currencies stay separate; Codex account rows exclude Pi session history." = "Исходные валюты остаются раздельными; строки учётных записей Codex не включают историю сеансов Pi.";
 "Spend unavailable" = "Расходы недоступны";
 "Model breakdown unavailable" = "Разбивка по моделям недоступна";
+"Partial estimate" = "Частичная оценка";
+"Partial model breakdown" = "Частичная разбивка по моделям";
+"%d of %d subscriptions have spend" = "У %d из %d подписок есть данные о расходах";
 "Local estimated history" = "Локальная история оценок";
 "Coverage" = "Охват";
 "Estimated spend" = "Предполагаемые расходы";
@@ -1434,3 +1463,27 @@
 "5-hour usage" = "Использование за 5 часов";
 "7-day usage" = "Использование за 7 дней";
 "Total usage" = "Общее использование";
+"claude_oauth_keychain_access_revoked" = "Доступ к Связке ключей Claude был отозван из-за ротации токена в Claude Code. Нажмите «Обновить», чтобы повторно предоставить доступ, или переключите источник использования Claude на CLI/Web.";
+"claude_showing_last_known_usage" = "Показаны последние известные данные об использовании (получены %@).";
+/* Spend dashboard cost analysis */
+"90d" = "90d";
+"Input" = "Input";
+"Output" = "Output";
+"Cache write" = "Cache write";
+"Reasoning" = "Reasoning";
+"Sessions" = "Sessions";
+"Projects" = "Projects";
+"Plan metered" = "Plan metered";
+"List-price equivalent" = "List-price equivalent";
+"Metered and list-price" = "Metered and list-price";
+"List-price equivalent — not a billing receipt." = "List-price equivalent — not a billing receipt.";
+"Priced" = "Priced";
+"Unpriced" = "Unpriced";
+"Unmetered" = "Unmetered";
+"Estimated" = "Estimated";
+"Other models" = "Other models";
+"Include OpenCodex usage logs" = "Include OpenCodex usage logs";
+"Hide native Codex when OpenCodex is present" = "Hide native Codex when OpenCodex is present";
+"Export JSON" = "Export JSON";
+"Sources" = "Sources";
+"OpenCodex" = "OpenCodex";

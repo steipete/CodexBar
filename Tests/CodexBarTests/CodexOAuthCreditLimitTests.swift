@@ -25,9 +25,17 @@ struct CodexOAuthCreditLimitTests {
 
     private func makeContext(
         sourceMode: ProviderSourceMode = .auto,
-        includeCredits: Bool = true) -> ProviderFetchContext
+        includeCredits: Bool = true,
+        managedWorkspaceAccountID: String? = nil) -> ProviderFetchContext
     {
         let browserDetection = BrowserDetection(cacheTTL: 0)
+        let settings = managedWorkspaceAccountID.map { accountID in
+            ProviderSettingsSnapshot.make(codex: CodexProviderSettings(
+                usageDataSource: .auto,
+                cookieSource: .off,
+                manualCookieHeader: nil,
+                managedWorkspaceAccountID: accountID))
+        }
         return ProviderFetchContext(
             runtime: .app,
             sourceMode: sourceMode,
@@ -36,7 +44,7 @@ struct CodexOAuthCreditLimitTests {
             webDebugDumpHTML: false,
             verbose: false,
             env: [:],
-            settings: nil,
+            settings: settings,
             fetcher: UsageFetcher(),
             claudeFetcher: ClaudeUsageFetcher(browserDetection: browserDetection),
             browserDetection: browserDetection)
@@ -254,6 +262,27 @@ struct CodexOAuthCreditLimitTests {
 
         #expect(result.sourceLabel == "oauth")
         #expect(result.usage.primary == oauthResult.usage.primary)
+        #expect(result.credits?.codexCreditLimit == nil)
+    }
+
+    @Test
+    func `managed workspace O auth does not mix in unscoped CLI monthly limit`() async throws {
+        let mappedOAuth = try CodexOAuthFetchStrategy._mapResultForTesting(
+            Data(self.oauthZeroCreditRateWindowJSON().utf8),
+            credentials: self.makeCredentials(),
+            sourceMode: .auto)
+        let oauthResult = self.replacingIdentity(mappedOAuth, email: "owner@example.com")
+        let cliResult = self.makeCLIResult(
+            credits: self.makeMonthlyLimitCredits(),
+            email: "owner@example.com")
+
+        let result = try await CodexOAuthFetchStrategy._replaceWithCLIMonthlyLimitForTesting(
+            oauthResult: oauthResult,
+            context: self.makeContext(
+                sourceMode: .auto,
+                managedWorkspaceAccountID: "workspace-team"),
+            cliStrategy: StubFetchStrategy(available: true, result: cliResult))
+
         #expect(result.credits?.codexCreditLimit == nil)
     }
 

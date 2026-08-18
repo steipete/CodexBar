@@ -1,7 +1,15 @@
 /* Indonesian localization for CodexBar */
 
 /* iCloud Sync */
+"+ %d more" = "+ %d lainnya";
+"Conversations (%@)" = "Percakapan (%@)";
+"Fast" = "Cepat";
 "iCloud Sync" = "iCloud Sync";
+"Projects" = "Proyek";
+"Session %@" = "Sesi %@";
+"Std" = "Std";
+"Show all (%d)" = "Tampilkan semua (%d)";
+"Show less" = "Tampilkan lebih sedikit";
 "Sync settings and providers across your Macs via iCloud" = "Sync settings and providers across your Macs via iCloud";
 "Include API keys, cookies, and tokens" = "Include API keys, cookies, and tokens";
 "Sync usage snapshots" = "Sync usage snapshots";
@@ -487,6 +495,10 @@
 "quota_depleted_title" = "Kuota habis & tersedia kembali";
 "quota_warning_notifications_subtitle" = "Memperingatkan saat sisa kuota sesi atau mingguan melewati ambang batas yang dikonfigurasi.";
 "threshold_warnings_title" = "Peringatan ambang batas";
+"provider_accent_color_title" = "Warna aksen";
+"provider_accent_color_footer" = "Menetapkan warna bilah penggunaan, bagan, dan tab pengalih penyedia ini.";
+"provider_accent_color_hex_label" = "Nilai warna heksadesimal";
+"provider_accent_color_reset" = "Gunakan bawaan";
 "quota_warnings_title" = "Peringatan kuota";
 "quota_warning_session" = "sesi";
 "quota_warning_session_capitalized" = "Sesi";
@@ -615,6 +627,11 @@
 "show_quota_warning_markers_subtitle" = "Gambar tanda centang ambang batas pada bilah penggunaan saat peringatan kuota dikonfigurasi.";
 "weekly_progress_work_days_title" = "Hari kerja progres mingguan";
 "weekly_progress_work_days_subtitle" = "Atur hari kerja untuk penanda bilah penggunaan mingguan dan perhitungan pace.";
+"workday_tick_appearance_title" = "Tampilan tanda hari kerja";
+"workday_tick_appearance_subtitle" = "Pilih tampilan batas hari kerja pada bilah penggunaan mingguan.";
+"workday_tick_appearance_hidden" = "Tersembunyi";
+"workday_tick_appearance_subtle" = "Samar";
+"workday_tick_appearance_high_contrast" = "Kontras tinggi";
 "show_provider_changelog_links_title" = "Tampilkan tautan changelog penyedia";
 "show_provider_changelog_links_subtitle" = "Menambahkan tautan catatan rilis untuk penyedia berbasis CLI yang didukung ke menu.";
 "show_credits_extra_usage_title" = "Tampilkan kredit + penggunaan ekstra";
@@ -660,6 +677,15 @@
 "keychain_access_caption" = "Nonaktifkan semua pembacaan dan penulisan Keychain. Gunakan ini jika macOS terus meminta 'Chrome/Brave/Edge Safe Storage' meskipun sudah mengklik Always Allow. Impor cookie browser tidak tersedia saat diaktifkan; tempel header Cookie secara manual di Penyedia. OAuth Claude/Codex via CLI masih berfungsi.";
 "disable_keychain_access_title" = "Nonaktifkan akses Keychain";
 "disable_keychain_access_subtitle" = "Mencegah semua akses Keychain saat diaktifkan.";
+"Re-authenticate" = "Autentikasi ulang";
+"kiro_reauthenticate_title" = "Login Kiro CLI";
+"kiro_reauthenticate_subtitle" = "Menjalankan 'kiro-cli login' untuk memperbarui sesi saat kedaluwarsa.";
+"Kiro CLI not found" = "Kiro CLI tidak ditemukan";
+"Install kiro-cli and try again." = "Instal kiro-cli lalu coba lagi.";
+"Could not start kiro-cli login" = "Tidak dapat memulai kiro-cli login";
+"Kiro login timed out" = "Waktu login Kiro habis";
+"kiro-cli login exited with status %d." = "kiro-cli login keluar dengan status %d.";
+"Kiro login failed" = "Login Kiro gagal";
 
 /* About Pane */
 "about_tagline" = "Semoga token Anda tidak pernah habis—pantau batas agen Anda.";
@@ -1294,6 +1320,9 @@
 "Native currencies stay separate; Codex account rows exclude Pi session history." = "Mata uang asli tetap dipisahkan; baris akun Codex tidak menyertakan riwayat sesi Pi.";
 "Spend unavailable" = "Data pengeluaran tidak tersedia";
 "Model breakdown unavailable" = "Rincian per model tidak tersedia";
+"Partial estimate" = "Perkiraan sebagian";
+"Partial model breakdown" = "Rincian model sebagian";
+"%d of %d subscriptions have spend" = "%d dari %d langganan memiliki pengeluaran";
 "Local estimated history" = "Riwayat perkiraan lokal";
 "Coverage" = "Cakupan";
 "Estimated spend" = "Perkiraan pengeluaran";
@@ -1436,3 +1465,27 @@
 "5-hour usage" = "Penggunaan 5 jam";
 "7-day usage" = "Penggunaan 7 hari";
 "Total usage" = "Total penggunaan";
+"claude_oauth_keychain_access_revoked" = "Akses Rantai Kunci Claude dicabut akibat rotasi token Claude Code. Klik Segarkan untuk memberikan akses lagi, atau ubah sumber penggunaan Claude ke CLI/Web.";
+"claude_showing_last_known_usage" = "Menampilkan penggunaan terakhir yang diketahui, diambil %@.";
+/* Spend dashboard cost analysis */
+"90d" = "90d";
+"Input" = "Input";
+"Output" = "Output";
+"Cache write" = "Cache write";
+"Reasoning" = "Reasoning";
+"Sessions" = "Sessions";
+"Projects" = "Projects";
+"Plan metered" = "Plan metered";
+"List-price equivalent" = "List-price equivalent";
+"Metered and list-price" = "Metered and list-price";
+"List-price equivalent — not a billing receipt." = "List-price equivalent — not a billing receipt.";
+"Priced" = "Priced";
+"Unpriced" = "Unpriced";
+"Unmetered" = "Unmetered";
+"Estimated" = "Estimated";
+"Other models" = "Other models";
+"Include OpenCodex usage logs" = "Include OpenCodex usage logs";
+"Hide native Codex when OpenCodex is present" = "Hide native Codex when OpenCodex is present";
+"Export JSON" = "Export JSON";
+"Sources" = "Sources";
+"OpenCodex" = "OpenCodex";

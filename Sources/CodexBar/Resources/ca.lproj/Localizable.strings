@@ -1,7 +1,15 @@
 /* Catalan localization for CodexBar */
 
 /* iCloud Sync */
+"+ %d more" = "+ %d més";
+"Conversations (%@)" = "Converses (%@)";
+"Fast" = "Ràpid";
 "iCloud Sync" = "iCloud Sync";
+"Projects" = "Projectes";
+"Session %@" = "Sessió %@";
+"Std" = "Est.";
+"Show all (%d)" = "Mostra-ho tot (%d)";
+"Show less" = "Mostra menys";
 "Sync settings and providers across your Macs via iCloud" = "Sync settings and providers across your Macs via iCloud";
 "Include API keys, cookies, and tokens" = "Include API keys, cookies, and tokens";
 "Sync usage snapshots" = "Sync usage snapshots";
@@ -483,6 +491,10 @@
 "quota_depleted_title" = "Quota esgotada i restablerta";
 "quota_warning_notifications_subtitle" = "Avisa quan la quota restant de sessió o setmanal baixa per sota dels llindars configurats.";
 "threshold_warnings_title" = "Avisos de llindar";
+"provider_accent_color_title" = "Color d'accent";
+"provider_accent_color_footer" = "Estableix el color de les barres d'ús, els gràfics i la pestanya del selector d'aquest proveïdor.";
+"provider_accent_color_hex_label" = "Valor de color hexadecimal";
+"provider_accent_color_reset" = "Usa el valor predeterminat";
 "quota_warnings_title" = "Avisos de quota";
 "quota_warning_session" = "sessió";
 "quota_warning_session_capitalized" = "Sessió";
@@ -591,6 +603,11 @@
 "show_quota_warning_markers_subtitle" = "Dibuixa marques de llindar a les barres d'ús quan hi ha avisos de quota configurats.";
 "weekly_progress_work_days_title" = "Dies laborables del progrés setmanal";
 "weekly_progress_work_days_subtitle" = "Definiu els dies laborables per als marcadors de les barres d'ús setmanal i els càlculs de ritme.";
+"workday_tick_appearance_title" = "Aparença de les marques dels dies laborables";
+"workday_tick_appearance_subtitle" = "Trieu com es mostren els límits dels dies laborables a les barres d'ús setmanal.";
+"workday_tick_appearance_hidden" = "Ocultes";
+"workday_tick_appearance_subtle" = "Subtils";
+"workday_tick_appearance_high_contrast" = "Contrast alt";
 "show_provider_changelog_links_title" = "Mostreu els enllaços al registre de canvis del proveïdor";
 "show_provider_changelog_links_subtitle" = "Afegiu al menú enllaços a les notes de versió dels proveïdors compatibles basats en CLI.";
 "show_credits_extra_usage_title" = "Mostreu crèdits + ús addicional";
@@ -636,6 +653,15 @@
 "keychain_access_caption" = "Desactiveu totes les lectures i escriptures del Clauer. Feu-ho si macOS continua mostrant sol·licituds de «Chrome/Brave/Edge Safe Storage» fins i tot després de triar «Permet sempre». La importació de galetes del navegador no estarà disponible mentre aquesta opció estigui activada; enganxeu manualment les capçaleres Cookie a Proveïdors. L'OAuth de Claude/Codex mitjançant la CLI continuarà funcionant.";
 "disable_keychain_access_title" = "Desactiveu l'accés al Clauer";
 "disable_keychain_access_subtitle" = "Impedeix qualsevol accés al Clauer mentre estigui activat.";
+"Re-authenticate" = "Torna a autenticar";
+"kiro_reauthenticate_title" = "Inici de sessió de Kiro CLI";
+"kiro_reauthenticate_subtitle" = "Executa «kiro-cli login» per renovar la sessió quan hagi caducat.";
+"Kiro CLI not found" = "No s'ha trobat Kiro CLI";
+"Install kiro-cli and try again." = "Instal·leu kiro-cli i torneu-ho a provar.";
+"Could not start kiro-cli login" = "No s'ha pogut iniciar kiro-cli login";
+"Kiro login timed out" = "S'ha esgotat el temps d'inici de sessió de Kiro";
+"kiro-cli login exited with status %d." = "kiro-cli login ha finalitzat amb l'estat %d.";
+"Kiro login failed" = "Ha fallat l'inici de sessió de Kiro";
 
 /* About Pane */
 "about_tagline" = "Que els vostres tokens no s'esgotin mai: mantingueu els límits dels vostres agents a la vista.";
@@ -1293,6 +1319,9 @@
 "Native currencies stay separate; Codex account rows exclude Pi session history." = "Les monedes originals es mantenen separades; les files de comptes de Codex exclouen l’historial de sessions de Pi.";
 "Spend unavailable" = "Despesa no disponible";
 "Model breakdown unavailable" = "Desglossament per model no disponible";
+"Partial estimate" = "Estimació parcial";
+"Partial model breakdown" = "Desglossament de models parcial";
+"%d of %d subscriptions have spend" = "%d de %d subscripcions tenen despesa";
 "Local estimated history" = "Historial local estimat";
 "Coverage" = "Cobertura";
 "Estimated spend" = "Despesa estimada";
@@ -1435,3 +1464,27 @@
 "5-hour usage" = "Ús de 5 hores";
 "7-day usage" = "Ús de 7 dies";
 "Total usage" = "Ús total";
+"claude_oauth_keychain_access_revoked" = "L'accés al clauer de Claude s'ha revocat per la rotació del testimoni de Claude Code. Feu clic a Actualitza per tornar a concedir l'accés, o canvieu l'origen d'ús de Claude a CLI/Web.";
+"claude_showing_last_known_usage" = "Es mostra l'últim ús conegut capturat %@.";
+/* Spend dashboard cost analysis */
+"90d" = "90d";
+"Input" = "Input";
+"Output" = "Output";
+"Cache write" = "Cache write";
+"Reasoning" = "Reasoning";
+"Sessions" = "Sessions";
+"Projects" = "Projects";
+"Plan metered" = "Plan metered";
+"List-price equivalent" = "List-price equivalent";
+"Metered and list-price" = "Metered and list-price";
+"List-price equivalent — not a billing receipt." = "List-price equivalent — not a billing receipt.";
+"Priced" = "Priced";
+"Unpriced" = "Unpriced";
+"Unmetered" = "Unmetered";
+"Estimated" = "Estimated";
+"Other models" = "Other models";
+"Include OpenCodex usage logs" = "Include OpenCodex usage logs";
+"Hide native Codex when OpenCodex is present" = "Hide native Codex when OpenCodex is present";
+"Export JSON" = "Export JSON";
+"Sources" = "Sources";
+"OpenCodex" = "OpenCodex";

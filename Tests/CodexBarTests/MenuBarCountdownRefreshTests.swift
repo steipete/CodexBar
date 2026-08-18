@@ -72,6 +72,67 @@ struct MenuBarCountdownRefreshTests {
     }
 
     @Test
+    func `weekly pace refresh delay targets the one percent boundary`() {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let duration = TimeInterval(10080 * 60)
+        let window = RateWindow(
+            usedPercent: 5,
+            windowMinutes: 10080,
+            resetsAt: now.addingTimeInterval(duration),
+            resetDescription: nil)
+
+        let delay = StatusItemController.menuBarPaceRefreshDelay(window: window, now: now)
+
+        #expect(abs((delay ?? 0) - (duration * 0.01 + 0.05)) < 0.001)
+    }
+
+    @Test
+    func `weekly pace token schedules its elapsed eligibility refresh`() throws {
+        let settings = testSettingsStore(suiteName: "MenuBarCountdownRefreshTests-weekly-pace-boundary")
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.menuBarIconStyle = .iconAndPercent
+        settings.mergeIcons = false
+        settings.selectedMenuProvider = .claude
+        settings.setMenuBarLayout(MenuBarLayout(lines: [[.icon, .pace(window: .weekly)]]), for: .claude)
+        try settings.setProviderEnabled(
+            provider: .claude,
+            metadata: #require(ProviderRegistry.shared.metadata[.claude]),
+            enabled: true)
+
+        let fetcher = UsageFetcher()
+        let store = UsageStore(
+            fetcher: fetcher,
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings)
+        let now = Date()
+        let duration = TimeInterval(10080 * 60)
+        store._setSnapshotForTesting(
+            UsageSnapshot(
+                primary: nil,
+                secondary: RateWindow(
+                    usedPercent: 5,
+                    windowMinutes: 10080,
+                    resetsAt: now.addingTimeInterval(duration),
+                    resetDescription: nil),
+                updatedAt: now),
+            provider: .claude)
+
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: .system)
+        defer { controller.releaseStatusItemsForTesting() }
+
+        controller.updateIcons()
+
+        #expect(controller._test_isMenuBarCountdownRefreshScheduled())
+    }
+
+    @Test
     func `status item schedules countdown and exhausted lane refreshes`() {
         let settings = testSettingsStore(suiteName: "MenuBarCountdownRefreshTests-scheduling")
         settings.statusChecksEnabled = false

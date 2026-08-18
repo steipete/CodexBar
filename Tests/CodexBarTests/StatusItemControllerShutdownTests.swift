@@ -109,6 +109,33 @@ struct StatusItemControllerShutdownTests {
     }
 
     @Test
+    func `settings route closes tracked menus before requesting the window`() {
+        let controller = self.makeController()
+        defer {
+            StatusItemController.menuCardRenderingEnabled = !SettingsStore.isRunningTests
+            StatusItemController.resetMenuRefreshEnabledForTesting()
+        }
+        let menu = controller.makeMenu()
+        controller.menuWillOpen(menu)
+
+        var didRequestSettings = false
+        var requestedPane: SettingsPane? = .about
+        var hadOpenMenuWhenRequested = true
+        controller.setSettingsOpenHandler { pane in
+            didRequestSettings = true
+            requestedPane = pane
+            hadOpenMenuWhenRequested = !controller.openMenus.isEmpty
+        }
+
+        controller.showSettingsGeneral()
+
+        #expect(didRequestSettings)
+        #expect(requestedPane == nil)
+        #expect(!hadOpenMenuWhenRequested)
+        #expect(controller.openMenus.isEmpty)
+    }
+
+    @Test
     func `app shutdown cancels forced enrichment`() async {
         let controller = self.makeController()
         defer {

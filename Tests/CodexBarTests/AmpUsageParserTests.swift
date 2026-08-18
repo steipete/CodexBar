@@ -3,6 +3,18 @@ import Testing
 @testable import CodexBarCore
 
 struct AmpUsageParserTests {
+    private func loadFixture(_ name: String) throws -> String {
+        let url = try #require(Bundle.module.url(
+            forResource: name,
+            withExtension: "txt",
+            subdirectory: "Fixtures/Providers/Amp"))
+        return try String(contentsOf: url, encoding: .utf8)
+    }
+
+    private func date(_ value: String) throws -> Date {
+        try #require(ISO8601DateFormatter().date(from: value))
+    }
+
     @Test
     func `amp cli probe runs usage and parses balances`() async throws {
         let script = """
@@ -67,6 +79,7 @@ struct AmpUsageParserTests {
 
         let snapshot = try AmpUsageParser.parse(displayText: output, now: now)
         let usage = snapshot.toUsageSnapshot(now: now)
+        let expectedReset = try self.date("2023-11-15T01:00:00Z")
 
         #expect(snapshot.freeQuota == 100)
         #expect(snapshot.freeUsed == 39)
@@ -78,19 +91,54 @@ struct AmpUsageParserTests {
         #expect(snapshot.accountOrganization == "example")
         #expect(usage.primary?.usedPercent == 39)
         #expect(usage.primary?.windowMinutes == 1440)
-        #expect(usage.primary?.resetsAt == nil)
+        #expect(usage.primary?.resetsAt == expectedReset)
         #expect(usage.primary?.resetDescription == "resets daily")
     }
 
     @Test
-    func `parses amp subscription usage`() throws {
+    func `does not infer daily reset from percentage alone`() throws {
         let now = Date(timeIntervalSince1970: 1_700_000_000)
-        let output = """
-        Signed in as user@example.com (username)
-        Subscription Megawatt: 97% other usage and 100% orb usage remaining - resets upon renewal in 29 days
-        """
+        let snapshot = try AmpUsageParser.parse(
+            displayText: "Signed in as user@example.com\nAmp Free: 61% remaining",
+            now: now)
+        let usage = snapshot.toUsageSnapshot(now: now)
 
-        let snapshot = try AmpUsageParser.parse(displayText: output, now: now)
+        #expect(snapshot.freeUsed == 39)
+        #expect(snapshot.freeResetDescription == nil)
+        #expect(usage.primary?.resetsAt == nil)
+        #expect(usage.primary?.resetDescription == nil)
+    }
+
+    @Test
+    func `parses monthly subscription fixture and both metered pools`() throws {
+        let now = try self.date("2026-08-03T22:00:00Z")
+        let snapshot = try AmpUsageParser.parse(displayText: self.loadFixture("monthly-subscription"), now: now)
+        let usage = snapshot.toUsageSnapshot(now: now)
+
+        #expect(try snapshot.subscription == AmpSubscriptionUsage(
+            plan: "Gigawatt",
+            otherUsedPercent: 27,
+            orbUsedPercent: 9,
+            resetsAt: self.date("2026-09-03T22:00:00Z"),
+            resetDescription: "renews in 1 month"))
+        #expect(snapshot.individualCredits == 17.23)
+        #expect(snapshot.workspaceBalances == [AmpWorkspaceBalance(name: "meow", remaining: 5.33)])
+        #expect(try usage.extraRateWindows == [NamedRateWindow(
+            id: "amp-free",
+            title: "Amp Free",
+            window: RateWindow(
+                usedPercent: 39,
+                windowMinutes: 1440,
+                resetsAt: self.date("2026-08-04T00:00:00Z"),
+                resetDescription: "resets daily"))])
+        #expect(usage.primary?.usedPercent == 27)
+        #expect(usage.secondary?.usedPercent == 9)
+    }
+
+    @Test
+    func `parses day based subscription fixture`() throws {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let snapshot = try AmpUsageParser.parse(displayText: self.loadFixture("day-subscription"), now: now)
         let usage = snapshot.toUsageSnapshot(now: now)
 
         #expect(snapshot.subscription == AmpSubscriptionUsage(
@@ -106,6 +154,28 @@ struct AmpUsageParserTests {
         #expect(usage.identity?.loginMethod == "Megawatt")
         #expect(AmpProviderDescriptor.primaryLabel(snapshot: usage) == "Other usage")
         #expect(AmpProviderDescriptor.secondaryLabel(snapshot: usage) == "Orb usage")
+    }
+
+    @Test
+    func `free tier reset observes New York boundary and daylight saving time`() throws {
+        let fixture = try self.loadFixture("monthly-subscription")
+
+        let summerBefore = try self.date("2026-08-03T23:59:59Z")
+        let summerAtBoundary = try self.date("2026-08-04T00:00:00Z")
+        let winterBefore = try self.date("2026-01-16T00:59:59Z")
+        let summerReset = try self.date("2026-08-04T00:00:00Z")
+        let nextSummerReset = try self.date("2026-08-05T00:00:00Z")
+        let winterReset = try self.date("2026-01-16T01:00:00Z")
+
+        #expect(try AmpUsageParser.parse(displayText: fixture, now: summerBefore)
+            .toUsageSnapshot(now: summerBefore).extraRateWindows?.first?.window.resetsAt ==
+            summerReset)
+        #expect(try AmpUsageParser.parse(displayText: fixture, now: summerAtBoundary)
+            .toUsageSnapshot(now: summerAtBoundary).extraRateWindows?.first?.window.resetsAt ==
+            nextSummerReset)
+        #expect(try AmpUsageParser.parse(displayText: fixture, now: winterBefore)
+            .toUsageSnapshot(now: winterBefore).extraRateWindows?.first?.window.resetsAt ==
+            winterReset)
     }
 
     @Test
@@ -151,9 +221,10 @@ struct AmpUsageParserTests {
             now: now).toUsageSnapshot(now: now)
 
         let published = daily.backfillingResetTimes(from: legacy, now: now)
+        let expectedReset = try self.date("2023-11-15T01:00:00Z")
 
         #expect(legacy.primary?.resetsAt == now.addingTimeInterval(8 * 3600))
-        #expect(published.primary?.resetsAt == nil)
+        #expect(published.primary?.resetsAt == expectedReset)
         #expect(published.primary?.resetDescription == "resets daily")
     }
 

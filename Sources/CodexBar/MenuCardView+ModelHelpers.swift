@@ -239,6 +239,7 @@ extension UsageMenuCardView.Model {
                 paceOnTop: metric.paceOnTop,
                 warningMarkerPercents: metric.warningMarkerPercents,
                 workdayMarkerPercents: metric.workdayMarkerPercents,
+                workdayTickAppearance: metric.workdayTickAppearance,
                 cardStyle: metric.cardStyle,
                 sessionEquivalentDetail: metric.sessionEquivalentDetail)
         }
@@ -272,6 +273,11 @@ extension UsageMenuCardView.Model {
         if input.provider == .claude, input.snapshot?.dataConfidence == .percentOnly {
             // CLI-scraped usage carries rendered percentages only; label the reduced fidelity honestly.
             return [L("Usage via Claude CLI (limited detail)")] + subscriptionNotes
+        }
+
+        // Provider-specific by design: OpenCode Go local quota windows need an explicit authority warning.
+        if input.provider == .opencodego, input.snapshot?.dataConfidence == .estimated {
+            return [L("Quota estimated from local usage history")] + subscriptionNotes
         }
 
         if let notes = self.apiProviderUsageNotes(input: input) {
@@ -461,7 +467,7 @@ extension UsageMenuCardView.Model {
             return Color(nsColor: .labelColor)
         }
 
-        let color = branding.color
+        let color = ProviderAccentPalette.color(for: provider)
         return Color(red: color.red, green: color.green, blue: color.blue)
     }
 
@@ -478,7 +484,7 @@ extension UsageMenuCardView.Model {
         } else if input.provider == .crof {
             CrofProviderDescriptor.primaryLabel(snapshot: snapshot)
         } else if input.provider == .grok {
-            GrokProviderDescriptor.primaryLabel(window: snapshot.primary, now: input.now) ?? input.metadata.sessionLabel
+            GrokProviderDescriptor.displayLabel(window: snapshot.primary, now: input.now) ?? input.metadata.sessionLabel
         } else if input.provider == .doubao {
             DoubaoProviderDescriptor.primaryLabel(window: snapshot.primary) ?? input.metadata.sessionLabel
         } else if input.provider == .sub2api {
@@ -784,10 +790,13 @@ extension UsageMenuCardView.Model {
     static func antigravityMetrics(input: Input, snapshot: UsageSnapshot) -> [Metric] {
         let percentStyle: PercentStyle = input.usageBarsShowUsed ? .used : .left
         if Self.hasAntigravityQuotaSummaryWindows(snapshot) {
-            return Self.extraRateWindowMetrics(
+            let metrics = Self.extraRateWindowMetrics(
                 snapshot: snapshot,
                 input: input,
                 percentStyle: percentStyle)
+            guard !input.showsAllUsageLanes else { return metrics }
+            let idleIDs = AntigravityQuotaFamilyVisibility.idleWindowIDs(in: snapshot)
+            return idleIDs.isEmpty ? metrics : metrics.filter { !idleIDs.contains($0.id) }
         }
 
         var metrics: [Metric] = []

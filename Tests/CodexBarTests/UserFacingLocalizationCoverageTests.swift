@@ -63,6 +63,8 @@ struct UserFacingLocalizationCoverageTests {
             ],
             "Sources/CodexBar/PreferencesSpendDashboardPane.swift": [
                 "Text(\"Model breakdown unavailable\")",
+                "Text(\"Partial model breakdown\")",
+                "Text(\"Partial estimate\")",
             ],
             "Sources/CodexBar/PreferencesProviderSettingsRows.swift": [
                 "Text(self.title)",
@@ -126,6 +128,7 @@ struct UserFacingLocalizationCoverageTests {
             encoding: .utf8)
 
         #expect(source.contains(#"Text(L("Model breakdown unavailable"))"#))
+        #expect(source.contains(#"L("Partial model breakdown")"#))
         #expect(source.contains(#"Text(L("No model-level history"))"#))
     }
 

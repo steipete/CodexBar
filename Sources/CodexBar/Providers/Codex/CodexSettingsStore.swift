@@ -696,7 +696,8 @@ extension SettingsStore {
             cookieSource: self.codexSnapshotCookieSource(tokenOverride: tokenOverride),
             manualCookieHeader: self.codexSnapshotCookieHeader(tokenOverride: tokenOverride),
             reconciliationSnapshot: reconciliationSnapshot,
-            resolvedActiveSource: resolvedActiveSource))
+            resolvedActiveSource: resolvedActiveSource,
+            allowExternalOAuthSources: self.codexExternalOAuthSourcesAllowed))
     }
 
     private static func codexUsageDataSource(from source: ProviderSourceMode?) -> CodexUsageDataSource {

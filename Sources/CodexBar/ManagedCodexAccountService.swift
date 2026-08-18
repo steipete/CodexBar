@@ -364,7 +364,6 @@ final class ManagedCodexAccountService {
         else {
             throw ManagedCodexAccountServiceError.workspaceSelectionCancelled
         }
-        try self.persistSelectedWorkspaceID(selected.workspaceAccountID, homePath: homePath)
         return selected
     }
 
@@ -376,21 +375,6 @@ final class ManagedCodexAccountService {
         return await self.workspaceResolver.resolveWorkspaceIdentity(
             homePath: homePath,
             providerAccountID: providerAccountID)
-    }
-
-    private func persistSelectedWorkspaceID(_ workspaceID: String, homePath: String) throws {
-        let env = CodexHomeScope.scopedEnvironment(
-            base: ProcessInfo.processInfo.environment,
-            codexHome: homePath)
-        let credentials = try CodexOAuthCredentialsStore.load(env: env)
-        try CodexOAuthCredentialsStore.save(
-            CodexOAuthCredentials(
-                accessToken: credentials.accessToken,
-                refreshToken: credentials.refreshToken,
-                idToken: credentials.idToken,
-                accountId: workspaceID,
-                lastRefresh: credentials.lastRefresh),
-            env: env)
     }
 
     private func reconciledExistingAccount(

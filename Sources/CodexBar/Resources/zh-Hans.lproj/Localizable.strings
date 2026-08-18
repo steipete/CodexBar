@@ -1,7 +1,15 @@
 /* Chinese (Simplified) localization for CodexBar */
 
 /* iCloud Sync */
+"+ %d more" = "还有 %d 个";
+"Conversations (%@)" = "会话（%@）";
+"Fast" = "高速";
 "iCloud Sync" = "iCloud Sync";
+"Projects" = "项目";
+"Session %@" = "会话 %@";
+"Std" = "标准";
+"Show all (%d)" = "显示全部（%d）";
+"Show less" = "收起";
 "Sync settings and providers across your Macs via iCloud" = "Sync settings and providers across your Macs via iCloud";
 "Include API keys, cookies, and tokens" = "Include API keys, cookies, and tokens";
 "Sync usage snapshots" = "Sync usage snapshots";
@@ -51,6 +59,7 @@
 "(System)" = "（System）";
 "30d" = "30 天";
 "7d" = "7 天";
+"90d" = "90 天";
 "A managed Codex login is already running. Wait for it to finish before adding " = "托管 Codex 登录已在运行。请等待其完成后再添加 ";
 "API key" = "API 密钥";
 "API key limit" = "API 密钥限制";
@@ -303,7 +312,7 @@
 "Quit CodexBar" = "退出 CodexBar";
 "Random (default)" = "随机（默认）";
 "Reads local usage logs. Shows today + last 30 days cost in the menu." = "读取本地用量日志。在菜单中显示今天及所选历史窗口的费用。";
-"Runs automatic provider, local usage, and storage refreshes no more often than every 30 minutes. Manual refresh remains available." = "自动供应商刷新、本地用量扫描和存储扫描最多每 30 分钟运行一次；仍可随时手动刷新。";
+"When on, runs automatic provider, local usage, and storage refreshes no more often than every 30 minutes. Manual refresh remains available. Automatic follows the system Low Power Mode setting." = "开启后，自动供应商刷新、本地用量扫描和存储扫描最多每 30 分钟运行一次；仍可随时手动刷新。选择“自动”时将跟随系统的低电量模式设置。";
 "Refresh" = "刷新";
 "Refreshing" = "正在刷新";
 "Refresh cadence" = "刷新频率";
@@ -507,6 +516,10 @@
 "quota_depleted_title" = "配额耗尽与恢复";
 "quota_warning_notifications_subtitle" = "当会话或每周剩余配额低于设置的阈值时提醒。";
 "threshold_warnings_title" = "阈值预警";
+"provider_accent_color_title" = "强调色";
+"provider_accent_color_footer" = "设置该提供商的用量条、图表和切换标签的颜色。";
+"provider_accent_color_hex_label" = "十六进制颜色值";
+"provider_accent_color_reset" = "使用默认值";
 "quota_warnings_title" = "配额预警";
 "quota_warning_session" = "会话";
 "quota_warning_session_capitalized" = "会话";
@@ -629,6 +642,15 @@
 "keychain_access_caption" = "禁用所有钥匙串读写。浏览器 Cookie 导入不可用；请在“提供商”中手动粘贴 Cookie 标头。";
 "disable_keychain_access_title" = "禁用钥匙串访问";
 "disable_keychain_access_subtitle" = "启用时阻止任何钥匙串访问。";
+"Re-authenticate" = "重新认证";
+"kiro_reauthenticate_title" = "Kiro CLI 登录";
+"kiro_reauthenticate_subtitle" = "会在会话过期时运行“kiro-cli login”以续期。";
+"Kiro CLI not found" = "未找到 Kiro CLI";
+"Install kiro-cli and try again." = "请安装 kiro-cli，然后重试。";
+"Could not start kiro-cli login" = "无法启动 kiro-cli login";
+"Kiro login timed out" = "Kiro 登录超时";
+"kiro-cli login exited with status %d." = "kiro-cli login 已退出，状态为 %d。";
+"Kiro login failed" = "Kiro 登录失败";
 "about_tagline" = "愿你的 token 永不耗尽——随时关注智能体额度。";
 "link_github" = "GitHub";
 "link_website" = "网站";
@@ -968,6 +990,11 @@
 "%d unreadable item(s) skipped" = "已跳过 %d 个不可读项目";
 "weekly_progress_work_days_title" = "工作日刻度线";
 "weekly_progress_work_days_subtitle" = "设置用于每周用量条刻度和进度计算的工作日。";
+"workday_tick_appearance_title" = "工作日刻度外观";
+"workday_tick_appearance_subtitle" = "选择工作日边界在每周用量条上的显示方式。";
+"workday_tick_appearance_hidden" = "隐藏";
+"workday_tick_appearance_subtle" = "柔和";
+"workday_tick_appearance_high_contrast" = "高对比度";
 "copilot_device_code" = "设备代码已复制到剪贴板：%1$@\n\n请在以下地址验证：%2$@";
 "copilot_waiting_text" = "请在浏览器中完成登录。\n登录完成后，此窗口会自动关闭。";
 "vertex_ai_login_instructions" = "要跟踪 Vertex AI 用量，请通过 Google Cloud 进行认证。\n\n1. 打开终端\n2. 运行：gcloud auth application-default login\n3. 按照浏览器提示登录\n4. 设置你的项目：gcloud config set project PROJECT_ID\n\n是否现在打开终端？";
@@ -1269,6 +1296,9 @@
 "Native currencies stay separate; Codex account rows exclude Pi session history." = "各原始币种保持分开；Codex 帐户行不包含 Pi 会话历史。";
 "Spend unavailable" = "支出数据不可用";
 "Model breakdown unavailable" = "模型明细不可用";
+"Partial estimate" = "部分估算";
+"Partial model breakdown" = "部分模型明细";
+"%d of %d subscriptions have spend" = "%d / %d 个订阅有支出数据";
 "Local estimated history" = "本地估算历史";
 "Coverage" = "覆盖范围";
 "Estimated spend" = "估算支出";
@@ -1277,6 +1307,26 @@
 "By subscription" = "按订阅";
 "No model-level history" = "暂无模型级历史";
 "Daily estimated spend" = "每日估算支出";
+"Input" = "输入";
+"Output" = "输出";
+"Cache write" = "缓存写入";
+"Reasoning" = "推理";
+"Sessions" = "会话";
+"Projects" = "项目";
+"Plan metered" = "套餐计量";
+"List-price equivalent" = "目录价等值";
+"Metered and list-price" = "计量与目录价";
+"List-price equivalent — not a billing receipt." = "目录价等值，不是账单。";
+"Priced" = "已定价";
+"Unpriced" = "未定价";
+"Unmetered" = "未计量";
+"Estimated" = "估算";
+"Other models" = "其他模型";
+"Include OpenCodex usage logs" = "纳入 OpenCodex 用量日志";
+"Hide native Codex when OpenCodex is present" = "存在 OpenCodex 时隐藏原生 Codex";
+"Export JSON" = "导出 JSON";
+"Sources" = "来源";
+"OpenCodex" = "OpenCodex";
 "≈%d full 5h windows of weekly left · %d windows until reset" = "每周额度约剩 %d 个完整 5 小时窗口 · 距重置还有 %d 个窗口";
 "Weekly cannot run out before reset at this pace" = "按此速度，每周额度无法在重置前用完";
 "Weekly can run out ≈%d windows early" = "每周额度可能提前约 %d 个窗口用完";
@@ -1411,3 +1461,5 @@
 "5-hour usage" = "5 小时用量";
 "7-day usage" = "7 天用量";
 "Total usage" = "总用量";
+"claude_oauth_keychain_access_revoked" = "Claude Code 轮换令牌后撤销了对 Claude 钥匙串的访问权限。点击“刷新”以重新授权，或将 Claude 用量来源切换为 CLI/Web。";
+"claude_showing_last_known_usage" = "正在显示 %@ 采集的最后已知用量。";

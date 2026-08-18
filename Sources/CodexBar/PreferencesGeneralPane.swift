@@ -178,13 +178,18 @@ struct GeneralPane: View {
 
                 Toggle(L("refresh_on_open_title"), isOn: self.$settings.refreshAllProvidersOnMenuOpen)
 
-                Toggle(isOn: self.$settings.backgroundWorkLowPowerModeEnabled) {
-                    SettingsRowLabel(
-                        L("Low Power Mode"),
-                        subtitle: L(
-                            "Runs automatic provider, local usage, and storage refreshes no more often than every " +
-                                "30 minutes. Manual refresh remains available."))
-                }
+                SettingsMenuPicker(
+                    selection: self.$settings.backgroundWorkLowPowerModePreference,
+                    options: GeneralSettingsMenuOptions.lowPowerModePreferences,
+                    label: {
+                        SettingsRowLabel(
+                            L("Low Power Mode"),
+                            subtitle: L(
+                                "When on, runs automatic provider, local usage, and storage refreshes no more " +
+                                    "often than every 30 minutes. Manual refresh remains available. Automatic " +
+                                    "follows the system Low Power Mode setting."))
+                    },
+                    optionLabel: { option in Text(option.label) })
 
                 Toggle(isOn: self.$settings.statusChecksEnabled) {
                     SettingsRowLabel(
@@ -205,13 +210,11 @@ struct GeneralPane: View {
                 }
             } header: {
                 Text(L("section_keyboard_shortcut"))
-            }
-
-            Section {
-                HStack {
-                    Spacer()
-                    Button(L("quit_app")) { NSApp.terminate(nil) }
-                }
+            } footer: {
+                Button(L("quit_app")) { NSApp.terminate(nil) }
+                    .buttonStyle(.borderedProminent)
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+                    .padding(.top, 8)
             }
         }
         .formStyle(.grouped)

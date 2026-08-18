@@ -146,6 +146,24 @@ struct OpenCodeGoProviderStrategyTests {
     }
 
     @Test
+    func `web strategy surfaces authentication failures for selected token accounts`() {
+        let strategy = OpenCodeGoUsageFetchStrategy()
+        let settings = ProviderSettingsSnapshot.make(opencodego: .init(
+            cookieSource: .manual,
+            manualCookieHeader: "auth=selected",
+            workspaceID: nil))
+        let manualContext = self.makeContext(settings: settings)
+        let selectedAccountContext = self.makeContext(selectedTokenAccountID: UUID())
+
+        #expect(!strategy.shouldFallback(on: OpenCodeGoSettingsError.invalidCookie, context: manualContext))
+        #expect(!strategy.shouldFallback(on: OpenCodeGoUsageError.invalidCredentials, context: manualContext))
+        #expect(!strategy.shouldFallback(on: OpenCodeGoSettingsError.missingCookie, context: selectedAccountContext))
+        #expect(!strategy.shouldFallback(
+            on: OpenCodeGoUsageError.invalidCredentials,
+            context: selectedAccountContext))
+    }
+
+    @Test
     func `web strategy waits for zen balance only on usage completeness reads`() {
         #expect(!OpenCodeGoUsageFetchStrategy.shouldWaitForZenBalance(
             context: self.makeContext(runtime: .app)))

@@ -314,4 +314,21 @@ extension HistoricalUsagePaceTests {
             suite: suite,
             historicalUsageHistoryStore: HistoricalUsageHistoryStore(fileURL: historyFileURL))
     }
+
+    @MainActor
+    static func makeStoreAndControllerForMenuBarPaceTests(
+        suite: String) throws -> (UsageStore, StatusItemController)
+    {
+        let store = try self.makeUsageStoreForBackfillTests(
+            suite: suite,
+            historyFileURL: self.makeTempURL())
+        let controller = StatusItemController(
+            store: store,
+            settings: store.settings,
+            account: AccountInfo(email: nil, plan: nil),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: testStatusBar())
+        return (store, controller)
+    }
 }

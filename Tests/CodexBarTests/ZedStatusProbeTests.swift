@@ -1,6 +1,6 @@
-import CodexBarCore
 import Foundation
 import Testing
+@testable import CodexBarCore
 
 struct ZedStatusProbeTests {
     private struct StubCredentialsReader: ZedCredentialsReading {
@@ -311,4 +311,15 @@ struct ZedStatusProbeTests {
             _ = try await probe.fetch()
         }
     }
+
+    #if os(macOS)
+    @Test
+    func `keychain reader fails closed at the foreign item boundary`() {
+        _ = KeychainAccessGate.withTaskOverrideForTesting(true) {
+            #expect(throws: ZedStatusProbeError.keychainUnavailable) {
+                try ZedKeychainCredentialsReader().loadCredentials(serviceURL: "https://zed.dev")
+            }
+        }
+    }
+    #endif
 }

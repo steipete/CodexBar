@@ -500,7 +500,8 @@ struct CursorUsageEventsFetcher: Sendable {
         var outputTokens: Int? = 0
         var cacheReadTokens: Int? = 0
         var cacheCreationTokens: Int? = 0
-        var costUSD: Double? = 0
+        var costUSD: Double?
+        var costInvalid = false
         var requestCount: Int? = 0
 
         mutating func add(_ usage: CursorEventTokenUsage) {
@@ -508,7 +509,10 @@ struct CursorUsageEventsFetcher: Sendable {
             self.outputTokens = Self.checkedSum(self.outputTokens, usage.outputTokens)
             self.cacheReadTokens = Self.checkedSum(self.cacheReadTokens, usage.cacheReadTokens)
             self.cacheCreationTokens = Self.checkedSum(self.cacheCreationTokens, usage.cacheWriteTokens)
-            self.costUSD = Self.checkedCostSum(self.costUSD, usage.totalCents)
+            self.costUSD = Self.checkedKnownCostSum(
+                self.costUSD,
+                usage.totalCents,
+                alreadyInvalid: &self.costInvalid)
             self.requestCount = Self.checkedSum(self.requestCount, 1)
         }
 
@@ -534,10 +538,25 @@ struct CursorUsageEventsFetcher: Sendable {
             }
         }
 
-        static func checkedCostSum(_ lhsUSD: Double?, _ rhsCents: Double?) -> Double? {
-            guard let lhsUSD, let rhsCents, rhsCents >= 0 else { return nil }
-            let sum = lhsUSD + rhsCents / 100.0
-            return sum.isFinite ? sum : nil
+        static func checkedKnownCostSum(
+            _ lhsUSD: Double?,
+            _ rhsCents: Double?,
+            alreadyInvalid: inout Bool) -> Double?
+        {
+            if alreadyInvalid {
+                return nil
+            }
+            guard let rhsCents else { return lhsUSD }
+            guard rhsCents >= 0, rhsCents.isFinite else {
+                alreadyInvalid = true
+                return nil
+            }
+            let sum = (lhsUSD ?? 0) + rhsCents / 100.0
+            guard sum.isFinite else {
+                alreadyInvalid = true
+                return nil
+            }
+            return sum
         }
     }
 
@@ -547,7 +566,7 @@ struct CursorUsageEventsFetcher: Sendable {
         var cacheReadTokens: Int? = 0
         var cacheCreationTokens: Int? = 0
         var requestCount: Int? = 0
-        var costUSD: Double? = 0
+        var costUSD: Double?
         var breakdowns: [CostUsageDailyReport.ModelBreakdown] = []
 
         for (model, accumulator) in models {
@@ -556,7 +575,7 @@ struct CursorUsageEventsFetcher: Sendable {
             cacheReadTokens = ModelAccumulator.checkedSum([cacheReadTokens, accumulator.cacheReadTokens])
             cacheCreationTokens = ModelAccumulator.checkedSum([cacheCreationTokens, accumulator.cacheCreationTokens])
             requestCount = ModelAccumulator.checkedSum([requestCount, accumulator.requestCount])
-            costUSD = Self.checkedUSDTotal(costUSD, accumulator.costUSD)
+            costUSD = Self.checkedKnownUSDTotal(costUSD, accumulator.costUSD)
             breakdowns.append(CostUsageDailyReport.ModelBreakdown(
                 modelName: model,
                 costUSD: accumulator.costUSD,
@@ -588,14 +607,14 @@ struct CursorUsageEventsFetcher: Sendable {
         var totalCacheRead: Int? = 0
         var totalCacheCreation: Int? = 0
         var totalTokens: Int? = 0
-        var totalCost: Double? = 0
+        var totalCost: Double? = entries.isEmpty ? 0 : nil
         for entry in entries {
             totalInput = ModelAccumulator.checkedSum([totalInput, entry.inputTokens])
             totalOutput = ModelAccumulator.checkedSum([totalOutput, entry.outputTokens])
             totalCacheRead = ModelAccumulator.checkedSum([totalCacheRead, entry.cacheReadTokens])
             totalCacheCreation = ModelAccumulator.checkedSum([totalCacheCreation, entry.cacheCreationTokens])
             totalTokens = ModelAccumulator.checkedSum([totalTokens, entry.totalTokens])
-            totalCost = Self.checkedUSDTotal(totalCost, entry.costUSD)
+            totalCost = Self.checkedKnownUSDTotal(totalCost, entry.costUSD)
         }
         return CostUsageDailyReport.Summary(
             totalInputTokens: totalInput,
@@ -606,10 +625,18 @@ struct CursorUsageEventsFetcher: Sendable {
             totalCostUSD: totalCost)
     }
 
-    private static func checkedUSDTotal(_ lhs: Double?, _ rhs: Double?) -> Double? {
-        guard let lhs, let rhs else { return nil }
-        let sum = lhs + rhs
-        return sum.isFinite ? sum : nil
+    private static func checkedKnownUSDTotal(_ lhs: Double?, _ rhs: Double?) -> Double? {
+        switch (lhs, rhs) {
+        case let (left?, right?):
+            let sum = left + right
+            return sum.isFinite ? sum : nil
+        case let (left?, nil):
+            return left
+        case let (nil, right?):
+            return right
+        case (nil, nil):
+            return nil
+        }
     }
 
     private static func sortedBreakdowns(

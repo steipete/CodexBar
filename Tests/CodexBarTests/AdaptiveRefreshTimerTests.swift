@@ -215,7 +215,7 @@ struct AdaptiveRefreshTimerTests {
         let settings = Self.makeSettingsStore(
             suite: "AdaptiveRefreshTimerTests-fixed-global-low-power",
             frequency: .fiveMinutes)
-        settings.backgroundWorkLowPowerModeEnabled = true
+        settings.backgroundWorkLowPowerModePreference = .on
         let store = Self.makeUsageStore(settings: settings, startupBehavior: .testing)
 
         store.restartTimerWithSleepOverrideForTesting(.seconds(10))
@@ -230,7 +230,7 @@ struct AdaptiveRefreshTimerTests {
         let settings = Self.makeSettingsStore(
             suite: "AdaptiveRefreshTimerTests-adaptive-global-low-power",
             frequency: .adaptive)
-        settings.backgroundWorkLowPowerModeEnabled = true
+        settings.backgroundWorkLowPowerModePreference = .on
         let store = Self.makeUsageStore(settings: settings, startupBehavior: .testing)
         let now = Date()
         store.noteMenuOpened(at: now.addingTimeInterval(-10 * 60))

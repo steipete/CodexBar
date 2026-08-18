@@ -1,7 +1,15 @@
 /* Italian localization for CodexBar */
 
 /* iCloud Sync */
+"+ %d more" = "+ altri %d";
+"Conversations (%@)" = "Conversazioni (%@)";
+"Fast" = "Veloce";
 "iCloud Sync" = "Sincronizzazione iCloud";
+"Projects" = "Progetti";
+"Session %@" = "Sessione %@";
+"Std" = "Std.";
+"Show all (%d)" = "Mostra tutto (%d)";
+"Show less" = "Mostra meno";
 "Sync settings and providers across your Macs via iCloud" = "Sincronizza impostazioni e provider sui tuoi Mac tramite iCloud";
 "Include API keys, cookies, and tokens" = "Includi chiavi API, cookie e token";
 "Sync usage snapshots" = "Sincronizza istantanee di utilizzo";
@@ -487,6 +495,10 @@
 "quota_depleted_title" = "Quota esaurita e ripristinata";
 "quota_warning_notifications_subtitle" = "Avvisa quando la quota residua di sessione o settimanale scende sotto le soglie configurate.";
 "threshold_warnings_title" = "Avvisi di soglia";
+"provider_accent_color_title" = "Colore accento";
+"provider_accent_color_footer" = "Imposta il colore delle barre di utilizzo, dei grafici e della scheda del selettore di questo provider.";
+"provider_accent_color_hex_label" = "Valore colore esadecimale";
+"provider_accent_color_reset" = "Usa predefinito";
 "quota_warnings_title" = "Avvisi quota";
 "quota_warning_session" = "sessione";
 "quota_warning_session_capitalized" = "Sessione";
@@ -615,6 +627,11 @@
 "show_quota_warning_markers_subtitle" = "Disegna tacche soglia sulle barre quando gli avvisi quota sono configurati.";
 "weekly_progress_work_days_title" = "Giorni lavorativi progresso settimanale";
 "weekly_progress_work_days_subtitle" = "Disegna i confini giornalieri sulle barre settimanali.";
+"workday_tick_appearance_title" = "Aspetto delle tacche dei giorni lavorativi";
+"workday_tick_appearance_subtitle" = "Scegli come mostrare i confini dei giorni lavorativi nelle barre di utilizzo settimanale.";
+"workday_tick_appearance_hidden" = "Nascoste";
+"workday_tick_appearance_subtle" = "Discrete";
+"workday_tick_appearance_high_contrast" = "Contrasto elevato";
 "show_provider_changelog_links_title" = "Mostra link changelog provider";
 "show_provider_changelog_links_subtitle" = "Aggiunge link alle note di rilascio per i provider CLI supportati.";
 "show_credits_extra_usage_title" = "Mostra crediti + uso extra";
@@ -660,6 +677,15 @@
 "keychain_access_caption" = "Disattiva tutte le letture e scritture del Portachiavi. Usalo se macOS continua a chiedere accesso a 'Chrome/Brave/Edge Safe Storage' anche dopo aver scelto Consenti sempre. Quando è attivo, l'importazione dei cookie dal browser non è disponibile; incolla manualmente gli header Cookie in Provider. L'OAuth di Claude/Codex tramite CLI continua a funzionare.";
 "disable_keychain_access_title" = "Disattiva accesso Portachiavi";
 "disable_keychain_access_subtitle" = "Impedisce qualsiasi accesso al Portachiavi quando attivo.";
+"Re-authenticate" = "Ripeti l’autenticazione";
+"kiro_reauthenticate_title" = "Accesso a Kiro CLI";
+"kiro_reauthenticate_subtitle" = "Esegue “kiro-cli login” per rinnovare la sessione quando è scaduta.";
+"Kiro CLI not found" = "Kiro CLI non trovato";
+"Install kiro-cli and try again." = "Installa kiro-cli e riprova.";
+"Could not start kiro-cli login" = "Impossibile avviare kiro-cli login";
+"Kiro login timed out" = "Tempo scaduto per l’accesso a Kiro";
+"kiro-cli login exited with status %d." = "kiro-cli login è terminato con stato %d.";
+"Kiro login failed" = "Accesso a Kiro non riuscito";
 
 /* About Pane */
 "about_tagline" = "Che i tuoi token non finiscano mai: tieni sempre sotto controllo i limiti degli agenti.";
@@ -1294,6 +1320,9 @@
 "Native currencies stay separate; Codex account rows exclude Pi session history." = "Le valute originali rimangono separate; le righe degli account Codex escludono la cronologia delle sessioni Pi.";
 "Spend unavailable" = "Spesa non disponibile";
 "Model breakdown unavailable" = "Ripartizione per modello non disponibile";
+"Partial estimate" = "Stima parziale";
+"Partial model breakdown" = "Dettaglio modelli parziale";
+"%d of %d subscriptions have spend" = "%d di %d abbonamenti hanno spese";
 "Local estimated history" = "Cronologia locale stimata";
 "Coverage" = "Copertura";
 "Estimated spend" = "Spesa stimata";
@@ -1436,3 +1465,27 @@
 "5-hour usage" = "Utilizzo di 5 ore";
 "7-day usage" = "Utilizzo di 7 giorni";
 "Total usage" = "Utilizzo totale";
+"claude_oauth_keychain_access_revoked" = "L'accesso al portachiavi di Claude è stato revocato dalla rotazione del token di Claude Code. Fai clic su Aggiorna per concedere nuovamente l'accesso oppure imposta la fonte di utilizzo di Claude su CLI/Web.";
+"claude_showing_last_known_usage" = "Visualizzazione dell'ultimo utilizzo noto, acquisito %@.";
+/* Spend dashboard cost analysis */
+"90d" = "90 g";
+"Input" = "Ingresso";
+"Output" = "Uscita";
+"Cache write" = "Scrittura cache";
+"Reasoning" = "Ragionamento";
+"Sessions" = "Sessioni";
+"Projects" = "Progetti";
+"Plan metered" = "Piano misurato";
+"List-price equivalent" = "Equivalente a listino";
+"Metered and list-price" = "Misurato e a listino";
+"List-price equivalent — not a billing receipt." = "Equivalente a listino — non è una fattura.";
+"Priced" = "Prezzati";
+"Unpriced" = "Non prezzati";
+"Unmetered" = "Non misurati";
+"Estimated" = "Stimati";
+"Other models" = "Altri modelli";
+"Include OpenCodex usage logs" = "Includi i log di utilizzo OpenCodex";
+"Hide native Codex when OpenCodex is present" = "Nascondi Codex nativo quando è presente OpenCodex";
+"Export JSON" = "Esporta JSON";
+"Sources" = "Origini";
+"OpenCodex" = "OpenCodex";

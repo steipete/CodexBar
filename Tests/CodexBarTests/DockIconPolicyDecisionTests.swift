@@ -5,11 +5,67 @@ struct DockIconPolicyDecisionTests {
     @Test
     func `settings window requires regular activation policy`() {
         let settings = self.window(identifier: "com_apple_SwiftUI_Settings_window")
+        let ownedSettings = self.window(identifier: SettingsWindowIdentity.identifier)
         let hostedSettings = self.window(identifier: "future-settings-identifier", isKnownSettingsWindow: true)
+        let miniaturizedSettings = self.window(isVisible: false, isMiniaturized: true, isKnownSettingsWindow: true)
 
         #expect(DockIconPolicyDecision.shouldUseRegularActivationPolicy(windows: [settings]))
+        #expect(DockIconPolicyDecision.shouldUseRegularActivationPolicy(windows: [ownedSettings]))
+        #expect(DockIconPolicyDecision.shouldUseRegularActivationPolicy(windows: [miniaturizedSettings]))
         #expect(DockIconPolicyDecision.shouldPromoteForPresentedWindow(settings))
         #expect(DockIconPolicyDecision.shouldPromoteForPresentedWindow(hostedSettings))
+    }
+
+    @Test
+    func `presentation attempt waits resolves or times out deterministically`() {
+        #expect(DockIconPresentationAttemptDecision.resolve(
+            isAwaiting: false,
+            hasPresentedWindow: false,
+            deadlineExpired: true) == .inactive)
+        #expect(DockIconPresentationAttemptDecision.resolve(
+            isAwaiting: true,
+            hasPresentedWindow: false,
+            deadlineExpired: false) == .awaiting)
+        #expect(DockIconPresentationAttemptDecision.resolve(
+            isAwaiting: true,
+            hasPresentedWindow: true,
+            deadlineExpired: false) == .presented)
+        #expect(DockIconPresentationAttemptDecision.resolve(
+            isAwaiting: true,
+            hasPresentedWindow: false,
+            deadlineExpired: true) == .timedOut)
+    }
+
+    @Test
+    func `presentation attempt completion only resolves its own generation`() {
+        var tracker = DockIconPresentationAttemptTracker()
+        let first = tracker.begin()
+        let second = tracker.begin()
+
+        let staleFinished = tracker.finish(first)
+        #expect(!staleFinished)
+        #expect(tracker.isAwaiting)
+        let activeFinished = tracker.finish(second)
+        #expect(activeFinished)
+        #expect(!tracker.isAwaiting)
+    }
+
+    @Test
+    func `presentation attempt watchdog ignores stale deadlines and resolves the active deadline`() {
+        var tracker = DockIconPresentationAttemptTracker()
+        let stale = tracker.begin()
+        let active = tracker.begin()
+
+        let staleDecision = tracker.resolve(
+            hasPresentedWindow: false,
+            deadlineExpiredFor: stale)
+        #expect(staleDecision == .awaiting)
+        #expect(tracker.isAwaiting)
+        let activeDecision = tracker.resolve(
+            hasPresentedWindow: false,
+            deadlineExpiredFor: active)
+        #expect(activeDecision == .timedOut)
+        #expect(!tracker.isAwaiting)
     }
 
     @Test
@@ -37,13 +93,7 @@ struct DockIconPolicyDecisionTests {
     }
 
     @Test
-    func `ignored windows allow accessory activation policy`() {
-        let keepalive = self.window(
-            identifier: "CodexBarLifecycleKeepalive",
-            title: "CodexBarLifecycleKeepalive",
-            width: 1,
-            height: 1,
-            canBecomeKey: false)
+    func `status bar and non-key windows allow accessory activation policy`() {
         let statusBar = self.window(
             classNames: ["NSStatusBarWindow"],
             width: 300,
@@ -53,7 +103,7 @@ struct DockIconPolicyDecisionTests {
             canBecomeKey: false)
 
         #expect(!DockIconPolicyDecision.shouldUseRegularActivationPolicy(
-            windows: [keepalive, statusBar, borderlessPanel]))
+            windows: [statusBar, borderlessPanel]))
     }
 
     @Test

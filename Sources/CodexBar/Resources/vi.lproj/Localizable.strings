@@ -1,7 +1,15 @@
 /* English localization for CodexBar (base/fallback) */
 
 /* iCloud Sync */
+"+ %d more" = "+ %d nữa";
+"Conversations (%@)" = "Cuộc trò chuyện (%@)";
+"Fast" = "Nhanh";
 "iCloud Sync" = "iCloud Sync";
+"Projects" = "Dự án";
+"Session %@" = "Phiên %@";
+"Std" = "Std";
+"Show all (%d)" = "Hiện tất cả (%d)";
+"Show less" = "Thu gọn";
 "Sync settings and providers across your Macs via iCloud" = "Sync settings and providers across your Macs via iCloud";
 "Include API keys, cookies, and tokens" = "Include API keys, cookies, and tokens";
 "Sync usage snapshots" = "Sync usage snapshots";
@@ -496,6 +504,10 @@
 "quota_depleted_title" = "Hạn mức đã cạn & được khôi phục";
 "quota_warning_notifications_subtitle" = "Cảnh báo khi phiên hoặc Hạn mức còn lại hàng tuần vượt qua ngưỡng được định cấu hình.";
 "threshold_warnings_title" = "Cảnh báo ngưỡng";
+"provider_accent_color_title" = "Màu nhấn";
+"provider_accent_color_footer" = "Đặt màu cho thanh mức dùng, biểu đồ và thẻ chuyển đổi của nhà cung cấp này.";
+"provider_accent_color_hex_label" = "Giá trị màu thập lục phân";
+"provider_accent_color_reset" = "Dùng mặc định";
 "quota_warnings_title" = "Hạn mức cảnh báo";
 "quota_warning_session" = "phiên";
 "quota_warning_session_capitalized" = "Phiên";
@@ -603,6 +615,11 @@
 "show_quota_warning_markers_subtitle" = "Vẽ dấu kiểm ngưỡng trên thanh Mức sử dụng khi cảnh báo Hạn mức được định cấu hình.";
 "weekly_progress_work_days_title" = "Tiến độ ngày làm việc hàng tuần";
 "weekly_progress_work_days_subtitle" = "Đặt ngày làm việc cho các vạch trên thanh sử dụng hằng tuần và phép tính nhịp độ.";
+"workday_tick_appearance_title" = "Kiểu vạch ngày làm việc";
+"workday_tick_appearance_subtitle" = "Chọn cách hiển thị ranh giới ngày làm việc trên thanh sử dụng hằng tuần.";
+"workday_tick_appearance_hidden" = "Ẩn";
+"workday_tick_appearance_subtle" = "Nhẹ";
+"workday_tick_appearance_high_contrast" = "Tương phản cao";
 "show_provider_changelog_links_title" = "Hiển thị Nhà cung cấp liên kết nhật ký thay đổi";
 "show_provider_changelog_links_subtitle" = "Thêm liên kết ghi chú phát hành cho các nhà cung cấp được hỗ trợ CLI vào menu.";
 "show_credits_extra_usage_title" = "Hiển thị tín dụng + phần Mức sử dụng";
@@ -648,6 +665,15 @@
 "keychain_access_caption" = "Tắt tất cả Keychain đọc và ghi. Hãy sử dụng tùy chọn này nếu macOS liên tục nhắc về ' Chrome /Brave/Edge Safe Storage' ngay cả sau khi nhấp vào Luôn cho phép. Nhập cookie trình duyệt không khả dụng khi được bật; dán tiêu đề Cookie theo cách thủ công vào Nhà cung cấp. Claude /Codex OAuth thông qua CLI vẫn hoạt động.";
 "disable_keychain_access_title" = "Vô hiệu hóa quyền truy cập Keychain";
 "disable_keychain_access_subtitle" = "Ngăn chặn mọi quyền truy cập Keychain khi được bật.";
+"Re-authenticate" = "Xác thực lại";
+"kiro_reauthenticate_title" = "Đăng nhập Kiro CLI";
+"kiro_reauthenticate_subtitle" = "Chạy “kiro-cli login” để gia hạn phiên khi phiên hết hạn.";
+"Kiro CLI not found" = "Không tìm thấy Kiro CLI";
+"Install kiro-cli and try again." = "Hãy cài đặt kiro-cli rồi thử lại.";
+"Could not start kiro-cli login" = "Không thể bắt đầu kiro-cli login";
+"Kiro login timed out" = "Đăng nhập Kiro đã hết thời gian chờ";
+"kiro-cli login exited with status %d." = "kiro-cli login đã thoát với trạng thái %d.";
+"Kiro login failed" = "Đăng nhập Kiro thất bại";
 
 /* About Pane */
 "about_tagline" = "Cầu mong mã thông báo của bạn không bao giờ hết—giữ giới hạn đại lý trong tầm mắt.";
@@ -1291,6 +1317,9 @@
 "Native currencies stay separate; Codex account rows exclude Pi session history." = "Đơn vị tiền tệ gốc được giữ riêng biệt; các hàng tài khoản Codex không bao gồm lịch sử phiên Pi.";
 "Spend unavailable" = "Không có dữ liệu chi tiêu";
 "Model breakdown unavailable" = "Phân tích theo mô hình không khả dụng";
+"Partial estimate" = "Ước tính một phần";
+"Partial model breakdown" = "Phân tách mô hình một phần";
+"%d of %d subscriptions have spend" = "%d / %d gói đăng ký có chi tiêu";
 "Local estimated history" = "Lịch sử ước tính cục bộ";
 "Coverage" = "Phạm vi";
 "Estimated spend" = "Chi tiêu ước tính";
@@ -1433,3 +1462,27 @@
 "5-hour usage" = "Mức sử dụng 5 giờ";
 "7-day usage" = "Mức sử dụng 7 ngày";
 "Total usage" = "Tổng mức sử dụng";
+"claude_oauth_keychain_access_revoked" = "Quyền truy cập Chuỗi khóa Claude đã bị thu hồi do Claude Code xoay vòng mã thông báo. Nhấp vào Làm mới để cấp lại quyền truy cập hoặc chuyển nguồn sử dụng Claude sang CLI/Web.";
+"claude_showing_last_known_usage" = "Đang hiển thị mức sử dụng đã biết gần nhất, được ghi nhận %@.";
+/* Spend dashboard cost analysis */
+"90d" = "90d";
+"Input" = "Input";
+"Output" = "Output";
+"Cache write" = "Cache write";
+"Reasoning" = "Reasoning";
+"Sessions" = "Sessions";
+"Projects" = "Projects";
+"Plan metered" = "Plan metered";
+"List-price equivalent" = "List-price equivalent";
+"Metered and list-price" = "Metered and list-price";
+"List-price equivalent — not a billing receipt." = "List-price equivalent — not a billing receipt.";
+"Priced" = "Priced";
+"Unpriced" = "Unpriced";
+"Unmetered" = "Unmetered";
+"Estimated" = "Estimated";
+"Other models" = "Other models";
+"Include OpenCodex usage logs" = "Include OpenCodex usage logs";
+"Hide native Codex when OpenCodex is present" = "Hide native Codex when OpenCodex is present";
+"Export JSON" = "Export JSON";
+"Sources" = "Sources";
+"OpenCodex" = "OpenCodex";

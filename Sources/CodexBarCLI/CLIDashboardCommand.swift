@@ -348,6 +348,26 @@ extension CodexBarCLI {
         }
     }
 
+    /// True when the caller passed `--identity` explicitly. `serve` uses this to tell an
+    /// explicit choice apart from the absent flag, which follows the app's privacy setting.
+    static func dashboardIdentityFlagPresent(in values: ParsedValues) -> Bool {
+        values.options["identity"]?.last != nil
+    }
+
+    /// Identity detail for one dashboard snapshot request. An explicit `--identity` wins,
+    /// so a scripted client keeps the mode it asked for. Without the flag the app's
+    /// "Hide personal information" toggle decides, which keeps the serve dashboard in step
+    /// with the menu UI.
+    static func resolveDashboardIdentityMode(
+        configured: DashboardIdentityMode?,
+        hidesPersonalInfo: Bool) -> DashboardIdentityMode
+    {
+        if let configured {
+            return configured
+        }
+        return hidesPersonalInfo ? .redacted : .full
+    }
+
     static func decodeDashboardTimeout(from values: ParsedValues) -> TimeInterval? {
         let raw = values.options["timeout"]?.last ?? String(Int(Self.defaultServeRequestTimeout))
         guard let timeout = TimeInterval(raw),

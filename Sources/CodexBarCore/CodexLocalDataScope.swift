@@ -32,6 +32,7 @@ struct CodexLocalDataScope: Sendable, Equatable {
     func applying(to options: CostUsageScanner.Options) -> CostUsageScanner.Options {
         var copy = options
         copy.codexSessionsRoot = self.sessionsRoot
+        copy.codexTraceDatabaseURL = copy.codexTraceDatabaseURL ?? self.stateDatabaseURL
         return copy
     }
 

@@ -1,6 +1,14 @@
 import AppKit
 import SwiftUI
 
+/// Card rows draw their own selection state. Keeping AppKit's parallel highlight hidden also
+/// prevents newer menu implementations from painting a native selection behind the custom view.
+final class MenuCardMenuItem: NSMenuItem {
+    override var isHighlighted: Bool {
+        false
+    }
+}
+
 extension StatusItemController {
     func refreshMenuCardHeights(in menu: NSMenu) {
         let width = self.renderedMenuWidth(for: menu)
@@ -96,7 +104,7 @@ extension StatusItemController {
         submenu: NSMenu?,
         isEnabled: Bool) -> NSMenuItem
     {
-        let item = NSMenuItem()
+        let item = MenuCardMenuItem()
         // NSMenuItem()'s default title is the literal string "NSMenuItem"; Tahoe's
         // NSMenu paints that fallback title for frames where a row's view is
         // detached mid-mutation. Keep the fallback render blank instead.

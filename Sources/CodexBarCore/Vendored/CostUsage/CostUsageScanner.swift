@@ -2081,7 +2081,7 @@ enum CostUsageScanner {
 
     /// Bump when the report pricing formula changes. Rates are resolved when reports are read;
     /// this fingerprint only invalidates downstream presentation caches such as Workspaces snapshots.
-    private static let codexCostFormulaVersion = 2
+    private static let codexCostFormulaVersion = 3
 
     static func codexPricingKey(modelsDevArtifact: ModelsDevCacheArtifact?) -> String {
         CostUsagePricingKey.codex(
@@ -5068,7 +5068,8 @@ enum CostUsageScanner {
         let turnIDCacheMigrationPathKeys = hasPriorityMetadata ? Set(cache.files.compactMap { path, usage in
             usage.codexTurnIDs == nil && usage.touchesCodexScanWindow(
                 sinceKey: range.scanSinceKey,
-                untilKey: range.scanUntilKey)
+                untilKey: range.scanUntilKey,
+                calendar: range.calendar)
                 ? Self.codexPathKey(URL(fileURLWithPath: path))
                 : nil
         }) : []
@@ -5531,7 +5532,10 @@ enum CostUsageScanner {
                 {
                     guard let old = cache.files[key] else { continue }
                     let shouldDrop = shouldDropAllUnscannedFiles ||
-                        old.touchesCodexScanWindow(sinceKey: range.scanSinceKey, untilKey: range.scanUntilKey)
+                        old.touchesCodexScanWindow(
+                            sinceKey: range.scanSinceKey,
+                            untilKey: range.scanUntilKey,
+                            calendar: range.calendar)
                     guard shouldDrop else { continue }
                     Self.applyFileDays(cache: &cache, fileDays: old.days, sign: -1)
                     cache.files.removeValue(forKey: key)
@@ -5540,7 +5544,10 @@ enum CostUsageScanner {
                 for key in cache.files.keys {
                     guard !shouldDropAllUnscannedFiles else { break }
                     guard let old = cache.files[key] else { continue }
-                    guard old.touchesCodexScanWindow(sinceKey: range.scanSinceKey, untilKey: range.scanUntilKey)
+                    guard old.touchesCodexScanWindow(
+                        sinceKey: range.scanSinceKey,
+                        untilKey: range.scanUntilKey,
+                        calendar: range.calendar)
                     else { continue }
                     guard FileManager.default.fileExists(atPath: key) else {
                         Self.applyFileDays(cache: &cache, fileDays: old.days, sign: -1)

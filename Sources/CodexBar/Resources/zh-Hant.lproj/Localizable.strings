@@ -1,7 +1,15 @@
 /* Chinese (Traditional) localization for CodexBar */
 
 /* iCloud Sync */
+"+ %d more" = "還有 %d 個";
+"Conversations (%@)" = "對話（%@）";
+"Fast" = "高速";
 "iCloud Sync" = "iCloud Sync";
+"Projects" = "專案";
+"Session %@" = "對話 %@";
+"Std" = "標準";
+"Show all (%d)" = "顯示全部（%d）";
+"Show less" = "收起";
 "Sync settings and providers across your Macs via iCloud" = "Sync settings and providers across your Macs via iCloud";
 "Include API keys, cookies, and tokens" = "Include API keys, cookies, and tokens";
 "Sync usage snapshots" = "Sync usage snapshots";
@@ -505,6 +513,10 @@
 "quota_depleted_title" = "配額用完與恢復";
 "quota_warning_notifications_subtitle" = "當工作階段或每週剩餘配額達到設定門檻時提醒。";
 "threshold_warnings_title" = "門檻提醒";
+"provider_accent_color_title" = "強調色";
+"provider_accent_color_footer" = "設定此供應商的用量列、圖表與切換標籤的顏色。";
+"provider_accent_color_hex_label" = "十六進位顏色值";
+"provider_accent_color_reset" = "使用預設值";
 "quota_warnings_title" = "配額提醒";
 "quota_warning_session" = "工作階段";
 "quota_warning_session_capitalized" = "工作階段";
@@ -606,6 +618,11 @@
 "show_quota_warning_markers_subtitle" = "設定配額提醒後，在使用量條上繪製門檻刻度標記。";
 "weekly_progress_work_days_title" = "每週進度工作日標記";
 "weekly_progress_work_days_subtitle" = "設定用於每週用量條刻度與進度計算的工作日。";
+"workday_tick_appearance_title" = "工作日刻度外觀";
+"workday_tick_appearance_subtitle" = "選擇工作日邊界在每週用量條上的顯示方式。";
+"workday_tick_appearance_hidden" = "隱藏";
+"workday_tick_appearance_subtle" = "柔和";
+"workday_tick_appearance_high_contrast" = "高對比度";
 "show_provider_changelog_links_title" = "顯示提供者版本資訊連結";
 "show_provider_changelog_links_subtitle" = "在選單中為支援的 CLI 提供者新增發行說明連結。";
 "show_credits_extra_usage_title" = "顯示額度 + 額外使用量";
@@ -650,6 +667,15 @@
 "keychain_access_caption" = "停用所有鑰匙圈讀寫。如果 macOS 在你按下一律允許後仍持續要求存取「Chrome/Brave/Edge Safe Storage」，可使用此選項。啟用時無法匯入瀏覽器 Cookie；請在「提供者」中手動貼上 Cookie 標頭。透過 CLI 的 Claude/Codex OAuth 仍可使用。";
 "disable_keychain_access_title" = "停用鑰匙圈存取";
 "disable_keychain_access_subtitle" = "啟用時封鎖任何鑰匙圈存取。";
+"Re-authenticate" = "重新驗證";
+"kiro_reauthenticate_title" = "Kiro CLI 登入";
+"kiro_reauthenticate_subtitle" = "會在工作階段過期時執行「kiro-cli login」以續期。";
+"Kiro CLI not found" = "找不到 Kiro CLI";
+"Install kiro-cli and try again." = "請安裝 kiro-cli，然後再試一次。";
+"Could not start kiro-cli login" = "無法啟動 kiro-cli login";
+"Kiro login timed out" = "Kiro 登入逾時";
+"kiro-cli login exited with status %d." = "kiro-cli login 已結束，狀態為 %d。";
+"Kiro login failed" = "Kiro 登入失敗";
 "about_tagline" = "願你的 token 永不用完，隨時掌握 Agent 限制。";
 "link_github" = "GitHub";
 "link_website" = "網站";
@@ -1321,6 +1347,9 @@
 "Native currencies stay separate; Codex account rows exclude Pi session history." = "各原始幣別保持分開；Codex 帳號列不包含 Pi 工作階段歷史。";
 "Spend unavailable" = "無法取得支出資料";
 "Model breakdown unavailable" = "無法取得模型明細";
+"Partial estimate" = "部分估算";
+"Partial model breakdown" = "部分模型明細";
+"%d of %d subscriptions have spend" = "%d / %d 個訂閱有支出資料";
 "Local estimated history" = "本機預估歷史";
 "Coverage" = "涵蓋範圍";
 "Estimated spend" = "預估支出";
@@ -1463,3 +1492,27 @@
 "5-hour usage" = "5 小時用量";
 "7-day usage" = "7 天用量";
 "Total usage" = "總用量";
+"claude_oauth_keychain_access_revoked" = "Claude Code 輪替權杖後撤銷了 Claude 鑰匙圈的存取權。按一下「重新整理」以重新授權，或將 Claude 使用量來源切換為 CLI/Web。";
+"claude_showing_last_known_usage" = "正在顯示於 %@ 擷取的最後已知使用量。";
+/* Spend dashboard cost analysis */
+"90d" = "90d";
+"Input" = "Input";
+"Output" = "Output";
+"Cache write" = "Cache write";
+"Reasoning" = "Reasoning";
+"Sessions" = "Sessions";
+"Projects" = "Projects";
+"Plan metered" = "Plan metered";
+"List-price equivalent" = "List-price equivalent";
+"Metered and list-price" = "Metered and list-price";
+"List-price equivalent — not a billing receipt." = "List-price equivalent — not a billing receipt.";
+"Priced" = "Priced";
+"Unpriced" = "Unpriced";
+"Unmetered" = "Unmetered";
+"Estimated" = "Estimated";
+"Other models" = "Other models";
+"Include OpenCodex usage logs" = "Include OpenCodex usage logs";
+"Hide native Codex when OpenCodex is present" = "Hide native Codex when OpenCodex is present";
+"Export JSON" = "Export JSON";
+"Sources" = "Sources";
+"OpenCodex" = "OpenCodex";

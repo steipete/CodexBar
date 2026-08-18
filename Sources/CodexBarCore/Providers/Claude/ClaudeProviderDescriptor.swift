@@ -201,7 +201,9 @@ public enum ClaudeProviderDescriptor {
                     costVisibilityResolver: { context in
                         context.showOptionalUsage || context.snapshot?.loginMethod(for: .claude) == "Admin API"
                     },
-                    supportsInlineTokenCostDashboard: true)),
+                    supportsInlineTokenCostDashboard: true),
+                optionalDetails: ProviderOptionalDetailsPresentation(
+                    costSummaryTitles: ["Usage summary", "Cost items"])),
             fetchPlan: ProviderFetchPlan(
                 sourceModes: [.auto, .api, .web, .cli, .oauth],
                 pipeline: ProviderFetchPipeline(resolveStrategies: self.resolveStrategies)),
@@ -991,6 +993,14 @@ struct ClaudeCLIFetchStrategy: ProviderFetchStrategy {
 
         let isBackgroundAutoRefresh = isBackgroundAppRefresh && context.sourceMode == .auto
         if isBackgroundAutoRefresh {
+            // Reusing a recent result does not launch Claude or touch its Keychain item. Keep this fallback
+            // available even when token rotation invalidated CodexBar's ACL grant; otherwise a dead OAuth step
+            // can mask CLI usage that succeeded moments earlier.
+            if let throttleKey = self.throttleKey(binary: binary, context: context),
+               ClaudeCLIUsageSpawnThrottle.cachedResult(for: throttleKey) != nil
+            {
+                return true
+            }
             // Every Claude child process is opaque to CodexBar's no-UI Keychain controls, including
             // `claude auth status`. Background Auto therefore reuses only availability established by a
             // successful user-initiated CLI fetch in this process. The narrow exception is the owner usage
@@ -1008,6 +1018,16 @@ struct ClaudeCLIFetchStrategy: ProviderFetchStrategy {
     }
 
     func fetch(_ context: ProviderFetchContext) async throws -> ProviderFetchResult {
+        let binary = ClaudeCLIResolver.resolvedBinaryPath(environment: context.env)
+        let throttleKey = binary.flatMap { self.throttleKey(binary: $0, context: context) }
+        if context.runtime == .app,
+           ProviderInteractionContext.current == .background,
+           !context.claudeOwnerCLIRecoveryOnly,
+           let throttleKey,
+           let cached = ClaudeCLIUsageSpawnThrottle.cachedResult(for: throttleKey)
+        {
+            return cached
+        }
         let keepAlive = context.settings?.debugKeepCLISessionsAlive ?? false
         let fetcher = ClaudeUsageFetcher(
             browserDetection: browserDetection,
@@ -1019,7 +1039,6 @@ struct ClaudeCLIFetchStrategy: ProviderFetchStrategy {
             webExtrasTimeout: context.webTimeout,
             includePrepaidBalance: self.includePrepaidBalance && context.includeOptionalUsage,
             keepCLISessionsAlive: keepAlive)
-        let binary = ClaudeCLIResolver.resolvedBinaryPath(environment: context.env)
         let backgroundAvailabilityMarker = binary.flatMap {
             ClaudeCLIBackgroundAvailability.captureMarker(binary: $0, environment: context.env)
         }
@@ -1041,11 +1060,26 @@ struct ClaudeCLIFetchStrategy: ProviderFetchStrategy {
         {
             ClaudeCLIBackgroundAvailability.establish(backgroundAvailabilityMarker)
         }
-        return self.makeResult(
+        let result = self.makeResult(
             // The PTY /usage panel exposes rendered percentages only, so CLI-sourced data carries an
             // explicit degraded-fidelity marker that the card surfaces as "via Claude CLI".
             usage: ClaudeOAuthFetchStrategy.snapshot(from: usage, dataConfidence: .percentOnly),
             sourceLabel: "claude")
+        if let throttleKey {
+            ClaudeCLIUsageSpawnThrottle.record(result, for: throttleKey)
+        }
+        return result
+    }
+
+    private func throttleKey(
+        binary: String,
+        context: ProviderFetchContext) -> ClaudeCLIUsageSpawnThrottle.Key?
+    {
+        ClaudeCLIUsageSpawnThrottle.key(
+            binary: binary,
+            environment: context.env,
+            useWebExtras: self.useWebExtras,
+            includePrepaidBalance: self.includePrepaidBalance && context.includeOptionalUsage)
     }
 
     func shouldFallback(on error: Error, context: ProviderFetchContext) -> Bool {

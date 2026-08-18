@@ -55,6 +55,7 @@ extension StatusItemController {
             // the reset itself, whichever comes first; the next icon update schedules any later boundary.
             delays.append(delay)
         }
+        delays += self.menuBarWeeklyPaceRefreshDelays(providers: providers, now: now)
 
         if self.menuBarObservesCodexReset(providers: providers) {
             let projection = self.store.codexConsumerProjection(surface: .menuBar, now: now)
@@ -129,6 +130,42 @@ extension StatusItemController {
         return self.settings.resolvedMergedOverviewProviders(
             activeProviders: activeProviders,
             maxVisibleProviders: SettingsStore.mergedOverviewProviderLimit).contains(.codex)
+    }
+
+    nonisolated static func menuBarPaceRefreshDelay(window: RateWindow, now: Date) -> TimeInterval? {
+        guard let boundary = UsageStore.paceElapsedBoundary(
+            window: window,
+            minimumElapsedPercent: 1),
+            boundary > now
+        else { return nil }
+        return max(
+            self.menuBarCountdownRefreshEpsilon,
+            boundary.timeIntervalSince(now) + self.menuBarCountdownRefreshEpsilon)
+    }
+
+    private func menuBarWeeklyPaceRefreshDelays(
+        providers: [UsageProvider],
+        now: Date)
+        -> [TimeInterval]
+    {
+        providers.compactMap { provider in
+            let resolution = self.settings.menuBarLayoutResolution(for: provider)
+            guard !resolution.usesLegacyRendering,
+                  self.settings.menuBarIconStyle == .iconAndPercent,
+                  resolution.layout.lines.joined().contains(where: {
+                      if case .pace(window: .weekly) = $0 { return true }
+                      return false
+                  })
+            else { return nil }
+            let snapshot = self.store.menuBarSnapshot(for: provider.instanceID)
+            guard let window = self.menuBarLayoutWindows(
+                provider: provider,
+                snapshot: snapshot,
+                now: now).weekly
+            else { return nil }
+            let elapsedWindow = self.store.paceWindowForElapsedEligibility(provider: provider, window: window)
+            return Self.menuBarPaceRefreshDelay(window: elapsedWindow, now: now)
+        }
     }
 
     func observeMenuBarTimeEnvironmentChanges() {

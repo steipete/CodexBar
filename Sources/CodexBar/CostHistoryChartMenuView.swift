@@ -3,28 +3,37 @@ import CodexBarCore
 import SwiftUI
 
 @MainActor
+// swiftlint:disable:next type_body_length
 struct CostHistoryChartMenuView: View {
     typealias DailyEntry = CostUsageDailyReport.Entry
 
-    enum AxisLabelPlacement: Equatable {
-        case hidden
-        case centered
-        case edges
+    enum ChartMetric: CaseIterable, Hashable {
+        case tokens
+        case cost
+
+        var title: String {
+            switch self {
+            case .tokens: L("Token")
+            case .cost: L("Cost")
+            }
+        }
     }
 
     private struct Point: Identifiable {
         let id: String
         let date: Date
-        let costUSD: Double
+        let value: Double
+        let costUSD: Double?
         let totalTokens: Int?
         let requestCount: Int?
 
-        init(date: Date, costUSD: Double, totalTokens: Int?, requestCount: Int?) {
+        init(date: Date, value: Double, costUSD: Double?, totalTokens: Int?, requestCount: Int?) {
             self.date = date
+            self.value = value
             self.costUSD = costUSD
             self.totalTokens = totalTokens
             self.requestCount = requestCount
-            self.id = "\(Int(date.timeIntervalSince1970))-\(costUSD)"
+            self.id = "\(Int(date.timeIntervalSince1970))"
         }
     }
 
@@ -41,6 +50,12 @@ struct CostHistoryChartMenuView: View {
         let rows: [DetailRow]
     }
 
+    private struct DetailLayout {
+        let viewportRowCount: Int
+        let hasOverflow: Bool
+        let rowHeight: CGFloat
+    }
+
     private let provider: UsageProvider
     private let daily: [DailyEntry]
     private let totalCostUSD: Double?
@@ -49,10 +64,12 @@ struct CostHistoryChartMenuView: View {
     /// in the user's preferred currency while chart geometry stays in source values.
     private let costMultiplier: Double
     private let historyDays: Int
+    private let historyCoverageIsEstablished: Bool
     private let windowLabel: String?
     private let projects: [CostUsageProjectBreakdown]
     private let sessions: [CostUsageSessionBreakdown]
     private let width: CGFloat
+    @State private var metric: ChartMetric
     @State private var selectedDateKey: String?
 
     init(
@@ -62,6 +79,7 @@ struct CostHistoryChartMenuView: View {
         currencyCode: String = "USD",
         costMultiplier: Double = 1,
         historyDays: Int = 30,
+        historyCoverageIsEstablished: Bool = true,
         windowLabel: String? = nil,
         projects: [CostUsageProjectBreakdown] = [],
         sessions: [CostUsageSessionBreakdown] = [],
@@ -73,45 +91,84 @@ struct CostHistoryChartMenuView: View {
         self.currencyCode = currencyCode
         self.costMultiplier = costMultiplier
         self.historyDays = max(1, min(365, historyDays))
+        self.historyCoverageIsEstablished = historyCoverageIsEstablished
         self.windowLabel = windowLabel
         self.projects = projects
         self.sessions = sessions
         self.width = width
+        self._metric = State(initialValue: Self.defaultMetric(provider: provider, daily: daily))
     }
 
     var body: some View {
-        let model = Self.makeModel(provider: self.provider, daily: self.daily)
-        let selectedDateKey = self.selectedDateKey ?? Self.defaultSelectedDateKey(model: model)
+        let availableMetrics = Self.availableMetrics(provider: self.provider, daily: self.daily)
+        let activeMetric = availableMetrics.contains(self.metric)
+            ? self.metric
+            : Self.defaultMetric(provider: self.provider, daily: self.daily)
+        let model = Self.makeModel(provider: self.provider, daily: self.daily, metric: activeMetric)
+        let showsHistoryRefreshing = Self.showsHistoryRefreshing(
+            provider: self.provider,
+            metric: activeMetric,
+            historyCoverageIsEstablished: self.historyCoverageIsEstablished)
+        let selectedDateKey = self.selectedDateKey.flatMap { model.pointsByDateKey[$0] == nil ? nil : $0 }
+            ?? Self.defaultSelectedDateKey(model: model)
         VStack(alignment: .leading, spacing: Self.outerSpacing) {
             if model.points.isEmpty {
-                Text(L("No cost history data."))
+                Text(L("No data available"))
                     .font(.footnote)
                     .foregroundStyle(.secondary)
-                    .accessibilityLabel(L("No cost history data."))
+                    .accessibilityLabel(L("No data available"))
             } else {
+                if availableMetrics.count > 1 || showsHistoryRefreshing {
+                    HStack {
+                        if showsHistoryRefreshing {
+                            Text(L("Refreshing"))
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                                .accessibilityLabel(L("Refreshing"))
+                        }
+                        Spacer(minLength: 0)
+                        if availableMetrics.count > 1 {
+                            Picker(L("Display mode"), selection: self.$metric) {
+                                ForEach(availableMetrics, id: \.self) { metric in
+                                    Text(metric.title).tag(metric)
+                                }
+                            }
+                            .labelsHidden()
+                            .pickerStyle(.segmented)
+                            .controlSize(.small)
+                            .frame(width: Self.metricPickerWidth)
+                            .accessibilityLabel(L("Display mode"))
+                        }
+                    }
+                    .frame(height: Self.metricPickerHeight)
+                }
+
                 Chart {
                     ForEach(model.points) { point in
                         BarMark(
                             x: .value(L("Day"), point.date, unit: .day),
-                            y: .value(L("Cost"), point.costUSD))
+                            y: .value(activeMetric.title, point.value))
                             .foregroundStyle(model.barColor)
                     }
                     if let peak = Self.peakPoint(model: model) {
-                        let capStart = max(peak.costUSD - Self.capHeight(maxValue: model.maxCostUSD), 0)
+                        let capStart = max(peak.value - Self.capHeight(maxValue: model.maxValue), 0)
                         BarMark(
                             x: .value(L("Day"), peak.date, unit: .day),
                             yStart: .value(L("Cap start"), capStart),
-                            yEnd: .value(L("Cap end"), peak.costUSD))
+                            yEnd: .value(L("Cap end"), peak.value))
                             .foregroundStyle(Color(nsColor: .systemYellow))
                     }
                 }
                 .chartYAxis {
-                    AxisMarks(position: .leading, values: Self.yAxisTickValues(maxCostUSD: model.maxCostUSD)) { value in
+                    AxisMarks(
+                        position: .leading,
+                        values: Self.yAxisTickValues(maxValue: model.maxValue, metric: activeMetric))
+                    { value in
                         AxisGridLine().foregroundStyle(Color.clear)
                         AxisTick().foregroundStyle(Color.clear)
                         AxisValueLabel(centered: false) {
                             if let raw = value.as(Double.self) {
-                                Text(Self.yAxisCostString(raw * self.costMultiplier, currencyCode: self.currencyCode))
+                                Text(self.yAxisString(raw, metric: activeMetric))
                                     .font(.caption2)
                                     .foregroundStyle(Color(nsColor: .tertiaryLabelColor))
                                     .padding(.leading, 4)
@@ -124,7 +181,7 @@ struct CostHistoryChartMenuView: View {
                         AxisGridLine().foregroundStyle(Color.clear)
                         AxisTick().foregroundStyle(Color.clear)
                         if let date = value.as(Date.self) {
-                            AxisValueLabel(anchor: Self.xAxisLabelAnchor(for: date, axisDates: model.axisDates)) {
+                            AxisValueLabel(anchor: ChartAxisLabelLayout.barCenteredAnchor) {
                                 Text(date, format: .dateTime.month(.abbreviated).day())
                                     .font(.caption2)
                                     .foregroundStyle(Color(nsColor: .tertiaryLabelColor))
@@ -134,10 +191,14 @@ struct CostHistoryChartMenuView: View {
                 }
                 .chartLegend(.hidden)
                 .frame(height: Self.chartHeight)
-                .accessibilityLabel(L("Cost history chart"))
+                .accessibilityLabel(activeMetric == .tokens ? L("Token activity") : L("Cost history chart"))
                 .accessibilityValue(
                     model.points.isEmpty
                         ? L("No data")
+                        : activeMetric == .tokens
+                        ? String(
+                            format: L("%@ tokens"),
+                            UsageFormatter.tokenCountString(Int(model.points.reduce(0) { $0 + $1.value })))
                         : String(format: L("%d days of cost data"), model.points.count))
                 .chartOverlay { proxy in
                     GeometryReader { geo in
@@ -262,7 +323,7 @@ struct CostHistoryChartMenuView: View {
 
             if !self.projects.isEmpty {
                 VStack(alignment: .leading, spacing: Self.projectRowSpacing) {
-                    Text("Projects")
+                    Text(L("Projects"))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
@@ -280,7 +341,7 @@ struct CostHistoryChartMenuView: View {
                                 }
                                 let hiddenSourceCount = visibleSources.count - Self.maxVisibleProjectSourceRows
                                 if hiddenSourceCount > 0 {
-                                    Text("+ \(hiddenSourceCount) more")
+                                    Text(L("+ %d more", hiddenSourceCount))
                                         .font(.caption2)
                                         .foregroundStyle(Color(nsColor: .tertiaryLabelColor))
                                         .lineLimit(1)
@@ -323,7 +384,7 @@ struct CostHistoryChartMenuView: View {
         let axisDates: [Date]
         let barColor: Color
         let peakKey: String?
-        let maxCostUSD: Double
+        let maxValue: Double
         let detailViewportRowCount: Int
         let hasDetailOverflow: Bool
         let detailRowHeight: CGFloat
@@ -339,6 +400,8 @@ struct CostHistoryChartMenuView: View {
     private static let detailSpacing: CGFloat = 6
     private static let detailHintHeight: CGFloat = 13
     private static let chartHeight: CGFloat = 130
+    private static let metricPickerHeight: CGFloat = 22
+    private static let metricPickerWidth: CGFloat = 132
     private static let outerSpacing: CGFloat = 10
     private static let projectRowHeight: CGFloat = 31
     private static let projectRowSpacing: CGFloat = 5
@@ -357,7 +420,7 @@ struct CostHistoryChartMenuView: View {
         let visibleCount = min(self.sessions.count, Self.maxVisibleSessionRows)
         return VStack(alignment: .leading, spacing: Self.sessionRowSpacing) {
             HStack {
-                Text("Conversations (\(self.windowLabel ?? Self.windowLabel(days: self.historyDays)))")
+                Text(L("Conversations (%@)", self.windowLabel ?? Self.windowLabel(days: self.historyDays)))
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
@@ -391,7 +454,7 @@ struct CostHistoryChartMenuView: View {
     private func sessionRow(_ session: CostUsageSessionBreakdown) -> some View {
         HStack(alignment: .top, spacing: 8) {
             VStack(alignment: .leading, spacing: 1) {
-                Text("Session \(Self.shortSessionID(session.sessionID))")
+                Text(L("Session %@", Self.shortSessionID(session.sessionID)))
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
@@ -467,8 +530,23 @@ struct CostHistoryChartMenuView: View {
         return [0, maxCostUSD / 2, maxCostUSD]
     }
 
-    private static func makeModel(provider: UsageProvider, daily: [DailyEntry]) -> Model {
+    private static func yAxisTickValues(maxValue: Double, metric: ChartMetric) -> [Double] {
+        switch metric {
+        case .tokens:
+            guard maxValue > 0 else { return [] }
+            return maxValue < 2 ? [0, maxValue] : [0, maxValue / 2, maxValue]
+        case .cost:
+            return self.yAxisTickValues(maxCostUSD: maxValue)
+        }
+    }
+
+    private static func makeModel(
+        provider: UsageProvider,
+        daily: [DailyEntry],
+        metric: ChartMetric) -> Model
+    {
         let sorted = daily.sorted { lhs, rhs in lhs.date < rhs.date }
+        let detailLayout = self.detailLayout(provider: provider, daily: sorted)
         var points: [Point] = []
         points.reserveCapacity(sorted.count)
 
@@ -481,32 +559,30 @@ struct CostHistoryChartMenuView: View {
         var dateKeys: [(key: String, date: Date)] = []
         dateKeys.reserveCapacity(sorted.count)
 
-        var peak: (key: String, costUSD: Double)?
-        var maxCostUSD: Double = 0
-        var maxDetailRows = 0
-        var hasModeDetails = false
+        var peak: (key: String, value: Double)?
+        var maxValue: Double = 0
         for entry in sorted {
-            guard let (costUSD, date) = self.chartPointInput(for: entry) else { continue }
+            guard let (value, date) = self.chartPointInput(for: entry, provider: provider, metric: metric) else {
+                continue
+            }
             let point = Point(
                 date: date,
-                costUSD: costUSD,
-                totalTokens: entry.totalTokens,
+                value: value,
+                costUSD: entry.costUSD.flatMap { $0 >= 0 ? $0 : nil },
+                totalTokens: entry.totalTokens.flatMap { $0 >= 0 ? $0 : nil },
                 requestCount: entry.requestCount)
             points.append(point)
             pointsByKey[entry.date] = point
             entriesByKey[entry.date] = entry
             dateKeys.append((entry.date, date))
-            let modelBreakdowns = entry.modelBreakdowns ?? []
-            maxDetailRows = max(maxDetailRows, modelBreakdowns.count)
-            hasModeDetails = hasModeDetails || modelBreakdowns.contains { Self.hasModeSubtitle($0) }
             if let cur = peak {
-                if costUSD > cur.costUSD {
-                    peak = (entry.date, costUSD)
+                if value > cur.value {
+                    peak = (entry.date, value)
                 }
             } else {
-                peak = (entry.date, costUSD)
+                peak = (entry.date, value)
             }
-            maxCostUSD = max(maxCostUSD, costUSD)
+            maxValue = max(maxValue, value)
         }
 
         let axisDates: [Date] = {
@@ -525,62 +601,119 @@ struct CostHistoryChartMenuView: View {
             dateKeys: dateKeys,
             axisDates: axisDates,
             barColor: barColor,
-            peakKey: maxCostUSD > 0 ? peak?.key : nil,
-            maxCostUSD: maxCostUSD,
-            detailViewportRowCount: min(maxDetailRows, self.maxVisibleDetailLines),
-            hasDetailOverflow: maxDetailRows > self.maxVisibleDetailLines,
-            detailRowHeight: hasModeDetails ? self.expandedDetailRowHeight : self.compactDetailRowHeight)
-    }
-
-    private static func axisLabelPlacement(for dates: [Date]) -> AxisLabelPlacement {
-        switch dates.count {
-        case 0: .hidden
-        case 1: .centered
-        default: .edges
-        }
-    }
-
-    private static func xAxisLabelAnchor(for date: Date, axisDates: [Date]) -> UnitPoint {
-        switch self.axisLabelPlacement(for: axisDates) {
-        case .hidden, .centered:
-            .top
-        case .edges:
-            if let first = axisDates.first, Calendar.current.isDate(date, inSameDayAs: first) {
-                .topLeading
-            } else if let last = axisDates.last, Calendar.current.isDate(date, inSameDayAs: last) {
-                .topTrailing
-            } else {
-                .top
-            }
-        }
+            peakKey: maxValue > 0 ? peak?.key : nil,
+            maxValue: maxValue,
+            detailViewportRowCount: detailLayout.viewportRowCount,
+            hasDetailOverflow: detailLayout.hasOverflow,
+            detailRowHeight: detailLayout.rowHeight)
     }
 
     private static func barColor(for provider: UsageProvider) -> Color {
-        let color = ProviderDescriptorRegistry.descriptor(for: provider).branding.color
+        let color = ProviderAccentPalette.color(for: provider)
         return Color(red: color.red, green: color.green, blue: color.blue)
     }
 
-    private static func dateFromDayKey(_ key: String) -> Date? {
+    private static func dateFromDayKey(
+        _ key: String,
+        provider: UsageProvider,
+        calendar sourceCalendar: Calendar = .autoupdatingCurrent) -> Date?
+    {
+        let bytes = Array(key.utf8)
+        let digitIndices = [0, 1, 2, 3, 5, 6, 8, 9]
+        guard bytes.count == 10,
+              bytes[4] == 45,
+              bytes[7] == 45,
+              digitIndices.allSatisfy({ (48...57).contains(bytes[$0]) })
+        else { return nil }
+
         let parts = key.split(separator: "-")
         guard parts.count == 3,
               let year = Int(parts[0]),
               let month = Int(parts[1]),
               let day = Int(parts[2]) else { return nil }
 
-        var comps = DateComponents()
-        comps.calendar = Calendar.current
-        comps.timeZone = TimeZone.current
-        comps.year = year
-        comps.month = month
-        comps.day = day
-        comps.hour = 12
-        return comps.date
+        let displayCalendar = self.gregorianCalendar(timeZone: sourceCalendar.timeZone)
+        let bucketCalendar = self.bucketCalendar(provider: provider, displayCalendar: displayCalendar)
+        guard let date = bucketCalendar.date(from: DateComponents(year: year, month: month, day: day)) else {
+            return nil
+        }
+        guard bucketCalendar.dateComponents([.year, .month, .day], from: date) == DateComponents(
+            year: year,
+            month: month,
+            day: day)
+        else { return nil }
+        return displayCalendar.startOfDay(for: date)
     }
 
-    private static func chartPointInput(for entry: DailyEntry) -> (costUSD: Double, date: Date)? {
-        guard let costUSD = entry.costUSD, costUSD >= 0 else { return nil }
-        guard let date = self.dateFromDayKey(entry.date) else { return nil }
-        return (costUSD, date)
+    private static func chartPointInput(
+        for entry: DailyEntry,
+        provider: UsageProvider,
+        metric: ChartMetric) -> (value: Double, date: Date)?
+    {
+        let value: Double? = switch metric {
+        case .tokens:
+            entry.totalTokens.flatMap { $0 >= 0 ? Double($0) : nil }
+        case .cost:
+            entry.costUSD.flatMap { $0 >= 0 ? $0 : nil }
+        }
+        guard let value else { return nil }
+        guard let date = self.dateFromDayKey(entry.date, provider: provider) else { return nil }
+        return (value, date)
+    }
+
+    private static func availableMetrics(provider: UsageProvider, daily: [DailyEntry]) -> [ChartMetric] {
+        ChartMetric.allCases.filter { metric in
+            daily.contains { self.chartPointInput(for: $0, provider: provider, metric: metric) != nil }
+        }
+    }
+
+    private static func detailLayout(provider: UsageProvider, daily: [DailyEntry]) -> DetailLayout {
+        let visibleEntries = daily.filter { entry in
+            ChartMetric.allCases.contains {
+                self.chartPointInput(for: entry, provider: provider, metric: $0) != nil
+            }
+        }
+        let breakdowns = visibleEntries.compactMap(\.modelBreakdowns)
+        let maxRows = breakdowns.map(\.count).max() ?? 0
+        let hasModeDetails = breakdowns.joined().contains(where: self.hasModeSubtitle)
+        return DetailLayout(
+            viewportRowCount: min(maxRows, self.maxVisibleDetailLines),
+            hasOverflow: maxRows > self.maxVisibleDetailLines,
+            rowHeight: hasModeDetails ? self.expandedDetailRowHeight : self.compactDetailRowHeight)
+    }
+
+    private static func gregorianCalendar(timeZone: TimeZone) -> Calendar {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = timeZone
+        return calendar
+    }
+
+    private static func bucketCalendar(provider: UsageProvider, displayCalendar: Calendar) -> Calendar {
+        // Provider-specific by design: Mistral uses UTC day buckets; Codex alone defaults to exact local tokens.
+        guard provider == .mistral else { return displayCalendar }
+        // Mistral day keys are UTC buckets; map their boundary into the matching local display day.
+        return self.gregorianCalendar(timeZone: TimeZone(secondsFromGMT: 0) ?? .gmt)
+    }
+
+    private static func defaultMetric(provider: UsageProvider, daily: [DailyEntry]) -> ChartMetric {
+        let available = self.availableMetrics(provider: provider, daily: daily)
+        // Provider-specific by design: Codex exposes exact local token totals, so its chart defaults to tokens.
+        if provider == .codex, available.contains(.tokens) {
+            return .tokens
+        }
+        if available.contains(.cost) {
+            return .cost
+        }
+        return available.first ?? .cost
+    }
+
+    private static func showsHistoryRefreshing(
+        provider: UsageProvider,
+        metric: ChartMetric,
+        historyCoverageIsEstablished: Bool) -> Bool
+    {
+        // Provider-specific by design: only Codex exposes incremental local-history coverage for token scans.
+        provider == .codex && metric == .tokens && !historyCoverageIsEstablished
     }
 
     private static func peakPoint(model: Model) -> Point? {
@@ -778,15 +911,16 @@ struct CostHistoryChartMenuView: View {
 
     private func detailContent(selectedDateKey: String?, model: Model) -> DetailContent {
         guard let key = selectedDateKey,
-              let point = model.pointsByDateKey[key],
-              let date = Self.dateFromDayKey(key)
+              let point = model.pointsByDateKey[key]
         else {
             return DetailContent(primary: L("Hover a bar for details"), rows: [])
         }
 
-        let dayLabel = date.formatted(.dateTime.month(.abbreviated).day())
-        let cost = self.costString(point.costUSD)
-        var parts = [cost]
+        let dayLabel = point.date.formatted(.dateTime.month(.abbreviated).day())
+        var parts: [String] = []
+        if let cost = point.costUSD {
+            parts.append(self.costString(cost))
+        }
         if let tokens = point.totalTokens {
             parts.append("\(UsageFormatter.tokenCountString(tokens)) tokens")
         }
@@ -856,14 +990,14 @@ struct CostHistoryChartMenuView: View {
     private func modelBreakdownModeSubtitle(_ item: CostUsageDailyReport.ModelBreakdown) -> String? {
         var parts: [String] = []
         if let standardCost = item.standardCostUSD {
-            var standardPart = "Std \(self.costString(standardCost))"
+            var standardPart = "\(L("Std")) \(self.costString(standardCost))"
             if let standardTokens = item.standardTokens {
                 standardPart += " · \(UsageFormatter.tokenCountString(standardTokens))"
             }
             parts.append(standardPart)
         }
         if let priorityCost = item.priorityCostUSD {
-            var priorityPart = "Fast \(self.costString(priorityCost))"
+            var priorityPart = "\(L("Fast")) \(self.costString(priorityCost))"
             if let priorityTokens = item.priorityTokens {
                 priorityPart += " · \(UsageFormatter.tokenCountString(priorityTokens))"
             }
@@ -885,6 +1019,19 @@ struct CostHistoryChartMenuView: View {
         UsageFormatter.compactCurrencyString(value, currencyCode: currencyCode)
     }
 
+    private static func yAxisTokenString(_ value: Double) -> String {
+        UsageFormatter.tokenCountString(Int(value.rounded()))
+    }
+
+    private func yAxisString(_ value: Double, metric: ChartMetric) -> String {
+        switch metric {
+        case .tokens:
+            Self.yAxisTokenString(value)
+        case .cost:
+            Self.yAxisCostString(value * self.costMultiplier, currencyCode: self.currencyCode)
+        }
+    }
+
     private static func breakdownAccentOpacity(for index: Int) -> Double {
         let opacity = 0.75 - (Double(index) * 0.12)
         return max(0.3, opacity)
@@ -896,6 +1043,7 @@ extension CostHistoryChartMenuView {
         let currencyCode: String
         let costMultiplierBitPattern: UInt64
         let historyDays: Int
+        let historyCoverageIsEstablished: Bool
         let windowLabel: String?
         let totalCostBitPattern: UInt64?
         let hasDailyEntries: Bool
@@ -961,11 +1109,14 @@ extension CostHistoryChartMenuView {
             currencyCode: displayCurrencyCode ?? snapshot.currencyCode,
             costMultiplierBitPattern: displayCostMultiplier.bitPattern,
             historyDays: snapshot.historyDays,
+            historyCoverageIsEstablished: snapshot.historyCoverageIsEstablished,
             windowLabel: snapshot.historyLabel,
             totalCostBitPattern: snapshot.last30DaysCostUSD.map(\.bitPattern),
             hasDailyEntries: !snapshot.daily.isEmpty,
             daily: snapshot.daily
-                .filter { self.chartPointInput(for: $0) != nil }
+                .filter { entry in
+                    self.availableMetrics(provider: provider, daily: [entry]).isEmpty == false
+                }
                 .sorted { $0.date < $1.date }
                 .map(self.visibleDailyFingerprint),
             projects: Array(projects.prefix(self.maxVisibleProjectRows)).map { project in
@@ -1025,18 +1176,36 @@ extension CostHistoryChartMenuView {
     }
 
     static func _defaultSelectedDateKeyForTesting(provider: UsageProvider, daily: [DailyEntry]) -> String? {
-        self.defaultSelectedDateKey(model: self.makeModel(provider: provider, daily: daily))
+        self.defaultSelectedDateKey(model: self.makeModel(
+            provider: provider,
+            daily: daily,
+            metric: self.defaultMetric(provider: provider, daily: daily)))
+    }
+
+    static func _showsHistoryRefreshingForTesting(
+        provider: UsageProvider,
+        metric: ChartMetric,
+        historyCoverageIsEstablished: Bool) -> Bool
+    {
+        self.showsHistoryRefreshing(
+            provider: provider,
+            metric: metric,
+            historyCoverageIsEstablished: historyCoverageIsEstablished)
+    }
+
+    static func _dateFromDayKeyForTesting(
+        _ key: String,
+        provider: UsageProvider,
+        calendar: Calendar) -> Date?
+    {
+        self.dateFromDayKey(key, provider: provider, calendar: calendar)
     }
 
     static func _axisDatesForTesting(provider: UsageProvider, daily: [DailyEntry]) -> [Date] {
-        self.makeModel(provider: provider, daily: daily).axisDates
-    }
-
-    static func _axisLabelPlacementForTesting(
-        provider: UsageProvider,
-        daily: [DailyEntry]) -> AxisLabelPlacement
-    {
-        self.axisLabelPlacement(for: self.makeModel(provider: provider, daily: daily).axisDates)
+        self.makeModel(
+            provider: provider,
+            daily: daily,
+            metric: self.defaultMetric(provider: provider, daily: daily)).axisDates
     }
 
     static func _yAxisTickValuesForTesting(maxCostUSD: Double) -> [Double] {
@@ -1047,11 +1216,38 @@ extension CostHistoryChartMenuView {
         self.yAxisCostString(value, currencyCode: currencyCode)
     }
 
+    static func _yAxisTokenStringForTesting(_ value: Double) -> String {
+        self.yAxisTokenString(value)
+    }
+
+    static func _availableMetricsForTesting(
+        provider: UsageProvider,
+        daily: [DailyEntry]) -> [ChartMetric]
+    {
+        self.availableMetrics(provider: provider, daily: daily)
+    }
+
+    static func _defaultMetricForTesting(provider: UsageProvider, daily: [DailyEntry]) -> ChartMetric {
+        self.defaultMetric(provider: provider, daily: daily)
+    }
+
+    static func _chartValuesForTesting(
+        provider: UsageProvider,
+        daily: [DailyEntry],
+        metric: ChartMetric) -> [Double]
+    {
+        self.makeModel(provider: provider, daily: daily, metric: metric).points.map(\.value)
+    }
+
     static func _detailViewportConfigurationForTesting(
         provider: UsageProvider,
-        daily: [DailyEntry]) -> (rowCount: Int, hasOverflow: Bool, rowHeight: CGFloat)
+        daily: [DailyEntry],
+        metric: ChartMetric? = nil) -> (rowCount: Int, hasOverflow: Bool, rowHeight: CGFloat)
     {
-        let model = self.makeModel(provider: provider, daily: daily)
+        let model = self.makeModel(
+            provider: provider,
+            daily: daily,
+            metric: metric ?? self.defaultMetric(provider: provider, daily: daily))
         return (model.detailViewportRowCount, model.hasDetailOverflow, model.detailRowHeight)
     }
 }

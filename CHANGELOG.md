@@ -1,10 +1,103 @@
 # Changelog
 
-## 0.49.6 — Unreleased
+## 0.52.1 — Unreleased
+
+### Added
+- Overview: show selected-provider usage and spend with partial-price, coverage, and provenance context (#3023). Thanks @Chipagosfinest!
+- CLI: add `codexbar usage --format toon` emitting the JSON payload as TOON v4.1 for agents that prefer denser structured output (#2996, #3021). Thanks @elijahfriedman and @teseo for the spec!
+- Usage & Spend: add an All time range alongside 7d/30d, backed by 365 days of local history with dedicated Claude and Cursor spend snapshot slots (#3009). Thanks @Yuxin-Qiao!
+- Usage & Spend: add explicit cost provenance, coverage counters, and a pinned IANA day-bucketing timezone while making uncertain Codex fork accounting fail closed (#3015). Thanks @Yuxin-Qiao!
+- Codex cost: support exact-match custom pricing above models.dev and built-in rates, preserving missing fields as unknown and explicit zero rates as free (#3016). Thanks @Yuxin-Qiao!
+- Usage & Spend: add token mix, coverage, conversation totals, source visibility controls, and an hourly activity heatmap to the spend dashboard (#3017). Thanks @Yuxin-Qiao!
+- Usage & Spend: add opt-in, read-only OpenCodex `usage.jsonl` import with its SQLite cache isolated in CodexBar's own cache directory (#3018). Thanks @Yuxin-Qiao!
+- General settings: turn Low Power Mode into an Off/On/Automatic preference, with Automatic following the system Low Power Mode state (#2995). Thanks @elijahfriedman!
+- Grok: add an Auto / Grok CLI / SuperGrok OAuth / Browser cookies source picker, support pasted SuperGrok bearers and grok.com cookies in token accounts, and open `~/.grok/auth.json` from Open token file (#3010). Thanks @oakimov!
 
 ### Fixed
+- Settings: replace the selector-based Settings opener with a retained window controller, fixing silently failing or behind-other-apps Settings opening after the keepalive removal, and repairing localized application-menu commands (#3029). Thanks @Zihao-Qi!
+- Codex: classify app-server request timeouts before terminating the subprocess, so timeouts no longer surface as misleading EOF/malformed-response errors (#3022). Thanks @Chipagosfinest!
+- OpenCode Go: surface expired selected session tokens instead of silently replacing failed server usage with local quota estimates (#2993). Thanks @Niclassslua!
+- Claude spend: price bare first-party model IDs from their models.dev vendor catalog, preserve explicit routes, and leave ambiguous cross-vendor matches unpriced (#3002). Thanks @Yuxin-Qiao!
+- Menu: prevent the system menu highlight from painting behind provider detail cards on macOS 27 beta (#2998). Thanks @Tan1103!
+- Cursor: keep an API-validated usage result when the Keychain cache is temporarily unavailable, instead of treating it as a missing or replaced session (#3000). Thanks @hxy91819!
+- Usage & Spend: sum priced subscriptions into a ~$ partial estimate with coverage shown when some subscriptions lack prices, instead of hiding the total (#3001). Thanks @Yuxin-Qiao!
+- Usage & Spend: keep unpriced named models visible in the model breakdown list instead of dropping the whole source (#3004). Thanks @Yuxin-Qiao!
+- Usage & Spend: keep priced Cursor days visible when some events omit totalCents, and stop invalid Cursor model costs from reviving on later events (#3005). Thanks @Yuxin-Qiao!
+- CLI: align `codexbar cost --json` with spend provenance, token mix, coverage, and opt-in OpenCodex payloads (#3019). Thanks @Yuxin-Qiao!
+- Settings: style the Quit CodexBar button as a prominent accent-color button and remove its stray section background (#2992). Thanks @elijahfriedman!
+
+## 0.52.0 — 2026-08-17
+
+### Added
+- Usage & Spend: aggregate per-project spend into ranked, window-scoped rows and carry project/session breakdowns through the cached Codex prefill so the dashboard and the menu chart agree on project data (#2984). Thanks @Yuxin-Qiao!
+- Usage & Spend: add a Projects panel to the settings pane and let the Models and Projects lists expand beyond the top eight rows (#2985). Thanks @Yuxin-Qiao!
+
+### Fixed
+- Mission Control: remove the invisible lifecycle keepalive window entirely; the rebuilt Settings window no longer needs it, eliminating the floating all-Spaces WindowServer footprint that dismissed Mission Control on macOS 27 (#2955, #2997, #3003). Thanks @phuchong89 for the diagnostics!
+- Cost history chart: localize the Projects, Conversations, session, and standard/fast mode labels that previously stayed English for all 23 app languages (#2983). Thanks @Yuxin-Qiao!
+- Grok: show SuperGrok Heavy from the CLI settings `subscription_tier_display` instead of labeling every OIDC login as SuperGrok (#2991). Thanks @olddonkey!
+
+## 0.51.0 — 2026-08-16
+
+### Added
+- CLI: add `codexbar cost --group-by session` for per-conversation Codex session cost breakdowns in text output (#2854). Thanks @Yuxin-Qiao!
+
+### Fixed
+- Keychain: keep background browser imports non-interactive, honor the global access gate, retire the obsolete prompt-capable startup migration, and retry unreadable unified migrations without clearing secrets (#2986).
+- OpenCode Go: label local-only quota windows as estimates in the menu and CLI when Auto has no server-confirmed usage (#2982). Thanks @Newarr!
+
+## 0.50.1 — 2026-08-16
+
+### Added
+- Kiro: add an explicit Re-authenticate action that runs `kiro-cli login`, surfaces device-flow instructions, and refreshes usage only after a successful login (#2340). Thanks @Vit129!
+- Providers: add a per-provider accent color override with a hex field, a color well, and a reset to the shipped color; it applies to usage bars, charts, switcher tabs, widgets, and the `codexbar serve` dashboard, and syncs across Macs (#2972). Thanks @urda!
+- Usage bars: make workday tick marks configurable with hidden, subtle, and high-contrast appearances (#2904, #2950). Thanks @dstier-git!
+- Settings: allow minimizing the Settings window while keeping its Dock tile available for restoring it (#2945). Thanks @Yuxin-Qiao!
+- Widgets: opt-in display of Claude model-scoped weekly quotas (for example Fable) projected from the shared usage snapshot, off by default (#2645). Thanks @alfredjbclaw!
+
+### Fixed
+- Claude: let Auto reuse a working CLI fallback when OAuth Keychain access is revoked by Claude Code token rotation, distinguish revoked access from missing credentials, and keep last-known quota history visible with its capture age when every live source fails (#2516). Thanks @axisrow and everyone who supplied forensics!
+- Menu: apply the cost summary display style to every provider's menu card, so Submenu only hides inline cost rows for z.ai and other providers (#2976). Thanks @ar0nbg!
+- Cost history: align x-axis date labels with their bars in status-menu charts (#2974). Thanks @Yuxin-Qiao!
+- Codex: preserve completed empty local history as known-zero usage and spend without fabricating zeroes for incomplete scans (#2932). Thanks @Yuxin-Qiao!
+- Codex: keep CLI-owned `auth.json` read-only during usage refresh, delegate stale native credentials to CLI recovery, and fail closed for stale external OAuth files (#2944). Thanks @Yuxin-Qiao!
+- Usage & Spend: keep safely priced Codex totals visible after completed history scans when request-tier uncertainty leaves some days unpriced (#2948). Thanks @Atopoz for the report!
+- Vertex AI: match Cloud Monitoring quota usage without a `limit_name` to its unambiguous same-metric, same-location limit, restoring quota percentages (#2958). Thanks @MachApple!
+- Cursor: rename the included-usage split to Cursor and Third Party across menu, widgets, and menu-bar windows, matching Cursor's dashboard labels (#2951). Thanks @baanish!
+- OpenCode Go: report pace for the 5-hour and weekly usage windows in CLI text and JSON output (#2957). Thanks @kentoku24!
+- Mistral: show current-month API spend in Icon and Percent menu-bar layouts when pay-as-you-go accounts have no rate window (#2821, #2947). Thanks @kiranmagic7!
+- CLI: keep Codex app-server notifications and child diagnostics behind verbose logging instead of writing them to stderr on every probe (#2952). Thanks @urda!
+- Ollama: strip copied `Cookie:` and cURL syntax before sending manual WorkOS session headers when another cookie appears first (#2949). Thanks @Skythrill256!
+- Antigravity: render one lane per quota bucket on the serve dashboard and in `codexbar dashboard`, instead of repeating two buckets as extra "Gemini Models" and "Claude and GPT" rows (#2963). Thanks @urda!
+- Serve: follow the app's "Hide personal information" setting on the web dashboard when no `--identity` flag is given, resolving the mode per request so the toggle applies without a serve restart (#2960). Thanks @urda!
+- Codex cost: price provider-qualified routed models (OpenCodex, DeepSeek, Kimi routes) against their matching models.dev provider, keeping unknown route prefixes unpriced instead of falling back to OpenAI rates (#2946). Thanks @Yuxin-Qiao!
+- CLI releases: record only the asset basename in release checksum sidecars so `sha256sum -c` verifies downloads anywhere, instead of embedding runner-local absolute paths (#2971, #2973). Thanks @shockbladenull!
+
+## 0.50.0 — 2026-08-15
+
+### Added
+- Cursor: on macOS, prefer Cursor.app's read-only local session in Automatic mode, persist validated sessions securely, and surface account mismatches before falling back to browser cookies (#2398). Thanks @markmay for the direction!
+- Cost history: add a Tokens/Cost switch to daily status-menu charts, defaulting Codex to exact local token totals and marking incomplete local history as refreshing (#2930). Thanks @Carl723000!
+- Menu bar layout: add a compact run-out forecast token that shows only the predicted duration (#2865). Thanks @gnattu!
+
+### Fixed
+- Codex: replace OpenAI login instructions with accurate rate-limit guidance when the CLI uses Amazon Bedrock or another custom backend without ChatGPT authentication (#2679). Thanks @italo-drm!
+- Widgets: let macOS desktop styling remove the Burn Down widgets' gradient container background (#2367). Thanks @FrancisKa!
+- Grok: label the current weekly credit window near reset instead of falling back to the ambiguous “Credits” title (#2929). Thanks @byteofsam!
+- Codex: show Business accounts' monthly credit remaining in the provider switcher when no session or weekly rate-limit window is available, and keep quota indicators visible on the selected provider tab (#2926). Thanks @jey3dayo!
+- Gemini: offer the Antigravity provider migration when local OAuth recovery cannot use Gemini CLI and an `agy` or Antigravity installation is available (#2808). Thanks @axisrow!
+- Provider status: omit status-page transport errors from menus until a real status fetch succeeds, while preserving the last successful status through later fetch failures (#2925). Thanks @tomarai85!
+
+## 0.49.6 — 2026-08-14
+
+### Fixed
+- Antigravity: hide untouched model families from compact menu cards and widgets while keeping unknown-usage families visible and preserving every family in provider details and all-untouched states (#2875). Thanks @urda!
+- Menu bar layout: show the weekly pace reserve token after 1% of the quota window has elapsed, even when learned history still predicts less than 1% expected usage (#2842, #2853). Thanks @Yuxin-Qiao!
+- Amp: support monthly Megawatt and Gigawatt subscription renewals with separate Other and Orb usage pools, and reset the daily free tier at 8:00 PM New York time (#2601). Thanks @3kh0!
 - Ollama: allow the `auto` and `web` usage sources on Linux when a non-empty manual Cookie header is configured, while keeping automatic browser-cookie imports gated to supported platforms (#2919). Thanks @dhabyx!
 - Codex: preserve the wider retained cost history when Usage & Spend saves a 7- or 30-day projection under cache row/byte pressure, instead of pruning older rows and narrowing the persisted scan window (#2914, #2915). Thanks @thomaschow19!
+- Claude: reuse the last successful CLI usage result for 15 minutes during background refreshes instead of relaunching the ~280 MB Claude Code binary on every tick, cutting background disk reads and process churn for CLI-sourced usage; manual refreshes still probe immediately (#2916).
+- CLI (Linux): stop creating and invalidating a URLSession per Antigravity localhost request; per-request session teardown exercised a FoundationNetworking/libdispatch socket-lifecycle race that could crash serve daemons and one-shot usage runs with a use-after-free (#2243). Thanks @psl75011 for the crash forensics!
 
 ## 0.49.5 — 2026-08-13
 

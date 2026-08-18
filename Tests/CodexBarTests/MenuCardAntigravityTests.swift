@@ -521,4 +521,231 @@ struct MenuCardAntigravityTests {
         #expect(model.metrics[0].percent == 5)
         #expect(model.metrics[0].percentLabel == "5% used")
     }
+
+    @Test
+    func `antigravity quota summary hides an untouched model family`() throws {
+        let now = Date(timeIntervalSince1970: 1_735_000_000)
+        let model = try Self.quotaSummaryModel(
+            windows: [
+                Self.quotaSummaryWindow(id: "gemini-5h", title: "Gemini 5-hour", usedPercent: 1),
+                Self.quotaSummaryWindow(id: "gemini-weekly", title: "Gemini weekly", usedPercent: 4, weekly: true),
+                Self.quotaSummaryWindow(id: "3p-5h", title: "Claude/GPT 5-hour", usedPercent: 0),
+                Self.quotaSummaryWindow(id: "3p-weekly", title: "Claude/GPT weekly", usedPercent: 0, weekly: true),
+            ],
+            now: now)
+
+        #expect(model.metrics.map(\.id) == [
+            "antigravity-quota-summary-gemini-5h",
+            "antigravity-quota-summary-gemini-weekly",
+        ])
+    }
+
+    @Test
+    func `antigravity quota summary keeps a family with unknown usage`() throws {
+        let now = Date(timeIntervalSince1970: 1_735_000_000)
+        let model = try Self.quotaSummaryModel(
+            windows: [
+                Self.quotaSummaryWindow(id: "gemini-5h", title: "Gemini 5-hour", usedPercent: 1),
+                Self.quotaSummaryWindow(id: "gemini-weekly", title: "Gemini weekly", usedPercent: 4, weekly: true),
+                Self.quotaSummaryWindow(id: "3p-5h", title: "Claude/GPT 5-hour", usedPercent: 0),
+                Self.quotaSummaryWindow(
+                    id: "3p-weekly",
+                    title: "Claude/GPT weekly",
+                    usedPercent: 0,
+                    weekly: true,
+                    usageKnown: false),
+            ],
+            now: now)
+
+        #expect(model.metrics.map(\.id) == [
+            "antigravity-quota-summary-gemini-5h",
+            "antigravity-quota-summary-gemini-weekly",
+            "antigravity-quota-summary-3p-5h",
+            "antigravity-quota-summary-3p-weekly",
+        ])
+    }
+
+    @Test
+    func `antigravity quota summary keeps every family when all are untouched`() throws {
+        // Right after a weekly reset every lane sits at zero; the card must not render empty.
+        let now = Date(timeIntervalSince1970: 1_735_000_000)
+        let model = try Self.quotaSummaryModel(
+            windows: [
+                Self.quotaSummaryWindow(id: "gemini-5h", title: "Gemini 5-hour", usedPercent: 0),
+                Self.quotaSummaryWindow(id: "gemini-weekly", title: "Gemini weekly", usedPercent: 0, weekly: true),
+                Self.quotaSummaryWindow(id: "3p-5h", title: "Claude/GPT 5-hour", usedPercent: 0),
+                Self.quotaSummaryWindow(id: "3p-weekly", title: "Claude/GPT weekly", usedPercent: 0, weekly: true),
+            ],
+            now: now)
+
+        #expect(model.metrics.count == 4)
+    }
+
+    @Test
+    func `antigravity keeps a renamed third party pair together`() throws {
+        // The bucket ID carries the family, so a group title that never says Claude or GPT must still
+        // pair its lanes; otherwise a freshly reset weekly lane would hide beside an active 5-hour lane.
+        let now = Date(timeIntervalSince1970: 1_735_000_000)
+        let model = try Self.quotaSummaryModel(
+            windows: [
+                Self.quotaSummaryWindow(id: "gemini-5h", title: "Gemini 5-hour", usedPercent: 1),
+                Self.quotaSummaryWindow(id: "gemini-weekly", title: "Gemini weekly", usedPercent: 4, weekly: true),
+                Self.quotaSummaryWindow(id: "3p-5h", title: "Third-party models 5-hour", usedPercent: 27),
+                Self.quotaSummaryWindow(
+                    id: "3p-weekly",
+                    title: "Third-party models weekly",
+                    usedPercent: 0,
+                    weekly: true),
+            ],
+            now: now)
+
+        #expect(model.metrics.map(\.id) == [
+            "antigravity-quota-summary-gemini-5h",
+            "antigravity-quota-summary-gemini-weekly",
+            "antigravity-quota-summary-3p-5h",
+            "antigravity-quota-summary-3p-weekly",
+        ])
+    }
+
+    @Test
+    func `antigravity hides a renamed third party pair when it is untouched`() throws {
+        let now = Date(timeIntervalSince1970: 1_735_000_000)
+        let model = try Self.quotaSummaryModel(
+            windows: [
+                Self.quotaSummaryWindow(id: "gemini-5h", title: "Gemini 5-hour", usedPercent: 1),
+                Self.quotaSummaryWindow(id: "gemini-weekly", title: "Gemini weekly", usedPercent: 4, weekly: true),
+                Self.quotaSummaryWindow(id: "3p-5h", title: "Third-party models 5-hour", usedPercent: 0),
+                Self.quotaSummaryWindow(
+                    id: "3p-weekly",
+                    title: "Third-party models weekly",
+                    usedPercent: 0,
+                    weekly: true),
+            ],
+            now: now)
+
+        #expect(model.metrics.map(\.id) == [
+            "antigravity-quota-summary-gemini-5h",
+            "antigravity-quota-summary-gemini-weekly",
+        ])
+    }
+
+    @Test
+    func `antigravity keeps an unfamiliar family pair together`() throws {
+        // Neither the ID nor the title names a known family, so the title fallback decides. Titles render
+        // as a group title plus a bucket title, and the fallback must drop the bucket half to pair lanes.
+        let now = Date(timeIntervalSince1970: 1_735_000_000)
+        let model = try Self.quotaSummaryModel(
+            windows: [
+                Self.quotaSummaryWindow(id: "gemini-5h", title: "Gemini 5-hour", usedPercent: 1),
+                Self.quotaSummaryWindow(id: "gemini-weekly", title: "Gemini weekly", usedPercent: 4, weekly: true),
+                Self.quotaSummaryWindow(id: "grok-5h", title: "Grok 5-hour", usedPercent: 30),
+                Self.quotaSummaryWindow(id: "grok-weekly", title: "Grok weekly", usedPercent: 0, weekly: true),
+            ],
+            now: now)
+
+        #expect(model.metrics.map(\.id) == [
+            "antigravity-quota-summary-gemini-5h",
+            "antigravity-quota-summary-gemini-weekly",
+            "antigravity-quota-summary-grok-5h",
+            "antigravity-quota-summary-grok-weekly",
+        ])
+    }
+
+    @Test
+    func `antigravity hides an unfamiliar family pair when it is untouched`() throws {
+        let now = Date(timeIntervalSince1970: 1_735_000_000)
+        let model = try Self.quotaSummaryModel(
+            windows: [
+                Self.quotaSummaryWindow(id: "gemini-5h", title: "Gemini 5-hour", usedPercent: 1),
+                Self.quotaSummaryWindow(id: "gemini-weekly", title: "Gemini weekly", usedPercent: 4, weekly: true),
+                Self.quotaSummaryWindow(id: "grok-5h", title: "Grok 5-hour", usedPercent: 0),
+                Self.quotaSummaryWindow(id: "grok-weekly", title: "Grok weekly", usedPercent: 0, weekly: true),
+            ],
+            now: now)
+
+        #expect(model.metrics.map(\.id) == [
+            "antigravity-quota-summary-gemini-5h",
+            "antigravity-quota-summary-gemini-weekly",
+        ])
+    }
+
+    @Test
+    func `antigravity provider details keep every family`() throws {
+        // Provider details is the diagnostic surface, so it lists lanes the menu curates away.
+        let now = Date(timeIntervalSince1970: 1_735_000_000)
+        let model = try Self.quotaSummaryModel(
+            windows: [
+                Self.quotaSummaryWindow(id: "gemini-5h", title: "Gemini 5-hour", usedPercent: 1),
+                Self.quotaSummaryWindow(id: "gemini-weekly", title: "Gemini weekly", usedPercent: 4, weekly: true),
+                Self.quotaSummaryWindow(id: "3p-5h", title: "Claude/GPT 5-hour", usedPercent: 0),
+                Self.quotaSummaryWindow(id: "3p-weekly", title: "Claude/GPT weekly", usedPercent: 0, weekly: true),
+            ],
+            now: now,
+            showsAllUsageLanes: true)
+
+        #expect(model.metrics.map(\.id) == [
+            "antigravity-quota-summary-gemini-5h",
+            "antigravity-quota-summary-gemini-weekly",
+            "antigravity-quota-summary-3p-5h",
+            "antigravity-quota-summary-3p-weekly",
+        ])
+    }
+
+    private static func quotaSummaryWindow(
+        id: String,
+        title: String,
+        usedPercent: Double,
+        weekly: Bool = false,
+        usageKnown: Bool = true) -> NamedRateWindow
+    {
+        NamedRateWindow(
+            id: "antigravity-quota-summary-\(id)",
+            title: title,
+            window: RateWindow(
+                usedPercent: usedPercent,
+                windowMinutes: weekly ? 10080 : 300,
+                resetsAt: nil,
+                resetDescription: nil),
+            usageKnown: usageKnown)
+    }
+
+    private static func quotaSummaryModel(
+        windows: [NamedRateWindow],
+        now: Date,
+        showsAllUsageLanes: Bool = false) throws -> UsageMenuCardView.Model
+    {
+        let snapshot = UsageSnapshot(
+            primary: nil,
+            secondary: nil,
+            tertiary: nil,
+            extraRateWindows: windows,
+            updatedAt: now,
+            identity: ProviderIdentitySnapshot(
+                providerID: .antigravity,
+                accountEmail: nil,
+                accountOrganization: nil,
+                loginMethod: "Google AI Pro"))
+        let metadata = try #require(ProviderDefaults.metadata[.antigravity])
+
+        return UsageMenuCardView.Model.make(.init(
+            provider: .antigravity,
+            metadata: metadata,
+            snapshot: snapshot,
+            credits: nil,
+            creditsError: nil,
+            dashboard: nil,
+            dashboardError: nil,
+            tokenSnapshot: nil,
+            tokenError: nil,
+            account: AccountInfo(email: nil, plan: nil),
+            isRefreshing: false,
+            lastError: nil,
+            usageBarsShowUsed: true,
+            resetTimeDisplayStyle: .countdown,
+            tokenCostUsageEnabled: false,
+            showOptionalCreditsAndExtraUsage: false,
+            showsAllUsageLanes: showsAllUsageLanes,
+            hidePersonalInfo: false,
+            now: now))
+    }
 }

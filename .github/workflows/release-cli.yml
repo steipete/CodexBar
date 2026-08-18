@@ -409,11 +409,7 @@ jobs:
           ASSET="CodexBarCLI-${SAFE_REF_NAME}-${{ matrix.asset-platform }}-${{ matrix.asset-arch }}.tar.gz"
           (cd "$OUT_DIR" && tar czf "$ASSET" \
             CodexBarCLI codexbar VERSION CodexBar_CodexBarCore.bundle)
-          if command -v sha256sum >/dev/null 2>&1; then
-            sha256sum "$OUT_DIR/$ASSET" > "$OUT_DIR/$ASSET.sha256"
-          else
-            shasum -a 256 "$OUT_DIR/$ASSET" > "$OUT_DIR/$ASSET.sha256"
-          fi
+          Scripts/generate_release_checksum.sh "$OUT_DIR/$ASSET"
 
           echo "out_dir=$OUT_DIR" >> "$GITHUB_OUTPUT"
           echo "asset=$ASSET" >> "$GITHUB_OUTPUT"

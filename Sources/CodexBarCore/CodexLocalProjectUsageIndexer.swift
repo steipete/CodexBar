@@ -446,7 +446,10 @@ extension CodexLocalProjectUsageIndexer {
         var skippedFiles = 0
         var sessionBuckets: [String: SessionBucket] = [:]
         let files = cache.files.sorted(by: { $0.key < $1.key }).filter {
-            $0.value.touchesCodexScanWindow(sinceKey: range.sinceKey, untilKey: range.untilKey)
+            $0.value.touchesCodexScanWindow(
+                sinceKey: range.sinceKey,
+                untilKey: range.untilKey,
+                calendar: range.calendar)
         }
         progress?(CodexLocalProjectUsageIndexProgress(
             phase: .indexingProjects,

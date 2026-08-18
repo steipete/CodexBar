@@ -29,7 +29,9 @@ Usage source picker:
 
 ### OAuth API (preferred for the app)
 - Reads OAuth tokens from `~/.codex/auth.json` (or `$CODEX_HOME/auth.json`).
-- Refreshes access tokens when `last_refresh` is older than 8 days.
+- CodexBar never publishes refreshed native tokens into `auth.json`; when native credentials are stale,
+  the explicit OAuth path delegates recovery to the Codex CLI, which owns that file. If the CLI is unavailable,
+  the OAuth error is surfaced instead of mutating the shared file.
 - Calls `GET https://chatgpt.com/backend-api/wham/usage` (default) with `Authorization: Bearer <token>`.
 - The app reads reset-credit inventory once per refresh with a best-effort
   `GET https://chatgpt.com/backend-api/wham/rate-limit-reset-credits` using the same account-scoped OAuth context;
@@ -42,6 +44,19 @@ Usage source picker:
   `Codex Spark 5-hour` / `Codex Spark Weekly` titles. When the field is absent, the snapshot is unchanged.
 - Preferences → Providers → Codex → Show Codex Spark usage hides only the Spark rows in menus and the provider
   preview. It does not change fetching, history, notifications, widgets, credits, or other extra limits.
+
+### Optional external OAuth sources (off by default)
+- **External Codex OAuth sources** is a provider setting that must be enabled explicitly before CodexBar reads
+  another application's OAuth file. It is off by default because this is a cross-application credential boundary.
+- Without an explicit `$CODEX_HOME`, native Codex auth wins first, followed by legacy `~/.config/codex/auth.json`,
+  then OpenCode's `~/.local/share/opencode/auth.json` (or the equivalent `XDG_DATA_HOME` path).
+- An explicit `$CODEX_HOME` remains isolated; it never borrows credentials from those external locations.
+- External fallbacks accept OAuth token structures only; API-key entries are ignored. Usage probes never refresh or
+  publish OAuth token material into a shared `auth.json` without a cross-writer publication contract. Stale native
+  credentials can delegate to the CLI recovery path, while stale external credentials fail closed in every mode.
+  Automatic mode also suppresses unscoped CLI fallback whenever a managed workspace is selected. Explicit
+  managed-account workspace selection is stored in CodexBar's private managed-account metadata; it never edits the
+  source `auth.json` or publishes an `account_id` change back to another application's credential file.
 
 ### Advanced profile-home accounts
 - Managed Codex accounts remain the default multi-account path.

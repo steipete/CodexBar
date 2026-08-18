@@ -108,7 +108,8 @@ public enum MiniMaxProviderDescriptor {
                         context.snapshot.tertiary))
                 },
                 optionalDetails: ProviderOptionalDetailsPresentation(
-                    hiddenTitlesWithoutOptionalUsage: ["Billing history"])),
+                    hiddenTitlesWithoutOptionalUsage: ["Billing history"],
+                    costSummaryTitles: ["Billing history"])),
             fetchPlan: ProviderFetchPlan(
                 sourceModes: [.auto, .web, .api],
                 pipeline: ProviderFetchPipeline(resolveStrategies: self.resolveStrategies)),

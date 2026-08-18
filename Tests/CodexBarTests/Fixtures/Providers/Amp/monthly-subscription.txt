@@ -1,0 +1,5 @@
+Signed in as fixture@example.test (example)
+Amp Free: 61% remaining today (resets daily) - https://ampcode.com/settings#amp-free
+Subscription Gigawatt: 73% other usage and 91% orb usage remaining - resets upon renewal in 1 month
+Individual credits: $17.23 remaining (set up auto-reload to avoid running out) - https://ampcode.com/settings
+Workspace meow: $5.33 remaining (set up auto-reload to avoid running out) - https://ampcode.com/workspaces/meow

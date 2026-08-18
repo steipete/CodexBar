@@ -4,7 +4,147 @@ import Testing
 @testable import CodexBar
 
 @MainActor
+// swiftlint:disable:next type_body_length
 struct CostHistoryChartMenuViewTests {
+    @Test
+    func `partial Codex token history is marked refreshing until coverage completes`() {
+        #expect(CostHistoryChartMenuView._showsHistoryRefreshingForTesting(
+            provider: .codex,
+            metric: .tokens,
+            historyCoverageIsEstablished: false))
+        #expect(!CostHistoryChartMenuView._showsHistoryRefreshingForTesting(
+            provider: .codex,
+            metric: .tokens,
+            historyCoverageIsEstablished: true))
+        #expect(!CostHistoryChartMenuView._showsHistoryRefreshingForTesting(
+            provider: .codex,
+            metric: .cost,
+            historyCoverageIsEstablished: false))
+        #expect(!CostHistoryChartMenuView._showsHistoryRefreshingForTesting(
+            provider: .claude,
+            metric: .tokens,
+            historyCoverageIsEstablished: false))
+    }
+
+    @Test
+    func `chart day keys remain on the injected Hong Kong local day`() throws {
+        let hongKong = try #require(TimeZone(identifier: "Asia/Hong_Kong"))
+        var sourceCalendar = Calendar(identifier: .buddhist)
+        sourceCalendar.timeZone = hongKong
+        let date = try #require(CostHistoryChartMenuView._dateFromDayKeyForTesting(
+            "2026-08-14",
+            provider: .codex,
+            calendar: sourceCalendar))
+
+        var gregorian = Calendar(identifier: .gregorian)
+        gregorian.timeZone = hongKong
+        #expect(gregorian.dateComponents([.year, .month, .day, .hour], from: date) == DateComponents(
+            year: 2026,
+            month: 8,
+            day: 14,
+            hour: 0))
+    }
+
+    @Test
+    func `chart day keys reject noncanonical and impossible dates`() throws {
+        let hongKong = try #require(TimeZone(identifier: "Asia/Hong_Kong"))
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = hongKong
+
+        #expect(CostHistoryChartMenuView._dateFromDayKeyForTesting(
+            "2026-8-14",
+            provider: .codex,
+            calendar: calendar) == nil)
+        #expect(CostHistoryChartMenuView._dateFromDayKeyForTesting(
+            "2026-02-30",
+            provider: .codex,
+            calendar: calendar) == nil)
+    }
+
+    @Test
+    func `Mistral UTC day keys map to the same local day as spend activity`() throws {
+        let losAngeles = try #require(TimeZone(identifier: "America/Los_Angeles"))
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = losAngeles
+        let date = try #require(CostHistoryChartMenuView._dateFromDayKeyForTesting(
+            "2026-08-14",
+            provider: .mistral,
+            calendar: calendar))
+
+        #expect(calendar.dateComponents([.year, .month, .day], from: date) == DateComponents(
+            year: 2026,
+            month: 8,
+            day: 13))
+    }
+
+    @Test
+    func `Codex daily chart defaults to tokens while other providers preserve cost`() {
+        let daily = [
+            Self.dailyEntry(date: "2026-08-12", totalTokens: 1_250_000, costUSD: 1.25),
+        ]
+
+        #expect(CostHistoryChartMenuView._defaultMetricForTesting(provider: .codex, daily: daily) == .tokens)
+        #expect(CostHistoryChartMenuView._defaultMetricForTesting(provider: .claude, daily: daily) == .cost)
+    }
+
+    @Test
+    func `Codex daily chart falls back to cost when token totals are unavailable`() {
+        let daily = [
+            Self.dailyEntry(date: "2026-08-12", totalTokens: nil, costUSD: 1.25),
+        ]
+
+        #expect(CostHistoryChartMenuView._availableMetricsForTesting(provider: .codex, daily: daily) == [.cost])
+        #expect(CostHistoryChartMenuView._defaultMetricForTesting(provider: .codex, daily: daily) == .cost)
+    }
+
+    @Test
+    func `token chart keeps exact daily totals even when a cost estimate is unavailable`() {
+        let daily = [
+            Self.dailyEntry(date: "2026-08-12", totalTokens: 1_250_000, costUSD: 1.25),
+            Self.dailyEntry(date: "2026-08-13", totalTokens: 2_500_000, costUSD: nil),
+        ]
+
+        #expect(
+            CostHistoryChartMenuView._availableMetricsForTesting(provider: .codex, daily: daily)
+                == [.tokens, .cost])
+        #expect(
+            CostHistoryChartMenuView._chartValuesForTesting(
+                provider: .codex,
+                daily: daily,
+                metric: .tokens) == [1_250_000, 2_500_000])
+        #expect(
+            CostHistoryChartMenuView._chartValuesForTesting(
+                provider: .codex,
+                daily: daily,
+                metric: .cost) == [1.25])
+    }
+
+    @Test
+    func `token chart does not add cached input to the canonical total`() {
+        let daily = [
+            CostUsageDailyReport.Entry(
+                date: "2026-08-12",
+                inputTokens: 100,
+                outputTokens: 50,
+                cacheReadTokens: 80,
+                totalTokens: 150,
+                costUSD: 1.25,
+                modelsUsed: nil,
+                modelBreakdowns: nil),
+        ]
+
+        #expect(CostHistoryChartMenuView._chartValuesForTesting(
+            provider: .codex,
+            daily: daily,
+            metric: .tokens) == [150])
+    }
+
+    @Test
+    func `token axis uses compact token labels instead of currency`() {
+        #expect(CostHistoryChartMenuView._yAxisTokenStringForTesting(1_250_000) == "1.2M")
+        #expect(!CostHistoryChartMenuView._yAxisTokenStringForTesting(1_250_000).contains("$"))
+    }
+
     @Test
     func `Codex chart explains that its token estimate is not a subscription bill`() {
         #expect(
@@ -134,6 +274,54 @@ struct CostHistoryChartMenuViewTests {
     }
 
     @Test
+    func `metric switch reserves one stable detail layout`() {
+        let tokenOnly = CostUsageDailyReport.Entry(
+            date: "2026-06-07",
+            inputTokens: 100,
+            outputTokens: 50,
+            totalTokens: 150,
+            costUSD: nil,
+            modelsUsed: (0..<5).map { "token-model-\($0)" },
+            modelBreakdowns: (0..<5).map {
+                CostUsageDailyReport.ModelBreakdown(
+                    modelName: "token-model-\($0)",
+                    costUSD: nil,
+                    totalTokens: 30,
+                    standardCostUSD: 0.1)
+            })
+        let costOnly = CostUsageDailyReport.Entry(
+            date: "2026-06-08",
+            inputTokens: nil,
+            outputTokens: nil,
+            totalTokens: nil,
+            costUSD: 1,
+            modelsUsed: ["cost-model"],
+            modelBreakdowns: [
+                CostUsageDailyReport.ModelBreakdown(
+                    modelName: "cost-model",
+                    costUSD: 1,
+                    totalTokens: nil),
+            ])
+        let daily = [tokenOnly, costOnly]
+
+        let tokens = CostHistoryChartMenuView._detailViewportConfigurationForTesting(
+            provider: .codex,
+            daily: daily,
+            metric: .tokens)
+        let cost = CostHistoryChartMenuView._detailViewportConfigurationForTesting(
+            provider: .codex,
+            daily: daily,
+            metric: .cost)
+
+        #expect(tokens.rowCount == cost.rowCount)
+        #expect(tokens.hasOverflow == cost.hasOverflow)
+        #expect(tokens.rowHeight == cost.rowHeight)
+        #expect(tokens.rowCount == 4)
+        #expect(tokens.hasOverflow)
+        #expect(tokens.rowHeight == 44)
+    }
+
+    @Test
     @MainActor
     func `axis dates span first to last for multi-day data`() {
         let daily = [
@@ -161,10 +349,6 @@ struct CostHistoryChartMenuViewTests {
         #expect(cal.component(.day, from: dates[0]) == 21)
         #expect(cal.component(.month, from: dates[1]) == 6)
         #expect(cal.component(.day, from: dates[1]) == 17)
-        #expect(
-            CostHistoryChartMenuView._axisLabelPlacementForTesting(
-                provider: .codex,
-                daily: daily) == .edges)
     }
 
     @Test
@@ -182,10 +366,6 @@ struct CostHistoryChartMenuViewTests {
         ]
         let dates = CostHistoryChartMenuView._axisDatesForTesting(provider: .codex, daily: daily)
         #expect(dates.count == 1)
-        #expect(
-            CostHistoryChartMenuView._axisLabelPlacementForTesting(
-                provider: .codex,
-                daily: daily) == .centered)
     }
 
     @Test
@@ -203,10 +383,6 @@ struct CostHistoryChartMenuViewTests {
         ]
         let dates = CostHistoryChartMenuView._axisDatesForTesting(provider: .codex, daily: daily)
         #expect(dates.isEmpty)
-        #expect(
-            CostHistoryChartMenuView._axisLabelPlacementForTesting(
-                provider: .codex,
-                daily: daily) == .hidden)
     }
 
     @Test
@@ -327,6 +503,17 @@ struct CostHistoryChartMenuViewTests {
             provider: .codex)
 
         #expect(before != after)
+    }
+
+    @Test
+    @MainActor
+    func `render fingerprint changes when history coverage completes`() {
+        let partial = Self.makeSnapshot(historyCoverageIsEstablished: false)
+        let complete = Self.makeSnapshot(historyCoverageIsEstablished: true)
+
+        #expect(
+            CostHistoryChartMenuView.renderFingerprint(from: partial, provider: .codex)
+                != CostHistoryChartMenuView.renderFingerprint(from: complete, provider: .codex))
     }
 
     @Test
@@ -470,16 +657,16 @@ struct CostHistoryChartMenuViewTests {
 
     @Test
     @MainActor
-    func `render fingerprint excludes invalid daily rows that the chart drops`() {
+    func `render fingerprint excludes rows without a valid token or cost metric`() {
         let invalidRows = [
-            Self.dailyEntry(date: "2026-06-07", costUSD: nil),
-            Self.dailyEntry(date: "2026-06-08", costUSD: -1),
-            Self.dailyEntry(date: "not-a-date", costUSD: 1),
+            Self.dailyEntry(date: "2026-06-07", totalTokens: nil, costUSD: nil),
+            Self.dailyEntry(date: "2026-06-08", totalTokens: -1, costUSD: -1),
+            Self.dailyEntry(date: "not-a-date", totalTokens: 150, costUSD: 1),
         ]
         let differentInvalidRows = [
-            Self.dailyEntry(date: "2026-06-09", costUSD: nil),
-            Self.dailyEntry(date: "2026-06-10", costUSD: -99),
-            Self.dailyEntry(date: "still-not-a-date", costUSD: 99),
+            Self.dailyEntry(date: "2026-06-09", totalTokens: nil, costUSD: nil),
+            Self.dailyEntry(date: "2026-06-10", totalTokens: -99, costUSD: -99),
+            Self.dailyEntry(date: "still-not-a-date", totalTokens: 999, costUSD: 99),
         ]
         let empty = Self.fingerprint(daily: [])
 
@@ -735,11 +922,19 @@ struct CostHistoryChartMenuViewTests {
     }
 
     private static func dailyEntry(date: String, costUSD: Double?) -> CostUsageDailyReport.Entry {
+        self.dailyEntry(date: date, totalTokens: 150, costUSD: costUSD)
+    }
+
+    private static func dailyEntry(
+        date: String,
+        totalTokens: Int?,
+        costUSD: Double?) -> CostUsageDailyReport.Entry
+    {
         CostUsageDailyReport.Entry(
             date: date,
             inputTokens: 100,
             outputTokens: 50,
-            totalTokens: 150,
+            totalTokens: totalTokens,
             costUSD: costUSD,
             modelsUsed: nil,
             modelBreakdowns: nil)
@@ -752,6 +947,7 @@ struct CostHistoryChartMenuViewTests {
         currencyCode: String = "USD",
         historyDays: Int = 30,
         historyLabel: String? = nil,
+        historyCoverageIsEstablished: Bool = true,
         daily: [CostUsageDailyReport.Entry]? = nil,
         projects: [CostUsageProjectBreakdown]? = nil,
         sessions: [CostUsageSessionBreakdown] = []) -> CostUsageTokenSnapshot
@@ -763,6 +959,7 @@ struct CostHistoryChartMenuViewTests {
             last30DaysCostUSD: totalCostUSD ?? dailyCost,
             currencyCode: currencyCode,
             historyDays: historyDays,
+            historyCoverageIsEstablished: historyCoverageIsEstablished,
             historyLabel: historyLabel,
             daily: daily ?? [
                 CostUsageDailyReport.Entry(

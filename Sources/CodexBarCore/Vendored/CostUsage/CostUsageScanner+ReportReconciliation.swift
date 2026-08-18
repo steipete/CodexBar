@@ -103,7 +103,8 @@ extension CostUsageScanner {
         range: CostUsageDayRange,
         priorityTurns: [String: CodexPriorityTurnMetadata],
         modelsDevCatalog: ModelsDevCatalog?,
-        modelsDevCacheRoot: URL?) -> Set<CodexDayModelKey>
+        modelsDevCacheRoot: URL?,
+        customPricing: CostUsageCustomPricing? = nil) -> Set<CodexDayModelKey>
     {
         let rowsByGroup = Dictionary(grouping: usage.codexRows ?? []) {
             CodexDayModelKey(day: $0.day, model: $0.model)
@@ -118,7 +119,8 @@ extension CostUsageScanner {
                 rows: rows,
                 priorityTurns: priorityTurns,
                 modelsDevCatalog: modelsDevCatalog,
-                modelsDevCacheRoot: modelsDevCacheRoot)
+                modelsDevCacheRoot: modelsDevCacheRoot,
+                customPricing: customPricing)
             return breakdown.hasIncompletePricing ? group : nil
         })
     }

@@ -32,13 +32,8 @@ extension UsageStore {
         } catch {
             guard self.statusRefreshPublicationIsCurrent(publicationRevision, for: provider) else { return }
             self.recordStartupConnectivityRetryableFailure(error)
-            // Keep the previous status to avoid flapping when the API hiccups.
-            if self.statuses[provider.instanceID] == nil {
-                self.statuses[provider.instanceID] = ProviderStatus(
-                    indicator: .unknown,
-                    description: error.localizedDescription,
-                    updatedAt: nil)
-            }
+            // A failed fetch provides no new status information. Preserve a last good status
+            // to avoid flapping, or leave it unset until the first successful fetch.
         }
     }
 

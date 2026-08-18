@@ -178,5 +178,48 @@ struct Issue2037ScannerIntegrationTests {
         // sufficient cross-file identity, so both children stay uncounted until the parent
         // snapshot is available from its file or the persistent token index.
         #expect(scannedUnits == 0)
+        let unmetered = report.data.reduce(0) { $0 + ($1.unmeteredRequestCount ?? 0) }
+        #expect(unmetered == 2)
+        #expect(report.data.allSatisfy { $0.costUSD == nil })
+    }
+
+    @Test
+    func `missing parent forks stay in the scan window without billed days`() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0) ?? .gmt
+        let noon = Date(timeIntervalSince1970: 1_893_456_000) // 2030-01-01 12:00 UTC
+        let range = CostUsageScanner.CostUsageDayRange(since: noon, until: noon, calendar: calendar)
+        let unixMs = Int64(noon.timeIntervalSince1970 * 1000)
+        var siblingA = CostUsageFileUsage(
+            mtimeUnixMs: unixMs,
+            size: 1,
+            days: [:])
+        siblingA.forkedFromId = "missing-parent"
+        siblingA.forkBaselineDependencyKey = "missing|missing-parent|discovery|1"
+        siblingA.codexSession = CostUsageCodexSessionMetadata(
+            sessionId: "sibling-a",
+            forkedFromId: "missing-parent",
+            cwd: nil,
+            title: nil,
+            startedAtUnixMs: unixMs,
+            latestActivityUnixMs: unixMs)
+
+        #expect(CostUsageScanner.isUnresolvedMissingParentFork(siblingA))
+        #expect(!CostUsageScanner.codexFileHasBilledTokens(siblingA))
+        #expect(siblingA.touchesCodexScanWindow(
+            sinceKey: range.scanSinceKey,
+            untilKey: range.scanUntilKey,
+            calendar: calendar))
+
+        var siblingB = siblingA
+        siblingB.codexSession?.sessionId = "sibling-b"
+        var cache = CostUsageCache()
+        cache.files["sibling-a.jsonl"] = siblingA
+        cache.files["sibling-b.jsonl"] = siblingB
+        let counts = CostUsageScanner.unresolvedForkUnmeteredCounts(cache: cache, range: range)
+        #expect(counts.values.reduce(0, +) == 2)
+        let report = CostUsageScanner.buildCodexReportFromCache(cache: cache, range: range)
+        #expect(report.data.reduce(0) { $0 + ($1.unmeteredRequestCount ?? 0) } == 2)
+        #expect(report.data.allSatisfy { ($0.inputTokens ?? 0) == 0 })
     }
 }

@@ -43,6 +43,7 @@ struct MistralMenuCardModelTests {
             usageBarsShowUsed: false,
             resetTimeDisplayStyle: .countdown,
             tokenCostUsageEnabled: false,
+            costSummaryInlineEnabled: true,
             showOptionalCreditsAndExtraUsage: true,
             hidePersonalInfo: false,
             now: now))
@@ -104,6 +105,7 @@ struct MistralMenuCardModelTests {
             usageBarsShowUsed: false,
             resetTimeDisplayStyle: .countdown,
             tokenCostUsageEnabled: false,
+            costSummaryInlineEnabled: true,
             showOptionalCreditsAndExtraUsage: true,
             hidePersonalInfo: false,
             now: now))
@@ -157,6 +159,7 @@ struct MistralMenuCardModelTests {
             usageBarsShowUsed: true,
             resetTimeDisplayStyle: .countdown,
             tokenCostUsageEnabled: false,
+            costSummaryInlineEnabled: true,
             showOptionalCreditsAndExtraUsage: true,
             hidePersonalInfo: false,
             now: now))

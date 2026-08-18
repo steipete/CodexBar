@@ -55,6 +55,58 @@ final class CLIEntryTests: XCTestCase {
         XCTAssertFalse(result.stderr.isEmpty)
     }
 
+    /// `Program.resolve` throws before `ParsedValues` (and `resolveUsageOutputPreferences`) exist, so
+    /// a genuine parse failure -- an unrecognized option here -- has to go through the argv-level
+    /// `CLIOutputPreferences.from(argv:)` bootstrap scanner. Regression test for that scanner not
+    /// recognizing `--format toon` and silently falling back to plain stderr text.
+    func test_usageCommanderParseFailureWithToonAndJSONRendersTOON() throws {
+        let result = try Self.runCLI(arguments: ["usage", "--format", "toon", "--json", "--bogus-flag-xyz"])
+
+        XCTAssertNotEqual(result.status, 0)
+        XCTAssertTrue(result.stderr.isEmpty)
+        let stdout = try XCTUnwrap(String(bytes: result.stdout, encoding: .utf8))
+        XCTAssertTrue(stdout.contains("- provider: cli"))
+        XCTAssertTrue(stdout.contains("Unknown option --bogus-flag-xyz"))
+        XCTAssertFalse(stdout.hasPrefix("[{"), "TOON error output should not fall back to a JSON array literal")
+    }
+
+    func test_usageCommanderParseFailureRendersTOONWhenRequested() throws {
+        let result = try Self.runCLI(arguments: ["usage", "--bogus-flag-xyz", "--format", "toon"])
+
+        XCTAssertNotEqual(result.status, 0)
+        XCTAssertTrue(result.stderr.isEmpty)
+        let stdout = try XCTUnwrap(String(bytes: result.stdout, encoding: .utf8))
+        XCTAssertTrue(stdout.contains("- provider: cli"))
+        XCTAssertTrue(stdout.contains("message: Unknown option --bogus-flag-xyz"))
+        XCTAssertFalse(stdout.hasPrefix("[{"), "TOON error output should not fall back to a JSON array literal")
+        XCTAssertFalse(stdout.contains("\"provider\""), "TOON error output should not contain JSON-quoted keys")
+    }
+
+    func test_usageCommanderParseFailureWithEqualsFormatRendersTOON() throws {
+        let result = try Self.runCLI(arguments: ["usage", "--bogus-flag-xyz", "--format=toon"])
+
+        XCTAssertNotEqual(result.status, 0)
+        XCTAssertTrue(result.stderr.isEmpty)
+        let stdout = try XCTUnwrap(String(bytes: result.stdout, encoding: .utf8))
+        XCTAssertTrue(stdout.contains("Unknown option --bogus-flag-xyz"))
+    }
+
+    /// TOON is a `usage`-only contract. Commands whose help promises `text | json` must keep treating
+    /// `--format toon` as an unrecognized value -- reporting on stderr as text -- rather than silently
+    /// switching to the JSON branch.
+    func test_nonUsageCommandsDoNotInheritTOONOutput() throws {
+        for command in ["cost", "diagnose", "cache"] {
+            let result = try Self.runCLI(arguments: [command, "--format", "toon", "--bogus-flag-xyz"])
+
+            XCTAssertNotEqual(result.status, 0, "\(command) should still fail on an unknown option")
+            XCTAssertTrue(result.stdout.isEmpty, "\(command) must not emit a structured payload on stdout")
+            let stderr = try XCTUnwrap(String(bytes: result.stderr, encoding: .utf8))
+            XCTAssertTrue(
+                stderr.contains("Unknown option --bogus-flag-xyz"),
+                "\(command) should report the parse failure as text on stderr")
+        }
+    }
+
     func test_dashboardCommandPrintsOneSnapshotAndExits() throws {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("codexbar-dashboard-command-\(UUID().uuidString)", isDirectory: true)

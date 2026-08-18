@@ -8,13 +8,16 @@ read_when:
 
 # Amp Provider
 
-The Amp provider tracks Amp Free usage plus individual and workspace credits. It prefers the local Amp CLI, then an Amp
-access token, and finally browser cookies.
+The Amp provider tracks Amp Free usage, monthly subscription pools, and individual and workspace credits. It prefers the
+local Amp CLI, then an Amp access token, and finally browser cookies.
 
 ## Features
 
 - **Amp Free meter**: Shows how much daily free usage remains.
-- **Time-to-full reset**: “Resets in …” indicates when free usage replenishes to full.
+- **Daily reset**: Percentage-based Amp Free usage resets at 8:00 PM America/New_York time.
+- **Monthly subscriptions**: Shows the independently metered “Other usage” and “Orb usage” pools for Megawatt and
+  Gigawatt plans.
+- **Time-to-full reset**: Legacy dollar-based Amp Free output estimates when hourly replenishment reaches full.
 - **Individual credits**: Shows the remaining paid credit balance when Amp reports one.
 - **Workspace credits**: Shows each workspace's remaining paid credit balance separately.
 - **CLI-first fetch**: Uses `amp usage` when the Amp CLI is installed and signed in.
@@ -43,7 +46,8 @@ Create an access token in Amp settings, then paste it into **Amp → Access toke
 - Calls `POST https://ampcode.com/api/internal?userDisplayBalanceInfo` with an Amp access token
 - Falls back to the settings page with browser cookies
 - Parses the same usage display format returned to the CLI
-- Computes time-to-full from the hourly replenishment rate
+- Uses Amp's calendar-month renewal period for subscriptions and its 8:00 PM New York reset for daily free usage
+- Computes time-to-full from the hourly replenishment rate for legacy dollar-based Amp Free output
 
 ### “Amp access token is invalid or expired”
 

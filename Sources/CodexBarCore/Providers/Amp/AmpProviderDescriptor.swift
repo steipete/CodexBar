@@ -51,6 +51,9 @@ public enum AmpProviderDescriptor {
                         tertiary: metadata.opusLabel ?? "Sonnet",
                         showsTertiary: metadata.supportsOpus)
                 },
+                extraRateWindowSelector: { snapshot in
+                    (snapshot.extraRateWindows ?? []).filter { $0.id == "amp-free" }
+                },
                 menuCard: ProviderMenuCardPresentation(creditsVisibility: .hiddenWhenUsageSnapshotPresent)),
             fetchPlan: ProviderFetchPlan(
                 sourceModes: [.auto, .api, .web, .cli],

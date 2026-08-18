@@ -1,5 +1,6 @@
 import Foundation
 
+// swiftlint:disable:next type_body_length
 enum CostUsagePricing {
     private static let codexPriorityInputTokenLimit = 272_000
     static let codexUnattributedModel = "unknown"
@@ -465,8 +466,62 @@ enum CostUsagePricing {
             cacheReadInputCostPerTokenAboveThreshold: 6e-7),
     ]
 
-    private static let codexModelsDevProviderID = "openai"
+    static let codexModelsDevProviderID = "openai"
+    /// Provider IDs emitted by Codex-compatible clients that have matching entries in models.dev.
+    ///
+    /// The route prefix is part of the model identity for local usage estimates. Keep both the
+    /// client-facing aliases and their models.dev provider IDs here so pricing-cache fingerprints
+    /// invalidate when any supported route's rates change.
+    static let codexModelsDevProviderIDs: Set<String> = [
+        "deepseek",
+        "kimi-coding",
+        "kimi-for-coding",
+        "openai",
+        "opencode",
+        "opencode-free",
+        "opencode-go",
+    ]
     private static let claudeModelsDevProviderID = "anthropic"
+
+    /// Returns the provider/model identities that may price a Codex model. Keep this mapping
+    /// shared by direct lookup and unknown-price refresh so a newly downloaded catalog is checked
+    /// under the same identity that was used to resolve the model.
+    static func codexModelsDevPricingTargets(for rawModel: String) -> [(providerID: String, modelID: String)] {
+        let trimmed = rawModel.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return [] }
+        if let slash = trimmed.firstIndex(of: "/") {
+            let routeID = String(trimmed[..<slash]).lowercased()
+            let modelID = String(trimmed[trimmed.index(after: slash)...])
+            guard !routeID.isEmpty, !modelID.isEmpty,
+                  self.codexModelsDevProviderIDs.contains(routeID)
+            else { return [] }
+
+            var providerIDs = [routeID]
+            switch routeID {
+            case "kimi-coding":
+                providerIDs.append("kimi-for-coding")
+            case "opencode-free":
+                providerIDs.append("opencode")
+            default:
+                break
+            }
+            var targets = providerIDs.map { ($0, modelID) }
+            if routeID == self.codexModelsDevProviderID {
+                let normalized = self.normalizeCodexModel(modelID)
+                if normalized != modelID {
+                    targets.append((self.codexModelsDevProviderID, normalized))
+                }
+            }
+            return targets
+        }
+
+        let normalized = self.normalizeCodexModel(trimmed)
+        var targets = [(self.codexModelsDevProviderID, trimmed)]
+        if normalized != trimmed {
+            targets.append((self.codexModelsDevProviderID, normalized))
+        }
+        return targets
+    }
 
     static func normalizeCodexModel(_ raw: String) -> String {
         var trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -542,75 +597,23 @@ enum CostUsagePricing {
         return trimmed
     }
 
-    static func codexCostUSD(
-        model: String,
-        inputTokens: Int,
-        cachedInputTokens: Int,
-        outputTokens: Int,
-        cacheWriteInputTokens: Int = 0,
-        modelsDevCatalog: ModelsDevCatalog? = nil,
-        modelsDevCacheRoot: URL? = nil) -> Double?
-    {
-        guard let pricing = self.resolvedCodexPricing(
-            model: model,
-            modelsDevCatalog: modelsDevCatalog,
-            modelsDevCacheRoot: modelsDevCacheRoot)
-        else { return nil }
-        return self.codexCostUSD(
-            pricing: pricing,
-            inputTokens: inputTokens,
-            cachedInputTokens: cachedInputTokens,
-            cacheWriteInputTokens: cacheWriteInputTokens,
-            outputTokens: outputTokens)
+    static func customPricingOverlay(fileURL: URL? = nil) -> CostUsageCustomPricing {
+        CostUsageCustomPricing.load(fileURL: fileURL)
     }
 
-    static func codexAggregateCostUSD(
-        model: String,
-        inputTokens: Int,
-        cachedInputTokens: Int,
-        outputTokens: Int,
-        cacheWriteInputTokens: Int = 0,
-        modelsDevCatalog: ModelsDevCatalog? = nil,
-        modelsDevCacheRoot: URL? = nil) -> Double?
-    {
-        guard let pricing = self.resolvedCodexPricing(
-            model: model,
-            modelsDevCatalog: modelsDevCatalog,
-            modelsDevCacheRoot: modelsDevCacheRoot)
-        else { return nil }
-        if let thresholdTokens = pricing.thresholdTokens,
-           max(0, inputTokens) > thresholdTokens
-        {
-            return nil
-        }
-        return self.codexCostUSD(
-            pricing: pricing,
-            inputTokens: inputTokens,
-            cachedInputTokens: cachedInputTokens,
-            cacheWriteInputTokens: cacheWriteInputTokens,
-            outputTokens: outputTokens)
-    }
-
-    private static func resolvedCodexPricing(
+    static func resolvedCodexPricing(
         model: String,
         modelsDevCatalog: ModelsDevCatalog?,
         modelsDevCacheRoot: URL?) -> CodexPricing?
     {
         let key = self.normalizeCodexModel(model)
         guard key != self.codexUnattributedModel else { return nil }
-        let exactModelsDevLookup = self.modelsDevLookup(
-            providerID: self.codexModelsDevProviderID,
+        let modelsDevLookup = self.codexModelsDevLookup(
             model: model,
             catalog: modelsDevCatalog,
             cacheRoot: modelsDevCacheRoot)
-        let modelsDevLookup = exactModelsDevLookup
-            ?? (model == key ? nil : self.modelsDevLookup(
-                providerID: self.codexModelsDevProviderID,
-                model: key,
-                catalog: modelsDevCatalog,
-                cacheRoot: modelsDevCacheRoot))
         if let lookup = modelsDevLookup {
-            let bundled = self.codex[key]
+            let bundled = lookup.pricing.providerID == self.codexModelsDevProviderID ? self.codex[key] : nil
             // A missing catalog context block means models.dev has no long-context opinion, so use
             // the bundled tuple. Once the block exists, preserve its omissions and normal fallback
             // semantics instead of filling individual fields from a different pricing source.
@@ -658,6 +661,27 @@ enum CostUsagePricing {
         return pricing
     }
 
+    /// Resolves the provider-qualified model IDs written by Codex-compatible clients without
+    /// falling back to OpenAI pricing for an unrelated route. Unqualified model IDs retain the
+    /// historical OpenAI behavior, including the gpt-5.6 alias lookup.
+    private static func codexModelsDevLookup(
+        model rawModel: String,
+        catalog: ModelsDevCatalog?,
+        cacheRoot: URL?) -> ModelsDevPricingLookup?
+    {
+        for target in self.codexModelsDevPricingTargets(for: rawModel) {
+            if let lookup = self.modelsDevLookup(
+                providerID: target.providerID,
+                model: target.modelID,
+                catalog: catalog,
+                cacheRoot: cacheRoot)
+            {
+                return lookup
+            }
+        }
+        return nil
+    }
+
     static func codexPriorityCostUSD(
         model: String,
         inputTokens: Int,
@@ -665,7 +689,8 @@ enum CostUsagePricing {
         cacheWriteInputTokens: Int = 0,
         outputTokens: Int,
         modelsDevCatalog: ModelsDevCatalog? = nil,
-        modelsDevCacheRoot: URL? = nil) -> Double?
+        modelsDevCacheRoot: URL? = nil,
+        customPricing: CostUsageCustomPricing? = nil) -> Double?
     {
         guard let multiplier = self.codexAPIFastMultiplier(model: model) else { return nil }
         // OpenAI does not support API Fast processing for long-context requests. Do not combine
@@ -681,7 +706,8 @@ enum CostUsagePricing {
             outputTokens: outputTokens,
             cacheWriteInputTokens: cacheWriteInputTokens,
             modelsDevCatalog: modelsDevCatalog,
-            modelsDevCacheRoot: modelsDevCacheRoot)
+            modelsDevCacheRoot: modelsDevCacheRoot,
+            customPricing: customPricing)
             .map { $0 * multiplier }
     }
 
@@ -700,7 +726,7 @@ enum CostUsagePricing {
         }
     }
 
-    private static func codexCostUSD(
+    static func codexCostUSD(
         pricing: CodexPricing,
         inputTokens: Int,
         cachedInputTokens: Int,
@@ -783,8 +809,7 @@ enum CostUsagePricing {
                     : currentPricing,
                 tokens: tokens)
         }
-        if let lookup = self.modelsDevLookup(
-            providerID: self.claudeModelsDevProviderID,
+        if let lookup = self.claudeModelsDevLookup(
             model: model,
             catalog: modelsDevCatalog,
             cacheRoot: modelsDevCacheRoot)
@@ -868,5 +893,109 @@ enum CostUsagePricing {
             providerID: providerID,
             modelID: model,
             cacheRoot: cacheRoot)
+    }
+}
+
+extension CostUsagePricing {
+    /// Bare Claude-routed IDs may match first-party models.dev vendors. Recognizable model families
+    /// stay with their vendor, while unknown bare IDs must have one unambiguous catalog match.
+    /// Provider-specific by design: first-party vendor routing for bare Claude model IDs.
+    static let claudeFirstPartyModelsDevProviderIDs: [String] = [
+        Self.claudeModelsDevProviderID,
+        "openai",
+        "google",
+        "moonshot",
+        "kimi-for-coding",
+        "minimax",
+        "deepseek",
+    ]
+
+    static func claudeModelsDevPricingTargets(for rawModel: String) -> [(providerID: String, modelID: String)] {
+        let trimmed = rawModel.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return [] }
+        if let slash = trimmed.firstIndex(of: "/") {
+            let codexTargets = self.codexModelsDevPricingTargets(for: trimmed)
+            if !codexTargets.isEmpty {
+                return codexTargets
+            }
+
+            let routeID = String(trimmed[..<slash]).lowercased()
+            let modelID = String(trimmed[trimmed.index(after: slash)...])
+            guard !routeID.isEmpty, !modelID.isEmpty,
+                  self.claudeFirstPartyModelsDevProviderIDs.contains(routeID)
+            else { return [] }
+            return self.claudeModelsDevModelIDs(for: modelID).map { (routeID, $0) }
+        }
+
+        let providerIDs = self.claudeFirstPartyModelsDevPreferredProviderIDs(for: trimmed)
+            ?? self.claudeFirstPartyModelsDevProviderIDs
+        let modelIDs = self.claudeModelsDevModelIDs(for: trimmed)
+        return providerIDs.flatMap { providerID in
+            modelIDs.map { (providerID, $0) }
+        }
+    }
+
+    private static func claudeModelsDevModelIDs(for rawModel: String) -> [String] {
+        let normalized = self.normalizeClaudeModel(rawModel)
+        return normalized == rawModel ? [rawModel] : [rawModel, normalized]
+    }
+
+    private static func claudeFirstPartyModelsDevPreferredProviderIDs(for rawModel: String) -> [String]? {
+        let model = self.normalizeClaudeModel(rawModel).lowercased()
+        if model.hasPrefix("claude-") {
+            return [self.claudeModelsDevProviderID]
+        }
+        let openAIReasoningFamily = ["o1", "o3", "o4"].contains {
+            model == $0 || model.hasPrefix("\($0)-")
+        }
+        if openAIReasoningFamily
+            || ["gpt-", "chatgpt-", "text-embedding-"].contains(where: model.hasPrefix)
+        {
+            // Provider-specific by design: recognizable model families stay in their owning first-party catalog.
+            return ["openai"]
+        }
+        if ["gemini-", "gemma-", "deep-research-", "veo-", "lyria-"].contains(where: model.hasPrefix) {
+            return ["google"]
+        }
+        if model == "kimi-for-coding" || model == "k3" || model.hasPrefix("k3-") {
+            return ["kimi-for-coding"]
+        }
+        if model.hasPrefix("kimi-") || model.hasPrefix("moonshot-") {
+            return ["moonshot", "kimi-for-coding"]
+        }
+        if model.hasPrefix("minimax-") {
+            return ["minimax"]
+        }
+        if model.hasPrefix("deepseek-") {
+            return ["deepseek"]
+        }
+        return nil
+    }
+
+    fileprivate static func claudeModelsDevLookup(
+        model rawModel: String,
+        catalog: ModelsDevCatalog?,
+        cacheRoot: URL?) -> ModelsDevPricingLookup?
+    {
+        let trimmed = rawModel.trimmingCharacters(in: .whitespacesAndNewlines)
+        let hasExplicitRoute = trimmed.contains("/")
+        let hasPreferredVendor = self.claudeFirstPartyModelsDevPreferredProviderIDs(for: trimmed) != nil
+        var matches: [ModelsDevPricingLookup] = []
+        for target in self.claudeModelsDevPricingTargets(for: rawModel) {
+            if let lookup = self.modelsDevLookup(
+                providerID: target.providerID,
+                model: target.modelID,
+                catalog: catalog,
+                cacheRoot: cacheRoot)
+            {
+                if hasExplicitRoute || hasPreferredVendor {
+                    return lookup
+                }
+                matches.append(lookup)
+            }
+        }
+        let matchedProviderIDs = Set(matches.map(\.pricing.providerID))
+        guard matchedProviderIDs.count == 1 else { return nil }
+        return matches.first
     }
 }

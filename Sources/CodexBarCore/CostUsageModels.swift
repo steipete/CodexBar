@@ -22,19 +22,31 @@ public struct CostUsageWindowSummary: Sendable, Equatable {
     public let totalCostUSD: Double?
     public let totalRequests: Int?
     public let entryCount: Int
+    public let tokenMix: CostUsageTokenMix
+    public let coverage: CostUsageCoverageCounts
+    public let provenance: CostProvenance
+    public let meteredCostUSD: Double?
 
     public init(
         days: Int,
         totalTokens: Int?,
         totalCostUSD: Double?,
         totalRequests: Int?,
-        entryCount: Int)
+        entryCount: Int,
+        tokenMix: CostUsageTokenMix = CostUsageTokenMix(),
+        coverage: CostUsageCoverageCounts = CostUsageCoverageCounts(),
+        provenance: CostProvenance = .unknown,
+        meteredCostUSD: Double? = nil)
     {
         self.days = days
         self.totalTokens = totalTokens
         self.totalCostUSD = totalCostUSD
         self.totalRequests = totalRequests
         self.entryCount = entryCount
+        self.tokenMix = tokenMix
+        self.coverage = coverage
+        self.provenance = provenance
+        self.meteredCostUSD = meteredCostUSD
     }
 }
 
@@ -46,6 +58,7 @@ public struct CostUsageSessionBreakdown: Sendable, Equatable, Identifiable {
     public let inputTokens: Int?
     public let cachedInputTokens: Int?
     public let outputTokens: Int?
+    public let reasoningTokens: Int?
     public let totalTokens: Int?
     public let requestCount: Int?
     public let costUSD: Double?
@@ -61,6 +74,7 @@ public struct CostUsageSessionBreakdown: Sendable, Equatable, Identifiable {
         inputTokens: Int?,
         cachedInputTokens: Int?,
         outputTokens: Int?,
+        reasoningTokens: Int? = nil,
         totalTokens: Int?,
         requestCount: Int?,
         costUSD: Double?,
@@ -71,6 +85,7 @@ public struct CostUsageSessionBreakdown: Sendable, Equatable, Identifiable {
         self.inputTokens = inputTokens
         self.cachedInputTokens = cachedInputTokens
         self.outputTokens = outputTokens
+        self.reasoningTokens = reasoningTokens
         self.totalTokens = totalTokens
         self.requestCount = requestCount
         self.costUSD = costUSD
@@ -93,6 +108,9 @@ public struct CostUsageTokenSnapshot: Sendable, Equatable {
     /// actually deducts, as opposed to the API-rate estimate. Only some providers (e.g. Cursor)
     /// report this; `nil` when unknown.
     public let meteredCostUSD: Double?
+    /// How this snapshot's costs were produced. Never infer this solely from whether a
+    /// cost figure exists — Bedrock and OpenAI Admin costs are vendor-reported.
+    public let costProvenance: CostProvenance
     /// Internal credential scope used to prevent cross-account cache publication. This is a
     /// non-reversible fingerprint, not account identity, and is not emitted by CLI payloads.
     public let credentialScopeFingerprint: String?
@@ -113,6 +131,7 @@ public struct CostUsageTokenSnapshot: Sendable, Equatable {
         historyCoverageIsEstablished: Bool = true,
         historyLabel: String? = nil,
         meteredCostUSD: Double? = nil,
+        costProvenance: CostProvenance = .unknown,
         credentialScopeFingerprint: String? = nil,
         daily: [CostUsageDailyReport.Entry],
         projects: [CostUsageProjectBreakdown] = [],
@@ -131,6 +150,7 @@ public struct CostUsageTokenSnapshot: Sendable, Equatable {
         self.historyCoverageIsEstablished = historyCoverageIsEstablished
         self.historyLabel = historyLabel
         self.meteredCostUSD = meteredCostUSD
+        self.costProvenance = costProvenance
         self.credentialScopeFingerprint = credentialScopeFingerprint
         self.daily = daily
         self.projects = projects
@@ -155,12 +175,27 @@ public struct CostUsageTokenSnapshot: Sendable, Equatable {
         let costs = entries.compactMap(\.costUSD)
         let tokens = entries.compactMap(\.totalTokens)
         let requests = entries.compactMap(\.requestCount)
+        var mix = CostUsageTokenMix()
+        var coverage = CostUsageCoverageCounts()
+        for entry in entries {
+            mix.merge(.from(entry: entry))
+            coverage.merge(entry.coverageCounts)
+        }
+        let coversFullHistory = days >= self.historyDays
+        let windowMetered = coversFullHistory ? self.meteredCostUSD : nil
         return CostUsageWindowSummary(
             days: days,
             totalTokens: tokens.isEmpty ? nil : tokens.reduce(0, +),
             totalCostUSD: costs.isEmpty ? nil : costs.reduce(0, +),
             totalRequests: requests.isEmpty ? nil : requests.reduce(0, +),
-            entryCount: entries.count)
+            entryCount: entries.count,
+            tokenMix: mix,
+            coverage: coverage,
+            provenance: CostProvenance.forWindow(
+                snapshot: self.costProvenance,
+                hasWindowCosts: !costs.isEmpty,
+                includesMetered: windowMetered != nil),
+            meteredCostUSD: windowMetered)
     }
 
     public func comparisonSummaries(
@@ -294,6 +329,11 @@ public struct CostUsageDailyReport: Sendable, Decodable {
         public let costUSD: Double?
         public let totalTokens: Int?
         public let requestCount: Int?
+        public let inputTokens: Int?
+        public let outputTokens: Int?
+        public let cacheReadTokens: Int?
+        public let cacheCreationTokens: Int?
+        public let reasoningTokens: Int?
         public let standardCostUSD: Double?
         public let priorityCostUSD: Double?
         public let standardTokens: Int?
@@ -306,6 +346,11 @@ public struct CostUsageDailyReport: Sendable, Decodable {
             case totalTokens
             case requestCount
             case requests
+            case inputTokens
+            case outputTokens
+            case cacheReadTokens
+            case cacheCreationTokens
+            case reasoningTokens
             case standardCostUSD
             case priorityCostUSD
             case standardTokens
@@ -322,6 +367,11 @@ public struct CostUsageDailyReport: Sendable, Decodable {
             self.requestCount =
                 try container.decodeIfPresent(Int.self, forKey: .requestCount)
                 ?? container.decodeIfPresent(Int.self, forKey: .requests)
+            self.inputTokens = try container.decodeIfPresent(Int.self, forKey: .inputTokens)
+            self.outputTokens = try container.decodeIfPresent(Int.self, forKey: .outputTokens)
+            self.cacheReadTokens = try container.decodeIfPresent(Int.self, forKey: .cacheReadTokens)
+            self.cacheCreationTokens = try container.decodeIfPresent(Int.self, forKey: .cacheCreationTokens)
+            self.reasoningTokens = try container.decodeIfPresent(Int.self, forKey: .reasoningTokens)
             self.standardCostUSD = try container.decodeIfPresent(Double.self, forKey: .standardCostUSD)
             self.priorityCostUSD = try container.decodeIfPresent(Double.self, forKey: .priorityCostUSD)
             self.standardTokens = try container.decodeIfPresent(Int.self, forKey: .standardTokens)
@@ -333,6 +383,11 @@ public struct CostUsageDailyReport: Sendable, Decodable {
             costUSD: Double?,
             totalTokens: Int? = nil,
             requestCount: Int? = nil,
+            inputTokens: Int? = nil,
+            outputTokens: Int? = nil,
+            cacheReadTokens: Int? = nil,
+            cacheCreationTokens: Int? = nil,
+            reasoningTokens: Int? = nil,
             standardCostUSD: Double? = nil,
             priorityCostUSD: Double? = nil,
             standardTokens: Int? = nil,
@@ -342,6 +397,11 @@ public struct CostUsageDailyReport: Sendable, Decodable {
             self.costUSD = costUSD
             self.totalTokens = totalTokens
             self.requestCount = requestCount
+            self.inputTokens = inputTokens
+            self.outputTokens = outputTokens
+            self.cacheReadTokens = cacheReadTokens
+            self.cacheCreationTokens = cacheCreationTokens
+            self.reasoningTokens = reasoningTokens
             self.standardCostUSD = standardCostUSD
             self.priorityCostUSD = priorityCostUSD
             self.standardTokens = standardTokens
@@ -355,11 +415,47 @@ public struct CostUsageDailyReport: Sendable, Decodable {
         public let cacheReadTokens: Int?
         public let cacheCreationTokens: Int?
         public let outputTokens: Int?
+        public let reasoningTokens: Int?
         public let totalTokens: Int?
         public let requestCount: Int?
         public let costUSD: Double?
         public let modelsUsed: [String]?
         public let modelBreakdowns: [ModelBreakdown]?
+        public let unpricedRequestCount: Int?
+        public let unmeteredRequestCount: Int?
+        public let estimatedRequestCount: Int?
+
+        public var coverageCounts: CostUsageCoverageCounts {
+            let unpriced = max(0, self.unpricedRequestCount ?? 0)
+            let unmetered = max(0, self.unmeteredRequestCount ?? 0)
+            let estimated = max(0, self.estimatedRequestCount ?? 0)
+            if let requests = self.requestCount, requests > 0 {
+                let priced = if self.costUSD != nil {
+                    max(0, requests - unpriced - unmetered - estimated)
+                } else {
+                    0
+                }
+                return CostUsageCoverageCounts(
+                    priced: priced,
+                    unpriced: unpriced,
+                    unmetered: unmetered,
+                    estimated: estimated)
+            }
+            if unpriced + unmetered + estimated > 0 {
+                return CostUsageCoverageCounts(
+                    priced: 0,
+                    unpriced: unpriced,
+                    unmetered: unmetered,
+                    estimated: estimated)
+            }
+            if self.costUSD != nil {
+                return CostUsageCoverageCounts(priced: 1)
+            }
+            if (self.totalTokens ?? 0) > 0 {
+                return CostUsageCoverageCounts(unpriced: 1)
+            }
+            return CostUsageCoverageCounts()
+        }
 
         private enum CodingKeys: String, CodingKey {
             case date
@@ -369,6 +465,8 @@ public struct CostUsageDailyReport: Sendable, Decodable {
             case cacheReadInputTokens
             case cacheCreationInputTokens
             case outputTokens
+            case reasoningTokens
+            case reasoningOutputTokens
             case totalTokens
             case requestCount
             case requests
@@ -377,6 +475,9 @@ public struct CostUsageDailyReport: Sendable, Decodable {
             case modelsUsed
             case models
             case modelBreakdowns
+            case unpricedRequestCount
+            case unmeteredRequestCount
+            case estimatedRequestCount
         }
 
         public init(from decoder: Decoder) throws {
@@ -390,6 +491,9 @@ public struct CostUsageDailyReport: Sendable, Decodable {
                 try container.decodeIfPresent(Int.self, forKey: .cacheCreationTokens)
                 ?? container.decodeIfPresent(Int.self, forKey: .cacheCreationInputTokens)
             self.outputTokens = try container.decodeIfPresent(Int.self, forKey: .outputTokens)
+            self.reasoningTokens =
+                try container.decodeIfPresent(Int.self, forKey: .reasoningTokens)
+                ?? container.decodeIfPresent(Int.self, forKey: .reasoningOutputTokens)
             self.totalTokens = try container.decodeIfPresent(Int.self, forKey: .totalTokens)
             self.requestCount =
                 try container.decodeIfPresent(Int.self, forKey: .requestCount)
@@ -399,6 +503,9 @@ public struct CostUsageDailyReport: Sendable, Decodable {
                 ?? container.decodeIfPresent(Double.self, forKey: .totalCost)
             self.modelsUsed = Self.decodeModelsUsed(from: container)
             self.modelBreakdowns = try container.decodeIfPresent([ModelBreakdown].self, forKey: .modelBreakdowns)
+            self.unpricedRequestCount = try container.decodeIfPresent(Int.self, forKey: .unpricedRequestCount)
+            self.unmeteredRequestCount = try container.decodeIfPresent(Int.self, forKey: .unmeteredRequestCount)
+            self.estimatedRequestCount = try container.decodeIfPresent(Int.self, forKey: .estimatedRequestCount)
         }
 
         public init(
@@ -407,22 +514,30 @@ public struct CostUsageDailyReport: Sendable, Decodable {
             outputTokens: Int?,
             cacheReadTokens: Int? = nil,
             cacheCreationTokens: Int? = nil,
+            reasoningTokens: Int? = nil,
             totalTokens: Int?,
             requestCount: Int? = nil,
             costUSD: Double?,
             modelsUsed: [String]?,
-            modelBreakdowns: [ModelBreakdown]?)
+            modelBreakdowns: [ModelBreakdown]?,
+            unpricedRequestCount: Int? = nil,
+            unmeteredRequestCount: Int? = nil,
+            estimatedRequestCount: Int? = nil)
         {
             self.date = date
             self.inputTokens = inputTokens
             self.outputTokens = outputTokens
             self.cacheReadTokens = cacheReadTokens
             self.cacheCreationTokens = cacheCreationTokens
+            self.reasoningTokens = reasoningTokens
             self.totalTokens = totalTokens
             self.requestCount = requestCount
             self.costUSD = costUSD
             self.modelsUsed = modelsUsed
             self.modelBreakdowns = modelBreakdowns
+            self.unpricedRequestCount = unpricedRequestCount
+            self.unmeteredRequestCount = unmeteredRequestCount
+            self.estimatedRequestCount = estimatedRequestCount
         }
 
         private static func decodeModelsUsed(from container: KeyedDecodingContainer<CodingKeys>) -> [String]? {
@@ -452,6 +567,7 @@ public struct CostUsageDailyReport: Sendable, Decodable {
         public let totalOutputTokens: Int?
         public let cacheReadTokens: Int?
         public let cacheCreationTokens: Int?
+        public let reasoningTokens: Int?
         public let totalTokens: Int?
         public let totalCostUSD: Double?
 
@@ -462,6 +578,7 @@ public struct CostUsageDailyReport: Sendable, Decodable {
             case cacheCreationTokens
             case totalCacheReadTokens
             case totalCacheCreationTokens
+            case reasoningTokens
             case totalTokens
             case totalCostUSD
             case totalCost
@@ -472,6 +589,7 @@ public struct CostUsageDailyReport: Sendable, Decodable {
             totalOutputTokens: Int?,
             cacheReadTokens: Int? = nil,
             cacheCreationTokens: Int? = nil,
+            reasoningTokens: Int? = nil,
             totalTokens: Int?,
             totalCostUSD: Double?)
         {
@@ -479,6 +597,7 @@ public struct CostUsageDailyReport: Sendable, Decodable {
             self.totalOutputTokens = totalOutputTokens
             self.cacheReadTokens = cacheReadTokens
             self.cacheCreationTokens = cacheCreationTokens
+            self.reasoningTokens = reasoningTokens
             self.totalTokens = totalTokens
             self.totalCostUSD = totalCostUSD
         }
@@ -493,6 +612,7 @@ public struct CostUsageDailyReport: Sendable, Decodable {
             self.cacheCreationTokens =
                 try container.decodeIfPresent(Int.self, forKey: .cacheCreationTokens)
                 ?? container.decodeIfPresent(Int.self, forKey: .totalCacheCreationTokens)
+            self.reasoningTokens = try container.decodeIfPresent(Int.self, forKey: .reasoningTokens)
             self.totalTokens = try container.decodeIfPresent(Int.self, forKey: .totalTokens)
             self.totalCostUSD =
                 try container.decodeIfPresent(Double.self, forKey: .totalCostUSD)

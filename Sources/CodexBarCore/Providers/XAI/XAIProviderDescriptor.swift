@@ -53,7 +53,9 @@ public enum XAIProviderDescriptor {
                     let showsFallback = snapshot.providerCost?.period != "Prepaid credits"
                     let style: ProviderCostMenuCardStyle = showsFallback ? .generic : .prepaidCredits
                     return ProviderCostPresentation(showsGenericFallback: showsFallback, menuCardStyle: style)
-                }),
+                },
+                optionalDetails: ProviderOptionalDetailsPresentation(
+                    costSummaryTitles: ["Billing summary"])),
             fetchPlan: self.fetchPlan(),
             cli: ProviderCLIConfig(
                 name: "xai",

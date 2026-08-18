@@ -300,7 +300,9 @@ extension UsageStore {
         if let override = self._test_codexCostCatchUpStatusOverride {
             return await override(codexHomePath)
         }
-        return await self.costUsageFetcher.codexScanCatchUpStatus(codexHomePath: codexHomePath)
+        return await self.costUsageFetcher.codexScanCatchUpStatus(
+            codexHomePath: codexHomePath,
+            calendar: self.settings.costUsageBucketCalendar)
     }
 
     private func advanceCodexCostCatchUp(
@@ -314,7 +316,8 @@ extension UsageStore {
         return try await self.costUsageFetcher.advanceCodexScanCatchUp(
             now: now,
             codexHomePath: codexHomePath,
-            historyDays: historyDays)
+            historyDays: historyDays,
+            calendar: self.settings.costUsageBucketCalendar)
     }
 
     private func codexCostCatchUpDecision(

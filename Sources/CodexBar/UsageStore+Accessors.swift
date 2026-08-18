@@ -153,6 +153,10 @@ extension UsageStore {
             switch provider {
             case .codex:
                 return CodexUIErrorMapper.userFacingMessage(raw)
+            case .claude:
+                return ClaudeUIErrorMapper.userFacingMessage(
+                    raw,
+                    staleSnapshotUpdatedAt: self.snapshots[provider.instanceID]?.updatedAt)
             case .ollama:
                 return OllamaUIErrorMapper.userFacingMessage(raw)
             default:

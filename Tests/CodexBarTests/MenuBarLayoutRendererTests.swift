@@ -26,7 +26,8 @@ struct MenuBarLayoutRendererTests {
             (.pace(window: .automatic), "0%"),
             (.usageBar, "▮▮▯"),
             (.resetCountdown, "in 2h"),
-            (.runsOut, "Runs out tomorrow"),
+            (.runsOut, "Runs out in 1d 16h"),
+            (.runsOutCompact, "1d 16h"),
             (.balance, "$12.34"),
             (.costToday, "$1.25"),
             (.cost30d, "$20.00"),
@@ -176,6 +177,7 @@ struct MenuBarLayoutRendererTests {
             scopedWeekly: nil,
             scopedWeeklyTitle: nil,
             automatic: nil,
+            automaticText: nil,
             sessionPace: nil,
             weeklyPace: nil,
             automaticPace: nil,
@@ -198,6 +200,7 @@ struct MenuBarLayoutRendererTests {
             .resetCountdown,
             .resetAbsolute,
             .runsOut,
+            .runsOutCompact,
             .balance,
             .costToday,
             .cost30d,
@@ -205,8 +208,21 @@ struct MenuBarLayoutRendererTests {
 
         let output = renderer.render(layout: layout, data: missingData, icon: nil, options: self.options())
 
-        #expect(output.attributedTitle.string.count(where: { $0 == "–" }) == 17)
+        #expect(output.attributedTitle.string.count(where: { $0 == "–" }) == 18)
         #expect(output.accessibilityLabel.contains("unavailable"))
+    }
+
+    @Test
+    func `compact run out token keeps the labeled forecast for accessibility`() {
+        let renderer = MenuBarLayoutRenderer()
+        let output = renderer.render(
+            layout: MenuBarLayout(lines: [[.runsOutCompact]]),
+            data: self.data(),
+            icon: nil,
+            options: self.options())
+
+        #expect(output.attributedTitle.string == "1d 16h")
+        #expect(output.accessibilityLabel == "Runs out in 1d 16h")
     }
 
     @Test
@@ -244,6 +260,7 @@ struct MenuBarLayoutRendererTests {
             scopedWeekly: nil,
             scopedWeeklyTitle: nil,
             automatic: nil,
+            automaticText: nil,
             // Pace is suppressed below 3% of window elapsed; the percent token must survive that.
             sessionPace: nil,
             weeklyPace: nil,
@@ -457,6 +474,7 @@ struct MenuBarLayoutRendererTests {
             scopedWeekly: nil,
             scopedWeeklyTitle: nil,
             automatic: textOnlyWindow,
+            automaticText: nil,
             sessionPace: nil,
             weeklyPace: nil,
             automaticPace: nil,
@@ -570,10 +588,11 @@ struct MenuBarLayoutRendererTests {
                 windowMinutes: 300,
                 resetsAt: automaticResetAt ?? self.now.addingTimeInterval(2 * 60 * 60),
                 resetDescription: nil)),
+            automaticText: nil,
             sessionPace: "-8%",
             weeklyPace: "+11%",
             automaticPace: "0%",
-            runsOut: "Runs out tomorrow",
+            runsOut: "Runs out in 1d 16h",
             balance: "$12.34",
             costToday: "$1.25",
             cost30d: "$20.00")

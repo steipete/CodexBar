@@ -24,13 +24,16 @@ extension UsageMenuCardView.Model {
         let tokenCostUsageEnabled: Bool
         let tokenCostIsRefreshing: Bool
         let codexLocalSessionCostLedgerEnabled: Bool
-        let tokenCostInlineDashboardEnabled: Bool
+        let costSummaryInlineEnabled: Bool
         let tokenCostMenuSectionEnabled: Bool
         let costComparisonPeriodsEnabled: Bool
         let showOptionalCreditsAndExtraUsage: Bool
         let claudeDailyRoutinesUsageVisible: Bool
         let codexSparkUsageVisible: Bool
         let copilotBudgetExtrasEnabled: Bool
+        /// Provider details is the diagnostic surface and lists every usage lane a provider reports.
+        /// The menu and widgets stay curated and may drop lanes that carry no information.
+        let showsAllUsageLanes: Bool
         let sourceLabel: String?
         let subtitleOverride: String?
         let kiloAutoMode: Bool
@@ -39,6 +42,7 @@ extension UsageMenuCardView.Model {
         let sessionEquivalentForecast: SessionEquivalentForecast?
         let quotaWarningThresholds: [QuotaWarningWindow: [Int]]
         let workDaysPerWeek: Int?
+        let workdayTickAppearance: WorkdayTickAppearance
         let usesLiveSubtitle: Bool
         let preferredCurrencyCode: String
         let now: Date
@@ -65,13 +69,14 @@ extension UsageMenuCardView.Model {
             tokenCostUsageEnabled: Bool,
             tokenCostIsRefreshing: Bool = false,
             codexLocalSessionCostLedgerEnabled: Bool = false,
-            tokenCostInlineDashboardEnabled: Bool? = nil,
+            costSummaryInlineEnabled: Bool? = nil,
             tokenCostMenuSectionEnabled: Bool? = nil,
             costComparisonPeriodsEnabled: Bool = false,
             showOptionalCreditsAndExtraUsage: Bool,
             claudeDailyRoutinesUsageVisible: Bool = true,
             codexSparkUsageVisible: Bool = true,
             copilotBudgetExtrasEnabled: Bool = false,
+            showsAllUsageLanes: Bool = false,
             sourceLabel: String? = nil,
             subtitleOverride: String? = nil,
             kiloAutoMode: Bool = false,
@@ -80,6 +85,7 @@ extension UsageMenuCardView.Model {
             sessionEquivalentForecast: SessionEquivalentForecast? = nil,
             quotaWarningThresholds: [QuotaWarningWindow: [Int]] = [:],
             workDaysPerWeek: Int? = nil,
+            workdayTickAppearance: WorkdayTickAppearance = .subtle,
             usesLiveSubtitle: Bool = false,
             preferredCurrencyCode: String = "auto",
             now: Date)
@@ -105,13 +111,14 @@ extension UsageMenuCardView.Model {
             self.tokenCostUsageEnabled = tokenCostUsageEnabled
             self.tokenCostIsRefreshing = tokenCostIsRefreshing
             self.codexLocalSessionCostLedgerEnabled = codexLocalSessionCostLedgerEnabled
-            self.tokenCostInlineDashboardEnabled = tokenCostInlineDashboardEnabled ?? tokenCostUsageEnabled
+            self.costSummaryInlineEnabled = costSummaryInlineEnabled ?? tokenCostUsageEnabled
             self.tokenCostMenuSectionEnabled = tokenCostMenuSectionEnabled ?? tokenCostUsageEnabled
             self.costComparisonPeriodsEnabled = costComparisonPeriodsEnabled
             self.showOptionalCreditsAndExtraUsage = showOptionalCreditsAndExtraUsage
             self.claudeDailyRoutinesUsageVisible = claudeDailyRoutinesUsageVisible
             self.codexSparkUsageVisible = codexSparkUsageVisible
             self.copilotBudgetExtrasEnabled = copilotBudgetExtrasEnabled
+            self.showsAllUsageLanes = showsAllUsageLanes
             self.sourceLabel = sourceLabel
             self.subtitleOverride = subtitleOverride
             self.kiloAutoMode = kiloAutoMode
@@ -120,6 +127,7 @@ extension UsageMenuCardView.Model {
             self.sessionEquivalentForecast = sessionEquivalentForecast
             self.quotaWarningThresholds = quotaWarningThresholds
             self.workDaysPerWeek = workDaysPerWeek
+            self.workdayTickAppearance = workdayTickAppearance
             self.usesLiveSubtitle = usesLiveSubtitle
             self.preferredCurrencyCode = preferredCurrencyCode
             self.now = now

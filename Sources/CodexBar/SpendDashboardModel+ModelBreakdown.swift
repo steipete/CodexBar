@@ -13,6 +13,7 @@ extension SpendDashboardModel {
         let providerName: String
         var tokens: Int?
         var cost: Double?
+        var mix = CostUsageTokenMix()
         var sawTokens = false
         var sawCost = false
         var invalidTokens = false
@@ -65,6 +66,12 @@ extension SpendDashboardModel {
                     } else {
                         aggregate.invalidCost = true
                     }
+                    aggregate.mix.merge(CostUsageTokenMix(
+                        inputTokens: breakdown.inputTokens,
+                        outputTokens: breakdown.outputTokens,
+                        cacheReadTokens: breakdown.cacheReadTokens,
+                        cacheCreationTokens: breakdown.cacheCreationTokens,
+                        reasoningTokens: breakdown.reasoningTokens))
                     aggregates[key] = aggregate
                 }
             }
@@ -82,7 +89,8 @@ extension SpendDashboardModel {
                 providerName: value.providerName,
                 modelName: key.modelName,
                 totalTokens: value.sawTokens && !value.invalidTokens && !value.overflowedTokens ? value.tokens : nil,
-                totalCost: value.sawCost && !value.invalidCost && !value.overflowedCost ? value.cost : nil)
+                totalCost: value.sawCost && !value.invalidCost && !value.overflowedCost ? value.cost : nil,
+                tokenMix: value.mix)
         }
         .sorted { lhs, rhs in
             switch (lhs.totalCost, rhs.totalCost) {
@@ -104,7 +112,8 @@ extension SpendDashboardModel {
                 providerName: row.providerName,
                 modelName: row.modelName,
                 totalTokens: row.totalTokens,
-                totalCost: row.totalCost)
+                totalCost: row.totalCost,
+                tokenMix: row.tokenMix)
         }
         return ModelSummary(rows: rows, completeness: completeness)
     }
@@ -118,6 +127,41 @@ extension SpendDashboardModel {
         }
     }
 
+    /// Unpriced named models still belong in the breakdown list. Malformed costs and model-less
+    /// gaps stay fail-closed so the list cannot present a lower bound as if it were complete.
+    static func canRetainUnpricedModelHistory(_ summary: InputSummary) -> Bool {
+        guard summary.totalCost == nil else { return false }
+        return summary.entries.contains(where: { Self.hasRetainableUnpricedModelRows($0.entry) })
+            && summary.entries.allSatisfy { windowEntry in
+                let entry = windowEntry.entry
+                return Self.hasRetainableUnpricedModelRows(entry) ||
+                    Self.hasCompleteModelCostCoverage(entry) ||
+                    Self.hasProvenZeroCost(entry)
+            }
+    }
+
+    private static func hasRetainableUnpricedModelRows(_ entry: CostUsageDailyReport.Entry) -> Bool {
+        guard let breakdowns = entry.modelBreakdowns, !breakdowns.isEmpty else { return false }
+        var sawNamedUnpriced = false
+        for breakdown in breakdowns {
+            let name = breakdown.modelName.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !name.isEmpty else {
+                guard Self.hasProvenZeroCost(breakdown) else { return false }
+                continue
+            }
+            if Self.validCost(breakdown.costUSD) != nil {
+                continue
+            }
+            guard breakdown.costUSD == nil,
+                  Self.nonnegative(breakdown.totalTokens) != nil
+            else {
+                return false
+            }
+            sawNamedUnpriced = true
+        }
+        return sawNamedUnpriced
+    }
+
     private static func hasRetainablePartialCodexModelCostCoverage(
         _ entry: CostUsageDailyReport.Entry) -> Bool
     {
@@ -127,7 +171,9 @@ extension SpendDashboardModel {
             return self.validCost(entry.costUSD) != nil
         }
 
-        guard let entryCost = validCost(entry.costUSD) else { return false }
+        guard let entryCost = validCost(entry.costUSD) else {
+            return self.hasExplicitlyUnpriceableCodexCost(entry)
+        }
         var pricedCost = 0.0
         var sawPricedBreakdown = false
         for breakdown in entry.modelBreakdowns ?? [] {
@@ -151,6 +197,32 @@ extension SpendDashboardModel {
             }
         }
         return sawPricedBreakdown && Self.costsMatch(entryCost, pricedCost)
+    }
+
+    static func hasExplicitlyUnpriceableCodexCost(_ entry: CostUsageDailyReport.Entry) -> Bool {
+        guard entry.costUSD == nil,
+              let breakdowns = entry.modelBreakdowns,
+              !breakdowns.isEmpty
+        else { return false }
+
+        return breakdowns.allSatisfy { breakdown in
+            !breakdown.modelName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                && breakdown.costUSD == nil
+                && Self.nonnegative(breakdown.totalTokens) != nil
+        }
+    }
+
+    /// Provider-specific by design: Cursor usage events can omit totalCents without voiding priced rows.
+    static func hasExplicitlyUnpriceableLedgerCost(
+        _ provider: UsageProvider,
+        _ entry: CostUsageDailyReport.Entry) -> Bool
+    {
+        switch provider {
+        case .codex, .cursor:
+            self.hasExplicitlyUnpriceableCodexCost(entry)
+        default:
+            false
+        }
     }
 
     private static func hasCompleteModelCostCoverage(_ entry: CostUsageDailyReport.Entry) -> Bool {

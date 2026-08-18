@@ -57,6 +57,7 @@ extension SettingsStore {
             quotaWarningOnScreenAlertEnabled: self.quotaWarningOnScreenAlertEnabled,
             quotaWarningMarkersVisible: self.quotaWarningMarkersVisible,
             weeklyProgressWorkDays: self.weeklyProgressWorkDays,
+            workdayTickAppearance: self.workdayTickAppearance.rawValue,
             usageBarsShowUsed: self.usageBarsShowUsed,
             resetTimesShowAbsolute: self.resetTimesShowAbsolute,
             costUsageEnabled: self.costUsageEnabled,
@@ -89,6 +90,11 @@ extension SettingsStore {
         self.quotaWarningOnScreenAlertEnabled = preferences.quotaWarningOnScreenAlertEnabled
         self.quotaWarningMarkersVisible = preferences.quotaWarningMarkersVisible
         self.weeklyProgressWorkDays = preferences.weeklyProgressWorkDays
+        if let rawAppearance = preferences.workdayTickAppearance,
+           let appearance = WorkdayTickAppearance(rawValue: rawAppearance)
+        {
+            self.workdayTickAppearance = appearance
+        }
         self.usageBarsShowUsed = preferences.usageBarsShowUsed
         self.resetTimesShowAbsolute = preferences.resetTimesShowAbsolute
         self.costUsageEnabled = preferences.costUsageEnabled

@@ -68,12 +68,15 @@ struct CodexLocalProjectUsageTests {
     func `local data scope avoids persisting raw Codex home paths`() {
         let home = FileManager.default.temporaryDirectory
             .appendingPathComponent("workspaces-private-home", isDirectory: true)
-        let scope = CodexLocalDataScope.resolve(options: CostUsageScanner.Options(
-            codexSessionsRoot: home.appendingPathComponent("sessions", isDirectory: true)))
+        let options = CostUsageScanner.Options(
+            codexSessionsRoot: home.appendingPathComponent("sessions", isDirectory: true))
+        let scope = CodexLocalDataScope.resolve(options: options)
+        let scopedOptions = scope.applying(to: options)
 
         #expect(scope.codexHome == home.standardizedFileURL)
         #expect(scope.identifier.hasPrefix("codex-workspaces:"))
         #expect(!scope.identifier.contains(home.path))
+        #expect(scopedOptions.codexTraceDatabaseURL == scope.stateDatabaseURL)
     }
 
     @Test

@@ -35,7 +35,11 @@ extension CostUsageScanner {
             {
                 continue
             }
-            guard usage.touchesCodexScanWindow(sinceKey: range.scanSinceKey, untilKey: range.scanUntilKey) else {
+            guard usage.touchesCodexScanWindow(
+                sinceKey: range.scanSinceKey,
+                untilKey: range.scanUntilKey,
+                calendar: range.calendar)
+            else {
                 continue
             }
             let sessionID = usage.sessionId ?? URL(fileURLWithPath: filePath).deletingPathExtension().lastPathComponent
@@ -96,7 +100,11 @@ extension CostUsageScanner {
         let projectPathResolver = CodexCanonicalProjectPathResolver()
         var accumulatorsByProjectPath: [String: CodexProjectBreakdownAccumulator] = [:]
         for (filePath, usage) in cache.files {
-            guard usage.touchesCodexScanWindow(sinceKey: range.scanSinceKey, untilKey: range.scanUntilKey) else {
+            guard usage.touchesCodexScanWindow(
+                sinceKey: range.scanSinceKey,
+                untilKey: range.scanUntilKey,
+                calendar: range.calendar)
+            else {
                 continue
             }
             var fileCache = CostUsageCache()

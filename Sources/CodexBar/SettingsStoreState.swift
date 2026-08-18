@@ -24,6 +24,7 @@ struct SettingsDefaultsState {
     var quotaWarningOnScreenAlertEnabled: Bool
     var quotaWarningMarkersVisible: Bool
     var weeklyProgressWorkDays: Int?
+    var workdayTickAppearanceRaw: String
     var usageBarsShowUsed: Bool
     var resetTimesShowAbsolute: Bool
     var providerChangelogLinksEnabled: Bool
@@ -46,6 +47,10 @@ struct SettingsDefaultsState {
     var costUsageEnabled: Bool
     var codexLocalSessionCostLedgerEnabled: Bool
     var costUsageHistoryDays: Int
+    var costUsageBucketTimeZoneIdentifier: String
+    var openCodexUsageLogsEnabled: Bool
+    var hideNativeCodexCostWhenOpenCodexPresent: Bool
+    var spendDashboardHiddenSourceIDs: [String]
     var costComparisonPeriodsEnabled: Bool
     var costSummaryDisplayStyleRaw: String
     var hidePersonalInfo: Bool
@@ -59,10 +64,12 @@ struct SettingsDefaultsState {
     var claudeWebExtrasEnabledRaw: Bool
     var showOptionalCreditsAndExtraUsage: Bool
     var claudeDailyRoutinesUsageVisible: Bool
+    var claudeModelScopedWeeklyUsageVisible: Bool
     var codexSparkUsageVisible: Bool
+    var codexExternalOAuthSourcesAllowed: Bool
     var openAIWebAccessEnabled: Bool
     var openAIWebBatterySaverEnabled: Bool
-    var backgroundWorkLowPowerModeEnabled: Bool
+    var backgroundWorkLowPowerModePreference: LowPowerModePreference
     var providerStorageFootprintsEnabled: Bool
     var jetbrainsIDEBasePath: String
     var mergeIcons: Bool

@@ -18,6 +18,11 @@ read_when:
   requests without changing provider usage/status freshness or the user-selected provider refresh cadence.
 - Claude local cost/token history remains eligible for widget snapshots when its account does not expose numeric
   session or weekly quota data.
+- Claude Usage widgets can show each known model-scoped weekly quota after the normal Session, Weekly, and Opus rows.
+  This includes Fable when Claude exposes it. The rows are opt-in via **Preferences → Providers → Claude → Show
+  model-specific weekly usage in widgets**; the setting is off by default and does not affect fetching or other
+  CodexBar surfaces. Turning it off also removes scoped rows kept from an earlier snapshot, including while no fresh
+  Claude quota data is available.
 - If no snapshot is available, widgets fall back to preview/empty data.
 
 ## Extension

@@ -98,13 +98,16 @@ public struct ProviderCostPresentation: Sendable, Equatable {
 public struct ProviderOptionalDetailsPresentation: Sendable, Equatable {
     public let hidesAllWithoutOptionalUsage: Bool
     public let hiddenTitlesWithoutOptionalUsage: Set<String>
+    public let costSummaryTitles: Set<String>
 
     public init(
         hidesAllWithoutOptionalUsage: Bool = false,
-        hiddenTitlesWithoutOptionalUsage: Set<String> = [])
+        hiddenTitlesWithoutOptionalUsage: Set<String> = [],
+        costSummaryTitles: Set<String> = [])
     {
         self.hidesAllWithoutOptionalUsage = hidesAllWithoutOptionalUsage
         self.hiddenTitlesWithoutOptionalUsage = hiddenTitlesWithoutOptionalUsage
+        self.costSummaryTitles = costSummaryTitles
     }
 }
 
@@ -208,18 +211,18 @@ public enum ProviderWidgetFamily: Sendable {
 public struct ProviderUsageNotesContext: Sendable {
     public let snapshot: UsageSnapshot?
     public let isRefreshing: Bool
-    public let tokenCostInlineDashboardEnabled: Bool
+    public let costSummaryInlineEnabled: Bool
     public let showOptionalUsage: Bool
 
     public init(
         snapshot: UsageSnapshot?,
         isRefreshing: Bool,
-        tokenCostInlineDashboardEnabled: Bool,
+        costSummaryInlineEnabled: Bool,
         showOptionalUsage: Bool)
     {
         self.snapshot = snapshot
         self.isRefreshing = isRefreshing
-        self.tokenCostInlineDashboardEnabled = tokenCostInlineDashboardEnabled
+        self.costSummaryInlineEnabled = costSummaryInlineEnabled
         self.showOptionalUsage = showOptionalUsage
     }
 }

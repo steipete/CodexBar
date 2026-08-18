@@ -8,7 +8,7 @@ read_when:
 
 # Model pricing metadata
 
-CodexBar has an additive models.dev pricing pipeline for future cost lookup work. Existing hardcoded pricing remains unchanged for now.
+CodexBar uses models.dev as an additive pricing source alongside bundled fallback rates.
 
 ## Source and cache
 
@@ -23,13 +23,13 @@ The pipeline lets future scanner code read the last valid cache synchronously wi
 
 Pricing is scoped by provider id and model id. This prevents two providers with the same model id or display name from sharing pricing accidentally.
 
-Planned local source mapping:
+Local cost scanners preserve that scope when selecting a catalog:
 
-- Codex/OpenAI logs: models.dev provider id `openai`
-- Claude logs: models.dev provider id `anthropic`
+- Bare Codex/OpenAI model IDs use provider id `openai`; approved provider-qualified routes stay on their route, and unknown prefixes remain unpriced.
+- Recognizable bare Claude-session model families use their first-party vendor catalog, including Anthropic, OpenAI, Google, Moonshot/Kimi, MiniMax, and DeepSeek.
+- Other bare Claude-session IDs are priced only when exactly one selected first-party catalog matches. Ambiguous cross-vendor matches remain unpriced.
+- Provider-qualified Claude-session IDs stay on an approved explicit route and never fall through to another vendor.
 - Vertex AI Claude logs: models.dev provider id `google-vertex-anthropic`
-
-The first integration PR only adds the parser, client, cache, provider-scoped lookup, and tests. It does not route live cost calculations through models.dev yet.
 
 ## Units
 

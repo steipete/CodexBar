@@ -118,15 +118,92 @@ struct CodexBarConfigMigratorTests {
         #expect(defaults.bool(forKey: Self.legacyMigrationCompletedKey) == true)
     }
 
+    @Test
+    func `all legacy load failures defer cleanup and retry on the next launch`() throws {
+        let suite = "CodexBarConfigMigratorTests-load-failure-\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        let secrets = CountingLegacySecretStore(throwOnLoad: true)
+        let accountStore = CountingTokenAccountStore(throwOnLoad: true)
+        let stores = Self.legacyStores(secrets: secrets, accountStore: accountStore)
+        let configStore = testConfigStore(suiteName: suite)
+
+        _ = CodexBarConfigMigrator.loadOrMigrate(
+            configStore: configStore,
+            userDefaults: defaults,
+            stores: stores)
+
+        let failedSecretLoads = secrets.loadCount
+        let failedAccountLoads = accountStore.loadCount
+        #expect(failedSecretLoads > 0)
+        #expect(failedAccountLoads == 1)
+        #expect(secrets.clearAttempts == 0)
+        #expect(defaults.bool(forKey: Self.legacyMigrationCompletedKey) == false)
+
+        secrets.throwOnLoad = false
+        accountStore.throwOnLoad = false
+        _ = CodexBarConfigMigrator.loadOrMigrate(
+            configStore: configStore,
+            userDefaults: defaults,
+            stores: stores)
+
+        #expect(secrets.loadCount > failedSecretLoads)
+        #expect(accountStore.loadCount > failedAccountLoads)
+        #expect(defaults.bool(forKey: Self.legacyMigrationCompletedKey))
+    }
+
+    @Test
+    func `mixed legacy load results persist successes without clearing until retry succeeds`() throws {
+        let suite = "CodexBarConfigMigratorTests-mixed-load-failure-\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        let readableSecrets = CountingLegacySecretStore(token: "legacy-token")
+        let unreadableSecrets = CountingLegacySecretStore(throwOnLoad: true)
+        let accountStore = CountingTokenAccountStore()
+        let stores = Self.legacyStores(
+            secrets: readableSecrets,
+            accountStore: accountStore,
+            syntheticTokenStore: unreadableSecrets)
+        let configStore = testConfigStore(suiteName: suite)
+
+        let first = CodexBarConfigMigrator.loadOrMigrate(
+            configStore: configStore,
+            userDefaults: defaults,
+            stores: stores)
+
+        #expect(first.providerConfig(for: .zai)?.apiKey == "legacy-token")
+        #expect(try configStore.load()?.providerConfig(for: .zai)?.apiKey == "legacy-token")
+        #expect(readableSecrets.clearAttempts == 0)
+        #expect(unreadableSecrets.clearAttempts == 0)
+        #expect(defaults.bool(forKey: Self.legacyMigrationCompletedKey) == false)
+
+        let firstUnreadableLoadCount = unreadableSecrets.loadCount
+        unreadableSecrets.throwOnLoad = false
+        _ = CodexBarConfigMigrator.loadOrMigrate(
+            configStore: configStore,
+            userDefaults: defaults,
+            stores: stores)
+
+        #expect(unreadableSecrets.loadCount > firstUnreadableLoadCount)
+        #expect(readableSecrets.clearAttempts > 0)
+        #expect(unreadableSecrets.clearAttempts > 0)
+        #expect(defaults.bool(forKey: Self.legacyMigrationCompletedKey))
+    }
+
     private static let legacyMigrationCompletedKey = "codexbar.legacySecretsMigrationCompleted"
 
     private static func legacyStores(
         secrets: CountingLegacySecretStore,
-        accountStore: CountingTokenAccountStore) -> CodexBarConfigMigrator.LegacyStores
+        accountStore: CountingTokenAccountStore,
+        syntheticTokenStore: CountingLegacySecretStore? = nil) -> CodexBarConfigMigrator.LegacyStores
     {
         CodexBarConfigMigrator.LegacyStores(
             zaiTokenStore: secrets,
-            syntheticTokenStore: secrets,
+            syntheticTokenStore: syntheticTokenStore ?? secrets,
             codexCookieStore: secrets,
             claudeCookieStore: secrets,
             cursorCookieStore: secrets,
@@ -148,12 +225,14 @@ private final class CountingLegacySecretStore: ZaiTokenStoring, SyntheticTokenSt
 {
     private let lock = NSLock()
     private var token: String?
+    var throwOnLoad: Bool
     var throwOnStore: Bool
     private(set) var loadCount = 0
     private(set) var clearAttempts = 0
 
-    init(token: String? = nil, throwOnStore: Bool = false) {
+    init(token: String? = nil, throwOnLoad: Bool = false, throwOnStore: Bool = false) {
         self.token = token
+        self.throwOnLoad = throwOnLoad
         self.throwOnStore = throwOnStore
     }
 
@@ -161,6 +240,9 @@ private final class CountingLegacySecretStore: ZaiTokenStoring, SyntheticTokenSt
         self.lock.lock()
         defer { self.lock.unlock() }
         self.loadCount += 1
+        if self.throwOnLoad {
+            throw TestStoreError.loadFailed
+        }
         return self.token
     }
 
@@ -172,6 +254,9 @@ private final class CountingLegacySecretStore: ZaiTokenStoring, SyntheticTokenSt
         self.lock.lock()
         defer { self.lock.unlock() }
         self.loadCount += 1
+        if self.throwOnLoad {
+            throw TestStoreError.loadFailed
+        }
         return self.token
     }
 
@@ -192,12 +277,20 @@ private final class CountingLegacySecretStore: ZaiTokenStoring, SyntheticTokenSt
 
 private final class CountingTokenAccountStore: ProviderTokenAccountStoring, @unchecked Sendable {
     private let lock = NSLock()
+    var throwOnLoad: Bool
     private(set) var loadCount = 0
+
+    init(throwOnLoad: Bool = false) {
+        self.throwOnLoad = throwOnLoad
+    }
 
     func loadAccounts() throws -> [UsageProvider: ProviderTokenAccountData] {
         self.lock.lock()
         defer { self.lock.unlock() }
         self.loadCount += 1
+        if self.throwOnLoad {
+            throw TestStoreError.loadFailed
+        }
         return [:]
     }
 
@@ -209,5 +302,6 @@ private final class CountingTokenAccountStore: ProviderTokenAccountStoring, @unc
 }
 
 private enum TestStoreError: Error {
+    case loadFailed
     case storeFailed
 }

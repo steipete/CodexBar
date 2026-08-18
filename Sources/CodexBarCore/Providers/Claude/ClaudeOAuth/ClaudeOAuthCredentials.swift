@@ -450,7 +450,7 @@ public enum ClaudeOAuthCredentialsStore {
                 if let lastError {
                     throw lastError
                 }
-                throw ClaudeOAuthCredentialsError.notFound
+                throw ClaudeOAuthCredentialsStore.terminalMissingCredentialsError(environment: environment)
             }
         }
 
@@ -1968,6 +1968,33 @@ public enum ClaudeOAuthCredentialsStore {
     private enum ClaudeKeychainProbe<Value> {
         case unavailable
         case value(Value)
+    }
+
+    static func classifyTerminalMissingCredentialsError(
+        directReadConsentGranted: Bool,
+        keychainAccessDisabled: Bool,
+        keychainAccessDenied: Bool,
+        previousKeychainGrantRecorded: Bool,
+        loggedInProfilePresent: Bool) -> ClaudeOAuthCredentialsError
+    {
+        guard directReadConsentGranted,
+              !keychainAccessDisabled,
+              keychainAccessDenied || (previousKeychainGrantRecorded && loggedInProfilePresent)
+        else {
+            return .notFound
+        }
+        return .keychainAccessRevoked
+    }
+
+    private static func terminalMissingCredentialsError(environment: [String: String])
+        -> ClaudeOAuthCredentialsError
+    {
+        self.classifyTerminalMissingCredentialsError(
+            directReadConsentGranted: ClaudeOAuthDirectKeychainReadConsent.isGranted(),
+            keychainAccessDisabled: KeychainAccessGate.isDisabled,
+            keychainAccessDenied: !ClaudeOAuthKeychainAccessGate.shouldAllowPrompt(),
+            previousKeychainGrantRecorded: self.loadClaudeKeychainFingerprint() != nil,
+            loggedInProfilePresent: ClaudeAccountProfile.identifiedSessionScope(environment: environment) != nil)
     }
 
     @discardableResult

@@ -1090,7 +1090,7 @@ extension CodexBackgroundRefreshCoalescingTests {
             suite: "CodexBackgroundRefreshCoalescingTests-forced-dashboard-battery")
         settings.statusChecksEnabled = false
         settings.costUsageEnabled = false
-        settings.backgroundWorkLowPowerModeEnabled = true
+        settings.backgroundWorkLowPowerModePreference = .on
         let managedAccount = try Self.installManagedAccount(
             email: "managed@example.com",
             settings: settings)
@@ -1138,7 +1138,7 @@ extension CodexBackgroundRefreshCoalescingTests {
         settings.statusChecksEnabled = false
         settings.costUsageEnabled = false
         settings.openAIWebBatterySaverEnabled = false
-        settings.backgroundWorkLowPowerModeEnabled = true
+        settings.backgroundWorkLowPowerModePreference = .on
         let managedAccount = try Self.installManagedAccount(
             email: "managed@example.com",
             settings: settings)

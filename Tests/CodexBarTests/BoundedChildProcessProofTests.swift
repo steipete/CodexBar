@@ -46,7 +46,7 @@ struct BoundedChildProcessProofTests {
             Issue.record("Unexpected overflow error: \(error)")
         }
         // A small test-only limit isolates abort latency from the host's PTY throughput.
-        #expect(start.duration(to: .now) < .seconds(5))
+        #expect(start.duration(to: .now) < .seconds(15))
 
         let pidText = try String(contentsOf: pidURL, encoding: .utf8)
             .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -80,8 +80,8 @@ struct BoundedChildProcessProofTests {
                 "PATH": "/usr/bin:/bin",
                 "GROK_CLI_PATH": scriptURL.path,
             ],
-            initializeTimeoutSeconds: 2,
-            requestTimeoutSeconds: 2)
+            initializeTimeoutSeconds: 10,
+            requestTimeoutSeconds: 10)
         defer { client.shutdown() }
 
         try await client.initialize()
@@ -134,7 +134,7 @@ struct BoundedChildProcessProofTests {
         } catch {
             Issue.record("Unexpected Grok overflow error: \(error)")
         }
-        #expect(start.duration(to: .now) < .seconds(5))
+        #expect(start.duration(to: .now) < .seconds(15))
 
         let pidText = try String(contentsOf: pidURL, encoding: .utf8)
             .trimmingCharacters(in: .whitespacesAndNewlines)

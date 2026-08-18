@@ -153,7 +153,8 @@ extension CostUsageScanner {
         rows: [CodexUsageRow],
         priorityTurns: [String: CodexPriorityTurnMetadata],
         modelsDevCatalog: ModelsDevCatalog?,
-        modelsDevCacheRoot: URL?) -> CodexRowCostBreakdown
+        modelsDevCacheRoot: URL?,
+        customPricing: CostUsageCustomPricing? = nil) -> CodexRowCostBreakdown
     {
         var breakdown = CodexRowCostBreakdown()
         for row in rows {
@@ -183,7 +184,8 @@ extension CostUsageScanner {
                 for: row,
                 priorityTurns: priorityTurns,
                 modelsDevCatalog: modelsDevCatalog,
-                modelsDevCacheRoot: modelsDevCacheRoot)
+                modelsDevCacheRoot: modelsDevCacheRoot,
+                customPricing: customPricing)
             else {
                 breakdown.hasIncompletePricing = breakdown.hasIncompletePricing || hasTokens
                 continue
@@ -1186,7 +1188,8 @@ extension CostUsageScanner {
            state.contributingSessionIds.contains(sessionId),
            uniqueRows.isEmpty,
            usageDays.isEmpty,
-           parsed.bufferedSubagentLines == nil
+           parsed.bufferedSubagentLines == nil,
+           parsed.bufferedUnresolvedForkLines == nil
         {
             cache.files.removeValue(forKey: input.metadata.path)
             return
@@ -1350,7 +1353,10 @@ extension CostUsageScanner {
         guard isForceRescan else { return }
         for key in cache.files.keys {
             guard let old = cache.files[key] else { continue }
-            guard !old.touchesCodexScanWindow(sinceKey: range.scanSinceKey, untilKey: range.scanUntilKey)
+            guard !old.touchesCodexScanWindow(
+                sinceKey: range.scanSinceKey,
+                untilKey: range.scanUntilKey,
+                calendar: range.calendar)
             else { continue }
             Self.applyFileDays(cache: &cache, fileDays: old.days, sign: -1)
             cache.files.removeValue(forKey: key)
@@ -1397,124 +1403,76 @@ extension CostUsageScanner {
                 priorityTurns: priorityTurns)
         }
         var entries: [CostUsageDailyReport.Entry] = []
-        var (totalInput, totalCacheRead, totalOutput, totalTokens) = (0, 0, 0, 0)
+        var (totalInput, totalCacheRead, totalOutput, totalReasoning, totalTokens) = (0, 0, 0, 0, 0)
         var (totalCost, costSeen) = (0.0, false)
 
-        let dayKeys = self.codexReportDayKeys(cache: reportCache, range: range)
-        var rowsByDayModel: [String: [String: [CodexUsageRow]]] = [:]
-        var unresolvedRowGroups = Set<CodexDayModelKey>()
-        var modeOwnershipMismatchGroups = Set<CodexDayModelKey>()
-        var priorityEvidenceGroups = Set<CodexDayModelKey>()
-        var incompletePricingEvidenceGroups = Set<CodexDayModelKey>()
-        var authoritativeCostEvidenceGroups = Set<CodexDayModelKey>()
+        let unmeteredByDay = Self.unresolvedForkUnmeteredCounts(cache: reportCache, range: range)
+        let dayKeys = Array(Set(self.codexReportDayKeys(cache: reportCache, range: range) + unmeteredByDay.keys))
+            .sorted()
+            .filter {
+                CostUsageDayRange.isInRange(dayKey: $0, since: range.sinceKey, until: range.untilKey)
+            }
+        let catalog = catalogResolver.load(modelsDevCatalogLoader)
+        var pricing = CodexReportDayPricingContext(
+            rowsByDayModel: [:],
+            unresolvedRowGroups: [],
+            modeOwnershipMismatchGroups: [],
+            priorityEvidenceGroups: [],
+            incompletePricingEvidenceGroups: [],
+            authoritativeCostEvidenceGroups: [],
+            priorityTurns: priorityTurns,
+            modelsDevCatalog: catalog,
+            modelsDevCacheRoot: modelsDevCacheRoot,
+            customPricing: CostUsagePricing.customPricingOverlay())
         for usage in reportCache.files.values {
             let reconciled = self.codexCanonicalPricingRows(usage)
-            unresolvedRowGroups.formUnion(reconciled.unresolvedGroups)
+            pricing.unresolvedRowGroups.formUnion(reconciled.unresolvedGroups)
             let modeEvidence = self.codexPricingModeEvidence(
                 usage: usage,
                 reconciledRows: reconciled.rows,
                 range: range,
                 priorityTurns: priorityTurns)
-            modeOwnershipMismatchGroups.formUnion(modeEvidence.mismatchGroups)
-            priorityEvidenceGroups.formUnion(modeEvidence.priorityGroups)
-            incompletePricingEvidenceGroups.formUnion(self.codexIncompletePricingEvidenceGroups(
+            pricing.modeOwnershipMismatchGroups.formUnion(modeEvidence.mismatchGroups)
+            pricing.priorityEvidenceGroups.formUnion(modeEvidence.priorityGroups)
+            pricing.incompletePricingEvidenceGroups.formUnion(self.codexIncompletePricingEvidenceGroups(
                 usage: usage,
                 range: range,
                 priorityTurns: priorityTurns,
-                modelsDevCatalog: catalogResolver.load(modelsDevCatalogLoader),
-                modelsDevCacheRoot: modelsDevCacheRoot))
+                modelsDevCatalog: catalog,
+                modelsDevCacheRoot: modelsDevCacheRoot,
+                customPricing: pricing.customPricing))
             for row in usage.codexRows ?? [] where (row.knownCostNanos ?? 0) != 0 {
-                authoritativeCostEvidenceGroups.insert(CodexDayModelKey(day: row.day, model: row.model))
+                pricing.authoritativeCostEvidenceGroups.insert(CodexDayModelKey(day: row.day, model: row.model))
             }
             for row in reconciled.rows where CostUsageDayRange.isInRange(
                 dayKey: row.day,
                 since: range.sinceKey,
                 until: range.untilKey)
             {
-                rowsByDayModel[row.day, default: [:]][row.model, default: []].append(row)
+                pricing.rowsByDayModel[row.day, default: [:]][row.model, default: []].append(row)
             }
         }
 
         for day in dayKeys {
-            guard let models = reportCache.days[day] else { continue }
-            let modelNames = models.keys.sorted()
-
-            var dayInput = 0
-            var dayCacheRead = 0
-            var dayOutput = 0
-            var breakdown: [CostUsageDailyReport.ModelBreakdown] = []
-            var dayCost: Double = 0
-            var dayCostSeen = false
-
-            for model in modelNames {
-                let packed = models[model] ?? [0, 0, 0]
-                let input = packed[safe: 0] ?? 0
-                let cached = packed[safe: 1] ?? 0
-                let output = packed[safe: 2] ?? 0
-                let totalTokens = input + output
-
-                dayInput += input
-                dayCacheRead += cached
-                dayOutput += output
-
-                let rows = rowsByDayModel[day]?[model] ?? []
-                let rowCost = rows.isEmpty ? nil : Self.codexRowCostBreakdown(
-                    rows: rows,
-                    priorityTurns: priorityTurns,
-                    modelsDevCatalog: catalogResolver.load(modelsDevCatalogLoader),
-                    modelsDevCacheRoot: modelsDevCacheRoot)
-                let group = CodexDayModelKey(day: day, model: model)
-                let rowCostIsTrusted = !unresolvedRowGroups.contains(group)
-                    && !modeOwnershipMismatchGroups.contains(group)
-                    && rowCost?.isTrusted(canonicalTotalTokens: totalTokens) == true
-                let aggregateCost = priorityEvidenceGroups.contains(group)
-                    || incompletePricingEvidenceGroups.contains(group)
-                    || (unresolvedRowGroups.contains(group) && authoritativeCostEvidenceGroups.contains(group))
-                    || rowCost?.hasIncompletePricing == true
-                    ? nil
-                    : CostUsagePricing.codexAggregateCostUSD(
-                        model: model,
-                        inputTokens: input,
-                        cachedInputTokens: cached,
-                        outputTokens: output,
-                        modelsDevCatalog: catalogResolver.load(modelsDevCatalogLoader),
-                        modelsDevCacheRoot: modelsDevCacheRoot)
-                let cost = rowCostIsTrusted
-                    ? rowCost?.totalCostUSD ?? aggregateCost
-                    : aggregateCost
-                let hasModeSplit = rowCostIsTrusted && rowCost?.hasModeSplit == true
-                breakdown.append(
-                    CostUsageDailyReport.ModelBreakdown(
-                        modelName: model,
-                        costUSD: cost,
-                        totalTokens: totalTokens,
-                        standardCostUSD: hasModeSplit ? rowCost?.optionalStandardCostUSD : nil,
-                        priorityCostUSD: hasModeSplit ? rowCost?.optionalPriorityCostUSD : nil,
-                        standardTokens: hasModeSplit ? rowCost?.optionalStandardTokens : nil,
-                        priorityTokens: hasModeSplit ? rowCost?.optionalPriorityTokens : nil))
-                if let cost {
-                    dayCost += cost
-                    dayCostSeen = true
+            let unmetered = unmeteredByDay[day] ?? 0
+            guard let models = reportCache.days[day] else {
+                if let entry = Self.unmeteredForkReportEntry(day: day, unmetered: unmetered) {
+                    entries.append(entry)
                 }
+                continue
             }
-
-            let dayTotal = dayInput + dayOutput
-            let entryCost = dayCostSeen ? dayCost : nil
-            entries.append(CostUsageDailyReport.Entry(
-                date: day,
-                inputTokens: dayInput,
-                outputTokens: dayOutput,
-                cacheReadTokens: dayCacheRead > 0 ? dayCacheRead : nil,
-                totalTokens: dayTotal,
-                costUSD: entryCost,
-                modelsUsed: modelNames,
-                modelBreakdowns: Self.sortedModelBreakdowns(breakdown)))
-
-            totalInput += dayInput
-            totalCacheRead += dayCacheRead
-            totalOutput += dayOutput
-            totalTokens += dayTotal
-            if let entryCost {
+            let entry = Self.makeCodexBilledDayEntry(
+                day: day,
+                models: models,
+                unmetered: unmetered,
+                pricing: pricing)
+            entries.append(entry)
+            totalInput += entry.inputTokens ?? 0
+            totalCacheRead += entry.cacheReadTokens ?? 0
+            totalOutput += entry.outputTokens ?? 0
+            totalReasoning += entry.reasoningTokens ?? 0
+            totalTokens += entry.totalTokens ?? 0
+            if let entryCost = entry.costUSD {
                 totalCost += entryCost
                 costSeen = true
             }
@@ -1526,6 +1484,7 @@ extension CostUsageScanner {
                 totalInputTokens: totalInput,
                 totalOutputTokens: totalOutput,
                 cacheReadTokens: totalCacheRead > 0 ? totalCacheRead : nil,
+                reasoningTokens: totalReasoning > 0 ? totalReasoning : nil,
                 totalTokens: totalTokens,
                 totalCostUSD: costSeen ? totalCost : nil)
 
@@ -1601,13 +1560,5 @@ extension [UInt8] {
             return nil
         }
         return self[index]
-    }
-}
-
-extension CostUsageFileUsage {
-    func touchesCodexScanWindow(sinceKey: String, untilKey: String) -> Bool {
-        self.days.keys.contains {
-            CostUsageScanner.CostUsageDayRange.isInRange(dayKey: $0, since: sinceKey, until: untilKey)
-        }
     }
 }

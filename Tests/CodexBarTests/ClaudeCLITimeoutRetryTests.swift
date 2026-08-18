@@ -347,7 +347,9 @@ struct ClaudeCLITimeoutRetryTests {
                                 data: nil,
                                 fingerprint: nil)
                             {
-                                try await operation()
+                                try await ClaudeCLIAuthStatusProbe.withTimeoutOverrideForTesting(30) {
+                                    try await operation()
+                                }
                             }
                         }
                     }

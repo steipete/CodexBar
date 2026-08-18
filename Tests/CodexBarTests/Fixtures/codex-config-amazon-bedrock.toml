@@ -1,0 +1,6 @@
+# Codex 0.146 writes this provider ID for Amazon Bedrock authentication.
+model_provider = "amazon-bedrock"
+
+[model_providers.unused]
+name = "Unused fixture provider"
+requires_openai_auth = true

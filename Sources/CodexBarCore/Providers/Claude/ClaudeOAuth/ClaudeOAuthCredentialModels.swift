@@ -254,6 +254,7 @@ public enum ClaudeOAuthCredentialsError: LocalizedError, Sendable {
     case mcpOAuthOnlyKeychain
     case missingAccessToken
     case notFound
+    case keychainAccessRevoked
     case keychainError(Int)
     case readFailed(String)
     case refreshFailed(String)
@@ -275,6 +276,9 @@ public enum ClaudeOAuthCredentialsError: LocalizedError, Sendable {
             return "Claude OAuth access token missing. Run `claude` to authenticate."
         case .notFound:
             return "Claude OAuth credentials not found. Run `claude` to authenticate."
+        case .keychainAccessRevoked:
+            return "Claude Keychain access was revoked by Claude Code's token rotation. "
+                + "Click Refresh to re-grant access, or switch Claude Usage source to CLI/Web."
         case let .keychainError(status):
             #if os(macOS)
             if status == Int(errSecUserCanceled)

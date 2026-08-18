@@ -51,6 +51,9 @@ public enum GroqProviderDescriptor {
                 noDataMessage: { "Sign in at console.groq.com to show Groq spend and token usage." },
                 showsRequestHistory: false,
                 hintPlacement: .hidden),
+            presentation: ProviderUsagePresentation(
+                optionalDetails: ProviderOptionalDetailsPresentation(
+                    costSummaryTitles: ["Usage summary"])),
             fetchPlan: ProviderFetchPlan(
                 sourceModes: [.auto, .web, .api],
                 pipeline: ProviderFetchPipeline(resolveStrategies: { context in

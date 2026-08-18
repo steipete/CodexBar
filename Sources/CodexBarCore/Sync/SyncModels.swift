@@ -36,6 +36,10 @@ public struct ProviderIntentPayload: Codable, Sendable {
     public var claudeSwapShowSingleAccount: Bool?
     public var antigravityPrioritizeExhaustedQuotas: Bool?
     public var quotaWarnings: QuotaWarningConfig?
+    /// Three-state on purpose. Nil means the sending Mac never reported the field, which is what an
+    /// older client that predates accent colors sends. An empty string means the user cleared the
+    /// override. A hex string sets it. Without this, an older client would erase a newer Mac's color.
+    public var accentColor: String?
     public var kiloKnownOrganizations: [KiloOrganization]?
     public var kiloEnabledOrganizationIDs: [String]?
     public var deepseekProfileID: String?
@@ -53,6 +57,8 @@ public struct ProviderIntentPayload: Codable, Sendable {
         self.claudeSwapShowSingleAccount = config.claudeSwapShowSingleAccount
         self.antigravityPrioritizeExhaustedQuotas = config.antigravityPrioritizeExhaustedQuotas
         self.quotaWarnings = config.quotaWarnings
+        // Always report, so that clearing an override propagates as an empty string.
+        self.accentColor = config.accentColor ?? ""
         self.kiloKnownOrganizations = config.kiloKnownOrganizations
         self.kiloEnabledOrganizationIDs = config.kiloEnabledOrganizationIDs
         self.deepseekProfileID = config.deepseekProfileID
@@ -83,6 +89,10 @@ public struct ProviderIntentPayload: Codable, Sendable {
         result.claudeSwapShowSingleAccount = self.claudeSwapShowSingleAccount
         result.antigravityPrioritizeExhaustedQuotas = self.antigravityPrioritizeExhaustedQuotas
         result.quotaWarnings = self.quotaWarnings
+        // An older client omits the field entirely. Keep the local color rather than erase it.
+        if let accentColor = self.accentColor {
+            result.accentColor = accentColor.isEmpty ? nil : accentColor
+        }
         result.kiloKnownOrganizations = self.kiloKnownOrganizations
         result.kiloEnabledOrganizationIDs = self.kiloEnabledOrganizationIDs
         result.deepseekProfileID = self.deepseekProfileID
@@ -231,6 +241,7 @@ public struct SyncedPreferences: Codable, Sendable {
     public var quotaWarningOnScreenAlertEnabled: Bool
     public var quotaWarningMarkersVisible: Bool
     public var weeklyProgressWorkDays: Int?
+    public var workdayTickAppearance: String?
     public var usageBarsShowUsed: Bool
     public var resetTimesShowAbsolute: Bool
     public var costUsageEnabled: Bool
@@ -262,6 +273,7 @@ public struct SyncedPreferences: Codable, Sendable {
         quotaWarningOnScreenAlertEnabled: Bool,
         quotaWarningMarkersVisible: Bool,
         weeklyProgressWorkDays: Int?,
+        workdayTickAppearance: String? = nil,
         usageBarsShowUsed: Bool,
         resetTimesShowAbsolute: Bool,
         costUsageEnabled: Bool,
@@ -292,6 +304,7 @@ public struct SyncedPreferences: Codable, Sendable {
         self.quotaWarningOnScreenAlertEnabled = quotaWarningOnScreenAlertEnabled
         self.quotaWarningMarkersVisible = quotaWarningMarkersVisible
         self.weeklyProgressWorkDays = weeklyProgressWorkDays
+        self.workdayTickAppearance = workdayTickAppearance
         self.usageBarsShowUsed = usageBarsShowUsed
         self.resetTimesShowAbsolute = resetTimesShowAbsolute
         self.costUsageEnabled = costUsageEnabled

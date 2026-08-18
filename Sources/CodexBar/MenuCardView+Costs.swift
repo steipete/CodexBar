@@ -90,6 +90,25 @@ extension UsageMenuCardView.Model.ProviderCostSection {
 }
 
 extension UsageMenuCardView.Model {
+    static func providerCostFollowsSummaryStyle(
+        cost: ProviderCostSnapshot?,
+        style: ProviderCostMenuCardStyle,
+        isClaudeAdminAPI: Bool) -> Bool
+    {
+        // Provider-specific by design: Claude Admin API spend is a summary, while Claude extra-usage balance is not.
+        switch style {
+        case .apiSpend, .payAsYouGoSpend:
+            true
+        case .claude:
+            isClaudeAdminAPI
+        case .clawRouter:
+            (cost?.limit ?? 0) <= 0
+        case .generic, .hidden, .extraUsageBalance, .zenBalance, .pointsBalance, .prepaidCredits,
+             .payAsYouGoBalance:
+            false
+        }
+    }
+
     static func isRequiredOpenCodeZenBalance(_ snapshot: UsageSnapshot?) -> Bool {
         snapshot?.primary == nil &&
             snapshot?.secondary == nil &&

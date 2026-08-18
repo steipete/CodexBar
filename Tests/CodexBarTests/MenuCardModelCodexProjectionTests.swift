@@ -103,35 +103,46 @@ struct MenuCardModelCodexProjectionTests {
                 dashboardRequiresLogin: false,
                 now: now))
 
-        let model = UsageMenuCardView.Model.make(.init(
-            provider: .codex,
-            metadata: metadata,
-            snapshot: snapshot,
-            codexProjection: projection,
-            credits: nil,
-            creditsError: nil,
-            dashboard: nil,
-            dashboardError: nil,
-            tokenSnapshot: nil,
-            tokenError: nil,
-            account: AccountInfo(email: "user@example.com", plan: "Pro"),
-            isRefreshing: false,
-            lastError: nil,
-            usageBarsShowUsed: false,
-            resetTimeDisplayStyle: .countdown,
-            tokenCostUsageEnabled: false,
-            showOptionalCreditsAndExtraUsage: true,
-            hidePersonalInfo: false,
-            quotaWarningThresholds: [.session: [], .weekly: []],
-            workDaysPerWeek: 5,
-            now: now))
+        func makeModel(appearance: WorkdayTickAppearance) -> UsageMenuCardView.Model {
+            UsageMenuCardView.Model.make(.init(
+                provider: .codex,
+                metadata: metadata,
+                snapshot: snapshot,
+                codexProjection: projection,
+                credits: nil,
+                creditsError: nil,
+                dashboard: nil,
+                dashboardError: nil,
+                tokenSnapshot: nil,
+                tokenError: nil,
+                account: AccountInfo(email: "user@example.com", plan: "Pro"),
+                isRefreshing: false,
+                lastError: nil,
+                usageBarsShowUsed: false,
+                resetTimeDisplayStyle: .countdown,
+                tokenCostUsageEnabled: false,
+                showOptionalCreditsAndExtraUsage: true,
+                hidePersonalInfo: false,
+                quotaWarningThresholds: [.session: [], .weekly: []],
+                workDaysPerWeek: 5,
+                workdayTickAppearance: appearance,
+                now: now))
+        }
+
+        let model = makeModel(appearance: .highContrast)
 
         let weekly = try #require(model.metrics.first { $0.id == "secondary" })
         #expect(weekly.warningMarkerPercents.isEmpty)
         #expect(weekly.workdayMarkerPercents == [20.0, 40.0, 60.0, 80.0])
+        #expect(weekly.workdayTickAppearance == .highContrast)
 
         let session = try #require(model.metrics.first { $0.id == "primary" })
         #expect(session.warningMarkerPercents.isEmpty)
+
+        let hiddenModel = makeModel(appearance: .hidden)
+        let hiddenWeekly = try #require(hiddenModel.metrics.first { $0.id == "secondary" })
+        #expect(hiddenWeekly.workdayMarkerPercents.isEmpty)
+        #expect(hiddenWeekly.workdayTickAppearance == .hidden)
     }
 
     @Test

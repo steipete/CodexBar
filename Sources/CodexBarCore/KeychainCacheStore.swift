@@ -117,8 +117,8 @@ public enum KeychainCacheStore {
         case .allowed:
             break
         case .interactionRequired:
-            self.log.info("Keychain cache item is unusable by this executable (\(key.account)); treating as missing")
-            return .missing
+            self.log.info("Keychain cache item is unavailable without interaction (\(key.account))")
+            return .temporarilyUnavailable
         case .notFound:
             return .missing
         case let .failure(status):

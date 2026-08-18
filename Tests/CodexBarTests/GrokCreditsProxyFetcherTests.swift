@@ -1,6 +1,7 @@
 import Foundation
 import Testing
 @testable import CodexBarCore
+
 #if canImport(FoundationNetworking)
 import FoundationNetworking
 #endif
@@ -49,18 +50,21 @@ struct GrokCreditsProxyFetcherTests {
         #expect(GrokCreditsProxyStubURLProtocol.requests.count == 1)
         #expect(snapshot.usedPercent == 12.5)
         #expect(snapshot.resetsAt == expectedReset)
+        #expect(snapshot.subscriptionTier == nil)
     }
 
     @Test
     func `derives percent from on demand cap and usage`() throws {
-        let snapshot = try GrokCreditsProxyFetcher.parseSnapshot(Data("""
-        {
-          "config": {
-            "onDemandCap": { "val": 1000.0 },
-            "onDemandUsed": { "val": 250.5 }
-          }
-        }
-        """.utf8))
+        let snapshot = try GrokCreditsProxyFetcher.parseSnapshot(
+            Data(
+                """
+                {
+                  "config": {
+                    "onDemandCap": { "val": 1000.0 },
+                    "onDemandUsed": { "val": 250.5 }
+                  }
+                }
+                """.utf8))
 
         #expect(snapshot.usedPercent == 25.05)
         #expect(snapshot.resetsAt == nil)
@@ -68,19 +72,23 @@ struct GrokCreditsProxyFetcherTests {
 
     @Test
     func `clamps an out of range credit usage percent`() throws {
-        let over = try GrokCreditsProxyFetcher.parseSnapshot(Data("""
-        {
-          "config": {
-            "creditUsagePercent": 104.2,
-            "billingPeriodEnd": "2026-08-13T00:00:00Z"
-          }
-        }
-        """.utf8))
-        let under = try GrokCreditsProxyFetcher.parseSnapshot(Data("""
-        {
-          "config": { "creditUsagePercent": -3.5 }
-        }
-        """.utf8))
+        let over = try GrokCreditsProxyFetcher.parseSnapshot(
+            Data(
+                """
+                {
+                  "config": {
+                    "creditUsagePercent": 104.2,
+                    "billingPeriodEnd": "2026-08-13T00:00:00Z"
+                  }
+                }
+                """.utf8))
+        let under = try GrokCreditsProxyFetcher.parseSnapshot(
+            Data(
+                """
+                {
+                  "config": { "creditUsagePercent": -3.5 }
+                }
+                """.utf8))
 
         #expect(over.usedPercent == 100)
         #expect(try over.resetsAt == (Self.date("2026-08-13T00:00:00Z")))
@@ -89,18 +97,114 @@ struct GrokCreditsProxyFetcherTests {
 
     @Test
     func `treats a period without usage as zero percent`() throws {
-        let snapshot = try GrokCreditsProxyFetcher.parseSnapshot(Data("""
-        {
-          "config": {
-            "currentPeriod": { "end": "2026-08-13T00:00:00.123Z" },
-            "billingPeriodEnd": "2026-08-14T00:00:00Z"
-          }
-        }
-        """.utf8))
+        let snapshot = try GrokCreditsProxyFetcher.parseSnapshot(
+            Data(
+                """
+                {
+                  "config": {
+                    "currentPeriod": { "end": "2026-08-13T00:00:00.123Z" },
+                    "billingPeriodEnd": "2026-08-14T00:00:00Z"
+                  }
+                }
+                """.utf8))
         let expectedReset = try Self.date("2026-08-13T00:00:00.123Z")
 
         #expect(snapshot.usedPercent == 0)
         #expect(snapshot.resetsAt == expectedReset)
+        #expect(snapshot.subscriptionTier == nil)
+    }
+
+    @Test
+    func `reads SuperGrok Heavy from the top-level subscription tier`() throws {
+        let snapshot = try GrokCreditsProxyFetcher.parseSnapshot(Data("""
+        {
+          "config": {
+            "currentPeriod": {
+              "type": "USAGE_PERIOD_TYPE_WEEKLY",
+              "start": "2026-08-16T18:42:45.537749+00:00",
+              "end": "2026-08-23T18:42:45.537749+00:00"
+            },
+            "onDemandCap": { "val": 0 },
+            "onDemandUsed": { "val": 0 },
+            "billingPeriodEnd": "2026-08-23T18:42:45.537749+00:00"
+          },
+          "subscriptionTier": "SuperGrok Heavy"
+        }
+        """.utf8))
+        let expectedReset = try Self.date("2026-08-23T18:42:45.537749+00:00")
+
+        #expect(snapshot.subscriptionTier == "SuperGrok Heavy")
+        #expect(snapshot.usedPercent == 0)
+        #expect(snapshot.resetsAt == expectedReset)
+    }
+
+    @Test
+    func `prefers config subscription tier over the envelope`() throws {
+        let snapshot = try GrokCreditsProxyFetcher.parseSnapshot(Data("""
+        {
+          "config": {
+            "creditUsagePercent": 8,
+            "billingPeriodEnd": "2026-08-13T00:00:00Z",
+            "subscriptionTier": "SuperGrok Heavy"
+          },
+          "subscriptionTier": "SuperGrok"
+        }
+        """.utf8))
+
+        #expect(snapshot.subscriptionTier == "SuperGrok Heavy")
+        #expect(snapshot.usedPercent == 8)
+    }
+
+    @Test
+    func `rejects a tier-only response so legacy billing can run`() {
+        #expect {
+            _ = try GrokCreditsProxyFetcher.parseSnapshot(Data("""
+            {
+              "config": { "onDemandCap": { "val": 0 } },
+              "subscriptionTier": "supergrok_heavy"
+            }
+            """.utf8))
+        } throws: { error in
+            guard case GrokWebBillingError.parseFailed = error else { return false }
+            return true
+        }
+    }
+
+    @Test
+    func `maps SuperGrok Heavy from credits subscription tier`() throws {
+        let snapshot = try GrokCreditsProxyFetcher.parseSnapshot(
+            Data(
+                """
+                {
+                  "config": {
+                    "subscriptionTier": "SUPERGROK_HEAVY",
+                    "currentPeriod": { "end": "2026-08-13T00:00:00Z" }
+                  }
+                }
+                """.utf8))
+        let expectedReset = try Self.date("2026-08-13T00:00:00Z")
+
+        #expect(snapshot.usedPercent == 0)
+        #expect(snapshot.subscriptionTier == "SuperGrok Heavy")
+        #expect(snapshot.resetsAt == expectedReset)
+    }
+
+    @Test
+    func `keeps SuperGrok included percent when the credits payload reports it`() throws {
+        let snapshot = try GrokCreditsProxyFetcher.parseSnapshot(
+            Data(
+                """
+                {
+                  "subscriptionTier": "SUPERGROK",
+                  "config": {
+                    "creditUsagePercent": 57,
+                    "billingPeriodEnd": "2026-08-13T00:00:00Z"
+                  }
+                }
+                """.utf8))
+
+        #expect(snapshot.usedPercent == 57)
+        #expect(snapshot.subscriptionTier == "SuperGrok")
     }
 
     @Test
@@ -115,14 +219,16 @@ struct GrokCreditsProxyFetcherTests {
 
     @Test
     func `uses billing period end when current period end is missing`() throws {
-        let snapshot = try GrokCreditsProxyFetcher.parseSnapshot(Data("""
-        {
-          "config": {
-            "currentPeriod": { "type": "USAGE_PERIOD_TYPE_WEEKLY" },
-            "billingPeriodEnd": "2026-08-13T00:00:00Z"
-          }
-        }
-        """.utf8))
+        let snapshot = try GrokCreditsProxyFetcher.parseSnapshot(
+            Data(
+                """
+                {
+                  "config": {
+                    "currentPeriod": { "type": "USAGE_PERIOD_TYPE_WEEKLY" },
+                    "billingPeriodEnd": "2026-08-13T00:00:00Z"
+                  }
+                }
+                """.utf8))
         let expectedReset = try Self.date("2026-08-13T00:00:00Z")
 
         #expect(snapshot.usedPercent == 0)
@@ -174,7 +280,8 @@ struct GrokCreditsProxyFetcherTests {
 
         #expect(GrokWebBillingError.isWebKeyExchangeCredentialRejection(status: 16, message: message))
         #expect(!GrokWebBillingError.isWebKeyExchangeCredentialRejection(status: 7, message: message))
-        #expect(!GrokWebBillingError.isWebKeyExchangeCredentialRejection(status: 16, message: "token expired"))
+        #expect(
+            !GrokWebBillingError.isWebKeyExchangeCredentialRejection(status: 16, message: "token expired"))
 
         let description = GrokWebBillingError.rpcFailed(16, message).localizedDescription
         #expect(description.contains("grok login"))
@@ -200,6 +307,31 @@ struct GrokCreditsProxyFetcherTests {
         #expect(result.snapshot.usedPercent == 12.5)
         #expect(result.sourceLabel == "grok-cli-proxy")
         #expect(result.authenticatedByAuthFile)
+    }
+
+    @Test
+    func `tier-only proxy parse failure falls through to legacy billing`() async throws {
+        let events = EventRecorder()
+        let result = try await GrokWebFetchStrategy.fetchProxyFirst(
+            credentials: Self.credentials,
+            proxyBilling: { _ in
+                events.append("proxy")
+                throw GrokWebBillingError.parseFailed
+            },
+            legacyBilling: {
+                events.append("legacy")
+                return (
+                    GrokWebBillingSnapshot(
+                        usedPercent: 33,
+                        resetsAt: Date(timeIntervalSince1970: 1_800_000_003)),
+                    "Chrome",
+                    false)
+            })
+
+        #expect(events.values == ["proxy", "legacy"])
+        #expect(result.snapshot.usedPercent == 33)
+        #expect(result.sourceLabel == "Chrome")
+        #expect(!result.authenticatedByAuthFile)
     }
 
     @Test
@@ -301,11 +433,12 @@ struct GrokCreditsProxyFetcherTests {
         body: String) throws -> (HTTPURLResponse, Data)
     {
         let url = try #require(request.url)
-        let response = try #require(HTTPURLResponse(
-            url: url,
-            statusCode: statusCode,
-            httpVersion: nil,
-            headerFields: ["Content-Type": "application/json"]))
+        let response = try #require(
+            HTTPURLResponse(
+                url: url,
+                statusCode: statusCode,
+                httpVersion: nil,
+                headerFields: ["Content-Type": "application/json"]))
         return (response, Data(body.utf8))
     }
 

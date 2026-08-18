@@ -122,6 +122,162 @@ struct UsageStoreWidgetSnapshotTests {
     }
 
     @Test
+    func `widget snapshot includes known Claude model scoped weekly quotas only when enabled`() async throws {
+        let suite = "UsageStoreWidgetSnapshotTests-claude-model-scoped-weekly-rows"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+
+        let settings = SettingsStore(
+            userDefaults: defaults,
+            configStore: testConfigStore(suiteName: suite),
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+        settings.statusChecksEnabled = false
+
+        let store = UsageStore(
+            fetcher: UsageFetcher(environment: [:]),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings)
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(usedPercent: 25, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+            secondary: RateWindow(usedPercent: 50, windowMinutes: 10080, resetsAt: nil, resetDescription: nil),
+            tertiary: nil,
+            extraRateWindows: [
+                NamedRateWindow(
+                    id: "claude-weekly-scoped-fable",
+                    title: "Fable only",
+                    window: RateWindow(usedPercent: 30, windowMinutes: 10080, resetsAt: nil, resetDescription: nil)),
+                NamedRateWindow(
+                    id: "claude-weekly-scoped-unknown",
+                    title: "Unknown model only",
+                    window: RateWindow(usedPercent: 20, windowMinutes: 10080, resetsAt: nil, resetDescription: nil),
+                    usageKnown: false),
+                NamedRateWindow(
+                    id: "claude-routines",
+                    title: "Daily Routines",
+                    window: RateWindow(usedPercent: 10, windowMinutes: 1440, resetsAt: nil, resetDescription: nil)),
+            ],
+            updatedAt: Date())
+        store._setSnapshotForTesting(snapshot, provider: .claude)
+
+        var widgetSnapshots: [WidgetSnapshot] = []
+        store._test_widgetSnapshotSaveOverride = { widgetSnapshots.append($0) }
+        defer { store._test_widgetSnapshotSaveOverride = nil }
+
+        // The setting is opt-in, so untouched defaults must project the standard quota lanes only.
+        #expect(settings.claudeModelScopedWeeklyUsageVisible == false)
+        store.persistWidgetSnapshot(reason: "claude-model-scoped-weekly-rows-default-test")
+        await store.widgetSnapshotPersistTask?.value
+
+        let defaultEntry = try #require(widgetSnapshots.last?.entries.first { $0.provider == .claude })
+        #expect(defaultEntry.usageRows?.map(\.id) == ["primary", "secondary"])
+
+        settings.claudeModelScopedWeeklyUsageVisible = true
+        store.persistWidgetSnapshot(reason: "claude-model-scoped-weekly-rows-test")
+        await store.widgetSnapshotPersistTask?.value
+
+        let visibleEntry = try #require(widgetSnapshots.last?.entries.first { $0.provider == .claude })
+        #expect(visibleEntry.usageRows?.map(\.id) == ["primary", "secondary", "claude-weekly-scoped-fable"])
+        #expect(visibleEntry.usageRows?.map(\.title) == ["Session", "Weekly", "Fable only"])
+        #expect(visibleEntry.usageRows?.compactMap(\.percentLeft) == [75, 50, 70])
+
+        settings.claudeModelScopedWeeklyUsageVisible = false
+        store.persistWidgetSnapshot(reason: "claude-model-scoped-weekly-rows-disabled-test")
+        await store.widgetSnapshotPersistTask?.value
+
+        let hiddenEntry = try #require(widgetSnapshots.last?.entries.first { $0.provider == .claude })
+        #expect(hiddenEntry.usageRows?.map(\.id) == ["primary", "secondary"])
+    }
+
+    @Test
+    func `widget snapshot drops persisted Claude model scoped weekly rows once the setting is off`() async throws {
+        let suite = "UsageStoreWidgetSnapshotTests-claude-model-scoped-weekly-fallback"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+
+        let settings = SettingsStore(
+            userDefaults: defaults,
+            configStore: testConfigStore(suiteName: suite),
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+        settings.statusChecksEnabled = false
+        settings.claudeModelScopedWeeklyUsageVisible = true
+
+        let store = UsageStore(
+            fetcher: UsageFetcher(environment: [:]),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings)
+        let updatedAt = Date(timeIntervalSince1970: 1_800_000_000)
+        store._setSnapshotForTesting(
+            UsageSnapshot(
+                primary: RateWindow(usedPercent: 25, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+                secondary: RateWindow(usedPercent: 50, windowMinutes: 10080, resetsAt: nil, resetDescription: nil),
+                tertiary: nil,
+                extraRateWindows: [
+                    NamedRateWindow(
+                        id: "claude-weekly-scoped-fable",
+                        title: "Fable only",
+                        window: RateWindow(
+                            usedPercent: 30,
+                            windowMinutes: 10080,
+                            resetsAt: nil,
+                            resetDescription: nil)),
+                ],
+                updatedAt: updatedAt),
+            provider: .claude)
+
+        var widgetSnapshots: [WidgetSnapshot] = []
+        store._test_widgetSnapshotSaveOverride = { widgetSnapshots.append($0) }
+        defer { store._test_widgetSnapshotSaveOverride = nil }
+
+        store.persistWidgetSnapshot(reason: "claude-model-scoped-weekly-fallback-seed")
+        await store.widgetSnapshotPersistTask?.value
+
+        let seededEntry = try #require(widgetSnapshots.last?.entries.first { $0.provider == .claude })
+        #expect(seededEntry.usageRows?.map(\.id) == ["primary", "secondary", "claude-weekly-scoped-fable"])
+        let quotaOwnerKey = try #require(seededEntry.quotaOwnerKey)
+
+        // No live Claude snapshot: the projection now falls back to the persisted rows above.
+        store.snapshots.removeValue(forKey: .claude)
+        settings.claudeModelScopedWeeklyUsageVisible = false
+        store.persistWidgetSnapshot(reason: "claude-model-scoped-weekly-fallback-disabled")
+        await store.widgetSnapshotPersistTask?.value
+
+        let fallbackEntry = try #require(widgetSnapshots.last?.entries.first { $0.provider == .claude })
+        #expect(fallbackEntry.usageRows?.map(\.id) == ["primary", "secondary"])
+        #expect(fallbackEntry.usageRows?.contains { $0.id.hasPrefix("claude-weekly-scoped-") } == false)
+
+        // A persisted entry whose only rows are scoped carve-outs drops out of the projection entirely.
+        store.lastQueuedWidgetSnapshot = WidgetSnapshot(
+            entries: [
+                WidgetSnapshot.ProviderEntry(
+                    provider: .claude,
+                    updatedAt: updatedAt,
+                    primary: nil,
+                    secondary: nil,
+                    tertiary: nil,
+                    usageRows: [
+                        WidgetSnapshot.WidgetUsageRowSnapshot(
+                            id: "claude-weekly-scoped-fable",
+                            title: "Fable only",
+                            percentLeft: 70),
+                    ],
+                    creditsRemaining: nil,
+                    codeReviewRemainingPercent: nil,
+                    tokenUsage: nil,
+                    dailyUsage: [],
+                    quotaOwnerKey: quotaOwnerKey),
+            ],
+            enabledProviders: [.claude],
+            generatedAt: updatedAt)
+
+        store.persistWidgetSnapshot(reason: "claude-model-scoped-weekly-fallback-scoped-only")
+        await store.widgetSnapshotPersistTask?.value
+
+        #expect(widgetSnapshots.last?.entries.contains { $0.provider == .claude } == false)
+    }
+
+    @Test
     func `widget snapshot includes antigravity grouped usage rows`() async throws {
         let suite = "UsageStoreWidgetSnapshotTests-antigravity-grouped"
         let defaults = try #require(UserDefaults(suiteName: suite))
@@ -229,6 +385,128 @@ struct UsageStoreWidgetSnapshotTests {
             "Claude and GPT models Weekly Limit",
         ])
         #expect(entry.usageRows?.compactMap(\.percentLeft) == [91, 82, 73, 64])
+    }
+
+    @Test
+    func `widget snapshot hides untouched antigravity model families`() async throws {
+        let suite = "UsageStoreWidgetSnapshotTests-antigravity-untouched-family"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+
+        let settings = SettingsStore(
+            userDefaults: defaults,
+            configStore: testConfigStore(suiteName: suite),
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+        settings.statusChecksEnabled = false
+
+        let store = UsageStore(
+            fetcher: UsageFetcher(environment: [:]),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings)
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(usedPercent: 1, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+            secondary: nil,
+            tertiary: nil,
+            extraRateWindows: [
+                NamedRateWindow(
+                    id: "antigravity-quota-summary-gemini-5h",
+                    title: "Gemini 5-hour",
+                    window: RateWindow(usedPercent: 1, windowMinutes: 300, resetsAt: nil, resetDescription: nil)),
+                NamedRateWindow(
+                    id: "antigravity-quota-summary-gemini-weekly",
+                    title: "Gemini weekly",
+                    window: RateWindow(usedPercent: 4, windowMinutes: 10080, resetsAt: nil, resetDescription: nil)),
+                NamedRateWindow(
+                    id: "antigravity-quota-summary-3p-5h",
+                    title: "Claude/GPT 5-hour",
+                    window: RateWindow(usedPercent: 0, windowMinutes: 300, resetsAt: nil, resetDescription: nil)),
+                NamedRateWindow(
+                    id: "antigravity-quota-summary-3p-weekly",
+                    title: "Claude/GPT weekly",
+                    window: RateWindow(usedPercent: 0, windowMinutes: 10080, resetsAt: nil, resetDescription: nil)),
+            ],
+            updatedAt: Date(),
+            identity: ProviderIdentitySnapshot(
+                providerID: .antigravity,
+                accountEmail: nil,
+                accountOrganization: nil,
+                loginMethod: "Google AI Pro"))
+
+        store._setSnapshotForTesting(snapshot, provider: .antigravity)
+
+        var widgetSnapshots: [WidgetSnapshot] = []
+        store._test_widgetSnapshotSaveOverride = { widgetSnapshots.append($0) }
+        defer { store._test_widgetSnapshotSaveOverride = nil }
+
+        store.persistWidgetSnapshot(reason: "antigravity-untouched-family-test")
+        await store.widgetSnapshotPersistTask?.value
+
+        let entry = try #require(widgetSnapshots.last?.entries.first { $0.provider == .antigravity })
+        #expect(entry.usageRows?.map(\.title) == [
+            "Gemini 5-hour",
+            "Gemini weekly",
+        ])
+    }
+
+    @Test
+    func `widget snapshot pairs renamed antigravity third party lanes`() async throws {
+        let suite = "UsageStoreWidgetSnapshotTests-antigravity-renamed-third-party"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+
+        let settings = SettingsStore(
+            userDefaults: defaults,
+            configStore: testConfigStore(suiteName: suite),
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+        settings.statusChecksEnabled = false
+
+        let store = UsageStore(
+            fetcher: UsageFetcher(environment: [:]),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings)
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(usedPercent: 1, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+            secondary: nil,
+            tertiary: nil,
+            extraRateWindows: [
+                NamedRateWindow(
+                    id: "antigravity-quota-summary-gemini-5h",
+                    title: "Gemini 5-hour",
+                    window: RateWindow(usedPercent: 1, windowMinutes: 300, resetsAt: nil, resetDescription: nil)),
+                NamedRateWindow(
+                    id: "antigravity-quota-summary-3p-5h",
+                    title: "Third-party models 5-hour",
+                    window: RateWindow(usedPercent: 27, windowMinutes: 300, resetsAt: nil, resetDescription: nil)),
+                NamedRateWindow(
+                    id: "antigravity-quota-summary-3p-weekly",
+                    title: "Third-party models weekly",
+                    window: RateWindow(usedPercent: 0, windowMinutes: 10080, resetsAt: nil, resetDescription: nil)),
+            ],
+            updatedAt: Date(),
+            identity: ProviderIdentitySnapshot(
+                providerID: .antigravity,
+                accountEmail: nil,
+                accountOrganization: nil,
+                loginMethod: "Google AI Pro"))
+
+        store._setSnapshotForTesting(snapshot, provider: .antigravity)
+
+        var widgetSnapshots: [WidgetSnapshot] = []
+        store._test_widgetSnapshotSaveOverride = { widgetSnapshots.append($0) }
+        defer { store._test_widgetSnapshotSaveOverride = nil }
+
+        store.persistWidgetSnapshot(reason: "antigravity-renamed-third-party-test")
+        await store.widgetSnapshotPersistTask?.value
+
+        let entry = try #require(widgetSnapshots.last?.entries.first { $0.provider == .antigravity })
+        // The reset weekly lane stays because its 5-hour sibling is active.
+        #expect(entry.usageRows?.map(\.title) == [
+            "Gemini 5-hour",
+            "Third-party models 5-hour",
+            "Third-party models weekly",
+        ])
     }
 
     @Test
@@ -574,7 +852,10 @@ struct UsageStoreWidgetSnapshotTests {
         #expect(abs((row.percentLeft ?? 0) - 14.8479) < 0.0001)
         #expect(row.window?.isSyntheticPlaceholder == false)
     }
+}
 
+@MainActor
+struct UsageStoreWidgetSnapshotVisibilityTests {
     @Test(arguments: [true, false])
     func `widget snapshot respects extra usage visibility for Devin`(_ showsExtraUsage: Bool) async throws {
         let suite = "UsageStoreWidgetSnapshotTests-devin-extra-usage-\(showsExtraUsage)"
@@ -749,6 +1030,69 @@ struct UsageStoreWidgetSnapshotTests {
         await store.widgetSnapshotPersistTask?.value
 
         let entry = try #require(widgetSnapshots.last?.entries.first { $0.provider == .cursor })
-        #expect(entry.usageRows?.map(\.title) == ["Total", "Auto", "API"])
+        #expect(entry.usageRows?.map(\.title) == ["Total", "Cursor", "Third Party"])
+    }
+}
+
+@MainActor
+struct UsageStoreWidgetSnapshotAntigravityFamilyTests {
+    @Test
+    func `widget snapshot pairs unfamiliar antigravity family lanes`() async throws {
+        let suite = "UsageStoreWidgetSnapshotTests-antigravity-unfamiliar-family"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+
+        let settings = SettingsStore(
+            userDefaults: defaults,
+            configStore: testConfigStore(suiteName: suite),
+            zaiTokenStore: NoopZaiTokenStore(),
+            syntheticTokenStore: NoopSyntheticTokenStore())
+        settings.statusChecksEnabled = false
+
+        let store = UsageStore(
+            fetcher: UsageFetcher(environment: [:]),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings)
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(usedPercent: 1, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+            secondary: nil,
+            tertiary: nil,
+            extraRateWindows: [
+                NamedRateWindow(
+                    id: "antigravity-quota-summary-gemini-5h",
+                    title: "Gemini 5-hour",
+                    window: RateWindow(usedPercent: 1, windowMinutes: 300, resetsAt: nil, resetDescription: nil)),
+                NamedRateWindow(
+                    id: "antigravity-quota-summary-grok-5h",
+                    title: "Grok 5-hour",
+                    window: RateWindow(usedPercent: 30, windowMinutes: 300, resetsAt: nil, resetDescription: nil)),
+                NamedRateWindow(
+                    id: "antigravity-quota-summary-grok-weekly",
+                    title: "Grok weekly",
+                    window: RateWindow(usedPercent: 0, windowMinutes: 10080, resetsAt: nil, resetDescription: nil)),
+            ],
+            updatedAt: Date(),
+            identity: ProviderIdentitySnapshot(
+                providerID: .antigravity,
+                accountEmail: nil,
+                accountOrganization: nil,
+                loginMethod: "Google AI Pro"))
+
+        store._setSnapshotForTesting(snapshot, provider: .antigravity)
+
+        var widgetSnapshots: [WidgetSnapshot] = []
+        store._test_widgetSnapshotSaveOverride = { widgetSnapshots.append($0) }
+        defer { store._test_widgetSnapshotSaveOverride = nil }
+
+        store.persistWidgetSnapshot(reason: "antigravity-unfamiliar-family-test")
+        await store.widgetSnapshotPersistTask?.value
+
+        let entry = try #require(widgetSnapshots.last?.entries.first { $0.provider == .antigravity })
+        // Neither ID nor title names a known family, so the title fallback must still pair the lanes.
+        #expect(entry.usageRows?.map(\.title) == [
+            "Gemini 5-hour",
+            "Grok 5-hour",
+            "Grok weekly",
+        ])
     }
 }

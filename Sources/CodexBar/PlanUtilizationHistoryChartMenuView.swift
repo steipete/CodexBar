@@ -131,16 +131,13 @@ struct PlanUtilizationHistoryChartMenuView: View {
                         AxisMarks(values: model.axisIndexes) { value in
                             AxisGridLine().foregroundStyle(Color.clear)
                             AxisTick().foregroundStyle(Color.clear)
-                            AxisValueLabel {
+                            AxisValueLabel(anchor: ChartAxisLabelLayout.barCenteredAnchor) {
                                 if let raw = value.as(Double.self) {
                                     let index = Int(raw.rounded())
                                     if let point = model.pointsByIndex[index] {
-                                        let isTrailingFullChartLabel = index == model.points.last?.index
-                                            && model.points.count == Layout.maxPoints
                                         Self.axisLabel(
                                             for: point,
-                                            windowMinutes: effectiveSelectedSeries?.history.windowMinutes ?? 0,
-                                            isTrailingFullChartLabel: isTrailingFullChartLabel)
+                                            windowMinutes: effectiveSelectedSeries?.history.windowMinutes ?? 0)
                                     }
                                 }
                             }
@@ -313,7 +310,7 @@ struct PlanUtilizationHistoryChartMenuView: View {
 
         let pointsByID = Dictionary(uniqueKeysWithValues: points.map { ($0.id, $0) })
         let pointsByIndex = Dictionary(uniqueKeysWithValues: points.map { ($0.index, $0) })
-        let color = ProviderDescriptorRegistry.descriptor(for: provider).branding.color
+        let color = ProviderAccentPalette.color(for: provider)
         let barColor = Color(red: color.red, green: color.green, blue: color.blue)
         let trackColor = MenuHighlightStyle.progressTrack(false)
 
@@ -328,7 +325,7 @@ struct PlanUtilizationHistoryChartMenuView: View {
     }
 
     private nonisolated static func emptyModel(provider: UsageProvider) -> Model {
-        let color = ProviderDescriptorRegistry.descriptor(for: provider).branding.color
+        let color = ProviderAccentPalette.color(for: provider)
         let barColor = Color(red: color.red, green: color.green, blue: color.blue)
         let trackColor = MenuHighlightStyle.progressTrack(false)
         return Model(
@@ -606,23 +603,13 @@ struct PlanUtilizationHistoryChartMenuView: View {
         return deduplicated.map(Double.init)
     }
 
-    @ViewBuilder
     private static func axisLabel(
         for point: Point,
-        windowMinutes: Int,
-        isTrailingFullChartLabel: Bool) -> some View
+        windowMinutes: Int) -> some View
     {
-        let label = Text(point.date.formatted(self.axisFormat(windowMinutes: windowMinutes)))
+        Text(point.date.formatted(self.axisFormat(windowMinutes: windowMinutes)))
             .font(.caption2)
             .foregroundStyle(Color(nsColor: .tertiaryLabelColor))
-
-        if isTrailingFullChartLabel {
-            label
-                .frame(width: 48, alignment: .trailing)
-                .offset(x: -24)
-        } else {
-            label
-        }
     }
 
     private nonisolated static func axisFormat(windowMinutes: Int) -> Date.FormatStyle {

@@ -8,15 +8,16 @@ extension StatusItemController {
         width: CGFloat) -> NSMenu?
     {
         if provider == .openai,
+           self.settings.costSummaryShowsSubmenu(for: provider),
            let submenu = self.makeOpenAIAPIUsageSubmenu(provider: provider, width: width)
         {
             return submenu
         }
-        // Mistral's top usage pane has no rate-limit bars of its own, so its Overview row always
-        // prioritizes cost history too. Other `tokenCostRequiresProviderSnapshot` providers (e.g.
-        // opencodego) show real rate-limit bars and should fall through to the settings-gated
-        // check below, same as Codex/Claude (see StatusItemController+Menu.swift's makeUsageSubmenu).
+        // Mistral's top usage pane has no rate-limit bars of its own, so its Overview row prioritizes
+        // cost history when the display style permits it. Other `tokenCostRequiresProviderSnapshot`
+        // providers (e.g. opencodego) show real rate-limit bars and fall through to the generic check.
         if provider == .mistral,
+           self.settings.costSummaryShowsSubmenu(for: provider),
            let submenu = self.makeCostHistorySubmenu(provider: provider, width: width)
         {
             return submenu

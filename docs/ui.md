@@ -36,7 +36,8 @@ The pace tokens render the same delta the menu card shows as "in deficit"/"in re
 pre-0.45 **Both** display mode used: `+11%` means usage runs that far ahead of the sustainable rate, `-8%` that far
 behind it, `0%` on pace. Each pace token reads its own window, so `Weekly pace` never borrows the session delta — unlike
 `Runs out`, which always estimates from the weekly (or automatic) lane. A pace token renders an en dash while pace is
-unavailable, including the first 3% of a window; see [Pace tracking](#pace-tracking).
+unavailable, including the first 3% of a window. The weekly menu-bar pace token may appear after 1% of its weekly
+window has elapsed; session, automatic, and Runs out tokens keep the 3% threshold. See [Pace tracking](#pace-tracking).
 
 Balance is available only for OpenRouter and renders the same remaining-credit value shown in its menu card. Auto %
 uses the same provider-aware automatic-window resolution as the legacy menu bar metric setting. If a snapshot
@@ -81,7 +82,9 @@ The **Work days** setting selects the weekly pace model. **Automatic** uses Code
 When usage is in deficit, the right-hand label shows an estimated "Runs out in …" countdown. When usage will last until the reset, it shows "Lasts until reset".
 
 Pace is calculated for any provider window with enough reset timing data and is hidden when less than 3% of the
-window has elapsed.
+window has elapsed. The weekly menu-bar pace token is the one exception: it may appear after 1% of the weekly
+window has elapsed, including when Codex historical tracking predicts less than 1% usage. Session, automatic, and
+Runs out tokens remain hidden until 3% of their window has elapsed.
 
 ## Preferences notes
 - Advanced: “Disable Keychain access” turns off browser cookie import; paste Cookie headers manually in Providers.

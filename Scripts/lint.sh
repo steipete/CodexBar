@@ -57,6 +57,10 @@ check_release_dsym_paths() {
   "${ROOT_DIR}/Scripts/test_release_dsym_paths.sh"
 }
 
+check_release_checksum() {
+  "${ROOT_DIR}/Scripts/test_release_checksum.sh"
+}
+
 check_sparkle_signing_paths() {
   "${ROOT_DIR}/Scripts/test_sparkle_signing_paths.sh"
 }
@@ -116,6 +120,7 @@ run_portable_checks() {
   check_package_signing
   check_package_info_plist
   check_release_dsym_paths
+  check_release_checksum
   check_sparkle_signing_paths
   check_swift_test_sharding
   check_ci_path_gate

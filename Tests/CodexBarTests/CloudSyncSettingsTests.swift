@@ -36,6 +36,7 @@ struct CloudSyncSettingsTests {
         remote.costUsageEnabled = true
         remote.preferredCurrencyCode = "EUR"
         remote.refreshFrequency = RefreshFrequency.thirtyMinutes.rawValue
+        remote.workdayTickAppearance = WorkdayTickAppearance.highContrast.rawValue
 
         store.applySyncedPreferences(remote)
 
@@ -44,8 +45,25 @@ struct CloudSyncSettingsTests {
         #expect(store.costUsageEnabled)
         #expect(store.preferredCurrencyCode == "EUR")
         #expect(store.refreshFrequency == .thirtyMinutes)
+        #expect(store.workdayTickAppearance == .highContrast)
         #expect(store.debugMenuEnabled)
         #expect(store.iCloudSyncEnabled)
+    }
+
+    @Test
+    func `legacy synced preferences without workday appearance decode compatibly`() throws {
+        let fixture = try self.makeFixture("legacy-workday-appearance")
+        let payload = PreferencesSyncPayload(preferences: fixture.store.syncedPreferences)
+        let encoded = try CanonicalSyncJSON.encode(payload)
+        var object = try #require(JSONSerialization.jsonObject(with: encoded) as? [String: Any])
+        var preferences = try #require(object["preferences"] as? [String: Any])
+        preferences.removeValue(forKey: "workdayTickAppearance")
+        object["preferences"] = preferences
+        let legacyData = try JSONSerialization.data(withJSONObject: object)
+
+        let decoded = try CanonicalSyncJSON.decode(PreferencesSyncPayload.self, from: legacyData)
+
+        #expect(decoded.preferences.workdayTickAppearance == nil)
     }
 
     @Test

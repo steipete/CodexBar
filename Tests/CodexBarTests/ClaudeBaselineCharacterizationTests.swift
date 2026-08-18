@@ -97,7 +97,9 @@ struct ClaudeBaselineCharacterizationTests {
     {
         let descriptor = ProviderDescriptorRegistry.descriptor(for: .claude)
         let context = self.makeContext(runtime: runtime, sourceMode: sourceMode, env: env, settings: settings)
-        return await descriptor.fetchPlan.fetchOutcome(context: context, provider: .claude)
+        return await ClaudeCLIAuthStatusProbe.withTimeoutOverrideForTesting(30) {
+            await descriptor.fetchPlan.fetchOutcome(context: context, provider: .claude)
+        }
     }
 
     private func withNoOAuthCredentials<T>(operation: () async throws -> T) async rethrows -> T {

@@ -366,10 +366,11 @@ final class SettingsWindowAppearanceView: NSView {
 
     private func configureWindowStyle() {
         guard let window else { return }
-        SettingsWindowStageBehavior.applyCollectionBehavior(window)
-        DockIconController.shared.registerSettingsWindow(window)
         if !window.styleMask.contains(.resizable) {
             window.styleMask.insert(.resizable)
+        }
+        if !window.styleMask.contains(.miniaturizable) {
+            window.styleMask.insert(.miniaturizable)
         }
         if !window.titlebarAppearsTransparent {
             window.titlebarAppearsTransparent = true

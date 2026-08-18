@@ -291,6 +291,7 @@ public struct MistralUsageSnapshot: Codable, Sendable {
             historyDays: window.coveredDays,
             historyCoverageIsEstablished: window.coverageIsEstablished,
             historyLabel: window.isMonthToDate ? "This month" : nil,
+            costProvenance: .vendorMetered,
             daily: entries,
             updatedAt: window.observationEnd)
     }

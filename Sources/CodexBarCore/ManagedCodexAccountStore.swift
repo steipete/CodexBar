@@ -49,22 +49,16 @@ public struct FileManagedCodexAccountStore: ManagedCodexAccountStoring, @uncheck
         if !self.fileManager.fileExists(atPath: directory.path) {
             try self.fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
         }
-        try data.write(to: self.fileURL, options: [.atomic])
-        try self.applySecurePermissionsIfNeeded()
+        // Managed account metadata contains account identities and private Codex home paths. Use
+        // the same staged 0600 writer as auth.json so a newly-created file is never briefly
+        // readable under a permissive umask.
+        try CredentialFileWriter.writePrivate(data, to: self.fileURL)
     }
 
     public func ensureFileExists() throws -> URL {
         if self.fileManager.fileExists(atPath: self.fileURL.path) { return self.fileURL }
         try self.storeAccounts(Self.emptyAccountSet())
         return self.fileURL
-    }
-
-    private func applySecurePermissionsIfNeeded() throws {
-        #if os(macOS)
-        try self.fileManager.setAttributes([
-            .posixPermissions: NSNumber(value: Int16(0o600)),
-        ], ofItemAtPath: self.fileURL.path)
-        #endif
     }
 
     private static func emptyAccountSet() -> ManagedCodexAccountSet {

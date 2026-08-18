@@ -85,6 +85,9 @@ extension AmpUsageSnapshot {
                     nil
                 }
                 let resetsAt: Date? = {
+                    if self.freeResetDescription == "resets daily" {
+                        return Self.nextFreeTierReset(after: now)
+                    }
                     guard quota > 0, let hourlyReplenishment, hourlyReplenishment > 0 else { return nil }
                     return now.addingTimeInterval(max(0, used / hourlyReplenishment * 3600))
                 }()
@@ -113,6 +116,11 @@ extension AmpUsageSnapshot {
                 resetDescription: usage.resetDescription)
         }
         let primary = subscriptionPrimary ?? freeWindow
+        let extraRateWindows: [NamedRateWindow]? = if self.subscription != nil, let freeWindow {
+            [NamedRateWindow(id: "amp-free", title: "Amp Free", window: freeWindow)]
+        } else {
+            nil
+        }
 
         let identity = ProviderIdentitySnapshot(
             providerID: .amp,
@@ -134,9 +142,20 @@ extension AmpUsageSnapshot {
             primary: primary,
             secondary: subscriptionSecondary,
             tertiary: nil,
+            extraRateWindows: extraRateWindows,
             providerCost: nil,
             details: detailRows.isEmpty ? [] : [.makeSection(title: "Credits", rows: detailRows)],
             updatedAt: self.updatedAt,
             identity: identity)
+    }
+
+    private static func nextFreeTierReset(after date: Date) -> Date? {
+        var calendar = Calendar(identifier: .gregorian)
+        guard let timeZone = TimeZone(identifier: "America/New_York") else { return nil }
+        calendar.timeZone = timeZone
+        return calendar.nextDate(
+            after: date,
+            matching: DateComponents(hour: 20),
+            matchingPolicy: .nextTime)
     }
 }

@@ -191,6 +191,8 @@ struct ProviderDetailView<SupplementaryContent: View>: View {
                 self.supplementarySettingsContent
             }
 
+            ProviderAccentColorSettingsView(provider: self.provider, settings: self.store.settings)
+
             ProviderQuotaWarningSettingsView(provider: self.provider, settings: self.store.settings)
 
             if !self.settingsToggles.isEmpty {
@@ -503,7 +505,8 @@ private struct ProviderMetricInlineRow: View {
                     pacePercent: self.metric.pacePercent,
                     paceOnTop: self.metric.paceOnTop,
                     warningMarkerPercents: self.metric.warningMarkerPercents,
-                    workdayMarkerPercents: self.metric.workdayMarkerPercents)
+                    workdayMarkerPercents: self.metric.workdayMarkerPercents,
+                    workdayTickAppearance: self.metric.workdayTickAppearance)
                     .frame(maxWidth: .infinity)
 
                 if let metaText = presentation.metaText {
