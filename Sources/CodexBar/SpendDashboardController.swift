@@ -567,12 +567,14 @@ enum SpendDashboardSource {
                 homePath: homePath,
                 providerName: providerName,
                 index: index,
-                count: accounts.count)
+                count: accounts.count,
+                bucketTimeZoneIdentifier: settings.costUsageBucketTimeZoneIdentifier)
             let cacheIdentity = request?.cacheIdentity ?? self.sha256([
                 account.id,
                 self.sourceToken(account.selectionSource),
                 CodexHomeScope.normalizedHomePath(homePath) ?? "unavailable-home",
                 CodexAuthFingerprint.normalize(account.authFingerprint) ?? "missing-auth",
+                settings.costUsageBucketTimeZoneIdentifier,
             ].joined(separator: "\u{0}"))
             let displayName = request?.displayName ?? self.codexDisplayName(
                 providerName: providerName,
@@ -600,6 +602,7 @@ enum SpendDashboardSource {
         var parts = providers.map { provider in
             "\(provider.rawValue):\(settings.providerConfigRevision(for: provider))"
         }
+        parts.append("bucket:\(settings.costUsageBucketTimeZoneIdentifier)")
         if providers.contains(.codex) {
             parts.append(contentsOf: settings.codexVisibleAccountProjection.visibleAccounts.map { account in
                 let homePath: String? = switch account.selectionSource {
@@ -627,14 +630,16 @@ enum SpendDashboardSource {
         store: UsageStore) -> [String]
     {
         var revisions: [String] = []
+        // Provider-specific by design: regular Codex publication is a refresh trigger; account caches remain authority.
         if providers.contains(.codex) {
             revisions.append("codex-dashboard:\(store.spendDashboardCodexCostCatchUpRevision)")
+            revisions.append("codex-current:\(store.tokenSnapshotPublicationRevision(for: .codex))")
         }
         if settings.openCodexUsageLogsEnabled {
             revisions.append("opencodex:\(settings.costUsageSettingsRevision)")
         }
         revisions += providers.compactMap { provider in
-            // Provider-specific by design: Codex revisions come from catch-up, not captured token publications.
+            // Provider-specific by design: Codex inputs come from account caches, not provider-global snapshots.
             guard provider != .codex else { return nil }
             let current: CurrentProviderConfigTokenPublication? =
                 if UsageStore.usesSpendDashboardIndependentTokenSnapshot(provider) {
@@ -708,7 +713,7 @@ enum SpendDashboardSource {
                 .map { store.tokenAccountSnapshotCacheKey(provider: provider, account: $0) }
                 ?? "ambient"
             return "\(provider.rawValue):\(self.sha256(encoded)):\(self.sha256(scope)):" +
-                self.sha256(accountOwnership)
+                self.sha256("\(accountOwnership)\u{0}\(settings.costUsageBucketTimeZoneIdentifier)")
         }
     }
 
@@ -756,7 +761,8 @@ enum SpendDashboardSource {
         homePath: String?,
         providerName: String,
         index: Int,
-        count: Int) -> CodexSpendScanRequest?
+        count: Int,
+        bucketTimeZoneIdentifier: String = "") -> CodexSpendScanRequest?
     {
         guard let homePath = CodexHomeScope.normalizedHomePath(homePath) else { return nil }
         var isDirectory: ObjCBool = false
@@ -773,6 +779,7 @@ enum SpendDashboardSource {
             sourceToken,
             homePath,
             authFingerprint ?? "missing-auth",
+            bucketTimeZoneIdentifier,
         ].joined(separator: "\u{0}"))
         let displayName = self.codexDisplayName(providerName: providerName, index: index, count: count)
         return CodexSpendScanRequest(

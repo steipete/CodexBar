@@ -1,3 +1,4 @@
+import CodexBarCore
 import Foundation
 import Observation
 
@@ -45,6 +46,7 @@ extension UsageStore {
     func stopSharedSpendDashboardPublication() {
         self.sharedSpendDashboardObservationStarted = false
         self.sharedSpendDashboardControllerStorage?.stop()
+        self.cancelSpendDashboardCodexCostCatchUp()
     }
 
     private func observeSharedSpendDashboardConfiguration() {
@@ -56,6 +58,11 @@ extension UsageStore {
                 self?.observeSharedSpendDashboardConfiguration()
             }
         }
+        // Provider-specific by design: Codex's multi-account 365-day scanner is the shared source producer.
+        let codexRequests = configuration.providerIDs.contains(UsageProvider.codex.rawValue)
+            ? SpendDashboardSource.codexRequests(settings: self.settings, store: self)
+            : []
+        self.synchronizeSpendDashboardCodexCostCatchUp(accounts: codexRequests)
         self.sharedSpendDashboardController().update(configuration: configuration)
     }
 }

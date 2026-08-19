@@ -7,6 +7,112 @@ import Testing
 @Suite(.serialized)
 struct SpendDashboardPublicationTests {
     @Test
+    func `shared source observation follows regular Codex publication and bucket ownership`() async {
+        let settings = testSettingsStore(suiteName: "SpendDashboardPublicationTests-source-observation")
+        settings.costUsageEnabled = true
+        for provider in UsageProvider.allCases {
+            guard let metadata = ProviderRegistry.shared.metadata[provider] else { continue }
+            settings.setProviderEnabled(
+                provider: provider,
+                metadata: metadata,
+                enabled: provider == .codex || provider == .claude)
+        }
+        settings.costUsageBucketTimeZoneIdentifier = "UTC"
+        let store = UsageStore(
+            fetcher: UsageFetcher(environment: [:]),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings,
+            startupBehavior: .testing,
+            environmentBase: [:])
+        let initial = SpendDashboardSource.configuration(settings: settings, store: store)
+        store.startSharedSpendDashboardPublication()
+        defer { store.stopSharedSpendDashboardPublication() }
+        await Self.waitUntil {
+            store.spendDashboardPublication.configuration?.sourceRevisions == initial.sourceRevisions
+        }
+
+        store._setTokenSnapshotForTesting(
+            Self.input(id: "codex", provider: .codex, cost: 1).snapshot,
+            provider: .codex)
+        let afterRegularCodexPublication = SpendDashboardSource.configuration(settings: settings, store: store)
+        await Self.waitUntil {
+            store.spendDashboardPublication.configuration?.sourceRevisions ==
+                afterRegularCodexPublication.sourceRevisions
+        }
+
+        #expect(afterRegularCodexPublication.sourceRevisions != initial.sourceRevisions)
+        #expect(store.spendDashboardPublication.configuration?.sourceRevisions ==
+            afterRegularCodexPublication.sourceRevisions)
+
+        settings.costUsageBucketTimeZoneIdentifier = "Pacific/Kiritimati"
+        let rebucketed = SpendDashboardSource.configuration(settings: settings, store: store)
+        await Self.waitUntil {
+            store.spendDashboardPublication.configuration?.menuOwnershipFingerprint ==
+                rebucketed.menuOwnershipFingerprint
+        }
+
+        #expect(rebucketed.menuOwnershipFingerprint != afterRegularCodexPublication.menuOwnershipFingerprint)
+        #expect(rebucketed.sourceOwnershipFingerprints != afterRegularCodexPublication.sourceOwnershipFingerprints)
+        #expect(store.spendDashboardPublication.configuration?.menuOwnershipFingerprint ==
+            rebucketed.menuOwnershipFingerprint)
+    }
+
+    @Test
+    func `shared publication starts and stops in-flight Codex dashboard catch-up`() async throws {
+        let settings = testSettingsStore(suiteName: "SpendDashboardPublicationTests-codex-catch-up")
+        settings.costUsageEnabled = true
+        let metadata = try #require(ProviderRegistry.shared.metadata[.codex])
+        settings.setProviderEnabled(provider: .codex, metadata: metadata, enabled: true)
+        let missingLiveHome = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let profileHome = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try Self.writeCodexAuthFile(homeURL: profileHome)
+        settings._test_codexReconciliationEnvironment = ["CODEX_HOME": missingLiveHome.path]
+        settings.updateProviderConfig(provider: .codex) { config in
+            config.codexProfileHomePaths = [profileHome.path]
+            config.codexActiveSource = .profileHome(path: profileHome.path)
+        }
+        defer {
+            settings._test_codexReconciliationEnvironment = nil
+            try? FileManager.default.removeItem(at: profileHome)
+        }
+        let store = UsageStore(
+            fetcher: UsageFetcher(environment: [:]),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings,
+            startupBehavior: .testing,
+            environmentBase: [:])
+        var statusLoadCount = 0
+        store._test_spendDashboardCodexCostCatchUpStatusOverride = { _ in
+            statusLoadCount += 1
+            return CostUsageFetcher.CodexScanCatchUpStatus(
+                pending: true,
+                progressKey: "pending",
+                processedBytes: 1,
+                totalBytes: 2,
+                completedFiles: 0,
+                totalFiles: 1)
+        }
+        store._test_spendDashboardCodexCostCatchUpSleepOverride = { _ in
+            try await Task.sleep(for: .seconds(60))
+        }
+        store._test_spendDashboardCodexCostCatchUpResourceStateOverride = {
+            (.battery, true, .serious)
+        }
+
+        store.startSharedSpendDashboardPublication()
+        await Self.waitUntil {
+            statusLoadCount > 0 && store.spendDashboardCodexCostCatchUpTask != nil
+        }
+        store.stopSharedSpendDashboardPublication()
+
+        #expect(statusLoadCount > 0)
+        #expect(store.spendDashboardCodexCostCatchUpTask == nil)
+        #expect(store.spendDashboardCodexCostCatchUpActivity == nil)
+    }
+
+    @Test
     func `usage store owns one shared controller and mirrors its publication`() {
         let settings = testSettingsStore(suiteName: "SpendDashboardPublicationTests-shared-owner")
         let store = UsageStore(
@@ -509,13 +615,16 @@ struct SpendDashboardPublicationTests {
 
         let model = controller.publication.model(
             requestedDays: 30,
-            now: now,
+            now: Self.now,
             calendar: Self.calendar,
             preferredCurrencyCode: "USD",
             providerScope: [.codex])
+        let providerIDs = model.groups.flatMap { group in
+            group.providers.map(\.id)
+        }
 
         #expect(await calls.count == callsBeforeProjection)
-        #expect(Set(model.groups.flatMap(\.providers).map(\.id)) == ["codex:first", "codex:second"])
+        #expect(Set(providerIDs) == ["codex:first", "codex:second"])
         #expect(model.groups.first?.totalCost == 5)
     }
 
@@ -606,6 +715,31 @@ struct SpendDashboardPublicationTests {
             await Task.yield()
         }
         Issue.record("Timed out waiting for Spend Dashboard publication")
+    }
+
+    private static func writeCodexAuthFile(homeURL: URL) throws {
+        try FileManager.default.createDirectory(at: homeURL, withIntermediateDirectories: true)
+        let header = try JSONSerialization.data(withJSONObject: ["alg": "none"])
+        let payload = try JSONSerialization.data(withJSONObject: [
+            "email": "shared-publication@example.com",
+            "chatgpt_plan_type": "pro",
+        ])
+        func base64URL(_ data: Data) -> String {
+            data.base64EncodedString()
+                .replacingOccurrences(of: "=", with: "")
+                .replacingOccurrences(of: "+", with: "-")
+                .replacingOccurrences(of: "/", with: "_")
+        }
+        let token = "\(base64URL(header)).\(base64URL(payload))."
+        let auth = [
+            "tokens": [
+                "accessToken": "access-token",
+                "refreshToken": "refresh-token",
+                "idToken": token,
+            ],
+        ]
+        let data = try JSONSerialization.data(withJSONObject: auth)
+        try data.write(to: homeURL.appendingPathComponent("auth.json"))
     }
 
     private static let now = Date(timeIntervalSince1970: 1_784_179_200)
