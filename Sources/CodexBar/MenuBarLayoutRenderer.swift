@@ -219,7 +219,21 @@ final class MenuBarLayoutRenderer {
         options: MenuBarLayoutRenderOptions)
         -> MenuBarLayoutRenderedTitle
     {
-        let isStacked = layout.lines.count == 2
+        let conditionalsByID = Dictionary(
+            options.conditionals.map { ($0.id, $0) },
+            uniquingKeysWith: { first, _ in first })
+
+        // Pre-resolve conditionals so .hidden branches vanish and adjacent-space checks see
+        // only the tokens that will actually render. A line left with nothing to render is dropped
+        // entirely: keeping it would emit a stray newline, hold the title in stacked typography,
+        // and announce a blank line to VoiceOver.
+        let renderedLines = layout.lines
+            .map { line in
+                line.compactMap { Self.resolvedDisplayToken($0, data: data, conditionals: conditionalsByID) }
+            }
+            .filter { !$0.isEmpty }
+
+        let isStacked = renderedLines.count == 2
         let font = NSFont.systemFont(ofSize: Self.fontSize(size: options.size, isStacked: isStacked))
         let foregroundColor = if options.highContrast {
             NSColor.labelColor
@@ -246,16 +260,6 @@ final class MenuBarLayoutRenderer {
         let result = NSMutableAttributedString()
         var accessibilityLines: [String] = []
 
-        let conditionalsByID = Dictionary(
-            options.conditionals.map { ($0.id, $0) },
-            uniquingKeysWith: { first, _ in first })
-
-        // Pre-resolve conditionals so .hidden branches vanish and adjacent-space checks see
-        // only the tokens that will actually render.
-        let resolvedLines = layout.lines.map { line in
-            line.compactMap { Self.resolvedDisplayToken($0, data: data, conditionals: conditionalsByID) }
-        }
-
         // Only surface a leading icon via `button.image` when an actual image is available and the
         // high-contrast contract does not require the icon to stay inside the attributed title.
         // AppKit dims `button.image` on inactive displays, but high-contrast layouts keep icon + text
@@ -263,18 +267,18 @@ final class MenuBarLayoutRenderer {
         // missing icon the token still renders its placeholder inside the title.
         let leadingIcon: NSImage? = if options.highContrast {
             nil
-        } else if resolvedLines.first?.first == .icon, icon != nil {
+        } else if renderedLines.first?.first == .icon, icon != nil {
             icon.map { Self.offsetLeadingIcon($0, adjustment: options.verticalAdjustment) }
         } else {
             nil
         }
 
-        for (lineIndex, resolvedLine) in resolvedLines.enumerated() {
+        for (lineIndex, renderedLine) in renderedLines.enumerated() {
             if lineIndex > 0 {
                 result.append(NSAttributedString(string: "\n", attributes: attributes))
             }
             var accessibilityParts: [String] = []
-            for (tokenIndex, token) in resolvedLine.enumerated() {
+            for (tokenIndex, token) in renderedLine.enumerated() {
                 // The leading icon is surfaced as `button.image` so AppKit applies the system's
                 // active/inactive display tinting; it is not repeated inside the attributed title,
                 // but its accessibility description must survive for VoiceOver.
@@ -282,7 +286,7 @@ final class MenuBarLayoutRenderer {
                     accessibilityParts.append(Self.iconAccessibilityText(data: data))
                     continue
                 }
-                if tokenIndex > 0, token != .space, resolvedLine[tokenIndex - 1] != .space {
+                if tokenIndex > 0, token != .space, renderedLine[tokenIndex - 1] != .space {
                     result.append(NSAttributedString(string: "\u{2009}", attributes: attributes))
                 }
                 let renderedItem = Self.renderItem(
@@ -305,7 +309,12 @@ final class MenuBarLayoutRenderer {
 
         if options.isDebugApp {
             result.append(NSAttributedString(string: " D", attributes: attributes))
-            accessibilityLines[accessibilityLines.count - 1].append(", \(L("Debug"))")
+            // Every line can collapse when a conditional hides the only token in the layout.
+            if accessibilityLines.isEmpty {
+                accessibilityLines.append(L("Debug"))
+            } else {
+                accessibilityLines[accessibilityLines.count - 1].append(", \(L("Debug"))")
+            }
         }
         let accessibilityLabel = accessibilityLines.enumerated().map { index, line in
             index == 0 ? line : "\(L("menu_bar_layout_line", index + 1)), \(line)"

@@ -877,6 +877,77 @@ struct MenuBarLayoutRendererTests {
     }
 
     @Test
+    func `a line emptied by a hidden branch collapses instead of rendering blank`() throws {
+        let renderer = MenuBarLayoutRenderer()
+        // Session is 25%, so > 50 fails and the else branch (.hidden) wins on the conditional line.
+        let conditional = MenuBarLayoutConditional(
+            clauses: [self.clause(metric: .session, comparison: .greaterThan, threshold: 50)],
+            thenToken: .percent(window: .session),
+            elseToken: .hidden)
+        let options = self.options(conditionals: [conditional])
+
+        // Leading line hidden: no leading newline, and no empty VoiceOver line.
+        let leadingHidden = renderer.render(
+            layout: MenuBarLayout(lines: [
+                [.conditional(id: conditional.id)],
+                [.percent(window: .weekly)],
+            ]),
+            data: self.data(),
+            icon: nil,
+            options: options)
+        #expect(leadingHidden.attributedTitle.string == "W 60%")
+        #expect(!leadingHidden.accessibilityLabel.contains(L("menu_bar_layout_line", 2)))
+
+        // Trailing line hidden: no trailing newline.
+        let trailingHidden = renderer.render(
+            layout: MenuBarLayout(lines: [
+                [.percent(window: .weekly)],
+                [.conditional(id: conditional.id)],
+            ]),
+            data: self.data(),
+            icon: nil,
+            options: options)
+        #expect(trailingHidden.attributedTitle.string == "W 60%")
+
+        // A collapsed layout also drops stacked typography: it matches the single-line control.
+        let control = renderer.render(
+            layout: MenuBarLayout(lines: [[.percent(window: .weekly)]]),
+            data: self.data(),
+            icon: nil,
+            options: options)
+        let collapsedOffset = try #require(self.baselineOffset(in: leadingHidden.attributedTitle, at: 0))
+        let controlOffset = try #require(self.baselineOffset(in: control.attributedTitle, at: 0))
+        #expect(collapsedOffset == controlOffset)
+        #expect(leadingHidden.accessibilityLabel == control.accessibilityLabel)
+    }
+
+    @Test
+    func `every line hidden renders an empty title without crashing`() {
+        let renderer = MenuBarLayoutRenderer()
+        let conditional = MenuBarLayoutConditional(
+            clauses: [self.clause(metric: .session, comparison: .greaterThan, threshold: 50)],
+            thenToken: .percent(window: .session),
+            elseToken: .hidden)
+
+        let output = renderer.render(
+            layout: MenuBarLayout(lines: [[.conditional(id: conditional.id)]]),
+            data: self.data(),
+            icon: nil,
+            options: self.options(conditionals: [conditional]))
+        #expect(output.attributedTitle.string.isEmpty)
+        #expect(output.accessibilityLabel.isEmpty)
+
+        // The debug marker has no line to attach to once everything collapsed.
+        let debug = renderer.render(
+            layout: MenuBarLayout(lines: [[.conditional(id: conditional.id)]]),
+            data: self.data(),
+            icon: nil,
+            options: self.options(conditionals: [conditional], isDebugApp: true))
+        #expect(debug.attributedTitle.string == " D")
+        #expect(debug.accessibilityLabel == L("Debug"))
+    }
+
+    @Test
     func `dangling conditional reference renders placeholder`() {
         let renderer = MenuBarLayoutRenderer()
         // An id not present in the library has nothing to resolve; the renderer must show the
@@ -1029,7 +1100,8 @@ struct MenuBarLayoutRendererTests {
         now: Date? = nil,
         verticalAdjustment: Int = 0,
         isStale: Bool = false,
-        conditionals: [MenuBarLayoutConditional] = []) -> MenuBarLayoutRenderOptions
+        conditionals: [MenuBarLayoutConditional] = [],
+        isDebugApp: Bool = false) -> MenuBarLayoutRenderOptions
     {
         MenuBarLayoutRenderOptions(
             size: .regular,
@@ -1037,7 +1109,7 @@ struct MenuBarLayoutRendererTests {
             showUsed: true,
             conditionals: conditionals,
             appearanceName: "aqua",
-            isDebugApp: false,
+            isDebugApp: isDebugApp,
             isStale: isStale,
             now: now ?? self.now,
             verticalAdjustment: verticalAdjustment)
