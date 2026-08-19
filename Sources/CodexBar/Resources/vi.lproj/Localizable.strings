@@ -613,6 +613,8 @@
 "display_mode_subtitle" = "Chọn nội dung sẽ hiển thị trong thanh menu (Tốc độ hiển thị Mức sử dụng so với dự kiến).";
 "show_quota_warning_markers_title" = "Hiển thị Hạn mức dấu cảnh báo";
 "show_quota_warning_markers_subtitle" = "Vẽ dấu kiểm ngưỡng trên thanh Mức sử dụng khi cảnh báo Hạn mức được định cấu hình.";
+"show_pace_title" = "Hiển thị nhịp độ";
+"show_pace_subtitle" = "Hiển thị vạch vượt trước hoặc chậm hơn và văn bản dự báo trên thanh sử dụng.";
 "weekly_progress_work_days_title" = "Tiến độ ngày làm việc hàng tuần";
 "weekly_progress_work_days_subtitle" = "Đặt ngày làm việc cho các vạch trên thanh sử dụng hằng tuần và phép tính nhịp độ.";
 "workday_tick_appearance_title" = "Kiểu vạch ngày làm việc";
@@ -1328,6 +1330,12 @@
 "By subscription" = "Theo gói đăng ký";
 "No model-level history" = "Không có lịch sử theo mô hình";
 "Daily estimated spend" = "Chi tiêu ước tính hằng ngày";
+"Hourly estimated spend" = "Chi tiêu ước tính theo giờ";
+"Hour" = "Giờ";
+"%d hours of usage data across %d services" = "%d giờ dữ liệu sử dụng trên %d dịch vụ";
+"1 hour of usage data across 1 service" = "1 giờ dữ liệu sử dụng trên 1 dịch vụ";
+"%d hours of usage data across 1 service" = "%d giờ dữ liệu sử dụng trên 1 dịch vụ";
+"1 hour of usage data across %d services" = "1 giờ dữ liệu sử dụng trên %d dịch vụ";
 "≈%d full 5h windows of weekly left · %d windows until reset" = "Còn ≈%d cửa sổ 5 giờ đầy đủ của hạn mức tuần · %d cửa sổ đến khi đặt lại";
 "Weekly cannot run out before reset at this pace" = "Với tốc độ này, hạn mức tuần không thể hết trước khi đặt lại";
 "Weekly can run out ≈%d windows early" = "Hạn mức tuần có thể hết sớm ≈%d cửa sổ";
@@ -1484,5 +1492,6 @@
 "Include OpenCodex usage logs" = "Include OpenCodex usage logs";
 "Hide native Codex when OpenCodex is present" = "Hide native Codex when OpenCodex is present";
 "Export JSON" = "Export JSON";
+"Copy JSON" = "Sao chép JSON";
 "Sources" = "Sources";
 "OpenCodex" = "OpenCodex";

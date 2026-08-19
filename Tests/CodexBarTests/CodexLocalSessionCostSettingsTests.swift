@@ -43,6 +43,23 @@ struct CodexLocalSessionCostSettingsTests {
     }
 
     @Test
+    func `codex local session cost setting is localized in Korean`() throws {
+        let fixture = try self.makeSettingsFixture(suite: "CodexLocalSessionCostSettingsTests-korean-copy")
+        let context = fixture.settingsContext(provider: .codex)
+        let toggle = try #require(CodexProviderImplementation().settingsToggles(context: context)
+            .first(where: { $0.id == "codex-local-session-cost-ledger" }))
+        let expectedSubtitle = [
+            "선택한 관리 계정의 세션 기록 대신 이 Mac의 Codex 세션을 사용합니다.",
+            "조직 API 키를 지원하며 OpenAI 결제 정보나 관리자 권한 없이 사용할 수 있습니다.",
+            "네트워크 요청 없이 로컬에 캐시되었거나 앱에 포함된 모델 가격을 사용합니다.",
+            "이 공급자 전용 설정은 다른 공급자의 비용 요약을 활성화하지 않습니다.",
+        ].joined(separator: "\n")
+
+        #expect(L(toggle.title, language: "ko") == "로컬 세션 비용 추정치")
+        #expect(L(toggle.subtitle, language: "ko") == expectedSubtitle)
+    }
+
+    @Test
     func `codex local ledger ignores the managed account home`() throws {
         let fixture = try self.makeSettingsFixture(suite: "CodexLocalSessionCostSettingsTests-local-ledger")
         fixture.settings._test_activeManagedCodexRemoteHomePath = "/tmp/managed-codex-home"

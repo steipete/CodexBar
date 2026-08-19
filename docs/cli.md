@@ -60,7 +60,8 @@ See `docs/configuration.md` for the schema.
 - `codexbar cost` prints token cost usage for Claude, Codex, and Cursor.
   - Claude and Codex are scanned from local session logs without web/CLI access.
   - Cursor is fetched from the cookie-authenticated cursor.com dashboard API (macOS only; see `docs/cursor.md`) and honors the configured cookie source: a non-empty Manual header is required and forwarded, while Off fails explicitly instead of silently omitting Cursor.
-  - `--format text|json` (default: text).
+  - `--format text|json` (default: text). `--json` includes the same cost concepts as Settings → Usage & Spend (token mix, `provenance`, coverage), but it is not the dashboard Export JSON schema. CLI places mix fields under each provider's `totals` and emits `provenance`/`coverage` on that provider object; Export JSON nests `tokenMix`, `provenance`, and `coverage` under `groups[]`.
+  - OpenCodex appears as a separate `opencodex` payload only when **Include OpenCodex usage logs** is on in Settings. That payload does not invent `projects` (OpenCodex logs have no workspace path).
   - `--refresh` ignores cached scans.
   - `--provider-native-only` is experimental and excludes pi and OMP session mirrors from Claude and Codex history.
 - `codexbar cards` prints a one-shot usage snapshot as a responsive terminal card grid.

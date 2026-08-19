@@ -3,6 +3,57 @@
     <channel>
         <title>CodexBar</title>
         <item>
+            <title>0.53.0</title>
+            <pubDate>Tue, 18 Aug 2026 03:28:55 -0700</pubDate>
+            <link>https://raw.githubusercontent.com/steipete/CodexBar/main/appcast.xml</link>
+            <sparkle:version>125</sparkle:version>
+            <sparkle:shortVersionString>0.53.0</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+            <description><![CDATA[<h2>CodexBar 0.53.0</h2>
+<h3>Highlights</h3>
+<ul>
+<li><strong>Usage &amp; Spend, rebuilt</strong>: explicit cost provenance and coverage everywhere — token mix, an hourly activity heatmap, an All-time range, per-request custom pricing overlays, and opt-in read-only OpenCodex import. Estimates are labeled, partial totals show their coverage, and nothing unpriced masquerades as a real bill.</li>
+<li><strong>Settings window fixed for good</strong>: the invisible keepalive-window hack is gone (#3003) and its regression is repaired with a proper retained window controller (#3029) — Settings now opens reliably, in front, every time.</li>
+<li><strong>Crash fixes</strong>: the fatal CloudKit sync assertion (#3030) and misleading Codex RPC timeout errors (#3022) are gone.</li>
+</ul>
+<h3>Usage &amp; Spend</h3>
+<ul>
+<li>Add explicit cost provenance, coverage counters, and a pinned IANA day-bucketing timezone while making uncertain Codex fork accounting fail closed (#3015). Thanks @Yuxin-Qiao!</li>
+<li>Add token mix, coverage, conversation totals, source visibility controls, and an hourly activity heatmap to the spend dashboard (#3017). Thanks @Yuxin-Qiao!</li>
+<li>Add an All time range alongside 7d/30d, backed by 365 days of local history with dedicated Claude and Cursor spend snapshot slots (#3009). Thanks @Yuxin-Qiao!</li>
+<li>Support exact-match custom pricing above models.dev and built-in rates, preserving missing fields as unknown and explicit zero rates as free (#3016). Thanks @Yuxin-Qiao!</li>
+<li>Add opt-in, read-only OpenCodex <code>usage.jsonl</code> import with its SQLite cache isolated in CodexBar&#x27;s own cache directory (#3018). Thanks @Yuxin-Qiao!</li>
+<li>Show selected-provider usage and spend in the Overview with partial-price, coverage, and provenance context (#3023). Thanks @Chipagosfinest!</li>
+<li>Sum priced subscriptions into a ~$ partial estimate with coverage shown when some subscriptions lack prices, instead of hiding the total (#3001). Thanks @Yuxin-Qiao!</li>
+<li>Keep unpriced named models visible in the model breakdown list instead of dropping the whole source (#3004). Thanks @Yuxin-Qiao!</li>
+<li>Keep priced Cursor days visible when some events omit totalCents, and stop invalid Cursor model costs from reviving on later events (#3005). Thanks @Yuxin-Qiao!</li>
+<li>Claude spend: price bare first-party model IDs from their models.dev vendor catalog, preserve explicit routes, and leave ambiguous cross-vendor matches unpriced (#3002). Thanks @Yuxin-Qiao!</li>
+</ul>
+<h3>Reliability</h3>
+<ul>
+<li>iCloud sync: stop awaiting CKSyncEngine from within its own delegate callbacks, fixing a fatal CloudKit assertion crash minutes after launch with sync enabled (#3030). Thanks @toads for the crash forensics!</li>
+<li>Settings: replace the selector-based Settings opener with a retained window controller, fixing silently failing or behind-other-apps Settings opening after the keepalive removal, and repairing localized application-menu commands (#3029). Thanks @Zihao-Qi!</li>
+<li>Codex: classify app-server request timeouts before terminating the subprocess, so timeouts no longer surface as misleading EOF/malformed-response errors (#3022). Thanks @Chipagosfinest!</li>
+<li>OpenCode Go: surface expired selected session tokens instead of silently replacing failed server usage with local quota estimates (#2993). Thanks @Niclassslua!</li>
+<li>Cursor: keep an API-validated usage result when the Keychain cache is temporarily unavailable, instead of treating it as a missing or replaced session (#3000). Thanks @hxy91819!</li>
+<li>Menu: prevent the system menu highlight from painting behind provider detail cards on macOS 27 beta (#2998). Thanks @Tan1103!</li>
+</ul>
+<h3>Providers &amp; CLI</h3>
+<ul>
+<li>Grok: add an Auto / Grok CLI / SuperGrok OAuth / Browser cookies source picker, support pasted SuperGrok bearers and grok.com cookies in token accounts, and open <code>~/.grok/auth.json</code> from Open token file (#3010). Thanks @oakimov!</li>
+<li>CLI: add <code>codexbar usage --format toon</code> emitting the JSON payload as TOON v4.1 for agents that prefer denser structured output (#2996, #3021). Thanks @elijahfriedman and @teseo for the spec!</li>
+<li>CLI: align <code>codexbar cost --json</code> with spend provenance, token mix, coverage, and opt-in OpenCodex payloads (#3019). Thanks @Yuxin-Qiao!</li>
+</ul>
+<h3>Settings</h3>
+<ul>
+<li>Turn Low Power Mode into an Off/On/Automatic preference, with Automatic following the system Low Power Mode state (#2995). Thanks @elijahfriedman!</li>
+<li>Style the Quit CodexBar button as a prominent accent-color button and remove its stray section background (#2992). Thanks @elijahfriedman!</li>
+</ul>
+<p><a href="https://github.com/steipete/CodexBar/blob/main/CHANGELOG.md">View full changelog</a></p>
+]]></description>
+            <enclosure url="https://github.com/steipete/CodexBar/releases/download/v0.53.0/CodexBar-macos-universal-0.53.0.zip" length="64325948" type="application/octet-stream" sparkle:edSignature="gRFuy1AvbWt5yI5lsBdRYw+BeYtoSsMjTfVfCEs+ASpMeUCINlxc4aZaOcguDWUmdt016058b1HvvZiVMvq6Dg=="/>
+        </item>
+        <item>
             <title>0.52.0</title>
             <pubDate>Mon, 17 Aug 2026 04:24:21 -0700</pubDate>
             <link>https://raw.githubusercontent.com/steipete/CodexBar/main/appcast.xml</link>
@@ -45,45 +96,6 @@
 <p><a href="https://github.com/steipete/CodexBar/blob/main/CHANGELOG.md">View full changelog</a></p>
 ]]></description>
             <enclosure url="https://github.com/steipete/CodexBar/releases/download/v0.51.0/CodexBar-macos-universal-0.51.0.zip" length="63446531" type="application/octet-stream" sparkle:edSignature="/AdQtQRfCE8pYYwFb8IDKzgYCnUvWqUd0Zwcg7YBb5gzbAn2XlRcV0DiJCvCb74LK78xJLjWxnMXy4Icu+6NBA=="/>
-        </item>
-        <item>
-            <title>0.50.1</title>
-            <pubDate>Sun, 16 Aug 2026 11:11:47 -0700</pubDate>
-            <link>https://raw.githubusercontent.com/steipete/CodexBar/main/appcast.xml</link>
-            <sparkle:version>122</sparkle:version>
-            <sparkle:shortVersionString>0.50.1</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-            <description><![CDATA[<h2>CodexBar 0.50.1</h2>
-<h3>Added</h3>
-<ul>
-<li>Kiro: add an explicit Re-authenticate action that runs <code>kiro-cli login</code>, surfaces device-flow instructions, and refreshes usage only after a successful login (#2340). Thanks @Vit129!</li>
-<li>Providers: add a per-provider accent color override with a hex field, a color well, and a reset to the shipped color; it applies to usage bars, charts, switcher tabs, widgets, and the <code>codexbar serve</code> dashboard, and syncs across Macs (#2972). Thanks @urda!</li>
-<li>Usage bars: make workday tick marks configurable with hidden, subtle, and high-contrast appearances (#2904, #2950). Thanks @dstier-git!</li>
-<li>Settings: allow minimizing the Settings window while keeping its Dock tile available for restoring it (#2945). Thanks @Yuxin-Qiao!</li>
-<li>Widgets: opt-in display of Claude model-scoped weekly quotas (for example Fable) projected from the shared usage snapshot, off by default (#2645). Thanks @alfredjbclaw!</li>
-</ul>
-<h3>Fixed</h3>
-<ul>
-<li>Claude: let Auto reuse a working CLI fallback when OAuth Keychain access is revoked by Claude Code token rotation, distinguish revoked access from missing credentials, and keep last-known quota history visible with its capture age when every live source fails (#2516). Thanks @axisrow and everyone who supplied forensics!</li>
-<li>Menu: apply the cost summary display style to every provider&#x27;s menu card, so Submenu only hides inline cost rows for z.ai and other providers (#2976). Thanks @ar0nbg!</li>
-<li>Cost history: align x-axis date labels with their bars in status-menu charts (#2974). Thanks @Yuxin-Qiao!</li>
-<li>Codex: preserve completed empty local history as known-zero usage and spend without fabricating zeroes for incomplete scans (#2932). Thanks @Yuxin-Qiao!</li>
-<li>Codex: keep CLI-owned <code>auth.json</code> read-only during usage refresh, delegate stale native credentials to CLI recovery, and fail closed for stale external OAuth files (#2944). Thanks @Yuxin-Qiao!</li>
-<li>Usage &amp; Spend: keep safely priced Codex totals visible after completed history scans when request-tier uncertainty leaves some days unpriced (#2948). Thanks @Atopoz for the report!</li>
-<li>Vertex AI: match Cloud Monitoring quota usage without a <code>limit_name</code> to its unambiguous same-metric, same-location limit, restoring quota percentages (#2958). Thanks @MachApple!</li>
-<li>Cursor: rename the included-usage split to Cursor and Third Party across menu, widgets, and menu-bar windows, matching Cursor&#x27;s dashboard labels (#2951). Thanks @baanish!</li>
-<li>OpenCode Go: report pace for the 5-hour and weekly usage windows in CLI text and JSON output (#2957). Thanks @kentoku24!</li>
-<li>Mistral: show current-month API spend in Icon and Percent menu-bar layouts when pay-as-you-go accounts have no rate window (#2821, #2947). Thanks @kiranmagic7!</li>
-<li>CLI: keep Codex app-server notifications and child diagnostics behind verbose logging instead of writing them to stderr on every probe (#2952). Thanks @urda!</li>
-<li>Ollama: strip copied <code>Cookie:</code> and cURL syntax before sending manual WorkOS session headers when another cookie appears first (#2949). Thanks @Skythrill256!</li>
-<li>Antigravity: render one lane per quota bucket on the serve dashboard and in <code>codexbar dashboard</code>, instead of repeating two buckets as extra &quot;Gemini Models&quot; and &quot;Claude and GPT&quot; rows (#2963). Thanks @urda!</li>
-<li>Serve: follow the app&#x27;s &quot;Hide personal information&quot; setting on the web dashboard when no <code>--identity</code> flag is given, resolving the mode per request so the toggle applies without a serve restart (#2960). Thanks @urda!</li>
-<li>Codex cost: price provider-qualified routed models (OpenCodex, DeepSeek, Kimi routes) against their matching models.dev provider, keeping unknown route prefixes unpriced instead of falling back to OpenAI rates (#2946). Thanks @Yuxin-Qiao!</li>
-<li>CLI releases: record only the asset basename in release checksum sidecars so <code>sha256sum -c</code> verifies downloads anywhere, instead of embedding runner-local absolute paths (#2971, #2973). Thanks @shockbladenull!</li>
-</ul>
-<p><a href="https://github.com/steipete/CodexBar/blob/main/CHANGELOG.md">View full changelog</a></p>
-]]></description>
-            <enclosure url="https://github.com/steipete/CodexBar/releases/download/v0.50.1/CodexBar-macos-universal-0.50.1.zip" length="63447777" type="application/octet-stream" sparkle:edSignature="KM5skn7L2uT58bxWAIJqIaH6OHr/T7tZwWHzf/bxdP6jMSlZEniHCaHu4yNEOvcsoWHqPrULbOBd+S2vBjvQBA=="/>
         </item>
         <item>
             <title>0.14.0</title>

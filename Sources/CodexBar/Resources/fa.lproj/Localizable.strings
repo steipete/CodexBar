@@ -623,6 +623,8 @@
 "display_mode_subtitle" = "انتخاب کنید که در نوار منو چه چیزی نمایش داده شود (Pace میزان مصرف در مقابل مورد انتظار را نشان می دهد).";
 "show_quota_warning_markers_title" = "نشانگرهای هشدار سهمیه را نشان دهید";
 "show_quota_warning_markers_subtitle" = "علامت تیک آستانه را روی نوارهای استفاده هنگام پیکربندی هشدارهای سهمیه رسم کنید.";
+"show_pace_title" = "نمایش آهنگ مصرف";
+"show_pace_subtitle" = "نوار جلوتر یا عقب‌تر بودن و متن پیش‌بینی را روی نوارهای مصرف نشان می‌دهد.";
 "weekly_progress_work_days_title" = "روزهای کاری پیشرفت هفتگی";
 "weekly_progress_work_days_subtitle" = "روزهای کاری را برای نشانگرهای نوار مصرف هفتگی و محاسبات سرعت تعیین کنید.";
 "workday_tick_appearance_title" = "نمایش نشانه‌های روز کاری";
@@ -1331,6 +1333,12 @@
 "By subscription" = "بر اساس اشتراک";
 "No model-level history" = "تاریخچه‌ای در سطح مدل وجود ندارد";
 "Daily estimated spend" = "برآورد هزینه روزانه";
+"Hourly estimated spend" = "برآورد هزینه ساعتی";
+"Hour" = "ساعت";
+"%d hours of usage data across %d services" = "%d ساعت داده استفاده در %d سرویس";
+"1 hour of usage data across 1 service" = "1 ساعت داده استفاده در 1 سرویس";
+"%d hours of usage data across 1 service" = "%d ساعت داده استفاده در 1 سرویس";
+"1 hour of usage data across %d services" = "1 ساعت داده استفاده در %d سرویس";
 "≈%d full 5h windows of weekly left · %d windows until reset" = "حدود %d بازه کامل ۵ ساعته از سهم هفتگی مانده · %d بازه تا بازنشانی";
 "Weekly cannot run out before reset at this pace" = "با این روند، سهم هفتگی پیش از بازنشانی تمام نمی‌شود";
 "Weekly can run out ≈%d windows early" = "سهم هفتگی ممکن است حدود %d بازه زودتر تمام شود";
@@ -1487,5 +1495,6 @@
 "Include OpenCodex usage logs" = "Include OpenCodex usage logs";
 "Hide native Codex when OpenCodex is present" = "Hide native Codex when OpenCodex is present";
 "Export JSON" = "Export JSON";
+"Copy JSON" = "کپی JSON";
 "Sources" = "Sources";
 "OpenCodex" = "OpenCodex";

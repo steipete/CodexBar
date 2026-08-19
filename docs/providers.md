@@ -21,16 +21,29 @@ headers, source selection, provider ordering, and token accounts are stored in `
 
 ## Usage & Spend settings
 
-Settings → Usage & Spend combines local 7- or 30-day estimated history only for enabled descriptors that advertise
-token-cost support: Codex, Claude, Vertex AI, OpenAI, Mistral, and AWS Bedrock. Providers without a cost-history
-contract are omitted instead of appearing as empty subscriptions.
+Settings → Usage & Spend is a local estimated-cost history page, not a billing receipt and not the menu-bar quota
+card. Range choices are 7 / 30 / 90 days and All (the scan window is 365 days). Amounts are list-price equivalents
+unless a source also reports plan-metered spend, in which case both columns appear. Day buckets use a pinned IANA
+timezone stored when cost tracking is first enabled.
 
-Each native currency has its own total, subscription/model ranking, and daily chart. CodexBar never adds or ranks
-amounts across currencies. Coverage text reports how many days of the selected local calendar window are covered by
-the scan window; a 30-day selection is not labeled as complete when the available scan window covers fewer days.
+Native cost-history sources are the descriptors that advertise token-cost support: Codex, Claude, OpenAI Admin,
+Mistral, AWS Bedrock, Vertex AI, Cursor, and OpenCode Go. Providers without that contract are omitted instead of
+appearing as empty subscriptions. Each native currency has its own total, ranking, and daily chart; CodexBar never
+adds or ranks amounts across currencies.
+
+The page also shows token mix (input / output / cache / reasoning), priced/unpriced/unmetered/estimated coverage,
+sessions, Codex projects, and a 365-day token heatmap. A heatmap day with no coverage is a gap, not zero activity,
+and is not clickable. Custom list-price overlays are documented in `docs/model-pricing.md`.
+
+OpenCodex `~/.opencodex/usage.jsonl` is an opt-in, read-only spend source (off by default). It is not a quota
+Provider. When both OpenCodex logs and native Codex sessions are present they stay on separate rows; merging would
+double-count the same traffic. An optional toggle can hide native Codex while OpenCodex data is present. Export JSON
+emits the currently aggregated model (provenance, mix, coverage).
 
 The view stays local and does not upload usage history. Refreshes retain the last successful model if a replacement
-scan fails, while provider/account configuration changes replace obsolete results.
+scan fails, while provider/account configuration changes replace obsolete results. Coverage text reports how many
+days of the selected local calendar window are covered by the scan window; a 30-day selection is not labeled as
+complete when the available scan window covers fewer days.
 
 | Provider | Strategies (ordered for auto) |
 | --- | --- |

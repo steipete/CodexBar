@@ -179,7 +179,29 @@ struct AmpUsageParserTests {
     }
 
     @Test
-    func `parses amp subscription usage with settings link`() throws {
+    func `parses current amp subscription line and keeps credits detail`() throws {
+        let now = try self.date("2026-08-18T12:00:00Z")
+        let output = """
+        Signed in as you@example.com (username)
+        Amp Megawatt Subscription: 100% other usage and 100% orb usage remaining - resets upon renewal in 1 month
+        Individual credits: $4.35 remaining (set up auto-reload to avoid running out) - https://ampcode.com/settings
+        """
+
+        let snapshot = try AmpUsageParser.parse(displayText: output, now: now)
+        let usage = snapshot.toUsageSnapshot(now: now)
+
+        #expect(snapshot.subscription?.plan == "Megawatt")
+        #expect(usage.primary?.usedPercent == 0)
+        #expect(usage.secondary?.usedPercent == 0)
+        #expect(usage.primary?.windowMinutes == ProviderPaceCapability.monthlyWindowSentinelMinutes)
+        #expect(try usage.primary?.resetsAt == self.date("2026-09-18T12:00:00Z"))
+        #expect(usage.secondary?.resetsAt == usage.primary?.resetsAt)
+        #expect(usage.identity?.loginMethod == "Megawatt")
+        #expect(usage.detailRow(label: "Individual credits")?.value == "$4.35")
+    }
+
+    @Test
+    func `parses legacy amp subscription line format with settings link`() throws {
         let output = """
         Subscription Megawatt: 97% other usage and 100% orb usage remaining - resets upon renewal in 29 days \
         - https://ampcode.com/settings#subscription

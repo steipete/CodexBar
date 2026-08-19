@@ -617,6 +617,8 @@
 "display_mode_subtitle" = "Kies wat u wilt weergeven in de menubalk (Tempo toont gebruik vs. verwacht).";
 "show_quota_warning_markers_title" = "Toon waarschuwingsmarkeringen voor quota";
 "show_quota_warning_markers_subtitle" = "Teken drempelmarkeringen op gebruiksbalken wanneer quotawaarschuwingen zijn geconfigureerd.";
+"show_pace_title" = "Tempo tonen";
+"show_pace_subtitle" = "Toont de streep voor voor- of achterstand en de prognosetekst op de gebruiksbalken.";
 "weekly_progress_work_days_title" = "Wekelijkse voortgang werkdagen";
 "weekly_progress_work_days_subtitle" = "Stel werkdagen in voor markeringen op wekelijkse gebruiksbalken en tempoberekeningen.";
 "workday_tick_appearance_title" = "Weergave van werkdagmarkeringen";
@@ -1327,6 +1329,12 @@
 "By subscription" = "Per abonnement";
 "No model-level history" = "Geen geschiedenis op modelniveau";
 "Daily estimated spend" = "Geschatte dagelijkse uitgaven";
+"Hourly estimated spend" = "Geschatte uitgaven per uur";
+"Hour" = "Uur";
+"%d hours of usage data across %d services" = "%d uur gebruiksdata over %d diensten";
+"1 hour of usage data across 1 service" = "1 uur gebruiksdata over 1 dienst";
+"%d hours of usage data across 1 service" = "%d uur gebruiksdata over 1 dienst";
+"1 hour of usage data across %d services" = "1 uur gebruiksdata over %d diensten";
 "≈%d full 5h windows of weekly left · %d windows until reset" = "≈%d volledige vensters van 5 uur aan weeklimiet over · %d vensters tot reset";
 "Weekly cannot run out before reset at this pace" = "Het weeklimiet kan bij dit tempo niet vóór de reset opraken";
 "Weekly can run out ≈%d windows early" = "Het weeklimiet kan ≈%d vensters eerder opraken";
@@ -1483,5 +1491,6 @@
 "Include OpenCodex usage logs" = "Include OpenCodex usage logs";
 "Hide native Codex when OpenCodex is present" = "Hide native Codex when OpenCodex is present";
 "Export JSON" = "Export JSON";
+"Copy JSON" = "JSON kopiëren";
 "Sources" = "Sources";
 "OpenCodex" = "OpenCodex";

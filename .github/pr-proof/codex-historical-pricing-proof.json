@@ -1,0 +1,31 @@
+{
+  "cutoffUTC" : "2026-07-30T00:00:00Z",
+  "fixture" : "local synthetic codex JSONL sessions scanned through the real scanner path",
+  "rows" : [
+    {
+      "costUSD" : 0.00030250000000000003,
+      "day" : "2026-07-29",
+      "model" : "gpt-5.6-terra",
+      "totalTokens" : 105
+    },
+    {
+      "costUSD" : 0.00024199999999999997,
+      "day" : "2026-07-30",
+      "model" : "gpt-5.6-terra",
+      "totalTokens" : 105
+    },
+    {
+      "costUSD" : 0.00012099999999999999,
+      "day" : "2026-07-29",
+      "model" : "gpt-5.6-luna",
+      "totalTokens" : 105
+    },
+    {
+      "costUSD" : 2.4200000000000002e-05,
+      "day" : "2026-07-30",
+      "model" : "gpt-5.6-luna",
+      "totalTokens" : 105
+    }
+  ],
+  "source" : "CostUsageFetcher.loadTokenSnapshot(provider: .codex)"
+}

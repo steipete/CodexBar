@@ -510,6 +510,11 @@ extension SettingsStore {
         if Self.isRunningTests, quotaWarningMarkersVisibleDefault == nil {
             userDefaults.set(true, forKey: "quotaWarningMarkersVisible")
         }
+        let paceVisibleDefault = userDefaults.object(forKey: "paceVisible") as? Bool
+        let paceVisible = paceVisibleDefault ?? true
+        if Self.isRunningTests, paceVisibleDefault == nil {
+            userDefaults.set(true, forKey: "paceVisible")
+        }
         let weeklyProgressWorkDays = userDefaults.object(forKey: "weeklyProgressWorkDays") as? Int
         let workdayTickAppearanceRaw = userDefaults.string(forKey: "workdayTickAppearance")
             ?? WorkdayTickAppearance.subtle.rawValue
@@ -531,7 +536,7 @@ extension SettingsStore {
         let historicalTrackingEnabled = userDefaults.object(forKey: "historicalTrackingEnabled") as? Bool ?? false
         let multiAccountMenuLayoutRaw = Self.loadMultiAccountMenuLayoutRaw(userDefaults: userDefaults)
         let resolvedPreferences = Self.loadMenuBarMetricPreferences(userDefaults: userDefaults)
-        let storedMenuBarLayout = Self.loadMenuBarLayout(userDefaults: userDefaults, key: "menuBarLayout")
+        let storedMenuBarLayout = Self.loadMenuBarLayout(userDefaults: userDefaults)
         let menuBarLayoutOverridesRaw = Self.loadMenuBarLayoutOverrides(userDefaults: userDefaults)
         let menuBarLayoutSizeRaw = userDefaults.string(forKey: "menuBarLayoutSize")
             ?? MenuBarLayoutSize.regular.rawValue
@@ -660,6 +665,7 @@ extension SettingsStore {
             quotaWarningSoundEnabled: quotaWarnings.soundEnabled,
             quotaWarningOnScreenAlertEnabled: quotaWarnings.onScreenAlertEnabled,
             quotaWarningMarkersVisible: quotaWarningMarkersVisible,
+            paceVisible: paceVisible,
             weeklyProgressWorkDays: weeklyProgressWorkDays,
             workdayTickAppearanceRaw: workdayTickAppearanceRaw,
             usageBarsShowUsed: usageBarsShowUsed,
@@ -859,14 +865,30 @@ extension SettingsStore {
         return migrated
     }
 
-    private static func loadMenuBarLayout(userDefaults: UserDefaults, key: String) -> MenuBarLayout? {
-        guard let data = userDefaults.data(forKey: key) else { return nil }
-        return try? JSONDecoder().decode(MenuBarLayout.self, from: data)
+    private static func loadMenuBarLayout(userDefaults: UserDefaults) -> MenuBarLayout? {
+        MenuBarLayoutPersistence.loadLayout(
+            current: self.decodeMenuBarLayout(userDefaults.data(forKey: MenuBarLayoutUserDefaultsKey.layoutCurrent)),
+            legacy: self.decodeMenuBarLayout(userDefaults.data(forKey: MenuBarLayoutUserDefaultsKey.layout)),
+            into: userDefaults)
     }
 
     private static func loadMenuBarLayoutOverrides(userDefaults: UserDefaults) -> [String: MenuBarLayout] {
-        guard let data = userDefaults.data(forKey: "menuBarLayoutOverrides") else { return [:] }
-        return (try? JSONDecoder().decode([String: MenuBarLayout].self, from: data)) ?? [:]
+        MenuBarLayoutPersistence.loadOverrides(
+            current: self.decodeMenuBarLayoutOverrides(
+                userDefaults.data(forKey: MenuBarLayoutUserDefaultsKey.overridesCurrent)),
+            legacy: self.decodeMenuBarLayoutOverrides(
+                userDefaults.data(forKey: MenuBarLayoutUserDefaultsKey.overrides)),
+            into: userDefaults)
+    }
+
+    private static func decodeMenuBarLayout(_ data: Data?) -> MenuBarLayout? {
+        guard let data else { return nil }
+        return try? JSONDecoder().decode(MenuBarLayout.self, from: data)
+    }
+
+    private static func decodeMenuBarLayoutOverrides(_ data: Data?) -> [String: MenuBarLayout]? {
+        guard let data else { return nil }
+        return try? JSONDecoder().decode([String: MenuBarLayout].self, from: data)
     }
 
     private static func loadMultiAccountMenuLayoutRaw(userDefaults: UserDefaults) -> String {

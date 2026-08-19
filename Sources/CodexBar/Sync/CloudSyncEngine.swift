@@ -45,6 +45,34 @@ struct CloudSyncQuotaRetryState: Equatable, Sendable {
     }
 }
 
+/// Runs CKSyncEngine delegate events serially without retaining the delegate callback's task context.
+final class CloudSyncDelegateEventQueue: Sendable {
+    typealias Operation = @Sendable () async -> Void
+
+    private let continuation: AsyncStream<Operation>.Continuation
+    private let worker: Task<Void, Never>
+
+    init() {
+        let (stream, continuation) = AsyncStream.makeStream(of: Operation.self)
+        self.continuation = continuation
+        self.worker = Task.detached(priority: .utility) {
+            for await operation in stream {
+                guard !Task.isCancelled else { return }
+                await operation()
+            }
+        }
+    }
+
+    deinit {
+        self.continuation.finish()
+        self.worker.cancel()
+    }
+
+    func enqueue(_ operation: @escaping Operation) {
+        self.continuation.yield(operation)
+    }
+}
+
 enum CloudSyncBatchRecordProvider {
     static func record(
         for recordID: CKRecord.ID,
@@ -145,6 +173,7 @@ actor CloudSyncEngine: CKSyncEngineDelegate {
     private let settings: SettingsStore
     private let state: CloudSyncState
     private let persistence: CloudSyncPersistence
+    private nonisolated let delegateEventQueue = CloudSyncDelegateEventQueue()
     private var persistenceEnvelope: CloudSyncPersistence.Envelope
     private var engine: CKSyncEngine?
     private var desiredRecords: [CKRecord.ID: CKRecord] = [:]
@@ -527,7 +556,9 @@ actor CloudSyncEngine: CKSyncEngineDelegate {
     // MARK: CKSyncEngineDelegate
 
     nonisolated func handleEvent(_ event: CKSyncEngine.Event, syncEngine: CKSyncEngine) async {
-        await self.processEvent(event, syncEngine: syncEngine)
+        self.delegateEventQueue.enqueue { [weak self] in
+            await self?.processEvent(event, syncEngine: syncEngine)
+        }
     }
 
     private func processEvent(_ event: CKSyncEngine.Event, syncEngine: CKSyncEngine) async {

@@ -26,6 +26,10 @@ struct MenuBarLayoutRenderData: Hashable {
     let iconKey: String
     let providerName: String?
     let accountLabel: String?
+    let laneLabels: MenuBarLayoutLaneLabels
+    let primary: MenuBarLayoutRenderWindow?
+    let secondary: MenuBarLayoutRenderWindow?
+    let tertiary: MenuBarLayoutRenderWindow?
     let session: MenuBarLayoutRenderWindow?
     let weekly: MenuBarLayoutRenderWindow?
     let scopedWeekly: MenuBarLayoutRenderWindow?
@@ -304,6 +308,15 @@ final class MenuBarLayoutRenderer {
         options: MenuBarLayoutRenderOptions)
         -> (value: NSAttributedString, accessibilityText: String?)
     {
+        if let rendered = self.renderProviderTextItem(
+            item,
+            data: data,
+            showUsed: options.showUsed,
+            attributes: style.attributes)
+        {
+            return rendered
+        }
+
         switch item {
         case .icon:
             guard let icon else {
@@ -324,16 +337,6 @@ final class MenuBarLayoutRenderer {
             let value = NSMutableAttributedString(attachment: attachment)
             value.addAttributes(style.attributes, range: NSRange(location: 0, length: value.length))
             return (value, Self.iconAccessibilityText(data: data))
-        case .providerName:
-            return self.optionalTextToken(
-                data.providerName,
-                unavailableLabel: L("Provider name unavailable"),
-                attributes: style.attributes)
-        case .accountLabel:
-            return self.optionalTextToken(
-                data.accountLabel,
-                unavailableLabel: L("Account unavailable"),
-                attributes: style.attributes)
         case let .percent(window):
             let rateWindow = Self.window(window, data: data)
             let resolvedValue = Self.percentValue(
@@ -422,11 +425,62 @@ final class MenuBarLayoutRenderer {
             return self.textToken("·", accessibilityText: nil, attributes: style.attributes)
         case .space:
             return self.textToken(" ", accessibilityText: nil, attributes: style.attributes)
+        case .providerName, .accountLabel, .lanePercent:
+            preconditionFailure("Provider text tokens should render before the main switch")
         }
     }
 
     private static func iconAccessibilityText(data: MenuBarLayoutRenderData) -> String {
         L("%@ icon", data.providerName ?? L("Provider"))
+    }
+
+    private static func renderProviderTextItem(
+        _ item: MenuBarLayoutToken,
+        data: MenuBarLayoutRenderData,
+        showUsed: Bool,
+        attributes: [NSAttributedString.Key: Any])
+        -> (value: NSAttributedString, accessibilityText: String?)?
+    {
+        switch item {
+        case .providerName:
+            self.optionalTextToken(
+                data.providerName,
+                unavailableLabel: L("Provider name unavailable"),
+                attributes: attributes)
+        case .accountLabel:
+            self.optionalTextToken(
+                data.accountLabel,
+                unavailableLabel: L("Account unavailable"),
+                attributes: attributes)
+        case let .lanePercent(lane):
+            self.lanePercentToken(
+                lane,
+                data: data,
+                showUsed: showUsed,
+                attributes: attributes)
+        default:
+            nil
+        }
+    }
+
+    private static func lanePercentToken(
+        _ lane: MenuBarLayoutLane,
+        data: MenuBarLayoutRenderData,
+        showUsed: Bool,
+        attributes: [NSAttributedString.Key: Any])
+        -> (value: NSAttributedString, accessibilityText: String?)
+    {
+        let rateWindow = Self.laneWindow(lane, data: data)
+        let resolvedValue = Self.percentValue(
+            window: .automatic,
+            rateWindow: rateWindow,
+            automaticText: nil,
+            showUsed: showUsed)
+        let label = data.laneLabels.label(for: lane)
+        let accessibility = resolvedValue.isAvailable
+            ? L("%@ %@", label, resolvedValue.text)
+            : L("%@ unavailable", label)
+        return self.textToken(resolvedValue.text, accessibilityText: accessibility, attributes: attributes)
     }
 
     private static func percentValue(
@@ -553,6 +607,18 @@ final class MenuBarLayoutRenderer {
         case .weekly: data.weekly
         case .scopedWeekly: data.scopedWeekly
         case .automatic: data.automatic
+        }
+    }
+
+    private static func laneWindow(
+        _ lane: MenuBarLayoutLane,
+        data: MenuBarLayoutRenderData)
+        -> MenuBarLayoutRenderWindow?
+    {
+        switch lane {
+        case .primary: data.primary
+        case .secondary: data.secondary
+        case .tertiary: data.tertiary
         }
     }
 

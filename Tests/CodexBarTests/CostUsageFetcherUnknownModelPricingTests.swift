@@ -25,7 +25,7 @@ struct CostUsageFetcherUnknownModelPricingTests {
     }
 
     @Test
-    func `fetcher reprices a provider qualified model after an on demand catalog refresh`() async throws {
+    func `fetcher excludes routed opencode go models from the Codex snapshot`() async throws {
         let fixture = try UnknownModelPricingFixture()
         defer { fixture.environment.cleanup() }
         let qualifiedTurnContext: [String: Any] = [
@@ -60,10 +60,9 @@ struct CostUsageFetcherUnknownModelPricingTests {
             modelsDevClient: ModelsDevClient(transport: CostUsageFetcherModelsDevTransport(
                 data: fixture.refreshedCatalog)))
 
-        let breakdown = try #require(snapshot.daily
-            .flatMap { $0.modelBreakdowns ?? [] }
-            .first { $0.modelName == "opencode-go/deepseek-v4-flash" })
-        #expect(abs((breakdown.costUSD ?? 0) - 0.0000084) < 0.0000001)
+        #expect(!(snapshot.daily
+                .flatMap { $0.modelBreakdowns ?? [] }
+                .contains { $0.modelName == "opencode-go/deepseek-v4-flash" }))
     }
 
     @Test

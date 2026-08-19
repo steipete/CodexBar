@@ -67,6 +67,27 @@ struct CloudSyncSettingsTests {
     }
 
     @Test
+    func `legacy synced preferences without pace visibility decode compatibly`() throws {
+        let fixture = try self.makeFixture("legacy-pace-visible")
+        let payload = PreferencesSyncPayload(preferences: fixture.store.syncedPreferences)
+        let encoded = try CanonicalSyncJSON.encode(payload)
+        var object = try #require(JSONSerialization.jsonObject(with: encoded) as? [String: Any])
+        var preferences = try #require(object["preferences"] as? [String: Any])
+        preferences.removeValue(forKey: "paceVisible")
+        object["preferences"] = preferences
+        let legacyData = try JSONSerialization.data(withJSONObject: object)
+
+        let decoded = try CanonicalSyncJSON.decode(PreferencesSyncPayload.self, from: legacyData)
+
+        #expect(decoded.preferences.paceVisible == nil)
+
+        // An absent key must leave the local value untouched, not reset it.
+        fixture.store.paceVisible = false
+        fixture.store.applySyncedPreferences(decoded.preferences)
+        #expect(fixture.store.paceVisible == false)
+    }
+
+    @Test
     func `config watcher suppresses self writes and observes external atomic replacement`() async throws {
         let directory = FileManager.default.temporaryDirectory
             .appendingPathComponent("ConfigFileWatcherTests-\(UUID().uuidString)", isDirectory: true)
@@ -329,6 +350,35 @@ struct CloudSyncSettingsTests {
         #expect(backoff.nextDelay(serverRetryAfter: 30) == 30)
     }
 
+    @Test
+    func `delegate events leave callback context before engine work and stay ordered`() async {
+        let queue = CloudSyncDelegateEventQueue()
+        let recorder = CloudSyncDelegateEventRecorder()
+
+        let inheritedCallbackContext = await withCheckedContinuation { continuation in
+            CloudSyncDelegateCallbackContext.$isActive.withValue(true) {
+                queue.enqueue {
+                    continuation.resume(returning: CloudSyncDelegateCallbackContext.isActive)
+                }
+            }
+        }
+
+        #expect(!inheritedCallbackContext)
+
+        await withCheckedContinuation { continuation in
+            queue.enqueue {
+                try? await Task.sleep(for: .milliseconds(50))
+                await recorder.append(1)
+            }
+            queue.enqueue {
+                await recorder.append(2)
+                continuation.resume()
+            }
+        }
+
+        #expect(await recorder.values == [1, 2])
+    }
+
     private func makeFixture(_ name: String) throws -> (store: SettingsStore, defaults: UserDefaults) {
         let suite = "CloudSyncSettingsTests-\(name)"
         let defaults = try #require(UserDefaults(suiteName: suite))
@@ -361,5 +411,17 @@ private final class LockedCounter: @unchecked Sendable {
 
     func increment() {
         self.lock.withLock { self.storage += 1 }
+    }
+}
+
+private enum CloudSyncDelegateCallbackContext {
+    @TaskLocal static var isActive = false
+}
+
+private actor CloudSyncDelegateEventRecorder {
+    private(set) var values: [Int] = []
+
+    func append(_ value: Int) {
+        self.values.append(value)
     }
 }

@@ -17,11 +17,13 @@ extension CostUsageScanner {
             ?? row.pricingModel
             ?? row.model
         let overlay = customPricing ?? .empty
+        let pricingDate = row.timestampUnixMs.map { Date(timeIntervalSince1970: Double($0) / 1000) }
         let baseCost = CostUsagePricing.codexCostUSD(
             model: pricedModel,
             inputTokens: row.input,
             cachedInputTokens: row.cached,
             outputTokens: row.output,
+            pricingDate: pricingDate,
             modelsDevCatalog: modelsDevCatalog,
             modelsDevCacheRoot: modelsDevCacheRoot,
             customPricing: overlay)
@@ -31,6 +33,7 @@ extension CostUsageScanner {
             inputTokens: row.input,
             cachedInputTokens: row.cached,
             outputTokens: row.output,
+            pricingDate: pricingDate,
             modelsDevCatalog: modelsDevCatalog,
             modelsDevCacheRoot: modelsDevCacheRoot,
             customPricing: overlay)

@@ -599,6 +599,8 @@
 "display_mode_subtitle" = "选择菜单栏中显示的内容（进度会显示实际用量与预期的对比）。";
 "show_quota_warning_markers_title" = "显示配额预警标记";
 "show_quota_warning_markers_subtitle" = "配置配额预警后，在用量条上绘制阈值刻度标记。";
+"show_pace_title" = "显示用量节奏";
+"show_pace_subtitle" = "在用量条上显示领先或落后的标记线和预测文本。";
 "show_provider_changelog_links_title" = "显示提供商变更日志链接";
 "show_provider_changelog_links_subtitle" = "在菜单中为支持的 CLI 提供商添加发布说明链接。";
 "show_credits_extra_usage_title" = "显示额度 + 额外用量";
@@ -1307,6 +1309,12 @@
 "By subscription" = "按订阅";
 "No model-level history" = "暂无模型级历史";
 "Daily estimated spend" = "每日估算支出";
+"Hourly estimated spend" = "每小时估算支出";
+"Hour" = "小时";
+"%d hours of usage data across %d services" = "%d 小时用量，涵盖 %d 个服务";
+"1 hour of usage data across 1 service" = "1 小时用量，涵盖 1 个服务";
+"%d hours of usage data across 1 service" = "%d 小时用量，涵盖 1 个服务";
+"1 hour of usage data across %d services" = "1 小时用量，涵盖 %d 个服务";
 "Input" = "输入";
 "Output" = "输出";
 "Cache write" = "缓存写入";
@@ -1325,6 +1333,7 @@
 "Include OpenCodex usage logs" = "纳入 OpenCodex 用量日志";
 "Hide native Codex when OpenCodex is present" = "存在 OpenCodex 时隐藏原生 Codex";
 "Export JSON" = "导出 JSON";
+"Copy JSON" = "复制 JSON";
 "Sources" = "来源";
 "OpenCodex" = "OpenCodex";
 "≈%d full 5h windows of weekly left · %d windows until reset" = "每周额度约剩 %d 个完整 5 小时窗口 · 距重置还有 %d 个窗口";

@@ -1,9 +1,9 @@
-import CodexBarCore
 import Commander
 import Foundation
 import Testing
 @testable import CodexBar
 @testable import CodexBarCLI
+@testable import CodexBarCore
 
 private actor OpenRouterAccountFetchRecorder {
     struct Request: Sendable {
@@ -56,6 +56,21 @@ private struct OpenRouterAccountFetchStrategy: ProviderFetchStrategy {
 @MainActor
 @Suite(.serialized)
 struct OpenRouterMultiAccountTests {
+    @Test
+    func `app settings snapshot contributes the optional management key`() throws {
+        let settings = Self.makeSettings(suite: "OpenRouterMultiAccountTests-management-key")
+        settings.updateProviderConfig(provider: .openrouter) { config in
+            config.pluginSecrets = [
+                OpenRouterSettingsReader.managementAPIKeyEnvironmentKey: "fixture-management-key",
+            ]
+        }
+
+        let snapshot = ProviderRegistry.makeSettingsSnapshot(settings: settings, tokenOverride: nil)
+        let providerSettings = try #require(snapshot[OpenRouterProviderSettingsKey.self])
+
+        #expect(providerSettings.managementAPIKey == "fixture-management-key")
+    }
+
     @Test
     func `catalog entry exposes OpenRouter accounts in provider settings`() throws {
         let support = try #require(TokenAccountSupportCatalog.support(for: .openrouter))

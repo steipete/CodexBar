@@ -7,6 +7,7 @@ extension CostUsagePricing {
         cachedInputTokens: Int,
         outputTokens: Int,
         cacheWriteInputTokens: Int = 0,
+        pricingDate: Date? = nil,
         modelsDevCatalog: ModelsDevCatalog? = nil,
         modelsDevCacheRoot: URL? = nil,
         customPricing: CostUsageCustomPricing? = nil) -> Double?
@@ -22,6 +23,7 @@ extension CostUsagePricing {
         }
         guard let pricing = self.resolvedCodexPricing(
             model: model,
+            pricingDate: pricingDate,
             modelsDevCatalog: modelsDevCatalog,
             modelsDevCacheRoot: modelsDevCacheRoot)
         else { return nil }
@@ -39,6 +41,7 @@ extension CostUsagePricing {
         cachedInputTokens: Int,
         outputTokens: Int,
         cacheWriteInputTokens: Int = 0,
+        pricingDate: Date? = nil,
         modelsDevCatalog: ModelsDevCatalog? = nil,
         modelsDevCacheRoot: URL? = nil,
         customPricing: CostUsageCustomPricing? = nil) -> Double?
@@ -54,6 +57,7 @@ extension CostUsagePricing {
         }
         guard let pricing = self.resolvedCodexPricing(
             model: model,
+            pricingDate: pricingDate,
             modelsDevCatalog: modelsDevCatalog,
             modelsDevCacheRoot: modelsDevCacheRoot)
         else { return nil }

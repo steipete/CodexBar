@@ -896,7 +896,33 @@ final class JavaScriptCoreProviderPluginEngine: ProviderPluginEngine, @unchecked
         }
 
         if let auth = self.manifest.auth {
-            guard let secret = secrets[auth.secret], !secret.isEmpty else {
+            var secretName = auth.secret
+            // Provider-specific by design: first-party OpenRouter Activity uses a separately scoped management key,
+            // and the broker pins that exceptional credential to the official read-only endpoint.
+            if let managementAuth = options.forProperty("openRouterManagementAuth"),
+               !managementAuth.isUndefined,
+               !managementAuth.isNull
+            {
+                let managementSecret = "OPENROUTER_MANAGEMENT_API_KEY"
+                guard managementAuth.isBoolean,
+                      managementAuth.toBool(),
+                      self.manifest.id.firstPartyProvider == .openrouter,
+                      self.manifest.settings.first(where: { $0.key == managementSecret })?.kind == .secure,
+                      method == "GET",
+                      url.scheme?.lowercased() == "https",
+                      url.host?.lowercased() == "openrouter.ai",
+                      url.port == nil,
+                      url.user == nil,
+                      url.password == nil,
+                      url.path == "/api/v1/activity",
+                      url.fragment == nil
+                else {
+                    throw ProviderPluginError.secretAccess(
+                        "OpenRouter management auth is unavailable for this plugin")
+                }
+                secretName = managementSecret
+            }
+            guard let secret = secrets[secretName], !secret.isEmpty else {
                 throw ProviderPluginError.secretAccess("required auth secret is unavailable")
             }
             let authValue = switch auth.type {

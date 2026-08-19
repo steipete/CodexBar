@@ -119,6 +119,26 @@ struct ProviderPluginRuntimeTests {
     }
 
     @Test
+    func `HTTP broker rejects OpenRouter management auth outside OpenRouter plugin`() async throws {
+        let runtime = try ProviderPluginRuntime(source: Self.plugin(
+            settings: """
+            { key: "TEST_KEY", title: "API key", type: "secure" },
+            { key: "OPENROUTER_MANAGEMENT_API_KEY", title: "Management key", type: "secure" }
+            """,
+            fetchBody: """
+            await ctx.http.getJSON("https://api.example.test/usage", { openRouterManagementAuth: true });
+            return { primary: { usedPercent: 1 } };
+            """))
+
+        await #expect(throws: ProviderPluginError.self) {
+            _ = try await runtime.fetchUsage(secrets: [
+                "TEST_KEY": "secret",
+                "OPENROUTER_MANAGEMENT_API_KEY": "management-secret",
+            ])
+        }
+    }
+
+    @Test
     func `HTTP request deadline defaults to fifteen seconds and accepts bounded override`() async throws {
         let requests = RequestRecorder()
         let runtime = try ProviderPluginRuntime(

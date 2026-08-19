@@ -617,6 +617,8 @@
 "display_mode_subtitle" = "Виберіть, що відображати на панелі меню (Pace показує використання порівняно з очікуваним).";
 "show_quota_warning_markers_title" = "Показати маркери попередження про квоти";
 "show_quota_warning_markers_subtitle" = "Малюйте порогові позначки на панелях використання, коли налаштовано попередження про квоту.";
+"show_pace_title" = "Показувати темп";
+"show_pace_subtitle" = "Показує смугу випередження або відставання та текст прогнозу на смугах використання.";
 "weekly_progress_work_days_title" = "Щотижневі робочі дні";
 "weekly_progress_work_days_subtitle" = "Задайте робочі дні для позначок на смугах тижневого використання та розрахунків темпу.";
 "workday_tick_appearance_title" = "Вигляд позначок робочих днів";
@@ -1327,6 +1329,12 @@
 "By subscription" = "За підписками";
 "No model-level history" = "Немає історії за моделями";
 "Daily estimated spend" = "Орієнтовні щоденні витрати";
+"Hourly estimated spend" = "Орієнтовні погодинні витрати";
+"Hour" = "Година";
+"%d hours of usage data across %d services" = "%d годин даних використання для %d служб";
+"1 hour of usage data across 1 service" = "1 година даних використання для 1 служби";
+"%d hours of usage data across 1 service" = "%d годин даних використання для 1 служби";
+"1 hour of usage data across %d services" = "1 година даних використання для %d служб";
 "≈%d full 5h windows of weekly left · %d windows until reset" = "≈%d повних 5-годинних вікон тижневого ліміту · %d вікон до скидання";
 "Weekly cannot run out before reset at this pace" = "За такого темпу тижневий ліміт не може вичерпатися до скидання";
 "Weekly can run out ≈%d windows early" = "Тижневий ліміт може вичерпатися на ≈%d вікон раніше";
@@ -1483,5 +1491,6 @@
 "Include OpenCodex usage logs" = "Include OpenCodex usage logs";
 "Hide native Codex when OpenCodex is present" = "Hide native Codex when OpenCodex is present";
 "Export JSON" = "Export JSON";
+"Copy JSON" = "Копіювати JSON";
 "Sources" = "Sources";
 "OpenCodex" = "OpenCodex";

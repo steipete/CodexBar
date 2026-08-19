@@ -257,6 +257,14 @@ extension SettingsStore {
         }
     }
 
+    var paceVisible: Bool {
+        get { self.defaultsState.paceVisible }
+        set {
+            self.defaultsState.paceVisible = newValue
+            self.userDefaults.set(newValue, forKey: "paceVisible")
+        }
+    }
+
     var weeklyProgressWorkDays: Int? {
         get { self.defaultsState.weeklyProgressWorkDays }
         set {
@@ -408,7 +416,7 @@ extension SettingsStore {
         }
         set {
             self.defaultsState.storedMenuBarLayout = newValue
-            self.persistMenuBarLayout(newValue, key: "menuBarLayout")
+            self.persistMenuBarLayout(newValue)
         }
     }
 
@@ -490,14 +498,17 @@ extension SettingsStore {
         }
     }
 
-    private func persistMenuBarLayout(_ layout: MenuBarLayout, key: String) {
-        guard let data = try? JSONEncoder().encode(layout) else { return }
-        self.userDefaults.set(data, forKey: key)
+    private func persistMenuBarLayout(_ layout: MenuBarLayout) {
+        guard let blobs = try? MenuBarLayoutPersistence.encoded(layout) else { return }
+        self.userDefaults.set(blobs.current, forKey: MenuBarLayoutUserDefaultsKey.layoutCurrent)
+        self.userDefaults.set(blobs.legacy, forKey: MenuBarLayoutUserDefaultsKey.layout)
     }
 
     private func persistMenuBarLayoutOverrides() {
-        guard let data = try? JSONEncoder().encode(self.defaultsState.menuBarLayoutOverridesRaw) else { return }
-        self.userDefaults.set(data, forKey: "menuBarLayoutOverrides")
+        guard let blobs = try? MenuBarLayoutPersistence.encodedOverrides(self.defaultsState.menuBarLayoutOverridesRaw)
+        else { return }
+        self.userDefaults.set(blobs.current, forKey: MenuBarLayoutUserDefaultsKey.overridesCurrent)
+        self.userDefaults.set(blobs.legacy, forKey: MenuBarLayoutUserDefaultsKey.overrides)
     }
 
     var copilotIconSecondaryWindowIDRaw: String {

@@ -56,6 +56,7 @@ extension SettingsStore {
             quotaWarningSoundEnabled: self.quotaWarningSoundEnabled,
             quotaWarningOnScreenAlertEnabled: self.quotaWarningOnScreenAlertEnabled,
             quotaWarningMarkersVisible: self.quotaWarningMarkersVisible,
+            paceVisible: self.paceVisible,
             weeklyProgressWorkDays: self.weeklyProgressWorkDays,
             workdayTickAppearance: self.workdayTickAppearance.rawValue,
             usageBarsShowUsed: self.usageBarsShowUsed,
@@ -89,6 +90,9 @@ extension SettingsStore {
         self.quotaWarningSoundEnabled = preferences.quotaWarningSoundEnabled
         self.quotaWarningOnScreenAlertEnabled = preferences.quotaWarningOnScreenAlertEnabled
         self.quotaWarningMarkersVisible = preferences.quotaWarningMarkersVisible
+        if let paceVisible = preferences.paceVisible {
+            self.paceVisible = paceVisible
+        }
         self.weeklyProgressWorkDays = preferences.weeklyProgressWorkDays
         if let rawAppearance = preferences.workdayTickAppearance,
            let appearance = WorkdayTickAppearance(rawValue: rawAppearance)

@@ -442,6 +442,35 @@ enum CostUsagePricing {
             cacheReadInputCostPerTokenAboveThreshold: 6e-7),
     ]
 
+    // GPT-5.6 Terra and Luna rates effective before 2026-07-30 (Unix 1785369600).
+    // Sol pricing was unchanged. Values from OpenAI pricing page snapshot in PR #2521.
+    // Co-authored-by: iam-brain (historical rate values).
+    static let codexGPT56PricingCutoff = Date(timeIntervalSince1970: 1_785_369_600)
+    private static let codexHistoricalPricing: [String: CodexPricing] = [
+        "gpt-5.6-terra": CodexPricing(
+            inputCostPerToken: 2.5e-6,
+            outputCostPerToken: 1.5e-5,
+            cacheReadInputCostPerToken: 2.5e-7,
+            displayLabel: nil,
+            cacheWriteInputCostPerToken: 3.125e-6,
+            thresholdTokens: 272_000,
+            inputCostPerTokenAboveThreshold: 5e-6,
+            outputCostPerTokenAboveThreshold: 2.25e-5,
+            cacheReadInputCostPerTokenAboveThreshold: 5e-7,
+            cacheWriteInputCostPerTokenAboveThreshold: 6.25e-6),
+        "gpt-5.6-luna": CodexPricing(
+            inputCostPerToken: 1e-6,
+            outputCostPerToken: 6e-6,
+            cacheReadInputCostPerToken: 1e-7,
+            displayLabel: nil,
+            cacheWriteInputCostPerToken: 1.25e-6,
+            thresholdTokens: 272_000,
+            inputCostPerTokenAboveThreshold: 2e-6,
+            outputCostPerTokenAboveThreshold: 9e-6,
+            cacheReadInputCostPerTokenAboveThreshold: 2e-7,
+            cacheWriteInputCostPerTokenAboveThreshold: 2.5e-6),
+    ]
+
     private static let claudeFullContextStandardPricingCutoff = Date(timeIntervalSince1970: 1_773_360_000)
     private static let claudeHistoricalLongContext: [String: ClaudePricing] = [
         "claude-opus-4-6": ClaudePricing(
@@ -603,11 +632,20 @@ enum CostUsagePricing {
 
     static func resolvedCodexPricing(
         model: String,
+        pricingDate: Date? = nil,
         modelsDevCatalog: ModelsDevCatalog?,
         modelsDevCacheRoot: URL?) -> CodexPricing?
     {
         let key = self.normalizeCodexModel(model)
         guard key != self.codexUnattributedModel else { return nil }
+        // Use historical bundled rates when the usage predates a known pricing change and
+        // no custom overlay or models.dev catalog entry overrides the lookup.
+        if let pricingDate,
+           pricingDate < self.codexGPT56PricingCutoff,
+           let historical = self.codexHistoricalPricing[key]
+        {
+            return historical
+        }
         let modelsDevLookup = self.codexModelsDevLookup(
             model: model,
             catalog: modelsDevCatalog,
@@ -688,6 +726,7 @@ enum CostUsagePricing {
         cachedInputTokens: Int = 0,
         cacheWriteInputTokens: Int = 0,
         outputTokens: Int,
+        pricingDate: Date? = nil,
         modelsDevCatalog: ModelsDevCatalog? = nil,
         modelsDevCacheRoot: URL? = nil,
         customPricing: CostUsageCustomPricing? = nil) -> Double?
@@ -705,6 +744,7 @@ enum CostUsagePricing {
             cachedInputTokens: cachedInputTokens,
             outputTokens: outputTokens,
             cacheWriteInputTokens: cacheWriteInputTokens,
+            pricingDate: pricingDate,
             modelsDevCatalog: modelsDevCatalog,
             modelsDevCacheRoot: modelsDevCacheRoot,
             customPricing: customPricing)

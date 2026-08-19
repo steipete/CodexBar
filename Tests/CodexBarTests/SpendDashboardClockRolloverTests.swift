@@ -55,6 +55,102 @@ struct SpendDashboardClockRolloverTests {
     }
 
     @Test
+    func `reporting window refresh skips rescan on same day revisit`() async throws {
+        let loadedAt = try #require(ISO8601DateFormatter().date(from: "2026-07-16T04:00:00Z"))
+        let laterSameDay = try #require(ISO8601DateFormatter().date(from: "2026-07-16T08:00:00Z"))
+        let loadCount = LockIsolated(0)
+        let clock = LockIsolated(loadedAt)
+        // Pin the bucket timezone so "same day" does not depend on the host machine's zone.
+        let configuration = SpendDashboardConfiguration(
+            costUsageEnabled: true,
+            providerIDs: [UsageProvider.codex.rawValue],
+            codexAccountIdentities: ["rollover"],
+            bucketTimeZoneIdentifier: "UTC")
+        let input = Self.input(day: "2026-07-15", cost: 4, updatedAt: loadedAt)
+        let defaults = try Self.isolatedDefaults(suiteName: "SpendDashboardClockRolloverTests-same-day")
+        defer { defaults.removePersistentDomain(forName: "SpendDashboardClockRolloverTests-same-day") }
+        let controller = SpendDashboardController(
+            userDefaults: defaults,
+            requestBuilder: { mode in
+                SpendDashboardLoadRequest(
+                    configuration: configuration,
+                    capturedInputs: [],
+                    unavailableSourceIDs: [],
+                    codexRequests: [],
+                    now: clock.value,
+                    force: mode.forcesLoader)
+            },
+            loader: { _ in
+                let count = loadCount.value + 1
+                loadCount.setValue(count)
+                return SpendDashboardLoadResult(inputs: [input], failedSourceIDs: [])
+            },
+            nowProvider: { clock.value })
+
+        controller.update(configuration: configuration)
+        await Self.waitUntil { !controller.isRefreshing }
+        let generation = controller.generation
+
+        clock.setValue(laterSameDay)
+        controller.refreshDateWindow()
+        await Task.yield()
+
+        #expect(controller.generation == generation)
+        #expect(loadCount.value == 1)
+    }
+
+    @Test
+    func `reporting window refresh retries failed sources on same day revisit`() async throws {
+        let loadedAt = try #require(ISO8601DateFormatter().date(from: "2026-07-16T04:00:00Z"))
+        let laterSameDay = try #require(ISO8601DateFormatter().date(from: "2026-07-16T08:00:00Z"))
+        let loadCount = LockIsolated(0)
+        let clock = LockIsolated(loadedAt)
+        let configuration = SpendDashboardConfiguration(
+            costUsageEnabled: true,
+            providerIDs: [UsageProvider.codex.rawValue],
+            codexAccountIdentities: ["rollover"],
+            bucketTimeZoneIdentifier: "UTC")
+        let recoveredInput = Self.input(day: "2026-07-15", cost: 4, updatedAt: laterSameDay)
+        let defaults = try Self.isolatedDefaults(suiteName: "SpendDashboardClockRolloverTests-failed-retry")
+        defer { defaults.removePersistentDomain(forName: "SpendDashboardClockRolloverTests-failed-retry") }
+        let controller = SpendDashboardController(
+            userDefaults: defaults,
+            requestBuilder: { mode in
+                SpendDashboardLoadRequest(
+                    configuration: configuration,
+                    capturedInputs: [],
+                    unavailableSourceIDs: [],
+                    codexRequests: [],
+                    now: clock.value,
+                    force: mode.forcesLoader)
+            },
+            loader: { _ in
+                let count = loadCount.value + 1
+                loadCount.setValue(count)
+                if count == 1 {
+                    return SpendDashboardLoadResult(inputs: [], failedSourceIDs: ["codex:rollover"])
+                } else {
+                    return SpendDashboardLoadResult(inputs: [recoveredInput], failedSourceIDs: [])
+                }
+            },
+            nowProvider: { clock.value })
+
+        controller.update(configuration: configuration)
+        await Self.waitUntil { !controller.isRefreshing }
+        #expect(controller.failedSourceCount == 1)
+        let generation = controller.generation
+
+        clock.setValue(laterSameDay)
+        controller.refreshDateWindow()
+        await Self.waitUntil { !controller.isRefreshing }
+
+        #expect(controller.generation == generation + 1)
+        #expect(loadCount.value == 2)
+        #expect(controller.failedSourceCount == 0)
+        #expect(controller.model.groups.first?.totalCost == 4)
+    }
+
+    @Test
     func `rollover replaces an in flight load instead of dropping the rescan`() async throws {
         let loadedAt = try #require(ISO8601DateFormatter().date(from: "2026-07-16T12:00:00Z"))
         let afterRollover = try #require(ISO8601DateFormatter().date(from: "2026-07-22T12:00:00Z"))

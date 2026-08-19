@@ -1,0 +1,19 @@
+{
+  "afterKeys" : [
+    "menuBarLayout",
+    "menuBarLayoutV2",
+    "menuBarLayoutOverrides",
+    "menuBarLayoutOverridesV2"
+  ],
+  "beforeKeys" : [
+    "menuBarLayout",
+    "menuBarLayoutOverrides"
+  ],
+  "fixture" : "pre-V2 menuBarLayout keys only, then SettingsStore.init",
+  "inMemoryKeepsLaneTokens" : true,
+  "legacyGlobalDecodesOn0530" : true,
+  "legacyGlobalJSON" : "{\"lines\":[[{\"icon\":{}},{\"percent\":{\"window\":\"session\"}}]]}",
+  "legacyOverridesJSON" : "{\"kimi\":{\"lines\":[[{\"icon\":{}},{\"percent\":{\"window\":\"weekly\"}},{\"percent\":{\"window\":\"session\"}}]]},\"cursor\":{\"lines\":[[{\"icon\":{}},{\"percent\":{\"window\":\"weekly\"}}]]}}",
+  "v2GlobalJSON" : "{\"lines\":[[{\"icon\":{}},{\"lanePercent\":{\"lane\":\"primary\"}}]]}",
+  "v2OverridesJSON" : "{\"cursor\":{\"lines\":[[{\"icon\":{}},{\"lanePercent\":{\"lane\":\"secondary\"}}]]},\"kimi\":{\"lines\":[[{\"icon\":{}},{\"lanePercent\":{\"lane\":\"primary\"}},{\"lanePercent\":{\"lane\":\"secondary\"}}]]}}"
+}

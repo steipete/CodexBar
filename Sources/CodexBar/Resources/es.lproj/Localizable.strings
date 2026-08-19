@@ -609,6 +609,8 @@
 "display_mode_subtitle" = "Elige qué mostrar en la barra de menús (Ritmo muestra el uso frente al previsto).";
 "show_quota_warning_markers_title" = "Mostrar marcadores de aviso de cuota";
 "show_quota_warning_markers_subtitle" = "Dibuja marcas de umbral en las barras de uso cuando hay avisos de cuota configurados.";
+"show_pace_title" = "Mostrar el ritmo";
+"show_pace_subtitle" = "Muestra la franja de adelanto o retraso y el texto de previsión en las barras de uso.";
 "weekly_progress_work_days_title" = "Días laborables del progreso semanal";
 "weekly_progress_work_days_subtitle" = "Define los días laborables para los marcadores de las barras de uso semanal y los cálculos de ritmo.";
 "workday_tick_appearance_title" = "Aspecto de las marcas de días laborables";
@@ -1326,6 +1328,12 @@
 "By subscription" = "Por suscripción";
 "No model-level history" = "No hay historial por modelo";
 "Daily estimated spend" = "Gasto diario estimado";
+"Hourly estimated spend" = "Gasto horario estimado";
+"Hour" = "Hora";
+"%d hours of usage data across %d services" = "%d horas de datos de uso en %d servicios";
+"1 hour of usage data across 1 service" = "1 hora de datos de uso en 1 servicio";
+"%d hours of usage data across 1 service" = "%d horas de datos de uso en 1 servicio";
+"1 hour of usage data across %d services" = "1 hora de datos de uso en %d servicios";
 "≈%d full 5h windows of weekly left · %d windows until reset" = "≈%d ventanas completas de 5 h de cuota semanal · %d ventanas hasta el reinicio";
 "Weekly cannot run out before reset at this pace" = "La cuota semanal no puede agotarse antes del reinicio a este ritmo";
 "Weekly can run out ≈%d windows early" = "La cuota semanal puede agotarse ≈%d ventanas antes";
@@ -1482,5 +1490,6 @@
 "Include OpenCodex usage logs" = "Include OpenCodex usage logs";
 "Hide native Codex when OpenCodex is present" = "Hide native Codex when OpenCodex is present";
 "Export JSON" = "Export JSON";
+"Copy JSON" = "Copiar JSON";
 "Sources" = "Sources";
 "OpenCodex" = "OpenCodex";

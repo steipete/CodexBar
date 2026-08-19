@@ -618,6 +618,8 @@
 "display_mode_subtitle" = "Выберите, что показывать в строке меню: темп сравнивает фактическое использование с ожидаемым.";
 "show_quota_warning_markers_title" = "Показывать маркеры предупреждений о квоте";
 "show_quota_warning_markers_subtitle" = "Рисует отметки порогов на индикаторах использования, если настроены предупреждения о квотах.";
+"show_pace_title" = "Показывать темп";
+"show_pace_subtitle" = "Показывает полосу опережения или отставания и текст прогноза на полосах использования.";
 "weekly_progress_work_days_title" = "Рабочие дни для недельного прогресса";
 "weekly_progress_work_days_subtitle" = "Задаёт рабочие дни для недельных отметок использования и расчёта темпа.";
 "workday_tick_appearance_title" = "Вид отметок рабочих дней";
@@ -1329,6 +1331,12 @@
 "By subscription" = "По подпискам";
 "No model-level history" = "Нет истории по моделям";
 "Daily estimated spend" = "Предполагаемые ежедневные расходы";
+"Hourly estimated spend" = "Предполагаемые почасовые расходы";
+"Hour" = "Час";
+"%d hours of usage data across %d services" = "%d часов данных использования по %d службам";
+"1 hour of usage data across 1 service" = "1 час данных использования по 1 службе";
+"%d hours of usage data across 1 service" = "%d часов данных использования по 1 службе";
+"1 hour of usage data across %d services" = "1 час данных использования по %d службам";
 "≈%d full 5h windows of weekly left · %d windows until reset" = "≈%d полных 5-часовых окон недельного лимита · %d окон до сброса";
 "Weekly cannot run out before reset at this pace" = "При таком темпе недельный лимит не может закончиться до сброса";
 "Weekly can run out ≈%d windows early" = "Недельный лимит может закончиться на ≈%d окон раньше";
@@ -1485,5 +1493,6 @@
 "Include OpenCodex usage logs" = "Include OpenCodex usage logs";
 "Hide native Codex when OpenCodex is present" = "Hide native Codex when OpenCodex is present";
 "Export JSON" = "Export JSON";
+"Copy JSON" = "Копировать JSON";
 "Sources" = "Sources";
 "OpenCodex" = "OpenCodex";

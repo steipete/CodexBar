@@ -625,6 +625,8 @@
 "display_mode_subtitle" = "Pilih apa yang ditampilkan di menu bar (Pace menampilkan penggunaan vs. perkiraan).";
 "show_quota_warning_markers_title" = "Tampilkan penanda peringatan kuota";
 "show_quota_warning_markers_subtitle" = "Gambar tanda centang ambang batas pada bilah penggunaan saat peringatan kuota dikonfigurasi.";
+"show_pace_title" = "Tampilkan laju";
+"show_pace_subtitle" = "Menampilkan garis unggul atau tertinggal dan teks perkiraan pada bilah penggunaan.";
 "weekly_progress_work_days_title" = "Hari kerja progres mingguan";
 "weekly_progress_work_days_subtitle" = "Atur hari kerja untuk penanda bilah penggunaan mingguan dan perhitungan pace.";
 "workday_tick_appearance_title" = "Tampilan tanda hari kerja";
@@ -1331,6 +1333,12 @@
 "By subscription" = "Berdasarkan langganan";
 "No model-level history" = "Tidak ada riwayat tingkat model";
 "Daily estimated spend" = "Perkiraan pengeluaran harian";
+"Hourly estimated spend" = "Perkiraan pengeluaran per jam";
+"Hour" = "Jam";
+"%d hours of usage data across %d services" = "%d jam data penggunaan di %d layanan";
+"1 hour of usage data across 1 service" = "1 jam data penggunaan di 1 layanan";
+"%d hours of usage data across 1 service" = "%d jam data penggunaan di 1 layanan";
+"1 hour of usage data across %d services" = "1 jam data penggunaan di %d layanan";
 "≈%d full 5h windows of weekly left · %d windows until reset" = "≈%d jendela 5 jam penuh dari kuota mingguan tersisa · %d jendela hingga reset";
 "Weekly cannot run out before reset at this pace" = "Kuota mingguan tidak dapat habis sebelum reset dengan laju ini";
 "Weekly can run out ≈%d windows early" = "Kuota mingguan dapat habis ≈%d jendela lebih awal";
@@ -1487,5 +1495,6 @@
 "Include OpenCodex usage logs" = "Include OpenCodex usage logs";
 "Hide native Codex when OpenCodex is present" = "Hide native Codex when OpenCodex is present";
 "Export JSON" = "Export JSON";
+"Copy JSON" = "Salin JSON";
 "Sources" = "Sources";
 "OpenCodex" = "OpenCodex";

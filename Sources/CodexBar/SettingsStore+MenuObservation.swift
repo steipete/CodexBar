@@ -22,6 +22,7 @@ extension SettingsStore {
         _ = self.quotaWarningSoundEnabled
         _ = self.quotaWarningOnScreenAlertEnabled
         _ = self.quotaWarningMarkersVisible
+        _ = self.paceVisible
         _ = self.weeklyProgressWorkDays
         _ = self.workdayTickAppearance
         _ = self.usageBarsShowUsed
