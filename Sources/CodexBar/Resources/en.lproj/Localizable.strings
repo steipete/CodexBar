@@ -1520,3 +1520,8 @@
 "menu_bar_layout_conditional_copy_name" = "%@ (copy)";
 "menu_bar_layout_conditional_copy_name_numbered" = "%1$@ (copy %2$d)";
 "menu_bar_layout_conditional_unavailable" = "Conditional unavailable";
+"menu_bar_layout_conditional_default_session_busy" = "Session over 50% used";
+"menu_bar_layout_conditional_default_weekly_high" = "Weekly over 90% used";
+"menu_bar_layout_conditional_default_session_spent" = "Session nearly spent";
+"menu_bar_layout_conditional_default_either_high" = "Session or weekly running high";
+"menu_bar_layout_conditional_default_scoped_weekly" = "Scoped weekly over 60% used";

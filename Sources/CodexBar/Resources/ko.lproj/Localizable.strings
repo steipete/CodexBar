@@ -1486,3 +1486,8 @@
 "menu_bar_layout_conditional_copy_name" = "%@ (복사본)";
 "menu_bar_layout_conditional_copy_name_numbered" = "%1$@ (복사본 %2$d)";
 "menu_bar_layout_conditional_unavailable" = "조건을 사용할 수 없음";
+"menu_bar_layout_conditional_default_session_busy" = "세션 50% 초과 사용";
+"menu_bar_layout_conditional_default_weekly_high" = "주간 90% 초과 사용";
+"menu_bar_layout_conditional_default_session_spent" = "세션 거의 소진";
+"menu_bar_layout_conditional_default_either_high" = "세션 또는 주간 사용량 높음";
+"menu_bar_layout_conditional_default_scoped_weekly" = "모델별 주간 60% 초과 사용";

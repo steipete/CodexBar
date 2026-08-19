@@ -1495,3 +1495,8 @@
 "menu_bar_layout_conditional_copy_name" = "%@（副本）";
 "menu_bar_layout_conditional_copy_name_numbered" = "%1$@（副本 %2$d）";
 "menu_bar_layout_conditional_unavailable" = "条件不可用";
+"menu_bar_layout_conditional_default_session_busy" = "会话已用超过 50%";
+"menu_bar_layout_conditional_default_weekly_high" = "每周已用超过 90%";
+"menu_bar_layout_conditional_default_session_spent" = "会话即将用尽";
+"menu_bar_layout_conditional_default_either_high" = "会话或每周用量偏高";
+"menu_bar_layout_conditional_default_scoped_weekly" = "模型专属每周已用超过 60%";

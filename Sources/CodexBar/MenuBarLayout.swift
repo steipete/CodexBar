@@ -151,6 +151,76 @@ struct MenuBarLayoutConditional: Codable, Hashable, Sendable {
             thenToken: .percent(window: .session),
             elseToken: .hidden)
     }
+
+    /// Conditionals seeded into the library on a fresh install so the palette ships with useful,
+    /// editable starting points instead of an empty list.
+    ///
+    /// Identities are fixed rather than generated: a layout that places a shipped conditional keeps
+    /// resolving across launches, and once the user edits or clears the library the stored array wins,
+    /// so a deleted entry is never reseeded.
+    ///
+    /// Thresholds compare the window's **used** percentage, matching `evaluatesTrue`.
+    static func shippedLibrary() -> [MenuBarLayoutConditional] {
+        [
+            MenuBarLayoutConditional(
+                id: self.fixedID("B715B1D1-8C1D-4E99-8050-2B5A4EF4B684"),
+                name: L("menu_bar_layout_conditional_default_session_busy"),
+                clauses: [self.clause(.session, .greaterThan, 50)],
+                thenToken: .percent(window: .session),
+                elseToken: .hidden),
+            MenuBarLayoutConditional(
+                id: self.fixedID("A1C3C131-1BB8-4248-A482-FAF3E403E6E1"),
+                name: L("menu_bar_layout_conditional_default_weekly_high"),
+                clauses: [self.clause(.weekly, .greaterThanOrEqual, 90)],
+                thenToken: .percent(window: .weekly),
+                elseToken: .hidden),
+            MenuBarLayoutConditional(
+                id: self.fixedID("DBF99E1D-D5ED-4D55-AD24-A4171479DA3A"),
+                name: L("menu_bar_layout_conditional_default_session_spent"),
+                clauses: [self.clause(.session, .greaterThanOrEqual, 95)],
+                thenToken: .resetCountdown,
+                elseToken: .percent(window: .session)),
+            MenuBarLayoutConditional(
+                id: self.fixedID("CB1EBADE-B813-4B70-A32D-0FC742DC97A6"),
+                name: L("menu_bar_layout_conditional_default_either_high"),
+                clauses: [
+                    self.clause(.session, .greaterThan, 80),
+                    self.clause(.weekly, .greaterThan, 80, combinator: .or),
+                ],
+                thenToken: .resetCountdown,
+                elseToken: .hidden),
+            MenuBarLayoutConditional(
+                id: self.fixedID("4A4E53F8-CABC-4413-B7AA-6C6452A69FEC"),
+                name: L("menu_bar_layout_conditional_default_scoped_weekly"),
+                clauses: [self.clause(.scopedWeekly, .greaterThan, 60)],
+                thenToken: .percent(window: .scopedWeekly),
+                elseToken: .hidden),
+        ]
+    }
+
+    private static func clause(
+        _ metric: MenuBarConditionalMetric,
+        _ comparison: MenuBarConditionalComparison,
+        _ threshold: Double,
+        combinator: MenuBarConditionalCombinator? = nil)
+        -> MenuBarConditionalClause
+    {
+        MenuBarConditionalClause(
+            combinator: combinator,
+            predicate: MenuBarConditionalPredicate(
+                metric: metric,
+                comparison: comparison,
+                threshold: threshold))
+    }
+
+    /// The shipped identities are compile-time constants, so a malformed one is a programmer error
+    /// rather than something to paper over with a fresh identity that would dangle placed references.
+    private static func fixedID(_ string: String) -> UUID {
+        guard let id = UUID(uuidString: string) else {
+            preconditionFailure("Shipped conditional identity must be a valid UUID: \(string)")
+        }
+        return id
+    }
 }
 
 struct MenuBarLayoutLaneLabels: Hashable {

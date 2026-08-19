@@ -1517,3 +1517,8 @@
 "menu_bar_layout_conditional_copy_name" = "%@ (Kopie)";
 "menu_bar_layout_conditional_copy_name_numbered" = "%1$@ (Kopie %2$d)";
 "menu_bar_layout_conditional_unavailable" = "Bedingung nicht verfügbar";
+"menu_bar_layout_conditional_default_session_busy" = "Sitzung über 50 % genutzt";
+"menu_bar_layout_conditional_default_weekly_high" = "Woche über 90 % genutzt";
+"menu_bar_layout_conditional_default_session_spent" = "Sitzung fast aufgebraucht";
+"menu_bar_layout_conditional_default_either_high" = "Sitzung oder Woche läuft hoch";
+"menu_bar_layout_conditional_default_scoped_weekly" = "Modellfenster über 60 % genutzt";

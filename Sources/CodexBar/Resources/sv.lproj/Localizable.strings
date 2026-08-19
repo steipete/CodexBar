@@ -1516,3 +1516,8 @@
 "menu_bar_layout_conditional_copy_name" = "%@ (kopia)";
 "menu_bar_layout_conditional_copy_name_numbered" = "%1$@ (kopia %2$d)";
 "menu_bar_layout_conditional_unavailable" = "Villkor otillgängligt";
+"menu_bar_layout_conditional_default_session_busy" = "Session över 50 % använt";
+"menu_bar_layout_conditional_default_weekly_high" = "Vecka över 90 % använt";
+"menu_bar_layout_conditional_default_session_spent" = "Sessionen nästan förbrukad";
+"menu_bar_layout_conditional_default_either_high" = "Session eller vecka ligger högt";
+"menu_bar_layout_conditional_default_scoped_weekly" = "Modellvecka över 60 % använt";

@@ -1521,3 +1521,8 @@
 "menu_bar_layout_conditional_copy_name" = "%@ (رونوشت)";
 "menu_bar_layout_conditional_copy_name_numbered" = "%1$@ (رونوشت %2$d)";
 "menu_bar_layout_conditional_unavailable" = "شرط در دسترس نیست";
+"menu_bar_layout_conditional_default_session_busy" = "بیش از ۵۰٪ نشست مصرف شده";
+"menu_bar_layout_conditional_default_weekly_high" = "بیش از ۹۰٪ هفته مصرف شده";
+"menu_bar_layout_conditional_default_session_spent" = "نشست تقریباً تمام شده";
+"menu_bar_layout_conditional_default_either_high" = "نشست یا هفته در سطح بالا";
+"menu_bar_layout_conditional_default_scoped_weekly" = "پنجره هفتگی مدل بیش از ۶۰٪";

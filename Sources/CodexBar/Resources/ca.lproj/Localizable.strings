@@ -1520,3 +1520,8 @@
 "menu_bar_layout_conditional_copy_name" = "%@ (còpia)";
 "menu_bar_layout_conditional_copy_name_numbered" = "%1$@ (còpia %2$d)";
 "menu_bar_layout_conditional_unavailable" = "Condicional no disponible";
+"menu_bar_layout_conditional_default_session_busy" = "Sessió per damunt del 50 % utilitzat";
+"menu_bar_layout_conditional_default_weekly_high" = "Setmana per damunt del 90 % utilitzat";
+"menu_bar_layout_conditional_default_session_spent" = "Sessió gairebé esgotada";
+"menu_bar_layout_conditional_default_either_high" = "Sessió o setmana en nivell alt";
+"menu_bar_layout_conditional_default_scoped_weekly" = "Setmana per model per damunt del 60 %";

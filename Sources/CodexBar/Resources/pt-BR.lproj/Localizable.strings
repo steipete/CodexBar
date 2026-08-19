@@ -1517,3 +1517,8 @@
 "menu_bar_layout_conditional_copy_name" = "%@ (cópia)";
 "menu_bar_layout_conditional_copy_name_numbered" = "%1$@ (cópia %2$d)";
 "menu_bar_layout_conditional_unavailable" = "Condicional indisponível";
+"menu_bar_layout_conditional_default_session_busy" = "Sessão acima de 50% usado";
+"menu_bar_layout_conditional_default_weekly_high" = "Semana acima de 90% usado";
+"menu_bar_layout_conditional_default_session_spent" = "Sessão quase esgotada";
+"menu_bar_layout_conditional_default_either_high" = "Sessão ou semana em nível alto";
+"menu_bar_layout_conditional_default_scoped_weekly" = "Semana por modelo acima de 60%";

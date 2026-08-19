@@ -1521,3 +1521,8 @@
 "menu_bar_layout_conditional_copy_name" = "%@ (نسخة)";
 "menu_bar_layout_conditional_copy_name_numbered" = "%1$@ (نسخة %2$d)";
 "menu_bar_layout_conditional_unavailable" = "الشرط غير متاح";
+"menu_bar_layout_conditional_default_session_busy" = "استُخدم أكثر من 50٪ من الجلسة";
+"menu_bar_layout_conditional_default_weekly_high" = "استُخدم أكثر من 90٪ من الأسبوع";
+"menu_bar_layout_conditional_default_session_spent" = "الجلسة على وشك النفاد";
+"menu_bar_layout_conditional_default_either_high" = "الجلسة أو الأسبوع في مستوى مرتفع";
+"menu_bar_layout_conditional_default_scoped_weekly" = "نافذة الطراز الأسبوعية فوق 60٪";

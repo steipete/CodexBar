@@ -3,6 +3,7 @@ import Foundation
 import Testing
 @testable import CodexBar
 
+// swiftlint:disable:next type_body_length
 struct MenuBarLayoutTests {
     private struct UnnormalizedLayout: Encodable {
         let lines: [[MenuBarLayoutToken]]
@@ -195,6 +196,42 @@ struct MenuBarLayoutTests {
         let reloaded = Self.reloadSettingsStore(settings)
         #expect(reloaded.menuBarLayoutConditionals == [conditional, defaultEntry])
         #expect(reloaded.menuBarLayout == layout)
+    }
+
+    @Test
+    @MainActor
+    func `a fresh install ships an editable conditionals library`() {
+        let settings = testSettingsStore(suiteName: "MenuBarLayoutTests-shipped-conditionals")
+
+        let shipped = MenuBarLayoutConditional.shippedLibrary()
+        #expect(!shipped.isEmpty)
+        #expect(settings.menuBarLayoutConditionals == shipped)
+
+        // Identities are fixed, so a placed reference keeps resolving on the next launch.
+        #expect(MenuBarLayoutConditional.shippedLibrary().map(\.id) == shipped.map(\.id))
+
+        // Each entry has to be a usable, distinctly named starting point.
+        #expect(Set(shipped.map(\.id)).count == shipped.count)
+        #expect(Set(shipped.map { $0.name.lowercased() }).count == shipped.count)
+        #expect(shipped.allSatisfy { !$0.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty })
+        #expect(shipped.allSatisfy { !$0.clauses.isEmpty && $0.clauses[0].combinator == nil })
+    }
+
+    @Test
+    @MainActor
+    func `clearing the shipped conditionals library survives a reload`() {
+        let suite = "MenuBarLayoutTests-shipped-conditionals-cleared"
+        let settings = testSettingsStore(suiteName: suite)
+        #expect(!settings.menuBarLayoutConditionals.isEmpty)
+
+        // Removing every shipped entry is a deliberate choice; the next launch must not reseed.
+        for conditional in settings.menuBarLayoutConditionals {
+            settings.removeMenuBarLayoutConditional(id: conditional.id)
+        }
+        #expect(settings.menuBarLayoutConditionals.isEmpty)
+
+        let reloaded = Self.reloadSettingsStore(settings)
+        #expect(reloaded.menuBarLayoutConditionals.isEmpty)
     }
 
     @Test

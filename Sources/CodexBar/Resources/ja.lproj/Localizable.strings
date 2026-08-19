@@ -1517,3 +1517,8 @@
 "menu_bar_layout_conditional_copy_name" = "%@（コピー）";
 "menu_bar_layout_conditional_copy_name_numbered" = "%1$@（コピー %2$d）";
 "menu_bar_layout_conditional_unavailable" = "条件を利用できません";
+"menu_bar_layout_conditional_default_session_busy" = "セッション使用率 50% 超";
+"menu_bar_layout_conditional_default_weekly_high" = "週間使用率 90% 超";
+"menu_bar_layout_conditional_default_session_spent" = "セッションがほぼ上限";
+"menu_bar_layout_conditional_default_either_high" = "セッションまたは週間が高水準";
+"menu_bar_layout_conditional_default_scoped_weekly" = "モデル別週間の使用率 60% 超";

@@ -1521,3 +1521,8 @@
 "menu_bar_layout_conditional_copy_name" = "%@ (สำเนา)";
 "menu_bar_layout_conditional_copy_name_numbered" = "%1$@ (สำเนา %2$d)";
 "menu_bar_layout_conditional_unavailable" = "เงื่อนไขไม่พร้อมใช้งาน";
+"menu_bar_layout_conditional_default_session_busy" = "ใช้เซสชันเกิน 50%";
+"menu_bar_layout_conditional_default_weekly_high" = "ใช้รายสัปดาห์เกิน 90%";
+"menu_bar_layout_conditional_default_session_spent" = "เซสชันเกือบหมด";
+"menu_bar_layout_conditional_default_either_high" = "เซสชันหรือรายสัปดาห์อยู่ในระดับสูง";
+"menu_bar_layout_conditional_default_scoped_weekly" = "รายสัปดาห์ตามโมเดลเกิน 60%";

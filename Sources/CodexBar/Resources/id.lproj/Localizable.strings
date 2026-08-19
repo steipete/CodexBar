@@ -1520,3 +1520,8 @@
 "menu_bar_layout_conditional_copy_name" = "%@ (salinan)";
 "menu_bar_layout_conditional_copy_name_numbered" = "%1$@ (salinan %2$d)";
 "menu_bar_layout_conditional_unavailable" = "Kondisional tidak tersedia";
+"menu_bar_layout_conditional_default_session_busy" = "Sesi di atas 50% terpakai";
+"menu_bar_layout_conditional_default_weekly_high" = "Mingguan di atas 90% terpakai";
+"menu_bar_layout_conditional_default_session_spent" = "Sesi hampir habis";
+"menu_bar_layout_conditional_default_either_high" = "Sesi atau mingguan sedang tinggi";
+"menu_bar_layout_conditional_default_scoped_weekly" = "Mingguan per model di atas 60%";

@@ -1516,3 +1516,8 @@
 "menu_bar_layout_conditional_copy_name" = "%@ (kopie)";
 "menu_bar_layout_conditional_copy_name_numbered" = "%1$@ (kopie %2$d)";
 "menu_bar_layout_conditional_unavailable" = "Voorwaarde niet beschikbaar";
+"menu_bar_layout_conditional_default_session_busy" = "Sessie boven 50% gebruikt";
+"menu_bar_layout_conditional_default_weekly_high" = "Week boven 90% gebruikt";
+"menu_bar_layout_conditional_default_session_spent" = "Sessie bijna verbruikt";
+"menu_bar_layout_conditional_default_either_high" = "Sessie of week loopt hoog op";
+"menu_bar_layout_conditional_default_scoped_weekly" = "Modelweek boven 60% gebruikt";

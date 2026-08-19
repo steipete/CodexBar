@@ -6,6 +6,7 @@ import Testing
 
 @MainActor
 @Suite(.serialized)
+// swiftlint:disable:next type_body_length
 struct MenuBarLayoutRendererTests {
     private let now = Date(timeIntervalSince1970: 1_752_768_000)
 

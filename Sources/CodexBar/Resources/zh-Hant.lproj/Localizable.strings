@@ -1548,3 +1548,8 @@
 "menu_bar_layout_conditional_copy_name" = "%@（副本）";
 "menu_bar_layout_conditional_copy_name_numbered" = "%1$@（副本 %2$d）";
 "menu_bar_layout_conditional_unavailable" = "條件不可用";
+"menu_bar_layout_conditional_default_session_busy" = "工作階段已用超過 50%";
+"menu_bar_layout_conditional_default_weekly_high" = "每週已用超過 90%";
+"menu_bar_layout_conditional_default_session_spent" = "工作階段即將用盡";
+"menu_bar_layout_conditional_default_either_high" = "工作階段或每週用量偏高";
+"menu_bar_layout_conditional_default_scoped_weekly" = "模型專屬每週已用超過 60%";

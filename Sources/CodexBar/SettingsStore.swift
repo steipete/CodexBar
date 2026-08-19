@@ -875,7 +875,11 @@ extension SettingsStore {
     }
 
     private static func loadMenuBarLayoutConditionals(userDefaults: UserDefaults) -> [MenuBarLayoutConditional] {
-        guard let data = userDefaults.data(forKey: "menuBarLayoutConditionals") else { return [] }
+        // A missing key means a fresh install, so hand back the shipped library. Any edit, add, or
+        // removal writes the key, so a library the user deliberately emptied is never reseeded.
+        guard let data = userDefaults.data(forKey: "menuBarLayoutConditionals") else {
+            return MenuBarLayoutConditional.shippedLibrary()
+        }
         return (try? JSONDecoder().decode([MenuBarLayoutConditional].self, from: data)) ?? []
     }
 

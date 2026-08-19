@@ -1518,3 +1518,8 @@
 "menu_bar_layout_conditional_copy_name" = "%@ (bản sao)";
 "menu_bar_layout_conditional_copy_name_numbered" = "%1$@ (bản sao %2$d)";
 "menu_bar_layout_conditional_unavailable" = "Điều kiện không khả dụng";
+"menu_bar_layout_conditional_default_session_busy" = "Phiên đã dùng trên 50%";
+"menu_bar_layout_conditional_default_weekly_high" = "Tuần đã dùng trên 90%";
+"menu_bar_layout_conditional_default_session_spent" = "Phiên gần cạn";
+"menu_bar_layout_conditional_default_either_high" = "Phiên hoặc tuần đang ở mức cao";
+"menu_bar_layout_conditional_default_scoped_weekly" = "Tuần theo mô hình đã dùng trên 60%";
