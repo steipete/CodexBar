@@ -1489,3 +1489,16 @@
 "Export JSON" = "Export JSON";
 "Sources" = "Sources";
 "OpenCodex" = "OpenCodex";
+"menu_bar_layout_token_conditional" = "Bersyarat";
+"menu_bar_layout_group_conditionals" = "Kondisional";
+"menu_bar_layout_conditional_add" = "Kondisional Baru";
+"menu_bar_layout_conditional_edit" = "Edit Kondisional";
+"menu_bar_layout_conditional_remove" = "Hapus dari Perpustakaan";
+"menu_bar_layout_conditional_save" = "Simpan";
+"menu_bar_layout_conditional_if" = "Jika";
+"menu_bar_layout_conditional_then" = "Lalu tampilkan";
+"menu_bar_layout_conditional_else" = "Jika tidak, tampilkan";
+"menu_bar_layout_conditional_and" = "dan";
+"menu_bar_layout_conditional_or" = "atau";
+"menu_bar_layout_conditional_add_condition" = "Tambah Kondisi";
+"menu_bar_layout_conditional_summary" = "Jika %1$@ maka %2$@, jika tidak %3$@";

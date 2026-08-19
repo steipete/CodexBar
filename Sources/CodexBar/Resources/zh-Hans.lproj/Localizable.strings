@@ -1463,3 +1463,17 @@
 "Total usage" = "总用量";
 "claude_oauth_keychain_access_revoked" = "Claude Code 轮换令牌后撤销了对 Claude 钥匙串的访问权限。点击“刷新”以重新授权，或将 Claude 用量来源切换为 CLI/Web。";
 "claude_showing_last_known_usage" = "正在显示 %@ 采集的最后已知用量。";
+
+"menu_bar_layout_token_conditional" = "条件";
+"menu_bar_layout_group_conditionals" = "条件";
+"menu_bar_layout_conditional_add" = "新建条件";
+"menu_bar_layout_conditional_edit" = "编辑条件";
+"menu_bar_layout_conditional_remove" = "从库中移除";
+"menu_bar_layout_conditional_save" = "保存";
+"menu_bar_layout_conditional_if" = "如果";
+"menu_bar_layout_conditional_then" = "则显示";
+"menu_bar_layout_conditional_else" = "否则显示";
+"menu_bar_layout_conditional_and" = "和";
+"menu_bar_layout_conditional_or" = "或";
+"menu_bar_layout_conditional_add_condition" = "添加条件";
+"menu_bar_layout_conditional_summary" = "如果 %1$@ 则 %2$@ 否则 %3$@";

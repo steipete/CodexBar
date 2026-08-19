@@ -1486,3 +1486,17 @@
 "Export JSON" = "Export JSON";
 "Sources" = "Sources";
 "OpenCodex" = "OpenCodex";
+
+"menu_bar_layout_token_conditional" = "Điều kiện";
+"menu_bar_layout_group_conditionals" = "Điều kiện";
+"menu_bar_layout_conditional_add" = "Điều kiện mới";
+"menu_bar_layout_conditional_edit" = "Sửa điều kiện";
+"menu_bar_layout_conditional_remove" = "Xóa khỏi thư viện";
+"menu_bar_layout_conditional_save" = "Lưu";
+"menu_bar_layout_conditional_if" = "Nếu";
+"menu_bar_layout_conditional_then" = "Thì hiển thị";
+"menu_bar_layout_conditional_else" = "Ngược lại hiển thị";
+"menu_bar_layout_conditional_and" = "và";
+"menu_bar_layout_conditional_or" = "hoặc";
+"menu_bar_layout_conditional_add_condition" = "Thêm điều kiện";
+"menu_bar_layout_conditional_summary" = "Nếu %1$@ thì %2$@ ngược lại %3$@";

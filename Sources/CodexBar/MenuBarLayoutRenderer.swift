@@ -301,7 +301,8 @@ final class MenuBarLayoutRenderer {
         data: MenuBarLayoutRenderData,
         icon: NSImage?,
         style: TokenStyle,
-        options: MenuBarLayoutRenderOptions)
+        options: MenuBarLayoutRenderOptions,
+        depth: Int = 0)
         -> (value: NSAttributedString, accessibilityText: String?)
     {
         switch item {
@@ -335,34 +336,7 @@ final class MenuBarLayoutRenderer {
                 unavailableLabel: L("Account unavailable"),
                 attributes: style.attributes)
         case let .percent(window):
-            let rateWindow = Self.window(window, data: data)
-            let resolvedValue = Self.percentValue(
-                window: window,
-                rateWindow: rateWindow,
-                automaticText: data.automaticText,
-                showUsed: options.showUsed)
-            let prefix: String
-            let accessibilityPrefix: String
-            switch window {
-            case .session:
-                prefix = Self.sessionPrefix(rateWindow)
-                accessibilityPrefix = L("Session")
-            case .weekly:
-                let secondaryLabel = Self.secondaryLabel(data: data)
-                prefix = secondaryLabel.flatMap(\.first).map { String($0).uppercased() } ?? "W"
-                accessibilityPrefix = secondaryLabel ?? L("Weekly")
-            case .scopedWeekly:
-                prefix = data.scopedWeeklyTitle.map { String($0.prefix(1)).uppercased() } ?? "F"
-                accessibilityPrefix = data.scopedWeeklyTitle ?? L("Scoped weekly")
-            case .automatic:
-                prefix = ""
-                accessibilityPrefix = L("Usage")
-            }
-            let display = prefix.isEmpty ? resolvedValue.text : "\(prefix) \(resolvedValue.text)"
-            let accessibility = resolvedValue.isAvailable
-                ? L("%@ %@", accessibilityPrefix, resolvedValue.text)
-                : L("%@ unavailable", accessibilityPrefix)
-            return self.textToken(display, accessibilityText: accessibility, attributes: style.attributes)
+            return self.renderPercent(window, data: data, style: style, options: options)
         case let .pace(window):
             let accessibilityPrefix = Self.paceAccessibilityPrefix(window, data: data)
             return self.optionalTextToken(
@@ -422,7 +396,53 @@ final class MenuBarLayoutRenderer {
             return self.textToken("·", accessibilityText: nil, attributes: style.attributes)
         case .space:
             return self.textToken(" ", accessibilityText: nil, attributes: style.attributes)
+        case let .conditional(conditional):
+            guard depth < MenuBarLayoutToken.maxConditionalDepth else {
+                return self.textToken(
+                    self.missingValue,
+                    accessibilityText: L("Conditional unavailable"),
+                    attributes: style.attributes)
+            }
+            let branch = conditional.evaluatesTrue(data: data) ? conditional.thenToken : conditional.elseToken
+            return self.renderItem(branch, data: data, icon: icon, style: style, options: options, depth: depth + 1)
         }
+    }
+
+    private static func renderPercent(
+        _ window: PercentWindow,
+        data: MenuBarLayoutRenderData,
+        style: TokenStyle,
+        options: MenuBarLayoutRenderOptions)
+        -> (value: NSAttributedString, accessibilityText: String?)
+    {
+        let rateWindow = Self.window(window, data: data)
+        let resolvedValue = Self.percentValue(
+            window: window,
+            rateWindow: rateWindow,
+            automaticText: data.automaticText,
+            showUsed: options.showUsed)
+        let prefix: String
+        let accessibilityPrefix: String
+        switch window {
+        case .session:
+            prefix = Self.sessionPrefix(rateWindow)
+            accessibilityPrefix = L("Session")
+        case .weekly:
+            let secondaryLabel = Self.secondaryLabel(data: data)
+            prefix = secondaryLabel.flatMap(\.first).map { String($0).uppercased() } ?? "W"
+            accessibilityPrefix = secondaryLabel ?? L("Weekly")
+        case .scopedWeekly:
+            prefix = data.scopedWeeklyTitle.map { String($0.prefix(1)).uppercased() } ?? "F"
+            accessibilityPrefix = data.scopedWeeklyTitle ?? L("Scoped weekly")
+        case .automatic:
+            prefix = ""
+            accessibilityPrefix = L("Usage")
+        }
+        let display = prefix.isEmpty ? resolvedValue.text : "\(prefix) \(resolvedValue.text)"
+        let accessibility = resolvedValue.isAvailable
+            ? L("%@ %@", accessibilityPrefix, resolvedValue.text)
+            : L("%@ unavailable", accessibilityPrefix)
+        return self.textToken(display, accessibilityText: accessibility, attributes: style.attributes)
     }
 
     private static func iconAccessibilityText(data: MenuBarLayoutRenderData) -> String {
@@ -609,5 +629,35 @@ final class MenuBarLayoutRenderer {
             return size == .small ? 8 : 9
         }
         return size == .small ? 14 : 18
+    }
+}
+
+extension MenuBarLayoutConditional {
+    /// Left-fold over clauses; a predicate on a missing window (nil) evaluates false.
+    func evaluatesTrue(data: MenuBarLayoutRenderData) -> Bool {
+        guard let first = self.clauses.first else { return false }
+        var result = Self.test(first.predicate, data: data)
+        for clause in self.clauses.dropFirst() {
+            let value = Self.test(clause.predicate, data: data)
+            switch clause.combinator {
+            case .or: result = result || value
+            case .and, .none: result = result && value
+            }
+        }
+        return result
+    }
+
+    private static func test(_ predicate: MenuBarConditionalPredicate, data: MenuBarLayoutRenderData) -> Bool {
+        guard let value = Self.value(for: predicate.metric, in: data) else { return false }
+        return predicate.comparison.evaluate(value, predicate.threshold)
+    }
+
+    private static func value(for metric: MenuBarConditionalMetric, in data: MenuBarLayoutRenderData) -> Double? {
+        switch metric {
+        case .session: data.session?.usedPercent
+        case .weekly: data.weekly?.usedPercent
+        case .scopedWeekly: data.scopedWeekly?.usedPercent
+        case .automatic: data.automatic?.usedPercent
+        }
     }
 }

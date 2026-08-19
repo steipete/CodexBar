@@ -1486,3 +1486,16 @@
 "Export JSON" = "Export JSON";
 "Sources" = "Sources";
 "OpenCodex" = "OpenCodex";
+"menu_bar_layout_token_conditional" = "条件付き";
+"menu_bar_layout_group_conditionals" = "条件";
+"menu_bar_layout_conditional_add" = "新しい条件";
+"menu_bar_layout_conditional_edit" = "条件を編集";
+"menu_bar_layout_conditional_remove" = "ライブラリから削除";
+"menu_bar_layout_conditional_save" = "保存";
+"menu_bar_layout_conditional_if" = "もし";
+"menu_bar_layout_conditional_then" = "表示";
+"menu_bar_layout_conditional_else" = "それ以外は表示";
+"menu_bar_layout_conditional_and" = "かつ";
+"menu_bar_layout_conditional_or" = "または";
+"menu_bar_layout_conditional_add_condition" = "条件を追加";
+"menu_bar_layout_conditional_summary" = "もし %1$@ なら %2$@ を表示し、それ以外は %3$@ を表示";

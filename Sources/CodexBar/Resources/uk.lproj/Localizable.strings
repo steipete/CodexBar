@@ -1485,3 +1485,17 @@
 "Export JSON" = "Export JSON";
 "Sources" = "Sources";
 "OpenCodex" = "OpenCodex";
+
+"menu_bar_layout_token_conditional" = "Умовний";
+"menu_bar_layout_group_conditionals" = "Умовні";
+"menu_bar_layout_conditional_add" = "Нова умова";
+"menu_bar_layout_conditional_edit" = "Редагувати умову";
+"menu_bar_layout_conditional_remove" = "Видалити з бібліотеки";
+"menu_bar_layout_conditional_save" = "Зберегти";
+"menu_bar_layout_conditional_if" = "Якщо";
+"menu_bar_layout_conditional_then" = "Тоді показати";
+"menu_bar_layout_conditional_else" = "Інакше показати";
+"menu_bar_layout_conditional_and" = "і";
+"menu_bar_layout_conditional_or" = "або";
+"menu_bar_layout_conditional_add_condition" = "Додати умову";
+"menu_bar_layout_conditional_summary" = "Якщо %1$@ тоді %2$@ інакше %3$@";

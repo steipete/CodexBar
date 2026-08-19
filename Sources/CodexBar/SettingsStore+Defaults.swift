@@ -412,6 +412,14 @@ extension SettingsStore {
         }
     }
 
+    var menuBarLayoutConditionals: [MenuBarLayoutConditional] {
+        get { self.defaultsState.menuBarLayoutConditionals }
+        set {
+            self.defaultsState.menuBarLayoutConditionals = newValue
+            self.persistMenuBarLayoutConditionals()
+        }
+    }
+
     var hasStoredMenuBarLayout: Bool {
         self.defaultsState.storedMenuBarLayout != nil
     }
@@ -493,6 +501,11 @@ extension SettingsStore {
     private func persistMenuBarLayout(_ layout: MenuBarLayout, key: String) {
         guard let data = try? JSONEncoder().encode(layout) else { return }
         self.userDefaults.set(data, forKey: key)
+    }
+
+    private func persistMenuBarLayoutConditionals() {
+        guard let data = try? JSONEncoder().encode(self.defaultsState.menuBarLayoutConditionals) else { return }
+        self.userDefaults.set(data, forKey: "menuBarLayoutConditionals")
     }
 
     private func persistMenuBarLayoutOverrides() {

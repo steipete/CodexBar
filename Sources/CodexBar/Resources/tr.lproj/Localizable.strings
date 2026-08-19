@@ -1487,3 +1487,17 @@
 "Export JSON" = "Export JSON";
 "Sources" = "Sources";
 "OpenCodex" = "OpenCodex";
+
+"menu_bar_layout_token_conditional" = "Koşullu";
+"menu_bar_layout_group_conditionals" = "Koşullular";
+"menu_bar_layout_conditional_add" = "Yeni Koşullu";
+"menu_bar_layout_conditional_edit" = "Koşulluyu Düzenle";
+"menu_bar_layout_conditional_remove" = "Kitaplıktan Kaldır";
+"menu_bar_layout_conditional_save" = "Kaydet";
+"menu_bar_layout_conditional_if" = "Eğer";
+"menu_bar_layout_conditional_then" = "ise göster";
+"menu_bar_layout_conditional_else" = "değilse göster";
+"menu_bar_layout_conditional_and" = "ve";
+"menu_bar_layout_conditional_or" = "veya";
+"menu_bar_layout_conditional_add_condition" = "Koşul Ekle";
+"menu_bar_layout_conditional_summary" = "Eğer %1$@ ise %2$@, değilse %3$@ göster";

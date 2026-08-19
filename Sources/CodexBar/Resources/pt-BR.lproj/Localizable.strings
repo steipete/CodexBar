@@ -1486,3 +1486,16 @@
 "Export JSON" = "Export JSON";
 "Sources" = "Sources";
 "OpenCodex" = "OpenCodex";
+"menu_bar_layout_token_conditional" = "Condicional";
+"menu_bar_layout_group_conditionals" = "Condicionais";
+"menu_bar_layout_conditional_add" = "Novo condicional";
+"menu_bar_layout_conditional_edit" = "Editar condicional";
+"menu_bar_layout_conditional_remove" = "Remover da biblioteca";
+"menu_bar_layout_conditional_save" = "Salvar";
+"menu_bar_layout_conditional_if" = "Se";
+"menu_bar_layout_conditional_then" = "Então mostrar";
+"menu_bar_layout_conditional_else" = "Caso contrário mostrar";
+"menu_bar_layout_conditional_and" = "e";
+"menu_bar_layout_conditional_or" = "ou";
+"menu_bar_layout_conditional_add_condition" = "Adicionar condição";
+"menu_bar_layout_conditional_summary" = "Se %1$@ então %2$@, senão %3$@";

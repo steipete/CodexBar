@@ -176,6 +176,47 @@ struct MenuBarLayoutEditorTests {
     }
 
     @Test
+    func `replace mutation swaps a placed token`() {
+        let initial = MenuBarLayout(lines: [[.icon, .providerName]])
+
+        let replaced = MenuBarLayoutEditorMutations.replace(
+            at: MenuBarLayoutPosition(line: 0, index: 1),
+            with: .conditional(MenuBarLayoutConditional.defaultValue),
+            in: initial)
+        #expect(replaced.lines == [[.icon, .conditional(MenuBarLayoutConditional.defaultValue)]])
+
+        let outOfBoundsLine = MenuBarLayoutEditorMutations.replace(
+            at: MenuBarLayoutPosition(line: 3, index: 0),
+            with: .conditional(MenuBarLayoutConditional.defaultValue),
+            in: initial)
+        #expect(outOfBoundsLine == initial)
+
+        let outOfBoundsIndex = MenuBarLayoutEditorMutations.replace(
+            at: MenuBarLayoutPosition(line: 0, index: 5),
+            with: .conditional(MenuBarLayoutConditional.defaultValue),
+            in: initial)
+        #expect(outOfBoundsIndex == initial)
+    }
+
+    @Test
+    func `conditional drag payload round trips`() throws {
+        let payload = MenuBarLayoutDragItem.palette(.conditional(MenuBarLayoutConditional.defaultValue))
+
+        let data = try JSONEncoder().encode(payload)
+        #expect(try JSONDecoder().decode(MenuBarLayoutDragItem.self, from: data) == payload)
+    }
+
+    @Test
+    func `conditional token appends like palette tokens`() {
+        let initial = MenuBarLayout(lines: [[.icon, .resetCountdown]])
+
+        let appended = MenuBarLayoutEditorMutations.append(
+            .conditional(MenuBarLayoutConditional.defaultValue),
+            to: initial)
+        #expect(appended.lines == [[.icon, .resetCountdown, .conditional(MenuBarLayoutConditional.defaultValue)]])
+    }
+
+    @Test
     func `balance token is provider aware`() throws {
         let row = try ProviderDetailSection.Row(label: "Remaining", value: "$12.34")
         let section = try ProviderDetailSection(title: "Credits", rows: [row])

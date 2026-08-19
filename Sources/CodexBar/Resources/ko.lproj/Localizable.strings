@@ -1453,3 +1453,16 @@
 "Export JSON" = "Export JSON";
 "Sources" = "Sources";
 "OpenCodex" = "OpenCodex";
+"menu_bar_layout_token_conditional" = "조건부";
+"menu_bar_layout_group_conditionals" = "조건";
+"menu_bar_layout_conditional_add" = "새 조건";
+"menu_bar_layout_conditional_edit" = "조건 편집";
+"menu_bar_layout_conditional_remove" = "라이브러리에서 제거";
+"menu_bar_layout_conditional_save" = "저장";
+"menu_bar_layout_conditional_if" = "만약";
+"menu_bar_layout_conditional_then" = "표시";
+"menu_bar_layout_conditional_else" = "그 외에는 표시";
+"menu_bar_layout_conditional_and" = "그리고";
+"menu_bar_layout_conditional_or" = "또는";
+"menu_bar_layout_conditional_add_condition" = "조건 추가";
+"menu_bar_layout_conditional_summary" = "만약 %1$@이면 %2$@을 표시하고, 그렇지 않으면 %3$@을 표시";

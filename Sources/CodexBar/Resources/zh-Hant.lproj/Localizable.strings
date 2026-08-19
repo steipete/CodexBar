@@ -1516,3 +1516,17 @@
 "Export JSON" = "Export JSON";
 "Sources" = "Sources";
 "OpenCodex" = "OpenCodex";
+
+"menu_bar_layout_token_conditional" = "條件";
+"menu_bar_layout_group_conditionals" = "條件";
+"menu_bar_layout_conditional_add" = "新增條件";
+"menu_bar_layout_conditional_edit" = "編輯條件";
+"menu_bar_layout_conditional_remove" = "從庫中移除";
+"menu_bar_layout_conditional_save" = "儲存";
+"menu_bar_layout_conditional_if" = "如果";
+"menu_bar_layout_conditional_then" = "則顯示";
+"menu_bar_layout_conditional_else" = "否則顯示";
+"menu_bar_layout_conditional_and" = "和";
+"menu_bar_layout_conditional_or" = "或";
+"menu_bar_layout_conditional_add_condition" = "新增條件";
+"menu_bar_layout_conditional_summary" = "如果 %1$@ 則 %2$@ 否則 %3$@";

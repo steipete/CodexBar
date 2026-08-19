@@ -1489,3 +1489,17 @@
 "Export JSON" = "Export JSON";
 "Sources" = "Sources";
 "OpenCodex" = "OpenCodex";
+
+"menu_bar_layout_token_conditional" = "شرطی";
+"menu_bar_layout_group_conditionals" = "شروط";
+"menu_bar_layout_conditional_add" = "شرطی جدید";
+"menu_bar_layout_conditional_edit" = "ویرایش شرطی";
+"menu_bar_layout_conditional_remove" = "حذف از کتابخانه";
+"menu_bar_layout_conditional_save" = "ذخیره";
+"menu_bar_layout_conditional_if" = "اگر";
+"menu_bar_layout_conditional_then" = "سپس نمایش بده";
+"menu_bar_layout_conditional_else" = "در غیر این صورت نمایش بده";
+"menu_bar_layout_conditional_and" = "و";
+"menu_bar_layout_conditional_or" = "یا";
+"menu_bar_layout_conditional_add_condition" = "افزودن شرط";
+"menu_bar_layout_conditional_summary" = "اگر %1$@ سپس %2$@ در غیر این صورت %3$@";

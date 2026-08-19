@@ -1487,3 +1487,16 @@
 "Export JSON" = "Export JSON";
 "Sources" = "Sources";
 "OpenCodex" = "OpenCodex";
+"menu_bar_layout_token_conditional" = "Условный";
+"menu_bar_layout_group_conditionals" = "Условия";
+"menu_bar_layout_conditional_add" = "Новое условие";
+"menu_bar_layout_conditional_edit" = "Изменить условие";
+"menu_bar_layout_conditional_remove" = "Удалить из библиотеки";
+"menu_bar_layout_conditional_save" = "Сохранить";
+"menu_bar_layout_conditional_if" = "Если";
+"menu_bar_layout_conditional_then" = "Показать";
+"menu_bar_layout_conditional_else" = "Иначе показать";
+"menu_bar_layout_conditional_and" = "и";
+"menu_bar_layout_conditional_or" = "или";
+"menu_bar_layout_conditional_add_condition" = "Добавить условие";
+"menu_bar_layout_conditional_summary" = "Если %1$@, то показать %2$@, иначе показать %3$@";

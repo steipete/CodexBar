@@ -23,7 +23,7 @@ extension StatusItemController {
             if !resolution.usesLegacyRendering,
                self.settings.menuBarIconStyle == .iconAndPercent
             {
-                let tokens = resolution.layout.lines.joined()
+                let tokens = resolution.layout.flattenedTokens
                 if tokens.contains(.resetCountdown) {
                     countdownResetDates.append(contentsOf: resetDates)
                 }
@@ -152,7 +152,7 @@ extension StatusItemController {
             let resolution = self.settings.menuBarLayoutResolution(for: provider)
             guard !resolution.usesLegacyRendering,
                   self.settings.menuBarIconStyle == .iconAndPercent,
-                  resolution.layout.lines.joined().contains(where: {
+                  resolution.layout.flattenedTokens.contains(where: {
                       if case .pace(window: .weekly) = $0 { return true }
                       return false
                   })

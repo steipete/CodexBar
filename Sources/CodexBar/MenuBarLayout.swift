@@ -8,6 +8,85 @@ enum PercentWindow: String, CaseIterable, Codable, Hashable, Sendable {
     case automatic
 }
 
+enum MenuBarConditionalMetric: String, CaseIterable, Codable, Hashable, Sendable {
+    case session
+    case weekly
+    case scopedWeekly
+    case automatic
+}
+
+enum MenuBarConditionalComparison: String, CaseIterable, Codable, Hashable, Sendable {
+    case greaterThan
+    case greaterThanOrEqual
+    case lessThan
+    case lessThanOrEqual
+
+    var symbol: String {
+        switch self {
+        case .greaterThan: ">"
+        case .greaterThanOrEqual: ">="
+        case .lessThan: "<"
+        case .lessThanOrEqual: "<="
+        }
+    }
+
+    func evaluate(_ value: Double, _ threshold: Double) -> Bool {
+        switch self {
+        case .greaterThan: value > threshold
+        case .greaterThanOrEqual: value >= threshold
+        case .lessThan: value < threshold
+        case .lessThanOrEqual: value <= threshold
+        }
+    }
+}
+
+enum MenuBarConditionalCombinator: String, CaseIterable, Codable, Hashable, Sendable {
+    case and
+    case or
+}
+
+struct MenuBarConditionalPredicate: Codable, Hashable, Sendable {
+    var metric: MenuBarConditionalMetric
+    var comparison: MenuBarConditionalComparison
+    var threshold: Double
+}
+
+struct MenuBarConditionalClause: Codable, Hashable, Sendable {
+    /// nil for the first clause; ignored-on-eval if set on the first.
+    var combinator: MenuBarConditionalCombinator?
+    var predicate: MenuBarConditionalPredicate
+}
+
+struct MenuBarLayoutConditional: Codable, Hashable, Sendable {
+    var clauses: [MenuBarConditionalClause] // 1...4 after normalization
+    var thenToken: MenuBarLayoutToken
+    var elseToken: MenuBarLayoutToken
+
+    init(clauses: [MenuBarConditionalClause], thenToken: MenuBarLayoutToken, elseToken: MenuBarLayoutToken) {
+        var normalized = clauses.prefix(4).map { clause in
+            var clause = clause
+            clause.predicate.threshold = min(max(clause.predicate.threshold, 0), 100)
+            return clause
+        }
+        if normalized.isEmpty {
+            normalized = [MenuBarConditionalClause(
+                combinator: nil,
+                predicate: MenuBarConditionalPredicate(metric: .session, comparison: .greaterThan, threshold: 0))]
+        }
+        normalized[0].combinator = nil
+        self.clauses = Array(normalized)
+        self.thenToken = thenToken
+        self.elseToken = elseToken
+    }
+
+    static let defaultValue = MenuBarLayoutConditional(
+        clauses: [MenuBarConditionalClause(
+            combinator: nil,
+            predicate: MenuBarConditionalPredicate(metric: .session, comparison: .greaterThan, threshold: 0))],
+        thenToken: .percent(window: .session),
+        elseToken: .resetCountdown)
+}
+
 enum MenuBarLayoutToken: Codable, Hashable, Sendable {
     case icon
     case providerName
@@ -26,6 +105,7 @@ enum MenuBarLayoutToken: Codable, Hashable, Sendable {
     case cost30d
     case separatorDot
     case space
+    indirect case conditional(MenuBarLayoutConditional)
 }
 
 enum MenuBarLayoutSemanticWindowResolver {
@@ -282,5 +362,27 @@ extension MenuBarLayout {
         case .session: .session
         case .weekly: .weekly
         }
+    }
+}
+
+extension MenuBarLayout {
+    /// Every token in the layout plus all tokens reachable through conditional branches (depth-capped).
+    var flattenedTokens: [MenuBarLayoutToken] {
+        var tokens: [MenuBarLayoutToken] = []
+        for token in self.lines.joined() {
+            token.appendFlattened(into: &tokens, depth: 0)
+        }
+        return tokens
+    }
+}
+
+extension MenuBarLayoutToken {
+    static let maxConditionalDepth = 8
+
+    func appendFlattened(into tokens: inout [MenuBarLayoutToken], depth: Int) {
+        tokens.append(self)
+        guard depth < Self.maxConditionalDepth, case let .conditional(conditional) = self else { return }
+        conditional.thenToken.appendFlattened(into: &tokens, depth: depth + 1)
+        conditional.elseToken.appendFlattened(into: &tokens, depth: depth + 1)
     }
 }

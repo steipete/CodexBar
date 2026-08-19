@@ -556,6 +556,233 @@ struct MenuBarLayoutRendererTests {
             .attribute(.foregroundColor, at: 0, effectiveRange: nil) as? NSColor == .controlTextColor)
     }
 
+    @Test
+    func `conditional renders then branch when predicate true`() {
+        let renderer = MenuBarLayoutRenderer()
+        let conditional = MenuBarLayoutConditional(
+            clauses: [self.clause(metric: .session, comparison: .greaterThan, threshold: 0)],
+            thenToken: .percent(window: .session),
+            elseToken: .resetCountdown)
+        let data = self.data()
+
+        let output = renderer.render(
+            layout: MenuBarLayout(lines: [[.conditional(conditional)]]),
+            data: data,
+            icon: nil,
+            options: self.options())
+        let control = renderer.render(
+            layout: MenuBarLayout(lines: [[.percent(window: .session)]]),
+            data: data,
+            icon: nil,
+            options: self.options())
+
+        #expect(output.attributedTitle.string == control.attributedTitle.string)
+        #expect(output.attributedTitle.string == "5h 25%")
+    }
+
+    @Test
+    func `conditional renders else branch when predicate false`() {
+        let renderer = MenuBarLayoutRenderer()
+        // Session is 25%, so a > 50 threshold fails and the else branch must win.
+        let conditional = MenuBarLayoutConditional(
+            clauses: [self.clause(metric: .session, comparison: .greaterThan, threshold: 50)],
+            thenToken: .percent(window: .session),
+            elseToken: .resetCountdown)
+        let data = self.data()
+
+        let output = renderer.render(
+            layout: MenuBarLayout(lines: [[.conditional(conditional)]]),
+            data: data,
+            icon: nil,
+            options: self.options())
+        let control = renderer.render(
+            layout: MenuBarLayout(lines: [[.resetCountdown]]),
+            data: data,
+            icon: nil,
+            options: self.options())
+
+        #expect(output.attributedTitle.string == control.attributedTitle.string)
+        #expect(output.attributedTitle.string == "in 2h")
+    }
+
+    @Test
+    func `conditional and requires all predicates`() {
+        let renderer = MenuBarLayoutRenderer()
+        let data = self.data()
+
+        // Session 25% > 0 (true) AND weekly 60% > 70 (false) -> whole clause false.
+        let falseConditional = MenuBarLayoutConditional(
+            clauses: [
+                self.clause(metric: .session, comparison: .greaterThan, threshold: 0),
+                self.clause(metric: .weekly, comparison: .greaterThan, threshold: 70, combinator: .and),
+            ],
+            thenToken: .percent(window: .session),
+            elseToken: .resetCountdown)
+        let falseOutput = renderer.render(
+            layout: MenuBarLayout(lines: [[.conditional(falseConditional)]]),
+            data: data,
+            icon: nil,
+            options: self.options())
+        let falseControl = renderer.render(
+            layout: MenuBarLayout(lines: [[.resetCountdown]]),
+            data: data,
+            icon: nil,
+            options: self.options())
+        #expect(falseOutput.attributedTitle.string == falseControl.attributedTitle.string)
+
+        // Session 25% > 0 (true) AND weekly 60% > 50 (true) -> all predicates pass.
+        let trueConditional = MenuBarLayoutConditional(
+            clauses: [
+                self.clause(metric: .session, comparison: .greaterThan, threshold: 0),
+                self.clause(metric: .weekly, comparison: .greaterThan, threshold: 50, combinator: .and),
+            ],
+            thenToken: .percent(window: .session),
+            elseToken: .resetCountdown)
+        let trueOutput = renderer.render(
+            layout: MenuBarLayout(lines: [[.conditional(trueConditional)]]),
+            data: data,
+            icon: nil,
+            options: self.options())
+        let trueControl = renderer.render(
+            layout: MenuBarLayout(lines: [[.percent(window: .session)]]),
+            data: data,
+            icon: nil,
+            options: self.options())
+        #expect(trueOutput.attributedTitle.string == trueControl.attributedTitle.string)
+        #expect(trueOutput.attributedTitle.string == "5h 25%")
+    }
+
+    @Test
+    func `conditional or accepts any predicate`() {
+        let renderer = MenuBarLayoutRenderer()
+        // Weekly 60% > 70 (false) OR session 25% > 0 (true) -> whole clause true.
+        let conditional = MenuBarLayoutConditional(
+            clauses: [
+                self.clause(metric: .weekly, comparison: .greaterThan, threshold: 70),
+                self.clause(metric: .session, comparison: .greaterThan, threshold: 0, combinator: .or),
+            ],
+            thenToken: .percent(window: .session),
+            elseToken: .resetCountdown)
+        let data = self.data()
+
+        let output = renderer.render(
+            layout: MenuBarLayout(lines: [[.conditional(conditional)]]),
+            data: data,
+            icon: nil,
+            options: self.options())
+        let control = renderer.render(
+            layout: MenuBarLayout(lines: [[.percent(window: .session)]]),
+            data: data,
+            icon: nil,
+            options: self.options())
+
+        #expect(output.attributedTitle.string == control.attributedTitle.string)
+        #expect(output.attributedTitle.string == "5h 25%")
+    }
+
+    @Test
+    func `conditional with missing metric window falls to else`() {
+        let renderer = MenuBarLayoutRenderer()
+        // Session window is nil, so the session predicate evaluates false (not "0 > 0").
+        let conditional = MenuBarLayoutConditional(
+            clauses: [self.clause(metric: .session, comparison: .greaterThan, threshold: 0)],
+            thenToken: .percent(window: .session),
+            elseToken: .resetCountdown)
+        let data = MenuBarLayoutRenderData(
+            provider: .codex,
+            iconKey: "missing",
+            providerName: nil,
+            accountLabel: nil,
+            session: nil,
+            weekly: nil,
+            scopedWeekly: nil,
+            scopedWeeklyTitle: nil,
+            automatic: nil,
+            automaticText: nil,
+            sessionPace: nil,
+            weeklyPace: nil,
+            automaticPace: nil,
+            runsOut: nil,
+            balance: nil,
+            costToday: nil,
+            cost30d: nil)
+
+        let output = renderer.render(
+            layout: MenuBarLayout(lines: [[.conditional(conditional)]]),
+            data: data,
+            icon: nil,
+            options: self.options())
+        let control = renderer.render(
+            layout: MenuBarLayout(lines: [[.resetCountdown]]),
+            data: data,
+            icon: nil,
+            options: self.options())
+
+        #expect(output.attributedTitle.string == control.attributedTitle.string)
+        #expect(output.attributedTitle.string == "–")
+    }
+
+    @Test
+    func `nested conditional depth cap renders placeholder`() {
+        let renderer = MenuBarLayoutRenderer()
+        // Build a chain 10 levels deep; the renderer caps traversal at maxConditionalDepth.
+        var inner = MenuBarLayoutConditional(
+            clauses: [self.clause(metric: .session, comparison: .greaterThan, threshold: 0)],
+            thenToken: .percent(window: .session),
+            elseToken: .space)
+        for _ in 0..<9 {
+            inner = MenuBarLayoutConditional(
+                clauses: [self.clause(metric: .session, comparison: .greaterThan, threshold: 0)],
+                thenToken: .conditional(inner),
+                elseToken: .space)
+        }
+        let data = self.data()
+        // The cap triggers before any branch is evaluated, independent of live values,
+        // so the missing-value placeholder is the expected title.
+        let output = renderer.render(
+            layout: MenuBarLayout(lines: [[.conditional(inner)]]),
+            data: data,
+            icon: nil,
+            options: self.options())
+
+        #expect(output.attributedTitle.string == "–")
+    }
+
+    @Test
+    func `conditional accessibility announces the chosen branch`() {
+        let renderer = MenuBarLayoutRenderer()
+        let conditional = MenuBarLayoutConditional(
+            clauses: [self.clause(metric: .session, comparison: .greaterThan, threshold: 0)],
+            thenToken: .percent(window: .session),
+            elseToken: .resetCountdown)
+        let data = self.data()
+
+        let output = renderer.render(
+            layout: MenuBarLayout(lines: [[.conditional(conditional)]]),
+            data: data,
+            icon: nil,
+            options: self.options())
+        let control = renderer.render(
+            layout: MenuBarLayout(lines: [[.percent(window: .session)]]),
+            data: data,
+            icon: nil,
+            options: self.options())
+
+        #expect(output.accessibilityLabel == control.accessibilityLabel)
+        #expect(output.accessibilityLabel == L("%@ %@", L("Session"), "25%"))
+    }
+
+    private func clause(
+        metric: MenuBarConditionalMetric,
+        comparison: MenuBarConditionalComparison,
+        threshold: Double,
+        combinator: MenuBarConditionalCombinator? = nil) -> MenuBarConditionalClause
+    {
+        MenuBarConditionalClause(
+            combinator: combinator,
+            predicate: MenuBarConditionalPredicate(metric: metric, comparison: comparison, threshold: threshold))
+    }
+
     private func data(
         automaticUsedPercent: Double = 50,
         provider: UsageProvider = .codex,

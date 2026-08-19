@@ -1489,3 +1489,16 @@
 "5-hour usage" = "5-hour usage";
 "7-day usage" = "7-day usage";
 "Total usage" = "Total usage";
+"menu_bar_layout_token_conditional" = "Conditional";
+"menu_bar_layout_group_conditionals" = "Conditionals";
+"menu_bar_layout_conditional_add" = "New Conditional";
+"menu_bar_layout_conditional_edit" = "Edit Conditional";
+"menu_bar_layout_conditional_remove" = "Remove from Library";
+"menu_bar_layout_conditional_save" = "Save";
+"menu_bar_layout_conditional_if" = "If";
+"menu_bar_layout_conditional_then" = "Then show";
+"menu_bar_layout_conditional_else" = "Else show";
+"menu_bar_layout_conditional_and" = "and";
+"menu_bar_layout_conditional_or" = "or";
+"menu_bar_layout_conditional_add_condition" = "Add Condition";
+"menu_bar_layout_conditional_summary" = "If %1$@ then %2$@ else %3$@";

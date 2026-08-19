@@ -1485,3 +1485,16 @@
 "Export JSON" = "Export JSON";
 "Sources" = "Sources";
 "OpenCodex" = "OpenCodex";
+"menu_bar_layout_token_conditional" = "Voorwaardelijk";
+"menu_bar_layout_group_conditionals" = "Voorwaarden";
+"menu_bar_layout_conditional_add" = "Nieuwe voorwaarde";
+"menu_bar_layout_conditional_edit" = "Voorwaarde bewerken";
+"menu_bar_layout_conditional_remove" = "Verwijder uit bibliotheek";
+"menu_bar_layout_conditional_save" = "Bewaar";
+"menu_bar_layout_conditional_if" = "Als";
+"menu_bar_layout_conditional_then" = "Toon dan";
+"menu_bar_layout_conditional_else" = "Anders tonen";
+"menu_bar_layout_conditional_and" = "en";
+"menu_bar_layout_conditional_or" = "of";
+"menu_bar_layout_conditional_add_condition" = "Voorwaarde toevoegen";
+"menu_bar_layout_conditional_summary" = "Als %1$@ dan %2$@ anders %3$@";

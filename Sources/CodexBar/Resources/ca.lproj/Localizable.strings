@@ -1488,3 +1488,17 @@
 "Export JSON" = "Export JSON";
 "Sources" = "Sources";
 "OpenCodex" = "OpenCodex";
+
+"menu_bar_layout_token_conditional" = "Condicional";
+"menu_bar_layout_group_conditionals" = "Condicionals";
+"menu_bar_layout_conditional_add" = "Condicional nou";
+"menu_bar_layout_conditional_edit" = "Edita el condicional";
+"menu_bar_layout_conditional_remove" = "Elimina de la biblioteca";
+"menu_bar_layout_conditional_save" = "Desa";
+"menu_bar_layout_conditional_if" = "Si";
+"menu_bar_layout_conditional_then" = "Mostra llavors";
+"menu_bar_layout_conditional_else" = "Mostra en cas contrari";
+"menu_bar_layout_conditional_and" = "i";
+"menu_bar_layout_conditional_or" = "o";
+"menu_bar_layout_conditional_add_condition" = "Afegeix una condició";
+"menu_bar_layout_conditional_summary" = "Si %1$@ llavors %2$@ en cas contrari %3$@";

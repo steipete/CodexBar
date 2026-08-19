@@ -53,6 +53,103 @@ struct MenuBarLayoutTests {
     }
 
     @Test
+    func `conditional token codable round trips`() throws {
+        let conditional = MenuBarLayoutConditional(
+            clauses: [MenuBarConditionalClause(
+                combinator: nil,
+                predicate: MenuBarConditionalPredicate(metric: .session, comparison: .greaterThan, threshold: 0))],
+            thenToken: .percent(window: .session),
+            elseToken: .resetCountdown)
+        let layout = MenuBarLayout(lines: [[.icon, .conditional(conditional)]])
+
+        let data = try JSONEncoder().encode(layout)
+        let decoded = try JSONDecoder().decode(MenuBarLayout.self, from: data)
+
+        #expect(decoded == layout)
+        #expect(String(bytes: data, encoding: .utf8)?.contains("conditional") == true)
+    }
+
+    @Test
+    func `flattened tokens include conditional branches`() {
+        let conditional = MenuBarLayoutConditional(
+            clauses: [MenuBarConditionalClause(
+                combinator: nil,
+                predicate: MenuBarConditionalPredicate(metric: .session, comparison: .greaterThan, threshold: 0))],
+            thenToken: .percent(window: .session),
+            elseToken: .resetCountdown)
+        let layout = MenuBarLayout(lines: [[.icon, .conditional(conditional)]])
+
+        let flattened = layout.flattenedTokens
+
+        #expect(flattened.contains(.icon))
+        #expect(flattened.contains(.conditional(conditional)))
+        #expect(flattened.contains(.percent(window: .session)))
+        #expect(flattened.contains(.resetCountdown))
+    }
+
+    @Test
+    func `conditional normalization clamps thresholds and clause count`() {
+        let predicate = MenuBarConditionalPredicate(metric: .session, comparison: .greaterThan, threshold: 0)
+        let manyClauses = (0..<6).map { index in
+            MenuBarConditionalClause(
+                combinator: index == 0 ? .or : .and,
+                predicate: MenuBarConditionalPredicate(
+                    metric: .session,
+                    comparison: .greaterThan,
+                    threshold: 250))
+        }
+        let conditional = MenuBarLayoutConditional(
+            clauses: manyClauses,
+            thenToken: .percent(window: .session),
+            elseToken: .resetCountdown)
+
+        #expect(conditional.clauses.count == 4)
+        #expect(conditional.clauses.allSatisfy { $0.predicate.threshold == 100 })
+
+        let empty = MenuBarLayoutConditional(
+            clauses: [],
+            thenToken: .percent(window: .session),
+            elseToken: .resetCountdown)
+        #expect(empty.clauses.count == 1)
+        #expect(empty.clauses[0].combinator == nil)
+        #expect(empty.clauses[0].predicate.metric == .session)
+        #expect(empty.clauses[0].predicate.comparison == .greaterThan)
+        #expect(empty.clauses[0].predicate.threshold == 0)
+
+        let forcedFirst = MenuBarLayoutConditional(
+            clauses: [MenuBarConditionalClause(
+                combinator: .or,
+                predicate: MenuBarConditionalPredicate(
+                    metric: .weekly,
+                    comparison: .greaterThanOrEqual,
+                    threshold: 5))],
+            thenToken: .percent(window: .session),
+            elseToken: .resetCountdown)
+        #expect(forcedFirst.clauses[0].combinator == nil)
+    }
+
+    @Test
+    @MainActor
+    func `conditionals library and layout persist across reload`() {
+        let suite = "MenuBarLayoutTests-conditional-persistence"
+        let settings = testSettingsStore(suiteName: suite)
+        let conditional = MenuBarLayoutConditional(
+            clauses: [MenuBarConditionalClause(
+                combinator: nil,
+                predicate: MenuBarConditionalPredicate(metric: .session, comparison: .greaterThan, threshold: 30))],
+            thenToken: .percent(window: .session),
+            elseToken: .resetCountdown)
+        let layout = MenuBarLayout(lines: [[.icon, .conditional(conditional)]])
+
+        settings.menuBarLayoutConditionals = [conditional, .defaultValue]
+        settings.setMenuBarLayout(layout, for: nil)
+
+        let reloaded = Self.reloadSettingsStore(settings)
+        #expect(reloaded.menuBarLayoutConditionals == [conditional, .defaultValue])
+        #expect(reloaded.menuBarLayout == layout)
+    }
+
+    @Test
     func `decoding normalizes empty and extra lines`() throws {
         let emptyData = try JSONEncoder().encode(UnnormalizedLayout(lines: []))
         #expect(try JSONDecoder().decode(MenuBarLayout.self, from: emptyData) == .defaultLayout)

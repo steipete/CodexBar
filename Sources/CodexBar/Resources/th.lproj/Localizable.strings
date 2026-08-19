@@ -1489,3 +1489,17 @@
 "Export JSON" = "Export JSON";
 "Sources" = "Sources";
 "OpenCodex" = "OpenCodex";
+
+"menu_bar_layout_token_conditional" = "ตามเงื่อนไข";
+"menu_bar_layout_group_conditionals" = "เงื่อนไข";
+"menu_bar_layout_conditional_add" = "เงื่อนไขใหม่";
+"menu_bar_layout_conditional_edit" = "แก้ไขเงื่อนไข";
+"menu_bar_layout_conditional_remove" = "ลบออกจากไลบรารี";
+"menu_bar_layout_conditional_save" = "บันทึก";
+"menu_bar_layout_conditional_if" = "ถ้า";
+"menu_bar_layout_conditional_then" = "จากนั้นแสดง";
+"menu_bar_layout_conditional_else" = "มิฉะนั้นแสดง";
+"menu_bar_layout_conditional_and" = "และ";
+"menu_bar_layout_conditional_or" = "หรือ";
+"menu_bar_layout_conditional_add_condition" = "เพิ่มเงื่อนไข";
+"menu_bar_layout_conditional_summary" = "ถ้า %1$@ จากนั้น %2$@ มิฉะนั้น %3$@";
