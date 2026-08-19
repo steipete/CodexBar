@@ -58,6 +58,17 @@ extension UsageStore {
                 self?.observeSharedSpendDashboardConfiguration()
             }
         }
+        self.applySharedSpendDashboardConfiguration(configuration)
+    }
+
+    func synchronizeSharedSpendDashboardAfterTokenPublication(for provider: UsageProvider) {
+        // Provider-specific by design: regular Codex publication triggers the account-scoped spend producer.
+        guard provider == .codex, self.sharedSpendDashboardObservationStarted else { return }
+        self.applySharedSpendDashboardConfiguration(
+            SpendDashboardSource.configuration(settings: self.settings, store: self))
+    }
+
+    private func applySharedSpendDashboardConfiguration(_ configuration: SpendDashboardConfiguration) {
         // Provider-specific by design: Codex's multi-account 365-day scanner is the shared source producer.
         let codexRequests = configuration.providerIDs.contains(UsageProvider.codex.rawValue)
             ? SpendDashboardSource.codexRequests(settings: self.settings, store: self)
