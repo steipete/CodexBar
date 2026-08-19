@@ -173,6 +173,7 @@ struct SpendDashboardPublication: Sendable {
         if rosterSources.isEmpty, !inputBackedEnrichmentSources.isEmpty {
             return inputBackedEnrichmentSources
         }
+        // Provider-specific by design: only canonical Codex enrichment can replace Codex subscription coverage.
         guard self.subscriptionRosterSources(for: provider).isEmpty,
               !hiddenSourceIDs.contains(SpendDashboardModel.openCodexSourceID),
               let openCodexObservation = self.sources.first(where: {
