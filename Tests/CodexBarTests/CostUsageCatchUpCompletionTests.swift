@@ -5,6 +5,163 @@ import Testing
 @Suite(.serialized)
 struct CostUsageCatchUpCompletionTests {
     @Test
+    func `touched old Codex file drains catch-up and permits exact proof`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+        let day = try env.makeLocalNoon(year: 2026, month: 5, day: 10)
+        let oldDay = try #require(Calendar.current.date(byAdding: .day, value: -10, to: day))
+        let oldISO = env.isoString(for: oldDay)
+        let currentISO = env.isoString(for: day)
+        let oldURL = try env.writeCodexSessionFile(
+            day: oldDay,
+            filename: "rollout-old.jsonl",
+            contents: [
+                #"{"type":"session_meta","timestamp":"\#(oldISO)","payload":{"session_id":"resumed-session"}}"#,
+                #"{"type":"turn_context","timestamp":"\#(oldISO)","payload":{"model":"openai/gpt-5.2-codex"}}"#,
+                #"{"type":"event_msg","timestamp":"\#(oldISO)","payload":{"type":"token_count","info":"#
+                    + #"{"total_token_usage":{"input_tokens":50,"cached_input_tokens":10,"output_tokens":5},"#
+                    + #""model":"openai/gpt-5.2-codex"}}}"#,
+            ].joined(separator: "\n") + "\n")
+        let currentURL = try env.writeCodexSessionFile(
+            day: day,
+            filename: "rollout-current.jsonl",
+            contents: [
+                #"{"type":"session_meta","timestamp":"\#(currentISO)","payload":{"session_id":"resumed-session"}}"#,
+                #"{"type":"turn_context","timestamp":"\#(currentISO)","payload":{"model":"openai/gpt-5.2-codex"}}"#,
+                #"{"type":"event_msg","timestamp":"\#(currentISO)","payload":{"type":"token_count","info":"#
+                    + #"{"total_token_usage":{"input_tokens":100,"cached_input_tokens":20,"output_tokens":10},"#
+                    + #""model":"openai/gpt-5.2-codex"}}}"#,
+            ].joined(separator: "\n") + "\n")
+        try FileManager.default.setAttributes(
+            [.modificationDate: day.addingTimeInterval(60)],
+            ofItemAtPath: oldURL.path)
+        try FileManager.default.setAttributes(
+            [.modificationDate: day.addingTimeInterval(120)],
+            ofItemAtPath: currentURL.path)
+
+        var options = CostUsageScanner.Options(
+            codexSessionsRoot: env.codexSessionsRoot,
+            claudeProjectsRoots: nil,
+            cacheRoot: env.cacheRoot,
+            codexTraceDatabaseURL: env.root.appendingPathComponent("missing.sqlite"))
+        options.refreshMinIntervalSeconds = 0
+        let proofRecorder = CostUsageScanner.CodexScanWorkRecorder()
+        options.codexScanWorkRecorderForTesting = proofRecorder
+
+        _ = CostUsageScanner.loadDailyReport(
+            provider: .codex,
+            since: day,
+            until: day,
+            now: day.addingTimeInterval(180),
+            options: options)
+
+        let completedCache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
+        #expect(completedCache.files[oldURL.path] == nil)
+        #expect(completedCache.files[currentURL.path] != nil)
+        #expect(proofRecorder.snapshot().codexProgressAccountingVisits == 1)
+        #expect(completedCache.codexActiveLookbackState == nil)
+        #expect(completedCache.codexScanInventoryPaths == [currentURL.path])
+        #expect(completedCache.codexScanCatchUpPending == false)
+
+        let roots = CostUsageScanner.codexSessionsRoots(options: options)
+            .map { $0.resolvingSymlinksInPath().standardizedFileURL.path }
+            .sorted()
+        var damagedCache = completedCache
+        damagedCache.codexActiveLookbackState = try CostUsageCodexActiveLookbackState(
+            scanSinceKey: #require(damagedCache.scanSinceKey),
+            rootPaths: roots,
+            completedRootPaths: roots,
+            pendingFilePaths: [oldURL.path],
+            completedCurrentWindowRootPaths: roots,
+            completedCurrentWindowFlatRootPaths: roots)
+        damagedCache.codexScanInventoryPaths = nil
+        damagedCache.codexScanCatchUpPending = true
+        CostUsageStoreAccess.replace(cacheRoot: env.cacheRoot, cache: damagedCache)
+
+        options.codexScanWorkRecorderForTesting = nil
+        _ = CostUsageScanner.loadDailyReport(
+            provider: .codex,
+            since: day,
+            until: day,
+            now: day.addingTimeInterval(181),
+            options: options)
+        let repairedCache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
+        #expect(repairedCache.codexActiveLookbackState == nil)
+        #expect(repairedCache.codexScanCatchUpPending == false)
+    }
+
+    @Test
+    func `unprocessed pending Codex file remains queued`() throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+        let day = try env.makeLocalNoon(year: 2026, month: 5, day: 10)
+        let iso = env.isoString(for: day)
+        let cachedURL = try env.writeCodexSessionFile(
+            day: day,
+            filename: "a-cached.jsonl",
+            contents: [
+                #"{"type":"session_meta","timestamp":"\#(iso)","payload":{"session_id":"cached"}}"#,
+                #"{"type":"turn_context","timestamp":"\#(iso)","payload":{"model":"openai/gpt-5.2-codex"}}"#,
+                #"{"type":"event_msg","timestamp":"\#(iso)","payload":{"type":"token_count","info":"#
+                    + #"{"total_token_usage":{"input_tokens":100,"cached_input_tokens":20,"output_tokens":10},"#
+                    + #""model":"openai/gpt-5.2-codex"}}}"#,
+            ].joined(separator: "\n") + "\n")
+        var options = CostUsageScanner.Options(
+            codexSessionsRoot: env.codexSessionsRoot,
+            claudeProjectsRoots: nil,
+            cacheRoot: env.cacheRoot,
+            codexTraceDatabaseURL: env.root.appendingPathComponent("missing.sqlite"))
+        options.refreshMinIntervalSeconds = 0
+        options.preferNewestCodexSessionsFirst = false
+        _ = CostUsageScanner.loadDailyReport(
+            provider: .codex,
+            since: day,
+            until: day,
+            now: day,
+            options: options)
+
+        let pendingURL = try env.writeCodexSessionFile(
+            day: day,
+            filename: "b-pending.jsonl",
+            contents: [
+                #"{"type":"session_meta","timestamp":"\#(iso)","payload":{"session_id":"pending"}}"#,
+                #"{"type":"turn_context","timestamp":"\#(iso)","payload":{"model":"openai/gpt-5.2-codex"}}"#,
+            ].joined(separator: "\n") + "\n")
+        let cachedHandle = try FileHandle(forWritingTo: cachedURL)
+        try cachedHandle.seekToEnd()
+        try cachedHandle.write(contentsOf: Data("\n".utf8))
+        try cachedHandle.close()
+
+        var pendingCache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
+        let roots = CostUsageScanner.codexSessionsRoots(options: options)
+            .map { $0.resolvingSymlinksInPath().standardizedFileURL.path }
+            .sorted()
+        pendingCache.codexActiveLookbackState = try CostUsageCodexActiveLookbackState(
+            scanSinceKey: #require(pendingCache.scanSinceKey),
+            rootPaths: roots,
+            completedRootPaths: roots,
+            pendingFilePaths: [cachedURL.path, pendingURL.path],
+            completedCurrentWindowRootPaths: roots,
+            completedCurrentWindowFlatRootPaths: roots)
+        pendingCache.codexScanCatchUpPending = true
+        CostUsageStoreAccess.replace(cacheRoot: env.cacheRoot, cache: pendingCache)
+
+        options.maxCodexScanBytesPerRefresh = 1
+        options.maxCodexScanDurationPerRefresh = 60
+        _ = CostUsageScanner.loadDailyReport(
+            provider: .codex,
+            since: day,
+            until: day,
+            now: day.addingTimeInterval(1),
+            options: options)
+
+        let deferredCache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
+        #expect(deferredCache.files[pendingURL.path] == nil)
+        #expect(deferredCache.codexActiveLookbackState?.pendingFilePaths.contains(pendingURL.path) == true)
+        #expect(deferredCache.codexScanCatchUpPending == true)
+    }
+
+    @Test
     func `device identity restoration queues validation beyond the bounded slice`() async throws {
         let env = try CostUsageTestEnvironment()
         defer { env.cleanup() }

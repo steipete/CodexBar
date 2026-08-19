@@ -347,9 +347,13 @@ struct SpendDashboardModel: Equatable, Sendable {
         hideNativeCodexWhenOpenCodexPresent: Bool) -> [ProviderInput]
     {
         var filtered = inputs.filter { !hiddenSourceIDs.contains($0.id) }
-        let hasOpenCodex = filtered.contains { $0.sourceKind == .openCodex }
+        // Provider-specific by design: only a canonical OpenCodex Codex row may replace native Codex rows.
+        let hasOpenCodex = filtered.contains {
+            $0.id == Self.openCodexSourceID &&
+                $0.provider == .codex &&
+                $0.sourceKind == .openCodex
+        }
         if hideNativeCodexWhenOpenCodexPresent, hasOpenCodex {
-            // Provider-specific by design: the OpenCodex source can explicitly replace native Codex rows.
             filtered.removeAll { $0.sourceKind == .native && $0.provider == .codex }
         }
         return filtered

@@ -447,6 +447,8 @@ struct SpendDashboardSourceConcurrencyTests {
         controller.update(configuration: replacement)
         #expect(controller.generation == inFlightGeneration)
         #expect(controller.configuration == replacement)
+        #expect(controller.publication.configuration == replacement)
+        #expect(controller.publication.isRefreshing)
 
         await loaderGate.resume(
             result: SpendDashboardLoadResult(

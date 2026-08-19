@@ -2,7 +2,9 @@
 
 ## 0.54.1 — Unreleased
 
-- Fireworks: auto-discover account slugs from API keys and report invalid or ambiguous accounts instead of silently showing no spend (#3068).
+- Fireworks: auto-discover account slugs from API keys and report invalid or ambiguous accounts instead of silently showing no spend (#3068, #3074).
+- Fixed Codex cost catch-up getting stuck when recently touched session files contain only out-of-window usage — processed zero-row files now drain from the pending queue and existing stuck states self-heal (#3071, #3075).
+- Share one immutable spend-source catalog between Overview and Usage & Spend: multi-account Codex identities, per-source states, 365-day inputs, configured calendar/currency, and OpenCodex enrichment without double counting (#3067). Thanks @Chipagosfinest!
 - Fixed `codexbar cost` SIGSEGV on Linux: `Bundle.allBundles` crashes under swift-corelibs-foundation, so test detection now checks the main executable path instead (#3058, #3059). Thanks @Lucenx9!
 - Codex: added a personal-access-token usage source — `personal_access_token` in `auth.json` gets its own PAT strategy (whoami then `/wham/usage`), Auto prefers a usable PAT and falls back to OAuth/CLI, and ambient-home PATs are found when a managed profile would hide them (#3060). Thanks @oakimov!
 - Count every enabled provider in Overview spend instead of only the six displayed cards, and bucket Overview spend with the configured calendar so boundary days match the dashboard (#3063, #3064). Thanks @Chipagosfinest!

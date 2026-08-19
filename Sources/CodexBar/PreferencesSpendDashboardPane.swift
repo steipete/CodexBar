@@ -142,17 +142,11 @@ func spendDashboardModelHistoryPresentation(
 struct SpendDashboardPane: View {
     @Bindable var settings: SettingsStore
     @Bindable var store: UsageStore
-    @State private var controller: SpendDashboardController
     @State private var isVisible = false
 
     init(settings: SettingsStore, store: UsageStore) {
         self.settings = settings
         self.store = store
-        self._controller = State(initialValue: SpendDashboardController(requestBuilder: { mode in
-            await SpendDashboardSource.makeRequest(settings: settings, store: store, mode: mode)
-        }, cachedLoader: { request in
-            await SpendDashboardSource.loadCached(request)
-        }))
     }
 
     var body: some View {
@@ -194,7 +188,6 @@ struct SpendDashboardPane: View {
         }
         .onDisappear {
             self.isVisible = false
-            self.controller.stop()
         }
         .onReceive(NotificationCenter.default.publisher(for: .NSCalendarDayChanged)) { _ in
             self.controller.refreshDateWindow()
@@ -209,6 +202,10 @@ struct SpendDashboardPane: View {
 
     private var configuration: SpendDashboardConfiguration {
         SpendDashboardSource.configuration(settings: self.settings, store: self.store)
+    }
+
+    private var controller: SpendDashboardController {
+        self.store.sharedSpendDashboardController()
     }
 
     private var header: some View {

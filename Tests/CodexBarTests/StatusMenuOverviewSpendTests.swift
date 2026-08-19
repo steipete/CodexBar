@@ -66,6 +66,163 @@ extension StatusMenuTests {
     }
 
     @Test
+    func `shared overview keeps Codex local ledger when global cost tracking is off`() async {
+        let settings = self.makeSettings()
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.costUsageEnabled = false
+        settings.codexLocalSessionCostLedgerEnabled = true
+        for provider in UsageProvider.allCases {
+            guard let metadata = ProviderRegistry.shared.metadata[provider] else { continue }
+            settings.setProviderEnabled(provider: provider, metadata: metadata, enabled: provider == .codex)
+        }
+        let store = self.makeCodexStore(settings: settings, dashboardAuthorized: false)
+        let now = Date(timeIntervalSince1970: 1_787_079_600)
+        let configuration = SpendDashboardSource.configuration(settings: settings, store: store)
+        let request = await SpendDashboardSource.makeRequest(
+            settings: settings,
+            store: store,
+            mode: .captureOnly,
+            now: now)
+        let input = SpendDashboardModel.ProviderInput(
+            id: "codex:local",
+            provider: .codex,
+            displayName: "Codex",
+            snapshot: CostUsageTokenSnapshot(
+                sessionTokens: 10,
+                sessionCostUSD: 4,
+                last30DaysTokens: 10,
+                last30DaysCostUSD: 4,
+                daily: [
+                    CostUsageDailyReport.Entry(
+                        date: "2026-08-17",
+                        inputTokens: 5,
+                        outputTokens: 5,
+                        totalTokens: 10,
+                        costUSD: 4,
+                        modelsUsed: nil,
+                        modelBreakdowns: nil),
+                ],
+                updatedAt: now))
+        store.spendDashboardPublication = SpendDashboardPublication(
+            revision: 1,
+            generation: 1,
+            configuration: configuration,
+            loadedAt: now,
+            isRefreshing: false,
+            inputs: [input],
+            sources: [
+                SpendSourcePublication(
+                    id: input.id,
+                    provider: .codex,
+                    displayName: input.displayName,
+                    role: .subscription,
+                    state: .available),
+            ])
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: UsageFetcher().loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: self.makeStatusBarForTesting())
+        defer { controller.releaseStatusItemsForTesting() }
+
+        #expect(configuration.costUsageEnabled)
+        #expect(configuration.providerIDs == [UsageProvider.codex.rawValue])
+        #expect(request.configuration.costUsageEnabled)
+        #expect(request.configuration.providerIDs == [UsageProvider.codex.rawValue])
+        #expect(controller.overviewSpendDashboardModel(providers: [.codex], now: now).groups.first?.totalCost == 4)
+    }
+
+    @Test
+    func `overview consumes shared publication without starting a loader`() {
+        let settings = self.makeSettings()
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.costUsageEnabled = true
+        let providers: [UsageProvider] = [.codex, .claude]
+        for provider in UsageProvider.allCases {
+            guard let metadata = ProviderRegistry.shared.metadata[provider] else { continue }
+            settings.setProviderEnabled(provider: provider, metadata: metadata, enabled: providers.contains(provider))
+        }
+        let store = self.makeCodexStore(settings: settings, dashboardAuthorized: false)
+        let now = Date(timeIntervalSince1970: 1_787_079_600)
+        func input(id: String, provider: UsageProvider, cost: Double) -> SpendDashboardModel.ProviderInput {
+            SpendDashboardModel.ProviderInput(
+                id: id,
+                provider: provider,
+                displayName: id,
+                snapshot: CostUsageTokenSnapshot(
+                    sessionTokens: nil,
+                    sessionCostUSD: nil,
+                    last30DaysTokens: 10,
+                    last30DaysCostUSD: cost,
+                    daily: [
+                        CostUsageDailyReport.Entry(
+                            date: "2026-08-17",
+                            inputTokens: 5,
+                            outputTokens: 5,
+                            totalTokens: 10,
+                            costUSD: cost,
+                            modelsUsed: nil,
+                            modelBreakdowns: nil),
+                    ],
+                    updatedAt: now))
+        }
+        let inputs = [
+            input(id: "codex:first", provider: .codex, cost: 2),
+            input(id: "codex:second", provider: .codex, cost: 3),
+            input(id: "claude", provider: .claude, cost: 7),
+        ]
+        let configuration = SpendDashboardConfiguration(
+            costUsageEnabled: true,
+            providerIDs: providers.map(\.rawValue),
+            codexAccountIdentities: ["first|cache-a", "second|cache-b"],
+            menuOwnershipFingerprint: SpendDashboardSource.currentMenuOwnershipFingerprint(
+                settings: settings,
+                store: store))
+        store.spendDashboardPublication = SpendDashboardPublication(
+            revision: 1,
+            generation: 1,
+            configuration: configuration,
+            loadedAt: now,
+            isRefreshing: false,
+            inputs: inputs,
+            sources: inputs.map {
+                SpendSourcePublication(
+                    id: $0.id,
+                    provider: $0.provider,
+                    displayName: $0.displayName,
+                    role: .subscription,
+                    state: .available)
+            })
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: UsageFetcher().loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: self.makeStatusBarForTesting())
+        defer { controller.releaseStatusItemsForTesting() }
+
+        #expect(store.sharedSpendDashboardControllerStorage == nil)
+        let model = controller.overviewSpendDashboardModel(providers: providers, now: now)
+        #expect(store.sharedSpendDashboardControllerStorage == nil)
+        #expect(Set(model.groups.flatMap(\.providers).map(\.id)) == ["codex:first", "codex:second", "claude"])
+        #expect(model.groups.first?.totalCost == 12)
+        #expect(controller.overviewSpendSubscriptionCount(providers: providers) == 3)
+
+        guard let claudeMetadata = ProviderRegistry.shared.metadata[.claude] else {
+            Issue.record("Claude metadata missing")
+            return
+        }
+        settings.setProviderEnabled(provider: .claude, metadata: claudeMetadata, enabled: false)
+        let staleOwnerModel = controller.overviewSpendDashboardModel(providers: providers, now: now)
+        #expect(staleOwnerModel.groups.isEmpty)
+    }
+
+    @Test
     func `overview accounts for all six selected providers while summing only available spend`() {
         let settings = self.makeSettings()
         settings.statusChecksEnabled = false

@@ -41,6 +41,7 @@ extension StatusItemController {
             size: self.settings.menuBarLayoutSize,
             highContrast: self.shouldUseHighContrastStatusItemContent,
             showUsed: self.settings.usageBarsShowUsed,
+            conditionals: self.settings.menuBarLayoutConditionals,
             appearanceName: appearanceName,
             isDebugApp: Self.isDebugApp(bundleIdentifier: Bundle.main.bundleIdentifier),
             isStale: self.store.isStale(provider: provider),

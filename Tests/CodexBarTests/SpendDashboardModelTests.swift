@@ -836,6 +836,14 @@ struct SpendDashboardModelTests {
             index: 1,
             count: 2))
         #expect(changedRequest.cacheIdentity != request.cacheIdentity)
+        let rebucketedRequest = try #require(SpendDashboardSource.codexRequest(
+            account: account,
+            homePath: request.homePath,
+            providerName: "Codex",
+            index: 1,
+            count: 2,
+            bucketTimeZoneIdentifier: "Pacific/Kiritimati"))
+        #expect(rebucketedRequest.cacheIdentity != request.cacheIdentity)
 
         let authData = Data("{\"tokens\":\"synthetic\"}".utf8)
         try authData.write(to: CodexAuthFingerprint.authFileURL(homePath: home.path))

@@ -537,6 +537,7 @@ extension SettingsStore {
         let multiAccountMenuLayoutRaw = Self.loadMultiAccountMenuLayoutRaw(userDefaults: userDefaults)
         let resolvedPreferences = Self.loadMenuBarMetricPreferences(userDefaults: userDefaults)
         let storedMenuBarLayout = Self.loadMenuBarLayout(userDefaults: userDefaults)
+        let menuBarLayoutConditionals = Self.loadMenuBarLayoutConditionals(userDefaults: userDefaults)
         let menuBarLayoutOverridesRaw = Self.loadMenuBarLayoutOverrides(userDefaults: userDefaults)
         let menuBarLayoutSizeRaw = userDefaults.string(forKey: "menuBarLayoutSize")
             ?? MenuBarLayoutSize.regular.rawValue
@@ -681,6 +682,7 @@ extension SettingsStore {
             multiAccountMenuLayoutRaw: multiAccountMenuLayoutRaw,
             menuBarMetricPreferencesRaw: resolvedPreferences,
             storedMenuBarLayout: storedMenuBarLayout,
+            menuBarLayoutConditionals: menuBarLayoutConditionals,
             menuBarLayoutOverridesRaw: menuBarLayoutOverridesRaw,
             menuBarLayoutSizeRaw: menuBarLayoutSizeRaw,
             menuBarLayoutGapRaw: menuBarLayoutGapRaw,
@@ -870,6 +872,15 @@ extension SettingsStore {
             current: self.decodeMenuBarLayout(userDefaults.data(forKey: MenuBarLayoutUserDefaultsKey.layoutCurrent)),
             legacy: self.decodeMenuBarLayout(userDefaults.data(forKey: MenuBarLayoutUserDefaultsKey.layout)),
             into: userDefaults)
+    }
+
+    private static func loadMenuBarLayoutConditionals(userDefaults: UserDefaults) -> [MenuBarLayoutConditional] {
+        // A missing key means a fresh install, so hand back the shipped library. Any edit, add, or
+        // removal writes the key, so a library the user deliberately emptied is never reseeded.
+        guard let data = userDefaults.data(forKey: "menuBarLayoutConditionals") else {
+            return MenuBarLayoutConditional.shippedLibrary()
+        }
+        return (try? JSONDecoder().decode([MenuBarLayoutConditional].self, from: data)) ?? []
     }
 
     private static func loadMenuBarLayoutOverrides(userDefaults: UserDefaults) -> [String: MenuBarLayout] {

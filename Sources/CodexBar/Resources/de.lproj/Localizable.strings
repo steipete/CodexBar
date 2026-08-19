@@ -561,7 +561,7 @@
 "tab_menu_bar" = "Menüleiste";
 "tab_menu" = "Menü";
 "tab_advanced" = "Fortschrittlich";
-"tab_about" = "Um";
+"tab_about" = "Über";
 "tab_debug" = "Debuggen";
 
 /* Providers Pane */
@@ -842,7 +842,7 @@
 "Status Page" = "Statusseite";
 "Open Status Page" = "Statusseite öffnen";
 "Settings..." = "Einstellungen...";
-"About CodexBar" = "About CodexBar";
+"About CodexBar" = "Über CodexBar";
 "Quit" = "Beenden";
 "Last %d day" = "Letzter %d Tag";
 "Last %d days" = "Letzte %d Tage";
@@ -1495,3 +1495,30 @@
 "Copy JSON" = "JSON kopieren";
 "Sources" = "Sources";
 "OpenCodex" = "OpenCodex";
+"menu_bar_layout_token_conditional" = "Bedingt";
+"menu_bar_layout_group_conditionals" = "Bedingungen";
+"menu_bar_layout_conditional_add" = "Neue Bedingung";
+"menu_bar_layout_conditional_edit" = "Bedingung bearbeiten";
+"menu_bar_layout_conditional_remove" = "Aus der Bibliothek entfernen";
+"menu_bar_layout_conditional_save" = "Speichern";
+"menu_bar_layout_conditional_if" = "Wenn";
+"menu_bar_layout_conditional_then" = "Dann anzeigen";
+"menu_bar_layout_conditional_else" = "Sonst anzeigen";
+"menu_bar_layout_conditional_and" = "und";
+"menu_bar_layout_conditional_or" = "oder";
+"menu_bar_layout_conditional_add_condition" = "Bedingung hinzufügen";
+"menu_bar_layout_conditional_none" = "Noch keine Bedingungen";
+"menu_bar_layout_conditional_hide" = "Ausblenden";
+"menu_bar_layout_conditional_name" = "Name";
+"menu_bar_layout_conditional_name_placeholder" = "z. B. Sitzungsprüfung";
+"menu_bar_layout_conditional_name_error" = "Geben Sie einen eindeutigen Namen ein";
+"menu_bar_layout_conditional_duplicate" = "Duplizieren";
+"menu_bar_layout_conditional_summary" = "Wenn %1$@ dann %2$@ sonst %3$@";
+"menu_bar_layout_conditional_copy_name" = "%@ (Kopie)";
+"menu_bar_layout_conditional_copy_name_numbered" = "%1$@ (Kopie %2$d)";
+"menu_bar_layout_conditional_unavailable" = "Bedingung nicht verfügbar";
+"menu_bar_layout_conditional_default_session_busy" = "Sitzung über 50 % genutzt";
+"menu_bar_layout_conditional_default_weekly_high" = "Woche über 90 % genutzt";
+"menu_bar_layout_conditional_default_session_spent" = "Sitzung fast aufgebraucht";
+"menu_bar_layout_conditional_default_either_high" = "Sitzung oder Woche läuft hoch";
+"menu_bar_layout_conditional_default_scoped_weekly" = "Modellfenster über 60 % genutzt";

@@ -259,6 +259,7 @@ struct StatusItemBalanceDisplayTests {
                     size: .regular,
                     highContrast: false,
                     showUsed: true,
+                    conditionals: [],
                     appearanceName: "aqua",
                     isDebugApp: false,
                     now: Date()))
@@ -1084,6 +1085,7 @@ extension StatusItemBalanceDisplayTests {
                     size: .regular,
                     highContrast: false,
                     showUsed: true,
+                    conditionals: [],
                     appearanceName: "aqua",
                     isDebugApp: false,
                     now: Date()))
@@ -1139,6 +1141,7 @@ extension StatusItemBalanceDisplayTests {
                     size: .regular,
                     highContrast: false,
                     showUsed: true,
+                    conditionals: [],
                     appearanceName: "aqua",
                     isDebugApp: false,
                     now: Date()))

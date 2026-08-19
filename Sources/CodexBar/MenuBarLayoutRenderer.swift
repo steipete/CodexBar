@@ -55,6 +55,7 @@ struct MenuBarLayoutRenderOptions: Hashable {
     let size: MenuBarLayoutSize
     let highContrast: Bool
     let showUsed: Bool
+    let conditionals: [MenuBarLayoutConditional]
     let appearanceName: String
     let isDebugApp: Bool
     /// Whether the provider's latest refresh failed; when true the shown snapshot is stale
@@ -71,6 +72,7 @@ struct MenuBarLayoutRenderOptions: Hashable {
         size: MenuBarLayoutSize,
         highContrast: Bool,
         showUsed: Bool,
+        conditionals: [MenuBarLayoutConditional],
         appearanceName: String,
         isDebugApp: Bool,
         isStale: Bool = false,
@@ -80,6 +82,7 @@ struct MenuBarLayoutRenderOptions: Hashable {
         self.size = size
         self.highContrast = highContrast
         self.showUsed = showUsed
+        self.conditionals = conditionals
         self.appearanceName = appearanceName
         self.isDebugApp = isDebugApp
         self.isStale = isStale
@@ -94,6 +97,7 @@ struct MenuBarLayoutRenderKey: Hashable {
     let size: MenuBarLayoutSize
     let highContrast: Bool
     let showUsed: Bool
+    let conditionals: [MenuBarLayoutConditional]
     let appearanceName: String
     let isDebugApp: Bool
     let isStale: Bool
@@ -193,6 +197,7 @@ final class MenuBarLayoutRenderer {
             size: options.size,
             highContrast: options.highContrast,
             showUsed: options.showUsed,
+            conditionals: options.conditionals,
             appearanceName: options.appearanceName,
             isDebugApp: options.isDebugApp,
             isStale: options.isStale,
@@ -214,7 +219,21 @@ final class MenuBarLayoutRenderer {
         options: MenuBarLayoutRenderOptions)
         -> MenuBarLayoutRenderedTitle
     {
-        let isStacked = layout.lines.count == 2
+        let conditionalsByID = Dictionary(
+            options.conditionals.map { ($0.id, $0) },
+            uniquingKeysWith: { first, _ in first })
+
+        // Pre-resolve conditionals so .hidden branches vanish and adjacent-space checks see
+        // only the tokens that will actually render. A line left with nothing to render is dropped
+        // entirely: keeping it would emit a stray newline, hold the title in stacked typography,
+        // and announce a blank line to VoiceOver.
+        let renderedLines = layout.lines
+            .map { line in
+                line.compactMap { Self.resolvedDisplayToken($0, data: data, conditionals: conditionalsByID) }
+            }
+            .filter { !$0.isEmpty }
+
+        let isStacked = renderedLines.count == 2
         let font = NSFont.systemFont(ofSize: Self.fontSize(size: options.size, isStacked: isStacked))
         let foregroundColor = if options.highContrast {
             NSColor.labelColor
@@ -240,6 +259,7 @@ final class MenuBarLayoutRenderer {
         attributes[.baselineOffset] = baseBaselineOffset + CGFloat(options.verticalAdjustment)
         let result = NSMutableAttributedString()
         var accessibilityLines: [String] = []
+
         // Only surface a leading icon via `button.image` when an actual image is available and the
         // high-contrast contract does not require the icon to stay inside the attributed title.
         // AppKit dims `button.image` on inactive displays, but high-contrast layouts keep icon + text
@@ -247,18 +267,18 @@ final class MenuBarLayoutRenderer {
         // missing icon the token still renders its placeholder inside the title.
         let leadingIcon: NSImage? = if options.highContrast {
             nil
-        } else if layout.lines.first?.first == .icon, icon != nil {
+        } else if renderedLines.first?.first == .icon, icon != nil {
             icon.map { Self.offsetLeadingIcon($0, adjustment: options.verticalAdjustment) }
         } else {
             nil
         }
 
-        for (lineIndex, line) in layout.lines.enumerated() {
+        for (lineIndex, renderedLine) in renderedLines.enumerated() {
             if lineIndex > 0 {
                 result.append(NSAttributedString(string: "\n", attributes: attributes))
             }
             var accessibilityParts: [String] = []
-            for (tokenIndex, token) in line.enumerated() {
+            for (tokenIndex, token) in renderedLine.enumerated() {
                 // The leading icon is surfaced as `button.image` so AppKit applies the system's
                 // active/inactive display tinting; it is not repeated inside the attributed title,
                 // but its accessibility description must survive for VoiceOver.
@@ -266,7 +286,7 @@ final class MenuBarLayoutRenderer {
                     accessibilityParts.append(Self.iconAccessibilityText(data: data))
                     continue
                 }
-                if tokenIndex > 0, token != .space, line[tokenIndex - 1] != .space {
+                if tokenIndex > 0, token != .space, renderedLine[tokenIndex - 1] != .space {
                     result.append(NSAttributedString(string: "\u{2009}", attributes: attributes))
                 }
                 let renderedItem = Self.renderItem(
@@ -289,7 +309,12 @@ final class MenuBarLayoutRenderer {
 
         if options.isDebugApp {
             result.append(NSAttributedString(string: " D", attributes: attributes))
-            accessibilityLines[accessibilityLines.count - 1].append(", \(L("Debug"))")
+            // Every line can collapse when a conditional hides the only token in the layout.
+            if accessibilityLines.isEmpty {
+                accessibilityLines.append(L("Debug"))
+            } else {
+                accessibilityLines[accessibilityLines.count - 1].append(", \(L("Debug"))")
+            }
         }
         let accessibilityLabel = accessibilityLines.enumerated().map { index, line in
             index == 0 ? line : "\(L("menu_bar_layout_line", index + 1)), \(line)"
@@ -298,6 +323,27 @@ final class MenuBarLayoutRenderer {
             attributedTitle: result,
             accessibilityLabel: accessibilityLabel,
             leadingIcon: leadingIcon)
+    }
+
+    /// nil == resolved to .hidden (render nothing, no separator). A returned .conditional
+    /// means the id is dangling or the depth cap was hit; renderItem shows the placeholder.
+    private static func resolvedDisplayToken(
+        _ token: MenuBarLayoutToken,
+        data: MenuBarLayoutRenderData,
+        conditionals: [UUID: MenuBarLayoutConditional],
+        depth: Int = 0)
+        -> MenuBarLayoutToken?
+    {
+        switch token {
+        case .hidden: return nil
+        case let .conditional(id):
+            guard depth < MenuBarLayoutToken.maxConditionalDepth,
+                  let conditional = conditionals[id]
+            else { return token }
+            let branch = conditional.evaluatesTrue(data: data) ? conditional.thenToken : conditional.elseToken
+            return self.resolvedDisplayToken(branch, data: data, conditionals: conditionals, depth: depth + 1)
+        default: return token
+        }
     }
 
     private static func renderItem(
@@ -338,34 +384,7 @@ final class MenuBarLayoutRenderer {
             value.addAttributes(style.attributes, range: NSRange(location: 0, length: value.length))
             return (value, Self.iconAccessibilityText(data: data))
         case let .percent(window):
-            let rateWindow = Self.window(window, data: data)
-            let resolvedValue = Self.percentValue(
-                window: window,
-                rateWindow: rateWindow,
-                automaticText: data.automaticText,
-                showUsed: options.showUsed)
-            let prefix: String
-            let accessibilityPrefix: String
-            switch window {
-            case .session:
-                prefix = Self.sessionPrefix(rateWindow)
-                accessibilityPrefix = L("Session")
-            case .weekly:
-                let secondaryLabel = Self.secondaryLabel(data: data)
-                prefix = secondaryLabel.flatMap(\.first).map { String($0).uppercased() } ?? "W"
-                accessibilityPrefix = secondaryLabel ?? L("Weekly")
-            case .scopedWeekly:
-                prefix = data.scopedWeeklyTitle.map { String($0.prefix(1)).uppercased() } ?? "F"
-                accessibilityPrefix = data.scopedWeeklyTitle ?? L("Scoped weekly")
-            case .automatic:
-                prefix = ""
-                accessibilityPrefix = L("Usage")
-            }
-            let display = prefix.isEmpty ? resolvedValue.text : "\(prefix) \(resolvedValue.text)"
-            let accessibility = resolvedValue.isAvailable
-                ? L("%@ %@", accessibilityPrefix, resolvedValue.text)
-                : L("%@ unavailable", accessibilityPrefix)
-            return self.textToken(display, accessibilityText: accessibility, attributes: style.attributes)
+            return self.renderPercent(window, data: data, style: style, options: options)
         case let .pace(window):
             let accessibilityPrefix = Self.paceAccessibilityPrefix(window, data: data)
             return self.optionalTextToken(
@@ -425,9 +444,54 @@ final class MenuBarLayoutRenderer {
             return self.textToken("·", accessibilityText: nil, attributes: style.attributes)
         case .space:
             return self.textToken(" ", accessibilityText: nil, attributes: style.attributes)
+        case .hidden:
+            return self.textToken("", accessibilityText: nil, attributes: style.attributes)
+        case .conditional:
+            // Reachable only for dangling id or depth cap; the resolver already expanded known conditionals.
+            return self.textToken(
+                self.missingValue,
+                accessibilityText: L("menu_bar_layout_conditional_unavailable"),
+                attributes: style.attributes)
         case .providerName, .accountLabel, .lanePercent:
             preconditionFailure("Provider text tokens should render before the main switch")
         }
+    }
+
+    private static func renderPercent(
+        _ window: PercentWindow,
+        data: MenuBarLayoutRenderData,
+        style: TokenStyle,
+        options: MenuBarLayoutRenderOptions)
+        -> (value: NSAttributedString, accessibilityText: String?)
+    {
+        let rateWindow = Self.window(window, data: data)
+        let resolvedValue = Self.percentValue(
+            window: window,
+            rateWindow: rateWindow,
+            automaticText: data.automaticText,
+            showUsed: options.showUsed)
+        let prefix: String
+        let accessibilityPrefix: String
+        switch window {
+        case .session:
+            prefix = Self.sessionPrefix(rateWindow)
+            accessibilityPrefix = L("Session")
+        case .weekly:
+            let secondaryLabel = Self.secondaryLabel(data: data)
+            prefix = secondaryLabel.flatMap(\.first).map { String($0).uppercased() } ?? "W"
+            accessibilityPrefix = secondaryLabel ?? L("Weekly")
+        case .scopedWeekly:
+            prefix = data.scopedWeeklyTitle.map { String($0.prefix(1)).uppercased() } ?? "F"
+            accessibilityPrefix = data.scopedWeeklyTitle ?? L("Scoped weekly")
+        case .automatic:
+            prefix = ""
+            accessibilityPrefix = L("Usage")
+        }
+        let display = prefix.isEmpty ? resolvedValue.text : "\(prefix) \(resolvedValue.text)"
+        let accessibility = resolvedValue.isAvailable
+            ? L("%@ %@", accessibilityPrefix, resolvedValue.text)
+            : L("%@ unavailable", accessibilityPrefix)
+        return self.textToken(display, accessibilityText: accessibility, attributes: style.attributes)
     }
 
     private static func iconAccessibilityText(data: MenuBarLayoutRenderData) -> String {
@@ -675,5 +739,35 @@ final class MenuBarLayoutRenderer {
             return size == .small ? 8 : 9
         }
         return size == .small ? 14 : 18
+    }
+}
+
+extension MenuBarLayoutConditional {
+    /// Left-fold over clauses; a predicate on a missing window (nil) evaluates false.
+    func evaluatesTrue(data: MenuBarLayoutRenderData) -> Bool {
+        guard let first = self.clauses.first else { return false }
+        var result = Self.test(first.predicate, data: data)
+        for clause in self.clauses.dropFirst() {
+            let value = Self.test(clause.predicate, data: data)
+            switch clause.combinator {
+            case .or: result = result || value
+            case .and, .none: result = result && value
+            }
+        }
+        return result
+    }
+
+    private static func test(_ predicate: MenuBarConditionalPredicate, data: MenuBarLayoutRenderData) -> Bool {
+        guard let value = Self.value(for: predicate.metric, in: data) else { return false }
+        return predicate.comparison.evaluate(value, predicate.threshold)
+    }
+
+    private static func value(for metric: MenuBarConditionalMetric, in data: MenuBarLayoutRenderData) -> Double? {
+        switch metric {
+        case .session: data.session?.usedPercent
+        case .weekly: data.weekly?.usedPercent
+        case .scopedWeekly: data.scopedWeekly?.usedPercent
+        case .automatic: data.automatic?.usedPercent
+        }
     }
 }

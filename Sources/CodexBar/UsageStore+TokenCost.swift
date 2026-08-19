@@ -111,8 +111,7 @@ extension UsageStore {
               publication.scopeSignature == self.tokenSnapshotScopeSignature(for: provider)
         else { return nil }
         return CurrentProviderConfigTokenPublication(
-            snapshot: publication.snapshot,
-            publicationRevision: publication.publicationRevision)
+            snapshot: publication.snapshot, publicationRevision: publication.publicationRevision)
     }
 
     func tokenSnapshotPublicationRevision(for provider: UsageProvider) -> UInt64 {
@@ -136,6 +135,7 @@ extension UsageStore {
             publicationRevision: self.tokenSnapshotPublicationRevision(for: provider),
             providerConfigRevision: self.settings.providerConfigRevision(for: provider),
             scopeSignature: self.tokenSnapshotScopeSignature(for: provider))
+        self.synchronizeSharedSpendDashboardAfterTokenPublication(for: provider)
     }
 
     func installCachedTokenSnapshot(_ snapshot: CostUsageTokenSnapshot, for provider: UsageProvider) {
