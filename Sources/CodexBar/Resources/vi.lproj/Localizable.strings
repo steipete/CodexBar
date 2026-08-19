@@ -1499,4 +1499,10 @@
 "menu_bar_layout_conditional_and" = "và";
 "menu_bar_layout_conditional_or" = "hoặc";
 "menu_bar_layout_conditional_add_condition" = "Thêm điều kiện";
+"menu_bar_layout_conditional_none" = "Chưa có điều kiện nào";
+"menu_bar_layout_conditional_hide" = "Ẩn";
+"menu_bar_layout_conditional_name" = "Tên";
+"menu_bar_layout_conditional_name_placeholder" = "ví dụ: Kiểm tra phiên";
+"menu_bar_layout_conditional_name_error" = "Nhập tên duy nhất";
+"menu_bar_layout_conditional_duplicate" = "Nhân bản";
 "menu_bar_layout_conditional_summary" = "Nếu %1$@ thì %2$@ ngược lại %3$@";

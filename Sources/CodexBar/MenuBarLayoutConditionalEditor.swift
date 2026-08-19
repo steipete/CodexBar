@@ -26,21 +26,53 @@ struct MenuBarLayoutConditionalEditorSheet: View {
 
     let draft: MenuBarLayoutConditionalDraft
     let provider: UsageProvider?
+    let existingNames: Set<String>
     let onSave: (MenuBarLayoutConditionalDraft) -> Void
 
     init(
         draft: MenuBarLayoutConditionalDraft,
         provider: UsageProvider?,
+        existingNames: Set<String>,
         onSave: @escaping (MenuBarLayoutConditionalDraft) -> Void)
     {
         self.draft = draft
         self.provider = provider
+        self.existingNames = existingNames
         self.onSave = onSave
         self._conditional = State(initialValue: draft.conditional)
     }
 
+    private var trimmedName: String {
+        self.conditional.name.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var reservedNames: Set<String> {
+        var names = self.existingNames
+        // The entry's own current name is allowed so an edit can be saved unchanged.
+        names.remove(self.draft.conditional.name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased())
+        return names
+    }
+
+    private var nameIsValid: Bool {
+        !self.trimmedName.isEmpty && !self.reservedNames.contains(self.trimmedName.lowercased())
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(L("menu_bar_layout_conditional_name"))
+                    .font(.caption)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(.secondary)
+                TextField(L("menu_bar_layout_conditional_name_placeholder"), text: self.$conditional.name)
+                    .textFieldStyle(.roundedBorder)
+                if !self.nameIsValid {
+                    Text(L("menu_bar_layout_conditional_name_error"))
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                }
+            }
+
             Text(L("menu_bar_layout_conditional_if"))
                 .font(.caption)
                 .fontWeight(.semibold)
@@ -113,6 +145,11 @@ struct MenuBarLayoutConditionalEditorSheet: View {
                 self.tokenMenu(selection: self.elseBinding)
             }
 
+            Text(self.conditional.editorSummary(provider: self.provider))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(2)
+
             Divider()
 
             HStack {
@@ -128,6 +165,7 @@ struct MenuBarLayoutConditionalEditorSheet: View {
                     self.dismiss()
                 }
                 .keyboardShortcut(.defaultAction)
+                .disabled(!self.nameIsValid)
             }
         }
         .padding(16)
@@ -210,12 +248,19 @@ struct MenuBarLayoutConditionalEditorSheet: View {
         .cost30d,
         .separatorDot,
         .space,
+        .hidden,
     ]
 }
 
 extension MenuBarLayoutConditional {
-    func editorSummary(provider: UsageProvider?) -> String {
-        let condition = self.clauses.enumerated().map { index, clause -> String in
+    /// The chip label: the required name, falling back to a generic label if somehow empty.
+    var displayName: String {
+        let trimmed = self.name.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? L("menu_bar_layout_token_conditional") : trimmed
+    }
+
+    private func conditionTextLines() -> [String] {
+        self.clauses.enumerated().map { index, clause in
             let predicate = "\(clause.predicate.metric.editorLabel) \(clause.predicate.comparison.symbol) "
                 + "\(Int(clause.predicate.threshold.rounded()))%"
             guard index > 0, let combinator = clause.combinator else { return predicate }
@@ -223,7 +268,11 @@ extension MenuBarLayoutConditional {
                 ? L("menu_bar_layout_conditional_and")
                 : L("menu_bar_layout_conditional_or")
             return "\(joiner) \(predicate)"
-        }.joined(separator: " ")
+        }
+    }
+
+    func editorSummary(provider: UsageProvider?) -> String {
+        let condition = self.conditionTextLines().joined(separator: " ")
         return L(
             "menu_bar_layout_conditional_summary",
             condition,

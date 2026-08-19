@@ -1496,4 +1496,10 @@
 "menu_bar_layout_conditional_and" = "y";
 "menu_bar_layout_conditional_or" = "o";
 "menu_bar_layout_conditional_add_condition" = "Añadir condición";
+"menu_bar_layout_conditional_none" = "Aún no hay condiciones";
+"menu_bar_layout_conditional_hide" = "Ocultar";
+"menu_bar_layout_conditional_name" = "Nombre";
+"menu_bar_layout_conditional_name_placeholder" = "p. ej. Comprobación de sesión";
+"menu_bar_layout_conditional_name_error" = "Introduce un nombre único";
+"menu_bar_layout_conditional_duplicate" = "Duplicar";
 "menu_bar_layout_conditional_summary" = "Si %1$@ entonces %2$@ si no %3$@";

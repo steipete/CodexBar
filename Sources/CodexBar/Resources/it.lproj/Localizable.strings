@@ -1501,4 +1501,10 @@
 "menu_bar_layout_conditional_and" = "e";
 "menu_bar_layout_conditional_or" = "o";
 "menu_bar_layout_conditional_add_condition" = "Aggiungi condizione";
+"menu_bar_layout_conditional_none" = "Ancora nessun condizionale";
+"menu_bar_layout_conditional_hide" = "Nascondi";
+"menu_bar_layout_conditional_name" = "Nome";
+"menu_bar_layout_conditional_name_placeholder" = "ad es. Controllo sessione";
+"menu_bar_layout_conditional_name_error" = "Inserisci un nome univoco";
+"menu_bar_layout_conditional_duplicate" = "Duplica";
 "menu_bar_layout_conditional_summary" = "Se %1$@ allora %2$@ altrimenti %3$@";

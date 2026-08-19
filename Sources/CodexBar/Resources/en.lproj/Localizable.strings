@@ -1501,4 +1501,10 @@
 "menu_bar_layout_conditional_and" = "and";
 "menu_bar_layout_conditional_or" = "or";
 "menu_bar_layout_conditional_add_condition" = "Add Condition";
+"menu_bar_layout_conditional_none" = "No conditionals yet";
+"menu_bar_layout_conditional_hide" = "Hide";
+"menu_bar_layout_conditional_duplicate" = "Duplicate";
+"menu_bar_layout_conditional_name" = "Name";
+"menu_bar_layout_conditional_name_placeholder" = "e.g. Session check";
+"menu_bar_layout_conditional_name_error" = "Enter a unique name";
 "menu_bar_layout_conditional_summary" = "If %1$@ then %2$@ else %3$@";

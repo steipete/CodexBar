@@ -316,6 +316,10 @@ struct MenuBarLayoutEditor: View {
             MenuBarLayoutConditionalEditorSheet(
                 draft: draft,
                 provider: self.persistenceProvider,
+                existingNames: Set(
+                    self.settings.menuBarLayoutConditionals.map {
+                        $0.name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+                    }),
                 onSave: self.saveConditionalDraft)
         }
 
@@ -572,61 +576,97 @@ struct MenuBarLayoutEditor: View {
 
     private var conditionalsPalette: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(L("menu_bar_layout_group_conditionals"))
-                .font(.caption)
-                .fontWeight(.semibold)
-                .foregroundStyle(.secondary)
-
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 88), spacing: 6)], alignment: .leading, spacing: 6) {
-                ForEach(
-                    Array(self.settings.menuBarLayoutConditionals.enumerated()),
-                    id: \.offset)
-                { index, conditional in
-                    Button {
-                        self.write(MenuBarLayoutEditorMutations.append(.conditional(conditional), to: self.layout))
-                    } label: {
-                        MenuBarLayoutChipLabel(
-                            title: conditional.editorSummary(provider: self.persistenceProvider),
-                            systemImage: "switch.2",
-                            isSelected: false)
-                    }
-                    .buttonStyle(.plain)
-                    .draggable(MenuBarLayoutDragItem.palette(.conditional(conditional)))
-                    .focusable()
-                    .onKeyPress(keys: [.space, .return], phases: [.down]) { _ in
-                        self.write(MenuBarLayoutEditorMutations.append(.conditional(conditional), to: self.layout))
-                        return .handled
-                    }
-                    .accessibilityLabel(conditional.editorSummary(provider: self.persistenceProvider))
-                    .contextMenu {
-                        Button(L("menu_bar_layout_conditional_edit")) {
-                            self.conditionalDraft = MenuBarLayoutConditionalDraft(
-                                mode: .editLibrary(index),
-                                conditional: conditional)
-                        }
-                        Button(L("menu_bar_layout_conditional_remove"), role: .destructive) {
-                            self.settings.menuBarLayoutConditionals.remove(at: index)
-                        }
-                    }
-                }
-
+            HStack {
+                Text(L("menu_bar_layout_group_conditionals"))
+                    .font(.caption)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(.secondary)
+                Spacer()
                 Button {
                     self.conditionalDraft = MenuBarLayoutConditionalDraft(mode: .create, conditional: .defaultValue)
                 } label: {
-                    MenuBarLayoutChipLabel(
-                        title: L("menu_bar_layout_conditional_add"),
-                        systemImage: "plus.circle",
-                        isSelected: false)
+                    Image(systemName: "plus.circle")
                 }
                 .buttonStyle(.plain)
-                .focusable()
-                .onKeyPress(keys: [.space, .return], phases: [.down]) { _ in
-                    self.conditionalDraft = MenuBarLayoutConditionalDraft(mode: .create, conditional: .defaultValue)
-                    return .handled
-                }
+                .help(L("menu_bar_layout_conditional_add"))
                 .accessibilityLabel(L("menu_bar_layout_conditional_add"))
             }
+
+            if self.settings.menuBarLayoutConditionals.isEmpty {
+                Text(L("menu_bar_layout_conditional_none"))
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+            } else {
+                LazyVGrid(
+                    columns: [GridItem(.adaptive(minimum: 180), spacing: 6)],
+                    alignment: .leading,
+                    spacing: 6)
+                {
+                    ForEach(
+                        Array(self.settings.menuBarLayoutConditionals.enumerated()),
+                        id: \.offset)
+                    { index, conditional in
+                        self.conditionalPaletteChip(index: index, conditional: conditional)
+                    }
+                }
+            }
         }
+    }
+
+    private func conditionalPaletteChip(
+        index: Int,
+        conditional: MenuBarLayoutConditional)
+        -> some View
+    {
+        Button {
+            self.write(MenuBarLayoutEditorMutations.append(.conditional(conditional), to: self.layout))
+        } label: {
+            MenuBarLayoutChipLabel(
+                title: conditional.displayName,
+                systemImage: "switch.2",
+                isSelected: false)
+        }
+        .buttonStyle(.plain)
+        .draggable(MenuBarLayoutDragItem.palette(.conditional(conditional)))
+        .focusable()
+        .onKeyPress(keys: [.space, .return], phases: [.down]) { _ in
+            self.write(MenuBarLayoutEditorMutations.append(.conditional(conditional), to: self.layout))
+            return .handled
+        }
+        .accessibilityLabel(conditional.displayName)
+        .contextMenu {
+            Button(L("menu_bar_layout_conditional_edit")) {
+                self.conditionalDraft = MenuBarLayoutConditionalDraft(
+                    mode: .editLibrary(index),
+                    conditional: conditional)
+            }
+            Button(L("menu_bar_layout_conditional_duplicate")) {
+                self.duplicateConditional(at: index)
+            }
+            Button(L("menu_bar_layout_conditional_remove"), role: .destructive) {
+                self.settings.menuBarLayoutConditionals.remove(at: index)
+            }
+        }
+    }
+
+    private func duplicateConditional(at index: Int) {
+        guard self.settings.menuBarLayoutConditionals.indices.contains(index) else { return }
+        var copy = self.settings.menuBarLayoutConditionals[index]
+        copy.name = self.uniqueConditionalName(for: copy.name)
+        self.settings.menuBarLayoutConditionals.append(copy)
+    }
+
+    private func uniqueConditionalName(for currentName: String) -> String {
+        let existing = Set(self.settings.menuBarLayoutConditionals.map { $0.name.lowercased() })
+        let base = currentName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let stem = base.isEmpty ? L("menu_bar_layout_token_conditional") : base
+        var candidate = "\(stem) (copy)"
+        var n = 2
+        while existing.contains(candidate.lowercased()) {
+            candidate = "\(stem) (copy \(n))"
+            n += 1
+        }
+        return candidate
     }
 
     private var displayOptions: some View {
@@ -978,7 +1018,7 @@ extension MenuBarLayoutGap {
 extension MenuBarLayoutToken {
     func editorLabel(provider: UsageProvider?) -> String {
         if case let .conditional(conditional) = self {
-            return conditional.editorSummary(provider: provider)
+            return conditional.displayName
         }
         if let providerLabel = self.providerEditorLabel(provider: provider) {
             return providerLabel
@@ -1023,6 +1063,7 @@ extension MenuBarLayoutToken {
         case .separatorDot: "·"
         case .space: L("menu_bar_layout_token_space")
         case .conditional: L("menu_bar_layout_token_conditional")
+        case .hidden: L("menu_bar_layout_conditional_hide")
         }
     }
 
@@ -1050,6 +1091,7 @@ extension MenuBarLayoutToken {
         case .separatorDot: "smallcircle.filled.circle"
         case .space: "space"
         case .conditional: "switch.2"
+        case .hidden: "eye.slash"
         }
     }
 }

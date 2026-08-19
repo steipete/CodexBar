@@ -58,12 +58,26 @@ struct MenuBarConditionalClause: Codable, Hashable, Sendable {
 }
 
 struct MenuBarLayoutConditional: Codable, Hashable, Sendable {
+    var name: String
     var clauses: [MenuBarConditionalClause] // 1...4 after normalization
     var thenToken: MenuBarLayoutToken
     var elseToken: MenuBarLayoutToken
 
-    init(clauses: [MenuBarConditionalClause], thenToken: MenuBarLayoutToken, elseToken: MenuBarLayoutToken) {
-        var normalized = clauses.prefix(4).map { clause in
+    init(
+        name: String = "",
+        clauses: [MenuBarConditionalClause],
+        thenToken: MenuBarLayoutToken,
+        elseToken: MenuBarLayoutToken)
+    {
+        self.name = name
+        self.clauses = clauses
+        self.thenToken = thenToken
+        self.elseToken = elseToken
+        self.normalize()
+    }
+
+    private mutating func normalize() {
+        var normalized = self.clauses.prefix(4).map { clause in
             var clause = clause
             clause.predicate.threshold = min(max(clause.predicate.threshold, 0), 100)
             return clause
@@ -75,8 +89,28 @@ struct MenuBarLayoutConditional: Codable, Hashable, Sendable {
         }
         normalized[0].combinator = nil
         self.clauses = Array(normalized)
-        self.thenToken = thenToken
-        self.elseToken = elseToken
+    }
+
+    /// Custom Codable so older persisted conditionals without a `name` still decode (→ "").
+    private enum CodingKeys: String, CodingKey {
+        case name, clauses, thenToken, elseToken
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.name = try container.decodeIfPresent(String.self, forKey: .name) ?? ""
+        self.clauses = try container.decode([MenuBarConditionalClause].self, forKey: .clauses)
+        self.thenToken = try container.decode(MenuBarLayoutToken.self, forKey: .thenToken)
+        self.elseToken = try container.decode(MenuBarLayoutToken.self, forKey: .elseToken)
+        self.normalize()
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(self.name, forKey: .name)
+        try container.encode(self.clauses, forKey: .clauses)
+        try container.encode(self.thenToken, forKey: .thenToken)
+        try container.encode(self.elseToken, forKey: .elseToken)
     }
 
     static let defaultValue = MenuBarLayoutConditional(
@@ -84,7 +118,7 @@ struct MenuBarLayoutConditional: Codable, Hashable, Sendable {
             combinator: nil,
             predicate: MenuBarConditionalPredicate(metric: .session, comparison: .greaterThan, threshold: 0))],
         thenToken: .percent(window: .session),
-        elseToken: .resetCountdown)
+        elseToken: .hidden)
 }
 
 enum MenuBarLayoutToken: Codable, Hashable, Sendable {
@@ -105,6 +139,8 @@ enum MenuBarLayoutToken: Codable, Hashable, Sendable {
     case cost30d
     case separatorDot
     case space
+    /// Renders nothing; used as a conditional branch value to hide output for the other case.
+    case hidden
     indirect case conditional(MenuBarLayoutConditional)
 }
 
@@ -380,6 +416,7 @@ extension MenuBarLayoutToken {
     static let maxConditionalDepth = 8
 
     func appendFlattened(into tokens: inout [MenuBarLayoutToken], depth: Int) {
+        if self == .hidden { return }
         tokens.append(self)
         guard depth < Self.maxConditionalDepth, case let .conditional(conditional) = self else { return }
         conditional.thenToken.appendFlattened(into: &tokens, depth: depth + 1)

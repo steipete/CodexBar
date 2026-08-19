@@ -130,6 +130,48 @@ struct MenuBarLayoutTests {
 
     @Test
     @MainActor
+    func `conditional display name falls back when unnamed then uses its name`() {
+        let unnamed = MenuBarLayoutConditional.defaultValue
+        #expect(!unnamed.displayName.isEmpty)
+
+        let named = MenuBarLayoutConditional(
+            name: "Gate",
+            clauses: [MenuBarConditionalClause(
+                combinator: nil,
+                predicate: MenuBarConditionalPredicate(metric: .session, comparison: .greaterThan, threshold: 30))],
+            thenToken: .percent(window: .automatic),
+            elseToken: .hidden)
+        #expect(named.displayName == "Gate")
+    }
+
+    @Test
+    func `conditional name survives codable round trip and legacy form decodes unnamed`() throws {
+        let named = MenuBarLayoutConditional(
+            name: "  Zeroth Gate ",
+            clauses: [MenuBarConditionalClause(
+                combinator: nil,
+                predicate: MenuBarConditionalPredicate(metric: .session, comparison: .greaterThan, threshold: 30))],
+            thenToken: .percent(window: .automatic),
+            elseToken: .hidden)
+
+        let data = try JSONEncoder().encode(named)
+        let decoded = try JSONDecoder().decode(MenuBarLayoutConditional.self, from: data)
+        #expect(decoded == named)
+        #expect(decoded.name == "  Zeroth Gate ")
+
+        // An older persisted conditional without a `name` key must decode with an empty name.
+        guard var json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            Issue.record("expected a JSON object")
+            return
+        }
+        json.removeValue(forKey: "name")
+        let legacyData = try JSONSerialization.data(withJSONObject: json)
+        let legacy = try JSONDecoder().decode(MenuBarLayoutConditional.self, from: legacyData)
+        #expect(legacy.name.isEmpty)
+    }
+
+    @Test
+    @MainActor
     func `conditionals library and layout persist across reload`() {
         let suite = "MenuBarLayoutTests-conditional-persistence"
         let settings = testSettingsStore(suiteName: suite)

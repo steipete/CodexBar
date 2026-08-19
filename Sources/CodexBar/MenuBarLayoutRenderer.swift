@@ -396,6 +396,8 @@ final class MenuBarLayoutRenderer {
             return self.textToken("·", accessibilityText: nil, attributes: style.attributes)
         case .space:
             return self.textToken(" ", accessibilityText: nil, attributes: style.attributes)
+        case .hidden:
+            return self.textToken("", accessibilityText: nil, attributes: style.attributes)
         case let .conditional(conditional):
             guard depth < MenuBarLayoutToken.maxConditionalDepth else {
                 return self.textToken(

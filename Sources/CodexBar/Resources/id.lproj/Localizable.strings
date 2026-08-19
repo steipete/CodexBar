@@ -1499,6 +1499,12 @@
 "menu_bar_layout_conditional_then" = "Lalu tampilkan";
 "menu_bar_layout_conditional_else" = "Jika tidak, tampilkan";
 "menu_bar_layout_conditional_and" = "dan";
+"menu_bar_layout_conditional_none" = "Belum ada kondisional";
+"menu_bar_layout_conditional_hide" = "Sembunyikan";
+"menu_bar_layout_conditional_name" = "Nama";
+"menu_bar_layout_conditional_name_placeholder" = "mis. Pemeriksaan sesi";
+"menu_bar_layout_conditional_name_error" = "Masukkan nama yang unik";
+"menu_bar_layout_conditional_duplicate" = "Duplikat";
 "menu_bar_layout_conditional_or" = "atau";
 "menu_bar_layout_conditional_add_condition" = "Tambah Kondisi";
 "menu_bar_layout_conditional_summary" = "Jika %1$@ maka %2$@, jika tidak %3$@";

@@ -1500,6 +1500,12 @@
 "menu_bar_layout_conditional_then" = "سپس نمایش بده";
 "menu_bar_layout_conditional_else" = "در غیر این صورت نمایش بده";
 "menu_bar_layout_conditional_and" = "و";
+"menu_bar_layout_conditional_none" = "هنوز شرطی وجود ندارد";
+"menu_bar_layout_conditional_hide" = "پنهان کن";
+"menu_bar_layout_conditional_name" = "نام";
+"menu_bar_layout_conditional_name_placeholder" = "مثلاً: بررسی جلسه";
+"menu_bar_layout_conditional_name_error" = "نامی منحصربهفرد وارد کنید";
+"menu_bar_layout_conditional_duplicate" = "تکرار";
 "menu_bar_layout_conditional_or" = "یا";
 "menu_bar_layout_conditional_add_condition" = "افزودن شرط";
 "menu_bar_layout_conditional_summary" = "اگر %1$@ سپس %2$@ در غیر این صورت %3$@";

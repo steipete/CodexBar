@@ -1497,4 +1497,10 @@
 "menu_bar_layout_conditional_and" = "och";
 "menu_bar_layout_conditional_or" = "eller";
 "menu_bar_layout_conditional_add_condition" = "Lägg till villkor";
+"menu_bar_layout_conditional_none" = "Inga villkor ännu";
+"menu_bar_layout_conditional_hide" = "Dölj";
+"menu_bar_layout_conditional_name" = "Namn";
+"menu_bar_layout_conditional_name_placeholder" = "t.ex. Sessionskontroll";
+"menu_bar_layout_conditional_name_error" = "Ange ett unikt namn";
+"menu_bar_layout_conditional_duplicate" = "Duplicera";
 "menu_bar_layout_conditional_summary" = "Om %1$@ visa %2$@ annars %3$@";

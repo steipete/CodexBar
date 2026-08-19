@@ -1496,6 +1496,12 @@
 "menu_bar_layout_conditional_then" = "表示";
 "menu_bar_layout_conditional_else" = "それ以外は表示";
 "menu_bar_layout_conditional_and" = "かつ";
+"menu_bar_layout_conditional_none" = "条件はまだありません";
+"menu_bar_layout_conditional_hide" = "非表示";
+"menu_bar_layout_conditional_name" = "名前";
+"menu_bar_layout_conditional_name_placeholder" = "例：セッションチェック";
+"menu_bar_layout_conditional_name_error" = "一意の名前を入力してください";
+"menu_bar_layout_conditional_duplicate" = "複製";
 "menu_bar_layout_conditional_or" = "または";
 "menu_bar_layout_conditional_add_condition" = "条件を追加";
 "menu_bar_layout_conditional_summary" = "もし %1$@ なら %2$@ を表示し、それ以外は %3$@ を表示";

@@ -1529,4 +1529,10 @@
 "menu_bar_layout_conditional_and" = "和";
 "menu_bar_layout_conditional_or" = "或";
 "menu_bar_layout_conditional_add_condition" = "新增條件";
+"menu_bar_layout_conditional_none" = "暫無條件";
+"menu_bar_layout_conditional_hide" = "隱藏";
+"menu_bar_layout_conditional_name" = "名稱";
+"menu_bar_layout_conditional_name_placeholder" = "例如：工作階段檢查";
+"menu_bar_layout_conditional_name_error" = "請輸入唯一名稱";
+"menu_bar_layout_conditional_duplicate" = "複製";
 "menu_bar_layout_conditional_summary" = "如果 %1$@ 則 %2$@ 否則 %3$@";
