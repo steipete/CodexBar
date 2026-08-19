@@ -254,11 +254,22 @@ struct CodexPATTests {
     }
 
     @Test
-    func `PAT ignores managed and fail-closed CODEX_HOME when loading credentials`() {
+    func `PAT ignores managed and fail-closed CODEX_HOME when loading credentials`() throws {
         let failClosed = "/Users/test/Library/Application Support/CodexBar/managed-store-unreadable"
         let managedHome =
             "/Users/test/Library/Application Support/CodexBar/managed-codex-homes/00000000-0000-0000-0000-000000000001"
-        let tempHome = "/tmp/codexbar-pat-usage-test"
+        let profileHome = FileManager.default.temporaryDirectory
+            .appendingPathComponent("codex-pat-profile-\(UUID().uuidString)", isDirectory: true)
+        let profileWithPAT = FileManager.default.temporaryDirectory
+            .appendingPathComponent("codex-pat-profile-with-pat-\(UUID().uuidString)", isDirectory: true)
+        defer {
+            try? FileManager.default.removeItem(at: profileHome)
+            try? FileManager.default.removeItem(at: profileWithPAT)
+        }
+        try FileManager.default.createDirectory(at: profileHome, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: profileWithPAT, withIntermediateDirectories: true)
+        try Data(#"{"personal_access_token":"at-profile"}"#.utf8)
+            .write(to: profileWithPAT.appendingPathComponent("auth.json"))
 
         #expect(
             CodexPATFetchStrategy._credentialEnvironmentForTesting([
@@ -271,28 +282,45 @@ struct CodexPATTests {
                 "CODEX_HOME",
             ] == nil)
         #expect(
-            CodexPATFetchStrategy._credentialEnvironmentForTesting(["CODEX_HOME": tempHome])["CODEX_HOME"]
-                == tempHome)
+            CodexPATFetchStrategy._credentialEnvironmentForTesting(["CODEX_HOME": profileHome.path])[
+                "CODEX_HOME",
+            ] == nil)
+        #expect(
+            CodexPATFetchStrategy._credentialEnvironmentForTesting(["CODEX_HOME": profileWithPAT.path])[
+                "CODEX_HOME",
+            ] == profileWithPAT.path)
         #expect(CodexPATFetchStrategy._credentialEnvironmentForTesting([:])["CODEX_HOME"] == nil)
     }
 
     @Test
-    func `PAT strategy does not fall back to OAuth`() {
+    func `explicit PAT source does not fall back, Auto does after an unusable PAT`() {
         let strategy = CodexPATFetchStrategy()
         let browserDetection = BrowserDetection(cacheTTL: 0)
-        let context = ProviderFetchContext(
-            runtime: .app,
-            sourceMode: .auto,
-            includeCredits: true,
-            webTimeout: 60,
-            webDebugDumpHTML: false,
-            verbose: false,
-            env: [:],
-            settings: nil,
-            fetcher: UsageFetcher(),
-            claudeFetcher: ClaudeUsageFetcher(browserDetection: browserDetection),
-            browserDetection: browserDetection)
-        #expect(!strategy.shouldFallback(on: CodexOAuthFetchError.unauthorized, context: context))
-        #expect(!strategy.shouldFallback(on: CodexOAuthFetchError.invalidResponse, context: context))
+        func context(sourceMode: ProviderSourceMode) -> ProviderFetchContext {
+            ProviderFetchContext(
+                runtime: .app,
+                sourceMode: sourceMode,
+                includeCredits: true,
+                webTimeout: 60,
+                webDebugDumpHTML: false,
+                verbose: false,
+                env: [:],
+                settings: nil,
+                fetcher: UsageFetcher(),
+                claudeFetcher: ClaudeUsageFetcher(browserDetection: browserDetection),
+                browserDetection: browserDetection)
+        }
+
+        let explicit = context(sourceMode: .api)
+        #expect(!strategy.shouldFallback(on: CodexOAuthFetchError.unauthorized, context: explicit))
+        #expect(
+            !strategy.shouldFallback(on: CodexOAuthCredentialsError.missingTokens, context: explicit))
+
+        let auto = context(sourceMode: .auto)
+        #expect(strategy.shouldFallback(on: CodexOAuthFetchError.unauthorized, context: auto))
+        #expect(strategy.shouldFallback(on: CodexOAuthCredentialsError.notFound, context: auto))
+        #expect(strategy.shouldFallback(on: CodexOAuthCredentialsError.missingTokens, context: auto))
+        #expect(!strategy.shouldFallback(on: CodexOAuthFetchError.invalidResponse, context: auto))
+        #expect(!strategy.shouldFallback(on: CodexOAuthFetchError.serverError(500, nil), context: auto))
     }
 }

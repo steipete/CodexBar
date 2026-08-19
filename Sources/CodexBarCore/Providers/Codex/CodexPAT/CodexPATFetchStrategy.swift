@@ -21,17 +21,43 @@ struct CodexPATFetchStrategy: ProviderFetchStrategy {
             updatedAt: Date())
     }
 
-    func shouldFallback(on _: Error, context _: ProviderFetchContext) -> Bool {
-        false
+    func shouldFallback(on error: Error, context: ProviderFetchContext) -> Bool {
+        guard context.sourceMode == .auto else { return false }
+        if let fetchError = error as? CodexOAuthFetchError {
+            switch fetchError {
+            case .unauthorized:
+                return true
+            case .invalidResponse, .serverError, .networkError:
+                return false
+            }
+        }
+        if let credentialsError = error as? CodexOAuthCredentialsError {
+            switch credentialsError {
+            case .notFound, .unreadable, .missingTokens:
+                return true
+            case .decodeFailed, .readOnlySource, .nativeRefreshRequired:
+                return false
+            }
+        }
+        return false
     }
 
     /// PAT lives in the Codex CLI auth file. Managed-account `CODEX_HOME` isolation is for OAuth
     /// workspaces and must not hide that token, including the fail-closed dummy home used when a
-    /// persisted managed account no longer exists.
-    private static func credentialEnvironment(_ env: [String: String]) -> [String: String] {
-        guard let home = env["CODEX_HOME"], self.isManagedOrFailClosedCodexHome(home) else {
+    /// persisted managed account no longer exists. Profile homes keep a local PAT when present and
+    /// otherwise fall through to ambient `~/.codex`.
+    static func credentialEnvironment(_ env: [String: String]) -> [String: String] {
+        guard env["CODEX_HOME"] != nil else { return env }
+        if let home = env["CODEX_HOME"], self.isManagedOrFailClosedCodexHome(home) {
+            return self.ambientCredentialEnvironment(env)
+        }
+        if (try? CodexOAuthCredentialsStore.loadPAT(env: env)) != nil {
             return env
         }
+        return self.ambientCredentialEnvironment(env)
+    }
+
+    private static func ambientCredentialEnvironment(_ env: [String: String]) -> [String: String] {
         var ambient = env
         ambient.removeValue(forKey: "CODEX_HOME")
         return ambient

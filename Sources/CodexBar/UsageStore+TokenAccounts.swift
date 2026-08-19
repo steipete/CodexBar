@@ -224,7 +224,7 @@ extension UsageStore {
         case .pat:
             true
         case .auto:
-            (try? CodexOAuthCredentialsStore.loadPAT(env: self.environmentBase)) != nil
+            (try? CodexOAuthCredentialsStore.loadPATResolvingScopedHome(env: self.environmentBase)) != nil
         case .oauth, .cli:
             false
         }
