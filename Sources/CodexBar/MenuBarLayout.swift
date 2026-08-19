@@ -207,6 +207,17 @@ enum MenuBarLayoutToken: Codable, Hashable, Sendable {
         return nil
     }
 
+    /// Tokens added after 0.53.x that an older decoder has no case for at all. `legacyCompatible`
+    /// cannot map them onto an existing case without inventing content, so the layout projection
+    /// drops them instead: an older release then decodes the rest of the layout rather than
+    /// failing the whole blob and losing the user's arrangement.
+    var hasLegacyRepresentation: Bool {
+        switch self {
+        case .conditional, .hidden: false
+        default: true
+        }
+    }
+
     /// Maps `lanePercent` onto tokens a 0.53.x decoder already understands so a downgrade keeps a
     /// layout instead of dropping the whole blob. Direct lanes follow the provider's semantic
     /// windows: Kimi's primary is weekly, so a Kimi override does not swap 7-day and 5-hour.
@@ -310,10 +321,21 @@ struct MenuBarLayout: Codable, Hashable, Sendable {
         Set(self.lines.joined().compactMap(\.selectedLane))
     }
 
+    /// Older-readable projection of this layout. Tokens an older decoder cannot represent are
+    /// dropped rather than mapped; a line left empty by that filtering is dropped too, and a layout
+    /// with nothing left falls back to `defaultLayout` via `MenuBarLayout(lines:)` normalization.
     func legacyCompatible(for provider: UsageProvider? = nil) -> MenuBarLayout {
-        MenuBarLayout(lines: self.lines.map { line in
-            line.map { $0.legacyCompatible(for: provider) }
-        })
+        let projected = self.lines.map { line in
+            line
+                .filter(\.hasLegacyRepresentation)
+                .map { $0.legacyCompatible(for: provider) }
+        }
+        // Keep a trailing empty line only when the layout was already stacked with an empty line,
+        // so an older release does not inherit a blank stacked row created purely by filtering.
+        let compacted = projected.enumerated().filter { index, line in
+            !line.isEmpty || self.lines[index].isEmpty
+        }.map(\.element)
+        return MenuBarLayout(lines: compacted)
     }
 }
 

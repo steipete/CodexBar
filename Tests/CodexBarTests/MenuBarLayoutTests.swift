@@ -371,6 +371,37 @@ struct MenuBarLayoutTests {
     }
 
     @Test
+    func `conditional and hidden tokens drop out of the older-readable projection`() {
+        let conditional = MenuBarLayoutConditional(
+            clauses: [MenuBarConditionalClause(
+                combinator: nil,
+                predicate: MenuBarConditionalPredicate(metric: .session, comparison: .greaterThan, threshold: 30))],
+            thenToken: .percent(window: .session),
+            elseToken: .hidden)
+
+        // A 0.53.x decoder has no case for these tokens, so the projection must not contain them;
+        // the surrounding arrangement has to survive.
+        let mixed = MenuBarLayout(lines: [[
+            .icon,
+            .conditional(id: conditional.id),
+            .percent(window: .session),
+            .hidden,
+        ]])
+        #expect(mixed.legacyCompatible() == MenuBarLayout(lines: [[.icon, .percent(window: .session)]]))
+
+        // A line emptied purely by filtering must not survive as a blank stacked row.
+        let stacked = MenuBarLayout(lines: [
+            [.icon, .percent(window: .weekly)],
+            [.conditional(id: conditional.id)],
+        ])
+        #expect(stacked.legacyCompatible() == MenuBarLayout(lines: [[.icon, .percent(window: .weekly)]]))
+
+        // Nothing left to project falls back to the default layout rather than an empty title.
+        let conditionalOnly = MenuBarLayout(lines: [[.conditional(id: conditional.id)]])
+        #expect(conditionalOnly.legacyCompatible() == .defaultLayout)
+    }
+
+    @Test
     func `legacy layout JSON without lanePercent cannot decode current lane tokens`() throws {
         let current = try JSONEncoder().encode(MenuBarLayout(lines: [[
             .icon,
@@ -725,6 +756,51 @@ struct MenuBarLayoutTests {
         #expect(reloaded.menuBarLayout == global)
         #expect(reloaded.menuBarLayoutOverrides[.cursor] == cursor)
         #expect(reloaded.menuBarLayoutOverrides[.claude] == claude)
+    }
+
+    @Test
+    @MainActor
+    func `conditional layouts dual-write an older-readable fallback`() throws {
+        let settings = testSettingsStore(suiteName: "MenuBarLayoutTests-conditional-downgrade")
+        let conditional = MenuBarLayoutConditional(
+            name: "Gate",
+            clauses: [MenuBarConditionalClause(
+                combinator: nil,
+                predicate: MenuBarConditionalPredicate(metric: .session, comparison: .greaterThan, threshold: 50))],
+            thenToken: .percent(window: .session),
+            elseToken: .hidden)
+        let global = MenuBarLayout(lines: [[.icon, .conditional(id: conditional.id), .percent(window: .automatic)]])
+        let cursor = MenuBarLayout(lines: [[.conditional(id: conditional.id), .percent(window: .weekly)]])
+
+        settings.menuBarLayoutConditionals = [conditional]
+        settings.setMenuBarLayout(global, for: nil)
+        settings.setMenuBarLayout(cursor, for: .cursor)
+
+        let decoder = JSONDecoder()
+        let currentGlobal = try #require(settings.userDefaults.data(forKey: MenuBarLayoutUserDefaultsKey.layoutCurrent))
+        let legacyGlobal = try #require(settings.userDefaults.data(forKey: MenuBarLayoutUserDefaultsKey.layout))
+        let currentOverrides = try #require(
+            settings.userDefaults.data(forKey: MenuBarLayoutUserDefaultsKey.overridesCurrent))
+        let legacyOverrides = try #require(settings.userDefaults.data(forKey: MenuBarLayoutUserDefaultsKey.overrides))
+
+        // The legacy blob must stay decodable by the 0.53.x token surface, minus the new tokens.
+        #expect(try decoder.decode(PreLanePercentMenuBarLayout.self, from: legacyGlobal) == PreLanePercentMenuBarLayout(
+            lines: [[.icon, .percent(window: .automatic)]]))
+        #expect(throws: DecodingError.self) {
+            try decoder.decode(PreLanePercentMenuBarLayout.self, from: currentGlobal)
+        }
+
+        let legacyMap = try decoder.decode([String: PreLanePercentMenuBarLayout].self, from: legacyOverrides)
+        #expect(legacyMap["cursor"] == PreLanePercentMenuBarLayout(lines: [[.percent(window: .weekly)]]))
+        #expect(throws: DecodingError.self) {
+            try decoder.decode([String: PreLanePercentMenuBarLayout].self, from: currentOverrides)
+        }
+
+        // Upgrading again keeps the full-fidelity layout: the dual-write blobs agree.
+        let reloaded = Self.reloadSettingsStore(settings)
+        #expect(reloaded.menuBarLayout == global)
+        #expect(reloaded.menuBarLayoutOverrides[.cursor] == cursor)
+        #expect(reloaded.menuBarLayoutConditionals == [conditional])
     }
 
     @Test
