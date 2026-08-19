@@ -68,6 +68,101 @@ extension StatusMenuTests {
     }
 
     @Test
+    func `overview keeps six visible providers while accounting for all seven connected providers`() throws {
+        self.disableMenuCardsForTesting()
+        let settings = self.makeSettings()
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.mergeIcons = true
+        settings.selectedMenuProvider = .claude
+        settings.mergedMenuLastSelectedWasOverview = true
+        settings.costUsageEnabled = true
+        settings.costSummaryDisplayStyle = .both
+        let connected: [UsageProvider] = [
+            .openai,
+            .claude,
+            .gemini,
+            .antigravity,
+            .openrouter,
+            .grok,
+            .codex,
+        ]
+        for provider in UsageProvider.allCases {
+            guard let metadata = ProviderRegistry.shared.metadata[provider] else { continue }
+            settings.setProviderEnabled(provider: provider, metadata: metadata, enabled: connected.contains(provider))
+        }
+
+        let store = self.makeCodexStore(settings: settings, dashboardAuthorized: false)
+        let enabledRoster = store.enabledFirstPartyProvidersForDisplay()
+        #expect(Set(enabledRoster) == Set(connected))
+        let now = Date()
+        let components = Calendar.current.dateComponents([.year, .month, .day], from: now)
+        let year = try #require(components.year)
+        let month = try #require(components.month)
+        let dayOfMonth = try #require(components.day)
+        let day = String(format: "%04d-%02d-%02d", year, month, dayOfMonth)
+        func snapshot(cost: Double) -> CostUsageTokenSnapshot {
+            CostUsageTokenSnapshot(
+                sessionTokens: nil,
+                sessionCostUSD: nil,
+                last30DaysTokens: 0,
+                last30DaysCostUSD: cost,
+                costProvenance: .vendorMetered,
+                daily: [
+                    CostUsageDailyReport.Entry(
+                        date: day,
+                        inputTokens: 0,
+                        outputTokens: 0,
+                        totalTokens: 0,
+                        requestCount: 1,
+                        costUSD: cost,
+                        modelsUsed: nil,
+                        modelBreakdowns: nil),
+                ],
+                updatedAt: now)
+        }
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: UsageFetcher().loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: self.makeStatusBarForTesting())
+        defer { controller.releaseStatusItemsForTesting() }
+
+        let scopes = controller.overviewProviderScopes(enabledProviders: enabledRoster)
+        let hiddenProvider = try #require(scopes.spend.first { !scopes.visible.contains($0) })
+        let pricedProviders = [scopes.visible[0], scopes.visible[1], hiddenProvider]
+        store._setTokenSnapshotForTesting(snapshot(cost: 35.09), provider: pricedProviders[0])
+        store._setTokenSnapshotForTesting(snapshot(cost: 39.79), provider: pricedProviders[1])
+        store._setTokenSnapshotForTesting(snapshot(cost: 10.12), provider: pricedProviders[2])
+        store._setTokenSnapshotForTesting(snapshot(cost: 1000), provider: .cursor)
+
+        let duplicateScopes = controller.overviewProviderScopes(
+            enabledProviders: enabledRoster + [enabledRoster[0]])
+        let model = controller.overviewSpendDashboardModel(providers: scopes.spend, now: now)
+        let summary = OverviewSpendSummary(model: model, providerCount: scopes.spend.count)
+        let menu = controller.makeMenu()
+        controller.menuWillOpen(menu)
+        defer { controller.menuDidClose(menu) }
+        let ids = menu.items.compactMap { $0.representedObject as? String }
+        let overviewRows = ids.filter { $0.hasPrefix("overviewRow-") }
+
+        #expect(scopes.visible.count == 6)
+        #expect(!scopes.visible.contains(hiddenProvider))
+        #expect(scopes.spend == enabledRoster)
+        #expect(duplicateScopes.spend == enabledRoster)
+        #expect(Set(overviewRows) == Set(scopes.visible.map { "overviewRow-\($0.rawValue)" }))
+        #expect(overviewRows.count == 6)
+        #expect(ids.contains("overviewSpendSummary"))
+        #expect(Set(model.groups.first?.providers.map(\.provider) ?? []) == Set(pricedProviders))
+        #expect(abs((model.groups.first?.totalCost ?? -1) - 85) < 1e-9)
+        #expect(summary.primarySpendText == "~$85.00")
+        #expect(summary.providerCoverageText == "3 of 7 subscriptions have spend")
+        #expect(summary.isPartial)
+    }
+
+    @Test
     func `overview spend follows the inline display preference`() throws {
         for (style, enabled) in [
             (CostSummaryDisplayStyle.inlineSummary, true),
