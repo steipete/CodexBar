@@ -561,7 +561,7 @@
 "tab_menu_bar" = "Menüleiste";
 "tab_menu" = "Menü";
 "tab_advanced" = "Fortschrittlich";
-"tab_about" = "Um";
+"tab_about" = "Über";
 "tab_debug" = "Debuggen";
 
 /* Providers Pane */
@@ -842,7 +842,7 @@
 "Status Page" = "Statusseite";
 "Open Status Page" = "Statusseite öffnen";
 "Settings..." = "Einstellungen...";
-"About CodexBar" = "About CodexBar";
+"About CodexBar" = "Über CodexBar";
 "Quit" = "Beenden";
 "Last %d day" = "Letzter %d Tag";
 "Last %d days" = "Letzte %d Tage";
