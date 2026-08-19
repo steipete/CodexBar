@@ -1508,3 +1508,6 @@
 "menu_bar_layout_conditional_name_placeholder" = "e.g. Session check";
 "menu_bar_layout_conditional_name_error" = "Enter a unique name";
 "menu_bar_layout_conditional_summary" = "If %1$@ then %2$@ else %3$@";
+"menu_bar_layout_conditional_copy_name" = "%@ (copy)";
+"menu_bar_layout_conditional_copy_name_numbered" = "%1$@ (copy %2$d)";
+"menu_bar_layout_conditional_unavailable" = "Conditional unavailable";

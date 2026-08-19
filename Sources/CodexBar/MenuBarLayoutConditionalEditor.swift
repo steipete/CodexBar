@@ -4,10 +4,10 @@ import SwiftUI
 struct MenuBarLayoutConditionalDraft: Identifiable {
     enum Mode: Hashable {
         case create
-        case editLibrary(Int)
-        case editPlaced(MenuBarLayoutPosition)
+        case edit(UUID)
     }
 
+    /// Sheet-presentation identity only, unrelated to `conditional.id`.
     let id: UUID
     let mode: Mode
     var conditional: MenuBarLayoutConditional
@@ -174,26 +174,50 @@ struct MenuBarLayoutConditionalEditorSheet: View {
 
     private func combinatorBinding(_ index: Int) -> Binding<MenuBarConditionalCombinator> {
         Binding(
-            get: { self.conditional.clauses[index].combinator ?? .and },
-            set: { self.conditional.clauses[index].combinator = $0 })
+            get: {
+                guard self.conditional.clauses.indices.contains(index) else { return .and }
+                return self.conditional.clauses[index].combinator ?? .and
+            },
+            set: {
+                guard self.conditional.clauses.indices.contains(index) else { return }
+                self.conditional.clauses[index].combinator = $0
+            })
     }
 
     private func metricBinding(_ index: Int) -> Binding<MenuBarConditionalMetric> {
         Binding(
-            get: { self.conditional.clauses[index].predicate.metric },
-            set: { self.conditional.clauses[index].predicate.metric = $0 })
+            get: {
+                guard self.conditional.clauses.indices.contains(index) else { return .session }
+                return self.conditional.clauses[index].predicate.metric
+            },
+            set: {
+                guard self.conditional.clauses.indices.contains(index) else { return }
+                self.conditional.clauses[index].predicate.metric = $0
+            })
     }
 
     private func comparisonBinding(_ index: Int) -> Binding<MenuBarConditionalComparison> {
         Binding(
-            get: { self.conditional.clauses[index].predicate.comparison },
-            set: { self.conditional.clauses[index].predicate.comparison = $0 })
+            get: {
+                guard self.conditional.clauses.indices.contains(index) else { return .greaterThan }
+                return self.conditional.clauses[index].predicate.comparison
+            },
+            set: {
+                guard self.conditional.clauses.indices.contains(index) else { return }
+                self.conditional.clauses[index].predicate.comparison = $0
+            })
     }
 
     private func thresholdBinding(_ index: Int) -> Binding<Double> {
         Binding(
-            get: { self.conditional.clauses[index].predicate.threshold },
-            set: { self.conditional.clauses[index].predicate.threshold = min(max($0, 0), 100) })
+            get: {
+                guard self.conditional.clauses.indices.contains(index) else { return 0 }
+                return self.conditional.clauses[index].predicate.threshold
+            },
+            set: {
+                guard self.conditional.clauses.indices.contains(index) else { return }
+                self.conditional.clauses[index].predicate.threshold = min(max($0, 0), 100)
+            })
     }
 
     private var thenBinding: Binding<MenuBarLayoutToken> {
@@ -259,25 +283,46 @@ extension MenuBarLayoutConditional {
         return trimmed.isEmpty ? L("menu_bar_layout_token_conditional") : trimmed
     }
 
-    private func conditionTextLines() -> [String] {
-        self.clauses.enumerated().map { index, clause in
-            let predicate = "\(clause.predicate.metric.editorLabel) \(clause.predicate.comparison.symbol) "
-                + "\(Int(clause.predicate.threshold.rounded()))%"
-            guard index > 0, let combinator = clause.combinator else { return predicate }
-            let joiner = combinator == .and
+    /// Produces a summary string reflecting the left-fold AND/OR evaluation order. Mixed
+    /// combinators parenthesize their accumulator so the reading matches `evaluatesTrue`.
+    private func conditionText() -> String {
+        guard let first = self.clauses.first else { return "" }
+        let mixed = Set(self.clauses.dropFirst().compactMap(\.combinator)).count > 1
+        var text = Self.predicateText(first.predicate)
+        for clause in self.clauses.dropFirst() {
+            let joiner = (clause.combinator ?? .and) == .and
                 ? L("menu_bar_layout_conditional_and")
                 : L("menu_bar_layout_conditional_or")
-            return "\(joiner) \(predicate)"
+            let pred = Self.predicateText(clause.predicate)
+            text = mixed ? "(\(text)) \(joiner) \(pred)" : "\(text) \(joiner) \(pred)"
         }
+        return text
+    }
+
+    private static func predicateText(_ predicate: MenuBarConditionalPredicate) -> String {
+        "\(predicate.metric.editorLabel) \(predicate.comparison.symbol) \(Int(predicate.threshold.rounded()))%"
     }
 
     func editorSummary(provider: UsageProvider?) -> String {
-        let condition = self.conditionTextLines().joined(separator: " ")
+        let condition = self.conditionText()
         return L(
             "menu_bar_layout_conditional_summary",
             condition,
             self.thenToken.editorLabel(provider: provider),
             self.elseToken.editorLabel(provider: provider))
+    }
+
+    /// Generates a unique copy name that avoids collisions with existing library entries.
+    static func uniqueCopyName(basedOn name: String, existingNames: Set<String>) -> String {
+        let base = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let stem = base.isEmpty ? L("menu_bar_layout_token_conditional") : base
+        var candidate = L("menu_bar_layout_conditional_copy_name", stem)
+        var n = 2
+        while existingNames.contains(candidate.lowercased()) {
+            candidate = L("menu_bar_layout_conditional_copy_name_numbered", stem, n)
+            n += 1
+        }
+        return candidate
     }
 }
 

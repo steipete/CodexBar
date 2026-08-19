@@ -55,20 +55,6 @@ enum MenuBarLayoutEditorMutations {
         return MenuBarLayout(lines: lines)
     }
 
-    static func replace(
-        at position: MenuBarLayoutPosition,
-        with token: MenuBarLayoutToken,
-        in layout: MenuBarLayout)
-        -> MenuBarLayout
-    {
-        guard layout.lines.indices.contains(position.line),
-              layout.lines[position.line].indices.contains(position.index)
-        else { return layout }
-        var lines = layout.lines
-        lines[position.line][position.index] = token
-        return MenuBarLayout(lines: lines)
-    }
-
     static func insert(
         _ item: MenuBarLayoutDragItem,
         at target: MenuBarLayoutPosition,
@@ -441,7 +427,7 @@ struct MenuBarLayoutEditor: View {
                         self.selectedPosition = position
                     } label: {
                         MenuBarLayoutChipLabel(
-                            title: token.editorLabel(provider: self.persistenceProvider),
+                            title: self.chipTitle(for: token),
                             systemImage: token.editorSystemImage,
                             isSelected: self.selectedPosition == position)
                             .draggable(MenuBarLayoutDragItem.placed(token, at: position, in: self.layout))
@@ -455,12 +441,15 @@ struct MenuBarLayoutEditor: View {
                     .dropDestination(for: MenuBarLayoutDragItem.self) { items, _ in
                         self.insert(items.first, at: position)
                     }
-                    .accessibilityLabel(token.editorAccessibilityLabel(provider: self.persistenceProvider))
+                    .accessibilityLabel(self.chipTitle(for: token))
                     .contextMenu {
-                        if case let .conditional(conditional) = token {
+                        if case let .conditional(id) = token,
+                           let conditional = self.settings.menuBarLayoutConditionals
+                               .first(where: { $0.id == id })
+                        {
                             Button(L("menu_bar_layout_conditional_edit")) {
                                 self.conditionalDraft = MenuBarLayoutConditionalDraft(
-                                    mode: .editPlaced(position),
+                                    mode: .edit(id),
                                     conditional: conditional)
                             }
                         }
@@ -583,7 +572,9 @@ struct MenuBarLayoutEditor: View {
                     .foregroundStyle(.secondary)
                 Spacer()
                 Button {
-                    self.conditionalDraft = MenuBarLayoutConditionalDraft(mode: .create, conditional: .defaultValue)
+                    self.conditionalDraft = MenuBarLayoutConditionalDraft(
+                        mode: .create,
+                        conditional: .makeDefault())
                 } label: {
                     Image(systemName: "plus.circle")
                 }
@@ -597,16 +588,9 @@ struct MenuBarLayoutEditor: View {
                     .font(.caption)
                     .foregroundStyle(.tertiary)
             } else {
-                LazyVGrid(
-                    columns: [GridItem(.adaptive(minimum: 180), spacing: 6)],
-                    alignment: .leading,
-                    spacing: 6)
-                {
-                    ForEach(
-                        Array(self.settings.menuBarLayoutConditionals.enumerated()),
-                        id: \.offset)
-                    { index, conditional in
-                        self.conditionalPaletteChip(index: index, conditional: conditional)
+                HStack(spacing: 6) {
+                    ForEach(self.settings.menuBarLayoutConditionals, id: \.id) { conditional in
+                        self.conditionalPaletteChip(conditional: conditional)
                     }
                 }
             }
@@ -614,12 +598,11 @@ struct MenuBarLayoutEditor: View {
     }
 
     private func conditionalPaletteChip(
-        index: Int,
         conditional: MenuBarLayoutConditional)
         -> some View
     {
         Button {
-            self.write(MenuBarLayoutEditorMutations.append(.conditional(conditional), to: self.layout))
+            self.write(MenuBarLayoutEditorMutations.append(.conditional(id: conditional.id), to: self.layout))
         } label: {
             MenuBarLayoutChipLabel(
                 title: conditional.displayName,
@@ -627,46 +610,39 @@ struct MenuBarLayoutEditor: View {
                 isSelected: false)
         }
         .buttonStyle(.plain)
-        .draggable(MenuBarLayoutDragItem.palette(.conditional(conditional)))
+        .draggable(MenuBarLayoutDragItem.palette(.conditional(id: conditional.id)))
         .focusable()
         .onKeyPress(keys: [.space, .return], phases: [.down]) { _ in
-            self.write(MenuBarLayoutEditorMutations.append(.conditional(conditional), to: self.layout))
+            self.write(MenuBarLayoutEditorMutations.append(.conditional(id: conditional.id), to: self.layout))
             return .handled
         }
         .accessibilityLabel(conditional.displayName)
         .contextMenu {
             Button(L("menu_bar_layout_conditional_edit")) {
                 self.conditionalDraft = MenuBarLayoutConditionalDraft(
-                    mode: .editLibrary(index),
+                    mode: .edit(conditional.id),
                     conditional: conditional)
             }
             Button(L("menu_bar_layout_conditional_duplicate")) {
-                self.duplicateConditional(at: index)
+                self.duplicateConditional(conditional)
             }
             Button(L("menu_bar_layout_conditional_remove"), role: .destructive) {
-                self.settings.menuBarLayoutConditionals.remove(at: index)
+                self.settings.removeMenuBarLayoutConditional(id: conditional.id)
             }
         }
     }
 
-    private func duplicateConditional(at index: Int) {
-        guard self.settings.menuBarLayoutConditionals.indices.contains(index) else { return }
-        var copy = self.settings.menuBarLayoutConditionals[index]
-        copy.name = self.uniqueConditionalName(for: copy.name)
+    private func duplicateConditional(_ conditional: MenuBarLayoutConditional) {
+        let existingNames = Set(self.settings.menuBarLayoutConditionals.map { $0.name.lowercased() })
+        let copyName = MenuBarLayoutConditional.uniqueCopyName(
+            basedOn: conditional.name,
+            existingNames: existingNames)
+        let copy = MenuBarLayoutConditional(
+            name: copyName,
+            clauses: conditional.clauses,
+            thenToken: conditional.thenToken,
+            elseToken: conditional.elseToken)
         self.settings.menuBarLayoutConditionals.append(copy)
-    }
-
-    private func uniqueConditionalName(for currentName: String) -> String {
-        let existing = Set(self.settings.menuBarLayoutConditionals.map { $0.name.lowercased() })
-        let base = currentName.trimmingCharacters(in: .whitespacesAndNewlines)
-        let stem = base.isEmpty ? L("menu_bar_layout_token_conditional") : base
-        var candidate = "\(stem) (copy)"
-        var n = 2
-        while existing.contains(candidate.lowercased()) {
-            candidate = "\(stem) (copy \(n))"
-            n += 1
-        }
-        return candidate
     }
 
     private var displayOptions: some View {
@@ -745,16 +721,20 @@ struct MenuBarLayoutEditor: View {
         switch draft.mode {
         case .create:
             self.settings.menuBarLayoutConditionals.append(draft.conditional)
-        case let .editLibrary(index):
-            guard self.settings.menuBarLayoutConditionals.indices.contains(index) else { return }
+        case let .edit(id):
+            guard let index = self.settings.menuBarLayoutConditionals.firstIndex(where: { $0.id == id })
+            else { return }
             self.settings.menuBarLayoutConditionals[index] = draft.conditional
-        case let .editPlaced(position):
-            self.write(MenuBarLayoutEditorMutations.replace(
-                at: position,
-                with: .conditional(draft.conditional),
-                in: self.layout))
-            self.selectedPosition = nil
         }
+    }
+
+    private func chipTitle(for token: MenuBarLayoutToken) -> String {
+        if case let .conditional(id) = token {
+            return self.settings.menuBarLayoutConditionals
+                .first(where: { $0.id == id })?.displayName
+                ?? L("menu_bar_layout_token_conditional")
+        }
+        return token.editorLabel(provider: self.persistenceProvider)
     }
 
     private func write(_ layout: MenuBarLayout) {
@@ -814,6 +794,7 @@ struct MenuBarLayoutPreview: View {
                 size: self.settings.menuBarLayoutSize,
                 highContrast: self.settings.menuBarHighContrastOnInactiveDisplays,
                 showUsed: self.settings.usageBarsShowUsed,
+                conditionals: self.settings.menuBarLayoutConditionals,
                 appearanceName: "preview",
                 isDebugApp: false,
                 now: minute,
@@ -1017,9 +998,6 @@ extension MenuBarLayoutGap {
 
 extension MenuBarLayoutToken {
     func editorLabel(provider: UsageProvider?) -> String {
-        if case let .conditional(conditional) = self {
-            return conditional.displayName
-        }
         if let providerLabel = self.providerEditorLabel(provider: provider) {
             return providerLabel
         }

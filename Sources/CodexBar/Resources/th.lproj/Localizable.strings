@@ -1509,3 +1509,6 @@
 "menu_bar_layout_conditional_name_error" = "ป้อนชื่อที่ไม่ซ้ำกัน";
 "menu_bar_layout_conditional_duplicate" = "ทำสำเนา";
 "menu_bar_layout_conditional_summary" = "ถ้า %1$@ จากนั้น %2$@ มิฉะนั้น %3$@";
+"menu_bar_layout_conditional_copy_name" = "%@ (สำเนา)";
+"menu_bar_layout_conditional_copy_name_numbered" = "%1$@ (สำเนา %2$d)";
+"menu_bar_layout_conditional_unavailable" = "เงื่อนไขไม่พร้อมใช้งาน";

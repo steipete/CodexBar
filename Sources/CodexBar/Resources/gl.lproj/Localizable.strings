@@ -1504,3 +1504,6 @@
 "menu_bar_layout_conditional_name_error" = "Introduce un nome único";
 "menu_bar_layout_conditional_duplicate" = "Duplicar";
 "menu_bar_layout_conditional_summary" = "Se %1$@ entón %2$@ se non %3$@";
+"menu_bar_layout_conditional_copy_name" = "%@ (copia)";
+"menu_bar_layout_conditional_copy_name_numbered" = "%1$@ (copia %2$d)";
+"menu_bar_layout_conditional_unavailable" = "Condicional non dispoñible";

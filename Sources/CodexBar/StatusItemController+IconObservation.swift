@@ -85,8 +85,9 @@ extension StatusItemController {
     {
         let resolution = self.settings.menuBarLayoutResolution(for: provider)
         guard !resolution.usesLegacyRendering,
-              resolution.layout.flattenedTokens.contains(.accountLabel),
-              let accountLabel = self.menuBarLayoutAccountLabel(provider: provider, snapshot: snapshot)
+              resolution.layout.flattenedTokens(conditionals: self.settings.menuBarLayoutConditionals)
+                  .contains(.accountLabel),
+                  let accountLabel = self.menuBarLayoutAccountLabel(provider: provider, snapshot: snapshot)
         else { return nil }
 
         var hasher = Hasher()
@@ -98,7 +99,7 @@ extension StatusItemController {
         let resolution = self.settings.menuBarLayoutResolution(for: provider)
         guard !resolution.usesLegacyRendering else { return nil }
 
-        let tokens = resolution.layout.flattenedTokens
+        let tokens = resolution.layout.flattenedTokens(conditionals: self.settings.menuBarLayoutConditionals)
         let showsToday = tokens.contains(.costToday)
         let showsLast30Days = tokens.contains(.cost30d)
         guard showsToday || showsLast30Days else { return nil }
@@ -117,7 +118,8 @@ extension StatusItemController {
     {
         let resolution = self.settings.menuBarLayoutResolution(for: provider)
         guard !resolution.usesLegacyRendering,
-              resolution.layout.flattenedTokens.contains(.balance)
+              resolution.layout.flattenedTokens(conditionals: self.settings.menuBarLayoutConditionals)
+                  .contains(.balance)
         else { return nil }
         return MenuBarLayoutBalanceResolver.balance(provider: provider, snapshot: snapshot)
     }
@@ -134,10 +136,12 @@ extension StatusItemController {
         let resolution = self.settings.menuBarLayoutResolution(for: provider)
         guard !resolution.usesLegacyRendering else { return nil }
 
-        let paceWindows = Set(resolution.layout.flattenedTokens.compactMap { token -> PercentWindow? in
-            guard case let .pace(window) = token else { return nil }
-            return window
-        })
+        let paceWindows = Set(resolution.layout
+            .flattenedTokens(conditionals: self.settings.menuBarLayoutConditionals)
+            .compactMap { token -> PercentWindow? in
+                guard case let .pace(window) = token else { return nil }
+                return window
+            })
         guard !paceWindows.isEmpty else { return nil }
 
         let windows = self.menuBarLayoutWindows(provider: provider, snapshot: snapshot, now: Date())

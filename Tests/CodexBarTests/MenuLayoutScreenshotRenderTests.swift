@@ -117,6 +117,7 @@ final class MenuLayoutScreenshotRenderTests: XCTestCase {
                 size: .regular,
                 highContrast: false,
                 showUsed: true,
+                conditionals: [],
                 appearanceName: "proof",
                 isDebugApp: false,
                 now: Self.now))
@@ -210,6 +211,7 @@ final class MenuLayoutScreenshotRenderTests: XCTestCase {
                     size: .regular,
                     highContrast: false,
                     showUsed: true,
+                    conditionals: [],
                     appearanceName: "proof",
                     isDebugApp: false,
                     now: now))

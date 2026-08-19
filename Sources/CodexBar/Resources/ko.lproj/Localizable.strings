@@ -1472,3 +1472,6 @@
 "menu_bar_layout_conditional_name_error" = "고유한 이름을 입력하세요";
 "menu_bar_layout_conditional_duplicate" = "복제";
 "menu_bar_layout_conditional_summary" = "만약 %1$@이면 %2$@을 표시하고, 그렇지 않으면 %3$@을 표시";
+"menu_bar_layout_conditional_copy_name" = "%@ (복사본)";
+"menu_bar_layout_conditional_copy_name_numbered" = "%1$@ (복사본 %2$d)";
+"menu_bar_layout_conditional_unavailable" = "조건을 사용할 수 없음";

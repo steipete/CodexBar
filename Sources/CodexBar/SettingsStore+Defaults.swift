@@ -420,6 +420,20 @@ extension SettingsStore {
         }
     }
 
+    func removeMenuBarLayoutConditional(id: UUID) {
+        self.menuBarLayoutConditionals.removeAll { $0.id == id }
+        if let stored = self.defaultsState.storedMenuBarLayout,
+           let stripped = stored.removingConditional(id: id)
+        {
+            self.menuBarLayout = stripped
+        }
+        for (key, layout) in self.defaultsState.menuBarLayoutOverridesRaw {
+            guard let stripped = layout.removingConditional(id: id) else { continue }
+            self.defaultsState.menuBarLayoutOverridesRaw[key] = stripped
+        }
+        self.persistMenuBarLayoutOverrides()
+    }
+
     var hasStoredMenuBarLayout: Bool {
         self.defaultsState.storedMenuBarLayout != nil
     }

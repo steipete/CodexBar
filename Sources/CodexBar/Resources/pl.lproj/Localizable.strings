@@ -1508,3 +1508,6 @@
 "menu_bar_layout_conditional_or" = "lub";
 "menu_bar_layout_conditional_add_condition" = "Dodaj warunek";
 "menu_bar_layout_conditional_summary" = "Jeśli %1$@, to %2$@, w przeciwnym razie %3$@";
+"menu_bar_layout_conditional_copy_name" = "%@ (kopia)";
+"menu_bar_layout_conditional_copy_name_numbered" = "%1$@ (kopia %2$d)";
+"menu_bar_layout_conditional_unavailable" = "Warunek niedostępny";

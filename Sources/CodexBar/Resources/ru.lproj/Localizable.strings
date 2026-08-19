@@ -1506,3 +1506,6 @@
 "menu_bar_layout_conditional_name_error" = "Введите уникальное название";
 "menu_bar_layout_conditional_duplicate" = "Дублировать";
 "menu_bar_layout_conditional_summary" = "Если %1$@, то показать %2$@, иначе показать %3$@";
+"menu_bar_layout_conditional_copy_name" = "%@ (копия)";
+"menu_bar_layout_conditional_copy_name_numbered" = "%1$@ (копия %2$d)";
+"menu_bar_layout_conditional_unavailable" = "Условие недоступно";

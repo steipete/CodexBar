@@ -60,13 +60,15 @@ struct MenuBarLayoutTests {
                 predicate: MenuBarConditionalPredicate(metric: .session, comparison: .greaterThan, threshold: 0))],
             thenToken: .percent(window: .session),
             elseToken: .resetCountdown)
-        let layout = MenuBarLayout(lines: [[.icon, .conditional(conditional)]])
+        let layout = MenuBarLayout(lines: [[.icon, .conditional(id: conditional.id)]])
 
         let data = try JSONEncoder().encode(layout)
         let decoded = try JSONDecoder().decode(MenuBarLayout.self, from: data)
 
         #expect(decoded == layout)
-        #expect(String(bytes: data, encoding: .utf8)?.contains("conditional") == true)
+        let json = try #require(String(bytes: data, encoding: .utf8))
+        #expect(json.contains("conditional"))
+        #expect(json.contains(conditional.id.uuidString))
     }
 
     @Test
@@ -77,12 +79,12 @@ struct MenuBarLayoutTests {
                 predicate: MenuBarConditionalPredicate(metric: .session, comparison: .greaterThan, threshold: 0))],
             thenToken: .percent(window: .session),
             elseToken: .resetCountdown)
-        let layout = MenuBarLayout(lines: [[.icon, .conditional(conditional)]])
+        let layout = MenuBarLayout(lines: [[.icon, .conditional(id: conditional.id)]])
 
-        let flattened = layout.flattenedTokens
+        let flattened = layout.flattenedTokens(conditionals: [conditional])
 
         #expect(flattened.contains(.icon))
-        #expect(flattened.contains(.conditional(conditional)))
+        #expect(flattened.contains(.conditional(id: conditional.id)))
         #expect(flattened.contains(.percent(window: .session)))
         #expect(flattened.contains(.resetCountdown))
     }
@@ -131,7 +133,7 @@ struct MenuBarLayoutTests {
     @Test
     @MainActor
     func `conditional display name falls back when unnamed then uses its name`() {
-        let unnamed = MenuBarLayoutConditional.defaultValue
+        let unnamed = MenuBarLayoutConditional.makeDefault()
         #expect(!unnamed.displayName.isEmpty)
 
         let named = MenuBarLayoutConditional(
@@ -181,14 +183,98 @@ struct MenuBarLayoutTests {
                 predicate: MenuBarConditionalPredicate(metric: .session, comparison: .greaterThan, threshold: 30))],
             thenToken: .percent(window: .session),
             elseToken: .resetCountdown)
-        let layout = MenuBarLayout(lines: [[.icon, .conditional(conditional)]])
+        let defaultEntry = MenuBarLayoutConditional.makeDefault()
+        let layout = MenuBarLayout(lines: [[.icon, .conditional(id: conditional.id)]])
 
-        settings.menuBarLayoutConditionals = [conditional, .defaultValue]
+        settings.menuBarLayoutConditionals = [conditional, defaultEntry]
         settings.setMenuBarLayout(layout, for: nil)
 
         let reloaded = Self.reloadSettingsStore(settings)
-        #expect(reloaded.menuBarLayoutConditionals == [conditional, .defaultValue])
+        #expect(reloaded.menuBarLayoutConditionals == [conditional, defaultEntry])
         #expect(reloaded.menuBarLayout == layout)
+    }
+
+    @Test
+    func `unique copy name walks numbered suffixes`() {
+        let existing: Set = ["gate (copy)"]
+        #expect(MenuBarLayoutConditional.uniqueCopyName(basedOn: "Gate", existingNames: existing) == "Gate (copy 2)")
+
+        // An empty stem falls back to the generic conditional label rather than a bare suffix.
+        let generic = MenuBarLayoutConditional.uniqueCopyName(basedOn: "   ", existingNames: [])
+        #expect(!generic.isEmpty)
+    }
+
+    @Test
+    func `conditional summary parenthesizes mixed combinators`() {
+        let mixed = MenuBarLayoutConditional(
+            clauses: [
+                MenuBarConditionalClause(
+                    combinator: nil,
+                    predicate: MenuBarConditionalPredicate(metric: .session, comparison: .greaterThan, threshold: 0)),
+                MenuBarConditionalClause(
+                    combinator: .or,
+                    predicate: MenuBarConditionalPredicate(metric: .weekly, comparison: .greaterThan, threshold: 50)),
+                MenuBarConditionalClause(
+                    combinator: .and,
+                    predicate: MenuBarConditionalPredicate(
+                        metric: .automatic,
+                        comparison: .greaterThan,
+                        threshold: 80)),
+            ],
+            thenToken: .percent(window: .session),
+            elseToken: .resetCountdown)
+        #expect(mixed.editorSummary(provider: nil).contains("("))
+
+        let uniform = MenuBarLayoutConditional(
+            clauses: [
+                MenuBarConditionalClause(
+                    combinator: nil,
+                    predicate: MenuBarConditionalPredicate(metric: .session, comparison: .greaterThan, threshold: 0)),
+                MenuBarConditionalClause(
+                    combinator: .and,
+                    predicate: MenuBarConditionalPredicate(metric: .weekly, comparison: .greaterThan, threshold: 50)),
+            ],
+            thenToken: .percent(window: .session),
+            elseToken: .resetCountdown)
+        #expect(!uniform.editorSummary(provider: nil).contains("("))
+    }
+
+    @Test
+    @MainActor
+    func `removing a library conditional strips references everywhere`() {
+        let suite = "MenuBarLayoutTests-removing-conditional"
+        let settings = testSettingsStore(suiteName: suite)
+        let conditional = MenuBarLayoutConditional(
+            id: UUID(),
+            clauses: [MenuBarConditionalClause(
+                combinator: nil,
+                predicate: MenuBarConditionalPredicate(metric: .session, comparison: .greaterThan, threshold: 30))],
+            thenToken: .percent(window: .session),
+            elseToken: .resetCountdown)
+        let global = MenuBarLayout(lines: [[.icon, .conditional(id: conditional.id)]])
+        let override = MenuBarLayout(lines: [[.conditional(id: conditional.id), .percent(window: .weekly)]])
+
+        settings.menuBarLayoutConditionals = [conditional]
+        settings.setMenuBarLayout(global, for: nil)
+        settings.setMenuBarLayout(override, for: .claude)
+
+        settings.removeMenuBarLayoutConditional(id: conditional.id)
+
+        #expect(settings.menuBarLayoutConditionals.isEmpty)
+        #expect(Self.hasNoConditionalReference(settings.menuBarLayout))
+        #expect(Self.hasNoConditionalReference(settings.menuBarLayout(for: .claude)))
+
+        let reloaded = Self.reloadSettingsStore(settings)
+        #expect(reloaded.menuBarLayoutConditionals.isEmpty)
+        #expect(Self.hasNoConditionalReference(reloaded.menuBarLayout))
+        #expect(Self.hasNoConditionalReference(reloaded.menuBarLayout(for: .claude)))
+    }
+
+    private static func hasNoConditionalReference(_ layout: MenuBarLayout) -> Bool {
+        !layout.lines.flatMap(\.self).contains { token in
+            if case .conditional = token { return true }
+            return false
+        }
     }
 
     @Test

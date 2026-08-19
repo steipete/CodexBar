@@ -8,6 +8,8 @@ enum PercentWindow: String, CaseIterable, Codable, Hashable, Sendable {
     case automatic
 }
 
+/// Deliberately mirrors `PercentWindow` but stays a separate type so predicate persistence
+/// is decoupled from render-window naming.
 enum MenuBarConditionalMetric: String, CaseIterable, Codable, Hashable, Sendable {
     case session
     case weekly
@@ -58,17 +60,20 @@ struct MenuBarConditionalClause: Codable, Hashable, Sendable {
 }
 
 struct MenuBarLayoutConditional: Codable, Hashable, Sendable {
+    let id: UUID
     var name: String
     var clauses: [MenuBarConditionalClause] // 1...4 after normalization
     var thenToken: MenuBarLayoutToken
     var elseToken: MenuBarLayoutToken
 
     init(
+        id: UUID = UUID(),
         name: String = "",
         clauses: [MenuBarConditionalClause],
         thenToken: MenuBarLayoutToken,
         elseToken: MenuBarLayoutToken)
     {
+        self.id = id
         self.name = name
         self.clauses = clauses
         self.thenToken = thenToken
@@ -91,13 +96,14 @@ struct MenuBarLayoutConditional: Codable, Hashable, Sendable {
         self.clauses = Array(normalized)
     }
 
-    /// Custom Codable so older persisted conditionals without a `name` still decode (→ "").
+    /// Custom Codable so older persisted conditionals without `name` or `id` still decode.
     private enum CodingKeys: String, CodingKey {
-        case name, clauses, thenToken, elseToken
+        case id, name, clauses, thenToken, elseToken
     }
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.id = try container.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
         self.name = try container.decodeIfPresent(String.self, forKey: .name) ?? ""
         self.clauses = try container.decode([MenuBarConditionalClause].self, forKey: .clauses)
         self.thenToken = try container.decode(MenuBarLayoutToken.self, forKey: .thenToken)
@@ -107,18 +113,21 @@ struct MenuBarLayoutConditional: Codable, Hashable, Sendable {
 
     func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(self.id, forKey: .id)
         try container.encode(self.name, forKey: .name)
         try container.encode(self.clauses, forKey: .clauses)
         try container.encode(self.thenToken, forKey: .thenToken)
         try container.encode(self.elseToken, forKey: .elseToken)
     }
 
-    static let defaultValue = MenuBarLayoutConditional(
-        clauses: [MenuBarConditionalClause(
-            combinator: nil,
-            predicate: MenuBarConditionalPredicate(metric: .session, comparison: .greaterThan, threshold: 0))],
-        thenToken: .percent(window: .session),
-        elseToken: .hidden)
+    static func makeDefault() -> MenuBarLayoutConditional {
+        MenuBarLayoutConditional(
+            clauses: [MenuBarConditionalClause(
+                combinator: nil,
+                predicate: MenuBarConditionalPredicate(metric: .session, comparison: .greaterThan, threshold: 0))],
+            thenToken: .percent(window: .session),
+            elseToken: .hidden)
+    }
 }
 
 enum MenuBarLayoutToken: Codable, Hashable, Sendable {
@@ -141,7 +150,9 @@ enum MenuBarLayoutToken: Codable, Hashable, Sendable {
     case space
     /// Renders nothing; used as a conditional branch value to hide output for the other case.
     case hidden
-    indirect case conditional(MenuBarLayoutConditional)
+    /// References a library conditional by UUID. The conditional's content (clauses, branches) lives in
+    /// the conditionals library; the layout stores only its identity.
+    case conditional(id: UUID)
 }
 
 enum MenuBarLayoutSemanticWindowResolver {
@@ -403,23 +414,48 @@ extension MenuBarLayout {
 
 extension MenuBarLayout {
     /// Every token in the layout plus all tokens reachable through conditional branches (depth-capped).
-    var flattenedTokens: [MenuBarLayoutToken] {
+    func flattenedTokens(conditionals: [MenuBarLayoutConditional]) -> [MenuBarLayoutToken] {
+        let byID = Dictionary(conditionals.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         var tokens: [MenuBarLayoutToken] = []
         for token in self.lines.joined() {
-            token.appendFlattened(into: &tokens, depth: 0)
+            token.appendFlattened(into: &tokens, conditionals: byID, depth: 0)
         }
         return tokens
+    }
+
+    /// Returns a layout with every `.conditional(id:)` token matching `id` removed from both lines,
+    /// or nil when nothing referenced it (so callers never materialize an unchanged stored layout).
+    func removingConditional(id: UUID) -> MenuBarLayout? {
+        var changed = false
+        let filtered = self.lines.map { line in
+            line.filter { token in
+                if case let .conditional(tokenID) = token, tokenID == id {
+                    changed = true
+                    return false
+                }
+                return true
+            }
+        }
+        guard changed else { return nil }
+        return MenuBarLayout(lines: filtered)
     }
 }
 
 extension MenuBarLayoutToken {
     static let maxConditionalDepth = 8
 
-    func appendFlattened(into tokens: inout [MenuBarLayoutToken], depth: Int) {
+    func appendFlattened(
+        into tokens: inout [MenuBarLayoutToken],
+        conditionals: [UUID: MenuBarLayoutConditional],
+        depth: Int)
+    {
         if self == .hidden { return }
         tokens.append(self)
-        guard depth < Self.maxConditionalDepth, case let .conditional(conditional) = self else { return }
-        conditional.thenToken.appendFlattened(into: &tokens, depth: depth + 1)
-        conditional.elseToken.appendFlattened(into: &tokens, depth: depth + 1)
+        guard depth < Self.maxConditionalDepth,
+              case let .conditional(id) = self,
+              let conditional = conditionals[id]
+        else { return }
+        conditional.thenToken.appendFlattened(into: &tokens, conditionals: conditionals, depth: depth + 1)
+        conditional.elseToken.appendFlattened(into: &tokens, conditionals: conditionals, depth: depth + 1)
     }
 }

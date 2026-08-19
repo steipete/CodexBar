@@ -1505,3 +1505,6 @@
 "menu_bar_layout_conditional_or" = "または";
 "menu_bar_layout_conditional_add_condition" = "条件を追加";
 "menu_bar_layout_conditional_summary" = "もし %1$@ なら %2$@ を表示し、それ以外は %3$@ を表示";
+"menu_bar_layout_conditional_copy_name" = "%@（コピー）";
+"menu_bar_layout_conditional_copy_name_numbered" = "%1$@（コピー %2$d）";
+"menu_bar_layout_conditional_unavailable" = "条件を利用できません";

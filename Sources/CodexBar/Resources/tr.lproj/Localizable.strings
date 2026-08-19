@@ -1507,3 +1507,6 @@
 "menu_bar_layout_conditional_name_error" = "Benzersiz bir ad girin";
 "menu_bar_layout_conditional_duplicate" = "Çoğalt";
 "menu_bar_layout_conditional_summary" = "Eğer %1$@ ise %2$@, değilse %3$@ göster";
+"menu_bar_layout_conditional_copy_name" = "%@ (kopya)";
+"menu_bar_layout_conditional_copy_name_numbered" = "%1$@ (kopya %2$d)";
+"menu_bar_layout_conditional_unavailable" = "Koşul kullanılamıyor";

@@ -1504,3 +1504,6 @@
 "menu_bar_layout_conditional_name_error" = "Ange ett unikt namn";
 "menu_bar_layout_conditional_duplicate" = "Duplicera";
 "menu_bar_layout_conditional_summary" = "Om %1$@ visa %2$@ annars %3$@";
+"menu_bar_layout_conditional_copy_name" = "%@ (kopia)";
+"menu_bar_layout_conditional_copy_name_numbered" = "%1$@ (kopia %2$d)";
+"menu_bar_layout_conditional_unavailable" = "Villkor otillgängligt";

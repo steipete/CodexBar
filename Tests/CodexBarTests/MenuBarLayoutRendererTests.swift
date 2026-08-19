@@ -449,6 +449,7 @@ struct MenuBarLayoutRendererTests {
                 size: .regular,
                 highContrast: false,
                 showUsed: false,
+                conditionals: [],
                 appearanceName: "aqua",
                 isDebugApp: false,
                 now: self.now))
@@ -501,6 +502,7 @@ struct MenuBarLayoutRendererTests {
             size: options.size,
             highContrast: true,
             showUsed: options.showUsed,
+            conditionals: options.conditionals,
             appearanceName: options.appearanceName,
             isDebugApp: options.isDebugApp,
             now: options.now)
@@ -566,10 +568,10 @@ struct MenuBarLayoutRendererTests {
         let data = self.data()
 
         let output = renderer.render(
-            layout: MenuBarLayout(lines: [[.conditional(conditional)]]),
+            layout: MenuBarLayout(lines: [[.conditional(id: conditional.id)]]),
             data: data,
             icon: nil,
-            options: self.options())
+            options: self.options(conditionals: [conditional]))
         let control = renderer.render(
             layout: MenuBarLayout(lines: [[.percent(window: .session)]]),
             data: data,
@@ -591,10 +593,10 @@ struct MenuBarLayoutRendererTests {
         let data = self.data()
 
         let output = renderer.render(
-            layout: MenuBarLayout(lines: [[.conditional(conditional)]]),
+            layout: MenuBarLayout(lines: [[.conditional(id: conditional.id)]]),
             data: data,
             icon: nil,
-            options: self.options())
+            options: self.options(conditionals: [conditional]))
         let control = renderer.render(
             layout: MenuBarLayout(lines: [[.resetCountdown]]),
             data: data,
@@ -615,10 +617,10 @@ struct MenuBarLayoutRendererTests {
             elseToken: .hidden)
 
         let output = renderer.render(
-            layout: MenuBarLayout(lines: [[.conditional(conditional)]]),
+            layout: MenuBarLayout(lines: [[.conditional(id: conditional.id)]]),
             data: self.data(),
             icon: nil,
-            options: self.options())
+            options: self.options(conditionals: [conditional]))
         #expect(output.attributedTitle.string.isEmpty)
     }
 
@@ -636,10 +638,10 @@ struct MenuBarLayoutRendererTests {
             thenToken: .percent(window: .session),
             elseToken: .resetCountdown)
         let falseOutput = renderer.render(
-            layout: MenuBarLayout(lines: [[.conditional(falseConditional)]]),
+            layout: MenuBarLayout(lines: [[.conditional(id: falseConditional.id)]]),
             data: data,
             icon: nil,
-            options: self.options())
+            options: self.options(conditionals: [falseConditional]))
         let falseControl = renderer.render(
             layout: MenuBarLayout(lines: [[.resetCountdown]]),
             data: data,
@@ -656,10 +658,10 @@ struct MenuBarLayoutRendererTests {
             thenToken: .percent(window: .session),
             elseToken: .resetCountdown)
         let trueOutput = renderer.render(
-            layout: MenuBarLayout(lines: [[.conditional(trueConditional)]]),
+            layout: MenuBarLayout(lines: [[.conditional(id: trueConditional.id)]]),
             data: data,
             icon: nil,
-            options: self.options())
+            options: self.options(conditionals: [trueConditional]))
         let trueControl = renderer.render(
             layout: MenuBarLayout(lines: [[.percent(window: .session)]]),
             data: data,
@@ -683,10 +685,10 @@ struct MenuBarLayoutRendererTests {
         let data = self.data()
 
         let output = renderer.render(
-            layout: MenuBarLayout(lines: [[.conditional(conditional)]]),
+            layout: MenuBarLayout(lines: [[.conditional(id: conditional.id)]]),
             data: data,
             icon: nil,
-            options: self.options())
+            options: self.options(conditionals: [conditional]))
         let control = renderer.render(
             layout: MenuBarLayout(lines: [[.percent(window: .session)]]),
             data: data,
@@ -725,10 +727,10 @@ struct MenuBarLayoutRendererTests {
             cost30d: nil)
 
         let output = renderer.render(
-            layout: MenuBarLayout(lines: [[.conditional(conditional)]]),
+            layout: MenuBarLayout(lines: [[.conditional(id: conditional.id)]]),
             data: data,
             icon: nil,
-            options: self.options())
+            options: self.options(conditionals: [conditional]))
         let control = renderer.render(
             layout: MenuBarLayout(lines: [[.resetCountdown]]),
             data: data,
@@ -742,25 +744,23 @@ struct MenuBarLayoutRendererTests {
     @Test
     func `nested conditional depth cap renders placeholder`() {
         let renderer = MenuBarLayoutRenderer()
-        // Build a chain 10 levels deep; the renderer caps traversal at maxConditionalDepth.
-        var inner = MenuBarLayoutConditional(
+        // A conditionals entry may reference itself through its branches; the renderer caps
+        // traversal at maxConditionalDepth.
+        let selfID = UUID()
+        let looping = MenuBarLayoutConditional(
+            id: selfID,
+            name: "loop",
             clauses: [self.clause(metric: .session, comparison: .greaterThan, threshold: 0)],
-            thenToken: .percent(window: .session),
+            thenToken: .conditional(id: selfID),
             elseToken: .space)
-        for _ in 0..<9 {
-            inner = MenuBarLayoutConditional(
-                clauses: [self.clause(metric: .session, comparison: .greaterThan, threshold: 0)],
-                thenToken: .conditional(inner),
-                elseToken: .space)
-        }
         let data = self.data()
         // The cap triggers before any branch is evaluated, independent of live values,
         // so the missing-value placeholder is the expected title.
         let output = renderer.render(
-            layout: MenuBarLayout(lines: [[.conditional(inner)]]),
+            layout: MenuBarLayout(lines: [[.conditional(id: selfID)]]),
             data: data,
             icon: nil,
-            options: self.options())
+            options: self.options(conditionals: [looping]))
 
         #expect(output.attributedTitle.string == "–")
     }
@@ -775,10 +775,10 @@ struct MenuBarLayoutRendererTests {
         let data = self.data()
 
         let output = renderer.render(
-            layout: MenuBarLayout(lines: [[.conditional(conditional)]]),
+            layout: MenuBarLayout(lines: [[.conditional(id: conditional.id)]]),
             data: data,
             icon: nil,
-            options: self.options())
+            options: self.options(conditionals: [conditional]))
         let control = renderer.render(
             layout: MenuBarLayout(lines: [[.percent(window: .session)]]),
             data: data,
@@ -787,6 +787,115 @@ struct MenuBarLayoutRendererTests {
 
         #expect(output.accessibilityLabel == control.accessibilityLabel)
         #expect(output.accessibilityLabel == L("%@ %@", L("Session"), "25%"))
+    }
+
+    @Test
+    func `hidden branch leaves no orphaned spacing`() {
+        let renderer = MenuBarLayoutRenderer()
+        // Session is 25%, so a > 50 threshold fails and the else branch (.hidden) wins: the
+        // conditional contributes nothing, and the neighbors must join without a stray separator.
+        let conditional = MenuBarLayoutConditional(
+            clauses: [self.clause(metric: .session, comparison: .greaterThan, threshold: 50)],
+            thenToken: .percent(window: .session),
+            elseToken: .hidden)
+        let options = self.options(conditionals: [conditional])
+
+        let middle = renderer.render(
+            layout: MenuBarLayout(lines: [[
+                .percent(window: .session),
+                .conditional(id: conditional.id),
+                .percent(window: .weekly),
+            ]]),
+            data: self.data(),
+            icon: nil,
+            options: options)
+        #expect(middle.attributedTitle.string == "5h 25%\u{2009}W 60%")
+
+        let trailing = renderer.render(
+            layout: MenuBarLayout(lines: [[.percent(window: .session), .conditional(id: conditional.id)]]),
+            data: self.data(),
+            icon: nil,
+            options: options)
+        #expect(trailing.attributedTitle.string == "5h 25%")
+    }
+
+    @Test
+    func `dangling conditional reference renders placeholder`() {
+        let renderer = MenuBarLayoutRenderer()
+        // An id not present in the library has nothing to resolve; the renderer must show the
+        // missing-value placeholder instead of emitting a branch.
+        let output = renderer.render(
+            layout: MenuBarLayout(lines: [[.conditional(id: UUID())]]),
+            data: self.data(),
+            icon: nil,
+            options: self.options(conditionals: []))
+
+        #expect(output.attributedTitle.string == "–")
+        #expect(output.accessibilityLabel.contains(L("menu_bar_layout_conditional_unavailable")))
+    }
+
+    @Test
+    func `library edit changes the rendered branch without touching the layout`() {
+        let renderer = MenuBarLayoutRenderer()
+        let id = UUID()
+        // The layout only stores the reference; the library entry decides the branch.
+        let layout = MenuBarLayout(lines: [[.conditional(id: id)]])
+
+        let conditionTrue = MenuBarLayoutConditional(
+            id: id,
+            clauses: [self.clause(metric: .session, comparison: .greaterThan, threshold: 0)],
+            thenToken: .percent(window: .session),
+            elseToken: .resetCountdown)
+        let first = renderer.render(
+            layout: layout,
+            data: self.data(),
+            icon: nil,
+            options: self.options(conditionals: [conditionTrue]))
+        #expect(first.attributedTitle.string == "5h 25%")
+
+        // Flip the comparison so the same layout now renders the else branch.
+        let conditionFalse = MenuBarLayoutConditional(
+            id: id,
+            clauses: [self.clause(metric: .session, comparison: .greaterThan, threshold: 50)],
+            thenToken: .percent(window: .session),
+            elseToken: .resetCountdown)
+        let second = renderer.render(
+            layout: layout,
+            data: self.data(),
+            icon: nil,
+            options: self.options(conditionals: [conditionFalse]))
+        #expect(second.attributedTitle.string != first.attributedTitle.string)
+        #expect(second.attributedTitle.string == "in 2h")
+    }
+
+    @Test
+    func `mixed and or evaluates as a left fold`() {
+        let renderer = MenuBarLayoutRenderer()
+        // Session 25% > 0 (T) or weekly 60% > 90 (F) and automatic 50% > 90 (F).
+        // The left fold yields ((T ∨ F) ∧ F) = false, so the else branch wins; conventional
+        // precedence (T ∨ (F ∧ F) = true) would pick the then branch instead.
+        let conditional = MenuBarLayoutConditional(
+            clauses: [
+                self.clause(metric: .session, comparison: .greaterThan, threshold: 0),
+                self.clause(metric: .weekly, comparison: .greaterThan, threshold: 90, combinator: .or),
+                self.clause(metric: .automatic, comparison: .greaterThan, threshold: 90, combinator: .and),
+            ],
+            thenToken: .percent(window: .session),
+            elseToken: .resetCountdown)
+
+        let output = renderer.render(
+            layout: MenuBarLayout(lines: [[.conditional(id: conditional.id)]]),
+            data: self.data(),
+            icon: nil,
+            options: self.options(conditionals: [conditional]))
+        let control = renderer.render(
+            layout: MenuBarLayout(lines: [[.resetCountdown]]),
+            data: self.data(),
+            icon: nil,
+            options: self.options())
+
+        #expect(output.attributedTitle.string == control.attributedTitle.string)
+        #expect(output.attributedTitle.string == "in 2h")
     }
 
     private func clause(
@@ -845,12 +954,14 @@ struct MenuBarLayoutRendererTests {
     private func options(
         now: Date? = nil,
         verticalAdjustment: Int = 0,
-        isStale: Bool = false) -> MenuBarLayoutRenderOptions
+        isStale: Bool = false,
+        conditionals: [MenuBarLayoutConditional] = []) -> MenuBarLayoutRenderOptions
     {
         MenuBarLayoutRenderOptions(
             size: .regular,
             highContrast: false,
             showUsed: true,
+            conditionals: conditionals,
             appearanceName: "aqua",
             isDebugApp: false,
             isStale: isStale,

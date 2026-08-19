@@ -1509,3 +1509,6 @@
 "menu_bar_layout_conditional_or" = "یا";
 "menu_bar_layout_conditional_add_condition" = "افزودن شرط";
 "menu_bar_layout_conditional_summary" = "اگر %1$@ سپس %2$@ در غیر این صورت %3$@";
+"menu_bar_layout_conditional_copy_name" = "%@ (رونوشت)";
+"menu_bar_layout_conditional_copy_name_numbered" = "%1$@ (رونوشت %2$d)";
+"menu_bar_layout_conditional_unavailable" = "شرط در دسترس نیست";

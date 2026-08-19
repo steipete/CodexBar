@@ -1505,3 +1505,6 @@
 "menu_bar_layout_conditional_name_error" = "Введіть унікальну назву";
 "menu_bar_layout_conditional_duplicate" = "Дублювати";
 "menu_bar_layout_conditional_summary" = "Якщо %1$@ тоді %2$@ інакше %3$@";
+"menu_bar_layout_conditional_copy_name" = "%@ (копія)";
+"menu_bar_layout_conditional_copy_name_numbered" = "%1$@ (копія %2$d)";
+"menu_bar_layout_conditional_unavailable" = "Умова недоступна";

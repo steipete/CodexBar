@@ -51,6 +51,7 @@ struct MenuBarLayoutRenderOptions: Hashable {
     let size: MenuBarLayoutSize
     let highContrast: Bool
     let showUsed: Bool
+    let conditionals: [MenuBarLayoutConditional]
     let appearanceName: String
     let isDebugApp: Bool
     /// Whether the provider's latest refresh failed; when true the shown snapshot is stale
@@ -67,6 +68,7 @@ struct MenuBarLayoutRenderOptions: Hashable {
         size: MenuBarLayoutSize,
         highContrast: Bool,
         showUsed: Bool,
+        conditionals: [MenuBarLayoutConditional],
         appearanceName: String,
         isDebugApp: Bool,
         isStale: Bool = false,
@@ -76,6 +78,7 @@ struct MenuBarLayoutRenderOptions: Hashable {
         self.size = size
         self.highContrast = highContrast
         self.showUsed = showUsed
+        self.conditionals = conditionals
         self.appearanceName = appearanceName
         self.isDebugApp = isDebugApp
         self.isStale = isStale
@@ -90,6 +93,7 @@ struct MenuBarLayoutRenderKey: Hashable {
     let size: MenuBarLayoutSize
     let highContrast: Bool
     let showUsed: Bool
+    let conditionals: [MenuBarLayoutConditional]
     let appearanceName: String
     let isDebugApp: Bool
     let isStale: Bool
@@ -189,6 +193,7 @@ final class MenuBarLayoutRenderer {
             size: options.size,
             highContrast: options.highContrast,
             showUsed: options.showUsed,
+            conditionals: options.conditionals,
             appearanceName: options.appearanceName,
             isDebugApp: options.isDebugApp,
             isStale: options.isStale,
@@ -236,6 +241,17 @@ final class MenuBarLayoutRenderer {
         attributes[.baselineOffset] = baseBaselineOffset + CGFloat(options.verticalAdjustment)
         let result = NSMutableAttributedString()
         var accessibilityLines: [String] = []
+
+        let conditionalsByID = Dictionary(
+            options.conditionals.map { ($0.id, $0) },
+            uniquingKeysWith: { first, _ in first })
+
+        // Pre-resolve conditionals so .hidden branches vanish and adjacent-space checks see
+        // only the tokens that will actually render.
+        let resolvedLines = layout.lines.map { line in
+            line.compactMap { Self.resolvedDisplayToken($0, data: data, conditionals: conditionalsByID) }
+        }
+
         // Only surface a leading icon via `button.image` when an actual image is available and the
         // high-contrast contract does not require the icon to stay inside the attributed title.
         // AppKit dims `button.image` on inactive displays, but high-contrast layouts keep icon + text
@@ -243,18 +259,18 @@ final class MenuBarLayoutRenderer {
         // missing icon the token still renders its placeholder inside the title.
         let leadingIcon: NSImage? = if options.highContrast {
             nil
-        } else if layout.lines.first?.first == .icon, icon != nil {
+        } else if resolvedLines.first?.first == .icon, icon != nil {
             icon.map { Self.offsetLeadingIcon($0, adjustment: options.verticalAdjustment) }
         } else {
             nil
         }
 
-        for (lineIndex, line) in layout.lines.enumerated() {
+        for (lineIndex, resolvedLine) in resolvedLines.enumerated() {
             if lineIndex > 0 {
                 result.append(NSAttributedString(string: "\n", attributes: attributes))
             }
             var accessibilityParts: [String] = []
-            for (tokenIndex, token) in line.enumerated() {
+            for (tokenIndex, token) in resolvedLine.enumerated() {
                 // The leading icon is surfaced as `button.image` so AppKit applies the system's
                 // active/inactive display tinting; it is not repeated inside the attributed title,
                 // but its accessibility description must survive for VoiceOver.
@@ -262,7 +278,7 @@ final class MenuBarLayoutRenderer {
                     accessibilityParts.append(Self.iconAccessibilityText(data: data))
                     continue
                 }
-                if tokenIndex > 0, token != .space, line[tokenIndex - 1] != .space {
+                if tokenIndex > 0, token != .space, resolvedLine[tokenIndex - 1] != .space {
                     result.append(NSAttributedString(string: "\u{2009}", attributes: attributes))
                 }
                 let renderedItem = Self.renderItem(
@@ -296,13 +312,33 @@ final class MenuBarLayoutRenderer {
             leadingIcon: leadingIcon)
     }
 
+    /// nil == resolved to .hidden (render nothing, no separator). A returned .conditional
+    /// means the id is dangling or the depth cap was hit; renderItem shows the placeholder.
+    private static func resolvedDisplayToken(
+        _ token: MenuBarLayoutToken,
+        data: MenuBarLayoutRenderData,
+        conditionals: [UUID: MenuBarLayoutConditional],
+        depth: Int = 0)
+        -> MenuBarLayoutToken?
+    {
+        switch token {
+        case .hidden: return nil
+        case let .conditional(id):
+            guard depth < MenuBarLayoutToken.maxConditionalDepth,
+                  let conditional = conditionals[id]
+            else { return token }
+            let branch = conditional.evaluatesTrue(data: data) ? conditional.thenToken : conditional.elseToken
+            return self.resolvedDisplayToken(branch, data: data, conditionals: conditionals, depth: depth + 1)
+        default: return token
+        }
+    }
+
     private static func renderItem(
         _ item: MenuBarLayoutToken,
         data: MenuBarLayoutRenderData,
         icon: NSImage?,
         style: TokenStyle,
-        options: MenuBarLayoutRenderOptions,
-        depth: Int = 0)
+        options: MenuBarLayoutRenderOptions)
         -> (value: NSAttributedString, accessibilityText: String?)
     {
         switch item {
@@ -398,15 +434,12 @@ final class MenuBarLayoutRenderer {
             return self.textToken(" ", accessibilityText: nil, attributes: style.attributes)
         case .hidden:
             return self.textToken("", accessibilityText: nil, attributes: style.attributes)
-        case let .conditional(conditional):
-            guard depth < MenuBarLayoutToken.maxConditionalDepth else {
-                return self.textToken(
-                    self.missingValue,
-                    accessibilityText: L("Conditional unavailable"),
-                    attributes: style.attributes)
-            }
-            let branch = conditional.evaluatesTrue(data: data) ? conditional.thenToken : conditional.elseToken
-            return self.renderItem(branch, data: data, icon: icon, style: style, options: options, depth: depth + 1)
+        case .conditional:
+            // Reachable only for dangling id or depth cap; the resolver already expanded known conditionals.
+            return self.textToken(
+                self.missingValue,
+                accessibilityText: L("menu_bar_layout_conditional_unavailable"),
+                attributes: style.attributes)
         }
     }
 

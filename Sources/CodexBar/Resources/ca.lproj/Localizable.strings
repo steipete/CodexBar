@@ -1508,3 +1508,6 @@
 "menu_bar_layout_conditional_or" = "o";
 "menu_bar_layout_conditional_add_condition" = "Afegeix una condició";
 "menu_bar_layout_conditional_summary" = "Si %1$@ llavors %2$@ en cas contrari %3$@";
+"menu_bar_layout_conditional_copy_name" = "%@ (còpia)";
+"menu_bar_layout_conditional_copy_name_numbered" = "%1$@ (còpia %2$d)";
+"menu_bar_layout_conditional_unavailable" = "Condicional no disponible";

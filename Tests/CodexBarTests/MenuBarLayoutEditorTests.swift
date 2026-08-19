@@ -176,31 +176,8 @@ struct MenuBarLayoutEditorTests {
     }
 
     @Test
-    func `replace mutation swaps a placed token`() {
-        let initial = MenuBarLayout(lines: [[.icon, .providerName]])
-
-        let replaced = MenuBarLayoutEditorMutations.replace(
-            at: MenuBarLayoutPosition(line: 0, index: 1),
-            with: .conditional(MenuBarLayoutConditional.defaultValue),
-            in: initial)
-        #expect(replaced.lines == [[.icon, .conditional(MenuBarLayoutConditional.defaultValue)]])
-
-        let outOfBoundsLine = MenuBarLayoutEditorMutations.replace(
-            at: MenuBarLayoutPosition(line: 3, index: 0),
-            with: .conditional(MenuBarLayoutConditional.defaultValue),
-            in: initial)
-        #expect(outOfBoundsLine == initial)
-
-        let outOfBoundsIndex = MenuBarLayoutEditorMutations.replace(
-            at: MenuBarLayoutPosition(line: 0, index: 5),
-            with: .conditional(MenuBarLayoutConditional.defaultValue),
-            in: initial)
-        #expect(outOfBoundsIndex == initial)
-    }
-
-    @Test
     func `conditional drag payload round trips`() throws {
-        let payload = MenuBarLayoutDragItem.palette(.conditional(MenuBarLayoutConditional.defaultValue))
+        let payload = MenuBarLayoutDragItem.palette(.conditional(id: UUID()))
 
         let data = try JSONEncoder().encode(payload)
         #expect(try JSONDecoder().decode(MenuBarLayoutDragItem.self, from: data) == payload)
@@ -209,11 +186,12 @@ struct MenuBarLayoutEditorTests {
     @Test
     func `conditional token appends like palette tokens`() {
         let initial = MenuBarLayout(lines: [[.icon, .resetCountdown]])
+        let conditionalID = UUID()
 
         let appended = MenuBarLayoutEditorMutations.append(
-            .conditional(MenuBarLayoutConditional.defaultValue),
+            .conditional(id: conditionalID),
             to: initial)
-        #expect(appended.lines == [[.icon, .resetCountdown, .conditional(MenuBarLayoutConditional.defaultValue)]])
+        #expect(appended.lines == [[.icon, .resetCountdown, .conditional(id: conditionalID)]])
     }
 
     @Test
