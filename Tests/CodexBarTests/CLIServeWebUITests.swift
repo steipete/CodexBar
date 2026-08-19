@@ -31,6 +31,18 @@ struct CLIServeWebUITests {
     }
 
     @Test
+    func `web ui skips windows the snapshot marks idle`() {
+        let html = self.html
+        // The producer decides which lanes are idle, so the page must not repeat any
+        // provider-specific rule. It filters on the generic flag and nothing else.
+        #expect(html.contains("function visibleWindows(windows)"))
+        #expect(html.contains("w.idle !== true"))
+        #expect(html.contains("for (const window of visibleWindows(provider.windows))"))
+        #expect(html.contains("for (const window of visibleWindows(account.windows))"))
+        #expect(html.contains("worstWindowLevel(visibleWindows(account.windows))"))
+    }
+
+    @Test
     func `web ui keeps ambient windows when no accounts are present`() {
         let html = self.html
         #expect(html.contains("Array.isArray(provider.accounts)"))

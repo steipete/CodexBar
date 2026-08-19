@@ -82,7 +82,7 @@ See [CLI configuration](docs/cli-configuration.md) for the full flow.
 - [Claude](docs/claude.md) — OAuth API, browser cookies, or CLI PTY fallback; session and weekly usage where available.
 - [Cursor](docs/cursor.md) — Browser session cookies for plan + usage + billing resets.
 - [OpenCode](docs/opencode.md) — Browser cookies for workspace subscription usage.
-- [OpenCode Go](docs/opencode.md) — Browser or local SQLite data for Go usage windows.
+- [OpenCode Go](docs/opencode.md) — Usage API, browser fallback, and local SQLite cost history.
 - [Alibaba Coding Plan](docs/alibaba-coding-plan.md) — Web cookies or API key for coding-plan quotas.
 - [Alibaba Token Plan](docs/alibaba-token-plan.md) — Bailian browser/manual cookies for token-plan credits.
 - [Qwen Cloud](docs/qwen-cloud.md) — 5-hour and weekly individual Token Plan usage via browser/manual cookies.
@@ -249,6 +249,7 @@ CLI install:
 
 ## Status bar & terminal integration
 - [showy-quota](https://github.com/enieuwy/showy-quota) — always-on AI plan quota strips for SketchyBar, tmux, and Zellij (standalone WASM plugin), built on `codexbar serve` / the bundled CLI.
+- [AI Usage Limits](https://github.com/lenadweb/stream-deck-ai-limits) — Elgato Stream Deck integration for macOS: shows a selected CodexBar provider, account, and configurable quota or payload metrics on keys and Stream Deck+ dials, using local `codexbar serve`.
 
 ## Credits
 Inspired by [ccusage](https://github.com/ryoppippi/ccusage) (MIT), specifically the cost usage tracking.

@@ -614,6 +614,8 @@
 "display_mode_subtitle" = "Escolha o que mostrar na barra de menus (Ritmo mostra uso vs. esperado).";
 "show_quota_warning_markers_title" = "Mostrar marcadores de alerta de cota";
 "show_quota_warning_markers_subtitle" = "Desenha marcas de limite nas barras de uso quando os alertas de cota estão configurados.";
+"show_pace_title" = "Mostrar o ritmo";
+"show_pace_subtitle" = "Mostra a faixa de adiantamento ou atraso e o texto de previsão nas barras de uso.";
 "weekly_progress_work_days_title" = "Dias úteis no progresso semanal";
 "weekly_progress_work_days_subtitle" = "Define os dias úteis para marcadores das barras de uso semanal e cálculos de ritmo.";
 "workday_tick_appearance_title" = "Aparência das marcas de dias úteis";
@@ -1328,6 +1330,12 @@
 "By subscription" = "Por assinatura";
 "No model-level history" = "Sem histórico por modelo";
 "Daily estimated spend" = "Gasto diário estimado";
+"Hourly estimated spend" = "Gasto horário estimado";
+"Hour" = "Hora";
+"%d hours of usage data across %d services" = "%d horas de dados de uso em %d serviços";
+"1 hour of usage data across 1 service" = "1 hora de dados de uso em 1 serviço";
+"%d hours of usage data across 1 service" = "%d horas de dados de uso em 1 serviço";
+"1 hour of usage data across %d services" = "1 hora de dados de uso em %d serviços";
 "≈%d full 5h windows of weekly left · %d windows until reset" = "≈%d janelas completas de 5 h da cota semanal · %d janelas até a renovação";
 "Weekly cannot run out before reset at this pace" = "A cota semanal não pode acabar antes da renovação nesse ritmo";
 "Weekly can run out ≈%d windows early" = "A cota semanal pode acabar ≈%d janelas antes";
@@ -1484,6 +1492,7 @@
 "Include OpenCodex usage logs" = "Include OpenCodex usage logs";
 "Hide native Codex when OpenCodex is present" = "Hide native Codex when OpenCodex is present";
 "Export JSON" = "Export JSON";
+"Copy JSON" = "Copiar JSON";
 "Sources" = "Sources";
 "OpenCodex" = "OpenCodex";
 "menu_bar_layout_token_conditional" = "Condicional";

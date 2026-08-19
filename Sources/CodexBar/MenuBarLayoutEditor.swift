@@ -212,6 +212,10 @@ struct MenuBarLayoutEditor: View {
         }
     }
 
+    private var persistenceSnapshot: UsageSnapshot? {
+        self.persistenceProvider.flatMap { self.store.snapshot(for: $0.instanceID) }
+    }
+
     private var sizeBinding: Binding<MenuBarLayoutSize> {
         Binding(
             get: { self.settings.menuBarLayoutSize },
@@ -250,6 +254,7 @@ struct MenuBarLayoutEditor: View {
                     .percent(window: .session),
                     .percent(window: .weekly),
                     .percent(window: .scopedWeekly),
+                ] + self.providerLaneTokens + [
                     .percent(window: .automatic),
                     .usageBar,
                     .pace(window: .session),
@@ -273,6 +278,11 @@ struct MenuBarLayoutEditor: View {
                 tokens: [.separatorDot, .space],
                 includesLineBreak: true),
         ]
+    }
+
+    private var providerLaneTokens: [MenuBarLayoutToken] {
+        MenuBarLayoutLane.available(for: self.persistenceProvider, snapshot: self.persistenceSnapshot)
+            .map { .lanePercent(lane: $0) }
     }
 
     var body: some View {
@@ -441,7 +451,7 @@ struct MenuBarLayoutEditor: View {
                     .dropDestination(for: MenuBarLayoutDragItem.self) { items, _ in
                         self.insert(items.first, at: position)
                     }
-                    .accessibilityLabel(self.chipTitle(for: token))
+                    .accessibilityLabel(self.chipAccessibilityLabel(for: token))
                     .contextMenu {
                         if case let .conditional(id) = token,
                            let conditional = self.settings.menuBarLayoutConditionals
@@ -454,7 +464,6 @@ struct MenuBarLayoutEditor: View {
                             }
                         }
                     }
-
                     .accessibilityHint(L("menu_bar_layout_chip_hint"))
                     .accessibilityAction(named: L("Remove")) {
                         self.remove(at: position)
@@ -525,7 +534,9 @@ struct MenuBarLayoutEditor: View {
                         self.write(MenuBarLayoutEditorMutations.append(token, to: self.layout))
                     } label: {
                         MenuBarLayoutChipLabel(
-                            title: token.editorLabel(provider: self.persistenceProvider),
+                            title: token.editorLabel(
+                                provider: self.persistenceProvider,
+                                snapshot: self.persistenceSnapshot),
                             systemImage: token.editorSystemImage,
                             isSelected: false)
                     }
@@ -536,7 +547,9 @@ struct MenuBarLayoutEditor: View {
                         return .handled
                     }
                     .draggable(MenuBarLayoutDragItem.palette(token))
-                    .accessibilityLabel(token.editorAccessibilityLabel(provider: self.persistenceProvider))
+                    .accessibilityLabel(token.editorAccessibilityLabel(
+                        provider: self.persistenceProvider,
+                        snapshot: self.persistenceSnapshot))
                     .accessibilityHint(L("menu_bar_layout_palette_hint"))
                 }
                 if group.includesLineBreak {
@@ -734,7 +747,16 @@ struct MenuBarLayoutEditor: View {
                 .first(where: { $0.id == id })?.displayName
                 ?? L("menu_bar_layout_token_conditional")
         }
-        return token.editorLabel(provider: self.persistenceProvider)
+        return token.editorLabel(provider: self.persistenceProvider, snapshot: self.persistenceSnapshot)
+    }
+
+    private func chipAccessibilityLabel(for token: MenuBarLayoutToken) -> String {
+        if case .conditional = token {
+            return self.chipTitle(for: token)
+        }
+        return token.editorAccessibilityLabel(
+            provider: self.persistenceProvider,
+            snapshot: self.persistenceSnapshot)
     }
 
     private func write(_ layout: MenuBarLayout) {
@@ -807,6 +829,9 @@ struct MenuBarLayoutPreview: View {
         let session: RateWindow?
         let weekly: RateWindow?
         let rawAutomatic: RateWindow?
+        let primary: RateWindow?
+        let secondary: RateWindow?
+        let tertiary = snapshot.tertiary
         if provider == .codex,
            let projection = self.store.codexConsumerProjectionIfNeeded(
                for: provider,
@@ -817,6 +842,8 @@ struct MenuBarLayoutPreview: View {
             session = projection.menuBarSelectableRateWindow(for: .session)
             weekly = projection.menuBarSelectableRateWindow(for: .weekly)
             rawAutomatic = projection.automaticMenuBarWindow()
+            primary = session
+            secondary = weekly
         } else {
             let semanticWindows = MenuBarLayoutSemanticWindowResolver.windows(
                 provider: provider,
@@ -833,6 +860,8 @@ struct MenuBarLayoutPreview: View {
                 supportsAverage: self.settings.menuBarMetricSupportsAverage(for: provider),
                 antigravityPrioritizeExhaustedQuotas: self.settings.antigravityPrioritizeExhaustedQuotas,
                 now: now)
+            primary = snapshot.primary
+            secondary = snapshot.secondary
         }
         let automatic = MenuBarLayoutAutomaticWindowDisplayNormalizer.normalized(
             provider: provider,
@@ -856,6 +885,10 @@ struct MenuBarLayoutPreview: View {
             iconKey: provider.rawValue,
             providerName: L(self.store.metadata(for: provider).displayName),
             accountLabel: self.settings.hidePersonalInfo ? nil : snapshot.accountEmail(for: provider),
+            laneLabels: MenuBarLayoutLaneLabels(provider: provider, snapshot: snapshot),
+            primary: MenuBarLayoutRenderWindow(primary),
+            secondary: MenuBarLayoutRenderWindow(secondary),
+            tertiary: MenuBarLayoutRenderWindow(tertiary),
             session: MenuBarLayoutRenderWindow(session),
             weekly: MenuBarLayoutRenderWindow(weekly),
             scopedWeekly: MenuBarLayoutRenderWindow(scopedNamed?.window),
@@ -908,6 +941,10 @@ struct MenuBarLayoutPreview: View {
             iconKey: "\(provider.rawValue)-representative",
             providerName: L(self.store.metadata(for: provider).displayName),
             accountLabel: self.settings.hidePersonalInfo ? nil : L("menu_bar_layout_sample_account"),
+            laneLabels: MenuBarLayoutLaneLabels(provider: provider, snapshot: nil),
+            primary: MenuBarLayoutRenderWindow(session),
+            secondary: MenuBarLayoutRenderWindow(weekly),
+            tertiary: MenuBarLayoutRenderWindow(scopedWeekly),
             session: MenuBarLayoutRenderWindow(session),
             weekly: MenuBarLayoutRenderWindow(weekly),
             scopedWeekly: MenuBarLayoutRenderWindow(scopedWeekly),
@@ -997,7 +1034,10 @@ extension MenuBarLayoutGap {
 }
 
 extension MenuBarLayoutToken {
-    func editorLabel(provider: UsageProvider?) -> String {
+    func editorLabel(provider: UsageProvider?, snapshot: UsageSnapshot? = nil) -> String {
+        if case let .lanePercent(lane) = self {
+            return self.laneEditorLabel(lane: lane, provider: provider, snapshot: snapshot)
+        }
         if let providerLabel = self.providerEditorLabel(provider: provider) {
             return providerLabel
         }
@@ -1026,6 +1066,7 @@ extension MenuBarLayoutToken {
         case .percent(window: .weekly): L("menu_bar_layout_token_weekly")
         case .percent(window: .scopedWeekly): L("menu_bar_layout_token_scoped_weekly")
         case .percent(window: .automatic): L("menu_bar_layout_token_auto")
+        case let .lanePercent(lane): L("%@ %@", lane.rawValue.capitalized, "%")
         case .pace(window: .session): L("menu_bar_layout_token_session_pace")
         case .pace(window: .weekly): L("menu_bar_layout_token_weekly_pace")
         case .pace(window: .scopedWeekly): L("menu_bar_layout_token_weekly_pace")
@@ -1045,10 +1086,21 @@ extension MenuBarLayoutToken {
         }
     }
 
-    func editorAccessibilityLabel(provider: UsageProvider?) -> String {
+    private func laneEditorLabel(
+        lane: MenuBarLayoutLane,
+        provider: UsageProvider?,
+        snapshot: UsageSnapshot?)
+        -> String
+    {
+        guard let provider else { return L("%@ %@", lane.rawValue.capitalized, "%") }
+        let label = MenuBarLayoutLaneLabels(provider: provider, snapshot: snapshot).label(for: lane)
+        return L("%@ %@", label, "%")
+    }
+
+    func editorAccessibilityLabel(provider: UsageProvider?, snapshot: UsageSnapshot? = nil) -> String {
         switch self {
         case .separatorDot: L("menu_bar_layout_token_separator_accessibility")
-        default: self.editorLabel(provider: provider)
+        default: self.editorLabel(provider: provider, snapshot: snapshot)
         }
     }
 
@@ -1057,7 +1109,7 @@ extension MenuBarLayoutToken {
         case .icon: "app.dashed"
         case .providerName: "textformat"
         case .accountLabel: "person.crop.circle"
-        case .percent: "percent"
+        case .percent, .lanePercent: "percent"
         case .pace: "speedometer"
         case .usageBar: "chart.bar.fill"
         case .resetCountdown: "timer"

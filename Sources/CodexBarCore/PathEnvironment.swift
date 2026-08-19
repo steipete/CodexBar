@@ -595,7 +595,7 @@ public enum CodexLaunchPreflight {
             bytes == [0xCA, 0xFE, 0xBA, 0xBF]
     }
 
-    private static func spctlAssessment(path: String, timeout: TimeInterval = 2.0) -> GatekeeperAssessment? {
+    private static func spctlAssessment(path: String, timeout: TimeInterval = 5.0) -> GatekeeperAssessment? {
         let spctlPath = "/usr/sbin/spctl"
         guard FileManager.default.isExecutableFile(atPath: spctlPath) else { return nil }
 

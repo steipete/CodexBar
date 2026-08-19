@@ -12,7 +12,7 @@ public enum OpenCodeGoUsageError: LocalizedError {
     public var errorDescription: String? {
         switch self {
         case .invalidCredentials:
-            "OpenCode Go session cookie is invalid or expired."
+            "OpenCode Go credentials are invalid or expired."
         case let .networkError(message):
             "OpenCode Go network error: \(message)"
         case let .apiError(message):
@@ -28,6 +28,7 @@ public struct OpenCodeGoUsageFetcher: Sendable {
     private static let baseURL = URL(string: "https://opencode.ai")!
     private static let authURL = URL(string: "https://opencode.ai/auth")!
     private static let serverURL = URL(string: "https://opencode.ai/_server")!
+    private static let usageAPIURL = URL(string: "https://opencode.ai/zen/go/v1/usage")!
     private static let workspacesServerID = "def39973159c7f0483d8793a822b8dbb10d067e12c65455fcb4608459ba0234f"
     private static let billingServerID = "c83b78a614689c38ebee981f9b39a8b377716db85c1fd7dbab604adc02d3313d"
 
@@ -202,6 +203,41 @@ public struct OpenCodeGoUsageFetcher: Sendable {
                 since: zenBalanceStart,
                 waitForZenBalance: waitForZenBalance))
         return snapshot.withZenBalanceUSD(zenBalance)
+    }
+
+    public static func fetchAPIUsage(
+        apiKey: String,
+        timeout: TimeInterval,
+        now: Date = Date(),
+        session: URLSession? = nil) async throws -> OpenCodeGoUsageSnapshot
+    {
+        let token = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !token.isEmpty else {
+            throw OpenCodeGoSettingsError.missingAPIKey
+        }
+
+        var request = URLRequest(url: self.usageAPIURL)
+        request.httpMethod = "GET"
+        request.timeoutInterval = timeout
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("CodexBar", forHTTPHeaderField: "User-Agent")
+
+        let response = try await (session ?? self.redirectGuardSession).response(for: request)
+        guard response.statusCode == 200 else {
+            if response.statusCode == 401 || response.statusCode == 403 {
+                throw OpenCodeGoUsageError.invalidCredentials
+            }
+            let body = String(data: response.data, encoding: .utf8) ?? ""
+            if let message = self.extractServerErrorMessage(from: body) {
+                throw OpenCodeGoUsageError.apiError("HTTP \(response.statusCode): \(message)")
+            }
+            throw OpenCodeGoUsageError.apiError("HTTP \(response.statusCode)")
+        }
+        guard let text = String(data: response.data, encoding: .utf8) else {
+            throw OpenCodeGoUsageError.parseFailed("Response was not UTF-8.")
+        }
+        return try self.parseSubscription(text: text, now: now)
     }
 
     static func requiredZenBalanceFallback(

@@ -31,10 +31,14 @@ enum AmpUsageParser {
             #"\s+remaining(?:\s*\(replenishes\s*\+\$?"# + amountPattern + #"\s*/\s*hour\))?"#
         let freePercentPattern = #"(?im)^\s*Amp Free:\s*"# + amountPattern +
             #"\s*%\s+remaining(?:\s+today)?(?:\s*(\(resets\s+daily\)))?"#
-        let subscriptionPattern = #"(?im)^\s*Subscription\s+(.+?):\s*"# + amountPattern +
+        let subscriptionSuffix = #"\s*"# + amountPattern +
             #"\s*%\s+other\s+usage\s+and\s+"# + amountPattern +
             #"\s*%\s+orb\s+usage\s+remaining\s*-\s*resets\s+upon\s+renewal\s+in\s+"# +
             #"([0-9][0-9,]*)\s+(days?|months?)(?:\s+-\s+https?://\S+)?\s*$"#
+        let subscriptionPatterns = [
+            #"(?im)^\s*Subscription\s+(.+?):"# + subscriptionSuffix,
+            #"(?im)^\s*Amp\s+(.+?)\s+Subscription:"# + subscriptionSuffix,
+        ]
         let creditsPattern = #"(?im)^\s*Individual credits:\s*\$?"# + amountPattern + #"\s+remaining"#
         let individualCredits = self.captures(in: text, pattern: creditsPattern)?.first
             .flatMap(self.number(from:))
@@ -78,16 +82,18 @@ enum AmpUsageParser {
         }()
         let resolvedFreeUsage = freeUsage ?? freePercentUsage
         let subscriptionUsage: AmpSubscriptionUsage? = {
-            guard let subscription = self.captures(in: text, pattern: subscriptionPattern),
-                  subscription.count == 5,
-                  let plan = self.nonEmpty(subscription[0]),
-                  let otherRemaining = self.number(from: subscription[1]),
-                  let orbRemaining = self.number(from: subscription[2]),
-                  let renewalValue = Int(subscription[3].replacingOccurrences(of: ",", with: "")),
-                  let resetsAt = self.subscriptionResetDate(
-                      value: renewalValue,
-                      unit: subscription[4],
-                      now: now)
+            guard let subscription = subscriptionPatterns.lazy.compactMap({ pattern in
+                self.captures(in: text, pattern: pattern)
+            }).first,
+                subscription.count == 5,
+                let plan = self.nonEmpty(subscription[0]),
+                let otherRemaining = self.number(from: subscription[1]),
+                let orbRemaining = self.number(from: subscription[2]),
+                let renewalValue = Int(subscription[3].replacingOccurrences(of: ",", with: "")),
+                let resetsAt = self.subscriptionResetDate(
+                    value: renewalValue,
+                    unit: subscription[4],
+                    now: now)
             else { return nil }
             let unit = subscription[4].lowercased()
             let singularUnit = unit.hasPrefix("month") ? "month" : "day"

@@ -1,5 +1,5 @@
 ---
-summary: "Fireworks provider data sources: API key, account slug, and the 30-day spend billing summary."
+summary: "Fireworks provider data sources: API key account discovery and the 30-day spend billing summary."
 read_when:
   - Adding or tweaking Fireworks spend parsing
   - Updating Fireworks API key or account slug handling
@@ -14,12 +14,12 @@ Fireworks is API-only for billing: there is no public credit-balance endpoint, s
 ## Data sources
 
 1. **API key** stored in `~/.codexbar/config.json` or supplied via `FIREWORKS_API_KEY` (legacy alias: `FIREWORKS_KEY`).
-2. **Account slug** stored in `~/.codexbar/config.json` or supplied via `FIREWORKS_ACCOUNT_SLUG`.
+2. **Optional account slug** stored in `~/.codexbar/config.json` or supplied via `FIREWORKS_ACCOUNT_SLUG`.
 
-The slug is the segment after `/accounts/` in console URLs (e.g. the slug for
-`app.fireworks.ai/accounts/x0mh0x` is `x0mh0x`). Fireworks does not expose a whoami endpoint, so the slug
-cannot be derived from the API key and is required. Settings shows an API key field plus an Account slug field,
-and the config validator flags a missing slug when a key is configured.
+CodexBar calls `GET https://api.fireworks.ai/v1/accounts` to list the accounts visible to the key. A single
+account is selected automatically and its slug is saved to the config. When several accounts are visible, the
+user must choose one in the app.fireworks.ai home account switcher or obtain it from `firectl whoami`, then enter
+it in Settings. A configured slug remains useful for selecting among multiple accounts.
 
 ## Spend endpoint
 
@@ -35,13 +35,16 @@ and the config validator flags a missing slug when a key is configured.
 - The menu card shows the 30-day spend, e.g. `$0.53` under a "Spend" label.
 - There is no session or weekly window — Fireworks does not expose per-window quota via API.
 - HTTP 401/403 surfaces an invalid-key message, 429 a rate-limit message.
+- A 404 for a configured slug retries account discovery. An empty billing response is accepted only when the
+  slug is present in the account listing, so a guessed or stale slug cannot look like a successful refresh.
 - There is no balance display; the Fireworks web console (app.fireworks.ai → Settings/Billing) is the
   authoritative balance source.
 
 ## Plugin conversion status
 
-The native fetcher remains authoritative. A valid response with no rated line items intentionally produces a
-successful snapshot with no rate window, cost, or detail; the current plugin snapshot contract rejects that shape.
+The native fetcher remains authoritative. A valid response with no rated line items for a listed account
+intentionally produces a successful snapshot with no rate window, cost, or detail; the current plugin snapshot
+contract rejects that shape.
 
 ## Key files
 

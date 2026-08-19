@@ -623,6 +623,8 @@
 "display_mode_subtitle" = "اختر ما تريد عرضه في شريط القائمة (Pace يظهر الاستخدام مقابل المتوقع).";
 "show_quota_warning_markers_title" = "عرض علامات التحذير من الحصص";
 "show_quota_warning_markers_subtitle" = "ارسم علامات عتبة على أشرطة الاستخدام عند تكوين تحذيرات الحصص.";
+"show_pace_title" = "إظهار وتيرة الاستخدام";
+"show_pace_subtitle" = "يعرض شريط التقدم أو التأخر ونص التوقعات على أشرطة الاستخدام.";
 "weekly_progress_work_days_title" = "أيام العمل الأسبوعية للتقدم";
 "weekly_progress_work_days_subtitle" = "حدد أيام عمل لمؤشرات شريط الاستخدام الأسبوعي وحسابات السرعة.";
 "workday_tick_appearance_title" = "مظهر علامات أيام العمل";
@@ -1331,6 +1333,12 @@
 "By subscription" = "حسب الاشتراك";
 "No model-level history" = "لا يوجد سجل على مستوى النموذج";
 "Daily estimated spend" = "الإنفاق اليومي التقديري";
+"Hourly estimated spend" = "الإنفاق الساعي التقديري";
+"Hour" = "ساعة";
+"%d hours of usage data across %d services" = "%d ساعات من بيانات الاستخدام عبر %d خدمات";
+"1 hour of usage data across 1 service" = "ساعة واحدة من بيانات الاستخدام عبر خدمة واحدة";
+"%d hours of usage data across 1 service" = "%d ساعات من بيانات الاستخدام عبر خدمة واحدة";
+"1 hour of usage data across %d services" = "ساعة واحدة من بيانات الاستخدام عبر %d خدمات";
 "≈%d full 5h windows of weekly left · %d windows until reset" = "≈%d نافذة كاملة مدتها 5 ساعات متبقية من الأسبوعي · %d نافذة حتى إعادة التعيين";
 "Weekly cannot run out before reset at this pace" = "لا يمكن أن ينفد الحد الأسبوعي قبل إعادة التعيين بهذه الوتيرة";
 "Weekly can run out ≈%d windows early" = "قد ينفد الحد الأسبوعي مبكرًا بنحو %d نافذة";
@@ -1487,6 +1495,7 @@
 "Include OpenCodex usage logs" = "Include OpenCodex usage logs";
 "Hide native Codex when OpenCodex is present" = "Hide native Codex when OpenCodex is present";
 "Export JSON" = "Export JSON";
+"Copy JSON" = "نسخ JSON";
 "Sources" = "Sources";
 "OpenCodex" = "OpenCodex";
 

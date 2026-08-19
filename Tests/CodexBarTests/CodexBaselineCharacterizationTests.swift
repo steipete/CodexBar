@@ -141,21 +141,22 @@ struct CodexBaselineCharacterizationTests {
     }
 
     @Test
-    func `app auto pipeline order is OAuth then CLI without web`() async {
+    func `app auto pipeline order is PAT then OAuth then CLI without web`() async {
         let strategyIDs = await self.strategyIDs(runtime: .app, sourceMode: .auto)
-        #expect(strategyIDs == ["codex.oauth", "codex.cli"])
+        #expect(strategyIDs == ["codex.pat", "codex.oauth", "codex.cli"])
     }
 
     @Test
-    func `CLI auto pipeline order is OAuth then CLI without web`() async {
+    func `CLI auto pipeline order is PAT then OAuth then CLI without web`() async {
         let strategyIDs = await self.strategyIDs(runtime: .cli, sourceMode: .auto)
-        #expect(strategyIDs == ["codex.oauth", "codex.cli"])
+        #expect(strategyIDs == ["codex.pat", "codex.oauth", "codex.cli"])
     }
 
     @Test
     func `explicit fetch plan modes keep Codex strategy selection`() async {
         let appCases: [(ProviderSourceMode, [String])] = [
             (.oauth, ["codex.oauth", "codex.oauth-native-refresh-cli"]),
+            (.api, ["codex.pat"]),
             (.cli, ["codex.cli"]),
             (.web, ["codex.web.dashboard"]),
         ]
@@ -187,8 +188,8 @@ struct CodexBaselineCharacterizationTests {
             env: env,
             codexArguments: stubCLI.arguments)
 
-        #expect(outcome.attempts.map(\.strategyID) == ["codex.oauth", "codex.cli"])
-        #expect(outcome.attempts.map(\.wasAvailable) == [false, true])
+        #expect(outcome.attempts.map(\.strategyID) == ["codex.pat", "codex.oauth", "codex.cli"])
+        #expect(outcome.attempts.map(\.wasAvailable) == [false, false, true])
 
         switch outcome.result {
         case let .success(result):
@@ -217,9 +218,9 @@ struct CodexBaselineCharacterizationTests {
             env: env,
             codexArguments: stubCLI.arguments)
 
-        #expect(outcome.attempts.map(\.strategyID) == ["codex.oauth"])
-        #expect(outcome.attempts.map(\.wasAvailable) == [true])
-        #expect(outcome.attempts[0].errorDescription?.isEmpty == false)
+        #expect(outcome.attempts.map(\.strategyID) == ["codex.pat", "codex.oauth"])
+        #expect(outcome.attempts.map(\.wasAvailable) == [false, true])
+        #expect(outcome.attempts[1].errorDescription?.isEmpty == false)
 
         switch outcome.result {
         case .success:
@@ -345,8 +346,8 @@ struct CodexBaselineCharacterizationTests {
             settings: settings,
             codexArguments: stubCLI.arguments)
 
-        #expect(outcome.attempts.map(\.strategyID) == ["codex.oauth", "codex.cli"])
-        #expect(outcome.attempts.map(\.wasAvailable) == [false, true])
+        #expect(outcome.attempts.map(\.strategyID) == ["codex.pat", "codex.oauth", "codex.cli"])
+        #expect(outcome.attempts.map(\.wasAvailable) == [false, false, true])
 
         switch outcome.result {
         case let .success(result):
@@ -377,8 +378,8 @@ struct CodexBaselineCharacterizationTests {
             ],
             settings: settings)
 
-        #expect(outcome.attempts.map(\.strategyID) == ["codex.oauth"])
-        #expect(outcome.attempts.map(\.wasAvailable) == [true])
+        #expect(outcome.attempts.map(\.strategyID) == ["codex.pat", "codex.oauth"])
+        #expect(outcome.attempts.map(\.wasAvailable) == [false, true])
 
         switch outcome.result {
         case .success:

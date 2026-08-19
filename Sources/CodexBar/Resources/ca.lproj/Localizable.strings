@@ -601,6 +601,8 @@
 "display_mode_subtitle" = "Trieu què es mostra a la barra de menús (Ritme mostra l'ús respecte al previst).";
 "show_quota_warning_markers_title" = "Mostreu els marcadors d'avís de quota";
 "show_quota_warning_markers_subtitle" = "Dibuixa marques de llindar a les barres d'ús quan hi ha avisos de quota configurats.";
+"show_pace_title" = "Mostra el ritme";
+"show_pace_subtitle" = "Mostra la franja d'avançament o retard i el text de previsió a les barres d'ús.";
 "weekly_progress_work_days_title" = "Dies laborables del progrés setmanal";
 "weekly_progress_work_days_subtitle" = "Definiu els dies laborables per als marcadors de les barres d'ús setmanal i els càlculs de ritme.";
 "workday_tick_appearance_title" = "Aparença de les marques dels dies laborables";
@@ -1330,6 +1332,12 @@
 "By subscription" = "Per subscripció";
 "No model-level history" = "Sense historial per model";
 "Daily estimated spend" = "Despesa diària estimada";
+"Hourly estimated spend" = "Despesa horària estimada";
+"Hour" = "Hora";
+"%d hours of usage data across %d services" = "%d hores de dades d’ús en %d serveis";
+"1 hour of usage data across 1 service" = "1 hora de dades d’ús en 1 servei";
+"%d hours of usage data across 1 service" = "%d hores de dades d’ús en 1 servei";
+"1 hour of usage data across %d services" = "1 hora de dades d’ús en %d serveis";
 "≈%d full 5h windows of weekly left · %d windows until reset" = "≈%d finestres completes de 5 h de quota setmanal · %d finestres fins al reinici";
 "Weekly cannot run out before reset at this pace" = "La quota setmanal no es pot esgotar abans del reinici a aquest ritme";
 "Weekly can run out ≈%d windows early" = "La quota setmanal es pot esgotar ≈%d finestres abans";
@@ -1486,6 +1494,7 @@
 "Include OpenCodex usage logs" = "Include OpenCodex usage logs";
 "Hide native Codex when OpenCodex is present" = "Hide native Codex when OpenCodex is present";
 "Export JSON" = "Export JSON";
+"Copy JSON" = "Copia JSON";
 "Sources" = "Sources";
 "OpenCodex" = "OpenCodex";
 

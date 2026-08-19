@@ -166,6 +166,13 @@ public enum OpenCodexUsageLog {
         if NSClassFromString("XCTestCase") != nil {
             return true
         }
+        #if os(macOS)
         return Bundle.allBundles.contains { $0.bundlePath.hasSuffix(".xctest") }
+        #else
+        // Bundle.allBundles crashes on Linux (swift-corelibs-foundation). SwiftPM
+        // builds test executables with a `.xctest` suffix, so detect the test
+        // process from the main executable instead of enumerating bundles.
+        return Bundle.main.executableURL?.path.hasSuffix(".xctest") ?? false
+        #endif
     }
 }

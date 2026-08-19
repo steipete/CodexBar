@@ -54,6 +54,9 @@ public struct ProviderFetchContext: Sendable {
     /// hosts set this beyond their refresh cadence so a slow cold start can
     /// recover on the next refresh.
     public let persistentCLISessionIdleWindow: TimeInterval?
+    /// Already-resolved CLI version from Settings (or the CLI's shared detector).
+    /// Codex PAT User-Agent consumes this instead of spawning `codex --version`.
+    public let resolvedCLIVersion: String?
 
     public init(
         runtime: ProviderRuntime,
@@ -75,7 +78,8 @@ public struct ProviderFetchContext: Sendable {
         costUsageHistoryDays: Int = 30,
         claudeOwnerCLIRecoveryOnly: Bool = false,
         persistsCLISessions: Bool = false,
-        persistentCLISessionIdleWindow: TimeInterval? = nil)
+        persistentCLISessionIdleWindow: TimeInterval? = nil,
+        resolvedCLIVersion: String? = nil)
     {
         self.runtime = runtime
         self.sourceMode = sourceMode
@@ -97,6 +101,7 @@ public struct ProviderFetchContext: Sendable {
         self.claudeOwnerCLIRecoveryOnly = claudeOwnerCLIRecoveryOnly
         self.persistsCLISessions = persistsCLISessions
         self.persistentCLISessionIdleWindow = persistentCLISessionIdleWindow
+        self.resolvedCLIVersion = resolvedCLIVersion
     }
 }
 

@@ -57,6 +57,9 @@ extension StatusItemController {
         let layoutBalanceSignature = showBrandPercent
             ? self.storedMenuBarLayoutBalanceSignature(for: provider, snapshot: snapshot)
             : nil
+        let layoutLaneSignature = showBrandPercent
+            ? self.storedMenuBarLayoutLaneSignature(for: provider, snapshot: snapshot)
+            : nil
 
         return [
             provider.rawValue,
@@ -75,6 +78,7 @@ extension StatusItemController {
             "layoutAccount=\(layoutAccountSignature ?? "nil")",
             "layoutPace=\(layoutPaceSignature ?? "nil")",
             "layoutBalance=\(layoutBalanceSignature ?? "nil")",
+            "layoutLanes=\(layoutLaneSignature ?? "nil")",
         ].joined(separator: "|")
     }
 
@@ -159,6 +163,37 @@ extension StatusItemController {
                     window: window,
                     minimumElapsedPercent: percentWindow == .weekly ? 1 : nil)
                 return "\(percentWindow.rawValue)=\(pace ?? "nil")"
+            }
+            .joined(separator: ",")
+    }
+
+    /// Direct lane tokens read `snapshot.tertiary` independently of the legacy icon percent
+    /// resolver. Without this contribution a Third Party (or equivalent) lane can move while the
+    /// observation signature stays put, so the custom token keeps a stale percent until an
+    /// unrelated icon change forces a redraw.
+    private func storedMenuBarLayoutLaneSignature(
+        for provider: UsageProvider,
+        snapshot: UsageSnapshot?)
+        -> String?
+    {
+        let resolution = self.settings.menuBarLayoutResolution(for: provider)
+        guard !resolution.usesLegacyRendering else { return nil }
+
+        let lanes = resolution.layout.selectedLanes
+        guard !lanes.isEmpty else { return nil }
+
+        let windows = self.menuBarLayoutWindows(provider: provider, snapshot: snapshot, now: Date())
+        let showUsed = self.settings.usageBarsShowUsed
+        return MenuBarLayoutLane.allCases
+            .filter(lanes.contains)
+            .map { lane in
+                let window: RateWindow? = switch lane {
+                case .primary: windows.primary
+                case .secondary: windows.secondary
+                case .tertiary: windows.tertiary
+                }
+                let percent = showUsed ? window?.usedPercent : window?.remainingPercent
+                return "\(lane.rawValue)=\(Self.iconSignatureValue(percent))"
             }
             .joined(separator: ",")
     }

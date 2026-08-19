@@ -33,7 +33,7 @@ public struct OpenCodexUsageStore: Sendable {
             customPricing: customPricing)
     }
 
-    func loadEntries(logURL: URL, fileManager: FileManager) throws -> [OpenCodexUsageEntry] {
+    public func loadEntries(logURL: URL, fileManager: FileManager = .default) throws -> [OpenCodexUsageEntry] {
         guard fileManager.fileExists(atPath: logURL.path) else { return [] }
         let attributes = try fileManager.attributesOfItem(atPath: logURL.path)
         let size = (attributes[.size] as? NSNumber)?.int64Value ?? 0

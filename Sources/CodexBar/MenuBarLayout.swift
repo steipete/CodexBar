@@ -42,6 +42,29 @@ enum MenuBarConditionalComparison: String, CaseIterable, Codable, Hashable, Send
     }
 }
 
+enum MenuBarLayoutLane: String, CaseIterable, Codable, Hashable, Sendable {
+    case primary
+    case secondary
+    case tertiary
+
+    static func available(for provider: UsageProvider?, snapshot: UsageSnapshot? = nil) -> [Self] {
+        guard let provider else { return [] }
+        let capabilities = ProviderDescriptorRegistry.descriptor(for: provider).menuBarMetrics
+        return Self.allCases.filter { lane in
+            guard capabilities.supports(lane.providerMetric) else { return false }
+            return lane != .tertiary || !capabilities.tertiaryRequiresWindow || snapshot?.tertiary != nil
+        }
+    }
+
+    private var providerMetric: ProviderMenuBarMetric {
+        switch self {
+        case .primary: .primary
+        case .secondary: .secondary
+        case .tertiary: .tertiary
+        }
+    }
+}
+
 enum MenuBarConditionalCombinator: String, CaseIterable, Codable, Hashable, Sendable {
     case and
     case or
@@ -130,11 +153,36 @@ struct MenuBarLayoutConditional: Codable, Hashable, Sendable {
     }
 }
 
+struct MenuBarLayoutLaneLabels: Hashable {
+    let primary: String
+    let secondary: String
+    let tertiary: String
+
+    init(provider: UsageProvider, snapshot: UsageSnapshot?) {
+        let descriptor = ProviderDescriptorRegistry.descriptor(for: provider)
+        let labels = snapshot.map {
+            descriptor.presentation.rateWindowLabels(metadata: descriptor.metadata, snapshot: $0)
+        }
+        self.primary = L(labels?.primary ?? descriptor.metadata.sessionLabel)
+        self.secondary = L(labels?.secondary ?? descriptor.metadata.weeklyLabel)
+        self.tertiary = L(labels?.tertiary ?? descriptor.metadata.opusLabel ?? "Tertiary")
+    }
+
+    func label(for lane: MenuBarLayoutLane) -> String {
+        switch lane {
+        case .primary: self.primary
+        case .secondary: self.secondary
+        case .tertiary: self.tertiary
+        }
+    }
+}
+
 enum MenuBarLayoutToken: Codable, Hashable, Sendable {
     case icon
     case providerName
     case accountLabel
     case percent(window: PercentWindow)
+    case lanePercent(lane: MenuBarLayoutLane)
     /// Signed pace delta for a window, e.g. `+11%` when usage runs ahead of the sustainable rate.
     /// `runsOut` answers "when does this end"; this token answers "how far off the even rate am I".
     case pace(window: PercentWindow)
@@ -153,6 +201,23 @@ enum MenuBarLayoutToken: Codable, Hashable, Sendable {
     /// References a library conditional by UUID. The conditional's content (clauses, branches) lives in
     /// the conditionals library; the layout stores only its identity.
     case conditional(id: UUID)
+
+    var selectedLane: MenuBarLayoutLane? {
+        if case let .lanePercent(lane) = self { return lane }
+        return nil
+    }
+
+    /// Maps `lanePercent` onto tokens a 0.53.x decoder already understands so a downgrade keeps a
+    /// layout instead of dropping the whole blob. Direct lanes follow the provider's semantic
+    /// windows: Kimi's primary is weekly, so a Kimi override does not swap 7-day and 5-hour.
+    func legacyCompatible(for provider: UsageProvider? = nil) -> MenuBarLayoutToken {
+        switch self {
+        case let .lanePercent(lane):
+            .percent(window: MenuBarLayout.legacyPercentWindow(for: lane, provider: provider))
+        default:
+            self
+        }
+    }
 }
 
 enum MenuBarLayoutSemanticWindowResolver {
@@ -240,6 +305,23 @@ struct MenuBarLayout: Codable, Hashable, Sendable {
         }
         return Array(lines[firstContentLine...].prefix(2))
     }
+
+    var selectedLanes: Set<MenuBarLayoutLane> {
+        Set(self.lines.joined().compactMap(\.selectedLane))
+    }
+
+    func legacyCompatible(for provider: UsageProvider? = nil) -> MenuBarLayout {
+        MenuBarLayout(lines: self.lines.map { line in
+            line.map { $0.legacyCompatible(for: provider) }
+        })
+    }
+}
+
+enum MenuBarLayoutUserDefaultsKey {
+    static let layout = "menuBarLayout"
+    static let layoutCurrent = "menuBarLayoutV2"
+    static let overrides = "menuBarLayoutOverrides"
+    static let overridesCurrent = "menuBarLayoutOverridesV2"
 }
 
 enum MenuBarLayoutPreset: String, CaseIterable, Identifiable, Sendable {
@@ -409,6 +491,125 @@ extension MenuBarLayout {
         case .session: .session
         case .weekly: .weekly
         }
+    }
+
+    static func legacyPercentWindow(for lane: MenuBarLayoutLane, provider: UsageProvider?) -> PercentWindow {
+        switch lane {
+        case .primary: self.percentWindow(for: .primary, provider: provider)
+        case .secondary: self.percentWindow(for: .secondary, provider: provider)
+        case .tertiary: .automatic
+        }
+    }
+}
+
+enum MenuBarLayoutPersistence {
+    static func preferredLayout(current: MenuBarLayout?, legacy: MenuBarLayout?) -> MenuBarLayout? {
+        if let current {
+            if let legacy, current.legacyCompatible() != legacy {
+                return legacy
+            }
+            return current
+        }
+        return legacy
+    }
+
+    static func preferredOverrides(
+        current: [String: MenuBarLayout]?,
+        legacy: [String: MenuBarLayout]?)
+        -> [String: MenuBarLayout]
+    {
+        guard let current else { return legacy ?? [:] }
+        guard let legacy else { return current }
+        guard Self.overridesAgree(current: current, legacy: legacy) else {
+            return legacy
+        }
+        return current
+    }
+
+    static func overridesAgree(
+        current: [String: MenuBarLayout],
+        legacy: [String: MenuBarLayout])
+        -> Bool
+    {
+        guard Set(current.keys) == Set(legacy.keys) else { return false }
+        return current.allSatisfy { key, layout in
+            layout.legacyCompatible(for: UsageProvider(rawValue: key)) == legacy[key]
+        }
+    }
+
+    /// Pre-V2 installs only have the legacy keys. Materialize V2 plus an older-readable projection
+    /// at load so an immediate downgrade does not need an editor write first. Leave both keys
+    /// untouched when they disagree: that is an older-release edit.
+    static func needsStartupDualWrite(current: MenuBarLayout?, legacy: MenuBarLayout?) -> Bool {
+        switch (current, legacy) {
+        case (nil, .some): true
+        case (.some, nil): true
+        default: false
+        }
+    }
+
+    static func needsStartupDualWrite(
+        current: [String: MenuBarLayout]?,
+        legacy: [String: MenuBarLayout]?)
+        -> Bool
+    {
+        switch (current, legacy) {
+        case (nil, let legacy?): !legacy.isEmpty
+        case (let current?, nil): !current.isEmpty
+        default: false
+        }
+    }
+
+    static func encoded(
+        _ layout: MenuBarLayout,
+        provider: UsageProvider? = nil)
+        throws -> (current: Data, legacy: Data)
+    {
+        let encoder = JSONEncoder()
+        let current = try encoder.encode(layout)
+        let legacy = try encoder.encode(layout.legacyCompatible(for: provider))
+        return (current, legacy)
+    }
+
+    static func encodedOverrides(_ overrides: [String: MenuBarLayout]) throws -> (current: Data, legacy: Data) {
+        let encoder = JSONEncoder()
+        let legacyOverrides = Dictionary(uniqueKeysWithValues: overrides.map { key, layout in
+            (key, layout.legacyCompatible(for: UsageProvider(rawValue: key)))
+        })
+        return try (encoder.encode(overrides), encoder.encode(legacyOverrides))
+    }
+
+    static func loadLayout(
+        current: MenuBarLayout?,
+        legacy: MenuBarLayout?,
+        into userDefaults: UserDefaults)
+        -> MenuBarLayout?
+    {
+        let preferred = self.preferredLayout(current: current, legacy: legacy)
+        if let preferred,
+           self.needsStartupDualWrite(current: current, legacy: legacy),
+           let blobs = try? self.encoded(preferred)
+        {
+            userDefaults.set(blobs.current, forKey: MenuBarLayoutUserDefaultsKey.layoutCurrent)
+            userDefaults.set(blobs.legacy, forKey: MenuBarLayoutUserDefaultsKey.layout)
+        }
+        return preferred
+    }
+
+    static func loadOverrides(
+        current: [String: MenuBarLayout]?,
+        legacy: [String: MenuBarLayout]?,
+        into userDefaults: UserDefaults)
+        -> [String: MenuBarLayout]
+    {
+        let preferred = self.preferredOverrides(current: current, legacy: legacy)
+        if self.needsStartupDualWrite(current: current, legacy: legacy),
+           let blobs = try? self.encodedOverrides(preferred)
+        {
+            userDefaults.set(blobs.current, forKey: MenuBarLayoutUserDefaultsKey.overridesCurrent)
+            userDefaults.set(blobs.legacy, forKey: MenuBarLayoutUserDefaultsKey.overrides)
+        }
+        return preferred
     }
 }
 

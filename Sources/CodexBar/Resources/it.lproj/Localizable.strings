@@ -625,6 +625,8 @@
 "display_mode_subtitle" = "Scegli cosa mostrare nella barra menu (Andamento confronta utilizzo e atteso).";
 "show_quota_warning_markers_title" = "Mostra indicatori avviso quota";
 "show_quota_warning_markers_subtitle" = "Disegna tacche soglia sulle barre quando gli avvisi quota sono configurati.";
+"show_pace_title" = "Mostra il ritmo";
+"show_pace_subtitle" = "Mostra la striscia di anticipo o ritardo e il testo di previsione sulle barre di utilizzo.";
 "weekly_progress_work_days_title" = "Giorni lavorativi progresso settimanale";
 "weekly_progress_work_days_subtitle" = "Disegna i confini giornalieri sulle barre settimanali.";
 "workday_tick_appearance_title" = "Aspetto delle tacche dei giorni lavorativi";
@@ -1331,6 +1333,12 @@
 "By subscription" = "Per abbonamento";
 "No model-level history" = "Nessuna cronologia a livello di modello";
 "Daily estimated spend" = "Spesa giornaliera stimata";
+"Hourly estimated spend" = "Spesa oraria stimata";
+"Hour" = "Ora";
+"%d hours of usage data across %d services" = "%d ore di dati di utilizzo su %d servizi";
+"1 hour of usage data across 1 service" = "1 ora di dati di utilizzo su 1 servizio";
+"%d hours of usage data across 1 service" = "%d ore di dati di utilizzo su 1 servizio";
+"1 hour of usage data across %d services" = "1 ora di dati di utilizzo su %d servizi";
 "≈%d full 5h windows of weekly left · %d windows until reset" = "≈%d finestre complete da 5 h di quota settimanale · %d finestre al reset";
 "Weekly cannot run out before reset at this pace" = "La quota settimanale non può esaurirsi prima del reset a questo ritmo";
 "Weekly can run out ≈%d windows early" = "La quota settimanale può esaurirsi ≈%d finestre prima";
@@ -1487,6 +1495,7 @@
 "Include OpenCodex usage logs" = "Includi i log di utilizzo OpenCodex";
 "Hide native Codex when OpenCodex is present" = "Nascondi Codex nativo quando è presente OpenCodex";
 "Export JSON" = "Esporta JSON";
+"Copy JSON" = "Copia JSON";
 "Sources" = "Origini";
 "OpenCodex" = "OpenCodex";
 "menu_bar_layout_token_conditional" = "Condizionale";

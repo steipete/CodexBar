@@ -201,4 +201,134 @@ struct OpenCodexUsageParserTests {
         #expect(snapshot.daily[0].inputTokens == 9)
         #expect(snapshot.daily[0].requestCount == 1)
     }
+
+    @Test
+    func `OpenCodex aggregator uses historical GPT-5_6 rates before July 2026 cutoff`() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try #require(TimeZone(secondsFromGMT: 0))
+        let beforeCutoff = Date(timeIntervalSince1970: 1_785_369_599)
+        let afterCutoff = Date(timeIntervalSince1970: 1_785_369_601)
+        let usage = OpenCodexTokenUsage(
+            inputTokens: 100,
+            outputTokens: 5,
+            cacheReadInputTokens: 10,
+            totalTokens: 105)
+        let snapshot = OpenCodexUsageAggregator.snapshot(
+            entries: [
+                OpenCodexUsageEntry(
+                    requestID: "before",
+                    timestamp: beforeCutoff,
+                    provider: "openai",
+                    model: "gpt-5.6-terra",
+                    usageStatus: .reported,
+                    usage: usage,
+                    totalTokens: 105),
+                OpenCodexUsageEntry(
+                    requestID: "after",
+                    timestamp: afterCutoff,
+                    provider: "openai",
+                    model: "gpt-5.6-terra",
+                    usageStatus: .reported,
+                    usage: usage,
+                    totalTokens: 105),
+            ],
+            now: afterCutoff,
+            historyDays: 7,
+            calendar: calendar)
+
+        let beforeDay = try #require(snapshot.daily.first(where: { $0.date == "2026-07-29" }))
+        let afterDay = try #require(snapshot.daily.first(where: { $0.date == "2026-07-30" }))
+        let beforeExpected = try #require(CostUsagePricing.codexCostUSD(
+            model: "gpt-5.6-terra",
+            inputTokens: 100,
+            cachedInputTokens: 10,
+            outputTokens: 5,
+            pricingDate: beforeCutoff))
+        let afterExpected = try #require(CostUsagePricing.codexCostUSD(
+            model: "gpt-5.6-terra",
+            inputTokens: 100,
+            cachedInputTokens: 10,
+            outputTokens: 5,
+            pricingDate: afterCutoff))
+        let beforeCost = try #require(beforeDay.costUSD)
+        let afterCost = try #require(afterDay.costUSD)
+        #expect(abs(beforeCost - beforeExpected) < 1e-7)
+        #expect(abs(afterCost - afterExpected) < 1e-7)
+        #expect(beforeCost > afterCost)
+    }
+
+    @Test
+    func `buckets per-request timestamps into hour entries`() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try #require(TimeZone(secondsFromGMT: 0))
+        let first = Date(timeIntervalSince1970: 1_784_179_200)
+        let second = first.addingTimeInterval(3600)
+        let snapshot = OpenCodexUsageAggregator.snapshot(
+            entries: [
+                OpenCodexUsageEntry(
+                    requestID: "h1",
+                    timestamp: first,
+                    provider: "openai",
+                    model: "gpt-5.4",
+                    usageStatus: .reported,
+                    conversationID: "chat-1",
+                    usage: OpenCodexTokenUsage(inputTokens: 10, outputTokens: 2, totalTokens: 12),
+                    totalTokens: 12),
+                OpenCodexUsageEntry(
+                    requestID: "h2",
+                    timestamp: second,
+                    provider: "openai",
+                    model: "gpt-5.4",
+                    usageStatus: .reported,
+                    conversationID: "chat-1",
+                    usage: OpenCodexTokenUsage(inputTokens: 4, outputTokens: 1, totalTokens: 5),
+                    totalTokens: 5),
+            ],
+            now: second,
+            historyDays: 7,
+            calendar: calendar)
+        #expect(snapshot.hourly.count == 2)
+        #expect(snapshot.hourly[0].hour == calendar.dateInterval(of: .hour, for: first)?.start)
+        #expect(snapshot.hourly[0].totalTokens == 12)
+        #expect(snapshot.hourly[1].hour == calendar.dateInterval(of: .hour, for: second)?.start)
+        #expect(snapshot.hourly[1].totalTokens == 5)
+        #expect(snapshot.sessions.count == 1)
+    }
+
+    @Test
+    func `hour buckets follow the pinned timezone instead of the current zone`() throws {
+        let timestamp = Date(timeIntervalSince1970: 1_784_179_200)
+        var losAngeles = Calendar(identifier: .gregorian)
+        losAngeles.timeZone = try #require(TimeZone(identifier: "America/Los_Angeles"))
+        var shanghai = Calendar(identifier: .gregorian)
+        shanghai.timeZone = try #require(TimeZone(identifier: "Asia/Shanghai"))
+        let entry = OpenCodexUsageEntry(
+            requestID: "tz",
+            timestamp: timestamp,
+            provider: "openai",
+            model: "gpt-5.4",
+            usageStatus: .reported,
+            usage: OpenCodexTokenUsage(inputTokens: 10, outputTokens: 2, totalTokens: 12),
+            totalTokens: 12)
+        let west = OpenCodexUsageAggregator.snapshot(
+            entries: [entry],
+            now: timestamp,
+            historyDays: 7,
+            calendar: losAngeles)
+        let east = OpenCodexUsageAggregator.snapshot(
+            entries: [entry],
+            now: timestamp,
+            historyDays: 7,
+            calendar: shanghai)
+        #expect(west.hourly.count == 1)
+        #expect(east.hourly.count == 1)
+        #expect(losAngeles.startOfDay(for: west.hourly[0].hour)
+            != shanghai.startOfDay(for: east.hourly[0].hour))
+        #expect(losAngeles.component(.hour, from: west.hourly[0].hour) == 22)
+        #expect(shanghai.component(.hour, from: east.hourly[0].hour) == 13)
+        #expect(losAngeles.component(.hour, from: west.hourly[0].hour)
+            == losAngeles.component(.hour, from: timestamp))
+        #expect(shanghai.component(.hour, from: east.hourly[0].hour)
+            == shanghai.component(.hour, from: timestamp))
+    }
 }

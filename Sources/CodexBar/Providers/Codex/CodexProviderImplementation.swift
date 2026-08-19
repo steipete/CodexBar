@@ -49,6 +49,7 @@ struct CodexProviderImplementation: ProviderImplementation {
     func sourceMode(context: ProviderSourceModeContext) -> ProviderSourceMode {
         switch context.settings.codexUsageDataSource {
         case .auto: .auto
+        case .pat: .api
         case .oauth: .oauth
         case .cli: .cli
         }

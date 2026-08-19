@@ -254,7 +254,14 @@ while leaving the ambient Claude row intact.
 - `providers[].source`: Source used for the provider data.
 - `providers[].status`: Provider service status when available (`level`: `ok` | `warning` | `critical` | `unknown`).
 - `providers[].identity`: Account email and plan label, or `null`; the email local part is hidden only in redacted mode.
-- `providers[].windows`: Session, weekly, tertiary, or provider-specific rate windows.
+- `providers[].windows`: Session, weekly, tertiary, or provider-specific rate windows. Antigravity drops its
+  duplicated representative rows here and emits one row per quota bucket instead.
+- `providers[].windows[].idle`: `true` when a display client should skip the row, because the window belongs to a
+  model family that reports no usage. The key appears only when it is `true`, so a payload with no idle window keeps
+  its previous shape. This is an additive schema-v1 extension. A client that wants every window, such as a script or
+  an adapter, ignores the key and keeps the row. The built-in web UI drops these rows so the page matches the app
+  menu, which hides an untouched Antigravity model family. Only the producer can set this: a zero `usedPercent` also
+  stands for a lane whose usage the provider never reported, and the payload does not carry that distinction.
 - `providers[].credits`: Remaining credits or balance when available.
 - `providers[].cost`: Local cost data when available.
 - `providers[].display`: UI hints for ordering and coloring.

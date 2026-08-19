@@ -6,9 +6,17 @@ import FoundationNetworking
 
 public struct FireworksUsageSnapshot: Sendable {
     public let summary: FireworksUsageSummary
+    public let accountSlug: String
+    public let accountSlugWasDiscovered: Bool
 
-    public init(summary: FireworksUsageSummary) {
+    public init(
+        summary: FireworksUsageSummary,
+        accountSlug: String = "",
+        accountSlugWasDiscovered: Bool = false)
+    {
         self.summary = summary
+        self.accountSlug = accountSlug
+        self.accountSlugWasDiscovered = accountSlugWasDiscovered
     }
 
     public func toUsageSnapshot() -> UsageSnapshot {
@@ -57,8 +65,10 @@ public struct FireworksUsageSummary: Sendable {
 
 public enum FireworksUsageError: LocalizedError, Sendable, Equatable {
     case missingCredentials
-    case missingAccountSlug
     case invalidAccountSlug(String)
+    case accountNotFound(String)
+    case noAccountsFound
+    case multipleAccountsFound([String])
     case authenticationRejected
     case rateLimited
     case apiError(Int)
@@ -68,10 +78,18 @@ public enum FireworksUsageError: LocalizedError, Sendable, Equatable {
         switch self {
         case .missingCredentials:
             "Missing Fireworks API key. Add one in Settings or set FIREWORKS_API_KEY."
-        case .missingAccountSlug:
-            "Missing Fireworks account slug. Set FIREWORKS_ACCOUNT_SLUG or the slug field in Settings."
         case let .invalidAccountSlug(slug):
             "Invalid Fireworks account slug '\(slug)'. Please double-check the account slug in Settings."
+        case let .accountNotFound(slug):
+            "Fireworks account slug '\(slug)' not found for this API key. Leave the slug blank to auto-discover "
+                + "it, choose it in the app.fireworks.ai account switcher, or run 'firectl whoami'."
+        case .noAccountsFound:
+            "No Fireworks accounts are visible to this API key. Check the key in app.fireworks.ai or run "
+                + "'firectl whoami'."
+        case let .multipleAccountsFound(slugs):
+            "This Fireworks API key can access multiple accounts: \(slugs.joined(separator: ", ")). Set the "
+                + "account slug in Settings or FIREWORKS_ACCOUNT_SLUG; find it in the app.fireworks.ai account "
+                + "switcher or with 'firectl whoami'."
         case .authenticationRejected:
             "Fireworks rejected the API key. Create a new key at app.fireworks.ai and update Settings."
         case .rateLimited:
@@ -93,7 +111,7 @@ public struct FireworksUsageFetcher: Sendable {
 
     public static func fetchUsage(
         apiKey: String,
-        accountSlug: String,
+        accountSlug: String?,
         session transport: any ProviderHTTPTransport = ProviderHTTPClient.shared,
         now: Date = Date()) async throws -> FireworksUsageSnapshot
     {
@@ -101,25 +119,78 @@ public struct FireworksUsageFetcher: Sendable {
         guard !cleanedKey.isEmpty else {
             throw FireworksUsageError.missingCredentials
         }
-        let cleanedSlug = accountSlug.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !cleanedSlug.isEmpty else {
-            throw FireworksUsageError.missingAccountSlug
+        let cleanedSlug = accountSlug?.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let cleanedSlug, !cleanedSlug.isEmpty {
+            return try await self.fetchConfiguredAccount(
+                apiKey: cleanedKey,
+                accountSlug: cleanedSlug,
+                transport: transport,
+                now: now)
         }
 
+        let slugs = try await self.listAccountSlugs(apiKey: cleanedKey, transport: transport)
+        let discoveredSlug = try self.singleDiscoveredAccount(from: slugs)
+        let summary = try await self.fetchSummary(
+            apiKey: cleanedKey,
+            accountSlug: discoveredSlug,
+            transport: transport,
+            now: now)
+        return FireworksUsageSnapshot(
+            summary: summary,
+            accountSlug: discoveredSlug,
+            accountSlugWasDiscovered: true)
+    }
+
+    private static func fetchConfiguredAccount(
+        apiKey: String,
+        accountSlug: String,
+        transport: any ProviderHTTPTransport,
+        now: Date) async throws -> FireworksUsageSnapshot
+    {
+        do {
+            let summary = try await self.fetchSummary(
+                apiKey: apiKey,
+                accountSlug: accountSlug,
+                transport: transport,
+                now: now)
+            if summary.last30DaysSpend == nil {
+                let slugs = try await self.listAccountSlugs(apiKey: apiKey, transport: transport)
+                guard slugs.contains(accountSlug) else {
+                    throw FireworksUsageError.accountNotFound(accountSlug)
+                }
+            }
+            return FireworksUsageSnapshot(summary: summary, accountSlug: accountSlug)
+        } catch FireworksUsageError.apiError(404) {
+            let slugs = try await self.listAccountSlugs(apiKey: apiKey, transport: transport)
+            guard slugs.count == 1, let discoveredSlug = slugs.first else {
+                if slugs.isEmpty {
+                    throw FireworksUsageError.accountNotFound(accountSlug)
+                }
+                throw FireworksUsageError.multipleAccountsFound(slugs)
+            }
+            let summary = try await self.fetchSummary(
+                apiKey: apiKey,
+                accountSlug: discoveredSlug,
+                transport: transport,
+                now: now)
+            return FireworksUsageSnapshot(
+                summary: summary,
+                accountSlug: discoveredSlug,
+                accountSlugWasDiscovered: discoveredSlug != accountSlug)
+        }
+    }
+
+    private static func fetchSummary(
+        apiKey: String,
+        accountSlug: String,
+        transport: any ProviderHTTPTransport,
+        now: Date) async throws -> FireworksUsageSummary
+    {
         let startTime = now.addingTimeInterval(-TimeInterval(self.lookbackDays * 24 * 60 * 60))
         var request = try URLRequest(
-            url: Self.resolveSummaryURL(accountSlug: cleanedSlug, startTime: startTime, endTime: now))
-        request.httpMethod = "GET"
-        request.setValue("Bearer \(cleanedKey)", forHTTPHeaderField: "Authorization")
-        request.setValue("application/json", forHTTPHeaderField: "Accept")
-        request.timeoutInterval = Self.timeoutSeconds
-
-        let response: ProviderHTTPResponse
-        do {
-            response = try await transport.response(for: request)
-        } catch {
-            throw error
-        }
+            url: Self.resolveSummaryURL(accountSlug: accountSlug, startTime: startTime, endTime: now))
+        self.authorize(&request, apiKey: apiKey)
+        let response = try await transport.response(for: request)
 
         switch response.statusCode {
         case 200:
@@ -133,8 +204,65 @@ public struct FireworksUsageFetcher: Sendable {
             throw FireworksUsageError.apiError(response.statusCode)
         }
 
-        let summary = try self.parseSummary(data: response.data, now: now)
-        return FireworksUsageSnapshot(summary: summary)
+        return try self.parseSummary(data: response.data, now: now)
+    }
+
+    private static func listAccountSlugs(
+        apiKey: String,
+        transport: any ProviderHTTPTransport) async throws -> [String]
+    {
+        var slugs: Set<String> = []
+        var pageToken: String?
+        repeat {
+            var request = URLRequest(url: self.resolveAccountsURL(pageToken: pageToken))
+            self.authorize(&request, apiKey: apiKey)
+            let response = try await transport.response(for: request)
+            switch response.statusCode {
+            case 200:
+                break
+            case 401, 403:
+                throw FireworksUsageError.authenticationRejected
+            case 429:
+                throw FireworksUsageError.rateLimited
+            default:
+                Self.log.error("Fireworks accounts API returned HTTP \(response.statusCode)")
+                throw FireworksUsageError.apiError(response.statusCode)
+            }
+
+            let page: FireworksAccountsResponse
+            do {
+                page = try JSONDecoder().decode(FireworksAccountsResponse.self, from: response.data)
+            } catch {
+                throw FireworksUsageError.parseFailed(error.localizedDescription)
+            }
+            for account in page.accounts ?? [] {
+                if let slug = account.slug, self.isValidAccountSlug(slug) {
+                    slugs.insert(slug)
+                }
+            }
+            pageToken = page.nextPageToken?.trimmingCharacters(in: .whitespacesAndNewlines)
+            if pageToken?.isEmpty == true {
+                pageToken = nil
+            }
+        } while pageToken != nil
+        return slugs.sorted()
+    }
+
+    private static func singleDiscoveredAccount(from slugs: [String]) throws -> String {
+        guard !slugs.isEmpty else {
+            throw FireworksUsageError.noAccountsFound
+        }
+        guard slugs.count == 1, let slug = slugs.first else {
+            throw FireworksUsageError.multipleAccountsFound(slugs)
+        }
+        return slug
+    }
+
+    private static func authorize(_ request: inout URLRequest, apiKey: String) {
+        request.httpMethod = "GET"
+        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.timeoutInterval = self.timeoutSeconds
     }
 
     /// Characters permitted in a Fireworks account slug. Fireworks slugs are simple
@@ -144,6 +272,18 @@ public struct FireworksUsageFetcher: Sendable {
     /// single path segment (no encoding needed).
     private static let accountSlugAllowedCharacters = CharacterSet(
         charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._-")
+
+    private static func isValidAccountSlug(_ slug: String) -> Bool {
+        !slug.isEmpty && slug.rangeOfCharacter(from: self.accountSlugAllowedCharacters.inverted) == nil
+    }
+
+    public static func resolveAccountsURL(pageToken: String? = nil) -> URL {
+        var components = URLComponents(string: "https://api.fireworks.ai/v1/accounts")!
+        if let pageToken {
+            components.queryItems = [URLQueryItem(name: "pageToken", value: pageToken)]
+        }
+        return components.url!
+    }
 
     /// `https://api.fireworks.ai/v1/accounts/<slug>/billing/summary` with an explicit
     /// 30-day `startTime`/`endTime` window.
@@ -226,6 +366,27 @@ public struct FireworksUsageFetcher: Sendable {
 private struct FireworksBillingSummaryResponse: Decodable {
     let lineItems: [FireworksLineItem]?
     let usageBuckets: [FireworksUsageBucket]?
+}
+
+private struct FireworksAccountsResponse: Decodable {
+    let accounts: [FireworksAccount]?
+    let nextPageToken: String?
+}
+
+private struct FireworksAccount: Decodable {
+    let name: String?
+    let accountId: String?
+    let id: String?
+
+    var slug: String? {
+        for value in [self.accountId, self.id, self.name] {
+            guard let value = value?.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty else {
+                continue
+            }
+            return value.split(separator: "/").last.map(String.init)
+        }
+        return nil
+    }
 }
 
 private struct FireworksLineItem: Decodable {

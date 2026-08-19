@@ -603,6 +603,8 @@
 "display_mode_subtitle" = "Choose what to show in the menu bar (Pace shows usage vs. expected).";
 "show_quota_warning_markers_title" = "Show quota warning markers";
 "show_quota_warning_markers_subtitle" = "Draw threshold tick marks on usage bars when quota warnings are configured.";
+"show_pace_title" = "Show pace";
+"show_pace_subtitle" = "Show the ahead/behind stripe and forecast text on usage bars.";
 "weekly_progress_work_days_title" = "Work days";
 "weekly_progress_work_days_subtitle" = "Set work days for weekly usage-bar markers and pace calculations.";
 "workday_tick_appearance_title" = "Workday tick appearance";
@@ -1312,6 +1314,12 @@
 "By subscription" = "By subscription";
 "No model-level history" = "No model-level history";
 "Daily estimated spend" = "Daily estimated spend";
+"Hourly estimated spend" = "Hourly estimated spend";
+"Hour" = "Hour";
+"%d hours of usage data across %d services" = "%d hours of usage data across %d services";
+"1 hour of usage data across 1 service" = "1 hour of usage data across 1 service";
+"%d hours of usage data across 1 service" = "%d hours of usage data across 1 service";
+"1 hour of usage data across %d services" = "1 hour of usage data across %d services";
 "Input" = "Input";
 "Output" = "Output";
 "Cache write" = "Cache write";
@@ -1330,6 +1338,7 @@
 "Include OpenCodex usage logs" = "Include OpenCodex usage logs";
 "Hide native Codex when OpenCodex is present" = "Hide native Codex when OpenCodex is present";
 "Export JSON" = "Export JSON";
+"Copy JSON" = "Copy JSON";
 "Sources" = "Sources";
 "OpenCodex" = "OpenCodex";
 "≈%d full 5h windows of weekly left · %d windows until reset" = "≈%d full 5h windows of weekly left · %d windows until reset";

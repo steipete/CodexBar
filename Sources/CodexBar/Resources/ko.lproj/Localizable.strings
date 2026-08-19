@@ -217,6 +217,7 @@
 "Loading animations" = "로딩 애니메이션";
 "Loading…" = "불러오는 중…";
 "Local" = "로컬";
+"Local session cost estimates" = "로컬 세션 비용 추정치";
 "Logging" = "로깅";
 "Login failed" = "로그인 실패";
 "Login shell PATH (startup capture)" = "로그인 셸 PATH(시작 시 캡처)";
@@ -606,6 +607,8 @@
 "display_mode_subtitle" = "메뉴 막대에 표시할 내용을 선택하세요(사용 속도는 사용량 대 예상치를 표시).";
 "show_quota_warning_markers_title" = "할당량 경고 표시기 표시";
 "show_quota_warning_markers_subtitle" = "할당량 경고가 구성된 경우 사용량 막대에 임계값 눈금 표시를 그립니다.";
+"show_pace_title" = "사용 속도 표시";
+"show_pace_subtitle" = "사용량 막대에 예상보다 빠른지 느린지를 나타내는 선과 예측 텍스트를 표시합니다.";
 "weekly_progress_work_days_title" = "주간 진행률 근무일";
 "weekly_progress_work_days_subtitle" = "주간 사용량 막대 눈금과 페이스 계산에 사용할 근무일을 설정합니다.";
 "workday_tick_appearance_title" = "근무일 눈금 모양";
@@ -1185,6 +1188,7 @@
 "Username" = "사용자 이름";
 "Uses username + password to login and obtain an Oasis-Token automatically." = "사용자 이름 + 비밀번호로 로그인하여 Oasis-Token을 자동으로 가져옵니다.";
 "Uses username + password to login and obtain an %@ automatically." = "사용자 이름 + 비밀번호로 로그인하여 %@을(를) 자동으로 가져옵니다.";
+"Uses this Mac's Codex sessions instead of the selected managed account's session history. Works with organization API keys and does not require OpenAI billing or administrator access. Uses locally cached or bundled model prices without making a network request. This provider-specific toggle does not enable cost summaries for other providers." = "선택한 관리 계정의 세션 기록 대신 이 Mac의 Codex 세션을 사용합니다.\n조직 API 키를 지원하며 OpenAI 결제 정보나 관리자 권한 없이 사용할 수 있습니다.\n네트워크 요청 없이 로컬에 캐시되었거나 앱에 포함된 모델 가격을 사용합니다.\n이 공급자 전용 설정은 다른 공급자의 비용 요약을 활성화하지 않습니다.";
 "Utilization End" = "사용률 종료";
 "Utilization Start" = "사용률 시작";
 "Verbosity" = "상세도";
@@ -1295,6 +1299,12 @@
 "By subscription" = "구독별";
 "No model-level history" = "모델별 내역이 없습니다";
 "Daily estimated spend" = "일별 예상 지출";
+"Hourly estimated spend" = "시간별 예상 지출";
+"Hour" = "시간";
+"%d hours of usage data across %d services" = "%d시간 사용 데이터, %d개 서비스";
+"1 hour of usage data across 1 service" = "1시간 사용 데이터, 1개 서비스";
+"%d hours of usage data across 1 service" = "%d시간 사용 데이터, 1개 서비스";
+"1 hour of usage data across %d services" = "1시간 사용 데이터, %d개 서비스";
 "≈%d full 5h windows of weekly left · %d windows until reset" = "주간 한도 약 %d개의 전체 5시간 창 남음 · 재설정까지 %d개 창";
 "Weekly cannot run out before reset at this pace" = "이 속도라면 재설정 전에 주간 한도를 소진할 수 없습니다";
 "Weekly can run out ≈%d windows early" = "주간 한도가 약 %d개 창 일찍 소진될 수 있습니다";
@@ -1451,6 +1461,7 @@
 "Include OpenCodex usage logs" = "Include OpenCodex usage logs";
 "Hide native Codex when OpenCodex is present" = "Hide native Codex when OpenCodex is present";
 "Export JSON" = "Export JSON";
+"Copy JSON" = "JSON 복사";
 "Sources" = "Sources";
 "OpenCodex" = "OpenCodex";
 "menu_bar_layout_token_conditional" = "조건부";

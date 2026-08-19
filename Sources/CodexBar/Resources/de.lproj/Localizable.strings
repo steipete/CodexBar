@@ -615,6 +615,8 @@
 "display_mode_subtitle" = "Wählen Sie aus, was in der Menüleiste angezeigt werden soll (Pace zeigt die Nutzung im Vergleich zur erwarteten).";
 "show_quota_warning_markers_title" = "Quotenwarnmarkierungen anzeigen";
 "show_quota_warning_markers_subtitle" = "Zeichnen Sie Schwellenwertmarkierungen auf Nutzungsbalken, wenn Kontingentwarnungen konfiguriert sind.";
+"show_pace_title" = "Tempo anzeigen";
+"show_pace_subtitle" = "Zeigt den Streifen für Vorsprung oder Rückstand und den Prognosetext auf den Nutzungsbalken.";
 "weekly_progress_work_days_title" = "Wöchentliche Fortschrittsarbeitstage";
 "weekly_progress_work_days_subtitle" = "Legt Arbeitstage für Markierungen in wöchentlichen Nutzungsbalken und Tempo-Berechnungen fest.";
 "workday_tick_appearance_title" = "Darstellung der Arbeitstagsmarkierungen";
@@ -1328,6 +1330,12 @@
 "By subscription" = "Nach Abonnement";
 "No model-level history" = "Kein Verlauf auf Modellebene";
 "Daily estimated spend" = "Geschätzte tägliche Ausgaben";
+"Hourly estimated spend" = "Geschätzte stündliche Ausgaben";
+"Hour" = "Stunde";
+"%d hours of usage data across %d services" = "%d Stunden Nutzungsdaten über %d Dienste";
+"1 hour of usage data across 1 service" = "1 Stunde Nutzungsdaten über 1 Dienst";
+"%d hours of usage data across 1 service" = "%d Stunden Nutzungsdaten über 1 Dienst";
+"1 hour of usage data across %d services" = "1 Stunde Nutzungsdaten über %d Dienste";
 "≈%d full 5h windows of weekly left · %d windows until reset" = "≈%d volle 5-Std.-Fenster des Wochenlimits übrig · %d Fenster bis zum Reset";
 "Weekly cannot run out before reset at this pace" = "Das Wochenlimit kann bei diesem Tempo nicht vor dem Reset aufgebraucht sein";
 "Weekly can run out ≈%d windows early" = "Das Wochenlimit kann ≈%d Fenster früher aufgebraucht sein";
@@ -1484,6 +1492,7 @@
 "Include OpenCodex usage logs" = "Include OpenCodex usage logs";
 "Hide native Codex when OpenCodex is present" = "Hide native Codex when OpenCodex is present";
 "Export JSON" = "Export JSON";
+"Copy JSON" = "JSON kopieren";
 "Sources" = "Sources";
 "OpenCodex" = "OpenCodex";
 "menu_bar_layout_token_conditional" = "Bedingt";

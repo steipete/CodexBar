@@ -204,6 +204,28 @@ struct DashboardWindowPayload: Encodable {
     let usedPercent: Double
     let remainingPercent: Double
     let resetAt: Date?
+    /// Whether a display client should skip this window. The producer sets it when the window belongs
+    /// to a model family that reports no usage at all, which a client cannot work out on its own
+    /// because a zero `usedPercent` also stands for a lane whose usage the provider never reported.
+    /// Additive schema-v1 extension: the key appears only when it is `true`, so every payload that
+    /// carries no idle window is byte-identical to the previous shape.
+    let idle: Bool
+
+    init(
+        kind: String,
+        label: String,
+        usedPercent: Double,
+        remainingPercent: Double,
+        resetAt: Date?,
+        idle: Bool = false)
+    {
+        self.kind = kind
+        self.label = label
+        self.usedPercent = usedPercent
+        self.remainingPercent = remainingPercent
+        self.resetAt = resetAt
+        self.idle = idle
+    }
 
     private enum CodingKeys: String, CodingKey {
         case kind
@@ -211,6 +233,7 @@ struct DashboardWindowPayload: Encodable {
         case usedPercent
         case remainingPercent
         case resetAt
+        case idle
     }
 
     func encode(to encoder: Encoder) throws {
@@ -220,6 +243,9 @@ struct DashboardWindowPayload: Encodable {
         try container.encode(self.usedPercent, forKey: .usedPercent)
         try container.encode(self.remainingPercent, forKey: .remainingPercent)
         try container.encode(self.resetAt, forKey: .resetAt)
+        if self.idle {
+            try container.encode(true, forKey: .idle)
+        }
     }
 }
 

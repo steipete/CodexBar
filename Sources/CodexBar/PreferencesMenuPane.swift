@@ -23,6 +23,12 @@ struct MenuPane: View {
                         subtitle: L("show_quota_warning_markers_subtitle"))
                 }
 
+                Toggle(isOn: self.$settings.paceVisible) {
+                    SettingsRowLabel(
+                        L("show_pace_title"),
+                        subtitle: L("show_pace_subtitle"))
+                }
+
                 SettingsMenuPicker(
                     selection: self.$settings.weeklyProgressWorkDays,
                     options: MenuSettingsMenuOptions.weeklyProgressWorkDays,

@@ -406,6 +406,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var codexAccountPromotionCoordinator: CodexAccountPromotionCoordinator?
     private var cloudSyncCoordinator: CloudSyncCoordinator?
     private var settingsWindowController: SettingsWindowController?
+    private lazy var placeholderSettingsWindowGuard = PlaceholderSettingsWindowGuard(
+        isKnownSettingsWindow: { [weak self] window in
+            self?.settingsWindowController?.window === window
+        })
     private var hasInstalledLimitResetObservers = false
     #if DEBUG
     private var debugMemoryPressureObserver: NSObjectProtocol?
@@ -438,6 +442,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationWillFinishLaunching(_ notification: Notification) {
         self.configureAppIconForMacOSVersion()
+        // The SwiftUI `Settings` scene is an empty placeholder; macOS otherwise presents it at launch.
+        self.placeholderSettingsWindowGuard.start()
+    }
+
+    func applicationShouldOpenUntitledFile(_ sender: NSApplication) -> Bool {
+        // CodexBar lives in the menu bar and has no untitled document to open at launch or on reopen.
+        false
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {

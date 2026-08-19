@@ -44,6 +44,70 @@ private final class OpenCodeGoContinuationBox<Value: Sendable>: @unchecked Senda
 @Suite(.serialized)
 struct OpenCodeGoUsageFetcherErrorTests {
     @Test
+    func `public usage API sends bearer token and parses all windows`() async throws {
+        defer { OpenCodeGoStubURLProtocol.handler = nil }
+        let requests = OpenCodeGoRequestRecorder<URLRequest>()
+        OpenCodeGoStubURLProtocol.handler = { request in
+            guard let url = request.url else { throw URLError(.badURL) }
+            requests.append(request)
+            let body = """
+            {
+              "usage": {
+                "rolling": {"percent": 12, "resetsAt": "2026-08-12T02:00:00.000Z"},
+                "weekly": {"percent": 8, "resetsAt": "2026-08-18T00:00:00.000Z"},
+                "monthly": {"percent": 35, "resetsAt": "2026-09-01T00:00:00.000Z"}
+              }
+            }
+            """
+            return Self.makeResponse(url: url, body: body, statusCode: 200, contentType: "application/json")
+        }
+
+        let now = Date(timeIntervalSince1970: 1_786_493_600)
+        let snapshot = try await OpenCodeGoUsageFetcher.fetchAPIUsage(
+            apiKey: "go_secret",
+            timeout: 2,
+            now: now,
+            session: self.makeSession())
+
+        #expect(requests.values.count == 1)
+        #expect(requests.values.first?.url?.path == "/zen/go/v1/usage")
+        #expect(requests.values.first?.value(forHTTPHeaderField: "Authorization") == "Bearer go_secret")
+        #expect(snapshot.rollingUsagePercent == 12)
+        #expect(snapshot.weeklyUsagePercent == 8)
+        #expect(snapshot.monthlyUsagePercent == 35)
+        #expect(snapshot.hasWeeklyUsage)
+        #expect(snapshot.hasMonthlyUsage)
+    }
+
+    @Test
+    func `public usage API maps unauthorized response to invalid credentials`() async {
+        defer { OpenCodeGoStubURLProtocol.handler = nil }
+        OpenCodeGoStubURLProtocol.handler = { request in
+            guard let url = request.url else { throw URLError(.badURL) }
+            return Self.makeResponse(
+                url: url,
+                body: #"{"error":"unauthorized"}"#,
+                statusCode: 401,
+                contentType: "application/json")
+        }
+
+        do {
+            _ = try await OpenCodeGoUsageFetcher.fetchAPIUsage(
+                apiKey: "bad",
+                timeout: 2,
+                session: self.makeSession())
+            Issue.record("Expected invalidCredentials")
+        } catch let error as OpenCodeGoUsageError {
+            guard case .invalidCredentials = error else {
+                Issue.record("Expected invalidCredentials, got \(error)")
+                return
+            }
+        } catch {
+            Issue.record("Expected OpenCodeGoUsageError, got \(error)")
+        }
+    }
+
+    @Test
     func `dashboard URL uses normalized workspace ID`() {
         #expect(
             OpenCodeGoUsageFetcher.dashboardURL(workspaceID: "https://opencode.ai/workspace/wrk_abc123/go")

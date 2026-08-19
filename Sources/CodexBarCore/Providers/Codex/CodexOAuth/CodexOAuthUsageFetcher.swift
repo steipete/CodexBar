@@ -591,6 +591,10 @@ public enum CodexOAuthUsageFetcher {
         }
     }
 
+    static func chatGPTUsageURL(env: [String: String]) -> URL {
+        self.resolveUsageURL(env: env)
+    }
+
     private static func resolveUsageURL(env: [String: String]) -> URL {
         self.resolveUsageURL(env: env, configContents: nil)
     }

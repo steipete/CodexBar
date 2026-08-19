@@ -220,18 +220,174 @@ struct FireworksUsageFetcherTests {
     }
 
     @Test
-    func `fetch usage requires key and slug`() async {
+    func `wrong slug with empty billing response is an explicit account error`() async throws {
+        defer {
+            FireworksStubURLProtocol.requests = []
+            FireworksStubURLProtocol.handler = nil
+        }
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [FireworksStubURLProtocol.self]
+        let session = URLSession(configuration: config)
+
+        FireworksStubURLProtocol.requests = []
+        FireworksStubURLProtocol.handler = { request in
+            let url = try #require(request.url)
+            let body: String
+            if url.path == "/v1/accounts" {
+                body = #"{"accounts":[{"name":"accounts/actual-team"}]}"#
+            } else {
+                #expect(url.path == "/v1/accounts/guessed-user/billing/summary")
+                body = #"{"lineItems":[],"usageBuckets":[]}"#
+            }
+            let response = HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: nil)!
+            return (response, Data(body.utf8))
+        }
+
+        await #expect {
+            _ = try await FireworksUsageFetcher.fetchUsage(
+                apiKey: "fw-test-key",
+                accountSlug: "guessed-user",
+                session: session)
+        } throws: { error in
+            guard error as? FireworksUsageError == .accountNotFound("guessed-user") else { return false }
+            return error.localizedDescription.hasPrefix(
+                "Fireworks account slug 'guessed-user' not found for this API key")
+        }
+        #expect(FireworksStubURLProtocol.requests.map(\.url?.path) == [
+            "/v1/accounts/guessed-user/billing/summary",
+            "/v1/accounts",
+        ])
+    }
+
+    @Test
+    func `missing slug auto discovers a single account before fetching billing`() async throws {
+        defer {
+            FireworksStubURLProtocol.requests = []
+            FireworksStubURLProtocol.handler = nil
+        }
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [FireworksStubURLProtocol.self]
+        let session = URLSession(configuration: config)
+
+        FireworksStubURLProtocol.requests = []
+        FireworksStubURLProtocol.handler = { request in
+            let url = try #require(request.url)
+            let body: String
+            if url.path == "/v1/accounts" {
+                body = #"{"accounts":[{"name":"accounts/discovered-team","displayName":"Discovered Team"}]}"#
+            } else {
+                #expect(url.path == "/v1/accounts/discovered-team/billing/summary")
+                body = """
+                {
+                  "lineItems": [
+                    { "totalCost": { "currencyCode": "USD", "nanos": 250000000, "units": "2" } }
+                  ]
+                }
+                """
+            }
+            #expect(request.value(forHTTPHeaderField: "Authorization") == "Bearer fw-test-key")
+            let response = HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: nil)!
+            return (response, Data(body.utf8))
+        }
+
+        let snapshot = try await FireworksUsageFetcher.fetchUsage(
+            apiKey: "fw-test-key",
+            accountSlug: nil,
+            session: session)
+
+        #expect(snapshot.accountSlug == "discovered-team")
+        #expect(snapshot.accountSlugWasDiscovered)
+        #expect(snapshot.summary.last30DaysSpend == 2.25)
+        #expect(FireworksStubURLProtocol.requests.map(\.url?.path) == [
+            "/v1/accounts",
+            "/v1/accounts/discovered-team/billing/summary",
+        ])
+    }
+
+    @Test
+    func `multiple visible accounts report sorted slug candidates`() async throws {
+        defer {
+            FireworksStubURLProtocol.requests = []
+            FireworksStubURLProtocol.handler = nil
+        }
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [FireworksStubURLProtocol.self]
+        let session = URLSession(configuration: config)
+
+        FireworksStubURLProtocol.requests = []
+        FireworksStubURLProtocol.handler = { request in
+            let url = try #require(request.url)
+            #expect(url.path == "/v1/accounts")
+            let body = #"{"accounts":[{"name":"accounts/zeta"},{"name":"accounts/alpha"}]}"#
+            let response = HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: nil)!
+            return (response, Data(body.utf8))
+        }
+
+        await #expect {
+            _ = try await FireworksUsageFetcher.fetchUsage(
+                apiKey: "fw-test-key",
+                accountSlug: nil,
+                session: session)
+        } throws: { error in
+            guard error as? FireworksUsageError == .multipleAccountsFound(["alpha", "zeta"]) else {
+                return false
+            }
+            return error.localizedDescription.contains("alpha, zeta")
+        }
+        #expect(FireworksStubURLProtocol.requests.count == 1)
+    }
+
+    @Test
+    func `configured 404 auto discovers the sole visible account`() async throws {
+        defer {
+            FireworksStubURLProtocol.requests = []
+            FireworksStubURLProtocol.handler = nil
+        }
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [FireworksStubURLProtocol.self]
+        let session = URLSession(configuration: config)
+
+        FireworksStubURLProtocol.requests = []
+        FireworksStubURLProtocol.handler = { request in
+            let url = try #require(request.url)
+            let response: HTTPURLResponse
+            let body: String
+            switch url.path {
+            case "/v1/accounts/old-slug/billing/summary":
+                response = HTTPURLResponse(url: url, statusCode: 404, httpVersion: nil, headerFields: nil)!
+                body = #"{"code":5,"message":"account not found"}"#
+            case "/v1/accounts":
+                response = HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: nil)!
+                body = #"{"accounts":[{"name":"accounts/current-slug"}]}"#
+            default:
+                #expect(url.path == "/v1/accounts/current-slug/billing/summary")
+                response = HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: nil)!
+                body = #"{"lineItems":[{"totalCost":{"currencyCode":"USD","nanos":0,"units":"1"}}]}"#
+            }
+            return (response, Data(body.utf8))
+        }
+
+        let snapshot = try await FireworksUsageFetcher.fetchUsage(
+            apiKey: "fw-test-key",
+            accountSlug: "old-slug",
+            session: session)
+
+        #expect(snapshot.accountSlug == "current-slug")
+        #expect(snapshot.accountSlugWasDiscovered)
+        #expect(snapshot.summary.last30DaysSpend == 1)
+        #expect(FireworksStubURLProtocol.requests.map(\.url?.path) == [
+            "/v1/accounts/old-slug/billing/summary",
+            "/v1/accounts",
+            "/v1/accounts/current-slug/billing/summary",
+        ])
+    }
+
+    @Test
+    func `fetch usage requires key`() async {
         await #expect(throws: FireworksUsageError.missingCredentials) {
             _ = try await FireworksUsageFetcher.fetchUsage(
                 apiKey: "  ",
                 accountSlug: "x0mh0x",
-                session: URLSession(configuration: .ephemeral))
-        }
-
-        await #expect(throws: FireworksUsageError.missingAccountSlug) {
-            _ = try await FireworksUsageFetcher.fetchUsage(
-                apiKey: "fw-test-key",
-                accountSlug: "",
                 session: URLSession(configuration: .ephemeral))
         }
     }

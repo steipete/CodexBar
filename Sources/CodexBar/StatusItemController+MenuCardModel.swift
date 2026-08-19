@@ -157,6 +157,7 @@ extension StatusItemController {
             ],
             workDaysPerWeek: self.settings.weeklyProgressWorkDays,
             workdayTickAppearance: self.settings.workdayTickAppearance,
+            paceVisible: self.settings.paceVisible,
             usesLiveSubtitle: surface == .liveCard,
             preferredCurrencyCode: self.settings.preferredCurrencyCode,
             now: now)

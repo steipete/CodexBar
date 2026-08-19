@@ -596,6 +596,8 @@
 "display_mode_subtitle" = "Escolle que amosar na barra de menús (Ritmo amosa o uso fronte ao previsto).";
 "show_quota_warning_markers_title" = "Amosar os marcadores de aviso de cota";
 "show_quota_warning_markers_subtitle" = "Debuxa marcas de limiar nas barras de uso cando hai avisos de cota configurados.";
+"show_pace_title" = "Amosar o ritmo";
+"show_pace_subtitle" = "Amosa a franxa de adianto ou atraso e o texto de previsión nas barras de uso.";
 "weekly_progress_work_days_title" = "Días laborables do progreso semanal";
 "weekly_progress_work_days_subtitle" = "Define os días laborables para os marcadores das barras de uso semanal e os cálculos de ritmo.";
 "workday_tick_appearance_title" = "Aspecto das marcas dos días laborables";
@@ -1327,6 +1329,12 @@
 "By subscription" = "Por subscrición";
 "No model-level history" = "Sen historial por modelo";
 "Daily estimated spend" = "Gasto diario estimado";
+"Hourly estimated spend" = "Gasto horario estimado";
+"Hour" = "Hora";
+"%d hours of usage data across %d services" = "%d horas de datos de uso en %d servizos";
+"1 hour of usage data across 1 service" = "1 hora de datos de uso en 1 servizo";
+"%d hours of usage data across 1 service" = "%d horas de datos de uso en 1 servizo";
+"1 hour of usage data across %d services" = "1 hora de datos de uso en %d servizos";
 "≈%d full 5h windows of weekly left · %d windows until reset" = "≈%d xanelas completas de 5 h de cota semanal · %d xanelas ata o restablecemento";
 "Weekly cannot run out before reset at this pace" = "A cota semanal non pode esgotarse antes do restablecemento a este ritmo";
 "Weekly can run out ≈%d windows early" = "A cota semanal pode esgotarse ≈%d xanelas antes";
@@ -1483,6 +1491,7 @@
 "Include OpenCodex usage logs" = "Include OpenCodex usage logs";
 "Hide native Codex when OpenCodex is present" = "Hide native Codex when OpenCodex is present";
 "Export JSON" = "Export JSON";
+"Copy JSON" = "Copiar JSON";
 "Sources" = "Sources";
 "OpenCodex" = "OpenCodex";
 "menu_bar_layout_token_conditional" = "Condicional";

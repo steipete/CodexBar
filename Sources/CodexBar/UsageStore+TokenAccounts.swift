@@ -211,8 +211,32 @@ extension UsageStore {
     }
 
     func shouldFetchAllCodexVisibleAccounts() -> Bool {
+        // PAT is not a per-visible-account credential. Fan-out would fetch the same token for
+        // every row and then reject its whoami identity against other accounts.
+        guard !self.shouldUseAmbientCodexPATForUsage() else { return false }
         let projection = self.freshCodexVisibleAccountProjectionForAccountRefresh()
         return self.settings.multiAccountMenuLayout == .stacked && projection.visibleAccounts.count > 1
+    }
+
+    func shouldUseAmbientCodexPATForUsage() -> Bool {
+        switch self.settings.codexUsageDataSource {
+        case .pat:
+            true
+        case .auto:
+            (try? CodexOAuthCredentialsStore.loadPATResolvingScopedHome(env: self.codexFetchEnvironment()))
+                != nil
+        case .oauth, .cli:
+            false
+        }
+    }
+
+    func codexFetchEnvironment() -> [String: String] {
+        // Provider-specific by design: PAT admission reads the selected Codex CODEX_HOME fetch environment.
+        ProviderRegistry.makeEnvironment(
+            base: self.environmentBase,
+            provider: .codex,
+            settings: self.settings,
+            tokenOverride: nil)
     }
 
     func refreshCodexVisibleAccountsForMenu(generation: UInt64? = nil) async {
@@ -1022,7 +1046,8 @@ extension UsageStore {
             claudeOwnerCLIRecoveryOnly: claudeOwnerCLIRecoveryOnly,
             persistsCLISessions: true,
             persistentCLISessionIdleWindow: ProviderRegistry.persistentCLISessionIdleWindow(
-                refreshInterval: self.normalRefreshIntervalForHeuristics()))
+                refreshInterval: self.normalRefreshIntervalForHeuristics()),
+            resolvedCLIVersion: self.version(for: provider))
     }
 
     private func providerConfigMutationIsCurrent(

@@ -6,6 +6,14 @@ import Testing
 @MainActor
 struct AppDelegateTests {
     @Test
+    func `refuses the untitled window macOS would fill with the empty Settings scene`() {
+        _ = NSApplication.shared
+        let appDelegate = AppDelegate()
+
+        #expect(appDelegate.applicationShouldOpenUntitledFile(NSApplication.shared) == false)
+    }
+
+    @Test
     func `builds status controller after launch`() {
         let appDelegate = AppDelegate()
         var factoryCalls = 0

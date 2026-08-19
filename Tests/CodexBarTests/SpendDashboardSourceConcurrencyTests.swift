@@ -412,6 +412,125 @@ struct SpendDashboardSourceConcurrencyTests {
     }
 
     @Test
+    func `ordinary in flight same owner revision churn does not restart load`() async {
+        let loaderGate = SpendDashboardResultBatchGate()
+        let initial = SpendDashboardConfiguration(
+            costUsageEnabled: true,
+            providerIDs: [UsageProvider.codex.rawValue],
+            codexAccountIdentities: ["same"],
+            sourceRevisions: ["first"])
+        let replacement = SpendDashboardConfiguration(
+            costUsageEnabled: true,
+            providerIDs: [UsageProvider.codex.rawValue],
+            codexAccountIdentities: ["same"],
+            sourceRevisions: ["second"])
+        let controllerBox = SpendDashboardControllerBox()
+        let controller = SpendDashboardController(
+            requestBuilder: { mode in
+                let configuration = controllerBox.controller?.configuration ?? initial
+                return SpendDashboardLoadRequest(
+                    configuration: configuration,
+                    capturedInputs: [],
+                    unavailableSourceIDs: [],
+                    codexRequests: [],
+                    now: Date(timeIntervalSince1970: 1_784_179_200),
+                    force: mode.forcesLoader)
+            },
+            loader: { request in await loaderGate.load(request) })
+        controllerBox.controller = controller
+
+        controller.update(configuration: initial)
+        await Self.waitForResultGate(loaderGate)
+        let inFlightGeneration = controller.generation
+        #expect(controller.isRefreshing)
+
+        controller.update(configuration: replacement)
+        #expect(controller.generation == inFlightGeneration)
+        #expect(controller.configuration == replacement)
+
+        await loaderGate.resume(
+            result: SpendDashboardLoadResult(
+                inputs: [Self.input(provider: .codex, cost: 7)],
+                failedSourceIDs: []))
+        await Self.waitForResultGate(loaderGate)
+        await loaderGate.resume(
+            result: SpendDashboardLoadResult(
+                inputs: [Self.input(provider: .codex, cost: 7)],
+                failedSourceIDs: []))
+        await Self.waitUntil { !controller.isRefreshing }
+
+        #expect(controller.generation == inFlightGeneration + 1)
+        #expect(controller.configuration == replacement)
+        #expect(controller.model.groups.first?.totalCost == 7)
+    }
+
+    @Test
+    func `ordinary in flight same owner revision churn preserves live load after suspended cached prefill`() async {
+        let cachedGate = SpendDashboardResultBatchGate()
+        let loaderGate = SpendDashboardResultBatchGate()
+        let initial = SpendDashboardConfiguration(
+            costUsageEnabled: true,
+            providerIDs: [UsageProvider.codex.rawValue],
+            codexAccountIdentities: ["same|owner-same"],
+            sourceRevisions: ["first"])
+        let replacement = SpendDashboardConfiguration(
+            costUsageEnabled: true,
+            providerIDs: [UsageProvider.codex.rawValue],
+            codexAccountIdentities: ["same|owner-same"],
+            sourceRevisions: ["second"])
+        let controllerBox = SpendDashboardControllerBox()
+        let controller = SpendDashboardController(
+            requestBuilder: { mode in
+                let configuration = controllerBox.controller?.configuration ?? initial
+                return SpendDashboardLoadRequest(
+                    configuration: configuration,
+                    capturedInputs: [],
+                    unavailableSourceIDs: [],
+                    codexRequests: [Self.scanRequest(id: "same", displayName: "Codex")],
+                    now: Date(timeIntervalSince1970: 1_784_179_200),
+                    force: mode.forcesLoader)
+            },
+            cachedLoader: { request in await cachedGate.load(request) },
+            loader: { request in await loaderGate.load(request) })
+        controllerBox.controller = controller
+
+        controller.update(configuration: initial)
+        await Self.waitForResultGate(cachedGate)
+        let inFlightGeneration = controller.generation
+        #expect(controller.isRefreshing)
+
+        // Revision churn arrives while cached prefill is suspended.
+        controller.update(configuration: replacement)
+        #expect(controller.generation == inFlightGeneration)
+        #expect(controller.configuration == replacement)
+
+        // Resume cached prefill with stale initial configuration result.
+        await cachedGate.resume(
+            result: SpendDashboardLoadResult(
+                inputs: [Self.input(id: "codex:same", cost: 3)],
+                failedSourceIDs: []))
+
+        // Ensure live load is still executed rather than aborting the task early.
+        await Self.waitForResultGate(loaderGate)
+        await loaderGate.resume(
+            result: SpendDashboardLoadResult(
+                inputs: [Self.input(id: "codex:same", cost: 12)],
+                failedSourceIDs: []))
+
+        // Reconciliation pass for remaining drift if needed.
+        if await loaderGate.pendingCount > 0 {
+            await loaderGate.resume(
+                result: SpendDashboardLoadResult(
+                    inputs: [Self.input(id: "codex:same", cost: 12)],
+                    failedSourceIDs: []))
+        }
+
+        await Self.waitUntil { !controller.isRefreshing }
+        #expect(controller.configuration == replacement)
+        #expect(controller.model.groups.first?.totalCost == 12)
+    }
+
+    @Test
     func `force request recaptures earlier provider after later refresh suspends`() async throws {
         let settings = testSettingsStore(suiteName: "SpendDashboardSourceConcurrencyTests-force-recapture")
         settings.costUsageEnabled = true
@@ -730,4 +849,9 @@ private actor SpendDashboardResultBatchGate {
     func resume(result: SpendDashboardLoadResult) {
         self.continuations.removeFirst().resume(returning: result)
     }
+}
+
+@MainActor
+private final class SpendDashboardControllerBox {
+    var controller: SpendDashboardController?
 }

@@ -1,3 +1,5 @@
+import Foundation
+
 #if canImport(Darwin)
 import Darwin
 #elseif canImport(Glibc)
@@ -5,7 +7,6 @@ import Glibc
 #elseif canImport(Musl)
 import Musl
 #endif
-import Foundation
 
 public enum CodexOAuthCredentialSource: String, Equatable, Sendable {
     case codexHome
@@ -94,30 +95,52 @@ public enum CodexOAuthCredentialsStore {
         fileManager: FileManager = .default,
         homeDirectory: URL? = nil) -> URL
     {
-        let home = if self.nonEmpty(env["CODEX_HOME"]) != nil {
-            CodexHomeScope.ambientHomeURL(env: env, fileManager: fileManager)
-        } else {
-            (homeDirectory ?? fileManager.homeDirectoryForCurrentUser)
-                .appendingPathComponent(".codex", isDirectory: true)
-        }
-        return home
-            .appendingPathComponent("auth.json")
+        let home =
+            if self.nonEmpty(env["CODEX_HOME"]) != nil {
+                CodexHomeScope.ambientHomeURL(env: env, fileManager: fileManager)
+            } else {
+                (homeDirectory ?? fileManager.homeDirectoryForCurrentUser)
+                    .appendingPathComponent(".codex", isDirectory: true)
+            }
+        return
+            home
+                .appendingPathComponent("auth.json")
     }
 
-    public static func load(env: [String: String] = ProcessInfo.processInfo
-        .environment) throws -> CodexOAuthCredentials
+    public static func load(
+        env: [String: String] = ProcessInfo.processInfo
+            .environment) throws -> CodexOAuthCredentials
     {
         try self.loadNative(env: env, homeDirectory: nil)
     }
 
-    public static func loadOAuthTokens(env: [String: String] = ProcessInfo.processInfo
-        .environment) throws -> CodexOAuthCredentials
+    public static func loadOAuthTokens(
+        env: [String: String] = ProcessInfo.processInfo
+            .environment) throws -> CodexOAuthCredentials
     {
         try self.parseOAuthTokens(data: self.readAuthData(env: env), source: .codexHome)
     }
 
     public static func parse(data: Data) throws -> CodexOAuthCredentials {
         try self.parse(data: data, source: .codexHome)
+    }
+
+    public static func loadPAT(
+        env: [String: String] = ProcessInfo.processInfo.environment) throws -> CodexPATCredentials
+    {
+        try self.parsePAT(data: self.readAuthData(env: env), source: .codexHome)
+    }
+
+    /// Load a PAT from the scoped `CODEX_HOME` when that home has one, otherwise from ambient
+    /// `~/.codex`. Managed and fail-closed homes always use ambient.
+    public static func loadPATResolvingScopedHome(
+        env: [String: String] = ProcessInfo.processInfo.environment) throws -> CodexPATCredentials
+    {
+        try self.loadPAT(env: CodexPATFetchStrategy.credentialEnvironment(env))
+    }
+
+    public static func parsePAT(data: Data) throws -> CodexPATCredentials {
+        try self.parsePAT(data: data, source: .codexHome)
     }
 
     /// Resolve a credential for a usage probe without changing any source file.
@@ -177,6 +200,28 @@ public enum CodexOAuthCredentialsStore {
         throw CodexOAuthCredentialsError.missingTokens
     }
 
+    private static func parsePAT(
+        data: Data,
+        source: CodexOAuthCredentialSource) throws -> CodexPATCredentials
+    {
+        let json = try self.decodeObject(data: data)
+        guard let credentials = self.patCredentials(in: json, source: source) else {
+            throw CodexOAuthCredentialsError.missingTokens
+        }
+        return credentials
+    }
+
+    private static func patCredentials(
+        in json: [String: Any],
+        source: CodexOAuthCredentialSource) -> CodexPATCredentials?
+    {
+        let token =
+            self.nonEmpty(json["personal_access_token"] as? String)
+            ?? self.nonEmpty(json["personalAccessToken"] as? String)
+        guard let token else { return nil }
+        return CodexPATCredentials(token: token, source: source)
+    }
+
     private static func readAuthData(
         env: [String: String],
         fileManager: FileManager = .default,
@@ -194,9 +239,9 @@ public enum CodexOAuthCredentialsStore {
             return try Data(contentsOf: url, options: [.mappedIfSafe])
         } catch {
             let nsError = error as NSError
-            let missingFile = (nsError.domain == NSCocoaErrorDomain &&
-                nsError.code == CocoaError.fileReadNoSuchFile.rawValue) ||
-                (nsError.domain == NSPOSIXErrorDomain && nsError.code == ENOENT)
+            let missingFile =
+                (nsError.domain == NSCocoaErrorDomain && nsError.code == CocoaError.fileReadNoSuchFile.rawValue)
+                || (nsError.domain == NSPOSIXErrorDomain && nsError.code == ENOENT)
             throw missingFile ? CodexOAuthCredentialsError.notFound : CodexOAuthCredentialsError.unreadable
         }
     }
@@ -233,8 +278,9 @@ public enum CodexOAuthCredentialsStore {
         }
 
         let idToken = Self.stringValue(in: tokens, snakeCaseKey: "id_token", camelCaseKey: "idToken")
-        let accountId = Self.nonEmpty(
-            Self.stringValue(in: tokens, snakeCaseKey: "account_id", camelCaseKey: "accountId"))
+        let accountId =
+            Self.nonEmpty(
+                Self.stringValue(in: tokens, snakeCaseKey: "account_id", camelCaseKey: "accountId"))
             ?? Self.accountIDFromJWT(idToken: idToken, accessToken: accessToken)
         let lastRefresh = Self.parseLastRefresh(from: json["last_refresh"])
 
@@ -300,7 +346,8 @@ public enum CodexOAuthCredentialsStore {
             json["last_refresh"] = ISO8601DateFormatter().string(from: lastRefresh)
         }
 
-        let data = try JSONSerialization.data(withJSONObject: json, options: [.prettyPrinted, .sortedKeys])
+        let data = try JSONSerialization.data(
+            withJSONObject: json, options: [.prettyPrinted, .sortedKeys])
         let directory = url.deletingLastPathComponent()
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         try CredentialFileWriter.writePrivate(data, to: url)
@@ -326,10 +373,11 @@ public enum CodexOAuthCredentialsStore {
         homeDirectory: URL? = nil) throws -> CodexOAuthCredentials
     {
         let home = homeDirectory ?? fileManager.homeDirectoryForCurrentUser
-        let url = home
-            .appendingPathComponent(".config", isDirectory: true)
-            .appendingPathComponent("codex", isDirectory: true)
-            .appendingPathComponent("auth.json")
+        let url =
+            home
+                .appendingPathComponent(".config", isDirectory: true)
+                .appendingPathComponent("codex", isDirectory: true)
+                .appendingPathComponent("auth.json")
         return try self.parseOAuthTokens(
             data: self.readAuthData(at: url),
             source: .legacyCodexHome)
@@ -351,19 +399,20 @@ public enum CodexOAuthCredentialsStore {
         fileManager: FileManager = .default,
         homeDirectory: URL? = nil) throws -> CodexOAuthCredentials
     {
-        let root: URL = if let configured = self.nonEmpty(env["XDG_DATA_HOME"]),
-                           let normalized = CodexHomeScope.normalizedHomePath(configured, fileManager: fileManager)
-        {
-            URL(fileURLWithPath: normalized, isDirectory: true)
-        } else {
-            (homeDirectory ?? fileManager.homeDirectoryForCurrentUser)
-                .appendingPathComponent(".local", isDirectory: true)
-                .appendingPathComponent("share", isDirectory: true)
-        }
+        let root: URL =
+            if let configured = self.nonEmpty(env["XDG_DATA_HOME"]),
+            let normalized = CodexHomeScope.normalizedHomePath(configured, fileManager: fileManager) {
+                URL(fileURLWithPath: normalized, isDirectory: true)
+            } else {
+                (homeDirectory ?? fileManager.homeDirectoryForCurrentUser)
+                    .appendingPathComponent(".local", isDirectory: true)
+                    .appendingPathComponent("share", isDirectory: true)
+            }
         // Provider-specific by design: OpenCode stores the OpenAI OAuth entry under its own data directory.
-        let url = root
-            .appendingPathComponent("opencode", isDirectory: true)
-            .appendingPathComponent("auth.json")
+        let url =
+            root
+                .appendingPathComponent("opencode", isDirectory: true)
+                .appendingPathComponent("auth.json")
         return try self.parseOpenCode(data: self.readAuthData(at: url))
     }
 
@@ -448,7 +497,8 @@ public enum CodexOAuthCredentialsStore {
                 return accountID
             }
             if let organizations = payload["organizations"] as? [[String: Any]],
-               let accountID = organizations
+               let accountID =
+               organizations
                    .compactMap({ Self.nonEmpty($0["id"] as? String) })
                    .first
             {

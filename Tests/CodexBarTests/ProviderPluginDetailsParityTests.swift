@@ -85,6 +85,12 @@ struct ProviderPluginDetailsParityTests {
                 chart: Self.chart("Key spend", unit: "USD", points: [
                     ("Today", 1), ("This week", 2), ("This month", 4),
                 ])),
+            Self.section("Spend history", rows: [
+                Self.row(
+                    "Last 30 days",
+                    "Unavailable right now",
+                    "Management API key not configured"),
+            ]),
         ])
     }
 
@@ -108,11 +114,14 @@ struct ProviderPluginDetailsParityTests {
             .fetchUsage(secrets: ["OPENROUTER_API_KEY": "fixture-key"])
 
         #expect(script.primary == nil)
-        #expect(script.details.count == 2)
+        #expect(script.details.count == 3)
         #expect(script.details[0].rows.map(\.label) == ["Remaining", "Used", "Total added"])
         let degradation = try #require(script.detailRow(label: "API key budget"))
         #expect(degradation.value == "Unavailable right now")
         #expect(degradation.secondaryValue == "Request timed out")
+        let spendDegradation = try #require(script.detailRow(label: "Last 30 days"))
+        #expect(spendDegradation.value == "Unavailable right now")
+        #expect(spendDegradation.secondaryValue == "Management API key not configured")
     }
 
     @Test

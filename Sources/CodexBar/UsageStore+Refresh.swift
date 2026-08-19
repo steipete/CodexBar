@@ -340,6 +340,7 @@ extension UsageStore {
     {
         guard let spec = await self.providerRefreshSpec(provider) else { return nil }
         guard self.isCurrentProviderRefreshGeneration(provider, generation: generation) else { return nil }
+        let codexExplicitPAT = provider == .codex && self.settings.codexUsageDataSource == .pat
         let codexPreparation = provider == .codex ? self.prepareCodexRefreshPublication() : nil
         let codexExpectedGuard = codexPreparation?.expectedGuard
         let codexLimitResetOwnerKey = codexPreparation?.limitResetOwnerKey
@@ -428,47 +429,23 @@ extension UsageStore {
                 return await group.next()!
             }
         }
-        let outcome: ProviderFetchOutcome
-        if provider == .codex {
-            if case let .success(result) = initialOutcome.result,
-               let codexExpectedGuard,
-               !self.shouldApplyCodexUsageResult(
-                   expectedGuard: codexExpectedGuard,
-                   usage: result.usage.scoped(to: .codex))
-            {
-                self.retireCodexStateIfRefreshOwnerChanged(
-                    expectedGuard: codexExpectedGuard,
-                    generation: generation)
-                return nil
-            }
-            guard let admittedOutcome = await Self.codexOutcomeAdmittedForPublication(
-                initialOutcome: initialOutcome,
-                previousSnapshot: previousCodexSnapshot,
-                missingWindowBackfillSnapshot: codexMissingWindowBackfillSnapshot,
-                fetchConfirmation: fetchOutcome)
-            else {
-                if let codexExpectedGuard {
-                    self.retireCodexStateIfRefreshOwnerChanged(
-                        expectedGuard: codexExpectedGuard,
-                        generation: generation)
-                }
-                return nil
-            }
-            if case let .success(result) = admittedOutcome.result,
-               let codexExpectedGuard,
-               !self.shouldApplyCodexUsageResult(
-                   expectedGuard: codexExpectedGuard,
-                   usage: result.usage.scoped(to: .codex))
-            {
-                self.retireCodexStateIfRefreshOwnerChanged(
-                    expectedGuard: codexExpectedGuard,
-                    generation: generation)
-                return nil
-            }
-            outcome = admittedOutcome
-        } else {
-            outcome = initialOutcome
+        guard let outcome = await self.resolvedCodexRefreshOutcome(.init(
+            provider: provider,
+            initialOutcome: initialOutcome,
+            expectedGuard: codexExpectedGuard,
+            previousSnapshot: previousCodexSnapshot,
+            missingWindowBackfillSnapshot: codexMissingWindowBackfillSnapshot,
+            fetchOutcome: fetchOutcome,
+            generation: generation))
+        else {
+            return nil
         }
+        let (codexPublicationGuard, publishedCodexLimitResetOwnerKey) = Self.codexPublicationRefreshOverrides(
+            provider: provider,
+            outcome: outcome,
+            explicitPAT: codexExplicitPAT,
+            expectedGuard: codexExpectedGuard,
+            limitResetOwnerKey: codexLimitResetOwnerKey)
         let claudeReconciliation = await self.reconcileClaudeRefreshAfterFetch(input: .init(
             provider: provider,
             outcome: outcome,
@@ -487,10 +464,10 @@ extension UsageStore {
                 hasAdminAPIKey: claudeHasAdminAPIKey,
                 hasTokenAccount: tokenAccount != nil,
                 removedTokenAccountAuthority: tokenAccountPreparation.removesAccountAuthority),
-            codexExpectedGuard: codexExpectedGuard,
+            codexExpectedGuard: codexPublicationGuard,
             tokenAccount: tokenAccount,
             priorTokenAccountSnapshot: priorTokenAccountSnapshot,
-            codexLimitResetOwnerKey: codexLimitResetOwnerKey,
+            codexLimitResetOwnerKey: publishedCodexLimitResetOwnerKey,
             claudeOAuthHistoryPersistentRefHash: claudeReconciliation.oauthHistoryPersistentRefHash,
             claudeOAuthActiveAccountObservation: claudeReconciliation.oauthActiveAccountObservation)
         return await self.completeProviderRefreshPass(
@@ -498,6 +475,28 @@ extension UsageStore {
             outcome: outcome,
             reconciliation: claudeReconciliation,
             context: outcomeContext)
+    }
+
+    private func recordCodexRefreshSuccessPublication(
+        provider: UsageProvider,
+        scoped: UsageSnapshot,
+        backfilled: UsageSnapshot,
+        result: ProviderFetchResult,
+        context: ProviderRefreshOutcomeContext)
+    {
+        guard provider == .codex else { return }
+        self.rememberLiveSystemCodexEmailIfNeeded(scoped.accountEmail(for: .codex))
+        let publicationSource: CodexActiveSource? =
+            result.strategyID == "codex.pat" || result.sourceLabel == "pat" ? .liveSystem : nil
+        self.seedCodexAccountScopedRefreshGuard(
+            source: publicationSource,
+            accountEmail: scoped.accountEmail(for: .codex))
+        self.lastCodexUsagePublicationGuard = self.lastCodexAccountScopedRefreshGuard
+        self.persistSingleCodexAccountSnapshot(
+            backfilled,
+            sourceLabel: result.sourceLabel,
+            expectedGuard: context.codexExpectedGuard,
+            expectedOwnerKey: context.codexLimitResetOwnerKey)
     }
 
     private func completeProviderRefreshPass(
@@ -766,16 +765,12 @@ extension UsageStore {
             }
             self.knownLimitsAvailabilityByProvider.removeValue(forKey: provider.instanceID)
             self.failureGates[provider.instanceID]?.recordSuccess()
-            if provider == .codex {
-                self.rememberLiveSystemCodexEmailIfNeeded(scoped.accountEmail(for: .codex))
-                self.seedCodexAccountScopedRefreshGuard(accountEmail: scoped.accountEmail(for: .codex))
-                self.lastCodexUsagePublicationGuard = self.lastCodexAccountScopedRefreshGuard
-                self.persistSingleCodexAccountSnapshot(
-                    backfilled,
-                    sourceLabel: result.sourceLabel,
-                    expectedGuard: context.codexExpectedGuard,
-                    expectedOwnerKey: context.codexLimitResetOwnerKey)
-            }
+            self.recordCodexRefreshSuccessPublication(
+                provider: provider,
+                scoped: scoped,
+                backfilled: backfilled,
+                result: result,
+                context: context)
             return backfilled
         }
         guard let backfilled else { return }
@@ -874,7 +869,7 @@ extension UsageStore {
         self.lastCodexUsagePublicationGuard = expectedGuard
     }
 
-    private func retireCodexStateIfRefreshOwnerChanged(
+    func retireCodexStateIfRefreshOwnerChanged(
         expectedGuard: CodexAccountScopedRefreshGuard,
         generation: UInt64)
     {

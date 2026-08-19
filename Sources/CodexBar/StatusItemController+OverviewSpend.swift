@@ -140,6 +140,7 @@ extension StatusItemController {
             inputs: inputs,
             requestedDays: self.settings.costUsageHistoryDays,
             now: now,
+            calendar: self.settings.costUsageBucketCalendar,
             preferredCurrencyCode: self.settings.preferredCurrencyCode)
     }
 }

@@ -31,6 +31,10 @@ struct ProviderSettingsContext {
         self.settings.providerConfigBinding(provider: self.provider, field: field)
     }
 
+    func providerConfigSecretBinding(key: String, logField: String) -> Binding<String> {
+        self.settings.providerConfigSecretBinding(provider: self.provider, key: key, logField: logField)
+    }
+
     init(
         provider: UsageProvider,
         settings: SettingsStore,
