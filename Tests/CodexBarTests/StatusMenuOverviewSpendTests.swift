@@ -5,6 +5,67 @@ import Testing
 
 extension StatusMenuTests {
     @Test
+    func `overview spend uses the configured dashboard bucket calendar`() throws {
+        let settings = self.makeSettings()
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.costUsageEnabled = true
+        settings.costUsageHistoryDays = 1
+        let now = Date(timeIntervalSince1970: 1_787_079_600)
+        let currentOffset = Calendar.current.timeZone.secondsFromGMT(for: now)
+        let bucketIdentifier = currentOffset == 14 * 60 * 60
+            ? "Etc/GMT+12"
+            : "Pacific/Kiritimati"
+        settings.costUsageBucketTimeZoneIdentifier = bucketIdentifier
+        let bucketCalendar = settings.costUsageBucketCalendar
+        let dayComponents = bucketCalendar.dateComponents([.year, .month, .day], from: now)
+        let year = try #require(dayComponents.year)
+        let month = try #require(dayComponents.month)
+        let dayOfMonth = try #require(dayComponents.day)
+        let day = String(format: "%04d-%02d-%02d", year, month, dayOfMonth)
+
+        let store = self.makeCodexStore(settings: settings, dashboardAuthorized: false)
+        store._setTokenSnapshotForTesting(CostUsageTokenSnapshot(
+            sessionTokens: nil,
+            sessionCostUSD: nil,
+            last30DaysTokens: 100,
+            last30DaysCostUSD: 1,
+            historyDays: 1,
+            costProvenance: .listPriceEstimate,
+            daily: [
+                CostUsageDailyReport.Entry(
+                    date: day,
+                    inputTokens: 60,
+                    outputTokens: 40,
+                    totalTokens: 100,
+                    requestCount: 1,
+                    costUSD: 1,
+                    modelsUsed: ["test-model"],
+                    modelBreakdowns: nil),
+            ],
+            updatedAt: now), provider: .codex)
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: UsageFetcher().loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: self.makeStatusBarForTesting())
+        defer { controller.releaseStatusItemsForTesting() }
+
+        let model = controller.overviewSpendDashboardModel(providers: [.codex], now: now)
+        let group = try #require(model.groups.first)
+        let bucketStart = bucketCalendar.startOfDay(for: now)
+
+        #expect(bucketStart != Calendar.current.startOfDay(for: now))
+        #expect(group.chartDomain.lowerBound == bucketStart)
+        #expect(group.timeZone.identifier == bucketCalendar.timeZone.identifier)
+        #expect(group.totalCost == 1)
+        #expect(group.totalTokens == 100)
+        #expect(group.dailyPoints.map(\.day) == [bucketStart])
+    }
+
+    @Test
     func `overview accounts for all six selected providers while summing only available spend`() {
         let settings = self.makeSettings()
         settings.statusChecksEnabled = false
