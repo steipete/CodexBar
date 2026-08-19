@@ -101,6 +101,18 @@ extension StatusMenuTests {
         let month = try #require(components.month)
         let dayOfMonth = try #require(components.day)
         let day = String(format: "%04d-%02d-%02d", year, month, dayOfMonth)
+        for provider in enabledRoster {
+            store._setSnapshotForTesting(
+                UsageSnapshot(
+                    primary: RateWindow(
+                        usedPercent: 25,
+                        windowMinutes: 300,
+                        resetsAt: now.addingTimeInterval(3600),
+                        resetDescription: nil),
+                    secondary: nil,
+                    updatedAt: now),
+                provider: provider)
+        }
         func snapshot(cost: Double) -> CostUsageTokenSnapshot {
             CostUsageTokenSnapshot(
                 sessionTokens: nil,
