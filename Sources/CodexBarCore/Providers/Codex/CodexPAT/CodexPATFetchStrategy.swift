@@ -59,7 +59,16 @@ struct CodexPATFetchStrategy: ProviderFetchStrategy {
 
     private static func ambientCredentialEnvironment(_ env: [String: String]) -> [String: String] {
         var ambient = env
-        ambient.removeValue(forKey: "CODEX_HOME")
+        // `loadPAT` only honors `CODEX_HOME`. Stripping a managed home without pointing at
+        // `$HOME/.codex` falls through to the process user's real home, which hides a PAT
+        // that tests (and some launchd/sudo environments) keep under a different HOME.
+        if let home = env["HOME"]?.trimmingCharacters(in: .whitespacesAndNewlines), !home.isEmpty {
+            ambient["CODEX_HOME"] = URL(fileURLWithPath: home, isDirectory: true)
+                .appendingPathComponent(".codex", isDirectory: true)
+                .standardizedFileURL.path
+        } else {
+            ambient.removeValue(forKey: "CODEX_HOME")
+        }
         return ambient
     }
 

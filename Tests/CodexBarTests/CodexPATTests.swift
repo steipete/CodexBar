@@ -293,6 +293,31 @@ struct CodexPATTests {
     }
 
     @Test
+    func `PAT ambient fallback uses env HOME instead of the process user home`() throws {
+        let ambientRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent("codex-pat-home-\(UUID().uuidString)", isDirectory: true)
+        let ambientCodexHome = ambientRoot.appendingPathComponent(".codex", isDirectory: true)
+        let managedHome = FileManager.default.temporaryDirectory
+            .appendingPathComponent("codex-pat-managed-\(UUID().uuidString)", isDirectory: true)
+        defer {
+            try? FileManager.default.removeItem(at: ambientRoot)
+            try? FileManager.default.removeItem(at: managedHome)
+        }
+        try FileManager.default.createDirectory(at: ambientCodexHome, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: managedHome, withIntermediateDirectories: true)
+        try Data(#"{"personal_access_token":"at-from-home"}"#.utf8)
+            .write(to: ambientCodexHome.appendingPathComponent("auth.json"))
+
+        let env = [
+            "HOME": ambientRoot.path,
+            "CODEX_HOME": managedHome.path,
+        ]
+        let resolved = CodexPATFetchStrategy._credentialEnvironmentForTesting(env)
+        #expect(resolved["CODEX_HOME"] == ambientCodexHome.standardizedFileURL.path)
+        #expect(try CodexOAuthCredentialsStore.loadPATResolvingScopedHome(env: env).token == "at-from-home")
+    }
+
+    @Test
     func `explicit PAT source does not fall back, Auto does after an unusable PAT`() {
         let strategy = CodexPATFetchStrategy()
         let browserDetection = BrowserDetection(cacheTTL: 0)
