@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.54.1 — Unreleased
+
+- Codex: treat `personal_access_token` in `auth.json` as a dedicated PAT usage source (not OAuth), calling whoami then `/wham/usage` with the Settings Codex CLI version in the CLI User-Agent.
+- Codex: load PAT credentials from the ambient Codex CLI home when a stale managed-account selection fail-closes `CODEX_HOME`, or when a profile `CODEX_HOME` has no PAT; send the token's whoami ChatGPT account id instead of that managed workspace id.
+- Codex: skip stacked-account fan-out and ownership guards for Auto/PAT, including a PAT that lives only in the selected profile home, so results are not dropped as “Not fetched yet”. Auto continues to OAuth/CLI after an unusable PAT; explicit PAT mode stays terminal.
+
 ## 0.54.0 — 2026-08-18
 
 ### Highlights

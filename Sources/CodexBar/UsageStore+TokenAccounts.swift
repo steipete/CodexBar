@@ -211,9 +211,8 @@ extension UsageStore {
     }
 
     func shouldFetchAllCodexVisibleAccounts() -> Bool {
-        // A PAT belongs to the ambient Codex auth file, not to the selected managed/profile
-        // account. Fan-out would execute the same PAT for every visible account and then reject
-        // its whoami identity when the selected managed account has a different email.
+        // PAT is not a per-visible-account credential. Fan-out would fetch the same token for
+        // every row and then reject its whoami identity against other accounts.
         guard !self.shouldUseAmbientCodexPATForUsage() else { return false }
         let projection = self.freshCodexVisibleAccountProjectionForAccountRefresh()
         return self.settings.multiAccountMenuLayout == .stacked && projection.visibleAccounts.count > 1
@@ -224,10 +223,19 @@ extension UsageStore {
         case .pat:
             true
         case .auto:
-            (try? CodexOAuthCredentialsStore.loadPATResolvingScopedHome(env: self.environmentBase)) != nil
+            (try? CodexOAuthCredentialsStore.loadPATResolvingScopedHome(env: self.codexFetchEnvironment()))
+                != nil
         case .oauth, .cli:
             false
         }
+    }
+
+    func codexFetchEnvironment() -> [String: String] {
+        ProviderRegistry.makeEnvironment(
+            base: self.environmentBase,
+            provider: .codex,
+            settings: self.settings,
+            tokenOverride: nil)
     }
 
     func refreshCodexVisibleAccountsForMenu(generation: UInt64? = nil) async {

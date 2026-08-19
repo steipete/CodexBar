@@ -71,4 +71,65 @@ extension CodexAccountScopedRefreshTests {
         #expect(store.lastSourceLabels[.codex] == "pat")
         #expect(store.lastCodexUsagePublicationGuard?.source == .liveSystem)
     }
+
+    @Test
+    func `profile-only PAT skips stacked fan-out and publishes`() async throws {
+        let settings = self.makeSettingsStore(suite: "CodexPATAppPublicationTests-profile-pat")
+        settings.refreshFrequency = .manual
+        settings.multiAccountMenuLayout = .stacked
+        settings.codexUsageDataSource = .auto
+        settings._test_liveSystemCodexAccount = self.liveAccount(email: "live-oauth@example.com")
+
+        let profileHome = FileManager.default.temporaryDirectory
+            .appendingPathComponent("codex-pat-profile-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: profileHome, withIntermediateDirectories: true)
+        try Data(#"{"personal_access_token":"at-profile-only"}"#.utf8)
+            .write(to: profileHome.appendingPathComponent("auth.json"))
+        settings.updateProviderConfig(provider: .codex) { entry in
+            entry.codexProfileHomePaths = [profileHome.path]
+            entry.codexActiveSource = .profileHome(path: profileHome.path)
+        }
+
+        let ambientRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent(
+                "codex-pat-ambient-empty-\(UUID().uuidString)", isDirectory: true)
+        let ambientCodexHome = ambientRoot.appendingPathComponent(".codex", isDirectory: true)
+        try FileManager.default.createDirectory(
+            at: ambientCodexHome, withIntermediateDirectories: true)
+        defer {
+            settings._test_liveSystemCodexAccount = nil
+            try? FileManager.default.removeItem(at: profileHome)
+            try? FileManager.default.removeItem(at: ambientRoot)
+        }
+
+        let environment = [
+            "HOME": ambientRoot.path,
+            "CODEX_HOME": ambientCodexHome.path,
+            "XDG_CONFIG_HOME": ambientRoot.appendingPathComponent(".config", isDirectory: true)
+                .path,
+        ]
+        let store = self.makeUsageStore(settings: settings, environmentBase: environment)
+        store._test_codexResetCreditsFetcherOverride = { _ in nil }
+        let baseSpec = try #require(store.providerSpecs[.codex])
+        let patSnapshot = self.codexSnapshot(email: "pat-profile@example.com", usedPercent: 41)
+        let strategy = TestCodexFetchStrategy(
+            loader: { patSnapshot },
+            credits: nil,
+            id: "codex.pat",
+            kind: .apiToken,
+            sourceLabel: "pat")
+        store.providerSpecs[.codex] = Self.makeCodexProviderSpec(baseSpec: baseSpec) { _ in
+            [strategy]
+        }
+
+        #expect((try? CodexOAuthCredentialsStore.loadPAT(env: store.environmentBase)) == nil)
+        #expect(store.shouldUseAmbientCodexPATForUsage())
+        #expect(!store.shouldFetchAllCodexVisibleAccounts())
+
+        await store.refreshProvider(.codex, allowDisabled: true)
+
+        #expect(store.snapshots[.codex]?.accountEmail(for: .codex) == "pat-profile@example.com")
+        #expect(store.snapshots[.codex]?.primary?.usedPercent == 41)
+        #expect(store.lastSourceLabels[.codex] == "pat")
+    }
 }
