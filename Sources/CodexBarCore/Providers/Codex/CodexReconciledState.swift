@@ -52,6 +52,21 @@ public struct CodexReconciledState: Sendable {
             updatedAt: updatedAt)
     }
 
+    public static func fromPAT(
+        response: CodexUsageResponse,
+        whoami: CodexPATWhoami?,
+        updatedAt: Date = Date()) -> CodexReconciledState?
+    {
+        self.make(
+            primary: self.makeWindow(response.rateLimit?.primaryWindow),
+            secondary: self.makeWindow(response.rateLimit?.secondaryWindow),
+            extraRateWindows: CodexAdditionalRateLimitMapper.extraRateWindows(
+                from: response.additionalRateLimits,
+                now: updatedAt),
+            identity: self.patIdentity(response: response, whoami: whoami),
+            updatedAt: updatedAt)
+    }
+
     public static func fromAttachedDashboard(
         snapshot: OpenAIDashboardSnapshot,
         provider: UsageProvider = .codex,
@@ -97,6 +112,17 @@ public struct CodexReconciledState: Sendable {
             accountEmail: self.resolveAccountEmail(from: credentials),
             accountOrganization: nil,
             loginMethod: self.resolvePlan(response: response, credentials: credentials))
+    }
+
+    public static func patIdentity(
+        response: CodexUsageResponse,
+        whoami: CodexPATWhoami?) -> ProviderIdentitySnapshot
+    {
+        ProviderIdentitySnapshot(
+            providerID: .codex,
+            accountEmail: whoami?.email,
+            accountOrganization: nil,
+            loginMethod: self.resolvePATPlan(response: response, whoami: whoami))
     }
 
     private static func make(
@@ -146,6 +172,11 @@ public struct CodexReconciledState: Sendable {
         let profileDict = payload["https://api.openai.com/profile"] as? [String: Any]
         let email = (payload["email"] as? String) ?? (profileDict?["email"] as? String)
         return email?.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private static func resolvePATPlan(response: CodexUsageResponse, whoami: CodexPATWhoami?) -> String? {
+        if let plan = response.planType?.rawValue, !plan.isEmpty { return plan }
+        return whoami?.planType
     }
 
     private static func resolvePlan(response: CodexUsageResponse, credentials: CodexOAuthCredentials) -> String? {

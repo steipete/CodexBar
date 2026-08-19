@@ -120,6 +120,16 @@ public enum CodexOAuthCredentialsStore {
         try self.parse(data: data, source: .codexHome)
     }
 
+    public static func loadPAT(
+        env: [String: String] = ProcessInfo.processInfo.environment) throws -> CodexPATCredentials
+    {
+        try self.parsePAT(data: self.readAuthData(env: env), source: .codexHome)
+    }
+
+    public static func parsePAT(data: Data) throws -> CodexPATCredentials {
+        try self.parsePAT(data: data, source: .codexHome)
+    }
+
     /// Resolve a credential for a usage probe without changing any source file.
     ///
     /// The ambient Codex home wins. External sources are opt-in because reading another
@@ -175,6 +185,27 @@ public enum CodexOAuthCredentialsStore {
         }
 
         throw CodexOAuthCredentialsError.missingTokens
+    }
+
+    private static func parsePAT(
+        data: Data,
+        source: CodexOAuthCredentialSource) throws -> CodexPATCredentials
+    {
+        let json = try self.decodeObject(data: data)
+        guard let credentials = self.patCredentials(in: json, source: source) else {
+            throw CodexOAuthCredentialsError.missingTokens
+        }
+        return credentials
+    }
+
+    private static func patCredentials(
+        in json: [String: Any],
+        source: CodexOAuthCredentialSource) -> CodexPATCredentials?
+    {
+        let token = self.nonEmpty(json["personal_access_token"] as? String)
+            ?? self.nonEmpty(json["personalAccessToken"] as? String)
+        guard let token else { return nil }
+        return CodexPATCredentials(token: token, source: source)
     }
 
     private static func readAuthData(

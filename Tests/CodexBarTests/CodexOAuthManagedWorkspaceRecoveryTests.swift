@@ -8,7 +8,7 @@ struct CodexOAuthManagedWorkspaceRecoveryTests {
         let context = self.makeContext(sourceMode: .auto)
         let strategies = await CodexProviderDescriptor.descriptor.fetchPlan.pipeline.resolveStrategies(context)
 
-        #expect(strategies.map(\.id) == ["codex.oauth"])
+        #expect(strategies.map(\.id) == ["codex.pat", "codex.oauth"])
     }
 
     @Test

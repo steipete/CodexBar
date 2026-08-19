@@ -211,8 +211,23 @@ extension UsageStore {
     }
 
     func shouldFetchAllCodexVisibleAccounts() -> Bool {
+        // A PAT belongs to the ambient Codex auth file, not to the selected managed/profile
+        // account. Fan-out would execute the same PAT for every visible account and then reject
+        // its whoami identity when the selected managed account has a different email.
+        guard !self.shouldUseAmbientCodexPATForUsage() else { return false }
         let projection = self.freshCodexVisibleAccountProjectionForAccountRefresh()
         return self.settings.multiAccountMenuLayout == .stacked && projection.visibleAccounts.count > 1
+    }
+
+    func shouldUseAmbientCodexPATForUsage() -> Bool {
+        switch self.settings.codexUsageDataSource {
+        case .pat:
+            true
+        case .auto:
+            (try? CodexOAuthCredentialsStore.loadPAT(env: self.environmentBase)) != nil
+        case .oauth, .cli:
+            false
+        }
     }
 
     func refreshCodexVisibleAccountsForMenu(generation: UInt64? = nil) async {
@@ -1022,7 +1037,8 @@ extension UsageStore {
             claudeOwnerCLIRecoveryOnly: claudeOwnerCLIRecoveryOnly,
             persistsCLISessions: true,
             persistentCLISessionIdleWindow: ProviderRegistry.persistentCLISessionIdleWindow(
-                refreshInterval: self.normalRefreshIntervalForHeuristics()))
+                refreshInterval: self.normalRefreshIntervalForHeuristics()),
+            resolvedCLIVersion: self.version(for: provider))
     }
 
     private func providerConfigMutationIsCurrent(
