@@ -1050,6 +1050,7 @@ final class SpendDashboardController {
             // Same-owner revision churn during an in-flight load adopts the newer
             // configuration and lets the current pass finish once; handleBuiltRequest
             // reconciles any remaining drift after apply.
+            self.publishCurrentState()
             return
         }
         let nextPhase: LoadPhase = self.phase.manualRefreshOutstanding ? .forcing : .ordinary
