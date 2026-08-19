@@ -800,7 +800,7 @@ enum SpendDashboardSource {
 
     private static func codexDisplayNamesByID(_ sources: [CodexSpendSourceDescriptor]) -> [String: String] {
         sources.reduce(into: [:]) { result, source in
-            guard let separator = source.identity.firstIndex(of: "|") else { return }
+            guard let separator = source.identity.lastIndex(of: "|") else { return }
             result["codex:\(source.identity[..<separator])"] = source.displayName
         }
     }
@@ -1478,7 +1478,7 @@ final class SpendDashboardController {
         for providerID in self.configuration?.providerIDs ?? [] {
             if providerID == UsageProvider.codex.rawValue {
                 ids.append(contentsOf: (self.configuration?.codexAccountIdentities ?? []).compactMap { identity in
-                    guard let separator = identity.firstIndex(of: "|") else { return nil }
+                    guard let separator = identity.lastIndex(of: "|") else { return nil }
                     return "codex:\(identity[..<separator])"
                 })
             } else {

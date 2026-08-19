@@ -172,6 +172,37 @@ struct SpendDashboardPublicationTests {
     }
 
     @Test
+    func `profile-home path containing pipe preserves full account identity`() async {
+        let pipeContainingPath = "profile:/Users/test|data|home"
+        let configuration = SpendDashboardConfiguration(
+            costUsageEnabled: true,
+            providerIDs: [UsageProvider.codex.rawValue],
+            codexAccountIdentities: ["\(pipeContainingPath)|cache-identity"])
+        let request = SpendDashboardLoadRequest(
+            configuration: configuration,
+            capturedInputs: [],
+            unavailableSourceIDs: [],
+            codexRequests: [],
+            now: Self.now,
+            force: false)
+        let expectedID = "codex:\(pipeContainingPath)"
+        let result = SpendDashboardLoadResult(
+            inputs: [Self.input(id: expectedID, provider: .codex, cost: 4)],
+            failedSourceIDs: [])
+        let controller = SpendDashboardController(
+            requestBuilder: { _ in request },
+            loader: { _ in result })
+
+        controller.update(configuration: configuration)
+        await Self.waitUntil { !controller.isRefreshing }
+
+        let sourceIDs = Set(controller.publication.sources.map(\.id))
+        #expect(sourceIDs == [expectedID])
+        #expect(controller.publication.subscriptionCount(providerScope: [.codex]) == 1)
+        #expect(controller.publication.inputs.first?.id == expectedID)
+    }
+
+    @Test
     func `failed refresh publishes retained input as stale last known`() async throws {
         let initialConfiguration = Self.configuration(revision: "claude:first")
         let replacementConfiguration = Self.configuration(revision: "claude:second")
