@@ -208,4 +208,31 @@ struct MenuBarLayoutEditorTests {
         #expect(MenuBarLayoutBalanceResolver.balance(provider: .codex, snapshot: snapshot) == nil)
         #expect(MenuBarLayoutToken.balance.editorLabel(provider: .openrouter) == L("Balance"))
     }
+
+    @Test
+    func `conditional palette chips wrap instead of overflowing the pane`() {
+        let spacing: CGFloat = 6
+
+        // Two 100pt chips fit in 220pt (100 + 6 + 100); the third has to wrap.
+        #expect(MenuBarLayoutChipFlowLayout.rows(
+            widths: [100, 100, 100],
+            maxWidth: 220,
+            spacing: spacing) == [[0, 1], [2]])
+
+        // Long localized names still get placed on their own row rather than dropped.
+        #expect(MenuBarLayoutChipFlowLayout.rows(
+            widths: [400],
+            maxWidth: 220,
+            spacing: spacing) == [[0]])
+        #expect(MenuBarLayoutChipFlowLayout.rows(
+            widths: [400, 120],
+            maxWidth: 220,
+            spacing: spacing) == [[0], [1]])
+
+        // Chips that fit stay on one row, so a short library keeps hugging the leading edge.
+        #expect(MenuBarLayoutChipFlowLayout.rows(
+            widths: [80, 90],
+            maxWidth: 220,
+            spacing: spacing) == [[0, 1]])
+    }
 }
