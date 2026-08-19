@@ -949,6 +949,38 @@ struct MenuBarLayoutRendererTests {
     }
 
     @Test
+    func `a conditional resolving to the icon surfaces it as the leading image`() throws {
+        let renderer = MenuBarLayoutRenderer()
+        let icon = NSImage(size: NSSize(width: 16, height: 16))
+        icon.isTemplate = true
+        // Session is 25%, so > 0 passes and the then branch (.icon) wins in first position.
+        let conditional = MenuBarLayoutConditional(
+            clauses: [self.clause(metric: .session, comparison: .greaterThan, threshold: 0)],
+            thenToken: .icon,
+            elseToken: .hidden)
+
+        let output = renderer.render(
+            layout: MenuBarLayout(lines: [[.conditional(id: conditional.id), .percent(window: .automatic)]]),
+            data: self.data(),
+            icon: icon,
+            options: self.options(conditionals: [conditional]))
+        let control = renderer.render(
+            layout: MenuBarLayout(lines: [[.icon, .percent(window: .automatic)]]),
+            data: self.data(),
+            icon: icon,
+            options: self.options())
+
+        // AppKit only dims `button.image` on inactive displays, so a resolved icon has to take the
+        // same path a literal `.icon` token takes rather than becoming an attributed attachment.
+        let resolvedIcon = try #require(output.leadingIcon)
+        let controlIcon = try #require(control.leadingIcon)
+        #expect(resolvedIcon === controlIcon)
+        #expect(output.attributedTitle.string == control.attributedTitle.string)
+        #expect(output.attributedTitle.attribute(.attachment, at: 0, effectiveRange: nil) == nil)
+        #expect(output.accessibilityLabel == control.accessibilityLabel)
+    }
+
+    @Test
     func `dangling conditional reference renders placeholder`() {
         let renderer = MenuBarLayoutRenderer()
         // An id not present in the library has nothing to resolve; the renderer must show the

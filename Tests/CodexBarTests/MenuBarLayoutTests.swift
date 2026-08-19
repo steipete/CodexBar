@@ -436,6 +436,11 @@ struct MenuBarLayoutTests {
         // Nothing left to project falls back to the default layout rather than an empty title.
         let conditionalOnly = MenuBarLayout(lines: [[.conditional(id: conditional.id)]])
         #expect(conditionalOnly.legacyCompatible() == .defaultLayout)
+
+        // A line the user left empty (line break added, no token dropped in yet) is not the same as
+        // one emptied by filtering, so it survives the projection unchanged.
+        let pendingSecondLine = MenuBarLayout(lines: [[.icon, .conditional(id: conditional.id)], []])
+        #expect(pendingSecondLine.legacyCompatible() == MenuBarLayout(lines: [[.icon], []]))
     }
 
     @Test
