@@ -921,6 +921,7 @@ struct MenuBarLayoutPreview: View {
                 snapshot: snapshot)
             session = semanticWindows.session
             weekly = semanticWindows.weekly
+            // Provider-specific by design: Mistral's automatic lane can explicitly select its Monthly Plan window.
             let automaticPreference = provider == .mistral
                 ? self.settings.menuBarMetricPreference(for: provider, snapshot: snapshot)
                 : .automatic
@@ -965,6 +966,7 @@ struct MenuBarLayoutPreview: View {
             scopedWeekly: MenuBarLayoutRenderWindow(scopedNamed?.window),
             scopedWeeklyTitle: scopedNamed?.title,
             automatic: automaticRenderWindow,
+            // Provider-specific by design: Mistral uses spend text when its automatic lane has no percentage window.
             automaticText: provider == .mistral && automaticRenderWindow == nil
                 ? StatusItemController.mistralSpendDisplayText(snapshot: snapshot)
                 : nil,
