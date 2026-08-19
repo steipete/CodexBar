@@ -6,7 +6,7 @@
 "Fast" = "高速";
 "iCloud Sync" = "iCloud Sync";
 "Projects" = "项目";
-"Session %@" = "会话 %@";
+"Session %@" = "5 小时 %@";
 "Std" = "标准";
 "Show all (%d)" = "显示全部（%d）";
 "Show less" = "收起";
@@ -332,7 +332,7 @@
 "Secondary (\\(metadata.weeklyLabel))" = "次要（\\(metadata.weeklyLabel)）";
 "Select a provider" = "选择一个提供商";
 "Select the IDE to monitor" = "选择要监控的 IDE";
-"Session" = "会话";
+"Session" = "5 小时";
 "Session quota notifications" = "会话配额通知";
 "Session tokens" = "会话令牌";
 "provider_section_connection" = "连接";

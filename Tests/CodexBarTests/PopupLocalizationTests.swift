@@ -8,6 +8,43 @@ import Testing
 @Suite(.serialized)
 struct PopupLocalizationTests {
     @Test
+    func `simplified Chinese identifies Claude session quota as five hours`() throws {
+        try CodexBarLocalizationOverride.$appLanguage.withValue("zh-Hans") {
+            let now = Date(timeIntervalSince1970: 1_700_000_000)
+            let metadata = try #require(ProviderDefaults.metadata[.claude])
+            let snapshot = UsageSnapshot(
+                primary: RateWindow(
+                    usedPercent: 10,
+                    windowMinutes: 300,
+                    resetsAt: now.addingTimeInterval(3600),
+                    resetDescription: nil),
+                secondary: nil,
+                updatedAt: now)
+            let model = UsageMenuCardView.Model.make(.init(
+                provider: .claude,
+                metadata: metadata,
+                snapshot: snapshot,
+                credits: nil,
+                creditsError: nil,
+                dashboard: nil,
+                dashboardError: nil,
+                tokenSnapshot: nil,
+                tokenError: nil,
+                account: AccountInfo(email: nil, plan: nil),
+                isRefreshing: false,
+                lastError: nil,
+                usageBarsShowUsed: false,
+                resetTimeDisplayStyle: .countdown,
+                tokenCostUsageEnabled: false,
+                showOptionalCreditsAndExtraUsage: true,
+                hidePersonalInfo: false,
+                now: now))
+
+            #expect(model.metrics.first?.title == "5 小时")
+        }
+    }
+
+    @Test
     func `descriptor account labels use selected localization`() throws {
         try CodexBarLocalizationOverride.$appLanguage.withValue("zh-Hant") {
             let suite = "PopupLocalizationTests-descriptor"
