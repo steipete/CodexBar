@@ -7,6 +7,42 @@ import Testing
 @Suite(.serialized)
 struct SpendDashboardOpenCodexSourceTests {
     @Test
+    func `OpenCodex publication distinguishes unavailable and confirmed empty`() {
+        let configuration = SpendDashboardConfiguration(
+            costUsageEnabled: true,
+            providerIDs: [],
+            codexAccountIdentities: [],
+            openCodexUsageLogsEnabled: true)
+        let request = SpendDashboardLoadRequest(
+            configuration: configuration,
+            capturedInputs: [],
+            unavailableSourceIDs: [],
+            codexRequests: [],
+            now: Date(timeIntervalSince1970: 1_787_079_600),
+            force: false)
+
+        let unavailable = SpendDashboardSource.mergingOpenCodexInputsWithObservation(
+            [],
+            request: request,
+            environment: ["TESTING_LIBRARY_VERSION": "1"])
+        #expect(unavailable.observation == .unavailable)
+
+        let confirmedEmpty = SpendDashboardSource.mergingOpenCodexInputsWithObservation(
+            [],
+            request: request,
+            environment: ["OPENCODEX_HOME": "/tmp/opencodex-publication-test"],
+            entryLoader: { _ in [] })
+        #expect(confirmedEmpty.observation == .confirmedEmpty)
+
+        let failed = SpendDashboardSource.mergingOpenCodexInputsWithObservation(
+            [],
+            request: request,
+            environment: ["OPENCODEX_HOME": "/tmp/opencodex-publication-test"],
+            entryLoader: { _ in throw CocoaError(.fileReadCorruptFile) })
+        #expect(failed.observation == .unavailable)
+    }
+
+    @Test
     func `OpenCodex-only configuration still starts a dashboard load`() async {
         let gate = SpendDashboardLoaderGate()
         let controller = SpendDashboardControllerTests.controller(gate: gate)

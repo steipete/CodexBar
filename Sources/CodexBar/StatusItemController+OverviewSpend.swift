@@ -11,21 +11,34 @@ struct OverviewSpendSummary: Equatable {
     let provenanceText: String
     let isPartial: Bool
 
-    init(model: SpendDashboardModel, providerCount: Int) {
+    init(
+        model: SpendDashboardModel,
+        providerCount: Int,
+        knownCostProviderCount: Int? = nil,
+        knownTokenProviderCount: Int? = nil)
+    {
         let includedProviders = model.groups.flatMap(\.providers)
         let providerCount = max(max(0, providerCount), includedProviders.count)
         let pricedProviderCount = includedProviders.count { $0.totalCost != nil }
         let tokenProviderCount = includedProviders.count { $0.totalTokens != nil }
-        let isPartial = pricedProviderCount > 0 && pricedProviderCount < providerCount
+        let resolvedKnownCostProviderCount = knownCostProviderCount.map {
+            min(providerCount, max(pricedProviderCount, $0))
+        }
+        let isPartial = pricedProviderCount > 0 &&
+            (resolvedKnownCostProviderCount ?? pricedProviderCount) < providerCount
         self.isPartial = isPartial
 
-        self.primarySpendText = model.groups.isEmpty
-            ? L("Spend unavailable")
-            : model.groups.map { group in
+        if model.groups.isEmpty {
+            self.primarySpendText = providerCount > 0 && resolvedKnownCostProviderCount == providerCount
+                ? L("No usage yet")
+                : L("Spend unavailable")
+        } else {
+            self.primarySpendText = model.groups.map { group in
                 let text = spendDashboardGroupCostText(group)
                 guard isPartial, group.totalCost != nil, !text.hasPrefix("~") else { return text }
                 return "~\(text)"
             }.joined(separator: " · ")
+        }
         self.providerCoverageText = L(
             "%d of %d subscriptions have spend",
             pricedProviderCount,
@@ -34,11 +47,18 @@ struct OverviewSpendSummary: Equatable {
         let tokens = Self.safeTokenSum(model.groups.compactMap(\.totalTokens))
         self.tokenText = tokens.map {
             let value = ShareStatsFormatting.compactCount($0)
-            let isPartial = tokenProviderCount < providerCount
+            let resolvedKnownTokenProviderCount = knownTokenProviderCount.map {
+                min(providerCount, max(tokenProviderCount, $0))
+            }
+            let isPartial = if let resolvedKnownTokenProviderCount {
+                resolvedKnownTokenProviderCount < providerCount
+            } else {
+                tokenProviderCount < providerCount
+            }
             return L("%@ tokens", isPartial ? "~\(value)" : value)
         }
 
-        let coveredDays = includedProviders.count < providerCount
+        let coveredDays = (resolvedKnownCostProviderCount ?? includedProviders.count) < providerCount
             ? 0
             : model.groups.map(\.coveredDayCount).min() ?? 0
         self.historyCoverageText = spendDashboardCoverageText(
@@ -123,10 +143,73 @@ struct OverviewSpendSummaryCardView: View {
 }
 
 extension StatusItemController {
+    func overviewSpendSubscriptionCount(providers: [UsageProvider]) -> Int {
+        let providerScope = Set(providers)
+        let publication = self.store.spendDashboardPublication
+        guard let configuration = publication.configuration,
+              configuration.menuOwnershipFingerprint == SpendDashboardSource.currentMenuOwnershipFingerprint(
+                  settings: self.settings,
+                  store: self.store)
+        else {
+            return providerScope.count
+        }
+        return publication.subscriptionCount(
+            providerScope: providerScope,
+            hiddenSourceIDs: Set(self.settings.spendDashboardHiddenSourceIDs),
+            hideNativeCodexWhenOpenCodexPresent: self.settings.hideNativeCodexCostWhenOpenCodexPresent)
+    }
+
+    func overviewSpendKnownSubscriptionCounts(
+        providers: [UsageProvider],
+        model: SpendDashboardModel) -> (cost: Int, tokens: Int)
+    {
+        let providerScope = Set(providers)
+        let publication = self.store.spendDashboardPublication
+        guard let configuration = publication.configuration,
+              configuration.menuOwnershipFingerprint == SpendDashboardSource.currentMenuOwnershipFingerprint(
+                  settings: self.settings,
+                  store: self.store)
+        else { return (0, 0) }
+        let hiddenSourceIDs = Set(self.settings.spendDashboardHiddenSourceIDs)
+        return (
+            publication.knownCostSubscriptionCount(
+                model: model,
+                providerScope: providerScope,
+                hiddenSourceIDs: hiddenSourceIDs,
+                hideNativeCodexWhenOpenCodexPresent: self.settings.hideNativeCodexCostWhenOpenCodexPresent),
+            publication.knownTokenSubscriptionCount(
+                model: model,
+                providerScope: providerScope,
+                hiddenSourceIDs: hiddenSourceIDs,
+                hideNativeCodexWhenOpenCodexPresent: self.settings.hideNativeCodexCostWhenOpenCodexPresent))
+    }
+
     func overviewSpendDashboardModel(
         providers: [UsageProvider],
         now: Date = Date()) -> SpendDashboardModel
     {
+        let publication = self.store.spendDashboardPublication
+        if let configuration = publication.configuration {
+            guard configuration.menuOwnershipFingerprint == SpendDashboardSource.currentMenuOwnershipFingerprint(
+                settings: self.settings,
+                store: self.store)
+            else {
+                return SpendDashboardModel.build(
+                    inputs: [],
+                    requestedDays: self.settings.costUsageHistoryDays,
+                    now: now,
+                    calendar: self.settings.costUsageBucketCalendar,
+                    preferredCurrencyCode: self.settings.preferredCurrencyCode)
+            }
+            return publication.model(
+                requestedDays: self.settings.costUsageHistoryDays,
+                now: now,
+                calendar: self.settings.costUsageBucketCalendar,
+                preferredCurrencyCode: self.settings.preferredCurrencyCode,
+                hiddenSourceIDs: Set(self.settings.spendDashboardHiddenSourceIDs),
+                hideNativeCodexWhenOpenCodexPresent: self.settings.hideNativeCodexCostWhenOpenCodexPresent,
+                providerScope: Set(providers))
+        }
         let inputs = providers.compactMap { provider -> SpendDashboardModel.ProviderInput? in
             guard let snapshot = self.store.tokenSnapshotForCurrentProviderConfig(for: provider)?.snapshot else {
                 return nil
