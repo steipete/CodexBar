@@ -231,6 +231,7 @@ extension UsageStore {
     }
 
     func codexFetchEnvironment() -> [String: String] {
+        // Provider-specific by design: PAT admission reads the selected Codex CODEX_HOME fetch environment.
         ProviderRegistry.makeEnvironment(
             base: self.environmentBase,
             provider: .codex,

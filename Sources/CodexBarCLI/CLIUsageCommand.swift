@@ -507,6 +507,7 @@ extension CodexBarCLI {
         }
         #endif
 
+        // Provider-specific by design: Codex PAT User-Agent needs the CLI version before the fetch starts.
         let resolvedCLIVersion = provider == .codex
             ? Self.detectVersion(for: provider, browserDetection: command.browserDetection)
             : nil
