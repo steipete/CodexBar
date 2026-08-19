@@ -1059,6 +1059,7 @@ extension UsageMenuCardView.Model {
         if input.provider == .sub2api {
             details = Self.sub2APILocalizedDetails(details)
         }
+        details = Self.localizedProviderDetails(details, provider: input.provider)
         guard input.hidePersonalInfo else { return details }
         return details.compactMap { section in
             let rows = section.rows.compactMap { row in
@@ -1397,6 +1398,9 @@ extension UsageMenuCardView.Model {
             Self.applyPrimaryPacePresentation(&presentation, input: input, primary: primary)
         }
         Self.applyPrimaryFinalOverrides(&presentation, input: input, primary: primary)
+        if input.provider == .zai, let resetText = Self.localizedZaiPeriodicResetText(primary) {
+            presentation.resetText = resetText
+        }
         if let bindingProjection {
             let resetWindow = RateWindow(
                 usedPercent: bindingProjection.usedPercent,

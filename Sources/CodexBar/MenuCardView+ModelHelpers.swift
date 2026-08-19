@@ -194,6 +194,9 @@ extension UsageMenuCardView.Model {
             presentation.resetText = regen.resetText
             Self.apply(regen.pace, to: &presentation)
         }
+        if input.provider == .deepseek, let detail = presentation.detailText {
+            presentation.detailText = Self.localizedDeepSeekBalanceDescription(detail)
+        }
         if policy.movesPrimaryDetailToStatus(snapshot: input.snapshot) {
             presentation.statusText = presentation.detailText
             presentation.detailText = nil

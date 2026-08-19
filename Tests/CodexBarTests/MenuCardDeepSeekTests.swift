@@ -153,6 +153,84 @@ struct MenuCardDeepSeekTests {
     }
 
     @Test
+    func `model localizes deepseek usage details in simplified chinese`() throws {
+        let now = Date()
+        let metadata = try #require(ProviderDefaults.metadata[.deepseek])
+        let snapshot = Self.makeSnapshot(now: now, usageSummary: Self.sampleDeepSeekSummary(now: now))
+
+        let model = CodexBarLocalizationOverride.$appLanguage.withValue("zh-Hans") {
+            UsageMenuCardView.Model.make(.init(
+                provider: .deepseek,
+                metadata: metadata,
+                snapshot: snapshot,
+                credits: nil,
+                creditsError: nil,
+                dashboard: nil,
+                dashboardError: nil,
+                tokenSnapshot: nil,
+                tokenError: nil,
+                account: AccountInfo(email: nil, plan: nil),
+                isRefreshing: false,
+                lastError: nil,
+                usageBarsShowUsed: false,
+                resetTimeDisplayStyle: .countdown,
+                tokenCostUsageEnabled: true,
+                showOptionalCreditsAndExtraUsage: true,
+                hidePersonalInfo: false,
+                now: now))
+        }
+
+        let details = try #require(model.providerDetails.first)
+        #expect(details.title == "用量明细")
+        #expect(details.rows.map(\.label) == [
+            "今日",
+            "本月",
+            "请求",
+            "最常用模型",
+            "缓存命中输入",
+            "缓存未命中输入",
+            "输出",
+        ])
+        #expect(details.rows[0].value == "¥0.0123 · 123 token 用量")
+        #expect(details.rows[1].value == "¥0.0456 · 456 token 用量")
+        #expect(details.rows[3].value == "deepseek-chat")
+        #expect(details.chart?.title == "每日 token")
+        #expect(details.chart?.unit == "token")
+    }
+
+    @Test
+    func `model localizes deepseek balance components in simplified chinese`() throws {
+        let now = Date()
+        let metadata = try #require(ProviderDefaults.metadata[.deepseek])
+        let snapshot = Self.makeSnapshot(now: now)
+
+        let model = CodexBarLocalizationOverride.$appLanguage.withValue("zh-Hans") {
+            UsageMenuCardView.Model.make(.init(
+                provider: .deepseek,
+                metadata: metadata,
+                snapshot: snapshot,
+                credits: nil,
+                creditsError: nil,
+                dashboard: nil,
+                dashboardError: nil,
+                tokenSnapshot: nil,
+                tokenError: nil,
+                account: AccountInfo(email: nil, plan: nil),
+                isRefreshing: false,
+                lastError: nil,
+                usageBarsShowUsed: false,
+                resetTimeDisplayStyle: .countdown,
+                tokenCostUsageEnabled: false,
+                showOptionalCreditsAndExtraUsage: true,
+                hidePersonalInfo: false,
+                now: now))
+        }
+
+        let balance = try #require(model.metrics.first)
+        #expect(balance.statusText == "$9.32（付费：$9.32 / 赠送：$0.00）")
+    }
+
+    @Test
     func `model explains unavailable deepseek usage when cost summary is enabled`() throws {
         let now = Date()
         let metadata = try #require(ProviderDefaults.metadata[.deepseek])
