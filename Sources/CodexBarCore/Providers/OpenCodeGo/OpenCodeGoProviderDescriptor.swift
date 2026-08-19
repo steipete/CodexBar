@@ -226,8 +226,8 @@ struct OpenCodeGoLocalUsageFetchStrategy: ProviderFetchStrategy {
             do {
                 let apiSnapshot = try await self.apiUsageOverlayFetcher(context, apiKey)
                 let apiOverlay = snapshot.applyingWebUsage(apiSnapshot)
-                return SnapshotResult(
-                    snapshot: try await self.preservingCookieBalance(in: apiOverlay, context: context),
+                return try await SnapshotResult(
+                    snapshot: self.preservingCookieBalance(in: apiOverlay, context: context),
                     sourceLabel: "local+api",
                     quotaIsAuthoritative: true)
             } catch is CancellationError {
