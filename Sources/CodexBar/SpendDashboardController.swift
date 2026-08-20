@@ -751,6 +751,51 @@ enum SpendDashboardSource {
                 encoder.append(breakdown.priorityTokens)
             }
         }
+        encoder.append(snapshot.hourly.count)
+        for entry in snapshot.hourly {
+            encoder.append(entry.hour.timeIntervalSinceReferenceDate)
+            encoder.append(entry.totalTokens)
+            encoder.append(entry.costUSD)
+        }
+        encoder.append(snapshot.projects.count)
+        encoder.append(snapshot.sessions.count)
+        for project in snapshot.projects {
+            encoder.append(project.name)
+            encoder.append(project.path ?? "")
+            encoder.append(project.totalTokens)
+            encoder.append(project.totalCostUSD)
+            encoder.append(project.daily.count)
+            for entry in project.daily {
+                encoder.append(entry.date)
+                encoder.append(entry.costUSD)
+                encoder.append(entry.totalTokens)
+                encoder.append(entry.inputTokens)
+                encoder.append(entry.outputTokens)
+            }
+            if let breakdowns = project.modelBreakdowns {
+                encoder.append(breakdowns.count)
+                for breakdown in breakdowns {
+                    encoder.append(breakdown.modelName)
+                    encoder.append(breakdown.costUSD)
+                    encoder.append(breakdown.totalTokens)
+                }
+            } else {
+                encoder.append(0)
+            }
+        }
+        for session in snapshot.sessions {
+            encoder.append(session.sessionID)
+            encoder.append(session.lastActivity.timeIntervalSinceReferenceDate)
+            encoder.append(session.totalTokens)
+            encoder.append(session.costUSD)
+            encoder.append(session.requestCount)
+            encoder.append(session.modelBreakdowns.count)
+            for breakdown in session.modelBreakdowns {
+                encoder.append(breakdown.modelName)
+                encoder.append(breakdown.costUSD)
+                encoder.append(breakdown.totalTokens)
+            }
+        }
         return encoder.finalize()
     }
 
