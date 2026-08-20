@@ -47,6 +47,45 @@ struct PopupLocalizationTests {
     }
 
     @Test
+    func `factory descriptor localizes every time window label`() throws {
+        try CodexBarLocalizationOverride.$appLanguage.withValue("zh-Hans") {
+            let suite = "PopupLocalizationTests-factory-rate-windows"
+            let settings = try Self.makeSettingsStore(suite: suite)
+            let store = UsageStore(
+                fetcher: UsageFetcher(environment: [:]),
+                browserDetection: BrowserDetection(cacheTTL: 0),
+                settings: settings,
+                startupBehavior: .testing)
+            store._setSnapshotForTesting(
+                UsageSnapshot(
+                    primary: RateWindow(usedPercent: 12, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+                    secondary: RateWindow(
+                        usedPercent: 34,
+                        windowMinutes: 10080,
+                        resetsAt: nil,
+                        resetDescription: nil),
+                    tertiary: RateWindow(usedPercent: 56, windowMinutes: nil, resetsAt: nil, resetDescription: nil),
+                    updatedAt: Date(),
+                    identity: nil),
+                provider: .factory)
+
+            let descriptor = MenuDescriptor.build(
+                provider: .factory,
+                store: store,
+                settings: settings,
+                account: AccountInfo(email: nil, plan: nil),
+                updateReady: false,
+                includeContextualActions: false)
+            let lines = Self.textLines(from: descriptor)
+
+            #expect(lines.contains { $0.hasPrefix("5 小时:") })
+            #expect(lines.contains { $0.hasPrefix("每周:") })
+            #expect(lines.contains { $0.hasPrefix("每月:") })
+            #expect(!lines.contains { $0.hasPrefix("5-hour:") })
+        }
+    }
+
+    @Test
     func `generic provider details keep canonical labels alongside localized core metrics`() throws {
         try CodexBarLocalizationOverride.$appLanguage.withValue("zh-Hant") {
             let now = Date(timeIntervalSince1970: 1_700_179_200)
