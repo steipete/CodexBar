@@ -148,6 +148,7 @@ struct ZaiMenuCardTests {
                 now: now))
         }
 
+        #expect(model.metrics.first?.title == "5 小时")
         #expect(model.metrics.first?.resetText == "每 5 小时重置")
         let rows = try #require(model.providerDetails.first?.rows)
         #expect(rows[0].value == "已使用 45%")

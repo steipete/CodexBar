@@ -1517,6 +1517,7 @@
 "%@ limit · %@ remaining" = "上限 %@ · 剩余 %@";
 "%@ (Paid: %@ / Granted: %@)" = "%@（付费：%@ / 赠送：%@）";
 "Resets every 5 hours" = "每 5 小时重置";
+"5-hour" = "5 小时";
 "%@ — add credits at %@" = "%@ — 请前往 %@ 充值";
 "Balance unavailable for API calls" = "API 调用余额不可用";
 "%@ limit" = "上限 %@";
