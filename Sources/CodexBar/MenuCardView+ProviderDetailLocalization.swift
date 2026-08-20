@@ -7,7 +7,21 @@ extension UsageMenuCardView.Model {
         provider: UsageProvider) -> [ProviderDetailSection]
     {
         // Provider-specific by design: only DeepSeek and z.ai expose these localized detail contracts.
-        guard provider == .deepseek || provider == .zai else { return details }
+        // Other providers localize section titles and row labels through the shared catalog; values stay canonical.
+        guard provider == .deepseek || provider == .zai else {
+            return details.compactMap { section in
+                let rows = section.rows.compactMap { row in
+                    try? ProviderDetailSection.Row(
+                        label: L(row.label),
+                        value: row.value,
+                        secondaryValue: row.secondaryValue)
+                }
+                return try? ProviderDetailSection(
+                    title: section.title.map(L),
+                    rows: rows,
+                    chart: section.chart)
+            }
+        }
         return details.compactMap { section in
             let rows = section.rows.compactMap { row in
                 try? ProviderDetailSection.Row(
