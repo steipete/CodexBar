@@ -39,6 +39,44 @@ struct ZaiPluginBalanceTests {
                 == "recharged ¥100.00 · granted ¥20.00 · spent ¥77.50")
         let balanceRequest = try #require(await recorder.requests.first { $0.url?.host == "www.bigmodel.cn" })
         #expect(balanceRequest.url?.path == "/api/biz/account/query-customer-account-report")
+        // Optional lookup must be bounded well below the fetch deadline (review P1).
+        #expect(balanceRequest.timeoutInterval == 5)
+    }
+
+    @Test
+    func `null availableBalance falls back to balance and hides null secondary fields`() async throws {
+        // Number(null) is 0 — without an explicit null guard the row would read ¥0.00.
+        let snapshot = try await Self.fetch(
+            region: "bigmodel-cn",
+            balanceBody: """
+            {
+              "code": 200,
+              "success": true,
+              "data": {
+                "balance": 42.5,
+                "availableBalance": null,
+                "rechargeAmount": null,
+                "giveAmount": 5.0,
+                "totalSpendAmount": null
+              }
+            }
+            """)
+
+        #expect(snapshot.detailRow(label: "Account balance")?.value == "¥42.50")
+        #expect(snapshot.detailRow(label: "Account balance")?.secondaryValue == "granted ¥5.00")
+    }
+
+    @Test
+    func `region-aware validation rejects invalid balance override`() {
+        #expect(throws: ZaiSettingsError.self) {
+            try ZaiSettingsReader.validateEndpointOverrides(
+                region: .bigmodelCN,
+                environment: [ZaiSettingsReader.balanceURLKey: "http://insecure.test/report"])
+        }
+        #expect(throws: ZaiSettingsError.self) {
+            try ZaiSettingsReader.validateEndpointOverrides(
+                environment: [ZaiSettingsReader.balanceURLKey: "http://insecure.test/report"])
+        }
     }
 
     @Test

@@ -77,11 +77,7 @@ public struct ZaiSettingsReader: Sendable {
     {
         try self.validateQuotaEndpointOverride(environment: environment)
         try self.validateAPIHostEndpointOverride(environment: environment)
-        if let raw = self.cleaned(environment[balanceURLKey]),
-           self.balanceURL(environment: environment) == nil
-        {
-            throw ZaiSettingsError.invalidEndpointOverride(self.balanceURLKey)
-        }
+        try self.validateBalanceEndpointOverride(environment: environment)
     }
 
     public static func validateEndpointOverrides(
@@ -90,6 +86,20 @@ public struct ZaiSettingsReader: Sendable {
     {
         try self.validateQuotaEndpointOverride(region: region, environment: environment)
         try self.validateAPIHostEndpointOverride(region: region, environment: environment)
+        try self.validateBalanceEndpointOverride(environment: environment)
+    }
+
+    /// A malformed or non-HTTPS `Z_AI_BALANCE_URL` must reject the fetch (mirroring the
+    /// quota/host overrides) instead of silently falling back to the production endpoint.
+    /// Shared by both `validateEndpointOverrides` overloads so the region-aware path used
+    /// by the provider fetch pipeline validates it too.
+    static func validateBalanceEndpointOverride(
+        environment: [String: String] = ProcessInfo.processInfo.environment) throws
+    {
+        guard self.cleaned(environment[self.balanceURLKey]) != nil else { return }
+        guard self.balanceURL(environment: environment) != nil else {
+            throw ZaiSettingsError.invalidEndpointOverride(self.balanceURLKey)
+        }
     }
 
     public static func validateQuotaEndpointOverride(

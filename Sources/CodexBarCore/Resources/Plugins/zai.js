@@ -213,21 +213,27 @@ defineProvider({
         const balanceEndpoint =
           ctx.settings.get("Z_AI_BALANCE_ENDPOINT") ||
           "https://www.bigmodel.cn/api/biz/account/query-customer-account-report";
-        const response = await ctx.http.getJSON(balanceEndpoint, {});
+        // Optional lookup: bound it well below the fetch deadline so a stalling balance
+        // service can neither delay the later model-usage requests nor discard the
+        // already-fetched quota snapshot.
+        const response = await ctx.http.getJSON(balanceEndpoint, { timeoutSeconds: 5 });
         const body = response.json;
         if (response.status === 200 && body && typeof body === "object" && body.success === true) {
           const data = body.data && typeof body.data === "object" ? body.data : {};
-          const available = Number(data.availableBalance);
-          const current = Number(data.balance);
+          // Number(null) is 0, which would silently defeat the fallback below and
+          // render misleading ¥0.00 rows — only actual numeric values participate.
+          const numeric = (value) => (value === null || value === undefined ? undefined : Number(value));
+          const available = numeric(data.availableBalance);
+          const current = numeric(data.balance);
           const value = Number.isFinite(available) ? available : current;
           if (Number.isFinite(value)) {
+            const recharged = numeric(data.rechargeAmount);
+            const granted = numeric(data.giveAmount);
+            const spent = numeric(data.totalSpendAmount);
             const secondary = [];
-            if (Number.isFinite(Number(data.rechargeAmount)))
-              secondary.push(`recharged ¥${Number(data.rechargeAmount).toFixed(2)}`);
-            if (Number.isFinite(Number(data.giveAmount)) && Number(data.giveAmount) > 0)
-              secondary.push(`granted ¥${Number(data.giveAmount).toFixed(2)}`);
-            if (Number.isFinite(Number(data.totalSpendAmount)))
-              secondary.push(`spent ¥${Number(data.totalSpendAmount).toFixed(2)}`);
+            if (Number.isFinite(recharged)) secondary.push(`recharged ¥${recharged.toFixed(2)}`);
+            if (Number.isFinite(granted) && granted > 0) secondary.push(`granted ¥${granted.toFixed(2)}`);
+            if (Number.isFinite(spent)) secondary.push(`spent ¥${spent.toFixed(2)}`);
             result.details[0].rows.push({
               label: "Account balance",
               value: `¥${Number(value).toFixed(2)}`,
