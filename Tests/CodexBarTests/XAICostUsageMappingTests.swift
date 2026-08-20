@@ -11,11 +11,33 @@ struct XAICostUsageMappingTests {
         let mapped = try #require(XAICostUsageMapping.tokenSnapshot(from: snapshot, historyDays: 30))
         #expect(mapped.last30DaysCostUSD == 1.76)
         #expect(mapped.last30DaysTokens == nil)
-        #expect(mapped.sessionCostUSD == 1.26)
+        #expect(mapped.sessionCostUSD == nil)
+        #expect(mapped.historyDays == 30)
         #expect(mapped.costProvenance == .vendorMetered)
         #expect(mapped.daily.map(\.date) == ["2026-08-17", "2026-08-18"])
         #expect(mapped.daily.map(\.costUSD) == [0.50, 1.26])
         #expect(mapped.historyCoverageIsEstablished)
+    }
+
+    @Test
+    func `today is the UTC day of updatedAt not the newest point`() throws {
+        let snapshot = try self.snapshot(
+            points: [("2027-01-14", 0.50), ("2027-01-15", 1.26)],
+            confidence: .exact,
+            updatedAt: Date(timeIntervalSince1970: 1_800_000_000))
+        let mapped = try #require(XAICostUsageMapping.tokenSnapshot(from: snapshot, historyDays: 365))
+        #expect(mapped.sessionCostUSD == 1.26)
+        #expect(mapped.historyDays == 30)
+    }
+
+    @Test
+    func `requested 365-day window stays a 30-day source`() throws {
+        let snapshot = try self.snapshot(
+            points: [("2026-08-18", 1.0)],
+            confidence: .exact)
+        let mapped = try #require(XAICostUsageMapping.tokenSnapshot(from: snapshot, historyDays: 365))
+        #expect(mapped.historyDays == 30)
+        #expect(mapped.last30DaysCostUSD == 1.0)
     }
 
     @Test
@@ -31,6 +53,17 @@ struct XAICostUsageMappingTests {
                 updatedAt: Date()),
             updatedAt: Date())
         #expect(XAICostUsageMapping.tokenSnapshot(from: snapshot, historyDays: 30) == nil)
+        #expect(XAICostUsageMapping.isAnalyticsUnavailable(snapshot))
+    }
+
+    @Test
+    func `empty successful chart is confirmed empty not unavailable`() throws {
+        let snapshot = try self.snapshot(points: [], confidence: .exact)
+        #expect(XAICostUsageMapping.isAnalyticsUnavailable(snapshot) == false)
+        let mapped = try #require(XAICostUsageMapping.tokenSnapshot(from: snapshot, historyDays: 30))
+        #expect(mapped.daily.isEmpty)
+        #expect(mapped.last30DaysCostUSD == 0)
+        #expect(mapped.sessionCostUSD == nil)
     }
 
     @Test
@@ -43,7 +76,8 @@ struct XAICostUsageMappingTests {
 
     private func snapshot(
         points: [(String, Double)],
-        confidence: UsageDataConfidence) throws -> UsageSnapshot
+        confidence: UsageDataConfidence,
+        updatedAt: Date = Date(timeIntervalSince1970: 1_800_000_000)) throws -> UsageSnapshot
     {
         let chart = try ProviderDetailSection.Chart(
             kind: .bars,
@@ -58,7 +92,7 @@ struct XAICostUsageMappingTests {
             primary: nil,
             secondary: nil,
             details: details,
-            updatedAt: Date(timeIntervalSince1970: 1_800_000_000),
+            updatedAt: updatedAt,
             dataConfidence: confidence)
     }
 }

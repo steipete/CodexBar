@@ -55,9 +55,10 @@ public struct GrokLocalSessionSummary: Sendable {
                 modelBreakdowns: nil)
         }
         guard !entries.isEmpty else { return nil }
-        let latestTokens = self.daily.max { $0.date < $1.date }?.totalTokens
+        let todayKey = GrokLocalSessionScanner.dayKey(for: updatedAt, calendar: .current)
+        let todayTokens = todayKey.flatMap { key in self.daily.first { $0.date == key }?.totalTokens }
         return CostUsageTokenSnapshot(
-            sessionTokens: latestTokens,
+            sessionTokens: todayTokens,
             sessionCostUSD: nil,
             last30DaysTokens: self.totalTokens,
             last30DaysCostUSD: nil,

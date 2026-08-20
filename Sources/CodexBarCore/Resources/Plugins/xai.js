@@ -43,6 +43,7 @@ defineProvider({
       `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}-${String(date.getUTCDate()).padStart(2, "0")} ${String(date.getUTCHours()).padStart(2, "0")}:${String(date.getUTCMinutes()).padStart(2, "0")}:${String(date.getUTCSeconds()).padStart(2, "0")}`;
     let daily = [];
     let partial = false;
+    let historyAvailable = false;
     try {
       const usage = await ctx.http.postJSON(`${root}/usage`, {
         body: {
@@ -76,6 +77,7 @@ defineProvider({
           .sort()
           .map((day) => ({ label: day, value: totals[day] }));
         partial = usage.json.limitReached === true;
+        historyAvailable = true;
       }
     } catch (error) {
       if (/rejected the Management API key/.test(error.message)) throw error;
@@ -94,7 +96,11 @@ defineProvider({
               value: `$${daily.reduce((sum, point) => sum + point.value, 0).toFixed(2)}`,
             },
           ],
-          chart: daily.length ? { kind: "bars", title: "Daily spend", unit: "USD", points: daily } : undefined,
+          // Emit an empty chart on successful history so spend mapping can tell
+          // "zero days" from "analytics unavailable".
+          chart: historyAvailable
+            ? { kind: "bars", title: "Daily spend", unit: "USD", points: daily }
+            : undefined,
         },
       ],
     };

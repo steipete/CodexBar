@@ -3139,7 +3139,7 @@ struct ProviderArchitectureGatekeeperTests {
             reason: "This exact app-runtime bridge coordinates provider-owned state through the shared controller."),
         AllowedProviderConstruct(
             path: "Sources/CodexBar/UsageStore+TokenCost.swift",
-            line: 456,
+            line: 461,
             anchor: "case .openai:",
             expectedProviderIDs: ["grok", "mistral", "openai", "opencodego", "openrouter", "xai"],
             expectedReferenceCount: 6,
@@ -3154,7 +3154,7 @@ struct ProviderArchitectureGatekeeperTests {
             reason: "This exact app-runtime bridge coordinates provider-owned state through the shared controller."),
         AllowedProviderConstruct(
             path: "Sources/CodexBar/UsageStore+TokenCost.swift",
-            line: 528,
+            line: 533,
             anchor: "self.tokenFailureGates[.codex]?.reset()",
             expectedProviderIDs: ["claude", "codex"],
             expectedReferenceCount: 2,

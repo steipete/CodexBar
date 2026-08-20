@@ -746,6 +746,11 @@ extension UsageStore {
                 self.publishTokenSnapshot(tokenSnapshot, for: provider)
                 self.tokenErrors[provider.instanceID] = nil
                 self.tokenFailureGates[provider.instanceID]?.recordSuccess()
+            } else if provider == .xai, XAICostUsageMapping.isAnalyticsUnavailable(backfilled) {
+                // Provider-specific by design: prepaid balance without usage history is unavailable,
+                // not a confirmed-empty $0 spend row.
+                self.clearTokenSnapshot(for: provider)
+                self.tokenErrors[provider.instanceID] = nil
             } else if Self.tokenCostRequiresProviderSnapshot(provider) {
                 self.publishConfirmedEmptyTokenSnapshot(for: provider)
                 self.tokenErrors[provider.instanceID] = nil
@@ -1440,7 +1445,19 @@ extension UsageStore {
                 self.errors[provider.instanceID] = error.localizedDescription
                 if !preservesPriorData, !preservesClaudeWebSessionFailure {
                     self.snapshots.removeValue(forKey: provider.instanceID)
-                    if Self.tokenCostRequiresProviderSnapshot(provider) {
+                    if provider == .grok {
+                        // Provider-specific by design: local ~/.grok/sessions tokens remain readable
+                        // when the remote billing probe fails.
+                        if let local = self.tokenSnapshot(
+                            fromProviderSnapshot: nil,
+                            provider: .grok,
+                            historyDays: SpendDashboardSource.scanDays)
+                        {
+                            self.publishTokenSnapshot(local, for: provider)
+                        } else {
+                            self.clearTokenSnapshot(for: provider)
+                        }
+                    } else if Self.tokenCostRequiresProviderSnapshot(provider) {
                         self.clearTokenSnapshot(for: provider)
                     }
                 }

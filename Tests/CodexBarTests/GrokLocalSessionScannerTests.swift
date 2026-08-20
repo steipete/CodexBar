@@ -42,6 +42,30 @@ struct GrokLocalSessionScannerTests {
         #expect(snapshot.last30DaysCostUSD == nil)
         #expect(snapshot.daily.allSatisfy { $0.costUSD == nil })
         #expect(snapshot.costProvenance == .unknown)
+        #expect(snapshot.sessionTokens == 250)
+    }
+
+    @Test
+    func `idle days do not reuse yesterday as today`() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("grok-session-idle-\(UUID().uuidString)", isDirectory: true)
+        let session = root.appendingPathComponent("sessions/%2Ftmp%2Fdemo/session-a", isDirectory: true)
+        try FileManager.default.createDirectory(at: session, withIntermediateDirectories: true)
+        let calendar = Calendar.current
+        let yesterday = Date(timeIntervalSince1970: 1_787_079_600)
+        let today = try #require(calendar.date(byAdding: .day, value: 1, to: yesterday))
+        try self.writeSignals(
+            at: session.appendingPathComponent("signals.json"),
+            tokens: 100,
+            model: "grok-4.6",
+            date: yesterday)
+        let summary = GrokLocalSessionScanner.summarize(
+            env: ["GROK_HOME": root.path],
+            lookbackDays: 7,
+            now: today)
+        let snapshot = try #require(summary.toCostUsageTokenSnapshot(historyDays: 7, updatedAt: today))
+        #expect(snapshot.last30DaysTokens == 100)
+        #expect(snapshot.sessionTokens == nil)
     }
 
     @Test

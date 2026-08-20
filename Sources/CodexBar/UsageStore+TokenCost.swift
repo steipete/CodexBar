@@ -174,6 +174,11 @@ extension UsageStore {
         guard Self.tokenCostRequiresProviderSnapshot(provider) else { return }
         if let tokenSnapshot = self.tokenSnapshot(fromProviderSnapshot: snapshot, provider: provider) {
             self.publishTokenSnapshot(tokenSnapshot, for: provider)
+        } else if provider == .xai, XAICostUsageMapping.isAnalyticsUnavailable(snapshot) {
+            // Provider-specific by design: a prepaid-balance snapshot without a usage chart means
+            // analytics failed. Leave the source unpublished so Overview counts it unavailable
+            // instead of known-zero spend.
+            self.clearTokenSnapshot(for: provider)
         } else {
             self.publishConfirmedEmptyTokenSnapshot(for: provider)
         }
