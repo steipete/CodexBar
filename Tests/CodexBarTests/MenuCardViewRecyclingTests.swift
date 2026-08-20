@@ -367,6 +367,41 @@ extension StatusMenuTests {
     }
 
     @Test
+    func `cached provider content preserves menu item subclasses across switch back`() {
+        let previousRendering = StatusItemController.menuCardRenderingEnabled
+        StatusItemController.menuCardRenderingEnabled = true
+        defer { StatusItemController.menuCardRenderingEnabled = previousRendering }
+
+        let settings = self.makeSettings()
+        settings.statusChecksEnabled = false
+        let controller = self.makeRecyclingController(settings: settings)
+        defer { controller.releaseStatusItemsForTesting() }
+
+        let plainItem = NSMenuItem(title: "Overview", action: nil, keyEquivalent: "")
+        let cardItem = controller.makeMenuCardItem(Text("Codex"), id: "codex", width: 300)
+        let menu = NSMenu()
+        menu.addItem(plainItem)
+
+        let displacedPlain = controller.replaceMenuContentKeepingRowsVisible(
+            menu,
+            fromIndex: 0,
+            with: [cardItem])
+
+        #expect(menu.items.first === cardItem)
+        #expect(menu.items.first is MenuCardMenuItem)
+        #expect(displacedPlain.first === plainItem)
+
+        let displacedCard = controller.replaceMenuContentKeepingRowsVisible(
+            menu,
+            fromIndex: 0,
+            with: displacedPlain)
+
+        #expect(menu.items.first === plainItem)
+        #expect(!(menu.items.first is MenuCardMenuItem))
+        #expect(displacedCard.first === cardItem)
+    }
+
+    @Test
     func `cached provider content swap preserves both item sets for switch back`() {
         let settings = self.makeSettings()
         settings.statusChecksEnabled = false
