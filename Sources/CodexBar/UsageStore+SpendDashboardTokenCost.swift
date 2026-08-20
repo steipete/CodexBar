@@ -69,6 +69,16 @@ extension UsageStore {
         }
         let costScope = self.tokenCostScope(for: provider)
         let costScopeSignature = self.spendDashboardTokenSnapshotScopeSignature(for: provider)
+        // TTL: pane re-open within 5m reuses existing dashboard snapshot.
+        if !force,
+           let lastAt = self.lastSpendDashboardTokenFetchAt[provider.instanceID],
+           let lastScope = self.lastSpendDashboardTokenFetchScope[provider.instanceID],
+           lastScope == costScopeSignature,
+           self.spendDashboardTokenSnapshotPublicationForCurrentConfig(for: provider) != nil,
+           now.timeIntervalSince(lastAt) < 5 * 60
+        {
+            return
+        }
         let publicationRevision = self.providerPublicationRevision(for: provider)
         let providerConfigRevision = self.settings.providerConfigRevision(for: provider)
         self.lastSpendDashboardTokenFetchAt[provider.instanceID] = now

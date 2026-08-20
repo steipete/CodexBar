@@ -1166,12 +1166,10 @@ final class SpendDashboardController {
             self.failedSourceCount = 0
             self.rebuildModel()
         }
-        let shouldPrimeCachedCodex: Bool = if case .ordinary = phase {
-            self.cachedLoader != nil && !Set(Self.codexOwnershipByID(configuration.codexAccountIdentities).keys)
-                .isSubset(of: Set(self.loadedInputs.map(\.id)))
-        } else {
-            false
-        }
+        let shouldPrimeCachedCodex: Bool = self.cachedLoader != nil
+            && !Set(Self.codexOwnershipByID(configuration.codexAccountIdentities).keys)
+            .isSubset(of: Set(self.loadedInputs.map(\.id)))
+            && (phase == .ordinary || self.loadedInputs.isEmpty)
 
         guard configuration.costUsageEnabled,
               !configuration.providerIDs.isEmpty || configuration.openCodexUsageLogsEnabled
