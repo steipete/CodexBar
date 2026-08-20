@@ -203,17 +203,6 @@ extension StatusItemController {
         return components.joined(separator: ",")
     }
 
-    /// Metrics every conditional the layout places reads. Predicates on cost, balance, pace, run-out, or
-    /// a direct lane create data dependencies that no placed display token reveals.
-    private func referencedConditionalMetrics(
-        resolution: MenuBarLayoutResolution)
-        -> Set<MenuBarConditionalMetric>
-    {
-        Set(resolution.layout
-            .referencedConditionalPredicates(conditionals: self.settings.menuBarLayoutConditionals)
-            .map(\.metric))
-    }
-
     /// Direct lane tokens read `snapshot.tertiary` independently of the legacy icon percent
     /// resolver. Without this contribution a Third Party (or equivalent) lane can move while the
     /// observation signature stays put, so the custom token keeps a stale percent until an

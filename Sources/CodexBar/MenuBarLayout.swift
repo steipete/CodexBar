@@ -81,6 +81,16 @@ enum MenuBarConditionalMetric: String, CaseIterable, Codable, Hashable, Sendable
         }
     }
 
+    /// Whether the metric's value moves with the clock rather than only with new provider data, so
+    /// refresh scheduling must tick it. Pace compares actual use against elapsed time, and the run-out
+    /// estimate counts down; reset countdowns are handled by their own exact wake-up instead.
+    var isClockDerivedRate: Bool {
+        switch self {
+        case .sessionPace, .weeklyPace, .automaticPace, .runsOutIn: true
+        default: false
+        }
+    }
+
     var thresholdRange: ClosedRange<Double> {
         switch self.kind {
         case .percent: 0...100
