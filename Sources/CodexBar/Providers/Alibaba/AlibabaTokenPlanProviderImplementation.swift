@@ -84,7 +84,7 @@ struct AlibabaTokenPlanProviderImplementation: ProviderImplementation {
             ProviderSettingsPickerDescriptor(
                 id: "alibaba-token-plan-usage-source",
                 title: "Usage source",
-                subtitle: "Auto tries the signed-in Bailian CLI, then browser cookies.",
+                subtitle: "Auto tries browser cookies, then the signed-in Bailian CLI.",
                 binding: sourceBinding,
                 options: sourceOptions,
                 isVisible: nil,

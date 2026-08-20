@@ -120,7 +120,7 @@ public enum AlibabaTokenPlanProviderDescriptor {
             if context.settings?.alibabaTokenPlan?.cookieSource == .off {
                 return [AlibabaTokenPlanCLIFetchStrategy()]
             }
-            return [AlibabaTokenPlanCLIFetchStrategy(), AlibabaTokenPlanWebFetchStrategy()]
+            return [AlibabaTokenPlanWebFetchStrategy(), AlibabaTokenPlanCLIFetchStrategy()]
         case .cli:
             return [AlibabaTokenPlanCLIFetchStrategy()]
         case .web:
@@ -236,8 +236,8 @@ struct AlibabaTokenPlanWebFetchStrategy: ProviderFetchStrategy {
         }
     }
 
-    func shouldFallback(on _: Error, context _: ProviderFetchContext) -> Bool {
-        false
+    func shouldFallback(on _: Error, context: ProviderFetchContext) -> Bool {
+        context.sourceMode == .auto
     }
 
     static func resolveCookieHeader(context: ProviderFetchContext, allowCached: Bool) throws -> String {

@@ -1070,7 +1070,7 @@ struct AlibabaTokenPlanWebStrategyTests {
     }
 
     @Test
-    func `Auto orders CLI before Web while explicit modes stay strict`() async throws {
+    func `Auto preserves Web first then falls back to CLI while explicit modes stay strict`() async throws {
         let auto = await AlibabaTokenPlanProviderDescriptor.resolveStrategies(
             context: self.context(region: .chinaMainlandPersonal, sourceMode: .auto))
         let cli = await AlibabaTokenPlanProviderDescriptor.resolveStrategies(
@@ -1078,7 +1078,7 @@ struct AlibabaTokenPlanWebStrategyTests {
         let web = await AlibabaTokenPlanProviderDescriptor.resolveStrategies(
             context: self.context(region: .chinaMainlandPersonal, sourceMode: .web))
 
-        #expect(auto.map(\.id) == ["alibaba-token-plan.cli", "alibaba-token-plan.web"])
+        #expect(auto.map(\.id) == ["alibaba-token-plan.web", "alibaba-token-plan.cli"])
         #expect(cli.map(\.id) == ["alibaba-token-plan.cli"])
         #expect(web.map(\.id) == ["alibaba-token-plan.web"])
         let cliStrategy = AlibabaTokenPlanCLIFetchStrategy { _, _ in
@@ -1090,6 +1090,15 @@ struct AlibabaTokenPlanWebStrategyTests {
         #expect(!cliStrategy.shouldFallback(
             on: AlibabaTokenPlanCLIUsageError.commandFailed,
             context: self.context(region: .chinaMainlandPersonal, sourceMode: .cli)))
+        let webStrategy = AlibabaTokenPlanWebFetchStrategy { _, _, _ in
+            throw AlibabaTokenPlanUsageError.networkError("stub")
+        }
+        #expect(webStrategy.shouldFallback(
+            on: AlibabaTokenPlanUsageError.networkError("stub"),
+            context: self.context(region: .chinaMainlandPersonal, sourceMode: .auto)))
+        #expect(!webStrategy.shouldFallback(
+            on: AlibabaTokenPlanUsageError.networkError("stub"),
+            context: self.context(region: .chinaMainlandPersonal, sourceMode: .web)))
 
         let success = AlibabaTokenPlanCLIFetchStrategy { region, _ in
             #expect(region == .chinaMainlandPersonal)
