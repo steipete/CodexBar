@@ -84,6 +84,28 @@ extension UsageStore {
             .flatMap { MenuBarDisplayText.paceText(pace: $0) }
     }
 
+    /// Numeric twin of `menuBarLayoutPaceText`, rounded to whole percentage points like the text so a
+    /// conditional predicate always compares exactly the value the menu bar shows.
+    func menuBarLayoutPaceDelta(
+        provider: UsageProvider,
+        window: RateWindow?,
+        now: Date = .init(),
+        minimumExpectedPercent: Double = 3,
+        minimumElapsedPercent: Double? = nil)
+        -> Double?
+    {
+        window
+            .flatMap {
+                self.weeklyPace(
+                    provider: provider,
+                    window: $0,
+                    now: now,
+                    minimumExpectedPercent: minimumExpectedPercent,
+                    minimumElapsedPercent: minimumElapsedPercent)
+            }
+            .map { $0.deltaPercent.rounded() }
+    }
+
     /// A learned Codex curve can stay flat near the start of a weekly window even as the window
     /// itself advances. The weekly menu token uses elapsed progress as an eligibility fallback,
     /// while the returned pace still retains the learned expected-use value.

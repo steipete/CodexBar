@@ -199,6 +199,143 @@ struct MenuBarLayoutTests {
     }
 
     @Test
+    func `predicate without direction decodes as used`() throws {
+        let predicate = MenuBarConditionalPredicate(
+            metric: .session,
+            direction: .remaining,
+            comparison: .lessThan,
+            threshold: 20)
+        let data = try JSONEncoder().encode(predicate)
+        #expect(try JSONDecoder().decode(MenuBarConditionalPredicate.self, from: data) == predicate)
+
+        // A predicate persisted before `direction` existed compared used percentages.
+        guard var json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            Issue.record("expected a JSON object")
+            return
+        }
+        json.removeValue(forKey: "direction")
+        let legacyData = try JSONSerialization.data(withJSONObject: json)
+        let legacy = try JSONDecoder().decode(MenuBarConditionalPredicate.self, from: legacyData)
+        #expect(legacy.direction == .used)
+        #expect(legacy.metric == .session)
+        #expect(legacy.threshold == 20)
+    }
+
+    @Test
+    func `threshold clamps to the metric unit range`() {
+        let clamped = { (metric: MenuBarConditionalMetric, threshold: Double) -> Double in
+            MenuBarLayoutConditional(
+                clauses: [MenuBarConditionalClause(
+                    combinator: nil,
+                    predicate: MenuBarConditionalPredicate(
+                        metric: metric,
+                        comparison: .lessThan,
+                        threshold: threshold))],
+                thenToken: .hidden,
+                elseToken: .hidden).clauses[0].predicate.threshold
+        }
+        #expect(clamped(.sessionResetsIn, 9000) == 8760)
+        #expect(clamped(.sessionResetsIn, 2.5) == 2.5)
+        #expect(clamped(.weeklyPace, -250) == -100)
+        #expect(clamped(.costToday, -5) == 0)
+        #expect(clamped(.session, 250) == 100)
+    }
+
+    @Test
+    func `direction is dropped for metrics without a complement`() {
+        let predicate = MenuBarConditionalPredicate(
+            metric: .costToday,
+            direction: .remaining,
+            comparison: .greaterThan,
+            threshold: 1)
+        #expect(predicate.normalized().direction == .used)
+
+        let kept = MenuBarConditionalPredicate(
+            metric: .balance,
+            direction: .remaining,
+            comparison: .greaterThan,
+            threshold: 1)
+        #expect(kept.normalized().direction == .remaining)
+    }
+
+    @Test
+    func `referenced conditional predicates include nested branches`() {
+        let inner = MenuBarLayoutConditional(
+            name: "inner",
+            clauses: [MenuBarConditionalClause(
+                combinator: nil,
+                predicate: MenuBarConditionalPredicate(
+                    metric: .costToday,
+                    comparison: .greaterThan,
+                    threshold: 1))],
+            thenToken: .costToday,
+            elseToken: .hidden)
+        let outer = MenuBarLayoutConditional(
+            name: "outer",
+            clauses: [MenuBarConditionalClause(
+                combinator: nil,
+                predicate: MenuBarConditionalPredicate(
+                    metric: .sessionResetsIn,
+                    comparison: .lessThan,
+                    threshold: 2))],
+            thenToken: .conditional(id: inner.id),
+            elseToken: .hidden)
+        let layout = MenuBarLayout(lines: [[.icon, .conditional(id: outer.id)]])
+
+        let metrics = Set(layout
+            .referencedConditionalPredicates(conditionals: [outer, inner])
+            .map(\.metric))
+        #expect(metrics == [.sessionResetsIn, .costToday])
+    }
+
+    @Test
+    @MainActor
+    func `unrecognized conditional metric drops only its own entry`() throws {
+        let suite = "MenuBarLayoutTests-conditional-unknown-metric"
+        let settings = testSettingsStore(suiteName: suite)
+        let valid = MenuBarLayoutConditional(
+            name: "valid",
+            clauses: [MenuBarConditionalClause(
+                combinator: nil,
+                predicate: MenuBarConditionalPredicate(
+                    metric: .session,
+                    comparison: .greaterThan,
+                    threshold: 30))],
+            thenToken: .percent(window: .session),
+            elseToken: .hidden)
+        let future = MenuBarLayoutConditional(
+            name: "future",
+            clauses: [MenuBarConditionalClause(
+                combinator: nil,
+                predicate: MenuBarConditionalPredicate(
+                    metric: .weekly,
+                    comparison: .greaterThan,
+                    threshold: 40))],
+            thenToken: .percent(window: .weekly),
+            elseToken: .hidden)
+
+        // Rewrite the second entry's metric to a raw value this build has no case for, the way a newer
+        // release would once the metric set grows again.
+        let encoded = try JSONEncoder().encode([valid, future])
+        guard var blob = try JSONSerialization.jsonObject(with: encoded) as? [[String: Any]],
+              var clauses = blob[1]["clauses"] as? [[String: Any]],
+              var predicate = clauses[0]["predicate"] as? [String: Any]
+        else {
+            Issue.record("expected an array of conditional objects")
+            return
+        }
+        predicate["metric"] = "notAMetric"
+        clauses[0]["predicate"] = predicate
+        blob[1]["clauses"] = clauses
+        try settings.userDefaults.set(
+            JSONSerialization.data(withJSONObject: blob),
+            forKey: "menuBarLayoutConditionals")
+
+        let reloaded = Self.reloadSettingsStore(settings)
+        #expect(reloaded.menuBarLayoutConditionals == [valid])
+    }
+
+    @Test
     @MainActor
     func `a fresh install ships an editable conditionals library`() {
         let settings = testSettingsStore(suiteName: "MenuBarLayoutTests-shipped-conditionals")
@@ -215,6 +352,16 @@ struct MenuBarLayoutTests {
         #expect(Set(shipped.map { $0.name.lowercased() }).count == shipped.count)
         #expect(shipped.allSatisfy { !$0.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty })
         #expect(shipped.allSatisfy { !$0.clauses.isEmpty && $0.clauses[0].combinator == nil })
+
+        // The automatic default must keep exercising the remaining direction: it is the only shipped
+        // entry proving a non-`used` reading survives a fresh install.
+        let remainingDefaults = shipped.filter { entry in
+            entry.clauses.contains { $0.predicate.direction == .remaining }
+        }
+        #expect(remainingDefaults.count == 1)
+        #expect(remainingDefaults.first?.clauses.first?.predicate.metric == .automatic)
+        #expect(remainingDefaults.first?.thenToken == .percent(window: .automatic))
+        #expect(remainingDefaults.first?.elseToken == .resetCountdown)
     }
 
     @Test
@@ -277,6 +424,86 @@ struct MenuBarLayoutTests {
             thenToken: .percent(window: .session),
             elseToken: .resetCountdown)
         #expect(!uniform.editorSummary(provider: nil).contains("("))
+    }
+
+    /// The conditional editor row is driven entirely by these three metric properties, so pinning them
+    /// pins which controls appear: the direction picker is shown only when `supportsDirection`, and the
+    /// label beside the threshold field is `thresholdUnit`.
+    @Test
+    func `metric drives the editor row controls and units`() {
+        #expect(MenuBarConditionalMetric.allCases.count == 18)
+
+        let withDirection = MenuBarConditionalMetric.allCases.filter(\.supportsDirection)
+        #expect(withDirection == [
+            .session, .weekly, .scopedWeekly, .automatic,
+            .primaryLane, .secondaryLane, .tertiaryLane, .balance,
+        ])
+
+        #expect(MenuBarConditionalMetric.session.thresholdUnit == "%")
+        #expect(MenuBarConditionalMetric.weeklyPace.thresholdUnit == "%")
+        #expect(MenuBarConditionalMetric.sessionResetsIn.thresholdUnit == "h")
+        #expect(MenuBarConditionalMetric.runsOutIn.thresholdUnit == "h")
+        #expect(MenuBarConditionalMetric.costToday.thresholdUnit == "USD")
+        #expect(MenuBarConditionalMetric.balance.thresholdUnit == "USD")
+
+        #expect(MenuBarConditionalMetric.sessionResetsIn.thresholdStep == 0.5)
+        #expect(MenuBarConditionalMetric.session.thresholdStep == 1)
+
+        // Every metric needs a label; an empty one would render a blank picker row.
+        for metric in MenuBarConditionalMetric.allCases {
+            #expect(!metric.editorLabel(provider: nil).isEmpty, "\(metric.rawValue)")
+        }
+    }
+
+    @Test
+    func `summary spells out direction and unit for a mixed-unit condition`() {
+        let conditional = MenuBarLayoutConditional(
+            name: "Session busy and about to reset",
+            clauses: [
+                MenuBarConditionalClause(
+                    combinator: nil,
+                    predicate: MenuBarConditionalPredicate(
+                        metric: .session,
+                        direction: .used,
+                        comparison: .greaterThan,
+                        threshold: 50)),
+                MenuBarConditionalClause(
+                    combinator: .and,
+                    predicate: MenuBarConditionalPredicate(
+                        metric: .sessionResetsIn,
+                        comparison: .lessThan,
+                        threshold: 2)),
+            ],
+            thenToken: .resetCountdown,
+            elseToken: .hidden)
+
+        let summary = conditional.editorSummary(provider: nil)
+        #expect(summary == "If Session % used > 50% and Session resets in < 2h then Resets in else Hide")
+
+        // A half-hour threshold keeps its decimal rather than rounding away to "0h".
+        let halfHour = MenuBarLayoutConditional(
+            clauses: [MenuBarConditionalClause(
+                combinator: nil,
+                predicate: MenuBarConditionalPredicate(
+                    metric: .automaticResetsIn,
+                    comparison: .lessThanOrEqual,
+                    threshold: 0.5))],
+            thenToken: .resetCountdown,
+            elseToken: .hidden)
+        #expect(halfHour.editorSummary(provider: nil).contains("<= 0.5h"))
+
+        // Currency thresholds read with a separated unit; percent and hours stay tight against the number.
+        let credit = MenuBarLayoutConditional(
+            clauses: [MenuBarConditionalClause(
+                combinator: nil,
+                predicate: MenuBarConditionalPredicate(
+                    metric: .balance,
+                    direction: .remaining,
+                    comparison: .greaterThanOrEqual,
+                    threshold: 5))],
+            thenToken: .balance,
+            elseToken: .hidden)
+        #expect(credit.editorSummary(provider: nil).contains("Balance remaining >= 5 USD"))
     }
 
     @Test
@@ -981,6 +1208,147 @@ struct MenuBarLayoutTests {
 
     @Test
     @MainActor
+    func `conditional library dual-writes an older-readable projection`() throws {
+        let settings = testSettingsStore(suiteName: "MenuBarLayoutTests-conditional-downgrade")
+        let readable = MenuBarLayoutConditional(
+            name: "readable",
+            clauses: [MenuBarConditionalClause(
+                combinator: nil,
+                predicate: MenuBarConditionalPredicate(
+                    metric: .session,
+                    comparison: .greaterThan,
+                    threshold: 50))],
+            thenToken: .percent(window: .session),
+            elseToken: .hidden)
+        let newMetric = MenuBarLayoutConditional(
+            name: "new metric",
+            clauses: [MenuBarConditionalClause(
+                combinator: nil,
+                predicate: MenuBarConditionalPredicate(
+                    metric: .sessionResetsIn,
+                    comparison: .lessThan,
+                    threshold: 2))],
+            thenToken: .resetCountdown,
+            elseToken: .hidden)
+        // An older release ignores the unknown `direction` key, so this would come back inverted rather
+        // than absent — worse than dropping it.
+        let inverted = MenuBarLayoutConditional(
+            name: "inverted",
+            clauses: [MenuBarConditionalClause(
+                combinator: nil,
+                predicate: MenuBarConditionalPredicate(
+                    metric: .weekly,
+                    direction: .remaining,
+                    comparison: .greaterThan,
+                    threshold: 20))],
+            thenToken: .percent(window: .weekly),
+            elseToken: .hidden)
+        settings.menuBarLayoutConditionals = [readable, newMetric, inverted]
+
+        let decoder = JSONDecoder()
+        let current = try #require(
+            settings.userDefaults.data(forKey: MenuBarLayoutUserDefaultsKey.conditionalsCurrent))
+        let legacy = try #require(settings.userDefaults.data(forKey: MenuBarLayoutUserDefaultsKey.conditionals))
+
+        #expect(try decoder.decode([MenuBarLayoutConditional].self, from: current) ==
+            [readable, newMetric, inverted])
+
+        // The whole point: a 0.54.0 decoder reads the projection, and would have thrown on the full blob.
+        let legacyEntries = try decoder.decode([PreExpandedConditional].self, from: legacy)
+        #expect(legacyEntries.map(\.name) == ["readable"])
+        #expect(legacyEntries.first?.clauses.first?.predicate.metric == .session)
+        #expect(throws: DecodingError.self) {
+            try decoder.decode([PreExpandedConditional].self, from: current)
+        }
+
+        let reloaded = Self.reloadSettingsStore(settings)
+        #expect(reloaded.menuBarLayoutConditionals == [readable, newMetric, inverted])
+    }
+
+    @Test
+    @MainActor
+    func `conditional library load prefers a legacy blob edited by an older release`() throws {
+        let settings = testSettingsStore(suiteName: "MenuBarLayoutTests-conditional-downgrade-edit")
+        let current = MenuBarLayoutConditional(
+            name: "current",
+            clauses: [MenuBarConditionalClause(
+                combinator: nil,
+                predicate: MenuBarConditionalPredicate(
+                    metric: .runsOutIn,
+                    comparison: .lessThan,
+                    threshold: 6))],
+            thenToken: .runsOut,
+            elseToken: .hidden)
+        settings.menuBarLayoutConditionals = [current]
+
+        // An older release rewrote the shared key with its own edit; that must win over our projection.
+        let edited = MenuBarLayoutConditional(
+            name: "edited by older release",
+            clauses: [MenuBarConditionalClause(
+                combinator: nil,
+                predicate: MenuBarConditionalPredicate(
+                    metric: .weekly,
+                    comparison: .greaterThan,
+                    threshold: 75))],
+            thenToken: .percent(window: .weekly),
+            elseToken: .hidden)
+        try settings.userDefaults.set(
+            JSONEncoder().encode([edited]),
+            forKey: MenuBarLayoutUserDefaultsKey.conditionals)
+
+        let reloaded = Self.reloadSettingsStore(settings)
+        #expect(reloaded.menuBarLayoutConditionals == [edited])
+    }
+
+    @Test
+    @MainActor
+    func `conditional library load keeps new metrics when the legacy blob is its own projection`() {
+        let settings = testSettingsStore(suiteName: "MenuBarLayoutTests-conditional-legacy-echo")
+        let newMetric = MenuBarLayoutConditional(
+            name: "new metric",
+            clauses: [MenuBarConditionalClause(
+                combinator: nil,
+                predicate: MenuBarConditionalPredicate(
+                    metric: .costToday,
+                    comparison: .greaterThan,
+                    threshold: 1))],
+            thenToken: .costToday,
+            elseToken: .hidden)
+        settings.menuBarLayoutConditionals = [newMetric]
+
+        let reloaded = Self.reloadSettingsStore(settings)
+        #expect(reloaded.menuBarLayoutConditionals == [newMetric])
+    }
+
+    @Test
+    @MainActor
+    func `startup materializes a missing conditional projection`() throws {
+        let settings = testSettingsStore(suiteName: "MenuBarLayoutTests-conditional-startup-dual-write")
+        // A pre-upgrade install only has the legacy key.
+        let existing = MenuBarLayoutConditional(
+            name: "existing",
+            clauses: [MenuBarConditionalClause(
+                combinator: nil,
+                predicate: MenuBarConditionalPredicate(
+                    metric: .automatic,
+                    comparison: .greaterThan,
+                    threshold: 40))],
+            thenToken: .percent(window: .automatic),
+            elseToken: .hidden)
+        settings.userDefaults.removeObject(forKey: MenuBarLayoutUserDefaultsKey.conditionalsCurrent)
+        try settings.userDefaults.set(
+            JSONEncoder().encode([existing]),
+            forKey: MenuBarLayoutUserDefaultsKey.conditionals)
+
+        let reloaded = Self.reloadSettingsStore(settings)
+        #expect(reloaded.menuBarLayoutConditionals == [existing])
+        let materialized = try #require(
+            reloaded.userDefaults.data(forKey: MenuBarLayoutUserDefaultsKey.conditionalsCurrent))
+        #expect(try JSONDecoder().decode([MenuBarLayoutConditional].self, from: materialized) == [existing])
+    }
+
+    @Test
+    @MainActor
     func `lane override load prefers a legacy dictionary edited by an older release`() throws {
         let settings = testSettingsStore(suiteName: "MenuBarLayoutTests-lane-override-downgrade-edit")
         let cursor = MenuBarLayout(lines: [[.icon, .lanePercent(lane: .secondary)]])
@@ -1101,4 +1469,31 @@ private enum PreLanePercentMenuBarLayoutToken: Codable, Equatable {
 
 private struct PreLanePercentMenuBarLayout: Codable, Equatable {
     let lines: [[PreLanePercentMenuBarLayoutToken]]
+}
+
+/// The 0.54.0 conditional surface: four percent metrics, no `direction`. Its synthesized `Codable`
+/// throws on any other metric raw value and silently ignores unknown keys, which is exactly why the
+/// older-readable projection has to drop those entries rather than hand them over.
+private enum PreExpandedConditionalMetric: String, Codable, Equatable {
+    case session
+    case weekly
+    case scopedWeekly
+    case automatic
+}
+
+private struct PreExpandedConditionalPredicate: Codable, Equatable {
+    let metric: PreExpandedConditionalMetric
+    let comparison: String
+    let threshold: Double
+}
+
+private struct PreExpandedConditionalClause: Codable, Equatable {
+    let combinator: String?
+    let predicate: PreExpandedConditionalPredicate
+}
+
+private struct PreExpandedConditional: Codable, Equatable {
+    let id: UUID
+    let name: String
+    let clauses: [PreExpandedConditionalClause]
 }

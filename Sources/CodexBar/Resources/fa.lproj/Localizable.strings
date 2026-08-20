@@ -1514,6 +1514,10 @@
 "menu_bar_layout_conditional_name" = "نام";
 "menu_bar_layout_conditional_name_placeholder" = "مثلاً: بررسی جلسه";
 "menu_bar_layout_conditional_name_error" = "نامی منحصربهفرد وارد کنید";
+"menu_bar_layout_conditional_used" = "استفاده‌شده";
+"menu_bar_layout_conditional_remaining" = "باقی‌مانده";
+"menu_bar_layout_conditional_metric_resets_in" = "بازنشانی %@ در";
+"menu_bar_layout_conditional_metric_scoped_weekly" = "هفتگی با دامنه";
 "menu_bar_layout_conditional_duplicate" = "تکرار";
 "menu_bar_layout_conditional_or" = "یا";
 "menu_bar_layout_conditional_add_condition" = "افزودن شرط";

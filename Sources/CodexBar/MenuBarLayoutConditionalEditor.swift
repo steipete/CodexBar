@@ -79,49 +79,7 @@ struct MenuBarLayoutConditionalEditorSheet: View {
                 .foregroundStyle(.secondary)
 
             ForEach(self.conditional.clauses.indices, id: \.self) { index in
-                HStack(spacing: 6) {
-                    if index > 0 {
-                        Picker("", selection: self.combinatorBinding(index)) {
-                            Text(L("menu_bar_layout_conditional_and")).tag(MenuBarConditionalCombinator.and)
-                            Text(L("menu_bar_layout_conditional_or")).tag(MenuBarConditionalCombinator.or)
-                        }
-                        .labelsHidden()
-                        .fixedSize()
-                    }
-
-                    Picker("", selection: self.metricBinding(index)) {
-                        ForEach(MenuBarConditionalMetric.allCases, id: \.self) { metric in
-                            Text(metric.editorLabel).tag(metric)
-                        }
-                    }
-                    .labelsHidden()
-
-                    Picker("", selection: self.comparisonBinding(index)) {
-                        ForEach(MenuBarConditionalComparison.allCases, id: \.self) { comparison in
-                            Text(comparison.symbol).tag(comparison)
-                        }
-                    }
-                    .labelsHidden()
-
-                    TextField("", value: self.thresholdBinding(index), format: .number)
-                        .textFieldStyle(.roundedBorder)
-                        .frame(width: 44)
-                        .monospacedDigit()
-                    Stepper(value: self.thresholdBinding(index), in: 0...100, step: 1) {
-                        EmptyView()
-                    }
-                    .labelsHidden()
-                    Text("%")
-
-                    if self.conditional.clauses.count > 1 {
-                        Button {
-                            self.conditional.clauses.remove(at: index)
-                        } label: {
-                            Image(systemName: "minus.circle")
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
+                self.clauseRow(index: index)
             }
 
             Button(L("menu_bar_layout_conditional_add_condition")) {
@@ -169,7 +127,71 @@ struct MenuBarLayoutConditionalEditorSheet: View {
             }
         }
         .padding(16)
-        .frame(width: 460)
+        // Wide enough for combinator + metric + direction + comparison + value + stepper + unit + remove.
+        .frame(width: 620)
+    }
+
+    @ViewBuilder
+    private func clauseRow(index: Int) -> some View {
+        let metric = self.conditional.clauses.indices.contains(index)
+            ? self.conditional.clauses[index].predicate.metric
+            : MenuBarConditionalMetric.session
+        HStack(spacing: 6) {
+            if index > 0 {
+                Picker("", selection: self.combinatorBinding(index)) {
+                    Text(L("menu_bar_layout_conditional_and")).tag(MenuBarConditionalCombinator.and)
+                    Text(L("menu_bar_layout_conditional_or")).tag(MenuBarConditionalCombinator.or)
+                }
+                .labelsHidden()
+                .fixedSize()
+            }
+
+            Picker("", selection: self.metricBinding(index)) {
+                ForEach(MenuBarConditionalMetric.allCases, id: \.self) { metric in
+                    Text(metric.editorLabel(provider: self.provider)).tag(metric)
+                }
+            }
+            .labelsHidden()
+
+            if metric.supportsDirection {
+                Picker("", selection: self.directionBinding(index)) {
+                    Text(L("menu_bar_layout_conditional_used")).tag(MenuBarConditionalDirection.used)
+                    Text(L("menu_bar_layout_conditional_remaining")).tag(MenuBarConditionalDirection.remaining)
+                }
+                .labelsHidden()
+                .fixedSize()
+            }
+
+            Picker("", selection: self.comparisonBinding(index)) {
+                ForEach(MenuBarConditionalComparison.allCases, id: \.self) { comparison in
+                    Text(comparison.symbol).tag(comparison)
+                }
+            }
+            .labelsHidden()
+
+            TextField("", value: self.thresholdBinding(index), format: .number)
+                .textFieldStyle(.roundedBorder)
+                .frame(width: 52)
+                .monospacedDigit()
+            Stepper(
+                value: self.thresholdBinding(index),
+                in: metric.thresholdRange,
+                step: metric.thresholdStep)
+            {
+                EmptyView()
+            }
+            .labelsHidden()
+            Text(metric.thresholdUnit)
+
+            if self.conditional.clauses.count > 1 {
+                Button {
+                    self.conditional.clauses.remove(at: index)
+                } label: {
+                    Image(systemName: "minus.circle")
+                }
+                .buttonStyle(.plain)
+            }
+        }
     }
 
     private func combinatorBinding(_ index: Int) -> Binding<MenuBarConditionalCombinator> {
@@ -193,6 +215,22 @@ struct MenuBarLayoutConditionalEditorSheet: View {
             set: {
                 guard self.conditional.clauses.indices.contains(index) else { return }
                 self.conditional.clauses[index].predicate.metric = $0
+                // Re-normalize so switching metric families cannot leave a threshold outside the new
+                // unit's range or a direction the new metric has no reading for.
+                self.conditional.clauses[index].predicate =
+                    self.conditional.clauses[index].predicate.normalized()
+            })
+    }
+
+    private func directionBinding(_ index: Int) -> Binding<MenuBarConditionalDirection> {
+        Binding(
+            get: {
+                guard self.conditional.clauses.indices.contains(index) else { return .used }
+                return self.conditional.clauses[index].predicate.direction
+            },
+            set: {
+                guard self.conditional.clauses.indices.contains(index) else { return }
+                self.conditional.clauses[index].predicate.direction = $0
             })
     }
 
@@ -216,7 +254,8 @@ struct MenuBarLayoutConditionalEditorSheet: View {
             },
             set: {
                 guard self.conditional.clauses.indices.contains(index) else { return }
-                self.conditional.clauses[index].predicate.threshold = min(max($0, 0), 100)
+                let metric = self.conditional.clauses[index].predicate.metric
+                self.conditional.clauses[index].predicate.threshold = $0.clamped(to: metric.thresholdRange)
             })
     }
 
@@ -285,26 +324,41 @@ extension MenuBarLayoutConditional {
 
     /// Produces a summary string reflecting the left-fold AND/OR evaluation order. Mixed
     /// combinators parenthesize their accumulator so the reading matches `evaluatesTrue`.
-    private func conditionText() -> String {
+    private func conditionText(provider: UsageProvider?) -> String {
         guard let first = self.clauses.first else { return "" }
         let mixed = Set(self.clauses.dropFirst().compactMap(\.combinator)).count > 1
-        var text = Self.predicateText(first.predicate)
+        var text = Self.predicateText(first.predicate, provider: provider)
         for clause in self.clauses.dropFirst() {
             let joiner = (clause.combinator ?? .and) == .and
                 ? L("menu_bar_layout_conditional_and")
                 : L("menu_bar_layout_conditional_or")
-            let pred = Self.predicateText(clause.predicate)
+            let pred = Self.predicateText(clause.predicate, provider: provider)
             text = mixed ? "(\(text)) \(joiner) \(pred)" : "\(text) \(joiner) \(pred)"
         }
         return text
     }
 
-    private static func predicateText(_ predicate: MenuBarConditionalPredicate) -> String {
-        "\(predicate.metric.editorLabel) \(predicate.comparison.symbol) \(Int(predicate.threshold.rounded()))%"
+    private static func predicateText(
+        _ predicate: MenuBarConditionalPredicate,
+        provider: UsageProvider?)
+        -> String
+    {
+        var metric = predicate.metric.editorLabel(provider: provider)
+        if predicate.metric.supportsDirection {
+            metric += " " + (predicate.direction == .used
+                ? L("menu_bar_layout_conditional_used")
+                : L("menu_bar_layout_conditional_remaining"))
+        }
+        let value = predicate.threshold
+        // Whole hours read as "2h"; a half-hour step needs the decimal to stay truthful.
+        let number = value == value.rounded() ? String(Int(value.rounded())) : String(format: "%.1f", value)
+        let unit = predicate.metric.thresholdUnit
+        let amount = predicate.metric.kind == .currencyUSD ? "\(number) \(unit)" : "\(number)\(unit)"
+        return "\(metric) \(predicate.comparison.symbol) \(amount)"
     }
 
     func editorSummary(provider: UsageProvider?) -> String {
-        let condition = self.conditionText()
+        let condition = self.conditionText(provider: provider)
         return L(
             "menu_bar_layout_conditional_summary",
             condition,
@@ -327,12 +381,30 @@ extension MenuBarLayoutConditional {
 }
 
 extension MenuBarConditionalMetric {
-    var editorLabel: String {
+    /// Reuses the palette token labels so a metric and the block it measures always read the same, and
+    /// resolves lane names through the provider's own labels rather than hard-coding "Primary".
+    func editorLabel(provider: UsageProvider?) -> String {
         switch self {
         case .session: L("menu_bar_layout_token_session")
         case .weekly: L("menu_bar_layout_token_weekly")
         case .scopedWeekly: L("menu_bar_layout_token_scoped_weekly")
         case .automatic: L("menu_bar_layout_token_auto")
+        case .primaryLane: MenuBarLayoutToken.lanePercent(lane: .primary).editorLabel(provider: provider)
+        case .secondaryLane: MenuBarLayoutToken.lanePercent(lane: .secondary).editorLabel(provider: provider)
+        case .tertiaryLane: MenuBarLayoutToken.lanePercent(lane: .tertiary).editorLabel(provider: provider)
+        case .sessionResetsIn: L("menu_bar_layout_conditional_metric_resets_in", L("Session"))
+        case .weeklyResetsIn: L("menu_bar_layout_conditional_metric_resets_in", L("Weekly"))
+        case .scopedWeeklyResetsIn: L(
+                "menu_bar_layout_conditional_metric_resets_in",
+                L("menu_bar_layout_conditional_metric_scoped_weekly"))
+        case .automaticResetsIn: L("menu_bar_layout_conditional_metric_resets_in", L("Auto"))
+        case .sessionPace: L("menu_bar_layout_token_session_pace")
+        case .weeklyPace: L("menu_bar_layout_token_weekly_pace")
+        case .automaticPace: L("menu_bar_layout_token_auto_pace")
+        case .runsOutIn: L("menu_bar_layout_token_runs_out")
+        case .balance: L("Balance")
+        case .costToday: L("menu_bar_layout_token_cost_today")
+        case .cost30d: L("menu_bar_layout_token_cost_30d")
         }
     }
 }

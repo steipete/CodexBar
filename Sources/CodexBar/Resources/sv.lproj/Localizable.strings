@@ -1511,6 +1511,10 @@
 "menu_bar_layout_conditional_name" = "Namn";
 "menu_bar_layout_conditional_name_placeholder" = "t.ex. Sessionskontroll";
 "menu_bar_layout_conditional_name_error" = "Ange ett unikt namn";
+"menu_bar_layout_conditional_used" = "använt";
+"menu_bar_layout_conditional_remaining" = "återstår";
+"menu_bar_layout_conditional_metric_resets_in" = "%@ återställs om";
+"menu_bar_layout_conditional_metric_scoped_weekly" = "Avgränsad vecka";
 "menu_bar_layout_conditional_duplicate" = "Duplicera";
 "menu_bar_layout_conditional_summary" = "Om %1$@ visa %2$@ annars %3$@";
 "menu_bar_layout_conditional_copy_name" = "%@ (kopia)";

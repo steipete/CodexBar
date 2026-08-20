@@ -941,16 +941,29 @@ struct MenuBarLayoutPreview: View {
             window: rawAutomatic)
         let scopedNamed = MenuBarLayoutSemanticWindowResolver.scopedWeeklyNamedWindow(snapshot: snapshot)
         let paceWindow = weekly ?? automatic
-        let runsOut = paceWindow
-            .flatMap {
-                self.store.weeklyPace(
-                    provider: provider,
-                    window: $0,
-                    now: now)
-            }
+        // Bind the pace itself: `etaSeconds` is the numeric run-out conditional predicates compare.
+        let pace = paceWindow.flatMap {
+            self.store.weeklyPace(
+                provider: provider,
+                window: $0,
+                now: now)
+        }
+        let runsOut = pace
             .flatMap { UsagePaceText.weeklyDetail(provider: provider, pace: $0, now: now).rightLabel }
         let cost = self.store.tokenSnapshotForCurrentProviderConfig(for: provider)?.snapshot
         let costToday = MenuBarLayoutCostResolver.todayCostUSD(snapshot: cost, now: now)
+        let balanceAmounts = MenuBarLayoutBalanceResolver.balanceAmountsUSD(
+            provider: provider,
+            snapshot: snapshot)
+        // Thresholds are USD, and `convertedCost` returns the source amount unchanged when no rate
+        // exists, so keep the datum only when the conversion actually landed in USD.
+        let toUSD = { (value: Double) -> Double? in
+            let converted = UsageFormatter.convertedCost(
+                value,
+                preferredCurrency: "USD",
+                providerCurrency: cost?.currencyCode)
+            return converted.currencyCode == "USD" ? converted.value : nil
+        }
         let automaticRenderWindow = MenuBarLayoutRenderWindow(automatic)
         return MenuBarLayoutRenderData(
             provider: provider,
@@ -984,7 +997,26 @@ struct MenuBarLayoutPreview: View {
             },
             cost30d: cost?.last30DaysCostUSD.map {
                 UsageFormatter.currencyString($0, currencyCode: cost?.currencyCode ?? "USD")
-            })
+            },
+            metrics: MenuBarLayoutRenderMetrics(
+                sessionPaceDelta: self.store.menuBarLayoutPaceDelta(
+                    provider: provider,
+                    window: session,
+                    now: now),
+                weeklyPaceDelta: self.store.menuBarLayoutPaceDelta(
+                    provider: provider,
+                    window: weekly,
+                    now: now,
+                    minimumElapsedPercent: 1),
+                automaticPaceDelta: self.store.menuBarLayoutPaceDelta(
+                    provider: provider,
+                    window: automatic,
+                    now: now),
+                runsOutMinutes: pace?.etaSeconds.map { Int(($0 / 60).rounded()) },
+                balanceRemainingUSD: balanceAmounts.remaining,
+                balanceUsedUSD: balanceAmounts.used,
+                costTodayUSD: costToday.flatMap(toUSD),
+                cost30dUSD: cost?.last30DaysCostUSD.flatMap(toUSD)))
     }
 
     private func representativeData(provider: UsageProvider) -> MenuBarLayoutRenderData {
@@ -1009,6 +1041,9 @@ struct MenuBarLayoutPreview: View {
         let samplePace = { (window: RateWindow) -> String? in
             MenuBarDisplayText.paceText(pace: UsagePace.weekly(window: window, now: now))
         }
+        let samplePaceDelta = { (window: RateWindow) -> Double? in
+            UsagePace.weekly(window: window, now: now)?.deltaPercent.rounded()
+        }
         return MenuBarLayoutRenderData(
             provider: provider,
             iconKey: "\(provider.rawValue)-representative",
@@ -1031,7 +1066,17 @@ struct MenuBarLayoutPreview: View {
             // Provider-specific by design: only OpenRouter previews the Balance palette token.
             balance: provider == .openrouter ? "$12.34" : nil,
             costToday: "$1.25",
-            cost30d: "$20.00")
+            cost30d: "$20.00",
+            metrics: MenuBarLayoutRenderMetrics(
+                sessionPaceDelta: samplePaceDelta(session),
+                weeklyPaceDelta: samplePaceDelta(weekly),
+                automaticPaceDelta: samplePaceDelta(session),
+                // 1d 16h == 40h, matching the sample `runsOut` text above.
+                runsOutMinutes: 2400,
+                balanceRemainingUSD: provider == .openrouter ? 12.34 : nil,
+                balanceUsedUSD: provider == .openrouter ? 7.66 : nil,
+                costTodayUSD: 1.25,
+                cost30dUSD: 20))
     }
 }
 

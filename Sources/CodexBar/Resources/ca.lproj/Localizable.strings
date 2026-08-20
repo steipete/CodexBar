@@ -1513,6 +1513,10 @@
 "menu_bar_layout_conditional_name" = "Nom";
 "menu_bar_layout_conditional_name_placeholder" = "p. ex. Comprovació de la sessió";
 "menu_bar_layout_conditional_name_error" = "Introdueix un nom únic";
+"menu_bar_layout_conditional_used" = "utilitzat";
+"menu_bar_layout_conditional_remaining" = "restant";
+"menu_bar_layout_conditional_metric_resets_in" = "%@ es reinicia en";
+"menu_bar_layout_conditional_metric_scoped_weekly" = "Setmanal amb àmbit";
 "menu_bar_layout_conditional_duplicate" = "Duplica";
 "menu_bar_layout_conditional_or" = "o";
 "menu_bar_layout_conditional_add_condition" = "Afegeix una condició";

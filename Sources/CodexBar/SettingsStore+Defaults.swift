@@ -527,8 +527,11 @@ extension SettingsStore {
     }
 
     private func persistMenuBarLayoutConditionals() {
-        guard let data = try? JSONEncoder().encode(self.defaultsState.menuBarLayoutConditionals) else { return }
-        self.userDefaults.set(data, forKey: "menuBarLayoutConditionals")
+        guard let blobs = try? MenuBarLayoutPersistence
+            .encodedLibrary(self.defaultsState.menuBarLayoutConditionals)
+        else { return }
+        self.userDefaults.set(blobs.current, forKey: MenuBarLayoutUserDefaultsKey.conditionalsCurrent)
+        self.userDefaults.set(blobs.legacy, forKey: MenuBarLayoutUserDefaultsKey.conditionals)
     }
 
     private func persistMenuBarLayoutOverrides() {

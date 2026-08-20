@@ -1513,6 +1513,10 @@
 "menu_bar_layout_conditional_name" = "Nama";
 "menu_bar_layout_conditional_name_placeholder" = "mis. Pemeriksaan sesi";
 "menu_bar_layout_conditional_name_error" = "Masukkan nama yang unik";
+"menu_bar_layout_conditional_used" = "terpakai";
+"menu_bar_layout_conditional_remaining" = "tersisa";
+"menu_bar_layout_conditional_metric_resets_in" = "%@ disetel ulang dalam";
+"menu_bar_layout_conditional_metric_scoped_weekly" = "Mingguan terbatas";
 "menu_bar_layout_conditional_duplicate" = "Duplikat";
 "menu_bar_layout_conditional_or" = "atau";
 "menu_bar_layout_conditional_add_condition" = "Tambah Kondisi";
