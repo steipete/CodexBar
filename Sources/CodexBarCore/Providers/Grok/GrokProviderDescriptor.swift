@@ -87,7 +87,8 @@ public enum GrokProviderDescriptor {
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: true,
                 noDataMessage: {
-                    "Grok token totals come from local ~/.grok/sessions logs. Subscription credits are not converted to dollars."
+                    "Grok token totals come from local ~/.grok/sessions logs. "
+                        + "Subscription credits are not converted to dollars."
                 }),
             pace: ProviderPaceCapability(
                 resetWindowPace: .custom { window, now in

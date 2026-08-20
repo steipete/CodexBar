@@ -19,7 +19,7 @@ struct XAICostUsageMappingTests {
     }
 
     @Test
-    func `prepaid balance alone is not spend`() throws {
+    func `prepaid balance alone is not spend`() {
         let snapshot = UsageSnapshot(
             primary: nil,
             secondary: nil,

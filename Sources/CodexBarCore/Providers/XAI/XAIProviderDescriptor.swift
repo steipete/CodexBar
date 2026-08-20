@@ -41,7 +41,8 @@ public enum XAIProviderDescriptor {
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: true,
                 noDataMessage: {
-                    "xAI daily spend requires a Management API key and team ID. Prepaid balance is not treated as spend."
+                    "xAI daily spend requires a Management API key and team ID. "
+                        + "Prepaid balance is not treated as spend."
                 }),
             presentation: ProviderUsagePresentation(
                 identityPresenter: { provider, snapshot in
