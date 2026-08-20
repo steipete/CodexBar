@@ -67,6 +67,9 @@ extension StatusItemController {
         } else {
             .noImage
         }
+        if !SettingsStore.isRunningTests {
+            return self.setRasterizedButtonLayoutContent(rendered, for: button, statusItem: statusItem)
+        }
         let wasCached = button.image === rendered.leadingIcon
             && button.imagePosition == expectedImagePosition
             && button.attributedTitle.isEqual(to: rendered.attributedTitle)
@@ -292,5 +295,86 @@ extension StatusItemController {
         }
         let horizontalPadding: CGFloat = self.settings.menuBarLayoutGap == .tight ? 3 : 10
         statusItem.length = max(18, ceil(bounds.width) + horizontalPadding)
+    }
+
+    /// Rasterize custom text layouts into one cached status image. macOS replicates status-item titles for
+    /// every display and Space; keeping the title empty prevents unrelated menu-bar invalidations from
+    /// repeatedly laying out and rasterizing the same attributed string in each replicant.
+    private func setRasterizedButtonLayoutContent(
+        _ rendered: MenuBarLayoutRenderedTitle,
+        for button: NSStatusBarButton,
+        statusItem: NSStatusItem)
+        -> Bool
+    {
+        let buttonID = ObjectIdentifier(button)
+        let iconIdentity = rendered.leadingIcon.map { ObjectIdentifier($0).hashValue } ?? 0
+        let signature = [
+            String(ObjectIdentifier(rendered.attributedTitle).hashValue),
+            String(iconIdentity),
+            String(rendered.attributedTitle.hash),
+            self.settings.menuBarLayoutGap.rawValue,
+        ].joined(separator: "|")
+        let horizontalPadding: CGFloat = self.settings.menuBarLayoutGap == .tight ? 3 : 10
+
+        if self.rasterizedMenuBarLayoutCache.signatures[buttonID] == signature,
+           let image = self.rasterizedMenuBarLayoutCache.images[buttonID]
+        {
+            if button.image !== image { button.image = image }
+            if button.imagePosition != .imageOnly { button.imagePosition = .imageOnly }
+            if button.attributedTitle.length > 0 { button.attributedTitle = NSAttributedString() }
+            statusItem.length = max(18, ceil(image.size.width) + horizontalPadding)
+            return true
+        }
+
+        let image = Self.rasterizedMenuBarLayoutImage(rendered)
+        self.rasterizedMenuBarLayoutCache.signatures[buttonID] = signature
+        self.rasterizedMenuBarLayoutCache.images[buttonID] = image
+        button.image = image
+        button.imagePosition = .imageOnly
+        button.attributedTitle = NSAttributedString()
+        if button.accessibilityTitle() != rendered.accessibilityLabel {
+            button.setAccessibilityTitle(rendered.accessibilityLabel)
+        }
+        statusItem.length = max(18, ceil(image.size.width) + horizontalPadding)
+        return false
+    }
+
+    private static func rasterizedMenuBarLayoutImage(_ rendered: MenuBarLayoutRenderedTitle) -> NSImage {
+        let titleBounds = rendered.attributedTitle.boundingRect(
+            with: NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude),
+            options: [.usesLineFragmentOrigin, .usesFontLeading])
+        let iconWidth = rendered.leadingIcon?.size.width ?? 0
+        let spacing: CGFloat = rendered.leadingIcon != nil && rendered.attributedTitle.length > 0 ? 3 : 0
+        let contentWidth = max(1, ceil(iconWidth + spacing + titleBounds.width))
+        let contentHeight = max(22, ceil(max(rendered.leadingIcon?.size.height ?? 0, titleBounds.height)))
+        let imageSize = NSSize(width: contentWidth, height: contentHeight)
+        let image = NSImage(size: imageSize)
+        image.lockFocus()
+        defer { image.unlockFocus() }
+
+        var titleX: CGFloat = 0
+        if let icon = rendered.leadingIcon {
+            let iconRect = NSRect(
+                x: 0,
+                y: floor((imageSize.height - icon.size.height) / 2),
+                width: icon.size.width,
+                height: icon.size.height)
+            icon.draw(in: iconRect)
+            if icon.isTemplate {
+                NSColor.labelColor.setFill()
+                iconRect.fill(using: .sourceAtop)
+            }
+            titleX = iconWidth + spacing
+        }
+        let titleRect = NSRect(
+            x: titleX - titleBounds.minX,
+            y: floor((imageSize.height - titleBounds.height) / 2) - titleBounds.minY,
+            width: titleBounds.width,
+            height: titleBounds.height)
+        rendered.attributedTitle.draw(
+            with: titleRect,
+            options: [.usesLineFragmentOrigin, .usesFontLeading])
+        image.isTemplate = false
+        return image
     }
 }
