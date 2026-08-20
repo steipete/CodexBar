@@ -17,6 +17,7 @@ public struct ZaiSettingsReader: Sendable {
     ]
     public static let apiHostKey = "Z_AI_API_HOST"
     public static let quotaURLKey = "Z_AI_QUOTA_URL"
+    public static let balanceURLKey = "Z_AI_BALANCE_URL"
     public static let bigModelOrganizationKey = "Z_AI_BIGMODEL_ORGANIZATION"
     public static let bigModelProjectKey = "Z_AI_BIGMODEL_PROJECT"
 
@@ -64,11 +65,23 @@ public struct ZaiSettingsReader: Sendable {
         return ProviderEndpointOverrideValidator.normalizedHTTPSURL(from: raw)
     }
 
+    public static func balanceURL(
+        environment: [String: String] = ProcessInfo.processInfo.environment) -> URL?
+    {
+        guard let raw = self.cleaned(environment[balanceURLKey]) else { return nil }
+        return ProviderEndpointOverrideValidator.normalizedHTTPSURL(from: raw)
+    }
+
     public static func validateEndpointOverrides(
         environment: [String: String] = ProcessInfo.processInfo.environment) throws
     {
         try self.validateQuotaEndpointOverride(environment: environment)
         try self.validateAPIHostEndpointOverride(environment: environment)
+        if let raw = self.cleaned(environment[balanceURLKey]),
+           self.balanceURL(environment: environment) == nil
+        {
+            throw ZaiSettingsError.invalidEndpointOverride(self.balanceURLKey)
+        }
     }
 
     public static func validateEndpointOverrides(

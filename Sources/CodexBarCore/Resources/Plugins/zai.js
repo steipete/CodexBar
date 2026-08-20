@@ -4,8 +4,10 @@ defineProvider({
   endpoints: [
     "https://api.z.ai",
     "https://open.bigmodel.cn",
+    "https://www.bigmodel.cn",
     { setting: "Z_AI_QUOTA_ENDPOINT", policy: "https" },
     { setting: "Z_AI_MODEL_USAGE_ENDPOINT", policy: "https" },
+    { setting: "Z_AI_BALANCE_ENDPOINT", policy: "https" },
   ],
   auth: { type: "bearer", secret: "Z_AI_API_KEY" },
   settings: [
@@ -16,6 +18,7 @@ defineProvider({
     { key: "Z_AI_PROJECT", title: "Project", type: "plain" },
     { key: "Z_AI_QUOTA_ENDPOINT", title: "Quota endpoint", type: "plain" },
     { key: "Z_AI_MODEL_USAGE_ENDPOINT", title: "Model usage endpoint", type: "plain" },
+    { key: "Z_AI_BALANCE_ENDPOINT", title: "Balance endpoint", type: "plain" },
   ],
 
   async fetchUsage(ctx) {
@@ -200,6 +203,40 @@ defineProvider({
       (value) => typeof value === "string" && value.trim(),
     );
     if (plan) result.identity.loginMethod = plan.trim();
+
+    // BigModel CN pay-as-you-go account balance (www.bigmodel.cn console endpoint,
+    // verified 2026-08: accepts both "Bearer <key>" and raw-key Authorization).
+    // z.ai global has no documented equivalent, so the row is CN-only. Best-effort —
+    // a failed balance lookup must never break quota display.
+    if (region === "bigmodel-cn") {
+      try {
+        const balanceEndpoint =
+          ctx.settings.get("Z_AI_BALANCE_ENDPOINT") ||
+          "https://www.bigmodel.cn/api/biz/account/query-customer-account-report";
+        const response = await ctx.http.getJSON(balanceEndpoint, {});
+        const body = response.json;
+        if (response.status === 200 && body && typeof body === "object" && body.success === true) {
+          const data = body.data && typeof body.data === "object" ? body.data : {};
+          const available = Number(data.availableBalance);
+          const current = Number(data.balance);
+          const value = Number.isFinite(available) ? available : current;
+          if (Number.isFinite(value)) {
+            const secondary = [];
+            if (Number.isFinite(Number(data.rechargeAmount)))
+              secondary.push(`recharged ¥${Number(data.rechargeAmount).toFixed(2)}`);
+            if (Number.isFinite(Number(data.giveAmount)) && Number(data.giveAmount) > 0)
+              secondary.push(`granted ¥${Number(data.giveAmount).toFixed(2)}`);
+            if (Number.isFinite(Number(data.totalSpendAmount)))
+              secondary.push(`spent ¥${Number(data.totalSpendAmount).toFixed(2)}`);
+            result.details[0].rows.push({
+              label: "Account balance",
+              value: `¥${Number(value).toFixed(2)}`,
+              secondaryValue: secondary.join(" · ") || undefined,
+            });
+          }
+        }
+      } catch {}
+    }
 
     async function modelUsage(daysBack) {
       const end = ctx.date.now();
