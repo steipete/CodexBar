@@ -367,6 +367,53 @@ struct MenuBarLayoutRendererTests {
     }
 
     @Test
+    func `icon above automatic percentages stays in the attributed two line layout`() {
+        let renderer = MenuBarLayoutRenderer()
+        let icon = NSImage(size: NSSize(width: 16, height: 16))
+        icon.isTemplate = true
+        let output = renderer.render(
+            layout: MenuBarLayout(lines: [
+                [.icon],
+                [
+                    .percent(window: .automatic),
+                    .percent(window: .session),
+                    .percent(window: .weekly),
+                    .lanePercent(lane: .primary),
+                ],
+            ]),
+            data: self.data(),
+            icon: icon,
+            options: self.options())
+
+        #expect(output.leadingIcon == nil)
+        #expect(output.attributedTitle.attribute(.attachment, at: 0, effectiveRange: nil) is NSTextAttachment)
+        #expect(output.attributedTitle.string == "\u{FFFC}\n50%\u{2009}5h 25%\u{2009}W 60%\u{2009}10%")
+        #expect(output.accessibilityLabel.contains(L("menu_bar_layout_line", 2)))
+    }
+
+    @Test
+    func `single line icon and automatic percentages keep the surfaced image`() throws {
+        let renderer = MenuBarLayoutRenderer()
+        let icon = NSImage(size: NSSize(width: 16, height: 16))
+        icon.isTemplate = true
+        let output = renderer.render(
+            layout: MenuBarLayout(lines: [[
+                .icon,
+                .percent(window: .automatic),
+                .percent(window: .session),
+                .percent(window: .weekly),
+            ]]),
+            data: self.data(),
+            icon: icon,
+            options: self.options())
+
+        let leadingIcon = try #require(output.leadingIcon)
+        #expect(leadingIcon === icon)
+        #expect(output.attributedTitle.string == "\u{2009}50%\u{2009}5h 25%\u{2009}W 60%")
+        #expect(output.attributedTitle.attribute(.attachment, at: 0, effectiveRange: nil) == nil)
+    }
+
+    @Test
     func `stacked titles apply a vertical centering offset`() throws {
         let renderer = MenuBarLayoutRenderer()
         let stacked = renderer.render(

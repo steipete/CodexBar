@@ -2,6 +2,7 @@
 
 ## 0.54.1 — Unreleased
 
+- Fixed custom menu bar line breaks so provider icons stay above stacked usage percentages in the menu bar and layout preview (#3089).
 - Menu bar conditionals can now test every comparable block, not just usage percentages: time to reset, run-out estimate, pace, credit balance, today/30-day cost, and the direct primary/secondary/tertiary lanes, with a used/remaining select wherever both readings exist (so "session > 50% used **and** session resets in < 2h" or "balance remaining >= 5" are expressible). Ships an "Auto % / Resets in" default that shows the percentage while the lane has headroom and the reset countdown once it is spent (#3076).
 - Added conditional tokens to the menu bar layout editor: named, reusable if/then/else rules (1–4 AND/OR clauses over Session/Weekly/Scoped/Auto thresholds) that swap or hide tokens based on live usage, downgrade-safe and localized across all 23 catalogs (#3076). Thanks @wdmitchelluk!
 - Fixed inconsistent German localization of "About" ("Um" → "Über") (#3077). Thanks @dwt!

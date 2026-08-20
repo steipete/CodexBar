@@ -315,12 +315,11 @@ final class MenuBarLayoutRenderer {
         let result = NSMutableAttributedString()
         var accessibilityLines: [String] = []
 
-        // Only surface a leading icon via `button.image` when an actual image is available and the
-        // high-contrast contract does not require the icon to stay inside the attributed title.
-        // AppKit dims `button.image` on inactive displays, but high-contrast layouts keep icon + text
-        // together in one attributed path so the existing dimming contract is preserved. With a
-        // missing icon the token still renders its placeholder inside the title.
-        let leadingIcon: NSImage? = if options.highContrast {
+        // AppKit positions `button.image` horizontally beside the entire title, so stacked layouts
+        // must keep their icon inline to preserve which row owns it. High-contrast layouts also
+        // keep icon + text together, while single-line layouts surface the icon for native dimming.
+        // With a missing icon the token still renders its placeholder inside the title.
+        let leadingIcon: NSImage? = if options.highContrast || isStacked {
             nil
         } else if renderedLines.first?.first == .icon, icon != nil {
             icon.map { Self.offsetLeadingIcon($0, adjustment: options.verticalAdjustment) }
