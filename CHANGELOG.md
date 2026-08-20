@@ -3,6 +3,7 @@
 ## 0.54.1 — Unreleased
 
 - Fixed custom menu bar line breaks so provider icons stay above stacked usage percentages in the menu bar and layout preview (#3089).
+- Fixed the native blue selection highlight reappearing on provider cards after cached provider switches: cross-class cached rows now replace the item shell so the highlight override survives (#2998, #3091, #3093). Thanks @kiranmagic7!
 - Publish live xAI Management API daily spend and local Grok session tokens into the shared Usage & Spend catalog. Prepaid Grok credits stay a quota (never converted to dollars); xAI prepaid balance stays remaining credit, not spend (#3085).
 - Added conditional tokens to the menu bar layout editor: named, reusable if/then/else rules (1–4 AND/OR clauses over Session/Weekly/Scoped/Auto thresholds) that swap or hide tokens based on live usage, downgrade-safe and localized across all 23 catalogs (#3076). Thanks @wdmitchelluk!
 - Fixed inconsistent German localization of "About" ("Um" → "Über") (#3077). Thanks @dwt!
