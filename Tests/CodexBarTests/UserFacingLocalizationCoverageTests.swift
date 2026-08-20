@@ -135,7 +135,7 @@ struct UserFacingLocalizationCoverageTests {
         ]
 
         let localized = CodexBarLocalizationOverride.$appLanguage.withValue("zh-Hans") {
-            UsageMenuCardView.Model.localizedProviderDetails(details, provider: .groq)
+            UsageMenuCardView.Model.localizedProviderDetails(details, provider: .deepseek)
         }
 
         let section = try #require(localized.first)

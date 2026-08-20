@@ -6,7 +6,8 @@ extension UsageMenuCardView.Model {
         _ details: [ProviderDetailSection],
         provider: UsageProvider) -> [ProviderDetailSection]
     {
-        details.compactMap { section in
+        guard provider == .deepseek || provider == .zai else { return details }
+        return details.compactMap { section in
             let rows = section.rows.compactMap { row in
                 try? ProviderDetailSection.Row(
                     label: L(row.label),
