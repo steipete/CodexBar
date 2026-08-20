@@ -24,6 +24,7 @@ public struct GrokLocalSessionSummary: Sendable {
     public let primaryModel: String?
     public let models: [String]
     public let daily: [GrokLocalDailyBucket]
+    public let scannedAt: Date
 
     public init(
         sessionCount: Int,
@@ -31,7 +32,8 @@ public struct GrokLocalSessionSummary: Sendable {
         lastSessionAt: Date?,
         primaryModel: String?,
         models: [String],
-        daily: [GrokLocalDailyBucket] = [])
+        daily: [GrokLocalDailyBucket] = [],
+        scannedAt: Date = .init())
     {
         self.sessionCount = sessionCount
         self.totalTokens = totalTokens
@@ -39,10 +41,11 @@ public struct GrokLocalSessionSummary: Sendable {
         self.primaryModel = primaryModel
         self.models = models
         self.daily = daily
+        self.scannedAt = scannedAt
     }
 
     /// Local session tokens only. SuperGrok credits are a quota, not dollars, so this never invents spend.
-    public func toCostUsageTokenSnapshot(historyDays: Int, updatedAt: Date) -> CostUsageTokenSnapshot? {
+    public func toCostUsageTokenSnapshot(historyDays: Int) -> CostUsageTokenSnapshot? {
         let entries = self.daily.map { bucket in
             CostUsageDailyReport.Entry(
                 date: bucket.date,
@@ -55,7 +58,7 @@ public struct GrokLocalSessionSummary: Sendable {
                 modelBreakdowns: nil)
         }
         guard !entries.isEmpty else { return nil }
-        let todayKey = GrokLocalSessionScanner.dayKey(for: updatedAt, calendar: .current)
+        let todayKey = GrokLocalSessionScanner.dayKey(for: self.scannedAt, calendar: .current)
         let todayTokens = todayKey.flatMap { key in self.daily.first { $0.date == key }?.totalTokens }
         return CostUsageTokenSnapshot(
             sessionTokens: todayTokens,
@@ -66,7 +69,7 @@ public struct GrokLocalSessionSummary: Sendable {
             historyCoverageIsEstablished: true,
             costProvenance: .unknown,
             daily: entries,
-            updatedAt: updatedAt)
+            updatedAt: self.scannedAt)
     }
 }
 
@@ -92,7 +95,8 @@ public enum GrokLocalSessionScanner {
                 totalTokens: 0,
                 lastSessionAt: nil,
                 primaryModel: nil,
-                models: [])
+                models: [],
+                scannedAt: now)
         }
 
         let calendar = Calendar.current
@@ -166,7 +170,8 @@ public enum GrokLocalSessionScanner {
             lastSessionAt: lastSessionAt,
             primaryModel: sortedModels.first,
             models: sortedModels,
-            daily: daily)
+            daily: daily,
+            scannedAt: now)
     }
 
     static func dayKey(for date: Date, calendar: Calendar) -> String? {

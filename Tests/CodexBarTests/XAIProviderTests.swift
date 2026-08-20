@@ -155,6 +155,19 @@ struct XAIProviderTests {
         #expect(mapped.historyDays == 30)
     }
 
+    @Test(arguments: [
+        #"{}"#,
+        #"{"timeSeries":null,"limitReached":false}"#,
+        #"{"timeSeries":[{}],"limitReached":false}"#,
+        #"{"timeSeries":[{"dataPoints":[{"timestamp":"2027-01-15T00:00:00Z"}]}],"limitReached":false}"#,
+    ])
+    func `malformed successful usage history stays unavailable`(body: String) async throws {
+        let snapshot = try await Self.fetch(usageBody: body)
+        #expect(snapshot.details.first?.chart == nil)
+        #expect(XAICostUsageMapping.isAnalyticsUnavailable(snapshot))
+        #expect(XAICostUsageMapping.tokenSnapshot(from: snapshot, historyDays: 30) == nil)
+    }
+
     @Test @MainActor
     func `descriptor registry menu card and CLI retain xAI presentation`() async throws {
         let descriptor = ProviderDescriptorRegistry.descriptor(for: .xai)

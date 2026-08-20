@@ -746,7 +746,7 @@ enum SpendDashboardSource {
             return store.tokenSnapshot(
                 fromProviderSnapshot: store.snapshot(for: .grok),
                 provider: .grok,
-                historyDays: scanDays)
+                historyDays: self.scanDays)
         }
         if UsageStore.tokenCostRequiresProviderSnapshot(provider),
            let usage = store.snapshot(for: provider.instanceID),

@@ -37,7 +37,7 @@ struct GrokLocalSessionScannerTests {
         #expect(summary.daily.map(\.sessionCount) == [1, 1])
         #expect(Set(summary.daily.map(\.date)).count == 2)
 
-        let snapshot = try #require(summary.toCostUsageTokenSnapshot(historyDays: 7, updatedAt: newer))
+        let snapshot = try #require(summary.toCostUsageTokenSnapshot(historyDays: 7))
         #expect(snapshot.last30DaysTokens == 350)
         #expect(snapshot.last30DaysCostUSD == nil)
         #expect(snapshot.daily.allSatisfy { $0.costUSD == nil })
@@ -63,7 +63,7 @@ struct GrokLocalSessionScannerTests {
             env: ["GROK_HOME": root.path],
             lookbackDays: 7,
             now: today)
-        let snapshot = try #require(summary.toCostUsageTokenSnapshot(historyDays: 7, updatedAt: today))
+        let snapshot = try #require(summary.toCostUsageTokenSnapshot(historyDays: 7))
         #expect(snapshot.last30DaysTokens == 100)
         #expect(snapshot.sessionTokens == nil)
     }
@@ -76,7 +76,37 @@ struct GrokLocalSessionScannerTests {
             env: ["GROK_HOME": root.path],
             lookbackDays: 7,
             now: Date())
-        #expect(summary.toCostUsageTokenSnapshot(historyDays: 7, updatedAt: Date()) == nil)
+        #expect(summary.toCostUsageTokenSnapshot(historyDays: 7) == nil)
+    }
+
+    @Test
+    func `local scan clock wins over a stale remote snapshot`() throws {
+        let calendar = Calendar.current
+        let staleRemoteTime = Date(timeIntervalSince1970: 1_787_079_600)
+        let localScanTime = try #require(calendar.date(byAdding: .day, value: 1, to: staleRemoteTime))
+        let localDay = try #require(GrokLocalSessionScanner.dayKey(for: localScanTime, calendar: calendar))
+        let summary = GrokLocalSessionSummary(
+            sessionCount: 1,
+            totalTokens: 250,
+            lastSessionAt: localScanTime,
+            primaryModel: "grok-4.6",
+            models: ["grok-4.6"],
+            daily: [GrokLocalDailyBucket(
+                date: localDay,
+                totalTokens: 250,
+                sessionCount: 1,
+                models: ["grok-4.6"])],
+            scannedAt: localScanTime)
+        let remote = GrokUsageSnapshot(
+            billing: nil,
+            credentials: nil,
+            localSummary: summary,
+            cliVersion: nil,
+            updatedAt: staleRemoteTime)
+
+        let snapshot = try #require(remote.toUsageSnapshot().costUsage)
+        #expect(snapshot.sessionTokens == 250)
+        #expect(snapshot.updatedAt == localScanTime)
     }
 
     private func writeSignals(at url: URL, tokens: Int, model: String, date: Date) throws {
