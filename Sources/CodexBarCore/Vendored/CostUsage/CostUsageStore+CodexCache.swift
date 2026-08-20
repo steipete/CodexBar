@@ -867,10 +867,11 @@ extension CostUsageStore {
         else { return nil }
         let range = CostUsageScanner.CostUsageDayRange(since: since, until: until, calendar: calendar)
         let report = CostUsageScanner.buildCodexReportFromCache(cache: cache, range: range)
-        guard var previous = CostUsageCodexPreviousReport(report: report, cache: cache) else { return nil }
-        previous.scanSinceKey = reportWindow?.sinceKey ?? cache.scanSinceKey
-        previous.scanUntilKey = reportWindow?.untilKey ?? cache.scanUntilKey
-        return previous
+        return CostUsageCodexPreviousReport(
+            report: report,
+            cache: cache,
+            reportSinceKey: sinceKey,
+            reportUntilKey: untilKey)
     }
 
     private static func fileAggregates(_ usage: CostUsageFileUsage) -> [CostUsageStoreDayAggregate] {

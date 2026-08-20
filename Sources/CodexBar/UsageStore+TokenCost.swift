@@ -119,6 +119,16 @@ extension UsageStore {
     }
 
     func publishTokenSnapshot(_ snapshot: CostUsageTokenSnapshot, for provider: UsageProvider) {
+        // A bounded Codex refresh can succeed with partial rows while catch-up remains pending.
+        // Keep the same-scope established snapshot until the scanner publishes another established
+        // result; account and history-window changes fail the current-publication lookup below.
+        if provider == .codex,
+           !snapshot.historyCoverageIsEstablished,
+           self.tokenSnapshotPublicationForCurrentProviderConfig(for: provider)?
+               .snapshot?.historyCoverageIsEstablished == true
+        {
+            return
+        }
         self.tokenSnapshots[provider.instanceID] = snapshot
         self.publishTokenSnapshotState(snapshot, for: provider)
     }

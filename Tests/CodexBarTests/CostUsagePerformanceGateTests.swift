@@ -1091,7 +1091,11 @@ struct CostUsagePerformanceGateTests {
         rebuildingCache.timeZoneIdentifier = options.calendar.timeZone.identifier
         rebuildingCache.roots = priorCache.roots
         rebuildingCache.codexScanCatchUpPending = true
-        rebuildingCache.codexPreviousReport = CostUsageCodexPreviousReport(report: priorReport, cache: priorCache)
+        rebuildingCache.codexPreviousReport = CostUsageCodexPreviousReport(
+            report: priorReport,
+            cache: priorCache,
+            reportSinceKey: range.sinceKey,
+            reportUntilKey: range.untilKey)
         CostUsageStoreAccess.replace(cacheRoot: env.cacheRoot, cache: rebuildingCache)
         var report = CostUsageScanner.loadDailyReport(
             provider: .codex,

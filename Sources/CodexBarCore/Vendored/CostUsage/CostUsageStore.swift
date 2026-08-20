@@ -77,10 +77,16 @@ actor CostUsageStore {
         parserHash: CodexParserHash.value)
     static let cacheGeneration = "sqlite:\(CostUsageStore.schemaVersion)"
     static let compatiblePredecessorParserHashes: Set<String> = [
+        "2d17f4981b78d07f", // Current main before retained-report persistence; parsed rows unchanged.
+        "8050a4faf4fddb96", // PR base before retained-report persistence; parsed rows unchanged.
         "98da5914d2f6a9cd", // Pushed PR producer before retry signaling; persisted rows unchanged.
         "43609cc56f76a003", // 0.49.3 request-tier pricing; persisted row shape unchanged.
         "b975eb705f905b9a", // 0.49.0-0.49.2 SQLite producer with compatible rows.
         "47144baa8daccf52", // This branch changes only scan scheduling, discovery, and persistence bookkeeping.
+    ]
+    static let incompatibleRetainedReportPredecessorParserHashes: Set<String> = [
+        "2d17f4981b78d07f",
+        "8050a4faf4fddb96",
     ]
 
     /// Test-only crash injection: invoked inside `saveCodexCache`'s transaction after each
@@ -347,7 +353,7 @@ extension CostUsageStore {
     }
 
     private func validateExistingDatabase(_ database: OpaquePointer) throws {
-        let state: (isCurrent: Bool, canAdoptPredecessor: Bool)
+        let state: (storedHash: String, isCurrent: Bool, canAdoptPredecessor: Bool)
         try Self.execute(database, "BEGIN")
         do {
             state = try self.databaseCompatibilityState(database)
@@ -374,7 +380,7 @@ extension CostUsageStore {
             }
             try Self.validateDatabaseIntegrity(database)
             if lockedState.canAdoptPredecessor {
-                try self.adoptCompatiblePredecessor(database)
+                try self.adoptCompatiblePredecessor(database, storedHash: lockedState.storedHash)
             }
             try Self.execute(database, "COMMIT")
         } catch {
@@ -384,6 +390,7 @@ extension CostUsageStore {
     }
 
     private func databaseCompatibilityState(_ database: OpaquePointer) throws -> (
+        storedHash: String,
         isCurrent: Bool,
         canAdoptPredecessor: Bool)
     {
@@ -401,7 +408,7 @@ extension CostUsageStore {
             && self.expectedSchemaVersion == Self.schemaVersion
             && Self.compatiblePredecessorParserHashes.contains(storedHash)
             && actualVersion == Int64(predecessorVersion)
-        return (isCurrent, canAdoptPredecessor)
+        return (storedHash, isCurrent, canAdoptPredecessor)
     }
 
     private static func validateDatabaseIntegrity(_ database: OpaquePointer) throws {
@@ -413,7 +420,23 @@ extension CostUsageStore {
         }
     }
 
-    private func adoptCompatiblePredecessor(_ database: OpaquePointer) throws {
+    private func adoptCompatiblePredecessor(_ database: OpaquePointer, storedHash: String) throws {
+        if Self.incompatibleRetainedReportPredecessorParserHashes.contains(storedHash),
+           var metadata = try Self.readSingleton(
+               CostUsageStoreMetadata.self,
+               database: database,
+               table: "scan_metadata")
+        {
+            metadata.previousReportPayload = nil
+            let payload = try JSONEncoder().encode(metadata)
+            let metadataStatement = try Self.prepare(
+                database,
+                "UPDATE scan_metadata SET payload = ? WHERE id = 1")
+            defer { sqlite3_finalize(metadataStatement) }
+            Self.bind(payload, to: metadataStatement, at: 1)
+            try Self.stepDone(metadataStatement, database: database)
+            guard sqlite3_changes(database) == 1 else { throw StoreError.incompatibleSchema }
+        }
         let statement = try Self.prepare(database, "UPDATE meta SET value = ? WHERE key = 'parser_hash'")
         defer { sqlite3_finalize(statement) }
         Self.bind(self.expectedParserHash, to: statement, at: 1)

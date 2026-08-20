@@ -261,6 +261,109 @@ struct CostUsageFetcherCacheSnapshotTests {
     }
 
     @Test
+    func `bounded narrow tail refresh retains only its requested cached window`() async throws {
+        let env = try CostUsageTestEnvironment()
+        defer { env.cleanup() }
+
+        let day = try env.makeLocalNoon(year: 2026, month: 4, day: 8)
+        let olderDay = try env.makeLocalNoon(year: 2026, month: 2, day: 7)
+        try Self.writeCodexSessionFile(
+            homeRoot: env.codexHomeRoot,
+            env: env,
+            day: olderDay,
+            filename: "older.jsonl",
+            tokens: 11)
+        let sessionURL = try Self.writeCodexSessionFile(
+            homeRoot: env.codexHomeRoot,
+            env: env,
+            day: day,
+            filename: "active-tail.jsonl",
+            tokens: 42)
+        var options = CostUsageScanner.Options(
+            codexSessionsRoot: env.codexSessionsRoot,
+            cacheRoot: env.cacheRoot)
+        options.refreshMinIntervalSeconds = 0
+
+        let established = try await CostUsageFetcher.loadTokenSnapshot(
+            provider: .codex,
+            now: day,
+            historyDays: 365,
+            includePiSessions: false,
+            scannerOptions: options)
+        let establishedCache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
+        #expect(established.historyCoverageIsEstablished)
+        #expect(established.last30DaysTokens == 53)
+        #expect(establishedCache.codexScanCatchUpPending != true)
+
+        let appendedAt = day.addingTimeInterval(10)
+        let appendedLine = try env.jsonl([[
+            "type": "event_msg",
+            "timestamp": env.isoString(for: appendedAt),
+            "payload": [
+                "type": "token_count",
+                "info": [
+                    "last_token_usage": [
+                        "input_tokens": 84,
+                        "cached_input_tokens": 0,
+                        "output_tokens": 0,
+                    ],
+                    "model": "openai/gpt-5.4",
+                ],
+            ],
+        ]])
+        let handle = try FileHandle(forWritingTo: sessionURL)
+        try handle.seekToEnd()
+        try handle.write(contentsOf: Data(appendedLine.utf8))
+        try handle.close()
+        try FileManager.default.setAttributes([.modificationDate: appendedAt], ofItemAtPath: sessionURL.path)
+
+        options.maxCodexScanDurationPerRefresh = .leastNonzeroMagnitude
+        let partial = try await CostUsageFetcher.loadTokenSnapshot(
+            provider: .codex,
+            now: appendedAt,
+            historyDays: 30,
+            includePiSessions: false,
+            scannerOptions: options)
+        let pendingCache = CostUsageStoreAccess.read(cacheRoot: env.cacheRoot)
+        let cached = await CostUsageFetcher.loadCachedCodexTokenSnapshotResult(
+            now: appendedAt,
+            historyDays: 30,
+            includePiSessions: false,
+            scannerOptions: options)
+        let narrowSince = try #require(options.calendar.date(byAdding: .day, value: -29, to: day))
+        let wideSince = try #require(options.calendar.date(byAdding: .day, value: -364, to: day))
+        let narrowRange = CostUsageScanner.CostUsageDayRange(
+            since: narrowSince,
+            until: appendedAt,
+            calendar: options.calendar)
+        let wideRange = CostUsageScanner.CostUsageDayRange(
+            since: wideSince,
+            until: appendedAt,
+            calendar: options.calendar)
+        let rootsFingerprint = CostUsageScanner.codexRootsFingerprint(options: options)
+        let previous = try #require(pendingCache.codexPreviousReport)
+
+        #expect(!partial.historyCoverageIsEstablished)
+        #expect(partial.last30DaysTokens == 42)
+        #expect(pendingCache.codexScanCatchUpPending == true)
+        #expect(previous.report.data.map(\.date) == ["2026-04-08"])
+        #expect(previous.scanSinceKey == narrowRange.sinceKey)
+        #expect(previous.scanUntilKey == narrowRange.untilKey)
+        #expect(CostUsageScanner.codexPreviousReport(
+            cache: pendingCache,
+            range: narrowRange,
+            rootsFingerprint: rootsFingerprint) != nil)
+        #expect(CostUsageScanner.codexPreviousReport(
+            cache: pendingCache,
+            range: wideRange,
+            rootsFingerprint: rootsFingerprint) == nil)
+        #expect(cached?.snapshot.historyCoverageIsEstablished == true)
+        #expect(cached?.snapshot.last30DaysTokens == 42)
+        #expect(cached?.staleSnapshotUpdatedAt == established.updatedAt)
+        #expect(cached?.lastRefreshAt == nil)
+    }
+
+    @Test
     func `cached codex token snapshot keeps the cache scan time as updatedAt`() async throws {
         let env = try CostUsageTestEnvironment()
         defer { env.cleanup() }
@@ -702,12 +805,13 @@ struct CostUsageFetcherCacheSnapshotTests {
         #expect(travelled == nil)
     }
 
+    @discardableResult
     private static func writeCodexSessionFile(
         homeRoot: URL,
         env: CostUsageTestEnvironment,
         day: Date,
         filename: String,
-        tokens: Int) throws
+        tokens: Int) throws -> URL
     {
         let comps = Calendar.current.dateComponents([.year, .month, .day], from: day)
         let dir = homeRoot
@@ -741,6 +845,7 @@ struct CostUsageFetcherCacheSnapshotTests {
                 ],
             ],
         ]).write(to: url, atomically: true, encoding: .utf8)
+        return url
     }
 
     private static func writePiCodexSessionFile(
