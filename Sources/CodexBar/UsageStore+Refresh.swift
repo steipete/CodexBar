@@ -1445,9 +1445,9 @@ extension UsageStore {
                 self.errors[provider.instanceID] = error.localizedDescription
                 if !preservesPriorData, !preservesClaudeWebSessionFailure {
                     self.snapshots.removeValue(forKey: provider.instanceID)
+                    // Provider-specific by design: local ~/.grok/sessions tokens remain readable
+                    // when the remote billing probe fails.
                     if provider == .grok {
-                        // Provider-specific by design: local ~/.grok/sessions tokens remain readable
-                        // when the remote billing probe fails.
                         if let local = self.tokenSnapshot(
                             fromProviderSnapshot: nil,
                             provider: .grok,
