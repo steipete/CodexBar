@@ -168,8 +168,12 @@ The accepted multi-account design in
   cards, a list failure retains the current ambient output, adds a distinct `Claude (claude-swap)` footer entry, and
   exits non-zero.
 - Sentinel statuses (`token_expired`, `api_key`, `keychain_unavailable`, `no_credentials`,
-  `unavailable`, and unknown future values) render as per-account notes instead of usage bars in both full and brief
-  cards. Active rows are marked `[active]`; no claude-swap row infers a plan badge.
+  and unknown future values) render as per-account notes instead of usage bars in both full and brief cards. When
+  `unavailable` means claude-swap deferred polling because a window is at 100%, CodexBar keeps that slot's last
+  projected usage bars and names the exhausted window (5-hour session, 7-day weekly, and/or a scoped model such as
+  Fable) plus its reset time — not "Usage fetch failed." A first refresh that is already `unavailable` with no
+  retained windows still notes that polling is deferred. Active rows are marked `[active]`; no claude-swap row infers
+  a plan badge.
 - Switching: an inactive account with usable source credentials shows “Switch Account…”. Clicking it runs exactly
   `cswap --switch-to <slot> --json`, validates the versioned result and requested slot, then refreshes both ambient
   Claude usage and every claude-swap account card. Switches are serialized; no automatic switching occurs. While

@@ -231,6 +231,20 @@ struct MenuCardDeepSeekTests {
     }
 
     @Test
+    func `model localizes deepseek balance fallback messages in simplified chinese`() {
+        CodexBarLocalizationOverride.$appLanguage.withValue("zh-Hans") {
+            #expect(
+                UsageMenuCardView.Model.localizedDeepSeekBalanceDescription(
+                    "¥0.00 — add credits at platform.deepseek.com")
+                    == "¥0.00 — 请前往 platform.deepseek.com 充值")
+            #expect(
+                UsageMenuCardView.Model.localizedDeepSeekBalanceDescription(
+                    "Balance unavailable for API calls")
+                    == "API 调用余额不可用")
+        }
+    }
+
+    @Test
     func `model explains unavailable deepseek usage when cost summary is enabled`() throws {
         let now = Date()
         let metadata = try #require(ProviderDefaults.metadata[.deepseek])

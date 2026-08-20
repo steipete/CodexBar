@@ -530,7 +530,7 @@ extension UsageMenuCardView.Model {
         snapshot: UsageSnapshot) -> (primary: String, secondary: String, tertiary: String, showsTertiary: Bool)
     {
         if input.provider == .factory, snapshot.tertiary != nil {
-            return ("5-hour", L("Weekly"), L("Monthly"), true)
+            return (L("5-hour"), L("Weekly"), L("Monthly"), true)
         }
         // Legacy request-based Cursor plans track a request quota, not the token-based "Total" pool.
         let primaryLabel = if input.provider == .cursor, snapshot.detailRow(label: "Request quota") != nil {

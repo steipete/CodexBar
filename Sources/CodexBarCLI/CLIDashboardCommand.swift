@@ -139,8 +139,12 @@ struct DashboardSnapshotProducer: Sendable {
                     let list = try await ClaudeSwapAccountReader.readAccountList(
                         executablePath: path,
                         timeout: timeout)
+                    let accounts = ClaudeSwapAccountProjection.accountSnapshots(
+                        from: list,
+                        previousAccounts: ClaudeSwapRetainedUsageStore.load())
+                    ClaudeSwapRetainedUsageStore.save(accounts)
                     return DashboardClaudeSwapCollection(
-                        accounts: ClaudeSwapAccountProjection.accountSnapshots(from: list),
+                        accounts: accounts,
                         adapterError: nil)
                 } catch {
                     let diagnostic = CLIClaudeSwapText.sanitizeDiagnostic(error.localizedDescription)
