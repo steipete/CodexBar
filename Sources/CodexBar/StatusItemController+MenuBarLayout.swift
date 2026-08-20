@@ -182,19 +182,22 @@ extension StatusItemController {
                 preferredCurrency: preferredCurrencyCode,
                 providerCurrency: sourceCurrencyCode)
         }
-        // Thresholds are USD, so a provider reporting another currency is converted here. Without a rate
-        // `convertedCost` returns the source amount, which beats dropping the datum entirely.
-        let toUSD = { (value: Double) in
-            UsageFormatter.convertedCost(
+        // Thresholds are USD. `convertedCost` hands back the source amount unchanged when no rate exists,
+        // so trusting its value alone would compare €6 against a $5 threshold. Keep the datum only when
+        // the conversion actually landed in USD; otherwise the predicate sees no value and evaluates
+        // false, which is the same contract as a metric the provider does not report.
+        let toUSD = { (value: Double) -> Double? in
+            let converted = UsageFormatter.convertedCost(
                 value,
                 preferredCurrency: "USD",
-                providerCurrency: sourceCurrencyCode).value
+                providerCurrency: sourceCurrencyCode)
+            return converted.currencyCode == "USD" ? converted.value : nil
         }
         return MenuBarLayoutCostValues(
             today: todayAmount.map(display),
             last30Days: last30DaysAmount.map(display),
-            todayUSD: todayAmount.map(toUSD),
-            last30DaysUSD: last30DaysAmount.map(toUSD))
+            todayUSD: todayAmount.flatMap(toUSD),
+            last30DaysUSD: last30DaysAmount.flatMap(toUSD))
     }
 
     func menuBarLayoutWindows(

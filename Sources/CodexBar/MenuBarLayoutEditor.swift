@@ -955,12 +955,14 @@ struct MenuBarLayoutPreview: View {
         let balanceAmounts = MenuBarLayoutBalanceResolver.balanceAmountsUSD(
             provider: provider,
             snapshot: snapshot)
-        // Thresholds are USD, so convert a provider that reports another cost currency.
-        let toUSD = { (value: Double) in
-            UsageFormatter.convertedCost(
+        // Thresholds are USD, and `convertedCost` returns the source amount unchanged when no rate
+        // exists, so keep the datum only when the conversion actually landed in USD.
+        let toUSD = { (value: Double) -> Double? in
+            let converted = UsageFormatter.convertedCost(
                 value,
                 preferredCurrency: "USD",
-                providerCurrency: cost?.currencyCode).value
+                providerCurrency: cost?.currencyCode)
+            return converted.currencyCode == "USD" ? converted.value : nil
         }
         let automaticRenderWindow = MenuBarLayoutRenderWindow(automatic)
         return MenuBarLayoutRenderData(
@@ -1013,8 +1015,8 @@ struct MenuBarLayoutPreview: View {
                 runsOutMinutes: pace?.etaSeconds.map { Int(($0 / 60).rounded()) },
                 balanceRemainingUSD: balanceAmounts.remaining,
                 balanceUsedUSD: balanceAmounts.used,
-                costTodayUSD: costToday.map(toUSD),
-                cost30dUSD: cost?.last30DaysCostUSD.map(toUSD)))
+                costTodayUSD: costToday.flatMap(toUSD),
+                cost30dUSD: cost?.last30DaysCostUSD.flatMap(toUSD)))
     }
 
     private func representativeData(provider: UsageProvider) -> MenuBarLayoutRenderData {

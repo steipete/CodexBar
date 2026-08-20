@@ -61,6 +61,30 @@ struct StatusItemConditionalSignatureTests {
         #expect(below != above)
     }
 
+    /// Thresholds are USD. `UsageFormatter.convertedCost` returns the source amount unchanged when it has
+    /// no rate for the provider's currency, so handing that value over would compare a foreign amount
+    /// against a USD threshold. The display string must still render in the provider's own currency.
+    @Test
+    func `cost in an unconvertible currency yields no USD metric`() {
+        let harness = Self.makeHarness(
+            suite: "StatusItemConditionalSignatureTests-cost-currency",
+            metric: .costToday,
+            direction: .used,
+            comparison: .greaterThan,
+            threshold: 5)
+
+        _ = harness.signature(primaryUsedPercent: 30, todayCostUSD: 6, currencyCode: "XXX")
+        let unconvertible = harness.controller.menuBarLayoutCosts(provider: .claude)
+        #expect(unconvertible.todayUSD == nil)
+        #expect(unconvertible.last30DaysUSD == nil)
+        // The rendered text is unaffected: it stays in the provider's reported currency.
+        #expect(unconvertible.today != nil)
+
+        _ = harness.signature(primaryUsedPercent: 30, todayCostUSD: 6, currencyCode: "USD")
+        let usd = harness.controller.menuBarLayoutCosts(provider: .claude)
+        #expect(usd.todayUSD == 6)
+    }
+
     @MainActor
     private struct Harness {
         let settings: SettingsStore
@@ -71,7 +95,8 @@ struct StatusItemConditionalSignatureTests {
         func signature(
             primaryUsedPercent: Double,
             sessionResetInHours: Double = 1,
-            todayCostUSD: Double? = nil)
+            todayCostUSD: Double? = nil,
+            currencyCode: String = "USD")
             -> String
         {
             self.store._setSnapshotForTesting(
@@ -90,13 +115,21 @@ struct StatusItemConditionalSignatureTests {
                 provider: .claude)
             if let todayCostUSD {
                 self.store._setTokenSnapshotForTesting(
-                    Self.tokenSnapshot(todayCostUSD: todayCostUSD, now: self.now),
+                    Self.tokenSnapshot(
+                        todayCostUSD: todayCostUSD,
+                        currencyCode: currencyCode,
+                        now: self.now),
                     provider: .claude)
             }
             return self.controller.storeIconObservationSignature()
         }
 
-        private static func tokenSnapshot(todayCostUSD: Double, now: Date) -> CostUsageTokenSnapshot {
+        private static func tokenSnapshot(
+            todayCostUSD: Double,
+            currencyCode: String,
+            now: Date)
+            -> CostUsageTokenSnapshot
+        {
             let formatter = DateFormatter()
             formatter.calendar = .current
             formatter.locale = Locale(identifier: "en_US_POSIX")
@@ -107,6 +140,7 @@ struct StatusItemConditionalSignatureTests {
                 sessionCostUSD: nil,
                 last30DaysTokens: nil,
                 last30DaysCostUSD: todayCostUSD,
+                currencyCode: currencyCode,
                 daily: [
                     CostUsageDailyReport.Entry(
                         date: formatter.string(from: now),
