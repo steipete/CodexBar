@@ -1513,6 +1513,10 @@
 "menu_bar_layout_conditional_name" = "Nazwa";
 "menu_bar_layout_conditional_name_placeholder" = "np. Sprawdzenie sesji";
 "menu_bar_layout_conditional_name_error" = "Wprowadź unikalną nazwę";
+"menu_bar_layout_conditional_used" = "użyte";
+"menu_bar_layout_conditional_remaining" = "pozostałe";
+"menu_bar_layout_conditional_metric_resets_in" = "%@ zeruje się za";
+"menu_bar_layout_conditional_metric_scoped_weekly" = "Tygodniowe wg zakresu";
 "menu_bar_layout_conditional_duplicate" = "Duplikuj";
 "menu_bar_layout_conditional_or" = "lub";
 "menu_bar_layout_conditional_add_condition" = "Dodaj warunek";

@@ -1512,6 +1512,10 @@
 "menu_bar_layout_conditional_name" = "Назва";
 "menu_bar_layout_conditional_name_placeholder" = "напр., Перевірка сеансу";
 "menu_bar_layout_conditional_name_error" = "Введіть унікальну назву";
+"menu_bar_layout_conditional_used" = "використано";
+"menu_bar_layout_conditional_remaining" = "залишилось";
+"menu_bar_layout_conditional_metric_resets_in" = "скидання %@ через";
+"menu_bar_layout_conditional_metric_scoped_weekly" = "Тижневий за областю";
 "menu_bar_layout_conditional_duplicate" = "Дублювати";
 "menu_bar_layout_conditional_summary" = "Якщо %1$@ тоді %2$@ інакше %3$@";
 "menu_bar_layout_conditional_copy_name" = "%@ (копія)";

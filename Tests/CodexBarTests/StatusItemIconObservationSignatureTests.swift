@@ -439,7 +439,7 @@ struct StatusItemIconObservationSignatureTests {
         #expect(store.snapshot(for: .codex)?.primary?.usedPercent == usagePrimaryPercent)
         #expect(controller.lastObservedStoreIconWorkSignature != baseline)
         #expect(
-            controller.menuBarLayoutCostStrings(provider: .codex).last30Days ==
+            controller.menuBarLayoutCosts(provider: .codex).last30Days ==
                 UsageFormatter.currencyString(12.50, currencyCode: "USD"))
     }
 

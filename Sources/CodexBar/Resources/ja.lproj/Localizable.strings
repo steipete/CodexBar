@@ -1510,6 +1510,10 @@
 "menu_bar_layout_conditional_name" = "名前";
 "menu_bar_layout_conditional_name_placeholder" = "例：セッションチェック";
 "menu_bar_layout_conditional_name_error" = "一意の名前を入力してください";
+"menu_bar_layout_conditional_used" = "使用";
+"menu_bar_layout_conditional_remaining" = "残り";
+"menu_bar_layout_conditional_metric_resets_in" = "%@ のリセットまで";
+"menu_bar_layout_conditional_metric_scoped_weekly" = "スコープ別週間";
 "menu_bar_layout_conditional_duplicate" = "複製";
 "menu_bar_layout_conditional_or" = "または";
 "menu_bar_layout_conditional_add_condition" = "条件を追加";

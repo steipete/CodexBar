@@ -512,6 +512,99 @@ struct MenuBarCountdownRefreshTests {
         #expect(controller._test_isMenuBarCountdownRefreshScheduled())
     }
 
+    /// A pace or run-out predicate compares a clock-derived value, so it needs a tick even when the
+    /// layout carries no pace or reset token to trigger the token-gated schedulers.
+    @Test(arguments: [MenuBarConditionalMetric.runsOutIn, .weeklyPace, .sessionPace, .automaticPace])
+    func `predicate-only clock-derived conditional schedules a refresh`(metric: MenuBarConditionalMetric) {
+        let controller = Self.makePredicateOnlyController(
+            suite: "MenuBarCountdownRefreshTests-predicate-only-\(metric.rawValue)",
+            metric: metric)
+        defer { controller.releaseStatusItemsForTesting() }
+        #expect(controller._test_isMenuBarCountdownRefreshScheduled())
+    }
+
+    /// Money predicates move only when new provider data arrives, so they must not pin a clock tick.
+    @Test
+    func `predicate-only cost conditional schedules nothing`() {
+        let controller = Self.makePredicateOnlyController(
+            suite: "MenuBarCountdownRefreshTests-predicate-only-cost",
+            metric: .costToday)
+        defer { controller.releaseStatusItemsForTesting() }
+        #expect(!controller._test_isMenuBarCountdownRefreshScheduled())
+    }
+
+    /// A reset-countdown predicate gets an exact wake-up at `resetsAt - threshold` rather than a tick.
+    @Test
+    func `predicate-only reset countdown conditional schedules its flip instant`() {
+        let controller = Self.makePredicateOnlyController(
+            suite: "MenuBarCountdownRefreshTests-predicate-only-reset",
+            metric: .sessionResetsIn,
+            threshold: 0.25)
+        defer { controller.releaseStatusItemsForTesting() }
+        #expect(controller._test_isMenuBarCountdownRefreshScheduled())
+    }
+
+    /// Places a single conditional whose only clause reads `metric`, with no pace, reset, or countdown
+    /// token anywhere in the layout, so the token-gated schedulers cannot be what fires.
+    private static func makePredicateOnlyController(
+        suite: String,
+        metric: MenuBarConditionalMetric,
+        threshold: Double = 1)
+        -> StatusItemController
+    {
+        let settings = testSettingsStore(suiteName: suite)
+        settings.statusChecksEnabled = false
+        settings.refreshFrequency = .manual
+        settings.menuBarShowsBrandIconWithPercent = true
+        if let metadata = ProviderRegistry.shared.metadata[.codex] {
+            settings.setProviderEnabled(provider: .codex, metadata: metadata, enabled: true)
+        }
+
+        let conditional = MenuBarLayoutConditional(
+            name: "gate",
+            clauses: [MenuBarConditionalClause(
+                combinator: nil,
+                predicate: MenuBarConditionalPredicate(
+                    metric: metric,
+                    comparison: .lessThan,
+                    threshold: threshold))],
+            thenToken: .percent(window: .session),
+            elseToken: .hidden)
+        settings.menuBarLayoutConditionals = [conditional]
+        settings.menuBarLayout = MenuBarLayout(lines: [[.icon, .conditional(id: conditional.id)]])
+
+        let fetcher = UsageFetcher()
+        let store = UsageStore(
+            fetcher: fetcher,
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings)
+        let controller = StatusItemController(
+            store: store,
+            settings: settings,
+            account: fetcher.loadAccountInfo(),
+            updater: DisabledUpdaterController(),
+            preferencesSelection: PreferencesSelection(),
+            statusBar: testStatusBar())
+
+        let now = Date()
+        store._setSnapshotForTesting(
+            UsageSnapshot(
+                primary: RateWindow(
+                    usedPercent: 42,
+                    windowMinutes: 300,
+                    resetsAt: now.addingTimeInterval(3600),
+                    resetDescription: nil),
+                secondary: RateWindow(
+                    usedPercent: 60,
+                    windowMinutes: 10080,
+                    resetsAt: now.addingTimeInterval(3 * 24 * 60 * 60),
+                    resetDescription: nil),
+                updatedAt: now),
+            provider: .codex)
+        controller.updateIcons()
+        return controller
+    }
+
     @Test
     func `merged highest usage observes reset for noncurrent Codex candidate`() throws {
         let settings = testSettingsStore(suiteName: "MenuBarCountdownRefreshTests-merged-highest")
