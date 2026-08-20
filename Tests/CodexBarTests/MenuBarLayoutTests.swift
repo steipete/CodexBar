@@ -1208,6 +1208,147 @@ struct MenuBarLayoutTests {
 
     @Test
     @MainActor
+    func `conditional library dual-writes an older-readable projection`() throws {
+        let settings = testSettingsStore(suiteName: "MenuBarLayoutTests-conditional-downgrade")
+        let readable = MenuBarLayoutConditional(
+            name: "readable",
+            clauses: [MenuBarConditionalClause(
+                combinator: nil,
+                predicate: MenuBarConditionalPredicate(
+                    metric: .session,
+                    comparison: .greaterThan,
+                    threshold: 50))],
+            thenToken: .percent(window: .session),
+            elseToken: .hidden)
+        let newMetric = MenuBarLayoutConditional(
+            name: "new metric",
+            clauses: [MenuBarConditionalClause(
+                combinator: nil,
+                predicate: MenuBarConditionalPredicate(
+                    metric: .sessionResetsIn,
+                    comparison: .lessThan,
+                    threshold: 2))],
+            thenToken: .resetCountdown,
+            elseToken: .hidden)
+        // An older release ignores the unknown `direction` key, so this would come back inverted rather
+        // than absent — worse than dropping it.
+        let inverted = MenuBarLayoutConditional(
+            name: "inverted",
+            clauses: [MenuBarConditionalClause(
+                combinator: nil,
+                predicate: MenuBarConditionalPredicate(
+                    metric: .weekly,
+                    direction: .remaining,
+                    comparison: .greaterThan,
+                    threshold: 20))],
+            thenToken: .percent(window: .weekly),
+            elseToken: .hidden)
+        settings.menuBarLayoutConditionals = [readable, newMetric, inverted]
+
+        let decoder = JSONDecoder()
+        let current = try #require(
+            settings.userDefaults.data(forKey: MenuBarLayoutUserDefaultsKey.conditionalsCurrent))
+        let legacy = try #require(settings.userDefaults.data(forKey: MenuBarLayoutUserDefaultsKey.conditionals))
+
+        #expect(try decoder.decode([MenuBarLayoutConditional].self, from: current) ==
+            [readable, newMetric, inverted])
+
+        // The whole point: a 0.54.0 decoder reads the projection, and would have thrown on the full blob.
+        let legacyEntries = try decoder.decode([PreExpandedConditional].self, from: legacy)
+        #expect(legacyEntries.map(\.name) == ["readable"])
+        #expect(legacyEntries.first?.clauses.first?.predicate.metric == .session)
+        #expect(throws: DecodingError.self) {
+            try decoder.decode([PreExpandedConditional].self, from: current)
+        }
+
+        let reloaded = Self.reloadSettingsStore(settings)
+        #expect(reloaded.menuBarLayoutConditionals == [readable, newMetric, inverted])
+    }
+
+    @Test
+    @MainActor
+    func `conditional library load prefers a legacy blob edited by an older release`() throws {
+        let settings = testSettingsStore(suiteName: "MenuBarLayoutTests-conditional-downgrade-edit")
+        let current = MenuBarLayoutConditional(
+            name: "current",
+            clauses: [MenuBarConditionalClause(
+                combinator: nil,
+                predicate: MenuBarConditionalPredicate(
+                    metric: .runsOutIn,
+                    comparison: .lessThan,
+                    threshold: 6))],
+            thenToken: .runsOut,
+            elseToken: .hidden)
+        settings.menuBarLayoutConditionals = [current]
+
+        // An older release rewrote the shared key with its own edit; that must win over our projection.
+        let edited = MenuBarLayoutConditional(
+            name: "edited by older release",
+            clauses: [MenuBarConditionalClause(
+                combinator: nil,
+                predicate: MenuBarConditionalPredicate(
+                    metric: .weekly,
+                    comparison: .greaterThan,
+                    threshold: 75))],
+            thenToken: .percent(window: .weekly),
+            elseToken: .hidden)
+        try settings.userDefaults.set(
+            JSONEncoder().encode([edited]),
+            forKey: MenuBarLayoutUserDefaultsKey.conditionals)
+
+        let reloaded = Self.reloadSettingsStore(settings)
+        #expect(reloaded.menuBarLayoutConditionals == [edited])
+    }
+
+    @Test
+    @MainActor
+    func `conditional library load keeps new metrics when the legacy blob is its own projection`() {
+        let settings = testSettingsStore(suiteName: "MenuBarLayoutTests-conditional-legacy-echo")
+        let newMetric = MenuBarLayoutConditional(
+            name: "new metric",
+            clauses: [MenuBarConditionalClause(
+                combinator: nil,
+                predicate: MenuBarConditionalPredicate(
+                    metric: .costToday,
+                    comparison: .greaterThan,
+                    threshold: 1))],
+            thenToken: .costToday,
+            elseToken: .hidden)
+        settings.menuBarLayoutConditionals = [newMetric]
+
+        let reloaded = Self.reloadSettingsStore(settings)
+        #expect(reloaded.menuBarLayoutConditionals == [newMetric])
+    }
+
+    @Test
+    @MainActor
+    func `startup materializes a missing conditional projection`() throws {
+        let settings = testSettingsStore(suiteName: "MenuBarLayoutTests-conditional-startup-dual-write")
+        // A pre-upgrade install only has the legacy key.
+        let existing = MenuBarLayoutConditional(
+            name: "existing",
+            clauses: [MenuBarConditionalClause(
+                combinator: nil,
+                predicate: MenuBarConditionalPredicate(
+                    metric: .automatic,
+                    comparison: .greaterThan,
+                    threshold: 40))],
+            thenToken: .percent(window: .automatic),
+            elseToken: .hidden)
+        settings.userDefaults.removeObject(forKey: MenuBarLayoutUserDefaultsKey.conditionalsCurrent)
+        try settings.userDefaults.set(
+            JSONEncoder().encode([existing]),
+            forKey: MenuBarLayoutUserDefaultsKey.conditionals)
+
+        let reloaded = Self.reloadSettingsStore(settings)
+        #expect(reloaded.menuBarLayoutConditionals == [existing])
+        let materialized = try #require(
+            reloaded.userDefaults.data(forKey: MenuBarLayoutUserDefaultsKey.conditionalsCurrent))
+        #expect(try JSONDecoder().decode([MenuBarLayoutConditional].self, from: materialized) == [existing])
+    }
+
+    @Test
+    @MainActor
     func `lane override load prefers a legacy dictionary edited by an older release`() throws {
         let settings = testSettingsStore(suiteName: "MenuBarLayoutTests-lane-override-downgrade-edit")
         let cursor = MenuBarLayout(lines: [[.icon, .lanePercent(lane: .secondary)]])
@@ -1328,4 +1469,31 @@ private enum PreLanePercentMenuBarLayoutToken: Codable, Equatable {
 
 private struct PreLanePercentMenuBarLayout: Codable, Equatable {
     let lines: [[PreLanePercentMenuBarLayoutToken]]
+}
+
+/// The 0.54.0 conditional surface: four percent metrics, no `direction`. Its synthesized `Codable`
+/// throws on any other metric raw value and silently ignores unknown keys, which is exactly why the
+/// older-readable projection has to drop those entries rather than hand them over.
+private enum PreExpandedConditionalMetric: String, Codable, Equatable {
+    case session
+    case weekly
+    case scopedWeekly
+    case automatic
+}
+
+private struct PreExpandedConditionalPredicate: Codable, Equatable {
+    let metric: PreExpandedConditionalMetric
+    let comparison: String
+    let threshold: Double
+}
+
+private struct PreExpandedConditionalClause: Codable, Equatable {
+    let combinator: String?
+    let predicate: PreExpandedConditionalPredicate
+}
+
+private struct PreExpandedConditional: Codable, Equatable {
+    let id: UUID
+    let name: String
+    let clauses: [PreExpandedConditionalClause]
 }

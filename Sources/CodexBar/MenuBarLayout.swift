@@ -91,6 +91,17 @@ enum MenuBarConditionalMetric: String, CaseIterable, Codable, Hashable, Sendable
         }
     }
 
+    /// Whether a 0.54.0-era decoder has a case for this metric at all. That release shipped the
+    /// conditional editor with only the four percent windows, and its synthesized `Codable` throws on
+    /// any other raw value — which would take the whole persisted library down with it. The legacy
+    /// projection written alongside the current library drops entries this returns `false` for.
+    var hasLegacyRepresentation: Bool {
+        switch self {
+        case .session, .weekly, .scopedWeekly, .automatic: true
+        default: false
+        }
+    }
+
     var thresholdRange: ClosedRange<Double> {
         switch self.kind {
         case .percent: 0...100
@@ -352,6 +363,20 @@ struct MenuBarLayoutConditional: Codable, Hashable, Sendable {
         ]
     }
 
+    /// This conditional as a 0.54.0-era release can read it, or nil when it cannot be represented.
+    ///
+    /// Two things make an entry unreadable there. A metric outside the original four throws on decode
+    /// and takes the whole array with it. A non-`.used` direction is worse than unreadable: the extra
+    /// key is silently ignored by that release's synthesized decoder, so `session remaining > 80` would
+    /// come back as `session used > 80` and render the opposite branch. Dropping the entry is the honest
+    /// projection in both cases — a missing rule is visibly missing, an inverted one is not.
+    var legacyCompatible: MenuBarLayoutConditional? {
+        let readable = self.clauses.allSatisfy { clause in
+            clause.predicate.metric.hasLegacyRepresentation && clause.predicate.direction == .used
+        }
+        return readable ? self : nil
+    }
+
     private static func clause(
         _ metric: MenuBarConditionalMetric,
         _ comparison: MenuBarConditionalComparison,
@@ -603,6 +628,8 @@ enum MenuBarLayoutUserDefaultsKey {
     static let layoutCurrent = "menuBarLayoutV2"
     static let overrides = "menuBarLayoutOverrides"
     static let overridesCurrent = "menuBarLayoutOverridesV2"
+    static let conditionals = "menuBarLayoutConditionals"
+    static let conditionalsCurrent = "menuBarLayoutConditionalsV2"
 }
 
 enum MenuBarLayoutPreset: String, CaseIterable, Identifiable, Sendable {
@@ -889,6 +916,71 @@ enum MenuBarLayoutPersistence {
         {
             userDefaults.set(blobs.current, forKey: MenuBarLayoutUserDefaultsKey.overridesCurrent)
             userDefaults.set(blobs.legacy, forKey: MenuBarLayoutUserDefaultsKey.overrides)
+        }
+        return preferred
+    }
+
+    /// Library projection an older conditional-capable release can read, dropping entries it would
+    /// misread or choke on.
+    static func legacyCompatibleLibrary(
+        _ conditionals: [MenuBarLayoutConditional])
+        -> [MenuBarLayoutConditional]
+    {
+        conditionals.compactMap(\.legacyCompatible)
+    }
+
+    /// Mirrors `preferredLayout`: the full-fidelity key wins unless the legacy key disagrees with its
+    /// own projection, which only happens when an older release wrote it, and that edit must survive.
+    static func preferredLibrary(
+        current: [MenuBarLayoutConditional]?,
+        legacy: [MenuBarLayoutConditional]?)
+        -> [MenuBarLayoutConditional]?
+    {
+        if let current {
+            if let legacy, self.legacyCompatibleLibrary(current) != legacy {
+                return legacy
+            }
+            return current
+        }
+        return legacy
+    }
+
+    static func needsStartupDualWrite(
+        current: [MenuBarLayoutConditional]?,
+        legacy: [MenuBarLayoutConditional]?)
+        -> Bool
+    {
+        switch (current, legacy) {
+        case (nil, .some), (.some, nil): true
+        default: false
+        }
+    }
+
+    static func encodedLibrary(
+        _ conditionals: [MenuBarLayoutConditional])
+        throws -> (current: Data, legacy: Data)
+    {
+        let encoder = JSONEncoder()
+        return try (
+            encoder.encode(conditionals),
+            encoder.encode(self.legacyCompatibleLibrary(conditionals)))
+    }
+
+    /// Pre-V2 installs only have the legacy key, so materialize both at load: an immediate downgrade
+    /// then reads a projection that was never written by an older release rather than nothing.
+    static func loadLibrary(
+        current: [MenuBarLayoutConditional]?,
+        legacy: [MenuBarLayoutConditional]?,
+        into userDefaults: UserDefaults)
+        -> [MenuBarLayoutConditional]?
+    {
+        let preferred = self.preferredLibrary(current: current, legacy: legacy)
+        if let preferred,
+           self.needsStartupDualWrite(current: current, legacy: legacy),
+           let blobs = try? self.encodedLibrary(preferred)
+        {
+            userDefaults.set(blobs.current, forKey: MenuBarLayoutUserDefaultsKey.conditionalsCurrent)
+            userDefaults.set(blobs.legacy, forKey: MenuBarLayoutUserDefaultsKey.conditionals)
         }
         return preferred
     }
