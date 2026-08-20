@@ -847,7 +847,7 @@ private final class CodexRPCClient: @unchecked Sendable {
     // Provider-specific by design: Codex RPC owns its dedicated subprocess log category.
     private static let log = CodexBarLog.logger(LogCategories.provider(.codex, scope: "rpc"))
     private let process = Process()
-    private let stdinPipe = Pipe()
+    private let stdin = RPCChildProcessInput()
     private let stdoutPipe = Pipe()
     private let stderrPipe = Pipe()
     private let stdoutLineStream: AsyncStream<Data>
@@ -889,7 +889,7 @@ private final class CodexRPCClient: @unchecked Sendable {
         self.process.environment = env
         self.process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
         self.process.arguments = [resolvedExec] + arguments
-        self.process.standardInput = self.stdinPipe
+        self.process.standardInput = self.stdin.pipe
         self.process.standardOutput = self.stdoutPipe
         self.process.standardError = self.stderrPipe
 
@@ -912,7 +912,7 @@ private final class CodexRPCClient: @unchecked Sendable {
         let stdoutLineContinuation = self.stdoutLineContinuation
         let stdoutBuffer = BoundedLineBuffer()
         let process = self.process
-        let stdinPipe = self.stdinPipe
+        let stdin = self.stdin
         stdoutHandle.readabilityHandler = { handle in
             let data = handle.availableData
             if data.isEmpty {
@@ -926,7 +926,7 @@ private final class CodexRPCClient: @unchecked Sendable {
                 Self.log.warning("Codex RPC line exceeded memory limit; terminating process")
                 handle.readabilityHandler = nil
                 DispatchQueue.global(qos: .userInitiated).async {
-                    RPCChildProcessTeardown.terminate(process: process, stdinPipe: stdinPipe)
+                    RPCChildProcessTeardown.terminate(process: process, stdin: stdin)
                 }
                 stdoutLineContinuation.finish()
                 return
@@ -973,7 +973,7 @@ private final class CodexRPCClient: @unchecked Sendable {
 
     func shutdown() {
         Self.log.debug("Codex RPC stopping")
-        RPCChildProcessTeardown.terminate(process: self.process, stdinPipe: self.stdinPipe)
+        RPCChildProcessTeardown.terminate(process: self.process, stdin: self.stdin)
     }
 
     // MARK: - JSON-RPC helpers
@@ -1052,9 +1052,9 @@ private final class CodexRPCClient: @unchecked Sendable {
         // Dispatch off the timeout task so the bounded TERM-to-KILL wait cannot delay the timeout
         // error or let the stdout-EOF failure win the race; `shutdown()` remains the synchronous backstop.
         let process = self.process
-        let stdinPipe = self.stdinPipe
+        let stdin = self.stdin
         DispatchQueue.global(qos: .userInitiated).async {
-            RPCChildProcessTeardown.terminate(process: process, stdinPipe: stdinPipe)
+            RPCChildProcessTeardown.terminate(process: process, stdin: stdin)
         }
     }
 
@@ -1070,9 +1070,13 @@ private final class CodexRPCClient: @unchecked Sendable {
     }
 
     private func sendPayload(_ payload: [String: Any]) throws {
-        let data = try JSONSerialization.data(withJSONObject: payload)
-        self.stdinPipe.fileHandleForWriting.write(data)
-        self.stdinPipe.fileHandleForWriting.write(Data([0x0A]))
+        var data = try JSONSerialization.data(withJSONObject: payload)
+        data.append(0x0A)
+        do {
+            try self.stdin.write(data)
+        } catch {
+            throw RPCWireError.requestFailed("codex app-server stdin closed: \(error.localizedDescription)")
+        }
     }
 
     private func readNextMessage() async throws -> [String: Any] {
