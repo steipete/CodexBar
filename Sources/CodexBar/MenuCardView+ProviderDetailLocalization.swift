@@ -6,6 +6,7 @@ extension UsageMenuCardView.Model {
         _ details: [ProviderDetailSection],
         provider: UsageProvider) -> [ProviderDetailSection]
     {
+        // Provider-specific by design: only DeepSeek and z.ai expose these localized detail contracts.
         guard provider == .deepseek || provider == .zai else { return details }
         return details.compactMap { section in
             let rows = section.rows.compactMap { row in
