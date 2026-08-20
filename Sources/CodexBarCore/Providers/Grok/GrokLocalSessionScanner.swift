@@ -1,5 +1,20 @@
 import Foundation
 
+/// One local-calendar day of Grok session-token activity.
+public struct GrokLocalDailyBucket: Sendable, Equatable {
+    public let date: String
+    public let totalTokens: Int
+    public let sessionCount: Int
+    public let models: [String]
+
+    public init(date: String, totalTokens: Int, sessionCount: Int, models: [String]) {
+        self.date = date
+        self.totalTokens = totalTokens
+        self.sessionCount = sessionCount
+        self.models = models
+    }
+}
+
 /// Aggregated stats from local `~/.grok/sessions/**/signals.json` files.
 /// Used as a local fallback view when the JSON-RPC billing call is unavailable.
 public struct GrokLocalSessionSummary: Sendable {
@@ -8,19 +23,49 @@ public struct GrokLocalSessionSummary: Sendable {
     public let lastSessionAt: Date?
     public let primaryModel: String?
     public let models: [String]
+    public let daily: [GrokLocalDailyBucket]
 
     public init(
         sessionCount: Int,
         totalTokens: Int,
         lastSessionAt: Date?,
         primaryModel: String?,
-        models: [String])
+        models: [String],
+        daily: [GrokLocalDailyBucket] = [])
     {
         self.sessionCount = sessionCount
         self.totalTokens = totalTokens
         self.lastSessionAt = lastSessionAt
         self.primaryModel = primaryModel
         self.models = models
+        self.daily = daily
+    }
+
+    /// Local session tokens only. SuperGrok credits are a quota, not dollars, so this never invents spend.
+    public func toCostUsageTokenSnapshot(historyDays: Int, updatedAt: Date) -> CostUsageTokenSnapshot? {
+        let entries = self.daily.map { bucket in
+            CostUsageDailyReport.Entry(
+                date: bucket.date,
+                inputTokens: nil,
+                outputTokens: nil,
+                totalTokens: bucket.totalTokens,
+                requestCount: bucket.sessionCount,
+                costUSD: nil,
+                modelsUsed: bucket.models.isEmpty ? nil : bucket.models,
+                modelBreakdowns: nil)
+        }
+        guard !entries.isEmpty else { return nil }
+        let latestTokens = self.daily.max { $0.date < $1.date }?.totalTokens
+        return CostUsageTokenSnapshot(
+            sessionTokens: latestTokens,
+            sessionCostUSD: nil,
+            last30DaysTokens: self.totalTokens,
+            last30DaysCostUSD: nil,
+            historyDays: historyDays,
+            historyCoverageIsEstablished: true,
+            costProvenance: .unknown,
+            daily: entries,
+            updatedAt: updatedAt)
     }
 }
 
@@ -49,11 +94,15 @@ public enum GrokLocalSessionScanner {
                 models: [])
         }
 
-        let lookbackCutoff = Calendar.current.date(byAdding: .day, value: -lookbackDays, to: now) ?? now
+        let calendar = Calendar.current
+        let lookbackCutoff = calendar.date(byAdding: .day, value: -lookbackDays, to: now) ?? now
         var sessionCount = 0
         var totalTokens = 0
         var lastSessionAt: Date?
         var modelCounts: [String: Int] = [:]
+        var dailyTokens: [String: Int] = [:]
+        var dailySessions: [String: Int] = [:]
+        var dailyModels: [String: [String: Int]] = [:]
 
         while let url = rootEnum.nextObject() as? URL {
             guard url.lastPathComponent == "signals.json" else { continue }
@@ -68,33 +117,62 @@ public enum GrokLocalSessionScanner {
             sessionCount += 1
             let beforeCompaction = (json["totalTokensBeforeCompaction"] as? Int) ?? 0
             let contextUsed = (json["contextTokensUsed"] as? Int) ?? 0
-            totalTokens += beforeCompaction + contextUsed
+            let sessionTokens = beforeCompaction + contextUsed
+            totalTokens += sessionTokens
 
             if mtime > (lastSessionAt ?? Date.distantPast) {
                 lastSessionAt = mtime
             }
 
+            var sessionModels: [String] = []
             if let primary = (json["primaryModelId"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines),
                !primary.isEmpty
             {
                 modelCounts[primary, default: 0] += 1
+                sessionModels.append(primary)
             }
             if let models = json["modelsUsed"] as? [String] {
                 for model in models {
                     let trimmed = model.trimmingCharacters(in: .whitespacesAndNewlines)
                     if !trimmed.isEmpty {
                         modelCounts[trimmed, default: 0] += 1
+                        sessionModels.append(trimmed)
                     }
+                }
+            }
+
+            if let day = Self.dayKey(for: mtime, calendar: calendar) {
+                dailyTokens[day, default: 0] += sessionTokens
+                dailySessions[day, default: 0] += 1
+                for model in sessionModels {
+                    dailyModels[day, default: [:]][model, default: 0] += 1
                 }
             }
         }
 
         let sortedModels = modelCounts.sorted { $0.value > $1.value }.map(\.key)
+        let daily = dailyTokens.keys.sorted().map { day in
+            let models = (dailyModels[day] ?? [:]).sorted { $0.value > $1.value }.map(\.key)
+            return GrokLocalDailyBucket(
+                date: day,
+                totalTokens: dailyTokens[day] ?? 0,
+                sessionCount: dailySessions[day] ?? 0,
+                models: models)
+        }
         return GrokLocalSessionSummary(
             sessionCount: sessionCount,
             totalTokens: totalTokens,
             lastSessionAt: lastSessionAt,
             primaryModel: sortedModels.first,
-            models: sortedModels)
+            models: sortedModels,
+            daily: daily)
+    }
+
+    static func dayKey(for date: Date, calendar: Calendar) -> String? {
+        let components = calendar.dateComponents([.year, .month, .day], from: date)
+        guard let year = components.year, let month = components.month, let day = components.day else {
+            return nil
+        }
+        return String(format: "%04d-%02d-%02d", year, month, day)
     }
 }

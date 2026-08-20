@@ -85,8 +85,10 @@ public enum GrokProviderDescriptor {
                     ProviderColor(hex: 0xFDFDFD),
                 ]),
             tokenCost: ProviderTokenCostConfig(
-                supportsTokenCost: false,
-                noDataMessage: { "Grok cost summary is not supported yet." }),
+                supportsTokenCost: true,
+                noDataMessage: {
+                    "Grok token totals come from local ~/.grok/sessions logs. Subscription credits are not converted to dollars."
+                }),
             pace: ProviderPaceCapability(
                 resetWindowPace: .custom { window, now in
                     guard Self.primaryLabel(window: window, now: now) == "Weekly",

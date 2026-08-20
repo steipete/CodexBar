@@ -197,8 +197,13 @@ Each session directory contains `signals.json` with fields like:
 ```
 
 CodexBar aggregates these into a `GrokLocalSessionSummary` (session count, total
-tokens, last session time, primary model) and exposes it for diagnostics even when
-the RPC path is unavailable.
+tokens, last session time, primary model, per-day token buckets) and exposes it for
+diagnostics even when the RPC path is unavailable.
+
+Those local daily token buckets also feed the shared Usage & Spend catalog so an
+enabled Grok subscription is counted instead of omitted. SuperGrok/X Premium+
+credits remain a quota window on the usage bar; they are never converted into
+dollars.
 
 ## Status
 
