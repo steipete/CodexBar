@@ -223,7 +223,10 @@ struct PlanUtilizationHistoryChartMenuView: View {
             .map { history in
                 VisibleSeries(
                     selection: SeriesSelection(name: history.name, windowMinutes: history.windowMinutes),
-                    title: self.seriesTitle(name: history.name, metadata: metadata),
+                    title: self.seriesTitle(
+                        name: history.name,
+                        metadata: metadata,
+                        windowMinutes: history.windowMinutes),
                     history: history)
             }
     }
@@ -621,11 +624,12 @@ struct PlanUtilizationHistoryChartMenuView: View {
 
     private nonisolated static func seriesTitle(
         name: PlanUtilizationSeriesName,
-        metadata: ProviderMetadata?) -> String
+        metadata: ProviderMetadata?,
+        windowMinutes: Int) -> String
     {
         switch name {
         case .session:
-            L(metadata?.sessionLabel ?? "Session")
+            localizedSessionQuotaLabel(metadata?.sessionLabel ?? "Session", windowMinutes: windowMinutes)
         case .weekly:
             L(metadata?.weeklyLabel ?? "Weekly")
         case .monthly:
@@ -673,6 +677,7 @@ struct PlanUtilizationHistoryChartMenuView: View {
         let xDomain: ClosedRange<Double>?
         let selectedSeries: String?
         let visibleSeries: [String]
+        let visibleSeriesTitles: [String]
         let usedPercents: [Double]
         let pointDates: [String]
     }
@@ -696,6 +701,7 @@ struct PlanUtilizationHistoryChartMenuView: View {
             xDomain: model.xDomain,
             selectedSeries: selectedSeries?.id,
             visibleSeries: visibleSeries.map(\.id),
+            visibleSeriesTitles: visibleSeries.map(\.title),
             usedPercents: model.points.map(\.usedPercent),
             pointDates: model.points.map { point in
                 let formatter = DateFormatter()

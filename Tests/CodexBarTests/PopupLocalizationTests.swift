@@ -8,39 +8,58 @@ import Testing
 @Suite(.serialized)
 struct PopupLocalizationTests {
     @Test
-    func `simplified Chinese identifies Claude session quota as five hours`() throws {
+    func `simplified Chinese derives session quota titles from their duration`() throws {
         try CodexBarLocalizationOverride.$appLanguage.withValue("zh-Hans") {
+            for (windowMinutes, expectedTitle) in [(60, "1 小时"), (300, "5 小时"), (720, "12 小时")] {
+                let model = try Self.makeClaudeMenuCardModel(primaryWindowMinutes: windowMinutes)
+
+                #expect(model.metrics.first?.title == expectedTitle)
+            }
+        }
+    }
+
+    @Test
+    func `simplified Chinese labels a Claude weekly primary fallback accurately`() throws {
+        try CodexBarLocalizationOverride.$appLanguage.withValue("zh-Hans") {
+            let model = try Self.makeClaudeMenuCardModel(primaryWindowMinutes: 7 * 24 * 60)
+
+            #expect(model.metrics.first?.title == "每周")
+        }
+    }
+
+    @Test
+    func `simplified Chinese history selector uses quota duration without changing conversations`() {
+        CodexBarLocalizationOverride.$appLanguage.withValue("zh-Hans") {
             let now = Date(timeIntervalSince1970: 1_700_000_000)
-            let metadata = try #require(ProviderDefaults.metadata[.claude])
+            let histories = [
+                PlanUtilizationSeriesHistory(
+                    name: .session,
+                    windowMinutes: 300,
+                    entries: [PlanUtilizationHistoryEntry(capturedAt: now, usedPercent: 10, resetsAt: nil)]),
+                PlanUtilizationSeriesHistory(
+                    name: .weekly,
+                    windowMinutes: 7 * 24 * 60,
+                    entries: [PlanUtilizationHistoryEntry(capturedAt: now, usedPercent: 20, resetsAt: nil)]),
+            ]
             let snapshot = UsageSnapshot(
                 primary: RateWindow(
                     usedPercent: 10,
                     windowMinutes: 300,
-                    resetsAt: now.addingTimeInterval(3600),
+                    resetsAt: nil,
                     resetDescription: nil),
-                secondary: nil,
+                secondary: RateWindow(
+                    usedPercent: 20,
+                    windowMinutes: 7 * 24 * 60,
+                    resetsAt: nil,
+                    resetDescription: nil),
                 updatedAt: now)
-            let model = UsageMenuCardView.Model.make(.init(
+            let model = PlanUtilizationHistoryChartMenuView._modelSnapshotForTesting(
+                histories: histories,
                 provider: .claude,
-                metadata: metadata,
-                snapshot: snapshot,
-                credits: nil,
-                creditsError: nil,
-                dashboard: nil,
-                dashboardError: nil,
-                tokenSnapshot: nil,
-                tokenError: nil,
-                account: AccountInfo(email: nil, plan: nil),
-                isRefreshing: false,
-                lastError: nil,
-                usageBarsShowUsed: false,
-                resetTimeDisplayStyle: .countdown,
-                tokenCostUsageEnabled: false,
-                showOptionalCreditsAndExtraUsage: true,
-                hidePersonalInfo: false,
-                now: now))
+                snapshot: snapshot)
 
-            #expect(model.metrics.first?.title == "5 小时")
+            #expect(model.visibleSeriesTitles == ["5 小时", "每周"])
+            #expect(String(format: L("Session %@"), "abc123") == "会话 abc123")
         }
     }
 
@@ -230,5 +249,37 @@ struct PopupLocalizationTests {
             guard case let .text(text, _) = entry else { return nil }
             return text
         }
+    }
+
+    private static func makeClaudeMenuCardModel(primaryWindowMinutes: Int) throws -> UsageMenuCardView.Model {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let metadata = try #require(ProviderDefaults.metadata[.claude])
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(
+                usedPercent: 10,
+                windowMinutes: primaryWindowMinutes,
+                resetsAt: now.addingTimeInterval(3600),
+                resetDescription: nil),
+            secondary: nil,
+            updatedAt: now)
+        return UsageMenuCardView.Model.make(.init(
+            provider: .claude,
+            metadata: metadata,
+            snapshot: snapshot,
+            credits: nil,
+            creditsError: nil,
+            dashboard: nil,
+            dashboardError: nil,
+            tokenSnapshot: nil,
+            tokenError: nil,
+            account: AccountInfo(email: nil, plan: nil),
+            isRefreshing: false,
+            lastError: nil,
+            usageBarsShowUsed: false,
+            resetTimeDisplayStyle: .countdown,
+            tokenCostUsageEnabled: false,
+            showOptionalCreditsAndExtraUsage: true,
+            hidePersonalInfo: false,
+            now: now))
     }
 }

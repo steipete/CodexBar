@@ -559,7 +559,7 @@ extension UsageMenuCardView.Model {
             ? L("Monthly")
             : input.metadata.opusLabel.map(L) ?? L("Sonnet")
         return (
-            L(primaryLabel),
+            localizedSessionQuotaLabel(primaryLabel, windowMinutes: snapshot.primary?.windowMinutes),
             L(secondaryLabel),
             tertiaryLabel,
             input.metadata.supportsOpus)
