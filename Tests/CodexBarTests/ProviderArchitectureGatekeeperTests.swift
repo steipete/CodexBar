@@ -1064,13 +1064,13 @@ struct ProviderArchitectureGatekeeperTests {
             reason: "This named provider resolver supplies its fixed provider identity to the shared presentation helper."),
         SuppressedProviderReference(
             path: "Sources/CodexBar/UsageStore+HistoricalPace.swift",
-            line: 132,
+            line: 154,
             anchor: "let ownership = self.codexOwnershipContext(preferredEmail: snapshot.accountEmail(for: .codex))",
             expectedProviderIDs: ["codex"],
             reason: "This provider-specific app branch passes its already-selected identity to a shared helper."),
         SuppressedProviderReference(
             path: "Sources/CodexBar/UsageStore+HistoricalPace.swift",
-            line: 191,
+            line: 213,
             anchor: "provider: .codex,",
             expectedProviderIDs: ["codex"],
             reason: "This provider-specific app branch passes its already-selected identity to a shared helper."),
@@ -1765,7 +1765,7 @@ struct ProviderArchitectureGatekeeperTests {
             reason: "This exact shared renderer maps provider-owned presentation data into the generic UI model."),
         AllowedProviderConstruct(
             path: "Sources/CodexBar/MenuBarLayout.swift",
-            line: 572,
+            line: 738,
             anchor: "ProviderDescriptorRegistry.descriptor(for: provider ?? .codex).presentation.primarySemanticWindow)",
             expectedProviderIDs: ["codex"],
             expectedReferenceCount: 2,
@@ -2293,7 +2293,7 @@ struct ProviderArchitectureGatekeeperTests {
             reason: "This exact app-runtime bridge coordinates provider-owned state through the shared controller."),
         AllowedProviderConstruct(
             path: "Sources/CodexBar/SettingsStore.swift",
-            line: 1174,
+            line: 1175,
             anchor: "if !seen.contains(.factory), let zaiIndex = ordered.firstIndex(of: .zai) {",
             expectedProviderIDs: ["factory", "minimax", "zai"],
             expectedReferenceCount: 8,
@@ -2478,7 +2478,7 @@ struct ProviderArchitectureGatekeeperTests {
             reason: "This exact shared renderer maps provider-owned presentation data into the generic UI model."),
         AllowedProviderConstruct(
             path: "Sources/CodexBar/StatusItemController+CountdownRefresh.swift",
-            line: 123,
+            line: 162,
             anchor: "if providers.contains(.codex) {",
             expectedProviderIDs: ["codex"],
             expectedReferenceCount: 2,
@@ -2518,7 +2518,7 @@ struct ProviderArchitectureGatekeeperTests {
             reason: "This exact app-runtime bridge coordinates provider-owned state through the shared controller."),
         AllowedProviderConstruct(
             path: "Sources/CodexBar/StatusItemController+MenuBarLayout.swift",
-            line: 165,
+            line: 206,
             anchor: "if provider == .codex,",
             expectedProviderIDs: ["codex"],
             expectedReferenceCount: 1,
@@ -2646,7 +2646,7 @@ struct ProviderArchitectureGatekeeperTests {
             reason: "This exact app-runtime bridge coordinates provider-owned state through the shared controller."),
         AllowedProviderConstruct(
             path: "Sources/CodexBar/UsageStore+HistoricalPace.swift",
-            line: 185,
+            line: 207,
             anchor: "let codexSnapshot = self.snapshots[.codex]",
             expectedProviderIDs: ["codex"],
             expectedReferenceCount: 1,

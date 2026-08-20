@@ -8,13 +8,88 @@ enum PercentWindow: String, CaseIterable, Codable, Hashable, Sendable {
     case automatic
 }
 
-/// Deliberately mirrors `PercentWindow` but stays a separate type so predicate persistence
-/// is decoupled from render-window naming.
+/// Comparison unit of a conditional metric: drives the threshold range, the stepper increment, and the
+/// unit label shown next to the threshold field.
+enum MenuBarConditionalMetricKind: Sendable {
+    case percent
+    case signedPercent
+    case hours
+    case currencyUSD
+}
+
+/// What a conditional predicate measures. Persistence keys off the case names, so the first four keep
+/// their original spelling: a library written before the metric set grew still decodes unchanged.
+/// Declaration order is the editor picker's order: percentages, direct lanes, time to reset, pace,
+/// run-out, money.
 enum MenuBarConditionalMetric: String, CaseIterable, Codable, Hashable, Sendable {
     case session
     case weekly
     case scopedWeekly
     case automatic
+    case primaryLane
+    case secondaryLane
+    case tertiaryLane
+    case sessionResetsIn
+    case weeklyResetsIn
+    case scopedWeeklyResetsIn
+    case automaticResetsIn
+    case sessionPace
+    case weeklyPace
+    case automaticPace
+    case runsOutIn
+    case balance
+    case costToday
+    case cost30d
+
+    var kind: MenuBarConditionalMetricKind {
+        switch self {
+        case .session, .weekly, .scopedWeekly, .automatic,
+             .primaryLane, .secondaryLane, .tertiaryLane:
+            .percent
+        case .sessionPace, .weeklyPace, .automaticPace:
+            .signedPercent
+        case .sessionResetsIn, .weeklyResetsIn, .scopedWeeklyResetsIn, .automaticResetsIn, .runsOutIn:
+            .hours
+        case .balance, .costToday, .cost30d:
+            .currencyUSD
+        }
+    }
+
+    /// Whether a used/remaining select applies. Percent windows and lanes expose both readings of the
+    /// same window; balance exposes spend against remaining credit. Pace is already signed, and a reset
+    /// countdown or a cost total has no complement.
+    var supportsDirection: Bool {
+        switch self {
+        case .session, .weekly, .scopedWeekly, .automatic,
+             .primaryLane, .secondaryLane, .tertiaryLane, .balance:
+            true
+        default:
+            false
+        }
+    }
+
+    var thresholdRange: ClosedRange<Double> {
+        switch self.kind {
+        case .percent: 0...100
+        case .signedPercent: -100...100
+        // One year, so no realistic reset or run-out window is clamped.
+        case .hours: 0...8760
+        case .currencyUSD: 0...1_000_000
+        }
+    }
+
+    var thresholdStep: Double {
+        self.kind == .hours ? 0.5 : 1
+    }
+
+    /// Unit shown beside the threshold field and appended in the conditional summary.
+    var thresholdUnit: String {
+        switch self.kind {
+        case .percent, .signedPercent: "%"
+        case .hours: "h"
+        case .currencyUSD: "USD"
+        }
+    }
 }
 
 enum MenuBarConditionalComparison: String, CaseIterable, Codable, Hashable, Sendable {
@@ -70,10 +145,57 @@ enum MenuBarConditionalCombinator: String, CaseIterable, Codable, Hashable, Send
     case or
 }
 
+/// Which reading of a metric a predicate compares.
+enum MenuBarConditionalDirection: String, CaseIterable, Codable, Hashable, Sendable {
+    case used
+    case remaining
+}
+
 struct MenuBarConditionalPredicate: Codable, Hashable, Sendable {
     var metric: MenuBarConditionalMetric
+    /// Which reading of `metric` to compare. Normalized back to `.used` when the metric has no
+    /// complement, so a stored direction can never contradict the metric.
+    var direction: MenuBarConditionalDirection
     var comparison: MenuBarConditionalComparison
     var threshold: Double
+
+    init(
+        metric: MenuBarConditionalMetric,
+        direction: MenuBarConditionalDirection = .used,
+        comparison: MenuBarConditionalComparison,
+        threshold: Double)
+    {
+        self.metric = metric
+        self.direction = direction
+        self.comparison = comparison
+        self.threshold = threshold
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case metric, direction, comparison, threshold
+    }
+
+    /// Predicates persisted before `direction` existed compared used percentages, so a missing key
+    /// decodes as `.used` and keeps its original meaning. The synthesized decoder would instead reject
+    /// the whole predicate.
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.metric = try container.decode(MenuBarConditionalMetric.self, forKey: .metric)
+        self.direction = try container.decodeIfPresent(MenuBarConditionalDirection.self, forKey: .direction)
+            ?? .used
+        self.comparison = try container.decode(MenuBarConditionalComparison.self, forKey: .comparison)
+        self.threshold = try container.decode(Double.self, forKey: .threshold)
+    }
+
+    /// Clamps the threshold into the metric's unit range and drops a direction the metric cannot use.
+    func normalized() -> Self {
+        var copy = self
+        copy.threshold = self.threshold.clamped(to: self.metric.thresholdRange)
+        if !self.metric.supportsDirection {
+            copy.direction = .used
+        }
+        return copy
+    }
 }
 
 struct MenuBarConditionalClause: Codable, Hashable, Sendable {
@@ -107,7 +229,7 @@ struct MenuBarLayoutConditional: Codable, Hashable, Sendable {
     private mutating func normalize() {
         var normalized = self.clauses.prefix(4).map { clause in
             var clause = clause
-            clause.predicate.threshold = min(max(clause.predicate.threshold, 0), 100)
+            clause.predicate = clause.predicate.normalized()
             return clause
         }
         if normalized.isEmpty {
@@ -159,7 +281,8 @@ struct MenuBarLayoutConditional: Codable, Hashable, Sendable {
     /// resolving across launches, and once the user edits or clears the library the stored array wins,
     /// so a deleted entry is never reseeded.
     ///
-    /// Thresholds compare the window's **used** percentage, matching `evaluatesTrue`.
+    /// Percent thresholds compare the window's **used** percentage and countdown thresholds compare hours
+    /// until the window resets, both matching `evaluatesTrue`.
     static func shippedLibrary() -> [MenuBarLayoutConditional] {
         [
             MenuBarLayoutConditional(
@@ -195,6 +318,14 @@ struct MenuBarLayoutConditional: Codable, Hashable, Sendable {
                 clauses: [self.clause(.scopedWeekly, .greaterThan, 60)],
                 thenToken: .percent(window: .scopedWeekly),
                 elseToken: .hidden),
+            MenuBarLayoutConditional(
+                id: self.fixedID("98257E78-8E87-4BE4-A917-73F98310143C"),
+                // Composed from the two palette token labels it switches between, so the chip always
+                // reads in the same words as the tokens themselves in every language.
+                name: "\(L("menu_bar_layout_token_auto")) / \(L("menu_bar_layout_token_resets_in"))",
+                clauses: [self.clause(.automatic, .greaterThanOrEqual, 1, direction: .remaining)],
+                thenToken: .percent(window: .automatic),
+                elseToken: .resetCountdown),
         ]
     }
 
@@ -202,6 +333,7 @@ struct MenuBarLayoutConditional: Codable, Hashable, Sendable {
         _ metric: MenuBarConditionalMetric,
         _ comparison: MenuBarConditionalComparison,
         _ threshold: Double,
+        direction: MenuBarConditionalDirection = .used,
         combinator: MenuBarConditionalCombinator? = nil)
         -> MenuBarConditionalClause
     {
@@ -209,6 +341,7 @@ struct MenuBarLayoutConditional: Codable, Hashable, Sendable {
             combinator: combinator,
             predicate: MenuBarConditionalPredicate(
                 metric: metric,
+                direction: direction,
                 comparison: comparison,
                 threshold: threshold))
     }
@@ -220,6 +353,18 @@ struct MenuBarLayoutConditional: Codable, Hashable, Sendable {
             preconditionFailure("Shipped conditional identity must be a valid UUID: \(string)")
         }
         return id
+    }
+}
+
+/// Array element wrapper that tolerates one undecodable conditional instead of failing the whole
+/// library. A conditional using a metric this build does not recognize — a downgrade reading a library
+/// written by a newer release — must not take every other entry down with it; layouts referencing a
+/// dropped entry already render the dangling-conditional placeholder.
+struct LenientMenuBarLayoutConditional: Decodable {
+    let value: MenuBarLayoutConditional?
+
+    init(from decoder: Decoder) throws {
+        self.value = try? MenuBarLayoutConditional(from: decoder)
     }
 }
 
@@ -339,6 +484,27 @@ enum MenuBarLayoutBalanceResolver {
         // Provider-specific by design: only OpenRouter exposes its credit balance as the "Remaining" detail row.
         guard provider == .openrouter else { return nil }
         return snapshot?.detailRow(label: "Remaining")?.value
+    }
+
+    /// Numeric USD amounts behind OpenRouter's "Credits" detail rows. The plugin formats both rows as
+    /// `$` + `toFixed(2)` (`Sources/CodexBarCore/Resources/Plugins/openrouter.js`), so the amounts are
+    /// USD with no grouping separators; the plugin never populates `providerCost`, so there is nothing
+    /// structured to read instead.
+    static func balanceAmountsUSD(
+        provider: UsageProvider,
+        snapshot: UsageSnapshot?)
+        -> (remaining: Double?, used: Double?)
+    {
+        // Provider-specific by design: only OpenRouter reports credit amounts in its "Credits" detail rows.
+        guard provider == .openrouter else { return (nil, nil) }
+        return (
+            self.amount(snapshot?.detailRow(label: "Remaining")?.value),
+            self.amount(snapshot?.detailRow(label: "Used")?.value))
+    }
+
+    private static func amount(_ text: String?) -> Double? {
+        guard let text else { return nil }
+        return Double(text.filter { $0.isNumber || $0 == "." || $0 == "-" })
     }
 }
 
@@ -714,6 +880,21 @@ extension MenuBarLayout {
             token.appendFlattened(into: &tokens, conditionals: byID, depth: 0)
         }
         return tokens
+    }
+
+    /// Every predicate reachable from the conditionals this layout places, including nested branches
+    /// (depth-capped by `flattenedTokens`). Data-dependency gates use this to see what the conditionals
+    /// read: a predicate on cost or time to reset has no matching display token to detect.
+    func referencedConditionalPredicates(
+        conditionals: [MenuBarLayoutConditional])
+        -> [MenuBarConditionalPredicate]
+    {
+        let byID = Dictionary(conditionals.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        return self.flattenedTokens(conditionals: conditionals)
+            .flatMap { token -> [MenuBarConditionalPredicate] in
+                guard case let .conditional(id) = token, let conditional = byID[id] else { return [] }
+                return conditional.clauses.map(\.predicate)
+            }
     }
 
     /// Returns a layout with every `.conditional(id:)` token matching `id` removed from both lines,

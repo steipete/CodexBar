@@ -11,6 +11,16 @@ struct MenuBarLayoutWindows {
     let automatic: RateWindow?
 }
 
+/// Menu-bar cost values resolved in one pass: the display strings in the user's preferred currency plus
+/// the same amounts in USD, which conditional predicates compare so a threshold does not shift when the
+/// display currency does.
+struct MenuBarLayoutCostValues {
+    let today: String?
+    let last30Days: String?
+    let todayUSD: Double?
+    let last30DaysUSD: Double?
+}
+
 extension StatusItemController {
     func applyStoredMenuBarLayoutIfNeeded(
         provider: UsageProvider,
@@ -74,15 +84,20 @@ extension StatusItemController {
         let windows = self.menuBarLayoutWindows(provider: provider, snapshot: snapshot, now: now)
         let scopedNamed = MenuBarLayoutSemanticWindowResolver.scopedWeeklyNamedWindow(snapshot: snapshot)
         let paceWindow = windows.weekly ?? windows.automatic
-        let runsOut = paceWindow
-            .flatMap {
-                self.store.weeklyPace(
-                    provider: provider,
-                    window: $0,
-                    now: now)
-            }
+        // Bind the pace itself rather than only its label: `etaSeconds` is the numeric run-out that
+        // conditional predicates compare, and resolving it twice would score the window twice.
+        let pace = paceWindow.flatMap {
+            self.store.weeklyPace(
+                provider: provider,
+                window: $0,
+                now: now)
+        }
+        let runsOut = pace
             .flatMap { UsagePaceText.weeklyDetail(provider: provider, pace: $0, now: now).rightLabel }
-        let costStrings = self.menuBarLayoutCostStrings(provider: provider, now: now)
+        let costs = self.menuBarLayoutCosts(provider: provider, now: now)
+        let balanceAmounts = MenuBarLayoutBalanceResolver.balanceAmountsUSD(
+            provider: provider,
+            snapshot: snapshot)
         let providerName = L(self.store.metadata(for: provider).displayName)
         let accountLabel = self.menuBarLayoutAccountLabel(provider: provider, snapshot: snapshot)
         let automatic = MenuBarLayoutRenderWindow(windows.automatic)
@@ -120,8 +135,27 @@ extension StatusItemController {
                 now: now),
             runsOut: runsOut,
             balance: MenuBarLayoutBalanceResolver.balance(provider: provider, snapshot: snapshot),
-            costToday: costStrings.today,
-            cost30d: costStrings.last30Days)
+            costToday: costs.today,
+            cost30d: costs.last30Days,
+            metrics: MenuBarLayoutRenderMetrics(
+                sessionPaceDelta: self.store.menuBarLayoutPaceDelta(
+                    provider: provider,
+                    window: windows.session,
+                    now: now),
+                weeklyPaceDelta: self.store.menuBarLayoutPaceDelta(
+                    provider: provider,
+                    window: windows.weekly,
+                    now: now,
+                    minimumElapsedPercent: 1),
+                automaticPaceDelta: self.store.menuBarLayoutPaceDelta(
+                    provider: provider,
+                    window: windows.automatic,
+                    now: now),
+                runsOutMinutes: pace?.etaSeconds.map { Int(($0 / 60).rounded()) },
+                balanceRemainingUSD: balanceAmounts.remaining,
+                balanceUsedUSD: balanceAmounts.used,
+                costTodayUSD: costs.todayUSD,
+                cost30dUSD: costs.last30DaysUSD))
     }
 
     func menuBarLayoutAccountLabel(provider: UsageProvider, snapshot: UsageSnapshot?) -> String? {
@@ -132,28 +166,35 @@ extension StatusItemController {
             : rawAccountLabel
     }
 
-    func menuBarLayoutCostStrings(
+    func menuBarLayoutCosts(
         provider: UsageProvider,
         now: Date = .init())
-        -> (today: String?, last30Days: String?)
+        -> MenuBarLayoutCostValues
     {
         let snapshot = self.store.tokenSnapshotForCurrentProviderConfig(for: provider)?.snapshot
         let sourceCurrencyCode = snapshot?.currencyCode ?? "USD"
         let preferredCurrencyCode = self.settings.preferredCurrencyCode
-
-        let today = MenuBarLayoutCostResolver.todayCostUSD(snapshot: snapshot, now: now).map {
+        let todayAmount = MenuBarLayoutCostResolver.todayCostUSD(snapshot: snapshot, now: now)
+        let last30DaysAmount = snapshot?.last30DaysCostUSD
+        let display = { (value: Double) in
             UsageFormatter.convertedCostString(
-                $0,
+                value,
                 preferredCurrency: preferredCurrencyCode,
                 providerCurrency: sourceCurrencyCode)
         }
-        let last30Days = snapshot?.last30DaysCostUSD.map {
-            UsageFormatter.convertedCostString(
-                $0,
-                preferredCurrency: preferredCurrencyCode,
-                providerCurrency: sourceCurrencyCode)
+        // Thresholds are USD, so a provider reporting another currency is converted here. Without a rate
+        // `convertedCost` returns the source amount, which beats dropping the datum entirely.
+        let toUSD = { (value: Double) in
+            UsageFormatter.convertedCost(
+                value,
+                preferredCurrency: "USD",
+                providerCurrency: sourceCurrencyCode).value
         }
-        return (today, last30Days)
+        return MenuBarLayoutCostValues(
+            today: todayAmount.map(display),
+            last30Days: last30DaysAmount.map(display),
+            todayUSD: todayAmount.map(toUSD),
+            last30DaysUSD: last30DaysAmount.map(toUSD))
     }
 
     func menuBarLayoutWindows(

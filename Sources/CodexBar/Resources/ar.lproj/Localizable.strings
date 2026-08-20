@@ -1514,6 +1514,10 @@
 "menu_bar_layout_conditional_name" = "الاسم";
 "menu_bar_layout_conditional_name_placeholder" = "مثال: فحص الجلسة";
 "menu_bar_layout_conditional_name_error" = "أدخل اسماً فريداً";
+"menu_bar_layout_conditional_used" = "مستخدم";
+"menu_bar_layout_conditional_remaining" = "متبقٍ";
+"menu_bar_layout_conditional_metric_resets_in" = "تتم إعادة تعيين %@ خلال";
+"menu_bar_layout_conditional_metric_scoped_weekly" = "أسبوعي محدد النطاق";
 "menu_bar_layout_conditional_duplicate" = "تكرار";
 "menu_bar_layout_conditional_or" = "أو";
 "menu_bar_layout_conditional_add_condition" = "إضافة شرط";

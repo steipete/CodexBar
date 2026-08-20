@@ -1513,6 +1513,10 @@
 "menu_bar_layout_conditional_name" = "Название";
 "menu_bar_layout_conditional_name_placeholder" = "напр., Проверка сеанса";
 "menu_bar_layout_conditional_name_error" = "Введите уникальное название";
+"menu_bar_layout_conditional_used" = "использовано";
+"menu_bar_layout_conditional_remaining" = "осталось";
+"menu_bar_layout_conditional_metric_resets_in" = "сброс %@ через";
+"menu_bar_layout_conditional_metric_scoped_weekly" = "Недельный по области";
 "menu_bar_layout_conditional_duplicate" = "Дублировать";
 "menu_bar_layout_conditional_summary" = "Если %1$@, то показать %2$@, иначе показать %3$@";
 "menu_bar_layout_conditional_copy_name" = "%@ (копия)";

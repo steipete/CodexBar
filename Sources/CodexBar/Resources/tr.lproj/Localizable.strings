@@ -1514,6 +1514,10 @@
 "menu_bar_layout_conditional_name" = "Ad";
 "menu_bar_layout_conditional_name_placeholder" = "örn. Oturum kontrolü";
 "menu_bar_layout_conditional_name_error" = "Benzersiz bir ad girin";
+"menu_bar_layout_conditional_used" = "kullanılan";
+"menu_bar_layout_conditional_remaining" = "kalan";
+"menu_bar_layout_conditional_metric_resets_in" = "%@ sıfırlanma süresi";
+"menu_bar_layout_conditional_metric_scoped_weekly" = "Kapsama göre haftalık";
 "menu_bar_layout_conditional_duplicate" = "Çoğalt";
 "menu_bar_layout_conditional_summary" = "Eğer %1$@ ise %2$@, değilse %3$@ göster";
 "menu_bar_layout_conditional_copy_name" = "%@ (kopya)";

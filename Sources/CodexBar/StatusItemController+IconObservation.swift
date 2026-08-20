@@ -104,11 +104,12 @@ extension StatusItemController {
         guard !resolution.usesLegacyRendering else { return nil }
 
         let tokens = resolution.layout.flattenedTokens(conditionals: self.settings.menuBarLayoutConditionals)
-        let showsToday = tokens.contains(.costToday)
-        let showsLast30Days = tokens.contains(.cost30d)
+        let metrics = self.referencedConditionalMetrics(resolution: resolution)
+        let showsToday = tokens.contains(.costToday) || metrics.contains(.costToday)
+        let showsLast30Days = tokens.contains(.cost30d) || metrics.contains(.cost30d)
         guard showsToday || showsLast30Days else { return nil }
 
-        let costs = self.menuBarLayoutCostStrings(provider: provider)
+        let costs = self.menuBarLayoutCosts(provider: provider)
         return [
             "today=\(showsToday ? costs.today ?? "nil" : "unused")",
             "last30Days=\(showsLast30Days ? costs.last30Days ?? "nil" : "unused")",
@@ -121,10 +122,12 @@ extension StatusItemController {
         -> String?
     {
         let resolution = self.settings.menuBarLayoutResolution(for: provider)
-        guard !resolution.usesLegacyRendering,
-              resolution.layout.flattenedTokens(conditionals: self.settings.menuBarLayoutConditionals)
-                  .contains(.balance)
-        else { return nil }
+        guard !resolution.usesLegacyRendering else { return nil }
+        let showsBalance = resolution.layout
+            .flattenedTokens(conditionals: self.settings.menuBarLayoutConditionals)
+            .contains(.balance)
+            || self.referencedConditionalMetrics(resolution: resolution).contains(.balance)
+        guard showsBalance else { return nil }
         return MenuBarLayoutBalanceResolver.balance(provider: provider, snapshot: snapshot)
     }
 
@@ -132,6 +135,10 @@ extension StatusItemController {
     /// which move the percent fields above. Without this contribution a `historicalPaceRevision` bump
     /// wakes the observer but leaves the signature unchanged, so a custom pace token would keep its
     /// stale value until an unrelated icon change forces a redraw.
+    ///
+    /// Conditional predicates on pace and run-out have the same dependency with no token to detect, so
+    /// they widen the window set and contribute the run-out estimate itself: `runsOutMinutes` moves at
+    /// minute granularity while the pace text only moves at whole-percent granularity.
     private func storedMenuBarLayoutPaceSignature(
         for provider: UsageProvider,
         snapshot: UsageSnapshot?)
@@ -140,16 +147,22 @@ extension StatusItemController {
         let resolution = self.settings.menuBarLayoutResolution(for: provider)
         guard !resolution.usesLegacyRendering else { return nil }
 
-        let paceWindows = Set(resolution.layout
+        let metrics = self.referencedConditionalMetrics(resolution: resolution)
+        var paceWindows = Set(resolution.layout
             .flattenedTokens(conditionals: self.settings.menuBarLayoutConditionals)
             .compactMap { token -> PercentWindow? in
                 guard case let .pace(window) = token else { return nil }
                 return window
             })
-        guard !paceWindows.isEmpty else { return nil }
+        if metrics.contains(.sessionPace) { paceWindows.insert(.session) }
+        if metrics.contains(.weeklyPace) { paceWindows.insert(.weekly) }
+        if metrics.contains(.automaticPace) { paceWindows.insert(.automatic) }
+        let needsRunsOut = metrics.contains(.runsOutIn)
+        guard !paceWindows.isEmpty || needsRunsOut else { return nil }
 
-        let windows = self.menuBarLayoutWindows(provider: provider, snapshot: snapshot, now: Date())
-        return PercentWindow.allCases
+        let now = Date()
+        let windows = self.menuBarLayoutWindows(provider: provider, snapshot: snapshot, now: now)
+        var components = PercentWindow.allCases
             .filter(paceWindows.contains)
             .map { percentWindow in
                 let window: RateWindow? = switch percentWindow {
@@ -161,10 +174,29 @@ extension StatusItemController {
                 let pace = self.store.menuBarLayoutPaceText(
                     provider: provider,
                     window: window,
+                    now: now,
                     minimumElapsedPercent: percentWindow == .weekly ? 1 : nil)
                 return "\(percentWindow.rawValue)=\(pace ?? "nil")"
             }
-            .joined(separator: ",")
+        if needsRunsOut {
+            let runsOutMinutes = (windows.weekly ?? windows.automatic)
+                .flatMap { self.store.weeklyPace(provider: provider, window: $0, now: now) }
+                .flatMap(\.etaSeconds)
+                .map { Int(($0 / 60).rounded()) }
+            components.append("runsOut=\(runsOutMinutes.map { String($0) } ?? "nil")")
+        }
+        return components.joined(separator: ",")
+    }
+
+    /// Metrics every conditional the layout places reads. Predicates on cost, balance, pace, run-out, or
+    /// a direct lane create data dependencies that no placed display token reveals.
+    private func referencedConditionalMetrics(
+        resolution: MenuBarLayoutResolution)
+        -> Set<MenuBarConditionalMetric>
+    {
+        Set(resolution.layout
+            .referencedConditionalPredicates(conditionals: self.settings.menuBarLayoutConditionals)
+            .map(\.metric))
     }
 
     /// Direct lane tokens read `snapshot.tertiary` independently of the legacy icon percent
@@ -179,7 +211,15 @@ extension StatusItemController {
         let resolution = self.settings.menuBarLayoutResolution(for: provider)
         guard !resolution.usesLegacyRendering else { return nil }
 
-        let lanes = resolution.layout.selectedLanes
+        // `selectedLanes` never walks conditional branches, so read the flattened tokens instead and
+        // fold in the lanes conditional predicates compare.
+        var lanes = Set(resolution.layout
+            .flattenedTokens(conditionals: self.settings.menuBarLayoutConditionals)
+            .compactMap(\.selectedLane))
+        let metrics = self.referencedConditionalMetrics(resolution: resolution)
+        if metrics.contains(.primaryLane) { lanes.insert(.primary) }
+        if metrics.contains(.secondaryLane) { lanes.insert(.secondary) }
+        if metrics.contains(.tertiaryLane) { lanes.insert(.tertiary) }
         guard !lanes.isEmpty else { return nil }
 
         let windows = self.menuBarLayoutWindows(provider: provider, snapshot: snapshot, now: Date())

@@ -30,6 +30,10 @@ extension StatusItemController {
                 if tokens.contains(.resetAbsolute) {
                     absoluteResetDates.append(contentsOf: resetDates)
                 }
+                delays += self.menuBarConditionalResetDelays(
+                    provider: provider,
+                    resolution: resolution,
+                    now: now)
                 continue
             }
 
@@ -110,6 +114,41 @@ extension StatusItemController {
                 self.menuBarCountdownRefreshEpsilon,
                 nextTextChange.timeIntervalSince(now) + self.menuBarCountdownRefreshEpsilon)
         }.min()
+    }
+
+    /// Wake at `resetsAt - threshold` for every placed reset-countdown predicate. Nothing else in the
+    /// layout changes at that instant, so without this the branch would only flip on the next unrelated
+    /// refresh. Run-out predicates are deliberately excluded: their estimate drifts with usage rather
+    /// than crossing a fixed instant, and `menuBarWeeklyPaceRefreshDelays` already covers that lane.
+    private func menuBarConditionalResetDelays(
+        provider: UsageProvider,
+        resolution: MenuBarLayoutResolution,
+        now: Date)
+        -> [TimeInterval]
+    {
+        let predicates = resolution.layout
+            .referencedConditionalPredicates(conditionals: self.settings.menuBarLayoutConditionals)
+            .filter { $0.metric.kind == .hours && $0.metric != .runsOutIn }
+        guard !predicates.isEmpty else { return [] }
+
+        let snapshot = self.store.menuBarSnapshot(for: provider.instanceID)
+        let windows = self.menuBarLayoutWindows(provider: provider, snapshot: snapshot, now: now)
+        let scopedWeekly = MenuBarLayoutSemanticWindowResolver
+            .scopedWeeklyNamedWindow(snapshot: snapshot)?.window
+        return predicates.compactMap { predicate -> TimeInterval? in
+            let window: RateWindow? = switch predicate.metric {
+            case .sessionResetsIn: windows.session
+            case .weeklyResetsIn: windows.weekly
+            case .scopedWeeklyResetsIn: scopedWeekly
+            case .automaticResetsIn: windows.automatic
+            default: nil
+            }
+            guard let resetsAt = window?.resetsAt else { return nil }
+            let flipAt = resetsAt.addingTimeInterval(-predicate.threshold * 3600)
+            let delay = flipAt.timeIntervalSince(now)
+            guard delay > 0 else { return nil }
+            return delay + Self.menuBarCountdownRefreshEpsilon
+        }
     }
 
     private func menuBarRefreshProviders() -> [UsageProvider] {

@@ -880,7 +880,8 @@ extension SettingsStore {
         guard let data = userDefaults.data(forKey: "menuBarLayoutConditionals") else {
             return MenuBarLayoutConditional.shippedLibrary()
         }
-        return (try? JSONDecoder().decode([MenuBarLayoutConditional].self, from: data)) ?? []
+        return (try? JSONDecoder().decode([LenientMenuBarLayoutConditional].self, from: data))?
+            .compactMap(\.value) ?? []
     }
 
     private static func loadMenuBarLayoutOverrides(userDefaults: UserDefaults) -> [String: MenuBarLayout] {

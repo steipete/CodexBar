@@ -227,7 +227,8 @@ struct MenuBarLayoutRendererTests {
             runsOut: nil,
             balance: nil,
             costToday: nil,
-            cost30d: nil)
+            cost30d: nil,
+            metrics: .unavailable)
         let layout = MenuBarLayout(lines: [[
             .icon,
             .providerName,
@@ -318,7 +319,8 @@ struct MenuBarLayoutRendererTests {
             runsOut: nil,
             balance: nil,
             costToday: nil,
-            cost30d: nil)
+            cost30d: nil,
+            metrics: .unavailable)
 
         let output = renderer.render(
             layout: MenuBarLayout(lines: [[.percent(window: .session), .separatorDot, .pace(window: .session)]]),
@@ -536,7 +538,8 @@ struct MenuBarLayoutRendererTests {
             runsOut: nil,
             balance: nil,
             costToday: nil,
-            cost30d: nil)
+            cost30d: nil,
+            metrics: .unavailable)
 
         let output = renderer.render(
             layout: MenuBarLayout(lines: [[.resetAbsolute]]),
@@ -782,7 +785,8 @@ struct MenuBarLayoutRendererTests {
             runsOut: nil,
             balance: nil,
             costToday: nil,
-            cost30d: nil)
+            cost30d: nil,
+            metrics: .unavailable)
 
         let output = renderer.render(
             layout: MenuBarLayout(lines: [[.conditional(id: conditional.id)]]),
@@ -1059,22 +1063,245 @@ struct MenuBarLayoutRendererTests {
         #expect(output.attributedTitle.string == "in 2h")
     }
 
+    /// The fixture's session resets one hour out, so a `< 2h` countdown predicate holds. Rewinding the
+    /// clock four hours puts the reset five hours out and the same predicate must stop holding.
+    @Test
+    func `resets-in predicate picks the then branch inside the threshold`() {
+        let renderer = MenuBarLayoutRenderer()
+        let conditional = MenuBarLayoutConditional(
+            clauses: [self.clause(metric: .sessionResetsIn, comparison: .lessThan, threshold: 2)],
+            thenToken: .percent(window: .session),
+            elseToken: .resetCountdown)
+        let layout = MenuBarLayout(lines: [[.conditional(id: conditional.id)]])
+
+        let inside = renderer.render(
+            layout: layout,
+            data: self.data(),
+            icon: nil,
+            options: self.options(conditionals: [conditional]))
+        #expect(inside.attributedTitle.string == "5h 25%")
+
+        let outside = renderer.render(
+            layout: layout,
+            data: self.data(),
+            icon: nil,
+            options: self.options(
+                now: self.now.addingTimeInterval(-4 * 60 * 60),
+                conditionals: [conditional]))
+        #expect(outside.attributedTitle.string == "in 6h")
+    }
+
+    @Test
+    func `session percent and resets-in combine with and`() {
+        let renderer = MenuBarLayoutRenderer()
+        let layout = { (conditional: MenuBarLayoutConditional) in
+            MenuBarLayout(lines: [[.conditional(id: conditional.id)]])
+        }
+        let passing = MenuBarLayoutConditional(
+            clauses: [
+                self.clause(metric: .session, comparison: .greaterThan, threshold: 20),
+                self.clause(
+                    metric: .sessionResetsIn,
+                    comparison: .lessThan,
+                    threshold: 2,
+                    combinator: .and),
+            ],
+            thenToken: .percent(window: .session),
+            elseToken: .resetCountdown)
+        let failing = MenuBarLayoutConditional(
+            clauses: [
+                self.clause(metric: .session, comparison: .greaterThan, threshold: 90),
+                self.clause(
+                    metric: .sessionResetsIn,
+                    comparison: .lessThan,
+                    threshold: 2,
+                    combinator: .and),
+            ],
+            thenToken: .percent(window: .session),
+            elseToken: .resetCountdown)
+
+        let then = renderer.render(
+            layout: layout(passing),
+            data: self.data(),
+            icon: nil,
+            options: self.options(conditionals: [passing]))
+        #expect(then.attributedTitle.string == "5h 25%")
+
+        let otherwise = renderer.render(
+            layout: layout(failing),
+            data: self.data(),
+            icon: nil,
+            options: self.options(conditionals: [failing]))
+        #expect(otherwise.attributedTitle.string == "in 2h")
+    }
+
+    /// Session is 25% used, so 75% remains: the same threshold must flip with the direction.
+    @Test
+    func `remaining direction inverts the percent reading`() {
+        #expect(self.branchText(self.clause(
+            metric: .session,
+            comparison: .greaterThan,
+            threshold: 50,
+            direction: .remaining)) == "5h 25%")
+        #expect(self.branchText(self.clause(
+            metric: .session,
+            comparison: .greaterThan,
+            threshold: 50,
+            direction: .used)) == "in 2h")
+    }
+
+    @Test
+    func `balance direction selects used or remaining amount`() {
+        #expect(self.branchText(self.clause(
+            metric: .balance,
+            comparison: .greaterThan,
+            threshold: 10,
+            direction: .remaining)) == "5h 25%")
+        #expect(self.branchText(self.clause(
+            metric: .balance,
+            comparison: .greaterThan,
+            threshold: 10,
+            direction: .used)) == "in 2h")
+    }
+
+    @Test
+    func `pace run-out and cost predicates read numeric metrics`() {
+        #expect(self.branchText(self.clause(
+            metric: .weeklyPace,
+            comparison: .greaterThan,
+            threshold: 10)) == "5h 25%")
+        // 2400 minutes == 40 hours.
+        #expect(self.branchText(self.clause(
+            metric: .runsOutIn,
+            comparison: .lessThan,
+            threshold: 48)) == "5h 25%")
+        #expect(self.branchText(self.clause(
+            metric: .runsOutIn,
+            comparison: .lessThan,
+            threshold: 12)) == "in 2h")
+        #expect(self.branchText(self.clause(
+            metric: .costToday,
+            comparison: .greaterThanOrEqual,
+            threshold: 1)) == "5h 25%")
+        #expect(self.branchText(self.clause(
+            metric: .tertiaryLane,
+            comparison: .greaterThan,
+            threshold: 10)) == "5h 25%")
+    }
+
+    @Test
+    func `predicate on a metric with no datum evaluates false`() {
+        let renderer = MenuBarLayoutRenderer()
+        let conditional = MenuBarLayoutConditional(
+            clauses: [self.clause(metric: .cost30d, comparison: .greaterThanOrEqual, threshold: 0)],
+            thenToken: .percent(window: .session),
+            elseToken: .resetCountdown)
+        let output = renderer.render(
+            layout: MenuBarLayout(lines: [[.conditional(id: conditional.id)]]),
+            data: self.data(metrics: .unavailable),
+            icon: nil,
+            options: self.options(conditionals: [conditional]))
+        #expect(output.attributedTitle.string == "in 2h")
+    }
+
+    /// Regression guard for the title cache: a countdown predicate flips with nothing but the clock, and
+    /// the automatic window's reset text — the only time-derived key component before this — does not
+    /// distinguish the two renders here.
+    @Test
+    func `time based conditional flips when only the clock advances`() {
+        let renderer = MenuBarLayoutRenderer()
+        let conditional = MenuBarLayoutConditional(
+            clauses: [self.clause(metric: .weeklyResetsIn, comparison: .lessThan, threshold: 48)],
+            thenToken: .percent(window: .session),
+            elseToken: .hidden)
+        let layout = MenuBarLayout(lines: [[.conditional(id: conditional.id)]])
+        let data = self.data()
+
+        // Weekly resets 3 days out: 72h > 48h, so the else branch hides the token.
+        let before = renderer.render(
+            layout: layout,
+            data: data,
+            icon: nil,
+            options: self.options(conditionals: [conditional]))
+        #expect(before.attributedTitle.string.isEmpty)
+
+        // Two days later the same weekly reset is 24h out and the then branch must win.
+        let after = renderer.render(
+            layout: layout,
+            data: data,
+            icon: nil,
+            options: self.options(
+                now: self.now.addingTimeInterval(2 * 24 * 60 * 60),
+                conditionals: [conditional]))
+        #expect(after.attributedTitle.string == "5h 25%")
+    }
+
+    /// Renders a single-clause conditional whose then branch is the session percent and whose else
+    /// branch is the automatic reset countdown, so a caller can assert which branch won by text.
+    private func branchText(_ clause: MenuBarConditionalClause) -> String {
+        let conditional = MenuBarLayoutConditional(
+            clauses: [clause],
+            thenToken: .percent(window: .session),
+            elseToken: .resetCountdown)
+        return MenuBarLayoutRenderer().render(
+            layout: MenuBarLayout(lines: [[.conditional(id: conditional.id)]]),
+            data: self.data(),
+            icon: nil,
+            options: self.options(conditionals: [conditional])).attributedTitle.string
+    }
+
+    /// End-to-end proof for the shipped "Auto % / Resets in" default: while the automatic lane still has
+    /// headroom it renders the percentage, and once the quota is spent it swaps to the reset countdown.
+    @Test
+    func `shipped auto default swaps percent for the countdown once the quota is spent`() {
+        let renderer = MenuBarLayoutRenderer()
+        let shipped = MenuBarLayoutConditional.shippedLibrary()
+        guard let auto = shipped.first(where: { entry in
+            entry.clauses.contains { $0.predicate.direction == .remaining }
+        }) else {
+            Issue.record("expected a shipped automatic remaining-direction conditional")
+            return
+        }
+        #expect(auto.displayName == "Auto % / Resets in")
+        let layout = MenuBarLayout(lines: [[.conditional(id: auto.id)]])
+
+        let withHeadroom = renderer.render(
+            layout: layout,
+            data: self.data(),
+            icon: nil,
+            options: self.options(conditionals: [auto]))
+        #expect(withHeadroom.attributedTitle.string == "50%")
+
+        let spent = renderer.render(
+            layout: layout,
+            data: self.data(automaticUsedPercent: 100),
+            icon: nil,
+            options: self.options(conditionals: [auto]))
+        #expect(spent.attributedTitle.string == "in 2h")
+    }
+
     private func clause(
         metric: MenuBarConditionalMetric,
         comparison: MenuBarConditionalComparison,
         threshold: Double,
+        direction: MenuBarConditionalDirection = .used,
         combinator: MenuBarConditionalCombinator? = nil) -> MenuBarConditionalClause
     {
         MenuBarConditionalClause(
             combinator: combinator,
-            predicate: MenuBarConditionalPredicate(metric: metric, comparison: comparison, threshold: threshold))
+            predicate: MenuBarConditionalPredicate(
+                metric: metric,
+                direction: direction,
+                comparison: comparison,
+                threshold: threshold))
     }
 
     private func data(
         automaticUsedPercent: Double = 50,
         provider: UsageProvider = .codex,
         laneLabels: MenuBarLayoutLaneLabels? = nil,
-        automaticResetAt: Date? = nil)
+        automaticResetAt: Date? = nil,
+        metrics: MenuBarLayoutRenderMetrics? = nil)
         -> MenuBarLayoutRenderData
     {
         MenuBarLayoutRenderData(
@@ -1126,7 +1353,17 @@ struct MenuBarLayoutRendererTests {
             runsOut: "Runs out in 1d 16h",
             balance: "$12.34",
             costToday: "$1.25",
-            cost30d: "$20.00")
+            cost30d: "$20.00",
+            // Numeric twins of the strings above, so conditional predicates and rendered text agree.
+            metrics: metrics ?? MenuBarLayoutRenderMetrics(
+                sessionPaceDelta: -8,
+                weeklyPaceDelta: 11,
+                automaticPaceDelta: 0,
+                runsOutMinutes: 2400,
+                balanceRemainingUSD: 12.34,
+                balanceUsedUSD: 7.66,
+                costTodayUSD: 1.25,
+                cost30dUSD: 20))
     }
 
     private func options(

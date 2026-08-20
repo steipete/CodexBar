@@ -1481,6 +1481,10 @@
 "menu_bar_layout_conditional_name" = "이름";
 "menu_bar_layout_conditional_name_placeholder" = "예: 세션 확인";
 "menu_bar_layout_conditional_name_error" = "고유한 이름을 입력하세요";
+"menu_bar_layout_conditional_used" = "사용";
+"menu_bar_layout_conditional_remaining" = "남음";
+"menu_bar_layout_conditional_metric_resets_in" = "%@ 재설정까지";
+"menu_bar_layout_conditional_metric_scoped_weekly" = "범위별 주간";
 "menu_bar_layout_conditional_duplicate" = "복제";
 "menu_bar_layout_conditional_summary" = "만약 %1$@이면 %2$@을 표시하고, 그렇지 않으면 %3$@을 표시";
 "menu_bar_layout_conditional_copy_name" = "%@ (복사본)";

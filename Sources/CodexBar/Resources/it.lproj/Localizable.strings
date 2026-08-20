@@ -1515,6 +1515,10 @@
 "menu_bar_layout_conditional_name" = "Nome";
 "menu_bar_layout_conditional_name_placeholder" = "ad es. Controllo sessione";
 "menu_bar_layout_conditional_name_error" = "Inserisci un nome univoco";
+"menu_bar_layout_conditional_used" = "usato";
+"menu_bar_layout_conditional_remaining" = "rimanente";
+"menu_bar_layout_conditional_metric_resets_in" = "%@ si azzera in";
+"menu_bar_layout_conditional_metric_scoped_weekly" = "Settimanale con ambito";
 "menu_bar_layout_conditional_duplicate" = "Duplica";
 "menu_bar_layout_conditional_summary" = "Se %1$@ allora %2$@ altrimenti %3$@";
 "menu_bar_layout_conditional_copy_name" = "%@ (copia)";
