@@ -77,8 +77,10 @@ struct SpendDashboardModelTests {
             .mistral,
             .bedrock,
             .cursor,
+            .grok,
             .opencodego,
             .openrouter,
+            .xai,
         ])
     }
 
