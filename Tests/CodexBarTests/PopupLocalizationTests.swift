@@ -127,13 +127,12 @@ struct PopupLocalizationTests {
                 now: now))
 
             #expect(model.metrics.first?.title == "額度")
-            // Provider-specific by design: OpenRouter details stay canonical after #3086 scoped
-            // localizedProviderDetails to DeepSeek and z.ai only.
-            let apiKey = try #require(model.providerDetails.first { $0.title == "API key" })
-            #expect(!model.providerDetails.contains { $0.title == "API 金鑰" })
+            // After 84a4ca725, generic providers localize section titles and row labels via L();
+            // values and chart point labels stay canonical.
+            let apiKey = try #require(model.providerDetails.first { $0.title == "API 金鑰" })
             #expect(apiKey.rows.map(\.label) == [
                 "API key budget", "API key remaining", "API key used", "Reset window",
-                "Today", "This week", "This month", "Rate limit",
+                "今天", "本週", "本月", "Rate limit",
             ])
             #expect(apiKey.chart?.points.map(\.label) == ["Today", "This week", "This month"])
             #expect(apiKey.rows.last?.value == "100 requests / 10s")
