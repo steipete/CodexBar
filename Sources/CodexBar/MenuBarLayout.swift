@@ -68,6 +68,19 @@ enum MenuBarConditionalMetric: String, CaseIterable, Codable, Hashable, Sendable
         }
     }
 
+    /// Whether the metric is read straight off a `RateWindow`, so refresh gates know to sign that
+    /// window's raw values. Pace, run-out and money metrics come from upstream-resolved numbers instead.
+    var readsRateWindow: Bool {
+        switch self {
+        case .session, .weekly, .scopedWeekly, .automatic,
+             .primaryLane, .secondaryLane, .tertiaryLane,
+             .sessionResetsIn, .weeklyResetsIn, .scopedWeeklyResetsIn, .automaticResetsIn:
+            true
+        default:
+            false
+        }
+    }
+
     var thresholdRange: ClosedRange<Double> {
         switch self.kind {
         case .percent: 0...100
