@@ -100,6 +100,10 @@ struct ZaiMenuCardTests {
             .init(label: "Token quota", value: "45% used"),
             .init(label: "Session token quota", value: "0% used"),
             .init(label: "MCP quota", value: "6.4% used", secondaryValue: "1000 limit · 936 remaining"),
+            .init(label: "Credit quota", value: "12% used", secondaryValue: "1000 limit"),
+            .init(label: "Session credit quota", value: "13% used", secondaryValue: "936 remaining"),
+            .init(label: "Quota rate", value: "Peak", secondaryValue: "off-peak in 2h 30m"),
+            .init(label: "Quota rate", value: "Off-peak", secondaryValue: "peak now"),
             .init(label: "search-prime", value: "64"),
         ])
         let snapshot = UsageSnapshot(
@@ -152,7 +156,16 @@ struct ZaiMenuCardTests {
         #expect(rows[2].label == "MCP 配额")
         #expect(rows[2].value == "已使用 6.4%")
         #expect(rows[2].secondaryValue == "上限 1000 · 剩余 936")
-        #expect(rows[3].label == "search-prime")
+        #expect(rows[3].label == "额度配额")
+        #expect(rows[3].secondaryValue == "上限 1000")
+        #expect(rows[4].label == "会话额度配额")
+        #expect(rows[4].secondaryValue == "剩余 936")
+        #expect(rows[5].label == "配额费率")
+        #expect(rows[5].value == "高峰")
+        #expect(rows[5].secondaryValue == "非高峰 2 小时 30 分钟后")
+        #expect(rows[6].value == "非高峰")
+        #expect(rows[6].secondaryValue == "高峰 现在")
+        #expect(rows[7].label == "search-prime")
     }
 
     @MainActor

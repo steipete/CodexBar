@@ -30,6 +30,19 @@ extension UsageMenuCardView.Model {
     }
 
     static func localizedDeepSeekBalanceDescription(_ description: String) -> String {
+        let unavailable = "Balance unavailable for API calls"
+        if description == unavailable {
+            return L(unavailable)
+        }
+
+        let addCreditsSeparator = " — add credits at "
+        if let range = description.range(of: addCreditsSeparator) {
+            return L(
+                "%@ — add credits at %@",
+                String(description[..<range.lowerBound]),
+                String(description[range.upperBound...]))
+        }
+
         let paidSeparator = " (Paid: "
         let grantedSeparator = " / Granted: "
         guard let paidRange = description.range(of: paidSeparator),
@@ -76,6 +89,17 @@ extension UsageMenuCardView.Model {
     }
 
     private static func localizedZaiValue(_ value: String) -> String {
+        if value == "Peak" || value == "Off-peak" {
+            return L(value)
+        }
+        for rate in ["peak", "off-peak"] {
+            let prefix = "\(rate) "
+            if value.hasPrefix(prefix) {
+                let countdown = String(value.dropFirst(prefix.count))
+                return "\(L(rate)) \(self.localizedZaiCountdown(countdown))"
+            }
+        }
+
         let usedSuffix = " used"
         if value.hasSuffix(usedSuffix) {
             return L("%@ used", String(value.dropLast(usedSuffix.count)))
@@ -83,14 +107,53 @@ extension UsageMenuCardView.Model {
 
         let limitSeparator = " limit · "
         let remainingSuffix = " remaining"
-        guard let limitRange = value.range(of: limitSeparator),
-              value.hasSuffix(remainingSuffix)
-        else {
-            return value
+        if let limitRange = value.range(of: limitSeparator),
+           value.hasSuffix(remainingSuffix)
+        {
+            let limit = String(value[..<limitRange.lowerBound])
+            let remainingEnd = value.index(value.endIndex, offsetBy: -remainingSuffix.count)
+            let remaining = String(value[limitRange.upperBound..<remainingEnd])
+            return L("%@ limit · %@ remaining", limit, remaining)
         }
-        let limit = String(value[..<limitRange.lowerBound])
-        let remainingEnd = value.index(value.endIndex, offsetBy: -remainingSuffix.count)
-        let remaining = String(value[limitRange.upperBound..<remainingEnd])
-        return L("%@ limit · %@ remaining", limit, remaining)
+
+        let limitSuffix = " limit"
+        if value.hasSuffix(limitSuffix) {
+            return L("%@ limit", String(value.dropLast(limitSuffix.count)))
+        }
+        if value.hasSuffix(remainingSuffix) {
+            return L("%@ remaining", String(value.dropLast(remainingSuffix.count)))
+        }
+        return value
+    }
+
+    private static func localizedZaiCountdown(_ value: String) -> String {
+        guard value.hasPrefix("in ") else { return L(value) }
+        let parts = value.dropFirst(3).split(separator: " ").map(String.init)
+        if parts.count == 2 {
+            let first = parts[0]
+            let second = parts[1]
+            if first.hasSuffix("d"), second.hasSuffix("h") {
+                return L("in %@d %@h", String(first.dropLast()), String(second.dropLast()))
+            }
+            if first.hasSuffix("d"), second.hasSuffix("m") {
+                return L("in %@d %@m", String(first.dropLast()), String(second.dropLast()))
+            }
+            if first.hasSuffix("h"), second.hasSuffix("m") {
+                return L("in %@h %@m", String(first.dropLast()), String(second.dropLast()))
+            }
+        }
+        if parts.count == 1 {
+            let part = parts[0]
+            if part.hasSuffix("d") {
+                return L("in %@d", String(part.dropLast()))
+            }
+            if part.hasSuffix("h") {
+                return L("in %@h", String(part.dropLast()))
+            }
+            if part.hasSuffix("m") {
+                return L("in %@m", String(part.dropLast()))
+            }
+        }
+        return value
     }
 }
