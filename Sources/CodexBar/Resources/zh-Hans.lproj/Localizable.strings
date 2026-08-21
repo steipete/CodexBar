@@ -521,6 +521,9 @@
 "provider_accent_color_hex_label" = "十六进制颜色值";
 "provider_accent_color_reset" = "使用默认值";
 "quota_warnings_title" = "配额预警";
+"quota_rows_title" = "配额行";
+"quota_rows_footer" = "选择菜单中显示哪些模型与附加配额行。隐藏仅影响菜单，数据、警告与历史不变。";
+"quota_rows_show_all" = "全部显示";
 "quota_warning_session" = "会话";
 "quota_warning_session_capitalized" = "会话";
 "quota_warning_weekly" = "每周";

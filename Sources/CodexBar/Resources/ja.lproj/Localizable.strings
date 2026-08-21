@@ -510,6 +510,9 @@
 "provider_accent_color_hex_label" = "16 進カラー値";
 "provider_accent_color_reset" = "デフォルトを使用";
 "quota_warnings_title" = "クォータ警告";
+"quota_rows_title" = "クォータ行";
+"quota_rows_footer" = "メニューに表示するモデル別・追加クォータの行を選択します。非表示はメニューだけに影響し、データ・警告・履歴は変わりません。";
+"quota_rows_show_all" = "すべて表示";
 "quota_warning_session" = "セッション";
 "quota_warning_session_capitalized" = "セッション";
 "quota_warning_weekly" = "週間";

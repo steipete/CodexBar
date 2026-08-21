@@ -498,6 +498,9 @@
 "provider_accent_color_hex_label" = "ค่าสีฐานสิบหก";
 "provider_accent_color_reset" = "ใช้ค่าเริ่มต้น";
 "quota_warnings_title" = "คําเตือนโควต้า";
+"quota_rows_title" = "แถวโควตา";
+"quota_rows_footer" = "เลือกแถวโควตาของโมเดลและส่วนเสริมที่จะแสดงในเมนู การซ่อนมีผลกับเมนูเท่านั้น ข้อมูล คำเตือน และประวัติไม่เปลี่ยน";
+"quota_rows_show_all" = "แสดงทั้งหมด";
 "quota_warning_session" = "เซสชั่น";
 "quota_warning_session_capitalized" = "เซสชั่น";
 "quota_warning_weekly" = "รายสัปดาห์";

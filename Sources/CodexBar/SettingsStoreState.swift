@@ -92,4 +92,6 @@ struct SettingsDefaultsState {
     var iCloudSyncSnapshotsEnabled: Bool
     var iCloudSyncShowFleetAccounts: Bool
     var iCloudSyncDeviceID: String
+    /// Per-provider quota rows the user hid in the menu, keyed by provider raw value.
+    var hiddenQuotaRowIDsRaw: [String: [String]]
 }

@@ -902,10 +902,13 @@ extension UsageMenuCardView.Model {
         if input.provider == .copilot, !input.copilotBudgetExtrasEnabled {
             return []
         }
+        let unhiddenRateWindows = input.hiddenQuotaRowIDs.isEmpty
+            ? extraRateWindows
+            : extraRateWindows.filter { !input.hiddenQuotaRowIDs.contains($0.id) }
         var visibleRateWindows = if input.provider == .codex, !input.codexSparkUsageVisible {
-            extraRateWindows.filter { !Self.isCodexSparkRateWindow($0) }
+            unhiddenRateWindows.filter { !Self.isCodexSparkRateWindow($0) }
         } else {
-            extraRateWindows
+            unhiddenRateWindows
         }
         if input.provider == .claude,
            !input.showOptionalCreditsAndExtraUsage || !input.claudeDailyRoutinesUsageVisible

@@ -498,6 +498,9 @@
 "provider_accent_color_hex_label" = "Onaltılık renk değeri";
 "provider_accent_color_reset" = "Varsayılanı kullan";
 "quota_warnings_title" = "Kota uyarıları";
+"quota_rows_title" = "Kota satırları";
+"quota_rows_footer" = "Menüde hangi model ve ek kota satırlarının görüneceğini seçin. Gizlemek yalnızca menüyü etkiler; veriler, uyarılar ve geçmiş değişmez.";
+"quota_rows_show_all" = "Tümünü göster";
 "quota_warning_session" = "oturum";
 "quota_warning_session_capitalized" = "Oturum";
 "quota_warning_weekly" = "haftalık";

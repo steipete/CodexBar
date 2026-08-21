@@ -513,6 +513,9 @@
 "provider_accent_color_hex_label" = "Hexadecimale kleurwaarde";
 "provider_accent_color_reset" = "Standaard gebruiken";
 "quota_warnings_title" = "Quotumwaarschuwingen";
+"quota_rows_title" = "Quotumregels";
+"quota_rows_footer" = "Kies welke model- en add-onquotumregels in het menu verschijnen. Verbergen geldt alleen voor het menu — gegevens, waarschuwingen en geschiedenis blijven gelijk.";
+"quota_rows_show_all" = "Alles tonen";
 "quota_warning_session" = "sessie";
 "quota_warning_session_capitalized" = "Sessie";
 "quota_warning_weekly" = "wekelijks";

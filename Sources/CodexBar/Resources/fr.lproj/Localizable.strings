@@ -513,6 +513,9 @@
 "provider_accent_color_hex_label" = "Valeur de couleur hexadécimale";
 "provider_accent_color_reset" = "Utiliser la valeur par défaut";
 "quota_warnings_title" = "Alertes de quota";
+"quota_rows_title" = "Lignes de quota";
+"quota_rows_footer" = "Choisissez les lignes de quota de modèles et de compléments affichées dans le menu. Masquer une ligne n’affecte que le menu : données, alertes et historique restent inchangés.";
+"quota_rows_show_all" = "Tout afficher";
 "quota_warning_session" = "session";
 "quota_warning_session_capitalized" = "Session";
 "quota_warning_weekly" = "hebdomadaire";

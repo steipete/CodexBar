@@ -500,6 +500,9 @@
 "provider_accent_color_hex_label" = "Valore colore esadecimale";
 "provider_accent_color_reset" = "Usa predefinito";
 "quota_warnings_title" = "Avvisi quota";
+"quota_rows_title" = "Righe di quota";
+"quota_rows_footer" = "Scegli quali righe di quota per modelli e componenti aggiuntivi compaiono nel menu. Nascondere una riga riguarda solo il menu: dati, avvisi e cronologia non cambiano.";
+"quota_rows_show_all" = "Mostra tutto";
 "quota_warning_session" = "sessione";
 "quota_warning_session_capitalized" = "Sessione";
 "quota_warning_weekly" = "settimanale";

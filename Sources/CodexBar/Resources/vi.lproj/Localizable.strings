@@ -509,6 +509,9 @@
 "provider_accent_color_hex_label" = "Giá trị màu thập lục phân";
 "provider_accent_color_reset" = "Dùng mặc định";
 "quota_warnings_title" = "Hạn mức cảnh báo";
+"quota_rows_title" = "Dòng hạn mức";
+"quota_rows_footer" = "Chọn những dòng hạn mức theo model và tiện ích bổ trợ sẽ hiện trong menu. Ẩn một dòng chỉ ảnh hưởng tới menu — dữ liệu, cảnh báo và lịch sử không đổi.";
+"quota_rows_show_all" = "Hiện tất cả";
 "quota_warning_session" = "phiên";
 "quota_warning_session_capitalized" = "Phiên";
 "quota_warning_weekly" = "hàng tuần";

@@ -478,6 +478,9 @@
 "provider_accent_color_hex_label" = "Hex color value";
 "provider_accent_color_reset" = "Use default";
 "quota_warnings_title" = "Quota warnings";
+"quota_rows_title" = "Quota rows";
+"quota_rows_footer" = "Choose which model and add-on quota rows appear in the menu. Hiding a row only affects the menu — data, warnings, and history are unchanged.";
+"quota_rows_show_all" = "Show all";
 "quota_warning_session" = "session";
 "quota_warning_session_capitalized" = "Session";
 "quota_warning_weekly" = "weekly";

@@ -146,6 +146,7 @@ extension StatusItemController {
             claudeDailyRoutinesUsageVisible: self.settings.claudeDailyRoutinesUsageVisible,
             codexSparkUsageVisible: self.settings.codexSparkUsageVisible,
             copilotBudgetExtrasEnabled: self.settings.copilotBudgetExtrasEnabled,
+            hiddenQuotaRowIDs: self.settings.hiddenQuotaRowIDs(for: target),
             sourceLabel: sourceLabel,
             subtitleOverride: subtitleOverride,
             kiloAutoMode: kiloAutoMode,

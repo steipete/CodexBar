@@ -500,6 +500,9 @@
 "provider_accent_color_hex_label" = "Nilai warna heksadesimal";
 "provider_accent_color_reset" = "Gunakan bawaan";
 "quota_warnings_title" = "Peringatan kuota";
+"quota_rows_title" = "Baris kuota";
+"quota_rows_footer" = "Pilih baris kuota model dan tambahan yang tampil di menu. Menyembunyikan baris hanya memengaruhi menu — data, peringatan, dan riwayat tidak berubah.";
+"quota_rows_show_all" = "Tampilkan semua";
 "quota_warning_session" = "sesi";
 "quota_warning_session_capitalized" = "Sesi";
 "quota_warning_weekly" = "mingguan";

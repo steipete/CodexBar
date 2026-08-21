@@ -500,6 +500,9 @@
 "provider_accent_color_hex_label" = "Szesnastkowa wartość koloru";
 "provider_accent_color_reset" = "Użyj domyślnego";
 "quota_warnings_title" = "Ostrzeżenia limitu";
+"quota_rows_title" = "Wiersze limitów";
+"quota_rows_footer" = "Wybierz, które wiersze limitów modeli i dodatków pojawiają się w menu. Ukrycie dotyczy tylko menu — dane, ostrzeżenia i historia pozostają bez zmian.";
+"quota_rows_show_all" = "Pokaż wszystko";
 "quota_warning_session" = "sesja";
 "quota_warning_session_capitalized" = "Sesja";
 "quota_warning_weekly" = "tydzień";

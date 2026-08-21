@@ -514,6 +514,9 @@
 "provider_accent_color_hex_label" = "Шестнадцатеричное значение цвета";
 "provider_accent_color_reset" = "Использовать по умолчанию";
 "quota_warnings_title" = "Предупреждения о квотах";
+"quota_rows_title" = "Строки квот";
+"quota_rows_footer" = "Выберите, какие строки квот по моделям и дополнениям показывать в меню. Скрытие влияет только на меню — данные, предупреждения и история не меняются.";
+"quota_rows_show_all" = "Показать все";
 "quota_warning_session" = "сеанс";
 "quota_warning_session_capitalized" = "Сеанс";
 "quota_warning_weekly" = "неделя";
