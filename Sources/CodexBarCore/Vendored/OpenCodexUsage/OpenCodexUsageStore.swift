@@ -63,7 +63,10 @@ public struct OpenCodexUsageStore: Sendable {
             return $0.requestID < $1.requestID
         }
         self.replaceCachedEntries(deduped, identity: identity)
-        return deduped
+        // Keep the full lifetime log in the cache, but mirror the cache-hit query when
+        // returning parsed entries so report misses never materialize unbounded history.
+        guard let since else { return deduped }
+        return deduped.filter { $0.timestamp >= since }
     }
 
     private func readCachedEntries(identity: String, since: Date?) -> [OpenCodexUsageEntry]? {

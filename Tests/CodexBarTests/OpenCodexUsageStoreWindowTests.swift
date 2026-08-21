@@ -31,6 +31,31 @@ struct OpenCodexUsageStoreWindowTests {
 
         #expect(cached.isEmpty)
     }
+
+    @Test
+    func `cache miss applies report window while preserving cached history`() throws {
+        let fixture = StoreCacheFixture()
+        try fixture.prepare()
+        defer { fixture.cleanup() }
+        let store = OpenCodexUsageStore(cacheRoot: fixture.cacheRoot)
+        let old = Date(timeIntervalSince1970: 1_784_179_200)
+        let now = old.addingTimeInterval(86400)
+        let oldMillis = Int(old.timeIntervalSince1970 * 1000)
+        let nowMillis = Int(now.timeIntervalSince1970 * 1000)
+        try """
+        {"requestId":"old","timestamp":\(oldMillis),"provider":"openai","model":"gpt-5.4",\
+        "usageStatus":"reported"}
+        {"requestId":"new","timestamp":\(nowMillis),"provider":"openai","model":"gpt-5.4",\
+        "usageStatus":"reported"}
+        """.write(to: fixture.logURL, atomically: true, encoding: .utf8)
+
+        let windowed = try store.loadEntries(logURL: fixture.logURL, since: now)
+
+        #expect(windowed.map(\.requestID) == ["new"])
+
+        let fullCache = try store.loadEntries(logURL: fixture.logURL)
+        #expect(fullCache.map(\.requestID) == ["old", "new"])
+    }
 }
 
 private struct StoreCacheFixture {
