@@ -870,7 +870,7 @@ public struct CostUsageFetcher: Sendable {
             let shouldMergePiUsage = scopedCodexHomePath?.isEmpty != false
             let roots = CostUsageScanner.codexSessionsRoots(options: options)
             let rootsFingerprint = CostUsageScanner.codexRootsFingerprint(options: options)
-            let loadedCache = CostUsageStoreAccess.read(
+            let loadedCache = CostUsageStoreAccess.readReportAggregate(
                 cacheRoot: options.cacheRoot,
                 calendar: options.calendar)
             let cache = CostUsageScanner.codexCache(

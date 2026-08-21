@@ -154,9 +154,12 @@ extension CostUsageStore {
         }
     }
 
-    nonisolated func syncLoadCodexCache(calendar: Calendar) -> CostUsageCache {
+    nonisolated func syncLoadCodexCache(
+        calendar: Calendar,
+        mode: CodexLoadMode = .scanReady) -> CostUsageCache
+    {
         self.syncWithStoreIsolation { store in
-            store.loadCodexCache(calendar: calendar)
+            store.loadCodexCache(calendar: calendar, mode: mode)
         }
     }
 
