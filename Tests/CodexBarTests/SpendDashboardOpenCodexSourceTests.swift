@@ -31,14 +31,14 @@ struct SpendDashboardOpenCodexSourceTests {
             [],
             request: request,
             environment: ["OPENCODEX_HOME": "/tmp/opencodex-publication-test"],
-            entryLoader: { _ in [] })
+            entryLoader: { _, _ in [] })
         #expect(confirmedEmpty.observation == .confirmedEmpty)
 
         let failed = SpendDashboardSource.mergingOpenCodexInputsWithObservation(
             [],
             request: request,
             environment: ["OPENCODEX_HOME": "/tmp/opencodex-publication-test"],
-            entryLoader: { _ in throw CocoaError(.fileReadCorruptFile) })
+            entryLoader: { _, _ in throw CocoaError(.fileReadCorruptFile) })
         #expect(failed.observation == .unavailable)
     }
 

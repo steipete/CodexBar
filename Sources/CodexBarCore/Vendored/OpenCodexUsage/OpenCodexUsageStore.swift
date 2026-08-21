@@ -24,7 +24,10 @@ public struct OpenCodexUsageStore: Sendable {
         customPricing: CostUsageCustomPricing = .empty,
         fileManager: FileManager = .default) throws -> CostUsageTokenSnapshot
     {
-        let entries = try self.loadEntries(logURL: logURL, fileManager: fileManager)
+        let entries = try self.loadEntries(
+            logURL: logURL,
+            since: Self.windowStart(now: now, historyDays: historyDays, calendar: calendar),
+            fileManager: fileManager)
         return OpenCodexUsageAggregator.snapshot(
             entries: entries,
             now: now,
@@ -33,14 +36,18 @@ public struct OpenCodexUsageStore: Sendable {
             customPricing: customPricing)
     }
 
-    public func loadEntries(logURL: URL, fileManager: FileManager = .default) throws -> [OpenCodexUsageEntry] {
+    public func loadEntries(
+        logURL: URL,
+        since: Date? = nil,
+        fileManager: FileManager = .default) throws -> [OpenCodexUsageEntry]
+    {
         guard fileManager.fileExists(atPath: logURL.path) else { return [] }
         let attributes = try fileManager.attributesOfItem(atPath: logURL.path)
         let size = (attributes[.size] as? NSNumber)?.int64Value ?? 0
         let mtime = (attributes[.modificationDate] as? Date)?.timeIntervalSince1970 ?? 0
         let identity = "\(logURL.path)|\(size)|\(mtime)"
 
-        if let cached = self.readCachedEntries(identity: identity), !cached.isEmpty {
+        if let cached = self.readCachedEntries(identity: identity, since: since) {
             return cached
         }
 
@@ -59,7 +66,7 @@ public struct OpenCodexUsageStore: Sendable {
         return deduped
     }
 
-    private func readCachedEntries(identity: String) -> [OpenCodexUsageEntry]? {
+    private func readCachedEntries(identity: String, since: Date?) -> [OpenCodexUsageEntry]? {
         guard let db = self.open(readOnly: true) else { return nil }
         defer { sqlite3_close(db) }
         guard Self.userVersion(db) == Self.schemaVersion,
@@ -69,9 +76,12 @@ public struct OpenCodexUsageStore: Sendable {
         let sql = """
         SELECT request_id, timestamp, provider, model, usage_status, account_label, surface, conversation_id, payload
         FROM entries
+        WHERE timestamp >= ?
+        ORDER BY timestamp, request_id
         """
         guard sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK else { return nil }
         defer { sqlite3_finalize(statement) }
+        sqlite3_bind_double(statement, 1, (since ?? .distantPast).timeIntervalSince1970)
         var entries: [OpenCodexUsageEntry] = []
         while sqlite3_step(statement) == SQLITE_ROW {
             guard let payload = Self.text(statement, 8),
@@ -177,6 +187,13 @@ public struct OpenCodexUsageStore: Sendable {
 
     private static func setUserVersion(_ db: OpaquePointer?, _ version: Int) {
         _ = sqlite3_exec(db, "PRAGMA user_version = \(version)", nil, nil, nil)
+    }
+
+    public static func windowStart(now: Date, historyDays: Int, calendar: Calendar) -> Date? {
+        guard historyDays > 0 else { return nil }
+        let days = max(1, min(365, historyDays))
+        let today = calendar.startOfDay(for: now)
+        return calendar.date(byAdding: .day, value: -(days - 1), to: today)
     }
 
     private static func meta(_ db: OpaquePointer?, key: String) -> String? {
