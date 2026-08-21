@@ -108,6 +108,16 @@ extension CostUsageStore {
                 return retry
             }
 
+            // The sqlite cursor is excluded from content identity so a steadily advancing
+            // lastRowID cannot force a full rewrite. Persist it here as a metadata-only
+            // update inside the same writer transaction.
+            guard self.persistPriorityTurnsCursorIfChanged(previous: lockedPrevious, cache: cache) else {
+                _ = self.rollbackSaveTransaction()
+                var retry = result
+                retry.catchUpRequired = true
+                return retry
+            }
+
             let advanced = self.advanceLastScanUnixMsInCurrentTransaction(cache.lastScanUnixMs)
             let committed = self.endSaveTransaction()
             guard advanced, committed else {
@@ -181,7 +191,9 @@ extension CostUsageStore {
     /// persisted spellings of a few optional fields differ from their in-memory forms
     /// (`catchUpPending` and `codexScanComplete` store nil as false/true, `timeZoneIdentifier`
     /// is fixed by the caller's calendar, and `lastScanUnixMs` is a wall-clock stamp), so
-    /// those are normalized before the comparison.
+    /// those are normalized before the comparison. The priority sqlite cursor is also ignored
+    /// here: it advances independently of usage content and is written as a metadata-only
+    /// update on the skip path.
     private static func persistedContentMatches(
         previous: CostUsageStoreSnapshot,
         cache: CostUsageCache,
@@ -193,8 +205,9 @@ extension CostUsageStore {
         else { return false }
         guard (cache.codexScanCatchUpPending ?? false) == restored.codexScanCatchUpPending
         else { return false }
-        // Freshness is the sole ignored semantic field. The time zone is a persistence-derived
-        // spelling: metadata(cache:calendar:) always writes the caller's calendar identifier.
+        // Freshness and the sqlite cursor are ignored semantic fields. The time zone is a
+        // persistence-derived spelling: metadata(cache:calendar:) always writes the caller's
+        // calendar identifier.
         restored.lastScanUnixMs = cache.lastScanUnixMs
         restored.timeZoneIdentifier = calendar.timeZone.identifier
         restored.codexScanCatchUpPending = cache.codexScanCatchUpPending
@@ -202,7 +215,23 @@ extension CostUsageStore {
         var incoming = cache
         incoming.timeZoneIdentifier = calendar.timeZone.identifier
         incoming.files = incoming.files.mapValues(Self.normalizingScanComplete)
+        restored.codexPriorityTurnsCursor = incoming.codexPriorityTurnsCursor
         return restored == incoming
+    }
+
+    /// Writes only `scan_metadata.priorityTurnStatePayload` when the sqlite cursor advanced.
+    /// Caller already owns the save transaction.
+    private func persistPriorityTurnsCursorIfChanged(
+        previous: CostUsageStoreSnapshot,
+        cache: CostUsageCache) -> Bool
+    {
+        guard Self.persistedPriorityTurnsCursor(previous) != cache.codexPriorityTurnsCursor else {
+            return true
+        }
+        guard let payload = Self.priorityTurnStatePayload(cache: cache) else { return false }
+        var metadata = previous.metadata
+        metadata.priorityTurnStatePayload = payload
+        return self.setMetadata(metadata)
     }
 
     private static func normalizingScanComplete(_ usage: CostUsageFileUsage) -> CostUsageFileUsage {
@@ -248,6 +277,34 @@ extension CostUsageStore {
     private struct StoredPriorityState: Codable {
         var turnKeys: [String: String]?
         var turnIDsByDay: [String: [String]]?
+        var turnsCursor: CostUsageScanner.CodexPriorityTurnsPersistedCursor?
+
+        enum CodingKeys: String, CodingKey {
+            case turnKeys
+            case turnIDsByDay
+            case turnsCursor
+        }
+
+        init(
+            turnKeys: [String: String]?,
+            turnIDsByDay: [String: [String]]?,
+            turnsCursor: CostUsageScanner.CodexPriorityTurnsPersistedCursor?)
+        {
+            self.turnKeys = turnKeys
+            self.turnIDsByDay = turnIDsByDay
+            self.turnsCursor = turnsCursor
+        }
+
+        /// Cursor decode is best-effort so a malformed `turnsCursor` cannot drop load-bearing
+        /// `turnKeys` / `turnIDsByDay`. `encode(to:)` stays synthesized.
+        init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            self.turnKeys = try container.decodeIfPresent([String: String].self, forKey: .turnKeys)
+            self.turnIDsByDay = try container.decodeIfPresent([String: [String]].self, forKey: .turnIDsByDay)
+            self.turnsCursor = try? container.decodeIfPresent(
+                CostUsageScanner.CodexPriorityTurnsPersistedCursor.self,
+                forKey: .turnsCursor)
+        }
     }
 
     private struct DayModelKey: Hashable {
@@ -298,6 +355,7 @@ extension CostUsageStore {
         }) {
             cache.codexPriorityTurnKeys = priority.turnKeys
             cache.codexPriorityTurnIDsByDay = priority.turnIDsByDay
+            cache.codexPriorityTurnsCursor = priority.turnsCursor
         }
         cache.codexSessionDiscovery = snapshot.discoveryState.flatMap(Self.discovery(from:))
         cache.codexActiveLookbackState = snapshot.lookbackState.map(Self.lookback(from:))
@@ -833,10 +891,7 @@ extension CostUsageStore {
 
 extension CostUsageStore {
     private static func metadata(cache: CostUsageCache, calendar: Calendar) -> CostUsageStoreMetadata {
-        let priority = StoredPriorityState(
-            turnKeys: cache.codexPriorityTurnKeys,
-            turnIDsByDay: cache.codexPriorityTurnIDsByDay)
-        return CostUsageStoreMetadata(
+        CostUsageStoreMetadata(
             lastScanUnixMs: cache.lastScanUnixMs,
             scanSinceDay: cache.scanSinceKey,
             scanUntilDay: cache.scanUntilKey,
@@ -851,8 +906,23 @@ extension CostUsageStore {
             scanInventoryPaths: cache.codexScanInventoryPaths,
             rootMtimes: cache.roots,
             previousReportPayload: cache.codexPreviousReport.flatMap { try? JSONEncoder().encode($0) },
-            priorityTurnStatePayload: try? JSONEncoder().encode(priority),
+            priorityTurnStatePayload: self.priorityTurnStatePayload(cache: cache),
             projectMetadataVersion: cache.codexProjectMetadataVersion)
+    }
+
+    private static func priorityTurnStatePayload(cache: CostUsageCache) -> Data? {
+        try? JSONEncoder().encode(StoredPriorityState(
+            turnKeys: cache.codexPriorityTurnKeys,
+            turnIDsByDay: cache.codexPriorityTurnIDsByDay,
+            turnsCursor: cache.codexPriorityTurnsCursor))
+    }
+
+    private static func persistedPriorityTurnsCursor(
+        _ snapshot: CostUsageStoreSnapshot) -> CostUsageScanner.CodexPriorityTurnsPersistedCursor?
+    {
+        snapshot.metadata.priorityTurnStatePayload.flatMap {
+            try? JSONDecoder().decode(StoredPriorityState.self, from: $0)
+        }?.turnsCursor
     }
 
     private static func previousReport(

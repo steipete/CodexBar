@@ -1016,6 +1016,8 @@ enum CostUsageScanner {
         let priorityTurns: [String: CodexPriorityTurnMetadata]
         let priorityTurnKeys: [String: String]
         let priorityTurnIDsByDay: [String: [String]]
+        let inspectedPriorityTurns: Bool
+        let priorityTurnsCursor: CodexPriorityTurnsPersistedCursor?
         let priorityMetadataChanged: Bool
         let priorityTurnsChanged: Bool
         let needsTurnIDCacheMigration: Bool
@@ -2090,7 +2092,7 @@ enum CostUsageScanner {
     }
 
     private static func codexPriorityMetadataKey(databaseURL: URL?) -> String {
-        let url = databaseURL ?? self.defaultCodexPriorityDatabaseURL()
+        let url = self.resolvedCodexPriorityDatabaseURL(databaseURL)
         let path = url.standardizedFileURL.path
         return FileManager.default.fileExists(atPath: path) ? "sqlite:\(path)" : "missing:\(path)"
     }
@@ -5094,10 +5096,23 @@ enum CostUsageScanner {
             || refreshMs == 0
             || cache.lastScanUnixMs == 0
             || nowMs - cache.lastScanUnixMs > refreshMs
+        let resolvedPriorityDatabaseURL = Self.resolvedCodexPriorityDatabaseURL(options.codexTraceDatabaseURL)
+        if shouldInspectPriorityTurns {
+            if options.forceRescan {
+                Self.dropCodexPriorityTurnsMemo(databaseURL: resolvedPriorityDatabaseURL)
+            } else {
+                Self.seedCodexPriorityTurnsMemoIfEmpty(
+                    cache.codexPriorityTurnsCursor,
+                    databaseURL: resolvedPriorityDatabaseURL)
+            }
+        }
         let priorityTurns = shouldInspectPriorityTurns ? Self.codexPriorityTurns(
-            databaseURL: options.codexTraceDatabaseURL,
+            databaseURL: resolvedPriorityDatabaseURL,
             sinceDayKey: range.scanSinceKey,
             untilDayKey: range.scanUntilKey) : [:]
+        let priorityTurnsCursor = shouldInspectPriorityTurns
+            ? Self.codexPriorityTurnsPersistedCursor(databaseURL: resolvedPriorityDatabaseURL)
+            : nil
         let priorityTurnKeys = Self.codexPriorityTurnKeys(priorityTurns, calendar: range.calendar)
         let priorityTurnIDsByDay = Self.codexPriorityTurnIDsByDay(priorityTurns, calendar: range.calendar)
         let priorityTurnsChanged = shouldInspectPriorityTurns
@@ -5151,6 +5166,8 @@ enum CostUsageScanner {
             priorityTurns: priorityTurns,
             priorityTurnKeys: priorityTurnKeys,
             priorityTurnIDsByDay: priorityTurnIDsByDay,
+            inspectedPriorityTurns: shouldInspectPriorityTurns,
+            priorityTurnsCursor: priorityTurnsCursor,
             priorityMetadataChanged: priorityMetadataChanged,
             priorityTurnsChanged: priorityTurnsChanged,
             needsTurnIDCacheMigration: needsTurnIDCacheMigration,
@@ -5636,6 +5653,11 @@ enum CostUsageScanner {
                     range: range,
                     retainedSinceKey: retainedSinceKey,
                     retainedUntilKey: retainedUntilKey)
+                if plan.inspectedPriorityTurns {
+                    // Only inspected refreshes observe the live memo; skip writing otherwise so
+                    // a nil plan cursor cannot clobber a previously persisted one.
+                    cache.codexPriorityTurnsCursor = plan.priorityTurnsCursor
+                }
             }
             cache.lastScanUnixMs = nowMs
             try checkCancellation?()

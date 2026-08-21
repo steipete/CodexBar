@@ -31,6 +31,7 @@
 - Fixed the mainland Alibaba Personal/Solo Token Plan always reporting "login required": the console shell now serves its `sec_token` to CodexBar's fetch and the upper-case `SEC_TOKEN` shape is parsed (#2891, #3098). Thanks @LeoLin990405!
 - Fixed long agent session names stretching the menu: session rows now truncate inside the menu's width with the full label in a tooltip (#3096). Thanks @KaranocaVe!
 - Simplified Chinese now labels quota windows by their actual duration ("5 小时" instead of a generic session label), keeping the generic wording for conversations (#3069, #3070). Thanks @YunyueLi!
+- Codex: persist the priority-turn trace-database scan cursor across relaunches so a restart resumes incrementally instead of re-scanning the whole `logs_2.sqlite` (minutes of full-core CPU on large trace databases); existing cost caches are adopted on upgrade, not rebuilt (#3130). Thanks @olddonkey!
 
 ## 0.54.0 — 2026-08-20
 
