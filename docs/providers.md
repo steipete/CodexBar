@@ -209,6 +209,7 @@ complete when the available scan window covers fewer days.
 - Web API via browser cookies (`cursor.com` + `cursor.sh`).
 - Fallbacks: a legacy stored session, then Cursor.app local auth.
 - Add Account and Switch Account open Cursor's authenticator in a supported browser; Switch Account prefers stable account IDs and falls back to normalized email when IDs are unavailable. CodexBar uses the supported system HTTPS handler when possible and otherwise asks the user to choose an eligible supported browser.
+- Grok Bot weekly included usage is a fourth Cursor card bar from `POST /api/dashboard/get-sand-usage-status` (same session). Accounts without a Bot allowance omit the bar.
 - Status: Statuspage.io (Cursor).
 - Details: `docs/cursor.md`.
 

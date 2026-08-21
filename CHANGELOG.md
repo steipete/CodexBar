@@ -2,6 +2,7 @@
 
 ## 0.54.1 — Unreleased
 
+- Cursor: show Grok Bot weekly included usage as a fourth card bar from `get-sand-usage-status`, using the same session as Total / Cursor / Third Party.
 - Spend dashboard: load provider baselines and Codex multi-account scans in parallel and memoize currency conversion and calendar buckets, cutting cold opens from multiple seconds to roughly the slowest single provider (#3105). Thanks @Yuxin-Qiao!
 
 - Fixed Codex profile-home account switches briefly showing another profile's token counts, costs, usage chart, top model, and cost history while the selected profile loads (#3125).

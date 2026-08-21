@@ -76,6 +76,9 @@ public enum CursorProviderDescriptor {
                     "invoice."),
             pace: ProviderPaceCapability(resetWindowPace: .windowDurationPresent),
             presentation: ProviderUsagePresentation(
+                extraRateWindowSelector: { snapshot in
+                    (snapshot.extraRateWindows ?? []).filter { $0.id == CursorSandUsageStatus.extraWindowID }
+                },
                 requestedMenuBarLaneOrders: [
                     .tertiary: [.tertiary, .secondary, .primary],
                 ],
@@ -116,7 +119,10 @@ public enum CursorProviderDescriptor {
     {
         guard context.metric == .automatic else { return .unhandled }
         let total = context.snapshot.primary
-        let subquotas = [context.snapshot.secondary, context.snapshot.tertiary].compactMap(\.self)
+        let grokBot = context.snapshot.extraRateWindows?.first {
+            $0.id == CursorSandUsageStatus.extraWindowID && $0.usageKnown
+        }?.window
+        let subquotas = [context.snapshot.secondary, context.snapshot.tertiary, grokBot].compactMap(\.self)
         let usableSubquotas = subquotas.filter { $0.remainingPercent > 0 }
         if let total, total.remainingPercent <= 0 {
             return .resolved(total)
