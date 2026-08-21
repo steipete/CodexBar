@@ -484,7 +484,8 @@ struct CursorUsageEventsFetcher: Sendable {
             let model = event.model ?? "unknown"
             var modelsForDay = days[dayKey] ?? [:]
             var accumulator = modelsForDay[model] ?? ModelAccumulator()
-            accumulator.add(usage, estimatedCents: Self.estimatedListPriceCents(for: usage, model: model))
+            accumulator.add(usage, estimatedCents: Self.estimatedListPriceCents(
+                for: usage, eventDate: date, model: model))
             modelsForDay[model] = accumulator
             days[dayKey] = modelsForDay
         }
@@ -614,17 +615,23 @@ struct CursorUsageEventsFetcher: Sendable {
 
     /// List-price estimate for events whose vendor omitted totalCents, resolved through the
     /// shared catalog tables without any network access.
+    ///
+    /// Cursor counters are disjoint: input excludes cached reads and writes, while the shared
+    /// catalog contract treats cached reads and writes as subsets of total input. Fold them
+    /// into the input count before delegating so no cache tokens are dropped.
     private static func estimatedListPriceCents(
         for usage: CursorEventTokenUsage,
+        eventDate: Date,
         model: String) -> Double?
     {
         guard usage.totalCents == nil,
               let usd = CostUsagePricing.listPriceFallbackCostUSD(
                   model: model,
-                  inputTokens: usage.inputTokens,
+                  inputTokens: usage.inputTokens + usage.cacheReadTokens + usage.cacheWriteTokens,
                   cachedInputTokens: usage.cacheReadTokens,
                   cacheWriteInputTokens: usage.cacheWriteTokens,
-                  outputTokens: usage.outputTokens)
+                  outputTokens: usage.outputTokens,
+                  pricingDate: eventDate)
         else { return nil }
         return usd * 100
     }
