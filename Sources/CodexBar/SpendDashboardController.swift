@@ -1169,7 +1169,7 @@ final class SpendDashboardController {
         let shouldPrimeCachedCodex: Bool = self.cachedLoader != nil
             && !Set(Self.codexOwnershipByID(configuration.codexAccountIdentities).keys)
             .isSubset(of: Set(self.loadedInputs.map(\.id)))
-            && (phase == .ordinary || self.loadedInputs.isEmpty)
+            && (!phase.manualRefreshOutstanding || self.loadedInputs.isEmpty)
 
         guard configuration.costUsageEnabled,
               !configuration.providerIDs.isEmpty || configuration.openCodexUsageLogsEnabled
