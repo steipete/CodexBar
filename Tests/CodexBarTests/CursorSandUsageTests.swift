@@ -79,6 +79,7 @@ struct CursorSandUsageTests {
 
             switch requestURL.path {
             case "/api/usage-summary":
+                #expect(request.timeoutInterval == 15)
                 return makeCursorStatusProbeResponse(
                     url: requestURL,
                     body: """
@@ -101,6 +102,7 @@ struct CursorSandUsageTests {
                     statusCode: 500)
             case "/api/dashboard/get-sand-usage-status":
                 #expect(request.httpMethod == "POST")
+                #expect(request.timeoutInterval == 5)
                 #expect(request.value(forHTTPHeaderField: "Origin") == "https://cursor.test")
                 #expect(request.value(forHTTPHeaderField: "Cookie") == "auth=test")
                 return makeCursorStatusProbeResponse(

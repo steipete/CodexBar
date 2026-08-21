@@ -1405,11 +1405,16 @@ public struct CursorStatusProbe: Sendable {
                         sandUsageRawJSON = rawJSON
                     }
                 }
+                // Required usage-summary is enough to finish login. Cancel leftover optional
+                // work if the interactive deadline has already elapsed.
+                if usageSummaryResult != nil, let deadline, deadline.timeIntervalSinceNow <= 0 {
+                    group.cancelAll()
+                }
             }
         }
-        try Self.checkBrowserLoginDeadline(deadline)
 
         guard let usageSummaryResult else {
+            try Self.checkBrowserLoginDeadline(deadline)
             throw CursorStatusProbeError.networkError("Cursor usage summary fetch did not complete")
         }
 
@@ -1494,7 +1499,14 @@ public struct CursorStatusProbe: Sendable {
         let url = self.baseURL.appendingPathComponent(CursorSandUsageStatus.endpointPath)
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
-        request.timeoutInterval = try self.requestTimeout(deadline: deadline)
+        // Best-effort: cap wait so a stalled Sand endpoint cannot consume the login deadline.
+        guard let sandTimeout = self.optionalRequestTimeout(
+            deadline: deadline,
+            budget: Self.sandUsageTimeout)
+        else {
+            throw CursorStatusProbeError.networkError("Sand usage skipped after login deadline")
+        }
+        request.timeoutInterval = sandTimeout
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue(self.originHeader, forHTTPHeaderField: "Origin")
@@ -1573,11 +1585,21 @@ public struct CursorStatusProbe: Sendable {
         return (usage, rawJSON)
     }
 
+    private static let sandUsageTimeout: TimeInterval = 5
+
     private func requestTimeout(deadline: Date?) throws -> TimeInterval {
         guard let deadline else { return self.timeout }
         let remainingTime = deadline.timeIntervalSinceNow
         guard remainingTime > 0 else { throw Self.browserLoginTimeoutError() }
         return min(self.timeout, remainingTime)
+    }
+
+    private func optionalRequestTimeout(deadline: Date?, budget: TimeInterval) -> TimeInterval? {
+        let capped = min(self.timeout, budget)
+        guard let deadline else { return capped }
+        let remainingTime = deadline.timeIntervalSinceNow
+        guard remainingTime > 0 else { return nil }
+        return min(capped, remainingTime)
     }
 
     private static func checkBrowserLoginDeadline(_ deadline: Date?) throws {
