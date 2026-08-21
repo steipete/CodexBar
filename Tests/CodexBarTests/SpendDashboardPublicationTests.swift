@@ -25,13 +25,19 @@ struct SpendDashboardPublicationTests {
             startupBehavior: .testing,
             environmentBase: [:])
         // Provider-specific by design: claude stays enabled so ownership fingerprints cover an
-        // independent provider, but its refresh is pinned to a confirmed-empty publication so the
-        // source-revision baseline cannot depend on live network behavior.
+        // independent provider, but its refresh is pinned to one confirmed-empty publication so the
+        // source-revision baseline cannot depend on live network behavior or repeat refreshes.
+        // The publication is seeded before the first configuration snapshot, and the override only
+        // fires once, so every recompute in this test observes the same `claude:empty:1` revision.
+        var claudeSpendSnapshotPinned = false
         store._test_tokenUsageRefreshOverride = { provider, _ in
-            guard provider == .claude else { return }
+            guard provider == .claude, !claudeSpendSnapshotPinned else { return }
+            claudeSpendSnapshotPinned = true
             store._setSpendDashboardTokenSnapshotForTesting(nil, for: .claude)
         }
         defer { store._test_tokenUsageRefreshOverride = nil }
+        store._setSpendDashboardTokenSnapshotForTesting(nil, for: .claude)
+        claudeSpendSnapshotPinned = true
         let initial = SpendDashboardSource.configuration(settings: settings, store: store)
         store.startSharedSpendDashboardPublication()
         defer { store.stopSharedSpendDashboardPublication() }
