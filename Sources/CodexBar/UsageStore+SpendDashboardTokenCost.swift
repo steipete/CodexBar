@@ -26,6 +26,15 @@ extension UsageStore {
         self.spendDashboardTokenPublicationRevisions[provider.instanceID] ?? 0
     }
 
+    func spendDashboardTokenFetchIsStale(for provider: UsageProvider) -> Bool {
+        guard Self.usesSpendDashboardIndependentTokenSnapshot(provider) else { return false }
+        let costScopeSignature = self.spendDashboardTokenSnapshotScopeSignature(for: provider)
+        guard let lastAt = self.lastSpendDashboardTokenFetchAt[provider.instanceID] else { return true }
+        return self.spendDashboardTokenSnapshotPublicationForCurrentConfig(for: provider) == nil
+            || self.lastSpendDashboardTokenFetchScope[provider.instanceID] != costScopeSignature
+            || Date().timeIntervalSince(lastAt) >= 5 * 60
+    }
+
     func clearSpendDashboardTokenSnapshot(for provider: UsageProvider) {
         self.spendDashboardTokenPublications.removeValue(forKey: provider.instanceID)
     }
@@ -70,15 +79,7 @@ extension UsageStore {
         let costScope = self.tokenCostScope(for: provider)
         let costScopeSignature = self.spendDashboardTokenSnapshotScopeSignature(for: provider)
         // TTL: pane re-open within 5m reuses existing dashboard snapshot.
-        if !force,
-           let lastAt = self.lastSpendDashboardTokenFetchAt[provider.instanceID],
-           let lastScope = self.lastSpendDashboardTokenFetchScope[provider.instanceID],
-           lastScope == costScopeSignature,
-           self.spendDashboardTokenSnapshotPublicationForCurrentConfig(for: provider) != nil,
-           now.timeIntervalSince(lastAt) < 5 * 60
-        {
-            return
-        }
+        if !force, !self.spendDashboardTokenFetchIsStale(for: provider) { return }
         let publicationRevision = self.providerPublicationRevision(for: provider)
         let providerConfigRevision = self.settings.providerConfigRevision(for: provider)
         self.lastSpendDashboardTokenFetchAt[provider.instanceID] = now

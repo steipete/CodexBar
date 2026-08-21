@@ -75,6 +75,15 @@ enum SpendDashboardRequestBuildMode: Equatable, Sendable {
         self == .forceRefresh
     }
 
+    /// Refreshes missing publications plus dashboard publications whose fetch metadata is stale.
+    func shouldRefresh(hasPublication: Bool, isDashboardTokenStale: Bool = false) -> Bool {
+        switch self {
+        case .refreshMissing: !hasPublication || isDashboardTokenStale
+        case .forceRefresh: true
+        case .captureOnly: false
+        }
+    }
+
     func shouldRefresh(hasPublication: Bool) -> Bool {
         switch self {
         case .refreshMissing: !hasPublication
@@ -234,7 +243,11 @@ enum SpendDashboardSource {
                 publication: captured.publication,
                 publicationRevision: captured.revision)
         }
-        let baselinesToRefresh = providerBaselines.filter { mode.shouldRefresh(hasPublication: $0.publication != nil) }
+        let baselinesToRefresh = providerBaselines.filter { baseline in
+            mode.shouldRefresh(
+                hasPublication: baseline.publication != nil,
+                isDashboardTokenStale: store.spendDashboardTokenFetchIsStale(for: baseline.provider))
+        }
         if !baselinesToRefresh.isEmpty {
             await withTaskGroup(of: Void.self) { group in
                 for baseline in baselinesToRefresh {
@@ -242,7 +255,9 @@ enum SpendDashboardSource {
                         if UsageStore.tokenCostRequiresProviderSnapshot(baseline.provider) {
                             await store.refreshProvider(baseline.provider)
                         } else {
-                            await store.refreshSpendDashboardTokenUsageNow(for: baseline.provider, force: true)
+                            await store.refreshSpendDashboardTokenUsageNow(
+                                for: baseline.provider,
+                                force: mode.forcesLoader)
                         }
                     }
                 }

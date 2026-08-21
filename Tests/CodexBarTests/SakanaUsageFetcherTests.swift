@@ -172,10 +172,13 @@ struct SakanaUsageFetcherTests {
         #expect(snapshot.fiveHour?.usedPercent == 92)
         #expect(snapshot.payAsYouGo == nil)
         #expect(startedAt.duration(to: .now) < .milliseconds(500))
-        for _ in 0..<1000 where await !(transport.didCancelPayAsYouGo()) {
-            await Task.yield()
+        let cancellationSatisfied = await Confirmation("pay-as-you-go cancelled", timeout: .seconds(2)) { confirmation in
+            while !(await transport.didCancelPayAsYouGo()) {
+                await Task.yield()
+            }
+            confirmation()
         }
-        #expect(await transport.didCancelPayAsYouGo())
+        #expect(cancellationSatisfied)
     }
 
     @Test
@@ -192,10 +195,13 @@ struct SakanaUsageFetcherTests {
                 session: transport)
         }
 
-        for _ in 0..<1000 where await !(transport.didCancelPayAsYouGo()) {
-            await Task.yield()
+        let cancellationSatisfied = await Confirmation("pay-as-you-go cancelled", timeout: .seconds(2)) { confirmation in
+            while !(await transport.didCancelPayAsYouGo()) {
+                await Task.yield()
+            }
+            confirmation()
         }
-        #expect(await transport.didCancelPayAsYouGo())
+        #expect(cancellationSatisfied)
     }
 
     @Test

@@ -645,6 +645,57 @@ struct SpendDashboardSourceConcurrencyTests {
         #expect(request.configuration == SpendDashboardSource.configuration(settings: settings, store: store))
     }
 
+    @Test
+    func `non-forced pane reopen respects dashboard token ttl`() async throws {
+        let settings = testSettingsStore(suiteName: "SpendDashboardSourceConcurrencyTests-token-ttl")
+        settings.costUsageEnabled = true
+        for provider in UsageProvider.allCases {
+            guard let metadata = ProviderRegistry.shared.metadata[provider] else { continue }
+            settings.setProviderEnabled(provider: provider, metadata: metadata, enabled: provider == .claude)
+        }
+        let store = UsageStore(
+            fetcher: UsageFetcher(environment: [:]),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings,
+            startupBehavior: .testing,
+            environmentBase: [:])
+        var refreshCalls: [Bool] = []
+        store._test_tokenUsageRefreshOverride = { _, force in
+            refreshCalls.append(force)
+            if force || !refreshCalls.dropLast().contains(true) {
+                store._setSpendDashboardTokenSnapshotForTesting(
+                    Self.input(provider: .claude, cost: Double(refreshCalls.count)).snapshot,
+                    for: .claude)
+            }
+        }
+        defer { store._test_tokenUsageRefreshOverride = nil }
+
+        let initialRequest = await SpendDashboardSource.makeRequest(
+            settings: settings,
+            store: store,
+            mode: .forceRefresh)
+        #expect(refreshCalls == [true])
+        let firstInput = try #require(initialRequest.capturedInputs.first { $0.provider == .claude })
+        #expect(firstInput.snapshot.last30DaysCostUSD == 1)
+
+        let cachedRequest = await SpendDashboardSource.makeRequest(
+            settings: settings,
+            store: store,
+            mode: .refreshMissing)
+        #expect(refreshCalls.count == 1)
+        let cachedInput = try #require(cachedRequest.capturedInputs.first { $0.provider == .claude })
+        #expect(cachedInput.snapshot.last30DaysCostUSD == 1)
+
+        store.lastSpendDashboardTokenFetchAt[.claude.instanceID] = Date().addingTimeInterval(-301)
+        let staleRequest = await SpendDashboardSource.makeRequest(
+            settings: settings,
+            store: store,
+            mode: .refreshMissing)
+        #expect(refreshCalls == [true, false])
+        let staleInput = try #require(staleRequest.capturedInputs.first { $0.provider == .claude })
+        #expect(staleInput.snapshot.last30DaysCostUSD == 1)
+    }
+
     private static func makeAccount(id: String, root: URL) throws -> CodexSpendScanRequest {
         let home = root.appendingPathComponent(id, isDirectory: true)
         try FileManager.default.createDirectory(at: home, withIntermediateDirectories: true)
