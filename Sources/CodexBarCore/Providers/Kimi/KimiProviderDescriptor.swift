@@ -19,6 +19,20 @@ public enum KimiProviderDescriptor {
             guard let token else { return nil }
             return ProviderTokenResolution(token: token, source: .environment)
         },
+        tokenAccountSupport: TokenAccountSupport(
+            title: "Kimi accounts",
+            subtitle: "Store multiple Kimi kimi-auth tokens (web login). Each account is fetched with its own cookie.",
+            placeholder: "Paste kimi-auth token\u{2026}",
+            injection: .cookieHeader,
+            requiresManualCookieSource: true,
+            cookieName: "kimi-auth",
+            environmentOverride: { token in
+                [KimiSettingsReader.authTokenEnvironmentKey: token]
+            },
+            environmentScrubber: { environment, _ in
+                environment.removeValue(forKey: KimiSettingsReader.authTokenEnvironmentKey)
+                environment.removeValue(forKey: "KIMI_MANUAL_COOKIE")
+            }),
         authDetector: { environment, _ in
             var modes: [String] = []
             if KimiSettingsReader.apiKey(environment: environment) != nil {
@@ -29,7 +43,11 @@ public enum KimiProviderDescriptor {
             }
             return modes
         },
-        missingCredentialMessage: { _ in KimiAPIError.missingToken.errorDescription })
+        missingCredentialMessage: { _ in KimiAPIError.missingToken.errorDescription },
+        selectedAccountSourceModeResolver: { base, account, _ in
+            guard account != nil else { return base }
+            return .web
+        })
 
     static func makeDescriptor() -> ProviderDescriptor {
         ProviderDescriptor(
