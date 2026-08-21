@@ -93,7 +93,7 @@ struct OverviewSpendSummaryTests {
         #expect(summary.primarySpendText == "~$12.00")
         #expect(summary.providerCoverageText == "1 of 2 subscriptions have spend")
         #expect(summary.tokenText == "~1K tokens")
-        #expect(summary.historyCoverageText == "Coverage: 0 / 30")
+        #expect(summary.historyCoverageText == "Coverage: 30 / 30")
         #expect(summary.isPartial)
     }
 
@@ -117,7 +117,7 @@ struct OverviewSpendSummaryTests {
         #expect(summary.primarySpendText == "~$74.88")
         #expect(summary.providerCoverageText == "2 of 6 subscriptions have spend")
         #expect(summary.tokenText == "~2M tokens")
-        #expect(summary.historyCoverageText == "Coverage: 0 / 30")
+        #expect(summary.historyCoverageText == "Coverage: 30 / 30")
         #expect(summary.pricingCoverageText == "Priced 2 · Unpriced 0 · Unmetered 0 · Estimated 0")
         #expect(summary.provenanceText == "Plan metered")
         #expect(summary.isPartial)
