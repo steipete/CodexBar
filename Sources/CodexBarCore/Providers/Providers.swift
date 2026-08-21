@@ -118,6 +118,7 @@ public struct IconStyle: RawRepresentable, Hashable, Sendable, CaseIterable, Cus
     public static let antigravity = Self(provider: .antigravity)
     public static let cursor = Self(provider: .cursor)
     public static let factory = Self(provider: .factory)
+    public static let grok = Self(provider: .grok)
     public static let copilot = Self(provider: .copilot)
     public static let commandcode = Self(provider: .commandcode)
     public static let kimi = Self(provider: .kimi)

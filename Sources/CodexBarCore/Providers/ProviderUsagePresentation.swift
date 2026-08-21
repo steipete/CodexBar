@@ -155,6 +155,7 @@ public struct ProviderIconDecorations: OptionSet, Sendable {
     public static let antigravity = Self(rawValue: 1 << 3)
     public static let factory = Self(rawValue: 1 << 4)
     public static let warp = Self(rawValue: 1 << 5)
+    public static let grok = Self(rawValue: 1 << 6)
 }
 
 public struct ProviderIconWindowContext: Sendable {
