@@ -87,10 +87,15 @@ extension UsageStore {
         await self.awaitTokenRefreshSequence(task)
     }
 
+    private struct SerializedTokenRefreshTask {
+        let task: Task<Void, Never>
+        let ownsCancellation: Bool
+    }
+
     private func serializedTokenRefreshTask(
         force: Bool,
         scope: TokenRefreshSequenceScope,
-        startIf: (@MainActor () -> Bool)? = nil) async -> Task<Void, Never>?
+        startIf: (@MainActor () -> Bool)? = nil) async -> SerializedTokenRefreshTask?
     {
         if force {
             while let existing = self.tokenRefreshSequenceTask {
@@ -99,10 +104,11 @@ extension UsageStore {
                 guard !Task.isCancelled, startIf?() ?? true else { return nil }
             }
         } else if let existing = self.tokenRefreshSequenceTask {
-            return existing
+            return SerializedTokenRefreshTask(task: existing, ownsCancellation: false)
         }
         guard startIf?() ?? true else { return nil }
-        return self.startTokenRefreshSequence(force: force, scope: scope, startIf: startIf)
+        let task = self.startTokenRefreshSequence(force: force, scope: scope, startIf: startIf)
+        return SerializedTokenRefreshTask(task: task, ownsCancellation: true)
     }
 
     @discardableResult
@@ -142,11 +148,27 @@ extension UsageStore {
         return task
     }
 
-    private func awaitTokenRefreshSequence(_ task: Task<Void, Never>) async {
-        await withTaskCancellationHandler {
-            await task.value
-        } onCancel: {
-            task.cancel()
+    private func awaitTokenRefreshSequence(_ serializedTask: SerializedTokenRefreshTask) async {
+        if serializedTask.ownsCancellation {
+            await withTaskCancellationHandler {
+                await serializedTask.task.value
+            } onCancel: {
+                serializedTask.task.cancel()
+            }
+            return
+        }
+
+        let (stream, continuation) = AsyncStream<Void>.makeStream()
+        let completionTask = Task {
+            await serializedTask.task.value
+            continuation.yield()
+            continuation.finish()
+        }
+        continuation.onTermination = { @Sendable _ in
+            completionTask.cancel()
+        }
+        for await _ in stream {
+            break
         }
     }
 

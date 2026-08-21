@@ -1600,12 +1600,12 @@ extension UsageStore {
                     attemptedAt: now,
                     costScopeSignature: costScopeSignature)
             }
-            let hadPriorData = self.tokenSnapshots[provider.instanceID] != nil
+            let currentPublication = self.tokenSnapshotPublicationForCurrentProviderConfig(for: provider)
             let shouldSurface = self.tokenFailureGates[provider.instanceID]?
-                .shouldSurfaceError(onFailureWithPriorData: hadPriorData) ?? true
+                .shouldSurfaceError(onFailureWithPriorData: currentPublication?.snapshot != nil) ?? true
             if shouldSurface {
                 self.tokenErrors[provider.instanceID] = error.localizedDescription
-                self.clearTokenSnapshot(for: provider)
+                if currentPublication != nil { self.clearTokenSnapshot(for: provider) }
             } else {
                 self.tokenErrors[provider.instanceID] = nil
             }

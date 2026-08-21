@@ -152,7 +152,7 @@ extension CodexAccountScopedRefreshTests {
     }
 
     @Test
-    func `cancelling account refresh cancels token wait without fallback`() async {
+    func `cancelling account refresh cancels owned scoped token sequence without fallback`() async {
         let settings = self.makeSettingsStore(suite: "CodexAccountScopedTokenRefreshTests-cancel")
         settings.costUsageEnabled = true
         settings.codexActiveSource = .profileHome(path: "/tmp/codex-cancel")
@@ -292,13 +292,15 @@ extension CodexAccountScopedRefreshTests {
 
         await store.refreshTokenUsage(.codex, force: true)
 
+        #expect(store.tokenErrors[.codex] == "profile B scan failed")
         #expect(store.tokenSnapshot(for: .codex) == rawA)
         #expect(store.tokenSnapshotPublications[.codex] == publicationA)
         #expect(store.tokenSnapshotPublicationForCurrentProviderConfig(for: .codex) == nil)
+        #expect(store.tokenSnapshotForCurrentProviderConfig(for: .codex) == nil)
     }
 
     @Test
-    func `cancelling transition after codex lane cancels exact shared claude lane`() async throws {
+    func `cancelling transition joined to shared sequence leaves producer running`() async throws {
         let settings = self.makeSettingsStore(suite: "CodexAccountScopedTokenRefreshTests-shared-cancel")
         settings.costUsageEnabled = true
         let registry = ProviderRegistry.shared
@@ -307,32 +309,42 @@ extension CodexAccountScopedRefreshTests {
             settings.setProviderEnabled(
                 provider: provider,
                 metadata: metadata,
-                enabled: provider == .claude || provider == .codex)
+                enabled: provider == .claude || provider == .codex || provider == .cursor)
         }
-        settings.setProviderOrder([.codex, .claude])
+        settings.setProviderOrder([.codex, .claude, .cursor])
         let store = self.makeUsageStore(settings: settings)
         store._test_providerRefreshOverride = { _ in }
         store._test_codexCreditsLoaderOverride = { self.credits(remaining: 1) }
         let claudeLaneStarted = CodexAccountScopedRefreshSignal()
+        let releaseClaudeLane = CodexAccountScopedRefreshSignal()
         var calls: [UsageProvider] = []
         var codexLaneFinished = false
-        var cancelledProvider: UsageProvider?
+        let claudeLaneState = JoinedTokenRefreshLaneState()
         store._test_tokenUsageRefreshOverride = { provider, _ in
             calls.append(provider)
-            if provider == .codex {
+            switch provider {
+            case .codex:
                 codexLaneFinished = true
                 store.publishConfirmedEmptyTokenSnapshot(for: .codex)
-                return
+            case .claude:
+                claudeLaneStarted.signal()
+                await withTaskCancellationHandler {
+                    await releaseClaudeLane.wait()
+                } onCancel: {
+                    Task { @MainActor in
+                        claudeLaneState.cancelledProvider = provider
+                        releaseClaudeLane.signal()
+                    }
+                }
+                claudeLaneState.finished = true
+            case .cursor:
+                break
+            default:
+                Issue.record("Unexpected token refresh lane: \(provider)")
             }
-            #expect(provider == .claude)
-            claudeLaneStarted.signal()
-            do {
-                try await Task.sleep(for: .seconds(5))
-            } catch is CancellationError {
-                cancelledProvider = provider
-            } catch {}
         }
         defer {
+            releaseClaudeLane.signal()
             store.tokenRefreshSequenceTask?.cancel()
             store._test_providerRefreshOverride = nil
             store._test_codexCreditsLoaderOverride = nil
@@ -345,16 +357,25 @@ extension CodexAccountScopedRefreshTests {
         #expect(calls == [.codex, .claude])
         #expect(store.tokenRefreshSequenceProvider == UsageProvider.claude.instanceID)
         let sharedToken = try #require(store.tokenRefreshSequenceToken)
+        let sharedTask = try #require(store.tokenRefreshSequenceTask)
         let transition = Task { await store.refreshCodexAccountScopedState(allowDisabled: true) }
         await Task.yield()
         #expect(store.tokenRefreshSequenceToken == sharedToken)
 
         transition.cancel()
         await transition.value
-        await store.tokenRefreshSequenceTask?.value
 
         #expect(calls == [.codex, .claude])
-        #expect(cancelledProvider == .claude)
+        #expect(!claudeLaneState.finished)
+        #expect(claudeLaneState.cancelledProvider == nil)
+        #expect(store.tokenRefreshSequenceToken == sharedToken)
+
+        releaseClaudeLane.signal()
+        await sharedTask.value
+
+        #expect(calls == [.codex, .claude, .cursor])
+        #expect(claudeLaneState.finished)
+        #expect(claudeLaneState.cancelledProvider == nil)
         #expect(store.tokenRefreshSequenceTask == nil)
     }
 
@@ -728,6 +749,12 @@ extension CodexAccountScopedRefreshTests {
             ],
             updatedAt: Date())
     }
+}
+
+@MainActor
+private final class JoinedTokenRefreshLaneState {
+    var finished = false
+    var cancelledProvider: UsageProvider?
 }
 
 private enum TrackedPopupTokenRefreshOutcome {
