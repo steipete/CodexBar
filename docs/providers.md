@@ -8,7 +8,7 @@ read_when:
 
 # Providers
 
-CodexBar currently registers 69 provider IDs. Some companies expose multiple surfaces, such as Codex vs OpenAI API or
+CodexBar currently registers 70 provider IDs. Some companies expose multiple surfaces, such as Codex vs OpenAI API or
 OpenCode vs OpenCode Go, because the auth source and quota shape differ.
 
 ## Fetch strategies (current)
@@ -112,6 +112,7 @@ complete when the available scan window covers fewer days.
 | Zed | Zed editor Keychain session → `cloud.zed.dev/client/users/me` for plan and quota data (`local`). |
 | Notion AI | Browser cookies → workspace resolution and the AI usage allowance API (`web`). |
 | IBM Bob | API key from config/env → profile and per-team Bobcoin budget APIs (`api`). |
+| Muse | API key from config/env → balance + models probe (`api`). |
 
 ## Codex
 - App Auto: OAuth API first; falls back to CLI only when OAuth credentials are missing or auth/refresh is invalid.
@@ -625,6 +626,13 @@ JavaScriptCore is the macOS rollback engine. The committed `.js` is generated fr
 - Distinct from the Grok provider: Grok tracks consumer Grok/SuperGrok subscription quota via CLI/web session; xAI tracks the developer-platform prepaid billing surface. Credentials and balances are never shared between the two.
 - Prepaid money is not a quota; no session or weekly meters are synthesized.
 - Details: `docs/xai.md`.
+
+## Muse
+- API key from config or `MUSE_API_KEY` / `META_API_KEY` / `META_MUSE_API_KEY`.
+- Optional base URL from provider settings or `MUSE_API_URL` (default `https://api.meta.ai`); overrides must be HTTPS or `http://localhost` for loopback.
+- Probes `GET /v1/billing/usage`, `/v1/me/balance`, `/v1/billing/subscription`, `/v1/credits` for balance (supports `available_balance`, `balance`, `data.balance` as string or number), falling back to `GET /v1/models` for key validity and model count.
+- Balance-only provider; shows `Balance: $X.XX` when available, otherwise `API key valid · N models`.
+- Details: `docs/muse.md`.
 
 ## Notion AI
 - Browser cookies (auto-import or manual Cookie header/cURL capture) for `app.notion.com`; the `token_v2` session cookie is required.
