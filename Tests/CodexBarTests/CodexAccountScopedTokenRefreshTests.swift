@@ -188,6 +188,177 @@ extension CodexAccountScopedRefreshTests {
     }
 
     @Test
+    func `physical account refresh retries cancelled profile scans and publishes final a across aba`() async throws {
+        let settings = self.makeSettingsStore(suite: "CodexAccountScopedTokenRefreshTests-physical-aba")
+        settings.costUsageEnabled = true
+        settings.codexLocalSessionCostLedgerEnabled = false
+        let profileA = "/tmp/codex-physical-aba-a"
+        let profileB = "/tmp/codex-physical-aba-b"
+        settings.updateProviderConfig(provider: .codex) { config in
+            config.codexProfileHomePaths = [profileA, profileB]
+            config.codexActiveSource = .profileHome(path: profileA)
+        }
+        let store = self.makeUsageStore(settings: settings)
+        store._test_providerRefreshOverride = { _ in }
+        store._test_codexCreditsLoaderOverride = { self.credits(remaining: 1) }
+        let loader = PhysicalTokenSnapshotLoaderGate()
+        var sequenceStartCount = 0
+        store._test_tokenRefreshSequenceStartBarrier = { sequenceStartCount += 1 }
+        store._test_tokenUsageSnapshotLoaderOverride = { provider, _, _, homePath, _ in
+            #expect(provider == .codex)
+            return try await loader.load(homePath: homePath)
+        }
+        defer {
+            loader.cleanup()
+            store.tokenRefreshSequenceTask?.cancel()
+            store._test_providerRefreshOverride = nil
+            store._test_codexCreditsLoaderOverride = nil
+            store._test_tokenRefreshSequenceStartBarrier = nil
+            store._test_tokenUsageSnapshotLoaderOverride = nil
+        }
+
+        let initialA = Task { await store.refreshCodexAccountScopedState(allowDisabled: true) }
+        #expect(await loader.waitForRequestCount(1))
+        #expect(sequenceStartCount == 1)
+        #expect(loader.homePaths() == [profileA])
+
+        let priorAScope = store.tokenSnapshotScopeSignature(for: .codex)
+        settings.codexActiveSource = .profileHome(path: profileB)
+        initialA.cancel()
+        try loader.releaseRequest(at: 0, with: .failure(CancellationError()))
+        #expect(await loader.waitForRequestCount(2))
+        #expect(sequenceStartCount == 2)
+        #expect(loader.homePaths() == [profileA, profileB])
+        await initialA.value
+
+        let profileBRefreshStarted = CodexAccountScopedRefreshSignal()
+        let profileBRefresh = Task {
+            await store.refreshCodexAccountScopedState(
+                allowDisabled: true,
+                priorTokenScopeSignature: priorAScope,
+                phaseDidChange: { phase in
+                    if phase == .usage { profileBRefreshStarted.signal() }
+                })
+        }
+        #expect(await profileBRefreshStarted.waitUntilSignaled())
+        let priorBScope = store.tokenSnapshotScopeSignature(for: .codex)
+        settings.codexActiveSource = .profileHome(path: profileA)
+        try loader.releaseRequest(at: 1, with: .failure(CancellationError()))
+        #expect(await loader.waitForRequestCount(3))
+        #expect(sequenceStartCount == 3)
+        #expect(loader.homePaths() == [profileA, profileB, profileA])
+        await profileBRefresh.value
+
+        let finalARefresh = Task {
+            await store.refreshCodexAccountScopedState(
+                allowDisabled: true,
+                priorTokenScopeSignature: priorBScope)
+        }
+        try loader.releaseRequest(at: 2, with: .success(self.tokenSnapshot(cost: 3)))
+        await finalARefresh.value
+
+        #expect(store.tokenRefreshRetryProviders.isEmpty)
+        #expect(store.tokenSnapshot(for: .codex)?.last30DaysCostUSD == 3)
+        let publication = try #require(store.tokenSnapshotPublicationForCurrentProviderConfig(for: .codex))
+        #expect(publication.snapshot?.last30DaysCostUSD == 3)
+        let storedPublication = try #require(store.tokenSnapshotPublications[.codex])
+        #expect(storedPublication.scopeSignature == store.tokenSnapshotScopeSignature(for: .codex))
+    }
+
+    @Test
+    func `current profile loader failure preserves incompatible raw snapshot without current publication`() async {
+        let settings = self.makeSettingsStore(suite: "CodexAccountScopedTokenRefreshTests-profile-failure")
+        settings.costUsageEnabled = true
+        settings.codexLocalSessionCostLedgerEnabled = false
+        let profileA = "/tmp/codex-profile-failure-a"
+        let profileB = "/tmp/codex-profile-failure-b"
+        settings.updateProviderConfig(provider: .codex) { config in
+            config.codexProfileHomePaths = [profileA, profileB]
+            config.codexActiveSource = .profileHome(path: profileA)
+        }
+        let store = self.makeUsageStore(settings: settings)
+        let rawA = self.tokenSnapshot(cost: 1)
+        store._setTokenSnapshotForTesting(rawA, provider: .codex)
+        let publicationA = store.tokenSnapshotPublications[.codex]
+        store._test_tokenUsageSnapshotLoaderOverride = { provider, _, _, homePath, _ in
+            #expect(provider == .codex)
+            #expect(homePath == profileB)
+            throw TestRefreshError(message: "profile B scan failed")
+        }
+        defer { store._test_tokenUsageSnapshotLoaderOverride = nil }
+
+        settings.codexActiveSource = .profileHome(path: profileB)
+        #expect(store.tokenSnapshotPublicationForCurrentProviderConfig(for: .codex) == nil)
+
+        await store.refreshTokenUsage(.codex, force: true)
+
+        #expect(store.tokenSnapshot(for: .codex) == rawA)
+        #expect(store.tokenSnapshotPublications[.codex] == publicationA)
+        #expect(store.tokenSnapshotPublicationForCurrentProviderConfig(for: .codex) == nil)
+    }
+
+    @Test
+    func `cancelling transition after codex lane cancels exact shared claude lane`() async throws {
+        let settings = self.makeSettingsStore(suite: "CodexAccountScopedTokenRefreshTests-shared-cancel")
+        settings.costUsageEnabled = true
+        let registry = ProviderRegistry.shared
+        for provider in UsageProvider.allCases {
+            guard let metadata = registry.metadata[provider] else { continue }
+            settings.setProviderEnabled(
+                provider: provider,
+                metadata: metadata,
+                enabled: provider == .claude || provider == .codex)
+        }
+        settings.setProviderOrder([.codex, .claude])
+        let store = self.makeUsageStore(settings: settings)
+        store._test_providerRefreshOverride = { _ in }
+        store._test_codexCreditsLoaderOverride = { self.credits(remaining: 1) }
+        let claudeLaneStarted = CodexAccountScopedRefreshSignal()
+        var calls: [UsageProvider] = []
+        var codexLaneFinished = false
+        var cancelledProvider: UsageProvider?
+        store._test_tokenUsageRefreshOverride = { provider, _ in
+            calls.append(provider)
+            if provider == .codex {
+                codexLaneFinished = true
+                store.publishConfirmedEmptyTokenSnapshot(for: .codex)
+                return
+            }
+            #expect(provider == .claude)
+            claudeLaneStarted.signal()
+            do {
+                try await Task.sleep(for: .seconds(5))
+            } catch is CancellationError {
+                cancelledProvider = provider
+            } catch {}
+        }
+        defer {
+            store.tokenRefreshSequenceTask?.cancel()
+            store._test_providerRefreshOverride = nil
+            store._test_codexCreditsLoaderOverride = nil
+            store._test_tokenUsageRefreshOverride = nil
+        }
+
+        store.scheduleTokenRefreshForTesting()
+        #expect(await claudeLaneStarted.waitUntilSignaled())
+        #expect(codexLaneFinished)
+        #expect(calls == [.codex, .claude])
+        #expect(store.tokenRefreshSequenceProvider == UsageProvider.claude.instanceID)
+        let sharedToken = try #require(store.tokenRefreshSequenceToken)
+        let transition = Task { await store.refreshCodexAccountScopedState(allowDisabled: true) }
+        await Task.yield()
+        #expect(store.tokenRefreshSequenceToken == sharedToken)
+
+        transition.cancel()
+        await transition.value
+        await store.tokenRefreshSequenceTask?.value
+
+        #expect(calls == [.codex, .claude])
+        #expect(cancelledProvider == .claude)
+        #expect(store.tokenRefreshSequenceTask == nil)
+    }
+
+    @Test
     func `ambient publication compatibility does not relax in flight completion guard`() {
         let settings = self.makeSettingsStore(suite: "CodexAccountScopedTokenRefreshTests-ambient-strict")
         settings.costUsageEnabled = true
@@ -341,7 +512,21 @@ extension CodexAccountScopedRefreshTests {
     }
 
     @Test
-    func `first managed switch rebuilds tracked popup before and after scoped token refresh`() async throws {
+    func `managed switch rebuilds tracked popup before and after successful scoped token refresh`() async throws {
+        try await self.assertTrackedPopupTokenPresentation(outcome: .success)
+    }
+
+    @Test
+    func `tracked popup keeps old cost absent after selected profile token failure`() async throws {
+        try await self.assertTrackedPopupTokenPresentation(outcome: .failure)
+    }
+
+    @Test
+    func `tracked popup keeps old cost absent after selected profile token cancellation`() async throws {
+        try await self.assertTrackedPopupTokenPresentation(outcome: .cancellation)
+    }
+
+    private func assertTrackedPopupTokenPresentation(outcome: TrackedPopupTokenRefreshOutcome) async throws {
         let settings = self.makeSettingsStore(suite: "CodexAccountScopedTokenRefreshTests-popup")
         settings.statusChecksEnabled = false
         settings.refreshFrequency = .manual
@@ -409,12 +594,16 @@ extension CodexAccountScopedRefreshTests {
         store._test_codexCreditsLoaderOverride = { self.credits(remaining: 1) }
         let scanStarted = CodexAccountScopedRefreshSignal()
         let releaseScan = CodexAccountScopedRefreshSignal()
+        var scanCount = 0
         store._test_tokenUsageSnapshotLoaderOverride = { provider, _, _, homePath, _ in
             #expect(provider == .codex)
             #expect(homePath == managedHomeB.path)
-            scanStarted.signal()
-            await releaseScan.wait()
-            return self.tokenSnapshot(cost: 2)
+            scanCount += 1
+            if scanCount == 1 {
+                scanStarted.signal()
+                await releaseScan.wait()
+            }
+            return try self.trackedPopupTokenSnapshot(outcome: outcome)
         }
         defer {
             releaseScan.signal()
@@ -470,17 +659,43 @@ extension CodexAccountScopedRefreshTests {
         #expect(!self.menuContainsRepresentedObject(StatusItemController.costHistoryChartID, in: menu))
 
         releaseScan.signal()
-        let publicationDeadline = ContinuousClock.now + .seconds(5)
-        while self.menuItem(in: menu, id: "menuCardCost") == nil ||
-            store.tokenSnapshotForCurrentProviderConfig(for: .codex)?.snapshot.last30DaysCostUSD != 2,
-            ContinuousClock.now < publicationDeadline
-        {
-            await Task.yield()
-        }
+        let completionDeadline = ContinuousClock.now + .seconds(5)
+        switch outcome {
+        case .success:
+            while self.menuItem(in: menu, id: "menuCardCost") == nil ||
+                store.tokenSnapshotForCurrentProviderConfig(for: .codex)?.snapshot.last30DaysCostUSD != 2,
+                ContinuousClock.now < completionDeadline
+            {
+                await Task.yield()
+            }
 
-        _ = try #require(self.menuItem(in: menu, id: "menuCardCost"))
-        #expect(store.tokenSnapshotForCurrentProviderConfig(for: .codex)?.snapshot.last30DaysCostUSD == 2)
-        #expect(self.menuContainsRepresentedObject(StatusItemController.costHistoryChartID, in: menu))
+            _ = try #require(self.menuItem(in: menu, id: "menuCardCost"))
+            #expect(store.tokenSnapshotForCurrentProviderConfig(for: .codex)?.snapshot.last30DaysCostUSD == 2)
+            #expect(self.menuContainsRepresentedObject(StatusItemController.costHistoryChartID, in: menu))
+        case .failure, .cancellation:
+            while scanCount < 2 || store.tokenRefreshSequenceTask != nil,
+                  ContinuousClock.now < completionDeadline
+            {
+                await Task.yield()
+            }
+            #expect(scanCount == 2)
+            #expect(store.tokenSnapshotPublicationForCurrentProviderConfig(for: .codex) == nil)
+            #expect(self.menuItem(in: menu, id: "menuCardCost") == nil)
+            #expect(!self.menuContainsRepresentedObject(StatusItemController.costHistoryChartID, in: menu))
+        }
+    }
+
+    private func trackedPopupTokenSnapshot(
+        outcome: TrackedPopupTokenRefreshOutcome) throws -> CostUsageTokenSnapshot
+    {
+        switch outcome {
+        case .success:
+            self.tokenSnapshot(cost: 2)
+        case .failure:
+            throw TestRefreshError(message: "managed B scan failed")
+        case .cancellation:
+            throw CancellationError()
+        }
     }
 
     private func menuItem(in menu: NSMenu, id: String) -> NSMenuItem? {
@@ -512,5 +727,58 @@ extension CodexAccountScopedRefreshTests {
                     modelBreakdowns: nil),
             ],
             updatedAt: Date())
+    }
+}
+
+private enum TrackedPopupTokenRefreshOutcome {
+    case success
+    case failure
+    case cancellation
+}
+
+@MainActor
+private final class PhysicalTokenSnapshotLoaderGate {
+    private struct Request {
+        let homePath: String?
+        var continuation: CheckedContinuation<CostUsageTokenSnapshot, any Error>?
+    }
+
+    private var requests: [Request] = []
+
+    func load(homePath: String?) async throws -> CostUsageTokenSnapshot {
+        try await withCheckedThrowingContinuation { continuation in
+            self.requests.append(Request(homePath: homePath, continuation: continuation))
+        }
+    }
+
+    func waitForRequestCount(_ count: Int, timeout: Duration = .seconds(5)) async -> Bool {
+        let deadline = ContinuousClock.now + timeout
+        while self.requests.count < count {
+            if ContinuousClock.now >= deadline { return false }
+            try? await Task.sleep(for: .milliseconds(10))
+        }
+        return true
+    }
+
+    func homePaths() -> [String?] {
+        self.requests.map(\.homePath)
+    }
+
+    func releaseRequest(
+        at index: Int,
+        with result: Result<CostUsageTokenSnapshot, any Error>) throws
+    {
+        try #require(self.requests.indices.contains(index))
+        let continuation = try #require(self.requests[index].continuation)
+        self.requests[index].continuation = nil
+        continuation.resume(with: result)
+    }
+
+    func cleanup() {
+        for index in self.requests.indices {
+            guard let continuation = self.requests[index].continuation else { continue }
+            self.requests[index].continuation = nil
+            continuation.resume(throwing: CancellationError())
+        }
     }
 }

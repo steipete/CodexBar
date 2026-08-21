@@ -210,10 +210,14 @@ struct CostSummarySettingsSection: View {
     }
 
     private func costStatusLine(provider: UsageProvider) -> Text {
+        Text(self.costStatusText(provider: provider))
+    }
+
+    func costStatusText(provider: UsageProvider) -> String {
         let name = ProviderDescriptorRegistry.descriptor(for: provider).metadata.displayName
 
         guard ProviderDescriptorRegistry.descriptor(for: provider).tokenCost.supportsTokenCost else {
-            return Text(String(format: L("cost_status_unsupported"), name))
+            return String(format: L("cost_status_unsupported"), name)
         }
 
         if self.store.isTokenRefreshInFlight(for: provider) {
@@ -225,27 +229,27 @@ struct CostSummarySettingsSection: View {
                 formatter.unitsStyle = .abbreviated
                 return formatter.string(from: seconds).map { " (\($0))" } ?? ""
             }()
-            return Text(String(format: L("cost_status_fetching"), name, elapsed))
+            return String(format: L("cost_status_fetching"), name, elapsed)
         }
-        if let snapshot = self.store.tokenSnapshot(for: provider) {
+        if let snapshot = self.store.tokenSnapshotPublicationForCurrentProviderConfig(for: provider)?.snapshot {
             let updated = UsageFormatter.updatedString(from: snapshot.updatedAt)
             let cost = snapshot.last30DaysCostUSD
                 .map { UsageFormatter.currencyString($0, currencyCode: snapshot.currencyCode) } ?? "—"
             let window = snapshot.historyLabel ?? (snapshot.historyDays == 1 ? "today" : "\(snapshot.historyDays)d")
-            return Text(String(format: L("cost_status_snapshot"), name, updated, window, cost))
+            return String(format: L("cost_status_snapshot"), name, updated, window, cost)
         }
         if let error = self.store.tokenError(for: provider), !error.isEmpty {
             let truncated = UsageFormatter.truncatedSingleLine(error, max: 120)
-            return Text(String(format: L("cost_status_error"), name, truncated))
+            return String(format: L("cost_status_error"), name, truncated)
         }
         if let lastAttempt = self.store.tokenLastAttemptAt(for: provider) {
             let rel = RelativeDateTimeFormatter()
             rel.locale = Locale(identifier: "en_US")
             rel.unitsStyle = .abbreviated
             let when = rel.localizedString(for: lastAttempt, relativeTo: Date())
-            return Text(String(format: L("cost_status_last_attempt"), name, when))
+            return String(format: L("cost_status_last_attempt"), name, when)
         }
-        return Text(String(format: L("cost_status_no_data"), name))
+        return String(format: L("cost_status_no_data"), name)
     }
 }
 

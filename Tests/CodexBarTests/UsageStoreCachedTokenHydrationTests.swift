@@ -243,6 +243,45 @@ struct UsageStoreCachedTokenHydrationTests {
     }
 
     @Test
+    func `profile transition rejects in flight cached hydration from prior profile`() async {
+        let profileA = "/tmp/codex-cached-hydration-a"
+        let profileB = "/tmp/codex-cached-hydration-b"
+        let settings = Self.makeCodexOnlySettings(historyDays: 1)
+        settings.codexLocalSessionCostLedgerEnabled = false
+        settings.updateProviderConfig(provider: .codex) { config in
+            config.codexProfileHomePaths = [profileA, profileB]
+            config.codexActiveSource = .profileHome(path: profileA)
+        }
+        let store = UsageStore(
+            fetcher: UsageFetcher(),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings,
+            startupBehavior: .testing,
+            environmentBase: [:])
+        let gate = CachedTokenHydrationGate()
+        var loadedHomePath: String?
+        store._test_cachedCodexTokenSnapshotLoaderOverride = { _, homePath, _ in
+            loadedHomePath = homePath
+            await gate.enter()
+            return (Self.cachedTokenSnapshot(), Date(), nil)
+        }
+
+        let hydration = store.hydrateCachedTokenSnapshots()
+        await gate.waitForStart()
+        #expect(loadedHomePath == profileA)
+
+        settings.codexActiveSource = .profileHome(path: profileB)
+        await gate.release()
+        await hydration?.value
+
+        #expect(hydration != nil)
+        #expect(store.tokenSnapshot(for: .codex) == nil)
+        #expect(store.tokenSnapshotPublications[.codex] == nil)
+        #expect(store.tokenSnapshotPublicationForCurrentProviderConfig(for: .codex) == nil)
+        #expect(store.tokenLastAttemptAt(for: .codex) == nil)
+    }
+
+    @Test
     func `confirmed empty publication wins over in flight cached codex hydration`() async {
         let settings = Self.makeCodexOnlySettings(historyDays: 1)
         let store = UsageStore(
