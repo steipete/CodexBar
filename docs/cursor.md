@@ -69,6 +69,9 @@ Manual option:
   - Stable user ID, email, and name.
 - `GET https://cursor.com/api/usage?user=ID`
   - Legacy request-based plan usage (request counts + limits).
+- `POST https://cursor.com/api/dashboard/get-sand-usage-status`
+  - Grok Bot weekly included usage (`usagePercent`, `nextResetTimestampUtc`). Same session cookie;
+    requires `Origin: https://cursor.com`. Best-effort: a failure leaves Cursor's monthly bars intact.
 
 ## Cookie file paths
 - Safari: `~/Library/Cookies/Cookies.binarycookies`
@@ -117,12 +120,14 @@ Caching: the app holds the snapshot for an in-memory hourly TTL, keyed by the hi
 - Primary: plan usage percent (included plan).
 - Secondary: Cursor (Cursor models) usage percent.
 - Tertiary: Third Party usage percent.
+- Extra: Grok Bot weekly included usage from `get-sand-usage-status` when the account has a non-zero Bot allowance.
 - Provider cost: Extra usage USD. A capped individual budget wins; team accounts without a user cap use the shared team on-demand budget.
-- Reset: billing cycle end date.
+- Reset: billing cycle end date for monthly bars; Grok Bot uses `nextResetTimestampUtc` (weekly).
 
 ## Key files
 - `Sources/CodexBarCore/Providers/Cursor/CursorAppAuth.swift`
 - `Sources/CodexBarCore/Providers/Cursor/CursorStatusProbe.swift`
+- `Sources/CodexBarCore/Providers/Cursor/CursorSandUsage.swift` (Grok Bot weekly included usage)
 - `Sources/CodexBar/CursorLoginRunner.swift` (login flow)
 - `Sources/CodexBar/Providers/Cursor/CursorLoginFlow.swift` (menu integration)
 - `Sources/CodexBar/CursorLoginBrowserRouter.swift` (browser routing and selection)
