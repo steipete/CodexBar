@@ -261,7 +261,9 @@ struct TokenAccountCLIContext {
 
     func preferredSourceMode(for provider: UsageProvider) -> ProviderSourceMode {
         let config = self.providerConfig(for: provider)
-        return config?.source ?? .auto
+        if let source = config?.source { return source }
+        // Provider-specific by design: legacy Alibaba Token Plan configs predate CLI fallback consent.
+        return provider == .alibabatokenplan ? .web : .auto
     }
 
     private func providerConfig(for provider: UsageProvider) -> ProviderConfig? {

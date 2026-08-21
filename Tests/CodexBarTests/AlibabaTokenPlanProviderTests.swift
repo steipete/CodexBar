@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+@testable import CodexBar
 @testable import CodexBarCore
 
 private func alibabaTokenPlanFixture(_ name: String) throws -> Data {
@@ -1016,6 +1017,64 @@ struct AlibabaTokenPlanCLIUsageTests {
     }
 
     @Test
+    func `child environment narrows ambient variables to the CLI allowlist`() {
+        let sanitized = AlibabaTokenPlanCLIUsageFetcher.sanitizedEnvironment([
+            "PATH": "/usr/bin:/bin",
+            "HOME": "/Users/fixture",
+            "LANG": "en_US.UTF-8",
+            "HTTPS_PROXY": "http://proxy.test:8080",
+            "AWS_SECRET_ACCESS_KEY": "ambient-secret",
+            "ALIBABA_TOKEN_PLAN_COOKIE": "login_aliyunid_ticket=ambient-cookie",
+            "DASHSCOPE_API_KEY": "sk-ambient",
+            "SSH_AUTH_SOCK": "/tmp/agent.sock",
+        ])
+
+        #expect(sanitized == [
+            "PATH": "/usr/bin:/bin",
+            "HOME": "/Users/fixture",
+            "LANG": "en_US.UTF-8",
+            "HTTPS_PROXY": "http://proxy.test:8080",
+        ])
+    }
+
+    @Test
+    func `CLI probe child process never sees ambient secrets`() async throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("alibaba-token-plan-cli-env-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let dumpPath = directory.appendingPathComponent("bl-environment.txt")
+        let binary = directory.appendingPathComponent("bl")
+        // `/usr/bin/env` is referenced by absolute path so the dump works even
+        // when the narrowed child PATH omits /usr/bin entirely.
+        try Data("#!/bin/sh\n/usr/bin/env > '\(dumpPath.path)'\nexit 1\n".utf8).write(to: binary)
+        try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: binary.path)
+
+        do {
+            _ = try await AlibabaTokenPlanCLIUsageFetcher.fetch(
+                region: .chinaMainland,
+                environment: [
+                    "PATH": directory.path,
+                    "HOME": "/Users/fixture",
+                    "AWS_SECRET_ACCESS_KEY": "leaked-secret",
+                    "ALIBABA_TOKEN_PLAN_COOKIE": "login_aliyunid_ticket=leaked-cookie",
+                ])
+            Issue.record("Expected the stub bl to fail after dumping its environment")
+        } catch AlibabaTokenPlanCLIUsageError.commandFailed {
+            // Expected: the stub exits non-zero after writing its environment dump.
+        }
+
+        let dumpData = try Data(contentsOf: dumpPath)
+        let dump = try #require(String(data: dumpData, encoding: .utf8))
+        #expect(dump.contains("PATH="))
+        #expect(dump.contains(directory.path))
+        #expect(dump.contains("HOME=/Users/fixture"))
+        #expect(!dump.contains("AWS_SECRET_ACCESS_KEY"))
+        #expect(!dump.contains("leaked-secret"))
+        #expect(!dump.contains("leaked-cookie"))
+    }
+
+    @Test
     func `cancelled CLI probe surfaces CancellationError instead of commandFailed`() async throws {
         let directory = FileManager.default.temporaryDirectory
             .appendingPathComponent("alibaba-token-plan-cli-\(UUID().uuidString)", isDirectory: true)
@@ -1115,6 +1174,35 @@ struct AlibabaTokenPlanWebStrategyTests {
             self.context(region: .chinaMainlandPersonal, sourceMode: .cli))
         #expect(result.sourceLabel == "cli")
         #expect(result.strategyID == "alibaba-token-plan.cli")
+    }
+
+    @MainActor
+    @Test
+    func `legacy unset source routes web only while explicit auto opts into CLI fallback`() async {
+        let suite = "AlibabaTokenPlanWebStrategyTests-legacy-\(UUID().uuidString)"
+        let settings = testSettingsStore(
+            suiteName: suite,
+            config: CodexBarConfig(providers: [ProviderConfig(id: .alibabatokenplan)]))
+
+        // An unset source (all configs that predate the Bailian CLI source)
+        // resolves to Web-only and never schedules the CLI strategy.
+        #expect(settings.alibabaTokenPlanUsageDataSource == .web)
+        #expect(settings.configSnapshot.providerConfig(for: .alibabatokenplan)?.source == nil)
+        let legacy = await AlibabaTokenPlanProviderDescriptor.resolveStrategies(
+            context: self.context(
+                region: .chinaMainlandPersonal,
+                sourceMode: settings.alibabaTokenPlanUsageDataSource))
+        #expect(legacy.map(\.id) == ["alibaba-token-plan.web"])
+
+        // Explicitly selecting Auto persists `.auto` and opts into Web -> CLI fallback.
+        settings.alibabaTokenPlanUsageDataSource = .auto
+        #expect(settings.alibabaTokenPlanUsageDataSource == .auto)
+        #expect(settings.configSnapshot.providerConfig(for: .alibabatokenplan)?.source == .auto)
+        let auto = await AlibabaTokenPlanProviderDescriptor.resolveStrategies(
+            context: self.context(
+                region: .chinaMainlandPersonal,
+                sourceMode: settings.alibabaTokenPlanUsageDataSource))
+        #expect(auto.map(\.id) == ["alibaba-token-plan.web", "alibaba-token-plan.cli"])
     }
 
     private func clearCookieCaches() {

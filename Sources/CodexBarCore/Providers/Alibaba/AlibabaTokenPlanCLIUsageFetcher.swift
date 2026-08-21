@@ -70,6 +70,25 @@ enum AlibabaTokenPlanCLIUsageFetcher {
     static let timeout: TimeInterval = 15
     static let maxOutputBytes = 64 * 1024
 
+    /// Environment keys the Bailian CLI child process may legitimately observe.
+    /// The ambient session is narrowed to this allowlist before spawning `bl`:
+    /// PATH resolution, per-user auth/config discovery (HOME), locale encoding,
+    /// timezone, and network proxy configuration. Every other variable —
+    /// cookies, API keys, cloud/CI secrets — must never cross the process boundary.
+    static let childEnvironmentAllowlist: Set<String> = [
+        "PATH", "HOME",
+        "LANG", "LC_ALL", "LC_CTYPE", "TZ",
+        "HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "NO_PROXY",
+        "http_proxy", "https_proxy", "all_proxy", "no_proxy",
+    ]
+
+    /// Builds the smallest practical child environment for the Bailian CLI:
+    /// only the allowlisted keys survive, so unrelated ambient secrets never
+    /// reach the subprocess.
+    static func sanitizedEnvironment(_ environment: [String: String]) -> [String: String] {
+        environment.filter { self.childEnvironmentAllowlist.contains($0.key) }
+    }
+
     static func arguments(region: AlibabaTokenPlanAPIRegion) -> [String] {
         [
             "usage", "token-plan",
@@ -84,7 +103,7 @@ enum AlibabaTokenPlanCLIUsageFetcher {
         environment: [String: String],
         now: Date = Date()) async throws -> AlibabaTokenPlanUsageSnapshot
     {
-        var processEnvironment = environment
+        var processEnvironment = Self.sanitizedEnvironment(environment)
         processEnvironment["PATH"] = PathBuilder.effectivePATH(
             purposes: [.tty],
             env: environment,
