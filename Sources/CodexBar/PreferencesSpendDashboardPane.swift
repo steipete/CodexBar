@@ -496,6 +496,7 @@ struct SpendDashboardPane: View {
             .count { $0.provider == .codex }
         for group in self.controller.model.groups {
             for row in group.providers {
+                // Provider-specific by design: spend dashboard
                 let snapshots: [UsageSnapshot?] = if row.provider == .codex,
                                                      row.id.hasPrefix("codex:")
                 {

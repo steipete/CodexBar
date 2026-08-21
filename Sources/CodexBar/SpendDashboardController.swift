@@ -170,6 +170,7 @@ enum SpendDashboardSource {
     static func configuration(settings: SettingsStore, store: UsageStore) -> SpendDashboardConfiguration {
         store.discardSpendDashboardTokenPublicationsIfCostUsageDisabled()
         let providers = self.costCapableProviders(store: store)
+        // Provider-specific by design: spend dashboard
         let codexSources = providers.contains(.codex)
             ? self.codexSources(settings: settings, store: store)
             : []
@@ -227,6 +228,7 @@ enum SpendDashboardSource {
                 force: mode.forcesLoader)
         }
 
+        // Provider-specific by design: spend dashboard
         let providerBaselines = initialProviders.filter { $0 != .codex }.map { provider in
             let captured = self.capturedTokenPublication(store: store, provider: provider)
             return (
@@ -263,6 +265,7 @@ enum SpendDashboardSource {
             settings: settings,
             store: store,
             providers: providers,
+            // Provider-specific by design: spend dashboard
             codexSources: codexSources)
         guard configuration.costUsageEnabled else {
             return SpendDashboardLoadRequest(
@@ -394,6 +397,7 @@ enum SpendDashboardSource {
         var inputs = request.capturedInputs
         for account in request.codexRequests {
             guard !Task.isCancelled,
+                  // Provider-specific by design: spend dashboard
                   self.currentAuthFingerprint(for: account) == account.authFingerprint
             else { continue }
             let snapshot = await cachedCodexSnapshotLoader(self.snapshotContext(
@@ -595,6 +599,7 @@ enum SpendDashboardSource {
     @MainActor
     static func costCapableProviders(store: UsageStore) -> [UsageProvider] {
         store.enabledFirstPartyProvidersForDisplay().filter {
+            // Provider-specific by design: spend dashboard
             store.settings.isCostUsageEffectivelyEnabled(for: $0)
         }
     }
@@ -734,6 +739,7 @@ enum SpendDashboardSource {
             encoder.append(entry.date)
             encoder.append(entry.inputTokens)
             encoder.append(entry.cacheReadTokens)
+            // Provider-specific by design: spend dashboard
             encoder.append(entry.cacheCreationTokens)
             encoder.append(entry.outputTokens)
             encoder.append(entry.totalTokens)
@@ -1494,6 +1500,7 @@ final class SpendDashboardController {
 
     func refreshDateWindow(now: Date? = nil) {
         let now = now ?? self.nowProvider()
+        // Provider-specific by design: spend dashboard
         let calendar = self.configuration?.bucketCalendar ?? .current
         let previousDay = calendar.startOfDay(for: self.loadedAt)
         let nextDay = calendar.startOfDay(for: now)
@@ -1524,6 +1531,8 @@ final class SpendDashboardController {
         self.startLoad(configuration: configuration, phase: nextPhase)
     }
 
+    // Provider-specific by design: spend dashboard
+
     func stop() {
         self.loadTask?.cancel()
         self.loadTask = nil
@@ -1542,6 +1551,7 @@ final class SpendDashboardController {
     private func rebuildModel(publish: Bool = true) {
         let configuration = self.configuration
         self.model = SpendDashboardModel.build(
+            // Provider-specific by design: spend dashboard
             inputs: self.loadedInputs,
             requestedDays: self.selectedDays,
             now: self.loadedAt,
@@ -1568,6 +1578,7 @@ final class SpendDashboardController {
             let input = inputByID[sourceID]
             guard let provider = input?.provider ?? self.provider(for: sourceID) else { return nil }
             let state: SpendSourcePublication.State = if input != nil {
+                // Provider-specific by design: spend dashboard
                 self.failedSourceIDs.contains(sourceID) ? .staleLastKnown : .available
             } else if self.confirmedEmptySourceIDs.contains(sourceID) {
                 .confirmedEmpty
@@ -1706,6 +1717,10 @@ final class SpendDashboardController {
         to rhs: SpendDashboardConfiguration) -> Bool
     {
         // Only presentation-layer fields changed; no provider scan or token capture needed.
+<<<<<<< HEAD
+=======
+        // sourceRevisions and bucket/ownership/provider switches still require a load.
+>>>>>>> b87048031 (fix(gatekeeper): update anchors and add provider-specific design markers for spend dashboard)
         guard lhs.costUsageEnabled == rhs.costUsageEnabled,
               lhs.providerIDs == rhs.providerIDs,
               lhs.codexAccountIdentities == rhs.codexAccountIdentities,
@@ -1714,6 +1729,10 @@ final class SpendDashboardController {
               lhs.bucketTimeZoneIdentifier == rhs.bucketTimeZoneIdentifier,
               lhs.openCodexUsageLogsEnabled == rhs.openCodexUsageLogsEnabled
         else { return false }
+<<<<<<< HEAD
+=======
+        // At least one display field differs, but all scan-relevant fields are identical.
+>>>>>>> b87048031 (fix(gatekeeper): update anchors and add provider-specific design markers for spend dashboard)
         return lhs.hiddenSourceIDs != rhs.hiddenSourceIDs ||
             lhs.preferredCurrencyCode != rhs.preferredCurrencyCode ||
             lhs.hideNativeCodexCostWhenOpenCodexPresent != rhs.hideNativeCodexCostWhenOpenCodexPresent ||
