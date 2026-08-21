@@ -23,6 +23,11 @@ public enum MuseCookieImporter {
         "sessionid", "session_id", "session_token", "c_user", "xs", "fbsr", "datr",
     ]
 
+    /// Destination for which the Cookie header will be sent. Filters to preserve
+    /// browser cookie isolation per RFC 6265 — only cookies whose domain/path
+    /// match this URL are included.
+    static let destinationURL = URL(string: "https://dev.meta.ai/")!
+
     public struct SessionInfo: Sendable {
         public let cookies: [HTTPCookie]
         public let sourceLabel: String
@@ -56,8 +61,7 @@ public enum MuseCookieImporter {
                     logger: logger)
                 for source in sources where !source.records.isEmpty {
                     let cookies = BrowserCookieClient.makeHTTPCookies(source.records, origin: query.origin)
-                    let headerCookies = cookies
-                        .filter { !$0.value.isEmpty && $0.expiresDate.map { $0 > Date() } ?? true }
+                    let headerCookies = self.filteredCookiesForDestination(cookies, at: self.destinationURL)
                     guard !headerCookies.isEmpty else { continue }
                     sessions.append(SessionInfo(cookies: headerCookies, sourceLabel: source.label))
                 }
@@ -67,6 +71,40 @@ public enum MuseCookieImporter {
             }
         }
         return sessions
+    }
+
+    // MARK: - Cookie isolation (testable)
+
+    /// Filters cookies to those that a browser would attach to a request for `url`.
+    /// Used to avoid concatenating cross-origin cookies (e.g. unrelated facebook.com
+    /// cookies) into the `dev.meta.ai` Cookie header.
+    static func filteredCookiesForDestination(_ cookies: [HTTPCookie], at url: URL) -> [HTTPCookie] {
+        cookies.filter { cookie in
+            guard !cookie.value.isEmpty else { return false }
+            if let expires = cookie.expiresDate, expires <= Date() { return false }
+            return self.isCookieApplicable(cookie, to: url)
+        }
+    }
+
+    static func isCookieApplicable(_ cookie: HTTPCookie, to url: URL) -> Bool {
+        guard let host = url.host?.lowercased() else { return false }
+        var cookieDomain = cookie.domain.lowercased()
+        if cookieDomain.hasPrefix(".") { cookieDomain.removeFirst() }
+        let hostMatches: Bool = {
+            if host == cookieDomain { return true }
+            return host.hasSuffix("." + cookieDomain)
+        }()
+        guard hostMatches else { return false }
+
+        let cookiePath = cookie.path
+        let requestPath = url.path.isEmpty ? "/" : url.path
+        // Cookie path must be a prefix of request path per RFC 6265 §5.1.4
+        if !requestPath.hasPrefix(cookiePath) {
+            // Special-case: "/" matches everything
+            if cookiePath != "/" { return false }
+        }
+        if cookie.isSecure, url.scheme?.lowercased() != "https" { return false }
+        return true
     }
 }
 #endif

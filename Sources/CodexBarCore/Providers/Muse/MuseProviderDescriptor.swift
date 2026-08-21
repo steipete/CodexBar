@@ -1,4 +1,7 @@
 import Foundation
+#if os(macOS)
+import SweetCookieKit
+#endif
 
 public enum MuseProviderDescriptor {
     public static let descriptor: ProviderDescriptor = Self.makeDescriptor()
@@ -9,6 +12,15 @@ public enum MuseProviderDescriptor {
         environmentHasValue: { MuseSettingsReader.apiKey(environment: $0) != nil },
         resolve: { env in MuseSettingsReader.apiKey(environment: env) },
         missingCredentialMessage: { _ in MuseUsageError.missingCredentials.errorDescription ?? "Missing Muse API key" })
+
+    /// Chrome-only automatic import to avoid prompting other browser credential stores.
+    private static var browserCookieOrder: BrowserCookieImportOrder? {
+        #if os(macOS)
+        [.chrome]
+        #else
+        nil
+        #endif
+    }
 
     static func makeDescriptor() -> ProviderDescriptor {
         ProviderDescriptor(
@@ -45,7 +57,7 @@ public enum MuseProviderDescriptor {
                 isPrimaryProvider: false,
                 usesAccountFallback: false,
                 balanceOnly: true,
-                browserCookieOrder: ProviderBrowserCookieDefaults.defaultImportOrder,
+                browserCookieOrder: self.browserCookieOrder,
                 dashboardURL: "https://dev.meta.ai/usage",
                 statusPageURL: nil,
                 statusLinkURL: nil),
