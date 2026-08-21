@@ -125,6 +125,21 @@ struct CursorUsageEventsFetcherTests {
     }
 
     @Test
+    func `make daily report prices unreported cursor events from the shared catalog`() {
+        let report = CursorUsageEventsFetcher.makeDailyReport(
+            from: [
+                Self.event(timestampMS: 1_700_000_000_000, model: "gpt-5", input: 200, output: 20, totalCents: nil),
+            ],
+            calendar: Self.utcCalendar)
+
+        let day = report.data.first
+        #expect(day?.requestCount == 1)
+        #expect(day?.estimatedRequestCount == 1)
+        // Bundled list pricing: 200 input tokens at $1.25/M plus 20 output tokens at $10/M.
+        #expect(Self.approxEqual(day?.costUSD, 0.00045))
+    }
+
+    @Test
     func `meteredCostUSD rejects a partial sum when an event omits chargedCents`() {
         let events = [
             Self.event(timestampMS: 1_700_000_000_000, model: "claude", input: 5, totalCents: 994, chargedCents: 4),
@@ -335,7 +350,7 @@ struct CursorUsageEventsFetcherTests {
     }
 
     @Test
-    func `reports keep priced cents when a sibling event omits total cents`() {
+    func `reports price a known model when a sibling event omits total cents`() {
         let events = [
             Self.event(
                 timestampMS: 1_700_000_000_000,
@@ -354,11 +369,12 @@ struct CursorUsageEventsFetcherTests {
         let unpriced = report.data[0].modelBreakdowns?.first { $0.modelName == "gpt-5" }
 
         #expect(report.data.count == 1)
-        #expect(Self.approxEqual(report.data[0].costUSD, 1.0))
+        // Claude reports $1.00; gpt-5 (7 input tokens) is priced from the bundled catalog.
+        #expect(Self.approxEqual(report.data[0].costUSD, 1.00000875))
         #expect(Self.approxEqual(priced?.costUSD, 1.0))
-        #expect(unpriced?.costUSD == nil)
+        #expect(Self.approxEqual(unpriced?.costUSD, 0.00000875))
         #expect(unpriced?.totalTokens == 7)
-        #expect(Self.approxEqual(report.summary?.totalCostUSD, 1.0))
+        #expect(Self.approxEqual(report.summary?.totalCostUSD, 1.00000875))
     }
 
     @Test
@@ -391,7 +407,7 @@ struct CursorUsageEventsFetcherTests {
     }
 
     @Test
-    func `reports keep priced days when another day omits total cents`() {
+    func `reports price a known model on a day without reported cents`() {
         let events = [
             Self.event(
                 timestampMS: 1_700_000_000_000,
@@ -407,13 +423,13 @@ struct CursorUsageEventsFetcherTests {
 
         let report = CursorUsageEventsFetcher.makeDailyReport(from: events, calendar: Self.utcCalendar)
         let priced = report.data.first { $0.costUSD != nil }
-        let unpriced = report.data.first { $0.costUSD == nil }
+        let catalogPricedDay = report.data.first { $0.estimatedRequestCount == 1 }
 
         #expect(report.data.count == 2)
         #expect(Self.approxEqual(priced?.costUSD, 1.0))
-        #expect(unpriced?.costUSD == nil)
-        #expect(unpriced?.totalTokens == 7)
-        #expect(Self.approxEqual(report.summary?.totalCostUSD, 1.0))
+        #expect(catalogPricedDay?.requestCount == 1)
+        #expect(catalogPricedDay?.totalTokens == 7)
+        #expect(Self.approxEqual(report.summary?.totalCostUSD, 1.00000875))
     }
 
     @Test

@@ -848,6 +848,43 @@ enum CostUsagePricing {
 }
 
 extension CostUsagePricing {
+    /// Shared list-price fallback for vendors that omit a cost field. Tries the Codex/OpenAI
+    /// tables first, then Claude/first-party models.dev routing; returns nil when neither
+    /// catalog prices the model. Contains no provider-name literals by design.
+    static func listPriceFallbackCostUSD(
+        model: String,
+        inputTokens: Int,
+        cachedInputTokens: Int,
+        cacheWriteInputTokens: Int = 0,
+        outputTokens: Int,
+        pricingDate: Date? = nil,
+        modelsDevCatalog: ModelsDevCatalog? = nil,
+        modelsDevCacheRoot: URL? = nil) -> Double?
+    {
+        if let cost = self.codexCostUSD(
+            model: model,
+            inputTokens: inputTokens,
+            cachedInputTokens: cachedInputTokens,
+            outputTokens: outputTokens,
+            cacheWriteInputTokens: cacheWriteInputTokens,
+            pricingDate: pricingDate,
+            modelsDevCatalog: modelsDevCatalog,
+            modelsDevCacheRoot: modelsDevCacheRoot)
+        {
+            return cost
+        }
+
+        return self.claudeCostUSD(
+            model: model,
+            inputTokens: inputTokens,
+            cacheReadInputTokens: cachedInputTokens,
+            cacheCreationInputTokens: cacheWriteInputTokens,
+            outputTokens: outputTokens,
+            pricingDate: pricingDate,
+            modelsDevCatalog: modelsDevCatalog,
+            modelsDevCacheRoot: modelsDevCacheRoot)
+    }
+
     /// Bare Claude-routed IDs may match first-party models.dev vendors. Recognizable model families
     /// stay with their vendor, while unknown bare IDs must have one unambiguous catalog match.
     /// Provider-specific by design: first-party vendor routing for bare Claude model IDs.

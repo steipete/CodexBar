@@ -484,7 +484,7 @@ struct CursorUsageEventsFetcher: Sendable {
             let model = event.model ?? "unknown"
             var modelsForDay = days[dayKey] ?? [:]
             var accumulator = modelsForDay[model] ?? ModelAccumulator()
-            accumulator.add(usage)
+            accumulator.add(usage, estimatedCents: Self.estimatedListPriceCents(for: usage, model: model))
             modelsForDay[model] = accumulator
             days[dayKey] = modelsForDay
         }
@@ -503,16 +503,24 @@ struct CursorUsageEventsFetcher: Sendable {
         var costUSD: Double?
         var costInvalid = false
         var requestCount: Int? = 0
+        var estimatedRequests = 0
 
-        mutating func add(_ usage: CursorEventTokenUsage) {
+        mutating func add(
+            _ usage: CursorEventTokenUsage,
+            estimatedCents: Double? = nil)
+        {
             self.inputTokens = Self.checkedSum(self.inputTokens, usage.inputTokens)
             self.outputTokens = Self.checkedSum(self.outputTokens, usage.outputTokens)
             self.cacheReadTokens = Self.checkedSum(self.cacheReadTokens, usage.cacheReadTokens)
             self.cacheCreationTokens = Self.checkedSum(self.cacheCreationTokens, usage.cacheWriteTokens)
+            let authoritativeCents = usage.totalCents ?? estimatedCents
             self.costUSD = Self.checkedKnownCostSum(
                 self.costUSD,
-                usage.totalCents,
+                authoritativeCents,
                 alreadyInvalid: &self.costInvalid)
+            if usage.totalCents == nil, estimatedCents != nil {
+                self.estimatedRequests += 1
+            }
             self.requestCount = Self.checkedSum(self.requestCount, 1)
         }
 
@@ -567,6 +575,7 @@ struct CursorUsageEventsFetcher: Sendable {
         var cacheCreationTokens: Int? = 0
         var requestCount: Int? = 0
         var costUSD: Double?
+        var estimatedRequestCount = 0
         var breakdowns: [CostUsageDailyReport.ModelBreakdown] = []
 
         for (model, accumulator) in models {
@@ -576,6 +585,7 @@ struct CursorUsageEventsFetcher: Sendable {
             cacheCreationTokens = ModelAccumulator.checkedSum([cacheCreationTokens, accumulator.cacheCreationTokens])
             requestCount = ModelAccumulator.checkedSum([requestCount, accumulator.requestCount])
             costUSD = Self.checkedKnownUSDTotal(costUSD, accumulator.costUSD)
+            estimatedRequestCount += accumulator.estimatedRequests
             breakdowns.append(CostUsageDailyReport.ModelBreakdown(
                 modelName: model,
                 costUSD: accumulator.costUSD,
@@ -598,7 +608,25 @@ struct CursorUsageEventsFetcher: Sendable {
             requestCount: requestCount,
             costUSD: costUSD,
             modelsUsed: models.keys.sorted(),
-            modelBreakdowns: Self.sortedBreakdowns(breakdowns))
+            modelBreakdowns: Self.sortedBreakdowns(breakdowns),
+            estimatedRequestCount: estimatedRequestCount > 0 ? estimatedRequestCount : nil)
+    }
+
+    /// List-price estimate for events whose vendor omitted totalCents, resolved through the
+    /// shared catalog tables without any network access.
+    private static func estimatedListPriceCents(
+        for usage: CursorEventTokenUsage,
+        model: String) -> Double?
+    {
+        guard usage.totalCents == nil,
+              let usd = CostUsagePricing.listPriceFallbackCostUSD(
+                  model: model,
+                  inputTokens: usage.inputTokens,
+                  cachedInputTokens: usage.cacheReadTokens,
+                  cacheWriteInputTokens: usage.cacheWriteTokens,
+                  outputTokens: usage.outputTokens)
+        else { return nil }
+        return usd * 100
     }
 
     private static func makeSummary(from entries: [CostUsageDailyReport.Entry]) -> CostUsageDailyReport.Summary {
