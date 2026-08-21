@@ -268,6 +268,7 @@ final class UsageStore {
     @ObservationIgnored var _test_providerFetchOutcomeOverride: (@MainActor (
         UsageProvider) async -> ProviderFetchOutcome)?
     @ObservationIgnored var _test_tokenUsageRefreshOverride: (@MainActor (UsageProvider, Bool) async -> Void)?
+    @ObservationIgnored var _test_tokenRefreshSequenceStartBarrier: (@MainActor () async -> Void)?
     @ObservationIgnored var _test_tokenUsageSnapshotLoaderOverride: (@MainActor (
         UsageProvider,
         Bool,

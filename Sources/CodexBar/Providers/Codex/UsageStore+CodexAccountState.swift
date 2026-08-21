@@ -28,19 +28,53 @@ struct CodexAccountScopedRefreshGuard: Equatable {
     }
 }
 
+private struct CodexTokenTransitionContext: Sendable {
+    let accountGuard: CodexAccountScopedRefreshGuard
+    let providerConfigRevision: UInt64
+    let scopeSignature: String
+}
+
 @MainActor
 extension UsageStore {
     func refreshCodexAccountScopedState(
         allowDisabled: Bool = false,
+        priorTokenScopeSignature: String? = nil,
         phaseDidChange: (@MainActor (CodexAccountScopedRefreshPhase) -> Void)? = nil)
         async
     {
         let refreshStartedAt = Date()
         self.prepareRefreshState(for: .codex)
-        if self.prepareCodexAccountScopedRefreshIfNeeded() {
+        if self.prepareCodexAccountScopedRefreshIfNeeded(
+            priorTokenScopeSignature: priorTokenScopeSignature)
+        {
             phaseDidChange?(.invalidated)
         }
+        let tokenTransitionContext = self.codexTokenTransitionContextIfEnabled()
 
+        await withTaskGroup(of: Void.self) { group in
+            group.addTask {
+                await self.refreshCodexAccountLane(
+                    allowDisabled: allowDisabled,
+                    refreshStartedAt: refreshStartedAt,
+                    phaseDidChange: phaseDidChange)
+            }
+            if let tokenTransitionContext {
+                group.addTask {
+                    await self.refreshCodexTokenLane(context: tokenTransitionContext)
+                }
+            }
+            await group.waitForAll()
+        }
+
+        self.persistWidgetSnapshot(reason: "codex-account-refresh")
+        phaseDidChange?(.completed)
+    }
+
+    private func refreshCodexAccountLane(
+        allowDisabled: Bool,
+        refreshStartedAt: Date,
+        phaseDidChange: (@MainActor (CodexAccountScopedRefreshPhase) -> Void)?) async
+    {
         await self.refreshProvider(.codex, allowDisabled: allowDisabled)
         phaseDidChange?(.usage)
         await self.refreshCreditsIfNeeded(minimumSnapshotUpdatedAt: refreshStartedAt)
@@ -62,15 +96,50 @@ extension UsageStore {
             await self.refreshCreditsIfNeeded(minimumSnapshotUpdatedAt: refreshStartedAt)
             phaseDidChange?(.credits)
         }
+    }
 
-        self.persistWidgetSnapshot(reason: "codex-account-refresh")
-        phaseDidChange?(.completed)
+    private func codexTokenTransitionContextIfEnabled() -> CodexTokenTransitionContext? {
+        guard self.settings.isCostUsageEffectivelyEnabled(for: .codex), self.isEnabled(.codex) else { return nil }
+        return CodexTokenTransitionContext(
+            accountGuard: self.freshCodexAccountScopedRefreshGuard(
+                preferCurrentSnapshot: false,
+                allowLastKnownLiveFallback: false),
+            providerConfigRevision: self.settings.providerConfigRevision(for: .codex),
+            scopeSignature: self.tokenSnapshotScopeSignature(for: .codex))
+    }
+
+    private func refreshCodexTokenLane(context: CodexTokenTransitionContext) async {
+        await self.refreshTokenUsageNow(for: .codex, force: false)
+        guard !Task.isCancelled else { return }
+        guard self.tokenSnapshotPublicationForCurrentProviderConfig(for: .codex) == nil else { return }
+        guard self.codexTokenFallbackShouldStart(context: context) else { return }
+        await self.refreshTokenUsageNow(for: .codex, force: true) {
+            self.codexTokenFallbackShouldStart(context: context)
+        }
+    }
+
+    private func codexTokenFallbackShouldStart(context: CodexTokenTransitionContext) -> Bool {
+        guard self.tokenSnapshotPublicationForCurrentProviderConfig(for: .codex) == nil,
+              self.settings.isCostUsageEffectivelyEnabled(for: .codex),
+              self.isEnabled(.codex),
+              self.settings.providerConfigRevision(for: .codex) == context.providerConfigRevision,
+              self.tokenSnapshotScopeSignature(for: .codex) == context.scopeSignature,
+              Self.codexScopedRefreshGuardsMatchAccount(
+                  self.freshCodexAccountScopedRefreshGuard(
+                      preferCurrentSnapshot: false,
+                      allowLastKnownLiveFallback: false),
+                  context.accountGuard)
+        else {
+            return false
+        }
+        return true
     }
 
     @discardableResult
     func prepareCodexAccountScopedRefreshIfNeeded(
         forceInvalidation: Bool = false,
-        currentGuardOverride: CodexAccountScopedRefreshGuard? = nil) -> Bool
+        currentGuardOverride: CodexAccountScopedRefreshGuard? = nil,
+        priorTokenScopeSignature: String? = nil) -> Bool
     {
         let currentGuard = currentGuardOverride ?? self.freshCodexAccountScopedRefreshGuard(
             preferCurrentSnapshot: false,
@@ -78,10 +147,18 @@ extension UsageStore {
         let previousGuard = self.lastCodexAccountScopedRefreshGuard
         self.lastCodexAccountScopedRefreshGuard = currentGuard
 
+        let tokenScopeChanged = priorTokenScopeSignature.map {
+            $0 != self.tokenSnapshotScopeSignature(for: .codex)
+        } ?? false
+        if tokenScopeChanged {
+            self.tokenErrors[.codex] = nil
+            self.tokenFailureGates[.codex]?.reset()
+        }
+
         let accountChanged = previousGuard.map {
             !Self.codexScopedRefreshGuardsMatchAccount($0, currentGuard)
         } ?? false
-        guard forceInvalidation || accountChanged else { return false }
+        guard forceInvalidation || accountChanged || tokenScopeChanged else { return false }
 
         let preserveSessionQuotaTransitionState = !forceInvalidation &&
             Self.codexSessionQuotaOwnersMatch(previousGuard, currentGuard)

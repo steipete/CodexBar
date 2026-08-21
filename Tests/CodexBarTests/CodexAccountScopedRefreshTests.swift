@@ -924,11 +924,23 @@ struct CodexAccountScopedRefreshTests {
         store._test_codexCreditsLoaderOverride = { self.credits(remaining: 55) }
         defer { store._test_codexCreditsLoaderOverride = nil }
 
+        settings.costUsageEnabled = true
+        settings.codexLocalSessionCostLedgerEnabled = false
+        var tokenHomePaths: [String?] = []
+        store._test_tokenUsageRefreshOverride = { _, force in
+            tokenHomePaths.append(store.tokenCostScope(for: .codex).codexHomePath)
+            if !force {
+                store.publishConfirmedEmptyTokenSnapshot(for: .codex)
+            }
+        }
+        defer { store._test_tokenUsageRefreshOverride = nil }
+
         let pane = ProvidersPane(settings: settings, store: store)
         await pane._test_selectCodexVisibleAccount(id: "managed@example.com")
 
         #expect(settings.codexActiveSource == .managedAccount(id: managedAccountID))
         #expect(store.snapshots[.codex]?.accountEmail(for: .codex) == "managed@example.com")
         #expect(store.credits?.remaining == 55)
+        #expect(tokenHomePaths == [managedAccount.managedHomePath])
     }
 }

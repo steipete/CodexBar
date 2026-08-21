@@ -4,43 +4,6 @@ import Testing
 @testable import CodexBar
 
 @MainActor
-private final class ScopedRefreshGate {
-    private var continuation: CheckedContinuation<Void, Never>?
-    private var isOpen = false
-
-    func wait() async {
-        if self.isOpen {
-            self.isOpen = false
-            return
-        }
-        await withCheckedContinuation { continuation in
-            self.continuation = continuation
-        }
-    }
-
-    func resume() {
-        if let continuation = self.continuation {
-            continuation.resume()
-            self.continuation = nil
-        } else {
-            self.isOpen = true
-        }
-    }
-
-    func waitUntilSignaled(timeout: Duration = .seconds(5)) async -> Bool {
-        let deadline = ContinuousClock.now + timeout
-        while !self.isOpen {
-            if ContinuousClock.now >= deadline {
-                return false
-            }
-            try? await Task.sleep(for: .milliseconds(10))
-        }
-        self.isOpen = false
-        return true
-    }
-}
-
-@MainActor
 @Suite(.serialized)
 struct StatusMenuScopedCodexRefreshTests {
     @Test
@@ -84,8 +47,8 @@ struct StatusMenuScopedCodexRefreshTests {
             fetcher: fetcher,
             account: account)
         { controller in
-            let creditsStarted = ScopedRefreshGate()
-            let releaseCredits = ScopedRefreshGate()
+            let creditsStarted = CodexAccountScopedRefreshSignal()
+            let releaseCredits = CodexAccountScopedRefreshSignal()
             let monitor = controller.menuCardRefreshMonitor
             let frozen = try #require(controller.menuCardModel(for: .codex))
             var coreModel: UsageMenuCardView.Model?
@@ -103,7 +66,7 @@ struct StatusMenuScopedCodexRefreshTests {
             store._test_codexCreditsLoaderOverride = {
                 creditsLoaderCalls += 1
                 if creditsLoaderCalls == 1 {
-                    creditsStarted.resume()
+                    creditsStarted.signal()
                     await releaseCredits.wait()
                 }
                 return CreditsSnapshot(remaining: 25, events: [], updatedAt: Date())
@@ -122,7 +85,7 @@ struct StatusMenuScopedCodexRefreshTests {
                     updatedAt: Date())
             }
             defer {
-                releaseCredits.resume()
+                releaseCredits.signal()
                 monitor.endManualRefresh(for: .codex)
                 store._test_providerRefreshOverride = nil
                 store._test_codexCreditsLoaderOverride = nil
@@ -153,7 +116,7 @@ struct StatusMenuScopedCodexRefreshTests {
                     "\(frozen.metrics.first?.percentLabel ?? "none") core=" +
                     "\(visibleWhileBlocked.metrics.first?.percentLabel ?? "none")")
 
-            releaseCredits.resume()
+            releaseCredits.signal()
             await refreshTask.value
 
             let finalModel = try #require(controller.menuCardModel(for: .codex))
@@ -226,6 +189,148 @@ struct StatusMenuScopedCodexRefreshTests {
             #expect(store.openAIDashboardRequiresLogin)
             #expect(providerRefreshes == 2)
         }
+    }
+
+    @Test
+    func `account transition forces codex once after joined sequence already passed its lane`() async {
+        let settings = self.makeSettings()
+        settings.refreshFrequency = .manual
+        settings.costUsageEnabled = true
+        settings.codexLocalSessionCostLedgerEnabled = false
+        settings.cursorCookieSource = .manual
+        settings.cursorCookieHeader = "fixture=cursor"
+        let profileA = "/tmp/status-menu-codex-a"
+        let profileB = "/tmp/status-menu-codex-b"
+        settings.updateProviderConfig(provider: .codex) { config in
+            config.codexProfileHomePaths = [profileA, profileB]
+            config.codexActiveSource = .profileHome(path: profileA)
+        }
+        for provider in UsageProvider.allCases {
+            guard let metadata = ProviderRegistry.shared.metadata[provider] else { continue }
+            settings.setProviderEnabled(
+                provider: provider,
+                metadata: metadata,
+                enabled: provider == .codex || provider == .cursor)
+        }
+        let environment = Self.isolatedEnvironment()
+        let store = UsageStore(
+            fetcher: UsageFetcher(environment: environment),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings,
+            startupBehavior: .testing,
+            environmentBase: environment)
+        store._test_providerRefreshOverride = { _ in }
+        store._test_codexCreditsLoaderOverride = {
+            CreditsSnapshot(remaining: 1, events: [], updatedAt: Date())
+        }
+        let laterLaneStarted = CodexAccountScopedRefreshSignal()
+        let releaseLaterLane = CodexAccountScopedRefreshSignal()
+        var codexRequests: [(force: Bool, homePath: String?)] = []
+        store._test_tokenUsageRefreshOverride = { provider, force in
+            if provider == .codex {
+                codexRequests.append((force, store.tokenCostScope(for: .codex).codexHomePath))
+            } else if provider == .cursor {
+                laterLaneStarted.signal()
+                await releaseLaterLane.wait()
+            }
+        }
+        defer {
+            releaseLaterLane.signal()
+            store._test_providerRefreshOverride = nil
+            store._test_codexCreditsLoaderOverride = nil
+            store._test_tokenUsageRefreshOverride = nil
+        }
+
+        store.lastForcedTokenRefreshStartedAt = Date()
+        store.scheduleTokenRefreshForTesting()
+        #expect(await laterLaneStarted.waitUntilSignaled())
+
+        let priorScope = store.tokenSnapshotScopeSignature(for: .codex)
+        settings.codexActiveSource = .profileHome(path: profileB)
+        let accountRefresh = Task {
+            await store.refreshCodexAccountScopedState(
+                allowDisabled: true,
+                priorTokenScopeSignature: priorScope)
+        }
+        await Task.yield()
+        #expect(codexRequests.map(\.force) == [false])
+
+        releaseLaterLane.signal()
+        await accountRefresh.value
+
+        #expect(codexRequests.map(\.force) == [false, true])
+        #expect(codexRequests.map(\.homePath) == [profileA, profileB])
+    }
+
+    @Test
+    func `forced replacement revalidates blocked profile transition after drain`() async {
+        let settings = self.makeSettings()
+        settings.costUsageEnabled = true
+        settings.codexLocalSessionCostLedgerEnabled = false
+        let profileA = "/tmp/status-menu-drain-a"
+        let profileB = "/tmp/status-menu-drain-b"
+        settings.updateProviderConfig(provider: .codex) { config in
+            config.codexProfileHomePaths = [profileA, profileB]
+            config.codexActiveSource = .profileHome(path: profileA)
+        }
+        self.enableOnlyCodex(settings)
+        let store = UsageStore(
+            fetcher: UsageFetcher(environment: Self.isolatedEnvironment()),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings,
+            startupBehavior: .testing,
+            environmentBase: Self.isolatedEnvironment())
+        var scans: [String?] = []
+        store._test_tokenUsageRefreshOverride = { provider, force in
+            #expect(provider == .codex)
+            #expect(force)
+            scans.append(store.tokenCostScope(for: .codex).codexHomePath)
+        }
+        let sequenceInstalled = CodexAccountScopedRefreshSignal()
+        let releaseSequence = CodexAccountScopedRefreshSignal()
+        store._test_tokenRefreshSequenceStartBarrier = {
+            sequenceInstalled.signal()
+            await releaseSequence.wait()
+        }
+        defer {
+            releaseSequence.signal()
+            store._test_tokenUsageRefreshOverride = nil
+            store._test_tokenRefreshSequenceStartBarrier = nil
+        }
+
+        settings.codexActiveSource = .profileHome(path: profileB)
+        let capturedRevision = settings.providerConfigRevision(for: .codex)
+        let capturedScope = store.tokenSnapshotScopeSignature(for: .codex)
+        let drainStarted = CodexAccountScopedRefreshSignal()
+        let releaseDrain = CodexAccountScopedRefreshSignal()
+        let blockingTask = Task { @MainActor in
+            drainStarted.signal()
+            await releaseDrain.wait()
+            store.tokenRefreshSequenceTask = nil
+            store.tokenRefreshSequenceProvider = nil
+        }
+        store.tokenRefreshSequenceTask = blockingTask
+        store.tokenRefreshSequenceProvider = UsageProvider.codex.instanceID
+        defer { releaseDrain.signal() }
+
+        let staleReplacement = Task { @MainActor in
+            await store.refreshTokenUsageNow(for: .codex, force: true) {
+                settings.providerConfigRevision(for: .codex) == capturedRevision &&
+                    store.tokenSnapshotScopeSignature(for: .codex) == capturedScope
+            }
+        }
+        #expect(await drainStarted.waitUntilSignaled())
+
+        releaseDrain.signal()
+        #expect(await sequenceInstalled.waitUntilSignaled())
+        settings.codexActiveSource = .profileHome(path: profileA)
+        releaseSequence.signal()
+        await staleReplacement.value
+
+        #expect(scans.isEmpty)
+        store._test_tokenRefreshSequenceStartBarrier = nil
+        await store.refreshTokenUsageNow(for: .codex, force: true)
+        #expect(scans == [profileA])
     }
 
     private func makeSettings() -> SettingsStore {

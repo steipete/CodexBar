@@ -251,8 +251,10 @@ struct ProvidersPane: View {
 
     func selectCodexVisibleAccount(id: String) async {
         self.codexAccountsNotice = nil
+        // Provider-specific by design: Codex selection captures its token scope before changing the active source.
+        let priorTokenScopeSignature = self.codexTokenScopeSignature()
         guard self.settings.selectCodexVisibleAccount(id: id) else { return }
-        await self.refreshCodexProvider()
+        await self.refreshCodexProvider(priorTokenScopeSignature: priorTokenScopeSignature)
     }
 
     func requestCodexSystemVisibleAccount(id: String) async {
@@ -277,8 +279,9 @@ struct ProvidersPane: View {
 
         do {
             let account = try await self.managedCodexAccountCoordinator.authenticateManagedAccount()
+            let priorTokenScopeSignature = self.codexTokenScopeSignature()
             self.selectCodexVisibleAccountForAuthenticatedManagedAccount(account)
-            await self.refreshCodexProvider()
+            await self.refreshCodexProvider(priorTokenScopeSignature: priorTokenScopeSignature)
         } catch {
             self.codexAccountsNotice = self.codexAccountsNotice(for: error)
         }
@@ -322,9 +325,11 @@ struct ProvidersPane: View {
 
     func removeManagedCodexAccount(id: UUID) async {
         self.codexAccountsNotice = nil
+        // Provider-specific by design: active Codex removal retains the prior token failure-state provenance.
+        let priorTokenScopeSignature = self.codexTokenScopeSignature()
         do {
             try await self.managedCodexAccountCoordinator.removeManagedAccount(id: id)
-            await self.refreshCodexProvider()
+            await self.refreshCodexProvider(priorTokenScopeSignature: priorTokenScopeSignature)
         } catch {
             self.codexAccountsNotice = self.codexAccountsNotice(for: error)
         }
@@ -542,14 +547,14 @@ struct ProvidersPane: View {
             creditsError = codexProjection.credits?.userFacingError
             dashboard = nil
             dashboardError = codexProjection.userFacingErrors.dashboard
-            tokenSnapshot = self.store.tokenSnapshot(for: provider)
+            tokenSnapshot = self.store.tokenSnapshotPublicationForCurrentProviderConfig(for: provider)?.snapshot
             tokenError = self.store.tokenError(for: provider)
         } else if ProviderDescriptorRegistry.descriptor(for: provider).tokenCost.supportsTokenCost {
             credits = nil
             creditsError = nil
             dashboard = nil
             dashboardError = nil
-            tokenSnapshot = self.store.tokenSnapshot(for: provider)
+            tokenSnapshot = self.store.tokenSnapshotPublicationForCurrentProviderConfig(for: provider)?.snapshot
             tokenError = self.store.tokenError(for: provider)
         } else {
             credits = nil
@@ -628,9 +633,16 @@ struct ProvidersPane: View {
         return self.settings.resolvedQuotaWarningThresholds(provider: provider, window: window)
     }
 
-    private func refreshCodexProvider() async {
+    /// Provider-specific by design: Codex account callers capture the provider's full token scope through one seam.
+    private func codexTokenScopeSignature() -> String {
+        self.store.tokenSnapshotScopeSignature(for: .codex)
+    }
+
+    private func refreshCodexProvider(priorTokenScopeSignature: String? = nil) async {
         await ProviderInteractionContext.$current.withValue(.userInitiated) {
-            await self.store.refreshCodexAccountScopedState(allowDisabled: true)
+            await self.store.refreshCodexAccountScopedState(
+                allowDisabled: true,
+                priorTokenScopeSignature: priorTokenScopeSignature)
         }
     }
 

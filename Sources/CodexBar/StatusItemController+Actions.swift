@@ -513,9 +513,13 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
             guard let self else { return }
             do {
                 let account = try await self.managedCodexAccountCoordinator.authenticateManagedAccount()
+                // Provider-specific by design: Codex authentication captures token scope before account activation.
+                let priorTokenScopeSignature = self.store.tokenSnapshotScopeSignature(for: .codex)
                 self.settings.selectAuthenticatedManagedCodexAccount(account)
                 await ProviderInteractionContext.$current.withValue(.userInitiated) {
-                    await self.store.refreshCodexAccountScopedState(allowDisabled: true)
+                    await self.store.refreshCodexAccountScopedState(
+                        allowDisabled: true,
+                        priorTokenScopeSignature: priorTokenScopeSignature)
                 }
             } catch {
                 self.presentManagedCodexAccountError(error)

@@ -277,6 +277,69 @@ struct CodexAccountsSettingsSectionTests {
     }
 
     @Test
+    func `removing active managed account clears failure state from prior full token scope`() async throws {
+        let settings = Self.makeSettingsStore(suite: "CodexAccountsSettingsSectionTests-remove-active-provenance")
+        settings.costUsageEnabled = false
+        settings.codexLocalSessionCostLedgerEnabled = false
+        let store = Self.makeUsageStore(settings: settings)
+        let managedStoreURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer {
+            settings._test_managedCodexAccountStoreURL = nil
+            settings._test_liveSystemCodexAccount = nil
+            try? FileManager.default.removeItem(at: managedStoreURL)
+            try? FileManager.default.removeItem(at: root)
+        }
+
+        let managedHome = root.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try Self.writeCodexAuthFile(
+            homeURL: managedHome,
+            email: "managed@example.com",
+            plan: "pro")
+        let managedAccount = ManagedCodexAccount(
+            id: UUID(),
+            email: "managed@example.com",
+            managedHomePath: managedHome.path,
+            createdAt: 1,
+            updatedAt: 2,
+            lastAuthenticatedAt: 2)
+        let managedStore = FileManagedCodexAccountStore(fileURL: managedStoreURL)
+        try managedStore.storeAccounts(ManagedCodexAccountSet(
+            version: FileManagedCodexAccountStore.currentVersion,
+            accounts: [managedAccount]))
+        settings._test_managedCodexAccountStoreURL = managedStoreURL
+        settings._test_liveSystemCodexAccount = ObservedSystemCodexAccount(
+            email: "live@example.com",
+            codexHomePath: "/Users/test/.codex",
+            observedAt: Date())
+        settings.codexActiveSource = .managedAccount(id: managedAccount.id)
+        let priorTokenScopeSignature = store.tokenSnapshotScopeSignature(for: .codex)
+        #expect(settings.codexResolvedActiveSource == .managedAccount(id: managedAccount.id))
+        #expect(store.tokenCostScope(for: .codex).codexHomePath == managedHome.path)
+        store.tokenErrors[.codex] = "managed account cost failed"
+        _ = store.tokenFailureGates[.codex]?.shouldSurfaceError(onFailureWithPriorData: false)
+        #expect(store.tokenFailureGates[.codex]?.streak == 1)
+
+        let service = ManagedCodexAccountService(
+            store: managedStore,
+            homeFactory: TestManagedCodexHomeFactoryForSettingsSectionTests(root: root),
+            loginRunner: StubManagedCodexLoginRunnerForSettingsSectionTests.success,
+            identityReader: StubManagedCodexIdentityReaderForSettingsSectionTests(emails: []))
+        let pane = ProvidersPane(
+            settings: settings,
+            store: store,
+            managedCodexAccountCoordinator: ManagedCodexAccountCoordinator(service: service))
+
+        await pane.removeManagedCodexAccount(id: managedAccount.id)
+
+        #expect(settings.codexActiveSource == .liveSystem)
+        #expect(settings.codexResolvedActiveSource == .liveSystem)
+        #expect(store.tokenSnapshotScopeSignature(for: .codex) != priorTokenScopeSignature)
+        #expect(store.tokenError(for: .codex) == nil)
+        #expect(store.tokenFailureGates[.codex]?.streak == 0)
+    }
+
+    @Test
     func `managed codex login failure message includes codex login output`() {
         let error = ManagedCodexAccountServiceError.loginFailed(CodexLoginRunner.Result(
             outcome: .failed(status: 2),

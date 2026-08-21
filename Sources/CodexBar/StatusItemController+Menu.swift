@@ -1080,9 +1080,12 @@ extension StatusItemController {
     private func handleCodexVisibleAccountSelection(_ account: CodexVisibleAccount, menu: NSMenu?) -> Bool {
         // Provider-specific by design: managed Codex selection rebuilds after account-scoped reconciliation.
         let visibleAccountID = account.id
+        let priorTokenScopeSignature = self.store.tokenSnapshotScopeSignature(for: .codex)
         self.advanceMenuInteraction(for: menu)
         self.settings.selectDisplayedCodexVisibleAccount(account)
-        if self.store.prepareCodexAccountScopedRefreshIfNeeded(), let menu {
+        if self.store.prepareCodexAccountScopedRefreshIfNeeded(
+            priorTokenScopeSignature: priorTokenScopeSignature), let menu
+        {
             self.deferSwitcherMenuRebuildIfStillVisible(menu, provider: .codex)
         }
         let store = self.store
@@ -1091,13 +1094,18 @@ extension StatusItemController {
             await ProviderInteractionContext.$current.withValue(.userInitiated) {
                 await store.refreshCodexAccountScopedState(
                     allowDisabled: true,
-                    phaseDidChange: { [weak controller, weak menu, settings] _ in
+                    priorTokenScopeSignature: priorTokenScopeSignature,
+                    phaseDidChange: { [weak controller, weak menu, settings] phase in
                         guard let controller, let menu else { return }
                         guard settings.codexVisibleAccountProjection.activeVisibleAccountID == visibleAccountID
                         else {
                             return
                         }
-                        controller.refreshOpenMenuIfStillVisible(menu, provider: .codex)
+                        if phase == .completed {
+                            controller.deferSwitcherMenuRebuildIfStillVisible(menu, provider: .codex)
+                        } else {
+                            controller.refreshOpenMenuIfStillVisible(menu, provider: .codex)
+                        }
                     })
             }
         }

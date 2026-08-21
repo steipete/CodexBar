@@ -278,4 +278,5 @@ private struct ProviderListTestDescriptors {
     let fieldSecure: ProviderSettingsFieldDescriptor
     let tokenAccountsEmpty: ProviderSettingsTokenAccountsDescriptor
 }
+
 #endif

@@ -3,6 +3,39 @@ import Foundation
 import Testing
 @testable import CodexBar
 
+@MainActor
+final class CodexAccountScopedRefreshSignal {
+    private var continuation: CheckedContinuation<Void, Never>?
+    private var isSignaled = false
+
+    func wait() async {
+        if self.isSignaled {
+            self.isSignaled = false
+            return
+        }
+        await withCheckedContinuation { self.continuation = $0 }
+    }
+
+    func signal() {
+        if let continuation = self.continuation {
+            self.continuation = nil
+            continuation.resume()
+        } else {
+            self.isSignaled = true
+        }
+    }
+
+    func waitUntilSignaled(timeout: Duration = .seconds(5)) async -> Bool {
+        let deadline = ContinuousClock.now + timeout
+        while !self.isSignaled {
+            if ContinuousClock.now >= deadline { return false }
+            try? await Task.sleep(for: .milliseconds(10))
+        }
+        self.isSignaled = false
+        return true
+    }
+}
+
 extension CodexAccountScopedRefreshTests {
     func makeSettingsStore(suite: String) -> SettingsStore {
         let defaults = UserDefaults(suiteName: suite)!

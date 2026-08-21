@@ -489,7 +489,11 @@ final class ClosureCodexAccountScopedRefresher: CodexAccountScopedRefreshing {
         self.onRefresh = onRefresh
     }
 
-    func refreshCodexAccountScopedState(allowDisabled: Bool) async {
+    func codexTokenScopeSignature() -> String {
+        "test-codex-token-scope"
+    }
+
+    func refreshCodexAccountScopedState(allowDisabled: Bool, priorTokenScopeSignature: String?) async {
         await self.onRefresh(allowDisabled)
     }
 }

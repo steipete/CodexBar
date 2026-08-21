@@ -22,7 +22,8 @@ protocol CodexActiveSourceWriting {
 
 @MainActor
 protocol CodexAccountScopedRefreshing {
-    func refreshCodexAccountScopedState(allowDisabled: Bool) async
+    func codexTokenScopeSignature() -> String
+    func refreshCodexAccountScopedState(allowDisabled: Bool, priorTokenScopeSignature: String?) async
 }
 
 @MainActor
@@ -109,8 +110,15 @@ struct UsageStoreCodexAccountScopedRefresher: CodexAccountScopedRefreshing {
         self.usageStore = usageStore
     }
 
-    func refreshCodexAccountScopedState(allowDisabled: Bool) async {
-        await self.usageStore.refreshCodexAccountScopedState(allowDisabled: allowDisabled)
+    func codexTokenScopeSignature() -> String {
+        // Provider-specific by design: Codex promotion captures the full token scope before changing account ownership.
+        self.usageStore.tokenSnapshotScopeSignature(for: .codex)
+    }
+
+    func refreshCodexAccountScopedState(allowDisabled: Bool, priorTokenScopeSignature: String?) async {
+        await self.usageStore.refreshCodexAccountScopedState(
+            allowDisabled: allowDisabled,
+            priorTokenScopeSignature: priorTokenScopeSignature)
     }
 }
 
@@ -217,8 +225,11 @@ final class CodexAccountPromotionService {
         let context = try await contextBuilder.build(targetID: id)
 
         if let resultingActiveSource = self.convergedActiveSource(for: context) {
+            let priorTokenScopeSignature = self.accountScopedRefresher.codexTokenScopeSignature()
             self.activeSourceWriter.writeCodexActiveSource(resultingActiveSource)
-            await self.accountScopedRefresher.refreshCodexAccountScopedState(allowDisabled: true)
+            await self.accountScopedRefresher.refreshCodexAccountScopedState(
+                allowDisabled: true,
+                priorTokenScopeSignature: priorTokenScopeSignature)
             return CodexAccountPromotionResult(
                 targetManagedAccountID: id,
                 outcome: .convergedNoOp,
@@ -241,8 +252,11 @@ final class CodexAccountPromotionService {
             throw CodexAccountPromotionError.liveAuthSwapFailed
         }
 
+        let priorTokenScopeSignature = self.accountScopedRefresher.codexTokenScopeSignature()
         self.activeSourceWriter.writeCodexActiveSource(.liveSystem)
-        await self.accountScopedRefresher.refreshCodexAccountScopedState(allowDisabled: true)
+        await self.accountScopedRefresher.refreshCodexAccountScopedState(
+            allowDisabled: true,
+            priorTokenScopeSignature: priorTokenScopeSignature)
 
         return CodexAccountPromotionResult(
             targetManagedAccountID: id,

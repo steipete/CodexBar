@@ -60,7 +60,11 @@ extension UsageStore {
         await self.awaitTokenRefreshSequence(task)
     }
 
-    func refreshTokenUsageNow(for provider: UsageProvider, force: Bool) async {
+    func refreshTokenUsageNow(
+        for provider: UsageProvider,
+        force: Bool,
+        startIf: (@MainActor () -> Bool)? = nil) async
+    {
         if force,
            self.tokenRefreshSequenceTask != nil,
            let activeProvider = self.tokenRefreshSequenceProvider,
@@ -68,11 +72,15 @@ extension UsageStore {
         {
             // A scoped user refresh can run beside unrelated scheduled work. The scheduled
             // sequence still owns the shared slot, so provider refreshes cannot introduce a third pass.
+            guard startIf?() ?? true else { return }
             await self.refreshTokenUsage(provider, force: true)
             self.scheduleMemoryPressureRelief()
             return
         }
-        guard let task = await self.serializedTokenRefreshTask(force: force, scope: .provider(provider.instanceID))
+        guard let task = await self.serializedTokenRefreshTask(
+            force: force,
+            scope: .provider(provider.instanceID),
+            startIf: startIf)
         else {
             return
         }
@@ -81,24 +89,27 @@ extension UsageStore {
 
     private func serializedTokenRefreshTask(
         force: Bool,
-        scope: TokenRefreshSequenceScope) async -> Task<Void, Never>?
+        scope: TokenRefreshSequenceScope,
+        startIf: (@MainActor () -> Bool)? = nil) async -> Task<Void, Never>?
     {
         if force {
             while let existing = self.tokenRefreshSequenceTask {
                 existing.cancel()
                 await existing.value
-                guard !Task.isCancelled else { return nil }
+                guard !Task.isCancelled, startIf?() ?? true else { return nil }
             }
         } else if let existing = self.tokenRefreshSequenceTask {
             return existing
         }
-        return self.startTokenRefreshSequence(force: force, scope: scope)
+        guard startIf?() ?? true else { return nil }
+        return self.startTokenRefreshSequence(force: force, scope: scope, startIf: startIf)
     }
 
     @discardableResult
     private func startTokenRefreshSequence(
         force: Bool,
-        scope: TokenRefreshSequenceScope) -> Task<Void, Never>
+        scope: TokenRefreshSequenceScope,
+        startIf: (@MainActor () -> Bool)? = nil) -> Task<Void, Never>
     {
         let providers: [ProviderInstanceID] = switch scope {
         case .all:
@@ -122,8 +133,10 @@ extension UsageStore {
         }
         let task = Task(priority: .utility) { @MainActor [weak self] in
             guard let self else { return }
+            defer { self.completeTokenRefreshSequence(token: token) }
+            await self._test_tokenRefreshSequenceStartBarrier?()
+            guard !Task.isCancelled, startIf?() ?? true else { return }
             await self.refreshTokenUsageSequence(providers: providers, force: force)
-            self.completeTokenRefreshSequence(token: token)
         }
         self.tokenRefreshSequenceTask = task
         return task
