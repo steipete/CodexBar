@@ -24,6 +24,14 @@ struct SpendDashboardPublicationTests {
             settings: settings,
             startupBehavior: .testing,
             environmentBase: [:])
+        // Provider-specific by design: claude stays enabled so ownership fingerprints cover an
+        // independent provider, but its refresh is pinned to a confirmed-empty publication so the
+        // source-revision baseline cannot depend on live network behavior.
+        store._test_tokenUsageRefreshOverride = { provider, _ in
+            guard provider == .claude else { return }
+            store._setSpendDashboardTokenSnapshotForTesting(nil, for: .claude)
+        }
+        defer { store._test_tokenUsageRefreshOverride = nil }
         let initial = SpendDashboardSource.configuration(settings: settings, store: store)
         store.startSharedSpendDashboardPublication()
         defer { store.stopSharedSpendDashboardPublication() }
@@ -739,11 +747,12 @@ struct SpendDashboardPublicationTests {
     }
 
     private static func waitUntil(_ condition: @MainActor () -> Bool) async {
-        for _ in 0..<1000 {
+        let deadline = Date().addingTimeInterval(5)
+        while Date() < deadline {
             if condition() {
                 return
             }
-            await Task.yield()
+            try? await Task.sleep(for: .milliseconds(2))
         }
         Issue.record("Timed out waiting for Spend Dashboard publication")
     }
