@@ -6,6 +6,30 @@ import Testing
 
 @Suite(.serialized)
 struct AlibabaTokenPlanRegionSelectionTests {
+    @Test
+    func `legacy CLI config without source remains web only`() throws {
+        let config = CodexBarConfig(
+            providers: [ProviderConfig(id: .alibabatokenplan)])
+        let tokenContext = try TokenAccountCLIContext(
+            selection: TokenAccountCLISelection(label: nil, index: nil, allAccounts: false),
+            config: config,
+            verbose: false)
+
+        #expect(tokenContext.preferredSourceMode(for: .alibabatokenplan) == .web)
+    }
+
+    @Test
+    func `explicit Alibaba Token Plan Auto source remains Auto in CLI`() throws {
+        let config = CodexBarConfig(
+            providers: [ProviderConfig(id: .alibabatokenplan, source: .auto)])
+        let tokenContext = try TokenAccountCLIContext(
+            selection: TokenAccountCLISelection(label: nil, index: nil, allAccounts: false),
+            config: config,
+            verbose: false)
+
+        #expect(tokenContext.preferredSourceMode(for: .alibabatokenplan) == .auto)
+    }
+
     @Test @MainActor
     func `fresh app settings default to International`() {
         let settings = testSettingsStore(suiteName: "AlibabaTokenPlanRegionSelectionTests-fresh")
