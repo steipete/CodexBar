@@ -115,7 +115,7 @@ Example:
   - Login required or Cloudflare interstitial.
 
 ### Codex CLI RPC (automatic CLI source)
-- Launches local RPC server: `codex -s read-only -a untrusted app-server`.
+- Launches local RPC server: `codex -s read-only -a never app-server`.
 - JSON-RPC over stdin/stdout:
   - `initialize` (client name/version)
   - `account/read`
