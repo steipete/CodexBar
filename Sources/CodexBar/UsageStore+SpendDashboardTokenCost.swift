@@ -29,7 +29,14 @@ extension UsageStore {
     func spendDashboardTokenFetchIsStale(for provider: UsageProvider) -> Bool {
         guard Self.usesSpendDashboardIndependentTokenSnapshot(provider) else { return false }
         let costScopeSignature = self.spendDashboardTokenSnapshotScopeSignature(for: provider)
-        guard let lastAt = self.lastSpendDashboardTokenFetchAt[provider.instanceID] else { return true }
+        guard let lastAt = self.lastSpendDashboardTokenFetchAt[provider.instanceID] else {
+            // Providers served by the shared token pipeline publish through the legacy slot;
+            // adopt its freshness instead of double-fetching on the first dashboard open.
+            guard self.tokenSnapshotPublicationForCurrentProviderConfig(for: provider) != nil,
+                  let legacyLast = self.lastTokenFetchAt[provider.instanceID]
+            else { return true }
+            return Date().timeIntervalSince(legacyLast) >= 5 * 60
+        }
         return self.spendDashboardTokenSnapshotPublicationForCurrentConfig(for: provider) == nil
             || self.lastSpendDashboardTokenFetchScope[provider.instanceID] != costScopeSignature
             || Date().timeIntervalSince(lastAt) >= 5 * 60
