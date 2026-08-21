@@ -47,11 +47,8 @@ extension UsageStore {
         self.sharedSpendDashboardObservationStarted = false
         self.sharedSpendDashboardObservationDebounceTask?.cancel()
         self.sharedSpendDashboardObservationDebounceTask = nil
-<<<<<<< HEAD
         self.sharedSpendDashboardTokenPublicationDebounceTask?.cancel()
         self.sharedSpendDashboardTokenPublicationDebounceTask = nil
-=======
->>>>>>> b87048031 (fix(gatekeeper): update anchors and add provider-specific design markers for spend dashboard)
         self.sharedSpendDashboardControllerStorage?.stop()
         self.cancelSpendDashboardCodexCostCatchUp()
     }
@@ -69,21 +66,11 @@ extension UsageStore {
     }
 
     private func scheduleDebouncedSharedSpendDashboardObservation() {
-<<<<<<< HEAD
         self.sharedSpendDashboardObservationDebounceTask?.cancel()
         let delay: Duration = self.startupBehavior.automaticallyStartsBackgroundWork
             ? .milliseconds(250) : .milliseconds(0)
         self.sharedSpendDashboardObservationDebounceTask = Task { @MainActor [weak self] in
             try? await Task.sleep(for: delay)
-=======
-        // Coalesce rapid configuration churn (token publication bursts, settings edits)
-        // Provider-specific by design: spend dashboard
-        // into a single dashboard update. 250ms keeps the UI responsive while
-        // avoiding a scan storm when multiple providers publish within one refresh cycle.
-        self.sharedSpendDashboardObservationDebounceTask?.cancel()
-        self.sharedSpendDashboardObservationDebounceTask = Task { @MainActor [weak self] in
-            try? await Task.sleep(for: .milliseconds(250))
->>>>>>> b87048031 (fix(gatekeeper): update anchors and add provider-specific design markers for spend dashboard)
             guard !Task.isCancelled else { return }
             self?.sharedSpendDashboardObservationDebounceTask = nil
             self?.observeSharedSpendDashboardConfiguration()
@@ -96,16 +83,10 @@ extension UsageStore {
         // Provider-specific by design: shared dashboard handles multiple independent token sources.
         // Token publications both drive the shared dashboard.
         guard provider == .codex || isIndependent else { return }
-<<<<<<< HEAD
-=======
-        // Token publications can arrive in bursts (one per provider). Debounce the
-        // downstream dashboard recomputation the same way as the observation path.
->>>>>>> b87048031 (fix(gatekeeper): update anchors and add provider-specific design markers for spend dashboard)
         self.scheduleDebouncedTokenPublicationSync()
     }
 
     private func scheduleDebouncedTokenPublicationSync() {
-<<<<<<< HEAD
         self.sharedSpendDashboardTokenPublicationDebounceTask?.cancel()
         let delay: Duration = self.startupBehavior.automaticallyStartsBackgroundWork
             ? .milliseconds(250) : .milliseconds(0)
@@ -113,13 +94,6 @@ extension UsageStore {
             try? await Task.sleep(for: delay)
             guard !Task.isCancelled else { return }
             self?.sharedSpendDashboardTokenPublicationDebounceTask = nil
-=======
-        self.sharedSpendDashboardObservationDebounceTask?.cancel()
-        self.sharedSpendDashboardObservationDebounceTask = Task { @MainActor [weak self] in
-            try? await Task.sleep(for: .milliseconds(250))
-            guard !Task.isCancelled else { return }
-            self?.sharedSpendDashboardObservationDebounceTask = nil
->>>>>>> b87048031 (fix(gatekeeper): update anchors and add provider-specific design markers for spend dashboard)
             guard let self, self.sharedSpendDashboardObservationStarted else { return }
             self.applySharedSpendDashboardConfiguration(
                 SpendDashboardSource.configuration(settings: self.settings, store: self))

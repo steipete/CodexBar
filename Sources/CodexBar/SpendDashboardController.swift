@@ -1721,10 +1721,6 @@ final class SpendDashboardController {
         to rhs: SpendDashboardConfiguration) -> Bool
     {
         // Only presentation-layer fields changed; no provider scan or token capture needed.
-<<<<<<< HEAD
-=======
-        // sourceRevisions and bucket/ownership/provider switches still require a load.
->>>>>>> b87048031 (fix(gatekeeper): update anchors and add provider-specific design markers for spend dashboard)
         guard lhs.costUsageEnabled == rhs.costUsageEnabled,
               lhs.providerIDs == rhs.providerIDs,
               lhs.codexAccountIdentities == rhs.codexAccountIdentities,
@@ -1733,10 +1729,6 @@ final class SpendDashboardController {
               lhs.bucketTimeZoneIdentifier == rhs.bucketTimeZoneIdentifier,
               lhs.openCodexUsageLogsEnabled == rhs.openCodexUsageLogsEnabled
         else { return false }
-<<<<<<< HEAD
-=======
-        // At least one display field differs, but all scan-relevant fields are identical.
->>>>>>> b87048031 (fix(gatekeeper): update anchors and add provider-specific design markers for spend dashboard)
         return lhs.hiddenSourceIDs != rhs.hiddenSourceIDs ||
             lhs.preferredCurrencyCode != rhs.preferredCurrencyCode ||
             lhs.hideNativeCodexCostWhenOpenCodexPresent != rhs.hideNativeCodexCostWhenOpenCodexPresent ||

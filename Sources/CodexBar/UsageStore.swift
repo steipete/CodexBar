@@ -192,10 +192,7 @@ final class UsageStore {
     @ObservationIgnored var sharedSpendDashboardControllerStorage: SpendDashboardController?
     @ObservationIgnored var sharedSpendDashboardObservationStarted = false
     @ObservationIgnored var sharedSpendDashboardObservationDebounceTask: Task<Void, Never>?
-<<<<<<< HEAD
     @ObservationIgnored var sharedSpendDashboardTokenPublicationDebounceTask: Task<Void, Never>?
-=======
->>>>>>> b87048031 (fix(gatekeeper): update anchors and add provider-specific design markers for spend dashboard)
     var tokenErrors: [ProviderInstanceID: String] = [:]
     var tokenRefreshInFlight: Set<ProviderInstanceID> = []
     var codexCostCatchUpActivity: CodexCostCatchUpActivity?
