@@ -398,6 +398,7 @@ enum SpendDashboardSource {
         for account in request.codexRequests {
             guard !Task.isCancelled,
                   // Provider-specific by design: spend dashboard
+                  // Provider-specific by design: spend dashboard
                   self.currentAuthFingerprint(for: account) == account.authFingerprint
             else { continue }
             let snapshot = await cachedCodexSnapshotLoader(self.snapshotContext(
@@ -673,6 +674,7 @@ enum SpendDashboardSource {
             "\(provider.rawValue):\(settings.providerConfigRevision(for: provider))"
         }
         parts.append("bucket:\(settings.costUsageBucketTimeZoneIdentifier)")
+        // Provider-specific by design: spend dashboard
         if providers.contains(.codex) {
             parts.append(contentsOf: settings.codexVisibleAccountProjection.visibleAccounts.map { account in
                 let homePath: String? = switch account.selectionSource {
@@ -1639,6 +1641,7 @@ final class SpendDashboardController {
     {
         var ids: [String] = []
         for providerID in self.configuration?.providerIDs ?? [] {
+            // Provider-specific by design: spend dashboard
             if providerID == UsageProvider.codex.rawValue {
                 ids.append(contentsOf: (self.configuration?.codexAccountIdentities ?? []).compactMap { identity in
                     guard let separator = identity.lastIndex(of: "|") else { return nil }
@@ -1656,6 +1659,7 @@ final class SpendDashboardController {
     }
 
     private func provider(for sourceID: String) -> UsageProvider? {
+        // Provider-specific by design: spend dashboard
         if sourceID.hasPrefix("codex:") { return .codex }
         return UsageProvider(rawValue: sourceID)
     }
