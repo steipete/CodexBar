@@ -686,7 +686,7 @@ struct SpendDashboardSourceConcurrencyTests {
         let cachedInput = try #require(cachedRequest.capturedInputs.first { $0.provider == .claude })
         #expect(cachedInput.snapshot.last30DaysCostUSD == 1)
 
-        store.lastSpendDashboardTokenFetchAt[.claude.instanceID] = Date().addingTimeInterval(-301)
+        store._setLastSpendDashboardTokenFetchAtForTesting(Date().addingTimeInterval(-301), provider: .claude)
         let staleRequest = await SpendDashboardSource.makeRequest(
             settings: settings,
             store: store,

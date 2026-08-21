@@ -35,6 +35,14 @@ extension UsageStore {
             || Date().timeIntervalSince(lastAt) >= 5 * 60
     }
 
+    func _setLastSpendDashboardTokenFetchAtForTesting(_ date: Date?, provider: UsageProvider) {
+        if let date {
+            self.lastSpendDashboardTokenFetchAt[provider.instanceID] = date
+        } else {
+            self.lastSpendDashboardTokenFetchAt.removeValue(forKey: provider.instanceID)
+        }
+    }
+
     func clearSpendDashboardTokenSnapshot(for provider: UsageProvider) {
         self.spendDashboardTokenPublications.removeValue(forKey: provider.instanceID)
     }
