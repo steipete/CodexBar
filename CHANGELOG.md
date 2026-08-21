@@ -3,6 +3,8 @@
 ## 0.54.1 — Unreleased
 
 - Cursor: show Grok Bot weekly included usage as a fourth card bar from `get-sand-usage-status`, using the same session as Total / Cursor / Third Party.
+- Codex: persist the priority-turn scan cursor across relaunches, so the first refresh after a restart resumes incrementally instead of re-scanning the whole trace database (~2.5s CPU saved per relaunch, minutes on a cold page cache) (#3130). Thanks @olddonkey!
+
 - Spend dashboard: load provider baselines and Codex multi-account scans in parallel and memoize currency conversion and calendar buckets, cutting cold opens from multiple seconds to roughly the slowest single provider (#3105). Thanks @Yuxin-Qiao!
 
 - Fixed Codex profile-home account switches briefly showing another profile's token counts, costs, usage chart, top model, and cost history while the selected profile loads (#3125).
