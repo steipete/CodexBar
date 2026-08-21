@@ -157,7 +157,16 @@ extension StatusItemController {
     }
 
     private func tokenSnapshotReadinessSignature(for provider: UsageProvider) -> String {
-        guard let snapshot = self.store.tokenSnapshot(for: provider) else { return "none" }
+        let snapshot: CostUsageTokenSnapshot? = switch provider {
+        // Provider-specific by design: these live usage projections are deterministic and I/O-free; Grok is not.
+        case .mistral, .openai, .opencodego, .openrouter, .xai:
+            self.store.tokenSnapshot(
+                fromProviderSnapshot: self.store.presentationSnapshot(for: provider),
+                provider: provider)
+        default:
+            self.store.tokenSnapshotPublicationForCurrentProviderConfig(for: provider)?.snapshot
+        }
+        guard let snapshot else { return "none" }
         let daily = snapshot.daily
             .map { entry in
                 [

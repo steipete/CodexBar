@@ -21,6 +21,7 @@ extension UsageStore {
         _ = self.claudeSwapLastError
         _ = self.claudeSwapRevision
         _ = self.tokenSnapshots
+        _ = self.tokenSnapshotPublications
         _ = self.tokenErrors
         _ = self.tokenRefreshInFlight
         _ = self.codexCostCatchUpActivity

@@ -1355,7 +1355,7 @@ extension StatusMenuTests {
     }
 
     @Test
-    func `token cost history arriving after open rebuilds parent menu after tracking ends`() async throws {
+    func `compatible codex token publication restores cost history after profile transition`() async throws {
         self.disableMenuCardsForTesting()
         let settings = self.makeSettings()
         settings.statusChecksEnabled = false
@@ -1364,8 +1364,20 @@ extension StatusMenuTests {
         settings.costUsageEnabled = true
         settings.costSummaryDisplayStyle = .both
         self.enableOnlyCodex(settings)
+        let profileA = "/tmp/status-menu-codex-profile-a"
+        let profileB = "/tmp/status-menu-codex-profile-b"
+        settings.updateProviderConfig(provider: .codex) { config in
+            config.codexProfileHomePaths = [profileA, profileB]
+            config.codexActiveSource = .profileHome(path: profileA)
+        }
 
         let store = self.makeCodexStore(settings: settings, dashboardAuthorized: false)
+        let profileASnapshot = self.makeCodexTokenCostSnapshot()
+        store._setTokenSnapshotForTesting(profileASnapshot, provider: .codex)
+        settings.codexActiveSource = .profileHome(path: profileB)
+        #expect(store.tokenSnapshot(for: .codex) == profileASnapshot)
+        #expect(store.tokenSnapshotPublicationForCurrentProviderConfig(for: .codex) == nil)
+
         let controller = StatusItemController(
             store: store,
             settings: settings,

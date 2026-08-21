@@ -88,6 +88,8 @@ extension UsageStore {
         }
     }
 
+    static let codexAmbientTokenCostScopeSignature = "codex:ambient"
+
     func tokenSnapshot(for provider: UsageProvider) -> CostUsageTokenSnapshot? {
         self.tokenSnapshots[provider.instanceID]
     }
@@ -107,11 +109,26 @@ extension UsageStore {
         for provider: UsageProvider) -> CurrentProviderConfigTokenPublication?
     {
         guard let publication = self.tokenSnapshotPublications[provider.instanceID],
-              publication.providerConfigRevision == self.settings.providerConfigRevision(for: provider),
-              publication.scopeSignature == self.tokenSnapshotScopeSignature(for: provider)
+              self.tokenSnapshotPublicationIsCompatibleWithCurrentProviderConfig(
+                  publication,
+                  for: provider)
         else { return nil }
         return CurrentProviderConfigTokenPublication(
             snapshot: publication.snapshot, publicationRevision: publication.publicationRevision)
+    }
+
+    private func tokenSnapshotPublicationIsCompatibleWithCurrentProviderConfig(
+        _ publication: TokenSnapshotPublication,
+        for provider: UsageProvider) -> Bool
+    {
+        guard publication.scopeSignature == self.tokenSnapshotScopeSignature(for: provider) else { return false }
+        if publication.providerConfigRevision == self.settings.providerConfigRevision(for: provider) {
+            return true
+        }
+        // Provider-specific by design: Codex ambient costs are shared across profile selections, so an
+        // unchanged full ambient scope signature remains compatible across selection-only config revisions.
+        return provider == .codex &&
+            self.tokenCostScope(for: provider).signature == Self.codexAmbientTokenCostScopeSignature
     }
 
     func tokenSnapshotPublicationRevision(for provider: UsageProvider) -> UInt64 {
@@ -295,12 +312,12 @@ extension UsageStore {
             return (nil, provider.rawValue)
         }
         if self.settings.codexLocalSessionCostLedgerEnabled {
-            return (nil, "codex:ambient")
+            return (nil, Self.codexAmbientTokenCostScopeSignature)
         }
         let activeSource = self.settings.codexActiveSource
         switch activeSource {
         case .liveSystem:
-            return (nil, "codex:ambient")
+            return (nil, Self.codexAmbientTokenCostScopeSignature)
         case let .managedAccount(id):
             let homePath = self.settings.managedCodexRemoteHomePath(forActiveSource: activeSource)?
                 .trimmingCharacters(in: .whitespacesAndNewlines)
