@@ -469,12 +469,6 @@ struct SpendActivityHeatmapView: View {
         }
         .onChange(of: self.calendar) { _, calendar in
             self.series = SpendActivitySeries.make(from: self.points, now: self.now, calendar: calendar)
-            if let selectedDay = self.selectedDay, let onSelectDay = self.onSelectDay {
-                let normalized = calendar.startOfDay(for: selectedDay)
-                if normalized != selectedDay {
-                    onSelectDay(normalized)
-                }
-            }
         }
     }
 

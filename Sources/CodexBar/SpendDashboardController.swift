@@ -1170,10 +1170,28 @@ final class SpendDashboardController {
            Self.isDisplayOnlyConfigurationChange(from: previousConfiguration, to: configuration)
         {
             self.configuration = configuration
+            // Provider-specific by design: bucket calendar change renormalizes selected day atomically with new config.
+            if let selectedDay = self.selectedDay {
+                let newCalendar = CostUsageBucketTimeZone.calendar(identifier: configuration.bucketTimeZoneIdentifier)
+                let normalized = newCalendar.startOfDay(for: selectedDay)
+                if normalized != selectedDay {
+                    self.selectedDay = normalized
+                }
+            }
             self.rebuildModel()
             return
         }
         self.configuration = configuration
+        // Normalize selected day when bucket timezone changes, atomically with new configuration.
+        if let selectedDay = self.selectedDay,
+           previousConfiguration?.bucketTimeZoneIdentifier != configuration.bucketTimeZoneIdentifier
+        {
+            let newCalendar = CostUsageBucketTimeZone.calendar(identifier: configuration.bucketTimeZoneIdentifier)
+            let normalized = newCalendar.startOfDay(for: selectedDay)
+            if normalized != selectedDay {
+                self.selectedDay = normalized
+            }
+        }
         if self.isRefreshing || self.phase.manualRefreshOutstanding,
            let previousConfiguration,
            Self.sameSourceOwnership(previousConfiguration, configuration)
