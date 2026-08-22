@@ -505,6 +505,7 @@ struct CursorUsageEventsFetcher: Sendable {
         var costInvalid = false
         var requestCount: Int? = 0
         var estimatedRequests = 0
+        var unpricedRequests = 0
 
         mutating func add(
             _ usage: CursorEventTokenUsage,
@@ -519,8 +520,12 @@ struct CursorUsageEventsFetcher: Sendable {
                 self.costUSD,
                 authoritativeCents,
                 alreadyInvalid: &self.costInvalid)
-            if usage.totalCents == nil, estimatedCents != nil {
-                self.estimatedRequests += 1
+            if usage.totalCents == nil {
+                if estimatedCents != nil {
+                    self.estimatedRequests += 1
+                } else {
+                    self.unpricedRequests += 1
+                }
             }
             self.requestCount = Self.checkedSum(self.requestCount, 1)
         }
@@ -577,6 +582,7 @@ struct CursorUsageEventsFetcher: Sendable {
         var requestCount: Int? = 0
         var costUSD: Double?
         var estimatedRequestCount = 0
+        var unpricedRequestCount = 0
         var breakdowns: [CostUsageDailyReport.ModelBreakdown] = []
 
         for (model, accumulator) in models {
@@ -587,6 +593,7 @@ struct CursorUsageEventsFetcher: Sendable {
             requestCount = ModelAccumulator.checkedSum([requestCount, accumulator.requestCount])
             costUSD = Self.checkedKnownUSDTotal(costUSD, accumulator.costUSD)
             estimatedRequestCount += accumulator.estimatedRequests
+            unpricedRequestCount += accumulator.unpricedRequests
             breakdowns.append(CostUsageDailyReport.ModelBreakdown(
                 modelName: model,
                 costUSD: accumulator.costUSD,
@@ -610,30 +617,43 @@ struct CursorUsageEventsFetcher: Sendable {
             costUSD: costUSD,
             modelsUsed: models.keys.sorted(),
             modelBreakdowns: Self.sortedBreakdowns(breakdowns),
+            unpricedRequestCount: unpricedRequestCount > 0 ? unpricedRequestCount : nil,
             estimatedRequestCount: estimatedRequestCount > 0 ? estimatedRequestCount : nil)
     }
 
     /// List-price estimate for events whose vendor omitted totalCents, resolved through the
     /// shared catalog tables without any network access.
-    ///
-    /// Cursor counters are disjoint: input excludes cached reads and writes, while the shared
-    /// catalog contract treats cached reads and writes as subsets of total input. Fold them
-    /// into the input count before delegating so no cache tokens are dropped.
+    /// Cursor counters are disjoint: input excludes cached reads and writes.
+    /// Codex/OpenAI treats cache tokens as a subset of total input, so they are folded
+    /// into the input count for that route only. Claude bills input and cache tokens
+    /// disjointly, so the original counters are preserved for the Claude fallback.
     private static func estimatedListPriceCents(
         for usage: CursorEventTokenUsage,
         eventDate: Date,
         model: String) -> Double?
     {
-        guard usage.totalCents == nil,
-              let usd = CostUsagePricing.listPriceFallbackCostUSD(
-                  model: model,
-                  inputTokens: usage.inputTokens + usage.cacheReadTokens + usage.cacheWriteTokens,
-                  cachedInputTokens: usage.cacheReadTokens,
-                  cacheWriteInputTokens: usage.cacheWriteTokens,
-                  outputTokens: usage.outputTokens,
-                  pricingDate: eventDate)
-        else { return nil }
-        return usd * 100
+        guard usage.totalCents == nil else { return nil }
+        if let usd = CostUsagePricing.codexCostUSD(
+            model: model,
+            inputTokens: usage.inputTokens + usage.cacheReadTokens + usage.cacheWriteTokens,
+            cachedInputTokens: usage.cacheReadTokens,
+            outputTokens: usage.outputTokens,
+            cacheWriteInputTokens: usage.cacheWriteTokens,
+            pricingDate: eventDate)
+        {
+            return usd * 100
+        }
+        if let usd = CostUsagePricing.claudeCostUSD(
+            model: model,
+            inputTokens: usage.inputTokens,
+            cacheReadInputTokens: usage.cacheReadTokens,
+            cacheCreationInputTokens: usage.cacheWriteTokens,
+            outputTokens: usage.outputTokens,
+            pricingDate: eventDate)
+        {
+            return usd * 100
+        }
+        return nil
     }
 
     private static func makeSummary(from entries: [CostUsageDailyReport.Entry]) -> CostUsageDailyReport.Summary {

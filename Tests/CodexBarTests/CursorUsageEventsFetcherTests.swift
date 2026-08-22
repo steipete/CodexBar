@@ -433,6 +433,59 @@ struct CursorUsageEventsFetcherTests {
     }
 
     @Test
+    func `estimates price cached claude tokens without double billing`() {
+        // Cursor reports disjoint counters: input excludes cache. For Muse the
+        // pricing bills input, cacheRead, and cacheCreation disjointly. The
+        // fallback must not fold cache tokens into input for the Claude route.
+        let event = Self.event(
+            timestampMS: 1_700_000_000_000,
+            model: "claude-sonnet-4-20250514",
+            input: 100,
+            output: 50,
+            cacheWrite: 300,
+            cacheRead: 200,
+            totalCents: nil)
+        let report = CursorUsageEventsFetcher.makeDailyReport(from: [event], calendar: Self.utcCalendar)
+        let expected = CostUsagePricing.claudeCostUSD(
+            model: "claude-sonnet-4-20250514",
+            inputTokens: 100,
+            cacheReadInputTokens: 200,
+            cacheCreationInputTokens: 300,
+            outputTokens: 50)
+        #expect(report.data.count == 1)
+        #expect(report.data[0].estimatedRequestCount == 1)
+        #expect(report.data[0].unpricedRequestCount == nil)
+        #expect(Self.approxEqual(report.data[0].costUSD, expected ?? -1))
+    }
+
+    @Test
+    func `mixed priced and catalog missing day counts unpriced requests`() {
+        let events = [
+            Self.event(
+                timestampMS: 1_700_000_000_000,
+                model: "claude-4.5-sonnet",
+                input: 5,
+                totalCents: 100),
+            Self.event(
+                timestampMS: 1_700_000_001_000,
+                model: "fixture-model",
+                input: 7,
+                totalCents: nil),
+        ]
+        let report = CursorUsageEventsFetcher.makeDailyReport(from: events, calendar: Self.utcCalendar)
+        #expect(report.data.count == 1)
+        // Only the Muse event has a price; the unknown model is absent from bundled tables.
+        #expect(Self.approxEqual(report.data[0].costUSD, 1.0))
+        #expect(report.data[0].requestCount == 2)
+        #expect(report.data[0].unpricedRequestCount == 1)
+        #expect(report.data[0].estimatedRequestCount == nil)
+        let coverage = report.data[0].coverageCounts
+        #expect(coverage.priced == 1)
+        #expect(coverage.unpriced == 1)
+        #expect(coverage.estimated == 0)
+    }
+
+    @Test
     func `reports preserve unknown aggregate tokens on cross event overflow`() {
         let events = [
             Self.event(
