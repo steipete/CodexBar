@@ -782,8 +782,11 @@ struct AntigravityOAuthFetchStrategy: ProviderFetchStrategy {
             sourceLabel: "oauth")
     }
 
-    func shouldFallback(on _: Error, context _: ProviderFetchContext) -> Bool {
-        false
+    func shouldFallback(on _: Error, context: ProviderFetchContext) -> Bool {
+        let homeURL = context.env["HOME"]
+            .flatMap { $0.isEmpty ? nil : URL(fileURLWithPath: $0, isDirectory: true) }
+            ?? FileManager.default.homeDirectoryForCurrentUser
+        return AntigravityOfflineStore.hasOfflineData(home: homeURL, env: context.env)
     }
 }
 
