@@ -256,8 +256,9 @@ enum ShareStatsBuilder {
         subscriptionNames: [String: ShareStatsSubscriptionName] = [:]) -> ShareStatsPayload?
     {
         let providers = model.groups.flatMap { group in
-            group.providers.map { row in
-                ShareStatsProviderPayload(
+            group.providers.compactMap { row -> ShareStatsProviderPayload? in
+                guard row.id != SpendDashboardSource.codexProxySourceID else { return nil }
+                return ShareStatsProviderPayload(
                     provider: row.provider,
                     providerName: row.displayName,
                     subscriptionName: subscriptionNames[row.id]?.displayName,
@@ -273,11 +274,12 @@ enum ShareStatsBuilder {
             group.models.compactMap { row -> ShareStatsModelPayload? in
                 let estimatedCost = self.finiteCost(row.totalCost)
                 guard let modelName = ShareStatsSanitizer.modelName(row.modelName),
+                      let sharedProvider = self.sharedModelProvider(for: row),
                       row.totalTokens != nil
                 else { return nil }
                 return ShareStatsModelPayload(
-                    provider: row.provider,
-                    providerName: row.providerName,
+                    provider: sharedProvider.provider,
+                    providerName: sharedProvider.name,
                     modelName: modelName,
                     currencyCode: group.currencyCode,
                     totalTokens: row.totalTokens,
@@ -329,6 +331,25 @@ enum ShareStatsBuilder {
             totalTokens: totalTokens,
             hasPartialTokens: hasPartialTokens)
         return payload.hasShareableData ? payload : nil
+    }
+
+    private static func sharedModelProvider(
+        for row: SpendDashboardModel.ModelRow) -> (provider: UsageProvider, name: String)?
+    {
+        guard row.attribution?.route == .cliProxyAPI else {
+            return (row.provider, row.providerName)
+        }
+        guard let upstream = row.attribution?.upstream else { return nil }
+        let normalizedProvider = upstream.provider.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        // Provider-specific by design: CLIProxyAPI provider strings map to CodexBar's canonical provider IDs.
+        let provider: UsageProvider? = switch normalizedProvider {
+        case "anthropic": .claude
+        case "aistudio", "gemini-interactions", "google": .gemini
+        case "vertex": .vertexai
+        default: UsageProvider(rawValue: normalizedProvider)
+        }
+        guard let provider else { return nil }
+        return (provider, ProviderDescriptorRegistry.descriptor(for: provider).metadata.displayName)
     }
 
     private static func finiteCost(_ value: Double?) -> Double? {

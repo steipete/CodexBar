@@ -163,14 +163,12 @@ struct UsageStoreCoverageTests {
             historyDays: 30,
             source: .auto,
             credentialFingerprint: "unresolved")
-        let revision = store.providerPublicationRevision(for: .cursor)
-        let providerConfigRevision = settings.providerConfigRevision(for: .cursor)
+        let publicationGuard = store.tokenRefreshPublicationGuard(for: .cursor)
         settings.costUsageHistoryDays = 7
 
         #expect(!store.tokenRefreshPublicationIsCurrent(
             provider: .cursor,
-            publicationRevision: revision,
-            providerConfigRevision: providerConfigRevision,
+            publicationGuard: publicationGuard,
             historyDays: 30,
             costScopeSignature: initialSignature,
             fetchedCredentialScopeFingerprint: fingerprint))

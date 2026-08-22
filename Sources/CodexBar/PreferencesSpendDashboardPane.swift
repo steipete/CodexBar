@@ -32,6 +32,44 @@ func spendDashboardCoverageText(covered: Int, requested: Int) -> String {
     "\(L("Coverage")): \(codexBarLocalizedInteger(covered)) / \(codexBarLocalizedInteger(requested))"
 }
 
+func spendDashboardShouldUseAmbientCodexSubscription(
+    rowID: String,
+    codexRowCount: Int) -> Bool
+{
+    rowID != SpendDashboardSource.codexProxySourceID && codexRowCount == 1
+}
+
+func spendDashboardCodexAccountRowCount(_ rows: [SpendDashboardModel.ProviderRow]) -> Int {
+    // Provider-specific by design: the synthetic CLIProxyAPI row is not a Codex account subscription.
+    rows.count { $0.provider == .codex && $0.id != SpendDashboardSource.codexProxySourceID }
+}
+
+func spendDashboardSubscriptionCount(_ rows: [SpendDashboardModel.ProviderRow]) -> Int {
+    rows.count { $0.id != SpendDashboardSource.codexProxySourceID }
+}
+
+func spendDashboardModelSourceText(
+    providerName: String,
+    attribution: CostUsageAttribution?) -> String
+{
+    guard let attribution else { return providerName }
+    switch attribution.route {
+    case .cliProxyAPI:
+        if let upstream = attribution.upstream {
+            return "\(upstream.displayName) · CLIProxyAPI via Claude Code"
+        }
+        return "CLIProxyAPI via Claude Code"
+    case .unknown:
+        let modelProvider = switch attribution.modelProvider {
+        case .openAI: "OpenAI model"
+        case .anthropic: "Anthropic model"
+        case .google: "Google model"
+        case .unknown: "Unknown model provider"
+        }
+        return "\(providerName) · \(modelProvider) via Claude Code"
+    }
+}
+
 func spendDashboardTokenMixValue(_ value: Int?) -> String {
     value.map(UsageFormatter.tokenCountString) ?? "—"
 }
@@ -138,10 +176,30 @@ func spendDashboardModelHistoryPresentation(
     return group.modelHistoryCompleteness == .incomplete ? .partial : .complete
 }
 
+func spendDashboardCLIProxyAPIConfigurationPresentation(
+    loadResult: KeychainCacheStore.LoadResult<CLIProxyAPIConnectionSettings>,
+    currentBaseURL: String,
+    hasSavedConfiguration: Bool) -> (baseURL: String, hasSavedConfiguration: Bool)
+{
+    switch loadResult {
+    case let .found(configuration):
+        (configuration.baseURL, true)
+    case .missing, .invalid:
+        (currentBaseURL, false)
+    case .temporarilyUnavailable:
+        (currentBaseURL, hasSavedConfiguration)
+    }
+}
+
 @MainActor
 struct SpendDashboardPane: View {
     @Bindable var settings: SettingsStore
     @Bindable var store: UsageStore
+    @State private var cliProxyAPIBaseURL = CLIProxyAPIConnectionSettings.defaultBaseURL
+    @State private var cliProxyAPIManagementKey = ""
+    @State private var cliProxyAPIHasSavedConfiguration = false
+    @State private var cliProxyAPIStatus: String?
+    @State private var cliProxyAPIIsSaving = false
     @State private var isVisible = false
 
     init(settings: SettingsStore, store: UsageStore) {
@@ -155,6 +213,7 @@ struct SpendDashboardPane: View {
                 self.header
                 self.codexCostCatchUpPanel
                 self.content
+                self.cliProxyAPISetup
                 self.provenance
                 self.shareAction
             }
@@ -164,6 +223,7 @@ struct SpendDashboardPane: View {
         .onAppear {
             self.isVisible = true
             self.controller.update(configuration: self.configuration)
+            self.loadCLIProxyAPIConfiguration()
             if !self.controller.isRefreshing {
                 self.synchronizeCodexCostCatchUp()
             }
@@ -446,6 +506,149 @@ struct SpendDashboardPane: View {
         }
     }
 
+    private var cliProxyAPISetup: some View {
+        SpendDashboardPanel {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack {
+                    Label("CLIProxyAPI attribution", systemImage: "point.3.connected.trianglepath.dotted")
+                        .font(.headline)
+                    Spacer()
+                    if self.cliProxyAPIHasSavedConfiguration {
+                        Label("Configured", systemImage: "checkmark.circle.fill")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                Text(
+                    "Connect CLIProxyAPI’s management usage queue to identify the exact upstream provider " +
+                        "and whether it used OAuth or an API key. Enter the same plaintext " +
+                        "remote-management secret key configured in CLIProxyAPI.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 10) {
+                    GridRow {
+                        Text("Local server URL").foregroundStyle(.secondary)
+                        TextField(CLIProxyAPIConnectionSettings.defaultBaseURL, text: self.$cliProxyAPIBaseURL)
+                            .textFieldStyle(.roundedBorder)
+                    }
+                    GridRow {
+                        Text("Management key").foregroundStyle(.secondary)
+                        SecureField(
+                            self.cliProxyAPIHasSavedConfiguration ? "Saved — enter to replace" : "Required",
+                            text: self.$cliProxyAPIManagementKey)
+                            .textFieldStyle(.roundedBorder)
+                    }
+                }
+
+                HStack(spacing: 8) {
+                    Button(self.cliProxyAPIHasSavedConfiguration ? "Save & test" : "Connect & test") {
+                        Task { await self.saveAndTestCLIProxyAPIConfiguration() }
+                    }
+                    .disabled(self.cliProxyAPIIsSaving)
+
+                    if self.cliProxyAPIHasSavedConfiguration {
+                        Button("Remove", role: .destructive) {
+                            Task { await self.removeCLIProxyAPIConfiguration() }
+                        }
+                        .disabled(self.cliProxyAPIIsSaving)
+                    }
+                    if self.cliProxyAPIIsSaving {
+                        ProgressView().controlSize(.small)
+                    }
+                    if let cliProxyAPIStatus {
+                        Text(cliProxyAPIStatus)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                }
+
+                Text(
+                    "Reading the queue removes the returned records from CLIProxyAPI. CodexBar stores a " +
+                        "sanitized local copy for cost attribution and does not retain source, account, " +
+                        "API-key, response-header, or failure-body fields. Records are retained for up to " +
+                        "366 days; Remove and Clear cost cache delete both retained and pending records.")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+            }
+        }
+    }
+
+    private func loadCLIProxyAPIConfiguration() {
+        let presentation = spendDashboardCLIProxyAPIConfigurationPresentation(
+            loadResult: CLIProxyAPIConnectionSettingsStore.loadResult(),
+            currentBaseURL: self.cliProxyAPIBaseURL,
+            hasSavedConfiguration: self.cliProxyAPIHasSavedConfiguration)
+        self.cliProxyAPIBaseURL = presentation.baseURL
+        self.cliProxyAPIHasSavedConfiguration = presentation.hasSavedConfiguration
+    }
+
+    private func saveAndTestCLIProxyAPIConfiguration() async {
+        self.cliProxyAPIIsSaving = true
+        defer { self.cliProxyAPIIsSaving = false }
+
+        let existingKey = CLIProxyAPIConnectionSettingsStore.load()?.managementKey ?? ""
+        let enteredKey = self.cliProxyAPIManagementKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        let configuration = CLIProxyAPIConnectionSettings(
+            baseURL: self.cliProxyAPIBaseURL,
+            managementKey: enteredKey.isEmpty ? existingKey : enteredKey)
+        guard configuration.isConfigured else {
+            self.cliProxyAPIStatus = "Enter a loopback URL and management key."
+            return
+        }
+        let collectorTask = self.store.stopCLIProxyAPIUsageCollector()
+        await collectorTask?.value
+        let saved = await Task.detached(priority: .utility) {
+            CLIProxyAPIConnectionSettingsStore.save(configuration)
+        }.value
+        guard saved else {
+            self.store.startCLIProxyAPIUsageCollector()
+            self.cliProxyAPIStatus = "Could not save the management key."
+            return
+        }
+
+        self.cliProxyAPIManagementKey = ""
+        self.cliProxyAPIHasSavedConfiguration = true
+        switch await self.store.collectCLIProxyAPIUsageNow() {
+        case .disabled:
+            self.cliProxyAPIStatus = "Enable Track costs to test."
+        case .notConfigured:
+            self.cliProxyAPIStatus = "Configuration was not available."
+        case let .collected(count):
+            self.cliProxyAPIStatus = count == 0
+                ? "Connected. No queued records."
+                : "Connected. Imported \(count) records."
+            self.controller.refresh()
+        case let .failed(message):
+            self.cliProxyAPIStatus = "Saved, but test failed: \(message)"
+        }
+        await self.store.refreshCLIProxyAPICostAttribution()
+        self.store.startCLIProxyAPIUsageCollector()
+    }
+
+    private func removeCLIProxyAPIConfiguration() async {
+        self.cliProxyAPIIsSaving = true
+        defer { self.cliProxyAPIIsSaving = false }
+
+        switch await self.store.removeCLIProxyAPIConfiguration() {
+        case .removed:
+            self.cliProxyAPIManagementKey = ""
+            self.cliProxyAPIHasSavedConfiguration = false
+            self.cliProxyAPIStatus = "Configuration and local telemetry removed."
+            self.controller.refresh()
+        case .configurationRemovalFailed:
+            self.store.startCLIProxyAPIUsageCollector()
+            self.cliProxyAPIStatus = "Could not remove the saved configuration. Local telemetry was preserved."
+        case .telemetryCleanupFailed:
+            self.cliProxyAPIManagementKey = ""
+            self.cliProxyAPIHasSavedConfiguration = false
+            self.cliProxyAPIStatus = "Configuration removed, but some local telemetry could not be deleted."
+            self.controller.refresh()
+        }
+    }
+
     private var shareAction: some View {
         HStack {
             Button {
@@ -491,11 +694,11 @@ struct SpendDashboardPane: View {
 
     private var subscriptionNames: [String: ShareStatsSubscriptionName] {
         var names: [String: ShareStatsSubscriptionName] = [:]
-        let codexRowCount = self.controller.model.groups
-            .flatMap(\.providers)
-            .count { $0.provider == .codex }
+        let codexRowCount = spendDashboardCodexAccountRowCount(
+            self.controller.model.groups.flatMap(\.providers))
         for group in self.controller.model.groups {
             for row in group.providers {
+                // Provider-specific by design: Codex account rows can inherit their account-scoped subscription.
                 let snapshots: [UsageSnapshot?] = if row.provider == .codex,
                                                      row.id.hasPrefix("codex:")
                 {
@@ -503,7 +706,11 @@ struct SpendDashboardPane: View {
                         self.store.codexAccountSnapshots.first {
                             row.id == "codex:\($0.id)"
                         }?.snapshot,
-                        codexRowCount == 1 ? self.store.snapshot(for: .codex) : nil,
+                        spendDashboardShouldUseAmbientCodexSubscription(
+                            rowID: row.id,
+                            codexRowCount: codexRowCount)
+                            ? self.store.snapshot(for: .codex)
+                            : nil,
                     ]
                 } else {
                     [self.store.snapshot(for: row.provider.instanceID)]
@@ -574,7 +781,8 @@ struct SpendDashboardCurrencySection: View {
                         }
                         SpendSummaryValue(
                             title: L("Subscriptions"),
-                            value: codexBarLocalizedInteger(self.group.providers.count))
+                            value: codexBarLocalizedInteger(
+                                spendDashboardSubscriptionCount(self.group.providers)))
                         Spacer()
                     }
                     HStack(spacing: 24) {
@@ -718,7 +926,11 @@ private struct SpendModelPanel: View {
                             SpendProviderIcon(provider: row.provider)
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(row.modelName).lineLimit(1)
-                                Text(row.providerName).font(.caption).foregroundStyle(.secondary)
+                                Text(spendDashboardModelSourceText(
+                                    providerName: row.providerName,
+                                    attribution: row.attribution))
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
                             }
                             Spacer()
                             Text(spendDashboardMetricText(

@@ -102,6 +102,47 @@ struct SpendDashboardSourceConcurrencyTests {
     }
 
     @Test
+    func `proxy generation change does not retain failed prior owner`() async {
+        let initial = SpendDashboardConfiguration(
+            costUsageEnabled: true,
+            providerIDs: [UsageProvider.claude.rawValue],
+            codexAccountIdentities: [],
+            cliProxyAPIConfigurationGeneration: "proxy-owner-a")
+        let replacement = SpendDashboardConfiguration(
+            costUsageEnabled: true,
+            providerIDs: [UsageProvider.claude.rawValue],
+            codexAccountIdentities: [],
+            cliProxyAPIConfigurationGeneration: "proxy-owner-b")
+        let requestSequence = SpendDashboardRequestSequence([
+            .init(configuration: initial),
+            .init(configuration: replacement),
+        ])
+        let gate = SpendDashboardResultBatchGate()
+        let controller = SpendDashboardController(
+            requestBuilder: { mode in await requestSequence.next(mode: mode) },
+            loader: { request in await gate.load(request) })
+
+        controller.update(configuration: initial)
+        await Self.waitForResultGate(gate)
+        await gate.resume(result: SpendDashboardLoadResult(
+            inputs: [Self.input(id: SpendDashboardSource.codexProxySourceID, cost: 5)],
+            failedSourceIDs: []))
+        await Self.waitUntil { !controller.isRefreshing }
+        #expect(controller.model.groups.first?.totalCost == 5)
+
+        controller.update(configuration: replacement)
+        await Self.waitForResultGate(gate)
+        #expect(controller.model.groups.isEmpty)
+        await gate.resume(result: SpendDashboardLoadResult(
+            inputs: [],
+            failedSourceIDs: [SpendDashboardSource.codexProxySourceID]))
+        await Self.waitUntil { !controller.isRefreshing }
+
+        #expect(controller.model.groups.isEmpty)
+        #expect(controller.failedSourceCount == 1)
+    }
+
+    @Test
     func `Codex removal relabels retained failed account from second to first`() async throws {
         let gate = SpendDashboardResultBatchGate()
         let requestGate = SpendDashboardProviderBatchGate()

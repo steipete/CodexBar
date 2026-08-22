@@ -93,6 +93,42 @@ struct SpendDashboardForceStateMachineTests {
     }
 
     @Test
+    func `forced proxy success carries through a Claude only capture barrier`() async {
+        let configuration = SpendDashboardConfiguration(
+            costUsageEnabled: true,
+            providerIDs: [UsageProvider.claude.rawValue],
+            codexAccountIdentities: [])
+        let builder = SpendDashboardBuildScript([
+            .init(
+                mode: .forceRefresh,
+                request: Self.request(configuration, mode: .forceRefresh)),
+            .init(
+                mode: .captureOnly,
+                request: Self.request(configuration, mode: .captureOnly)),
+        ])
+        let loader = SpendDashboardStateLoaderGate()
+        let controller = SpendDashboardController(
+            requestBuilder: { mode in await builder.next(mode) },
+            loader: { request in await loader.load(request) })
+
+        controller.update(configuration: configuration, force: true)
+        await Self.waitForLoader(loader)
+        await loader.resume(SpendDashboardLoadResult(
+            inputs: [Self.input(
+                id: SpendDashboardSource.codexProxySourceID,
+                provider: .codex,
+                cost: 5)],
+            failedSourceIDs: []))
+        await Self.waitUntil { !controller.isRefreshing }
+
+        #expect(builder.modes == [.forceRefresh, .captureOnly])
+        #expect(await loader.forces == [true])
+        #expect(controller.model.groups.first?.totalCost == 5)
+        #expect(controller.model.groups.flatMap(\.providers).map(\.id) ==
+            [SpendDashboardSource.codexProxySourceID])
+    }
+
+    @Test
     func `C same owner barrier churn repeats capture only and preserves failures`() async {
         let initial = Self.configuration(owner: "owner", revision: "R")
         let first = Self.configuration(owner: "owner", revision: "L")

@@ -1,7 +1,9 @@
-import CodexBarCore // swiftlint:disable file_length
+import CodexBarCore
 import CryptoKit
 import Foundation
 import Observation
+
+// swiftlint:disable file_length
 
 struct SpendDashboardConfiguration: Equatable, Sendable {
     let costUsageEnabled: Bool
@@ -9,6 +11,7 @@ struct SpendDashboardConfiguration: Equatable, Sendable {
     let providerIDs: [String]
     let codexAccountIdentities: [String]
     let codexAccountDisplayNames: [String: String]
+    let cliProxyAPIConfigurationGeneration: String?
     let sourceOwnershipFingerprints: [String]
     let sourceRevisions: [String]
     let bucketTimeZoneIdentifier: String
@@ -23,6 +26,7 @@ struct SpendDashboardConfiguration: Equatable, Sendable {
         providerIDs: [String],
         codexAccountIdentities: [String],
         codexAccountDisplayNames: [String: String] = [:],
+        cliProxyAPIConfigurationGeneration: String? = nil,
         sourceOwnershipFingerprints: [String] = [],
         sourceRevisions: [String] = [],
         bucketTimeZoneIdentifier: String = "",
@@ -36,6 +40,7 @@ struct SpendDashboardConfiguration: Equatable, Sendable {
         self.providerIDs = providerIDs
         self.codexAccountIdentities = codexAccountIdentities
         self.codexAccountDisplayNames = codexAccountDisplayNames
+        self.cliProxyAPIConfigurationGeneration = cliProxyAPIConfigurationGeneration
         self.sourceOwnershipFingerprints = sourceOwnershipFingerprints
         self.sourceRevisions = sourceRevisions
         self.bucketTimeZoneIdentifier = bucketTimeZoneIdentifier
@@ -153,11 +158,21 @@ struct CodexSpendSnapshotLoadContext: Sendable {
     let calendar: Calendar
 }
 
+struct CodexProxySpendSnapshotLoadContext: Sendable {
+    let now: Date
+    let force: Bool
+    let historyDays: Int
+    let refreshPricingInBackground: Bool
+    let calendar: Calendar
+}
+
 enum SpendDashboardSource {
     typealias CodexSnapshotLoader = @Sendable (CodexSpendSnapshotLoadContext) async throws
         -> CostUsageTokenSnapshot
     typealias CodexActivityLoader = @Sendable (CodexSpendSnapshotLoadContext) async
         -> CostUsageTokenActivityCache?
+    typealias CodexProxySnapshotLoader = @Sendable (CodexProxySpendSnapshotLoadContext) async throws
+        -> CostUsageTokenSnapshot
     typealias CachedCodexSnapshotLoader = @Sendable (CodexSpendSnapshotLoadContext) async
         -> CostUsageTokenSnapshot?
     typealias CodexCacheRootResolver = @Sendable (CodexSpendScanRequest) -> URL
@@ -165,6 +180,14 @@ enum SpendDashboardSource {
     static let activityDays = 365
     /// Local spend scan window. Matches token-activity depth so 7d / 30d / All share one snapshot.
     static let scanDays = activityDays
+    static let codexProxySourceID = "codex:cliproxyapi"
+    private static let isRunningTests: Bool = {
+        let environment = ProcessInfo.processInfo.environment
+        return environment["XCTestConfigurationFilePath"] != nil
+            || environment["TESTING_LIBRARY_VERSION"] != nil
+            || environment["SWIFT_TESTING"] != nil
+            || NSClassFromString("XCTestCase") != nil
+    }()
 
     @MainActor
     static func configuration(settings: SettingsStore, store: UsageStore) -> SpendDashboardConfiguration {
@@ -187,12 +210,22 @@ enum SpendDashboardSource {
         providers: [UsageProvider],
         codexSources: [CodexSpendSourceDescriptor]) -> SpendDashboardConfiguration
     {
-        SpendDashboardConfiguration(
+        var codexDisplayNames = self.codexDisplayNamesByID(codexSources)
+        // Provider-specific by design: CLIProxyAPI is exposed as a synthetic source in the Codex spend family.
+        if providers.contains(.codex) {
+            let providerName = store.metadata(for: .codex).displayName
+            codexDisplayNames[Self.codexProxySourceID] = "\(providerName) · CLIProxyAPI"
+        }
+        return SpendDashboardConfiguration(
             costUsageEnabled: self.spendCollectionEnabled(settings: settings, providers: providers),
             preferredCurrencyCode: settings.preferredCurrencyCode,
             providerIDs: providers.map(\.rawValue),
             codexAccountIdentities: codexSources.map(\.identity),
-            codexAccountDisplayNames: self.codexDisplayNamesByID(codexSources),
+            codexAccountDisplayNames: codexDisplayNames,
+            cliProxyAPIConfigurationGeneration: self.shouldLoadCodexProxy(
+                providerIDs: providers.map(\.rawValue))
+                ? CostUsageCacheLocations.cliProxyAPIConfigurationGeneration()
+                : nil,
             sourceOwnershipFingerprints: self.sourceOwnershipFingerprints(
                 providers: providers,
                 settings: settings,
@@ -334,11 +367,17 @@ enum SpendDashboardSource {
     }
 
     static func load(_ request: SpendDashboardLoadRequest) async -> SpendDashboardLoadResult {
-        await self.load(
+        let codexProxySnapshotLoader: CodexProxySnapshotLoader? = if self.isRunningTests {
+            nil
+        } else {
+            self.loadCodexProxySnapshot
+        }
+        return await self.load(
             request,
             cacheRootResolver: { self.codexCacheRoot(for: $0) },
             codexSnapshotLoader: { context in try await self.loadCodexSnapshot(context) },
-            codexActivityLoader: { context in await self.loadCodexActivity(context) })
+            codexActivityLoader: { context in await self.loadCodexActivity(context) },
+            codexProxySnapshotLoader: codexProxySnapshotLoader)
     }
 
     static func load(
@@ -350,7 +389,8 @@ enum SpendDashboardSource {
             request,
             cacheRootResolver: cacheRootResolver,
             codexSnapshotLoader: codexSnapshotLoader,
-            codexActivityLoader: { context in await self.loadCodexActivity(context) })
+            codexActivityLoader: { context in await self.loadCodexActivity(context) },
+            codexProxySnapshotLoader: nil)
     }
 
     static func loadCached(_ request: SpendDashboardLoadRequest) async -> SpendDashboardLoadResult {
@@ -428,7 +468,8 @@ enum SpendDashboardSource {
             request,
             cacheRootResolver: { self.codexCacheRoot(for: $0) },
             codexSnapshotLoader: codexSnapshotLoader,
-            codexActivityLoader: { _ in nil })
+            codexActivityLoader: { _ in nil },
+            codexProxySnapshotLoader: nil)
     }
 
     static func load(
@@ -440,14 +481,29 @@ enum SpendDashboardSource {
             request,
             cacheRootResolver: { self.codexCacheRoot(for: $0) },
             codexSnapshotLoader: codexSnapshotLoader,
-            codexActivityLoader: codexActivityLoader)
+            codexActivityLoader: codexActivityLoader,
+            codexProxySnapshotLoader: nil)
+    }
+
+    static func load(
+        _ request: SpendDashboardLoadRequest,
+        codexSnapshotLoader: @escaping CodexSnapshotLoader,
+        codexProxySnapshotLoader: CodexProxySnapshotLoader?) async -> SpendDashboardLoadResult
+    {
+        await self.load(
+            request,
+            cacheRootResolver: { self.codexCacheRoot(for: $0) },
+            codexSnapshotLoader: codexSnapshotLoader,
+            codexActivityLoader: { _ in nil },
+            codexProxySnapshotLoader: codexProxySnapshotLoader)
     }
 
     private static func load(
         _ request: SpendDashboardLoadRequest,
         cacheRootResolver: @escaping CodexCacheRootResolver,
         codexSnapshotLoader: @escaping CodexSnapshotLoader,
-        codexActivityLoader: @escaping CodexActivityLoader) async -> SpendDashboardLoadResult
+        codexActivityLoader: @escaping CodexActivityLoader,
+        codexProxySnapshotLoader: CodexProxySnapshotLoader?) async -> SpendDashboardLoadResult
     {
         var inputs = request.capturedInputs
         var failedSourceIDs = request.unavailableSourceIDs
@@ -535,6 +591,39 @@ enum SpendDashboardSource {
                 } catch {}
             }
         }
+        if self.shouldLoadCodexProxy(providerIDs: request.configuration.providerIDs),
+           let codexProxySnapshotLoader
+        {
+            do {
+                let snapshot = try await codexProxySnapshotLoader(CodexProxySpendSnapshotLoadContext(
+                    now: request.now,
+                    force: request.force,
+                    historyDays: Self.scanDays,
+                    refreshPricingInBackground: false,
+                    calendar: request.configuration.bucketCalendar))
+                try Task.checkCancellation()
+                if !snapshot.daily.isEmpty {
+                    // Provider-specific by design: proxy-attributed Claude rows are published in the Codex family.
+                    let providerName = ProviderDescriptorRegistry.descriptor(for: .codex).metadata.displayName
+                    inputs.append(SpendDashboardModel.ProviderInput(
+                        id: Self.codexProxySourceID,
+                        provider: .codex,
+                        displayName: "\(providerName) · CLIProxyAPI",
+                        modelProviderName: providerName,
+                        snapshot: snapshot))
+                }
+            } catch is CancellationError {
+                inputs.removeAll { $0.id == Self.codexProxySourceID }
+                failedSourceIDs.insert(Self.codexProxySourceID)
+                invalidatedSourceIDs.insert(Self.codexProxySourceID)
+                return SpendDashboardLoadResult(
+                    inputs: inputs,
+                    failedSourceIDs: failedSourceIDs,
+                    invalidatedSourceIDs: invalidatedSourceIDs)
+            } catch {
+                failedSourceIDs.insert(Self.codexProxySourceID)
+            }
+        }
         let lateInvalidatedSourceIDs = Set(request.codexRequests.compactMap { account in
             self.codexAuthFingerprintMatches(account)
                 ? nil
@@ -572,6 +661,7 @@ enum SpendDashboardSource {
     private static func loadCodexSnapshot(
         _ context: CodexSpendSnapshotLoadContext) async throws -> CostUsageTokenSnapshot
     {
+        // Provider-specific by design: each managed Codex home receives an isolated transcript scan.
         try await CostUsageFetcher(cacheRoot: context.cacheRoot, calendar: context.calendar).loadTokenSnapshot(
             provider: .codex,
             environment: CodexHomeScope.scopedEnvironment(base: [:], codexHome: context.account.homePath),
@@ -580,7 +670,24 @@ enum SpendDashboardSource {
             codexHomePath: context.account.homePath,
             historyDays: context.historyDays,
             refreshPricingInBackground: context.refreshPricingInBackground,
-            includePiSessions: context.includePiSessions)
+            includePiSessions: context.includePiSessions,
+            includeClaudeProxyUsage: false)
+    }
+
+    private static func loadCodexProxySnapshot(
+        _ context: CodexProxySpendSnapshotLoadContext) async throws -> CostUsageTokenSnapshot
+    {
+        try await CostUsageFetcher(calendar: context.calendar).loadCodexProxyTokenSnapshot(
+            now: context.now,
+            forceRefresh: context.force,
+            historyDays: context.historyDays,
+            refreshPricingInBackground: context.refreshPricingInBackground)
+    }
+
+    static func shouldLoadCodexProxy(providerIDs: [String]) -> Bool {
+        // Provider-specific by design: proxy attribution can affect both the Codex and Claude spend projections.
+        providerIDs.contains(UsageProvider.codex.rawValue)
+            || providerIDs.contains(UsageProvider.claude.rawValue)
     }
 
     private static func loadCodexActivity(
@@ -742,6 +849,16 @@ enum SpendDashboardSource {
             encoder.append(entry.modelBreakdowns?.count)
             for breakdown in entry.modelBreakdowns ?? [] {
                 encoder.append(breakdown.modelName)
+                encoder.append(breakdown.attribution?.client.rawValue ?? "")
+                encoder.append(breakdown.attribution?.route.rawValue ?? "")
+                encoder.append(breakdown.attribution?.modelProvider.rawValue ?? "")
+                encoder.append(breakdown.attribution?.upstream?.provider ?? "")
+                encoder.append(breakdown.attribution?.upstream?.authType.rawValue ?? "")
+                encoder.append(breakdown.attribution?.upstream?.model ?? "")
+                encoder.append(breakdown.attribution?.upstream?.executorType ?? "")
+                for evidence in breakdown.attribution?.evidence ?? [] {
+                    encoder.append(evidence.rawValue)
+                }
                 encoder.append(breakdown.totalTokens)
                 encoder.append(breakdown.requestCount)
                 encoder.append(breakdown.costUSD)
@@ -761,7 +878,7 @@ enum SpendDashboardSource {
         store: UsageStore) -> [String]
     {
         providers.compactMap { provider in
-            // Provider-specific by design: spend dashboard
+            // Provider-specific by design: Codex ownership is represented by account-scoped source fingerprints.
             guard provider != .codex else { return nil }
             var config = settings.providerConfig(for: provider) ?? ProviderConfig(id: provider.instanceID)
             config.enabled = nil
@@ -1389,7 +1506,12 @@ final class SpendDashboardController {
         let forceFailed = outcome.result.failedSourceIDs
         let invalidated = outcome.result.invalidatedSourceIDs
         let barrierFailed = capture.unavailableSourceIDs
-        let forcedCodexIDs = Set(outcome.request.codexRequests.map { "codex:\($0.id)" })
+        var forcedCodexIDs = Set(outcome.request.codexRequests.map { "codex:\($0.id)" })
+        if SpendDashboardSource.shouldLoadCodexProxy(
+            providerIDs: outcome.request.configuration.providerIDs)
+        {
+            forcedCodexIDs.insert(SpendDashboardSource.codexProxySourceID)
+        }
         let confirmedNonemptyInputs = outcome.confirmedNonemptyInputs
         let confirmedNonemptyIDs = Set(confirmedNonemptyInputs.map(\.id))
         var inputs = capture.capturedInputs.filter {
@@ -1648,6 +1770,7 @@ final class SpendDashboardController {
         lhs.costUsageEnabled == rhs.costUsageEnabled &&
             lhs.providerIDs == rhs.providerIDs &&
             lhs.codexAccountIdentities == rhs.codexAccountIdentities &&
+            lhs.cliProxyAPIConfigurationGeneration == rhs.cliProxyAPIConfigurationGeneration &&
             lhs.sourceOwnershipFingerprints == rhs.sourceOwnershipFingerprints &&
             lhs.bucketTimeZoneIdentifier == rhs.bucketTimeZoneIdentifier &&
             lhs.openCodexUsageLogsEnabled == rhs.openCodexUsageLogsEnabled &&
@@ -1664,6 +1787,7 @@ final class SpendDashboardController {
         guard lhs.costUsageEnabled == rhs.costUsageEnabled,
               lhs.providerIDs == rhs.providerIDs,
               lhs.codexAccountIdentities == rhs.codexAccountIdentities,
+              lhs.cliProxyAPIConfigurationGeneration == rhs.cliProxyAPIConfigurationGeneration,
               lhs.sourceOwnershipFingerprints == rhs.sourceOwnershipFingerprints,
               lhs.sourceRevisions == rhs.sourceRevisions,
               lhs.bucketTimeZoneIdentifier == rhs.bucketTimeZoneIdentifier,
@@ -1692,7 +1816,11 @@ final class SpendDashboardController {
         let changedCodexIDs = codexIDs.filter {
             previousCodexOwnership[$0] != currentCodexOwnership[$0]
         }
-        return Set(changedProviderIDs).union(changedCodexIDs)
+        var invalidatedSourceIDs = Set(changedProviderIDs).union(changedCodexIDs)
+        if previous.cliProxyAPIConfigurationGeneration != current.cliProxyAPIConfigurationGeneration {
+            invalidatedSourceIDs.insert(SpendDashboardSource.codexProxySourceID)
+        }
+        return invalidatedSourceIDs
     }
 
     private static func sourceOwnershipByID(_ fingerprints: [String]) -> [String: String] {
