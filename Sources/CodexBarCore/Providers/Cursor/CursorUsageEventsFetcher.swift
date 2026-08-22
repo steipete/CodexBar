@@ -520,12 +520,14 @@ struct CursorUsageEventsFetcher: Sendable {
                 self.costUSD,
                 authoritativeCents,
                 alreadyInvalid: &self.costInvalid)
-            if usage.totalCents == nil {
-                if estimatedCents != nil {
-                    self.estimatedRequests += 1
-                } else {
+            if let totalCents = usage.totalCents {
+                if totalCents < 0 || !totalCents.isFinite {
                     self.unpricedRequests += 1
                 }
+            } else if estimatedCents != nil {
+                self.estimatedRequests += 1
+            } else {
+                self.unpricedRequests += 1
             }
             self.requestCount = Self.checkedSum(self.requestCount, 1)
         }

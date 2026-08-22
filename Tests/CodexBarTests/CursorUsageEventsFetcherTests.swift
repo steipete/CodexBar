@@ -486,6 +486,32 @@ struct CursorUsageEventsFetcherTests {
     }
 
     @Test
+    func `mixed valid and rejected cost counts unpriced requests`() {
+        let events = [
+            Self.event(
+                timestampMS: 1_700_000_000_000,
+                model: "claude-4.5-sonnet",
+                input: 5,
+                totalCents: 100),
+            Self.event(
+                timestampMS: 1_700_000_001_000,
+                model: "gpt-5",
+                input: 7,
+                totalCents: -1),
+        ]
+        let report = CursorUsageEventsFetcher.makeDailyReport(from: events, calendar: Self.utcCalendar)
+        #expect(report.data.count == 1)
+        #expect(report.data[0].requestCount == 2)
+        #expect(Self.approxEqual(report.data[0].costUSD, 1.0))
+        #expect(report.data[0].unpricedRequestCount == 1)
+        #expect(report.data[0].estimatedRequestCount == nil)
+        let coverage = report.data[0].coverageCounts
+        #expect(coverage.priced == 1)
+        #expect(coverage.unpriced == 1)
+        #expect(coverage.estimated == 0)
+    }
+
+    @Test
     func `reports preserve unknown aggregate tokens on cross event overflow`() {
         let events = [
             Self.event(
