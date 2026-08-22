@@ -179,12 +179,12 @@ struct CostUsageScannerForkSplitTests {
             model: model,
             inputTokens: 300_000,
             cachedInputTokens: 0,
-            outputTokens: 100))
+            outputTokens: 150))
         let shortCost = try #require(CostUsagePricing.codexCostUSD(
             model: model,
             inputTokens: 100_000,
             cachedInputTokens: 0,
-            outputTokens: 100))
+            outputTokens: 125))
         let aggregateCost = try #require(CostUsagePricing.codexCostUSD(
             model: model,
             inputTokens: 400_000,

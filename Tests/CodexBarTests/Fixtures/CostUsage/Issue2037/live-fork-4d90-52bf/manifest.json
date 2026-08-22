@@ -39,9 +39,9 @@
     "childHasTotalTokenUsageDrop": false
   },
   "scannerOracle": {
-    "naiveScannerUnits": 100916095,
-    "dedupedScannerUnits": 52185847,
-    "prefixScannerUnits": 48730248,
+    "naiveScannerUnits": 100865640,
+    "dedupedScannerUnits": 52135392,
+    "prefixScannerUnits": 48679793,
     "siblingAUniqueScannerUnits": null,
     "siblingBUniqueScannerUnits": null,
     "unresolvedForkSkippedFirstEventScannerUnits": null

@@ -8,7 +8,7 @@ import Foundation
 /// Independent OpenCodex usage cache. Never writes Codex `cost-usage.sqlite`.
 public struct OpenCodexUsageStore: Sendable {
     public static let databaseFilename = "opencodex-usage.sqlite"
-    private static let schemaVersion = 1
+    private static let schemaVersion = 2
 
     private let databaseURL: URL
 
@@ -86,13 +86,19 @@ public struct OpenCodexUsageStore: Sendable {
         defer { sqlite3_finalize(statement) }
         sqlite3_bind_double(statement, 1, (since ?? .distantPast).timeIntervalSince1970)
         var entries: [OpenCodexUsageEntry] = []
-        while sqlite3_step(statement) == SQLITE_ROW {
-            guard let payload = Self.text(statement, 8),
-                  let data = payload.data(using: .utf8),
-                  let entry = OpenCodexUsageParser.parse(data)
-            else { continue }
-            entries.append(entry)
+        var result = sqlite3_step(statement)
+        while result == SQLITE_ROW {
+            if let payload = Self.text(statement, 8),
+               let data = payload.data(using: .utf8),
+               let entry = OpenCodexUsageParser.parse(data)
+            {
+                entries.append(entry)
+            } else {
+                return nil
+            }
+            result = sqlite3_step(statement)
         }
+        guard result == SQLITE_DONE else { return nil }
         return entries
     }
 
@@ -158,7 +164,8 @@ public struct OpenCodexUsageStore: Sendable {
     }
 
     private static func ensureSchema(_ db: OpaquePointer?) {
-        guard self.userVersion(db) == 0 else { return }
+        let version = self.userVersion(db)
+        guard version < self.schemaVersion else { return }
         let sql = """
         CREATE TABLE IF NOT EXISTS meta (
             key TEXT PRIMARY KEY,
@@ -175,6 +182,9 @@ public struct OpenCodexUsageStore: Sendable {
             conversation_id TEXT,
             payload TEXT NOT NULL
         );
+
+        CREATE INDEX IF NOT EXISTS entries_timestamp_request_id
+            ON entries(timestamp, request_id);
         """
         guard sqlite3_exec(db, sql, nil, nil, nil) == SQLITE_OK else { return }
         Self.setUserVersion(db, Self.schemaVersion)
