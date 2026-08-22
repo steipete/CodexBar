@@ -95,6 +95,10 @@ Gemini uses the Gemini CLI OAuth credentials and private quota APIs. No browser 
   200 body's `ineligibleTiers` directly, and maps that 403 to `consumerTierDeprecated` only when the same
   fetch saw the unsupported-client flag **and** the account is not on `standard-tier` — a licensed
   account's 403 stays `HTTP 403`.
+- The unsupported-client flag itself is suppressed for accounts the shutdown does not cover: a named
+  `paidTier.name` (authoritative even without `currentTier`) and an `hd` claim (Workspace/education, which
+  `resolveAccountPlan` reads as Workspace when paired with `free-tier`). Both would otherwise be pre-empted
+  by the earlier `loadCodeAssist` branch, which runs before the plan resolver.
 - `UsageStore.geminiMigrationObservation` records which sentinel the last refresh produced
   (`none` / `localAntigravityHandoff` / `googleConsumerTierShutdown`); a later local-tooling failure never
   downgrades a shutdown already seen. `geminiObservedConsumerTierDeprecation` (either sentinel) drives the

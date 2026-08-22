@@ -297,6 +297,47 @@ struct GeminiConsumerTierMigrationTests {
         }
     }
 
+    @Test
+    func `keeps a workspace account without current tier out of the shutdown path`() async throws {
+        let env = try GeminiTestEnvironment()
+        defer { env.cleanup() }
+        try env.writeCredentials(
+            accessToken: "token",
+            refreshToken: nil,
+            expiry: Date().addingTimeInterval(3600),
+            idToken: GeminiAPITestHelpers.makeIDToken(email: "dev@example.com", hostedDomain: "example.com"))
+
+        let dataLoader = Self.cloudCodeLoader(
+            loadCodeAssist: (200, GeminiAPITestHelpers.loadCodeAssistUnsupportedClientResponse()),
+            quota: (200, GeminiAPITestHelpers.sampleQuotaResponse()))
+
+        let probe = GeminiStatusProbe(timeout: 1, homeDirectory: env.homeURL.path, dataLoader: dataLoader)
+        let snapshot = try await probe.fetch()
+        #expect(!snapshot.modelQuotas.isEmpty)
+    }
+
+    @Test
+    func `keeps http 403 for a workspace account on the free tier`() async throws {
+        let env = try GeminiTestEnvironment()
+        defer { env.cleanup() }
+        try env.writeCredentials(
+            accessToken: "token",
+            refreshToken: nil,
+            expiry: Date().addingTimeInterval(3600),
+            idToken: GeminiAPITestHelpers.makeIDToken(email: "dev@example.com", hostedDomain: "example.com"))
+
+        let dataLoader = Self.cloudCodeLoader(
+            loadCodeAssist: (
+                200,
+                GeminiAPITestHelpers.loadCodeAssistUnsupportedClientResponse(currentTierId: "free-tier")),
+            quota: (403, GeminiAPITestHelpers.quotaSubscriptionRequiredResponse()))
+
+        let probe = GeminiStatusProbe(timeout: 1, homeDirectory: env.homeURL.path, dataLoader: dataLoader)
+        await Self.expectError(.apiError("HTTP 403")) {
+            _ = try await probe.fetch()
+        }
+    }
+
     private static func cloudCodeLoader(
         loadCodeAssist: (status: Int, body: Data),
         quota: (status: Int, body: Data)) -> @Sendable (URLRequest) async throws -> (Data, URLResponse)

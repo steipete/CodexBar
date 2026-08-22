@@ -321,6 +321,7 @@ public struct GeminiStatusProbe: Sendable {
         let caStatus = try await Self.loadCodeAssistStatus(
             accessToken: accessToken,
             timeout: timeout,
+            hostedDomain: claims.hostedDomain,
             dataLoader: dataLoader)
 
         // Determine the project ID to use for quota fetching.
@@ -436,7 +437,7 @@ public struct GeminiStatusProbe: Sendable {
         return nil
     }
 
-    private struct CodeAssistStatus {
+    fileprivate struct CodeAssistStatus {
         let tier: GeminiUserTierId?
         let projectId: String?
         let paidTierName: String?
@@ -453,6 +454,7 @@ public struct GeminiStatusProbe: Sendable {
     private static func loadCodeAssistStatus(
         accessToken: String,
         timeout: TimeInterval,
+        hostedDomain: String?,
         dataLoader: @escaping @Sendable (URLRequest) async throws -> (Data, URLResponse)) async throws
         -> CodeAssistStatus
     {
@@ -498,66 +500,7 @@ public struct GeminiStatusProbe: Sendable {
             return .empty
         }
 
-        let rawProjectId: String? = {
-            if let project = json["cloudaicompanionProject"] as? String {
-                return project
-            }
-            if let project = json["cloudaicompanionProject"] as? [String: Any] {
-                if let projectId = project["id"] as? String {
-                    return projectId
-                }
-                if let projectId = project["projectId"] as? String {
-                    return projectId
-                }
-            }
-            return nil
-        }()
-        let trimmedProjectId = rawProjectId?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let projectId = trimmedProjectId?.isEmpty == true ? nil : trimmedProjectId
-        if let projectId {
-            Self.log.info("loadCodeAssist: project detected", metadata: ["projectId": projectId])
-        }
-
-        let tierId = (json["currentTier"] as? [String: Any])?["id"] as? String
-        let paidTierName = Self.parsePaidTierName(from: json)
-        let isConsumerClientUnsupported = Self.isConsumerClientUnsupported(in: json, paidTierName: paidTierName)
-
-        guard let tierId else {
-            // Google answers the consumer shutdown with HTTP 200: no `currentTier`, and the consumer tier
-            // listed under `ineligibleTiers` with `UNSUPPORTED_CLIENT`.
-            if isConsumerClientUnsupported {
-                Self.log.info("loadCodeAssist: consumer client unsupported, no current tier")
-                throw GeminiStatusProbeError.consumerTierDeprecated
-            }
-            Self.log.warning("loadCodeAssist: no currentTier.id in response", metadata: [
-                "json": "\(json)",
-            ])
-            return CodeAssistStatus(
-                tier: nil,
-                projectId: projectId,
-                paidTierName: paidTierName,
-                isConsumerClientUnsupported: false)
-        }
-
-        guard let tier = GeminiUserTierId(rawValue: tierId) else {
-            Self.log.warning("loadCodeAssist: unknown tier ID", metadata: ["tierId": tierId])
-            return CodeAssistStatus(
-                tier: nil,
-                projectId: projectId,
-                paidTierName: paidTierName,
-                isConsumerClientUnsupported: isConsumerClientUnsupported)
-        }
-
-        Self.log.info("loadCodeAssist: success", metadata: [
-            "tier": tierId,
-            "projectId": projectId ?? "nil",
-            "paidTierName": paidTierName ?? "nil",
-        ])
-        return CodeAssistStatus(
-            tier: tier,
-            projectId: projectId,
-            paidTierName: paidTierName,
-            isConsumerClientUnsupported: isConsumerClientUnsupported)
+        return try Self.makeCodeAssistStatus(from: json, hostedDomain: hostedDomain)
     }
 
     private struct OAuthCredentials {
@@ -1365,6 +1308,77 @@ extension GeminiStatusProbe {
 // MARK: - loadCodeAssist response parsing
 
 extension GeminiStatusProbe {
+    /// Turns a successful `loadCodeAssist` body into a `CodeAssistStatus`, throwing when Google's response
+    /// says this client can no longer serve the account.
+    fileprivate static func makeCodeAssistStatus(
+        from json: [String: Any],
+        hostedDomain: String?) throws -> CodeAssistStatus
+    {
+        let rawProjectId: String? = {
+            if let project = json["cloudaicompanionProject"] as? String {
+                return project
+            }
+            if let project = json["cloudaicompanionProject"] as? [String: Any] {
+                if let projectId = project["id"] as? String {
+                    return projectId
+                }
+                if let projectId = project["projectId"] as? String {
+                    return projectId
+                }
+            }
+            return nil
+        }()
+        let trimmedProjectId = rawProjectId?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let projectId = trimmedProjectId?.isEmpty == true ? nil : trimmedProjectId
+        if let projectId {
+            Self.log.info("loadCodeAssist: project detected", metadata: ["projectId": projectId])
+        }
+
+        let tierId = (json["currentTier"] as? [String: Any])?["id"] as? String
+        let paidTierName = Self.parsePaidTierName(from: json)
+        let isConsumerClientUnsupported = Self.isConsumerClientUnsupported(
+            in: json,
+            paidTierName: paidTierName,
+            hostedDomain: hostedDomain)
+
+        guard let tierId else {
+            // Google answers the consumer shutdown with HTTP 200: no `currentTier`, and the consumer tier
+            // listed under `ineligibleTiers` with `UNSUPPORTED_CLIENT`.
+            if isConsumerClientUnsupported {
+                Self.log.info("loadCodeAssist: consumer client unsupported, no current tier")
+                throw GeminiStatusProbeError.consumerTierDeprecated
+            }
+            Self.log.warning("loadCodeAssist: no currentTier.id in response", metadata: [
+                "json": "\(json)",
+            ])
+            return CodeAssistStatus(
+                tier: nil,
+                projectId: projectId,
+                paidTierName: paidTierName,
+                isConsumerClientUnsupported: false)
+        }
+
+        guard let tier = GeminiUserTierId(rawValue: tierId) else {
+            Self.log.warning("loadCodeAssist: unknown tier ID", metadata: ["tierId": tierId])
+            return CodeAssistStatus(
+                tier: nil,
+                projectId: projectId,
+                paidTierName: paidTierName,
+                isConsumerClientUnsupported: isConsumerClientUnsupported)
+        }
+
+        Self.log.info("loadCodeAssist: success", metadata: [
+            "tier": tierId,
+            "projectId": projectId ?? "nil",
+            "paidTierName": paidTierName ?? "nil",
+        ])
+        return CodeAssistStatus(
+            tier: tier,
+            projectId: projectId,
+            paidTierName: paidTierName,
+            isConsumerClientUnsupported: isConsumerClientUnsupported)
+    }
+
     fileprivate static func parsePaidTierName(from json: [String: Any]) -> String? {
         guard let paidTier = json["paidTier"] as? [String: Any],
               let rawName = paidTier["name"] as? String
@@ -1377,12 +1391,19 @@ extension GeminiStatusProbe {
 
     /// Whether Google's `loadCodeAssist` response says this client can no longer serve the account.
     ///
-    /// A named paid tier outranks the ineligible-tier listing: `resolveAccountPlan` treats `paidTier.name`
-    /// as authoritative even without `currentTier`, and Google's consumer shutdown response carries no
-    /// `paidTier` at all. Gating here keeps both the deprecation throw and the quota-403 mapping off paid
-    /// plans.
-    fileprivate static func isConsumerClientUnsupported(in json: [String: Any], paidTierName: String?) -> Bool {
-        paidTierName == nil && self.hasUnsupportedClientIneligibleTier(in: json)
+    /// Two signals outrank the ineligible-tier listing, and gating them here keeps both the deprecation
+    /// throw and the quota-403 mapping off accounts the June 2026 shutdown does not cover:
+    /// - A named paid tier: `resolveAccountPlan` treats `paidTier.name` as authoritative even without
+    ///   `currentTier`, and Google's consumer shutdown response carries no `paidTier` at all.
+    /// - An `hd` claim: Workspace and education accounts stay on Gemini, and `resolveAccountPlan` reads
+    ///   `free-tier` plus a hosted domain as Workspace — a mapping this earlier branch would otherwise
+    ///   pre-empt without ever seeing the claim.
+    fileprivate static func isConsumerClientUnsupported(
+        in json: [String: Any],
+        paidTierName: String?,
+        hostedDomain: String?) -> Bool
+    {
+        paidTierName == nil && hostedDomain == nil && self.hasUnsupportedClientIneligibleTier(in: json)
     }
 
     /// `ineligibleTiers[].reasonCode == "UNSUPPORTED_CLIENT"` (or its message) is Google's explicit
