@@ -12,7 +12,19 @@ public enum QwenCloudProviderDescriptor {
 
     static func makeDescriptor() -> ProviderDescriptor {
         #if os(macOS)
-        let browserOrder: BrowserCookieImportOrder = [.chrome]
+        // AGENTS.md L48: "Cookie imports: default Chrome-only when possible to
+        // avoid other browser prompts; override via browser list when needed."
+        // The override here is the minimum necessary: Chrome + Brave. The full
+        // 7-browser list (chromeBeta, edge, arc, firefox, safari) is
+        // deliberately omitted so automatic refreshes do not surface unwanted
+        // Keychain / browser-store access prompts on browsers that don't carry
+        // a Qwen Cloud session. Brave is kept because it shares the same
+        // Chromium Safe Storage format as Chrome and is a common Qwen Cloud
+        // authentication target.
+        let browserOrder: BrowserCookieImportOrder = [
+            .chrome,
+            .brave,
+        ]
         #else
         let browserOrder: BrowserCookieImportOrder? = nil
         #endif
@@ -88,7 +100,11 @@ struct QwenCloudWebFetchStrategy: ProviderFetchStrategy {
     private static let log = CodexBarLog.logger("qwen-cloud")
 
     #if os(macOS)
-    static let browserOrder: BrowserCookieImportOrder = [.chrome]
+    /// Mirrors the descriptor's browserOrder above. Keep them in sync.
+    static let browserOrder: BrowserCookieImportOrder = [
+        .chrome,
+        .brave,
+    ]
     #endif
 
     let id: String = "qwen-cloud.web"
