@@ -42,7 +42,8 @@ struct CostUsageStoreAggregateModeTests {
                 timestampUnixMs: 1_754_046_000_000,
                 input: 10,
                 cached: 2,
-                output: 5),
+                output: 5,
+                reasoning: 3),
         ]
 
         var cache = CostUsageCache()
@@ -55,7 +56,7 @@ struct CostUsageStoreAggregateModeTests {
     }
 
     @Test
-    func `aggregate mode skips rows and token snapshots`() throws {
+    func `aggregate mode skips rows and token snapshots`() async throws {
         let fixture = try Fixture()
         defer { fixture.remove() }
         let store = CostUsageStore(cacheRoot: fixture.root)
@@ -63,6 +64,14 @@ struct CostUsageStoreAggregateModeTests {
             Self.makeCache(path: "/rollouts/a.jsonl"),
             calendar: .current,
             requestedScanWindow: (sinceKey: "2026-08-01", untilKey: "2026-08-01"))
+
+        // Aggregate mode must not query the row/token tables at all, so their snapshots
+        // are empty while files and day aggregates remain populated.
+        let aggregateSnapshot = await store.readSnapshot(skipRowTables: true)
+        #expect(aggregateSnapshot.usageRows.isEmpty)
+        #expect(aggregateSnapshot.tokenSnapshots.isEmpty)
+        #expect(!aggregateSnapshot.files.isEmpty)
+        #expect(!aggregateSnapshot.dayAggregates.isEmpty)
 
         let aggregate = store.syncLoadCodexCache(calendar: .current, mode: .aggregateReport)
         let scanReady = store.syncLoadCodexCache(calendar: .current, mode: .scanReady)
@@ -87,13 +96,13 @@ struct CostUsageStoreAggregateModeTests {
         let fixture = try Fixture()
         defer { fixture.remove() }
         let store = CostUsageStore(cacheRoot: fixture.root)
-        _ = store.syncSaveCodexCache(
-            Self.makeCache(path: "/rollouts/a.jsonl"),
-            calendar: .current,
-            requestedScanWindow: (sinceKey: "2026-08-01", untilKey: "2026-08-01"))
-
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = try #require(TimeZone(secondsFromGMT: 0))
+        _ = store.syncSaveCodexCache(
+            Self.makeCache(path: "/rollouts/a.jsonl"),
+            calendar: calendar,
+            requestedScanWindow: (sinceKey: "2026-08-01", untilKey: "2026-08-01"))
+
         let day = try #require(calendar.date(from: DateComponents(year: 2026, month: 8, day: 1)))
         let range = CostUsageScanner.CostUsageDayRange(since: day, until: day, calendar: calendar)
 
@@ -107,5 +116,10 @@ struct CostUsageStoreAggregateModeTests {
         #expect(aggregateReport.data == scanReadyReport.data)
         #expect(aggregateReport.summary?.totalInputTokens == scanReadyReport.summary?.totalInputTokens)
         #expect(aggregateReport.summary?.totalOutputTokens == scanReadyReport.summary?.totalOutputTokens)
+        let aggregateReasoning = aggregateReport.data.reduce(0) { $0 + ($1.reasoningTokens ?? 0) }
+        let scanReadyReasoning = scanReadyReport.data.reduce(0) { $0 + ($1.reasoningTokens ?? 0) }
+        #expect(aggregateReasoning > 0)
+        #expect(aggregateReasoning == scanReadyReasoning)
+        #expect(aggregateReport.summary?.totalCostUSD == scanReadyReport.summary?.totalCostUSD)
     }
 }

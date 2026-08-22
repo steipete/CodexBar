@@ -504,7 +504,9 @@ struct CostUsageScannerTests {
         #expect(packed.count >= 3)
         #expect(packed[0] == 60)
         #expect(packed[1] == 20)
-        #expect(packed[2] == 6)
+        // Day aggregates store output exclusive of reasoning (tokscale parity): the raw output
+        // delta of 6 carried 3 reasoning tokens, which the row below reports separately.
+        #expect(packed[2] == 3)
         #expect(delta.rows.first?.reasoning == 3)
     }
 

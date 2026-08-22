@@ -30,6 +30,11 @@ extension UsageStore {
         guard Self.usesSpendDashboardIndependentTokenSnapshot(provider) else { return false }
         let costScopeSignature = self.spendDashboardTokenSnapshotScopeSignature(for: provider)
         guard let lastAt = self.lastSpendDashboardTokenFetchAt[provider.instanceID] else {
+            // A confirmed empty dashboard publication owns freshness itself; the legacy-slot
+            // adoption below only covers providers whose first scan has not published here yet.
+            if self.spendDashboardTokenSnapshotPublicationForCurrentConfig(for: provider) != nil {
+                return false
+            }
             // Providers served by the shared token pipeline publish through the legacy slot;
             // adopt its freshness instead of double-fetching on the first dashboard open.
             guard self.tokenSnapshotPublicationForCurrentProviderConfig(for: provider) != nil,
@@ -97,7 +102,6 @@ extension UsageStore {
         if !force, !self.spendDashboardTokenFetchIsStale(for: provider) { return }
         let publicationRevision = self.providerPublicationRevision(for: provider)
         let providerConfigRevision = self.settings.providerConfigRevision(for: provider)
-        self.lastSpendDashboardTokenFetchAt[provider.instanceID] = now
         self.lastSpendDashboardTokenFetchScope[provider.instanceID] = costScopeSignature
         self.spendDashboardTokenRefreshInFlight.insert(provider.instanceID)
         defer { self.spendDashboardTokenRefreshInFlight.remove(provider.instanceID) }

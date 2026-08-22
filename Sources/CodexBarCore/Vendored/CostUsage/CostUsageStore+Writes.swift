@@ -160,8 +160,8 @@ extension CostUsageStore {
                     reasoning_tokens, request_count, authoritative_cost_nanos,
                     standard_input_tokens, standard_cached_tokens, standard_output_tokens,
                     priority_input_tokens, priority_cached_tokens, priority_output_tokens,
-                    standard_tokens, priority_tokens
-                ) VALUES ((SELECT id FROM files WHERE path = ?), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    standard_tokens, priority_tokens, earliest_timestamp_ms
+                ) VALUES ((SELECT id FROM files WHERE path = ?), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """)
                 defer { sqlite3_finalize(insert) }
                 for aggregate in aggregates {
@@ -171,6 +171,7 @@ extension CostUsageStore {
                     Self.bind(aggregate.day, to: insert, at: 2)
                     Self.bind(aggregate.model, to: insert, at: 3)
                     Self.bindAggregateValues(aggregate, to: insert, startingAt: 4)
+                    Self.bind(aggregate.earliestTimestampUnixMs, to: insert, at: 20)
                     try Self.stepDone(insert, database: database)
                 }
             }
@@ -280,8 +281,8 @@ extension CostUsageStore {
             request_count, authoritative_cost_nanos,
             standard_input_tokens, standard_cached_tokens, standard_output_tokens,
             priority_input_tokens, priority_cached_tokens, priority_output_tokens,
-            standard_tokens, priority_tokens
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            standard_tokens, priority_tokens, earliest_timestamp_ms
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """)
         defer { sqlite3_finalize(statement) }
         for aggregate in aggregates {
@@ -290,6 +291,7 @@ extension CostUsageStore {
             self.bind(aggregate.day, to: statement, at: 1)
             self.bind(aggregate.model, to: statement, at: 2)
             self.bindAggregateValues(aggregate, to: statement, startingAt: 3)
+            Self.bind(aggregate.earliestTimestampUnixMs, to: statement, at: 19)
             try self.stepDone(statement, database: database)
         }
     }

@@ -18,11 +18,15 @@ extension CostUsageScanner {
             ?? row.model
         let overlay = customPricing ?? .empty
         let pricingDate = row.timestampUnixMs.map { Date(timeIntervalSince1970: Double($0) / 1000) }
+        // Rows store output exclusive of reasoning (tokscale parity); OpenAI bills reasoning at
+        // the output rate, so add the subset back before pricing. USD matches the previous
+        // inclusive-output behavior exactly.
+        let billableOutputTokens = row.output + (row.reasoning ?? 0)
         let baseCost = CostUsagePricing.codexCostUSD(
             model: pricedModel,
             inputTokens: row.input,
             cachedInputTokens: row.cached,
-            outputTokens: row.output,
+            outputTokens: billableOutputTokens,
             pricingDate: pricingDate,
             modelsDevCatalog: modelsDevCatalog,
             modelsDevCacheRoot: modelsDevCacheRoot,
@@ -32,7 +36,7 @@ extension CostUsageScanner {
             model: pricedModel,
             inputTokens: row.input,
             cachedInputTokens: row.cached,
-            outputTokens: row.output,
+            outputTokens: billableOutputTokens,
             pricingDate: pricingDate,
             modelsDevCatalog: modelsDevCatalog,
             modelsDevCacheRoot: modelsDevCacheRoot,

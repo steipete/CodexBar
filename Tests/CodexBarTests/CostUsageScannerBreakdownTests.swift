@@ -1762,7 +1762,7 @@ struct CostUsageScannerBreakdownTests {
             range: CostUsageScanner.CostUsageDayRange(since: day, until: day))
 
         #expect(parsed.rows.count == 1)
-        #expect(parsed.rows.first?.output == 7)
+        #expect(parsed.rows.first?.output == 3)
         #expect(parsed.rows.first?.reasoning == 4)
     }
 
@@ -2290,7 +2290,7 @@ struct CostUsageScannerBreakdownTests {
 
         #expect(parsed.rows.count == 1)
         #expect(parsed.rows.first?.input == 10)
-        #expect(parsed.rows.first?.output == 10)
+        #expect(parsed.rows.first?.output == 6)
         #expect(parsed.rows.first?.reasoning == 4)
     }
 
@@ -2337,9 +2337,9 @@ struct CostUsageScannerBreakdownTests {
             fileURL: fileURL,
             range: CostUsageScanner.CostUsageDayRange(since: day, until: day))
 
-        #expect(parsed.rows.map(\.output) == [100, 5, 5])
+        #expect(parsed.rows.map(\.output) == [40, 2, 2])
         #expect(parsed.rows.compactMap(\.reasoning) == [60, 3, 3])
-        #expect(parsed.rows.reduce(0) { $0 + $1.output } == 110)
+        #expect(parsed.rows.reduce(0) { $0 + $1.output } == 44)
         #expect(parsed.rows.compactMap(\.reasoning).reduce(0, +) == 66)
         #expect(parsed.hasInterleavedTotals)
     }

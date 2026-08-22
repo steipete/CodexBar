@@ -1444,6 +1444,17 @@ final class SpendDashboardController {
         self.update(configuration: configuration, force: true)
     }
 
+    /// Reopening the pane can produce a configuration identical to the loaded one, which
+    /// `update(configuration:)` intentionally ignores. A stale-TTL-only reopen still needs
+    /// one non-forced request build so `.refreshMissing` can evaluate dashboard freshness.
+    func refreshIfStale() {
+        guard let configuration,
+              !self.isRefreshing,
+              !self.phase.manualRefreshOutstanding
+        else { return }
+        self.startLoad(configuration: configuration, phase: .ordinary)
+    }
+
     func selectDays(_ days: Int) {
         let days = Self.normalizedDays(days)
         guard days != self.selectedDays else { return }

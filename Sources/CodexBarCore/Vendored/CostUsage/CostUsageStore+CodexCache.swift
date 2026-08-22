@@ -61,7 +61,7 @@ extension CostUsageStore {
         mode: CodexLoadMode = .scanReady) -> CostUsageCache
     {
         _ = self.removeLegacyCodexArtifactIfPresent()
-        let snapshot = self.readSnapshot()
+        let snapshot = self.readSnapshot(skipRowTables: mode == .aggregateReport)
         guard snapshot.metadata.timeZoneIdentifier == nil
             || snapshot.metadata.timeZoneIdentifier == calendar.timeZone.identifier
         else { return CostUsageCache() }
@@ -400,6 +400,9 @@ extension CostUsageStore {
             let rows = (rowsByPath[file.path] ?? []).compactMap {
                 try? JSONDecoder().decode(CostUsageScanner.CodexUsageRow.self, from: $0.payload)
             }
+            // Aggregate hydration must keep reasoning visible. Persisted aggregates carry
+            // the day/model reasoning total, so synthesize the zero-token reasoning row
+            // before canonical pricing reconciliation sees the restored rows.
             let restoredRows = rows.isEmpty ? Self.aggregateRows(from: aggregates) : rows
             let tokenSnapshots = mode == .scanReady
                 ? (snapshotsByPath[file.path] ?? []).map(Self.tokenSnapshot(from:))
@@ -1003,7 +1006,8 @@ extension CostUsageStore {
                 priorityCachedTokens: 0,
                 priorityOutputTokens: 0,
                 standardTokens: 0,
-                priorityTokens: 0)
+                priorityTokens: 0,
+                earliestTimestampUnixMs: rows.compactMap(\.timestampUnixMs).min())
             for row in rows {
                 let isPriority = row.pricingMode == "priority"
                 let total = Int64(max(0, row.input) + max(0, row.output))
@@ -1054,6 +1058,9 @@ extension CostUsageStore {
                 value.priorityOutputTokens += aggregate.priorityOutputTokens
                 value.standardTokens += aggregate.standardTokens
                 value.priorityTokens += aggregate.priorityTokens
+                if let timestamp = aggregate.earliestTimestampUnixMs {
+                    value.earliestTimestampUnixMs = min(value.earliestTimestampUnixMs ?? timestamp, timestamp)
+                }
                 values[key] = value
             }
         }
@@ -1082,6 +1089,7 @@ extension CostUsageStore {
                     model: aggregate.model,
                     turnID: nil,
                     eventIndex: nil,
+                    timestampUnixMs: aggregate.earliestTimestampUnixMs,
                     input: Self.int(input),
                     cached: Self.int(cached),
                     output: Self.int(output),
@@ -1104,10 +1112,27 @@ extension CostUsageStore {
                     model: aggregate.model,
                     turnID: nil,
                     eventIndex: nil,
+                    timestampUnixMs: aggregate.earliestTimestampUnixMs,
                     input: 0,
                     cached: 0,
                     output: 0,
                     knownCostNanos: aggregate.authoritativeCostNanos,
+                    pricingModel: aggregate.model,
+                    pricingMode: "standard"))
+            }
+            if aggregate.reasoningTokens > 0 {
+                let reasoning = min(Int(max(0, aggregate.reasoningTokens)), Int.max)
+                rows.append(CostUsageScanner.CodexUsageRow(
+                    day: aggregate.day,
+                    model: aggregate.model,
+                    turnID: nil,
+                    eventIndex: nil,
+                    timestampUnixMs: aggregate.earliestTimestampUnixMs,
+                    input: 0,
+                    cached: 0,
+                    output: 0,
+                    reasoning: reasoning,
+                    knownCostNanos: 0,
                     pricingModel: aggregate.model,
                     pricingMode: "standard"))
             }

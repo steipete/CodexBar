@@ -365,7 +365,9 @@ enum CostUsageScanner {
             self.input = input
             self.cached = cached
             self.output = output
-            self.reasoning = reasoning.map { min(max(0, $0), max(0, output)) }
+            // Tokscale parity: reasoning is an independent additive bucket. It may exceed the
+            // non-reasoning remainder after rows store output exclusive of reasoning.
+            self.reasoning = reasoning.map { max(0, $0) }
             self.knownCostNanos = knownCostNanos
             self.unpricedTokens = unpricedTokens
             self.pricingModel = pricingModel
@@ -2083,7 +2085,9 @@ enum CostUsageScanner {
 
     /// Bump when the report pricing formula changes. Rates are resolved when reports are read;
     /// this fingerprint only invalidates downstream presentation caches such as Workspaces snapshots.
-    private static let codexCostFormulaVersion = 4
+    /// v5: rows/day aggregates now store output exclusive of reasoning (tokscale parity);
+    /// `codexResolvedCostUSD` adds the subset back at the output rate, so USD is unchanged.
+    private static let codexCostFormulaVersion = 5
 
     static func codexPricingKey(modelsDevArtifact: ModelsDevCacheArtifact?) -> String {
         CostUsagePricingKey.codex(
@@ -3410,6 +3414,18 @@ enum CostUsageScanner {
             Self.extractJSONByteStringField(Self.codexJSONFieldCwd, from: bytes, in: payloadRange, atDepth: 1))
     }
 
+    /// Normalizes the two cache-read aliases Codex emits (`cached_input_tokens`,
+    /// `cache_read_input_tokens`). Tokscale parity: prefer the larger alias when both are
+    /// present (some builds report one as 0 while the other carries the real count). No
+    /// storage-layer clamping: pricing treats cache reads as a subset of input and clamps
+    /// itself, while report layers surface cache reads as an independent display bucket.
+    private static func codexNormalizedCacheTokens(
+        cachedInputTokens: Int?,
+        cacheReadInputTokens: Int?) -> Int
+    {
+        max(cachedInputTokens ?? 0, cacheReadInputTokens ?? 0)
+    }
+
     private static func codexTotals(
         from bytes: UnsafeBufferPointer<UInt8>,
         in objectRange: Range<Int>?) -> CostUsageCodexTotals?
@@ -3418,15 +3434,17 @@ enum CostUsageScanner {
         let input = max(
             0,
             Self.extractJSONByteIntField(Self.codexJSONFieldInputTokens, from: bytes, in: objectRange, atDepth: 1) ?? 0)
-        let cached = max(
-            0,
-            Self.extractJSONByteIntField(Self.codexJSONFieldCachedInputTokens, from: bytes, in: objectRange, atDepth: 1)
-                ?? Self.extractJSONByteIntField(
-                    Self.codexJSONFieldCacheReadInputTokens,
-                    from: bytes,
-                    in: objectRange,
-                    atDepth: 1)
-                ?? 0)
+        let cached = Self.codexNormalizedCacheTokens(
+            cachedInputTokens: Self.extractJSONByteIntField(
+                Self.codexJSONFieldCachedInputTokens,
+                from: bytes,
+                in: objectRange,
+                atDepth: 1),
+            cacheReadInputTokens: Self.extractJSONByteIntField(
+                Self.codexJSONFieldCacheReadInputTokens,
+                from: bytes,
+                in: objectRange,
+                atDepth: 1))
         let output = max(
             0,
             Self
@@ -3436,7 +3454,7 @@ enum CostUsageScanner {
             Self.codexJSONFieldReasoningOutputTokens,
             from: bytes,
             in: objectRange,
-            atDepth: 1).map { min(max(0, $0), output) }
+            atDepth: 1).map { max(0, $0) }
         return CostUsageCodexTotals(input: input, cached: cached, output: output, reasoning: reasoning)
     }
 
@@ -3905,23 +3923,31 @@ enum CostUsageScanner {
                             return 0
                         }
 
+                        func cacheTokens(_ usage: [String: Any]) -> Int {
+                            CostUsageScanner.codexNormalizedCacheTokens(
+                                cachedInputTokens: toInt(usage["cached_input_tokens"]),
+                                cacheReadInputTokens: toInt(usage["cache_read_input_tokens"]))
+                        }
+
                         let total = (info["total_token_usage"] as? [String: Any]).map {
                             let output = toInt($0["output_tokens"])
+                            let input = toInt($0["input_tokens"])
                             return CostUsageCodexTotals(
-                                input: toInt($0["input_tokens"]),
-                                cached: toInt($0["cached_input_tokens"] ?? $0["cache_read_input_tokens"]),
+                                input: input,
+                                cached: cacheTokens($0),
                                 output: output,
                                 reasoning: ($0["reasoning_output_tokens"] as? NSNumber)
-                                    .map { min(max(0, $0.intValue), max(0, output)) })
+                                    .map { max(0, $0.intValue) })
                         }
                         let last = (info["last_token_usage"] as? [String: Any]).map {
                             let output = max(0, toInt($0["output_tokens"]))
+                            let input = max(0, toInt($0["input_tokens"]))
                             return CostUsageCodexTotals(
-                                input: max(0, toInt($0["input_tokens"])),
-                                cached: max(0, toInt($0["cached_input_tokens"] ?? $0["cache_read_input_tokens"])),
+                                input: input,
+                                cached: cacheTokens($0),
                                 output: output,
                                 reasoning: ($0["reasoning_output_tokens"] as? NSNumber)
-                                    .map { min(max(0, $0.intValue), output) })
+                                    .map { max(0, $0.intValue) })
                         }
                         appendSnapshot(timestamp: timestamp, last: last, total: total)
                     }
@@ -4355,12 +4381,18 @@ enum CostUsageScanner {
             let eventIndex = codexUsageRowIndex
             codexUsageRowIndex += 1
             let normModel = CostUsagePricing.normalizeCodexModel(model)
+            // Tokscale parity: `reasoning_output_tokens` is a subset of `output_tokens`, so stored
+            // rows and day aggregates carry output exclusive of reasoning; pricing adds the subset
+            // back at the output rate (see `codexResolvedCostUSD`), keeping USD unchanged while
+            // making token buckets additive.
+            let deltaReasoningTokens = deltaReasoning ?? 0
+            let outputExcludingReasoning = max(0, deltaOutput - deltaReasoningTokens)
             add(
                 dayKey: dayKey,
                 model: normModel,
                 input: deltaInput,
                 cached: deltaCached,
-                output: deltaOutput)
+                output: outputExcludingReasoning)
             if CostUsageDayRange.isInRange(
                 dayKey: dayKey,
                 since: range.scanSinceKey,
@@ -4375,7 +4407,7 @@ enum CostUsageScanner {
                     timestampUnixMs: unixMilliseconds(from: record.timestamp),
                     input: deltaInput,
                     cached: deltaCached,
-                    output: deltaOutput,
+                    output: outputExcludingReasoning,
                     reasoning: deltaReasoning))
             }
         }
@@ -4675,10 +4707,12 @@ enum CostUsageScanner {
                             let output = max(0, toInt(usage["output_tokens"]))
                             return CostUsageCodexTotals(
                                 input: max(0, toInt(usage["input_tokens"])),
-                                cached: max(0, toInt(usage["cached_input_tokens"] ?? usage["cache_read_input_tokens"])),
+                                cached: Self.codexNormalizedCacheTokens(
+                                    cachedInputTokens: toInt(usage["cached_input_tokens"]),
+                                    cacheReadInputTokens: toInt(usage["cache_read_input_tokens"])),
                                 output: output,
                                 reasoning: (usage["reasoning_output_tokens"] as? NSNumber)
-                                    .map { min(max(0, $0.intValue), output) })
+                                    .map { max(0, $0.intValue) })
                         }
 
                         let record = CodexTokenCountRecord(
