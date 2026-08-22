@@ -88,6 +88,7 @@ extension AdvancedPane {
         ]
 
         var installed: [String] = []
+        var conflicts: [String] = []
         var failures: [String] = []
         for dest in destinations {
             let dir = (dest as NSString).deletingLastPathComponent
@@ -101,7 +102,7 @@ extension AdvancedPane {
                 if Self.isLink(atPath: dest, pointingTo: helperURL.path) {
                     installed.append("Installed: \(dir)")
                 } else {
-                    failures.append("Exists: \(dir)")
+                    conflicts.append("Exists: \(dir)")
                 }
                 continue
             }
@@ -114,7 +115,10 @@ extension AdvancedPane {
             }
         }
 
-        self.cliStatus = Self.cliInstallStatus(installed: installed, failures: failures)
+        self.cliStatus = Self.cliInstallStatus(
+            installed: installed,
+            conflicts: conflicts,
+            failures: failures)
     }
 
     private static func isLink(atPath path: String, pointingTo destination: String) -> Bool {
@@ -126,9 +130,12 @@ extension AdvancedPane {
         return resolved == destination
     }
 
-    static func cliInstallStatus(installed: [String], failures: [String]) -> String {
+    static func cliInstallStatus(installed: [String], conflicts: [String], failures: [String]) -> String {
         if installed.isEmpty == false {
-            return installed.joined(separator: " · ")
+            return (installed + conflicts).joined(separator: " · ")
+        }
+        if conflicts.isEmpty == false {
+            return (conflicts + failures).joined(separator: " · ")
         }
         if failures.isEmpty == false {
             return failures.joined(separator: " · ")
