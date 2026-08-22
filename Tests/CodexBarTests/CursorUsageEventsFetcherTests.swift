@@ -125,6 +125,21 @@ struct CursorUsageEventsFetcherTests {
     }
 
     @Test
+    func `make daily report prices unreported cursor events from the shared catalog`() {
+        let report = CursorUsageEventsFetcher.makeDailyReport(
+            from: [
+                Self.event(timestampMS: 1_700_000_000_000, model: "gpt-5", input: 200, output: 20, totalCents: nil),
+            ],
+            calendar: Self.utcCalendar)
+
+        let day = report.data.first
+        #expect(day?.requestCount == 1)
+        #expect(day?.estimatedRequestCount == 1)
+        // Bundled list pricing: 200 input tokens at $1.25/M plus 20 output tokens at $10/M.
+        #expect(Self.approxEqual(day?.costUSD, 0.00045))
+    }
+
+    @Test
     func `meteredCostUSD rejects a partial sum when an event omits chargedCents`() {
         let events = [
             Self.event(timestampMS: 1_700_000_000_000, model: "claude", input: 5, totalCents: 994, chargedCents: 4),
@@ -335,7 +350,7 @@ struct CursorUsageEventsFetcherTests {
     }
 
     @Test
-    func `reports keep priced cents when a sibling event omits total cents`() {
+    func `reports price a known model when a sibling event omits total cents`() {
         let events = [
             Self.event(
                 timestampMS: 1_700_000_000_000,
@@ -354,11 +369,12 @@ struct CursorUsageEventsFetcherTests {
         let unpriced = report.data[0].modelBreakdowns?.first { $0.modelName == "gpt-5" }
 
         #expect(report.data.count == 1)
-        #expect(Self.approxEqual(report.data[0].costUSD, 1.0))
+        // Claude reports $1.00; gpt-5 (7 input tokens) is priced from the bundled catalog.
+        #expect(Self.approxEqual(report.data[0].costUSD, 1.00000875))
         #expect(Self.approxEqual(priced?.costUSD, 1.0))
-        #expect(unpriced?.costUSD == nil)
+        #expect(Self.approxEqual(unpriced?.costUSD, 0.00000875))
         #expect(unpriced?.totalTokens == 7)
-        #expect(Self.approxEqual(report.summary?.totalCostUSD, 1.0))
+        #expect(Self.approxEqual(report.summary?.totalCostUSD, 1.00000875))
     }
 
     @Test
@@ -391,7 +407,7 @@ struct CursorUsageEventsFetcherTests {
     }
 
     @Test
-    func `reports keep priced days when another day omits total cents`() {
+    func `reports price a known model on a day without reported cents`() {
         let events = [
             Self.event(
                 timestampMS: 1_700_000_000_000,
@@ -407,13 +423,131 @@ struct CursorUsageEventsFetcherTests {
 
         let report = CursorUsageEventsFetcher.makeDailyReport(from: events, calendar: Self.utcCalendar)
         let priced = report.data.first { $0.costUSD != nil }
-        let unpriced = report.data.first { $0.costUSD == nil }
+        let catalogPricedDay = report.data.first { $0.estimatedRequestCount == 1 }
 
         #expect(report.data.count == 2)
         #expect(Self.approxEqual(priced?.costUSD, 1.0))
-        #expect(unpriced?.costUSD == nil)
-        #expect(unpriced?.totalTokens == 7)
-        #expect(Self.approxEqual(report.summary?.totalCostUSD, 1.0))
+        #expect(catalogPricedDay?.requestCount == 1)
+        #expect(catalogPricedDay?.totalTokens == 7)
+        #expect(Self.approxEqual(report.summary?.totalCostUSD, 1.00000875))
+    }
+
+    @Test
+    func `estimates price cached claude tokens without double billing`() {
+        // Cursor reports disjoint counters: input excludes cache. For Muse the
+        // pricing bills input, cacheRead, and cacheCreation disjointly. The
+        // fallback must not fold cache tokens into input for the Claude route.
+        let event = Self.event(
+            timestampMS: 1_700_000_000_000,
+            model: "claude-sonnet-4-20250514",
+            input: 100,
+            output: 50,
+            cacheWrite: 300,
+            cacheRead: 200,
+            totalCents: nil)
+        let report = CursorUsageEventsFetcher.makeDailyReport(from: [event], calendar: Self.utcCalendar)
+        let expected = CostUsagePricing.claudeCostUSD(
+            model: "claude-sonnet-4-20250514",
+            inputTokens: 100,
+            cacheReadInputTokens: 200,
+            cacheCreationInputTokens: 300,
+            outputTokens: 50)
+        #expect(report.data.count == 1)
+        #expect(report.data[0].estimatedRequestCount == 1)
+        #expect(report.data[0].unpricedRequestCount == nil)
+        #expect(Self.approxEqual(report.data[0].costUSD, expected ?? -1))
+    }
+
+    @Test
+    func `estimates price cursor claude alias from bundled catalog`() {
+        let event = Self.event(
+            timestampMS: 1_700_000_000_000,
+            model: "claude-4.5-sonnet",
+            input: 100,
+            output: 50,
+            totalCents: nil)
+        let report = CursorUsageEventsFetcher.makeDailyReport(from: [event], calendar: Self.utcCalendar)
+        let expected = CostUsagePricing.claudeCostUSD(
+            model: "claude-sonnet-4-5",
+            inputTokens: 100,
+            cacheReadInputTokens: 0,
+            cacheCreationInputTokens: 0,
+            outputTokens: 50)
+
+        #expect(report.data.count == 1)
+        #expect(report.data[0].estimatedRequestCount == 1)
+        #expect(report.data[0].unpricedRequestCount == nil)
+        #expect(Self.approxEqual(report.data[0].costUSD, expected ?? -1))
+    }
+
+    @Test
+    func `mixed priced and catalog missing day counts unpriced requests`() {
+        let events = [
+            Self.event(
+                timestampMS: 1_700_000_000_000,
+                model: "claude-4.5-sonnet",
+                input: 5,
+                totalCents: 100),
+            Self.event(
+                timestampMS: 1_700_000_001_000,
+                model: "fixture-model",
+                input: 7,
+                totalCents: nil),
+        ]
+        let report = CursorUsageEventsFetcher.makeDailyReport(from: events, calendar: Self.utcCalendar)
+        #expect(report.data.count == 1)
+        // Only the Muse event has a price; the unknown model is absent from bundled tables.
+        #expect(Self.approxEqual(report.data[0].costUSD, 1.0))
+        #expect(report.data[0].requestCount == 2)
+        #expect(report.data[0].unpricedRequestCount == 1)
+        #expect(report.data[0].estimatedRequestCount == nil)
+        let coverage = report.data[0].coverageCounts
+        #expect(coverage.priced == 1)
+        #expect(coverage.unpriced == 1)
+        #expect(coverage.estimated == 0)
+    }
+
+    @Test
+    func `mixed valid and rejected cost counts unpriced requests`() {
+        let events = [
+            Self.event(
+                timestampMS: 1_700_000_000_000,
+                model: "claude-4.5-sonnet",
+                input: 5,
+                totalCents: 100),
+            Self.event(
+                timestampMS: 1_700_000_001_000,
+                model: "gpt-5",
+                input: 7,
+                totalCents: -1),
+        ]
+        let report = CursorUsageEventsFetcher.makeDailyReport(from: events, calendar: Self.utcCalendar)
+        #expect(report.data.count == 1)
+        #expect(report.data[0].requestCount == 2)
+        #expect(Self.approxEqual(report.data[0].costUSD, 1.0))
+        #expect(report.data[0].unpricedRequestCount == 1)
+        #expect(report.data[0].estimatedRequestCount == nil)
+        let coverage = report.data[0].coverageCounts
+        #expect(coverage.priced == 1)
+        #expect(coverage.unpriced == 1)
+        #expect(coverage.estimated == 0)
+    }
+
+    @Test
+    func `same model valid and rejected costs preserve valid coverage`() {
+        let events = [
+            Self.event(timestampMS: 1_700_000_000_000, model: "gpt-5", input: 5, totalCents: 100),
+            Self.event(timestampMS: 1_700_000_001_000, model: "gpt-5", input: 7, totalCents: -1),
+        ]
+        let report = CursorUsageEventsFetcher.makeDailyReport(from: events, calendar: Self.utcCalendar)
+
+        #expect(report.data.count == 1)
+        #expect(report.data[0].requestCount == 2)
+        #expect(report.data[0].costUSD == nil) // Aggregate fails closed.
+        #expect(report.data[0].unpricedRequestCount == 1)
+        let coverage = report.data[0].coverageCounts
+        #expect(coverage.priced == 1) // The valid request remains visible.
+        #expect(coverage.unpriced == 1)
     }
 
     @Test
