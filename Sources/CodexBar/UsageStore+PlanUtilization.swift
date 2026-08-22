@@ -373,8 +373,10 @@ extension UsageStore {
             let canonicalWindowMinutes = sample.name.canonicalWindowMinutes(sample.windowMinutes)
             let key = PlanUtilizationSeriesKey(name: sample.name, windowMinutes: canonicalWindowMinutes)
             if let existingHistory = historiesByKey[key] {
-                guard let updatedEntries = self.updatedPlanUtilizationEntries(
-                    existingEntries: existingHistory.entries,
+                var updatedEntries = existingHistory.entries
+                self.assertPlanUtilizationEntriesSorted(updatedEntries)
+                guard self.updatedPlanUtilizationEntries(
+                    existingEntries: &updatedEntries,
                     entry: sample.entry)
                 else {
                     continue
@@ -411,28 +413,72 @@ extension UsageStore {
     }
 
     private nonisolated static func updatedPlanUtilizationEntries(
-        existingEntries: [PlanUtilizationHistoryEntry],
-        entry: PlanUtilizationHistoryEntry) -> [PlanUtilizationHistoryEntry]?
+        existingEntries: inout [PlanUtilizationHistoryEntry],
+        entry: PlanUtilizationHistoryEntry) -> Bool
     {
-        var entries = existingEntries
-        let insertionIndex = entries.firstIndex(where: { $0.capturedAt > entry.capturedAt }) ?? entries.endIndex
+        let insertionIndex = self.planUtilizationEntryInsertionIndex(
+            entries: existingEntries,
+            capturedAt: entry.capturedAt)
         let sampleHourBucket = self.planUtilizationHourBucket(for: entry.capturedAt)
         let sameHourRange = self.planUtilizationHourRange(
-            entries: entries,
+            entries: existingEntries,
             insertionIndex: insertionIndex,
             hourBucket: sampleHourBucket)
-        let existingHourEntries = Array(entries[sameHourRange])
+        let existingHourEntries = Array(existingEntries[sameHourRange])
         let canonicalHourEntries = self.canonicalPlanUtilizationHourEntries(
             existingHourEntries: existingHourEntries,
             incomingEntry: entry)
 
-        guard canonicalHourEntries != existingHourEntries else { return nil }
-        entries.replaceSubrange(sameHourRange, with: canonicalHourEntries)
+        guard canonicalHourEntries != existingHourEntries else { return false }
+        existingEntries.replaceSubrange(sameHourRange, with: canonicalHourEntries)
 
-        if entries.count > self.planUtilizationMaxSamples {
-            entries.removeFirst(entries.count - self.planUtilizationMaxSamples)
+        if existingEntries.count > self.planUtilizationMaxSamples {
+            existingEntries.removeFirst(existingEntries.count - self.planUtilizationMaxSamples)
         }
-        return entries
+        return true
+    }
+
+    /// The insertion search assumes `capturedAt` order. Checked once per merged series rather than per entry —
+    /// a per-entry check would reintroduce the O(n) scan this insertion path exists to remove.
+    private nonisolated static func assertPlanUtilizationEntriesSorted(
+        _ entries: [PlanUtilizationHistoryEntry])
+    {
+        #if DEBUG
+        assert(
+            zip(entries, entries.dropFirst()).allSatisfy { $0.capturedAt <= $1.capturedAt },
+            "plan-utilization entries must be sorted by capturedAt before insertion")
+        #endif
+    }
+
+    private nonisolated static func planUtilizationEntryInsertionIndex(
+        entries: [PlanUtilizationHistoryEntry],
+        capturedAt: Date) -> Int
+    {
+        guard let lastCapturedAt = entries.last?.capturedAt else {
+            return entries.endIndex
+        }
+        if lastCapturedAt <= capturedAt {
+            return entries.endIndex
+        }
+        return self.planUtilizationEntryUpperBound(entries: entries, capturedAt: capturedAt)
+    }
+
+    /// First index i such that entries[i].capturedAt > capturedAt (endIndex if none).
+    private nonisolated static func planUtilizationEntryUpperBound(
+        entries: [PlanUtilizationHistoryEntry],
+        capturedAt: Date) -> Int
+    {
+        var low = entries.startIndex
+        var high = entries.endIndex
+        while low < high {
+            let mid = low + ((high - low) / 2)
+            if entries[mid].capturedAt > capturedAt {
+                high = mid
+            } else {
+                low = mid + 1
+            }
+        }
+        return low
     }
 
     #if DEBUG
@@ -440,7 +486,18 @@ extension UsageStore {
         existingEntries: [PlanUtilizationHistoryEntry],
         entry: PlanUtilizationHistoryEntry) -> [PlanUtilizationHistoryEntry]?
     {
-        self.updatedPlanUtilizationEntries(existingEntries: existingEntries, entry: entry)
+        var entries = existingEntries
+        guard self.updatedPlanUtilizationEntries(existingEntries: &entries, entry: entry) else {
+            return nil
+        }
+        return entries
+    }
+
+    nonisolated static func _planUtilizationEntryUpperBoundForTesting(
+        entries: [PlanUtilizationHistoryEntry],
+        capturedAt: Date) -> Int
+    {
+        self.planUtilizationEntryUpperBound(entries: entries, capturedAt: capturedAt)
     }
 
     nonisolated static func _updatedPlanUtilizationHistoriesForTesting(
@@ -1202,6 +1259,7 @@ extension UsageStore {
         var historiesToMerge: [[PlanUtilizationSeriesHistory]] = []
         let scopedRawKeys = Array(providerBuckets.accounts.keys)
         var legacyRawKeysToRemove: [String] = []
+        var hasForeignHistoryToMerge = false
 
         for rawKey in scopedRawKeys {
             let owner = CodexHistoryOwnership.classifyPersistedKey(
@@ -1219,6 +1277,7 @@ extension UsageStore {
                 historiesToMerge.append(accountHistories)
                 if rawKey != canonicalKey {
                     legacyRawKeysToRemove.append(rawKey)
+                    hasForeignHistoryToMerge = true
                 }
             }
         }
@@ -1232,6 +1291,7 @@ extension UsageStore {
         {
             historiesToMerge.append(opaqueHistories)
             legacyRawKeysToRemove.append(recoverableOpaqueRawKey)
+            hasForeignHistoryToMerge = true
         }
 
         if shouldAdoptUnscopedHistory,
@@ -1245,9 +1305,14 @@ extension UsageStore {
         {
             historiesToMerge.append(providerBuckets.unscoped)
             providerBuckets.unscoped = []
+            hasForeignHistoryToMerge = true
         }
 
-        guard !historiesToMerge.isEmpty else { return canonicalKey }
+        // Canonical-only contribution is not a migration; re-merging it with itself is quadratic.
+        // Skipping also skips incidental re-canonicalization of already-canonical series (duplicate
+        // (name, windowMinutes) collapse and per-hour peak replay). Repairing legacy data belongs
+        // at load time, not on every refresh and menu open.
+        guard hasForeignHistoryToMerge else { return canonicalKey }
         for rawKey in legacyRawKeysToRemove {
             providerBuckets.accounts.removeValue(forKey: rawKey)
         }
@@ -1523,29 +1588,29 @@ extension UsageStore {
         provider _: UsageProvider,
         histories: [[PlanUtilizationSeriesHistory]]) -> [PlanUtilizationSeriesHistory]
     {
-        var mergedByKey: [PlanUtilizationSeriesKey: PlanUtilizationSeriesHistory] = [:]
+        var mergedEntriesByKey: [PlanUtilizationSeriesKey: [PlanUtilizationHistoryEntry]] = [:]
 
         for historyGroup in histories {
             for history in historyGroup {
                 let key = PlanUtilizationSeriesKey(name: history.name, windowMinutes: history.windowMinutes)
-                let existingEntries = mergedByKey[key]?.entries ?? []
-                var mergedEntries = existingEntries
+                var mergedEntries = mergedEntriesByKey[key] ?? []
+                self.assertPlanUtilizationEntriesSorted(mergedEntries)
                 for entry in history.entries.sorted(by: { $0.capturedAt < $1.capturedAt }) {
-                    if let updatedEntries = self.updatedPlanUtilizationEntries(
-                        existingEntries: mergedEntries,
+                    _ = self.updatedPlanUtilizationEntries(
+                        existingEntries: &mergedEntries,
                         entry: entry)
-                    {
-                        mergedEntries = updatedEntries
-                    }
                 }
-                mergedByKey[key] = PlanUtilizationSeriesHistory(
-                    name: history.name,
-                    windowMinutes: history.windowMinutes,
-                    entries: mergedEntries)
+                mergedEntriesByKey[key] = mergedEntries
             }
         }
 
-        return mergedByKey.values.sorted { lhs, rhs in
+        return mergedEntriesByKey.map { key, entries in
+            PlanUtilizationSeriesHistory(
+                name: key.name,
+                windowMinutes: key.windowMinutes,
+                entries: entries)
+        }
+        .sorted { lhs, rhs in
             if lhs.windowMinutes != rhs.windowMinutes {
                 return lhs.windowMinutes < rhs.windowMinutes
             }

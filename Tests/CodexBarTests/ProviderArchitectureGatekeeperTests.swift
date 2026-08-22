@@ -2736,7 +2736,7 @@ struct ProviderArchitectureGatekeeperTests {
             reason: "This exact app-runtime bridge coordinates provider-owned state through the shared controller."),
         AllowedProviderConstruct(
             path: "Sources/CodexBar/UsageStore+PlanUtilization.swift",
-            line: 846,
+            line: 903,
             anchor: "if provider == .claude {",
             expectedProviderIDs: ["claude"],
             expectedReferenceCount: 1,
@@ -2744,7 +2744,7 @@ struct ProviderArchitectureGatekeeperTests {
             reason: "This exact app-runtime bridge coordinates provider-owned state through the shared controller."),
         AllowedProviderConstruct(
             path: "Sources/CodexBar/UsageStore+PlanUtilization.swift",
-            line: 861,
+            line: 918,
             anchor: "guard let identity = snapshot.identity(for: .claude) else { return nil }",
             expectedProviderIDs: ["claude"],
             expectedReferenceCount: 3,
@@ -2752,7 +2752,7 @@ struct ProviderArchitectureGatekeeperTests {
             reason: "This exact app-runtime bridge coordinates provider-owned state through the shared controller."),
         AllowedProviderConstruct(
             path: "Sources/CodexBar/UsageStore+PlanUtilization.swift",
-            line: 888,
+            line: 945,
             anchor: "key.hasPrefix(\"\\(UsageProvider.claude.rawValue):\")",
             expectedProviderIDs: ["claude"],
             expectedReferenceCount: 1,
@@ -2760,7 +2760,7 @@ struct ProviderArchitectureGatekeeperTests {
             reason: "This exact app-runtime bridge coordinates provider-owned state through the shared controller."),
         AllowedProviderConstruct(
             path: "Sources/CodexBar/UsageStore+PlanUtilization.swift",
-            line: 1318,
+            line: 1383,
             anchor: "if ![UsageProvider.codex, .claude, .antigravity].contains(provider) {",
             expectedProviderIDs: ["antigravity", "claude", "codex"],
             expectedReferenceCount: 3,

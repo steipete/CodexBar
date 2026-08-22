@@ -119,6 +119,75 @@ struct UsageStorePlanUtilizationTests {
         #expect(updated.last == appended)
     }
 
+    @Test
+    func `equal capturedAt lands in the same hour range as a linear upper bound`() throws {
+        let hourStart = Date(timeIntervalSince1970: 1_699_999_200)
+        let equalCapturedAt = hourStart.addingTimeInterval(10 * 60)
+        let laterHour = hourStart.addingTimeInterval(3600)
+        let existing = [
+            planEntry(at: equalCapturedAt, usedPercent: 10),
+            planEntry(at: laterHour, usedPercent: 50),
+        ]
+        let incoming = planEntry(at: equalCapturedAt, usedPercent: 40)
+
+        let updated = try #require(
+            UsageStore._updatedPlanUtilizationEntriesForTesting(
+                existingEntries: existing,
+                entry: incoming))
+
+        #expect(updated == [
+            incoming,
+            planEntry(at: laterHour, usedPercent: 50),
+        ])
+    }
+
+    @Test
+    func `duplicate capturedAt in the same hour is a no-op`() {
+        let hourStart = Date(timeIntervalSince1970: 1_699_999_200)
+        let existing = [
+            planEntry(at: hourStart.addingTimeInterval(10 * 60), usedPercent: 22, resetsAt: hourStart),
+        ]
+
+        let updated = UsageStore._updatedPlanUtilizationEntriesForTesting(
+            existingEntries: existing,
+            entry: existing[0])
+
+        #expect(updated == nil)
+    }
+
+    @Test
+    func `hour bucket edges stay in separate ranges`() throws {
+        let hourStart = Date(timeIntervalSince1970: 1_699_999_200)
+        let nextHour = hourStart.addingTimeInterval(3600)
+        let justBeforeNextHour = hourStart.addingTimeInterval(3599)
+
+        let splitAcrossBoundary = try #require(
+            UsageStore._updatedPlanUtilizationEntriesForTesting(
+                existingEntries: [planEntry(at: hourStart, usedPercent: 10)],
+                entry: planEntry(at: nextHour, usedPercent: 20)))
+        #expect(splitAcrossBoundary == [
+            planEntry(at: hourStart, usedPercent: 10),
+            planEntry(at: nextHour, usedPercent: 20),
+        ])
+
+        let previousBucketFromExactEdge = try #require(
+            UsageStore._updatedPlanUtilizationEntriesForTesting(
+                existingEntries: [planEntry(at: nextHour, usedPercent: 10)],
+                entry: planEntry(at: justBeforeNextHour, usedPercent: 20)))
+        #expect(previousBucketFromExactEdge == [
+            planEntry(at: justBeforeNextHour, usedPercent: 20),
+            planEntry(at: nextHour, usedPercent: 10),
+        ])
+
+        let sameBucketBeforeEdge = try #require(
+            UsageStore._updatedPlanUtilizationEntriesForTesting(
+                existingEntries: [planEntry(at: hourStart, usedPercent: 10)],
+                entry: planEntry(at: justBeforeNextHour, usedPercent: 20)))
+        #expect(sameBucketBeforeEdge == [
+            planEntry(at: justBeforeNextHour, usedPercent: 20),
+        ])
+    }
+
     @MainActor
     @Test
     func `native chart shows visible series tabs only`() {
