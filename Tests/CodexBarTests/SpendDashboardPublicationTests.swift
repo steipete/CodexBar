@@ -18,12 +18,36 @@ struct SpendDashboardPublicationTests {
                 enabled: provider == .codex || provider == .claude)
         }
         settings.costUsageBucketTimeZoneIdentifier = "UTC"
+        // Isolate from any real ~/.codex corpus: this branch gives the spend dashboard longer
+        // catch-up slices, so a developer-machine corpus can delay the shared publication past
+        // the wait deadline even though the observation semantics are unchanged.
+        let isolatedCodexHome = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        settings._test_codexReconciliationEnvironment = ["CODEX_HOME": isolatedCodexHome.path]
+        defer {
+            settings._test_codexReconciliationEnvironment = nil
+            try? FileManager.default.removeItem(at: isolatedCodexHome)
+        }
         let store = UsageStore(
             fetcher: UsageFetcher(environment: [:]),
             browserDetection: BrowserDetection(cacheTTL: 0),
             settings: settings,
             startupBehavior: .testing,
             environmentBase: [:])
+        // Provider-specific by design: claude stays enabled so ownership fingerprints cover an
+        // independent provider, but its refresh is pinned to one confirmed-empty publication so the
+        // source-revision baseline cannot depend on live network behavior or repeat refreshes.
+        // The publication is seeded before the first configuration snapshot, and the override only
+        // fires once, so every recompute in this test observes the same `claude:empty:1` revision.
+        var claudeSpendSnapshotPinned = false
+        store._test_tokenUsageRefreshOverride = { provider, _ in
+            guard provider == .claude, !claudeSpendSnapshotPinned else { return }
+            claudeSpendSnapshotPinned = true
+            store._setSpendDashboardTokenSnapshotForTesting(nil, for: .claude)
+        }
+        defer { store._test_tokenUsageRefreshOverride = nil }
+        store._setSpendDashboardTokenSnapshotForTesting(nil, for: .claude)
+        claudeSpendSnapshotPinned = true
         let initial = SpendDashboardSource.configuration(settings: settings, store: store)
         store.startSharedSpendDashboardPublication()
         defer { store.stopSharedSpendDashboardPublication() }
@@ -739,11 +763,12 @@ struct SpendDashboardPublicationTests {
     }
 
     private static func waitUntil(_ condition: @MainActor () -> Bool) async {
-        for _ in 0..<1000 {
+        let deadline = Date().addingTimeInterval(5)
+        while Date() < deadline {
             if condition() {
                 return
             }
-            await Task.yield()
+            try? await Task.sleep(for: .milliseconds(2))
         }
         Issue.record("Timed out waiting for Spend Dashboard publication")
     }

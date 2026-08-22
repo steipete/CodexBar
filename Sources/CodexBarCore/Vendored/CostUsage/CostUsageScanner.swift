@@ -5625,6 +5625,7 @@ enum CostUsageScanner {
                     hasKnownBoundedWork: hasKnownBoundedWork,
                     canReuseApproximateProgress: canReuseApproximateProgress,
                     pendingQueuePathCount: cache.codexActiveLookbackState?.pendingFilePaths.count,
+                    isDiscoveryComplete: !fileIndex.hasPendingDiscovery,
                     completionStatesBeforeScan: completionStatesBeforeScan,
                     workRecorder: options.codexScanWorkRecorderForTesting))
             let scanProgress = progressUpdate.summary
@@ -5695,6 +5696,7 @@ enum CostUsageScanner {
         let hasKnownBoundedWork: Bool
         let canReuseApproximateProgress: Bool
         let pendingQueuePathCount: Int?
+        let isDiscoveryComplete: Bool
         let completionStatesBeforeScan: [String: Bool]
         let workRecorder: CodexScanWorkRecorder?
     }
@@ -5743,11 +5745,21 @@ enum CostUsageScanner {
             completedFiles = max(completedFiles, max(0, totalFiles - pendingQueuePathCount))
         }
 
-        // A bounded-work signal proves at least one pass remains even if this slice happened
-        // to visit the final 512 candidates. Keep one conservative slot open until an exact
-        // identity-deduplicated traversal validates the inventory.
+        // Bounded work previously kept one slot open until an exact traversal, which stalled
+        // 471/472 when only one large file remained. Allow that final file to close only after
+        // both the pending queue and file discovery have drained; catch-up still waits for the
+        // exact inventory validation below.
         let incompleteSelectedFiles = statesAfterScan.values.count(where: { !$0 })
-        completedFiles = min(completedFiles, max(0, totalFiles - max(1, incompleteSelectedFiles)))
+        if let pending = context.pendingQueuePathCount,
+           pending <= 1,
+           context.isDiscoveryComplete,
+           incompleteSelectedFiles <= 1,
+           !context.hasKnownBoundedWork
+        {
+            completedFiles = min(completedFiles, totalFiles)
+        } else {
+            completedFiles = min(completedFiles, max(0, totalFiles - max(1, incompleteSelectedFiles)))
+        }
 
         cache.codexScanInventoryPaths = nil
         return (CodexScanProgressSummary(

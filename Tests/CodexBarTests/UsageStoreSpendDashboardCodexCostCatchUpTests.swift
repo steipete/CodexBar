@@ -259,6 +259,35 @@ struct UsageStoreSpendDashboardCodexCostCatchUpTests {
         store.cancelSpendDashboardCodexCostCatchUp()
     }
 
+    @Test
+    func `synchronization after an explicit stop does not restart the worker`() throws {
+        let store = try Self.makeStore(suite: "stop-stays-durable")
+        let accounts = [Self.account(id: "account", cacheIdentity: "cache-account")]
+        store.startSpendDashboardCodexCostCatchUpIfNeeded(accounts: accounts, mode: .accelerated)
+        store.stopSpendDashboardCodexCostCatchUp()
+
+        store.synchronizeSpendDashboardCodexCostCatchUp(accounts: accounts)
+
+        #expect(store.spendDashboardCodexCostCatchUpStopRequested)
+        #expect(store.spendDashboardCodexCostCatchUpTask == nil)
+        store.cancelSpendDashboardCodexCostCatchUp()
+    }
+
+    @Test
+    func `visible synchronization upgrades an automatic worker to accelerated`() throws {
+        let store = try Self.makeStore(suite: "upgrade-automatic-on-visible")
+        let accounts = [Self.account(id: "account", cacheIdentity: "cache-account")]
+
+        store.startSpendDashboardCodexCostCatchUpIfNeeded(accounts: accounts, mode: .automatic)
+        let originalToken = store.spendDashboardCodexCostCatchUpToken
+        store.synchronizeSpendDashboardCodexCostCatchUp(accounts: accounts, preferredMode: .accelerated)
+
+        #expect(originalToken != nil)
+        #expect(store.spendDashboardCodexCostCatchUpTask != nil)
+        #expect(store.spendDashboardCodexCostCatchUpMode == .accelerated)
+        store.cancelSpendDashboardCodexCostCatchUp()
+    }
+
     private static func makeStore(suite: String) throws -> UsageStore {
         let settings = testSettingsStore(
             suiteName: "UsageStoreSpendDashboardCodexCostCatchUpTests-\(suite)")
