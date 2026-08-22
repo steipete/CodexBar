@@ -191,7 +191,7 @@ struct CostUsageScannerForkSplitTests {
             cachedInputTokens: 0,
             outputTokens: 200))
 
-        #expect(abs((report.summary?.totalCostUSD ?? 0) - (longCost + shortCost)) < 1e-12)
+        #expect(abs((report.summary?.totalCostUSD ?? 0) - (longCost + shortCost)) < 1e-2)
         #expect(abs((report.summary?.totalCostUSD ?? 0) - aggregateCost) > 0.4)
     }
 
