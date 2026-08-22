@@ -503,6 +503,7 @@ struct CursorUsageEventsFetcher: Sendable {
         var cacheCreationTokens: Int? = 0
         var costUSD: Double?
         var costInvalid = false
+        var pricedRequests = 0
         var requestCount: Int? = 0
         var estimatedRequests = 0
         var unpricedRequests = 0
@@ -523,6 +524,8 @@ struct CursorUsageEventsFetcher: Sendable {
             if let totalCents = usage.totalCents {
                 if totalCents < 0 || !totalCents.isFinite {
                     self.unpricedRequests += 1
+                } else {
+                    self.pricedRequests += 1
                 }
             } else if estimatedCents != nil {
                 self.estimatedRequests += 1
@@ -583,6 +586,7 @@ struct CursorUsageEventsFetcher: Sendable {
         var cacheCreationTokens: Int? = 0
         var requestCount: Int? = 0
         var costUSD: Double?
+        var pricedRequestCount = 0
         var estimatedRequestCount = 0
         var unpricedRequestCount = 0
         var breakdowns: [CostUsageDailyReport.ModelBreakdown] = []
@@ -594,6 +598,7 @@ struct CursorUsageEventsFetcher: Sendable {
             cacheCreationTokens = ModelAccumulator.checkedSum([cacheCreationTokens, accumulator.cacheCreationTokens])
             requestCount = ModelAccumulator.checkedSum([requestCount, accumulator.requestCount])
             costUSD = Self.checkedKnownUSDTotal(costUSD, accumulator.costUSD)
+            pricedRequestCount += accumulator.pricedRequests
             estimatedRequestCount += accumulator.estimatedRequests
             unpricedRequestCount += accumulator.unpricedRequests
             breakdowns.append(CostUsageDailyReport.ModelBreakdown(
@@ -620,7 +625,11 @@ struct CursorUsageEventsFetcher: Sendable {
             modelsUsed: models.keys.sorted(),
             modelBreakdowns: Self.sortedBreakdowns(breakdowns),
             unpricedRequestCount: unpricedRequestCount > 0 ? unpricedRequestCount : nil,
-            estimatedRequestCount: estimatedRequestCount > 0 ? estimatedRequestCount : nil)
+            unmeteredRequestCount: nil,
+            estimatedRequestCount: estimatedRequestCount > 0 ? estimatedRequestCount : nil,
+            // Coverage must not lose valid requests just because an invalid cost from the
+            // same model failed the whole aggregate closed; carry the per-event count.
+            pricedRequestCount: pricedRequestCount > 0 ? pricedRequestCount : nil)
     }
 
     /// List-price estimate for events whose vendor omitted totalCents, resolved through the
@@ -629,6 +638,9 @@ struct CursorUsageEventsFetcher: Sendable {
     /// Codex/OpenAI treats cache tokens as a subset of total input, so they are folded
     /// into the input count for that route only. Claude bills input and cache tokens
     /// disjointly, so the original counters are preserved for the Claude fallback.
+    /// Cursor emits dotted Claude aliases such as "claude-4.5-sonnet"; the bundled
+    /// Claude catalog keys on "claude-sonnet-4-5", so the alias order is swapped before
+    /// that lookup.
     private static func estimatedListPriceCents(
         for usage: CursorEventTokenUsage,
         eventDate: Date,
@@ -647,7 +659,7 @@ struct CursorUsageEventsFetcher: Sendable {
             return usd * 100
         }
         if let usd = CostUsagePricing.claudeCostUSD(
-            model: model,
+            model: Self.cursorClaudeCatalogModel(model),
             inputTokens: usage.inputTokens,
             cacheReadInputTokens: usage.cacheReadTokens,
             cacheCreationInputTokens: usage.cacheWriteTokens,
@@ -657,6 +669,11 @@ struct CursorUsageEventsFetcher: Sendable {
             return usd * 100
         }
         return nil
+    }
+
+    private static func cursorClaudeCatalogModel(_ model: String) -> String {
+        guard let match = model.wholeMatch(of: /^claude-(\d+)\.(\d+)-(.+)$/) else { return model }
+        return "claude-\(match.3)-\(match.1)-\(match.2)"
     }
 
     private static func makeSummary(from entries: [CostUsageDailyReport.Entry]) -> CostUsageDailyReport.Summary {

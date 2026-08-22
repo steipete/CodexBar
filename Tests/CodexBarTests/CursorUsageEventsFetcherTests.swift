@@ -459,6 +459,28 @@ struct CursorUsageEventsFetcherTests {
     }
 
     @Test
+    func `estimates price cursor claude alias from bundled catalog`() {
+        let event = Self.event(
+            timestampMS: 1_700_000_000_000,
+            model: "claude-4.5-sonnet",
+            input: 100,
+            output: 50,
+            totalCents: nil)
+        let report = CursorUsageEventsFetcher.makeDailyReport(from: [event], calendar: Self.utcCalendar)
+        let expected = CostUsagePricing.claudeCostUSD(
+            model: "claude-sonnet-4-5",
+            inputTokens: 100,
+            cacheReadInputTokens: 0,
+            cacheCreationInputTokens: 0,
+            outputTokens: 50)
+
+        #expect(report.data.count == 1)
+        #expect(report.data[0].estimatedRequestCount == 1)
+        #expect(report.data[0].unpricedRequestCount == nil)
+        #expect(Self.approxEqual(report.data[0].costUSD, expected ?? -1))
+    }
+
+    @Test
     func `mixed priced and catalog missing day counts unpriced requests`() {
         let events = [
             Self.event(
@@ -509,6 +531,23 @@ struct CursorUsageEventsFetcherTests {
         #expect(coverage.priced == 1)
         #expect(coverage.unpriced == 1)
         #expect(coverage.estimated == 0)
+    }
+
+    @Test
+    func `same model valid and rejected costs preserve valid coverage`() {
+        let events = [
+            Self.event(timestampMS: 1_700_000_000_000, model: "gpt-5", input: 5, totalCents: 100),
+            Self.event(timestampMS: 1_700_000_001_000, model: "gpt-5", input: 7, totalCents: -1),
+        ]
+        let report = CursorUsageEventsFetcher.makeDailyReport(from: events, calendar: Self.utcCalendar)
+
+        #expect(report.data.count == 1)
+        #expect(report.data[0].requestCount == 2)
+        #expect(report.data[0].costUSD == nil) // Aggregate fails closed.
+        #expect(report.data[0].unpricedRequestCount == 1)
+        let coverage = report.data[0].coverageCounts
+        #expect(coverage.priced == 1) // The valid request remains visible.
+        #expect(coverage.unpriced == 1)
     }
 
     @Test
