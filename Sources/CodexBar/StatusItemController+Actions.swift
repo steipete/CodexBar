@@ -814,9 +814,18 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
         }
     }
 
-    func presentGeminiLoginResult(_ result: GeminiLoginRunner.Result) {
-        guard let info = Self.geminiLoginAlertInfo(for: result) else { return }
-        self.presentLoginAlert(title: info.title, message: info.message)
+    /// Returns `true` when the alert offered a recovery action and the user chose it.
+    @discardableResult
+    func presentGeminiLoginResult(_ result: GeminiLoginRunner.Result) -> Bool {
+        guard let info = Self.geminiLoginAlertInfo(for: result) else { return false }
+        guard let confirmButtonTitle = info.confirmButtonTitle else {
+            self.presentLoginAlert(title: info.title, message: info.message)
+            return false
+        }
+        return self.presentLoginConfirmation(
+            title: info.title,
+            message: info.message,
+            confirmButtonTitle: confirmButtonTitle)
     }
 
     func presentAntigravityLoginResult(_ result: AntigravityLoginRunner.Result) {
@@ -827,6 +836,8 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
     struct LoginAlertInfo: Equatable {
         let title: String
         let message: String
+        /// When set, the alert offers this action alongside Cancel and reports whether it was chosen.
+        var confirmButtonTitle: String?
     }
 
     nonisolated static func geminiLoginAlertInfo(for result: GeminiLoginRunner.Result) -> LoginAlertInfo? {
@@ -842,7 +853,9 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
         case .consumerTierDeprecated:
             LoginAlertInfo(
                 title: L("Gemini CLI login is no longer supported"),
-                message: GeminiConsumerTierMigration.deprecationError)
+                message: GeminiConsumerTierMigration.deprecationError + "\n\n"
+                    + GeminiConsumerTierMigration.loginSwitchAccountPrompt,
+                confirmButtonTitle: L("Switch Account…"))
         }
     }
 
@@ -861,6 +874,18 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
         case let .failed(message):
             LoginAlertInfo(title: L("Antigravity login failed"), message: message)
         }
+    }
+
+    /// Cancel is the default button on purpose: confirming clears stored provider credentials, so a
+    /// stray Return keypress must not destroy them.
+    func presentLoginConfirmation(title: String, message: String, confirmButtonTitle: String) -> Bool {
+        let alert = NSAlert()
+        alert.messageText = L(title)
+        alert.informativeText = L(message)
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: L("Cancel"))
+        alert.addButton(withTitle: confirmButtonTitle)
+        return alert.runModal() == .alertSecondButtonReturn
     }
 
     func presentLoginAlert(title: String, message: String) {

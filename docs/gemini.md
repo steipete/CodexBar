@@ -108,6 +108,11 @@ Gemini uses the Gemini CLI OAuth credentials and private quota APIs. No browser 
   OAuth step fails with the same message — and shows the Antigravity guidance instead. The local
   `oauthCredentialsUnavailableWithAntigravity` handoff deliberately does not guard login: there,
   reinstalling or relaunching Gemini CLI is the fix, and Workspace accounts must keep that path.
+- The guard warns rather than blocks: its alert offers **Switch Account…** next to Cancel (Cancel is the
+  default, since confirming clears credentials). Confirming re-runs the ordinary login without the guard,
+  which is how a user moves from a shut-down consumer account to a Workspace, education, or Code Assist
+  Standard/Enterprise one. The observation is not cleared by confirming, so the settings action stays put
+  and the next attempt warns again.
 - Settings shows an **Enable Antigravity provider** action only after CodexBar observes
   `consumerTierDeprecated` during a Gemini refresh (typed sentinel state, not user-facing text matching).
 - The action is explicit: CodexBar never automatically enables Antigravity or falls back to it.
