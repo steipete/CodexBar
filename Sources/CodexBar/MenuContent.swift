@@ -262,6 +262,7 @@ struct StatusIconView: View {
             stale: self.store.isStale(provider: self.provider),
             style: self.store.style(for: self.provider),
             statusIndicator: self.store.statusIndicator(for: self.provider),
-            hideCritters: self.store.settings.menuBarHidesCritters)
+            hideCritters: self.store.settings.menuBarHidesCritters,
+            quotaLayoutPolicy: .provider(self.provider))
     }
 }

@@ -1719,7 +1719,7 @@ struct ProviderArchitectureGatekeeperTests {
             reason: "This exact shared construct dispatches a provider-owned capability at the generic integration boundary."),
         AllowedProviderConstruct(
             path: "Sources/CodexBar/IconRenderer.swift",
-            line: 668,
+            line: 691,
             anchor: "let twistGemini = decorations.contains(.gemini)",
             expectedProviderIDs: ["antigravity", "factory", "gemini", "warp"],
             expectedReferenceCount: 4,
@@ -2464,7 +2464,7 @@ struct ProviderArchitectureGatekeeperTests {
             reason: "This exact app-runtime bridge coordinates provider-owned state through the shared controller."),
         AllowedProviderConstruct(
             path: "Sources/CodexBar/StatusItemController+Animation.swift",
-            line: 572,
+            line: 573,
             anchor: "guard isLoading, style == .warp, let phase else {",
             expectedProviderIDs: ["warp"],
             expectedReferenceCount: 1,
@@ -2472,7 +2472,7 @@ struct ProviderArchitectureGatekeeperTests {
             reason: "This exact app-runtime bridge coordinates provider-owned state through the shared controller."),
         AllowedProviderConstruct(
             path: "Sources/CodexBar/StatusItemController+Animation.swift",
-            line: 926,
+            line: 928,
             anchor: "if provider == .kiro {",
             expectedProviderIDs: ["cursor", "kiro"],
             expectedReferenceCount: 2,

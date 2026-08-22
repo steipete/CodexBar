@@ -1432,7 +1432,8 @@ extension StatusItemController {
             wiggle: 0,
             tilt: 0,
             statusIndicator: indicator,
-            hideCritters: self.settings.menuBarHidesCritters)
+            hideCritters: self.settings.menuBarHidesCritters,
+            quotaLayoutPolicy: .provider(provider))
         image.isTemplate = true
         return image
     }

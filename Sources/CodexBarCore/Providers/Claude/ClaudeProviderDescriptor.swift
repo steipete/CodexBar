@@ -180,6 +180,7 @@ public enum ClaudeProviderDescriptor {
                         menuCardStyle: .claude)
                 },
                 iconDecorations: [.notches],
+                reservesMissingSecondaryIconLane: true,
                 automaticSelectionPrioritizesExhaustedWindow: false,
                 menuBarWindowResolver: self.menuBarWindow,
                 planUtilizationSeriesResolver: { snapshot in

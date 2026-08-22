@@ -423,6 +423,7 @@ public struct ProviderUsagePresentation: Sendable {
     private let widgetRowLimitResolver: WidgetRowLimitResolver
     public let iconDecorations: ProviderIconDecorations
     public let treatsExhaustedSecondaryIconWindowAsMissing: Bool
+    public let reservesMissingSecondaryIconLane: Bool
     public let primarySemanticWindow: ProviderSemanticWindow
     public let secondarySemanticWindow: ProviderSemanticWindow
     public let menuBarLayoutSecondaryLabel: String?
@@ -448,6 +449,7 @@ public struct ProviderUsagePresentation: Sendable {
         },
         iconDecorations: ProviderIconDecorations = [],
         treatsExhaustedSecondaryIconWindowAsMissing: Bool = false,
+        reservesMissingSecondaryIconLane: Bool = false,
         semanticWindowResolver: @escaping SemanticWindowResolver = Self.standardSemanticWindows,
         primarySemanticWindow: ProviderSemanticWindow = .session,
         secondarySemanticWindow: ProviderSemanticWindow = .weekly,
@@ -473,6 +475,7 @@ public struct ProviderUsagePresentation: Sendable {
         self.iconWindowResolver = iconWindowResolver
         self.iconDecorations = iconDecorations
         self.treatsExhaustedSecondaryIconWindowAsMissing = treatsExhaustedSecondaryIconWindowAsMissing
+        self.reservesMissingSecondaryIconLane = reservesMissingSecondaryIconLane
         self.semanticWindowResolver = semanticWindowResolver
         self.primarySemanticWindow = primarySemanticWindow
         self.secondarySemanticWindow = secondarySemanticWindow
