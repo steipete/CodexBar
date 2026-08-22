@@ -753,7 +753,9 @@ struct SpendDashboardPublicationTests {
     }
 
     private static func waitUntil(_ condition: @MainActor () -> Bool) async {
-        let deadline = Date().addingTimeInterval(5)
+        // Loaded macOS CI can stall MainActor startup long enough for a seeded confirmed-empty
+        // snapshot to age out; wait well past that boundary before treating publication as absent.
+        let deadline = Date().addingTimeInterval(30)
         while Date() < deadline {
             if condition() {
                 return
