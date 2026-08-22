@@ -150,6 +150,75 @@ struct OpenRouterPluginGoldenTests {
     }
 
     @Test
+    func `activity requests the latest completed UTC day`() async throws {
+        let requests = OpenRouterRequestRecorder()
+        let activityBody = #"""
+        {"data":[
+          {
+            "date":"2026-08-17",
+            "model":"openai/gpt-5.6",
+            "prompt_tokens":10,
+            "completion_tokens":5,
+            "reasoning_tokens":2,
+            "requests":1,
+            "usage":1
+          },
+          {
+            "date":"2026-07-19",
+            "model":"x-ai/grok-4",
+            "prompt_tokens":4,
+            "completion_tokens":1,
+            "reasoning_tokens":0,
+            "requests":1,
+            "usage":1
+          }
+        ]}
+        """#
+        let runtime = try ProviderPluginRuntime(
+            bundledPlugin: "openrouter",
+            transport: ProviderHTTPTransportHandler { request in
+                await requests.append(request)
+                let path = request.url?.path ?? ""
+                if path.hasSuffix("/activity") {
+                    let date = request.url
+                        .flatMap { URLComponents(url: $0, resolvingAgainstBaseURL: false) }?
+                        .queryItems?
+                        .first { $0.name == "date" }?
+                        .value
+                    if date == "2026-08-18" {
+                        return try Self.response(
+                            request,
+                            body: #"{"error":{"message":"Date must be within the last 30 (completed) UTC days"}}"#,
+                            statusCode: 400)
+                    }
+                    return try Self.response(request, body: activityBody)
+                }
+                if path.hasSuffix("/key") {
+                    return try Self.response(request, body: #"{"data":{"limit":20,"usage":5}}"#)
+                }
+                return try Self.response(request, body: Self.defaultCreditsBody)
+            })
+        let now = Date(timeIntervalSince1970: 1_787_079_600) // 2026-08-18T12:00:00Z; stable injected clock.
+
+        let usage = try await runtime.fetchUsage(
+            secrets: [
+                OpenRouterSettingsReader.envKey: "fixture-key",
+                OpenRouterSettingsReader.managementAPIKeyEnvironmentKey: "fixture-management-key",
+            ],
+            now: now)
+        let recorded = await requests.requests
+        let datedRequest = try #require(recorded.first { $0.url?.query != nil })
+        let date = datedRequest.url
+            .flatMap { URLComponents(url: $0, resolvingAgainstBaseURL: false) }?
+            .queryItems?
+            .first { $0.name == "date" }?
+            .value
+
+        #expect(date == "2026-08-17")
+        #expect(usage.costUsage?.last30DaysCostUSD == 2)
+    }
+
+    @Test
     func `server remaining drives monthly quota golden`() async throws {
         let usage = try await Self.fetch(keyBody: #"""
         {"data":{
