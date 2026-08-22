@@ -641,7 +641,8 @@ struct CursorUsageEventsFetcher: Sendable {
             cachedInputTokens: usage.cacheReadTokens,
             outputTokens: usage.outputTokens,
             cacheWriteInputTokens: usage.cacheWriteTokens,
-            pricingDate: eventDate)
+            pricingDate: eventDate,
+            customPricing: .empty)
         {
             return usd * 100
         }
