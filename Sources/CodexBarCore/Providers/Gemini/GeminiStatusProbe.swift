@@ -520,10 +520,10 @@ public struct GeminiStatusProbe: Sendable {
 
         let tierId = (json["currentTier"] as? [String: Any])?["id"] as? String
         let paidTierName = Self.parsePaidTierName(from: json)
-        let isConsumerClientUnsupported = Self.hasUnsupportedClientIneligibleTier(in: json)
+        let isConsumerClientUnsupported = Self.isConsumerClientUnsupported(in: json, paidTierName: paidTierName)
 
         guard let tierId else {
-            // Google answers the consumer shutdown with HTTP 200: no `currentTier`, and the free tier
+            // Google answers the consumer shutdown with HTTP 200: no `currentTier`, and the consumer tier
             // listed under `ineligibleTiers` with `UNSUPPORTED_CLIENT`.
             if isConsumerClientUnsupported {
                 Self.log.info("loadCodeAssist: consumer client unsupported, no current tier")
@@ -1375,9 +1375,19 @@ extension GeminiStatusProbe {
         return trimmed.isEmpty ? nil : trimmed
     }
 
+    /// Whether Google's `loadCodeAssist` response says this client can no longer serve the account.
+    ///
+    /// A named paid tier outranks the ineligible-tier listing: `resolveAccountPlan` treats `paidTier.name`
+    /// as authoritative even without `currentTier`, and Google's consumer shutdown response carries no
+    /// `paidTier` at all. Gating here keeps both the deprecation throw and the quota-403 mapping off paid
+    /// plans.
+    fileprivate static func isConsumerClientUnsupported(in json: [String: Any], paidTierName: String?) -> Bool {
+        paidTierName == nil && self.hasUnsupportedClientIneligibleTier(in: json)
+    }
+
     /// `ineligibleTiers[].reasonCode == "UNSUPPORTED_CLIENT"` (or its message) is Google's explicit
     /// consumer-tier shutdown signal inside an otherwise successful `loadCodeAssist` response.
-    fileprivate static func hasUnsupportedClientIneligibleTier(in json: [String: Any]) -> Bool {
+    private static func hasUnsupportedClientIneligibleTier(in json: [String: Any]) -> Bool {
         guard let ineligibleTiers = json["ineligibleTiers"] as? [[String: Any]] else { return false }
         // `tierId` is intentionally ignored: any UNSUPPORTED_CLIENT entry means *this client* is
         // unsupported, whichever tier Google attached the reason to.

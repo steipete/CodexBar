@@ -143,7 +143,10 @@ enum GeminiAPITestHelpers {
     /// Mirrors the real `loadCodeAssist` HTTP 200 body Google returns to consumer accounts after the
     /// June 2026 shutdown: the free tier is listed under `ineligibleTiers` with `UNSUPPORTED_CLIENT`,
     /// `currentTier` is absent unless the account still holds a tier.
-    static func loadCodeAssistUnsupportedClientResponse(currentTierId: String? = nil) -> Data {
+    static func loadCodeAssistUnsupportedClientResponse(
+        currentTierId: String? = nil,
+        paidTierName: String? = nil) -> Data
+    {
         var payload: [String: Any] = [
             "allowedTiers": [
                 [
@@ -168,6 +171,9 @@ enum GeminiAPITestHelpers {
         ]
         if let currentTierId {
             payload["currentTier"] = ["id": currentTierId, "name": currentTierId]
+        }
+        if let paidTierName {
+            payload["paidTier"] = ["name": paidTierName]
         }
         return self.jsonData(payload)
     }
