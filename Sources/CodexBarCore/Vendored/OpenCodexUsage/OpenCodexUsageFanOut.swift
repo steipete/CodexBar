@@ -6,13 +6,15 @@ public enum OpenCodexUsageFanOut {
         now: Date,
         historyDays: Int,
         calendar: Calendar,
+        oauthBackedProviderIDs: Set<String> = [],
         customPricing: CostUsageCustomPricing = .empty) -> [UsageProvider: CostUsageTokenSnapshot]
     {
         var grouped: [UsageProvider: [OpenCodexUsageEntry]] = [:]
         for entry in entries {
             guard case let .subscription(provider) = OpenCodexRouteDispatcher.route(
                 provider: entry.provider,
-                modelName: entry.model)
+                modelName: entry.model,
+                oauthBackedProviderIDs: oauthBackedProviderIDs)
             else {
                 continue
             }

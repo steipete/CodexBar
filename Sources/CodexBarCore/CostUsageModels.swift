@@ -178,6 +178,72 @@ public struct CostUsageTokenSnapshot: Sendable, Equatable {
         Self.entry(in: self.daily, forLocalDayContaining: self.updatedAt, calendar: calendar)
     }
 
+    /// Reprojects this snapshot from its retained daily rows into a smaller rolling window.
+    public func narrowed(toHistoryDays requestedDays: Int, calendar: Calendar = .current) -> Self {
+        let days = min(max(1, requestedDays), max(1, self.historyDays))
+        let today = calendar.startOfDay(for: self.updatedAt)
+        let start = calendar.date(byAdding: .day, value: -(days - 1), to: today) ?? today
+        let startKey = CostUsageLocalDay.key(from: start, calendar: calendar)
+        let endKey = CostUsageLocalDay.key(from: today, calendar: calendar)
+        let entries = self.daily.filter { entry in
+            guard let dayKey = Self.localDayKey(for: entry.date, calendar: calendar) else { return false }
+            return dayKey >= startKey && dayKey <= endKey
+        }
+        let derived = CostUsageFetcher.tokenSnapshot(
+            from: CostUsageDailyReport(data: entries, summary: nil),
+            now: self.updatedAt,
+            historyDays: days,
+            useCurrentLocalDayForSession: true,
+            calendar: calendar,
+            historyCoverageIsEstablished: self.historyCoverageIsEstablished,
+            meteredCostUSD: days == self.historyDays ? self.meteredCostUSD : nil,
+            costProvenance: self.costProvenance,
+            credentialScopeFingerprint: self.credentialScopeFingerprint,
+            historyLabel: self.historyLabel,
+            projects: self.projects,
+            sessions: self.sessions,
+            updatedAt: self.updatedAt)
+        let sessionRequests: Int? = if let current = Self.entry(
+            in: entries,
+            forLocalDayContaining: self.updatedAt,
+            calendar: calendar)
+        {
+            current.requestCount
+        } else if !entries.isEmpty || self.historyCoverageIsEstablished {
+            0
+        } else {
+            nil
+        }
+        let requests = entries.compactMap(\.requestCount)
+        let allEntriesCarryRequests = !entries.isEmpty && entries.allSatisfy { $0.requestCount != nil }
+        let totalRequests: Int? = if allEntriesCarryRequests {
+            requests.reduce(0, +)
+        } else if self.historyCoverageIsEstablished, entries.isEmpty {
+            0
+        } else {
+            nil
+        }
+        return Self(
+            sessionTokens: derived.sessionTokens,
+            sessionCostUSD: derived.sessionCostUSD,
+            sessionRequests: sessionRequests,
+            last30DaysTokens: derived.last30DaysTokens,
+            last30DaysCostUSD: derived.last30DaysCostUSD,
+            last30DaysRequests: totalRequests,
+            currencyCode: self.currencyCode,
+            historyDays: days,
+            historyCoverageIsEstablished: self.historyCoverageIsEstablished,
+            historyLabel: self.historyLabel,
+            meteredCostUSD: derived.meteredCostUSD,
+            costProvenance: self.costProvenance,
+            credentialScopeFingerprint: self.credentialScopeFingerprint,
+            daily: entries,
+            projects: self.projects,
+            sessions: self.sessions,
+            hourly: self.hourly,
+            updatedAt: self.updatedAt)
+    }
+
     public func summary(forLastDays requestedDays: Int, calendar: Calendar = .current) -> CostUsageWindowSummary {
         let days = max(1, requestedDays)
         let today = calendar.startOfDay(for: self.updatedAt)

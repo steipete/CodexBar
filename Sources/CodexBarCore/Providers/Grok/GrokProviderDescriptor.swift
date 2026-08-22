@@ -87,8 +87,8 @@ public enum GrokProviderDescriptor {
             tokenCost: ProviderTokenCostConfig(
                 supportsTokenCost: true,
                 noDataMessage: {
-                    "Grok token totals come from local ~/.grok/sessions logs. "
-                        + "Subscription credits are not converted to dollars."
+                    "Grok totals come from local Grok CLI session logs. "
+                        + "Costs are public list-price estimates, not a bill."
                 }),
             pace: ProviderPaceCapability(
                 resetWindowPace: .custom { window, now in
@@ -334,9 +334,12 @@ struct GrokWebFetchStrategy: ProviderFetchStrategy {
                 throw GrokWebBillingError.teamUsageUnsupported
             }
             let subscriptionTier = try await resolveSettingsTier(authState)
+            let localSummary = await GrokLocalSessionScanner.summarizeRequestingPricingRefresh(
+                env: context.env,
+                lookbackDays: GrokLocalSessionScanner.maximumLookbackDays)
             let identitySnapshot = GrokStatusProbe.identityOnlySnapshot(
                 credentials: authState,
-                localSummary: GrokLocalSessionScanner.summarize(env: context.env),
+                localSummary: localSummary,
                 cliVersion: GrokStatusProbe.detectVersion(env: context.env),
                 subscriptionTier: subscriptionTier)
             return self.makeResult(
@@ -356,6 +359,9 @@ struct GrokWebFetchStrategy: ProviderFetchStrategy {
                 nil
             }
         let enrichedBilling = webBilling.applying(subscriptionTier: subscriptionTier)
+        let localSummary = await GrokLocalSessionScanner.summarizeRequestingPricingRefresh(
+            env: context.env,
+            lookbackDays: GrokLocalSessionScanner.maximumLookbackDays)
         let snapshot = GrokUsageSnapshot(
             billing: nil,
             webBilling: enrichedBilling,
@@ -363,7 +369,7 @@ struct GrokWebFetchStrategy: ProviderFetchStrategy {
                 credentials: credentials,
                 billing: nil,
                 webBilling: enrichedBilling),
-            localSummary: GrokLocalSessionScanner.summarize(env: context.env),
+            localSummary: localSummary,
             cliVersion: GrokStatusProbe.detectVersion(env: context.env),
             updatedAt: Date(),
             subscriptionTier: subscriptionTier ?? enrichedBilling.subscriptionTier)

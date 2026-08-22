@@ -463,6 +463,7 @@ enum CostUsagePricing {
         "opencode",
         "opencode-free",
         "opencode-go",
+        "xai",
     ]
     private static let claudeModelsDevProviderID = "anthropic"
 
@@ -489,6 +490,16 @@ enum CostUsagePricing {
                 break
             }
             var targets = providerIDs.map { ($0, modelID) }
+            // `grok-build-0.1` does not end in `-build` and must remain an exact catalog identity.
+            if routeID == "xai",
+               modelID.hasPrefix("grok-"),
+               modelID.hasSuffix("-build")
+            {
+                let normalized = String(modelID.dropLast("-build".count))
+                if normalized.count > "grok-".count {
+                    targets.append((routeID, normalized))
+                }
+            }
             if routeID == self.codexModelsDevProviderID {
                 let normalized = self.normalizeCodexModel(modelID)
                 if normalized != modelID {

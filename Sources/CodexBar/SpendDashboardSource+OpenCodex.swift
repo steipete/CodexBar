@@ -42,7 +42,8 @@ extension SpendDashboardSource {
             entries: entries,
             now: request.now,
             historyDays: Self.scanDays,
-            calendar: request.configuration.bucketCalendar)
+            calendar: request.configuration.bucketCalendar,
+            oauthBackedProviderIDs: OpenCodexUsageLog.oauthBackedProviderIDs(environment: environment))
         var merged = inputs.filter { $0.id != SpendDashboardModel.openCodexSourceID }
         var published = false
 

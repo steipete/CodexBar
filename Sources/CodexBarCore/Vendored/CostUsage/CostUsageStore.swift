@@ -77,6 +77,7 @@ actor CostUsageStore {
         parserHash: CodexParserHash.value)
     static let cacheGeneration = "sqlite:\(CostUsageStore.schemaVersion)"
     static let compatiblePredecessorParserHashes: Set<String> = [
+        "3c984b655688593f", // xAI pricing lookup only; persisted Codex rows unchanged.
         "98da5914d2f6a9cd", // Pushed PR producer before retry signaling; persisted rows unchanged.
         "43609cc56f76a003", // 0.49.3 request-tier pricing; persisted row shape unchanged.
         "b975eb705f905b9a", // 0.49.0-0.49.2 SQLite producer with compatible rows.

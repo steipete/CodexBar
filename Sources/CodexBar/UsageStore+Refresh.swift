@@ -1450,14 +1450,11 @@ extension UsageStore {
                     // Provider-specific by design: local ~/.grok/sessions tokens remain readable
                     // when the remote billing probe fails.
                     if provider == .grok {
-                        if let local = self.tokenSnapshot(
-                            fromProviderSnapshot: nil,
-                            provider: .grok,
-                            historyDays: SpendDashboardSource.scanDays)
-                        {
-                            self.publishTokenSnapshot(local, for: provider)
-                        } else {
-                            self.clearTokenSnapshot(for: provider)
+                        if self.tokenSnapshotPublicationForCurrentProviderConfig(for: provider) == nil {
+                            Task { @MainActor [weak self] in
+                                await self?.scanAndPublishGrokLocalTokenSnapshot(
+                                    historyDays: GrokLocalSessionScanner.maximumLookbackDays)
+                            }
                         }
                     } else if Self.tokenCostRequiresProviderSnapshot(provider) {
                         self.clearTokenSnapshot(for: provider)

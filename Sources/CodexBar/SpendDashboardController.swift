@@ -282,15 +282,21 @@ enum SpendDashboardSource {
             // Provider-specific by design: Grok local session tokens are independent of the
             // remote billing snapshot, so a failed probe still publishes readable logs.
             if provider == .grok {
-                if let snapshot = store.tokenSnapshot(
-                    fromProviderSnapshot: store.snapshot(for: .grok),
-                    provider: .grok,
-                    historyDays: Self.scanDays)
-                {
+                let grokSnapshot = if let usage = store.snapshot(for: .grok) {
+                    store.tokenSnapshot(
+                        fromProviderSnapshot: usage,
+                        provider: .grok,
+                        historyDays: Self.scanDays)
+                } else if let published = store.tokenSnapshotPublicationForCurrentProviderConfig(for: .grok) {
+                    published.snapshot
+                } else {
+                    await store.scanAndPublishGrokLocalTokenSnapshot(historyDays: Self.scanDays)
+                }
+                if let grokSnapshot {
                     inputs.append(SpendDashboardModel.ProviderInput(
                         provider: .grok,
                         displayName: store.metadata(for: .grok).displayName,
-                        snapshot: snapshot))
+                        snapshot: grokSnapshot))
                 } else {
                     confirmedEmptySourceIDs.insert(UsageProvider.grok.rawValue)
                 }
@@ -789,13 +795,15 @@ enum SpendDashboardSource {
         provider: UsageProvider,
         publication: CurrentProviderConfigTokenPublication) -> CostUsageTokenSnapshot?
     {
-        // Provider-specific by design: Grok's catalog input is the local session scan, even when
-        // the remote billing snapshot is missing.
+        // Provider-specific by design: a failed Grok probe publishes its detached local scan.
         if provider == .grok {
-            return store.tokenSnapshot(
-                fromProviderSnapshot: store.snapshot(for: .grok),
-                provider: .grok,
-                historyDays: self.scanDays)
+            if let usage = store.snapshot(for: .grok) {
+                return store.tokenSnapshot(
+                    fromProviderSnapshot: usage,
+                    provider: .grok,
+                    historyDays: self.scanDays)
+            }
+            return publication.snapshot
         }
         if UsageStore.tokenCostRequiresProviderSnapshot(provider),
            let usage = store.snapshot(for: provider.instanceID),

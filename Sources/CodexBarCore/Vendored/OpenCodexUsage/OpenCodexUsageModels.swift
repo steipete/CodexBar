@@ -123,18 +123,48 @@ public enum OpenCodexUsageLog {
         environment: [String: String] = ProcessInfo.processInfo.environment,
         homeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser) -> URL?
     {
-        if let override = environment["OPENCODEX_HOME"]?.trimmingCharacters(in: .whitespacesAndNewlines),
-           !override.isEmpty
-        {
-            return URL(fileURLWithPath: override, isDirectory: true)
-                .appendingPathComponent("usage.jsonl", isDirectory: false)
-        }
-        if Self.isRunningTests(environment) || Self.isRunningTests(ProcessInfo.processInfo.environment) {
-            return nil
-        }
-        return homeDirectory
-            .appendingPathComponent(".opencodex", isDirectory: true)
+        self.rootURL(environment: environment, homeDirectory: homeDirectory)?
             .appendingPathComponent("usage.jsonl", isDirectory: false)
+    }
+
+    public static func configURL(
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        homeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser) -> URL?
+    {
+        self.rootURL(environment: environment, homeDirectory: homeDirectory)?
+            .appendingPathComponent("config.json", isDirectory: false)
+    }
+
+    public static func providerAuthModes(
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        homeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser) -> [String: String]
+    {
+        guard let url = self.configURL(environment: environment, homeDirectory: homeDirectory),
+              let data = try? Data(contentsOf: url),
+              let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let providers = root["providers"] as? [String: Any]
+        else { return [:] }
+
+        var authModes: [String: String] = [:]
+        for (rawProviderID, rawConfiguration) in providers {
+            guard let configuration = rawConfiguration as? [String: Any],
+                  let rawAuthMode = configuration["authMode"] as? String
+            else { continue }
+            let providerID = rawProviderID.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            let authMode = rawAuthMode.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            guard !providerID.isEmpty, !authMode.isEmpty else { continue }
+            authModes[providerID] = authMode
+        }
+        return authModes
+    }
+
+    public static func oauthBackedProviderIDs(
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        homeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser) -> Set<String>
+    {
+        Set(self.providerAuthModes(environment: environment, homeDirectory: homeDirectory).compactMap { entry in
+            entry.value == "oauth" ? entry.key : nil
+        })
     }
 
     public static func cacheRoot(
@@ -146,6 +176,21 @@ public enum OpenCodexUsageLog {
             .appendingPathComponent("CodexBar", isDirectory: true)
             ?? AppGroupSupport.localFallbackDirectory(fileManager: fileManager)
         return codexBarRoot.appendingPathComponent("opencodex-usage", isDirectory: true)
+    }
+
+    private static func rootURL(
+        environment: [String: String],
+        homeDirectory: URL) -> URL?
+    {
+        if let override = environment["OPENCODEX_HOME"]?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !override.isEmpty
+        {
+            return URL(fileURLWithPath: override, isDirectory: true)
+        }
+        if Self.isRunningTests(environment) || Self.isRunningTests(ProcessInfo.processInfo.environment) {
+            return nil
+        }
+        return homeDirectory.appendingPathComponent(".opencodex", isDirectory: true)
     }
 
     private static func isRunningTests(_ environment: [String: String]) -> Bool {
