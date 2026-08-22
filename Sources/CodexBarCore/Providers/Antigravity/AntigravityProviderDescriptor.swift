@@ -49,8 +49,9 @@ public enum AntigravityProviderDescriptor {
                     ProviderColor(hex: 0xFBBC04),
                 ]),
             tokenCost: ProviderTokenCostConfig(
-                supportsTokenCost: false,
-                noDataMessage: { "Antigravity cost summary is not supported." }),
+                supportsTokenCost: true,
+                noDataMessage: { "Antigravity cost summary is not supported." },
+                supportsTokenSnapshot: true),
             pace: ProviderPaceCapability(
                 sessionPaceWindowRule: .custom { window, _ in
                     window.windowMinutes == nil || window.windowMinutes == 300
