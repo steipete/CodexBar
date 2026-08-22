@@ -22,6 +22,10 @@ struct MenuCardDeepSeekTests {
                 DeepSeekDailyUsage(date: "2026-05-26", totalTokens: 456, cost: 0.0456, requestCount: 8),
             ],
             currency: "CNY",
+            fiveHourTokens: 12345,
+            weeklyTokens: 67890,
+            fiveHourCost: 0.1234,
+            weeklyCost: 1.2345,
             updatedAt: now)
     }
 
@@ -148,6 +152,10 @@ struct MenuCardDeepSeekTests {
         let details = try #require(model.providerDetails.first)
         #expect(details.chart?.title == "Daily tokens")
         #expect(details.chart?.points.map(\.value) == [456])
+        #expect(details.rows.first { $0.label == "5h tokens" }?.value == "12,345")
+        #expect(details.rows.first { $0.label == "Weekly tokens" }?.value == "67,890")
+        #expect(details.rows.first { $0.label == "5h spend" }?.value == "¥0.1234")
+        #expect(details.rows.first { $0.label == "Weekly spend" }?.value == "¥1.2345")
         #expect(details.rows.first { $0.label == "Today" }?.value == "¥0.0123 · 123 tokens")
         #expect(details.rows.first { $0.label == "This month" }?.value == "¥0.0456 · 456 tokens")
     }
