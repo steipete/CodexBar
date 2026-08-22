@@ -1,0 +1,80 @@
+CodexBar usage widget redesign - headless render proof
+Captured: 2026-08-22T04:45:37Z
+Base:     upstream/main 27c7f334e (0.54.1)
+Host:     macOS 26.5.2 (25F84), arm64, Swift 6.3.2
+
+Setup
+- Widget views were rendered through SwiftUI ImageRenderer at the exact macOS tile
+  point sizes (155x155, 329x155, 329x345), driving the same UsageTile code path the
+  extension uses. Tile size is passed explicitly rather than read from widgetFamily,
+  so every layout is reachable outside a widget host.
+- All fixtures are synthetic. No account identity, no real spend, and no real token
+  counts appear in any attached image.
+- The vibrant/clear pass masks the rendered content by its alpha, which is what the
+  system compositor does. Masking by luminance instead punches dark text out entirely
+  and is not a valid simulation.
+
+Run
+- 40 tiles rendered across light, dark and clear appearances: both widgets at all
+  three families, plus the gallery placeholder path (placeholder(in:), which is what
+  the widget picker shows and which no test previously covered).
+- Edge cases rendered and inspected: 3%-left lane, seven quota lanes on one provider,
+  nine enabled providers, a balance-only provider with no quota lanes, the show-used
+  preference inverted, and the longest widget-selectable provider name
+  ("Alibaba Token Plan").
+- Contact sheets attached at docs/screenshots/widget-redesign-{light,dark,clear}.png.
+
+Defects this caught before review
+- WidgetKit applies its own content margins on top of the tile's padding. Every tile
+  was inset roughly twice as far as designed. Reproduced by adding 16pt to the render
+  and matching it against a device screenshot; fixed with .contentMarginsDisabled().
+- Tinted and clear appearances render through a luminance mask, so the brand-filled
+  provider mark became an empty white square with no monogram. Confirmed on device,
+  then fixed by inverting the mark outside .fullColor.
+- Small tiles truncated the provider name to "C..." because the timestamp claimed the
+  width. The name now wins; the timestamp appears on small only when data is stale.
+- An HStack of provider marks wider than the tile drags the whole layout off the tile
+  rather than clipping. Reproduced with nine providers before the pager replaced the
+  chip row.
+- RelativeDateTimeFormatter renders a just-stamped placeholder as "in 0s", a future
+  time. Anything under a minute now reads "Now".
+
+Automated review follow-up (Codex, reviewed commit c9feddf3a2)
+- P1, binding lane hidden by a provider row cap. Confirmed: Kimi writes four rows
+  (primary, secondary, kimi-monthly, kimi-code-7d) while its widgetRowLimitResolver
+  returns 3 for compact families, and the cap was applied before the headline was
+  chosen. A 1%-left kimi-code-7d lane was dropped, a healthier lane became the
+  headline, and overflowCount stayed 0 so nothing indicated the omission. The cap now
+  curates only what a tile LISTS; headline and overflow are computed against every lane
+  the provider reports.
+- P2, reset caption missing for non-Codex providers. Confirmed against
+  UsageStore+WidgetSnapshot.swift: the generic writer emits primary/secondary/tertiary
+  rows with a percentage only and leaves the reset on the entry's own windows, and only
+  legacy Codex windows were being reconstructed. Matches a device screenshot where the
+  Claude tile showed no reset line. Reset is now recovered from the matching entry slot;
+  the row keeps its own percentage. Fixed widget-side so already-persisted snapshots
+  benefit without a format change.
+- P2, stale reset wording after the reset date. Confirmed: a known resetsAt in the past
+  fell through to the cached description, so a stale snapshot kept reading
+  "Resets in 4h" after the reset. An expired known date now renders nothing.
+- Each fix carries a regression test that fails without it.
+
+Checks
+- make check                          0 violations, formatting clean
+- make test                           923 selections; see limit below
+- swift build --target CodexBarWidget clean
+- xcodebuild CodexBarWidgetExtension  Release, arm64 + x86_64, BUILD SUCCEEDED
+- 37 focused tests over the pure layout logic (headline selection, lane capacity,
+  overflow reservation, reset rounding, pager wrap-around, monogram uniqueness,
+  tinted-mode mark styling, WCAG contrast for every provider colour)
+
+Limit
+- StatusMenuSwitcherRefreshTests "merged provider switch updates live tab rows in
+  place" fails with 2 issues. It fails identically on a clean checkout of the same
+  base (27c7f334e) with this branch's changes absent, verified in a separate
+  worktree. It is a headless AppKit menu-identity assertion and is unrelated to this
+  diff, which touches only Sources/CodexBarWidget.
+- The rendered tiles are not device screenshots. Device behaviour was checked
+  separately by installing a locally signed build and confirming the widget extension
+  read its App Group container, but those frames contain live account usage and are
+  deliberately not attached.
