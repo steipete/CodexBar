@@ -12,7 +12,19 @@ public enum QwenCloudProviderDescriptor {
 
     static func makeDescriptor() -> ProviderDescriptor {
         #if os(macOS)
-        let browserOrder: BrowserCookieImportOrder = [.chrome]
+        // Match the shared OneConsole family (Alibaba Coding Plan, Token Plan, ...).
+        // Qwen Cloud was previously restricted to Chrome only — Brave users hit
+        // "No Qwen Cloud session cookies found in browsers" because their cookies
+        // were never probed even though Brave stores a valid Qwen Cloud session.
+        let browserOrder: BrowserCookieImportOrder = [
+            .chrome,
+            .chromeBeta,
+            .brave,
+            .edge,
+            .arc,
+            .firefox,
+            .safari,
+        ]
         #else
         let browserOrder: BrowserCookieImportOrder? = nil
         #endif
@@ -88,7 +100,16 @@ struct QwenCloudWebFetchStrategy: ProviderFetchStrategy {
     private static let log = CodexBarLog.logger("qwen-cloud")
 
     #if os(macOS)
-    static let browserOrder: BrowserCookieImportOrder = [.chrome]
+    // Mirrors the descriptor's browserOrder above. Keep them in sync.
+    static let browserOrder: BrowserCookieImportOrder = [
+        .chrome,
+        .chromeBeta,
+        .brave,
+        .edge,
+        .arc,
+        .firefox,
+        .safari,
+    ]
     #endif
 
     let id: String = "qwen-cloud.web"
