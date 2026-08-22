@@ -291,9 +291,12 @@ enum SanitizedForkFamilyFixture {
             self.recordedTotalTokens ?? self.inputTokens + self.outputTokens
         }
 
-        /// Scanner-priced token units (input + cached + output).
+        /// Scanner-priced token units (input + cached + exclusive output), matching the
+        /// tokscale-parity storage semantics where rows keep output without its reasoning
+        /// subset.
         var scannerUnits: Int {
-            self.inputTokens + self.cachedInputTokens + self.outputTokens
+            self.inputTokens + self.cachedInputTokens
+                + max(0, self.outputTokens - self.reasoningOutputTokens)
         }
 
         enum CodingKeys: String, CodingKey {

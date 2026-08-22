@@ -97,10 +97,10 @@ extension CostUsageStore {
         }
     }
 
-    func readSnapshot() -> CostUsageStoreSnapshot {
+    func readSnapshot(skipRowTables: Bool = false) -> CostUsageStoreSnapshot {
         self.withDatabase(default: Self.emptySnapshot) { database in
             try Self.inReadTransaction(database) {
-                try Self.readSnapshot(database)
+                try Self.readSnapshot(database, skipRowTables: skipRowTables)
             }
         }
     }
@@ -190,15 +190,18 @@ extension CostUsageStore {
             accumulators: [])
     }
 
-    private static func readSnapshot(_ database: OpaquePointer) throws -> CostUsageStoreSnapshot {
+    private static func readSnapshot(
+        _ database: OpaquePointer,
+        skipRowTables: Bool = false) throws -> CostUsageStoreSnapshot
+    {
         try CostUsageStoreSnapshot(
             metadata: self.readSingleton(
                 CostUsageStoreMetadata.self,
                 database: database,
                 table: "scan_metadata") ?? .empty,
             files: self.readFiles(database),
-            tokenSnapshots: self.readTokenSnapshots(database, path: nil),
-            usageRows: self.readUsageRows(database, path: nil),
+            tokenSnapshots: skipRowTables ? [] : self.readTokenSnapshots(database, path: nil),
+            usageRows: skipRowTables ? [] : self.readUsageRows(database, path: nil),
             fileDayAggregates: self.readFileDayAggregates(database, path: nil),
             dayAggregates: self.readDayAggregates(database, sinceDay: nil, untilDay: nil),
             forkLineage: self.readForkLineage(database, path: nil),
@@ -345,7 +348,7 @@ extension CostUsageStore {
                request_count, authoritative_cost_nanos,
                standard_input_tokens, standard_cached_tokens, standard_output_tokens,
                priority_input_tokens, priority_cached_tokens, priority_output_tokens,
-               standard_tokens, priority_tokens
+               standard_tokens, priority_tokens, earliest_timestamp_ms
         FROM day_aggregates
         """
         if sinceDay != nil, untilDay != nil {
@@ -380,7 +383,8 @@ extension CostUsageStore {
                 priorityCachedTokens: sqlite3_column_int64(statement, 12),
                 priorityOutputTokens: sqlite3_column_int64(statement, 13),
                 standardTokens: sqlite3_column_int64(statement, 14),
-                priorityTokens: sqlite3_column_int64(statement, 15)))
+                priorityTokens: sqlite3_column_int64(statement, 15),
+                earliestTimestampUnixMs: self.columnInt64(statement, at: 16)))
             result = sqlite3_step(statement)
         }
         guard result == SQLITE_DONE else { throw StoreError.sqlite(result) }
@@ -396,7 +400,7 @@ extension CostUsageStore {
                a.reasoning_tokens, a.request_count, a.authoritative_cost_nanos,
                a.standard_input_tokens, a.standard_cached_tokens, a.standard_output_tokens,
                a.priority_input_tokens, a.priority_cached_tokens, a.priority_output_tokens,
-               a.standard_tokens, a.priority_tokens
+               a.standard_tokens, a.priority_tokens, a.earliest_timestamp_ms
         FROM file_day_aggregates a JOIN files f ON f.id = a.file_id
         """
         if path != nil {
@@ -433,7 +437,8 @@ extension CostUsageStore {
                     priorityCachedTokens: sqlite3_column_int64(statement, 13),
                     priorityOutputTokens: sqlite3_column_int64(statement, 14),
                     standardTokens: sqlite3_column_int64(statement, 15),
-                    priorityTokens: sqlite3_column_int64(statement, 16))))
+                    priorityTokens: sqlite3_column_int64(statement, 16),
+                    earliestTimestampUnixMs: self.columnInt64(statement, at: 17))))
             result = sqlite3_step(statement)
         }
         guard result == SQLITE_DONE else { throw StoreError.sqlite(result) }

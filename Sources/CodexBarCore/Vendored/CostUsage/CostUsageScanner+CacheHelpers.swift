@@ -158,6 +158,23 @@ extension CostUsageScanner {
     {
         var breakdown = CodexRowCostBreakdown()
         for row in rows {
+            let priorityMetadata = row.turnID.flatMap { priorityTurns[$0] }
+            let isPriority = priorityMetadata != nil || row.pricingMode == "priority"
+            // Zero-token authoritative-cost carriers (aggregate-hydration synthesis) price a
+            // day without contributing to its token ownership, so exclude them from the row
+            // token totals that must equal the aggregate target, but still record their cost.
+            if row.input == 0, row.cached == 0, row.output == 0,
+               (row.knownCostNanos ?? 0) != 0
+            {
+                if isPriority {
+                    breakdown.priorityCostUSD += Double(row.knownCostNanos ?? 0) / Self.costScale
+                    breakdown.sawPriorityCost = true
+                } else {
+                    breakdown.standardCostUSD += Double(row.knownCostNanos ?? 0) / Self.costScale
+                    breakdown.sawStandardCost = true
+                }
+                continue
+            }
             let (tokenCount, tokenOverflow) = max(0, row.input).addingReportingOverflow(max(0, row.output))
             let hasTokens = row.input > 0 || row.cached > 0 || row.output > 0
             if tokenOverflow {
@@ -166,11 +183,12 @@ extension CostUsageScanner {
             if hasTokens, row.eventIndex == nil {
                 breakdown.hasUnstableTokenRows = true
             }
+            if !hasTokens, (row.knownCostNanos ?? 0) != 0 {
+                breakdown.hasIncompletePricing = true
+            }
             if (row.unpricedTokens ?? 0) > 0 {
                 breakdown.hasIncompletePricing = true
             }
-            let priorityMetadata = row.turnID.flatMap { priorityTurns[$0] }
-            let isPriority = priorityMetadata != nil || row.pricingMode == "priority"
             if isPriority {
                 let (total, overflow) = breakdown.priorityTokens.addingReportingOverflow(tokenCount)
                 breakdown.priorityTokens = overflow ? breakdown.priorityTokens : total

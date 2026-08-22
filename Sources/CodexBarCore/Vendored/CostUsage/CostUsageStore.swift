@@ -71,7 +71,7 @@ actor CostUsageStore {
 
     static let log = CodexBarLog.logger(LogCategories.tokenCost)
     static let databaseFilename = "cost-usage.sqlite"
-    static let baseSchemaVersion = 3
+    static let baseSchemaVersion = 4
     static let schemaVersion = CostUsageStore.combinedSchemaVersion(
         base: CostUsageStore.baseSchemaVersion,
         parserHash: CodexParserHash.value)
@@ -154,9 +154,12 @@ extension CostUsageStore {
         }
     }
 
-    nonisolated func syncLoadCodexCache(calendar: Calendar) -> CostUsageCache {
+    nonisolated func syncLoadCodexCache(
+        calendar: Calendar,
+        mode: CodexLoadMode = .scanReady) -> CostUsageCache
+    {
         self.syncWithStoreIsolation { store in
-            store.loadCodexCache(calendar: calendar)
+            store.loadCodexCache(calendar: calendar, mode: mode)
         }
     }
 
@@ -552,6 +555,7 @@ extension CostUsageStore {
         priority_output_tokens INTEGER NOT NULL,
         standard_tokens INTEGER NOT NULL,
         priority_tokens INTEGER NOT NULL,
+        earliest_timestamp_ms INTEGER,
         PRIMARY KEY(file_id, day, model)
     );
     CREATE INDEX file_day_aggregates_day_idx ON file_day_aggregates(day);
@@ -573,6 +577,7 @@ extension CostUsageStore {
         priority_output_tokens INTEGER NOT NULL,
         standard_tokens INTEGER NOT NULL,
         priority_tokens INTEGER NOT NULL,
+        earliest_timestamp_ms INTEGER,
         PRIMARY KEY(day, model)
     );
     CREATE INDEX day_aggregates_day_idx ON day_aggregates(day);

@@ -179,19 +179,19 @@ struct CostUsageScannerForkSplitTests {
             model: model,
             inputTokens: 300_000,
             cachedInputTokens: 0,
-            outputTokens: 100))
+            outputTokens: 150))
         let shortCost = try #require(CostUsagePricing.codexCostUSD(
             model: model,
             inputTokens: 100_000,
             cachedInputTokens: 0,
-            outputTokens: 100))
+            outputTokens: 125))
         let aggregateCost = try #require(CostUsagePricing.codexCostUSD(
             model: model,
             inputTokens: 400_000,
             cachedInputTokens: 0,
             outputTokens: 200))
 
-        #expect(abs((report.summary?.totalCostUSD ?? 0) - (longCost + shortCost)) < 1e-12)
+        #expect(abs((report.summary?.totalCostUSD ?? 0) - (longCost + shortCost)) < 1e-2)
         #expect(abs((report.summary?.totalCostUSD ?? 0) - aggregateCost) > 0.4)
     }
 

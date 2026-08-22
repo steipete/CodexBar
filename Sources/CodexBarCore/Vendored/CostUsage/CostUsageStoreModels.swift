@@ -75,6 +75,9 @@ struct CostUsageStoreDayAggregate: Codable, Equatable, Sendable {
     var priorityOutputTokens: Int64
     var standardTokens: Int64
     var priorityTokens: Int64
+    /// Aggregate hydration synthesizes rows without decoding row payloads. Keep the
+    /// earliest timestamp so date-sensitive pricing and reasoning totals stay equivalent.
+    var earliestTimestampUnixMs: Int64?
 
     static func zero(day: String, model: String) -> Self {
         Self(
@@ -93,7 +96,8 @@ struct CostUsageStoreDayAggregate: Codable, Equatable, Sendable {
             priorityCachedTokens: 0,
             priorityOutputTokens: 0,
             standardTokens: 0,
-            priorityTokens: 0)
+            priorityTokens: 0,
+            earliestTimestampUnixMs: nil)
     }
 }
 

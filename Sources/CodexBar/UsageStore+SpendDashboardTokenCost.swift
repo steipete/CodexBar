@@ -26,6 +26,35 @@ extension UsageStore {
         self.spendDashboardTokenPublicationRevisions[provider.instanceID] ?? 0
     }
 
+    func spendDashboardTokenFetchIsStale(for provider: UsageProvider) -> Bool {
+        guard Self.usesSpendDashboardIndependentTokenSnapshot(provider) else { return false }
+        let costScopeSignature = self.spendDashboardTokenSnapshotScopeSignature(for: provider)
+        guard let lastAt = self.lastSpendDashboardTokenFetchAt[provider.instanceID] else {
+            // A confirmed empty dashboard publication owns freshness itself; the legacy-slot
+            // adoption below only covers providers whose first scan has not published here yet.
+            if self.spendDashboardTokenSnapshotPublicationForCurrentConfig(for: provider) != nil {
+                return false
+            }
+            // Providers served by the shared token pipeline publish through the legacy slot;
+            // adopt its freshness instead of double-fetching on the first dashboard open.
+            guard self.tokenSnapshotPublicationForCurrentProviderConfig(for: provider) != nil,
+                  let legacyLast = self.lastTokenFetchAt[provider.instanceID]
+            else { return true }
+            return Date().timeIntervalSince(legacyLast) >= 5 * 60
+        }
+        return self.spendDashboardTokenSnapshotPublicationForCurrentConfig(for: provider) == nil
+            || self.lastSpendDashboardTokenFetchScope[provider.instanceID] != costScopeSignature
+            || Date().timeIntervalSince(lastAt) >= 5 * 60
+    }
+
+    func _setLastSpendDashboardTokenFetchAtForTesting(_ date: Date?, provider: UsageProvider) {
+        if let date {
+            self.lastSpendDashboardTokenFetchAt[provider.instanceID] = date
+        } else {
+            self.lastSpendDashboardTokenFetchAt.removeValue(forKey: provider.instanceID)
+        }
+    }
+
     func clearSpendDashboardTokenSnapshot(for provider: UsageProvider) {
         self.spendDashboardTokenPublications.removeValue(forKey: provider.instanceID)
     }
@@ -69,9 +98,10 @@ extension UsageStore {
         }
         let costScope = self.tokenCostScope(for: provider)
         let costScopeSignature = self.spendDashboardTokenSnapshotScopeSignature(for: provider)
+        // TTL: pane re-open within 5m reuses existing dashboard snapshot.
+        if !force, !self.spendDashboardTokenFetchIsStale(for: provider) { return }
         let publicationRevision = self.providerPublicationRevision(for: provider)
         let providerConfigRevision = self.settings.providerConfigRevision(for: provider)
-        self.lastSpendDashboardTokenFetchAt[provider.instanceID] = now
         self.lastSpendDashboardTokenFetchScope[provider.instanceID] = costScopeSignature
         self.spendDashboardTokenRefreshInFlight.insert(provider.instanceID)
         defer { self.spendDashboardTokenRefreshInFlight.remove(provider.instanceID) }

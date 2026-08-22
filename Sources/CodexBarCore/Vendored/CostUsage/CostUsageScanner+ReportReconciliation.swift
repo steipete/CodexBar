@@ -17,7 +17,25 @@ extension CostUsageScanner {
     }
 
     static func codexCanonicalPricingRows(_ usage: CostUsageFileUsage) -> CodexCanonicalPricingRows {
-        let persistedRows = usage.codexRows ?? []
+        var persistedRows = usage.codexRows ?? []
+        // An all-zero aggregate cannot prove copied zero-token cost prefixes are owned by this
+        // file, so drop synthetic cost carriers there instead of pricing them.
+        let zeroTokenGroups = Set(
+            usage.days.flatMap { day, models in
+                models.compactMap { model, packed in
+                    (packed[safe: 0] ?? 0) == 0 && (packed[safe: 1] ?? 0) == 0 && (packed[safe: 2] ?? 0) == 0
+                        ? CodexDayModelKey(day: day, model: model)
+                        : nil
+                }
+            })
+        if !zeroTokenGroups.isEmpty {
+            persistedRows.removeAll { row in
+                row.turnID == nil && row.eventIndex == nil
+                    && row.input == 0 && row.cached == 0 && row.output == 0
+                    && (row.knownCostNanos ?? 0) != 0
+                    && zeroTokenGroups.contains(CodexDayModelKey(day: row.day, model: row.model))
+            }
+        }
         let rowsByGroup = Dictionary(grouping: persistedRows) {
             CodexDayModelKey(day: $0.day, model: $0.model)
         }
@@ -29,18 +47,58 @@ extension CostUsageScanner {
             for model in models.keys.sorted() {
                 let key = CodexDayModelKey(day: day, model: model)
                 let packed = models[model] ?? []
+                let groupRows = rowsByGroup[key] ?? []
                 let target = CodexRowTokenTotals(
                     input: max(0, packed[safe: 0] ?? 0),
                     cached: max(0, packed[safe: 1] ?? 0),
                     output: max(0, packed[safe: 2] ?? 0))
+                // Aggregate hydration synthesizes zero-token metadata rows (reasoning and
+                // authoritative costs). When the aggregate target has tokens, they carry no
+                // token totals of their own, so they must survive reconciliation even when a
+                // suffix subset would otherwise be selected. An all-zero target means exact
+                // ownership cannot be established; metadata rows stay excluded there.
+                let targetHasTokens = target.input != 0 || target.cached != 0 || target.output != 0
+                let metadataRows = targetHasTokens
+                    ? groupRows.filter { row in
+                        row.input == 0 && row.cached == 0 && row.output == 0
+                            && row.turnID == nil && row.eventIndex == nil
+                            && (row.reasoning != nil || (row.knownCostNanos ?? 0) != 0)
+                    }
+                    : []
+                let tokenRows = groupRows.filter { row in
+                    !(
+                        row.input == 0 && row.cached == 0 && row.output == 0
+                            && row.turnID == nil && row.eventIndex == nil
+                            && (row.reasoning != nil || (row.knownCostNanos ?? 0) != 0))
+                }
                 guard let rows = self.reconciledCodexPricingRows(
-                    rowsByGroup[key] ?? [],
+                    tokenRows,
                     target: target)
                 else {
                     unresolvedGroups.insert(key)
                     continue
                 }
-                canonicalRows.append(contentsOf: rows)
+                let firstTokenIndex = rows.firstIndex {
+                    $0.input > 0 || $0.cached > 0 || $0.output > 0
+                } ?? rows.endIndex
+                let hasSyntheticReasoning = metadataRows.contains { $0.reasoning != nil }
+                let hasSyntheticCost = metadataRows.contains { ($0.knownCostNanos ?? 0) != 0 }
+                if metadataRows.isEmpty {
+                    canonicalRows.append(contentsOf: rows)
+                } else if hasSyntheticCost, firstTokenIndex != rows.startIndex {
+                    // Cost carriers price a day, so they must sit inside the token-bearing
+                    // span rather than before its first row; otherwise the zero-token skip in
+                    // cost accounting would treat them as a stale copied prefix.
+                    canonicalRows.append(contentsOf: rows[..<firstTokenIndex])
+                    canonicalRows.append(contentsOf: metadataRows)
+                    canonicalRows.append(contentsOf: rows[firstTokenIndex...])
+                } else {
+                    // Reasoning-only carriers never price anything and cost-only carriers at
+                    // the start of a span are handled by the zero-token skip above, so plain
+                    // append keeps token ownership math untouched regardless of position.
+                    canonicalRows.append(contentsOf: rows)
+                    canonicalRows.append(contentsOf: metadataRows)
+                }
             }
         }
 
@@ -153,11 +211,19 @@ extension CostUsageScanner {
         _ rows: [CodexUsageRow],
         target: CodexRowTokenTotals) -> [CodexUsageRow]?
     {
+        // Zero-token rows carry no token totals, so they never affect ownership math.
         var allRowsTotal = CodexRowTokenTotals()
-        guard rows.allSatisfy({ allRowsTotal.add($0) }) else { return nil }
+        let tokenRows = rows.filter { row in
+            row.input != 0 || row.cached != 0 || row.output != 0
+        }
+        guard tokenRows.allSatisfy({ allRowsTotal.add($0) }) else { return nil }
         if target == CodexRowTokenTotals() {
+            // An all-zero aggregate proves no token ownership. Drop every row, including
+            // synthetic cost/reasoning carriers, instead of letting a copied cost-only
+            // prefix price the group.
             return []
         }
+        guard !tokenRows.isEmpty else { return nil }
         if allRowsTotal == target {
             let firstTokenRow = rows.firstIndex {
                 $0.input > 0 || $0.cached > 0 || $0.output > 0
@@ -173,7 +239,9 @@ extension CostUsageScanner {
 
         var suffixTotal = CodexRowTokenTotals()
         for index in rows.indices.reversed() {
-            guard suffixTotal.add(rows[index]) else { return nil }
+            let row = rows[index]
+            if row.input == 0, row.cached == 0, row.output == 0 { continue }
+            guard suffixTotal.add(row) else { return nil }
             if suffixTotal == target {
                 return Array(rows[index...])
             }

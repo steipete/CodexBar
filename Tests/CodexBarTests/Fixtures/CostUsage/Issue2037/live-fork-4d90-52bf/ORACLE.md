@@ -23,12 +23,12 @@ CostUsageScanner follows **`total_token_usage` deltas**, not `sum(last)`.
 Parent ordinal **120** has `last` scanner units 225,513 with **Δtotal = 0**, so
 `sum(last)` overcounts the parent stream vs the scanner.
 
-| Metric | Scanner units (`input+cached+output`) |
+| Metric | Scanner units (`input+cached+exclusive output`) |
 |---|---:|
-| Parent final totals | 48,730,248 |
-| Child unique (Δ totals) | 3,455,599 |
-| Deduped family (`#1164`) | 52,185,847 |
-| Naive both finals | 100,916,095 |
+| Parent final totals | 48,682,797 |
+| Child unique (Δ totals) | 3,452,595 |
+| Deduped family (`#1164`) | 52,135,392 |
+| Naive both finals | 100,865,640 |
 
 With parent present, `#1164` should match `deduped` scanner units
 (`Issue2037ScannerIntegrationTests`). Because the parent is truncated to the

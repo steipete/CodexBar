@@ -75,6 +75,15 @@ enum SpendDashboardRequestBuildMode: Equatable, Sendable {
         self == .forceRefresh
     }
 
+    /// Refreshes missing publications plus dashboard publications whose fetch metadata is stale.
+    func shouldRefresh(hasPublication: Bool, isDashboardTokenStale: Bool = false) -> Bool {
+        switch self {
+        case .refreshMissing: !hasPublication || isDashboardTokenStale
+        case .forceRefresh: true
+        case .captureOnly: false
+        }
+    }
+
     func shouldRefresh(hasPublication: Bool) -> Bool {
         switch self {
         case .refreshMissing: !hasPublication
@@ -234,7 +243,11 @@ enum SpendDashboardSource {
                 publication: captured.publication,
                 publicationRevision: captured.revision)
         }
-        let baselinesToRefresh = providerBaselines.filter { mode.shouldRefresh(hasPublication: $0.publication != nil) }
+        let baselinesToRefresh = providerBaselines.filter { baseline in
+            mode.shouldRefresh(
+                hasPublication: baseline.publication != nil,
+                isDashboardTokenStale: store.spendDashboardTokenFetchIsStale(for: baseline.provider))
+        }
         if !baselinesToRefresh.isEmpty {
             await withTaskGroup(of: Void.self) { group in
                 for baseline in baselinesToRefresh {
@@ -242,7 +255,9 @@ enum SpendDashboardSource {
                         if UsageStore.tokenCostRequiresProviderSnapshot(baseline.provider) {
                             await store.refreshProvider(baseline.provider)
                         } else {
-                            await store.refreshSpendDashboardTokenUsageNow(for: baseline.provider, force: true)
+                            await store.refreshSpendDashboardTokenUsageNow(
+                                for: baseline.provider,
+                                force: mode.forcesLoader)
                         }
                     }
                 }
@@ -1166,12 +1181,10 @@ final class SpendDashboardController {
             self.failedSourceCount = 0
             self.rebuildModel()
         }
-        let shouldPrimeCachedCodex: Bool = if case .ordinary = phase {
-            self.cachedLoader != nil && !Set(Self.codexOwnershipByID(configuration.codexAccountIdentities).keys)
-                .isSubset(of: Set(self.loadedInputs.map(\.id)))
-        } else {
-            false
-        }
+        let shouldPrimeCachedCodex: Bool = self.cachedLoader != nil
+            && !Set(Self.codexOwnershipByID(configuration.codexAccountIdentities).keys)
+            .isSubset(of: Set(self.loadedInputs.map(\.id)))
+            && (!phase.manualRefreshOutstanding || self.loadedInputs.isEmpty)
 
         guard configuration.costUsageEnabled,
               !configuration.providerIDs.isEmpty || configuration.openCodexUsageLogsEnabled
@@ -1429,6 +1442,17 @@ final class SpendDashboardController {
     func refresh() {
         guard let configuration else { return }
         self.update(configuration: configuration, force: true)
+    }
+
+    /// Reopening the pane can produce a configuration identical to the loaded one, which
+    /// `update(configuration:)` intentionally ignores. A stale-TTL-only reopen still needs
+    /// one non-forced request build so `.refreshMissing` can evaluate dashboard freshness.
+    func refreshIfStale() {
+        guard let configuration,
+              !self.isRefreshing,
+              !self.phase.manualRefreshOutstanding
+        else { return }
+        self.startLoad(configuration: configuration, phase: .ordinary)
     }
 
     func selectDays(_ days: Int) {

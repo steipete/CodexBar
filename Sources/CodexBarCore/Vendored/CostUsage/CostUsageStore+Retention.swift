@@ -393,13 +393,13 @@ extension CostUsageStore {
             request_count, authoritative_cost_nanos,
             standard_input_tokens, standard_cached_tokens, standard_output_tokens,
             priority_input_tokens, priority_cached_tokens, priority_output_tokens,
-            standard_tokens, priority_tokens
+            standard_tokens, priority_tokens, earliest_timestamp_ms
         )
         SELECT day, model, SUM(input_tokens), SUM(cached_tokens), SUM(output_tokens),
                SUM(reasoning_tokens), SUM(request_count), SUM(authoritative_cost_nanos),
                SUM(standard_input_tokens), SUM(standard_cached_tokens), SUM(standard_output_tokens),
                SUM(priority_input_tokens), SUM(priority_cached_tokens), SUM(priority_output_tokens),
-               SUM(standard_tokens), SUM(priority_tokens)
+               SUM(standard_tokens), SUM(priority_tokens), MIN(earliest_timestamp_ms)
         FROM file_day_aggregates
         GROUP BY day, model
         """)

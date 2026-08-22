@@ -164,6 +164,7 @@ struct SpendDashboardPane: View {
         .onAppear {
             self.isVisible = true
             self.controller.update(configuration: self.configuration)
+            self.controller.refreshIfStale()
             if !self.controller.isRefreshing {
                 self.synchronizeCodexCostCatchUp()
             }

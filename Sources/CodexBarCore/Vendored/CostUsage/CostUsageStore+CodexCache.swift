@@ -46,13 +46,26 @@ extension CostUsageStore {
     static let defaultRowBudget = 25000
     static let defaultFileBudgetBytes: Int64 = 256 * 1024 * 1024
 
-    func loadCodexCache(calendar: Calendar) -> CostUsageCache {
+    /// Load detail level for Codex cache hydration.
+    enum CodexLoadMode {
+        /// Decodes usage-row payloads and token snapshots so scans can append incrementally.
+        case scanReady
+
+        /// Skips row payload decoding and token-snapshot materialization. Report reads only
+        /// need day/model aggregates, so dashboard hydration avoids decoding every stored row.
+        case aggregateReport
+    }
+
+    func loadCodexCache(
+        calendar: Calendar,
+        mode: CodexLoadMode = .scanReady) -> CostUsageCache
+    {
         _ = self.removeLegacyCodexArtifactIfPresent()
-        let snapshot = self.readSnapshot()
+        let snapshot = self.readSnapshot(skipRowTables: mode == .aggregateReport)
         guard snapshot.metadata.timeZoneIdentifier == nil
             || snapshot.metadata.timeZoneIdentifier == calendar.timeZone.identifier
         else { return CostUsageCache() }
-        return Self.cache(from: snapshot)
+        return Self.cache(from: snapshot, mode: mode)
     }
 
     @discardableResult
@@ -199,7 +212,7 @@ extension CostUsageStore {
         cache: CostUsageCache,
         calendar: Calendar) -> Bool
     {
-        var restored = Self.cache(from: previous)
+        var restored = Self.cache(from: previous, mode: .scanReady)
         guard restored.timeZoneIdentifier == nil
             || restored.timeZoneIdentifier == calendar.timeZone.identifier
         else { return false }
@@ -330,7 +343,10 @@ extension CostUsageStore {
         var validatedCurrentSnapshot = false
     }
 
-    private static func cache(from snapshot: CostUsageStoreSnapshot) -> CostUsageCache {
+    private static func cache(
+        from snapshot: CostUsageStoreSnapshot,
+        mode: CostUsageStore.CodexLoadMode) -> CostUsageCache
+    {
         var cache = CostUsageCache()
         let metadata = snapshot.metadata
         cache.lastScanUnixMs = metadata.lastScanUnixMs
@@ -360,8 +376,12 @@ extension CostUsageStore {
         cache.codexSessionDiscovery = snapshot.discoveryState.flatMap(Self.discovery(from:))
         cache.codexActiveLookbackState = snapshot.lookbackState.map(Self.lookback(from:))
 
-        let snapshotsByPath = Dictionary(grouping: snapshot.tokenSnapshots, by: \.path)
-        let rowsByPath = Dictionary(grouping: snapshot.usageRows, by: \.path)
+        let snapshotsByPath = mode == .scanReady
+            ? Dictionary(grouping: snapshot.tokenSnapshots, by: \.path)
+            : [:]
+        let rowsByPath = mode == .scanReady
+            ? Dictionary(grouping: snapshot.usageRows, by: \.path)
+            : [:]
         let aggregatesByPath = Dictionary(grouping: snapshot.fileDayAggregates, by: \.path)
         let lineageByPath = Dictionary(uniqueKeysWithValues: snapshot.forkLineage.map { ($0.path, $0) })
         let buffersByPath = Dictionary(grouping: snapshot.bufferedLines, by: \.path)
@@ -380,8 +400,13 @@ extension CostUsageStore {
             let rows = (rowsByPath[file.path] ?? []).compactMap {
                 try? JSONDecoder().decode(CostUsageScanner.CodexUsageRow.self, from: $0.payload)
             }
+            // Aggregate hydration must keep reasoning visible. Persisted aggregates carry
+            // the day/model reasoning total, so synthesize the zero-token reasoning row
+            // before canonical pricing reconciliation sees the restored rows.
             let restoredRows = rows.isEmpty ? Self.aggregateRows(from: aggregates) : rows
-            let tokenSnapshots = (snapshotsByPath[file.path] ?? []).map(Self.tokenSnapshot(from:))
+            let tokenSnapshots = mode == .scanReady
+                ? (snapshotsByPath[file.path] ?? []).map(Self.tokenSnapshot(from:))
+                : []
             let lineage = lineageByPath[file.path]
             let accumulator = accumulatorByPath[file.path]
             let buffers = buffersByPath[file.path] ?? []
@@ -981,7 +1006,8 @@ extension CostUsageStore {
                 priorityCachedTokens: 0,
                 priorityOutputTokens: 0,
                 standardTokens: 0,
-                priorityTokens: 0)
+                priorityTokens: 0,
+                earliestTimestampUnixMs: rows.compactMap(\.timestampUnixMs).min())
             for row in rows {
                 let isPriority = row.pricingMode == "priority"
                 let total = Int64(max(0, row.input) + max(0, row.output))
@@ -1032,6 +1058,9 @@ extension CostUsageStore {
                 value.priorityOutputTokens += aggregate.priorityOutputTokens
                 value.standardTokens += aggregate.standardTokens
                 value.priorityTokens += aggregate.priorityTokens
+                if let timestamp = aggregate.earliestTimestampUnixMs {
+                    value.earliestTimestampUnixMs = min(value.earliestTimestampUnixMs ?? timestamp, timestamp)
+                }
                 values[key] = value
             }
         }
@@ -1060,6 +1089,7 @@ extension CostUsageStore {
                     model: aggregate.model,
                     turnID: nil,
                     eventIndex: nil,
+                    timestampUnixMs: aggregate.earliestTimestampUnixMs,
                     input: Self.int(input),
                     cached: Self.int(cached),
                     output: Self.int(output),
@@ -1082,10 +1112,27 @@ extension CostUsageStore {
                     model: aggregate.model,
                     turnID: nil,
                     eventIndex: nil,
+                    timestampUnixMs: aggregate.earliestTimestampUnixMs,
                     input: 0,
                     cached: 0,
                     output: 0,
                     knownCostNanos: aggregate.authoritativeCostNanos,
+                    pricingModel: aggregate.model,
+                    pricingMode: "standard"))
+            }
+            if aggregate.reasoningTokens > 0 {
+                let reasoning = min(Int(max(0, aggregate.reasoningTokens)), Int.max)
+                rows.append(CostUsageScanner.CodexUsageRow(
+                    day: aggregate.day,
+                    model: aggregate.model,
+                    turnID: nil,
+                    eventIndex: nil,
+                    timestampUnixMs: aggregate.earliestTimestampUnixMs,
+                    input: 0,
+                    cached: 0,
+                    output: 0,
+                    reasoning: reasoning,
+                    knownCostNanos: 0,
                     pricingModel: aggregate.model,
                     pricingMode: "standard"))
             }
@@ -1292,8 +1339,15 @@ struct CostUsageStoreLoad: @unchecked Sendable {
 enum CostUsageStoreAccess {
     static func load(cacheRoot: URL?, calendar: Calendar) -> CostUsageStoreLoad {
         let store = CostUsageStore(cacheRoot: cacheRoot)
-        let cache = store.syncLoadCodexCache(calendar: calendar)
+        let cache = store.syncLoadCodexCache(calendar: calendar, mode: .scanReady)
         return CostUsageStoreLoad(store: store, cache: cache)
+    }
+
+    /// Read-only report hydration. Skips row payload decoding and token-snapshot
+    /// materialization because report builders consume day/model aggregates.
+    static func readReportAggregate(cacheRoot: URL?, calendar: Calendar = .current) -> CostUsageCache {
+        let store = CostUsageStore(cacheRoot: cacheRoot)
+        return store.syncLoadCodexCache(calendar: calendar, mode: .aggregateReport)
     }
 
     static func read(cacheRoot: URL?, calendar: Calendar = .current) -> CostUsageCache {
