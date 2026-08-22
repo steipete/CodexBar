@@ -100,7 +100,7 @@ struct QwenCloudWebFetchStrategy: ProviderFetchStrategy {
     private static let log = CodexBarLog.logger("qwen-cloud")
 
     #if os(macOS)
-    // Mirrors the descriptor's browserOrder above. Keep them in sync.
+    /// Mirrors the descriptor's browserOrder above. Keep them in sync.
     static let browserOrder: BrowserCookieImportOrder = [
         .chrome,
         .chromeBeta,
