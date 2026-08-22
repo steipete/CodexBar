@@ -125,6 +125,7 @@ enum GeminiAPITestHelpers {
         self.loadCodeAssistResponse(tierId: "legacy-tier")
     }
 
+    /// Synthetic error-body variant of the migration signal (token refresh / non-200 paths).
     static func consumerTierDeprecationResponse() -> Data {
         self.jsonData([
             "error": [
@@ -135,6 +136,60 @@ enum GeminiAPITestHelpers {
                 Antigravity suite of products.
                 """,
                 "status": "PERMISSION_DENIED",
+            ],
+        ])
+    }
+
+    /// Mirrors the real `loadCodeAssist` HTTP 200 body Google returns to consumer accounts after the
+    /// June 2026 shutdown: the free tier is listed under `ineligibleTiers` with `UNSUPPORTED_CLIENT`,
+    /// `currentTier` is absent unless the account still holds a tier.
+    static func loadCodeAssistUnsupportedClientResponse(currentTierId: String? = nil) -> Data {
+        var payload: [String: Any] = [
+            "allowedTiers": [
+                [
+                    "id": "standard-tier",
+                    "name": "Gemini Code Assist",
+                    "userDefinedCloudaicompanionProject": true,
+                    "isDefault": true,
+                ],
+            ],
+            "ineligibleTiers": [
+                [
+                    "reasonCode": "UNSUPPORTED_CLIENT",
+                    "reasonMessage": """
+                    This client is no longer supported for Gemini Code Assist for individuals. \
+                    To continue using Gemini, please migrate to the Antigravity suite of products: \
+                    https://antigravity.google
+                    """,
+                    "tierId": "free-tier",
+                    "tierName": "Gemini Code Assist for individuals",
+                ],
+            ],
+        ]
+        if let currentTierId {
+            payload["currentTier"] = ["id": currentTierId, "name": currentTierId]
+        }
+        return self.jsonData(payload)
+    }
+
+    /// Mirrors the real `retrieveUserQuota` HTTP 403 body for an account without a Code Assist license.
+    /// Note: it carries no migration wording, so text matching alone cannot classify it.
+    static func quotaSubscriptionRequiredResponse() -> Data {
+        self.jsonData([
+            "error": [
+                "code": 403,
+                "message": """
+                You do not have a valid license of this product. Please contact your administrator \
+                to request a license. (#3501)
+                """,
+                "status": "PERMISSION_DENIED",
+                "details": [
+                    [
+                        "@type": "type.googleapis.com/google.rpc.ErrorInfo",
+                        "reason": "SUBSCRIPTION_REQUIRED",
+                        "domain": "cloudaicompanion.googleapis.com",
+                    ],
+                ],
             ],
         ])
     }

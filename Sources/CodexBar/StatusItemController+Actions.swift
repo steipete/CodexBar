@@ -795,6 +795,7 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
         case .success: "success"
         case .missingBinary: "missingBinary"
         case let .launchFailed(message): "launchFailed(\(message))"
+        case .consumerTierDeprecated: "consumerTierDeprecated"
         }
     }
 
@@ -838,6 +839,10 @@ extension StatusItemController: StatusItemMenuPersistentActionDelegate {
                 message: L("Install the Gemini CLI (npm i -g @google/gemini-cli) and try again."))
         case let .launchFailed(message):
             LoginAlertInfo(title: L("Could not open Terminal for Gemini"), message: message)
+        case .consumerTierDeprecated:
+            LoginAlertInfo(
+                title: L("Gemini CLI login is no longer supported"),
+                message: GeminiConsumerTierMigration.deprecationError)
         }
     }
 

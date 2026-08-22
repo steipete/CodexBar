@@ -365,6 +365,16 @@ public struct GeminiStatusProbe: Sendable {
 
         guard httpResponse.statusCode == 200 else {
             try GeminiStatusProbeError.throwIfConsumerTierDeprecated(data: data)
+            // The quota 403 (`SUBSCRIPTION_REQUIRED`) carries no migration wording; only treat it as the
+            // consumer shutdown when loadCodeAssist flagged this client as unsupported AND the account is
+            // not on a licensed tier. Standard/Enterprise subscriptions are outside the shutdown, so their
+            // 403s stay generic even if Google lists the consumer tier as ineligible for every CLI caller.
+            if httpResponse.statusCode == 403,
+               caStatus.isConsumerClientUnsupported,
+               caStatus.tier != .standard
+            {
+                throw GeminiStatusProbeError.consumerTierDeprecated
+            }
             throw GeminiStatusProbeError.apiError("HTTP \(httpResponse.statusCode)")
         }
 
@@ -430,8 +440,14 @@ public struct GeminiStatusProbe: Sendable {
         let tier: GeminiUserTierId?
         let projectId: String?
         let paidTierName: String?
+        /// Google listed the consumer tier under `ineligibleTiers` with `UNSUPPORTED_CLIENT`.
+        let isConsumerClientUnsupported: Bool
 
-        static let empty = CodeAssistStatus(tier: nil, projectId: nil, paidTierName: nil)
+        static let empty = CodeAssistStatus(
+            tier: nil,
+            projectId: nil,
+            paidTierName: nil,
+            isConsumerClientUnsupported: false)
     }
 
     private static func loadCodeAssistStatus(
@@ -504,17 +520,32 @@ public struct GeminiStatusProbe: Sendable {
 
         let tierId = (json["currentTier"] as? [String: Any])?["id"] as? String
         let paidTierName = Self.parsePaidTierName(from: json)
+        let isConsumerClientUnsupported = Self.hasUnsupportedClientIneligibleTier(in: json)
 
         guard let tierId else {
+            // Google answers the consumer shutdown with HTTP 200: no `currentTier`, and the free tier
+            // listed under `ineligibleTiers` with `UNSUPPORTED_CLIENT`.
+            if isConsumerClientUnsupported {
+                Self.log.info("loadCodeAssist: consumer client unsupported, no current tier")
+                throw GeminiStatusProbeError.consumerTierDeprecated
+            }
             Self.log.warning("loadCodeAssist: no currentTier.id in response", metadata: [
                 "json": "\(json)",
             ])
-            return CodeAssistStatus(tier: nil, projectId: projectId, paidTierName: paidTierName)
+            return CodeAssistStatus(
+                tier: nil,
+                projectId: projectId,
+                paidTierName: paidTierName,
+                isConsumerClientUnsupported: false)
         }
 
         guard let tier = GeminiUserTierId(rawValue: tierId) else {
             Self.log.warning("loadCodeAssist: unknown tier ID", metadata: ["tierId": tierId])
-            return CodeAssistStatus(tier: nil, projectId: projectId, paidTierName: paidTierName)
+            return CodeAssistStatus(
+                tier: nil,
+                projectId: projectId,
+                paidTierName: paidTierName,
+                isConsumerClientUnsupported: isConsumerClientUnsupported)
         }
 
         Self.log.info("loadCodeAssist: success", metadata: [
@@ -522,7 +553,11 @@ public struct GeminiStatusProbe: Sendable {
             "projectId": projectId ?? "nil",
             "paidTierName": paidTierName ?? "nil",
         ])
-        return CodeAssistStatus(tier: tier, projectId: projectId, paidTierName: paidTierName)
+        return CodeAssistStatus(
+            tier: tier,
+            projectId: projectId,
+            paidTierName: paidTierName,
+            isConsumerClientUnsupported: isConsumerClientUnsupported)
     }
 
     private struct OAuthCredentials {
@@ -1325,8 +1360,12 @@ extension GeminiStatusProbe {
             return nil
         }
     }
+}
 
-    private static func parsePaidTierName(from json: [String: Any]) -> String? {
+// MARK: - loadCodeAssist response parsing
+
+extension GeminiStatusProbe {
+    fileprivate static func parsePaidTierName(from json: [String: Any]) -> String? {
         guard let paidTier = json["paidTier"] as? [String: Any],
               let rawName = paidTier["name"] as? String
         else {
@@ -1334,6 +1373,19 @@ extension GeminiStatusProbe {
         }
         let trimmed = rawName.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? nil : trimmed
+    }
+
+    /// `ineligibleTiers[].reasonCode == "UNSUPPORTED_CLIENT"` (or its message) is Google's explicit
+    /// consumer-tier shutdown signal inside an otherwise successful `loadCodeAssist` response.
+    fileprivate static func hasUnsupportedClientIneligibleTier(in json: [String: Any]) -> Bool {
+        guard let ineligibleTiers = json["ineligibleTiers"] as? [[String: Any]] else { return false }
+        // `tierId` is intentionally ignored: any UNSUPPORTED_CLIENT entry means *this client* is
+        // unsupported, whichever tier Google attached the reason to.
+        return ineligibleTiers.contains { entry in
+            [entry["reasonCode"], entry["reasonMessage"]]
+                .compactMap { $0 as? String }
+                .contains(where: GeminiStatusProbeError.isConsumerTierDeprecationSignal)
+        }
     }
 }
 

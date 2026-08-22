@@ -149,6 +149,145 @@ struct GeminiConsumerTierMigrationTests {
         }
     }
 
+    @Test
+    func `reports consumer tier deprecation from loadCodeAssist 200 ineligible tiers`() async throws {
+        let env = try GeminiTestEnvironment()
+        defer { env.cleanup() }
+        try env.writeCredentials(
+            accessToken: "token",
+            refreshToken: nil,
+            expiry: Date().addingTimeInterval(3600),
+            idToken: nil)
+
+        let dataLoader = Self.cloudCodeLoader(
+            loadCodeAssist: (200, GeminiAPITestHelpers.loadCodeAssistUnsupportedClientResponse()),
+            quota: (403, GeminiAPITestHelpers.quotaSubscriptionRequiredResponse()))
+
+        let probe = GeminiStatusProbe(timeout: 1, homeDirectory: env.homeURL.path, dataLoader: dataLoader)
+        await Self.expectError(.consumerTierDeprecated) {
+            _ = try await probe.fetch()
+        }
+    }
+
+    @Test
+    func `maps quota 403 to consumer tier deprecation after unsupported client signal`() async throws {
+        let env = try GeminiTestEnvironment()
+        defer { env.cleanup() }
+        try env.writeCredentials(
+            accessToken: "token",
+            refreshToken: nil,
+            expiry: Date().addingTimeInterval(3600),
+            idToken: nil)
+
+        let dataLoader = Self.cloudCodeLoader(
+            loadCodeAssist: (
+                200,
+                GeminiAPITestHelpers.loadCodeAssistUnsupportedClientResponse(currentTierId: "free-tier")),
+            quota: (403, GeminiAPITestHelpers.quotaSubscriptionRequiredResponse()))
+
+        let probe = GeminiStatusProbe(timeout: 1, homeDirectory: env.homeURL.path, dataLoader: dataLoader)
+        await Self.expectError(.consumerTierDeprecated) {
+            _ = try await probe.fetch()
+        }
+    }
+
+    @Test
+    func `keeps licensed tier accounts despite ineligible free tier listing`() async throws {
+        let env = try GeminiTestEnvironment()
+        defer { env.cleanup() }
+        try env.writeCredentials(
+            accessToken: "token",
+            refreshToken: nil,
+            expiry: Date().addingTimeInterval(3600),
+            idToken: GeminiAPITestHelpers.makeIDToken(email: "dev@example.com", hostedDomain: "example.com"))
+
+        let dataLoader = Self.cloudCodeLoader(
+            loadCodeAssist: (
+                200,
+                GeminiAPITestHelpers.loadCodeAssistUnsupportedClientResponse(currentTierId: "standard-tier")),
+            quota: (200, GeminiAPITestHelpers.sampleQuotaResponse()))
+
+        let probe = GeminiStatusProbe(timeout: 1, homeDirectory: env.homeURL.path, dataLoader: dataLoader)
+        let snapshot = try await probe.fetch()
+        #expect(snapshot.accountPlan == "Paid")
+    }
+
+    @Test
+    func `keeps plain http 403 error without unsupported client signal`() async throws {
+        let env = try GeminiTestEnvironment()
+        defer { env.cleanup() }
+        try env.writeCredentials(
+            accessToken: "token",
+            refreshToken: nil,
+            expiry: Date().addingTimeInterval(3600),
+            idToken: nil)
+
+        let dataLoader = Self.cloudCodeLoader(
+            loadCodeAssist: (200, GeminiAPITestHelpers.loadCodeAssistStandardTierResponse()),
+            quota: (403, GeminiAPITestHelpers.quotaSubscriptionRequiredResponse()))
+
+        let probe = GeminiStatusProbe(timeout: 1, homeDirectory: env.homeURL.path, dataLoader: dataLoader)
+        await Self.expectError(.apiError("HTTP 403")) {
+            _ = try await probe.fetch()
+        }
+    }
+
+    @Test
+    func `keeps http 403 for licensed tier despite unsupported client listing`() async throws {
+        let env = try GeminiTestEnvironment()
+        defer { env.cleanup() }
+        try env.writeCredentials(
+            accessToken: "token",
+            refreshToken: nil,
+            expiry: Date().addingTimeInterval(3600),
+            idToken: GeminiAPITestHelpers.makeIDToken(email: "dev@example.com", hostedDomain: "example.com"))
+
+        let dataLoader = Self.cloudCodeLoader(
+            loadCodeAssist: (
+                200,
+                GeminiAPITestHelpers.loadCodeAssistUnsupportedClientResponse(currentTierId: "standard-tier")),
+            quota: (403, GeminiAPITestHelpers.quotaSubscriptionRequiredResponse()))
+
+        let probe = GeminiStatusProbe(timeout: 1, homeDirectory: env.homeURL.path, dataLoader: dataLoader)
+        await Self.expectError(.apiError("HTTP 403")) {
+            _ = try await probe.fetch()
+        }
+    }
+
+    private static func cloudCodeLoader(
+        loadCodeAssist: (status: Int, body: Data),
+        quota: (status: Int, body: Data)) -> @Sendable (URLRequest) async throws -> (Data, URLResponse)
+    {
+        GeminiAPITestHelpers.dataLoader { request in
+            guard let url = request.url, let host = url.host else {
+                throw URLError(.badURL)
+            }
+            switch host {
+            case "cloudresourcemanager.googleapis.com":
+                return GeminiAPITestHelpers.response(
+                    url: url.absoluteString,
+                    status: 200,
+                    body: GeminiAPITestHelpers.jsonData(["projects": []]))
+            case "cloudcode-pa.googleapis.com":
+                if url.path == "/v1internal:loadCodeAssist" {
+                    return GeminiAPITestHelpers.response(
+                        url: url.absoluteString,
+                        status: loadCodeAssist.status,
+                        body: loadCodeAssist.body)
+                }
+                if url.path == "/v1internal:retrieveUserQuota" {
+                    return GeminiAPITestHelpers.response(
+                        url: url.absoluteString,
+                        status: quota.status,
+                        body: quota.body)
+                }
+                return GeminiAPITestHelpers.response(url: url.absoluteString, status: 404, body: Data())
+            default:
+                return GeminiAPITestHelpers.response(url: url.absoluteString, status: 404, body: Data())
+            }
+        }
+    }
+
     private static func expectError(
         _ expected: GeminiStatusProbeError,
         operation: () async throws -> Void) async

@@ -4,7 +4,9 @@ import CodexBarCore
 extension StatusItemController {
     func runGeminiLoginFlow() async {
         let store = self.store
-        let result = await GeminiLoginRunner.run {
+        let result = await GeminiLoginRunner.run(
+            consumerTierDeprecationObserved: store.geminiObservedGoogleConsumerTierShutdown)
+        {
             Task { @MainActor in
                 await store.refresh()
                 CodexBarLog.logger(LogCategories.login).info("Auto-refreshed after Gemini auth")

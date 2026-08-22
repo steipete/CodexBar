@@ -1,3 +1,4 @@
+import CodexBarCore
 import Testing
 @testable import CodexBar
 
@@ -16,6 +17,14 @@ struct GeminiLoginAlertTests {
         let info = StatusItemController.geminiLoginAlertInfo(for: result)
         #expect(info?.title == "Could not open Terminal for Gemini")
         #expect(info?.message == "Boom")
+    }
+
+    @Test
+    func `returns antigravity guidance when consumer tier is deprecated`() {
+        let result = GeminiLoginRunner.Result(outcome: .consumerTierDeprecated)
+        let info = StatusItemController.geminiLoginAlertInfo(for: result)
+        #expect(info?.title == "Gemini CLI login is no longer supported")
+        #expect(info?.message == GeminiConsumerTierMigration.deprecationError)
     }
 
     @Test

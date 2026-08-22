@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.54.2 — Unreleased
+
+### Fixed
+- Gemini: recognize Google's live consumer-tier shutdown — an HTTP 200 `loadCodeAssist` body whose `ineligibleTiers` carries `UNSUPPORTED_CLIENT` — instead of surfacing the follow-up quota call as a bare `HTTP 403`, so the Antigravity migration guidance and the **Enable Antigravity provider** action appear again. Licensed Standard/Enterprise accounts keep their generic `HTTP 403`.
+- Gemini: once Google's shutdown response was seen, the login action no longer deletes `~/.gemini/oauth_creds.json` to launch a Gemini CLI sign-in that Google rejects with the same message; it shows the Antigravity guidance instead.
+
 ## 0.54.1 — 2026-08-21
 
 ### Highlights
