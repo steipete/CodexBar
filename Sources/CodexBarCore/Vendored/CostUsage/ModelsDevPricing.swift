@@ -1,4 +1,9 @@
 import Foundation
+#if canImport(Darwin)
+import Darwin
+#elseif canImport(Glibc)
+import Glibc
+#endif
 #if canImport(FoundationNetworking)
 import FoundationNetworking
 #endif
@@ -427,14 +432,71 @@ enum ModelsDevCache {
     static let ttlSeconds: TimeInterval = 24 * 60 * 60
 
     private static let memo = ModelsDevCacheMemo()
+    /// Test-only instrumentation: counts `fileMetadata(at:)` reads (one per `load`) so tests can prove callers
+    /// resolve the catalog once instead of per pricing call. Task-local, so concurrent tests do not see each other's
+    /// counts, and unset (zero cost) in production.
+    @TaskLocal private static var metadataReadRecorder: MetadataReadRecorder?
 
-    private static func fileMetadata(at url: URL) -> (modificationDate: Date?, size: Int?) {
-        guard let attributes = try? FileManager.default.attributesOfItem(atPath: url.path) else {
-            return (nil, nil)
+    final class MetadataReadRecorder: @unchecked Sendable {
+        private let lock = NSLock()
+        private var count = 0
+
+        func record() {
+            self.lock.lock()
+            self.count += 1
+            self.lock.unlock()
         }
-        let modificationDate = attributes[.modificationDate] as? Date
-        let size = (attributes[.size] as? NSNumber)?.intValue
-        return (modificationDate, size)
+
+        func snapshot() -> Int {
+            self.lock.lock()
+            defer { self.lock.unlock() }
+            return self.count
+        }
+    }
+
+    static func withMetadataReadRecorderForTesting<T>(
+        _ recorder: MetadataReadRecorder,
+        operation: () throws -> T) rethrows -> T
+    {
+        try self.$metadataReadRecorder.withValue(recorder) {
+            try operation()
+        }
+    }
+
+    static func withMetadataReadRecorderForTesting<T>(
+        _ recorder: MetadataReadRecorder,
+        operation: () async throws -> T) async rethrows -> T
+    {
+        try await self.$metadataReadRecorder.withValue(recorder) {
+            try await operation()
+        }
+    }
+
+    /// Cheap POSIX stat for the (mtime, size) memo key. `attributesOfItem` also reads xattrs.
+    /// `stat(2)` follows a terminal symlink (matching what `Data(contentsOf:)` later reads) whereas
+    /// `attributesOfItem` did not.
+    private static func fileMetadata(at url: URL) -> (modificationDate: Date?, size: Int?) {
+        self.metadataReadRecorder?.record()
+
+        return url.withUnsafeFileSystemRepresentation { pointer in
+            guard let pointer else { return (nil, nil) }
+            var status = stat()
+            guard stat(pointer, &status) == 0 else {
+                return (nil, nil)
+            }
+            return (Self.modificationDate(from: status), Int(status.st_size))
+        }
+    }
+
+    private static func modificationDate(from status: stat) -> Date {
+        #if canImport(Darwin)
+        let seconds = TimeInterval(status.st_mtimespec.tv_sec)
+        let nanoseconds = TimeInterval(status.st_mtimespec.tv_nsec)
+        #else
+        let seconds = TimeInterval(status.st_mtim.tv_sec)
+        let nanoseconds = TimeInterval(status.st_mtim.tv_nsec)
+        #endif
+        return Date(timeIntervalSince1970: seconds + nanoseconds / 1_000_000_000)
     }
 
     private static func defaultCacheRoot() -> URL {
