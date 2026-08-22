@@ -39,6 +39,34 @@ struct OpenCodexUsageParserTests {
     }
 
     @Test
+    func `parseLines splits only on LF so CR and form feed are not record separators`() {
+        func record(_ id: String) -> String {
+            """
+            {"requestId":"\(id)","timestamp":1784179200000,"provider":"openai","model":"gpt-5.4",\
+            "usageStatus":"unreported"}
+            """
+        }
+
+        let crOnly = [record("a"), record("b"), record("c")].joined(separator: "\r")
+        #expect(OpenCodexUsageParser.parseLines(crOnly).isEmpty)
+
+        let formFeed = [record("f"), record("g")].joined(separator: "\u{000C}")
+        #expect(OpenCodexUsageParser.parseLines(formFeed).isEmpty)
+
+        let withLineSeparator = record("x") + "\n" + """
+        {"requestId":"y","timestamp":1784179200000,"provider":"openai","model":"gpt-5.4",\
+        "usageStatus":"unreported","note":"keep\u{2028}together"}
+        """
+        #expect(OpenCodexUsageParser.parseLines(withLineSeparator).map(\.requestID) == ["x", "y"])
+
+        let withNextLine = record("x") + "\n" + """
+        {"requestId":"y","timestamp":1784179200000,"provider":"openai","model":"gpt-5.4",\
+        "usageStatus":"unreported","note":"keep\u{0085}together"}
+        """
+        #expect(OpenCodexUsageParser.parseLines(withNextLine).map(\.requestID) == ["x", "y"])
+    }
+
+    @Test
     func `does not resolve a default home while tests are running`() {
         #expect(OpenCodexUsageLog.usageLogURL(environment: ["TESTING_LIBRARY_VERSION": "1"]) == nil)
         let home = FileManager.default.temporaryDirectory
