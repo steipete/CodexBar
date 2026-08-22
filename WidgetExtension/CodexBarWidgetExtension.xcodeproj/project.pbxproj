@@ -8,6 +8,9 @@
 
 /* Begin PBXBuildFile section */
 		0972D036B563954337344F35 /* CodexBarWidgetBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50E5C7D39315A8DA5DC9D18A /* CodexBarWidgetBundle.swift */; };
+		175A7C99A91EF7F8A1CE1D1D /* ProviderPager.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC67679EC16B9F4CFA4F655E /* ProviderPager.swift */; };
+		2ECED44F30B8E37A810D9E85 /* WidgetTiles.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E08AC49025047573DE3C02D /* WidgetTiles.swift */; };
+		309CF206BD2410BDE81AA129 /* WidgetTilePlan.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2927E99B587AD27CAD8C4F62 /* WidgetTilePlan.swift */; };
 		49DB3749D8E8748409CDC4FE /* CodexBarWidgetProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 549C61629C144C190B18EAD9 /* CodexBarWidgetProvider.swift */; };
 		6AE8A91F50B5CE058EC3F7C3 /* BurnDownWidgetViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = A57F0B3D6EEDEFD75EE3F3A0 /* BurnDownWidgetViews.swift */; };
 		6F12082A467310EEDD1F3439 /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E430B27E4F28973A5E77EA3F /* WidgetKit.framework */; };
@@ -16,16 +19,21 @@
 		7F0E34471853E41206F690FB /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 02F15F392AF9D502F0503F8F /* SwiftUI.framework */; };
 		882A41814588292DD631F525 /* CodexBarWidgetViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 84672F595D2C0B83323E2C54 /* CodexBarWidgetViews.swift */; };
 		D1B3B06F03A2F05251AC0B42 /* BurnDownWidgetProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = B99BBE05D3817388F9649AD0 /* BurnDownWidgetProvider.swift */; };
+		D77F3517B304CA761FD1C3D5 /* WidgetDesignSystem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 868DBC9298F9D17DEB383032 /* WidgetDesignSystem.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		02F15F392AF9D502F0503F8F /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
 		1AFF48072AC06EBE060E3AFE /* CombinedBurnDownWidgetViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CombinedBurnDownWidgetViews.swift; sourceTree = "<group>"; };
+		2927E99B587AD27CAD8C4F62 /* WidgetTilePlan.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetTilePlan.swift; sourceTree = "<group>"; };
+		4E08AC49025047573DE3C02D /* WidgetTiles.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetTiles.swift; sourceTree = "<group>"; };
 		50E5C7D39315A8DA5DC9D18A /* CodexBarWidgetBundle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodexBarWidgetBundle.swift; sourceTree = "<group>"; };
 		549C61629C144C190B18EAD9 /* CodexBarWidgetProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodexBarWidgetProvider.swift; sourceTree = "<group>"; };
 		84672F595D2C0B83323E2C54 /* CodexBarWidgetViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodexBarWidgetViews.swift; sourceTree = "<group>"; };
+		868DBC9298F9D17DEB383032 /* WidgetDesignSystem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetDesignSystem.swift; sourceTree = "<group>"; };
 		A57F0B3D6EEDEFD75EE3F3A0 /* BurnDownWidgetViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BurnDownWidgetViews.swift; sourceTree = "<group>"; };
 		B99BBE05D3817388F9649AD0 /* BurnDownWidgetProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BurnDownWidgetProvider.swift; sourceTree = "<group>"; };
+		CC67679EC16B9F4CFA4F655E /* ProviderPager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProviderPager.swift; sourceTree = "<group>"; };
 		E430B27E4F28973A5E77EA3F /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
 		E7789C4095C40CF60759F2B7 /* CodexBarWidgetExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = CodexBarWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -70,6 +78,10 @@
 				549C61629C144C190B18EAD9 /* CodexBarWidgetProvider.swift */,
 				84672F595D2C0B83323E2C54 /* CodexBarWidgetViews.swift */,
 				1AFF48072AC06EBE060E3AFE /* CombinedBurnDownWidgetViews.swift */,
+				CC67679EC16B9F4CFA4F655E /* ProviderPager.swift */,
+				868DBC9298F9D17DEB383032 /* WidgetDesignSystem.swift */,
+				2927E99B587AD27CAD8C4F62 /* WidgetTilePlan.swift */,
+				4E08AC49025047573DE3C02D /* WidgetTiles.swift */,
 			);
 			name = CodexBarWidget;
 			path = ../Sources/CodexBarWidget;
@@ -158,6 +170,10 @@
 				49DB3749D8E8748409CDC4FE /* CodexBarWidgetProvider.swift in Sources */,
 				882A41814588292DD631F525 /* CodexBarWidgetViews.swift in Sources */,
 				795FB218DC9B1C0909B4D202 /* CombinedBurnDownWidgetViews.swift in Sources */,
+				175A7C99A91EF7F8A1CE1D1D /* ProviderPager.swift in Sources */,
+				D77F3517B304CA761FD1C3D5 /* WidgetDesignSystem.swift in Sources */,
+				309CF206BD2410BDE81AA129 /* WidgetTilePlan.swift in Sources */,
+				2ECED44F30B8E37A810D9E85 /* WidgetTiles.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
