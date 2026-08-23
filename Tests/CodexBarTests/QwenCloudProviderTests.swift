@@ -12,6 +12,44 @@ private func qwenCloudFixture(_ name: String) throws -> Data {
 
 struct QwenCloudSettingsReaderTests {
     @Test
+    func `missing cookie error mentions both supported browsers and their safe storage`() {
+        // The cookie import now probes Chrome and Brave (per
+        // QwenCloudProviderDescriptor.browserOrder). The recovery message
+        // must name both, otherwise a Brave-only user gets directed at
+        // Chrome and never finds the right path.
+        let error = QwenCloudSettingsError.missingCookie()
+        let message = error.errorDescription ?? ""
+
+        #expect(message.contains("Chrome"))
+        #expect(message.contains("Brave"))
+        #expect(message.contains("Safe Storage"))
+        #expect(message.contains("manual Cookie header"))
+        #expect(message.contains("Keychain Access"))
+    }
+
+    @Test
+    func `missing cookie error appends non-empty details`() {
+        let error = QwenCloudSettingsError.missingCookie(
+            details: "Chrome Safe Storage keychain denied")
+        let message = error.errorDescription ?? ""
+
+        #expect(message.contains("Chrome"))
+        #expect(message.contains("Brave"))
+        #expect(message.contains("Chrome Safe Storage keychain denied"))
+    }
+
+    @Test
+    func `missing cookie error omits empty details`() {
+        let error = QwenCloudSettingsError.missingCookie(details: "")
+        let message = error.errorDescription ?? ""
+
+        #expect(message.contains("Chrome"))
+        #expect(message.contains("Brave"))
+        // No trailing whitespace from an empty details suffix.
+        #expect(!message.hasSuffix(" "))
+    }
+
+    @Test
     func `cookie reads from environment`() {
         let cookie = QwenCloudSettingsReader.cookieHeader(environment: [
             QwenCloudSettingsReader.cookieHeaderKey: "\"login_aliyunid_ticket=ticket\"",

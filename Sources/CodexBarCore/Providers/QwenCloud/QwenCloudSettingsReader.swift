@@ -53,8 +53,15 @@ public enum QwenCloudSettingsError: LocalizedError, Sendable {
     public var errorDescription: String? {
         switch self {
         case let .missingCookie(details):
+            // Qwen Cloud cookie import now probes Chrome *and* Brave (per the
+            // QwenCloudProviderDescriptor.browserOrder override). The recovery
+            // message must name both supported browsers and their respective
+            // Safe Storage entries, otherwise a Brave-only user would be told
+            // to sign in with Chrome and the fix would be invisible.
             let base = "No Qwen Cloud session cookies found in browsers. " +
-                "Sign in to Qwen Cloud in Chrome, allow CodexBar to access Chrome Safe Storage in Keychain Access, " +
+                "Sign in to Qwen Cloud in Chrome or Brave, " +
+                "allow CodexBar to access the corresponding Safe Storage in Keychain Access " +
+                "(Chrome Safe Storage and/or Brave Safe Storage), " +
                 "or paste a manual Cookie header."
             guard let details, !details.isEmpty else { return base }
             return "\(base) \(details)"
