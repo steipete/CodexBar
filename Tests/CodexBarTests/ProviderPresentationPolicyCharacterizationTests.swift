@@ -151,7 +151,7 @@ struct ProviderPresentationPolicyCharacterizationTests {
     @Test
     @MainActor
     func `decorated icon style membership is pinned`() throws {
-        let decoratedStyles: Set<IconStyle> = [.codex, .claude, .gemini, .antigravity, .factory, .warp]
+        let decoratedStyles: Set<IconStyle> = [.codex, .claude, .gemini, .antigravity, .factory, .warp, .grok]
         for style in IconStyle.allCases {
             let decorated = IconRenderer.makeIcon(
                 primaryRemaining: 60,

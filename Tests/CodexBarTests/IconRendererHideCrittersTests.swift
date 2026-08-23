@@ -27,6 +27,7 @@ struct IconRendererHideCrittersTests {
         .antigravity,
         .factory,
         .warp,
+        .grok,
     ])
     func `hiding critters removes every decorated style twist`(style: IconStyle) throws {
         let decorated = self.icon(style: style, hideCritters: false)
@@ -42,6 +43,7 @@ struct IconRendererHideCrittersTests {
         .antigravity,
         .factory,
         .warp,
+        .grok,
     ])
     func `hidden decorated styles match plain capsule bars`(style: IconStyle) throws {
         let hidden = self.icon(style: style, hideCritters: true)
