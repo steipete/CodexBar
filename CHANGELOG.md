@@ -12,6 +12,7 @@
 
 - Fixed single-quota menu-bar icons understating remaining usage: a provider's only meaningful quota now renders as one prominent meter instead of half an icon next to a reserved empty lane, including when it arrives in the secondary slot (#3154, #3155). Thanks @akshayprabhu200!
 - Grok: report period-only CLI-proxy responses as unknown usage instead of 0% when Grok Build has hit its free limit, keeping identity and reset metadata (#3157, #3159). Thanks @anupamchugh!
+- Refresh: detect ongoing Codex conversations hosted inside ChatGPT.app in Adaptive (agent-aware) mode without treating an idle open app as coding activity (#3160).
 - OpenRouter: request the latest completed UTC day from the Activity API instead of the current date, fixing the HTTP 400 that suppressed spend history (#3133, #3138). Thanks @kiranmagic7!
 - Qwen Cloud: restored Brave browser support in cookie import (#3148). Thanks @umutkeltek!
 - CLI install: report success even when unrelated PATH directories are non-writable, while still listing genuine `codexbar` conflicts from earlier PATH entries (#3153). Thanks @yicone!

@@ -114,7 +114,7 @@ struct AgentSessionMenuDescriptorTests {
     }
 
     @Test
-    func `adaptive-only metadata reads require a detected agent process`() {
+    func `adaptive-only metadata reads require an agent or trusted codex app server`() {
         #expect(!LocalAgentSessionScanner.shouldScanSessionMetadata(
             hasAgentProcesses: false,
             includeFileOnlySessions: false))
@@ -124,6 +124,10 @@ struct AgentSessionMenuDescriptorTests {
         #expect(LocalAgentSessionScanner.shouldScanSessionMetadata(
             hasAgentProcesses: false,
             includeFileOnlySessions: true))
+        #expect(LocalAgentSessionScanner.shouldScanSessionMetadata(
+            hasAgentProcesses: false,
+            includeFileOnlySessions: false,
+            hasTrustedCodexAppServer: true))
     }
 
     @Test
