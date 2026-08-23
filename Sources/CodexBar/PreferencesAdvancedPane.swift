@@ -93,10 +93,6 @@ extension AdvancedPane {
         for dest in destinations {
             let dir = (dest as NSString).deletingLastPathComponent
             guard fm.fileExists(atPath: dir) else { continue }
-            guard fm.isWritableFile(atPath: dir) else {
-                failures.append("No write access: \(dir)")
-                continue
-            }
 
             if fm.fileExists(atPath: dest) {
                 if Self.isLink(atPath: dest, pointingTo: helperURL.path) {
@@ -104,6 +100,11 @@ extension AdvancedPane {
                 } else {
                     conflicts.append("Exists: \(dir)")
                 }
+                continue
+            }
+
+            guard fm.isWritableFile(atPath: dir) else {
+                failures.append("No write access: \(dir)")
                 continue
             }
 

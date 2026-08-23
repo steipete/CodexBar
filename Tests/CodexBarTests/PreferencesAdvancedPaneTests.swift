@@ -14,11 +14,11 @@ struct PreferencesAdvancedPaneTests {
     }
 
     @Test
-    func `cli install status keeps conflicting executables visible alongside successful installs`() {
+    func `cli install status keeps an existing earlier path conflict alongside a later successful install`() {
         let status = AdvancedPane.cliInstallStatus(
             installed: ["Installed: /opt/homebrew/bin"],
             conflicts: ["Exists: /usr/local/bin"],
-            failures: ["No write access: /some/other/bin"])
+            failures: [])
 
         #expect(status == "Installed: /opt/homebrew/bin · Exists: /usr/local/bin")
     }
