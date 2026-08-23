@@ -7,6 +7,7 @@
 - Spend dashboard: silently refresh independent providers (Claude/Cursor) when their token publications update, bucket the activity heatmap with the configured IANA timezone, and stop coalescing display-affecting ownership and revision changes (#3106). Thanks @Yuxin-Qiao!
 - Spend: add tokscale-compatible local readers for Cursor and Antigravity local history (#3113). Thanks @Yuxin-Qiao!
 - Antigravity: map retired Flash wire IDs to their current tier, and count local conversations as an offline fallback when the desktop app is unavailable (#3119). Thanks @Yuxin-Qiao!
+- Antigravity: reuse a signed-in `agy` for menu-bar quota refreshes without the desktop app, and report CLI sign-in failures instead of asking users to launch an unavailable app (#3146).
 
 - Fixed single-quota menu-bar icons understating remaining usage: a provider's only meaningful quota now renders as one prominent meter instead of half an icon next to a reserved empty lane, including when it arrives in the secondary slot (#3154, #3155). Thanks @akshayprabhu200!
 - Grok: report period-only CLI-proxy responses as unknown usage instead of 0% when Grok Build has hit its free limit, keeping identity and reset metadata (#3157, #3159). Thanks @anupamchugh!

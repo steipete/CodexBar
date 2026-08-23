@@ -646,6 +646,37 @@ struct AntigravityCLIHTTPSFetchStrategyTests {
     }
 
     @Test
+    func `cli HTTPS stops when managed agy reports exhausted keyring authentication`() async {
+        let output = AntigravityCLIOutputSequence([
+            Data("You are currently not signed in.\nSigning in...".utf8),
+            Data("keyringAuth: timed out after 10s, skipping keyring auth".utf8),
+        ])
+        let portPolls = AntigravityCLICounter()
+
+        do {
+            _ = try await AntigravityCLIHTTPSFetchStrategy.waitForSnapshot(
+                pid: 123,
+                deadline: Date().addingTimeInterval(2),
+                dependencies: AntigravityCLIHTTPSFetchStrategy.SnapshotWaitDependencies(
+                    pollIntervalNanoseconds: 0,
+                    listeningPorts: { _, _ in
+                        portPolls.increment()
+                        return []
+                    },
+                    drainOutput: { output.next() },
+                    fetchSnapshot: { _ in
+                        Issue.record("An unauthenticated helper must not fetch a snapshot")
+                        throw AntigravityStatusProbeError.notRunning
+                    }))
+            Issue.record("Expected authentication failure")
+        } catch AntigravityStatusProbeError.authenticationRequired {
+            #expect(portPolls.value == 1)
+        } catch {
+            Issue.record("Expected authenticationRequired, got \(error)")
+        }
+    }
+
+    @Test
     func `cli HTTPS rechecks signed out prompt after snapshot readiness`() async {
         let output = AntigravityCLIOutputSequence([
             Data(),
@@ -950,5 +981,84 @@ struct AntigravityCLIHTTPSFetchStrategyTests {
         func detectVersion() -> String? {
             nil
         }
+    }
+}
+
+extension AntigravityCLIHTTPSFetchStrategyTests {
+    @Test
+    func `missing IDE cannot replace actionable signed out CLI error`() async {
+        let pipeline = ProviderFetchPipeline(
+            resolveStrategies: { _ in
+                [
+                    AntigravityFallbackFixtureStrategy(
+                        id: "antigravity.cli-https",
+                        error: .authenticationRequired),
+                    AntigravityFallbackFixtureStrategy(
+                        id: "antigravity.ide-local",
+                        error: .notRunning),
+                ]
+            },
+            resolveFallbackError: AntigravityProviderDescriptor.resolveFallbackError)
+
+        let outcome = await pipeline.fetch(context: self.makeFetchContext(), provider: .antigravity)
+
+        #expect(outcome.attempts.map(\.strategyID) == ["antigravity.cli-https", "antigravity.ide-local"])
+        do {
+            _ = try outcome.result.get()
+            Issue.record("Expected the signed-out CLI failure")
+        } catch {
+            #expect((error as? AntigravityStatusProbeError) == .authenticationRequired)
+        }
+    }
+
+    @Test
+    func `signed out CLI still allows a usable IDE fallback`() async throws {
+        let pipeline = ProviderFetchPipeline(
+            resolveStrategies: { _ in
+                [
+                    AntigravityFallbackFixtureStrategy(
+                        id: "antigravity.cli-https",
+                        error: .authenticationRequired),
+                    AntigravityFallbackFixtureStrategy(id: "antigravity.ide-local", error: nil),
+                ]
+            },
+            resolveFallbackError: AntigravityProviderDescriptor.resolveFallbackError)
+
+        let outcome = await pipeline.fetch(context: self.makeFetchContext(), provider: .antigravity)
+
+        #expect(try outcome.result.get().sourceLabel == "ide")
+        #expect(outcome.attempts.count == 2)
+    }
+
+    @Test
+    func `specific later fallback error replaces signed out CLI error`() {
+        let result = AntigravityProviderDescriptor.resolveFallbackError(
+            AntigravityStatusProbeError.authenticationRequired,
+            AntigravityStatusProbeError.apiError("OAuth credentials expired"))
+
+        #expect((result as? AntigravityStatusProbeError) == .apiError("OAuth credentials expired"))
+    }
+}
+
+private struct AntigravityFallbackFixtureStrategy: ProviderFetchStrategy {
+    let id: String
+    let error: AntigravityStatusProbeError?
+    let kind: ProviderFetchKind = .localProbe
+
+    func isAvailable(_: ProviderFetchContext) async -> Bool {
+        true
+    }
+
+    func fetch(_: ProviderFetchContext) async throws -> ProviderFetchResult {
+        if let error {
+            throw error
+        }
+        return self.makeResult(
+            usage: UsageSnapshot(primary: nil, secondary: nil, updatedAt: Date()),
+            sourceLabel: "ide")
+    }
+
+    func shouldFallback(on _: Error, context _: ProviderFetchContext) -> Bool {
+        true
     }
 }

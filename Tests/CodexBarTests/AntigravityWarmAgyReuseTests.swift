@@ -345,7 +345,7 @@ struct AntigravityWarmAgyReuseTests {
     }
 
     @Test
-    func `long lived session skips external warm scan`() async throws {
+    func `long lived session reuses signed in external agy without spawning`() async throws {
         let spawnCallCount = AntigravityWarmLockedCounter()
         let strategy = AntigravityCLIHTTPSFetchStrategy()
 
@@ -354,21 +354,43 @@ struct AntigravityWarmAgyReuseTests {
             idleWindow: 60,
             resetAfterFetch: false,
             warmDependencies: AntigravityCLIHTTPSFetchStrategy.WarmAgyDependencies(
-                processInfos: { _ in
-                    Issue.record("long-lived hosts must use their managed session")
-                    return [Self.cliProcessInfo(pid: 6301)]
-                },
-                listeningPorts: { _, _ in [] },
-                fetchSnapshot: { _, _ in throw AntigravityStatusProbeError.notRunning }),
-            spawnFetch: { _, _, resetAfterFetch in
+                processInfos: { _ in [Self.cliProcessInfo(pid: 6301)] },
+                listeningPorts: { _, _ in [50080] },
+                fetchSnapshot: { _, _ in Self.usableSnapshot(email: "terminal@example.com") }),
+            spawnFetch: { _, _, _ in
                 spawnCallCount.increment()
+                Issue.record("persistent hosts must reuse an authenticated user-owned agy")
+                throw AntigravityStatusProbeError.notRunning
+            })
+
+        #expect(result.usage.identity?.accountEmail == "terminal@example.com")
+        #expect(spawnCallCount.value == 0)
+    }
+
+    @Test
+    func `long lived session falls back to managed agy when external account mismatches`() async throws {
+        let spawnCallCount = AntigravityWarmLockedCounter()
+        let strategy = AntigravityCLIHTTPSFetchStrategy()
+
+        let result = try await strategy.fetchUsingWarmSession(
+            binary: "/usr/local/bin/agy",
+            idleWindow: 60,
+            resetAfterFetch: false,
+            expectedAccountEmail: "selected@example.com",
+            warmDependencies: AntigravityCLIHTTPSFetchStrategy.WarmAgyDependencies(
+                processInfos: { _ in [Self.cliProcessInfo(pid: 6301)] },
+                listeningPorts: { _, _ in [50080] },
+                fetchSnapshot: { _, _ in Self.usableSnapshot(email: "other@example.com") }),
+            spawnFetch: { _, idleWindow, resetAfterFetch in
+                spawnCallCount.increment()
+                #expect(idleWindow == 60)
                 #expect(!resetAfterFetch)
                 return strategy.makeResult(
-                    usage: Self.usableUsage(email: "managed@example.com"),
+                    usage: Self.usableUsage(email: "selected@example.com"),
                     sourceLabel: AntigravityCLIHTTPSFetchStrategy.sourceLabel)
             })
 
-        #expect(result.usage.identity?.accountEmail == "managed@example.com")
+        #expect(result.usage.identity?.accountEmail == "selected@example.com")
         #expect(spawnCallCount.value == 1)
     }
 

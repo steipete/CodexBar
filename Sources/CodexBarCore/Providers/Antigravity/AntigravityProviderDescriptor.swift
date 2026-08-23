@@ -76,7 +76,9 @@ public enum AntigravityProviderDescriptor {
                 }),
             fetchPlan: ProviderFetchPlan(
                 sourceModes: [.auto, .cli, .oauth],
-                pipeline: ProviderFetchPipeline(resolveStrategies: self.resolveStrategies)),
+                pipeline: ProviderFetchPipeline(
+                    resolveStrategies: self.resolveStrategies,
+                    resolveFallbackError: self.resolveFallbackError)),
             cli: ProviderCLIConfig(
                 name: "antigravity",
                 versionDetector: nil))
@@ -204,6 +206,15 @@ public enum AntigravityProviderDescriptor {
             ?? FileManager.default.homeDirectoryForCurrentUser
         let fileURL = AntigravityOAuthCredentialsStore.defaultURL(home: homeURL)
         return FileManager.default.fileExists(atPath: fileURL.path)
+    }
+
+    static func resolveFallbackError(_ previous: Error?, _ current: Error) -> Error {
+        if (previous as? AntigravityStatusProbeError) == .authenticationRequired,
+           (current as? AntigravityStatusProbeError) == .notRunning
+        {
+            return previous ?? current
+        }
+        return current
     }
 }
 
@@ -553,10 +564,10 @@ struct AntigravityCLIHTTPSFetchStrategy: ProviderFetchStrategy {
         // CodexBar must not manage its lifecycle, idle timeout, or
         // `resetAfterFetch` teardown. Those apply only to processes CodexBar
         // itself spawns on the fallback path below.
-        // Long-lived hosts already keep a managed session warm. Restrict external
-        // process reuse to one-shot CLI calls so app/server lifecycle accounting
-        // stays entirely inside AntigravityCLISession.
-        if resetAfterFetch, let warmSnapshot = try await Self.tryWarmAgyFetch(
+        // Persistent hosts also need the external path: a user-owned, signed-in
+        // `agy` may have credentials a newly spawned managed session cannot read.
+        // Owned pids remain excluded, so their lifecycle accounting is unchanged.
+        if let warmSnapshot = try await Self.tryWarmAgyFetch(
             timeout: 2.0,
             expectedBinaryPath: binary,
             expectedAccountEmail: expectedAccountEmail,
