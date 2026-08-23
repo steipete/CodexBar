@@ -55,7 +55,7 @@ The grok.com billing gRPC-web endpoint remains a best-effort fallback.
      `Accept: application/json`.
    - Reads `config.creditUsagePercent`, falling back to
      `onDemandUsed.val / onDemandCap.val * 100`. A parseable current period
-     without either value represents zero usage. The reset timestamp comes from
+     without either value represents unknown usage. The reset timestamp comes from
      `config.currentPeriod.end`, then `config.billingPeriodEnd`.
    - Plan name does not come from the credits payload. After a successful
      auth-file or SuperGrok OAuth web billing result (CLI-proxy) or the team
