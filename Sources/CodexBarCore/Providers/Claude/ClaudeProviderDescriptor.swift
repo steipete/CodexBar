@@ -1,7 +1,16 @@
 import Foundation
+import SweetCookieKit
 
 public enum ClaudeProviderDescriptor {
     public static let descriptor: ProviderDescriptor = Self.makeDescriptor()
+    private static var browserCookieOrder: BrowserCookieImportOrder? {
+        #if os(macOS)
+        [.chrome] + Browser.defaultImportOrder.filter { $0 != .chrome }
+        #else
+        nil
+        #endif
+    }
+
     private static let ttyLaunch = ProviderTTYLaunchConfig(
         executableOverrideEnvironmentKey: "CLAUDE_CLI_PATH",
         bundledWatchdogHelperName: "CodexBarClaudeWatchdog",
@@ -123,7 +132,7 @@ public enum ClaudeProviderDescriptor {
                     probeLogOrder: 1,
                     notificationSimulationOrder: 1,
                     errorSimulationOrder: 1),
-                browserCookieOrder: ProviderBrowserCookieDefaults.defaultImportOrder,
+                browserCookieOrder: self.browserCookieOrder,
                 dashboardURL: "https://console.anthropic.com/settings/billing",
                 subscriptionDashboardURL: "https://claude.ai/settings/usage",
                 changelogURL: "https://github.com/anthropics/claude-code/releases",

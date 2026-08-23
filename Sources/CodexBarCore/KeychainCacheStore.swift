@@ -513,12 +513,14 @@ public enum KeychainCacheStore {
         !KeychainAccessGate.isDisabled
     }
 
-    /// When the user disables Keychain access, keep an in-process cache so cookie/session
+    /// When persistent cookie-cache access is unavailable, keep an in-process cache so session
     /// reconciliation can still succeed without treating every refresh as a session change.
     /// Unit tests keep using the isolated test stores instead, unless a test explicitly opts in.
     private static func shouldUseDisabledAccessMemoryStore(for category: String) -> Bool {
         #if DEBUG
-        if self.disabledAccessMemoryStoreEnabledForTesting == true {
+        if self.disabledAccessMemoryStoreEnabledForTesting == true ||
+            self.bundledAdHocProcessOverrideForTesting == true
+        {
             return category == "cookie"
         }
         if KeychainTestSafety.isRunningUnderTests(
@@ -538,7 +540,7 @@ public enum KeychainCacheStore {
             return true
         }
         guard category == "cookie" else { return false }
-        return KeychainAccessGate.isExplicitlyDisabled
+        return KeychainAccessGate.isExplicitlyDisabled || self.isBundledAdHocProcess
     }
 
     /// True when the running executable has no `.app` bundle ancestor.
@@ -587,7 +589,7 @@ public enum KeychainCacheStore {
     }
     #endif
 
-    /// Drops the in-process fallback used while Keychain access is explicitly disabled.
+    /// Drops the in-process fallback used when persistent cookie-cache access is unavailable.
     static func clearDisabledAccessMemoryStore() {
         self.disabledAccessMemoryLock.lock()
         self.disabledAccessMemoryStore.removeAll()
@@ -599,7 +601,8 @@ public enum KeychainCacheStore {
 
     private static var prefersDisabledAccessMemoryStoreOverTestStore: Bool {
         #if DEBUG
-        self.disabledAccessMemoryStoreEnabledForTesting == true
+        self.disabledAccessMemoryStoreEnabledForTesting == true ||
+            self.bundledAdHocProcessOverrideForTesting == true
         #else
         false
         #endif
@@ -846,7 +849,7 @@ public enum KeychainCacheStore {
         defer { self.disabledAccessMemoryLock.unlock() }
         let memoryKey = TestStoreKey(service: self.serviceName, account: key.account)
         self.disabledAccessMemoryStore[memoryKey] = data
-        self.log.debug("Keychain cache stored in memory (Keychain access disabled)", metadata: [
+        self.log.debug("Cookie cache stored in process memory", metadata: [
             "account": key.account,
         ])
         return true

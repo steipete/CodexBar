@@ -51,6 +51,25 @@ struct KeychainNoUIQueryTests {
     }
 
     @Test
+    func `generic password preflight memo is scoped to one operation`() {
+        var checkCount = 0
+
+        KeychainAccessPreflight.withCheckGenericPasswordOverrideForTesting { _, _ in
+            checkCount += 1
+            return .allowed
+        } operation: {
+            KeychainAccessPreflight.withMemoizedGenericPasswordChecks {
+                _ = KeychainAccessPreflight.checkGenericPassword(service: "Chrome Safe Storage", account: "Chrome")
+                _ = KeychainAccessPreflight.checkGenericPassword(service: "Chrome Safe Storage", account: "Chrome")
+                _ = KeychainAccessPreflight.checkGenericPassword(service: "Chrome Safe Storage", account: "Canary")
+            }
+            _ = KeychainAccessPreflight.checkGenericPassword(service: "Chrome Safe Storage", account: "Chrome")
+        }
+
+        #expect(checkCount == 3)
+    }
+
+    @Test
     func `decrypt ACL requires successful code signature validation without a prompt selector`() {
         #expect(KeychainAccessPreflight.decryptACLAllowsCurrentProcess(
             trustedApplicationValidationResults: [true],

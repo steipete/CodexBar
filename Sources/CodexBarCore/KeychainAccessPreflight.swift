@@ -1,6 +1,7 @@
+import Foundation
+
 #if os(macOS)
 import Darwin
-import Foundation
 import LocalAuthentication
 import Security
 #endif
@@ -90,7 +91,32 @@ public enum KeychainAccessPreflight {
         case failure(Int)
     }
 
+    private struct GenericPasswordKey: Hashable {
+        let service: String
+        let account: String?
+    }
+
+    private final class GenericPasswordCheckMemo: @unchecked Sendable {
+        private let lock = NSLock()
+        private var outcomes: [GenericPasswordKey: Outcome] = [:]
+
+        func outcome(
+            for key: GenericPasswordKey,
+            check: () -> Outcome) -> Outcome
+        {
+            self.lock.lock()
+            defer { self.lock.unlock() }
+            if let outcome = self.outcomes[key] {
+                return outcome
+            }
+            let outcome = check()
+            self.outcomes[key] = outcome
+            return outcome
+        }
+    }
+
     private static let log = CodexBarLog.logger(LogCategories.keychainPreflight)
+    @TaskLocal private static var genericPasswordCheckMemo: GenericPasswordCheckMemo?
 
     #if DEBUG
     final class CheckGenericPasswordOverrideStore: @unchecked Sendable {
@@ -131,7 +157,27 @@ public enum KeychainAccessPreflight {
     }
     #endif
 
+    /// Reuses identical no-UI generic-password preflights within one synchronous operation.
+    /// The scope is deliberately short-lived because Keychain items and their ACLs can change.
+    public static func withMemoizedGenericPasswordChecks<T>(
+        _ operation: () throws -> T) rethrows -> T
+    {
+        try self.$genericPasswordCheckMemo.withValue(GenericPasswordCheckMemo()) {
+            try operation()
+        }
+    }
+
     public static func checkGenericPassword(service: String, account: String?) -> Outcome {
+        let key = GenericPasswordKey(service: service, account: account)
+        if let memo = self.genericPasswordCheckMemo {
+            return memo.outcome(for: key) {
+                self.checkGenericPasswordUncached(service: service, account: account)
+            }
+        }
+        return self.checkGenericPasswordUncached(service: service, account: account)
+    }
+
+    private static func checkGenericPasswordUncached(service: String, account: String?) -> Outcome {
         #if os(macOS)
         #if DEBUG
         if let override = self.taskCheckGenericPasswordOverrideStore {

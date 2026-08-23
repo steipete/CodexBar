@@ -60,6 +60,9 @@ public enum BrowserCookieAccessGate {
     private static let log = CodexBarLog.logger(LogCategories.browserCookieGate)
     @TaskLocal private static var explicitRetryScope: ExplicitRetryScope?
     @TaskLocal private static var deniedBrowsersForTesting: [Browser]?
+    #if DEBUG
+    @TaskLocal private static var shouldAttemptOverrideForTesting: Bool?
+    #endif
 
     static let allowTestCookieAccessEnvironmentKey = "CODEXBAR_ALLOW_TEST_BROWSER_COOKIE_ACCESS"
 
@@ -84,6 +87,11 @@ public enum BrowserCookieAccessGate {
     }
 
     public static func shouldAttempt(_ browser: Browser, now: Date = Date()) -> Bool {
+        #if DEBUG
+        if let shouldAttemptOverrideForTesting {
+            return shouldAttemptOverrideForTesting
+        }
+        #endif
         guard browser.usesKeychainForCookieDecryption else { return true }
         guard !KeychainAccessGate.isDisabled else { return false }
         guard ProviderInteractionContext.current == .userInitiated else {
@@ -166,6 +174,17 @@ public enum BrowserCookieAccessGate {
             try await operation()
         }
     }
+
+    #if DEBUG
+    static func withShouldAttemptOverrideForTesting<T>(
+        _ result: Bool?,
+        operation: () throws -> T) rethrows -> T
+    {
+        try self.$shouldAttemptOverrideForTesting.withValue(result) {
+            try operation()
+        }
+    }
+    #endif
 
     static func operationPreservingAccessContext<T: Sendable>(
         _ operation: @escaping @Sendable () throws -> T) -> @Sendable () throws -> T

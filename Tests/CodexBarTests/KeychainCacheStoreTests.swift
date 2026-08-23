@@ -325,6 +325,90 @@ struct KeychainCacheStoreTests {
     }
 
     @Test
+    func `bundled ad hoc builds keep cookie cache in process memory`() {
+        KeychainCacheStore.resetDisabledAccessMemoryStoreForTesting()
+        defer { KeychainCacheStore.resetDisabledAccessMemoryStoreForTesting() }
+
+        let service = "adhoc-memory-\(UUID().uuidString)"
+        let key = KeychainCacheStore.Key.cookie(provider: .claude)
+        let entry = TestEntry(value: "sessionKey=memory", storedAt: Date(timeIntervalSince1970: 4))
+
+        KeychainCacheStore.withBundledAdHocProcessForTesting(true) {
+            KeychainCacheStore.withServiceOverrideForTesting(service) {
+                #expect(KeychainCacheStore.storeResult(key: key, entry: entry))
+                #expect(self.loadedEntry(for: key) == entry)
+                #expect(KeychainCacheStore.keys(category: "cookie") == [key])
+                #expect(KeychainCacheStore.clearResult(key: key) == .removed)
+                #expect(self.loadedEntry(for: key) == nil)
+            }
+        }
+    }
+
+    @Test
+    func `certificate signed builds keep cookie cache in persistent store`() {
+        KeychainCacheStore.resetDisabledAccessMemoryStoreForTesting()
+        KeychainCacheStore.setTestStoreForTesting(true)
+        defer {
+            KeychainCacheStore.setTestStoreForTesting(false)
+            KeychainCacheStore.resetDisabledAccessMemoryStoreForTesting()
+        }
+
+        let service = "signed-persistent-\(UUID().uuidString)"
+        let key = KeychainCacheStore.Key.cookie(provider: .claude)
+        let entry = TestEntry(value: "sessionKey=persistent", storedAt: Date(timeIntervalSince1970: 5))
+
+        KeychainCacheStore.withBundledAdHocProcessForTesting(false) {
+            KeychainCacheStore.withServiceOverrideForTesting(service) {
+                #expect(KeychainCacheStore.storeResult(key: key, entry: entry))
+                #expect(self.loadedEntry(for: key) == entry)
+            }
+        }
+
+        KeychainCacheStore.withBundledAdHocProcessForTesting(true) {
+            KeychainCacheStore.withServiceOverrideForTesting(service) {
+                #expect(self.loadedEntry(for: key) == nil)
+            }
+        }
+
+        KeychainCacheStore.withBundledAdHocProcessForTesting(false) {
+            KeychainCacheStore.withServiceOverrideForTesting(service) {
+                #expect(self.loadedEntry(for: key) == entry)
+                #expect(KeychainCacheStore.clearResult(key: key) == .removed)
+            }
+        }
+    }
+
+    @Test
+    func `code signing certificate detection recognizes signed system code`() {
+        #expect(KeychainCacheStore.hasCodeSigningCertificate(at: URL(fileURLWithPath: "/usr/bin/security")))
+        #expect(!KeychainCacheStore.hasCodeSigningCertificate(
+            at: URL(fileURLWithPath: "/path/that/does/not/exist")))
+    }
+
+    @Test
+    func `bundled ad hoc builds do not move OAuth credentials into memory`() {
+        KeychainCacheStore.resetDisabledAccessMemoryStoreForTesting()
+        defer {
+            KeychainCacheStore.resetDisabledAccessMemoryStoreForTesting()
+            KeychainAccessGate.resetOverrideForTesting()
+        }
+
+        let service = "adhoc-memory-oauth-\(UUID().uuidString)"
+        let key = KeychainCacheStore.Key.oauth(provider: .claude)
+        let entry = TestEntry(value: "synthetic-oauth-credential", storedAt: Date(timeIntervalSince1970: 5))
+
+        KeychainAccessGate.withTaskOverrideForTesting(true) {
+            KeychainCacheStore.withBundledAdHocProcessForTesting(true) {
+                KeychainCacheStore.withServiceOverrideForTesting(service) {
+                    #expect(!KeychainCacheStore.storeResult(key: key, entry: entry))
+                    #expect(self.loadedEntry(for: key) == nil)
+                    #expect(KeychainCacheStore.keysResult(category: "oauth") == .failed)
+                }
+            }
+        }
+    }
+
+    @Test
     func `disabled keychain access does not retain OAuth entries in memory`() {
         KeychainCacheStore.resetDisabledAccessMemoryStoreForTesting()
         defer {
