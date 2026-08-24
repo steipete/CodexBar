@@ -186,6 +186,8 @@ struct NotchUsageOverlayModel: Equatable {
             var bars = snapshot.map {
                 self.bars(snapshot: $0, labels: labels, showUsed: showUsed, now: now)
             } ?? []
+            // Provider-specific by design: the fourth-bar fallback to monthly credits reads the
+            // Codex-only global credits snapshot; no other provider publishes an equivalent.
             if provider == .codex, bars.count < 4, let creditLimit = store.credits?.codexCreditLimit {
                 bars.append(self.makeCreditBar(creditLimit: creditLimit, showUsed: showUsed, now: now))
             }
