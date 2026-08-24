@@ -175,6 +175,77 @@ struct CLIConfigCommandTests {
     }
 
     @Test
+    func `config set api key migrates an existing single key into the account list`() throws {
+        let config = CodexBarConfig.makeDefault()
+        let withLegacyKey = CodexBarCLI.configSettingAPIKey(
+            config,
+            provider: .opencodego,
+            apiKey: "sk-legacy",
+            enableProvider: true)
+
+        let options = try #require(try CodexBarCLI.resolveConfigAPIKeyAccountOptions(
+            provider: .opencodego,
+            label: "Work",
+            usageScope: nil,
+            organizationID: nil,
+            workspaceID: nil))
+        let updated = CodexBarCLI.configSettingAPIKey(
+            withLegacyKey,
+            provider: .opencodego,
+            apiKey: "sk-work",
+            enableProvider: true,
+            accountOptions: options)
+
+        let provider = try #require(updated.providerConfig(for: .opencodego))
+        let accounts = provider.tokenAccounts?.accounts ?? []
+
+        // The previously configured single key must survive as its own account instead of being
+        // discarded when providerConfig.apiKey is cleared to make room for the account list.
+        #expect(provider.apiKey == nil)
+        #expect(accounts.count == 2)
+        #expect(accounts[0].label == "Default")
+        #expect(accounts[0].token == "sk-legacy")
+        #expect(accounts[1].label == "Work")
+        #expect(accounts[1].token == "sk-work")
+        #expect(provider.tokenAccounts?.activeIndex == 1)
+    }
+
+    @Test
+    func `config set api key does not duplicate the legacy key when accounts already exist`() throws {
+        let config = CodexBarConfig.makeDefault()
+        let firstOptions = try #require(try CodexBarCLI.resolveConfigAPIKeyAccountOptions(
+            provider: .opencodego,
+            label: "Personal",
+            usageScope: nil,
+            organizationID: nil,
+            workspaceID: nil))
+        let withFirstAccount = CodexBarCLI.configSettingAPIKey(
+            config,
+            provider: .opencodego,
+            apiKey: "sk-personal",
+            enableProvider: true,
+            accountOptions: firstOptions)
+
+        let secondOptions = try #require(try CodexBarCLI.resolveConfigAPIKeyAccountOptions(
+            provider: .opencodego,
+            label: "Work",
+            usageScope: nil,
+            organizationID: nil,
+            workspaceID: nil))
+        let updated = CodexBarCLI.configSettingAPIKey(
+            withFirstAccount,
+            provider: .opencodego,
+            apiKey: "sk-work",
+            enableProvider: true,
+            accountOptions: secondOptions)
+
+        let accounts = updated.providerConfig(for: .opencodego)?.tokenAccounts?.accounts ?? []
+
+        #expect(accounts.count == 2)
+        #expect(accounts.map(\.label) == ["Personal", "Work"])
+    }
+
+    @Test
     func `config provider toggle parses provider and json flags`() throws {
         let parser = CommandParser(signature: CodexBarCLI._configProviderToggleSignatureForTesting())
         let parsed = try parser.parse(arguments: [

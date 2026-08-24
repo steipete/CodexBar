@@ -230,7 +230,21 @@ extension CodexBarCLI {
         var providerConfig = updated.providerConfig(for: provider.instanceID) ?? ProviderConfig(id: provider.instanceID)
         if let accountOptions {
             let existing = providerConfig.tokenAccounts
-            let accounts = existing?.accounts ?? []
+            var accounts = existing?.accounts ?? []
+            // A previously configured single API key is about to be cleared below to make room
+            // for the account list. Migrate it into that list first so adding a labeled account
+            // doesn't silently discard the only copy of an already-working credential.
+            if accounts.isEmpty, let legacyKey = providerConfig.apiKey?.trimmingCharacters(in: .whitespacesAndNewlines),
+               !legacyKey.isEmpty
+            {
+                accounts.append(ProviderTokenAccount(
+                    id: UUID(),
+                    label: "Default",
+                    token: legacyKey,
+                    addedAt: Date().timeIntervalSince1970,
+                    lastUsed: nil,
+                    usageScope: ZaiUsageScope.personal.rawValue))
+            }
             let account = ProviderTokenAccount(
                 id: UUID(),
                 label: accountOptions.label,
@@ -240,10 +254,11 @@ extension CodexBarCLI {
                 usageScope: accountOptions.usageScope.rawValue,
                 organizationID: accountOptions.organizationID,
                 workspaceID: accountOptions.workspaceID)
+            accounts.append(account)
             providerConfig.tokenAccounts = ProviderTokenAccountData(
                 version: existing?.version ?? 1,
-                accounts: accounts + [account],
-                activeIndex: accounts.count)
+                accounts: accounts,
+                activeIndex: accounts.count - 1)
             providerConfig.apiKey = nil
             if enableProvider {
                 providerConfig.enabled = true

@@ -61,6 +61,30 @@ struct ProviderCookieSettingsResolverTests {
     }
 
     @Test
+    func `legacy cookie shaped token accounts still route as cookies for opencodego`() {
+        let settings = ProviderCookieSettingsResolver.resolve(
+            provider: .opencodego,
+            configuredSource: .auto,
+            configuredHeader: nil,
+            selectedAccount: Self.account(token: "session=legacy; other=value"))
+
+        #expect(settings.cookieSource == .auto)
+        #expect(settings.manualCookieHeader == "session=legacy; other=value")
+    }
+
+    @Test
+    func `api key shaped token accounts do not become cookie credentials for opencodego`() {
+        let settings = ProviderCookieSettingsResolver.resolve(
+            provider: .opencodego,
+            configuredSource: .auto,
+            configuredHeader: "configured=true",
+            selectedAccount: Self.account(token: "sk-abc123"))
+
+        #expect(settings.cookieSource == .auto)
+        #expect(settings.manualCookieHeader == "configured=true")
+    }
+
+    @Test
     func `providers without token account support ignore selected account`() {
         let settings = ProviderCookieSettingsResolver.resolve(
             provider: .mimo,

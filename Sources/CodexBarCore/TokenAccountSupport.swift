@@ -19,6 +19,14 @@ public struct TokenAccountSupport: Sendable {
     public let showsOrganizationField: Bool
     public let showsTeamModeControls: Bool
     public let primaryAddActionTitle: String?
+    /// Optional escape hatch for a provider whose injection is `.environment` but whose token
+    /// accounts may still contain values saved under a prior `.cookieHeader` injection (e.g. a
+    /// provider migrated from cookie-only to API-key-only multi-account support). When set and
+    /// it returns true for a given account's resolved token, that token is routed through the
+    /// cookie/web path instead of being sent as a bearer API key, so accounts saved before the
+    /// migration keep authenticating. Nil for every provider that never had cookie-header token
+    /// accounts, which is the default and does not change their behavior.
+    public let legacyCookieDetector: (@Sendable (String) -> Bool)?
     private let environmentOverride: @Sendable (String) -> [String: String]?
     private let environmentScrubber: @Sendable (inout [String: String], String) -> Void
     private let cookieHeaderNormalizer: @Sendable (String) -> String
@@ -37,6 +45,7 @@ public struct TokenAccountSupport: Sendable {
         showsOrganizationField: Bool = false,
         showsTeamModeControls: Bool = false,
         primaryAddActionTitle: String? = nil,
+        legacyCookieDetector: (@Sendable (String) -> Bool)? = nil,
         environmentOverride: (@Sendable (String) -> [String: String]?)? = nil,
         environmentScrubber: (@Sendable (inout [String: String], String) -> Void)? = nil,
         cookieHeaderNormalizer: (@Sendable (String) -> String)? = nil)
@@ -54,6 +63,7 @@ public struct TokenAccountSupport: Sendable {
         self.showsOrganizationField = showsOrganizationField
         self.showsTeamModeControls = showsTeamModeControls
         self.primaryAddActionTitle = primaryAddActionTitle
+        self.legacyCookieDetector = legacyCookieDetector
         self.environmentOverride = environmentOverride ?? { token in
             guard case let .environment(key) = injection else { return nil }
             return [key: token]
