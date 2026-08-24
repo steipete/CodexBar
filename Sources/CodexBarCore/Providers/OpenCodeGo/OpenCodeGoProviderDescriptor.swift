@@ -121,16 +121,19 @@ public enum OpenCodeGoProviderDescriptor {
     }
 
     private static func resolveStrategies(context: ProviderFetchContext) async -> [any ProviderFetchStrategy] {
-        if context.sourceMode == .api {
-            return [OpenCodeGoAPIUsageFetchStrategy()]
-        }
-        if context.sourceMode == .web {
-            return [OpenCodeGoUsageFetchStrategy()]
-        }
         // Token accounts for this provider now inject a plain API key (see the .environment
         // injection on its TokenAccountSupport), so a per-account fetch should try the API
-        // strategy instead of the cookie-based web strategy the other scoped cases use.
-        // Two things this must not do:
+        // strategy instead of the cookie-based web strategy the other scoped cases use. This
+        // selected-account routing must run BEFORE the sourceMode == .api / .web early returns
+        // below, and must hold regardless of which explicit sourceMode was requested: an
+        // explicit --source web forced against a genuine API-key account has no per-account
+        // cookie to send (it would silently use an unrelated global/cached cookie and mislabel
+        // it as this account); an explicit --source api forced against a legacy cookie account
+        // would send that cookie as a bogus bearer token. Both fail closed (empty strategy list,
+        // surfaced as "no available fetch strategy") instead of silently using the wrong data
+        // source under this account's label.
+        //
+        // Two more things this must not do:
         //  - Reinterpret a token account saved *before* this change (a raw Cookie header) as an
         //    API key. Sniff the resolved token's shape and keep routing cookie-shaped values
         //    through the original cookie-first chain so upgraded accounts keep authenticating.
@@ -140,14 +143,33 @@ public enum OpenCodeGoProviderDescriptor {
         //    account's label instead of reporting the failure.
         if context.selectedTokenAccountID != nil {
             let resolvedToken = context.env[OpenCodeGoSettingsReader.apiKeyEnvironmentKey]
-            if let resolvedToken, Self.looksLikeCookieHeader(resolvedToken) {
-                return [
-                    OpenCodeGoUsageFetchStrategy(),
-                    OpenCodeGoLocalUsageFetchStrategy(),
-                    OpenCodeGoAPIUsageFetchStrategy(),
-                ]
+            let isLegacyCookie = resolvedToken.map(Self.looksLikeCookieHeader) ?? false
+            switch context.sourceMode {
+            case .api:
+                return isLegacyCookie ? [] : [OpenCodeGoAPIUsageFetchStrategy()]
+            case .web:
+                return isLegacyCookie
+                    ? [
+                        OpenCodeGoUsageFetchStrategy(),
+                        OpenCodeGoLocalUsageFetchStrategy(),
+                        OpenCodeGoAPIUsageFetchStrategy(),
+                    ]
+                    : []
+            default:
+                return isLegacyCookie
+                    ? [
+                        OpenCodeGoUsageFetchStrategy(),
+                        OpenCodeGoLocalUsageFetchStrategy(),
+                        OpenCodeGoAPIUsageFetchStrategy(),
+                    ]
+                    : [OpenCodeGoAPIUsageFetchStrategy()]
             }
+        }
+        if context.sourceMode == .api {
             return [OpenCodeGoAPIUsageFetchStrategy()]
+        }
+        if context.sourceMode == .web {
+            return [OpenCodeGoUsageFetchStrategy()]
         }
         if self.requiresScopedWebStrategy(context: context) {
             return [

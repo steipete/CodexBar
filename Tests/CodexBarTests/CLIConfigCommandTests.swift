@@ -211,6 +211,37 @@ struct CLIConfigCommandTests {
     }
 
     @Test
+    func `config set api key does not duplicate an identical legacy key when naming the same account`() throws {
+        let config = CodexBarConfig.makeDefault()
+        let withLegacyKey = CodexBarCLI.configSettingAPIKey(
+            config,
+            provider: .opencodego,
+            apiKey: "sk-same",
+            enableProvider: true)
+
+        let options = try #require(try CodexBarCLI.resolveConfigAPIKeyAccountOptions(
+            provider: .opencodego,
+            label: "Personal",
+            usageScope: nil,
+            organizationID: nil,
+            workspaceID: nil))
+        let updated = CodexBarCLI.configSettingAPIKey(
+            withLegacyKey,
+            provider: .opencodego,
+            apiKey: "sk-same",
+            enableProvider: true,
+            accountOptions: options)
+
+        let accounts = updated.providerConfig(for: .opencodego)?.tokenAccounts?.accounts ?? []
+
+        // Same token as the existing single key: the user is naming their current subscription,
+        // not adding a second one. Must not fetch and render the same subscription twice.
+        #expect(accounts.count == 1)
+        #expect(accounts[0].label == "Personal")
+        #expect(accounts[0].token == "sk-same")
+    }
+
+    @Test
     func `config set api key does not duplicate the legacy key when accounts already exist`() throws {
         let config = CodexBarConfig.makeDefault()
         let firstOptions = try #require(try CodexBarCLI.resolveConfigAPIKeyAccountOptions(

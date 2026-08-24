@@ -80,7 +80,11 @@ extension SettingsStore {
             && TokenAccountSupportCatalog.support(for: provider)?.migratesExistingAPIKeyOnFirstAccount == true
             ? self.providerConfig(for: provider)?.apiKey?.trimmingCharacters(in: .whitespacesAndNewlines)
             : nil
-        if let legacyKey, !legacyKey.isEmpty {
+        // If the account being added uses the same token as the existing single key, the user is
+        // just naming their current subscription (e.g. via Add Account), not adding a second one.
+        // Let the account appended below carry that label instead of also migrating a duplicate
+        // "Default" entry with the identical token, which would fetch and render it twice.
+        if let legacyKey, !legacyKey.isEmpty, legacyKey != trimmedToken {
             accounts.append(ProviderTokenAccount(
                 id: UUID(),
                 label: "Default",

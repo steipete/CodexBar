@@ -85,6 +85,58 @@ struct OpenCodeGoProviderStrategyTests {
     }
 
     @Test
+    func `explicit api source uses the api strategy for a selected API-key token account`() async {
+        let descriptor = OpenCodeGoProviderDescriptor.makeDescriptor()
+        let strategies = await descriptor.fetchPlan.pipeline.resolveStrategies(
+            self.makeContext(
+                sourceMode: .api,
+                env: [OpenCodeGoSettingsReader.apiKeyEnvironmentKey: "sk-abc123"],
+                selectedTokenAccountID: UUID()))
+
+        #expect(strategies.map(\.id) == ["opencodego.api"])
+    }
+
+    @Test
+    func `explicit api source fails closed for a selected legacy cookie token account`() async {
+        let descriptor = OpenCodeGoProviderDescriptor.makeDescriptor()
+        let strategies = await descriptor.fetchPlan.pipeline.resolveStrategies(
+            self.makeContext(
+                sourceMode: .api,
+                env: [OpenCodeGoSettingsReader.apiKeyEnvironmentKey: "session=abc; other=def"],
+                selectedTokenAccountID: UUID()))
+
+        // A legacy cookie can't authenticate as an API key. Fail closed instead of sending the
+        // cookie as a bogus bearer token.
+        #expect(strategies.isEmpty)
+    }
+
+    @Test
+    func `explicit web source uses the cookie chain for a selected legacy cookie token account`() async {
+        let descriptor = OpenCodeGoProviderDescriptor.makeDescriptor()
+        let strategies = await descriptor.fetchPlan.pipeline.resolveStrategies(
+            self.makeContext(
+                sourceMode: .web,
+                env: [OpenCodeGoSettingsReader.apiKeyEnvironmentKey: "session=abc; other=def"],
+                selectedTokenAccountID: UUID()))
+
+        #expect(strategies.map(\.id) == ["opencodego.web", "opencodego.local", "opencodego.api"])
+    }
+
+    @Test
+    func `explicit web source fails closed for a selected API-key token account`() async {
+        let descriptor = OpenCodeGoProviderDescriptor.makeDescriptor()
+        let strategies = await descriptor.fetchPlan.pipeline.resolveStrategies(
+            self.makeContext(
+                sourceMode: .web,
+                env: [OpenCodeGoSettingsReader.apiKeyEnvironmentKey: "sk-abc123"],
+                selectedTokenAccountID: UUID()))
+
+        // An API-key account has no per-account cookie. Fail closed instead of silently using an
+        // unrelated global/cached cookie and mislabeling it as this account.
+        #expect(strategies.isEmpty)
+    }
+
+    @Test
     // swiftlint:disable:next line_length
     func `auto source keeps the cookie-first ordering for manual cookies and workspace overrides without a selected token account`() async {
         // Selected token accounts inject a plain API key, so they reorder to API-first (see

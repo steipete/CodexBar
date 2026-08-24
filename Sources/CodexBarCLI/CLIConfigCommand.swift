@@ -236,10 +236,15 @@ extension CodexBarCLI {
             // doesn't silently discard the only copy of an already-working credential. Opt-in
             // per provider (see migratesExistingAPIKeyOnFirstAccount): most providers keep a
             // configured single key deliberately separate from token accounts.
+            // If the account being added uses the same token as the existing single key, the
+            // user is just naming their current subscription, not adding a second one. Let the
+            // account appended below carry that label instead of also migrating a duplicate
+            // "Default" entry with the identical token, which would fetch and render it twice.
             if accounts.isEmpty,
                TokenAccountSupportCatalog.support(for: provider)?.migratesExistingAPIKeyOnFirstAccount == true,
                let legacyKey = providerConfig.apiKey?.trimmingCharacters(in: .whitespacesAndNewlines),
-               !legacyKey.isEmpty
+               !legacyKey.isEmpty,
+               legacyKey != apiKey
             {
                 accounts.append(ProviderTokenAccount(
                     id: UUID(),
