@@ -240,10 +240,11 @@ extension CodexBarCLI {
             // user is just naming their current subscription, not adding a second one. Let the
             // account appended below carry that label instead of also migrating a duplicate
             // "Default" entry with the identical token, which would fetch and render it twice.
-            if accounts.isEmpty,
-               TokenAccountSupportCatalog.support(for: provider)?.migratesExistingAPIKeyOnFirstAccount == true,
-               let legacyKey = providerConfig.apiKey?.trimmingCharacters(in: .whitespacesAndNewlines),
-               !legacyKey.isEmpty,
+            let migratesExistingKey = TokenAccountSupportCatalog.support(for: provider)?
+                .migratesExistingAPIKeyOnFirstAccount == true
+            let sanitizedLegacyKey = providerConfig.apiKey?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let hasLegacyKey = !(sanitizedLegacyKey?.isEmpty ?? true)
+            if accounts.isEmpty, migratesExistingKey, let legacyKey = sanitizedLegacyKey, hasLegacyKey,
                legacyKey != apiKey
             {
                 accounts.append(ProviderTokenAccount(
@@ -268,7 +269,14 @@ extension CodexBarCLI {
                 version: existing?.version ?? 1,
                 accounts: accounts,
                 activeIndex: accounts.count - 1)
-            providerConfig.apiKey = nil
+            // Only clear the single-key field once its value is safely represented elsewhere
+            // (migrated into the account list, or it never held anything). A provider that
+            // hasn't opted into migration keeps its existing key untouched instead of losing it:
+            // once tokenAccounts is non-empty, fetches route through the selected account, so
+            // the leftover key is simply inert, not double-used.
+            if !hasLegacyKey || migratesExistingKey {
+                providerConfig.apiKey = nil
+            }
             if enableProvider {
                 providerConfig.enabled = true
             }

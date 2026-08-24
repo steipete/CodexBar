@@ -211,6 +211,40 @@ struct CLIConfigCommandTests {
     }
 
     @Test
+    func `config set api key preserves an existing key for a provider that does not migrate it`() throws {
+        let config = CodexBarConfig.makeDefault()
+        let withExistingKey = CodexBarCLI.configSettingAPIKey(
+            config,
+            provider: .openrouter,
+            apiKey: "or-existing",
+            enableProvider: true)
+
+        let options = try #require(try CodexBarCLI.resolveConfigAPIKeyAccountOptions(
+            provider: .openrouter,
+            label: "Personal",
+            usageScope: nil,
+            organizationID: nil,
+            workspaceID: nil))
+        let updated = CodexBarCLI.configSettingAPIKey(
+            withExistingKey,
+            provider: .openrouter,
+            apiKey: "or-personal",
+            enableProvider: true,
+            accountOptions: options)
+
+        let provider = try #require(updated.providerConfig(for: .openrouter))
+        let accounts = provider.tokenAccounts?.accounts ?? []
+
+        // OpenRouter does not opt into migratesExistingAPIKeyOnFirstAccount, so the existing
+        // single key must survive untouched instead of being silently deleted while only the
+        // new named account gets added.
+        #expect(provider.apiKey == "or-existing")
+        #expect(accounts.count == 1)
+        #expect(accounts[0].label == "Personal")
+        #expect(accounts[0].token == "or-personal")
+    }
+
+    @Test
     func `config set api key does not duplicate an identical legacy key when naming the same account`() throws {
         let config = CodexBarConfig.makeDefault()
         let withLegacyKey = CodexBarCLI.configSettingAPIKey(
