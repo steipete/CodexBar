@@ -494,27 +494,30 @@ struct CodexWeeklyResetConfirmationTests {
     }
 
     @Test
-    func `unchanged regressed and mismatched reset boundaries preserve the previous snapshot`() {
-        let previous = self.snapshot(offset: 0, weeklyUsed: 50, weeklyReset: self.resetAt)
-        let unchanged = self.snapshot(offset: 1, weeklyUsed: 0, weeklyReset: self.resetAt)
-        let regressed = self.snapshot(
+    func `only a genuinely unchanged reset boundary can publish a premature confirmed low`() {
+        let previous = self.identified(
+            self.snapshot(offset: 0, weeklyUsed: 50, weeklyReset: self.resetAt))
+        let unchanged = self.identified(
+            self.snapshot(offset: 1, weeklyUsed: 0, weeklyReset: self.resetAt))
+        let regressed = self.identified(self.snapshot(
             offset: 1,
             weeklyUsed: 0,
-            weeklyReset: self.resetAt.addingTimeInterval(-1))
+            weeklyReset: self.resetAt.addingTimeInterval(-1)))
         let advanced = self.resetAt.addingTimeInterval(7 * 24 * 60 * 60)
-        let initial = self.snapshot(offset: 1, weeklyUsed: 0, weeklyReset: advanced)
-        let mismatched = self.snapshot(
+        let initial = self.identified(
+            self.snapshot(offset: 1, weeklyUsed: 0, weeklyReset: advanced))
+        let mismatched = self.identified(self.snapshot(
             offset: 2,
             weeklyUsed: 0,
-            weeklyReset: advanced.addingTimeInterval(120))
-        let jitteredInitial = self.snapshot(
+            weeklyReset: advanced.addingTimeInterval(120)))
+        let jitteredInitial = self.identified(self.snapshot(
             offset: 1,
             weeklyUsed: 0,
-            weeklyReset: self.resetAt.addingTimeInterval(60))
-        let jitteredConfirmation = self.snapshot(
+            weeklyReset: self.resetAt.addingTimeInterval(60)))
+        let jitteredConfirmation = self.identified(self.snapshot(
             offset: 2,
             weeklyUsed: 0.5,
-            weeklyReset: self.resetAt.addingTimeInterval(90))
+            weeklyReset: self.resetAt.addingTimeInterval(90)))
 
         for candidate in [unchanged, regressed] {
             #expect(
@@ -524,18 +527,25 @@ struct CodexWeeklyResetConfirmationTests {
                 CodexWeeklyResetConfirmation.confirmationDecision(
                     previous: previous,
                     initial: candidate,
-                    confirmation: self.snapshot(offset: 2, weeklyUsed: 50, weeklyReset: self.resetAt))
+                    confirmation: self.identified(
+                        self.snapshot(offset: 2, weeklyUsed: 50, weeklyReset: self.resetAt)))
                     == .publishConfirmation)
-            #expect(
-                CodexWeeklyResetConfirmation.confirmationDecision(
-                    previous: previous,
-                    initial: candidate,
-                    confirmation: self.snapshot(
-                        offset: 2,
-                        weeklyUsed: 0,
-                        weeklyReset: candidate.secondary?.resetsAt))
-                    == .preservePrevious)
         }
+
+        #expect(
+            CodexWeeklyResetConfirmation.confirmationDecision(
+                previous: previous,
+                initial: unchanged,
+                confirmation: self.identified(
+                    self.snapshot(offset: 2, weeklyUsed: 0, weeklyReset: self.resetAt)))
+                == .publishConfirmation)
+        #expect(
+            CodexWeeklyResetConfirmation.confirmationDecision(
+                previous: previous,
+                initial: regressed,
+                confirmation: self.identified(
+                    self.snapshot(offset: 2, weeklyUsed: 0, weeklyReset: regressed.secondary?.resetsAt)))
+                == .preservePrevious)
         #expect(
             CodexWeeklyResetConfirmation.confirmationDecision(
                 previous: previous,
@@ -548,6 +558,49 @@ struct CodexWeeklyResetConfirmationTests {
                 initial: jitteredInitial,
                 confirmation: jitteredConfirmation)
                 == .preservePrevious)
+    }
+
+    @Test
+    func `unchanged boundary exception requires a stable account and plan`() {
+        let previous = self.identified(
+            self.snapshot(offset: 0, weeklyUsed: 50, weeklyReset: self.resetAt),
+            email: "stable@example.com",
+            plan: "pro")
+        let initial = self.identified(
+            self.snapshot(offset: 1, weeklyUsed: 0.5, weeklyReset: self.resetAt),
+            email: "stable@example.com",
+            plan: "pro")
+        let confirmation = self.identified(
+            self.snapshot(offset: 2, weeklyUsed: 0.8, weeklyReset: self.resetAt),
+            email: "stable@example.com",
+            plan: "pro")
+
+        #expect(
+            CodexWeeklyResetConfirmation.confirmationDecision(
+                previous: previous,
+                initial: initial,
+                confirmation: confirmation) == .publishConfirmation)
+        for incompatible in [
+            self.identified(confirmation, email: "other@example.com", plan: "pro"),
+            self.identified(confirmation, email: "stable@example.com", plan: "plus"),
+            self.identified(confirmation, email: nil, plan: "pro"),
+            self.identified(confirmation, email: "stable@example.com", plan: nil),
+        ] {
+            #expect(
+                CodexWeeklyResetConfirmation.confirmationDecision(
+                    previous: previous,
+                    initial: initial,
+                    confirmation: incompatible) == .preservePrevious)
+        }
+
+        let unidentifiedPrevious = self.snapshot(offset: 0, weeklyUsed: 50, weeklyReset: self.resetAt)
+        let unidentifiedInitial = self.snapshot(offset: 1, weeklyUsed: 0.5, weeklyReset: self.resetAt)
+        let unidentifiedConfirmation = self.snapshot(offset: 2, weeklyUsed: 0.8, weeklyReset: self.resetAt)
+        #expect(
+            CodexWeeklyResetConfirmation.confirmationDecision(
+                previous: unidentifiedPrevious,
+                initial: unidentifiedInitial,
+                confirmation: unidentifiedConfirmation) == .preservePrevious)
     }
 
     @Test
@@ -665,6 +718,18 @@ struct CodexWeeklyResetConfirmationTests {
             secondary: weeklyInPrimary ? session : weekly,
             codexResetCredits: resetCredits,
             updatedAt: capturedAt)
+    }
+
+    private func identified(
+        _ snapshot: UsageSnapshot,
+        email: String? = "stable@example.com",
+        plan: String? = "pro") -> UsageSnapshot
+    {
+        snapshot.withIdentity(ProviderIdentitySnapshot(
+            providerID: .codex,
+            accountEmail: email,
+            accountOrganization: nil,
+            loginMethod: plan))
     }
 
     private func resetCredits(

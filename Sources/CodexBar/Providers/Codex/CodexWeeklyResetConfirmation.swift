@@ -13,7 +13,17 @@ struct CodexWeeklyResetConfirmation: Sendable {
         case preservePrevious
     }
 
+    private struct StableUnchangedBoundaryContext {
+        let previous: UsageSnapshot
+        let initial: UsageSnapshot
+        let confirmation: UsageSnapshot
+        let previousBoundary: Date
+        let initialBoundary: Date
+        let confirmationBoundary: Date
+    }
+
     private static let resetEquivalenceToleranceSeconds: TimeInterval = 2 * 60
+    private static let stableUnchangedBoundaryToleranceSeconds: TimeInterval = 1
     private static let resetThreshold = 1.0
 
     static func initialDecision(
@@ -88,6 +98,7 @@ struct CodexWeeklyResetConfirmation: Sendable {
 
     static func confirmationDecision(
         previous: UsageSnapshot?,
+        previousEvidence: UsageSnapshot? = nil,
         initial: UsageSnapshot,
         confirmation: UsageSnapshot) -> ConfirmationDecision
     {
@@ -143,22 +154,62 @@ struct CodexWeeklyResetConfirmation: Sendable {
                previousWeekly,
                capturedAt: previous.updatedAt)
         {
+            let evidencePrevious = previousEvidence ?? previous
             let confirmsManualReset = Self.confirmsManualResetCreditConsumption(
-                previous: previous,
+                previous: evidencePrevious,
                 initial: initial,
                 confirmation: confirmation)
+            let confirmsStableUnchangedBoundary = Self.confirmsStableUnchangedBoundary(
+                context: StableUnchangedBoundaryContext(
+                    previous: evidencePrevious,
+                    initial: initial,
+                    confirmation: confirmation,
+                    previousBoundary: previousBoundary,
+                    initialBoundary: initialBoundary,
+                    confirmationBoundary: confirmationBoundary))
             if confirmation.updatedAt < previousBoundary.addingTimeInterval(-2 * 60),
-               !confirmsManualReset
+               !confirmsManualReset,
+               !confirmsStableUnchangedBoundary
             {
                 return .preservePrevious
             }
             guard initialBoundary.timeIntervalSince(previousBoundary) >= Self.resetEquivalenceToleranceSeconds,
                   confirmationBoundary.timeIntervalSince(previousBoundary) >= Self.resetEquivalenceToleranceSeconds
             else {
-                return .preservePrevious
+                return confirmsStableUnchangedBoundary ? .publishConfirmation : .preservePrevious
             }
         }
         return .publishConfirmation
+    }
+
+    private static func confirmsStableUnchangedBoundary(context: StableUnchangedBoundaryContext) -> Bool {
+        guard abs(context.initialBoundary.timeIntervalSince(context.previousBoundary))
+            < self.stableUnchangedBoundaryToleranceSeconds,
+            abs(context.confirmationBoundary.timeIntervalSince(context.previousBoundary))
+            < self.stableUnchangedBoundaryToleranceSeconds,
+            self.haveCompatibleAccountIdentities(context.previous, context.initial, context.confirmation),
+            self.haveCompatiblePlans(context.previous, context.initial, context.confirmation)
+        else {
+            return false
+        }
+        return true
+    }
+
+    private static func haveCompatibleAccountIdentities(_ snapshots: UsageSnapshot...) -> Bool {
+        let identities = snapshots.map { CodexIdentityResolver.normalizeEmail($0.accountEmail(for: .codex)) }
+        guard let first = identities.compactMap(\.self).first else { return false }
+        return identities.allSatisfy { $0 == first }
+    }
+
+    private static func haveCompatiblePlans(_ snapshots: UsageSnapshot...) -> Bool {
+        // Codex exposes the subscription tier through loginMethod, so it is the plan identity here.
+        let plans = snapshots.map { snapshot in
+            snapshot.loginMethod(for: .codex)?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .lowercased()
+        }
+        guard let first = plans.compactMap(\.self).first else { return false }
+        return plans.allSatisfy { $0 == first }
     }
 
     private static func confirmsManualResetCreditConsumption(

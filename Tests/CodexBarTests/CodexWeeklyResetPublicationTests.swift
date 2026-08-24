@@ -369,6 +369,101 @@ extension CodexAccountScopedRefreshTests {
     }
 
     @Test
+    func `single refresh publishes stable unchanged boundary low without immediate celebration`() async {
+        let suite = "CodexWeeklyResetPublicationTests-unchanged-boundary-low"
+        let email = "unchanged-boundary-low@example.com"
+        let settings = self.makeSettingsStore(suite: suite)
+        settings.refreshFrequency = .manual
+        settings.codexCookieSource = .off
+        settings._test_liveSystemCodexAccount = self.liveAccount(
+            email: email,
+            identity: .providerAccount(id: "acct-unchanged-boundary-low"))
+        defer { settings._test_liveSystemCodexAccount = nil }
+
+        let now = Date()
+        let boundary = now.addingTimeInterval(6 * 24 * 60 * 60)
+        let prior = self.codexWeeklySnapshot(
+            email: email,
+            weeklyUsedPercent: 72,
+            weeklyReset: boundary,
+            updatedAt: now.addingTimeInterval(-60))
+        let initialLow = self.codexWeeklySnapshot(
+            email: email,
+            weeklyUsedPercent: 0.2,
+            weeklyReset: boundary,
+            updatedAt: now.addingTimeInterval(-40))
+        let confirmedLow = self.codexWeeklySnapshot(
+            email: email,
+            weeklyUsedPercent: 0.7,
+            weeklyReset: boundary,
+            updatedAt: now.addingTimeInterval(-20))
+        let loader = SequencedCodexSnapshotLoader(steps: [
+            .success(initialLow),
+            .success(confirmedLow),
+        ])
+        let store = self.makeCodexWeeklyPublicationStore(settings: settings, suite: suite)
+        _ = await self.seedCodexWeeklyPublicationState(
+            store: store,
+            settings: settings,
+            snapshot: prior,
+            error: nil)
+        self.installContextualCodexProvider(on: store) { _ in try await loader.load() }
+        let recorder = CodexWeeklyPublicationEventRecorder(email: email)
+        defer { recorder.invalidate() }
+
+        await store.refreshProvider(.codex, allowDisabled: true)
+
+        #expect(await loader.callCount == 2)
+        #expect(store.snapshots[.codex]?.updatedAt == confirmedLow.updatedAt)
+        #expect(store.snapshots[.codex]?.secondary?.usedPercent == 0.7)
+        #expect(store.lastKnownResetSnapshots[.codex]?.updatedAt == confirmedLow.updatedAt)
+        #expect(store.weeklyLimitResetDetectorStates.values.first?.pendingLowConfirmation == true)
+        #expect(recorder.usedPercents.isEmpty)
+    }
+
+    @Test
+    func `newer identityless backfill does not erase unchanged boundary evidence`() async throws {
+        let email = "backfill-evidence@example.com"
+        let now = Date()
+        let boundary = now.addingTimeInterval(6 * 24 * 60 * 60)
+        let previous = self.codexWeeklySnapshot(
+            email: email,
+            weeklyUsedPercent: 72,
+            weeklyReset: boundary,
+            updatedAt: now.addingTimeInterval(-60))
+        let backfill = UsageSnapshot(
+            primary: nil,
+            secondary: RateWindow(
+                usedPercent: 72,
+                windowMinutes: 7 * 24 * 60,
+                resetsAt: boundary,
+                resetDescription: nil),
+            updatedAt: now.addingTimeInterval(-50))
+        let initial = self.codexWeeklySnapshot(
+            email: email,
+            weeklyUsedPercent: 0.2,
+            weeklyReset: boundary,
+            updatedAt: now.addingTimeInterval(-40))
+        let confirmation = self.codexWeeklySnapshot(
+            email: email,
+            weeklyUsedPercent: 0.7,
+            weeklyReset: boundary,
+            updatedAt: now.addingTimeInterval(-20))
+
+        let admitted = await UsageStore.codexOutcomeAdmittedForPublication(
+            initialOutcome: codexWeeklyFetchOutcome(initial),
+            previousSnapshot: previous,
+            missingWindowBackfillSnapshot: backfill,
+            fetchConfirmation: { codexWeeklyFetchOutcome(confirmation) })
+        let admittedOutcome = try #require(admitted)
+        let result = try admittedOutcome.result.get()
+
+        #expect(result.usage.updatedAt == confirmation.updatedAt)
+        #expect(result.usage.secondary?.usedPercent == 0.7)
+        #expect(result.usage.accountEmail(for: .codex) == email)
+    }
+
+    @Test
     func `matching weekly lows before the prior reset remain private`() async throws {
         let suite = "CodexWeeklyResetPublicationTests-early-rolling-boundary"
         let email = "early-rolling-boundary@example.com"
@@ -924,6 +1019,18 @@ extension CodexAccountScopedRefreshTests {
         #expect(store.planUtilizationHistoryRevision == expectation.historyRevision)
         #expect(recorder.usedPercents.isEmpty)
     }
+}
+
+private func codexWeeklyFetchOutcome(_ snapshot: UsageSnapshot) -> ProviderFetchOutcome {
+    ProviderFetchOutcome(
+        result: .success(ProviderFetchResult(
+            usage: snapshot,
+            credits: nil,
+            dashboard: nil,
+            sourceLabel: "weekly-reset-test",
+            strategyID: "weekly-reset-test",
+            strategyKind: .oauth)),
+        attempts: [])
 }
 
 private struct FinalStackedResetExpectation {
