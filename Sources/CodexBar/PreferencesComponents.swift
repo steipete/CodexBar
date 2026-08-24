@@ -100,6 +100,26 @@ struct OpenMenuShortcutRecorder: NSViewRepresentable {
     }
 }
 
+@MainActor
+struct NotchOverlayShortcutRecorder: NSViewRepresentable {
+    func makeNSView(context: Context) -> KeyboardShortcuts.RecorderCocoa {
+        KeyboardShortcuts.RecorderCocoa(for: .showNotchOverlay)
+    }
+
+    func updateNSView(_ nsView: KeyboardShortcuts.RecorderCocoa, context: Context) {
+        nsView.shortcutName = .showNotchOverlay
+    }
+
+    func sizeThatFits(
+        _: ProposedViewSize,
+        nsView: KeyboardShortcuts.RecorderCocoa,
+        context: Context)
+        -> CGSize?
+    {
+        OpenMenuShortcutRecorder.fittedSize(intrinsicHeight: nsView.intrinsicContentSize.height)
+    }
+}
+
 // MARK: - Legacy building blocks (Debug pane)
 
 @MainActor

@@ -493,6 +493,25 @@ extension SettingsStore {
         let adaptiveActivityScanConsent = Self.loadAdaptiveActivityScanConsent(userDefaults: userDefaults)
         let refreshAllProvidersOnMenuOpen = userDefaults.object(
             forKey: "refreshAllProvidersOnMenuOpen") as? Bool ?? false
+        let notchUsageSummaryEnabled = userDefaults.object(forKey: "notchUsageSummaryEnabled") as? Bool ?? false
+        let notchHiddenProviderIDsRaw = userDefaults.stringArray(forKey: "notchHiddenProviders") ?? []
+        let notchItemOrderRaw = userDefaults.stringArray(forKey: "notchItemOrder") ?? []
+        let notchColumnCount = SettingsStore.clampedNotchColumnCount(
+            userDefaults.object(forKey: "notchColumnCount") as? Int ?? 1)
+        let notchMatchesRowHeights = userDefaults.object(forKey: "notchMatchesRowHeights") as? Bool ?? true
+        let notchProvidersMaxHeight = SettingsStore.clampedNotchSectionHeight(
+            userDefaults.object(forKey: "notchProvidersMaxHeight") as? Double
+                ?? SettingsStore.notchDefaultProvidersHeight,
+            fallback: SettingsStore.notchDefaultProvidersHeight)
+        let notchSessionsMaxHeight = SettingsStore.clampedNotchSectionHeight(
+            userDefaults.object(forKey: "notchSessionsMaxHeight") as? Double
+                ?? SettingsStore.notchDefaultSessionsHeight,
+            fallback: SettingsStore.notchDefaultSessionsHeight)
+        let notchShowsAgentSessions = userDefaults.object(forKey: "notchShowsAgentSessions") as? Bool ?? false
+        let notchSessionsPlacementRaw = userDefaults.string(forKey: "notchSessionsPlacement")
+            ?? NotchSessionsPlacement.below.rawValue
+        let notchHotkeyModeRaw = userDefaults.string(forKey: "notchHotkeyMode")
+            ?? NotchHotkeyMode.toggle.rawValue
         let launchAtLogin = userDefaults.object(forKey: "launchAtLogin") as? Bool ?? false
         let debugMenuEnabled = userDefaults.object(forKey: "debugMenuEnabled") as? Bool ?? false
         let debugDisableKeychainAccess = Self.loadDebugDisableKeychainAccess(userDefaults: userDefaults)
@@ -647,6 +666,16 @@ extension SettingsStore {
             refreshFrequency: refreshFrequency,
             adaptiveActivityScanConsent: adaptiveActivityScanConsent,
             refreshAllProvidersOnMenuOpen: refreshAllProvidersOnMenuOpen,
+            notchUsageSummaryEnabled: notchUsageSummaryEnabled,
+            notchHiddenProviderIDsRaw: notchHiddenProviderIDsRaw,
+            notchItemOrderRaw: notchItemOrderRaw,
+            notchColumnCount: notchColumnCount,
+            notchMatchesRowHeights: notchMatchesRowHeights,
+            notchProvidersMaxHeight: notchProvidersMaxHeight,
+            notchSessionsMaxHeight: notchSessionsMaxHeight,
+            notchShowsAgentSessions: notchShowsAgentSessions,
+            notchSessionsPlacementRaw: notchSessionsPlacementRaw,
+            notchHotkeyModeRaw: notchHotkeyModeRaw,
             launchAtLogin: launchAtLogin,
             debugMenuEnabled: debugMenuEnabled,
             debugDisableKeychainAccess: debugDisableKeychainAccess,

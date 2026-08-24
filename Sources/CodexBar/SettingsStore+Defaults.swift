@@ -55,6 +55,142 @@ extension SettingsStore {
         }
     }
 
+    var notchUsageSummaryEnabled: Bool {
+        get { self.defaultsState.notchUsageSummaryEnabled }
+        set {
+            self.defaultsState.notchUsageSummaryEnabled = newValue
+            self.userDefaults.set(newValue, forKey: "notchUsageSummaryEnabled")
+        }
+    }
+
+    /// The panel sizes itself to its content in width. Height is content-driven per section: the
+    /// provider grid and the session band each have their own ceiling and scroll past it.
+    static let notchMaxColumnCount = 4
+    static let notchDefaultProvidersHeight: Double = 500
+    static let notchDefaultSessionsHeight: Double = 200
+    static let notchMinSectionHeight: Double = 100
+    static let notchMaxSectionHeight: Double = 1600
+
+    static func clampedNotchSectionHeight(_ value: Double, fallback: Double) -> Double {
+        guard value.isFinite else { return fallback }
+        return min(max(value.rounded(), self.notchMinSectionHeight), self.notchMaxSectionHeight)
+    }
+
+    static func clampedNotchColumnCount(_ value: Int) -> Int {
+        min(max(value, 1), self.notchMaxColumnCount)
+    }
+
+    var notchColumnCount: Int {
+        get { Self.clampedNotchColumnCount(self.defaultsState.notchColumnCount) }
+        set {
+            let clamped = Self.clampedNotchColumnCount(newValue)
+            self.defaultsState.notchColumnCount = clamped
+            self.userDefaults.set(clamped, forKey: "notchColumnCount")
+        }
+    }
+
+    /// Off: each column packs independently, so a short tile sits directly under a tall one.
+    /// On: every tile in a grid row is as tall as the tallest tile in that row.
+    var notchMatchesRowHeights: Bool {
+        get { self.defaultsState.notchMatchesRowHeights }
+        set {
+            self.defaultsState.notchMatchesRowHeights = newValue
+            self.userDefaults.set(newValue, forKey: "notchMatchesRowHeights")
+        }
+    }
+
+    /// Ceiling for the provider grid. Tiles past it scroll, the session band stays put.
+    var notchProvidersMaxHeight: Double {
+        get {
+            Self.clampedNotchSectionHeight(
+                self.defaultsState.notchProvidersMaxHeight,
+                fallback: Self.notchDefaultProvidersHeight)
+        }
+        set {
+            let clamped = Self.clampedNotchSectionHeight(newValue, fallback: Self.notchDefaultProvidersHeight)
+            self.defaultsState.notchProvidersMaxHeight = clamped
+            self.userDefaults.set(clamped, forKey: "notchProvidersMaxHeight")
+        }
+    }
+
+    /// Ceiling for the session band. A longer list scrolls inside the band.
+    var notchSessionsMaxHeight: Double {
+        get {
+            Self.clampedNotchSectionHeight(
+                self.defaultsState.notchSessionsMaxHeight,
+                fallback: Self.notchDefaultSessionsHeight)
+        }
+        set {
+            let clamped = Self.clampedNotchSectionHeight(newValue, fallback: Self.notchDefaultSessionsHeight)
+            self.defaultsState.notchSessionsMaxHeight = clamped
+            self.userDefaults.set(clamped, forKey: "notchSessionsMaxHeight")
+        }
+    }
+
+    /// Stored tile order. Keys absent from the list keep their natural position, so a newly
+    /// enabled provider appears without the user re-sorting anything.
+    var notchItemOrder: [String] {
+        self.defaultsState.notchItemOrderRaw
+    }
+
+    /// Orders `keys` by the stored preference, appending unknown keys in their incoming order.
+    func notchOrderedItemKeys(_ keys: [String]) -> [String] {
+        let available = Set(keys)
+        var ordered = self.defaultsState.notchItemOrderRaw.filter { available.contains($0) }
+        let placed = Set(ordered)
+        ordered.append(contentsOf: keys.filter { !placed.contains($0) })
+        return ordered
+    }
+
+    func setNotchItemOrder(_ keys: [String]) {
+        guard keys != self.defaultsState.notchItemOrderRaw else { return }
+        self.defaultsState.notchItemOrderRaw = keys
+        self.userDefaults.set(keys, forKey: "notchItemOrder")
+    }
+
+    var notchShowsAgentSessions: Bool {
+        get { self.defaultsState.notchShowsAgentSessions }
+        set {
+            self.defaultsState.notchShowsAgentSessions = newValue
+            self.userDefaults.set(newValue, forKey: "notchShowsAgentSessions")
+        }
+    }
+
+    var notchSessionsPlacement: NotchSessionsPlacement {
+        get { NotchSessionsPlacement(rawValue: self.defaultsState.notchSessionsPlacementRaw) ?? .below }
+        set {
+            self.defaultsState.notchSessionsPlacementRaw = newValue.rawValue
+            self.userDefaults.set(newValue.rawValue, forKey: "notchSessionsPlacement")
+        }
+    }
+
+    var notchHotkeyMode: NotchHotkeyMode {
+        get { NotchHotkeyMode(rawValue: self.defaultsState.notchHotkeyModeRaw) ?? .toggle }
+        set {
+            self.defaultsState.notchHotkeyModeRaw = newValue.rawValue
+            self.userDefaults.set(newValue.rawValue, forKey: "notchHotkeyMode")
+        }
+    }
+
+    /// Providers are opt-out, not opt-in: a newly enabled provider shows up in the overlay
+    /// without the user revisiting this pane.
+    func isNotchProviderVisible(_ instanceID: ProviderInstanceID) -> Bool {
+        !self.defaultsState.notchHiddenProviderIDsRaw.contains(instanceID.rawValue)
+    }
+
+    func setNotchProviderVisible(_ instanceID: ProviderInstanceID, visible: Bool) {
+        var hidden = Set(self.defaultsState.notchHiddenProviderIDsRaw)
+        if visible {
+            hidden.remove(instanceID.rawValue)
+        } else {
+            hidden.insert(instanceID.rawValue)
+        }
+        let sorted = hidden.sorted()
+        guard sorted != self.defaultsState.notchHiddenProviderIDsRaw else { return }
+        self.defaultsState.notchHiddenProviderIDsRaw = sorted
+        self.userDefaults.set(sorted, forKey: "notchHiddenProviders")
+    }
+
     var launchAtLogin: Bool {
         get { self.defaultsState.launchAtLogin }
         set {

@@ -391,6 +391,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let updaterController: UpdaterProviding = makeUpdaterController()
     let cloudSyncState = CloudSyncState()
     private let confettiOverlayController = ScreenConfettiOverlayController()
+    private var notchUsageOverlayController: NotchUsageOverlayController?
     private let confettiLogger = CodexBarLog.logger(LogCategories.confetti)
     private let dockIconController = DockIconController.shared
     private lazy var memoryPressureMonitor = MemoryPressureMonitor(trimAppCaches: { [weak self] in
@@ -421,6 +422,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func configure(_ dependencies: Dependencies) {
         self.store = dependencies.store
         self.settings = dependencies.settings
+        self.notchUsageOverlayController?.stop()
+        self.notchUsageOverlayController = NotchUsageOverlayController(
+            store: dependencies.store,
+            settings: dependencies.settings)
         self.account = dependencies.account
         self.preferencesSelection = dependencies.selection
         self.managedCodexAccountCoordinator = dependencies.managedCodexAccountCoordinator
@@ -458,6 +463,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         self.installDebugMemoryPressureObserverIfNeeded()
         #endif
         self.ensureStatusController()
+        self.notchUsageOverlayController?.start()
         self.closeSwiftUISettingsPlaceholderWindow()
         self.observeSettingsApplicationMenuLanguage()
         self.scheduleSettingsApplicationMenuValidation(
@@ -521,6 +527,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         #endif
         self.statusController?.prepareForAppShutdown()
         self.confettiOverlayController.dismiss()
+        self.notchUsageOverlayController?.stop()
         self.dismissAppKitWindowsForShutdown()
         self.terminateActiveProcessesForAppShutdown()
     }
@@ -726,6 +733,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             self.statusController = statusController
             if let concreteStatusController = statusController as? StatusItemController {
                 concreteStatusController.cloudSyncState = self.cloudSyncState
+                self.notchUsageOverlayController?.agentSessions = concreteStatusController.agentSessions
                 MenuSwitchFlickerProbe.startIfRequested(controller: concreteStatusController)
             }
             return
