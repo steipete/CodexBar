@@ -29,6 +29,36 @@ struct NotchUsageOverlayModelTests {
     }
 
     @Test
+    func `provider accessibility summary carries every bar, not just the name`() {
+        let row = NotchUsageOverlayModel.ProviderRow(
+            id: .codex,
+            name: "Codex",
+            tint: .green,
+            bars: [
+                NotchUsageOverlayModel.Bar(
+                    title: "Session",
+                    percent: 80,
+                    percentText: "80% left",
+                    resetText: nil,
+                    accessibilityLabel: "Session 80% left"),
+                NotchUsageOverlayModel.Bar(
+                    title: "Weekly",
+                    percent: 60,
+                    percentText: "60% left",
+                    resetText: nil,
+                    accessibilityLabel: "Weekly 60% left"),
+            ],
+            statusText: "resets at 9am")
+
+        // The tile is one combined accessibility element, so the label must speak for the bars.
+        #expect(row.accessibilitySummary == "Codex, resets at 9am, Session 80% left, Weekly 60% left")
+
+        let bare = NotchUsageOverlayModel.ProviderRow(
+            id: .claude, name: "Claude", tint: .green, bars: [], statusText: nil)
+        #expect(bare.accessibilitySummary == "Claude")
+    }
+
+    @Test
     func `prefers the first known extra window over provider cost`() {
         let snapshot = UsageSnapshot(
             primary: Self.window(usedPercent: 10),

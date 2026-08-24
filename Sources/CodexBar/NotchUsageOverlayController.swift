@@ -88,6 +88,9 @@ final class NotchUsageOverlayController {
         if self.panel == nil {
             self.updateActivation()
         }
+        // Still no panel means no notched screen; mutating the hotkey state or the view state
+        // here would strand `isExpanded` and leave a panel created later stuck un-expandable.
+        guard self.panel != nil else { return }
         switch self.hotkeyState.press(
             mode: self.settings.notchHotkeyMode,
             isExpanded: self.viewState.isExpanded)
@@ -276,7 +279,11 @@ final class NotchUsageOverlayController {
             } catch {
                 return
             }
-            guard let self, let panel, !Task.isCancelled, !self.isPointerInside, !self.hotkeyState.isHolding
+            // Restore whenever the panel is still collapsed. Gating this on pointer position
+            // instead would let a shortcut-collapse under a hovering pointer keep the expanded
+            // frame alive as an invisible click trap; a re-expansion flips `isExpanded` back
+            // (and cancels this task), so it can never fight a reopened panel.
+            guard let self, let panel, !Task.isCancelled, !self.viewState.isExpanded
             else { return }
             panel.setFrame(collapsedFrame, display: true)
         }

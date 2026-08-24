@@ -16,6 +16,18 @@ struct NotchUsageOverlayModel: Equatable {
         let tint: Color
         let bars: [Bar]
         let statusText: String?
+
+        /// VoiceOver summary for the whole tile. The tile is one combined accessibility element,
+        /// so the label has to carry the bar details itself — overriding it with just the name
+        /// would silence every usage figure.
+        var accessibilitySummary: String {
+            var parts = [self.name]
+            if let statusText = self.statusText {
+                parts.append(statusText)
+            }
+            parts.append(contentsOf: self.bars.map(\.accessibilityLabel))
+            return parts.joined(separator: ", ")
+        }
     }
 
     struct SessionRow: Equatable, Identifiable {

@@ -151,7 +151,7 @@ struct NotchUsageOverlayContent {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel(row.name)
+        .accessibilityLabel(row.accessibilitySummary)
     }
 
     private func sessionsTile(
