@@ -242,8 +242,14 @@ extension CodexBarCLI {
             // "Default" entry with the identical token, which would fetch and render it twice.
             let migratesExistingKey = TokenAccountSupportCatalog.support(for: provider)?
                 .migratesExistingAPIKeyOnFirstAccount == true
-            let sanitizedLegacyKey = providerConfig.apiKey?.trimmingCharacters(in: .whitespacesAndNewlines)
-            let hasLegacyKey = !(sanitizedLegacyKey?.isEmpty ?? true)
+            // Normalize with the same cleanConfigSecret used for the incoming apiKey (line ~216)
+            // rather than a bare whitespace trim. A key saved via the Settings UI can retain
+            // wrapping quote characters (SettingsStore's normalizer only trims whitespace); if
+            // this side skipped quote-stripping while apiKey didn't, an already-identical
+            // credential could compare as different, firing a spurious migration that appends a
+            // broken, still-quoted duplicate "Default" account.
+            let sanitizedLegacyKey = Self.cleanConfigSecret(providerConfig.apiKey)
+            let hasLegacyKey = sanitizedLegacyKey != nil
             if accounts.isEmpty, migratesExistingKey, let legacyKey = sanitizedLegacyKey, hasLegacyKey,
                legacyKey != apiKey
             {

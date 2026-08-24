@@ -211,6 +211,40 @@ struct CLIConfigCommandTests {
     }
 
     @Test
+    func `config set api key recognizes a quoted legacy key as identical to the clean new token`() throws {
+        let config = CodexBarConfig.makeDefault()
+        // Simulates a key saved via the Settings UI, whose normalizer only trims whitespace and
+        // does not strip wrapping quote characters (unlike the CLI's own cleanConfigSecret).
+        let withQuotedLegacyKey = CodexBarCLI.configSettingAPIKey(
+            config,
+            provider: .opencodego,
+            apiKey: "\"sk-same\"",
+            enableProvider: true)
+
+        let options = try #require(try CodexBarCLI.resolveConfigAPIKeyAccountOptions(
+            provider: .opencodego,
+            label: "Personal",
+            usageScope: nil,
+            organizationID: nil,
+            workspaceID: nil))
+        let updated = CodexBarCLI.configSettingAPIKey(
+            withQuotedLegacyKey,
+            provider: .opencodego,
+            apiKey: "sk-same",
+            enableProvider: true,
+            accountOptions: options)
+
+        let accounts = updated.providerConfig(for: .opencodego)?.tokenAccounts?.accounts ?? []
+
+        // The quoted legacy value and the clean new token are the same real credential once
+        // normalized identically; must rename into one account, not append a second, broken,
+        // still-quoted "Default" entry that would fail to authenticate.
+        #expect(accounts.count == 1)
+        #expect(accounts[0].label == "Personal")
+        #expect(accounts[0].token == "sk-same")
+    }
+
+    @Test
     func `config set api key migrates an existing key for any environment-injected provider`() throws {
         let config = CodexBarConfig.makeDefault()
         let withExistingKey = CodexBarCLI.configSettingAPIKey(

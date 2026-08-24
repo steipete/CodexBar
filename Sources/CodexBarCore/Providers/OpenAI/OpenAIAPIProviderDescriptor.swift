@@ -14,7 +14,15 @@ public enum OpenAIAPIProviderDescriptor {
             injection: .environment(key: OpenAIAPISettingsReader.adminAPIKeyEnvironmentKey),
             requiresManualCookieSource: false,
             cookieName: nil,
-            environmentKeysToScrub: [OpenAIAPISettingsReader.projectIDEnvironmentKey]))
+            environmentKeysToScrub: [OpenAIAPISettingsReader.projectIDEnvironmentKey],
+            // Provider-specific by design: a configured single key here may be a
+            // project-scoped credential (additionalProjections above), a different kind of
+            // credential than an org-wide token account - selecting any token account already
+            // scrubs the project ID (environmentKeysToScrub) rather than carrying it per-account.
+            // Auto-migrating would silently turn a project-scoped key into an org-wide one, so
+            // this provider opts out of the environment-injection default and keeps its existing
+            // single key untouched instead.
+            migratesExistingAPIKeyOnFirstAccount: false))
 
     static func makeDescriptor() -> ProviderDescriptor {
         ProviderDescriptor(

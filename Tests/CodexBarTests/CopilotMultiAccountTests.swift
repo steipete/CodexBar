@@ -80,6 +80,12 @@ struct CopilotAPIKeyFallbackTests {
         #expect(settings.tokenAccounts(for: .copilot).first?.label == "existing")
     }
 
+    @Test
+    func `copilot opts out of migrating an existing key so it never becomes a phantom account`() {
+        let support = TokenAccountSupportCatalog.support(for: .copilot)
+        #expect(support?.migratesExistingAPIKeyOnFirstAccount == false)
+    }
+
     private static func makeSettingsStore(suite: String) -> SettingsStore {
         SettingsStore(
             configStore: testConfigStore(suiteName: suite),

@@ -7,6 +7,12 @@ import Testing
 @Suite(.serialized)
 struct OpenAIAPIProjectScopeTests {
     @Test
+    func `OpenAI opts out of migrating an existing key so project scope is never silently dropped`() {
+        let support = TokenAccountSupportCatalog.support(for: .openai)
+        #expect(support?.migratesExistingAPIKeyOnFirstAccount == false)
+    }
+
+    @Test
     @MainActor
     func `token account strips configured project in app environment builder`() {
         let settings = Self.makeSettingsStore(suite: "OpenAIAPIProjectScopeTests-app")
@@ -14,12 +20,13 @@ struct OpenAIAPIProjectScopeTests {
         settings[providerConfig: .openai, field: .secretWorkspace(logField: "projectID")] = "proj_config"
         settings.addTokenAccount(provider: .openai, label: "Configured account", token: "first-account-token")
         settings.addTokenAccount(provider: .openai, label: "Selected account", token: "selected-account-token")
-        // migratesExistingAPIKeyOnFirstAccount now defaults to true for environment-injection
-        // providers, so the first addTokenAccount call above also migrated "config-token" in as
-        // a "Default" account: [Default, Configured account, Selected account].
+        // OpenAI opts out of migratesExistingAPIKeyOnFirstAccount (see OpenAIAPIProviderDescriptor):
+        // "config-token" is a project-scoped credential, a different kind from an org-wide token
+        // account, so it stays untouched outside tokenAccounts instead of migrating in as "Default".
         let accounts = settings.tokenAccounts(for: .openai)
-        #expect(accounts.map(\.label) == ["Default", "Configured account", "Selected account"])
-        let selectedAccount = accounts[2]
+        #expect(accounts.map(\.label) == ["Configured account", "Selected account"])
+        #expect(settings.providerConfig(for: .openai)?.apiKey == "config-token")
+        let selectedAccount = accounts[1]
 
         let env = ProviderRegistry.makeEnvironment(
             base: [OpenAIAPISettingsReader.projectIDEnvironmentKey: "proj_env"],

@@ -14,7 +14,12 @@ public enum CopilotProviderDescriptor {
             requiresManualCookieSource: false,
             cookieName: nil,
             clearsAPIKeyOnMutation: true,
-            primaryAddActionTitle: "Add Account"))
+            primaryAddActionTitle: "Add Account",
+            // Provider-specific by design: Copilot already discards a stale single-key config
+            // value on mutation (clearsAPIKeyOnMutation above) rather than migrating it in as an
+            // account - a config-level GitHub token here isn't meant to become a phantom
+            // "Default" account alongside real OAuth-signed-in accounts.
+            migratesExistingAPIKeyOnFirstAccount: false))
 
     /// Budget imports stay Chrome-only to avoid prompting unrelated browsers.
     private static var browserCookieOrder: BrowserCookieImportOrder? {
