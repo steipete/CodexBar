@@ -32,16 +32,16 @@ struct OpenCodeGoAddTokenAccountTests {
     }
 
     @Test
-    func `migration is scoped to opencodego and does not apply to providers without the opt-in flag`() {
+    func `migration defaults on for every environment-injected provider, not just opencodego`() {
         let settings = Self.makeSettings(suite: "OpenCodeGoAddTokenAccountTests-scope")
-        settings[providerConfig: .openrouter, field: .apiKey] = "decoy-token"
+        settings[providerConfig: .openrouter, field: .apiKey] = "or-existing"
 
         settings.addTokenAccount(provider: .openrouter, label: "Personal", token: "test-key")
 
         let accounts = settings.tokenAccounts(for: .openrouter)
-        #expect(accounts.count == 1)
-        #expect(accounts[0].label == "Personal")
-        #expect(!accounts.contains { $0.token == "decoy-token" })
+        #expect(accounts.map(\.label) == ["Default", "Personal"])
+        #expect(accounts.map(\.token) == ["or-existing", "test-key"])
+        #expect(settings.providerConfig(for: .openrouter)?.apiKey == nil)
     }
 
     private static func makeSettings(suite: String) -> SettingsStore {

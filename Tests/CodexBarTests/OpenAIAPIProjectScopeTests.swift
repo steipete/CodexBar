@@ -14,7 +14,12 @@ struct OpenAIAPIProjectScopeTests {
         settings[providerConfig: .openai, field: .secretWorkspace(logField: "projectID")] = "proj_config"
         settings.addTokenAccount(provider: .openai, label: "Configured account", token: "first-account-token")
         settings.addTokenAccount(provider: .openai, label: "Selected account", token: "selected-account-token")
-        let selectedAccount = settings.tokenAccounts(for: .openai)[1]
+        // migratesExistingAPIKeyOnFirstAccount now defaults to true for environment-injection
+        // providers, so the first addTokenAccount call above also migrated "config-token" in as
+        // a "Default" account: [Default, Configured account, Selected account].
+        let accounts = settings.tokenAccounts(for: .openai)
+        #expect(accounts.map(\.label) == ["Default", "Configured account", "Selected account"])
+        let selectedAccount = accounts[2]
 
         let env = ProviderRegistry.makeEnvironment(
             base: [OpenAIAPISettingsReader.projectIDEnvironmentKey: "proj_env"],

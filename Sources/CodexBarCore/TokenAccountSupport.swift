@@ -29,10 +29,14 @@ public struct TokenAccountSupport: Sendable {
     public let legacyCookieDetector: (@Sendable (String) -> Bool)?
     /// When true, adding the first token account also migrates an existing provider-level
     /// single API key into the account list (as a "Default" account) instead of leaving it
-    /// orphaned outside tokenAccounts, where stacked fan-out never sees it. Off by default:
-    /// most providers intentionally keep a configured single key separate from token accounts
-    /// (it may be a placeholder/decoy left over from before accounts existed), so only a
-    /// provider that explicitly wants "single key -> first account" upgrade behavior opts in.
+    /// inert outside tokenAccounts, where stacked fan-out and CLI --all-accounts never see it
+    /// (fetches route through the selected account once tokenAccounts is non-empty, so an
+    /// un-migrated key would silently stop being tracked). Defaults to true for any provider
+    /// whose token accounts inject a plain API key (.environment) - an existing single key for
+    /// those providers is a real, working credential that must not silently disappear the first
+    /// time a user names it or adds a second account. Cookie-header providers default to false:
+    /// their single-credential and token-account paths are already handled separately. A
+    /// provider can still override the default explicitly if it has a reason not to migrate.
     public let migratesExistingAPIKeyOnFirstAccount: Bool
     private let environmentOverride: @Sendable (String) -> [String: String]?
     private let environmentScrubber: @Sendable (inout [String: String], String) -> Void
@@ -53,7 +57,7 @@ public struct TokenAccountSupport: Sendable {
         showsTeamModeControls: Bool = false,
         primaryAddActionTitle: String? = nil,
         legacyCookieDetector: (@Sendable (String) -> Bool)? = nil,
-        migratesExistingAPIKeyOnFirstAccount: Bool = false,
+        migratesExistingAPIKeyOnFirstAccount: Bool? = nil,
         environmentOverride: (@Sendable (String) -> [String: String]?)? = nil,
         environmentScrubber: (@Sendable (inout [String: String], String) -> Void)? = nil,
         cookieHeaderNormalizer: (@Sendable (String) -> String)? = nil)
@@ -72,7 +76,13 @@ public struct TokenAccountSupport: Sendable {
         self.showsTeamModeControls = showsTeamModeControls
         self.primaryAddActionTitle = primaryAddActionTitle
         self.legacyCookieDetector = legacyCookieDetector
-        self.migratesExistingAPIKeyOnFirstAccount = migratesExistingAPIKeyOnFirstAccount
+        if let migratesExistingAPIKeyOnFirstAccount {
+            self.migratesExistingAPIKeyOnFirstAccount = migratesExistingAPIKeyOnFirstAccount
+        } else if case .environment = injection {
+            self.migratesExistingAPIKeyOnFirstAccount = true
+        } else {
+            self.migratesExistingAPIKeyOnFirstAccount = false
+        }
         self.environmentOverride = environmentOverride ?? { token in
             guard case let .environment(key) = injection else { return nil }
             return [key: token]

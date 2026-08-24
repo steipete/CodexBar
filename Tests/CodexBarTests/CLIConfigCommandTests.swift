@@ -211,7 +211,7 @@ struct CLIConfigCommandTests {
     }
 
     @Test
-    func `config set api key preserves an existing key for a provider that does not migrate it`() throws {
+    func `config set api key migrates an existing key for any environment-injected provider`() throws {
         let config = CodexBarConfig.makeDefault()
         let withExistingKey = CodexBarCLI.configSettingAPIKey(
             config,
@@ -235,13 +235,13 @@ struct CLIConfigCommandTests {
         let provider = try #require(updated.providerConfig(for: .openrouter))
         let accounts = provider.tokenAccounts?.accounts ?? []
 
-        // OpenRouter does not opt into migratesExistingAPIKeyOnFirstAccount, so the existing
-        // single key must survive untouched instead of being silently deleted while only the
-        // new named account gets added.
-        #expect(provider.apiKey == "or-existing")
-        #expect(accounts.count == 1)
-        #expect(accounts[0].label == "Personal")
-        #expect(accounts[0].token == "or-personal")
+        // migratesExistingAPIKeyOnFirstAccount now defaults to true for every environment-
+        // injection provider (not just OpenCode Go): an existing single key is a real, working
+        // subscription that must not silently stop being tracked the first time a user names it
+        // or adds a second account, since fetches route through tokenAccounts once non-empty.
+        #expect(provider.apiKey == nil)
+        #expect(accounts.map(\.label) == ["Default", "Personal"])
+        #expect(accounts.map(\.token) == ["or-existing", "or-personal"])
     }
 
     @Test

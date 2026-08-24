@@ -95,35 +95,41 @@ struct OpenRouterMultiAccountTests {
     }
 
     @Test
-    func `two OpenRouter accounts fetch with isolated keys and caches`() async throws {
+    func `OpenRouter accounts fetch with isolated keys and caches, including a migrated legacy key`() async throws {
         let settings = Self.makeSettings(suite: "OpenRouterMultiAccountTests-fetch")
-        settings[providerConfig: .openrouter, field: .apiKey] = "decoy-token"
+        // A previously configured single key. migratesExistingAPIKeyOnFirstAccount now defaults
+        // to true for environment-injection providers, so adding the first labeled account
+        // migrates this in as "Default" instead of leaving it inert and untracked.
+        settings[providerConfig: .openrouter, field: .apiKey] = "legacy-key"
         settings.addTokenAccount(provider: .openrouter, label: "Personal", token: "test-key")
         settings.addTokenAccount(provider: .openrouter, label: "Work", token: "test-auth-token")
         let accounts = settings.tokenAccounts(for: .openrouter)
+        #expect(accounts.map(\.label) == ["Default", "Personal", "Work"])
         let recorder = OpenRouterAccountFetchRecorder()
         let store = try Self.makeStore(settings: settings, recorder: recorder)
 
         await store.refreshTokenAccounts(provider: .openrouter, accounts: accounts)
 
         let requests = await recorder.requests
-        #expect(Set(requests.compactMap(\.accountValue)) == ["test-key", "test-auth-token"])
+        #expect(Set(requests.compactMap(\.accountValue)) == ["legacy-key", "test-key", "test-auth-token"])
         #expect(Set(requests.compactMap(\.accountID)) == Set(accounts.map(\.id)))
-        #expect(!requests.contains {
-            $0.accountValue == "decoy-token" || $0.accountValue == "test-token-placeholder"
-        })
+        // The isolation invariant that matters: nothing leaks the unrelated global/cached
+        // environment default (used when no account is selected at all) into a per-account
+        // fetch. A migrated legacy key is now a real, legitimate account credential, not a leak.
+        #expect(!requests.contains { $0.accountValue == "test-token-placeholder" })
 
         let snapshots = try #require(store.accountSnapshots[.openrouter])
         #expect(snapshots.map(\.account.id) == accounts.map(\.id))
-        #expect(snapshots.map { $0.snapshot?.accountEmail(for: .openrouter) } == ["Personal", "Work"])
-        #expect(snapshots.map { $0.snapshot?.detailRow(label: "Remaining")?.value } == ["$90.00", "$60.00"])
-        #expect(Set(snapshots.map(\.cacheKey)).count == 2)
+        #expect(snapshots.map { $0.snapshot?.accountEmail(for: .openrouter) } == ["Default", "Personal", "Work"])
+        #expect(
+            snapshots.map { $0.snapshot?.detailRow(label: "Remaining")?.value } == ["$60.00", "$90.00", "$60.00"])
+        #expect(Set(snapshots.map(\.cacheKey)).count == 3)
 
-        settings.setActiveTokenAccountIndex(0, for: .openrouter)
-        store.activateCachedTokenAccountSnapshot(provider: .openrouter, accountID: accounts[0].id)
-        #expect(store.snapshot(for: .openrouter)?.detailRow(label: "Remaining")?.value == "$90.00")
         settings.setActiveTokenAccountIndex(1, for: .openrouter)
         store.activateCachedTokenAccountSnapshot(provider: .openrouter, accountID: accounts[1].id)
+        #expect(store.snapshot(for: .openrouter)?.detailRow(label: "Remaining")?.value == "$90.00")
+        settings.setActiveTokenAccountIndex(2, for: .openrouter)
+        store.activateCachedTokenAccountSnapshot(provider: .openrouter, accountID: accounts[2].id)
         #expect(store.snapshot(for: .openrouter)?.detailRow(label: "Remaining")?.value == "$60.00")
     }
 
