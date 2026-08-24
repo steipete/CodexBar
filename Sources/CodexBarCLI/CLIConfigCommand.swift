@@ -284,9 +284,33 @@ extension CodexBarCLI {
             cleanedWorkspaceID != nil
         guard hasAccountOptions else { return nil }
 
+        let hasTeamOptions = cleanedScope != nil || cleanedOrganizationID != nil || cleanedWorkspaceID != nil
+
+        // Plain --label with no team fields: allowed for any provider whose token accounts inject a
+        // plain API key (environment-variable based), so multiple named accounts of the same provider
+        // (e.g. several OpenCode Go subscriptions) can be stored and fanned out simultaneously.
+        guard hasTeamOptions else {
+            guard let label = cleanedLabel else { return nil }
+            guard let support = TokenAccountSupportCatalog.support(for: provider) else {
+                throw CLIArgumentError("--label is not supported for --provider \(provider.rawValue).")
+            }
+            guard case .environment = support.injection else {
+                throw CLIArgumentError(
+                    "--label requires an API-key based provider for \(provider.rawValue); " +
+                        "use Settings for cookie-based accounts.")
+            }
+            return ConfigAPIKeyAccountOptions(
+                label: label,
+                usageScope: .personal,
+                organizationID: nil,
+                workspaceID: nil)
+        }
+
         // Provider-specific by design: z.ai team tokens alone accept organization, workspace, and usage-scope fields.
         guard provider == .zai else {
-            throw CLIArgumentError("Token-account options are only supported for --provider zai.")
+            throw CLIArgumentError(
+                "Team account options (--usage-scope/--organization-id/--workspace-id) are only supported " +
+                    "for --provider zai.")
         }
 
         guard cleanedScope?.lowercased() == ZaiUsageScope.team.rawValue else {
@@ -362,8 +386,8 @@ extension CodexBarCLI {
 struct ConfigAPIKeyAccountOptions: Equatable {
     let label: String
     let usageScope: ZaiUsageScope
-    let organizationID: String
-    let workspaceID: String
+    let organizationID: String?
+    let workspaceID: String?
 }
 
 struct ConfigOptions: CommanderParsable {

@@ -13,11 +13,11 @@ public enum OpenCodeGoProviderDescriptor {
             return ProviderTokenResolution(token: token, source: .environment)
         },
         tokenAccountSupport: TokenAccountSupport(
-            title: "Session tokens",
-            subtitle: "Store multiple OpenCode Go Cookie headers.",
-            placeholder: "Cookie: …",
-            injection: .cookieHeader,
-            requiresManualCookieSource: true,
+            title: "API key accounts",
+            subtitle: "Store multiple OpenCode Go account API keys, tracked simultaneously.",
+            placeholder: "OpenCode API key",
+            injection: .environment(key: OpenCodeGoSettingsReader.apiKeyEnvironmentKey),
+            requiresManualCookieSource: false,
             cookieName: nil),
         authDetector: { environment, _ in
             OpenCodeGoSettingsReader.apiKey(environment: environment) == nil ? [] : ["api"]
@@ -124,6 +124,16 @@ public enum OpenCodeGoProviderDescriptor {
         }
         if context.sourceMode == .web {
             return [OpenCodeGoUsageFetchStrategy()]
+        }
+        // Token accounts for this provider inject a plain API key (see the .environment
+        // injection on its TokenAccountSupport), so a per-account fetch must try the API
+        // strategy first instead of the cookie-based web strategy the other scoped cases use.
+        if context.selectedTokenAccountID != nil {
+            return [
+                OpenCodeGoAPIUsageFetchStrategy(),
+                OpenCodeGoLocalUsageFetchStrategy(),
+                OpenCodeGoUsageFetchStrategy(),
+            ]
         }
         if self.requiresScopedWebStrategy(context: context) {
             return [

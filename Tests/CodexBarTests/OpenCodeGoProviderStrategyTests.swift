@@ -50,12 +50,37 @@ struct OpenCodeGoProviderStrategyTests {
     }
 
     @Test
-    func `auto source tries web before local for selected token accounts`() async {
+    func `auto source tries API before local for selected token accounts`() async {
         let descriptor = OpenCodeGoProviderDescriptor.makeDescriptor()
         let strategies = await descriptor.fetchPlan.pipeline.resolveStrategies(
             self.makeContext(selectedTokenAccountID: UUID()))
 
-        #expect(strategies.map(\.id) == ["opencodego.web", "opencodego.local", "opencodego.api"])
+        #expect(strategies.map(\.id) == ["opencodego.api", "opencodego.local", "opencodego.web"])
+    }
+
+    @Test
+    // swiftlint:disable:next line_length
+    func `auto source keeps the cookie-first ordering for manual cookies and workspace overrides without a selected token account`() async {
+        // Selected token accounts inject a plain API key, so they reorder to API-first (see
+        // above). The other requiresScopedWebStrategy() triggers still authenticate via a
+        // cookie header, so they must keep the original cookie-first ordering.
+        let descriptor = OpenCodeGoProviderDescriptor.makeDescriptor()
+        let manualCookieSettings = ProviderSettingsSnapshot.make(opencodego: .init(
+            cookieSource: .manual,
+            manualCookieHeader: "auth=selected",
+            workspaceID: nil))
+        let workspaceOverrideSettings = ProviderSettingsSnapshot.make(opencodego: .init(
+            cookieSource: .auto,
+            manualCookieHeader: nil,
+            workspaceID: "wrk_team"))
+
+        let manualCookieStrategies = await descriptor.fetchPlan.pipeline.resolveStrategies(
+            self.makeContext(settings: manualCookieSettings))
+        let workspaceOverrideStrategies = await descriptor.fetchPlan.pipeline.resolveStrategies(
+            self.makeContext(settings: workspaceOverrideSettings))
+
+        #expect(manualCookieStrategies.map(\.id) == ["opencodego.web", "opencodego.local", "opencodego.api"])
+        #expect(workspaceOverrideStrategies.map(\.id) == ["opencodego.web", "opencodego.local", "opencodego.api"])
     }
 
     @Test

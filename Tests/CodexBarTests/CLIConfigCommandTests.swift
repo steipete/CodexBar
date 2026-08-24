@@ -122,6 +122,59 @@ struct CLIConfigCommandTests {
     }
 
     @Test
+    func `config set api key allows bare label for environment based provider`() throws {
+        let options = try CodexBarCLI.resolveConfigAPIKeyAccountOptions(
+            provider: .opencodego,
+            label: "Work",
+            usageScope: nil,
+            organizationID: nil,
+            workspaceID: nil)
+        let account = try #require(options)
+
+        #expect(account.label == "Work")
+        #expect(account.usageScope == .personal)
+        #expect(account.organizationID == nil)
+        #expect(account.workspaceID == nil)
+    }
+
+    @Test
+    func `config set api key rejects bare label for provider without token account support`() {
+        // Moonshot has no tokenAccountSupport at all in its provider descriptor.
+        do {
+            _ = try CodexBarCLI.resolveConfigAPIKeyAccountOptions(
+                provider: .moonshot,
+                label: "Work",
+                usageScope: nil,
+                organizationID: nil,
+                workspaceID: nil)
+            Issue.record("Expected resolveConfigAPIKeyAccountOptions to throw")
+        } catch let error as CLIArgumentError {
+            #expect(error.message == "--label is not supported for --provider moonshot.")
+        } catch {
+            Issue.record("Unexpected error type: \(error)")
+        }
+    }
+
+    @Test
+    func `config set api key rejects bare label for cookie based provider`() {
+        // Claude's tokenAccountSupport uses cookieHeader injection, not environment.
+        do {
+            _ = try CodexBarCLI.resolveConfigAPIKeyAccountOptions(
+                provider: .claude,
+                label: "Work",
+                usageScope: nil,
+                organizationID: nil,
+                workspaceID: nil)
+            Issue.record("Expected resolveConfigAPIKeyAccountOptions to throw")
+        } catch let error as CLIArgumentError {
+            #expect(error.message ==
+                "--label requires an API-key based provider for claude; use Settings for cookie-based accounts.")
+        } catch {
+            Issue.record("Unexpected error type: \(error)")
+        }
+    }
+
+    @Test
     func `config provider toggle parses provider and json flags`() throws {
         let parser = CommandParser(signature: CodexBarCLI._configProviderToggleSignatureForTesting())
         let parsed = try parser.parse(arguments: [
