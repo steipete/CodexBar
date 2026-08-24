@@ -261,29 +261,45 @@ struct NotchUsageOverlayModel: Equatable {
         return "\(seconds / 86400)d"
     }
 
+    /// The label mirrors exactly what the row shows — title, percentage line, and reset/cost text.
+    /// The tile is one combined accessibility element, so this is the only route the visible
+    /// figures have to VoiceOver; a bare "<title> usage" label would silence all of them.
+    private static func accessibilityLabel(title: String, percentText: String, resetText: String?) -> String {
+        var parts = [title, percentText]
+        if let resetText {
+            parts.append(resetText)
+        }
+        return parts.joined(separator: ", ")
+    }
+
     private static func makeBar(title: String, window: RateWindow, showUsed: Bool) -> Bar {
         let used = Self.clampedPercent(window.usedPercent)
         let remaining = 100 - used
         // Some providers describe the window itself (e.g. "5-hour"), which is already the row title here.
         let resetText = window.resetDescription.flatMap { $0 == title ? nil : $0 }
+        let percentText = UsageFormatter.usageLine(remaining: remaining, used: used, showUsed: showUsed)
         return Bar(
             title: title,
             percent: showUsed ? used : remaining,
-            percentText: UsageFormatter.usageLine(remaining: remaining, used: used, showUsed: showUsed),
+            percentText: percentText,
             resetText: resetText,
-            accessibilityLabel: "\(title) usage")
+            accessibilityLabel: Self.accessibilityLabel(
+                title: title, percentText: percentText, resetText: resetText))
     }
 
     private static func makeCostBar(cost: ProviderCostSnapshot, showUsed: Bool) -> Bar {
         let used = Self.clampedPercent(cost.used / cost.limit * 100)
         let remaining = 100 - used
         let title = L(cost.period ?? "Cost")
+        let percentText = UsageFormatter.usageLine(remaining: remaining, used: used, showUsed: showUsed)
+        let resetText = UsageFormatter.currencyString(cost.used, currencyCode: cost.currencyCode)
         return Bar(
             title: title,
             percent: showUsed ? used : remaining,
-            percentText: UsageFormatter.usageLine(remaining: remaining, used: used, showUsed: showUsed),
-            resetText: UsageFormatter.currencyString(cost.used, currencyCode: cost.currencyCode),
-            accessibilityLabel: "\(title) usage")
+            percentText: percentText,
+            resetText: resetText,
+            accessibilityLabel: Self.accessibilityLabel(
+                title: title, percentText: percentText, resetText: resetText))
     }
 
     private static func makeCreditBar(
@@ -293,17 +309,21 @@ struct NotchUsageOverlayModel: Equatable {
     {
         let used = Self.clampedPercent(creditLimit.usedPercent)
         let remaining = 100 - used
+        let title = L(creditLimit.title)
+        let percentText = UsageFormatter.usageLine(remaining: remaining, used: used, showUsed: showUsed)
+        let resetText = creditLimit.resetsAt.flatMap {
+            UsageFormatter.resetLine(
+                for: RateWindow(usedPercent: used, windowMinutes: nil, resetsAt: $0, resetDescription: nil),
+                style: .countdown,
+                now: now)
+        }
         return Bar(
-            title: L(creditLimit.title),
+            title: title,
             percent: showUsed ? used : remaining,
-            percentText: UsageFormatter.usageLine(remaining: remaining, used: used, showUsed: showUsed),
-            resetText: creditLimit.resetsAt.flatMap {
-                UsageFormatter.resetLine(
-                    for: RateWindow(usedPercent: used, windowMinutes: nil, resetsAt: $0, resetDescription: nil),
-                    style: .countdown,
-                    now: now)
-            },
-            accessibilityLabel: "\(creditLimit.title) usage")
+            percentText: percentText,
+            resetText: resetText,
+            accessibilityLabel: Self.accessibilityLabel(
+                title: title, percentText: percentText, resetText: resetText))
     }
 
     private static func clampedPercent(_ percent: Double) -> Double {

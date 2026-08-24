@@ -29,33 +29,58 @@ struct NotchUsageOverlayModelTests {
     }
 
     @Test
+    func `bar accessibility labels speak the visible values`() throws {
+        let snapshot = UsageSnapshot(
+            primary: RateWindow(
+                usedPercent: 20,
+                windowMinutes: 300,
+                resetsAt: nil,
+                resetDescription: "Resets 4:40am"),
+            secondary: Self.window(usedPercent: 40),
+            updatedAt: self.now)
+
+        let bars = NotchUsageOverlayModel.bars(
+            snapshot: snapshot,
+            labels: self.labels,
+            showUsed: false,
+            now: self.now)
+        let primary = try #require(bars.first)
+        let secondary = try #require(bars.last)
+
+        // The label is derived from the visible pieces, so VoiceOver hears the same figures a
+        // sighted user sees — the row title alone would drop the percentage and reset text.
+        #expect(primary.accessibilityLabel == "Session, \(primary.percentText), Resets 4:40am")
+        #expect(secondary.resetText == nil)
+        #expect(secondary.accessibilityLabel == "Weekly, \(secondary.percentText)")
+        #expect(primary.percentText.contains("80"))
+    }
+
+    @Test
     func `provider accessibility summary carries every bar, not just the name`() {
+        let snapshot = UsageSnapshot(
+            primary: Self.window(usedPercent: 20),
+            secondary: Self.window(usedPercent: 40),
+            updatedAt: self.now)
+        let bars = NotchUsageOverlayModel.bars(
+            snapshot: snapshot,
+            labels: self.labels,
+            showUsed: false,
+            now: self.now)
+
         let row = NotchUsageOverlayModel.ProviderRow(
             id: .codex,
             name: "Codex",
             tint: .green,
-            bars: [
-                NotchUsageOverlayModel.Bar(
-                    title: "Session",
-                    percent: 80,
-                    percentText: "80% left",
-                    resetText: nil,
-                    accessibilityLabel: "Session 80% left"),
-                NotchUsageOverlayModel.Bar(
-                    title: "Weekly",
-                    percent: 60,
-                    percentText: "60% left",
-                    resetText: nil,
-                    accessibilityLabel: "Weekly 60% left"),
-            ],
-            statusText: "resets at 9am")
+            bars: bars,
+            statusText: nil)
 
-        // The tile is one combined accessibility element, so the label must speak for the bars.
-        #expect(row.accessibilitySummary == "Codex, resets at 9am, Session 80% left, Weekly 60% left")
+        // The tile is one combined accessibility element, so the summary must speak for the bars.
+        #expect(row.accessibilitySummary
+            == "Codex, \(bars[0].accessibilityLabel), \(bars[1].accessibilityLabel)")
 
         let bare = NotchUsageOverlayModel.ProviderRow(
-            id: .claude, name: "Claude", tint: .green, bars: [], statusText: nil)
-        #expect(bare.accessibilitySummary == "Claude")
+            id: .claude, name: "Claude", tint: .green, bars: [], statusText: "No usage fetched yet")
+        #expect(bare.accessibilitySummary == "Claude, No usage fetched yet")
     }
 
     @Test
