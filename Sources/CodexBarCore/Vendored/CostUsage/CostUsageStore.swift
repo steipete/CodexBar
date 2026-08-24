@@ -83,6 +83,7 @@ actor CostUsageStore {
         "47144baa8daccf52", // This branch changes only scan scheduling, discovery, and persistence bookkeeping.
         "2d17f4981b78d07f", // Persisted priority-turn cursor; parser and persisted row shape unchanged.
         "3c984b655688593f", // 0.54.x row-ownership evidence fix; parser and persisted row shape unchanged.
+        "5f8507161b23757c", // 0.54.2 tokscale parity + priority evidence; persisted row shape unchanged.
     ]
 
     /// Test-only crash injection: invoked inside `saveCodexCache`'s transaction after each

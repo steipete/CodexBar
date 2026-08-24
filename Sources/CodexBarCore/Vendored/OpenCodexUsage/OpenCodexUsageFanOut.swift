@@ -18,13 +18,21 @@ public enum OpenCodexUsageFanOut {
             }
             grouped[provider, default: []].append(entry)
         }
+        guard !grouped.isEmpty else { return [:] }
+        // Resolve the models.dev catalog and the custom-pricing overlay once for all providers; each snapshot then
+        // prices its entries against this shared context instead of re-reading both per pricing call (see
+        // `OpenCodexUsageAggregator.snapshot`). A missing catalog is passed as an empty one for the same reason.
+        let catalog = CostUsagePricing.modelsDevCatalog() ?? ModelsDevCatalog(providers: [:])
+        let overlay = CostUsagePricing.customPricingOverlay()
         return grouped.mapValues { providerEntries in
             OpenCodexUsageAggregator.snapshot(
                 entries: providerEntries,
                 now: now,
                 historyDays: historyDays,
                 calendar: calendar,
-                customPricing: customPricing)
+                customPricing: customPricing,
+                modelsDevCatalog: catalog,
+                customPricingOverlay: overlay)
         }
     }
 

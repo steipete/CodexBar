@@ -2,6 +2,9 @@
 
 ## 0.54.2 — Unreleased
 
+- OpenCodex: price each usage entry once with a pre-resolved models.dev catalog and custom-pricing overlay instead of re-resolving both per entry per accumulator, and memoize day keys and hour buckets (#3136). Thanks @olddonkey!
+### Performance
+- OpenCodex: price each `usage.jsonl` entry once with a pre-resolved models.dev catalog and custom-pricing overlay, memoize day/hour buckets per calendar interval, and read the models.dev cache metadata with a plain `stat` instead of an extended-attribute read — the OpenCodex spend refresh drops from ~12 s to ~3 s on a 35k-entry log with identical output; existing cost caches are adopted on upgrade, not rebuilt (#3136). Thanks @olddonkey!
 ### Fixed
 - Gemini: recognize Google's live consumer-tier shutdown — an HTTP 200 `loadCodeAssist` body whose `ineligibleTiers` carries `UNSUPPORTED_CLIENT` — instead of surfacing the follow-up quota call as a bare `HTTP 403`, so the Antigravity migration guidance and the **Enable Antigravity provider** action appear again. Licensed Standard/Enterprise accounts keep their generic `HTTP 403`.
 - Gemini: once Google's shutdown response was seen, the login action no longer deletes `~/.gemini/oauth_creds.json` to launch a Gemini CLI sign-in that Google rejects with the same message; it shows the Antigravity guidance instead.
