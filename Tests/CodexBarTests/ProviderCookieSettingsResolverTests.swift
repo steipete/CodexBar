@@ -61,14 +61,17 @@ struct ProviderCookieSettingsResolverTests {
     }
 
     @Test
-    func `legacy cookie shaped token accounts still route as cookies for opencodego`() {
+    func `legacy cookie shaped token accounts force manual cookie source for opencodego`() {
         let settings = ProviderCookieSettingsResolver.resolve(
             provider: .opencodego,
             configuredSource: .auto,
             configuredHeader: nil,
             selectedAccount: Self.account(token: "session=legacy; other=value"))
 
-        #expect(settings.cookieSource == .auto)
+        // OpenCodeWebCookieSupport only reads manualCookieHeader when the source is .manual, so
+        // a detected legacy cookie must force .manual regardless of the configured default
+        // (.auto here) or it would silently fall through to a different cached/imported cookie.
+        #expect(settings.cookieSource == .manual)
         #expect(settings.manualCookieHeader == "session=legacy; other=value")
     }
 

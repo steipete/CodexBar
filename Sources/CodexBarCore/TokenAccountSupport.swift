@@ -27,6 +27,13 @@ public struct TokenAccountSupport: Sendable {
     /// migration keep authenticating. Nil for every provider that never had cookie-header token
     /// accounts, which is the default and does not change their behavior.
     public let legacyCookieDetector: (@Sendable (String) -> Bool)?
+    /// When true, adding the first token account also migrates an existing provider-level
+    /// single API key into the account list (as a "Default" account) instead of leaving it
+    /// orphaned outside tokenAccounts, where stacked fan-out never sees it. Off by default:
+    /// most providers intentionally keep a configured single key separate from token accounts
+    /// (it may be a placeholder/decoy left over from before accounts existed), so only a
+    /// provider that explicitly wants "single key -> first account" upgrade behavior opts in.
+    public let migratesExistingAPIKeyOnFirstAccount: Bool
     private let environmentOverride: @Sendable (String) -> [String: String]?
     private let environmentScrubber: @Sendable (inout [String: String], String) -> Void
     private let cookieHeaderNormalizer: @Sendable (String) -> String
@@ -46,6 +53,7 @@ public struct TokenAccountSupport: Sendable {
         showsTeamModeControls: Bool = false,
         primaryAddActionTitle: String? = nil,
         legacyCookieDetector: (@Sendable (String) -> Bool)? = nil,
+        migratesExistingAPIKeyOnFirstAccount: Bool = false,
         environmentOverride: (@Sendable (String) -> [String: String]?)? = nil,
         environmentScrubber: (@Sendable (inout [String: String], String) -> Void)? = nil,
         cookieHeaderNormalizer: (@Sendable (String) -> String)? = nil)
@@ -64,6 +72,7 @@ public struct TokenAccountSupport: Sendable {
         self.showsTeamModeControls = showsTeamModeControls
         self.primaryAddActionTitle = primaryAddActionTitle
         self.legacyCookieDetector = legacyCookieDetector
+        self.migratesExistingAPIKeyOnFirstAccount = migratesExistingAPIKeyOnFirstAccount
         self.environmentOverride = environmentOverride ?? { token in
             guard case let .environment(key) = injection else { return nil }
             return [key: token]

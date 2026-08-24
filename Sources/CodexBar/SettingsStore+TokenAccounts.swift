@@ -72,7 +72,22 @@ extension SettingsStore {
         let trimmedWorkspaceID = workspaceID?.trimmingCharacters(in: .whitespacesAndNewlines)
         let normalisedWorkspaceID = (trimmedWorkspaceID?.isEmpty ?? true) ? nil : trimmedWorkspaceID
         let existing = self.tokenAccountsData(for: provider)
-        let accounts = existing?.accounts ?? []
+        var accounts = existing?.accounts ?? []
+        // A previously configured single provider-level API key isn't visible to stacked
+        // fan-out (it only iterates tokenAccounts), so adding the first labeled account would
+        // otherwise silently stop tracking that existing subscription. Migrate it in first.
+        let legacyKey = accounts.isEmpty
+            && TokenAccountSupportCatalog.support(for: provider)?.migratesExistingAPIKeyOnFirstAccount == true
+            ? self.providerConfig(for: provider)?.apiKey?.trimmingCharacters(in: .whitespacesAndNewlines)
+            : nil
+        if let legacyKey, !legacyKey.isEmpty {
+            accounts.append(ProviderTokenAccount(
+                id: UUID(),
+                label: "Default",
+                token: legacyKey,
+                addedAt: Date().timeIntervalSince1970,
+                lastUsed: nil))
+        }
         let fallbackLabel = trimmedLabel.isEmpty ? "Account \(accounts.count + 1)" : trimmedLabel
         let account = ProviderTokenAccount(
             id: UUID(),
@@ -84,13 +99,14 @@ extension SettingsStore {
             usageScope: normalisedUsageScope,
             organizationID: normalisedOrganizationID,
             workspaceID: normalisedWorkspaceID)
+        accounts.append(account)
         let updated = ProviderTokenAccountData(
             version: existing?.version ?? 1,
-            accounts: accounts + [account],
-            activeIndex: accounts.count)
+            accounts: accounts,
+            activeIndex: accounts.count - 1)
         self.updateProviderConfig(provider: provider) { entry in
             entry.tokenAccounts = updated
-            if TokenAccountSupportCatalog.support(for: provider)?.clearsAPIKeyOnMutation == true {
+            if legacyKey != nil || TokenAccountSupportCatalog.support(for: provider)?.clearsAPIKeyOnMutation == true {
                 entry.apiKey = nil
             }
         }

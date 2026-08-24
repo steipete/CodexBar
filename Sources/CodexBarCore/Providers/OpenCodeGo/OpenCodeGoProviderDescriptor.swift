@@ -19,7 +19,8 @@ public enum OpenCodeGoProviderDescriptor {
             injection: .environment(key: OpenCodeGoSettingsReader.apiKeyEnvironmentKey),
             requiresManualCookieSource: false,
             cookieName: nil,
-            legacyCookieDetector: Self.looksLikeCookieHeader),
+            legacyCookieDetector: Self.looksLikeCookieHeader,
+            migratesExistingAPIKeyOnFirstAccount: true),
         authDetector: { environment, _ in
             OpenCodeGoSettingsReader.apiKey(environment: environment) == nil ? [] : ["api"]
         })

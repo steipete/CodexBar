@@ -233,8 +233,12 @@ extension CodexBarCLI {
             var accounts = existing?.accounts ?? []
             // A previously configured single API key is about to be cleared below to make room
             // for the account list. Migrate it into that list first so adding a labeled account
-            // doesn't silently discard the only copy of an already-working credential.
-            if accounts.isEmpty, let legacyKey = providerConfig.apiKey?.trimmingCharacters(in: .whitespacesAndNewlines),
+            // doesn't silently discard the only copy of an already-working credential. Opt-in
+            // per provider (see migratesExistingAPIKeyOnFirstAccount): most providers keep a
+            // configured single key deliberately separate from token accounts.
+            if accounts.isEmpty,
+               TokenAccountSupportCatalog.support(for: provider)?.migratesExistingAPIKeyOnFirstAccount == true,
+               let legacyKey = providerConfig.apiKey?.trimmingCharacters(in: .whitespacesAndNewlines),
                !legacyKey.isEmpty
             {
                 accounts.append(ProviderTokenAccount(
