@@ -388,22 +388,17 @@ struct ProviderSettingsDescriptorTests {
     }
 
     @Test
-    func `claude daily routines toggle follows global optional usage setting`() throws {
-        let fixture = try self.makeSettingsFixture(suite: "ProviderSettingsDescriptorTests-claude-routines")
-        let context = fixture.settingsContext(provider: .claude)
-        let toggles = ClaudeProviderImplementation().settingsToggles(context: context)
-        let routinesToggle = try #require(toggles.first {
+    func `provider implementations omit superseded one-off usage visibility toggles`() throws {
+        let fixture = try self.makeSettingsFixture(suite: "ProviderSettingsDescriptorTests-shared-usage-items")
+        let claudeContext = fixture.settingsContext(provider: .claude)
+        let codexContext = fixture.settingsContext(provider: .codex)
+
+        #expect(!ClaudeProviderImplementation().settingsToggles(context: claudeContext).contains {
             $0.id == "claude-daily-routines-usage-visible"
         })
-
-        #expect(routinesToggle.binding.wrappedValue)
-        #expect(routinesToggle.isEnabled?() == true)
-
-        routinesToggle.binding.wrappedValue = false
-        #expect(fixture.settings.claudeDailyRoutinesUsageVisible == false)
-
-        fixture.settings.showOptionalCreditsAndExtraUsage = false
-        #expect(routinesToggle.isEnabled?() == false)
+        #expect(!CodexProviderImplementation().settingsToggles(context: codexContext).contains {
+            $0.id == "codex-spark-usage-visible"
+        })
     }
 
     @Test

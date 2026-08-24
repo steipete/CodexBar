@@ -1533,3 +1533,6 @@
 "menu_bar_layout_conditional_default_session_spent" = "Sesi hampir habis";
 "menu_bar_layout_conditional_default_either_high" = "Sesi atau mingguan sedang tinggi";
 "menu_bar_layout_conditional_default_scoped_weekly" = "Mingguan per model di atas 60%";
+"Visible usage items" = "Item penggunaan yang terlihat";
+"Restore Defaults" = "Pulihkan Default";
+"Choose which usage rows appear in this provider's menu, Settings preview, and Overview." = "Pilih baris penggunaan yang muncul di menu penyedia ini, pratinjau Pengaturan, dan Ringkasan.";

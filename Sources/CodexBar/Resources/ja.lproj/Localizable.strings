@@ -1530,3 +1530,6 @@
 "menu_bar_layout_conditional_default_session_spent" = "セッションがほぼ上限";
 "menu_bar_layout_conditional_default_either_high" = "セッションまたは週間が高水準";
 "menu_bar_layout_conditional_default_scoped_weekly" = "モデル別週間の使用率 60% 超";
+"Visible usage items" = "表示する使用量項目";
+"Restore Defaults" = "デフォルトに戻す";
+"Choose which usage rows appear in this provider's menu, Settings preview, and Overview." = "このプロバイダーのメニュー、設定プレビュー、概要に表示する使用量の行を選択します。";

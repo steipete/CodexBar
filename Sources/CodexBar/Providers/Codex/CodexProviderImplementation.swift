@@ -106,21 +106,6 @@ struct CodexProviderImplementation: ProviderImplementation {
                 onAppDidBecomeActive: nil,
                 onAppearWhenEnabled: nil),
             ProviderSettingsToggleDescriptor(
-                id: "codex-spark-usage-visible",
-                title: "Show Codex Spark usage",
-                subtitle: [
-                    "Shows Codex Spark quota rows in the menu and provider preview.",
-                    "Requires optional credits and extra usage in Display settings.",
-                ].joined(separator: " "),
-                binding: context.boolBinding(\.codexSparkUsageVisible),
-                statusText: nil,
-                actions: [],
-                isVisible: nil,
-                isEnabled: { context.settings.showOptionalCreditsAndExtraUsage },
-                onChange: nil,
-                onAppDidBecomeActive: nil,
-                onAppearWhenEnabled: nil),
-            ProviderSettingsToggleDescriptor(
                 id: "codex-openai-web-extras",
                 title: "OpenAI web extras",
                 subtitle: [

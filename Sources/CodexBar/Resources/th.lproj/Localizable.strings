@@ -1534,3 +1534,6 @@
 "menu_bar_layout_conditional_default_session_spent" = "เซสชันเกือบหมด";
 "menu_bar_layout_conditional_default_either_high" = "เซสชันหรือรายสัปดาห์อยู่ในระดับสูง";
 "menu_bar_layout_conditional_default_scoped_weekly" = "รายสัปดาห์ตามโมเดลเกิน 60%";
+"Visible usage items" = "รายการการใช้งานที่มองเห็น";
+"Restore Defaults" = "คืนค่าเริ่มต้น";
+"Choose which usage rows appear in this provider's menu, Settings preview, and Overview." = "เลือกแถวการใช้งานที่จะแสดงในเมนูของผู้ให้บริการนี้ ตัวอย่างการตั้งค่า และภาพรวม";

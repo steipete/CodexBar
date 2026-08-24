@@ -1529,3 +1529,6 @@
 "menu_bar_layout_conditional_default_session_spent" = "Sessionen nästan förbrukad";
 "menu_bar_layout_conditional_default_either_high" = "Session eller vecka ligger högt";
 "menu_bar_layout_conditional_default_scoped_weekly" = "Modellvecka över 60 % använt";
+"Visible usage items" = "Synliga användningsposter";
+"Restore Defaults" = "Återställ standardvärden";
+"Choose which usage rows appear in this provider's menu, Settings preview, and Overview." = "Välj vilka användningsrader som visas i den här leverantörens meny, förhandsvisningen i Inställningar och Översikt.";

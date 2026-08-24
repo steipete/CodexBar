@@ -1531,3 +1531,6 @@
 "menu_bar_layout_conditional_default_session_spent" = "Сессия почти исчерпана";
 "menu_bar_layout_conditional_default_either_high" = "Сессия или неделя на высоком уровне";
 "menu_bar_layout_conditional_default_scoped_weekly" = "Недельное окно модели более 60 %";
+"Visible usage items" = "Видимые показатели использования";
+"Restore Defaults" = "Восстановить настройки по умолчанию";
+"Choose which usage rows appear in this provider's menu, Settings preview, and Overview." = "Выберите, какие строки использования отображаются в меню этого провайдера, в предпросмотре настроек и в обзоре.";

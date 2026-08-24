@@ -1529,3 +1529,6 @@
 "menu_bar_layout_conditional_default_session_spent" = "Sesión case esgotada";
 "menu_bar_layout_conditional_default_either_high" = "Sesión ou semana en nivel alto";
 "menu_bar_layout_conditional_default_scoped_weekly" = "Semana por modelo por riba do 60 %";
+"Visible usage items" = "Elementos de uso visibles";
+"Restore Defaults" = "Restaurar valores predeterminados";
+"Choose which usage rows appear in this provider's menu, Settings preview, and Overview." = "Escolle as filas de uso que aparecen no menú deste provedor, na vista previa de Configuración e na Vista xeral.";

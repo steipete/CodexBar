@@ -1530,3 +1530,6 @@
 "menu_bar_layout_conditional_default_session_spent" = "Sitzung fast aufgebraucht";
 "menu_bar_layout_conditional_default_either_high" = "Sitzung oder Woche läuft hoch";
 "menu_bar_layout_conditional_default_scoped_weekly" = "Modellfenster über 60 % genutzt";
+"Visible usage items" = "Sichtbare Nutzungselemente";
+"Restore Defaults" = "Standardeinstellungen wiederherstellen";
+"Choose which usage rows appear in this provider's menu, Settings preview, and Overview." = "Wähle aus, welche Nutzungszeilen im Menü dieses Anbieters, in der Einstellungsvorschau und in der Übersicht angezeigt werden.";
