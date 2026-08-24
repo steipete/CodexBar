@@ -35,7 +35,7 @@ struct NotchPane: View {
 
             Section {
                 LabeledContent(L("notch_hotkey_title")) {
-                    NotchOverlayShortcutRecorder()
+                    NotchOverlayShortcutRecorder(isEnabled: self.isEnabled)
                 }
 
                 Picker(selection: self.$settings.notchHotkeyMode) {

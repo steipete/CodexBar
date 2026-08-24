@@ -60,4 +60,19 @@ struct NotchHotkeyStateTests {
         state.clear()
         #expect(!state.isHolding)
     }
+
+    @Test
+    func `activation preserves an existing expanded or collapsed panel`() {
+        #expect(NotchUsageOverlayController.existingPanelUpdate(
+            hasPanelOnTargetScreen: true,
+            isExpanded: false) == .collapsedFrame)
+        #expect(NotchUsageOverlayController.existingPanelUpdate(
+            hasPanelOnTargetScreen: true,
+            isExpanded: true) == .expandedFrame)
+
+        // Only moving to a different target screen requires replacing the panel.
+        #expect(NotchUsageOverlayController.existingPanelUpdate(
+            hasPanelOnTargetScreen: false,
+            isExpanded: true) == .recreate)
+    }
 }

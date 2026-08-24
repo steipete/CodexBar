@@ -102,12 +102,17 @@ struct OpenMenuShortcutRecorder: NSViewRepresentable {
 
 @MainActor
 struct NotchOverlayShortcutRecorder: NSViewRepresentable {
+    let isEnabled: Bool
+
     func makeNSView(context: Context) -> KeyboardShortcuts.RecorderCocoa {
-        KeyboardShortcuts.RecorderCocoa(for: .showNotchOverlay)
+        let recorder = KeyboardShortcuts.RecorderCocoa(for: .showNotchOverlay)
+        recorder.isEnabled = self.isEnabled
+        return recorder
     }
 
     func updateNSView(_ nsView: KeyboardShortcuts.RecorderCocoa, context: Context) {
         nsView.shortcutName = .showNotchOverlay
+        nsView.isEnabled = self.isEnabled
     }
 
     func sizeThatFits(

@@ -1,5 +1,6 @@
 import CodexBarCore
 import Foundation
+import KeyboardShortcuts
 import Testing
 @testable import CodexBar
 
@@ -14,6 +15,63 @@ struct NotchUsageSettingsTests {
         fixture.store.notchUsageSummaryEnabled = true
 
         #expect(try Self.reload(fixture).notchUsageSummaryEnabled)
+    }
+
+    @Test
+    func `notch activation token changes only with feature enablement`() throws {
+        let fixture = try Self.makeFixture("activation-token")
+        let store = fixture.store
+        let initial = store.notchActivationObservationToken
+
+        store.notchColumnCount = 3
+        store.notchProvidersMaxHeight = 720
+        #expect(store.notchActivationObservationToken == initial)
+
+        store.notchUsageSummaryEnabled = true
+        #expect(store.notchActivationObservationToken == initial &+ 1)
+
+        // A no-op assignment neither persists noise nor wakes the controller again.
+        store.notchUsageSummaryEnabled = true
+        #expect(store.notchActivationObservationToken == initial &+ 1)
+    }
+
+    @Test
+    func `shortcut handlers exist only while enabled and are removed across restarts`() async throws {
+        let fixture = try Self.makeFixture("shortcut-lifecycle")
+        let settings = fixture.store
+        let usageStore = UsageStore(
+            fetcher: UsageFetcher(),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings)
+        let controller = NotchUsageOverlayController(store: usageStore, settings: settings)
+        let originalShortcut = KeyboardShortcuts.getShortcut(for: .showNotchOverlay)
+
+        KeyboardShortcuts.removeHandler(for: .showNotchOverlay)
+        KeyboardShortcuts.setShortcut(
+            KeyboardShortcuts.Shortcut(.n, modifiers: [.command, .option]),
+            for: .showNotchOverlay)
+        defer {
+            controller.stop()
+            KeyboardShortcuts.removeHandler(for: .showNotchOverlay)
+            KeyboardShortcuts.setShortcut(originalShortcut, for: .showNotchOverlay)
+        }
+
+        controller.start()
+        #expect(!KeyboardShortcuts.isEnabled(for: .showNotchOverlay))
+
+        settings.notchUsageSummaryEnabled = true
+        for _ in 0..<3 {
+            await Task.yield()
+        }
+        #expect(KeyboardShortcuts.isEnabled(for: .showNotchOverlay))
+
+        controller.stop()
+        #expect(!KeyboardShortcuts.isEnabled(for: .showNotchOverlay))
+
+        controller.start()
+        #expect(KeyboardShortcuts.isEnabled(for: .showNotchOverlay))
+        controller.stop()
+        #expect(!KeyboardShortcuts.isEnabled(for: .showNotchOverlay))
     }
 
     @Test
@@ -236,6 +294,74 @@ struct NotchUsageSettingsTests {
             [.codex, .cursor, .gemini],
             [.claude, .zai],
         ])
+    }
+
+    @Test
+    func `Codex credits fill only an otherwise empty other slot`() throws {
+        let settings = testSettingsStore(suiteName: "NotchUsageSettingsTests-credit-fallback")
+        settings.providerEnablement[.codex] = true
+        let store = UsageStore(
+            fetcher: UsageFetcher(),
+            browserDetection: BrowserDetection(cacheTTL: 0),
+            settings: settings)
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        store.credits = CreditsSnapshot(
+            remaining: 80,
+            events: [],
+            updatedAt: now,
+            codexCreditLimit: CodexCreditLimitSnapshot(
+                used: 20,
+                limit: 100,
+                remainingPercent: 80,
+                resetsAt: nil,
+                updatedAt: now))
+
+        func projectedTitles(_ snapshot: UsageSnapshot) throws -> [String] {
+            store._setSnapshotForTesting(snapshot, provider: .codex)
+            let model = NotchUsageOverlayModel.make(store: store, settings: settings, now: now)
+            return try #require(model.items.first { $0.id == .codex }).bars.map(\.title)
+        }
+
+        let ordinaryWindows = (
+            primary: RateWindow(usedPercent: 20, windowMinutes: 300, resetsAt: nil, resetDescription: nil),
+            secondary: RateWindow(usedPercent: 40, windowMinutes: 10080, resetsAt: nil, resetDescription: nil))
+        let creditTitle = L("Monthly credit limit")
+
+        let extraTitles = try projectedTitles(UsageSnapshot(
+            primary: ordinaryWindows.primary,
+            secondary: ordinaryWindows.secondary,
+            extraRateWindows: [
+                NamedRateWindow(
+                    id: "team",
+                    title: "Team",
+                    window: RateWindow(
+                        usedPercent: 30,
+                        windowMinutes: 43200,
+                        resetsAt: nil,
+                        resetDescription: nil)),
+            ],
+            updatedAt: now))
+        #expect(extraTitles.contains("Team"))
+        #expect(!extraTitles.contains(creditTitle))
+
+        let costTitles = try projectedTitles(UsageSnapshot(
+            primary: ordinaryWindows.primary,
+            secondary: ordinaryWindows.secondary,
+            providerCost: ProviderCostSnapshot(
+                used: 25,
+                limit: 100,
+                currencyCode: "USD",
+                period: "Monthly",
+                updatedAt: now),
+            updatedAt: now))
+        #expect(costTitles.contains(L("Monthly")))
+        #expect(!costTitles.contains(creditTitle))
+
+        let fallbackTitles = try projectedTitles(UsageSnapshot(
+            primary: ordinaryWindows.primary,
+            secondary: ordinaryWindows.secondary,
+            updatedAt: now))
+        #expect(fallbackTitles.contains(creditTitle))
     }
 
     @Test

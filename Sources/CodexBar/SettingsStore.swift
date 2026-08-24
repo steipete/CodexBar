@@ -270,6 +270,10 @@ final class SettingsStore {
     var configRevision: Int = 0
     var providerDetailSettingsRevision: Int = 0
     var backgroundWorkSettingsRevision: Int = 0
+    /// Dedicated observation seam for the notch controller. Reading `defaultsState` through a
+    /// computed setting tracks the entire value-type defaults struct, so every unrelated setting
+    /// mutation would otherwise look like an activation change.
+    var notchActivationRevision: UInt = 0
     var costUsageSettingsRevision: UInt64 = 0
     var providerOrder: [ProviderInstanceID] = []
     var providerEnablement: [ProviderInstanceID: Bool] = [:]

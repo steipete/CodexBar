@@ -58,9 +58,17 @@ extension SettingsStore {
     var notchUsageSummaryEnabled: Bool {
         get { self.defaultsState.notchUsageSummaryEnabled }
         set {
+            guard newValue != self.defaultsState.notchUsageSummaryEnabled else { return }
             self.defaultsState.notchUsageSummaryEnabled = newValue
+            self.notchActivationRevision &+= 1
             self.userDefaults.set(newValue, forKey: "notchUsageSummaryEnabled")
         }
+    }
+
+    /// Unlike `notchUsageSummaryEnabled`, this observes only a dedicated scalar and therefore does
+    /// not re-fire when another member of the value-type defaults state changes.
+    var notchActivationObservationToken: UInt {
+        self.notchActivationRevision
     }
 
     /// The panel sizes itself to its content in width. Height is content-driven per section: the

@@ -8,6 +8,21 @@ final class NotchUsageOverlayController {
     private static let expandDwell: Duration = .milliseconds(350)
     private static let collapseGrace: Duration = .milliseconds(400)
     private static let collapseAnimation: Duration = .milliseconds(350)
+    enum ExistingPanelUpdate: Equatable, Sendable {
+        case recreate
+        case collapsedFrame
+        case expandedFrame
+    }
+
+    /// Pure lifecycle seam: benign activation checks update the panel in place whenever it is
+    /// already on the target screen, preserving hover/hotkey ownership even while expanded.
+    nonisolated static func existingPanelUpdate(
+        hasPanelOnTargetScreen: Bool,
+        isExpanded: Bool) -> ExistingPanelUpdate
+    {
+        guard hasPanelOnTargetScreen else { return .recreate }
+        return isExpanded ? .expandedFrame : .collapsedFrame
+    }
 
     private let store: UsageStore
     private let settings: SettingsStore
@@ -28,6 +43,7 @@ final class NotchUsageOverlayController {
     private var hoverTask: Task<Void, Never>?
     private var collapseTask: Task<Void, Never>?
     private var isStarted = false
+    private var hotkeyHandlersInstalled = false
     private var isPointerInside = false
     /// Owns hold/toggle semantics; while it is holding, losing the pointer must not collapse.
     private var hotkeyState = NotchHotkeyState()
@@ -40,7 +56,7 @@ final class NotchUsageOverlayController {
     func start() {
         guard !self.isStarted else { return }
         self.isStarted = true
-        self.observeSettingsChanges()
+        self.observeActivationChanges()
         self.screenParametersObserver = NotificationCenter.default.addObserver(
             forName: NSApplication.didChangeScreenParametersNotification,
             object: nil,
@@ -50,13 +66,14 @@ final class NotchUsageOverlayController {
                 self?.updateActivation()
             }
         }
+        self.updateHotkeyHandlers()
         self.updateActivation()
-        self.installHotkeyHandlers()
     }
 
     func stop() {
-        guard self.isStarted || self.panel != nil else { return }
+        guard self.isStarted || self.panel != nil || self.hotkeyHandlersInstalled else { return }
         self.isStarted = false
+        self.removeHotkeyHandlers()
         self.hoverTask?.cancel()
         self.hoverTask = nil
         self.collapseTask?.cancel()
@@ -68,7 +85,19 @@ final class NotchUsageOverlayController {
         self.closePanel()
     }
 
+    private func updateHotkeyHandlers() {
+        if self.isStarted, self.settings.notchUsageSummaryEnabled {
+            self.installHotkeyHandlers()
+        } else {
+            self.removeHotkeyHandlers()
+        }
+    }
+
     private func installHotkeyHandlers() {
+        guard !self.hotkeyHandlersInstalled else { return }
+        // Clear callbacks a prior controller may have left behind before replacing them. This is
+        // also what prevents stop/start cycles from accumulating Toggle callbacks.
+        KeyboardShortcuts.removeHandler(for: .showNotchOverlay)
         KeyboardShortcuts.onKeyDown(for: .showNotchOverlay) { [weak self] in
             MainActor.assumeIsolated {
                 self?.handleHotkeyDown()
@@ -79,6 +108,13 @@ final class NotchUsageOverlayController {
                 self?.handleHotkeyUp()
             }
         }
+        self.hotkeyHandlersInstalled = true
+    }
+
+    private func removeHotkeyHandlers() {
+        KeyboardShortcuts.removeHandler(for: .showNotchOverlay)
+        self.hotkeyHandlersInstalled = false
+        self.hotkeyState.clear()
     }
 
     private func handleHotkeyDown() {
@@ -118,13 +154,14 @@ final class NotchUsageOverlayController {
         }
     }
 
-    private func observeSettingsChanges() {
+    private func observeActivationChanges() {
         withObservationTracking {
-            _ = self.settings.notchUsageSummaryEnabled
+            _ = self.settings.notchActivationObservationToken
         } onChange: { [weak self] in
             Task { @MainActor [weak self] in
                 guard let self, self.isStarted else { return }
-                self.observeSettingsChanges()
+                self.observeActivationChanges()
+                self.updateHotkeyHandlers()
                 self.updateActivation()
             }
         }
@@ -140,10 +177,23 @@ final class NotchUsageOverlayController {
             return
         }
 
-        if let panel = self.panel, self.screen === notchedScreen, !self.viewState.isExpanded {
+        let panelOnTargetScreen = self.panel != nil && self.screen === notchedScreen
+        switch Self.existingPanelUpdate(
+            hasPanelOnTargetScreen: panelOnTargetScreen,
+            isExpanded: self.viewState.isExpanded)
+        {
+        case .collapsedFrame:
             self.viewState.notchHeight = notchRect.height
-            panel.setFrame(self.collapsedFrame(notchRect: notchRect, screen: notchedScreen), display: true)
+            self.panel?.setFrame(
+                self.collapsedFrame(notchRect: notchRect, screen: notchedScreen),
+                display: true)
             return
+        case .expandedFrame:
+            self.viewState.notchHeight = notchRect.height
+            self.applyExpandedFrame()
+            return
+        case .recreate:
+            break
         }
 
         self.closePanel()

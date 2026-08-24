@@ -186,9 +186,14 @@ struct NotchUsageOverlayModel: Equatable {
             var bars = snapshot.map {
                 self.bars(snapshot: $0, labels: labels, showUsed: showUsed, now: now)
             } ?? []
+            let fallbackSlotFilled = snapshot.map(Self.hasOtherBar) ?? false
             // Provider-specific by design: the fourth-bar fallback to monthly credits reads the
             // Codex-only global credits snapshot; no other provider publishes an equivalent.
-            if provider == .codex, bars.count < 4, let creditLimit = store.credits?.codexCreditLimit {
+            if provider == .codex,
+               !fallbackSlotFilled,
+               bars.count < 4,
+               let creditLimit = store.credits?.codexCreditLimit
+            {
                 bars.append(self.makeCreditBar(creditLimit: creditLimit, showUsed: showUsed, now: now))
             }
             return ProviderRow(
@@ -287,6 +292,16 @@ struct NotchUsageOverlayModel: Equatable {
             resetText: resetText,
             accessibilityLabel: Self.accessibilityLabel(
                 title: title, percentText: percentText, resetText: resetText))
+    }
+
+    /// Matches the mutually-exclusive "other" projection in ``bars``: the first known named
+    /// window wins, otherwise valid provider spend wins. Credits may fill the slot only when both
+    /// are absent.
+    private static func hasOtherBar(_ snapshot: UsageSnapshot) -> Bool {
+        if snapshot.extraRateWindows?.contains(where: \.usageKnown) == true {
+            return true
+        }
+        return snapshot.providerCost.map { $0.limit > 0 } == true
     }
 
     private static func makeCostBar(cost: ProviderCostSnapshot, showUsed: Bool) -> Bar {
