@@ -193,7 +193,13 @@ extension CodexBarCLI {
         case .text:
             let name = ProviderDescriptorRegistry.descriptor(for: provider).metadata.displayName
             let suffix = result.enabled ? " and enabled" : ""
-            let action = accountOptions == nil ? "stored API key" : "stored team token account"
+            let action = if accountOptions == nil {
+                "stored API key"
+            } else if accountOptions?.usageScope == .team {
+                "stored team token account"
+            } else {
+                "stored labeled account"
+            }
             print("Config: \(action) for \(name)\(suffix)")
         case .json:
             Self.printJSON(result, pretty: output.pretty)
@@ -250,9 +256,13 @@ extension CodexBarCLI {
             // broken, still-quoted duplicate "Default" account.
             let sanitizedLegacyKey = Self.cleanConfigSecret(providerConfig.apiKey)
             let hasLegacyKey = sanitizedLegacyKey != nil
-            if accounts.isEmpty, migratesExistingKey, let legacyKey = sanitizedLegacyKey, hasLegacyKey,
-               legacyKey != apiKey
-            {
+            // Not gated on accounts.isEmpty: a legacy key can still be sitting unmigrated even
+            // when tokenAccounts is already non-empty (e.g. a plain `set-api-key` with no
+            // --label, which always overwrites providerConfig.apiKey without touching
+            // tokenAccounts, run after accounts already existed). The clear below fires
+            // whenever migratesExistingKey is true regardless of account count, so migration
+            // must use the same condition or an unmigrated key gets silently discarded.
+            if migratesExistingKey, let legacyKey = sanitizedLegacyKey, hasLegacyKey, legacyKey != apiKey {
                 accounts.append(ProviderTokenAccount(
                     id: UUID(),
                     label: "Default",

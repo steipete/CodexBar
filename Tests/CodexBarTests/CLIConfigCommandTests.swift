@@ -279,6 +279,41 @@ struct CLIConfigCommandTests {
     }
 
     @Test
+    func `config set api key migrates a legacy key set after accounts already existed`() throws {
+        let config = CodexBarConfig.makeDefault()
+        let firstOptions = try #require(try CodexBarCLI.resolveConfigAPIKeyAccountOptions(
+            provider: .opencodego, label: "Acc1", usageScope: nil, organizationID: nil, workspaceID: nil))
+        let afterFirst = CodexBarCLI.configSettingAPIKey(
+            config, provider: .opencodego, apiKey: "sk-acc1", enableProvider: true, accountOptions: firstOptions)
+
+        let secondOptions = try #require(try CodexBarCLI.resolveConfigAPIKeyAccountOptions(
+            provider: .opencodego, label: "Acc2", usageScope: nil, organizationID: nil, workspaceID: nil))
+        let afterSecond = CodexBarCLI.configSettingAPIKey(
+            afterFirst, provider: .opencodego, apiKey: "sk-acc2", enableProvider: true, accountOptions: secondOptions)
+
+        // A plain set-api-key with no --label always overwrites providerConfig.apiKey without
+        // touching tokenAccounts, so this reaches a real, reachable state: 2 accounts already
+        // exist AND a stray legacy key sits unmigrated at the same time.
+        let withStrayKey = CodexBarCLI.configSettingAPIKey(
+            afterSecond, provider: .opencodego, apiKey: "sk-stray", enableProvider: true)
+        #expect(withStrayKey.providerConfig(for: .opencodego)?.apiKey == "sk-stray")
+        #expect(withStrayKey.providerConfig(for: .opencodego)?.tokenAccounts?.accounts.count == 2)
+
+        let thirdOptions = try #require(try CodexBarCLI.resolveConfigAPIKeyAccountOptions(
+            provider: .opencodego, label: "Acc3", usageScope: nil, organizationID: nil, workspaceID: nil))
+        let final = CodexBarCLI.configSettingAPIKey(
+            withStrayKey, provider: .opencodego, apiKey: "sk-acc3", enableProvider: true, accountOptions: thirdOptions)
+
+        let provider = try #require(final.providerConfig(for: .opencodego))
+        // The stray key must survive as its own "Default" account instead of being discarded:
+        // migration is gated on accounts.isEmpty, but the field-clear below it isn't, so an
+        // unmigrated legacy key set after accounts already existed was previously lost outright.
+        #expect(provider.apiKey == nil)
+        #expect(provider.tokenAccounts?.accounts.map(\.label) == ["Acc1", "Acc2", "Default", "Acc3"])
+        #expect(provider.tokenAccounts?.accounts.map(\.token) == ["sk-acc1", "sk-acc2", "sk-stray", "sk-acc3"])
+    }
+
+    @Test
     func `config set api key does not duplicate an identical legacy key when naming the same account`() throws {
         let config = CodexBarConfig.makeDefault()
         let withLegacyKey = CodexBarCLI.configSettingAPIKey(
