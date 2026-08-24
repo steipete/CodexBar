@@ -2,27 +2,25 @@
 
 ## 0.54.2 — Unreleased
 
+### Fixed
+- Gemini: recognize Google's live consumer-tier shutdown — an HTTP 200 `loadCodeAssist` body whose `ineligibleTiers` carries `UNSUPPORTED_CLIENT` — instead of surfacing the follow-up quota call as a bare `HTTP 403`, so the Antigravity migration guidance and the **Enable Antigravity provider** action appear again. Licensed Standard/Enterprise accounts keep their generic `HTTP 403`.
+- Gemini: once Google's shutdown response was seen, the login action no longer deletes `~/.gemini/oauth_creds.json` to launch a Gemini CLI sign-in that Google rejects with the same message; it shows the Antigravity guidance instead.
 - Claude: web-cookie refresh works in ad-hoc development builds by routing cookie cache entries to process memory, keeping persistent Keychain storage for signed builds and OAuth credentials; cookie imports prefer Chrome and evaluate other browsers lazily (#3162). Thanks @Zihao-Qi!
 
 - Adaptive (agent-aware) refresh now detects ongoing Codex activity from the unified ChatGPT.app: the ChatGPT-bundled Codex is recognized at approved locations (signing-validated) and recent rollout writes hold the 5-minute active cadence (#3160, #3163).
 - Antigravity: menu-bar quota refresh reuses an already signed-in `agy` CLI without requiring the desktop app, and logged-out/keyring-timeout states show sign-in guidance instead of "Launch Antigravity" (#3146, #3161).
-
 - Codex: tokscale parity for local token counts — cached usage derives from the larger of `cached_input_tokens`/`cache_read_input_tokens`, out-of-order token_count events are detected field-level before watermark latching, and bare usage rows in non-event rollout lines parse (#3120). Thanks @Yuxin-Qiao!
-
 - Added CHF (Swiss Franc) to the display currency options (#3149).
-
 - Spend dashboard: silently refresh independent providers (Claude/Cursor) when their token publications update, bucket the activity heatmap with the configured IANA timezone, and stop coalescing display-affecting ownership and revision changes (#3106). Thanks @Yuxin-Qiao!
 - Spend: add tokscale-compatible local readers for Cursor and Antigravity local history (#3113). Thanks @Yuxin-Qiao!
 - Antigravity: map retired Flash wire IDs to their current tier, and count local conversations as an offline fallback when the desktop app is unavailable (#3119). Thanks @Yuxin-Qiao!
 - Antigravity: reuse a signed-in `agy` for menu-bar quota refreshes without the desktop app, and report CLI sign-in failures instead of asking users to launch an unavailable app (#3146).
-
 - Fixed single-quota menu-bar icons understating remaining usage: a provider's only meaningful quota now renders as one prominent meter instead of half an icon next to a reserved empty lane, including when it arrives in the secondary slot (#3154, #3155). Thanks @akshayprabhu200!
 - Grok: report period-only CLI-proxy responses as unknown usage instead of 0% when Grok Build has hit its free limit, keeping identity and reset metadata (#3157, #3159). Thanks @anupamchugh!
 - Refresh: detect ongoing Codex conversations hosted inside ChatGPT.app in Adaptive (agent-aware) mode without treating an idle open app as coding activity (#3160).
 - OpenRouter: request the latest completed UTC day from the Activity API instead of the current date, fixing the HTTP 400 that suppressed spend history (#3133, #3138). Thanks @kiranmagic7!
 - Qwen Cloud: restored Brave browser support in cookie import (#3148). Thanks @umutkeltek!
 - CLI install: report success even when unrelated PATH directories are non-writable, while still listing genuine `codexbar` conflicts from earlier PATH entries (#3153). Thanks @yicone!
-
 - Fixed the Codex cost card blanking Today and recent days when priority processing is in use: row-ownership evidence now accepts the trace database's tier classification instead of discarding whole (day, model) groups (#3150). Thanks @olddonkey!
 - Stopped re-merging the Codex plan-utilization history with itself on every refresh and menu open — the legacy-bucket migration now runs only when a non-canonical bucket actually exists (#3141). Thanks @olddonkey!
 

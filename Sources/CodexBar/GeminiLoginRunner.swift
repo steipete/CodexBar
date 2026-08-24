@@ -21,13 +21,22 @@ enum GeminiLoginRunner {
             case success
             case missingBinary
             case launchFailed(String)
+            /// Google's consumer-tier shutdown was observed: launching Gemini CLI would only fail its
+            /// OAuth step, so keep the stored credentials and steer the user to Antigravity instead.
+            case consumerTierDeprecated
         }
 
         let outcome: Outcome
     }
 
-    static func run(onCredentialsCreated: (@Sendable () -> Void)? = nil) async -> Result {
-        await Task(priority: .userInitiated) {
+    static func run(
+        consumerTierDeprecationObserved: Bool = false,
+        onCredentialsCreated: (@Sendable () -> Void)? = nil) async -> Result
+    {
+        guard !consumerTierDeprecationObserved else {
+            return Result(outcome: .consumerTierDeprecated)
+        }
+        return await Task(priority: .userInitiated) {
             let env = ProcessInfo.processInfo.environment
             guard let binary = BinaryLocator.resolveGeminiBinary(
                 env: env,
