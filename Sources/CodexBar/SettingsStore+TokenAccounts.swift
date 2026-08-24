@@ -2,6 +2,21 @@ import AppKit
 import CodexBarCore
 import Foundation
 
+/// Mirrors ProviderConfig.clean(_:)/CLIConfigCommand.cleanConfigSecret(_:) - trims whitespace and
+/// strips one matching pair of wrapping quote characters. A key saved via the Settings UI's own
+/// normalizer only trims whitespace, so without this a quoted legacy key and a clean new token
+/// for the same real credential compare as different and migrate a spurious duplicate account.
+private func cleanTokenAccountSecret(_ raw: String?) -> String? {
+    guard var value = raw?.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty else {
+        return nil
+    }
+    if (value.hasPrefix("\"") && value.hasSuffix("\"")) || (value.hasPrefix("'") && value.hasSuffix("'")) {
+        value = String(value.dropFirst().dropLast())
+    }
+    value = value.trimmingCharacters(in: .whitespacesAndNewlines)
+    return value.isEmpty ? nil : value
+}
+
 extension SettingsStore {
     func tokenAccountsData(for provider: UsageProvider) -> ProviderTokenAccountData? {
         guard TokenAccountSupportCatalog.support(for: provider) != nil else { return nil }
@@ -78,7 +93,7 @@ extension SettingsStore {
         // otherwise silently stop tracking that existing subscription. Migrate it in first.
         let legacyKey = accounts.isEmpty
             && TokenAccountSupportCatalog.support(for: provider)?.migratesExistingAPIKeyOnFirstAccount == true
-            ? self.providerConfig(for: provider)?.apiKey?.trimmingCharacters(in: .whitespacesAndNewlines)
+            ? cleanTokenAccountSecret(self.providerConfig(for: provider)?.apiKey)
             : nil
         // If the account being added uses the same token as the existing single key, the user is
         // just naming their current subscription (e.g. via Add Account), not adding a second one.

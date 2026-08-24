@@ -44,6 +44,21 @@ struct OpenCodeGoAddTokenAccountTests {
         #expect(settings.providerConfig(for: .openrouter)?.apiKey == nil)
     }
 
+    @Test
+    func `a quoted legacy key is recognized as identical to the clean new token`() {
+        let settings = Self.makeSettings(suite: "OpenCodeGoAddTokenAccountTests-quoted")
+        // Simulates a key saved via the Settings UI, whose normalizer only trims whitespace and
+        // does not strip wrapping quote characters.
+        settings[providerConfig: .opencodego, field: .apiKey] = "\"sk-same\""
+
+        settings.addTokenAccount(provider: .opencodego, label: "Personal", token: "sk-same")
+
+        let accounts = settings.tokenAccounts(for: .opencodego)
+        #expect(accounts.count == 1)
+        #expect(accounts[0].label == "Personal")
+        #expect(accounts[0].token == "sk-same")
+    }
+
     private static func makeSettings(suite: String) -> SettingsStore {
         testSettingsStore(
             suiteName: "\(suite)-\(UUID().uuidString)",
