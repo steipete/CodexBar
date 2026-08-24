@@ -50,12 +50,38 @@ struct OpenCodeGoProviderStrategyTests {
     }
 
     @Test
-    func `auto source tries API before local for selected token accounts`() async {
+    func `auto source uses only the API strategy for a selected API-key token account`() async {
+        let descriptor = OpenCodeGoProviderDescriptor.makeDescriptor()
+        let strategies = await descriptor.fetchPlan.pipeline.resolveStrategies(
+            self.makeContext(
+                env: [OpenCodeGoSettingsReader.apiKeyEnvironmentKey: "sk-abc123"],
+                selectedTokenAccountID: UUID()))
+
+        // No unscoped local/cookie fallback: a wrong or revoked key must surface as a failure
+        // for this account, never silently show a different account's usage under its label.
+        #expect(strategies.map(\.id) == ["opencodego.api"])
+    }
+
+    @Test
+    func `auto source keeps the cookie-first ordering for a selected legacy cookie token account`() async {
+        let descriptor = OpenCodeGoProviderDescriptor.makeDescriptor()
+        let strategies = await descriptor.fetchPlan.pipeline.resolveStrategies(
+            self.makeContext(
+                env: [OpenCodeGoSettingsReader.apiKeyEnvironmentKey: "session=abc; other=def"],
+                selectedTokenAccountID: UUID()))
+
+        // Token accounts saved before the API-key switch stored a raw Cookie header. Those must
+        // keep authenticating as cookies instead of being sent as a bogus API key.
+        #expect(strategies.map(\.id) == ["opencodego.web", "opencodego.local", "opencodego.api"])
+    }
+
+    @Test
+    func `auto source treats a missing token as an API-key selected account`() async {
         let descriptor = OpenCodeGoProviderDescriptor.makeDescriptor()
         let strategies = await descriptor.fetchPlan.pipeline.resolveStrategies(
             self.makeContext(selectedTokenAccountID: UUID()))
 
-        #expect(strategies.map(\.id) == ["opencodego.api", "opencodego.local", "opencodego.web"])
+        #expect(strategies.map(\.id) == ["opencodego.api"])
     }
 
     @Test

@@ -125,15 +125,27 @@ public enum OpenCodeGoProviderDescriptor {
         if context.sourceMode == .web {
             return [OpenCodeGoUsageFetchStrategy()]
         }
-        // Token accounts for this provider inject a plain API key (see the .environment
-        // injection on its TokenAccountSupport), so a per-account fetch must try the API
-        // strategy first instead of the cookie-based web strategy the other scoped cases use.
+        // Token accounts for this provider now inject a plain API key (see the .environment
+        // injection on its TokenAccountSupport), so a per-account fetch should try the API
+        // strategy instead of the cookie-based web strategy the other scoped cases use.
+        // Two things this must not do:
+        //  - Reinterpret a token account saved *before* this change (a raw Cookie header) as an
+        //    API key. Sniff the resolved token's shape and keep routing cookie-shaped values
+        //    through the original cookie-first chain so upgraded accounts keep authenticating.
+        //  - Fall an API-key account back to the unscoped local/cookie strategies on failure:
+        //    that fallback isn't scoped to this account, so a wrong or revoked key would
+        //    silently surface a different account's (or no account's) usage under this
+        //    account's label instead of reporting the failure.
         if context.selectedTokenAccountID != nil {
-            return [
-                OpenCodeGoAPIUsageFetchStrategy(),
-                OpenCodeGoLocalUsageFetchStrategy(),
-                OpenCodeGoUsageFetchStrategy(),
-            ]
+            let resolvedToken = context.env[OpenCodeGoSettingsReader.apiKeyEnvironmentKey]
+            if let resolvedToken, Self.looksLikeCookieHeader(resolvedToken) {
+                return [
+                    OpenCodeGoUsageFetchStrategy(),
+                    OpenCodeGoLocalUsageFetchStrategy(),
+                    OpenCodeGoAPIUsageFetchStrategy(),
+                ]
+            }
+            return [OpenCodeGoAPIUsageFetchStrategy()]
         }
         if self.requiresScopedWebStrategy(context: context) {
             return [
@@ -161,6 +173,12 @@ public enum OpenCodeGoProviderDescriptor {
             return true
         }
         return self.normalizedWorkspaceID(context.env["CODEXBAR_OPENCODEGO_WORKSPACE_ID"]) != nil
+    }
+
+    private static func looksLikeCookieHeader(_ token: String) -> Bool {
+        // A captured browser Cookie header always has at least one "name=value" pair; a Zen API
+        // key is an opaque bearer token ("sk-...") and never contains "=".
+        token.contains("=")
     }
 
     private static func normalizedWorkspaceID(_ value: String?) -> String? {
