@@ -106,7 +106,13 @@ extension SettingsStore {
         // whitespace-trimmed) so a quoted paste of an already-stored key doesn't compare as a
         // different credential and migrate a spurious duplicate.
         let normalizedIncomingToken = cleanTokenAccountSecret(trimmedToken) ?? trimmedToken
-        if let legacyKey, !legacyKey.isEmpty, legacyKey != normalizedIncomingToken {
+        // The stray key can also already be sitting in an *existing* account rather than just
+        // the one being added right now - e.g. an unlabeled CLI set-api-key re-populates
+        // providerConfig.apiKey with a token that already has a Default account from an earlier
+        // migration. Without this check that already-represented key would be re-migrated as a
+        // second duplicate account every time another account is added.
+        let legacyKeyAlreadyRepresented = accounts.contains { cleanTokenAccountSecret($0.token) == legacyKey }
+        if let legacyKey, !legacyKey.isEmpty, legacyKey != normalizedIncomingToken, !legacyKeyAlreadyRepresented {
             accounts.append(ProviderTokenAccount(
                 id: UUID(),
                 label: "Default",

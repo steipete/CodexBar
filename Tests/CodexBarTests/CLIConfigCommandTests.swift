@@ -414,6 +414,35 @@ struct CLIConfigCommandTests {
     }
 
     @Test
+    func `config set api key does not re-migrate a stray key already represented in accounts`() throws {
+        let config = CodexBarConfig.makeDefault()
+        let firstOptions = try #require(try CodexBarCLI.resolveConfigAPIKeyAccountOptions(
+            provider: .opencodego, label: "Default", usageScope: nil, organizationID: nil, workspaceID: nil))
+        let withFirstAccount = CodexBarCLI.configSettingAPIKey(
+            config, provider: .opencodego, apiKey: "sk-a", enableProvider: true, accountOptions: firstOptions)
+
+        // A plain (unlabeled) set-api-key re-populates providerConfig.apiKey with a token that
+        // already has an account from the migration above.
+        let withStrayDuplicateKey = CodexBarCLI.configSettingAPIKey(
+            withFirstAccount, provider: .opencodego, apiKey: "sk-a", enableProvider: true)
+
+        let secondOptions = try #require(try CodexBarCLI.resolveConfigAPIKeyAccountOptions(
+            provider: .opencodego, label: "Work", usageScope: nil, organizationID: nil, workspaceID: nil))
+        let updated = CodexBarCLI.configSettingAPIKey(
+            withStrayDuplicateKey,
+            provider: .opencodego,
+            apiKey: "sk-b",
+            enableProvider: true,
+            accountOptions: secondOptions)
+
+        let provider = try #require(updated.providerConfig(for: .opencodego))
+
+        #expect(provider.apiKey == nil)
+        #expect(provider.tokenAccounts?.accounts.map(\.label) == ["Default", "Work"])
+        #expect(provider.tokenAccounts?.accounts.map(\.token) == ["sk-a", "sk-b"])
+    }
+
+    @Test
     func `config provider toggle parses provider and json flags`() throws {
         let parser = CommandParser(signature: CodexBarCLI._configProviderToggleSignatureForTesting())
         let parsed = try parser.parse(arguments: [

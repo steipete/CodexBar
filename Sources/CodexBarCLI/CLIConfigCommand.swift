@@ -262,7 +262,17 @@ extension CodexBarCLI {
             // tokenAccounts, run after accounts already existed). The clear below fires
             // whenever migratesExistingKey is true regardless of account count, so migration
             // must use the same condition or an unmigrated key gets silently discarded.
-            if migratesExistingKey, let legacyKey = sanitizedLegacyKey, hasLegacyKey, legacyKey != apiKey {
+            // The stray key can also already be sitting in an *existing* account rather than
+            // just the one being added right now - e.g. an unlabeled set-api-key re-populates
+            // providerConfig.apiKey with a token that already has a Default account from an
+            // earlier migration. Without this check that already-represented key would be
+            // re-migrated as a second duplicate account every time another account is added.
+            let legacyKeyAlreadyRepresented = sanitizedLegacyKey.map { key in
+                accounts.contains { Self.cleanConfigSecret($0.token) == key }
+            } ?? false
+            if migratesExistingKey, let legacyKey = sanitizedLegacyKey, hasLegacyKey, legacyKey != apiKey,
+               !legacyKeyAlreadyRepresented
+            {
                 accounts.append(ProviderTokenAccount(
                     id: UUID(),
                     label: "Default",

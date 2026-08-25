@@ -92,6 +92,23 @@ struct OpenCodeGoAddTokenAccountTests {
         #expect(settings.providerConfig(for: .opencodego)?.apiKey == nil)
     }
 
+    @Test
+    func `adding an account does not re-migrate a stray key already represented in accounts`() {
+        let settings = Self.makeSettings(suite: "OpenCodeGoAddTokenAccountTests-already-represented")
+        settings.addTokenAccount(provider: .opencodego, label: "Default", token: "sk-a")
+
+        // Simulates a plain (unlabeled) set-api-key re-populating the provider-level field with
+        // a token that is already represented by an existing account.
+        settings[providerConfig: .opencodego, field: .apiKey] = "sk-a"
+
+        settings.addTokenAccount(provider: .opencodego, label: "Work", token: "sk-b")
+
+        let accounts = settings.tokenAccounts(for: .opencodego)
+        #expect(accounts.map(\.label) == ["Default", "Work"])
+        #expect(accounts.map(\.token) == ["sk-a", "sk-b"])
+        #expect(settings.providerConfig(for: .opencodego)?.apiKey == nil)
+    }
+
     private static func makeSettings(suite: String) -> SettingsStore {
         testSettingsStore(
             suiteName: "\(suite)-\(UUID().uuidString)",

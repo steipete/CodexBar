@@ -33,8 +33,11 @@ read_when:
   import only runs when the cached cookie fails.
 - OpenCode Go unscoped Auto mode tries daily cost history derived from local `opencode-go` assistant costs first,
   overlays authoritative API windows when an API key is configured, then falls back through the API and legacy web
-  sources when local history is unavailable. Auto stays web-first when a token account, manual cookie, or workspace
-  override scopes the request, because local history is device-wide.
+  sources when local history is unavailable. Auto stays web-first when a manual cookie or workspace override scopes
+  the request, because local history is device-wide. A selected token account instead routes by credential shape:
+  an API-key account (the default for token accounts saved through Settings or the CLI) goes straight to the API
+  strategy; only a token account saved before this shape existed, whose stored value still looks like a cookie
+  header, keeps the legacy web-first chain.
 - The local monthly window is an estimate anchored at the earliest local row and can drift from the real billing
   cycle. The local strategy prefers API-reported rolling/weekly/monthly percentages and reset timestamps. When no API
   key is configured, a cached or manual session cookie can still overlay the legacy web values (plus Zen balance).
