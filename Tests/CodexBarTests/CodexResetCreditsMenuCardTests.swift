@@ -100,15 +100,30 @@ struct CodexResetCreditsMenuCardTests {
         #expect(current.hasCompatibleTrackedLayout(with: candidate))
     }
 
+    @Test
+    func `metric metadata may disappear but cannot appear in frozen tracked layout`() throws {
+        let (withMetadata, withoutMetadata) = try Self.weeklyResetTransitionModels()
+        let currentWeekly = try #require(withMetadata.metrics.first { $0.id == "secondary" })
+        let candidateWeekly = try #require(withoutMetadata.metrics.first { $0.id == "secondary" })
+
+        #expect(currentWeekly.linePresentation(title: currentWeekly.title).metaText != nil)
+        #expect(candidateWeekly.linePresentation(title: candidateWeekly.title).metaText == nil)
+        #expect(withMetadata.hasCompatibleTrackedLayout(with: withoutMetadata))
+        #expect(!withoutMetadata.hasCompatibleTrackedLayout(with: withMetadata))
+    }
+
     @MainActor
     @Test
     func `refresh monitor publishes reset usage when reset credit countdown changes`() throws {
         let (frozen, resolved) = try Self.weeklyResetTransitionModels()
+        let frozenResetText = try #require(frozen.metrics.first { $0.id == "secondary" }?.resetText)
+        let resolvedResetText = try #require(resolved.metrics.first { $0.id == "secondary" }?.resetText)
         let monitor = MenuCardRefreshMonitor(
             resolveModel: { _ in resolved },
             isProviderRefreshActive: { _ in false })
         monitor.beginManualRefresh(frozenModels: [.codex: frozen], provider: .codex)
 
+        #expect(resolvedResetText.count > frozenResetText.count)
         #expect(monitor.publishResolvedModelIfCompatible(for: .codex))
         let visible = monitor.model(for: .codex, fallback: frozen)
         #expect(visible.metrics.map(\.percent) == resolved.metrics.map(\.percent))

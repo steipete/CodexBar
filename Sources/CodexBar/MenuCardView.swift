@@ -542,6 +542,7 @@ private struct MetricRow: View {
             } else {
                 MetricRowHeader(
                     title: presentation.titleText,
+                    layoutTitle: layoutPresentation.titleText,
                     resetText: presentation.resetText,
                     layoutResetText: layoutPresentation.resetText,
                     isHighlighted: self.isHighlighted)
@@ -592,62 +593,6 @@ private struct MetricRow: View {
                         .lineLimit(lineLimit)
                         .truncationMode(.tail)
                         .fixedSize(horizontal: false, vertical: true)
-                }
-            }
-            .clipped()
-    }
-}
-
-private struct MetricRowHeader: View {
-    let title: String
-    let resetText: String?
-    let layoutResetText: String?
-    let isHighlighted: Bool
-
-    var body: some View {
-        if let layoutResetText {
-            ViewThatFits(in: .horizontal) {
-                HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    self.titleLabel
-                        .fixedSize(horizontal: true, vertical: false)
-                    Spacer(minLength: 8)
-                    self.layoutPreservingResetLabel(layoutResetText)
-                        .fixedSize(horizontal: true, vertical: false)
-                }
-                VStack(alignment: .trailing, spacing: 2) {
-                    self.titleLabel
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    self.layoutPreservingResetLabel(layoutResetText)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .frame(maxWidth: .infinity, alignment: .trailing)
-                }
-            }
-        } else {
-            self.titleLabel
-        }
-    }
-
-    private var titleLabel: some View {
-        Text(self.title)
-            .font(.body)
-            .fontWeight(.medium)
-            .lineLimit(1)
-    }
-
-    private func resetLabel(_ resetText: String) -> some View {
-        Text(resetText)
-            .font(.footnote)
-            .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
-            .lineLimit(2)
-            .multilineTextAlignment(.trailing)
-    }
-
-    private func layoutPreservingResetLabel(_ layoutResetText: String) -> some View {
-        self.resetLabel(layoutResetText)
-            .hidden()
-            .overlay(alignment: .topTrailing) {
-                if let resetText, !resetText.isEmpty {
-                    self.resetLabel(resetText)
                 }
             }
             .clipped()

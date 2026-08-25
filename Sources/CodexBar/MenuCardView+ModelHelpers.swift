@@ -436,12 +436,15 @@ extension UsageMenuCardView.Model {
     }
 
     private static func hasCompatibleMetricLayout(_ current: Metric, _ candidate: Metric) -> Bool {
-        current.id == candidate.id &&
+        let currentMetaText = current.linePresentation(title: current.title).metaText
+        let candidateMetaText = candidate.linePresentation(title: candidate.title).metaText
+        return current.id == candidate.id &&
             current.title == candidate.title &&
             current.percentStyle == candidate.percentStyle &&
             (current.statusText == nil) == (candidate.statusText == nil) &&
             (current.resetText == nil) == (candidate.resetText == nil) &&
             (current.detailText == nil) == (candidate.detailText == nil) &&
+            (candidateMetaText == nil || currentMetaText != nil) &&
             current.cardStyle == candidate.cardStyle
     }
 
