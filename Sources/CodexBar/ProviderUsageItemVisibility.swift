@@ -22,14 +22,27 @@ struct ProviderUsageItemDescriptor: Identifiable, Equatable, Sendable {
 extension ProviderUsageItemID {
     /// Label used when the provider is not reporting the item right now, so the settings row still
     /// names something recognizable instead of falling back to a raw storage key.
-    var unreportedTitle: String {
+    func unreportedTitle(for provider: UsageProvider) -> String {
         switch self {
-        case .credits: L("Credits")
-        case .codexResetCredits: L("Limit Reset Credits")
+        case .credits: return L("Credits")
+        case .codexResetCredits: return L("Limit Reset Credits")
         default:
-            self.rawValue.hasPrefix(Self.metricPrefix)
-                ? String(self.rawValue.dropFirst(Self.metricPrefix.count))
-                : self.rawValue
+            guard self.rawValue.hasPrefix(Self.metricPrefix) else { return self.rawValue }
+            let metricID = String(self.rawValue.dropFirst(Self.metricPrefix.count))
+            if metricID == "claude-routines" {
+                return L("Daily Routines")
+            }
+
+            let providerPrefix = "\(provider.rawValue)-"
+            let displayID = metricID.hasPrefix(providerPrefix)
+                ? String(metricID.dropFirst(providerPrefix.count))
+                : metricID
+            return displayID
+                .split(separator: "-")
+                .map { component in
+                    component.prefix(1).uppercased() + component.dropFirst()
+                }
+                .joined(separator: " ")
         }
     }
 }
@@ -43,7 +56,7 @@ extension UsageMenuCardView.Model {
                 title: UsageMenuCardView.popupMetricTitle(provider: self.provider, metric: metric))
         }
         // Provider-specific by design: Codex reset credits are a non-metric section with their own visibility choice.
-        if self.provider == .codex {
+        if self.provider == .codex, self.codexResetCredits != nil {
             descriptors.append(ProviderUsageItemDescriptor(
                 id: .codexResetCredits,
                 title: L("Limit Reset Credits")))
@@ -72,7 +85,7 @@ extension UsageMenuCardView.Model {
         for itemID in hiddenItemIDs.subtracting(reported).sorted(by: { $0.rawValue < $1.rawValue }) {
             descriptors.append(ProviderUsageItemDescriptor(
                 id: itemID,
-                title: L("%@ (unavailable)", itemID.unreportedTitle)))
+                title: L("%@ (unavailable)", itemID.unreportedTitle(for: self.provider))))
         }
         return descriptors
     }

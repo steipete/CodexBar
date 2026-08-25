@@ -66,9 +66,24 @@ struct ProviderUsageItemVisibilityTests {
             "metric:cursor-grok-bot",
             "section:credits",
         ])
+        #expect(descriptors[1].title == "Grok Bot (unavailable)")
         #expect(descriptors.last?.title.contains("Credits") == true)
         // Rows the provider still reports keep their menu title instead of the unreported fallback.
         #expect(model.usageItemDescriptors.map(\.id.rawValue) == ["metric:primary"])
+    }
+
+    @Test
+    func `codex reset credits choice appears only when available or hidden`() {
+        let model = Self.model(provider: .codex, metricIDs: ["secondary"])
+
+        #expect(model.usageItemDescriptors.map(\.id.rawValue) == ["metric:secondary"])
+
+        let descriptors = model.usageItemDescriptors(includingHidden: [.codexResetCredits])
+        #expect(descriptors.map(\.id.rawValue) == [
+            "metric:secondary",
+            "section:codex-reset-credits",
+        ])
+        #expect(descriptors.last?.title == "Limit Reset Credits (unavailable)")
     }
 
     @Test
@@ -80,6 +95,20 @@ struct ProviderUsageItemVisibilityTests {
         ])
 
         #expect(projected.metrics.map(\.id) == ["primary"])
+    }
+
+    @Test
+    func `restoring one unavailable item preserves other hidden choices`() throws {
+        let suite = "ProviderUsageItemVisibilityTests-restoration-\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        let settings = Self.settings(defaults: defaults, configStore: testConfigStore(suiteName: suite))
+
+        settings.setUsageItemVisible(false, itemID: .metric("cursor-grok-bot"), for: .cursor)
+        settings.setUsageItemVisible(false, itemID: .credits, for: .cursor)
+        settings.setUsageItemVisible(true, itemID: .metric("cursor-grok-bot"), for: .cursor)
+
+        #expect(settings.hiddenUsageItemIDs(for: .cursor) == [.credits])
     }
 
     @Test
