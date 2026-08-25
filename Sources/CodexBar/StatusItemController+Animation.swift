@@ -284,8 +284,7 @@ extension StatusItemController {
             provider: primaryProvider,
             snapshot: snapshot,
             style: resolverStyle,
-            showUsed: showUsed,
-            renderingStyle: style)
+            showUsed: showUsed)
         var primary = resolved?.primary
         var weekly = resolved?.secondary
         var credits = self.menuBarCreditsRemainingForIcon(provider: primaryProvider, snapshot: snapshot)
@@ -412,7 +411,8 @@ extension StatusItemController {
                 wiggle: wiggle,
                 tilt: tilt,
                 statusIndicator: statusIndicator,
-                hideCritters: self.settings.menuBarHidesCritters)
+                hideCritters: self.settings.menuBarHidesCritters,
+                quotaLayoutPolicy: .provider(primaryProvider))
             self.setButtonContent(
                 image: warningFlash ? Self.quotaWarningFlashImage(base: image) : image,
                 title: nil,
@@ -636,7 +636,8 @@ extension StatusItemController {
                 wiggle: wiggle,
                 tilt: tilt,
                 statusIndicator: statusIndicator,
-                hideCritters: self.settings.menuBarHidesCritters)
+                hideCritters: self.settings.menuBarHidesCritters,
+                quotaLayoutPolicy: .provider(provider))
             self.setButtonContent(
                 image: warningFlash ? Self.quotaWarningFlashImage(base: image) : image,
                 title: nil,
@@ -655,8 +656,7 @@ extension StatusItemController {
         provider: UsageProvider,
         snapshot: UsageSnapshot?,
         style: IconStyle,
-        showUsed: Bool,
-        renderingStyle: IconStyle? = nil)
+        showUsed: Bool)
         -> (primary: Double?, secondary: Double?)?
     {
         guard let snapshot else { return nil }
@@ -681,7 +681,6 @@ extension StatusItemController {
             snapshot: snapshot,
             style: style,
             showUsed: showUsed,
-            renderingStyle: renderingStyle,
             secondaryOverrideWindowID: self.settings.copilotIconSecondaryWindowOverrideID(snapshot: snapshot))
     }
 
@@ -1254,8 +1253,8 @@ extension StatusItemController {
         if !layoutResolution.usesLegacyRendering,
            self.settings.menuBarIconStyle == .iconAndPercent
         {
-            let showsReset = layoutResolution.layout.lines
-                .joined()
+            let showsReset = layoutResolution.layout
+                .flattenedTokens(conditionals: self.settings.menuBarLayoutConditionals)
                 .contains { $0 == .resetCountdown || $0 == .resetAbsolute }
             guard showsReset else { return [] }
             let window = self.menuBarLayoutWindows(provider: provider, snapshot: snapshot, now: now).automatic

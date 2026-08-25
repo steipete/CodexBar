@@ -458,6 +458,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         self.installDebugMemoryPressureObserverIfNeeded()
         #endif
         self.ensureStatusController()
+        self.closeSwiftUISettingsPlaceholderWindow()
         self.observeSettingsApplicationMenuLanguage()
         self.scheduleSettingsApplicationMenuValidation(
             missingItemRetriesRemaining: Self.settingsMenuReadinessRetryCount,
@@ -494,6 +495,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 name: .codexbarWeeklyLimitReset,
                 object: nil)
             self.hasInstalledLimitResetObservers = true
+        }
+    }
+
+    /// The SwiftUI `Settings` scene exists only to own the app-menu Settings command; the real
+    /// settings window is AppKit-managed (`SettingsWindowController`). macOS can still present or
+    /// state-restore the scene's empty placeholder window at launch — close it and keep it out of
+    /// state restoration so it cannot come back on the next launch.
+    private func closeSwiftUISettingsPlaceholderWindow() {
+        DispatchQueue.main.async {
+            for window in NSApp.windows
+                where window.identifier?.rawValue.hasPrefix("com_apple_SwiftUI_Settings") == true
+            {
+                window.isRestorable = false
+                window.close()
+            }
         }
     }
 

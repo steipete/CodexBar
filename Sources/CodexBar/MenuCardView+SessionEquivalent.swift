@@ -19,7 +19,8 @@ extension UsageMenuCardView.Model {
         projection: CodexConsumerProjection,
         percentStyle: PercentStyle) -> [Metric]
     {
-        projection.visibleRateLanes.compactMap { lane in
+        projection.displayedRateLanes(
+            showOptionalCreditsAndExtraUsage: input.showOptionalCreditsAndExtraUsage).compactMap { lane in
             guard let window = projection.rateWindow(for: lane) else { return nil }
 
             let title = CodexConsumerProjection.rateTitle(

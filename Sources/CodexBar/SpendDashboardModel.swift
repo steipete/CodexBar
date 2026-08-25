@@ -305,20 +305,30 @@ struct SpendDashboardModel: Equatable, Sendable {
             inputs,
             hiddenSourceIDs: hiddenSourceIDs,
             hideNativeCodexWhenOpenCodexPresent: hideNativeCodexWhenOpenCodexPresent)
+        var conversionCache: [String: Double?] = [:]
         let classifiedInputs = visibleInputs.compactMap { input -> ClassifiedInput? in
             guard let sourceCurrencyCode = Self.currencyCode(input.snapshot.currencyCode) else { return nil }
             let targetCurrencyCode = UsageFormatter.effectiveCurrencyCode(
                 preferred: preferredCurrencyCode,
                 providerCurrency: sourceCurrencyCode)
-            let conversion = CurrencyExchange.shared.convert(
-                amount: 1,
-                from: sourceCurrencyCode,
-                to: targetCurrencyCode)
+            let cacheKey = "\(sourceCurrencyCode)->\(targetCurrencyCode)"
+            let conversion: Double?
+            if let cached = conversionCache[cacheKey] {
+                conversion = cached
+            } else {
+                let value = CurrencyExchange.shared.convert(
+                    amount: 1,
+                    from: sourceCurrencyCode,
+                    to: targetCurrencyCode)
+                conversionCache[cacheKey] = value
+                conversion = value
+            }
             return ClassifiedInput(
                 currencyCode: conversion == nil ? sourceCurrencyCode : targetCurrencyCode,
                 input: input,
                 costMultiplier: conversion ?? 1)
         }
+        let bounds = Self.bounds(days: days, now: now, calendar: calculationCalendar)
         let groups = Dictionary(grouping: classifiedInputs, by: { $0.currencyCode })
             .map { currencyCode, inputs in
                 Self.buildCurrencyGroup(
@@ -327,6 +337,7 @@ struct SpendDashboardModel: Equatable, Sendable {
                     days: days,
                     now: now,
                     calendar: calculationCalendar,
+                    bounds: bounds,
                     selectedDay: selectedDay.map { calculationCalendar.startOfDay(for: $0) })
             }
             .sorted { $0.currencyCode < $1.currencyCode }
@@ -426,9 +437,10 @@ struct SpendDashboardModel: Equatable, Sendable {
         days: Int,
         now: Date,
         calendar: Calendar,
+        bounds: ClosedRange<Date>? = nil,
         selectedDay: Date?) -> CurrencyGroup
     {
-        let bounds = Self.bounds(days: days, now: now, calendar: calendar)
+        let bounds = bounds ?? Self.bounds(days: days, now: now, calendar: calendar)
         let summaries = inputs.map { classified in
             Self.inputSummary(
                 input: classified.input,
@@ -983,6 +995,12 @@ struct SpendDashboardModel: Equatable, Sendable {
         return start...end
     }
 
+    private static let utcCalendar: Calendar = {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0) ?? .gmt
+        return calendar
+    }()
+
     private static func gregorianCalendar(timeZone: TimeZone) -> Calendar {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = timeZone
@@ -1067,10 +1085,11 @@ struct SpendDashboardModel: Equatable, Sendable {
     }
 
     private static func bucketCalendar(for provider: UsageProvider, displayCalendar: Calendar) -> Calendar {
-        guard provider == .mistral || provider == .openrouter else { return displayCalendar }
-        // Mistral and OpenRouter label daily buckets and snapshot coverage by UTC day. Map each UTC boundary into the
-        // containing local dashboard day instead of reinterpreting the label as a local date.
-        return self.gregorianCalendar(timeZone: TimeZone(secondsFromGMT: 0) ?? .gmt)
+        // Provider-specific by design: mistral openrouter xai display calendar
+        guard provider == .mistral || provider == .openrouter || provider == .xai else { return displayCalendar }
+        // Mistral, OpenRouter, and xAI label daily buckets and snapshot coverage by UTC day. Map each UTC boundary into
+        // the containing local dashboard day instead of reinterpreting the label as a local date.
+        return self.utcCalendar
     }
 
     private static func currencyCode(_ rawValue: String) -> String? {

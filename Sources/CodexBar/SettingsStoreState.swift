@@ -39,6 +39,7 @@ struct SettingsDefaultsState {
     var multiAccountMenuLayoutRaw: String
     var menuBarMetricPreferencesRaw: [String: String]
     var storedMenuBarLayout: MenuBarLayout?
+    var menuBarLayoutConditionals: [MenuBarLayoutConditional]
     var menuBarLayoutOverridesRaw: [String: MenuBarLayout]
     var menuBarLayoutSizeRaw: String
     var menuBarLayoutGapRaw: String

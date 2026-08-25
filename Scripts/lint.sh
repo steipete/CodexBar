@@ -139,7 +139,7 @@ run_swiftformat_lint() {
 
 run_swiftlint() {
   ensure_swiftlint
-  "${BIN_DIR}/swiftlint" --strict
+  "${BIN_DIR}/swiftlint" --strict --no-cache
 }
 
 collect_javascript_files() {

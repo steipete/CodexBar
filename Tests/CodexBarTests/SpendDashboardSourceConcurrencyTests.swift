@@ -533,6 +533,58 @@ struct SpendDashboardSourceConcurrencyTests {
     }
 
     @Test
+    func `Codex concurrent loads restore configured order when completing out of order`() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent(
+                "SpendDashboardSourceConcurrencyTests-order-\(UUID().uuidString)",
+                isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let first = try Self.makeAccount(id: "first", root: root)
+        let second = try Self.makeAccount(id: "second", root: root)
+        // Equal cost so providerRows tie-breaker is input order, making completion order visible.
+        let firstSnapshot = Self.input(cost: 5).snapshot
+        let secondSnapshot = Self.input(cost: 5).snapshot
+        let request = SpendDashboardLoadRequest(
+            configuration: SpendDashboardConfiguration(
+                costUsageEnabled: true,
+                providerIDs: [UsageProvider.codex.rawValue],
+                codexAccountIdentities: [first, second].map { "\($0.id)|\($0.cacheIdentity)" }),
+            capturedInputs: [],
+            unavailableSourceIDs: [],
+            codexRequests: [first, second],
+            now: Date(timeIntervalSince1970: 1_784_179_200),
+            force: true)
+
+        let gateFirst = SpendDashboardCodexBatchGate()
+        let gateSecond = SpendDashboardCodexBatchGate()
+        let loadTask = Task {
+            await SpendDashboardSource.load(
+                request,
+                codexSnapshotLoader: { context in
+                    switch context.account.id {
+                    case first.id:
+                        await gateFirst.load()
+                    case second.id:
+                        await gateSecond.load()
+                    default:
+                        fatalError("unexpected account \(context.account.id)")
+                    }
+                },
+                codexActivityLoader: { _ in nil })
+        }
+        // Wait until both gates are suspended, then resume second before first.
+        await Self.waitForCodexGate(gateFirst)
+        await Self.waitForCodexGate(gateSecond)
+        await gateSecond.resume(snapshot: secondSnapshot)
+        await gateFirst.resume(snapshot: firstSnapshot)
+        let final = await loadTask.value
+        // Inputs should be in configured order [first, second], not completion order.
+        #expect(final.inputs.map(\.id) == ["codex:first", "codex:second"])
+    }
+
+    @Test
     func `force request recaptures earlier provider after later refresh suspends`() async throws {
         let settings = testSettingsStore(suiteName: "SpendDashboardSourceConcurrencyTests-force-recapture")
         settings.costUsageEnabled = true

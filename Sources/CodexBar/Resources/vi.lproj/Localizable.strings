@@ -651,6 +651,8 @@
 "section_keyboard_shortcut" = "Phím tắt";
 "open_menu_shortcut_title" = "Mở menu";
 "open_menu_shortcut_subtitle" = "Kích hoạt menu thanh menu từ mọi nơi.";
+"record_shortcut" = "Ghi phím tắt";
+"press_shortcut" = "Nhấn phím tắt";
 "install_cli" = "Cài đặt CLI";
 "install_cli_subtitle" = "Liên kết tượng trưng CodexBarCLI tới /usr/local/bin và /opt/homebrew/bin dưới dạng codexbar.";
 "cli_not_found" = "Không tìm thấy CodexBarCLI trong gói ứng dụng.";
@@ -928,6 +930,7 @@
 "Monthly" = "Hàng tháng";
 "Sonnet" = "Sonnet";
 "Overages" = "Quá tải";
+"Overage" = "Vượt mức";
 "Activity" = "Hoạt động";
 "Copied" = "Đã sao chép";
 "Copy error" = "Lỗi sao chép";
@@ -938,6 +941,7 @@
 "Balance updates in near-real time (up to 5 min lag)" = "Cập nhật số dư trong thời gian gần như thực (độ trễ tối đa 5 phút)";
 "Daily billing data finalizes at 07:00 UTC" = "Dữ liệu thanh toán hàng ngày sẽ hoàn tất lúc 07:00 UTC";
 "%@ of %@ credits left" = "%@ trong số %@ tín dụng còn lại";
+"of %@" = "/ %@";
 "%@ of %@ bonus credits left" = "%@ trong số %@ tín dụng thưởng còn lại";
 "%@ / %@ (%@ remaining)" = "%@ / %@ ( %@ còn lại)";
 "%@/%@ left" = "%@ / %@ left";
@@ -949,6 +953,7 @@
 "Full in ~1 regen" = "Đầy đủ trong ~1 regen";
 "Full in ~%.0f regens" = "Đầy đủ trong ~%.0f regens";
 "Overage usage" = "Quá mức Mức sử dụng";
+"Overage credits left" = "Tín dụng vượt mức còn lại";
 "Overage cost" = "Chi phí quá mức";
 "credits" = "tín dụng";
 "Zen balance" = "Số dư Zen";
@@ -1372,6 +1377,7 @@
 "menu_bar_layout_empty_line" = "Thả một thẻ vào đây";
 "menu_bar_layout_line" = "Dòng %d";
 "menu_bar_layout_drag_remove" = "Kéo vào đây để xóa";
+"menu_bar_layout_remove_selected" = "Xoá mục đã chọn";
 "menu_bar_layout_size" = "Kích thước";
 "menu_bar_layout_size_small" = "Nhỏ";
 "menu_bar_layout_size_regular" = "Thường";
@@ -1495,3 +1501,35 @@
 "Copy JSON" = "Sao chép JSON";
 "Sources" = "Sources";
 "OpenCodex" = "OpenCodex";
+
+"menu_bar_layout_token_conditional" = "Điều kiện";
+"menu_bar_layout_group_conditionals" = "Điều kiện";
+"menu_bar_layout_conditional_add" = "Điều kiện mới";
+"menu_bar_layout_conditional_edit" = "Sửa điều kiện";
+"menu_bar_layout_conditional_remove" = "Xóa khỏi thư viện";
+"menu_bar_layout_conditional_save" = "Lưu";
+"menu_bar_layout_conditional_if" = "Nếu";
+"menu_bar_layout_conditional_then" = "Thì hiển thị";
+"menu_bar_layout_conditional_else" = "Ngược lại hiển thị";
+"menu_bar_layout_conditional_and" = "và";
+"menu_bar_layout_conditional_or" = "hoặc";
+"menu_bar_layout_conditional_add_condition" = "Thêm điều kiện";
+"menu_bar_layout_conditional_none" = "Chưa có điều kiện nào";
+"menu_bar_layout_conditional_hide" = "Ẩn";
+"menu_bar_layout_conditional_name" = "Tên";
+"menu_bar_layout_conditional_name_placeholder" = "ví dụ: Kiểm tra phiên";
+"menu_bar_layout_conditional_name_error" = "Nhập tên duy nhất";
+"menu_bar_layout_conditional_used" = "đã dùng";
+"menu_bar_layout_conditional_remaining" = "còn lại";
+"menu_bar_layout_conditional_metric_resets_in" = "%@ đặt lại sau";
+"menu_bar_layout_conditional_metric_scoped_weekly" = "Hàng tuần theo phạm vi";
+"menu_bar_layout_conditional_duplicate" = "Nhân bản";
+"menu_bar_layout_conditional_summary" = "Nếu %1$@ thì %2$@ ngược lại %3$@";
+"menu_bar_layout_conditional_copy_name" = "%@ (bản sao)";
+"menu_bar_layout_conditional_copy_name_numbered" = "%1$@ (bản sao %2$d)";
+"menu_bar_layout_conditional_unavailable" = "Điều kiện không khả dụng";
+"menu_bar_layout_conditional_default_session_busy" = "Phiên đã dùng trên 50%";
+"menu_bar_layout_conditional_default_weekly_high" = "Tuần đã dùng trên 90%";
+"menu_bar_layout_conditional_default_session_spent" = "Phiên gần cạn";
+"menu_bar_layout_conditional_default_either_high" = "Phiên hoặc tuần đang ở mức cao";
+"menu_bar_layout_conditional_default_scoped_weekly" = "Tuần theo mô hình đã dùng trên 60%";

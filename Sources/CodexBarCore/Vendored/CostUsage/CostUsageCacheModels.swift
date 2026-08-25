@@ -13,6 +13,7 @@ struct CostUsageCache: Codable, Equatable, @unchecked Sendable {
     var codexProjectMetadataVersion: Int?
     var codexPriorityTurnKeys: [String: String]?
     var codexPriorityTurnIDsByDay: [String: [String]]?
+    var codexPriorityTurnsCursor: CostUsageScanner.CodexPriorityTurnsPersistedCursor?
     var codexScanCatchUpPending: Bool?
     var codexScanProcessedBytes: Int64?
     var codexScanTotalBytes: Int64?
@@ -212,13 +213,18 @@ struct CostUsageCodexPreviousReport: Codable, Equatable {
     var timeZoneIdentifier: String?
     var roots: [String: Int64]?
 
-    init?(report: CostUsageDailyReport, cache: CostUsageCache) {
+    init?(
+        report: CostUsageDailyReport,
+        cache: CostUsageCache,
+        reportSinceKey: String,
+        reportUntilKey: String)
+    {
         guard !report.data.isEmpty else { return nil }
         self.data = report.data.map(Entry.init)
         self.summary = report.summary.map(Summary.init)
         self.updatedAtUnixMs = cache.lastScanUnixMs
-        self.scanSinceKey = cache.scanSinceKey
-        self.scanUntilKey = cache.scanUntilKey
+        self.scanSinceKey = reportSinceKey
+        self.scanUntilKey = reportUntilKey
         self.timeZoneIdentifier = cache.timeZoneIdentifier
         self.roots = cache.roots
     }

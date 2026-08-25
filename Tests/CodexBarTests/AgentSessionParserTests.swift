@@ -36,6 +36,19 @@ struct AgentSessionParserTests {
     }
 
     @Test
+    func `chatgpt bundled codex app server is recognized without becoming a live agent`() {
+        let records = AgentPSOutputParser.parse("""
+        4234 1 Mon Jul 6 09:03:00 2026 /Applications/ChatGPT.app/Contents/Resources/codex \
+        -c features.code_mode_host=true app-server --analytics-default-enabled
+        20409 1 Mon Jul 6 09:04:00 2026 /Applications/ChatGPT.app/Contents/Resources/codex-code-mode-host
+        """)
+
+        #expect(records.count == 2)
+        #expect(AgentPSOutputParser.agentProcesses(from: records).isEmpty)
+        #expect(AgentPSOutputParser.hasCodexAppServer(in: records))
+    }
+
+    @Test
     func `pi dialects use stable Codable raw values`() throws {
         let provider = try JSONEncoder().encode(AgentSession.Provider.pi)
         let dialects = try JSONEncoder().encode([AgentSession.Dialect.pi, .omp])

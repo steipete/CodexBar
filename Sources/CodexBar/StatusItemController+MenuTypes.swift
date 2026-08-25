@@ -50,6 +50,7 @@ struct OverviewMenuCardRowView: View {
             if self.hasUsageBlock {
                 UsageMenuCardUsageSectionView(
                     model: self.model,
+                    layoutModel: self.model,
                     showBottomDivider: false,
                     bottomPadding: 6,
                     width: self.width,
@@ -184,7 +185,9 @@ struct CodexAccountMenuDisplay: Equatable {
                 id: snapshot.id,
                 hasSnapshot: snapshot.snapshot != nil,
                 error: snapshot.error,
-                sourceLabel: snapshot.sourceLabel)
+                sourceLabel: snapshot.sourceLabel,
+                creditLimitUsed: snapshot.credits?.codexCreditLimit?.used,
+                creditLimit: snapshot.credits?.codexCreditLimit?.limit)
         }
     }
 
@@ -193,5 +196,7 @@ struct CodexAccountMenuDisplay: Equatable {
         let hasSnapshot: Bool
         let error: String?
         let sourceLabel: String?
+        let creditLimitUsed: Double?
+        let creditLimit: Double?
     }
 }

@@ -164,6 +164,57 @@ struct BrowserDetectionTests {
     }
 
     @Test
+    func `lazy cookie candidates stop before probing later browsers`() throws {
+        BrowserCookieAccessGate.resetForTesting()
+        defer { BrowserCookieAccessGate.resetForTesting() }
+
+        let temp = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let chromeCookies = temp
+            .appendingPathComponent("Library/Application Support/Google/Chrome/Default/Network/Cookies")
+        try FileManager.default.createDirectory(
+            at: chromeCookies.deletingLastPathComponent(),
+            withIntermediateDirectories: true)
+        FileManager.default.createFile(atPath: chromeCookies.path, contents: Data())
+        defer { try? FileManager.default.removeItem(at: temp) }
+
+        let edgeProbeCount = OSAllocatedUnfairLock(initialState: 0)
+        let detection = BrowserDetection(
+            homeDirectory: temp.path,
+            cacheTTL: 0,
+            fileExists: { path in
+                if path == "/Applications/Google Chrome.app" {
+                    return true
+                }
+                if path == "/Applications/Microsoft Edge.app" {
+                    edgeProbeCount.withLock { $0 += 1 }
+                    return true
+                }
+                return FileManager.default.fileExists(atPath: path)
+            },
+            directoryContents: { path in
+                try? FileManager.default.contentsOfDirectory(atPath: path)
+            })
+        var preflightCount = 0
+
+        let firstCandidate = KeychainAccessGate.withTaskOverrideForTesting(false) {
+            KeychainAccessPreflight.withCheckGenericPasswordOverrideForTesting { _, _ in
+                preflightCount += 1
+                return .allowed
+            } operation: {
+                ProviderInteractionContext.$current.withValue(.background) {
+                    Array([Browser.chrome, .edge]
+                        .lazyCookieImportCandidates(using: detection)
+                        .prefix(1))
+                }
+            }
+        }
+
+        #expect(firstCandidate == [.chrome])
+        #expect(preflightCount == 1)
+        #expect(edgeProbeCount.withLock { $0 } == 0)
+    }
+
+    @Test
     func `chrome requires profile data`() throws {
         let temp = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: temp, withIntermediateDirectories: true)
@@ -210,10 +261,6 @@ struct BrowserDetectionTests {
     @Test
     func `process filters chromium candidates despite false global keychain override`() throws {
         guard ProcessInfo.processInfo.environment["CODEXBAR_ALLOW_TEST_KEYCHAIN_ACCESS"] != "1" else { return }
-        KeychainAccessGate.resetOverrideForTesting()
-        defer { KeychainAccessGate.resetOverrideForTesting() }
-
-        KeychainAccessGate.isDisabled = false
 
         let temp = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: temp, withIntermediateDirectories: true)
@@ -232,7 +279,10 @@ struct BrowserDetectionTests {
 
         let detection = self.detection(homeDirectory: temp.path, installedBrowsers: [.chrome])
         let browsers: [Browser] = [.chrome, .safari]
-        #expect(browsers.cookieImportCandidates(using: detection) == [.safari])
+        let candidates = KeychainAccessGate.withStoredOverrideForTesting(false) {
+            browsers.cookieImportCandidates(using: detection)
+        }
+        #expect(candidates == [.safari])
     }
 
     @Test

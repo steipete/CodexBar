@@ -54,12 +54,21 @@ enum OpenCodexUsageAggregator {
         var sawCost = false
     }
 
+    /// Aggregates OpenCodex usage entries into a per-window token/cost snapshot.
+    ///
+    /// Pricing context is resolved once per call and shared by every entry: `modelsDevCatalog` is the models.dev
+    /// catalog and `customPricingOverlay` the app-level custom-pricing overlay file. Callers that aggregate several
+    /// providers (see `OpenCodexUsageFanOut`) resolve both once and pass them in; when either is nil it is resolved
+    /// here once. Each windowed entry is priced exactly once and that price feeds the day, session, hour and model
+    /// accumulators, so output is identical to pricing inside each merge — without a catalog/overlay lookup per call.
     static func snapshot(
         entries: [OpenCodexUsageEntry],
         now: Date,
         historyDays: Int,
         calendar: Calendar,
-        customPricing: CostUsageCustomPricing = .empty) -> CostUsageTokenSnapshot
+        customPricing: CostUsageCustomPricing = .empty,
+        modelsDevCatalog: ModelsDevCatalog? = nil,
+        customPricingOverlay: CostUsageCustomPricing? = nil) -> CostUsageTokenSnapshot
     {
         let days = max(1, min(365, historyDays))
         let today = calendar.startOfDay(for: now)
@@ -76,25 +85,50 @@ enum OpenCodexUsageAggregator {
                 return lhs.requestID < rhs.requestID
             }
 
+        // Resolve the pricing context once for the whole snapshot. A missing models.dev catalog becomes an EMPTY
+        // catalog on purpose: `codexCostUSD` treats a nil catalog as "resolve it yourself" and would fall back to
+        // `ModelsDevCache.load` (a stat per pricing target) for every entry, whereas an empty catalog yields the same
+        // nil lookups without any file access. Nothing is resolved when the window is empty.
+        let catalog: ModelsDevCatalog
+        let overlay: CostUsageCustomPricing
+        if windowed.isEmpty {
+            catalog = ModelsDevCatalog(providers: [:])
+            overlay = .empty
+        } else {
+            catalog = modelsDevCatalog
+                ?? CostUsagePricing.modelsDevCatalog()
+                ?? ModelsDevCatalog(providers: [:])
+            overlay = customPricingOverlay ?? CostUsagePricing.customPricingOverlay()
+        }
+
         var daysByKey: [String: DayAccumulator] = [:]
         var sessions: [String: SessionAccumulator] = [:]
         var hoursByStart: [Date: HourAccumulator] = [:]
+        // `windowed` is sorted by timestamp, so the day/hour memos hit on almost every entry; a miss only costs one
+        // Calendar interval lookup. Price once per entry and reuse it for the day, session and hour merges.
+        var dayMemo = LocalDayKeyMemo()
+        var hourMemo = HourStartMemo()
         for entry in windowed {
-            let dayKey = CostUsageLocalDay.key(from: entry.timestamp, calendar: calendar)
+            let cost = Self.listPriceUSD(
+                entry: entry,
+                customPricing: customPricing,
+                modelsDevCatalog: catalog,
+                customPricingOverlay: overlay)
+            let dayKey = dayMemo.key(for: entry.timestamp, calendar: calendar)
             var day = daysByKey[dayKey] ?? DayAccumulator()
-            Self.merge(entry, into: &day, customPricing: customPricing)
+            Self.merge(entry, cost: cost, into: &day)
             daysByKey[dayKey] = day
 
             let sessionID = entry.conversationID ?? entry.requestID
             var session = sessions[sessionID] ?? SessionAccumulator()
             session.lastActivity = max(session.lastActivity, entry.timestamp)
             session.requests += 1
-            Self.merge(entry, into: &session, customPricing: customPricing)
+            Self.merge(entry, cost: cost, into: &session)
             sessions[sessionID] = session
 
-            let hour = calendar.dateInterval(of: .hour, for: entry.timestamp)?.start ?? entry.timestamp
+            let hour = hourMemo.start(for: entry.timestamp, calendar: calendar)
             var hourBucket = hoursByStart[hour] ?? HourAccumulator()
-            Self.merge(entry, into: &hourBucket, customPricing: customPricing)
+            Self.merge(entry, cost: cost, into: &hourBucket)
             hoursByStart[hour] = hourBucket
         }
 
@@ -164,8 +198,8 @@ enum OpenCodexUsageAggregator {
 
     private static func merge(
         _ entry: OpenCodexUsageEntry,
-        into day: inout DayAccumulator,
-        customPricing: CostUsageCustomPricing)
+        cost: Double?,
+        into day: inout DayAccumulator)
     {
         let usage = entry.usage
         if let input = usage?.inputTokens {
@@ -197,7 +231,6 @@ enum OpenCodexUsageAggregator {
         day.unmetered += entry.usageStatus == .unsupported ? 1 : 0
         day.unpriced += entry.usageStatus == .unreported ? 1 : 0
 
-        let cost = Self.listPriceUSD(entry: entry, customPricing: customPricing)
         if let cost {
             day.cost += cost
             day.sawCost = true
@@ -220,15 +253,14 @@ enum OpenCodexUsageAggregator {
 
     private static func merge(
         _ entry: OpenCodexUsageEntry,
-        into session: inout SessionAccumulator,
-        customPricing: CostUsageCustomPricing)
+        cost: Double?,
+        into session: inout SessionAccumulator)
     {
         session.input = self.add(session.input, entry.usage?.inputTokens)
         session.output = self.add(session.output, entry.usage?.outputTokens)
         session.cacheRead = self.add(session.cacheRead, entry.usage?.cacheReadTokens)
         session.reasoning = self.add(session.reasoning, entry.usage?.reasoningOutputTokens)
         session.tokens = self.add(session.tokens, entry.resolvedTotalTokens)
-        let cost = self.listPriceUSD(entry: entry, customPricing: customPricing)
         session.cost = self.add(session.cost, cost)
         var model = session.models[entry.model] ?? ModelAccumulator()
         self.merge(entry, cost: cost, into: &model)
@@ -237,14 +269,14 @@ enum OpenCodexUsageAggregator {
 
     private static func merge(
         _ entry: OpenCodexUsageEntry,
-        into hour: inout HourAccumulator,
-        customPricing: CostUsageCustomPricing)
+        cost: Double?,
+        into hour: inout HourAccumulator)
     {
         if let tokens = entry.resolvedTotalTokens {
             hour.tokens += tokens
             hour.sawTokens = true
         }
-        if let cost = self.listPriceUSD(entry: entry, customPricing: customPricing) {
+        if let cost {
             hour.cost += cost
             hour.sawCost = true
         }
@@ -303,9 +335,16 @@ enum OpenCodexUsageAggregator {
         }
     }
 
+    /// List-price estimate for one entry. Precedence is unchanged from the per-merge pricing it replaces:
+    /// 1. `customPricing` — the snapshot's own overlay (provider-scoped rates passed by the caller);
+    /// 2. `CostUsagePricing.codexCostUSD` with the pre-resolved `customPricingOverlay` (the app-level overlay file,
+    ///    which `codexCostUSD` would otherwise re-load per call) and the pre-resolved models.dev `modelsDevCatalog`
+    ///    (otherwise `ModelsDevCache.load` per call), then the bundled/historical tables.
     private static func listPriceUSD(
         entry: OpenCodexUsageEntry,
-        customPricing: CostUsageCustomPricing) -> Double?
+        customPricing: CostUsageCustomPricing,
+        modelsDevCatalog: ModelsDevCatalog,
+        customPricingOverlay: CostUsageCustomPricing) -> Double?
     {
         guard entry.usageStatus == .reported || entry.usageStatus == .estimated else { return nil }
         let usage = entry.usage
@@ -335,7 +374,9 @@ enum OpenCodexUsageAggregator {
             cachedInputTokens: cacheRead,
             outputTokens: output,
             cacheWriteInputTokens: cacheWrite,
-            pricingDate: entry.timestamp)
+            pricingDate: entry.timestamp,
+            modelsDevCatalog: modelsDevCatalog,
+            customPricing: customPricingOverlay)
     }
 
     private static func add(_ lhs: Int?, _ rhs: Int?) -> Int? {
@@ -353,6 +394,54 @@ enum OpenCodexUsageAggregator {
         case let (left?, nil): left
         case let (nil, right?): right
         case (nil, nil): nil
+        }
+    }
+}
+
+extension OpenCodexUsageAggregator {
+    /// Reuses the calendar's `[start, next)` day interval while timestamps stay inside it.
+    /// Day keys still come from `CostUsageLocalDay` so DST and non-Gregorian calendars stay aligned: the key derives
+    /// y-m-d from the same Gregorian-in-timezone calendar whose `.day` interval is cached here, so the memo can never
+    /// disagree with computing the key per entry (DST days are simply 23 h / 25 h intervals).
+    private struct LocalDayKeyMemo {
+        var start = Date.distantPast
+        var end = Date.distantPast
+        var key = ""
+
+        mutating func key(for timestamp: Date, calendar: Calendar) -> String {
+            if timestamp >= self.start, timestamp < self.end {
+                return self.key
+            }
+            let dayCalendar = CostUsageLocalDay.gregorianCalendar(matching: calendar)
+            guard let interval = dayCalendar.dateInterval(of: .day, for: timestamp) else {
+                self.start = Date.distantPast
+                self.end = Date.distantPast
+                return CostUsageLocalDay.key(from: timestamp, calendar: calendar)
+            }
+            self.start = interval.start
+            self.end = interval.end
+            self.key = CostUsageLocalDay.key(from: timestamp, calendar: calendar)
+            return self.key
+        }
+    }
+
+    /// Reuses the calendar's hour interval while timestamps stay inside `[start, end)`.
+    private struct HourStartMemo {
+        var start = Date.distantPast
+        var end = Date.distantPast
+
+        mutating func start(for timestamp: Date, calendar: Calendar) -> Date {
+            if timestamp >= self.start, timestamp < self.end {
+                return self.start
+            }
+            guard let interval = calendar.dateInterval(of: .hour, for: timestamp) else {
+                self.start = Date.distantPast
+                self.end = Date.distantPast
+                return timestamp
+            }
+            self.start = interval.start
+            self.end = interval.end
+            return self.start
         }
     }
 }

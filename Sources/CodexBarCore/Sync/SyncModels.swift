@@ -225,6 +225,43 @@ public struct AccountSnapshotSyncPayload: Codable, Sendable {
         }
         return CanonicalSyncJSON.hash(data: Data(identity.lowercased().utf8))
     }
+
+    /// CloudKit record IDs cannot be renamed. Claude Swap snapshots keyed by
+    /// `claude-swap:<slot>` replace a same-device email-keyed record; that
+    /// predecessor is deleted only after the slot-keyed replacement is saved.
+    /// Other providers must not classify an email-to-durable-ID change as obsolete.
+    public func emailKeyedPredecessorRecordName() -> String? {
+        // Provider-specific by design: only Claude Swap slot keys retire leftover email-keyed CloudKit snapshots.
+        guard self.provider == .claude,
+              self.usage.identity?.loginMethod == ClaudeSwapAccountProjection.sourceLabel
+        else { return nil }
+        let accountID = self.usage.identity?.accountID?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard accountID.hasPrefix("\(ClaudeSwapAccountProjection.sourceName):") else { return nil }
+        let emailKey = Self.accountKey(for: self.usage.identity?.accountEmail)
+        guard emailKey != "default",
+              Self.accountKey(for: accountID) == self.accountKey,
+              emailKey != self.accountKey
+        else {
+            return nil
+        }
+        return "snap-\(self.provider.rawValue)-\(emailKey)-\(self.deviceID)"
+    }
+
+    public static func obsoleteEmailKeyedRecordNames(
+        liveSnapshots: [AccountSnapshotSyncPayload],
+        knownRecordNames: Set<String>) -> Set<String>
+    {
+        let liveNames = Set(liveSnapshots.map(\.recordName))
+        var obsolete: Set<String> = []
+        for snapshot in liveSnapshots {
+            guard let predecessor = snapshot.emailKeyedPredecessorRecordName(),
+                  !liveNames.contains(predecessor),
+                  knownRecordNames.contains(predecessor)
+            else { continue }
+            obsolete.insert(predecessor)
+        }
+        return obsolete
+    }
 }
 
 public struct SyncedPreferences: Codable, Sendable {

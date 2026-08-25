@@ -1,4 +1,4 @@
-import Foundation
+import Foundation // swiftlint:disable file_length
 #if canImport(FoundationNetworking)
 import FoundationNetworking
 #endif
@@ -406,11 +406,32 @@ public struct AntigravityStatusSnapshot: Sendable {
     static func quotaDisplayLabel(_ quota: AntigravityModelQuota) -> String {
         let trimmed = quota.label.trimmingCharacters(in: .whitespacesAndNewlines)
         guard trimmed.isEmpty || trimmed == quota.modelId else { return quota.label }
-        return Self.humanizedModelID(quota.modelId)
+        return Self.humanizedModelID(Self.canonicalModelID(quota.modelId))
+    }
+
+    /// Retired Flash generations (opencodex lesson): Google removes previous Flash from CCA
+    /// almost immediately after a successor ships. Keep old picker selections routable and
+    /// prevent stale payloads from republishing dead wire ids as separate rows.
+    private static let retiredFlashTiers: [String: String] = [
+        "gemini-3.6-flash": "gemini-3.7-flash",
+        "gemini-3.6-flash-low": "gemini-3.7-flash",
+        "gemini-3.6-flash-medium": "gemini-3.7-flash",
+        "gemini-3.6-flash-high": "gemini-3.7-flash",
+        "gemini-3.5-flash-extra-low": "gemini-3.7-flash",
+        "gemini-3.5-flash-low": "gemini-3.7-flash",
+        "gemini-3.5-flash-mid": "gemini-3.7-flash",
+        "gemini-3.5-flash-high": "gemini-3.7-flash",
+        "gemini-3-flash-agent": "gemini-3.7-flash",
+    ]
+
+    static func canonicalModelID(_ modelId: String) -> String {
+        let key = modelId.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return Self.retiredFlashTiers[key] ?? modelId
     }
 
     static func humanizedModelID(_ modelId: String) -> String {
-        let parts = modelId.split(separator: "-").map(String.init)
+        let canonical = Self.canonicalModelID(modelId)
+        let parts = canonical.split(separator: "-").map(String.init)
         var words: [String] = []
         var index = 0
 
@@ -511,8 +532,18 @@ public struct AntigravityStatusSnapshot: Sendable {
     }
 
     private static func normalizeModel(_ quota: AntigravityModelQuota) -> AntigravityNormalizedModel {
-        let modelId = quota.modelId.lowercased()
-        let label = quota.label.lowercased()
+        let canonicalQuota: AntigravityModelQuota = {
+            let canonicalId = Self.canonicalModelID(quota.modelId)
+            guard canonicalId != quota.modelId else { return quota }
+            return AntigravityModelQuota(
+                label: quota.label,
+                modelId: canonicalId,
+                remainingFraction: quota.remainingFraction,
+                resetTime: quota.resetTime,
+                resetDescription: quota.resetDescription)
+        }()
+        let modelId = canonicalQuota.modelId.lowercased()
+        let label = canonicalQuota.label.lowercased()
         let family = Self.family(forModelID: modelId, label: label)
 
         let isLite = modelId.contains("lite") || label.contains("lite")
@@ -544,7 +575,7 @@ public struct AntigravityStatusSnapshot: Sendable {
         let tier = Self.parseTier(from: label, modelId: modelId)
 
         return AntigravityNormalizedModel(
-            quota: quota,
+            quota: canonicalQuota,
             family: family,
             selectionPriority: selectionPriority,
             isImage: isImage,
@@ -638,9 +669,19 @@ public struct AntigravityStatusSnapshot: Sendable {
                 usageKnown: false)
         }
 
-        let distinctWindows = models
-            .filter {
-                $0.quota.modelId == compactFallbackModelID || Self.shouldShowDistinctExtraWindow($0)
+        let distinctWindows = Dictionary(grouping: models.filter {
+            $0.quota.modelId == compactFallbackModelID || Self.shouldShowDistinctExtraWindow($0)
+        }, by: { $0.quota.modelId.lowercased() })
+            .values
+            .compactMap { group -> AntigravityNormalizedModel? in
+                // Retired Flash mapping can collapse multiple wire ids to one canonical id;
+                // keep the most constrained (lowest remaining) to avoid duplicate windows.
+                group.min { lhs, rhs in
+                    if lhs.quota.remainingPercent != rhs.quota.remainingPercent {
+                        return lhs.quota.remainingPercent < rhs.quota.remainingPercent
+                    }
+                    return lhs.quota.label < rhs.quota.label
+                }
             }
             .sorted(by: Self.modelOrderPrecedes)
             .map { m in
@@ -702,6 +743,7 @@ public struct AntigravityStatusSnapshot: Sendable {
         return Self.family(from: label)
     }
 
+    /// Provider-specific by design: model family classification via string matching.
     private static func family(from text: String) -> AntigravityModelFamily {
         if text.contains("claude") {
             return .claudeModels

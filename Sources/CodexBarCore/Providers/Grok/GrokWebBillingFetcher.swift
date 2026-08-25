@@ -8,11 +8,22 @@ public struct GrokWebBillingSnapshot: Sendable, Equatable {
     public let usedPercent: Double?
     public let resetsAt: Date?
     public let subscriptionTier: String?
+    /// False when `usedPercent` was inferred rather than read off the wire. The credits frame can
+    /// describe a billing period while carrying no percentage field at all, and that shape is
+    /// reported as 0 for the surface's own no-usage-yet contract. A caller that merges two billing
+    /// surfaces must not promote such a value to a published percent.
+    public let usedPercentIsWirePublished: Bool
 
-    public init(usedPercent: Double?, resetsAt: Date?, subscriptionTier: String? = nil) {
+    public init(
+        usedPercent: Double?,
+        resetsAt: Date?,
+        subscriptionTier: String? = nil,
+        usedPercentIsWirePublished: Bool = true)
+    {
         self.usedPercent = usedPercent
         self.resetsAt = resetsAt
         self.subscriptionTier = subscriptionTier
+        self.usedPercentIsWirePublished = usedPercentIsWirePublished
     }
 
     /// Overlay the CLI settings plan name. Usage percent stays on the existing credits rules.
@@ -20,7 +31,19 @@ public struct GrokWebBillingSnapshot: Sendable, Equatable {
         GrokWebBillingSnapshot(
             usedPercent: self.usedPercent,
             resetsAt: self.resetsAt,
-            subscriptionTier: GrokPlan.displayName(from: raw) ?? self.subscriptionTier)
+            subscriptionTier: GrokPlan.displayName(from: raw) ?? self.subscriptionTier,
+            usedPercentIsWirePublished: self.usedPercentIsWirePublished)
+    }
+
+    /// Keep period and plan metadata a second billing surface did not publish. Usage percent
+    /// always stays with the surface that produced this snapshot, so an unknown percent is
+    /// never backfilled from another response.
+    func completing(with other: GrokWebBillingSnapshot) -> GrokWebBillingSnapshot {
+        GrokWebBillingSnapshot(
+            usedPercent: self.usedPercent,
+            resetsAt: other.resetsAt ?? self.resetsAt,
+            subscriptionTier: self.subscriptionTier ?? other.subscriptionTier,
+            usedPercentIsWirePublished: self.usedPercentIsWirePublished)
     }
 }
 
@@ -287,7 +310,10 @@ public enum GrokWebBillingFetcher {
         guard let percent = parsedPercent ?? (noUsageYet ? 0 : nil) else {
             throw GrokWebBillingError.parseFailed
         }
-        return GrokWebBillingSnapshot(usedPercent: percent, resetsAt: reset)
+        return GrokWebBillingSnapshot(
+            usedPercent: percent,
+            resetsAt: reset,
+            usedPercentIsWirePublished: parsedPercent != nil)
     }
 
     static func looksLikeProtobufPayload(_ data: Data) -> Bool {

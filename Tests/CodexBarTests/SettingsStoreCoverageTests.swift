@@ -895,6 +895,20 @@ struct SettingsStoreCoverageTests {
         fresh.preferredCurrencyCode = "GBP"
         let reloaded = Self.makeSettingsStore(userDefaults: defaults, configStore: configStore)
         #expect(reloaded.preferredCurrencyCode == "GBP")
+
+        reloaded.preferredCurrencyCode = "AED"
+        let reloadedAED = Self.makeSettingsStore(userDefaults: defaults, configStore: configStore)
+        #expect(reloadedAED.preferredCurrencyCode == "AED")
+    }
+
+    @Test
+    func `preferred currency picker matches every supported exchange currency`() {
+        let pickerCurrencies = PreferredCurrencyOption.allCases
+            .filter { $0 != .auto }
+            .map(\.rawValue)
+
+        #expect(pickerCurrencies == CurrencyExchange.supportedCurrencies)
+        #expect(PreferredCurrencyOption.aed.label == "AED (د.إ)")
     }
 
     private static func makeSettingsStore(

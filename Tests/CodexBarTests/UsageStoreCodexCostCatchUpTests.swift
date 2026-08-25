@@ -7,6 +7,48 @@ import Testing
 @Suite(.serialized)
 struct UsageStoreCodexCostCatchUpTests {
     @Test
+    func `incomplete refresh cannot replace an established same-scope snapshot`() throws {
+        let store = try Self.makeStore(suite: "retains-established")
+        store.publishTokenSnapshot(Self.tokenSnapshot(cost: 3, now: Date()), for: .codex)
+        let establishedRevision = store.tokenSnapshotPublicationRevision(for: .codex)
+
+        store.publishTokenSnapshot(
+            Self.tokenSnapshot(
+                cost: 9,
+                now: Date().addingTimeInterval(1),
+                historyCoverageIsEstablished: false),
+            for: .codex)
+
+        #expect(store.tokenSnapshot(for: .codex)?.last30DaysCostUSD == 3)
+        #expect(store.tokenSnapshot(for: .codex)?.historyCoverageIsEstablished == true)
+        #expect(store.tokenSnapshotPublicationRevision(for: .codex) == establishedRevision)
+
+        store.publishTokenSnapshot(
+            Self.tokenSnapshot(cost: 4, now: Date().addingTimeInterval(2)),
+            for: .codex)
+
+        #expect(store.tokenSnapshot(for: .codex)?.last30DaysCostUSD == 4)
+        #expect(store.tokenSnapshotPublicationRevision(for: .codex) == establishedRevision + 1)
+    }
+
+    @Test
+    func `incomplete refresh does not retain an established snapshot from another scope`() throws {
+        let store = try Self.makeStore(suite: "scope-change")
+        store.publishTokenSnapshot(Self.tokenSnapshot(cost: 3, now: Date()), for: .codex)
+
+        store.settings.costUsageHistoryDays = 7
+        store.publishTokenSnapshot(
+            Self.tokenSnapshot(
+                cost: 9,
+                now: Date().addingTimeInterval(1),
+                historyCoverageIsEstablished: false),
+            for: .codex)
+
+        #expect(store.tokenSnapshot(for: .codex)?.last30DaysCostUSD == 9)
+        #expect(store.tokenSnapshot(for: .codex)?.historyCoverageIsEstablished == false)
+    }
+
+    @Test
     func `bounded catch-up automatically publishes only the final stable snapshot`() async throws {
         let store = try Self.makeStore(suite: "publishes-final")
         var snapshotLoadCount = 0
@@ -328,12 +370,17 @@ struct UsageStoreCodexCostCatchUpTests {
             environmentBase: [:])
     }
 
-    private static func tokenSnapshot(cost: Double, now: Date) -> CostUsageTokenSnapshot {
+    private static func tokenSnapshot(
+        cost: Double,
+        now: Date,
+        historyCoverageIsEstablished: Bool = true) -> CostUsageTokenSnapshot
+    {
         CostUsageTokenSnapshot(
             sessionTokens: 10,
             sessionCostUSD: cost,
             last30DaysTokens: 10,
             last30DaysCostUSD: cost,
+            historyCoverageIsEstablished: historyCoverageIsEstablished,
             daily: [CostUsageDailyReport.Entry(
                 date: "2026-07-30",
                 inputTokens: 4,

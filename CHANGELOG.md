@@ -1,36 +1,130 @@
 # Changelog
 
-## 0.54.1 — Unreleased
+## 0.55.1 — Unreleased
 
-- Fireworks: auto-discover account slugs from API keys and report invalid or ambiguous accounts instead of silently showing no spend (#3068, #3074).
-- Fixed Codex cost catch-up getting stuck when recently touched session files contain only out-of-window usage — processed zero-row files now drain from the pending queue and existing stuck states self-heal (#3071, #3075).
-- Share one immutable spend-source catalog between Overview and Usage & Spend: multi-account Codex identities, per-source states, 365-day inputs, configured calendar/currency, and OpenCodex enrichment without double counting (#3067). Thanks @Chipagosfinest!
-- Fixed `codexbar cost` SIGSEGV on Linux: `Bundle.allBundles` crashes under swift-corelibs-foundation, so test detection now checks the main executable path instead (#3058, #3059). Thanks @Lucenx9!
-- Codex: added a personal-access-token usage source — `personal_access_token` in `auth.json` gets its own PAT strategy (whoami then `/wham/usage`), Auto prefers a usable PAT and falls back to OAuth/CLI, and ambient-home PATs are found when a managed profile would hide them (#3060). Thanks @oakimov!
-- Count every enabled provider in Overview spend instead of only the six displayed cards, and bucket Overview spend with the configured calendar so boundary days match the dashboard (#3063, #3064). Thanks @Chipagosfinest!
-- Hide untouched Antigravity model families in the `codexbar serve` web dashboard, matching the menu and widgets (#3061). Thanks @urda!
-- Documented the AI Usage Limits Stream Deck plugin in the README integrations list (#3066). Thanks @lenadweb!
-- OpenCode Go: use the public authenticated usage API when `OPENCODE_API_KEY` is configured, overlaying authoritative rolling/weekly/monthly windows on local history with cookie fallback (#2879, #3065). Thanks @akshayprabhu200!
+### Fixed
+- Alibaba Token Plan: try the signed-in Bailian CLI before browser cookies, with isolated subprocess credentials and region-aware 5-hour/weekly quotas (#3020, #3080). Thanks @Hek846!
+- Codex: preserve established local spend totals while newer session history catches up, without crossing accounts, history windows, or time zones; upgrade existing spend caches in place (#3051). Thanks @mauriciopolvora!
+- Codex: refresh open usage cards in place after weekly resets without clipping reset details or mixing account identities (#3168, #3189). Thanks @Zihao-Qi!
+- Codex: recover weekly usage after early backend resets without spending a reset credit, preserve account-scoped confirmation across relaunch, and expire stale observations safely (#3177, #3179). Thanks @Zihao-Qi!
+- Grok: recover the usage bar from bearer billing when credits expose only a period, preserve the authoritative reset, and explain genuinely unavailable usage without switching accounts (#3181). Thanks @olddonkey!
+- Spend dashboard: finish the final local Codex history file promptly while the dashboard is visible, preserve explicit background and stop choices, and keep existing usage caches intact (#3114). Thanks @Yuxin-Qiao!
+- Fireworks: show real 30-day API billing spend even when local cost summaries are disabled (#3183, #3185). Thanks @dhalarewich!
+- OpenRouter: accept timestamp-shaped Activity API dates so exact 30-day spend history loads again (#3174).
+- Amp: parse bold Markdown usage labels from the latest CLI while preserving compatibility with older plain-text output (#3171).
+- OpenCode Go: expose a Monthly % lane token for custom menu bar layouts once the monthly window has been observed (#3175).
 
-## 0.54.0 — 2026-08-18
+### Performance
+- Grok: keep menu opening responsive by reusing published local-session totals and moving filesystem scans off the main thread (#3195).
+- OpenCodex: parse only newly appended usage-log entries instead of rebuilding the entire cache on every refresh, cutting memory use while preserving compatibility with older app versions (#3140). Thanks @olddonkey!
+
+### Usage & Spend
+- Added AED (UAE dirham) to the display currency options (#3186). Thanks @samiashi!
+
+### Localization
+- Settings: keep the keyboard shortcut recorder in the selected app language while recording and after editing (#3190). Thanks @endless7!
+- Turkish: improve translations throughout settings and provider views, including the previously untranslated iCloud sync section (#3178). Thanks @husodrn46!
+
+## 0.55.0 — 2026-08-24
+
+### Highlights
+- **Codex inside ChatGPT.app detected**: Adaptive (agent-aware) refresh recognizes the ChatGPT-bundled Codex and holds the 5-minute active cadence while it works (#3160, #3163).
+- **Antigravity without the desktop app**: menu-bar quota refresh reuses an already signed-in `agy` CLI, and logged-out states show sign-in guidance instead of "Launch Antigravity" (#3146, #3161).
+- **Faster OpenCodex spend**: pricing each usage entry once drops the spend refresh from ~12 s to ~3 s on a 35k-entry log (#3136).
+- **Gemini shutdown guidance**: Google's consumer-tier shutdown response surfaces the Antigravity migration path again instead of a bare `HTTP 403` (#3139).
+- **Codex token parity with tokscale**: local token counts now match tokscale on cached usage, out-of-order events, and bare usage rows (#3120).
+
+### Fixed
+- Gemini: recognize Google's live consumer-tier shutdown — an HTTP 200 `loadCodeAssist` body whose `ineligibleTiers` carries `UNSUPPORTED_CLIENT` — instead of surfacing the follow-up quota call as a bare `HTTP 403`, so the Antigravity migration guidance and the **Enable Antigravity provider** action appear; the login action also stops deleting `~/.gemini/oauth_creds.json` to launch a sign-in Google rejects (#3139). Thanks @betive37!
+- Merged Warp icons keep a present-but-unused bonus lane visible and an exhausted bonus in the missing-secondary layout, matching direct Warp rendering; the visible-zero sentinel now survives the renderer's tenth-percent cache quantization (#3165, #3166). Thanks @akshayprabhu200!
+- Fixed single-quota menu-bar icons understating remaining usage: a provider's only meaningful quota now renders as one prominent meter instead of half an icon next to a reserved empty lane, including when it arrives in the secondary slot (#3154, #3155). Thanks @akshayprabhu200!
+- Codex: tokscale parity for local token counts — cached usage derives from the larger of `cached_input_tokens`/`cache_read_input_tokens`, out-of-order token_count events are detected field-level before watermark latching, and bare usage rows in non-event rollout lines parse (#3120). Thanks @Yuxin-Qiao!
+- Fixed the Codex cost card blanking Today and recent days when priority processing is in use: row-ownership evidence now accepts the trace database's tier classification instead of discarding whole (day, model) groups (#3150). Thanks @olddonkey!
+- Stopped re-merging the Codex plan-utilization history with itself on every refresh and menu open — the legacy-bucket migration now runs only when a non-canonical bucket actually exists (#3141). Thanks @olddonkey!
+- Claude: web-cookie refresh works in ad-hoc development builds by routing cookie cache entries to process memory, keeping persistent Keychain storage for signed builds and OAuth credentials; cookie imports prefer Chrome and evaluate other browsers lazily (#3162). Thanks @Zihao-Qi!
+- Grok: report period-only CLI-proxy responses as unknown usage instead of 0% when Grok Build has hit its free limit, keeping identity and reset metadata (#3157, #3159). Thanks @anupamchugh!
+- OpenRouter: request the latest completed UTC day from the Activity API instead of the current date, fixing the HTTP 400 that suppressed spend history (#3133, #3138). Thanks @kiranmagic7!
+- CLI install: report success even when unrelated PATH directories are non-writable, while still listing genuine `codexbar` conflicts from earlier PATH entries (#3153). Thanks @yicone!
+
+### Performance
+- OpenCodex: price each `usage.jsonl` entry once with a pre-resolved models.dev catalog and custom-pricing overlay, memoize day/hour buckets per calendar interval, and read the models.dev cache metadata with a plain `stat` instead of an extended-attribute read — the OpenCodex spend refresh drops from ~12 s to ~3 s on a 35k-entry log with identical output; existing cost caches are adopted on upgrade, not rebuilt (#3136). Thanks @olddonkey!
+
+### Providers
+- Codex: Adaptive (agent-aware) refresh detects ongoing Codex activity from the unified ChatGPT.app — the ChatGPT-bundled Codex is recognized at approved locations (signing-validated), recent rollout writes hold the 5-minute active cadence, and an idle open app is not treated as coding activity (#3160, #3163).
+- Antigravity: menu-bar quota refresh reuses an already signed-in `agy` CLI without requiring the desktop app, and logged-out/keyring-timeout states report CLI sign-in guidance instead of asking users to launch an unavailable app (#3146, #3161).
+- Antigravity: map retired Flash wire IDs to their current tier, and count local conversations as an offline fallback when the desktop app is unavailable (#3119). Thanks @Yuxin-Qiao!
+- Qwen Cloud: restored Brave browser support in cookie import (#3148). Thanks @umutkeltek!
+
+### Usage & Spend
+- Spend dashboard: silently refresh independent providers (Claude/Cursor) when their token publications update, bucket the activity heatmap with the configured IANA timezone, and stop coalescing display-affecting ownership and revision changes (#3106). Thanks @Yuxin-Qiao!
+- Spend: add tokscale-compatible local readers for Cursor and Antigravity local history (#3113). Thanks @Yuxin-Qiao!
+- Added CHF (Swiss Franc) to the display currency options (#3149).
+
+## 0.54.1 — 2026-08-21
+
+### Highlights
+- **Codex CLI 0.149.0 compatibility**: the usage probe works again after the CLI removed the `untrusted` approval value (#3115).
+- **Layout editor drag-and-drop fixed**: chip reordering and the trash drop zone are reachable again, and the trash zone doubles as a click target (#3121).
+- **Faster relaunches**: the Codex priority-turn scan cursor persists across restarts — no more re-scanning the whole trace database on every launch (#3130).
+- **Faster spend dashboard**: provider baselines and Codex multi-account scans load in parallel, cutting cold opens to roughly the slowest single provider (#3105).
+- **Grok Bot on the Cursor card**: weekly included Bot usage appears as a fourth bar next to Total / Cursor / Third Party (#3127).
+
+### Fixed
+- Fixed the Codex CLI usage probe against Codex CLI 0.149.0: the removed `untrusted` approval value is replaced by `never` on both the app-server and isolated status launches, keeping the read-only sandbox (#3115, #3118). Thanks @kiranmagic7!
+- Fixed menu bar layout editor drag-and-drop: chips are draggable views instead of Buttons (whose gesture recognizer swallowed the drag), so reordering and the trash zone work again — and the trash zone now also removes the selected token on click (#3121). Thanks @J2TeamNNL!
+- Fixed Codex profile-home account switches briefly showing another profile's token counts, costs, usage chart, top model, and cost history while the selected profile loads (#3125).
+- Fixed the mainland Alibaba Personal/Solo Token Plan always reporting "login required": the console shell now serves its `sec_token` to CodexBar's fetch and the upper-case `SEC_TOKEN` shape is parsed (#2891, #3098). Thanks @LeoLin990405!
+- Alibaba: retry the Personal usage gateway's transient empty-Success responses instead of surfacing a parse error (#3128). Thanks @LeoLin990405!
+- Fixed long agent session names stretching the menu: session rows now truncate inside the menu's width with the full label in a tooltip (#3096). Thanks @KaranocaVe!
+
+### Performance
+- Codex: persist the priority-turn trace-database scan cursor across relaunches so a restart resumes incrementally instead of re-scanning the whole `logs_2.sqlite` (minutes of full-core CPU on large trace databases); existing cost caches are adopted on upgrade, not rebuilt (#3130). Thanks @olddonkey!
+- Spend dashboard: load provider baselines and Codex multi-account scans in parallel and memoize currency conversion and calendar buckets, cutting cold opens from multiple seconds to roughly the slowest single provider (#3105). Thanks @Yuxin-Qiao!
+
+### Providers
+- Cursor: show Grok Bot weekly included usage as a fourth card bar sourced from the dashboard's sand-usage endpoint, best-effort and hidden on accounts without a Bot allowance or on legacy request plans (#3127). Thanks @kvarga!
+- Codex: show Business/Enterprise individual monthly credit used vs cap on stacked multi-account cards instead of "Limits not available" (#3112). Thanks @sf-jin-ku!
+- Claude: migrate email-keyed claude-swap iCloud snapshots to their slot-keyed records and delete the leftover email-keyed predecessors, so other Macs stop showing duplicate fleet cards (#3111). Thanks @sf-jin-ku!
+- Claude: distinguish claude-swap accounts that share an email with the workspace name or slot, and honor a user-chosen display alias (#3082). Thanks @sf-jin-ku!
+- Kiro: show overage credits spent against their cap, plus accrued charges against the overage budget — reading the plan and overage ceilings from the same `GetUsageLimits` service the CLI itself calls, with a CLI-report fallback (#3083). Thanks @sf-jin-ku!
+- Command Code: recognize the repriced Pro tier (`individual-pro-v1`, $80/mo in credits) instead of failing with an unknown-plan error (#3116). Thanks @sebastianmarines!
+- z.ai: show the BigModel CN pay-as-you-go account balance inside Quota details, best-effort and CN-only (#3109). Thanks @RunhuaHuang!
+
+### Localization
+- Simplified Chinese now labels quota windows by their actual duration ("5 小时" instead of a generic session label), keeping the generic wording for conversations (#3069, #3070). Thanks @YunyueLi!
+
+## 0.54.0 — 2026-08-20
 
 ### Highlights
 - **Blank Settings window fixed**: the empty "CodexBar Settings" window that opened on every launch since 0.52.0 is gone (#3048, #3053).
-- **Menu bar lanes you can pin**: provider-specific layouts now offer direct `Total %` / `Cursor %` / `Third Party %` lane tokens, downgrade-safe (#3038, #3052).
+- **Crash fix**: Codex and Grok no longer abort the whole app when an RPC timeout or child exit races a write to closed subprocess stdin (#3087).
+- **Conditional menu bar tokens**: named, reusable if/then/else rules that swap or hide tokens based on live usage — and the conditions can test any comparable block: usage, reset time, run-out, pace, balance, or cost (#3076, #3088).
+- **Live Grok & xAI spend**: xAI Management API daily spend and local Grok session tokens now flow into Usage & Spend (#3085).
 - **Honest historical pricing**: GPT-5.6 Terra/Luna costs use the rates in effect on each request day, and OpenCodex usage routes into the right subscription rows (#3037, #3046).
 
 ### Fixed
 - Fixed the blank "CodexBar Settings" window that opened on every launch since 0.52.0: the app now declines macOS's untitled-window path and closes the empty SwiftUI Settings placeholder if restoration brings it back (#3048, #3053, #3056). Thanks @elijahfriedman!
+- Fixed Codex and Grok app crashes when an RPC timeout or child exit races a write to closed subprocess stdin (#3087, #3095).
+- Fixed custom menu bar line breaks so provider icons stay above stacked usage percentages in the menu bar and layout preview (#3089).
+- Fixed the native blue selection highlight reappearing on provider cards after cached provider switches: cross-class cached rows now replace the item shell so the highlight override survives (#2998, #3091, #3093). Thanks @kiranmagic7!
 - Fixed the cost, credits, and usage-breakdown charts so the hover highlight aligns with the bar under the cursor instead of sitting half a day off (#3040, #3049).
 - Fixed: Amp CLI parsing follows the new `Amp <plan> Subscription:` line format so Megawatt usage windows show again (#3050, #3057).
+- Fixed Codex cost catch-up getting stuck when recently touched session files contain only out-of-window usage — processed zero-row files now drain from the pending queue and existing stuck states self-heal (#3071, #3075).
+- Fixed `codexbar cost` SIGSEGV on Linux: `Bundle.allBundles` crashes under swift-corelibs-foundation, so test detection now checks the main executable path instead (#3058, #3059). Thanks @Lucenx9!
 - Fixed GPT-5.6 Terra/Luna historical cost aggregates to use the rates in effect on each request day instead of silently repricing pre-2026-07-30 usage at the cut rates (#2671, #3037). Thanks @Yuxin-Qiao!
+- Claude: keep 100% claude-swap usage bars when cswap defers polling at a limit, and name the exhausted window and reset instead of showing "Usage fetch failed." (#3081). Thanks @sf-jin-ku!
 
 ### Menu Bar & Layouts
+- Added conditional tokens to the menu bar layout editor: named, reusable if/then/else rules (1–4 AND/OR clauses over Session/Weekly/Scoped/Auto thresholds) that swap or hide tokens based on live usage, downgrade-safe and localized across all 23 catalogs (#3076). Thanks @wdmitchelluk!
+- Menu bar conditionals can now test every comparable block, not just usage percentages: time to reset, run-out estimate, pace, credit balance, today/30-day cost, and the direct primary/secondary/tertiary lanes, with a used/remaining select wherever both readings exist (so "session > 50% used **and** session resets in < 2h" or "balance remaining >= 5" are expressible). Ships an "Auto % / Resets in" default that shows the percentage while the lane has headroom and the reset countdown once it is spent (#3088). Thanks @wdmitchelluk!
 - Added direct primary/secondary/tertiary usage lane tokens to provider-specific menu bar layouts, so Cursor layouts can pin `Total %`, `Cursor %`, or `Third Party %` (#3038, #3039). Thanks @giuseppebisemi!
 - Keep custom menu bar layouts safe across downgrades: older releases read a Session/Weekly/Auto projection of lane tokens, Kimi lanes map through its reversed semantic windows, and direct tertiary lanes refresh independently (#3052). Thanks @giuseppebisemi!
 - Added a "Show pace" setting to hide the usage pace stripe and forecast text, on by default (#3055). Thanks @urda!
 
 ### Usage & Spend
+- Publish live xAI Management API daily spend and local Grok session tokens into the shared Usage & Spend catalog. Prepaid Grok credits stay a quota (never converted to dollars); xAI prepaid balance stays remaining credit, not spend (#3085). Thanks @Chipagosfinest!
+- Share one immutable spend-source catalog between Overview and Usage & Spend: multi-account Codex identities, per-source states, 365-day inputs, configured calendar/currency, and OpenCodex enrichment without double counting (#3067). Thanks @Chipagosfinest!
+- Count every enabled provider in Overview spend instead of only the six displayed cards, and bucket Overview spend with the configured calendar so boundary days match the dashboard (#3063, #3064). Thanks @Chipagosfinest!
 - Account for every connected provider in Overview spend: exact OpenRouter 30-day Activity spend via an optional management API key, with coverage shown instead of a false `$0` when a source can't report (#3054). Thanks @Chipagosfinest!
 - Fan OpenCodex usage into the matching Codex, OpenCode Go, Kimi, and DeepSeek subscription rows and exclude routed models from Codex session spend totals (#3044, #3046, #3047). Thanks @Yuxin-Qiao!
 - Chart OpenCodex spend by per-request hour in the pinned timezone instead of session last-activity (#3031). Thanks @Yuxin-Qiao!
@@ -40,7 +134,21 @@
 - Keep model rows with cost visible on the spend dashboard when only some breakdowns report tokens (#3045). Thanks @Yuxin-Qiao!
 - Show spend dashboard row metrics as cost and tokens together instead of cost-only (#3043). Thanks @Yuxin-Qiao!
 - Documented custom-pricing overlays and the Usage & Spend surface (#3033). Thanks @Yuxin-Qiao!
+
+### Providers
+- Codex: added a personal-access-token usage source — `personal_access_token` in `auth.json` gets its own PAT strategy (whoami then `/wham/usage`), Auto prefers a usable PAT and falls back to OAuth/CLI, and ambient-home PATs are found when a managed profile would hide them (#3060). Thanks @oakimov!
+- Fireworks: auto-discover account slugs from API keys and report invalid or ambiguous accounts instead of silently showing no spend (#3068, #3074).
+- OpenCode Go: use the public authenticated usage API when `OPENCODE_API_KEY` is configured, overlaying authoritative rolling/weekly/monthly windows on local history with cookie fallback (#2879, #3065). Thanks @akshayprabhu200!
+- Hide untouched Antigravity model families in the `codexbar serve` web dashboard, matching the menu and widgets (#3061). Thanks @urda!
+
+### Localization
+- Localized provider usage details in Simplified Chinese: DeepSeek detailed usage/balance, z.ai/GLM quota details, token charts, and the 5-hour reset text (#3084). Thanks @haixing23!
+- Localized remaining provider-detail edge cases in Simplified Chinese: DeepSeek zero-balance/unavailable-API text, z.ai one-sided quota values, credit-plan rates, peak/off-peak states, and countdown shapes (#3086). Thanks @haixing23!
+- Fixed inconsistent German localization of "About" ("Um" → "Über") (#3077). Thanks @dwt!
 - Localized the Codex local session cost estimate setting in Korean (#3034). Thanks @Yoonkeee!
+
+### Docs
+- Documented the AI Usage Limits Stream Deck plugin in the README integrations list (#3066). Thanks @lenadweb!
 
 ## 0.53.0 — 2026-08-18
 

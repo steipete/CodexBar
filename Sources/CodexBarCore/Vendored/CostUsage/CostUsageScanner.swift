@@ -412,6 +412,33 @@ enum CostUsageScanner {
         lhs.input <= rhs.input && lhs.cached <= rhs.cached && lhs.output <= rhs.output
     }
 
+    private static func codexLooksLikeStaleRegression(
+        current: CostUsageCodexTotals,
+        previous: CostUsageCodexTotals,
+        last: CostUsageCodexTotals) -> Bool
+    {
+        // Mirrors tokscale: staleness applies only after an actual field-level
+        // regression, including the optional reasoning subset. Compare reasoning
+        // only when both snapshots provide it; an omitted field is unknown, not zero.
+        let reasoningRegressed: Bool = switch (current.reasoning, previous.reasoning) {
+        case let (.some(currentReasoning), .some(previousReasoning)):
+            currentReasoning < previousReasoning
+        case (.some, .none), (.none, .some), (.none, .none):
+            false
+        }
+        guard current.input < previous.input
+            || current.cached < previous.cached
+            || current.output < previous.output
+            || reasoningRegressed
+        else { return false }
+        let previousTotal = previous.input + previous.output + previous.cached + (previous.reasoning ?? 0)
+        let currentTotal = current.input + current.output + current.cached + (current.reasoning ?? 0)
+        let lastTotal = last.input + last.output + last.cached + (last.reasoning ?? 0)
+        if previousTotal <= 0 || currentTotal <= 0 || lastTotal <= 0 { return false }
+        return currentTotal * 100 >= previousTotal * 98
+            || currentTotal + lastTotal * 2 >= previousTotal
+    }
+
     private static func codexShouldPreferTotalDelta(
         rawBaseline: CostUsageCodexTotals?,
         currentTotal: CostUsageCodexTotals,
@@ -701,6 +728,17 @@ enum CostUsageScanner {
             if let total {
                 // Best-effort exact re-emission suppression (precision only; containment is load-bearing).
                 if self.tracker.isSeen(total) {
+                    return base
+                }
+                let staleBaseline = self.tracker.watermark ?? self.rawTotalsBaseline
+                if let previousTotal = staleBaseline,
+                   CostUsageScanner.codexLooksLikeStaleRegression(
+                       current: total,
+                       previous: previousTotal,
+                       last: last ?? .init(input: 0, cached: 0, output: 0))
+                {
+                    // Mirrors tokscale: a cumulative snapshot that regressed by roughly
+                    // one recent increment is stale, not a second lineage or hard reset.
                     return base
                 }
                 self.tracker.latchIfBelowWatermark(total)
@@ -1016,6 +1054,8 @@ enum CostUsageScanner {
         let priorityTurns: [String: CodexPriorityTurnMetadata]
         let priorityTurnKeys: [String: String]
         let priorityTurnIDsByDay: [String: [String]]
+        let inspectedPriorityTurns: Bool
+        let priorityTurnsCursor: CodexPriorityTurnsPersistedCursor?
         let priorityMetadataChanged: Bool
         let priorityTurnsChanged: Bool
         let needsTurnIDCacheMigration: Bool
@@ -2090,7 +2130,7 @@ enum CostUsageScanner {
     }
 
     private static func codexPriorityMetadataKey(databaseURL: URL?) -> String {
-        let url = databaseURL ?? self.defaultCodexPriorityDatabaseURL()
+        let url = self.resolvedCodexPriorityDatabaseURL(databaseURL)
         let path = url.standardizedFileURL.path
         return FileManager.default.fileExists(atPath: path) ? "sqlite:\(path)" : "missing:\(path)"
     }
@@ -3416,15 +3456,17 @@ enum CostUsageScanner {
         let input = max(
             0,
             Self.extractJSONByteIntField(Self.codexJSONFieldInputTokens, from: bytes, in: objectRange, atDepth: 1) ?? 0)
-        let cached = max(
-            0,
-            Self.extractJSONByteIntField(Self.codexJSONFieldCachedInputTokens, from: bytes, in: objectRange, atDepth: 1)
-                ?? Self.extractJSONByteIntField(
-                    Self.codexJSONFieldCacheReadInputTokens,
-                    from: bytes,
-                    in: objectRange,
-                    atDepth: 1)
-                ?? 0)
+        let cachedInput = Self.extractJSONByteIntField(
+            Self.codexJSONFieldCachedInputTokens,
+            from: bytes,
+            in: objectRange,
+            atDepth: 1) ?? 0
+        let cacheRead = Self.extractJSONByteIntField(
+            Self.codexJSONFieldCacheReadInputTokens,
+            from: bytes,
+            in: objectRange,
+            atDepth: 1) ?? 0
+        let cached = max(0, max(cachedInput, cacheRead))
         let output = max(
             0,
             Self
@@ -3661,6 +3703,54 @@ enum CostUsageScanner {
                 return nil
             }
         }
+    }
+
+    /// Extracts usage from non-event rollout lines (one-shot codex exec / headless output).
+    /// Only the four canonical response envelopes are inspected so arbitrary prompt text cannot
+    /// be misread as token data.
+    private static func codexBareUsage(
+        from obj: [String: Any]) -> (totals: CostUsageCodexTotals, model: String?)?
+    {
+        let containers = [
+            obj["usage"] as? [String: Any],
+            (obj["data"] as? [String: Any]).flatMap { $0["usage"] as? [String: Any] },
+            (obj["result"] as? [String: Any]).flatMap { $0["usage"] as? [String: Any] },
+            (obj["response"] as? [String: Any]).flatMap { $0["usage"] as? [String: Any] },
+        ]
+
+        guard let usage = containers.compactMap(\.self).first,
+              let inputTokens = Self.codexBareUsageInt(
+                  usage, keys: ["input_tokens", "prompt_tokens", "input"]),
+              let outputTokens = Self.codexBareUsageInt(
+                  usage, keys: ["output_tokens", "completion_tokens", "output"])
+        else { return nil }
+
+        let cachedTokens = Self.codexBareUsageInt(
+            usage, keys: ["cached_input_tokens", "cache_read_input_tokens", "cached_tokens"]) ?? 0
+        let billedInput = max(0, inputTokens - cachedTokens)
+        guard billedInput > 0 || outputTokens > 0 || cachedTokens > 0 else { return nil }
+
+        func modelEvidence(_ container: [String: Any]?) -> String? {
+            Self.codexModelEvidence(container?["model"] as? String)
+                ?? Self.codexModelEvidence(container?["model_name"] as? String)
+        }
+
+        return (
+            CostUsageCodexTotals(
+                input: billedInput,
+                cached: cachedTokens,
+                output: outputTokens,
+                reasoning: nil),
+            modelEvidence(obj) ?? (obj["data"] as? [String: Any]).flatMap(modelEvidence))
+    }
+
+    private static func codexBareUsageInt(_ dict: [String: Any], keys: [String]) -> Int? {
+        for key in keys {
+            if let number = dict[key] as? NSNumber {
+                return max(0, number.intValue)
+            }
+        }
+        return nil
     }
 
     private static func codexFastLineTimestampValidity(_ bytes: Data) -> Bool? {
@@ -3907,7 +3997,9 @@ enum CostUsageScanner {
                             let output = toInt($0["output_tokens"])
                             return CostUsageCodexTotals(
                                 input: toInt($0["input_tokens"]),
-                                cached: toInt($0["cached_input_tokens"] ?? $0["cache_read_input_tokens"]),
+                                cached: max(
+                                    toInt($0["cached_input_tokens"] ?? 0),
+                                    toInt($0["cache_read_input_tokens"] ?? 0)),
                                 output: output,
                                 reasoning: ($0["reasoning_output_tokens"] as? NSNumber)
                                     .map { min(max(0, $0.intValue), max(0, output)) })
@@ -3916,7 +4008,11 @@ enum CostUsageScanner {
                             let output = max(0, toInt($0["output_tokens"]))
                             return CostUsageCodexTotals(
                                 input: max(0, toInt($0["input_tokens"])),
-                                cached: max(0, toInt($0["cached_input_tokens"] ?? $0["cache_read_input_tokens"])),
+                                cached: max(
+                                    0,
+                                    max(
+                                        toInt($0["cached_input_tokens"] ?? 0),
+                                        toInt($0["cache_read_input_tokens"] ?? 0))),
                                 output: output,
                                 reasoning: ($0["reasoning_output_tokens"] as? NSNumber)
                                     .map { min(max(0, $0.intValue), output) })
@@ -4053,6 +4149,7 @@ enum CostUsageScanner {
         var days: [String: [String: [Int]]] = [:]
         var rows: [CodexUsageRow] = []
         var tokenSnapshots: [CostUsageCodexTokenSnapshot] = []
+        var lastAcceptedTokenTimestamp: String?
 
         func add(dayKey: String, model: String, input: Int, cached: Int, output: Int) {
             guard CostUsageDayRange.isInRange(dayKey: dayKey, since: range.scanSinceKey, until: range.scanUntilKey)
@@ -4079,6 +4176,43 @@ enum CostUsageScanner {
                   let date = Self.dateFromTimestamp(timestamp)
             else { return nil }
             return Int64((date.timeIntervalSince1970 * 1000).rounded())
+        }
+
+        /// Counts one-shot codex exec / headless rollout rows whose usage object is not wrapped in the
+        /// interactive event_msg/token_count envelope. Tokscale parity: accept OpenAI and completion-style
+        /// aliases, subtract cached input from billed input, and fall back to the last accepted timestamp
+        /// so timestamp-less responses remain attributable to the active day.
+        func handleBareUsage(totals: CostUsageCodexTotals, modelEvidence: String?, timestamp: String?) {
+            let resolvedTimestamp = timestamp ?? lastAcceptedTokenTimestamp
+            guard let dayKey = resolvedTimestamp.flatMap({
+                Self.dayKeyFromTimestamp($0) ?? Self.dayKeyFromParsedISO($0)
+            }) else { return }
+
+            observeTimestamp(resolvedTimestamp)
+            let model = Self.codexModelEvidence(modelEvidence)
+                ?? Self.codexModelEvidence(currentModel)
+                ?? CostUsagePricing.codexUnattributedModel
+            let normModel = CostUsagePricing.normalizeCodexModel(model)
+
+            let eventIndex = codexUsageRowIndex
+            codexUsageRowIndex += 1
+            add(dayKey: dayKey, model: normModel, input: totals.input, cached: totals.cached, output: totals.output)
+            if CostUsageDayRange.isInRange(dayKey: dayKey, since: range.scanSinceKey, until: range.scanUntilKey) {
+                rows.append(CodexUsageRow(
+                    day: dayKey,
+                    model: normModel,
+                    rawModel: model,
+                    turnID: currentTurnID,
+                    eventIndex: eventIndex,
+                    timestampUnixMs: unixMilliseconds(from: resolvedTimestamp),
+                    input: totals.input,
+                    cached: totals.cached,
+                    output: totals.output,
+                    reasoning: totals.reasoning))
+            }
+            if let resolvedTimestamp {
+                lastAcceptedTokenTimestamp = resolvedTimestamp
+            }
         }
 
         func observeTimestamp(_ timestamp: String?) {
@@ -4236,6 +4370,19 @@ enum CostUsageScanner {
                 // watermark-equality check would skip first-time fork baseline bookkeeping.
                 // Post-latch containment remains the load-bearing overcount guard.
                 if tracker.isSeen(adjustedTotal) {
+                    return
+                }
+                let staleBaseline = tracker.watermark ?? rawTotalsBaseline
+                if let previousTotal = staleBaseline,
+                   !hasUnresolvedForkBaseline,
+                   Self.codexLooksLikeStaleRegression(
+                       current: adjustedTotal,
+                       previous: previousTotal,
+                       last: last ?? .init(input: 0, cached: 0, output: 0))
+                {
+                    // Keep the cancellable parser aligned with the snapshot accumulator:
+                    // stale regressions are skipped before they can reset the baseline or
+                    // latch interleaved mode.
                     return
                 }
                 tracker.latchIfBelowWatermark(adjustedTotal)
@@ -4530,6 +4677,20 @@ enum CostUsageScanner {
                         return
                     }
 
+                    if line.bytes.containsAscii(#""usage""#) {
+                        autoreleasepool {
+                            guard let obj = (try? JSONSerialization.jsonObject(with: line.bytes)) as? [String: Any],
+                                  obj["type"] == nil,
+                                  let bare = Self.codexBareUsage(from: obj)
+                            else { return }
+                            handleBareUsage(
+                                totals: bare.totals,
+                                modelEvidence: bare.model,
+                                timestamp: obj["timestamp"] as? String)
+                        }
+                        return
+                    }
+
                     guard
                         line.bytes.containsAscii(#""type":"event_msg""#)
                         || line.bytes.containsAscii(#""type":"turn_context""#)
@@ -4673,7 +4834,9 @@ enum CostUsageScanner {
                             let output = max(0, toInt(usage["output_tokens"]))
                             return CostUsageCodexTotals(
                                 input: max(0, toInt(usage["input_tokens"])),
-                                cached: max(0, toInt(usage["cached_input_tokens"] ?? usage["cache_read_input_tokens"])),
+                                cached: max(
+                                    max(0, toInt(usage["cached_input_tokens"])),
+                                    max(0, toInt(usage["cache_read_input_tokens"]))),
                                 output: output,
                                 reasoning: (usage["reasoning_output_tokens"] as? NSNumber)
                                     .map { min(max(0, $0.intValue), output) })
@@ -5094,10 +5257,23 @@ enum CostUsageScanner {
             || refreshMs == 0
             || cache.lastScanUnixMs == 0
             || nowMs - cache.lastScanUnixMs > refreshMs
+        let resolvedPriorityDatabaseURL = Self.resolvedCodexPriorityDatabaseURL(options.codexTraceDatabaseURL)
+        if shouldInspectPriorityTurns {
+            if options.forceRescan {
+                Self.dropCodexPriorityTurnsMemo(databaseURL: resolvedPriorityDatabaseURL)
+            } else {
+                Self.seedCodexPriorityTurnsMemoIfEmpty(
+                    cache.codexPriorityTurnsCursor,
+                    databaseURL: resolvedPriorityDatabaseURL)
+            }
+        }
         let priorityTurns = shouldInspectPriorityTurns ? Self.codexPriorityTurns(
-            databaseURL: options.codexTraceDatabaseURL,
+            databaseURL: resolvedPriorityDatabaseURL,
             sinceDayKey: range.scanSinceKey,
             untilDayKey: range.scanUntilKey) : [:]
+        let priorityTurnsCursor = shouldInspectPriorityTurns
+            ? Self.codexPriorityTurnsPersistedCursor(databaseURL: resolvedPriorityDatabaseURL)
+            : nil
         let priorityTurnKeys = Self.codexPriorityTurnKeys(priorityTurns, calendar: range.calendar)
         let priorityTurnIDsByDay = Self.codexPriorityTurnIDsByDay(priorityTurns, calendar: range.calendar)
         let priorityTurnsChanged = shouldInspectPriorityTurns
@@ -5151,6 +5327,8 @@ enum CostUsageScanner {
             priorityTurns: priorityTurns,
             priorityTurnKeys: priorityTurnKeys,
             priorityTurnIDsByDay: priorityTurnIDsByDay,
+            inspectedPriorityTurns: shouldInspectPriorityTurns,
+            priorityTurnsCursor: priorityTurnsCursor,
             priorityMetadataChanged: priorityMetadataChanged,
             priorityTurnsChanged: priorityTurnsChanged,
             needsTurnIDCacheMigration: needsTurnIDCacheMigration,
@@ -5186,8 +5364,11 @@ enum CostUsageScanner {
             return previous
         }
 
-        let sourceCache: CostUsageCache? = if !currentScanIsPending,
-                                              options.forceRescan,
+        // A routine bounded refresh can turn an established cache back into pending while it
+        // validates a growing active tail. Snapshot the established report before any refresh,
+        // not only explicit rescans, so presentation can remain stable until catch-up converges.
+        let sourceCache: CostUsageCache? = if plan.shouldRefresh,
+                                              !currentScanIsPending,
                                               !cache.days.isEmpty
         {
             cache
@@ -5207,7 +5388,11 @@ enum CostUsageScanner {
             modelsDevCatalog: plan.modelsDevCatalog,
             modelsDevCacheRoot: options.cacheRoot,
             priorityTurns: plan.priorityTurns)
-        return CostUsageCodexPreviousReport(report: report, cache: sourceCache)
+        return CostUsageCodexPreviousReport(
+            report: report,
+            cache: sourceCache,
+            reportSinceKey: range.sinceKey,
+            reportUntilKey: range.untilKey)
     }
 
     static func codexPreviousReport(
@@ -5595,10 +5780,12 @@ enum CostUsageScanner {
             cache.codexPricingKey = plan.codexPricingKey
             cache.codexPriorityMetadataKey = plan.codexPriorityMetadataKey
             cache.codexProjectMetadataVersion = Self.codexProjectMetadataVersion
-            let hasKnownBoundedWork = scanBudget.resumedPartialFileCount > 0
+            let hasDeferredWork = scanBudget.resumedPartialFileCount > 0
                 || scanBudget.deferredByBudgetFileCount > 0
                 || scanBudget.deferredByTimeBudgetFileCount > 0
-                || refreshSelection.exhaustedVisitBudget
+            let hasExhaustedVisitBudget = refreshSelection.exhaustedVisitBudget
+            let hasKnownBoundedWork = hasDeferredWork
+                || hasExhaustedVisitBudget
                 || cache.codexActiveLookbackState != nil
                 || fileIndex.hasPendingDiscovery
             let progressUpdate = Self.updateCodexScanProgress(
@@ -5606,8 +5793,11 @@ enum CostUsageScanner {
                 context: CodexScanProgressUpdateContext(
                     inventoryPaths: filePathsInScan,
                     hasKnownBoundedWork: hasKnownBoundedWork,
+                    hasDeferredWork: hasDeferredWork,
+                    hasExhaustedVisitBudget: hasExhaustedVisitBudget,
                     canReuseApproximateProgress: canReuseApproximateProgress,
                     pendingQueuePathCount: cache.codexActiveLookbackState?.pendingFilePaths.count,
+                    isDiscoveryComplete: !fileIndex.hasPendingDiscovery,
                     completionStatesBeforeScan: completionStatesBeforeScan,
                     workRecorder: options.codexScanWorkRecorderForTesting))
             let scanProgress = progressUpdate.summary
@@ -5636,6 +5826,11 @@ enum CostUsageScanner {
                     range: range,
                     retainedSinceKey: retainedSinceKey,
                     retainedUntilKey: retainedUntilKey)
+                if plan.inspectedPriorityTurns {
+                    // Only inspected refreshes observe the live memo; skip writing otherwise so
+                    // a nil plan cursor cannot clobber a previously persisted one.
+                    cache.codexPriorityTurnsCursor = plan.priorityTurnsCursor
+                }
             }
             cache.lastScanUnixMs = nowMs
             try checkCancellation?()
@@ -5671,8 +5866,11 @@ enum CostUsageScanner {
     private struct CodexScanProgressUpdateContext {
         let inventoryPaths: Set<String>
         let hasKnownBoundedWork: Bool
+        let hasDeferredWork: Bool
+        let hasExhaustedVisitBudget: Bool
         let canReuseApproximateProgress: Bool
         let pendingQueuePathCount: Int?
+        let isDiscoveryComplete: Bool
         let completionStatesBeforeScan: [String: Bool]
         let workRecorder: CodexScanWorkRecorder?
     }
@@ -5721,11 +5919,22 @@ enum CostUsageScanner {
             completedFiles = max(completedFiles, max(0, totalFiles - pendingQueuePathCount))
         }
 
-        // A bounded-work signal proves at least one pass remains even if this slice happened
-        // to visit the final 512 candidates. Keep one conservative slot open until an exact
-        // identity-deduplicated traversal validates the inventory.
+        // Bounded work previously kept one slot open until an exact traversal, which stalled
+        // 471/472 when only one large file remained. Allow that final file to close only after
+        // both the pending queue and file discovery have drained; catch-up still waits for the
+        // exact inventory validation below. Keep deferred bounded work below full progress:
+        // selection exhaustion or time/budget deferral must not publish 100% prematurely.
         let incompleteSelectedFiles = statesAfterScan.values.count(where: { !$0 })
-        completedFiles = min(completedFiles, max(0, totalFiles - max(1, incompleteSelectedFiles)))
+        let canCloseFinalFile = context.isDiscoveryComplete
+            && !context.hasDeferredWork
+            && !context.hasExhaustedVisitBudget
+            && incompleteSelectedFiles == 0
+            && (context.pendingQueuePathCount ?? 0) <= 1
+        if canCloseFinalFile {
+            completedFiles = min(completedFiles, totalFiles)
+        } else {
+            completedFiles = min(completedFiles, max(0, totalFiles - max(1, incompleteSelectedFiles)))
+        }
 
         cache.codexScanInventoryPaths = nil
         return (CodexScanProgressSummary(

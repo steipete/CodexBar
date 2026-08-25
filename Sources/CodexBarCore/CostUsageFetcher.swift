@@ -1,3 +1,4 @@
+// swiftlint:disable file_length
 import Foundation
 
 public enum CostUsageError: LocalizedError, Sendable {
@@ -300,6 +301,7 @@ public struct CostUsageFetcher: Sendable {
         now: Date = Date(),
         codexHomePath: String? = nil,
         historyDays: Int = 30,
+        scanDurationPerRefresh: TimeInterval? = nil,
         calendar: Calendar? = nil) async throws -> CodexScanCatchUpStatus
     {
         var options = Self.resolvedScannerOptions(
@@ -308,8 +310,9 @@ public struct CostUsageFetcher: Sendable {
             codexHomePath: codexHomePath)
         options.forceRescan = false
         options.refreshMinIntervalSeconds = 0
-        options.maxCodexScanDurationPerRefresh = Self.codexAutomaticScanDurationPerRefresh
         let clampedHistoryDays = max(1, min(365, historyDays))
+        options.maxCodexScanDurationPerRefresh =
+            scanDurationPerRefresh ?? Self.codexAutomaticScanDurationPerRefresh
         let since = options.calendar.date(
             byAdding: .day,
             value: -(clampedHistoryDays - 1),
@@ -425,14 +428,43 @@ public struct CostUsageFetcher: Sendable {
 
         let clampedHistoryDays = max(1, min(365, historyDays))
 
-        if let remoteSnapshot = try await self.loadRemoteTokenSnapshot(
-            provider: provider,
-            environment: environment,
-            now: now,
-            historyDays: clampedHistoryDays,
-            cursorCookieHeaderOverride: cursorCookieHeaderOverride)
-        {
+        var remoteSnapshot: CostUsageTokenSnapshot?
+        var remoteError: Error?
+        // Provider-specific by design: Cursor may fall back to local CSV when its remote dashboard is unavailable.
+        do {
+            remoteSnapshot = try await self.loadRemoteTokenSnapshot(
+                provider: provider,
+                environment: environment,
+                now: now,
+                historyDays: clampedHistoryDays,
+                cursorCookieHeaderOverride: cursorCookieHeaderOverride)
+        } catch {
+            if provider != .cursor {
+                throw error
+            }
+            remoteError = error
+        }
+        if let remoteSnapshot {
             return remoteSnapshot
+        }
+
+        // Provider-specific by design: Cursor and Antigravity local readers backfill providers without remote history.
+        let fallbackCalendar = Self.resolvedScannerOptions(
+            overrideScannerOptions,
+            provider: provider,
+            codexHomePath: codexHomePath).calendar
+        if provider == .cursor, let local = await self.loadCursorLocalSnapshot(
+            now: now, historyDays: clampedHistoryDays, calendar: fallbackCalendar)
+        {
+            return local
+        }
+        if let remoteError {
+            throw remoteError
+        }
+        if provider == .antigravity, let local = await self.loadAntigravityLocalSnapshot(
+            now: now, historyDays: clampedHistoryDays, calendar: fallbackCalendar)
+        {
+            return local
         }
 
         var options = Self.resolvedScannerOptions(
@@ -968,6 +1000,11 @@ public struct CostUsageFetcher: Sendable {
             }
 
             guard !reports.isEmpty else { return nil }
+            // `previous` is an exact report captured before the current bounded refresh became
+            // pending. Its rows remain established even though native catch-up is still active;
+            // `staleSnapshotUpdatedAt` keeps refresh scheduling and stale presentation explicit.
+            let displayedHistoryCoverageIsEstablished = nativeHistoryCoverageIsEstablished
+                || staleSnapshotUpdatedAt != nil
             // updatedAt keeps the caches' real (oldest) scan time; stamping the hydration time
             // would let stale token rows inherit app-start freshness (#1964). lastRefreshAt
             // drives TTL suppression and stays native-only: a merged load must never delay a
@@ -978,7 +1015,7 @@ public struct CostUsageFetcher: Sendable {
                     now: now,
                     historyDays: clampedHistoryDays,
                     calendar: options.calendar,
-                    historyCoverageIsEstablished: Self.codexHistoryCoverageIsEstablished(options: options),
+                    historyCoverageIsEstablished: displayedHistoryCoverageIsEstablished,
                     costProvenance: .listPriceEstimate,
                     projects: Self.mergedProjectBreakdowns(projects),
                     sessions: sessions,
@@ -1119,6 +1156,74 @@ public struct CostUsageFetcher: Sendable {
             credentialScopeFingerprint: report.credentialScopeFingerprint)
     }
     #endif
+
+    private static func loadCursorLocalSnapshot(
+        now: Date,
+        historyDays: Int,
+        calendar: Calendar = .current) async -> CostUsageTokenSnapshot?
+    {
+        let paths = CursorLocalCSVReader.cachedCSVPaths()
+        guard !paths.isEmpty else { return nil }
+        var allRows: [CursorLocalCSVReader.Row] = []
+        for url in paths {
+            allRows.append(contentsOf: CursorLocalCSVReader.parseFile(at: url))
+        }
+        guard !allRows.isEmpty else { return nil }
+        let full = CursorLocalCSVReader.makeDailyReport(from: allRows, calendar: calendar, now: now)
+        let cal = calendar
+        let since = cal.date(byAdding: .day, value: -(historyDays - 1), to: cal.startOfDay(for: now)) ?? now
+        let sinceKey = CostUsageLocalDay.key(from: since, calendar: cal)
+        let nowKey = CostUsageLocalDay.key(from: now, calendar: cal)
+        let filtered = full.data.filter { $0.date >= sinceKey && $0.date <= nowKey }
+        guard !filtered.isEmpty else { return nil }
+        let costValues = filtered.compactMap(\.costUSD)
+        let totalCost: Double? = costValues.isEmpty ? nil : costValues.reduce(0, +)
+        let totalTokens = filtered.compactMap(\.totalTokens).reduce(0, +)
+        let filteredSummary: CostUsageDailyReport.Summary = .init(
+            totalInputTokens: nil,
+            totalOutputTokens: nil,
+            totalTokens: totalTokens,
+            totalCostUSD: totalCost)
+        let daily = CostUsageDailyReport(data: filtered, summary: filteredSummary)
+        return Self.tokenSnapshot(
+            from: daily,
+            now: now,
+            historyDays: historyDays,
+            useCurrentLocalDayForSession: true,
+            calendar: cal,
+            costProvenance: .listPriceEstimate)
+    }
+
+    private static func loadAntigravityLocalSnapshot(
+        now: Date,
+        historyDays: Int,
+        calendar: Calendar = .current) async -> CostUsageTokenSnapshot?
+    {
+        let cal = calendar
+        let report = AntigravityLocalReader.makeDailyReport(calendar: cal)
+        guard !report.data.isEmpty else { return nil }
+        let since = cal.date(byAdding: .day, value: -(historyDays - 1), to: cal.startOfDay(for: now)) ?? now
+        let sinceKey = CostUsageLocalDay.key(from: since, calendar: cal)
+        let nowKey = CostUsageLocalDay.key(from: now, calendar: cal)
+        let filtered = report.data.filter { $0.date >= sinceKey && $0.date <= nowKey }
+        guard !filtered.isEmpty else { return nil }
+        let costValues = filtered.compactMap(\.costUSD)
+        let totalCost: Double? = costValues.isEmpty ? nil : costValues.reduce(0, +)
+        let totalTokens = filtered.compactMap(\.totalTokens).reduce(0, +)
+        let filteredSummary: CostUsageDailyReport.Summary = .init(
+            totalInputTokens: nil,
+            totalOutputTokens: nil,
+            totalTokens: totalTokens,
+            totalCostUSD: totalCost)
+        let daily = CostUsageDailyReport(data: filtered, summary: filteredSummary)
+        return Self.tokenSnapshot(
+            from: daily,
+            now: now,
+            historyDays: historyDays,
+            useCurrentLocalDayForSession: true,
+            calendar: cal,
+            costProvenance: .unknown)
+    }
 
     static func tokenSnapshot(
         from daily: CostUsageDailyReport,

@@ -111,7 +111,7 @@ extension UsageStore {
                 provider: accountSnapshot.provider.instanceID,
                 deviceID: deviceID,
                 accountIdentity: identity,
-                displayLabel: accountSnapshot.displayLabel,
+                displayLabel: accountSnapshot.accountEmail ?? "Account \(accountSnapshot.id.opaqueID)",
                 usage: usage)
             payloads[payload.recordName] = payload
         }
@@ -476,6 +476,20 @@ extension UsageStore {
                 title: metadata?.opusLabel ?? "Opus",
                 percentLeft: snapshot.tertiary?.remainingPercent))
         }
+        // Provider-specific by design: Cursor Grok Bot weekly included usage is a named extraRateWindow.
+        if provider == .cursor {
+            rows.append(contentsOf: (snapshot.extraRateWindows ?? []).compactMap { namedWindow in
+                guard namedWindow.id == CursorSandUsageStatus.extraWindowID, namedWindow.usageKnown else {
+                    return nil
+                }
+                return WidgetSnapshot.WidgetUsageRowSnapshot(
+                    id: namedWindow.id,
+                    title: namedWindow.title,
+                    percentLeft: namedWindow.window.remainingPercent,
+                    window: namedWindow.window)
+            })
+        }
+
         if provider == .claude, self.settings.claudeModelScopedWeeklyUsageVisible {
             // Claude fetchers place model-scoped weekly quotas (for example, Fable) in extraRateWindows.
             // Keep the widget projection generic so newly surfaced Claude model quotas appear without UI changes.

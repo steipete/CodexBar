@@ -217,7 +217,7 @@ struct TTYCommandRunnerEnvTests {
         let stateHome = URL(fileURLWithPath: "/tmp/codexbar status \"state\"", isDirectory: true)
         let args = CodexStatusProbeIsolation.codexArguments(stateHome: stateHome)
 
-        #expect(args.starts(with: ["-s", "read-only", "-a", "untrusted"]))
+        #expect(args.starts(with: ["-s", "read-only", "-a", "never"]))
         #expect(args.contains("history.persistence=\"none\""))
         #expect(args.contains("experimental_thread_store={type=\"in_memory\",id=\"codexbar-status\"}"))
         #expect(args.contains("sqlite_home=\"/tmp/codexbar status \\\"state\\\"\""))

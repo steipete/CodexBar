@@ -899,9 +899,10 @@ extension CLIServeWebUI {
             card.append(identity);
           }
 
+          // At-limit claude-swap cards carry both a deferred/limit note and retained
+          // windows; keep those bars visible instead of returning after the note.
           if (account.error) {
             card.append(node("p", "error-message", account.error));
-            return card;
           }
 
           const windows = node("div", "windows");

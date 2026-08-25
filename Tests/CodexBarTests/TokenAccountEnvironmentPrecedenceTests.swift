@@ -7,7 +7,7 @@ import Testing
 @Suite(.serialized)
 struct AlibabaTokenPlanRegionSelectionTests {
     @Test
-    func `legacy CLI config without source remains web only`() throws {
+    func `Alibaba Token Plan CLI config without source defaults to Auto`() throws {
         let config = CodexBarConfig(
             providers: [ProviderConfig(id: .alibabatokenplan)])
         let tokenContext = try TokenAccountCLIContext(
@@ -15,7 +15,7 @@ struct AlibabaTokenPlanRegionSelectionTests {
             config: config,
             verbose: false)
 
-        #expect(tokenContext.preferredSourceMode(for: .alibabatokenplan) == .web)
+        #expect(tokenContext.preferredSourceMode(for: .alibabatokenplan) == .auto)
     }
 
     @Test

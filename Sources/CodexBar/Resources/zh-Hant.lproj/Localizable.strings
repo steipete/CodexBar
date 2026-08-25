@@ -652,6 +652,8 @@
 "section_keyboard_shortcut" = "快速鍵";
 "open_menu_shortcut_title" = "開啟選單";
 "open_menu_shortcut_subtitle" = "從任意位置觸發選單列選單。";
+"record_shortcut" = "設定快速鍵";
+"press_shortcut" = "按下快速鍵";
 "install_cli" = "安裝 CLI";
 "install_cli_subtitle" = "將 CodexBarCLI 作為 codexbar 符號連結到 /usr/local/bin 和 /opt/homebrew/bin。";
 "cli_not_found" = "在 App 套件中找不到 CodexBarCLI。";
@@ -805,6 +807,7 @@
 "Monthly" = "每月";
 "Sonnet" = "Sonnet";
 "Overages" = "超額";
+"Overage" = "超額";
 "Activity" = "活動";
 "Copied" = "已複製";
 "Copy error" = "複製錯誤";
@@ -815,6 +818,7 @@
 "Balance updates in near-real time (up to 5 min lag)" = "餘額接近即時更新（最多延遲 5 分鐘）";
 "Daily billing data finalizes at 07:00 UTC" = "每日帳單資料會在 UTC 07:00 完成結算";
 "%@ of %@ credits left" = "剩餘 %@ / %@ 點額度";
+"of %@" = "/ %@";
 "%@ of %@ bonus credits left" = "剩餘 %@ / %@ 點獎勵額度";
 "%@ / %@ (%@ remaining)" = "%@ / %@（剩餘 %@）";
 "%@/%@ left" = "剩餘 %@ / %@";
@@ -826,6 +830,7 @@
 "Full in ~1 regen" = "約 1 次恢復後全滿";
 "Full in ~%.0f regens" = "約 %.0f 次恢復後全滿";
 "Overage usage" = "超額使用量";
+"Overage credits left" = "剩餘超額額度";
 "Overage cost" = "超額費用";
 "credits" = "額度";
 "Zen balance" = "Zen 餘額";
@@ -1402,6 +1407,7 @@
 "menu_bar_layout_empty_line" = "將項目拖放到此處";
 "menu_bar_layout_line" = "第 %d 行";
 "menu_bar_layout_drag_remove" = "拖到此處以移除";
+"menu_bar_layout_remove_selected" = "移除所選";
 "menu_bar_layout_size" = "大小";
 "menu_bar_layout_size_small" = "小";
 "menu_bar_layout_size_regular" = "一般";
@@ -1525,3 +1531,35 @@
 "Copy JSON" = "複製 JSON";
 "Sources" = "Sources";
 "OpenCodex" = "OpenCodex";
+
+"menu_bar_layout_token_conditional" = "條件";
+"menu_bar_layout_group_conditionals" = "條件";
+"menu_bar_layout_conditional_add" = "新增條件";
+"menu_bar_layout_conditional_edit" = "編輯條件";
+"menu_bar_layout_conditional_remove" = "從庫中移除";
+"menu_bar_layout_conditional_save" = "儲存";
+"menu_bar_layout_conditional_if" = "如果";
+"menu_bar_layout_conditional_then" = "則顯示";
+"menu_bar_layout_conditional_else" = "否則顯示";
+"menu_bar_layout_conditional_and" = "和";
+"menu_bar_layout_conditional_or" = "或";
+"menu_bar_layout_conditional_add_condition" = "新增條件";
+"menu_bar_layout_conditional_none" = "暫無條件";
+"menu_bar_layout_conditional_hide" = "隱藏";
+"menu_bar_layout_conditional_name" = "名稱";
+"menu_bar_layout_conditional_name_placeholder" = "例如：工作階段檢查";
+"menu_bar_layout_conditional_name_error" = "請輸入唯一名稱";
+"menu_bar_layout_conditional_used" = "已用";
+"menu_bar_layout_conditional_remaining" = "剩餘";
+"menu_bar_layout_conditional_metric_resets_in" = "%@ 重置倒數";
+"menu_bar_layout_conditional_metric_scoped_weekly" = "範圍每週";
+"menu_bar_layout_conditional_duplicate" = "複製";
+"menu_bar_layout_conditional_summary" = "如果 %1$@ 則 %2$@ 否則 %3$@";
+"menu_bar_layout_conditional_copy_name" = "%@（副本）";
+"menu_bar_layout_conditional_copy_name_numbered" = "%1$@（副本 %2$d）";
+"menu_bar_layout_conditional_unavailable" = "條件不可用";
+"menu_bar_layout_conditional_default_session_busy" = "工作階段已用超過 50%";
+"menu_bar_layout_conditional_default_weekly_high" = "每週已用超過 90%";
+"menu_bar_layout_conditional_default_session_spent" = "工作階段即將用盡";
+"menu_bar_layout_conditional_default_either_high" = "工作階段或每週用量偏高";
+"menu_bar_layout_conditional_default_scoped_weekly" = "模型專屬每週已用超過 60%";

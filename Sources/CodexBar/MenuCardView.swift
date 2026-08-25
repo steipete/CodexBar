@@ -165,6 +165,7 @@ struct UsageMenuCardView: View {
         let provider: UsageProvider
         let providerName: String
         let email: String
+        var accountIdentityFingerprint: String?
         let subtitleText: String
         let subtitleStyle: SubtitleStyle
         var usesLiveSubtitle: Bool = false
@@ -238,7 +239,10 @@ struct UsageMenuCardView: View {
 
                 VStack(alignment: .leading, spacing: 12) {
                     if hasUsage, !liveModel.creditsOnlyInlineUsageDashboard {
-                        UsageMenuCardUsageContentView(model: liveModel, showBottomDivider: false)
+                        UsageMenuCardUsageContentView(
+                            model: liveModel,
+                            layoutModel: self.layoutModel ?? self.model,
+                            showBottomDivider: false)
                     }
                     if hasUsage, !liveModel.creditsOnlyInlineUsageDashboard, hasCredits || hasCost {
                         Divider()
@@ -519,12 +523,14 @@ private struct TokenUsageSectionContent: View {
 
 private struct MetricRow: View {
     let metric: UsageMenuCardView.Model.Metric
+    let layoutMetric: UsageMenuCardView.Model.Metric
     let title: String
     let progressColor: Color
     @Environment(\.menuItemHighlighted) private var isHighlighted
 
     var body: some View {
         let presentation = self.metric.linePresentation(title: self.title)
+        let layoutPresentation = self.layoutMetric.linePresentation(title: self.title)
         VStack(alignment: .leading, spacing: 6) {
             if let statusText = self.metric.statusText {
                 Text(self.title)
@@ -537,7 +543,9 @@ private struct MetricRow: View {
             } else {
                 MetricRowHeader(
                     title: presentation.titleText,
+                    layoutTitle: layoutPresentation.titleText,
                     resetText: presentation.resetText,
+                    layoutResetText: layoutPresentation.resetText,
                     isHighlighted: self.isHighlighted)
                 UsageProgressBar(
                     percent: self.metric.percent,
@@ -548,19 +556,17 @@ private struct MetricRow: View {
                     warningMarkerPercents: self.metric.warningMarkerPercents,
                     workdayMarkerPercents: self.metric.workdayMarkerPercents,
                     workdayTickAppearance: self.metric.workdayTickAppearance)
-                if let metaText = presentation.metaText {
-                    Text(metaText)
-                        .font(.footnote)
-                        .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
-                        .lineLimit(2)
-                        .truncationMode(.tail)
-                        .fixedSize(horizontal: false, vertical: true)
+                if let layoutMetaText = layoutPresentation.metaText {
+                    self.layoutPreservingText(
+                        presentation.metaText,
+                        layoutText: layoutMetaText,
+                        lineLimit: 2)
                 }
-                if let detail = self.metric.detailText {
-                    Text(detail)
-                        .font(.footnote)
-                        .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
-                        .lineLimit(1)
+                if let layoutDetailText = self.layoutMetric.detailText {
+                    self.layoutPreservingText(
+                        self.metric.detailText,
+                        layoutText: layoutDetailText,
+                        lineLimit: 1)
                 }
             }
         }
@@ -569,49 +575,28 @@ private struct MetricRow: View {
         .background(self.metric.cardStyle ? Color.secondary.opacity(self.isHighlighted ? 0.2 : 0.08) : Color.clear)
         .clipShape(RoundedRectangle(cornerRadius: self.metric.cardStyle ? 10 : 0))
     }
-}
 
-private struct MetricRowHeader: View {
-    let title: String
-    let resetText: String?
-    let isHighlighted: Bool
-
-    var body: some View {
-        if let resetText {
-            ViewThatFits(in: .horizontal) {
-                HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    self.titleLabel
-                        .fixedSize(horizontal: true, vertical: false)
-                    Spacer(minLength: 8)
-                    self.resetLabel(resetText)
-                        .fixedSize(horizontal: true, vertical: false)
-                }
-                VStack(alignment: .trailing, spacing: 2) {
-                    self.titleLabel
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    self.resetLabel(resetText)
+    private func layoutPreservingText(
+        _ text: String?,
+        layoutText: String,
+        lineLimit: Int) -> some View
+    {
+        Text(layoutText)
+            .font(.footnote)
+            .lineLimit(lineLimit)
+            .fixedSize(horizontal: false, vertical: true)
+            .hidden()
+            .overlay(alignment: .topLeading) {
+                if let text, !text.isEmpty {
+                    Text(text)
+                        .font(.footnote)
+                        .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
+                        .lineLimit(lineLimit)
+                        .truncationMode(.tail)
                         .fixedSize(horizontal: false, vertical: true)
-                        .frame(maxWidth: .infinity, alignment: .trailing)
                 }
             }
-        } else {
-            self.titleLabel
-        }
-    }
-
-    private var titleLabel: some View {
-        Text(self.title)
-            .font(.body)
-            .fontWeight(.medium)
-            .lineLimit(1)
-    }
-
-    private func resetLabel(_ resetText: String) -> some View {
-        Text(resetText)
-            .font(.footnote)
-            .foregroundStyle(MenuHighlightStyle.secondary(self.isHighlighted))
-            .lineLimit(2)
-            .multilineTextAlignment(.trailing)
+            .clipped()
     }
 }
 
@@ -664,6 +649,7 @@ struct UsageMenuCardHeaderSectionView: View {
 
 private struct UsageMenuCardUsageContentView: View {
     let model: UsageMenuCardView.Model
+    let layoutModel: UsageMenuCardView.Model
     let showBottomDivider: Bool
     var showsSectionDividers = true
     @Environment(\.menuItemHighlighted) private var isHighlighted
@@ -693,6 +679,7 @@ private struct UsageMenuCardUsageContentView: View {
         ForEach(metrics, id: \.id) { metric in
             MetricRow(
                 metric: metric,
+                layoutMetric: self.layoutModel.metrics.first { $0.id == metric.id } ?? metric,
                 title: UsageMenuCardView.popupMetricTitle(provider: self.model.provider, metric: metric),
                 progressColor: self.model.progressColor)
         }
@@ -747,6 +734,7 @@ private struct UsageMenuCardUsageContentView: View {
 
 struct UsageMenuCardUsageSectionView: View {
     let model: UsageMenuCardView.Model
+    let layoutModel: UsageMenuCardView.Model
     let showBottomDivider: Bool
     let bottomPadding: CGFloat
     let width: CGFloat
@@ -757,6 +745,7 @@ struct UsageMenuCardUsageSectionView: View {
         let liveModel = self.liveModel
         UsageMenuCardUsageContentView(
             model: liveModel,
+            layoutModel: self.layoutModel,
             showBottomDivider: self.showBottomDivider,
             showsSectionDividers: self.showsSectionDividers)
             .padding(.horizontal, UsageMenuCardLayout.horizontalPadding)
@@ -982,7 +971,7 @@ extension UsageMenuCardView.Model {
         let providerCostFollowsSummaryStyle = Self.providerCostFollowsSummaryStyle(
             cost: input.snapshot?.providerCost,
             style: providerCostStyle,
-            isClaudeAdminAPI: isClaudeAdminAPI)
+            isClaudeAdminAPI: isClaudeAdminAPI) && !menuCard.providerCostIsRequiredUsage
         let providerCost: ProviderCostSection? = if !showsProviderCost ||
             (providerCostFollowsSummaryStyle && !input.costSummaryInlineEnabled)
         {
@@ -1016,6 +1005,7 @@ extension UsageMenuCardView.Model {
             provider: input.provider,
             providerName: input.metadata.displayName,
             email: redacted.email,
+            accountIdentityFingerprint: Self.trackedAccountIdentityFingerprint(input: input),
             subtitleText: redacted.subtitleText,
             subtitleStyle: subtitle.style,
             usesLiveSubtitle: input.usesLiveSubtitle,
@@ -1059,6 +1049,7 @@ extension UsageMenuCardView.Model {
         if input.provider == .sub2api {
             details = Self.sub2APILocalizedDetails(details)
         }
+        details = Self.localizedProviderDetails(details, provider: input.provider)
         guard input.hidePersonalInfo else { return details }
         return details.compactMap { section in
             let rows = section.rows.compactMap { row in
@@ -1088,25 +1079,29 @@ extension UsageMenuCardView.Model {
         }
     }
 
-    private static func email(
-        for provider: UsageProvider,
-        snapshot: UsageSnapshot?,
-        account: AccountInfo,
-        metadata: ProviderMetadata,
-        accountIsAuthoritative: Bool) -> String
-    {
-        if let email = snapshot?.accountEmail(for: provider), !email.isEmpty {
+    private static func email(from input: Input) -> String {
+        // Provider-specific by design: claude-swap accountOverride is the display label
+        // (alias or email · org). Other stacked sources keep fetched identity first.
+        if input.accountIsAuthoritative,
+           input.provider == .claude,
+           input.sourceLabel == ClaudeSwapAccountProjection.sourceLabel,
+           let email = input.account.email, !email.isEmpty
+        {
+            return email
+        }
+        if let email = input.snapshot?.accountEmail(for: input.provider), !email.isEmpty {
             return email
         }
         // Provider-specific by design: Cursor app auth can expose only a subject ID, so its card needs this fallback.
-        if provider == .cursor,
-           let accountID = snapshot?.identity(for: .cursor)?.accountID?.trimmingCharacters(in: .whitespacesAndNewlines),
-           !accountID.isEmpty
-        {
-            return accountID.split(separator: "|", omittingEmptySubsequences: true).last.map(String.init) ?? accountID
+        if input.provider == .cursor {
+            let raw = input.snapshot?.identity(for: .cursor)?.accountID
+            let accountID = raw?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            if !accountID.isEmpty {
+                return accountID.split(separator: "|").last.map(String.init) ?? accountID
+            }
         }
-        if metadata.usesAccountFallback || accountIsAuthoritative,
-           let email = account.email, !email.isEmpty
+        if input.metadata.usesAccountFallback || input.accountIsAuthoritative,
+           let email = input.account.email, !email.isEmpty
         {
             return email
         }
@@ -1236,12 +1231,7 @@ extension UsageMenuCardView.Model {
         subtitle: (text: String, style: SubtitleStyle)) -> RedactedText
     {
         let email = PersonalInfoRedactor.redactEmail(
-            Self.email(
-                for: input.provider,
-                snapshot: input.snapshot,
-                account: input.account,
-                metadata: input.metadata,
-                accountIsAuthoritative: input.accountIsAuthoritative),
+            Self.email(from: input),
             isEnabled: input.hidePersonalInfo)
         let subtitleText = PersonalInfoRedactor.redactEmails(in: subtitle.text, isEnabled: input.hidePersonalInfo)
             ?? subtitle.text
@@ -1397,6 +1387,10 @@ extension UsageMenuCardView.Model {
             Self.applyPrimaryPacePresentation(&presentation, input: input, primary: primary)
         }
         Self.applyPrimaryFinalOverrides(&presentation, input: input, primary: primary)
+        // Provider-specific by design: z.ai's textual 5-hour reset phrase is provider-owned copy localized here.
+        if input.provider == .zai, let resetText = Self.localizedZaiPeriodicResetText(primary) {
+            presentation.resetText = resetText
+        }
         if let bindingProjection {
             let resetWindow = RateWindow(
                 usedPercent: bindingProjection.usedPercent,
@@ -1564,5 +1558,19 @@ extension UsageMenuCardView.Model {
                 input: input,
                 weeklyWindow: weekly,
                 weeklyWindowID: nil))
+    }
+}
+
+extension UsageMenuCardView.Model {
+    fileprivate static func trackedAccountIdentityFingerprint(input: Input) -> String? {
+        let accountID = input.snapshot?.identity(for: input.provider.instanceID)?.accountID?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let email = Self.email(from: input)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        let normalizedAccountID = accountID?.isEmpty == false ? accountID : nil
+        guard !email.isEmpty || normalizedAccountID != nil else { return nil }
+        return UsageStore.sha256Hex(
+            "CodexBar.tracked-account:\(input.provider.rawValue):\(normalizedAccountID ?? ""):\(email)")
     }
 }

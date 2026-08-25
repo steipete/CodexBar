@@ -90,6 +90,8 @@ enum PreferredCurrencyOption: String, CaseIterable, Identifiable {
     case twd = "TWD"
     case sgd = "SGD"
     case inr = "INR"
+    case chf = "CHF"
+    case aed = "AED"
 
     var id: String {
         self.rawValue
@@ -111,6 +113,8 @@ enum PreferredCurrencyOption: String, CaseIterable, Identifiable {
         case .twd: "TWD (NT$)"
         case .sgd: "SGD ($)"
         case .inr: "INR (₹)"
+        case .chf: "CHF (Fr.)"
+        case .aed: "AED (د.إ)"
         }
     }
 }

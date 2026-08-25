@@ -120,7 +120,7 @@ public enum AlibabaTokenPlanProviderDescriptor {
             if context.settings?.alibabaTokenPlan?.cookieSource == .off {
                 return [AlibabaTokenPlanCLIFetchStrategy()]
             }
-            return [AlibabaTokenPlanWebFetchStrategy(), AlibabaTokenPlanCLIFetchStrategy()]
+            return [AlibabaTokenPlanCLIFetchStrategy(), AlibabaTokenPlanWebFetchStrategy()]
         case .cli:
             return [AlibabaTokenPlanCLIFetchStrategy()]
         case .web:
@@ -384,7 +384,7 @@ extension AlibabaTokenPlanUsageError {
         switch self {
         case .loginRequired, .invalidCredentials:
             true
-        case .apiError, .networkError, .parseFailed:
+        case .apiError, .networkError, .parseFailed, .usageWindowsUnavailable:
             false
         }
     }

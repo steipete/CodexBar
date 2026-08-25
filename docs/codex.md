@@ -115,7 +115,7 @@ Example:
   - Login required or Cloudflare interstitial.
 
 ### Codex CLI RPC (automatic CLI source)
-- Launches local RPC server: `codex -s read-only -a untrusted app-server`.
+- Launches local RPC server: `codex -s read-only -a never app-server`.
 - JSON-RPC over stdin/stdout:
   - `initialize` (client name/version)
   - `account/read`
@@ -185,6 +185,8 @@ Example:
   - Native + merged provider cache: `~/Library/Caches/CodexBar/cost-usage/codex-v11.json`
   - pi-compatible session cache: `~/Library/Caches/CodexBar/cost-usage/pi-sessions-v7.json`
 - Window: configurable 1-365 day rolling history, with a 60s minimum refresh interval.
+- While a bounded refresh catches up with new session history, established totals remain visible only for the same
+  account, history window, and bucket time zone. An incomplete first scan never borrows another account's totals.
 
 ### Usage & Spend account rows
 

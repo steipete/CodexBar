@@ -125,13 +125,19 @@ enum CLIClaudeSwapCards {
         showSingleAccount: Bool = false,
         renderOptions: CLIClaudeSwapCardsRenderOptions,
         ambientFetch: @escaping AmbientFetch,
-        accountListReader: @escaping AccountListReader) async -> UsageCommandOutput
+        accountListReader: @escaping AccountListReader,
+        previousAccounts: [ProviderAccountUsageSnapshot] = []) async -> UsageCommandOutput
     {
         guard eligible else { return await ambientFetch() }
 
         do {
             let list = try await accountListReader(executablePath)
-            let accounts = ClaudeSwapAccountProjection.accountSnapshots(from: list, now: renderOptions.now)
+            let retained = ClaudeSwapRetainedUsageStore.previousAccounts(inMemory: previousAccounts)
+            let accounts = ClaudeSwapAccountProjection.accountSnapshots(
+                from: list,
+                previousAccounts: retained,
+                now: renderOptions.now)
+            ClaudeSwapRetainedUsageStore.save(accounts)
             guard ClaudeSwapAccountProjection.shouldPresentAccounts(
                 accountCount: accounts.count,
                 showSingleAccount: showSingleAccount)

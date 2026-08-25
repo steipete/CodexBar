@@ -639,6 +639,8 @@
 "section_keyboard_shortcut" = "Drecera de teclat";
 "open_menu_shortcut_title" = "Obriu el menú";
 "open_menu_shortcut_subtitle" = "Obriu el menú de la barra de menús des de qualsevol lloc.";
+"record_shortcut" = "Enregistra la drecera";
+"press_shortcut" = "Premeu la drecera";
 "install_cli" = "Instal·la la CLI";
 "install_cli_subtitle" = "Creeu un enllaç simbòlic de CodexBarCLI a /usr/local/bin i /opt/homebrew/bin com a codexbar.";
 "cli_not_found" = "No s'ha trobat CodexBarCLI al paquet de l'app.";
@@ -802,6 +804,7 @@
 "Sonnet" = "Sonnet";
 "Auth" = "Autenticació";
 "Overages" = "Excedents";
+"Overage" = "Excedent";
 "Activity" = "Activitat";
 "Copied" = "Copiat";
 "Copy error" = "Error en copiar";
@@ -812,6 +815,7 @@
 "Balance updates in near-real time (up to 5 min lag)" = "El saldo s'actualitza gairebé en temps real (fins a 5 min de retard)";
 "Daily billing data finalizes at 07:00 UTC" = "Les dades diàries de facturació es tanquen a les 07:00 UTC";
 "%@ of %@ credits left" = "Queden %@ de %@ crèdits";
+"of %@" = "de %@";
 "%@ of %@ bonus credits left" = "Queden %@ de %@ crèdits de bonificació";
 "%@ / %@ (%@ remaining)" = "%@ / %@ (%@ restants)";
 "%@/%@ left" = "%@/%@ restant";
@@ -823,6 +827,7 @@
 "Full in ~1 regen" = "Ple en ~1 regeneració";
 "Full in ~%.0f regens" = "Ple en ~%.0f regeneracions";
 "Overage usage" = "Ús excedent";
+"Overage credits left" = "Crèdits excedents restants";
 "Overage cost" = "Cost excedent";
 "credits" = "crèdits";
 "Zen balance" = "Saldo Zen";
@@ -1374,6 +1379,7 @@
 "menu_bar_layout_empty_line" = "Deixa una fitxa aquí";
 "menu_bar_layout_line" = "Línia %d";
 "menu_bar_layout_drag_remove" = "Arrossega aquí per eliminar";
+"menu_bar_layout_remove_selected" = "Elimina la selecció";
 "menu_bar_layout_size" = "Mida";
 "menu_bar_layout_size_small" = "Petita";
 "menu_bar_layout_size_regular" = "Normal";
@@ -1497,3 +1503,35 @@
 "Copy JSON" = "Copia JSON";
 "Sources" = "Sources";
 "OpenCodex" = "OpenCodex";
+
+"menu_bar_layout_token_conditional" = "Condicional";
+"menu_bar_layout_group_conditionals" = "Condicionals";
+"menu_bar_layout_conditional_add" = "Condicional nou";
+"menu_bar_layout_conditional_edit" = "Edita el condicional";
+"menu_bar_layout_conditional_remove" = "Elimina de la biblioteca";
+"menu_bar_layout_conditional_save" = "Desa";
+"menu_bar_layout_conditional_if" = "Si";
+"menu_bar_layout_conditional_then" = "Mostra llavors";
+"menu_bar_layout_conditional_else" = "Mostra en cas contrari";
+"menu_bar_layout_conditional_and" = "i";
+"menu_bar_layout_conditional_none" = "Encara no hi ha condicionals";
+"menu_bar_layout_conditional_hide" = "Amaga";
+"menu_bar_layout_conditional_name" = "Nom";
+"menu_bar_layout_conditional_name_placeholder" = "p. ex. Comprovació de la sessió";
+"menu_bar_layout_conditional_name_error" = "Introdueix un nom únic";
+"menu_bar_layout_conditional_used" = "utilitzat";
+"menu_bar_layout_conditional_remaining" = "restant";
+"menu_bar_layout_conditional_metric_resets_in" = "%@ es reinicia en";
+"menu_bar_layout_conditional_metric_scoped_weekly" = "Setmanal amb àmbit";
+"menu_bar_layout_conditional_duplicate" = "Duplica";
+"menu_bar_layout_conditional_or" = "o";
+"menu_bar_layout_conditional_add_condition" = "Afegeix una condició";
+"menu_bar_layout_conditional_summary" = "Si %1$@ llavors %2$@ en cas contrari %3$@";
+"menu_bar_layout_conditional_copy_name" = "%@ (còpia)";
+"menu_bar_layout_conditional_copy_name_numbered" = "%1$@ (còpia %2$d)";
+"menu_bar_layout_conditional_unavailable" = "Condicional no disponible";
+"menu_bar_layout_conditional_default_session_busy" = "Sessió per damunt del 50 % utilitzat";
+"menu_bar_layout_conditional_default_weekly_high" = "Setmana per damunt del 90 % utilitzat";
+"menu_bar_layout_conditional_default_session_spent" = "Sessió gairebé esgotada";
+"menu_bar_layout_conditional_default_either_high" = "Sessió o setmana en nivell alt";
+"menu_bar_layout_conditional_default_scoped_weekly" = "Setmana per model per damunt del 60 %";

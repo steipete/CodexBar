@@ -9,6 +9,9 @@ public enum AlibabaTokenPlanUsageError: LocalizedError, Sendable, Equatable {
     case apiError(String)
     case networkError(String)
     case parseFailed(String)
+    /// The Personal gateway returned a 200 "Success" envelope with no rolling-window payload — a
+    /// transient server-side quirk, not a real parse failure. Retried before it ever surfaces.
+    case usageWindowsUnavailable
 
     public var errorDescription: String? {
         switch self {
@@ -22,6 +25,8 @@ public enum AlibabaTokenPlanUsageError: LocalizedError, Sendable, Equatable {
             "Alibaba Token Plan network error: \(message)"
         case let .parseFailed(message):
             "Could not parse Alibaba Token Plan usage: \(message)"
+        case .usageWindowsUnavailable:
+            "Alibaba Token Plan usage is temporarily unavailable; it will refresh automatically."
         }
     }
 }
@@ -44,6 +49,11 @@ public struct AlibabaTokenPlanUsageFetcher: Sendable {
     private static let personalUsageAPI = "zeldaHttp.apikeyMgr./tokenplan/personal/api/v2/usage"
     private static let personalSubscriptionAPI = "zeldaHttp.apikeyMgr./tokenplan/personal/api/v2/subscription"
     private static let personalQuotaConfigAPI = "zeldaHttp.apikeyMgr./tokenplan/personal/api/v2/quota-config"
+    /// The Personal usage gateway intermittently answers with a 200 "Success" envelope that omits the
+    /// rolling-window payload; an immediate re-request usually returns it. Bounded so a genuinely empty
+    /// stretch still degrades quickly.
+    private static let personalUsageMaxAttempts = 3
+    private static let personalUsageRetryDelayNanoseconds: UInt64 = 400_000_000
     private static let browserLikeUserAgent =
         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) " +
         "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36"
@@ -337,10 +347,6 @@ public struct AlibabaTokenPlanUsageFetcher: Sendable {
                 "secTokenSource": context.secToken == nil ? "missing" : "resolved",
             ])
 
-        let usageData = try await self.fetchPersonalAPI(
-            api: self.personalUsageAPI,
-            dataParameters: [:],
-            context: context)
         let subscriptionData = await self.fetchOptionalPersonalAPI(
             api: self.personalSubscriptionAPI,
             dataParameters: ["commodityCode": context.region.tokenPlanProductCode],
@@ -350,11 +356,32 @@ public struct AlibabaTokenPlanUsageFetcher: Sendable {
             dataParameters: [:],
             context: context)
 
-        return try AlibabaTokenPlanPersonalUsageParser.parse(
-            from: usageData,
-            subscriptionData: subscriptionData,
-            quotaConfigData: quotaConfigData,
-            now: context.now)
+        // The Personal usage gateway intermittently returns a 200 "Success" with an empty payload
+        // (no rolling-window fields). It is usually populated on an immediate re-request, so retry a
+        // few times before surfacing the transient gap — which keeps the last-good card and shows a
+        // "temporarily unavailable" note rather than a hard "could not parse" error.
+        for attempt in 0..<Self.personalUsageMaxAttempts {
+            if attempt > 0 {
+                try? await Task.sleep(nanoseconds: Self.personalUsageRetryDelayNanoseconds)
+            }
+            do {
+                let usageData = try await self.fetchPersonalAPI(
+                    api: self.personalUsageAPI,
+                    dataParameters: [:],
+                    context: context)
+                return try AlibabaTokenPlanPersonalUsageParser.parse(
+                    from: usageData,
+                    subscriptionData: subscriptionData,
+                    quotaConfigData: quotaConfigData,
+                    now: context.now)
+            } catch AlibabaTokenPlanUsageError.usageWindowsUnavailable {
+                Self.log.info(
+                    "Alibaba Token Plan Personal usage returned no windows; retrying",
+                    metadata: ["attempt": "\(attempt + 1)", "max": "\(Self.personalUsageMaxAttempts)"])
+                continue
+            }
+        }
+        throw AlibabaTokenPlanUsageError.usageWindowsUnavailable
     }
 
     private static func fetchOptionalPersonalAPI(
@@ -540,6 +567,17 @@ public struct AlibabaTokenPlanUsageFetcher: Sendable {
         request.setValue(
             "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
             forHTTPHeaderField: "Accept")
+        // The OneConsole shell only server-renders `window.ALIYUN_CONSOLE_CONFIG.SEC_TOKEN` for a
+        // genuine same-origin document navigation; a bare request receives a token-less shell, so the
+        // Personal `sec_token` can never be scraped. Send the browser-navigation headers so the shell
+        // includes it (mainland Personal/Solo rejects the API without it — fixes #2500/#2349/#2370).
+        if let origin = request.url.flatMap(\.host).map({ "https://\($0)/" }) {
+            request.setValue(origin, forHTTPHeaderField: "Referer")
+        }
+        request.setValue("same-origin", forHTTPHeaderField: "Sec-Fetch-Site")
+        request.setValue("navigate", forHTTPHeaderField: "Sec-Fetch-Mode")
+        request.setValue("document", forHTTPHeaderField: "Sec-Fetch-Dest")
+        request.setValue("zh-CN,zh;q=0.9,en;q=0.8", forHTTPHeaderField: "Accept-Language")
 
         if let (data, response) = try? await session.data(for: request),
            let httpResponse = response as? HTTPURLResponse,
@@ -1257,12 +1295,15 @@ public struct AlibabaTokenPlanUsageFetcher: Sendable {
         return names.isEmpty ? "none" : names.joined(separator: ",")
     }
 
-    private static func extractSECToken(from html: String) -> String? {
+    static func extractSECToken(from html: String) -> String? {
         let patterns = [
             #""secToken"\s*:\s*"([^"]+)""#,
             #""sec_token"\s*:\s*"([^"]+)""#,
             #"secToken['"]?\s*[:=]\s*['"]([^'"]+)['"]"#,
             #"sec_token['"]?\s*[:=]\s*['"]([^'"]+)['"]"#,
+            // Aliyun's OneConsole shell embeds it inside `window.ALIYUN_CONSOLE_CONFIG` with an
+            // upper-case, unquoted key: `SEC_TOKEN: "<token>"`. The lower-case patterns above miss it.
+            #"SEC_TOKEN['"]?\s*[:=]\s*['"]([^'"]+)['"]"#,
         ]
         for pattern in patterns {
             if let token = self.matchFirstGroup(pattern: pattern, in: html), !token.isEmpty {

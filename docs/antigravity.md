@@ -18,7 +18,8 @@ signal and never enables or falls back to Antigravity automatically.
 To use the `agy` CLI source without keeping the desktop app open, install the CLI first
 (`brew install --cask antigravity-cli`; use `ANTIGRAVITY_CLI_PATH` when it is not on PATH), then
 run `agy` once and sign in. CodexBar keeps the signed-in `agy` local HTTPS server alive briefly
-after each refresh and stops it when idle.
+after each refresh and stops it when idle, or reuses a signed-in `agy` you already have running
+without taking ownership of that process.
 
 Antigravity supports four usage data sources:
 
@@ -159,10 +160,11 @@ The fallback can return quota without the account email or plan fields from `Get
 Differences from the desktop local probe:
 
 - The CLI HTTPS endpoint does **not** require `X-Codeium-Csrf-Token`.
-- Before a one-shot CLI invocation launches `agy`, CodexBar spends at most two seconds looking for an already-running,
-  same-user `agy` at the selected binary path and reuses its tokenless local HTTPS endpoint when it returns parseable
-  usage for the selected account. Long-lived app/server refreshes keep using CodexBar's managed session, and
-  CodexBar-owned pids are excluded from external reuse so probe/idle lifecycle accounting stays balanced.
+- Before launching `agy`, both menu-bar refreshes and one-shot CLI invocations spend at most two seconds looking for
+  an already-running, same-user `agy` at the selected binary path and reuse its tokenless local HTTPS endpoint when it
+  returns parseable usage for the selected account. CodexBar-owned pids are excluded from external reuse so managed
+  probe/idle lifecycle accounting stays balanced; if no eligible external server answers, CodexBar uses its managed
+  session as before.
 - Readiness is endpoint-based: CodexBar retries until one of the quota endpoints parses, because fresh `agy`
   processes can bind a port before the quota service is initialized.
 - App runtime uses a bounded warm session: `agy` is kept alive briefly after a refresh, then stopped on idle. CLI runtime

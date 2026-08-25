@@ -68,7 +68,9 @@ extension StatusItemController {
         context: MenuCardContext) -> Bool
     {
         guard !display.showsWorkspaceGroups else { return false }
-        let projected = Self.projectedCodexAccounts(display: display)
+        let projected = Self.projectedCodexAccounts(
+            display: display,
+            includeOptionalCredits: self.settings.showOptionalCreditsAndExtraUsage)
         let plan = self.compactAccountPlan(for: .codex, accounts: projected)
         guard plan.usesCompactLayout else { return false }
         let snapshotsByAccountID = Dictionary(
@@ -92,7 +94,8 @@ extension StatusItemController {
                         forceOverrideCard: accountSnapshot == nil,
                         accountOverride: self.accountInfo(for: account),
                         historySelectionOverride: self.store.codexPlanUtilizationHistorySelection(
-                            forVisibleAccount: account))
+                            forVisibleAccount: account),
+                        creditsOverride: accountSnapshot?.credits)
                 },
                 planAction: nil),
             to: menu,
@@ -253,22 +256,57 @@ extension StatusItemController {
         }
     }
 
-    static func projectedCodexAccounts(display: CodexAccountMenuDisplay) -> [ProviderAccountUsageSnapshot] {
+    static func projectedCodexAccounts(
+        display: CodexAccountMenuDisplay,
+        includeOptionalCredits: Bool = true) -> [ProviderAccountUsageSnapshot]
+    {
         let snapshotsByAccountID = Dictionary(uniqueKeysWithValues: display.snapshots.map { ($0.account.id, $0) })
         return display.accounts.map { account in
             let accountSnapshot = snapshotsByAccountID[account.id]
             let health = CodexAccountHealth.status(for: account, error: accountSnapshot?.error)
             let isActive = account.id == display.activeVisibleAccountID || account.isActive
+            let credits = includeOptionalCredits ? accountSnapshot?.credits : nil
             return ProviderAccountUsageSnapshot(
                 id: ProviderAccountIdentity(source: "codex-account", opaqueID: account.id),
                 provider: .codex,
                 displayLabel: account.menuDisplayName,
                 isActive: isActive,
                 canActivate: !isActive,
-                snapshot: accountSnapshot?.snapshot,
+                snapshot: Self.snapshotIncludingMonthlyCredit(
+                    snapshot: accountSnapshot?.snapshot,
+                    credits: credits),
                 error: health.label,
                 sourceLabel: accountSnapshot?.sourceLabel)
         }
+    }
+
+    static func snapshotIncludingMonthlyCredit(
+        snapshot: UsageSnapshot?,
+        credits: CreditsSnapshot?) -> UsageSnapshot?
+    {
+        guard let limit = credits?.codexCreditLimit else { return snapshot }
+        let monthly = RateWindow(
+            usedPercent: limit.usedPercent,
+            windowMinutes: nil,
+            resetsAt: limit.resetsAt,
+            resetDescription: nil)
+        guard let snapshot else {
+            return UsageSnapshot(
+                primary: nil,
+                secondary: nil,
+                tertiary: monthly,
+                updatedAt: limit.updatedAt)
+        }
+        if snapshot.tertiary == nil {
+            return snapshot.with(tertiary: monthly)
+        }
+        let extras = (snapshot.extraRateWindows ?? []) + [
+            NamedRateWindow(
+                id: "codex-monthly-credit",
+                title: limit.title,
+                window: monthly),
+        ]
+        return snapshot.with(extraRateWindows: extras)
     }
 
     // MARK: - Expansion state

@@ -168,7 +168,7 @@ final class UsageStore {
     var snapshots: [ProviderInstanceID: UsageSnapshot] = [:]
     var errors: [ProviderInstanceID: String] = [:]
     var diagnostics: [ProviderInstanceID: String] = [:]
-    var geminiObservedConsumerTierDeprecation = false
+    var geminiMigrationObservation: GeminiMigrationObservation = .none
     var knownLimitsAvailabilityByProvider: [ProviderInstanceID: UsageLimitsAvailability] = [:]
     var lastSourceLabels: [ProviderInstanceID: String] = [:]
     var lastFetchAttempts: [ProviderInstanceID: [ProviderFetchAttempt]] = [:]
@@ -191,6 +191,8 @@ final class UsageStore {
     var spendDashboardPublication = SpendDashboardPublication.empty
     @ObservationIgnored var sharedSpendDashboardControllerStorage: SpendDashboardController?
     @ObservationIgnored var sharedSpendDashboardObservationStarted = false
+    @ObservationIgnored var sharedSpendDashboardObservationDebounceTask: Task<Void, Never>?
+    @ObservationIgnored var sharedSpendDashboardTokenPublicationDebounceTask: Task<Void, Never>?
     var tokenErrors: [ProviderInstanceID: String] = [:]
     var tokenRefreshInFlight: Set<ProviderInstanceID> = []
     var codexCostCatchUpActivity: CodexCostCatchUpActivity?

@@ -279,6 +279,7 @@ public struct ProviderMenuCardPresentation: Sendable {
     private let primaryCostHistoryResolver: PrimaryCostHistoryResolver
     public let creditsVisibility: ProviderCreditsVisibility
     public let showsCreditsSection: Bool
+    public let providerCostIsRequiredUsage: Bool
     public let usesProviderCostHistoryAsPrimaryDashboard: Bool
     public let supportsInlineTokenCostDashboard: Bool
     public let primaryDescriptionPlacement: ProviderPrimaryDescriptionPlacement
@@ -297,6 +298,7 @@ public struct ProviderMenuCardPresentation: Sendable {
         creditsVisibility: ProviderCreditsVisibility = .standard,
         showsCreditsSection: Bool = true,
         costVisibilityResolver: @escaping CostVisibilityResolver = { _ in true },
+        providerCostIsRequiredUsage: Bool = false,
         usesProviderCostHistoryAsPrimaryDashboard: Bool = false,
         primaryCostHistoryResolver: @escaping PrimaryCostHistoryResolver = { _, tokenSnapshot in tokenSnapshot },
         supportsInlineTokenCostDashboard: Bool = false,
@@ -316,6 +318,7 @@ public struct ProviderMenuCardPresentation: Sendable {
         self.creditsVisibility = creditsVisibility
         self.showsCreditsSection = showsCreditsSection
         self.costVisibilityResolver = costVisibilityResolver
+        self.providerCostIsRequiredUsage = providerCostIsRequiredUsage
         self.usesProviderCostHistoryAsPrimaryDashboard = usesProviderCostHistoryAsPrimaryDashboard
         self.primaryCostHistoryResolver = primaryCostHistoryResolver
         self.supportsInlineTokenCostDashboard = supportsInlineTokenCostDashboard
@@ -423,6 +426,7 @@ public struct ProviderUsagePresentation: Sendable {
     private let widgetRowLimitResolver: WidgetRowLimitResolver
     public let iconDecorations: ProviderIconDecorations
     public let treatsExhaustedSecondaryIconWindowAsMissing: Bool
+    public let reservesMissingSecondaryIconLane: Bool
     public let primarySemanticWindow: ProviderSemanticWindow
     public let secondarySemanticWindow: ProviderSemanticWindow
     public let menuBarLayoutSecondaryLabel: String?
@@ -448,6 +452,7 @@ public struct ProviderUsagePresentation: Sendable {
         },
         iconDecorations: ProviderIconDecorations = [],
         treatsExhaustedSecondaryIconWindowAsMissing: Bool = false,
+        reservesMissingSecondaryIconLane: Bool = false,
         semanticWindowResolver: @escaping SemanticWindowResolver = Self.standardSemanticWindows,
         primarySemanticWindow: ProviderSemanticWindow = .session,
         secondarySemanticWindow: ProviderSemanticWindow = .weekly,
@@ -473,6 +478,7 @@ public struct ProviderUsagePresentation: Sendable {
         self.iconWindowResolver = iconWindowResolver
         self.iconDecorations = iconDecorations
         self.treatsExhaustedSecondaryIconWindowAsMissing = treatsExhaustedSecondaryIconWindowAsMissing
+        self.reservesMissingSecondaryIconLane = reservesMissingSecondaryIconLane
         self.semanticWindowResolver = semanticWindowResolver
         self.primarySemanticWindow = primarySemanticWindow
         self.secondarySemanticWindow = secondarySemanticWindow

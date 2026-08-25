@@ -537,6 +537,7 @@ extension SettingsStore {
         let multiAccountMenuLayoutRaw = Self.loadMultiAccountMenuLayoutRaw(userDefaults: userDefaults)
         let resolvedPreferences = Self.loadMenuBarMetricPreferences(userDefaults: userDefaults)
         let storedMenuBarLayout = Self.loadMenuBarLayout(userDefaults: userDefaults)
+        let menuBarLayoutConditionals = Self.loadMenuBarLayoutConditionals(userDefaults: userDefaults)
         let menuBarLayoutOverridesRaw = Self.loadMenuBarLayoutOverrides(userDefaults: userDefaults)
         let menuBarLayoutSizeRaw = userDefaults.string(forKey: "menuBarLayoutSize")
             ?? MenuBarLayoutSize.regular.rawValue
@@ -681,6 +682,7 @@ extension SettingsStore {
             multiAccountMenuLayoutRaw: multiAccountMenuLayoutRaw,
             menuBarMetricPreferencesRaw: resolvedPreferences,
             storedMenuBarLayout: storedMenuBarLayout,
+            menuBarLayoutConditionals: menuBarLayoutConditionals,
             menuBarLayoutOverridesRaw: menuBarLayoutOverridesRaw,
             menuBarLayoutSizeRaw: menuBarLayoutSizeRaw,
             menuBarLayoutGapRaw: menuBarLayoutGapRaw,
@@ -870,6 +872,26 @@ extension SettingsStore {
             current: self.decodeMenuBarLayout(userDefaults.data(forKey: MenuBarLayoutUserDefaultsKey.layoutCurrent)),
             legacy: self.decodeMenuBarLayout(userDefaults.data(forKey: MenuBarLayoutUserDefaultsKey.layout)),
             into: userDefaults)
+    }
+
+    private static func loadMenuBarLayoutConditionals(userDefaults: UserDefaults) -> [MenuBarLayoutConditional] {
+        // Neither key present means a fresh install, so hand back the shipped library. Any edit, add, or
+        // removal writes both keys, so a library the user deliberately emptied is never reseeded.
+        MenuBarLayoutPersistence.loadLibrary(
+            current: self.decodeMenuBarLayoutConditionals(
+                userDefaults.data(forKey: MenuBarLayoutUserDefaultsKey.conditionalsCurrent)),
+            legacy: self.decodeMenuBarLayoutConditionals(
+                userDefaults.data(forKey: MenuBarLayoutUserDefaultsKey.conditionals)),
+            into: userDefaults)
+            ?? MenuBarLayoutConditional.shippedLibrary()
+    }
+
+    /// Element-wise so one entry this build cannot understand — a library written by a newer release —
+    /// is dropped on its own instead of emptying the whole array.
+    private static func decodeMenuBarLayoutConditionals(_ data: Data?) -> [MenuBarLayoutConditional]? {
+        guard let data else { return nil }
+        return (try? JSONDecoder().decode([LenientMenuBarLayoutConditional].self, from: data))?
+            .compactMap(\.value)
     }
 
     private static func loadMenuBarLayoutOverrides(userDefaults: UserDefaults) -> [String: MenuBarLayout] {

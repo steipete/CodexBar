@@ -57,6 +57,16 @@ extension CostUsageScanner {
             rows: reconciledRows,
             range: range,
             priorityTurns: priorityTurns)
+        // The persisted maps are derived from the rows' own `pricingMode`, while the report also
+        // consults the trace database. A turn the trace reports as priority after its rows were
+        // persisted as standard is a tier-classification difference, not a row-ownership problem,
+        // so retention is judged against both splits and only a group that matches neither counts
+        // as mismatched. A wrongly retained row set still fails both, because the persisted totals
+        // are canonical for the file and neither classification changes how many tokens the rows carry.
+        let retainedModeTokens = self.codexModeTokenMaps(
+            rows: reconciledRows,
+            range: range,
+            priorityTurns: [:])
         var mismatchGroups = Set<CodexDayModelKey>()
         var priorityGroups = Set<CodexDayModelKey>()
         for (day, models) in usage.days {
@@ -76,11 +86,13 @@ extension CostUsageScanner {
                 // Copied fork prefixes can stale these legacy maps too. Only a map that is
                 // independently canonical for its file may constrain retained row ownership.
                 guard persistedModeTotal == canonicalTotal else { continue }
-                let rowStandard = reconciledModeTokens.standard?[day]?[model] ?? 0
-                let rowPriority = reconciledModeTokens.priority?[day]?[model] ?? 0
-                if rowStandard != max(0, persistedStandard ?? 0)
-                    || rowPriority != max(0, persistedPriority ?? 0)
-                {
+                let expectedStandard = max(0, persistedStandard ?? 0)
+                let expectedPriority = max(0, persistedPriority ?? 0)
+                let matchesReconciled = (reconciledModeTokens.standard?[day]?[model] ?? 0) == expectedStandard
+                    && (reconciledModeTokens.priority?[day]?[model] ?? 0) == expectedPriority
+                let matchesRetained = (retainedModeTokens.standard?[day]?[model] ?? 0) == expectedStandard
+                    && (retainedModeTokens.priority?[day]?[model] ?? 0) == expectedPriority
+                if !matchesReconciled, !matchesRetained {
                     mismatchGroups.insert(key)
                 }
             }

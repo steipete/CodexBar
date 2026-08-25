@@ -1,4 +1,7 @@
 import Foundation
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
 #if canImport(Darwin)
 import Darwin
 #elseif canImport(Glibc)
@@ -23,6 +26,8 @@ public struct KiroUsageSnapshot: Sendable {
     public let estimatedOverageCostUSD: Double?
     public let manageURL: String?
     public let contextUsage: KiroContextUsageSnapshot?
+    /// Plan and overage ceilings from `GetUsageLimits`, which the CLI report cannot express.
+    public let usageLimits: KiroUsageLimits?
     public let resetsAt: Date?
     public let updatedAt: Date
 
@@ -42,6 +47,7 @@ public struct KiroUsageSnapshot: Sendable {
         estimatedOverageCostUSD: Double? = nil,
         manageURL: String? = nil,
         contextUsage: KiroContextUsageSnapshot? = nil,
+        usageLimits: KiroUsageLimits? = nil,
         resetsAt: Date?,
         updatedAt: Date)
     {
@@ -60,8 +66,38 @@ public struct KiroUsageSnapshot: Sendable {
         self.estimatedOverageCostUSD = estimatedOverageCostUSD
         self.manageURL = manageURL
         self.contextUsage = contextUsage
+        self.usageLimits = usageLimits
         self.resetsAt = resetsAt
         self.updatedAt = updatedAt
+    }
+
+    /// Returns a copy carrying the API's plan/overage ceilings.
+    func withUsageLimits(_ usageLimits: KiroUsageLimits?) -> Self {
+        guard let usageLimits else { return self }
+        return Self(
+            planName: self.planName,
+            displayPlanName: self.displayPlanName,
+            accountEmail: self.accountEmail,
+            authMethod: self.authMethod,
+            creditsUsed: usageLimits.hasUnseparatedBonus ? self.creditsUsed : usageLimits.planUsed,
+            creditsTotal: usageLimits.hasUnseparatedBonus ? self.creditsTotal : usageLimits.planLimit,
+            creditsPercent: usageLimits.hasUnseparatedBonus || usageLimits.planLimit <= 0
+                ? self.creditsPercent
+                : (usageLimits.planUsed / usageLimits.planLimit) * 100.0,
+            bonusCreditsUsed: self.bonusCreditsUsed,
+            bonusCreditsTotal: self.bonusCreditsTotal,
+            bonusExpiryDays: self.bonusExpiryDays,
+            overagesStatus: usageLimits.overageEnabled == false
+                ? "Disabled"
+                : (usageLimits.overageEnabled == true ? self.overagesStatus ?? "Enabled" : self.overagesStatus),
+            overageCreditsUsed: usageLimits.overageUsed,
+            estimatedOverageCostUSD: usageLimits.overageCharges
+                ?? (usageLimits.currencyCode.uppercased() == "USD" ? self.estimatedOverageCostUSD : nil),
+            manageURL: self.manageURL,
+            contextUsage: self.contextUsage,
+            usageLimits: usageLimits,
+            resetsAt: usageLimits.resetsAt,
+            updatedAt: self.updatedAt)
     }
 
     public func toUsageSnapshot() -> UsageSnapshot {
@@ -112,19 +148,42 @@ public struct KiroUsageSnapshot: Sendable {
         if let overagesStatus = self.overagesStatus {
             detailRows.append(.makeRow(label: "Overages", value: overagesStatus))
         }
-        let overagesEnabled = self.overagesStatus?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .lowercased()
-            .hasPrefix("enabled") == true
+        // The API states whether overage is enabled. The CLI omits the whole overage section for
+        // organization accounts, so its status line is only consulted when the API is unavailable.
+        let overageCap = self.usageLimits?.overageCap
+        let overagesEnabled: Bool = if let limits = self.usageLimits {
+            if let enabled = limits.overageEnabled {
+                enabled && overageCap != nil
+            } else {
+                self.overagesStatus?
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                    .lowercased()
+                    .hasPrefix("enabled") == true
+            }
+        } else {
+            self.overagesStatus?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .lowercased()
+                .hasPrefix("enabled") == true
+        }
         if overagesEnabled, let overageCreditsUsed = self.overageCreditsUsed {
             detailRows.append(.makeRow(
                 label: "Overage usage",
-                value: "\(UsageFormatter.kiroCreditNumber(overageCreditsUsed)) credits"))
+                value: "\(UsageFormatter.kiroCreditNumber(overageCreditsUsed)) credits",
+                secondaryValue: overageCap.map { "of \(UsageFormatter.kiroCreditNumber($0))" }))
+        }
+        if overagesEnabled, let overageCap, let overageCreditsUsed = self.overageCreditsUsed {
+            detailRows.append(.makeRow(
+                label: "Overage credits left",
+                value: UsageFormatter.kiroCreditNumber(max(0, overageCap - overageCreditsUsed))))
         }
         if overagesEnabled, let estimatedOverageCostUSD = self.estimatedOverageCostUSD {
+            let currencyCode = self.usageLimits?.currencyCode ?? "USD"
             detailRows.append(.makeRow(
                 label: "Overage cost",
-                value: UsageFormatter.usdString(estimatedOverageCostUSD)))
+                value: UsageFormatter.currencyString(estimatedOverageCostUSD, currencyCode: currencyCode),
+                secondaryValue: self.usageLimits?.overageChargeLimit
+                    .map { "of \(UsageFormatter.currencyString($0, currencyCode: currencyCode))" }))
         }
         if let contextUsage = self.contextUsage {
             detailRows.append(.makeRow(
@@ -144,11 +203,38 @@ public struct KiroUsageSnapshot: Sendable {
             detailRows.append(.makeRow(label: "Manage", value: manageURL))
         }
 
+        // Overage is spendable headroom above the plan with its own ceiling, so it is a window of
+        // its own rather than part of the plan gauge — `creditsUsed` already excludes it.
+        var extraRateWindows: [NamedRateWindow] = []
+        if let limits = self.usageLimits, let overageCap = limits.overageCap, overageCap > 0 {
+            extraRateWindows.append(NamedRateWindow(
+                id: "kiro-overage",
+                title: "Overage",
+                window: RateWindow(
+                    usedPercent: min(100, (limits.overageUsed / overageCap) * 100.0),
+                    windowMinutes: nil,
+                    resetsAt: limits.resetsAt,
+                    resetDescription: nil)))
+        }
+
+        let providerCost: ProviderCostSnapshot? = self.usageLimits.flatMap { limits in
+            guard let charges = limits.overageCharges, let chargeLimit = limits.overageChargeLimit
+            else { return nil }
+            return ProviderCostSnapshot(
+                used: charges,
+                limit: chargeLimit,
+                currencyCode: limits.currencyCode,
+                period: "Overage",
+                resetsAt: limits.resetsAt,
+                updatedAt: self.updatedAt)
+        }
+
         return UsageSnapshot(
             primary: primary,
             secondary: secondary,
             tertiary: nil,
-            providerCost: nil,
+            extraRateWindows: extraRateWindows.isEmpty ? nil : extraRateWindows,
+            providerCost: providerCost,
             details: [.makeSection(title: "Usage", rows: detailRows)],
             updatedAt: self.updatedAt,
             identity: identity)
@@ -237,6 +323,7 @@ public struct KiroStatusProbe: Sendable {
     private let contextProbeTimeout: TimeInterval
     private let pipeTimeoutCap: TimeInterval
     private let pipeProcessRegistry: PipeProcessRegistry
+    private let usageLimitsFetcher: @Sendable () async throws -> KiroUsageLimits
 
     public init() {
         self.cliBinaryResolver = { TTYCommandRunner.which("kiro-cli") }
@@ -245,6 +332,7 @@ public struct KiroStatusProbe: Sendable {
         self.contextProbeTimeout = 8.0
         self.pipeTimeoutCap = 5.0
         self.pipeProcessRegistry = .live
+        self.usageLimitsFetcher = { try await KiroUsageLimitsAPI.fetch() }
     }
 
     init(
@@ -253,7 +341,10 @@ public struct KiroStatusProbe: Sendable {
         usageProbeTimeout: TimeInterval = 20.0,
         contextProbeTimeout: TimeInterval = 8.0,
         pipeTimeoutCap: TimeInterval = 5.0,
-        pipeProcessRegistry: PipeProcessRegistry = .live)
+        pipeProcessRegistry: PipeProcessRegistry = .live,
+        usageLimitsFetcher: @escaping @Sendable () async throws -> KiroUsageLimits = {
+            throw KiroUsageLimitsError.credentialsUnavailable("not configured in tests")
+        })
     {
         self.cliBinaryResolver = cliBinaryResolver
         self.accountProbeTimeout = accountProbeTimeout
@@ -261,6 +352,7 @@ public struct KiroStatusProbe: Sendable {
         self.contextProbeTimeout = contextProbeTimeout
         self.pipeTimeoutCap = pipeTimeoutCap
         self.pipeProcessRegistry = pipeProcessRegistry
+        self.usageLimitsFetcher = usageLimitsFetcher
     }
 
     private static let logger = CodexBarLog.logger(LogCategories.provider(.kiro))
@@ -312,14 +404,37 @@ public struct KiroStatusProbe: Sendable {
 
         let accountStatus = try await self.awaitAccountStatus(accountTask)
         let accountInfo = accountStatus.account
+        let snapshot: KiroUsageSnapshot
         do {
-            return try self.parse(
+            snapshot = try self.parse(
                 output: output,
                 accountEmail: accountInfo?.email,
                 authMethod: accountInfo?.authMethod,
                 contextUsage: contextUsage)
         } catch KiroStatusProbeError.parseError where accountStatus == .notLoggedIn {
             throw KiroStatusProbeError.notLoggedIn
+        }
+        let limits = try await self.fetchUsageLimits()
+        return snapshot.withUsageLimits(limits)
+    }
+
+    /// Enriches the CLI report with the plan/overage ceilings only the API states.
+    ///
+    /// Best-effort: the API path depends on the CLI's private token store, which a Kiro release can
+    /// move, whereas the CLI report reads nothing but its own published output. A failure leaves the
+    /// plan-relative numbers the CLI already produced. The CLI runs first here, so any token it
+    /// refreshed along the way is already in place by the time this reads it.
+    private func fetchUsageLimits() async throws -> KiroUsageLimits? {
+        do {
+            return try await self.usageLimitsFetcher()
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch {
+            if Task.isCancelled || (error as? URLError)?.code == .cancelled {
+                throw CancellationError()
+            }
+            Self.logger.debug("Kiro usage API unavailable: \(error.localizedDescription)")
+            return nil
         }
     }
 

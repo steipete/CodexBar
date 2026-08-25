@@ -194,6 +194,10 @@ extension UsageMenuCardView.Model {
             presentation.resetText = regen.resetText
             Self.apply(regen.pace, to: &presentation)
         }
+        // Provider-specific by design: DeepSeek's balance description is provider-owned copy localized here.
+        if input.provider == .deepseek, let detail = presentation.detailText {
+            presentation.detailText = Self.localizedDeepSeekBalanceDescription(detail)
+        }
         if policy.movesPrimaryDetailToStatus(snapshot: input.snapshot) {
             presentation.statusText = presentation.detailText
             presentation.detailText = nil
@@ -400,6 +404,7 @@ extension UsageMenuCardView.Model {
 
     private func hasCompatibleTrackedLayout(with candidate: Self, includeMetrics: Bool) -> Bool {
         guard self.provider == candidate.provider,
+              self.accountIdentityFingerprint == candidate.accountIdentityFingerprint,
               !includeMetrics || self.metrics.count == candidate.metrics.count,
               self.usageNotes == candidate.usageNotes,
               self.providerDetails == candidate.providerDetails,
@@ -410,7 +415,7 @@ extension UsageMenuCardView.Model {
                   candidateText: candidate.creditsText,
                   candidateRemaining: candidate.creditsRemaining),
               self.creditsHintText == candidate.creditsHintText,
-              self.codexResetCredits == candidate.codexResetCredits,
+              Self.hasCompatibleCodexResetCreditsLayout(self.codexResetCredits, candidate.codexResetCredits),
               self.placeholder == candidate.placeholder,
               Self.hasCompatibleDashboardLayout(self.inlineUsageDashboard, candidate.inlineUsageDashboard),
               Self.hasCompatibleProviderCostLayout(self.providerCost, candidate.providerCost),
@@ -423,15 +428,24 @@ extension UsageMenuCardView.Model {
         return zip(self.metrics, candidate.metrics).allSatisfy(Self.hasCompatibleMetricLayout)
     }
 
+    private static func hasCompatibleCodexResetCreditsLayout(
+        _ current: CodexResetCreditsPresentation?,
+        _ candidate: CodexResetCreditsPresentation?) -> Bool
+    {
+        // The hosted section has a fixed shape; its count and expiry strings can update in place.
+        (current == nil) == (candidate == nil)
+    }
+
     private static func hasCompatibleMetricLayout(_ current: Metric, _ candidate: Metric) -> Bool {
-        current.id == candidate.id &&
+        let currentMetaText = current.linePresentation(title: current.title).metaText
+        let candidateMetaText = candidate.linePresentation(title: candidate.title).metaText
+        return current.id == candidate.id &&
             current.title == candidate.title &&
             current.percentStyle == candidate.percentStyle &&
             (current.statusText == nil) == (candidate.statusText == nil) &&
             (current.resetText == nil) == (candidate.resetText == nil) &&
             (current.detailText == nil) == (candidate.detailText == nil) &&
-            (current.detailLeftText == nil) == (candidate.detailLeftText == nil) &&
-            (current.detailRightText == nil) == (candidate.detailRightText == nil) &&
+            (candidateMetaText == nil || currentMetaText != nil) &&
             current.cardStyle == candidate.cardStyle
     }
 
@@ -526,7 +540,7 @@ extension UsageMenuCardView.Model {
         snapshot: UsageSnapshot) -> (primary: String, secondary: String, tertiary: String, showsTertiary: Bool)
     {
         if input.provider == .factory, snapshot.tertiary != nil {
-            return ("5-hour", L("Weekly"), L("Monthly"), true)
+            return (L("5-hour"), L("Weekly"), L("Monthly"), true)
         }
         // Legacy request-based Cursor plans track a request quota, not the token-based "Total" pool.
         let primaryLabel = if input.provider == .cursor, snapshot.detailRow(label: "Request quota") != nil {
@@ -559,7 +573,7 @@ extension UsageMenuCardView.Model {
             ? L("Monthly")
             : input.metadata.opusLabel.map(L) ?? L("Sonnet")
         return (
-            L(primaryLabel),
+            localizedSessionQuotaLabel(primaryLabel, windowMinutes: snapshot.primary?.windowMinutes),
             L(secondaryLabel),
             tertiaryLabel,
             input.metadata.supportsOpus)
@@ -646,6 +660,13 @@ extension UsageMenuCardView.Model {
         if self.shouldShowRateLimitsUnavailablePlaceholder(input: input, lastError: lastError) {
             return nil
         }
+        if self.hasCodexCreditOrRateMeters(input) {
+            if UsageError.isNoRateLimitsFoundDescription(lastError)
+                || ClaudeStatusProbe.isSubscriptionQuotaUnavailableDescription(lastError)
+            {
+                return nil
+            }
+        }
         return lastError
     }
 
@@ -717,10 +738,24 @@ extension UsageMenuCardView.Model {
         {
             return false
         }
+        if self.hasCodexCreditOrRateMeters(input) {
+            return false
+        }
         if input.limitsAvailability?.isUnavailable == true {
             return true
         }
         return self.rateLimitsUnavailable(input: input, lastError: currentError)
+    }
+
+    private static func hasCodexCreditOrRateMeters(_ input: Input) -> Bool {
+        if let lanes = input.codexProjection?.displayedRateLanes(
+            showOptionalCreditsAndExtraUsage: input.showOptionalCreditsAndExtraUsage),
+            !lanes.isEmpty
+        {
+            return true
+        }
+        guard input.showOptionalCreditsAndExtraUsage else { return false }
+        return input.credits?.codexCreditLimit != nil
     }
 
     private static func rateLimitsUnavailable(input: Input, lastError: String? = nil) -> Bool {
@@ -935,6 +970,16 @@ extension UsageMenuCardView.Model {
             let title = input.provider == .doubao && namedWindow.id.contains("-team-")
                 ? "\(L(namedWindow.title)) (\(L("Team")))"
                 : L(namedWindow.title)
+            // Provider-specific by design: Kiro overage remaining copy is unique to that extra window.
+            let detailLeftText: String? = if usageKnown {
+                Self.kiroOverageRemainingDetail(
+                    snapshot: snapshot,
+                    namedWindow: namedWindow,
+                    provider: input.provider)
+                    ?? paceDetail?.leftLabel
+            } else {
+                nil
+            }
             return Metric(
                 id: namedWindow.id,
                 title: title,
@@ -946,7 +991,7 @@ extension UsageMenuCardView.Model {
                 statusText: statusText,
                 resetText: usageKnown ? resetText : nil,
                 detailText: usageKnown ? detailText : nil,
-                detailLeftText: usageKnown ? paceDetail?.leftLabel : nil,
+                detailLeftText: detailLeftText,
                 detailRightText: usageKnown ? paceDetail?.rightLabel : nil,
                 pacePercent: usageKnown ? paceDetail?.pacePercent : nil,
                 detailIsPaceDerived: paceDetail?.isPaceDerived ?? false,
@@ -963,6 +1008,21 @@ extension UsageMenuCardView.Model {
     private static func isCodexSparkRateWindow(_ namedWindow: NamedRateWindow) -> Bool {
         namedWindow.id == CodexAdditionalRateLimitMapper.sparkWindowID ||
             namedWindow.id == CodexAdditionalRateLimitMapper.sparkWeeklyWindowID
+    }
+
+    private static func kiroOverageRemainingDetail(
+        snapshot: UsageSnapshot,
+        namedWindow: NamedRateWindow,
+        provider: UsageProvider) -> String?
+    {
+        guard provider == .kiro, namedWindow.id == "kiro-overage",
+              let remaining = snapshot.detailRow(label: "Overage credits left")?.value,
+              let capPhrase = snapshot.detailRow(label: "Overage usage")?.secondaryValue,
+              capPhrase.hasPrefix("of ")
+        else { return nil }
+        let total = String(capPhrase.dropFirst(3))
+        guard !total.isEmpty else { return nil }
+        return String(format: L("%@ of %@ credits left"), remaining, total)
     }
 
     private static func isClaudeDailyRoutinesRateWindow(_ namedWindow: NamedRateWindow) -> Bool {

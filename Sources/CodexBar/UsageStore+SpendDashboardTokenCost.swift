@@ -178,6 +178,7 @@ extension UsageStore {
             publicationRevision: self.spendDashboardTokenSnapshotPublicationRevision(for: provider),
             providerConfigRevision: self.settings.providerConfigRevision(for: provider),
             scopeSignature: self.spendDashboardTokenSnapshotScopeSignature(for: provider))
+        self.synchronizeSharedSpendDashboardAfterTokenPublication(for: provider)
     }
 
     private func spendDashboardTokenRefreshPublicationIsCurrent(

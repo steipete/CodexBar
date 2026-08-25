@@ -4,8 +4,10 @@ defineProvider({
   endpoints: [
     "https://api.z.ai",
     "https://open.bigmodel.cn",
+    "https://www.bigmodel.cn",
     { setting: "Z_AI_QUOTA_ENDPOINT", policy: "https" },
     { setting: "Z_AI_MODEL_USAGE_ENDPOINT", policy: "https" },
+    { setting: "Z_AI_BALANCE_ENDPOINT", policy: "https" },
   ],
   auth: { type: "bearer", secret: "Z_AI_API_KEY" },
   settings: [
@@ -16,6 +18,7 @@ defineProvider({
     { key: "Z_AI_PROJECT", title: "Project", type: "plain" },
     { key: "Z_AI_QUOTA_ENDPOINT", title: "Quota endpoint", type: "plain" },
     { key: "Z_AI_MODEL_USAGE_ENDPOINT", title: "Model usage endpoint", type: "plain" },
+    { key: "Z_AI_BALANCE_ENDPOINT", title: "Balance endpoint", type: "plain" },
   ],
 
   async fetchUsage(ctx) {
@@ -200,6 +203,46 @@ defineProvider({
       (value) => typeof value === "string" && value.trim(),
     );
     if (plan) result.identity.loginMethod = plan.trim();
+
+    // BigModel CN pay-as-you-go account balance (www.bigmodel.cn console endpoint,
+    // verified 2026-08: accepts both "Bearer <key>" and raw-key Authorization).
+    // z.ai global has no documented equivalent, so the row is CN-only. Best-effort —
+    // a failed balance lookup must never break quota display.
+    if (region === "bigmodel-cn") {
+      try {
+        const balanceEndpoint =
+          ctx.settings.get("Z_AI_BALANCE_ENDPOINT") ||
+          "https://www.bigmodel.cn/api/biz/account/query-customer-account-report";
+        // Optional lookup: bound it well below the fetch deadline so a stalling balance
+        // service can neither delay the later model-usage requests nor discard the
+        // already-fetched quota snapshot.
+        const response = await ctx.http.getJSON(balanceEndpoint, { timeoutSeconds: 5 });
+        const body = response.json;
+        if (response.status === 200 && body && typeof body === "object" && body.success === true) {
+          const data = body.data && typeof body.data === "object" ? body.data : {};
+          // Number(null) is 0, which would silently defeat the fallback below and
+          // render misleading ¥0.00 rows — only actual numeric values participate.
+          const numeric = (value) => (value === null || value === undefined ? undefined : Number(value));
+          const available = numeric(data.availableBalance);
+          const current = numeric(data.balance);
+          const value = Number.isFinite(available) ? available : current;
+          if (Number.isFinite(value)) {
+            const recharged = numeric(data.rechargeAmount);
+            const granted = numeric(data.giveAmount);
+            const spent = numeric(data.totalSpendAmount);
+            const secondary = [];
+            if (Number.isFinite(recharged)) secondary.push(`recharged ¥${recharged.toFixed(2)}`);
+            if (Number.isFinite(granted) && granted > 0) secondary.push(`granted ¥${granted.toFixed(2)}`);
+            if (Number.isFinite(spent)) secondary.push(`spent ¥${spent.toFixed(2)}`);
+            result.details[0].rows.push({
+              label: "Account balance",
+              value: `¥${Number(value).toFixed(2)}`,
+              secondaryValue: secondary.join(" · ") || undefined,
+            });
+          }
+        }
+      } catch {}
+    }
 
     async function modelUsage(daysBack) {
       const end = ctx.date.now();

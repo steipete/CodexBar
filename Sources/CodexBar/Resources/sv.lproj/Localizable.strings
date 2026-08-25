@@ -654,6 +654,8 @@
 "section_keyboard_shortcut" = "Kortkommando";
 "open_menu_shortcut_title" = "Öppna meny";
 "open_menu_shortcut_subtitle" = "Öppna menyradsmenyn var du än är.";
+"record_shortcut" = "Spela in kortkommando";
+"press_shortcut" = "Tryck på kortkommandot";
 "install_cli" = "Installera CLI";
 "install_cli_subtitle" = "Symlänka CodexBarCLI till /usr/local/bin och /opt/homebrew/bin som codexbar.";
 "cli_not_found" = "CodexBarCLI hittades inte i apppaketet.";
@@ -1077,6 +1079,7 @@
 "CodexBar will ask macOS Keychain for your z.ai API token so it can fetch usage. Click OK to continue." = "CodexBar kommer att be macOS Nyckelring om din z.ai-API-token så att användning kan hämtas. Klicka på OK för att fortsätta.";
 "Show usage for organizations you belong to. Personal account is always shown." = "Visa användning för organisationer du tillhör. Personligt konto visas alltid.";
 "%@ of %@ credits left" = "%@ av %@ krediter kvar";
+"of %@" = "av %@";
 "Stored in ~/.codexbar/config.json. You can also provide CODEBUFF_API_KEY or let CodexBar read ~/.config/manicode/credentials.json (created by `codebuff login`)." = "Sparas i ~/.codexbar/config.json. Du kan också ange CODEBUFF_API_KEY eller låta CodexBar läsa ~/.config/manicode/credentials.json (skapas av `codebuff login`).";
 "Automatic imports Windsurf session data from Chromium browser localStorage." = "Importerar Windsurf-sessionsdata från Chromium-webbläsarens localStorage automatiskt.";
 "Full in ~%.0f regens" = "Full om cirka %.0f regenereringar";
@@ -1107,6 +1110,7 @@
 "CodexBar could not read the current system account on this Mac." = "CodexBar kunde inte läsa det aktuella systemkontot på den här Mac-datorn.";
 "%@ of %@ bonus credits left" = "%@ av %@ bonuskrediter kvar";
 "Overage usage" = "Överförbrukning";
+"Overage credits left" = "Överförbrukningskrediter kvar";
 "AWS access key ID. Can also be set with AWS_ACCESS_KEY_ID." = "AWS-åtkomstnyckel-ID. Kan även anges med AWS_ACCESS_KEY_ID.";
 "CodexBar could not find saved auth for that account. Re-authenticate it and try again." = "CodexBar kunde inte hitta sparad autentisering för kontot. Autentisera det igen och försök igen.";
 "Capacity End" = "Kapacitetsslut";
@@ -1185,6 +1189,7 @@
 "Stored in ~/.codexbar/config.json. Get your key from Ollama settings." = "Sparas i ~/.codexbar/config.json. Hämta nyckeln från Ollama-inställningarna.";
 "Open Augment (Log Out & Back In)" = "Öppna Augment (logga ut och in igen)";
 "Overages" = "Överförbrukning";
+"Overage" = "Överförbrukning";
 "Open projects" = "Öppna projekt";
 "Reported by OpenAI Admin API organization usage." = "Rapporteras av OpenAI Admin API:s organisationsanvändning.";
 "%@: %@ credits" = "%@: %@ krediter";
@@ -1370,6 +1375,7 @@
 "menu_bar_layout_empty_line" = "Släpp en bricka här";
 "menu_bar_layout_line" = "Rad %d";
 "menu_bar_layout_drag_remove" = "Dra hit för att ta bort";
+"menu_bar_layout_remove_selected" = "Ta bort markerat";
 "menu_bar_layout_size" = "Storlek";
 "menu_bar_layout_size_small" = "Liten";
 "menu_bar_layout_size_regular" = "Normal";
@@ -1493,3 +1499,35 @@
 "Copy JSON" = "Kopiera JSON";
 "Sources" = "Sources";
 "OpenCodex" = "OpenCodex";
+
+"menu_bar_layout_token_conditional" = "Villkor";
+"menu_bar_layout_group_conditionals" = "Villkor";
+"menu_bar_layout_conditional_add" = "Nytt villkor";
+"menu_bar_layout_conditional_edit" = "Redigera villkor";
+"menu_bar_layout_conditional_remove" = "Ta bort från bibliotek";
+"menu_bar_layout_conditional_save" = "Spara";
+"menu_bar_layout_conditional_if" = "Om";
+"menu_bar_layout_conditional_then" = "Visa då";
+"menu_bar_layout_conditional_else" = "Visa annars";
+"menu_bar_layout_conditional_and" = "och";
+"menu_bar_layout_conditional_or" = "eller";
+"menu_bar_layout_conditional_add_condition" = "Lägg till villkor";
+"menu_bar_layout_conditional_none" = "Inga villkor ännu";
+"menu_bar_layout_conditional_hide" = "Dölj";
+"menu_bar_layout_conditional_name" = "Namn";
+"menu_bar_layout_conditional_name_placeholder" = "t.ex. Sessionskontroll";
+"menu_bar_layout_conditional_name_error" = "Ange ett unikt namn";
+"menu_bar_layout_conditional_used" = "använt";
+"menu_bar_layout_conditional_remaining" = "återstår";
+"menu_bar_layout_conditional_metric_resets_in" = "%@ återställs om";
+"menu_bar_layout_conditional_metric_scoped_weekly" = "Avgränsad vecka";
+"menu_bar_layout_conditional_duplicate" = "Duplicera";
+"menu_bar_layout_conditional_summary" = "Om %1$@ visa %2$@ annars %3$@";
+"menu_bar_layout_conditional_copy_name" = "%@ (kopia)";
+"menu_bar_layout_conditional_copy_name_numbered" = "%1$@ (kopia %2$d)";
+"menu_bar_layout_conditional_unavailable" = "Villkor otillgängligt";
+"menu_bar_layout_conditional_default_session_busy" = "Session över 50 % använt";
+"menu_bar_layout_conditional_default_weekly_high" = "Vecka över 90 % använt";
+"menu_bar_layout_conditional_default_session_spent" = "Sessionen nästan förbrukad";
+"menu_bar_layout_conditional_default_either_high" = "Session eller vecka ligger högt";
+"menu_bar_layout_conditional_default_scoped_weekly" = "Modellvecka över 60 % använt";

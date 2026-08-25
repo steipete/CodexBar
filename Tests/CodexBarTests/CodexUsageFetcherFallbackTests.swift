@@ -106,7 +106,7 @@ struct CodexUsageFetcherFallbackTests {
     }
 
     @Test
-    func `CLI usage loads plan only RPC response as unavailable limits`() async throws {
+    func `CLI usage starts app server with current read-only noninteractive arguments`() async throws {
         let stubCLIPath = try self.makePlanOnlyStubCodexCLI()
         defer { try? FileManager.default.removeItem(atPath: stubCLIPath) }
 
@@ -367,6 +367,11 @@ struct CodexUsageFetcherFallbackTests {
         import sys
 
         args = sys.argv[1:]
+        expected_prefix = ["-s", "read-only", "-a", "never", "app-server"]
+        if args[:5] != expected_prefix:
+            sys.stderr.write(f"unexpected Codex arguments: {args!r}\\n")
+            sys.exit(64)
+
         if "app-server" in args:
             for line in sys.stdin:
                 if not line.strip():

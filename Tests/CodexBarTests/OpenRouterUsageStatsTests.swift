@@ -150,6 +150,75 @@ struct OpenRouterPluginGoldenTests {
     }
 
     @Test
+    func `activity requests the latest completed UTC day`() async throws {
+        let requests = OpenRouterRequestRecorder()
+        let activityBody = #"""
+        {"data":[
+          {
+            "date":"2026-08-17",
+            "model":"openai/gpt-5.6",
+            "prompt_tokens":10,
+            "completion_tokens":5,
+            "reasoning_tokens":2,
+            "requests":1,
+            "usage":1
+          },
+          {
+            "date":"2026-07-19",
+            "model":"x-ai/grok-4",
+            "prompt_tokens":4,
+            "completion_tokens":1,
+            "reasoning_tokens":0,
+            "requests":1,
+            "usage":1
+          }
+        ]}
+        """#
+        let runtime = try ProviderPluginRuntime(
+            bundledPlugin: "openrouter",
+            transport: ProviderHTTPTransportHandler { request in
+                await requests.append(request)
+                let path = request.url?.path ?? ""
+                if path.hasSuffix("/activity") {
+                    let date = request.url
+                        .flatMap { URLComponents(url: $0, resolvingAgainstBaseURL: false) }?
+                        .queryItems?
+                        .first { $0.name == "date" }?
+                        .value
+                    if date == "2026-08-18" {
+                        return try Self.response(
+                            request,
+                            body: #"{"error":{"message":"Date must be within the last 30 (completed) UTC days"}}"#,
+                            statusCode: 400)
+                    }
+                    return try Self.response(request, body: activityBody)
+                }
+                if path.hasSuffix("/key") {
+                    return try Self.response(request, body: #"{"data":{"limit":20,"usage":5}}"#)
+                }
+                return try Self.response(request, body: Self.defaultCreditsBody)
+            })
+        let now = Date(timeIntervalSince1970: 1_787_079_600) // 2026-08-18T12:00:00Z; stable injected clock.
+
+        let usage = try await runtime.fetchUsage(
+            secrets: [
+                OpenRouterSettingsReader.envKey: "fixture-key",
+                OpenRouterSettingsReader.managementAPIKeyEnvironmentKey: "fixture-management-key",
+            ],
+            now: now)
+        let recorded = await requests.requests
+        let datedRequest = try #require(recorded.first { $0.url?.query != nil })
+        let date = datedRequest.url
+            .flatMap { URLComponents(url: $0, resolvingAgainstBaseURL: false) }?
+            .queryItems?
+            .first { $0.name == "date" }?
+            .value
+
+        #expect(date == "2026-08-17")
+        #expect(usage.costUsage?.last30DaysCostUSD == 2)
+    }
+
+    @Test
     func `server remaining drives monthly quota golden`() async throws {
         let usage = try await Self.fetch(keyBody: #"""
         {"data":{
@@ -350,6 +419,32 @@ struct OpenRouterPluginGoldenTests {
         #expect(abs((model.costUSD ?? -1) - 12.345) < 1e-9)
     }
 
+    @Test(arguments: ["2026-08-23", "2026-08-23 00:00:00"])
+    func `activity accepts date and datetime rows and normalizes their UTC day`(activityDate: String) async throws {
+        let activityBody = #"""
+        {"data":[{
+          "date":"\#(activityDate)",
+          "model":"openai/gpt-5.6",
+          "endpoint_id":"endpoint-a",
+          "prompt_tokens":100,
+          "completion_tokens":50,
+          "reasoning_tokens":10,
+          "requests":2,
+          "usage":12.345
+        }]}
+        """#
+        let now = Date(timeIntervalSince1970: 1_787_598_000) // 2026-08-24T12:00:00Z; stable injected clock.
+
+        let usage = try await Self.fetch(activityBody: activityBody, now: now)
+        let cost = try #require(usage.costUsage)
+
+        #expect(cost.daily.count == 1)
+        #expect(cost.daily.first?.date == "2026-08-23")
+        #expect(cost.last30DaysTokens == 150)
+        #expect(cost.last30DaysRequests == 2)
+        #expect(abs((cost.last30DaysCostUSD ?? -1) - 12.345) < 1e-9)
+    }
+
     @Test
     func `activity spend includes BYOK estimate without double counting reasoning tokens`() async throws {
         let activityBody = #"""
@@ -466,6 +561,20 @@ struct OpenRouterPluginGoldenTests {
         #"""
         {"data":[{
           "date":"2026-02-31", "model":"openai/gpt-5.6",
+          "prompt_tokens":1, "completion_tokens":1, "reasoning_tokens":0,
+          "requests":1, "usage":1
+        }]}
+        """#,
+        #"""
+        {"data":[{
+          "date":"2026-02-31 00:00:00", "model":"openai/gpt-5.6",
+          "prompt_tokens":1, "completion_tokens":1, "reasoning_tokens":0,
+          "requests":1, "usage":1
+        }]}
+        """#,
+        #"""
+        {"data":[{
+          "date":"2026-08-17T00:00:00", "model":"openai/gpt-5.6",
           "prompt_tokens":1, "completion_tokens":1, "reasoning_tokens":0,
           "requests":1, "usage":1
         }]}

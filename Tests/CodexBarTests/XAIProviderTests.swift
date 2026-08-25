@@ -134,12 +134,38 @@ struct XAIProviderTests {
         #expect(degraded.providerCost?.used == 10)
         #expect(degraded.details.first?.chart == nil)
         #expect(degraded.dataConfidence == .exact)
+        #expect(XAICostUsageMapping.isAnalyticsUnavailable(degraded))
+        #expect(XAICostUsageMapping.tokenSnapshot(from: degraded, historyDays: 30) == nil)
 
         let partial = try await Self.fetch(usageBody: Self.usageFixture.replacingOccurrences(
             of: #""limitReached": false"#,
             with: #""limitReached": true"#))
         #expect(partial.detailRow(label: "Last 30 days (partial)")?.value == "$1.76")
         #expect(partial.dataConfidence == .estimated)
+    }
+
+    @Test
+    func `successful empty usage history emits an empty chart`() async throws {
+        let snapshot = try await Self.fetch(usageBody: #"{"timeSeries":[],"limitReached":false}"#)
+        #expect(snapshot.details.first?.chart?.points.isEmpty == true)
+        #expect(XAICostUsageMapping.isAnalyticsUnavailable(snapshot) == false)
+        let mapped = try #require(XAICostUsageMapping.tokenSnapshot(from: snapshot, historyDays: 365))
+        #expect(mapped.daily.isEmpty)
+        #expect(mapped.last30DaysCostUSD == 0)
+        #expect(mapped.historyDays == 30)
+    }
+
+    @Test(arguments: [
+        #"{}"#,
+        #"{"timeSeries":null,"limitReached":false}"#,
+        #"{"timeSeries":[{}],"limitReached":false}"#,
+        #"{"timeSeries":[{"dataPoints":[{"timestamp":"2027-01-15T00:00:00Z"}]}],"limitReached":false}"#,
+    ])
+    func `malformed successful usage history stays unavailable`(body: String) async throws {
+        let snapshot = try await Self.fetch(usageBody: body)
+        #expect(snapshot.details.first?.chart == nil)
+        #expect(XAICostUsageMapping.isAnalyticsUnavailable(snapshot))
+        #expect(XAICostUsageMapping.tokenSnapshot(from: snapshot, historyDays: 30) == nil)
     }
 
     @Test @MainActor

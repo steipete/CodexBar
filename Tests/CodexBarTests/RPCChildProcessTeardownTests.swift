@@ -11,6 +11,101 @@ import Glibc
 @Suite(.serialized)
 struct RPCChildProcessTeardownTests {
     @Test
+    func `RPC stdin writes after child teardown fail without aborting`() throws {
+        let stdin = RPCChildProcessInput()
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/bin/cat")
+        process.standardInput = stdin.pipe
+        process.standardOutput = Pipe()
+        process.standardError = Pipe()
+        try process.run()
+
+        RPCChildProcessTeardown.terminate(process: process, stdin: stdin)
+
+        #expect(throws: (any Error).self) {
+            try stdin.write(Data("{\"id\":1}\n".utf8))
+        }
+        stdin.close()
+    }
+
+    @Test
+    func `RPC stdin writes to an unexpectedly exited child throw without aborting`() throws {
+        let stdin = RPCChildProcessInput()
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/bin/cat")
+        process.standardInput = stdin.pipe
+        process.standardOutput = Pipe()
+        process.standardError = Pipe()
+        try process.run()
+
+        process.terminate()
+        process.waitUntilExit()
+        defer { stdin.close() }
+
+        #expect(throws: (any Error).self) {
+            try stdin.write(Data("{\"id\":1}\n".utf8))
+        }
+    }
+
+    @Test
+    func `Codex RPC reports a normal failure when its child closes stdin`() async throws {
+        let scriptURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("codex-closed-stdin-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: scriptURL) }
+
+        let script = """
+        #!/usr/bin/python3 -S
+        import os
+        import sys
+
+        sys.stdin.readline()
+        os.close(0)
+        print('{"id":1,"result":{}}', flush=True)
+        os._exit(0)
+        """
+        try script.write(to: scriptURL, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: scriptURL.path)
+
+        let fetcher = UsageFetcher(
+            environment: ["CODEX_CLI_PATH": scriptURL.path],
+            initializeTimeoutSeconds: 5,
+            requestTimeoutSeconds: 2)
+
+        let error = await #expect(throws: RPCWireError.self) {
+            _ = try await fetcher.loadLatestCLIAccountSnapshot()
+        }
+        guard case let .requestFailed(message) = error else {
+            Issue.record("Expected a normal RPC request failure, got \(String(describing: error))")
+            return
+        }
+        #expect(message.contains("stdin closed"))
+    }
+
+    @Test
+    func `Grok RPC requests after child shutdown fail without aborting`() async throws {
+        let client = try GrokRPCClient(
+            executable: "/bin/cat",
+            arguments: [],
+            environment: [
+                "PATH": "/usr/bin:/bin",
+                "GROK_CLI_PATH": "/bin/cat",
+            ],
+            initializeTimeoutSeconds: 5,
+            requestTimeoutSeconds: 2)
+
+        client.shutdown()
+
+        let error = await #expect(throws: GrokRPCError.self) {
+            try await client.initialize()
+        }
+        guard case let .requestFailed(message) = error else {
+            Issue.record("Expected a normal Grok request failure, got \(String(describing: error))")
+            return
+        }
+        #expect(message.contains("stdin closed"))
+    }
+
+    @Test
     func `Codex RPC shutdown kills an app-server child that ignores SIGTERM`() async throws {
         let temporaryDirectory = FileManager.default.temporaryDirectory
         let scriptURL = temporaryDirectory.appendingPathComponent("codex-stub-\(UUID().uuidString)")

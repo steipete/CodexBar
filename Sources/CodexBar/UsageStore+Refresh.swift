@@ -40,7 +40,9 @@ extension UsageStore {
         let expectedGuard: CodexAccountScopedRefreshGuard
         let limitResetOwnerKey: CodexLimitResetOwnerKey?
         let previousSnapshot: UsageSnapshot?
+        let previousSourceLabel: String?
         let missingWindowBackfillSnapshot: UsageSnapshot?
+        let pendingWeeklyResetCandidate: CodexWeeklyResetPublicationCandidate?
     }
 
     private struct ClaudeRefreshReconciliation {
@@ -307,6 +309,7 @@ extension UsageStore {
             self.lastKnownResetSnapshots[.codex] = hydratedSnapshot
             self.errors[.codex] = hydratedPrior.error
             self.lastSourceLabels[.codex] = hydratedPrior.sourceLabel
+            self.publishHydratedCodexCreditsIfNeeded(from: hydratedPrior.credits, accountKey: expectedGuard.accountKey)
             self.lastCodexUsagePublicationGuard = expectedGuard
             self.lastCodexAccountScopedRefreshGuard = expectedGuard
         }
@@ -327,7 +330,9 @@ extension UsageStore {
             expectedGuard: expectedGuard,
             limitResetOwnerKey: ownerKey,
             previousSnapshot: previousSnapshot,
-            missingWindowBackfillSnapshot: missingWindowBackfillSnapshot)
+            previousSourceLabel: hydratedPrior?.sourceLabel ?? self.lastSourceLabels[.codex],
+            missingWindowBackfillSnapshot: missingWindowBackfillSnapshot,
+            pendingWeeklyResetCandidate: hydratedPrior?.weeklyResetCandidate)
     }
 
     /// Runs one provider fetch pass. A nonnil result keeps the retry inside the current coordinator request, so
@@ -434,7 +439,9 @@ extension UsageStore {
             initialOutcome: initialOutcome,
             expectedGuard: codexExpectedGuard,
             previousSnapshot: previousCodexSnapshot,
+            previousSourceLabel: codexPreparation?.previousSourceLabel,
             missingWindowBackfillSnapshot: codexMissingWindowBackfillSnapshot,
+            pendingWeeklyResetCandidate: codexPreparation?.pendingWeeklyResetCandidate,
             fetchOutcome: fetchOutcome,
             generation: generation))
         else {
@@ -746,6 +753,11 @@ extension UsageStore {
                 self.publishTokenSnapshot(tokenSnapshot, for: provider)
                 self.tokenErrors[provider.instanceID] = nil
                 self.tokenFailureGates[provider.instanceID]?.recordSuccess()
+            } else if provider == .xai, XAICostUsageMapping.isAnalyticsUnavailable(backfilled) {
+                // Provider-specific by design: prepaid balance without usage history is unavailable,
+                // not a confirmed-empty $0 spend row.
+                self.clearTokenSnapshot(for: provider)
+                self.tokenErrors[provider.instanceID] = nil
             } else if Self.tokenCostRequiresProviderSnapshot(provider) {
                 self.publishConfirmedEmptyTokenSnapshot(for: provider)
                 self.tokenErrors[provider.instanceID] = nil
@@ -942,7 +954,8 @@ extension UsageStore {
             account: account,
             snapshot: relabeled,
             error: nil,
-            sourceLabel: sourceLabel)]
+            sourceLabel: sourceLabel,
+            credits: self.credits)]
         self.codexAccountSnapshots = currentSnapshots
         self.codexAccountUsageSnapshotStore?.store(currentSnapshots)
     }
@@ -1321,6 +1334,13 @@ extension UsageStore {
         attempts: [ProviderFetchAttempt],
         context: ProviderRefreshOutcomeContext) async
     {
+        // Provider-specific by design: Grok's local fallback scans off the main thread when remote billing fails.
+        let grokLocalFallback: CostUsageTokenSnapshot? = if provider == .grok {
+            try? await self.loadGrokLocalTokenSnapshot(historyDays: SpendDashboardSource.scanDays)
+        } else {
+            nil
+        }
+        guard !Task.isCancelled else { return }
         let shouldNotifyPermissionPrompt = Self.isPermissionPromptWaiting(error)
         await MainActor.run {
             guard self.isCurrentProviderRefreshGeneration(provider, generation: context.generation) else { return }
@@ -1440,7 +1460,15 @@ extension UsageStore {
                 self.errors[provider.instanceID] = error.localizedDescription
                 if !preservesPriorData, !preservesClaudeWebSessionFailure {
                     self.snapshots.removeValue(forKey: provider.instanceID)
-                    if Self.tokenCostRequiresProviderSnapshot(provider) {
+                    // Provider-specific by design: local ~/.grok/sessions tokens remain readable
+                    // when the remote billing probe fails.
+                    if provider == .grok {
+                        if let local = grokLocalFallback {
+                            self.publishTokenSnapshot(local, for: provider)
+                        } else {
+                            self.clearTokenSnapshot(for: provider)
+                        }
+                    } else if Self.tokenCostRequiresProviderSnapshot(provider) {
                         self.clearTokenSnapshot(for: provider)
                     }
                 }

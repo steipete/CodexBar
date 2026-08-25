@@ -31,6 +31,16 @@ struct CLIServeWebUITests {
     }
 
     @Test
+    func `web ui renders account windows alongside an error note`() {
+        let html = self.html
+        let errorAppend = "card.append(node(\"p\", \"error-message\", account.error));"
+        #expect(html.contains(errorAppend))
+        #expect(!html.contains(errorAppend + "\n            return card;"))
+        #expect(html.contains(
+            "for (const window of visibleWindows(account.windows)) windows.append(renderWindow(window))"))
+    }
+
+    @Test
     func `web ui skips windows the snapshot marks idle`() {
         let html = self.html
         // The producer decides which lanes are idle, so the page must not repeat any

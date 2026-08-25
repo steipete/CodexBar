@@ -696,33 +696,29 @@ extension ProviderSettingsDescriptorTests {
     }
 
     @Test
-    func `alibaba token plan legacy unset source stays web only until explicit auto`() throws {
+    func `alibaba token plan unset source defaults to CLI first Auto`() throws {
         let fixture = try self.makeSettingsFixture(suite: "ProviderSettingsDescriptorTests-alibaba-token-plan-legacy")
         let implementation = AlibabaTokenPlanProviderImplementation()
         let context = fixture.settingsContext(provider: .alibabatokenplan)
 
-        // Configs that predate the Bailian CLI source keep an unset source and
-        // must resolve to Web-only: no CLI fallback without an explicit choice.
         #expect(fixture.settings.configSnapshot.providerConfig(for: .alibabatokenplan)?.source == nil)
-        #expect(fixture.settings.alibabaTokenPlanUsageDataSource == .web)
+        #expect(fixture.settings.alibabaTokenPlanUsageDataSource == .auto)
         #expect(implementation.sourceMode(context: ProviderSourceModeContext(
             provider: .alibabatokenplan,
-            settings: fixture.settings)) == .web)
+            settings: fixture.settings)) == .auto)
         #expect(implementation.defaultSourceLabel(context: ProviderSourceLabelContext(
             provider: .alibabatokenplan,
             settings: fixture.settings,
             store: fixture.store,
-            descriptor: ProviderDescriptorRegistry.descriptor(for: .alibabatokenplan))) == "web")
+            descriptor: ProviderDescriptorRegistry.descriptor(for: .alibabatokenplan))) == "auto")
 
         let usagePicker = try #require(implementation.settingsPickers(context: context)
             .first(where: { $0.id == "alibaba-token-plan-usage-source" }))
-        #expect(usagePicker.binding.wrappedValue == ProviderSourceMode.web.rawValue)
+        #expect(usagePicker.binding.wrappedValue == ProviderSourceMode.auto.rawValue)
 
-        // Selecting Auto persists `.auto` so the Web -> CLI fallback is a
-        // deliberate opt-in rather than the legacy default.
-        usagePicker.binding.wrappedValue = ProviderSourceMode.auto.rawValue
-        #expect(fixture.settings.alibabaTokenPlanUsageDataSource == .auto)
-        #expect(fixture.settings.configSnapshot.providerConfig(for: .alibabatokenplan)?.source == .auto)
+        usagePicker.binding.wrappedValue = ProviderSourceMode.web.rawValue
+        #expect(fixture.settings.alibabaTokenPlanUsageDataSource == .web)
+        #expect(fixture.settings.configSnapshot.providerConfig(for: .alibabatokenplan)?.source == .web)
     }
 
     @Test

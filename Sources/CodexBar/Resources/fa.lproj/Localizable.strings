@@ -661,6 +661,8 @@
 "section_keyboard_shortcut" = "میانبر کیبورد";
 "open_menu_shortcut_title" = "منوی باز";
 "open_menu_shortcut_subtitle" = "منوی نوار منو را از هر جایی فعال کنید.";
+"record_shortcut" = "ثبت میانبر";
+"press_shortcut" = "میانبر را فشار دهید";
 "install_cli" = "نصب CLI";
 "install_cli_subtitle" = "Symlink CodexBarCLI به /usr/local/bin و /opt/homebrew/bin به عنوان codexbar.";
 "cli_not_found" = "CodexBarCLI در بسته برنامه ها یافت نمی شود.";
@@ -939,6 +941,7 @@
 "Monthly" = "ماهانه";
 "Sonnet" = "سونت";
 "Overages" = "اضافه هزینه ها";
+"Overage" = "اضافه هزینه";
 "Activity" = "فعالیت ها";
 "Copied" = "کپی شده";
 "Copy error" = "خطای کپی";
@@ -949,6 +952,7 @@
 "Balance updates in near-real time (up to 5 min lag)" = "به روزرسانی تعادل تقریبا در زمان واقعی (تا ۵ دقیقه تأخیر)";
 "Daily billing data finalizes at 07:00 UTC" = "داده های صورتحساب روزانه در ساعت ۰۷:۰۰ نهایی می شود UTC";
 "%@ of %@ credits left" = "%@ از %@ اعتبار باقی مانده";
+"of %@" = "از %@";
 "%@ of %@ bonus credits left" = "%@ از %@ اعتبار اضافی باقی مانده";
 "%@ / %@ (%@ remaining)" = "%@ / %@ (%@ باقی مانده)";
 "%@/%@ left" = "%@/%@ باقی مانده";
@@ -960,6 +964,7 @@
 "Full in ~1 regen" = "بازیابی کامل ~۱";
 "Full in ~%.0f regens" = "بازسازی های کامل ~%.0f";
 "Overage usage" = "استفاده بیش از حد";
+"Overage credits left" = "اعتبار اضافی باقی‌مانده";
 "Overage cost" = "هزینه اضافی";
 "credits" = "اعتبارات";
 "Zen balance" = "تعادل ذن";
@@ -1375,6 +1380,7 @@
 "menu_bar_layout_empty_line" = "نشانه را اینجا رها کنید";
 "menu_bar_layout_line" = "خط %d";
 "menu_bar_layout_drag_remove" = "برای حذف به اینجا بکشید";
+"menu_bar_layout_remove_selected" = "حذف انتخاب‌شده";
 "menu_bar_layout_size" = "اندازه";
 "menu_bar_layout_size_small" = "کوچک";
 "menu_bar_layout_size_regular" = "معمولی";
@@ -1498,3 +1504,35 @@
 "Copy JSON" = "کپی JSON";
 "Sources" = "Sources";
 "OpenCodex" = "OpenCodex";
+
+"menu_bar_layout_token_conditional" = "شرطی";
+"menu_bar_layout_group_conditionals" = "شروط";
+"menu_bar_layout_conditional_add" = "شرطی جدید";
+"menu_bar_layout_conditional_edit" = "ویرایش شرطی";
+"menu_bar_layout_conditional_remove" = "حذف از کتابخانه";
+"menu_bar_layout_conditional_save" = "ذخیره";
+"menu_bar_layout_conditional_if" = "اگر";
+"menu_bar_layout_conditional_then" = "سپس نمایش بده";
+"menu_bar_layout_conditional_else" = "در غیر این صورت نمایش بده";
+"menu_bar_layout_conditional_and" = "و";
+"menu_bar_layout_conditional_none" = "هنوز شرطی وجود ندارد";
+"menu_bar_layout_conditional_hide" = "پنهان کن";
+"menu_bar_layout_conditional_name" = "نام";
+"menu_bar_layout_conditional_name_placeholder" = "مثلاً: بررسی جلسه";
+"menu_bar_layout_conditional_name_error" = "نامی منحصربهفرد وارد کنید";
+"menu_bar_layout_conditional_used" = "استفاده‌شده";
+"menu_bar_layout_conditional_remaining" = "باقی‌مانده";
+"menu_bar_layout_conditional_metric_resets_in" = "بازنشانی %@ در";
+"menu_bar_layout_conditional_metric_scoped_weekly" = "هفتگی با دامنه";
+"menu_bar_layout_conditional_duplicate" = "تکرار";
+"menu_bar_layout_conditional_or" = "یا";
+"menu_bar_layout_conditional_add_condition" = "افزودن شرط";
+"menu_bar_layout_conditional_summary" = "اگر %1$@ سپس %2$@ در غیر این صورت %3$@";
+"menu_bar_layout_conditional_copy_name" = "%@ (رونوشت)";
+"menu_bar_layout_conditional_copy_name_numbered" = "%1$@ (رونوشت %2$d)";
+"menu_bar_layout_conditional_unavailable" = "شرط در دسترس نیست";
+"menu_bar_layout_conditional_default_session_busy" = "بیش از ۵۰٪ نشست مصرف شده";
+"menu_bar_layout_conditional_default_weekly_high" = "بیش از ۹۰٪ هفته مصرف شده";
+"menu_bar_layout_conditional_default_session_spent" = "نشست تقریباً تمام شده";
+"menu_bar_layout_conditional_default_either_high" = "نشست یا هفته در سطح بالا";
+"menu_bar_layout_conditional_default_scoped_weekly" = "پنجره هفتگی مدل بیش از ۶۰٪";

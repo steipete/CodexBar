@@ -96,6 +96,132 @@ struct CodexProfileHomeAccountTests {
 
     @Test
     @MainActor
+    func `profile home selection immediately hides the previous account cost dashboard`() throws {
+        let fixture = try Self.makeProfileHomeCostFixture(suite: "CodexProfileHomeAccountTests-cost-selection")
+        defer { fixture.cleanup() }
+
+        let profileASnapshot = Self.costSnapshot(cost: 12, tokens: 1200, model: "fictional-profile-a")
+        fixture.store._setTokenSnapshotForTesting(profileASnapshot, provider: .codex)
+        let originalModel = ProvidersPane(settings: fixture.settings, store: fixture.store)
+            ._test_menuCardModel(for: .codex)
+
+        #expect(originalModel.tokenUsage?.sessionLine.contains("$12") == true)
+        #expect(originalModel.inlineUsageDashboard?.points.isEmpty == false)
+        #expect(originalModel.inlineUsageDashboard?.detailLines.contains { $0.contains("fictional-profile-a") } == true)
+
+        fixture.settings.selectDisplayedCodexVisibleAccount(fixture.secondAccount)
+
+        let switchedModel = ProvidersPane(settings: fixture.settings, store: fixture.store)
+            ._test_menuCardModel(for: .codex)
+
+        #expect(fixture.store.tokenSnapshots[.codex] == profileASnapshot)
+        #expect(fixture.store.tokenSnapshotPublicationForCurrentProviderConfig(for: .codex) == nil)
+        #expect(fixture.store.tokenSnapshot(for: .codex) == nil)
+        #expect(switchedModel.email == "profile-b@example.com")
+        #expect(switchedModel.tokenUsage == nil)
+        #expect(switchedModel.inlineUsageDashboard == nil)
+    }
+
+    @Test
+    @MainActor
+    func `profile home transition clears only codex cost state and preserves unrelated providers`() throws {
+        let fixture = try Self.makeProfileHomeCostFixture(suite: "CodexProfileHomeAccountTests-cost-invalidation")
+        defer { fixture.cleanup() }
+
+        let codexSnapshot = Self.costSnapshot(cost: 12, tokens: 1200, model: "fictional-profile-a")
+        let claudeSnapshot = Self.costSnapshot(cost: 34, tokens: 3400, model: "fictional-claude")
+        fixture.store._setTokenSnapshotForTesting(codexSnapshot, provider: .codex)
+        fixture.store._setTokenSnapshotForTesting(claudeSnapshot, provider: .claude)
+        fixture.store.tokenErrors[.codex] = "Profile A scan failed"
+        fixture.store.lastTokenFetchAt[.codex] = Date()
+        fixture.store.lastTokenFetchScope[.codex] = fixture.store.tokenSnapshotScopeSignature(for: .codex)
+        fixture.store.lastCodexAccountScopedRefreshGuard = fixture.store
+            .currentCodexAccountScopedRefreshGuard(preferCurrentSnapshot: false)
+
+        fixture.settings.selectDisplayedCodexVisibleAccount(fixture.secondAccount)
+        let didInvalidate = fixture.store.prepareCodexAccountScopedRefreshIfNeeded()
+
+        #expect(didInvalidate)
+        #expect(fixture.store.tokenSnapshots[.codex] == nil)
+        #expect(fixture.store.tokenSnapshotPublications[.codex] == nil)
+        #expect(fixture.store.tokenError(for: .codex) == nil)
+        #expect(fixture.store.tokenLastAttemptAt(for: .codex) == nil)
+        #expect(fixture.store.lastTokenFetchScope[.codex] == nil)
+        #expect(fixture.store.tokenSnapshot(for: .claude) == claudeSnapshot)
+        #expect(fixture.store.tokenSnapshotForCurrentProviderConfig(for: .claude)?.snapshot == claudeSnapshot)
+    }
+
+    @Test
+    @MainActor
+    func `profile home cost dashboard stays empty during scan and then publishes selected profile`() async throws {
+        let fixture = try Self.makeProfileHomeCostFixture(suite: "CodexProfileHomeAccountTests-cost-scan")
+        defer { fixture.cleanup() }
+
+        let profileASnapshot = Self.costSnapshot(cost: 12, tokens: 1200, model: "fictional-profile-a")
+        let profileBSnapshot = Self.costSnapshot(cost: 34, tokens: 3400, model: "fictional-profile-b")
+        fixture.store._setTokenSnapshotForTesting(profileASnapshot, provider: .codex)
+        fixture.store.lastCodexAccountScopedRefreshGuard = fixture.store
+            .currentCodexAccountScopedRefreshGuard(preferCurrentSnapshot: false)
+        let gate = CodexProfileHomeCostScanGate()
+        fixture.store._test_tokenUsageSnapshotLoaderOverride = { provider, _, _, homePath, _ in
+            #expect(provider == .codex)
+            #expect(homePath == fixture.secondHome.path)
+            return await gate.load()
+        }
+
+        fixture.settings.selectDisplayedCodexVisibleAccount(fixture.secondAccount)
+        fixture.store.prepareCodexAccountScopedRefreshIfNeeded()
+        let refresh = Task { @MainActor in
+            await fixture.store.refreshTokenUsageNow(for: .codex, force: true)
+        }
+        await gate.waitUntilStarted()
+
+        let loadingModel = ProvidersPane(settings: fixture.settings, store: fixture.store)
+            ._test_menuCardModel(for: .codex)
+        #expect(fixture.store.isTokenRefreshInFlight(for: .codex))
+        #expect(loadingModel.tokenUsage == nil)
+        #expect(loadingModel.inlineUsageDashboard == nil)
+
+        await gate.complete(with: profileBSnapshot)
+        await refresh.value
+
+        let completedModel = ProvidersPane(settings: fixture.settings, store: fixture.store)
+            ._test_menuCardModel(for: .codex)
+        #expect(fixture.store.tokenSnapshot(for: .codex) == profileBSnapshot)
+        #expect(completedModel.tokenUsage?.sessionLine.contains("$34") == true)
+        #expect(completedModel.tokenUsage?.sessionLine.contains("$12") == false)
+        #expect(completedModel.inlineUsageDashboard?.points.map(\.value) == [34])
+        #expect(completedModel.inlineUsageDashboard?.detailLines
+            .contains { $0.contains("fictional-profile-b") } == true)
+        #expect(completedModel.inlineUsageDashboard?.detailLines
+            .contains { $0.contains("fictional-profile-a") } == false)
+    }
+
+    @Test
+    @MainActor
+    func `ambient codex ledger remains visible when profile home selection changes`() throws {
+        let fixture = try Self.makeProfileHomeCostFixture(
+            suite: "CodexProfileHomeAccountTests-ambient-ledger",
+            localLedgerEnabled: true)
+        defer { fixture.cleanup() }
+
+        let ambientSnapshot = Self.costSnapshot(cost: 56, tokens: 5600, model: "fictional-ambient")
+        fixture.store._setTokenSnapshotForTesting(ambientSnapshot, provider: .codex)
+        fixture.store.lastCodexAccountScopedRefreshGuard = fixture.store
+            .currentCodexAccountScopedRefreshGuard(preferCurrentSnapshot: false)
+
+        fixture.settings.selectDisplayedCodexVisibleAccount(fixture.secondAccount)
+        fixture.store.prepareCodexAccountScopedRefreshIfNeeded()
+
+        let model = ProvidersPane(settings: fixture.settings, store: fixture.store)
+            ._test_menuCardModel(for: .codex)
+        #expect(fixture.store.tokenSnapshot(for: .codex) == ambientSnapshot)
+        #expect(model.tokenUsage?.sessionLine.contains("$56") == true)
+        #expect(model.inlineUsageDashboard?.points.map(\.value) == [56])
+    }
+
+    @Test
+    @MainActor
     func `removed profile home falls back without routing stale path`() throws {
         let suite = "CodexProfileHomeAccountTests-stale-routing"
         let settings = try Self.makeSettings(suite: suite)
@@ -351,6 +477,92 @@ struct CodexProfileHomeAccountTests {
         #expect(settings.codexActiveSource == .managedAccount(id: managedAccount.id))
     }
 
+    @MainActor
+    private struct ProfileHomeCostFixture {
+        let settings: SettingsStore
+        let store: UsageStore
+        let root: URL
+        let secondHome: URL
+        let secondAccount: CodexVisibleAccount
+
+        func cleanup() {
+            self.store._test_tokenUsageSnapshotLoaderOverride = nil
+            self.settings._test_codexReconciliationEnvironment = nil
+            try? FileManager.default.removeItem(at: self.root)
+        }
+    }
+
+    @MainActor
+    private static func makeProfileHomeCostFixture(
+        suite: String,
+        localLedgerEnabled: Bool = false) throws -> ProfileHomeCostFixture
+    {
+        let settings = try Self.makeSettings(suite: suite)
+        settings.costUsageEnabled = true
+        settings.costSummaryDisplayStyle = .both
+        settings.codexLocalSessionCostLedgerEnabled = localLedgerEnabled
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let firstHome = root.appendingPathComponent("profile-a", isDirectory: true)
+        let secondHome = root.appendingPathComponent("profile-b", isDirectory: true)
+        try Self.writeCodexAuthFile(
+            homeURL: firstHome,
+            email: "profile-a@example.com",
+            plan: "pro",
+            accountID: "acct-profile-a")
+        try Self.writeCodexAuthFile(
+            homeURL: secondHome,
+            email: "profile-b@example.com",
+            plan: "pro",
+            accountID: "acct-profile-b")
+        let environment = [
+            "HOME": root.path,
+            "CODEX_HOME": root.appendingPathComponent("missing-live-home", isDirectory: true).path,
+        ]
+        settings._test_codexReconciliationEnvironment = environment
+        settings.updateProviderConfig(provider: .codex) { entry in
+            entry.codexProfileHomePaths = [firstHome.path, secondHome.path]
+            entry.codexActiveSource = .profileHome(path: firstHome.path)
+        }
+        let metadata = try #require(ProviderRegistry.shared.metadata[.codex])
+        settings.setProviderEnabled(provider: .codex, metadata: metadata, enabled: true)
+        let secondAccount = try #require(settings.codexVisibleAccounts.first {
+            $0.email == "profile-b@example.com"
+        })
+        let store = UsageStore(
+            fetcher: UsageFetcher(environment: environment),
+            browserDetection: BrowserDetection(homeDirectory: root.path, cacheTTL: 0),
+            settings: settings,
+            startupBehavior: .testing,
+            environmentBase: environment)
+        return ProfileHomeCostFixture(
+            settings: settings,
+            store: store,
+            root: root,
+            secondHome: secondHome,
+            secondAccount: secondAccount)
+    }
+
+    private static func costSnapshot(cost: Double, tokens: Int, model: String) -> CostUsageTokenSnapshot {
+        CostUsageTokenSnapshot(
+            sessionTokens: tokens,
+            sessionCostUSD: cost,
+            last30DaysTokens: tokens,
+            last30DaysCostUSD: cost,
+            daily: [CostUsageDailyReport.Entry(
+                date: "2026-08-21",
+                inputTokens: tokens / 2,
+                outputTokens: tokens / 2,
+                totalTokens: tokens,
+                costUSD: cost,
+                modelsUsed: [model],
+                modelBreakdowns: [CostUsageDailyReport.ModelBreakdown(
+                    modelName: model,
+                    costUSD: cost,
+                    totalTokens: tokens)])],
+            updatedAt: Date())
+    }
+
     private static func writeCodexAuthFile(
         homeURL: URL,
         email: String,
@@ -392,5 +604,32 @@ struct CodexProfileHomeAccountTests {
         }
 
         return "\(base64URL(header)).\(base64URL(payload))."
+    }
+}
+
+private actor CodexProfileHomeCostScanGate {
+    private var started = false
+    private var startedContinuation: CheckedContinuation<Void, Never>?
+    private var snapshotContinuation: CheckedContinuation<CostUsageTokenSnapshot, Never>?
+
+    func load() async -> CostUsageTokenSnapshot {
+        self.started = true
+        self.startedContinuation?.resume()
+        self.startedContinuation = nil
+        return await withCheckedContinuation { continuation in
+            self.snapshotContinuation = continuation
+        }
+    }
+
+    func waitUntilStarted() async {
+        guard !self.started else { return }
+        await withCheckedContinuation { continuation in
+            self.startedContinuation = continuation
+        }
+    }
+
+    func complete(with snapshot: CostUsageTokenSnapshot) {
+        self.snapshotContinuation?.resume(returning: snapshot)
+        self.snapshotContinuation = nil
     }
 }

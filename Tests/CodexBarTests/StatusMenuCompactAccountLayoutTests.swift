@@ -159,4 +159,61 @@ final class StatusMenuCompactAccountLayoutTests: XCTestCase {
         XCTAssertNotNil(projected[3].error)
         XCTAssertNil(projected[0].error)
     }
+
+    func test_codexAccountProjectionIncludesMonthlyCreditInPlanningSnapshot() {
+        let account = CodexVisibleAccount(
+            id: "biz-1",
+            email: "biz@example.com",
+            storedAccountID: nil,
+            selectionSource: .liveSystem,
+            isActive: false,
+            isLive: true,
+            canReauthenticate: false,
+            canRemove: false)
+        let now = Date()
+        let credits = CreditsSnapshot(
+            remaining: 0,
+            events: [],
+            updatedAt: now,
+            codexCreditLimit: CodexCreditLimitSnapshot(
+                used: 95,
+                limit: 100,
+                remainingPercent: 5,
+                resetsAt: nil,
+                updatedAt: now))
+        let snapshot = UsageSnapshot(
+            primary: nil,
+            secondary: nil,
+            tertiary: nil,
+            updatedAt: now,
+            identity: ProviderIdentitySnapshot(
+                providerID: .codex,
+                accountEmail: "biz@example.com",
+                accountOrganization: "Team",
+                loginMethod: "business"))
+        let display = CodexAccountMenuDisplay(
+            accounts: [account],
+            snapshots: [
+                CodexAccountUsageSnapshot(
+                    account: account,
+                    snapshot: snapshot,
+                    error: nil,
+                    sourceLabel: "test",
+                    credits: credits),
+            ],
+            activeVisibleAccountID: nil,
+            layout: .stacked)
+
+        let shown = StatusItemController.projectedCodexAccounts(
+            display: display,
+            includeOptionalCredits: true)
+        XCTAssertEqual(AccountMenuLayoutPlanner.headroomPercent(for: shown[0]), 5)
+        XCTAssertEqual(shown[0].snapshot?.tertiary?.usedPercent, 95)
+
+        let hidden = StatusItemController.projectedCodexAccounts(
+            display: display,
+            includeOptionalCredits: false)
+        XCTAssertNil(AccountMenuLayoutPlanner.headroomPercent(for: hidden[0]))
+        XCTAssertNil(hidden[0].snapshot?.tertiary)
+    }
 }

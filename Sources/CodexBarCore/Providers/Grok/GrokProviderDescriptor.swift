@@ -85,8 +85,11 @@ public enum GrokProviderDescriptor {
                     ProviderColor(hex: 0xFDFDFD),
                 ]),
             tokenCost: ProviderTokenCostConfig(
-                supportsTokenCost: false,
-                noDataMessage: { "Grok cost summary is not supported yet." }),
+                supportsTokenCost: true,
+                noDataMessage: {
+                    "Grok token totals come from local ~/.grok/sessions logs. "
+                        + "Subscription credits are not converted to dollars."
+                }),
             pace: ProviderPaceCapability(
                 resetWindowPace: .custom { window, now in
                     guard Self.primaryLabel(window: window, now: now) == "Weekly",
@@ -236,11 +239,11 @@ struct GrokOAuthFetchStrategy: ProviderFetchStrategy {
                 return (snapshot, "grok-web", true)
             case .proxy:
                 let snapshot = try await GrokCreditsProxyFetcher.fetch(credentials: credentials)
-                return (snapshot, "grok-cli-proxy", true)
+                return try await Self.resolvingUnknownUsage(snapshot, credentials: credentials)
             case .proxyThenGrpc:
                 do {
                     let snapshot = try await GrokCreditsProxyFetcher.fetch(credentials: credentials)
-                    return (snapshot, "grok-cli-proxy", true)
+                    return try await Self.resolvingUnknownUsage(snapshot, credentials: credentials)
                 } catch is CancellationError {
                     throw CancellationError()
                 } catch let error as URLError where error.code == .cancelled {
@@ -250,6 +253,57 @@ struct GrokOAuthFetchStrategy: ProviderFetchStrategy {
                     return (snapshot, "grok-web", true)
                 }
             }
+        }
+    }
+
+    /// A credits payload that carries a billing period but no usage value is a successful
+    /// response with unknown usage (#3157), and an unknown percent produces no rate window at
+    /// all. Plans whose credits payload never publishes `creditUsagePercent` would therefore
+    /// lose the usage bar entirely, so ask the grok.com bearer surface before that empty answer
+    /// ends the fetch. This stays on the auth-file token: no browser cookie import is involved.
+    /// grok.com remains best-effort — when it also has no percent, the proxy's period and plan
+    /// metadata are kept with usage still unknown.
+    ///
+    /// Two properties keep the enrichment from costing more than it adds. Only a wire-published
+    /// percent is adopted, because the grok.com parser reports its own no-usage-yet frame as 0
+    /// without any percentage on the wire and promoting that would rebuild the fabricated 0%
+    /// #3157 removed. And the request runs under a short deadline: period-only payloads recur on
+    /// every refresh for affected plans, so a grok.com outage must not hold back a proxy snapshot
+    /// that is already valid for the caller's remaining fields.
+    static let unknownUsageEnrichmentBudget: Duration = .seconds(6)
+
+    static func resolvingUnknownUsage(
+        _ proxySnapshot: GrokWebBillingSnapshot,
+        credentials: GrokCredentials,
+        budget: Duration = GrokOAuthFetchStrategy.unknownUsageEnrichmentBudget,
+        grpcBilling: @escaping GrokWebFetchStrategy.ProxyBillingFetch = {
+            try await GrokWebBillingFetcher.fetch(credentials: $0)
+        }) async throws -> (
+        snapshot: GrokWebBillingSnapshot,
+        sourceLabel: String,
+        authenticatedByAuthFile: Bool)
+    {
+        guard proxySnapshot.usedPercent == nil else {
+            return (proxySnapshot, "grok-cli-proxy", true)
+        }
+        let proxyAnswer = (proxySnapshot, "grok-cli-proxy", true)
+        let join = BoundedTaskJoin(sourceTask: Task { try await grpcBilling(credentials) })
+        switch await join.value(joinGrace: budget) {
+        case let .value(grpcSnapshot):
+            guard grpcSnapshot.usedPercent != nil, grpcSnapshot.usedPercentIsWirePublished else {
+                return proxyAnswer
+            }
+            return (grpcSnapshot.completing(with: proxySnapshot), "grok-web", true)
+        case .timedOut:
+            return proxyAnswer
+        case let .failure(error):
+            if error is CancellationError {
+                throw CancellationError()
+            }
+            if let urlError = error as? URLError, urlError.code == .cancelled {
+                throw urlError
+            }
+            return proxyAnswer
         }
     }
 
@@ -331,9 +385,9 @@ struct GrokWebFetchStrategy: ProviderFetchStrategy {
                 throw GrokWebBillingError.teamUsageUnsupported
             }
             let subscriptionTier = try await resolveSettingsTier(authState)
-            let identitySnapshot = GrokStatusProbe.identityOnlySnapshot(
+            let identitySnapshot = try await GrokStatusProbe.identityOnlySnapshot(
                 credentials: authState,
-                localSummary: GrokLocalSessionScanner.summarize(env: context.env),
+                localSummary: GrokLocalSessionScanner.summarizeOffMainThread(env: context.env),
                 cliVersion: GrokStatusProbe.detectVersion(env: context.env),
                 subscriptionTier: subscriptionTier)
             return self.makeResult(
@@ -353,20 +407,21 @@ struct GrokWebFetchStrategy: ProviderFetchStrategy {
                 nil
             }
         let enrichedBilling = webBilling.applying(subscriptionTier: subscriptionTier)
-        let snapshot = GrokUsageSnapshot(
+        let snapshot = try await GrokUsageSnapshot(
             billing: nil,
             webBilling: enrichedBilling,
             credentials: GrokStatusProbe.credentialsForSnapshot(
                 credentials: credentials,
                 billing: nil,
                 webBilling: enrichedBilling),
-            localSummary: GrokLocalSessionScanner.summarize(env: context.env),
+            localSummary: GrokLocalSessionScanner.summarizeOffMainThread(env: context.env),
             cliVersion: GrokStatusProbe.detectVersion(env: context.env),
             updatedAt: Date(),
             subscriptionTier: subscriptionTier ?? enrichedBilling.subscriptionTier)
         return self.makeResult(
             usage: snapshot.toUsageSnapshot(),
-            sourceLabel: sourceLabel)
+            sourceLabel: sourceLabel,
+            diagnostic: enrichedBilling.usedPercent == nil ? GrokStatusProbe.usageUnavailableMessage : nil)
     }
 
     func fetchWebBilling(
