@@ -594,13 +594,13 @@ extension CostUsageStoreTests {
         reread.lastScanUnixMs = 2000
         let interloper = try SQLiteTestConnection(url: store.databaseURL)
         var checkpointError: Error?
-        CostUsageStore.identicalContentPreLockCheckpointForTesting = {
+        CostUsageStore.identicalContentPreLockCheckpointForTesting = (store.databaseURL, {
             do {
                 try interloper.execute("UPDATE files SET parsed_bytes = 999 WHERE path = '\(path)'")
             } catch {
                 checkpointError = error
             }
-        }
+        })
         defer { CostUsageStore.identicalContentPreLockCheckpointForTesting = nil }
 
         let result = save(reread)

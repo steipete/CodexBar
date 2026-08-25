@@ -979,16 +979,10 @@ extension UsageMenuCardView.Model {
         let providerCostStyle = input.snapshot.map {
             presentation.cost(snapshot: $0).menuCardStyle
         } ?? .generic
-        // Fireworks reports rated billing spend directly, rather than locally scanned cost
-        // history. Its provider snapshot has no budget limit, so keep this spend visible even
-        // when the optional Cost summary setting is disabled.
-        let isUnboundedFireworksBillingSpend = input.provider == .fireworks &&
-            input.snapshot?.providerCost?.period == "Last 30 days" &&
-            (input.snapshot?.providerCost?.limit ?? 1) <= 0
         let providerCostFollowsSummaryStyle = Self.providerCostFollowsSummaryStyle(
             cost: input.snapshot?.providerCost,
             style: providerCostStyle,
-            isClaudeAdminAPI: isClaudeAdminAPI) && !isUnboundedFireworksBillingSpend
+            isClaudeAdminAPI: isClaudeAdminAPI) && !menuCard.providerCostIsRequiredUsage
         let providerCost: ProviderCostSection? = if !showsProviderCost ||
             (providerCostFollowsSummaryStyle && !input.costSummaryInlineEnabled)
         {

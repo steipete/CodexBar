@@ -3,9 +3,16 @@
 ## 0.55.1 — Unreleased
 
 ### Fixed
+- Fireworks: show real 30-day API billing spend even when local cost summaries are disabled (#3183, #3185). Thanks @dhalarewich!
 - OpenRouter: accept timestamp-shaped Activity API dates so exact 30-day spend history loads again (#3174).
 - Amp: parse bold Markdown usage labels from the latest CLI while preserving compatibility with older plain-text output (#3171).
 - OpenCode Go: expose a Monthly % lane token for custom menu bar layouts once the monthly window has been observed (#3175).
+
+### Performance
+- OpenCodex: parse only newly appended usage-log entries instead of rebuilding the entire cache on every refresh, cutting memory use while preserving compatibility with older app versions (#3140). Thanks @olddonkey!
+
+### Localization
+- Turkish: improve translations throughout settings and provider views, including the previously untranslated iCloud sync section (#3178). Thanks @husodrn46!
 
 ## 0.55.0 — 2026-08-24
 

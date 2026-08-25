@@ -86,7 +86,11 @@ extension CostUsageStore {
                 requestedUntilDay: budgetProtectionWindow.untilKey,
                 calendar: calendar)
             guard !result.catchUpRequired else { return result }
-            Self.identicalContentPreLockCheckpointForTesting?()
+            if let checkpoint = Self.identicalContentPreLockCheckpointForTesting,
+               checkpoint.databaseURL == self.databaseURL
+            {
+                checkpoint.checkpoint()
+            }
             guard self.beginSaveTransaction() else {
                 var retry = result
                 retry.catchUpRequired = true
